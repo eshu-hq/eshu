@@ -453,8 +453,8 @@ entries:
     source:
       file: go/internal/query/code_import_dependencies_queries.go
       symbol: fileImportCycleEdgeRowsCypher
-      source_sha256: 7933770f8693f37d674b2969bd7ba31d4150f1d22b9df3a68fd05da7d7afb1a9
-      line_hint: 146
+      source_sha256: ce0ca2510ecc886bd45a64d6844672e95c270890781b942e91ee9c4b56f9a882
+      line_hint: 164
     required_anchors:
       - label: Repository
         property: id
@@ -466,7 +466,7 @@ entries:
     requires_order: true
     caveats:
       - The graph read returns one bounded ordered IMPORTS edge set; exact reciprocal Python cycles are reconstructed, deduplicated, filtered, and paged in Go.
-      - The exact-hash import-dependency variant family profiles every reachable optional-filter shape, including unscoped label-bounded variants.
+      - 'The exact-hash import-dependency variant family profiles every reachable optional-filter shape for both caller classes - unscoped label-bounded variants, and since #5167 batch 2a the scoped variants that carry the caller''s repository grant in the same MATCH-attached WHERE. The plan claim on this entry describes the unscoped shape it pins.'
     plan:
       operators:
         - NodeIndexSeek

@@ -92,8 +92,18 @@ source/target files, source/target modules, and line numbers when available.
 Empty cycle pages return `cycles=[]`; unavailable graph backends return a
 service-unavailable error instead of pretending the repository is acyclic.
 
-No-Regression Evidence: all 244 valid request shapes map to 140 hash-frozen
-production query texts in the query-plan gate. Exactness tests cover empty
+`repo_id` is only one of five ways to anchor this route, so a scoped token that
+anchors on a file or module instead is not naming a repository at all. Every
+one of the route's graph reads now carries that token's repository grant, in the
+same `WHERE` as the anchor and ahead of both the page limit and the 25,000-row
+internal ceiling — so an out-of-grant repository cannot spend the scan budget a
+granted one needs. Naming an ungranted `repo_id` returns `400`, and a token with
+no repository grants at all gets the query type's canonical row key as an empty
+array without a graph read.
+
+No-Regression Evidence: all 488 valid request shapes map to 280 hash-frozen
+production query texts in the query-plan gate — 244 shapes and 140 texts per
+caller class, unscoped and scoped. Exactness tests cover empty
 graphs, duplicate edges, dotted-module prefix collisions, language filters,
 paging, repository-path collisions, directionally scoped cycles, truncation,
 and overflow. Cold and immediate-repeat NornicDB timings are
@@ -364,6 +374,33 @@ recommended next calls in the response.
 
 `POST /api/v0/code/language-query` requires `language` and `entity_type`.
 `limit` defaults to `50` and is silently clamped to `200`.
+
+A `repo_id` on this route is now a repository selector like every other code
+route's, resolved before the read. It used to go into the query as-is, so only a
+canonical id ever matched anything — a name, slug, path, or remote URL returned
+an empty page even though this operation has always advertised all four. Those
+now resolve. A **non-canonical** `repo_id` that resolves to nothing returns
+`400` where it used to return `200` with an empty `results` list. A canonical id
+is taken as given and never enters resolution, so one the index does not hold
+still answers `200` with an empty `results` list, as it always did.
+
+For a scoped token there is a second change: it could previously name any
+repository in the index, and naming one outside its grant now returns `400`. A
+scoped token that omits `repo_id` reads its granted repositories rather than the
+whole index, on both the graph and the content-store side, and one with no
+repository grants at all gets an empty `results` list without either backend
+being read.
+
+`entity_type: "directory"` is a behaviour change for every caller on a NornicDB
+backend. It used to answer `200` with an empty `results` list whatever the
+repository held, because the query the route sent hit a backend row-drop; it now
+returns the directories. Nothing about the request changes.
+
+That empty page is for a well-formed request only. An `entity_type` this route
+does not support returns `400` for every caller, including a scoped token with
+no repository grants, and including a request whose `repo_id` would not have
+resolved — the entity type is checked before either.
+
 Use focused routes first when they answer the question; use language-query for
 language/entity-type contracts that do not fit symbol, relationship,
 inventory, dependency, or dead-code routes.

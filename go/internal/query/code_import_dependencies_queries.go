@@ -19,6 +19,7 @@ func directImportRowsCypher(req importDependencyRequest) string {
 	cypher.WriteString("\n")
 
 	predicates := importRowPredicates(req, nil)
+	predicates = append(predicates, importDependencyGrantPredicates(req.access, "repo")...)
 	writeCypherPredicates(&cypher, predicates)
 	cypher.WriteString(`RETURN repo.id as repo_id,
        repo.name as repo_name,
@@ -48,6 +49,7 @@ func packageImportRowsCypher(req importDependencyRequest, sourceScopes []map[str
 	cypher.WriteString("\n")
 
 	predicates := importRowPredicates(req, sourceScopes)
+	predicates = append(predicates, importDependencyGrantPredicates(req.access, "repo")...)
 	writeCypherPredicates(&cypher, predicates)
 	if len(sourceScopes) > 0 {
 		cypher.WriteString(`RETURN repo.id as repo_id,
@@ -78,9 +80,12 @@ func sourceModuleFilesCypher(req importDependencyRequest) string {
 	writeRepositoryNode(&cypher, "repo", req.RepoID)
 	cypher.WriteString("\n")
 
+	predicates := make([]string, 0, 2)
 	if req.normalizedLanguage() != "" {
-		writeCypherPredicates(&cypher, []string{"(source_file.language = $language OR source_file.lang = $language)"})
+		predicates = append(predicates, "(source_file.language = $language OR source_file.lang = $language)")
 	}
+	predicates = append(predicates, importDependencyGrantPredicates(req.access, "repo")...)
+	writeCypherPredicates(&cypher, predicates)
 	cypher.WriteString(`RETURN DISTINCT repo.id as repo_id,
        repo.name as repo_name,
        source_file.path as source_path,
@@ -102,9 +107,12 @@ func targetModuleFilesCypher(req importDependencyRequest) string {
 	writeRepositoryNode(&cypher, "repo", req.RepoID)
 	cypher.WriteString("\n")
 
+	predicates := make([]string, 0, 2)
 	if req.normalizedLanguage() != "" {
-		writeCypherPredicates(&cypher, []string{"(target_file.language = $language OR target_file.lang = $language)"})
+		predicates = append(predicates, "(target_file.language = $language OR target_file.lang = $language)")
 	}
+	predicates = append(predicates, importDependencyGrantPredicates(req.access, "repo")...)
+	writeCypherPredicates(&cypher, predicates)
 	cypher.WriteString(`RETURN DISTINCT repo.id as repo_id,
        repo.name as repo_name,
        target_file.path as target_path,
@@ -132,6 +140,7 @@ func sourceModuleImportRowsCypher(req importDependencyRequest, sourceScopes []ma
 	if req.normalizedLanguage() != "" {
 		predicates = append(predicates, "(source_file.language = $language OR source_file.lang = $language OR target_module.lang = $language)")
 	}
+	predicates = append(predicates, importDependencyGrantPredicates(req.access, "repo")...)
 	writeCypherPredicates(&cypher, predicates)
 	cypher.WriteString(`RETURN repo.id as repo_id,
        repo.name as repo_name,
@@ -161,9 +170,10 @@ func fileImportCycleEdgeRowsCypher(req importDependencyRequest) string {
 	cypher.WriteString("-[rel:IMPORTS]->")
 	writeModuleNode(&cypher, "target_module", "target_module", "")
 	cypher.WriteString("\n")
-	writeCypherPredicates(&cypher, []string{
-		"(source_file.language = $cycle_language OR source_file.lang = $cycle_language)",
-	})
+	writeCypherPredicates(&cypher, append(
+		[]string{"(source_file.language = $cycle_language OR source_file.lang = $cycle_language)"},
+		importDependencyGrantPredicates(req.access, "repo")...,
+	))
 	cypher.WriteString(`RETURN repo.id as repo_id,
        repo.name as repo_name,
        source_file.path as source_path,
@@ -206,6 +216,12 @@ func crossModuleCallRowsCypher(
 	if strings.TrimSpace(req.TargetModule) != "" || len(targetScopes) > 0 {
 		predicates = append(predicates, "target_file.path IN $target_paths")
 	}
+	// Both endpoints, independently. A caller granted only the caller's
+	// repository must not learn the callee's repository identity, and the Go
+	// pass that drops a mismatched pair (crossModuleCallRowMatches) runs AFTER
+	// $scan_limit, so an out-of-grant callee would otherwise spend the scan
+	// budget a granted repository's rows need.
+	predicates = append(predicates, importDependencyGrantPredicates(req.access, "source_repo", "target_repo")...)
 	writeCypherPredicates(&cypher, predicates)
 
 	cypher.WriteString(`RETURN source_repo.id as source_repo_id,
@@ -235,6 +251,29 @@ ORDER BY source_repo.id, source_file.relative_path,
          coalesce(callee.id, callee.uid), coalesce(rel.call_kind, ''), coalesce(rel.reason, '')
 LIMIT $scan_limit`)
 	return cypher.String()
+}
+
+// importDependencyGrantPredicates returns the caller's repository grant
+// condition for each Repository alias the pattern binds, or nothing for an
+// unscoped caller.
+//
+// Every builder on this route routes its predicates through
+// writeCypherPredicates, which always attaches its WHERE to the single
+// anchoring MATCH, so a condition added here decides row membership at the
+// anchor -- ahead of SKIP/LIMIT on the paged builders and ahead of
+// LIMIT $scan_limit on the ones that page in Go. That ordering is the point:
+// applied after the scan bound instead, an out-of-grant repository could fill
+// the 25,000-row budget and push a granted repository's rows past it
+// (#5167 W3 P1 filter-before-limit).
+func importDependencyGrantPredicates(access repositoryAccessFilter, aliases ...string) []string {
+	if !access.Scoped() {
+		return nil
+	}
+	predicates := make([]string, 0, len(aliases))
+	for _, alias := range aliases {
+		predicates = append(predicates, access.GraphCondition(alias))
+	}
+	return predicates
 }
 
 func importRowPredicates(req importDependencyRequest, sourceScopes []map[string]any) []string {

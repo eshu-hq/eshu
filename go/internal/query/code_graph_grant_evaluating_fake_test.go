@@ -50,7 +50,21 @@ type evaluatingRepositoryGraph struct {
 	// Repository/File side of the pattern. An OPTIONAL MATCH that fails nulls
 	// exactly these and keeps the rest.
 	repositoryColumns []string
-	statements        []string
+	// repositoryAlias is the variable the statement binds its Repository node
+	// to. The code-family builders are not consistent about it -- the batch-1
+	// routes write `repo`, the language-query builders write `r` -- and the
+	// alias is what locates both the binding clause and the predicates
+	// governing it. Empty means `repo`.
+	repositoryAlias string
+	statements      []string
+}
+
+// alias returns the Repository variable this fake reads the statement against.
+func (g *evaluatingRepositoryGraph) alias() string {
+	if g.repositoryAlias == "" {
+		return defaultRepositoryGrantAlias
+	}
+	return g.repositoryAlias
 }
 
 func (g *evaluatingRepositoryGraph) Run(
@@ -76,13 +90,13 @@ func (g *evaluatingRepositoryGraph) RunSingle(
 }
 
 func (g *evaluatingRepositoryGraph) evaluate(cypher string, params map[string]any) []map[string]any {
-	optional := repositoryBindingIsOptional(cypher)
-	predicates := repositoryGoverningPredicates(cypher)
+	optional := repositoryBindingIsOptionalForAlias(cypher, g.alias())
+	predicates := repositoryGoverningPredicatesForAlias(cypher, g.alias())
 	rows := make([]map[string]any, 0, len(g.seeds))
 	for _, seed := range g.seeds {
 		admitted := seed.repoID != ""
 		for _, predicate := range predicates {
-			if !repositoryPredicateAdmits(predicate, seed.repoID, params) {
+			if !repositoryPredicateAdmitsForAlias(predicate, g.alias(), seed.repoID, params) {
 				admitted = false
 				break
 			}
@@ -111,13 +125,21 @@ func cloneGraphRow(row map[string]any) map[string]any {
 	return clone
 }
 
+// defaultRepositoryGrantAlias is the Repository variable the batch-1 code-family
+// builders bind. The alias-free helpers below read a statement against it.
+const defaultRepositoryGrantAlias = "repo"
+
 // repositoryBindingIsOptional reports whether the clause that binds the
 // Repository alias is an OPTIONAL MATCH. Everything downstream of that answer
 // is standard Cypher: an OPTIONAL MATCH's WHERE constrains the optional
 // pattern, never the driving row set.
 func repositoryBindingIsOptional(cypher string) bool {
+	return repositoryBindingIsOptionalForAlias(cypher, defaultRepositoryGrantAlias)
+}
+
+func repositoryBindingIsOptionalForAlias(cypher, alias string) bool {
 	normalized := normalizeCypherWhitespace(cypher)
-	anchor := strings.Index(normalized, "repo:Repository")
+	anchor := strings.Index(normalized, alias+":Repository")
 	if anchor < 0 {
 		return false
 	}
@@ -129,13 +151,13 @@ func repositoryBindingIsOptional(cypher string) bool {
 	return strings.HasSuffix(strings.TrimSpace(prefix[:clause]), "OPTIONAL")
 }
 
-// repositoryGoverningPredicates returns the predicates of the WHERE attached to
-// the clause that binds the Repository alias -- the first WHERE after that
-// binding, up to the next WITH or RETURN. A predicate list joined by AND is
-// what every builder in this family emits.
-func repositoryGoverningPredicates(cypher string) []string {
+// repositoryGoverningPredicatesForAlias returns the predicates of the WHERE
+// attached to the clause that binds the Repository alias -- the first WHERE
+// after that binding, up to the next clause keyword. A predicate list joined by
+// AND is what every builder in this family emits.
+func repositoryGoverningPredicatesForAlias(cypher, alias string) []string {
 	normalized := normalizeCypherWhitespace(cypher)
-	anchor := strings.Index(normalized, "repo:Repository")
+	anchor := strings.Index(normalized, alias+":Repository")
 	if anchor < 0 {
 		return nil
 	}
@@ -145,12 +167,8 @@ func repositoryGoverningPredicates(cypher string) []string {
 		return nil
 	}
 	block := rest[start+len("WHERE "):]
-	for _, terminator := range []string{
-		" OPTIONAL MATCH ", " MATCH ", " WITH ", " RETURN ", " ORDER BY ", " SKIP ", " LIMIT ",
-	} {
-		if end := strings.Index(block, terminator); end >= 0 {
-			block = block[:end]
-		}
+	if end := clauseTerminatorIndex(block); end >= 0 {
+		block = block[:end]
 	}
 	predicates := strings.Split(block, " AND ")
 	for i := range predicates {
@@ -159,18 +177,58 @@ func repositoryGoverningPredicates(cypher string) []string {
 	return predicates
 }
 
-// repositoryPredicateAdmits evaluates one repository predicate against a row
-// whose Repository anchor resolved to repoID. A predicate this fake does not
-// recognise admits the row: seeded rows are built to satisfy every
+// clauseTerminatorIndex returns where the WHERE block ends -- the first clause
+// keyword that starts a new clause.
+//
+// A plain substring scan for " WITH " is wrong: `f.name ENDS WITH '.go'`, the
+// extension filter the language-query builders splice into their WHERE, ends
+// the block halfway through its first predicate and hides every predicate after
+// it, including the grant. STARTS WITH has the same shape. Only a WITH that is
+// not the tail of one of those operators is a clause boundary.
+func clauseTerminatorIndex(block string) int {
+	terminators := []string{
+		" OPTIONAL MATCH ", " MATCH ", " WITH ", " RETURN ", " ORDER BY ", " SKIP ", " LIMIT ",
+	}
+	earliest := -1
+	for _, terminator := range terminators {
+		for offset := 0; offset < len(block); {
+			found := strings.Index(block[offset:], terminator)
+			if found < 0 {
+				break
+			}
+			at := offset + found
+			offset = at + 1
+			if terminator == " WITH " && isStringOperatorWith(block[:at]) {
+				continue
+			}
+			if earliest < 0 || at < earliest {
+				earliest = at
+			}
+			break
+		}
+	}
+	return earliest
+}
+
+// isStringOperatorWith reports whether the text immediately before a " WITH "
+// makes it the second word of ENDS WITH or STARTS WITH rather than a clause.
+func isStringOperatorWith(prefix string) bool {
+	trimmed := strings.TrimSpace(prefix)
+	return strings.HasSuffix(trimmed, "ENDS") || strings.HasSuffix(trimmed, "STARTS")
+}
+
+// repositoryPredicateAdmitsForAlias evaluates one repository predicate against
+// a row whose Repository anchor resolved to repoID. A predicate this fake does
+// not recognise admits the row: seeded rows are built to satisfy every
 // non-repository predicate the builders emit, so guessing at those would
 // invent a filter the backend does not apply.
-func repositoryPredicateAdmits(predicate, repoID string, params map[string]any) bool {
+func repositoryPredicateAdmitsForAlias(predicate, alias, repoID string, params map[string]any) bool {
 	switch {
 	case strings.Contains(predicate, "$allowed_repository_ids"),
 		strings.Contains(predicate, "$allowed_scope_ids"):
 		return graphParamContains(params, "allowed_repository_ids", repoID) ||
 			graphParamContains(params, "allowed_scope_ids", repoID)
-	case strings.Contains(predicate, "repo.id = $repo_id"):
+	case strings.Contains(predicate, alias+".id = $repo_id"):
 		bound, _ := params["repo_id"].(string)
 		return repoID == bound && repoID != ""
 	default:

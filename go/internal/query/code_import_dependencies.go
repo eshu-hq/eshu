@@ -33,6 +33,13 @@ type importDependencyRequest struct {
 	TargetModule string `json:"target_module"`
 	Limit        int    `json:"limit"`
 	Offset       int    `json:"offset"`
+
+	// access is the caller's repository grant, set by the handler from the
+	// request's AuthContext and never decoded from the body (it is unexported,
+	// so encoding/json cannot reach it). It travels on the request because all
+	// seven builders take one, so the grant reaches every one of them without a
+	// seventh parameter on each signature.
+	access repositoryAccessFilter
 }
 
 func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter, r *http.Request) {
@@ -70,6 +77,45 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		return
 	}
 	span.SetAttributes(attribute.String("eshu.import_dependencies.query_type", req.queryType()))
+
+	// repo_id is optional here -- source_file, target_file, source_module or
+	// target_module each satisfy req.validate() on their own -- so a scoped
+	// caller who omits it reaches every builder corpus-wide. codeContentGrantScope
+	// is the front gate for the grantless case; req.access is what the builders
+	// bind for everyone else.
+	if _, blocked := codeContentGrantScope(r.Context(), req.RepoID); blocked {
+		// This page is produced without reading anything, so it must not
+		// describe itself as an authoritative graph read. It reports the same
+		// basis the language-query empty page reports, and importDependencyResponse's
+		// blanket "graph" source_backend is replaced with the vocabulary
+		// sourceBackendForTruthBasis uses when nothing served a read.
+		//
+		// Neither value is a perfect fit: the TruthBasis enum has no "no read
+		// happened" member, so content_index is the lowest-claim value
+		// available rather than a description of what occurred, and
+		// noBackendReadSourceBackend reuses "unavailable" outside its
+		// documented meaning for the same reason -- see its comment. The
+		// reason string is what actually says it, and it is the field a caller
+		// should read here, which is why it denies every backend rather than
+		// only the graph: "no graph read was issued" beside a content_index
+		// basis would invite the reader to infer a content read that also
+		// never happened. The sentence is reasonEmptyGrantNoBackendRead, the
+		// same constant language-query's empty page uses -- shared rather than
+		// duplicated so the two pages cannot be reworded apart. Each route's
+		// test still pins the text as a literal, which is what catches a
+		// rewording of the constant itself.
+		emptyPage := importDependencyResponse(req, nil)
+		emptyPage["source_backend"] = noBackendReadSourceBackend
+		WriteSuccess(
+			w,
+			r,
+			http.StatusOK,
+			emptyPage,
+			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisContentIndex, reasonEmptyGrantNoBackendRead),
+		)
+		return
+	}
+	req.access = codeGrantAccessFilter(r.Context())
 
 	data, err := h.importDependencyData(r.Context(), req)
 	if err != nil {
@@ -211,6 +257,7 @@ func importDependencyParams(req importDependencyRequest) map[string]any {
 	if language := req.normalizedLanguage(); language != "" {
 		params["language"] = language
 	}
+	params = req.access.GraphParams(params)
 	if sourceFile := strings.TrimSpace(req.SourceFile); sourceFile != "" {
 		params["source_file"] = sourceFile
 	}

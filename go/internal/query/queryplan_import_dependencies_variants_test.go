@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	importDependencyQueryplanVariantFamilySHA256       = "8fcaeac19ca7b76c669d3b0a9d9ce938e839c4c6fe42ce35d34ba40fe1982bea"
-	importDependencyQueryplanExpectedReachableRequests = 244
-	importDependencyQueryplanExpectedVariantCount      = 140
+	importDependencyQueryplanVariantFamilySHA256       = "b3180b961166b233f5e3e0155623e8335c86a44c7d8d23c67b007f6503c5b4fd"
+	importDependencyQueryplanExpectedReachableRequests = 488
+	importDependencyQueryplanExpectedVariantCount      = 280
 )
 
 func TestImportDependencyQueryplanVariantsStayComplete(t *testing.T) {
@@ -54,23 +54,58 @@ func reachableImportDependencyQueryplanRequests() []importDependencyRequest {
 		"file_import_cycles",
 		"cross_module_calls",
 	}
-	requests := make([]importDependencyRequest, 0, len(queryTypes)*62)
-	for _, queryType := range queryTypes {
-		for scopeMask := 1; scopeMask < 1<<5; scopeMask++ {
-			for languageMask := 0; languageMask < 2; languageMask++ {
-				request := importDependencyQueryplanRequest(queryType, scopeMask, languageMask != 0)
-				if err := request.validate(); err != nil {
-					continue
+	// Both access states, the way resourceSelectorQueryplanVariants and
+	// cloudResourceListQueryplanVariants already enumerate theirs. Since #5167
+	// batch 2a every builder on this route renders the caller's repository
+	// grant, so a scoped caller runs a different statement from a shared-key
+	// one and the family has to profile both.
+	accesses := []importDependencyQueryplanAccess{
+		{name: "all", filter: repositoryAccessFilter{AllScopes: true}},
+		{name: "scoped", filter: queryplanScopedRepositoryAccess()},
+	}
+	requests := make([]importDependencyRequest, 0, len(queryTypes)*len(accesses)*62)
+	for _, access := range accesses {
+		for _, queryType := range queryTypes {
+			for scopeMask := 1; scopeMask < 1<<5; scopeMask++ {
+				for languageMask := 0; languageMask < 2; languageMask++ {
+					request := importDependencyQueryplanRequest(queryType, scopeMask, languageMask != 0, access)
+					if err := request.validate(); err != nil {
+						continue
+					}
+					requests = append(requests, request)
 				}
-				requests = append(requests, request)
 			}
 		}
 	}
 	return requests
 }
 
-func importDependencyQueryplanRequest(queryType string, scopeMask int, withLanguage bool) importDependencyRequest {
-	request := importDependencyRequest{QueryType: queryType, Limit: 10}
+// importDependencyQueryplanAccess is one caller class the family profiles.
+type importDependencyQueryplanAccess struct {
+	name   string
+	filter repositoryAccessFilter
+}
+
+// importDependencyQueryplanAccessName reads the caller class back off a request
+// rather than carrying a label on the production struct.
+func importDependencyQueryplanAccessName(request importDependencyRequest) string {
+	if request.access.Scoped() {
+		return "scoped"
+	}
+	return "all"
+}
+
+func importDependencyQueryplanRequest(
+	queryType string,
+	scopeMask int,
+	withLanguage bool,
+	access importDependencyQueryplanAccess,
+) importDependencyRequest {
+	request := importDependencyRequest{
+		QueryType: queryType,
+		Limit:     10,
+		access:    access.filter,
+	}
 	if scopeMask&1 != 0 {
 		request.RepoID = "proof-repository"
 	}
@@ -156,7 +191,7 @@ func importDependencyQueryplanVariants() map[string]string {
 }
 
 func importDependencyQueryplanRequestName(request importDependencyRequest) string {
-	parts := []string{request.queryType()}
+	parts := []string{importDependencyQueryplanAccessName(request), request.queryType()}
 	for _, filter := range []struct {
 		name  string
 		value string

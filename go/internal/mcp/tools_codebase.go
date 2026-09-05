@@ -376,7 +376,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "execute_language_query",
-			Description: "Execute a language-specific query to find code entities (functions, classes, structs, etc.) filtered by programming language. Supports 15 languages: c, cpp, csharp, dart, go, haskell, java, javascript, perl, python, ruby, rust, scala, swift, typescript.",
+			Description: "Execute a language-specific query to find code entities (functions, classes, structs, etc.) filtered by programming language. Supports 15 languages: c, cpp, csharp, dart, go, haskell, java, javascript, perl, python, ruby, rust, scala, swift, typescript. Scoped tokens receive only granted repositories; an ungranted repository selector is rejected.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -111,6 +111,27 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     ambiguity candidate list would otherwise name ungranted repositories),
 //     and the by-entity-id lookup, which previously carried no repository
 //     predicate at all and ignored even a repo_id the caller supplied.
+//   - POST /api/v0/code/language-query -- both backends, like dead-code above.
+//     Its Cypher half is buildLanguageCypherWithSemanticFilter
+//     (language_query_cypher.go), whose four builders append the grant to the
+//     anchoring MATCH's own WHERE; its SQL half is
+//     buildLanguageTypeEntityFilters (content_reader_entity_search.go), which
+//     serves the content-only entity types, the graphless and zero-row
+//     fallbacks, and the metadata enrichment pass. This route is owned by
+//     LanguageQueryHandler rather than CodeHandler, so it reaches the family's
+//     selector and grant helpers through the free functions
+//     applyRepositorySelectorForAccess and codeContentGrantScope
+//     (code_repository_selector.go) instead of CodeHandler methods.
+//   - POST /api/v0/code/imports/investigate -- all seven builders in
+//     code_import_dependencies_queries.go, through
+//     importDependencyGrantPredicates. Each writes its predicates via
+//     writeCypherPredicates, which attaches its WHERE to the single anchoring
+//     MATCH, so the grant lands ahead of SKIP/LIMIT on the paged builders and
+//     ahead of LIMIT $scan_limit on the three that page in Go.
+//     crossModuleCallRowsCypher binds source_repo and target_repo
+//     independently: the Go pass that drops a mismatched pair runs after the
+//     scan, so binding only the caller side would still spend the 25,000-row
+//     budget on callees the caller may not see.
 func scopedCodeGraphGrantRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false
@@ -121,7 +142,9 @@ func scopedCodeGraphGrantRoute(r *http.Request) bool {
 		"/api/v0/code/dead-code/cross-repo",
 		"/api/v0/code/call-graph/metrics",
 		"/api/v0/code/quality/inspect",
-		"/api/v0/code/complexity":
+		"/api/v0/code/complexity",
+		"/api/v0/code/language-query",
+		"/api/v0/code/imports/investigate":
 		return true
 	default:
 		return false

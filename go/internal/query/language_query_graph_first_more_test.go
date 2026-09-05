@@ -428,6 +428,7 @@ func TestHandleLanguageQuery_TypeScriptClassFamilyUsesGraphMetadataWithoutConten
 				10,
 				"",
 				"",
+				unscopedLanguageQueryGrant(),
 			)
 			if err != nil {
 				t.Fatalf("queryByLanguageWithSemanticFilter() error = %v, want nil", err)

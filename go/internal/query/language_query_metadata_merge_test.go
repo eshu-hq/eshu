@@ -68,6 +68,7 @@ func TestEnrichLanguageResultsWithContentMetadataReportsMergedEvenWhenGraphShado
 		"Logged",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)

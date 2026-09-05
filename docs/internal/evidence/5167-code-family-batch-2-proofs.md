@@ -1,0 +1,433 @@
+# #5167 Code Family, Batch 2a — Proof Ledger
+
+The red/green runs and mutation ledger for
+[#5167 Code Family, Batch 2a](5167-code-family-batch-2.md). This document holds
+the proofs; that one holds the change and its reasoning. They are split only
+because together they outgrow the 500-line file rule in `CLAUDE.md`, and
+nothing here stands on its own. (The committed cap gate,
+`scripts/lib/markdown-line-cap-core.sh`, only scans under `go/`, so it would
+not have caught the merged file either way.)
+
+## Red Then Green
+
+Both routes carry a response-body two-tenant proof: one granted repository, one
+out-of-grant repository, and an assertion that the out-of-grant identifier never
+appears in the serialized body. Not the query text — the bytes the caller
+receives.
+
+The graph reads are driven by two fakes. `evaluatingRepositoryGraph`
+(`go/internal/query/code_graph_grant_evaluating_fake_test.go`) backs
+language-query: it reads the emitted statement far enough to answer whether the
+Repository binding is optional and which repository predicates govern it, then
+applies Cypher's clause semantics to seeded rows, so it fails on clause
+attachment where no substring assertion can. Batch 1's
+`TestEvaluatingRepositoryGraphKeepsOptionalMatchRows` proves that fake can still
+fail. `evaluatingImportDependencyGraph`
+(`go/internal/query/auth_scoped_import_dependencies_grant_test.go`) backs
+imports/investigate and applies whatever repository predicates the emitted
+statement carries — the inline `{id: $repo_id}` anchor and the grant condition —
+per Repository alias, which is what the two-anchor cross-module case needs.
+
+Every red below is a behavioural failure on the pre-change code, not a build
+error.
+
+| Test | Red | Green |
+| --- | --- | --- |
+| `TestLanguageQueryFiltersByRepositoryGrant` (4 branches) | `scoped language query leaked "UngrantedLanguageProbe"` on guard, graph-backed, graph-first-content and content-backed | `ok internal/query 1.058s` |
+| `TestLanguageQueryEmptyGrantReachesNoBackend` (4) | `content store was queried with []string{""}` on all four | `ok internal/query 1.058s` |
+| `TestLanguageQueryEmptyGrantAnswersWithArraysNotNull` (4) | `results = [...two tenants' rows...], want no rows for a grantless caller` | `ok internal/query 1.058s` |
+| `TestLanguageQueryResolvesAScopeOnlyGrantToItsRepository` (4) | `scope-only language query leaked "UngrantedLanguageProbe"` | `ok internal/query 1.058s` |
+| `TestLanguageQueryGraphlessProfileBindsTheContentFallback` | `content fallback repositories = []string{""}, want ["repo://tenant-a/granted-service"]` | `ok internal/query 1.058s` |
+| `TestLanguageQueryMetadataEnrichmentCannotWidenTheAnswer` | `the metadata enrichment read asked for repository ""` | `ok internal/query 1.058s` |
+| `TestLanguageQueryUngrantedRepositorySelectorIsRejected` | `status = 200, want 400 for an ungranted repository selector` | `ok internal/query 1.058s` |
+| `TestLanguageTypeEntityFiltersBindTheGrantInTheShippedSQL` | new coverage on the changed builder, no prior red | `ok internal/query 1.092s` |
+| `TestLanguageQueryBuildersBindTheGrantInTheShippedCypher` (4) | new coverage, no prior red | `ok internal/query 1.092s` |
+| `TestLanguageQueryGrantBoundStoreTakesOneRead` | new coverage, no prior red | `ok internal/query 1.092s` |
+| `TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector` (3) | with `applyRepositorySelectorForAccess` bypassed: `content read repositories = []string{"granted-service"}, want ["repo://tenant-a/granted-service"]` and `status = 200, want 400 for a repo_id that resolves to nothing` | `ok internal/query` (3 sub-cases pass) |
+| `TestImportDependenciesFilterByRepositoryGrant` (6 query types) | `scoped <query_type> query leaked "ungranted_module"` on four, `leaked "repo://tenant-b/other-service"` on the cycle case | `ok internal/query 1.242s` |
+| `TestImportDependenciesEmptyGrantReachesNoBackend` (6) | `a grantless scoped caller reached the graph: [MATCH (repo:Repository)…]` on all six | `ok internal/query 1.242s` |
+| `TestImportDependenciesResolveAScopeOnlyGrantToItsRepository` (6) | same leak, scope-only grant | `ok internal/query 1.242s` |
+| `TestCrossModuleCallsBindTargetRepositoryIndependently` | `cross-module call query does not bind target_repo to the grant` | `ok internal/query 1.242s` |
+| `TestImportDependencyScanBoundIsSpentOnGrantedRowsOnly` | `status = 422, want 200; an out-of-grant repository spent the scan budget` | `ok internal/query 1.242s` |
+| `TestImportDependencyBuildersBindTheGrantInTheShippedCypher` (8) | new coverage on the changed builders, no prior red | `ok internal/query 1.257s` |
+| `TestImportDependencyParamsBindTheGrantArrays` | new coverage, no prior red | `ok internal/query 1.257s` |
+
+`TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector` is the unscoped half of
+the selector change, added in review round 1 because nothing covered it. Its
+three sub-cases do not all red the same way, and the difference is the point:
+`canonical_id_anchors_the_read` passes with or without the selector, because a
+canonical id passes through `ResolveExactForAccess` untouched — it pins that
+this stays true. The other two red without it, as the table records.
+
+Unscoped counterparts pin the other direction — a shared-key caller that names
+no repository keeps its query text and its row set:
+`TestLanguageQuerySharedKeyReadIsUnchanged`,
+`TestImportDependenciesSharedKeyReadIsUnchanged`, and the two
+`…CarryNoGrantForAnUnscopedCaller` builder assertions. The queryplan manifests
+pin the same thing from the other side: no `cypher_sha256` and no `plan` block
+moved.
+
+`TestImportDependenciesSharedKeyReadIsUnchanged` earned its keep during the red
+pass. Its first two fixtures were wrong — the cross-module rows named a file the
+request did not anchor on, and the cycle edges carried full paths where
+`pythonSourceModule` expects a base name — so the unscoped case returned nothing
+and the test failed for a fixture reason rather than a production one. Both were
+fixed before the production change was written, so the reds above are the
+production behaviour and not a broken fixture.
+
+## BITES — Each Binding Proved To Bite
+
+Each row breaks one production binding, runs the guard, restores the file, and
+records the exit code directly (`cmd; echo $?`, never after a pipe). Every
+mutation was restored and its guard rerun at exit `0`. The driver is a scratch
+script, not committed; the working tree was verified clean afterwards.
+
+| # | Mutation | Guard run | Exit |
+| --- | --- | --- | --- |
+| 1 | `buildLanguageTypeEntityFilters` drops its `appendRepositoryGrantFilter` branch | `-run 'TestLanguageTypeEntityFiltersBindTheGrantInTheShippedSQL\|TestLanguageQueryFiltersByRepositoryGrant'` | `1` |
+| 2 | the four language-query builders emit `""` instead of `access.GraphPredicate("r")` | `-run 'TestLanguageQueryBuildersBindTheGrantInTheShippedCypher\|TestLanguageQueryFiltersByRepositoryGrant'` | `1` |
+| 3 | `languageQueryGrantFor` stops reporting `blocked` | `-run 'TestLanguageQueryEmptyGrantReachesNoBackend\|TestLanguageQueryEmptyGrantAnswersWithArraysNotNull'` | `1` |
+| 4 | `handleLanguageQuery` skips `applyRepositorySelectorForAccess` | `-run TestLanguageQueryUngrantedRepositorySelectorIsRejected` | `1` |
+| 5 | `enrichLanguageResultsWithContentMetadata` drops `AllowedRepositoryIDs` from its search | `-run TestLanguageQueryMetadataEnrichmentCannotWidenTheAnswer` | `1` |
+| 6 | `searchLanguageEntities` asks for repository `""` instead of iterating the grant | `-run TestLanguageQueryGraphlessProfileBindsTheContentFallback` | `1` |
+| 7 | `importDependencyGrantPredicates` returns nil for every caller | `-run 'TestImportDependencyBuildersBindTheGrantInTheShippedCypher\|TestImportDependenciesFilterByRepositoryGrant'` | `1` |
+| 8 | `crossModuleCallRowsCypher` binds `source_repo` only | `-run TestCrossModuleCallsBindTargetRepositoryIndependently` | `1` |
+| 9 | `handleImportDependencyInvestigation` drops the empty-grant gate | `-run TestImportDependenciesEmptyGrantReachesNoBackend` | `1` |
+| 10 | `importDependencyParams` stops merging `GraphParams` | `-run 'TestImportDependencyParamsBindTheGrantArrays\|TestImportDependenciesFilterByRepositoryGrant'` | `1` |
+| 11 | `codeGrantAccessFilter` drops `WithCanonicalScopeRepositories` | `-run 'TestLanguageQueryResolvesAScopeOnlyGrantToItsRepository\|TestImportDependenciesResolveAScopeOnlyGrantToItsRepository'` | `1` |
+| 12 | `sourceModuleFilesCypher` and `targetModuleFilesCypher` compute the grant and discard it | `-run TestImportDependencyBuildersBindTheGrantInTheShippedCypher` | `1` |
+| 13 | `acceptLanguageQueryEntityType` admits every entity type | `-run TestLanguageQueryRejectsUnsupportedEntityTypeForEveryCaller` | `1` |
+| 14 | `languageResultRepositoryMatchKey` drops its `repoID` component | `-run 'TestLanguageQueryMetadata\|TestLanguageResultRepositoryMatchKey'` | `1` |
+| 15 | the four language-query builders emit `""` instead of `access.GraphPredicate("r")`, against the live backend | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder` | `1` |
+| 16 | `importDependencyGrantPredicates` returns nil for every caller, against the live backend | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBImportDependencyGrantBindsEveryBuilder` | `1` |
+| 17 | `buildDirectoryCypher` reverted to its two-MATCH shape, against the live backend | `-tags live_nornicdb_language_imports_grant -run 'TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder\|TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing'` | `1` |
+| 18 | `buildDirectoryCypher` rewritten forward from Repository instead of anchored at File | `-tags live_nornicdb_language_imports_grant -run TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing` | `1` |
+| 19 | `buildRepositoryCypher` reorders its tail to `ORDER BY r.name` | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
+| 20 | `buildDirectoryCypher` reverted to its two-MATCH shape | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
+| 21 | `buildFileCypher` reorders its tail to `ORDER BY f.name` | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
+| 22 | `buildEntityCypherWithSemanticFilter` drops `labels(e)` from its RETURN | `-run TestLanguageQueryUnscopedCypherTextIsFrozen` | `1` |
+| 23 | `appendRepositoryGrantFilter` stops emitting the grant predicate, against a live PostgreSQL 16 | `-tags live_postgres_language_grant_plan -run TestLivePostgresLanguageQueryGrantPlanShape` | `1` |
+
+Rows 17 and 18 are the two ways the directory rewrite can be got wrong, and
+they fail differently on purpose. Row 17 reverts it and the statement returns
+nothing at all. Row 18 keeps one clause but runs the join forward from
+`Repository`, which returns rows — so a presence-only assertion would have
+passed it — and the guard catches it on the counts instead:
+`counted 2 file(s) in "z-src-0", want 1`, with the nested directory missing from
+the answer entirely.
+
+Rows 19 through 22 are the frozen-text guard, one mutation per builder. Each
+rewrites the unscoped statement in a way the grant guard next door cannot see —
+it looks only for grant artifacts, and none of these four add any — and
+`TestLanguageQueryUnscopedCypherTextIsFrozen` reds on all four at exit `1`,
+restoring to `0`. Row 20 is the one that matters most: it is the accidental
+revert of the directory fix, and before this guard existed nothing on the route
+caught it. The driver is a scratch script like the rows above.
+
+Row 23 is the Postgres plan-shape guard. Neutering
+`appendRepositoryGrantFilter` so a scoped corpus-wide read carries no grant
+predicate reds it at exit `1` with `captured statement carries no grant
+predicate`, and restoring returns exit `0`. It is the only row here that runs
+against PostgreSQL rather than NornicDB.
+
+The live-backend rows above name
+`TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing`, which was
+called `TestLiveNornicDBLanguageQueryDirectoryBuilderReturnsNothing` when rows
+17, 18 and the control below were run. Only the name changed — it had come to
+say the opposite of what the test asserts, since the shipped builder answers
+now and it is the two-clause shape that returns nothing. The commands are
+written with the current name so they can be rerun.
+
+Row 13 reds only its `scoped caller with no repository grants` sub-case, and
+that is the correct shape: neutering the request-time gate leaves the dispatch
+tail's backstop answering the other two callers exactly as before. The sub-case
+that reds is the one the fix exists for. Rows 15 and 16 red every sub-case they
+cover — four language shapes and ten import shapes — so no live shape rests on
+a statement the grant is absent from.
+
+Rows 4 and 11 are the two worth reading the output of. Breaking the selector
+(row 4) does not produce a leak — `codeContentGrantScope`'s defense-in-depth
+check still refuses an out-of-grant `repo_id` and the caller gets an empty page
+— so what the guard actually catches is the wrong status code, `200` where the
+contract now says `400`. That is the layering working: two independent gates,
+and the test names which one it is judging. Row 11 fails in the opposite
+direction: a scope-only grant stops resolving to the repository it owns and the
+caller reads nothing at all, the #5052 shape.
+
+Row 3's first attempt was rejected as evidence. Deleting the `blocked` branch
+outright produced `no new variables on left side of :=` — a compile error, not a
+behavioural red, which proves nothing about the guard. It was redone as
+`if blocked && false`, which compiles, and the guard then failed on the
+behaviour: `content store was queried with []string{""}` and
+`a grantless scoped caller reached the graph`.
+
+## Fixture Faithfulness
+
+Both fakes mirror the production contract they stand in for, which is what makes
+the assertions mutation-sensitive rather than decorative.
+
+`languageQueryGrantEntities` applies the same three-way rule the shipped SQL
+does: an explicit `repo_id` anchors the scan, a non-empty grant list restricts
+it, and an empty grant list restricts nothing. That last clause is the one that
+matters — it is why removing the empty-grant short-circuit makes the grantless
+caller read the whole corpus rather than silently reading zero rows.
+
+`importGrantRowAdmitted` reads the emitted statement for each Repository alias
+the seeded row names, applying the inline `{id: $repo_id}` anchor and the grant
+condition separately. Binding only `source_repo` therefore still admits a row
+whose `target_repo` is out of grant, which is what row 8 above catches.
+
+Two fixture shapes are deliberately not what a reader would first reach for, and
+both are forced by production Go passes that run after the read:
+
+- The cycle case gives both tenants the same file names, because
+  `buildFileImportCycleRows` reconstructs cycles from reciprocal edges and
+  `importCycleRowMatches` then filters on the request's `target_file`. Distinct
+  file names per tenant would have made the request's own anchor do the
+  filtering rather than the grant. Tenants are distinguished by repository id
+  instead.
+- The cross-module case anchors on `src/api.py`, the path its seeded rows carry,
+  because `crossModuleCallRowMatches` drops any row whose `source_file` differs
+  from the request's.
+
+## Live NornicDB Run
+
+| Field | Value |
+| --- | --- |
+| Image | `timothyswt/nornicdb-cpu-bge` |
+| Digest | `sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74` |
+| Self-reported version | `1.2.2` (the digest `deploy/helm/eshu/values.yaml` pins as `v1.2.3`) |
+| Environment | `NORNICDB_EMBEDDING_ENABLED=false`, `NORNICDB_NO_AUTH=true` |
+| Bolt | a non-default host port, so no shared local stack is touched |
+| Store | a container started clean for the run and removed after it |
+| Build tag | `live_nornicdb_language_imports_grant` |
+| Shapes proved | 15 (5 language-query, 10 import-dependency) |
+| Statements executed | 30 shipped runs (15 shapes scoped and unscoped) and 12 backend probes (9 directory bisection, 3 plan) |
+| Wall time | every statement under 4ms; the whole tagged package run 1.4s |
+
+The seed is two repositories: `repo://live-zeta/granted-service`, the one the
+caller is granted, with a single file plus one more in a directory a level
+further down, and `repo://live-alpha/other-service`, which the caller is not
+granted, with six. The nested directory is there so the rewritten
+`buildDirectoryCypher` is judged on the depth-N `CONTAINS` chain the projector
+actually writes, and its case asserts each directory's `file_count` rather than
+mere presence. Every out-of-grant node carries
+`live-alpha` in its id, name, path, relative path, entity name and module name,
+so a leak is visible in any column any builder happens to project. Repository
+ids and directory prefixes are chosen so the out-of-grant rows sort FIRST under
+every builder's `ORDER BY`, and each shape runs with its page or scan bound set
+to 2 — below the six rows the out-of-grant repository can supply.
+
+`assertLiveGrantSqueezed` is the assertion the argument rests on: EVERY row of
+the unscoped control must be out-of-grant. A page holding one row of each would
+survive a filter applied after the bound, and the scoped result would then prove
+nothing about when the predicate ran. It held for all fifteen shapes.
+
+| Shape | Query type | Scoped rows | Unscoped rows |
+| --- | --- | ---: | ---: |
+| `buildRepositoryCypher` | `repository` | 1 | 1 |
+| `buildDirectoryCypher` | `directory` | 2 | 3 |
+| `buildFileCypher` | `file` | 1 | 2 |
+| `buildEntityCypherWithSemanticFilter` | `function` | 2 | 2 |
+| `buildEntityCypherWithSemanticFilter` + `semantic_kind` | `guard` | 2 | 2 |
+| `directImportRowsCypher` | `imports_by_file` | 2 | 2 |
+| `directImportRowsCypher` | `importers` | 1 | 2 |
+| `packageImportRowsCypher` (`DISTINCT`) | `package_imports` | 2 | 2 |
+| `packageImportRowsCypher` (scan-bounded) | `package_imports` | 2 | 2 |
+| `sourceModuleFilesCypher` | `module_dependencies` | 1 | 2 |
+| `targetModuleFilesCypher` | `cross_module_calls` | 1 | 2 |
+| `sourceModuleImportRowsCypher` | `module_dependencies` | 2 | 2 |
+| `fileImportCycleEdgeRowsCypher` | `file_import_cycles` | 2 | 2 |
+| `crossModuleCallRowsCypher` | `cross_module_calls` | 1 | 2 |
+| `crossModuleCallRowsCypher` + module scopes | `cross_module_calls` | 1 | 2 |
+
+Every scoped row above named only the granted repository. Every unscoped row
+named only the out-of-grant one.
+
+The builders that take `$source_paths` and `$target_paths` were given BOTH
+repositories' file paths, so the path predicate cannot be what drops the
+out-of-grant rows — only the grant can.
+
+Two results are about the backend rather than the grant, and both are recorded
+in the change note. `EXPLAIN` and `PROFILE` are accepted, return zero rows, and
+leave the driver summary without `Plan()` or `Profile()`, so plan shape is not
+reportable on this build and the squeeze control above stands in for it.
+`buildDirectoryCypher` returned nothing with or without a grant, because a
+statement with two `MATCH` clauses and a `WITH` aggregation answers no rows on
+this build once the `RETURN` carries a function call or a list construction.
+That one is fixed in this change rather than recorded and left; the nine-probe
+bisection stays committed inside
+`TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing` as the control
+that fails when the backend behaviour moves.
+
+### What the directory rewrite's timing does NOT say
+
+No-Regression Evidence: the rewritten `buildDirectoryCypher` is measured at
+FIXTURE SCALE ONLY. The "every statement under 4ms" figure above comes from the
+live tagged run's seed — eight nodes across two repositories, three directories
+in total — which is a correctness fixture, not a performance corpus. Four
+things follow, and none of them are hidden by that number:
+
+- No corpus-scale timing was taken for the rewritten statement. The old
+  two-clause shape returned ZERO rows on this backend, so there is no
+  before/after to take at any scale: the comparison would be against a
+  statement that did not answer.
+- The pinned build reports no plan at all (`EXPLAIN` and `PROFILE` both return
+  zero rows and leave the driver summary without `Plan()` or `Profile()`), so
+  the shape cannot be checked against a planner here the way the Postgres
+  predicate below could be.
+- The variable-length `<-[:REPO_CONTAINS|CONTAINS*]-` chain is the part whose
+  cost is unknown at depth. A fixture three directories deep cannot exercise it.
+- The route's callsite is a grandfathered `non_hot` entry
+  (`(*LanguageQueryHandler).queryByLanguageWithSemanticFilter`, class
+  `label_inventory`) in `go/internal/queryplan/testdata/query-source-coverage.yaml`,
+  so it sits outside the CI plan-profile family and no gate will measure it
+  either.
+
+The scaled half is deferred to #6541, tracked rather than dropped:
+severity-table category **genuine missing coverage**. This note claims
+no-regression at fixture scale and claims nothing beyond it.
+
+## The `content_entities` Grant Predicate, Measured
+
+Performance Evidence: the SQL side of that cost is now measured rather than
+asserted. `repo_id = ANY($n)` on `content_entities` is the one predicate this
+change adds to a paged Postgres read, and the paging is what makes it
+interesting: the statement ends `ORDER BY relative_path, start_line,
+entity_name LIMIT $n`, so PostgreSQL can serve it by walking
+`content_entities_path_idx` in order and stopping at 50 rows. How far it has to
+walk depends on how selective the grant is, which is the opposite of the
+intuition that a narrower grant is cheaper.
+
+Setup: PostgreSQL 16.15 in a throwaway container, all 126 repository migrations
+applied in `BootstrapDefinitions()` order, `content_entities` seeded to
+2,000,000 rows across 600 repositories (166,667 files at ~12 entities each,
+skewed repository sizes from 1,488 to 109,104 rows, language mix go 35 / ts 20
+/ py 15 / yaml 12 / java 10 / hcl 8 percent, `entity_type` correlated with
+language), `VACUUM (ANALYZE)` before measuring. The statement under test is
+extracted from the Go source, not retyped: the `fmt.Sprintf` template from
+`SearchEntitiesByLanguageAndTypeForAccess` plus the predicate fragments from
+`appendRepositoryGrantFilter`, `contentEntityTypeFilter` and
+`buildLanguageTypeEntityFilters`, assembled in that builder's own order.
+Filter under test: `entity_type = 'Function' AND language = 'go'`, `LIMIT 50`.
+Three warm samples per configuration, median reported, buffers read from the
+top node. Machine: Apple M1 Pro, 10 logical CPUs, 16 GiB;
+`shared_buffers=1GB`, `work_mem=64MB`, `random_page_cost=4` (the default —
+Eshu sets no SSD-tuned value).
+
+The plan-cache mode matters and is not a free choice: production opens Postgres
+through pgx v5 (`sql.Open("pgx", …)` in `OpenPostgres`) with no exec-mode
+override, so pgx caches NAMED prepared statements and PostgreSQL's own
+`plan_cache_mode = auto` decides. Every number below is from that mode, after
+five executions, which is the point where PostgreSQL is free to switch to a
+generic plan. It did not switch in any configuration measured.
+
+| Grant | Rows it can match | Median | Buffers | Plan |
+| --- | ---: | ---: | ---: | --- |
+| none (unscoped baseline) | 263,336 | 0.05 ms | 22 | ordered `content_entities_path_idx` walk |
+| 1 small repository | 189 | 0.42 ms | 186 | bitmap on `content_entities_repo_idx`, grant as Index Cond |
+| 2 small | 398 | 13.06 ms | 762 | bitmap, grant as Index Cond |
+| 3 small | 591 | **13.93 ms** | 907 | bitmap, grant as Index Cond |
+| 5 small | 987 | 7.02 ms | 3,795 | ordered path walk, grant as Filter |
+| 10 small | 1,983 | 3.72 ms | 2,606 | ordered path walk, grant as Filter |
+| 20 small | 3,978 | 1.20 ms | 1,034 | ordered path walk, grant as Filter |
+| 50 small | 10,230 | 0.68 ms | 528 | ordered path walk, grant as Filter |
+| 100 small | 20,929 | 0.29 ms | 217 | ordered path walk, grant as Filter |
+| 500 small | 146,698 | 0.11 ms | 41 | ordered path walk, grant as Filter |
+| 1 largest repository | 14,347 | 0.39 ms | 337 | ordered path walk, grant as Filter |
+| 500 largest | 242,421 | 0.08 ms | 22 | ordered path walk, grant as Filter |
+
+Three things this says, none of them guessable from the query text:
+
+1. **The cost is bounded and index-backed.** No configuration produces a
+   sequential scan. The worst measured scoped read is 13.93 ms and 907 buffers
+   against an unscoped baseline of 0.05 ms and 22 buffers — a real cost, on a
+   route whose budget is a user-facing API read, but not a table scan.
+2. **A narrow grant is the worst case, not a wide one.** Cost falls
+   monotonically as the grant widens, because the `LIMIT 50` page fills sooner.
+   A caller granted 500 repositories pays 0.11 ms; a caller granted three pays
+   13.93 ms. Any future tuning should be aimed at the small-grant end.
+3. **The predicate is not only a cost.** When the filter matches nothing —
+   a realistic request, for example Go functions in a repository that has no Go
+   — a narrow grant is what stops the walk: 0.20 ms and 186 buffers with a
+   1-repository grant, against 504.20 ms and 239,920 buffers for the same
+   filter unscoped.
+
+That last figure is worth stating plainly because it is NOT this change's
+doing: `ORDER BY … LIMIT` with a filter matching nothing walks
+`content_entities_path_idx` to the end, and on `main` today an unscoped caller
+already pays 504.20 ms for it. A scoped caller with a WIDE grant pays the same
+(475.99 ms, 239,920 buffers at 500 repositories), because a wide grant filters
+out nothing and the walk still runs to the end. The grant neither causes that
+shape nor fixes it; it is a pre-existing property of this route's paging and
+belongs in its own issue, not in this change. It is filed as #6540.
+
+Recorded for the next reader rather than as a live risk: under
+`plan_cache_mode = force_generic_plan` the same statements are far worse —
+238.73 ms at 500 small repositories, 348.59 ms at 500 large, up to 77,424
+buffers — because a generic plan cannot see the grant array and bitmaps the
+whole thing.
+PostgreSQL's `auto` chooser rejected the generic plan in all nine
+configurations that were probed BOTH ways — the unscoped baseline, and grants
+of 1, 5, 50 and 500 in each of the small- and large-repository selections.
+Every `force_generic_plan` figure quoted above comes from that set, the
+500-large one included. The five remaining rows in the table (2, 3, 10, 20 and
+100 small repositories) and the zero-match probes were run under `auto` only,
+to find where the cost peaks; nothing about them is claimed for the generic
+plan. So the generic-plan numbers are what a future planner or statistics
+change would cost on the shapes it was measured on, not what production pays
+today.
+
+Reproducing it: PostgreSQL 16 container on a free port, every migration in
+`go/internal/storage/postgres/migrations` applied in `BootstrapDefinitions()`
+order, the seed and measurement scripts kept with this note's working files
+(`d3-pg-seed.sql`, `d3-pg-measure.sql`, `d3-pg-auto.sql`, `d3-pg-peak.sql`).
+The statement is regenerated from the Go source when the measurement is re-run
+rather than stored here, so a builder change cannot leave a stale statement
+being measured the next time these numbers are taken. The extractor itself is a
+working file, not a committed gate.
+
+What IS committed is the shape:
+`TestLivePostgresLanguageQueryGrantPlanShape`
+(`go/internal/query/language_query_grant_plan_shape_live_test.go`, build tag
+`live_postgres_language_grant_plan`) captures the statement from the production
+path — the recording driver records what
+`SearchEntitiesByLanguageAndTypeForAccess` actually sent — and `EXPLAIN`s that
+text against a live PostgreSQL 16. It asserts the two properties the timings
+rest on: a narrow grant reaches an `Index Cond` on `content_entities_repo_idx`,
+and no grant width turns the read into a `Seq Scan`. It seeds its own 300,000-row
+corpus, which is where those shapes already hold; the timings in the table
+above come from the 2,000,000-row corpus and are not what the test pins, since
+they move with the machine. No CI job builds the tag, so this fires when someone
+runs it — the same contract as the NornicDB controls above.
+
+## Verification
+
+Every command below was run after the last edit, from the batch-2 worktree with
+a worktree-local `GOCACHE`. Exit codes were captured directly.
+
+```text
+cd go && go test ./internal/query ./internal/mcp ./internal/queryplan -count=1   # 0
+cd go && go vet ./internal/query ./internal/mcp ./internal/queryplan             # 0
+scripts/dev/precommit-go.sh fmt   <changed .go>                                  # 0
+scripts/dev/precommit-go.sh lint  <changed .go>                                  # 0
+scripts/dev/precommit-go.sh filecap <changed .go>                                # 0
+scripts/verify-package-docs.sh                                                   # 0
+scripts/verify-openapi.sh                                                        # 0
+scripts/verify-doc-citations.sh                                                  # 0
+scripts/verify-markdown-line-cap.sh --all                                        # 0
+scripts/verify-performance-evidence.sh                                           # 0
+mkdocs build --strict --clean --config-file docs/mkdocs.yml                       # 0
+git diff --check                                                                 # 0
+```
+
+The promotion gates specifically: `TestScopedTokenAllowlistCompleteness`,
+`TestScopedRouteClassLedgerAgreesWithPredicate`,
+`TestPolicyGatedRoutesDeclareForbiddenResponse` and
+`TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware` in
+`internal/query`, and `TestEveryMCPReachableRouteIsScopedOrAnnotated` in
+`internal/mcp`.
+
+The heavier promotion preflight (`make pre-pr`), the docs build, and the live
+gates are the orchestrator's to run; this branch's proof is the package-scoped
+set above plus the mutation ledger.

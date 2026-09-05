@@ -65,6 +65,7 @@ func TestEnrichLanguageResultsWithContentMetadata(t *testing.T) {
 		"handler",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
@@ -147,6 +148,7 @@ func TestEnrichLanguageResultsWithContentMetadataPromotesExistingPythonSemantics
 		"handler",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
@@ -216,6 +218,7 @@ func TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T
 		"handler",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
@@ -279,6 +282,7 @@ func TestEnrichLanguageResultsWithContentMetadataAnnotation(t *testing.T) {
 		"Logged",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
@@ -343,6 +347,7 @@ func TestEnrichLanguageResultsWithContentMetadataRustImplBlock(t *testing.T) {
 		"Point",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
@@ -409,6 +414,7 @@ func TestEnrichLanguageResultsWithContentMetadataPreservesPythonGraphMetadata(t 
 		"Logged",
 		"repo-1",
 		10,
+		unscopedLanguageQueryGrant(),
 	)
 	if err != nil {
 		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)

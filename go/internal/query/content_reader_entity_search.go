@@ -14,11 +14,36 @@ import (
 
 // SearchEntitiesByLanguageAndType returns materialized content entities for one
 // repo/language/entity-type filter using entity names as the primary lookup.
+//
+// It is the unscoped form of the read: no caller grant is bound, so a request
+// with an empty repoID scans every repository. Scoped callers must go through
+// SearchEntitiesByLanguageAndTypeForAccess instead.
 func (cr *ContentReader) SearchEntitiesByLanguageAndType(
 	ctx context.Context,
 	repoID, language, entityType, query string,
 	limit int,
 ) ([]EntityContent, error) {
+	return cr.SearchEntitiesByLanguageAndTypeForAccess(ctx, languageEntitySearch{
+		RepoID:     repoID,
+		Language:   language,
+		EntityType: entityType,
+		Query:      query,
+		Limit:      limit,
+	})
+}
+
+// SearchEntitiesByLanguageAndTypeForAccess is the grant-bound form: a
+// corpus-wide search (empty RepoID) carries the caller's granted repository ids
+// into the statement's own WHERE, so the LIMIT page is taken from the granted
+// set rather than from a cross-tenant-polluted one (#5167 W3 P1
+// filter-before-limit). An empty grant list leaves the scan unrestricted, which
+// is what the unscoped shared, admin, and local callers want; a grantless
+// SCOPED caller is failed closed by codeContentGrantScope before it gets here.
+func (cr *ContentReader) SearchEntitiesByLanguageAndTypeForAccess(
+	ctx context.Context,
+	search languageEntitySearch,
+) ([]EntityContent, error) {
+	repoID, language, entityType, query, limit := search.RepoID, search.Language, search.EntityType, search.Query, search.Limit
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
 		trace.WithAttributes(
@@ -34,7 +59,7 @@ func (cr *ContentReader) SearchEntitiesByLanguageAndType(
 	}
 
 	languageVariants := normalizedLanguageVariants(language)
-	filters, args, nextArg := buildLanguageTypeEntityFilters(repoID, languageVariants, entityType, query)
+	filters, args, nextArg := buildLanguageTypeEntityFilters(repoID, search.AllowedRepositoryIDs, languageVariants, entityType, query)
 	// #nosec G201 -- interpolates only $N placeholder strings from buildLanguageTypeEntityFilters and an integer arg index; no user data concatenated into SQL
 	sqlQuery := fmt.Sprintf(`
 		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
@@ -88,8 +113,19 @@ func (cr *ContentReader) SearchEntitiesByLanguageAndType(
 	return results, nil
 }
 
+// buildLanguageTypeEntityFilters is the one SQL choke point behind every
+// content read POST /api/v0/code/language-query makes: the content-only entity
+// types, the graphless and zero-row fallbacks, and the metadata enrichment pass
+// all reach the store through it.
+//
+// The `if repoID != ""` branch below used to have no else, so a scoped caller
+// who omitted repo_id got a statement with no repository restriction at all and
+// read the whole corpus. allowedRepositoryIDs closes that: it binds the
+// caller's grant in the same WHERE, ahead of the ORDER BY and LIMIT, through
+// the same appendRepositoryGrantFilter the four batch-1 content builders emit.
 func buildLanguageTypeEntityFilters(
 	repoID string,
+	allowedRepositoryIDs []string,
 	languageVariants []string,
 	entityType string,
 	query string,
@@ -107,6 +143,8 @@ func buildLanguageTypeEntityFilters(
 		filters = append(filters, fmt.Sprintf("repo_id = $%d", nextArg))
 		args = append(args, repoID)
 		nextArg++
+	} else {
+		filters, args, nextArg = appendRepositoryGrantFilter(filters, args, nextArg, allowedRepositoryIDs)
 	}
 	if len(languageVariants) > 0 {
 		parts := make([]string, 0, len(languageVariants))

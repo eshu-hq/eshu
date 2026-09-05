@@ -199,7 +199,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-CODE-REL-TRANSITIVE":                          transitiveRelationship,
 		"QP-CODE-REL-STORY-INCOMING":                      incomingRelationship,
 		"QP-CODE-REL-STORY-ANCHOR-COLLISION":              nornicDBRelationshipStoryAnchorLookupCypher("Function", "id", false),
-		"QP-CODE-IMPORT-CYCLES":                           fileImportCycleEdgeRowsCypher(importDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10}),
+		"QP-CODE-IMPORT-CYCLES":                           fileImportCycleEdgeRowsCypher(importDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10, access: repositoryAccessFilter{AllScopes: true}}),
 		"QP-READINESS-HOSTED":                             hostedRepositoryCount,
 		"QP-IMPACT-CHANGE-SURFACE":                        changeSurface,
 		"QP-IMPACT-CHANGE-SURFACE-SCOPED":                 changeSurfaceScoped,
