@@ -35,9 +35,16 @@ var crossRepoDeadCodeProbeFanOutRepositories = func() []string {
 }()
 
 // seedCrossRepoDeadCodeProbeFanIn gives one producer entity perRepositoryRows
-// active-generation consumer rows in each of the named repositories. Row fan-in
-// is the axis the walk must NOT be sensitive to: it visits each distinct
-// consumer repository once and never looks at a second row of any of them.
+// active-generation consumer rows in each of the named repositories, all under
+// scope-1. Row fan-in is the axis the walk must NOT be sensitive to, and this
+// shape isolates it: one ingestion scope per repository here, so each
+// repository is a single (repository, scope) pair and the walk visits it once
+// however many rows it holds.
+//
+// That is this fixture's shape, not a bound on the walk. An UNGRANTED
+// repository costs one step per ingestion scope covering it, and a pair holding
+// no live row is stepped past rather than stopped at -- the scope fan-out and
+// stale-consumer fixtures are where those axes are measured.
 func seedCrossRepoDeadCodeProbeFanIn(
 	ctx context.Context,
 	t *testing.T,
