@@ -93,14 +93,17 @@ Every claim re-checked against the current tree:
   (`projection.go:280,:328`, `projection_helpers.go:119`, `dependency.go:76`).
 - `candidateWorkloadName` still trims both branches, so the constructor trim is
   idempotent at sites 1, 3, and 4.
-- The environment funnel still normalizes at every producer:
-  `ExtractOverlayEnvironments` trims, drops blanks, and Canonicalizes
-  (`projection.go:220-224`); `helmValuesFilenameEnvironment` and
-  `collectNamespaceEnvironmentsFromFileData` go through `namespaceEnvironment`
+- The environment funnel still normalizes at every producer, and every output
+  is either blank or trimmed: `ExtractOverlayEnvironments` trims, drops
+  blanks, and Canonicalizes (`projection.go:220-224`);
+  `helmValuesFilenameEnvironment` admits only exact known tokens before
+  Canonicalizing (`environment_signals.go:35-53`);
+  `collectNamespaceEnvironmentsFromFileData` goes through `namespaceEnvironment`
   (Normalize plus a non-empty allowlist gate, `environment_signals.go:65-81`);
   the namespace fallback allowlists before Canonicalizing
-  (`projection_helpers.go:197-207`). No blank or untrimmed environment reaches
-  either instance site on the production path.
+  (`projection_helpers.go:197-207`). No untrimmed environment reaches either
+  instance site on the production path; a blank one yields the empty id rather
+  than a colliding bare-prefix node.
 - `BuildWorkloadDependencyRows` still has no non-test caller, and the live
   DEPENDS_ON path (`BuildWorkloadDependencyIntentRowsFromEdges`) only carries
   already-built ids from projection rows or stored graph reads — not a
