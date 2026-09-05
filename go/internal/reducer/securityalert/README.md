@@ -166,7 +166,8 @@ for the same value. Each bullet below says which:
   (`security_alert_reconciliation_handler.go`) is
   `package_source_correlation_handler.go`'s `hasPackageSourceRepositoryFact`
   under a family-scoped name: a short envelope-kind scan. Root keeps its
-  own copy, because the package-source-correlation family still uses it.
+  own copy: two root callers still use it
+  (`package_source_correlation_handler.go`, `supply_chain_impact_repository.go`).
 - `securityAlertConsumptionEvidenceKind`, `exactConsumptionDependencyVersion`,
   `exactManifestDependencyVersion`, and `nonVersionDependencyPrefix`
   (`security_alert_reconciliation_observed_version.go`) mirror
@@ -215,7 +216,8 @@ unchanged imports above would suggest a forwarder that no longer exists.
 imported, for the reason above, and the nine functions listed under "Why some
 helpers are declared locally instead of imported" are locally copied from their
 reducer root originals for the same reason -- that bullet list is the single
-enumeration of the set, so it does not disagree with a second copy here. Two of
+enumeration of the copied functions, so it does not disagree with a second copy
+here. Two of
 the three version helpers are byte-identical;
 `exactConsumptionDependencyVersion` is re-parameterised to the three
 `SecurityAlertConsumption` fields it reads instead of the root's full
