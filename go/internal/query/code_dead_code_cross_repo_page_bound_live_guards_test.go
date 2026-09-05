@@ -115,7 +115,7 @@ func runCrossRepoDeadCodeConsumerPageWorkGuard(
 ) {
 	t.Helper()
 
-	t.Run("the page stops at its own LIMIT", func(t *testing.T) {
+	t.Run("the page is answered in index order, not by ranking the group", func(t *testing.T) {
 		for _, mode := range crossRepoDeadCodeProbePlanModes {
 			t.Run(mode.name, func(t *testing.T) {
 				plan := crossRepoDeadCodeConsumerPagePlan(ctx, t, db, mode, page)

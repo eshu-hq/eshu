@@ -87,9 +87,14 @@
 --
 -- Cost. On that seed the index is 201 MB built in 10-20 s CONCURRENTLY, against
 -- a 367 MB heap and 808 MB of existing indexes. The reducer's write path
--- maintains one more btree: a 200,000-row reachability insert took 6.02/6.06 s
--- without the five-column form of this index and 7.24/7.47 s with it, about
--- +15-20%, alternated so both arms saw the table grow. Nothing is dropped to
+-- maintains one more btree: EXPLAIN (ANALYZE, BUFFERS, WAL) over a 200,000-row
+-- reachability insert, arms alternated, gives 1,221,760/1,221,774/1,221,777 WAL
+-- records and 16,001/15,934/16,004 buffers dirtied without this index against
+-- 1,424,877/1,424,879/1,424,883 and 19,158/19,099/19,167 with it -- +16.6% WAL
+-- records and +19.8% buffers dirtied, about one extra WAL record per row. WAL
+-- records rather than seconds because the same six inserts timed
+-- 11.36/16.98/7.58/7.44 s without against 9.66/11.56/18.85/8.19 s with, which
+-- is no signal at all on a shared machine. Nothing is dropped to
 -- pay for it. code_reachability_entity_lookup_idx looks superseded on paper and
 -- is not dropped here: removing it would need its own before/after on the reads
 -- that use it, and this migration's proof does not cover that.

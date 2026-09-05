@@ -205,7 +205,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// prefix of 101's, so keeping it only costs reducer write amplification.
 	"drop_code_reachability_entity_repository_idx",
 	// migration 103 (#6527) carries the cross-repo consumer-evidence page's
-	// ORDER BY, so that read stops at its own LIMIT instead of ranking a
-	// producer entity's whole consumer fan-in first.
+	// ORDER BY, so that read is answered in index order instead of ranking a
+	// producer entity's whole consumer fan-in first. Its last two key columns
+	// are a tiebreak, so rows equal on the ranking have one order in every plan.
 	"code_reachability_entity_confidence_rank_idx",
 }

@@ -1,29 +1,33 @@
 # #6527 The Cross-Repo Consumer-Evidence Page's Own Bound
 
-This is the follow-up to #6535, and it closes #6527. #6535 bounded the
+This is the follow-up to #6535, and it answers #6527. #6535 bounded the
 hidden-consumer probe and filed the page read's own bound as an issue off its
-own measurements; that issue is what this note answers, so nothing here is part
-of #6535 and everything here lands after it.
+own measurements; that issue is what this note answers, so nothing here was part
+of #6535.
 
 `POST /api/v0/code/dead-code/cross-repo` answers with two bounded reads. The
 hidden-consumer probe is measured in
 [#5167 cross-repo hidden-consumer walk](5167-cross-repo-hidden-consumer-walk.md).
-This note is the other one: the evidence page, whose `LIMIT` bounded what came
-back and not what was read.
+This note is the other one: the evidence page, which ranked a producer entity's
+whole fan-in before it could return the strongest few.
 
 `buildCrossRepoDeadCodeConsumerEvidenceQuery` orders a page of producer
 entities' consumers `(entity_id, confidence DESC, depth, repository_id,
-root_entity_id)` and stops at `maxCrossRepoDeadCodeConsumerEvidenceRows + 1`
-rows. Nothing on `code_reachability_rows` carried that order, so Postgres had to
-rank a producer entity's whole fan-in group before it could emit the group's
-first row. One busy symbol therefore cost the page its entire consumer set.
+root_entity_id, scope_id, generation_id)` and stops at
+`maxCrossRepoDeadCodeConsumerEvidenceRows + 1` rows. Nothing on
+`code_reachability_rows` carried that order, so Postgres had to rank a producer
+entity's whole fan-in group before it could emit the group's first row. One busy
+symbol therefore cost the page its entire consumer set.
 
-The fix is an index plus a tiebreak on the statement's ordering. Migration 103
-builds `(entity_id, confidence DESC, depth, repository_id, root_entity_id,
-scope_id, generation_id)`, which IS that `ORDER BY` with `entity_id` pinned by
-the statement's `IN` list, so the scan is answered in output order rather than
-by ranking the group first. The page contract, the `consumer_evidence_truncated`
-marker and the OpenAPI shape are untouched.
+The fix is an index plus a tiebreak on that ordering. Migration 103 builds
+`(entity_id, confidence DESC, depth, repository_id, root_entity_id, scope_id,
+generation_id)`, which IS that `ORDER BY` with `entity_id` pinned by the
+statement's `IN` list, so the scan is answered in output order rather than by
+ranking the group first. What that does NOT mean is that the `LIMIT` bounds the
+read: it bounds rows RETURNED, and
+[What The LIMIT Bounds](#what-the-limit-bounds-and-what-it-does-not) is the
+measurement. The page contract, the `consumer_evidence_truncated` marker and the
+OpenAPI shape are untouched.
 
 Root-Cause Evidence: the shipped plan is
 `Limit -> Incremental Sort (Presorted Key: entity_id) -> Nested Loop -> Index
@@ -59,21 +63,29 @@ gets is measured below rather than assumed.
 
 ## What The Page Cost, And What It Costs Now
 
-Performance Evidence: with migration 103 the page read stops at its own `LIMIT`.
-The rows under the driving scan are the claim; the times follow them.
+Performance Evidence: with migration 103 the page read stops at the cap where
+nothing is retained, and at the cap times the retained generations per position
+where something is. This seed carries one generation per position, so the after
+rows below are the first case and the entries walked equal the rows returned;
+[What The LIMIT Bounds](#what-the-limit-bounds-and-what-it-does-not) measures the
+second, where 1,001 becomes 11,780. The rows under the driving scan are the
+claim; the times follow them.
 
 | page and grant | rows under the driving scan | shared buffers | custom plan |
 | --- | ---: | ---: | --- |
 | hot, g5, before | 1,000,497 | hit=113,832 | 1819 / 2557 / 1571 ms |
-| hot, g5, after | 1,001 | hit=930 | 2.03 / 1.77 / 1.49 ms |
+| hot, g5, after (0 retained) | 1,001 | hit=930 | 2.03 / 1.77 / 1.49 ms |
 | hot, g4, before | 800,497 | hit=113,832 | 751.7 / 730.1 / 831.2 ms |
-| hot, g4, after | 1,001 | hit=930 | 1.54 / 1.47 / 1.48 ms |
+| hot, g4, after (0 retained) | 1,001 | hit=930 | 1.54 / 1.47 / 1.48 ms |
 | ordinary, g5, before | 996 | hit=7,026 | 3.93 / 3.82 / 3.57 ms |
-| ordinary, g5, after | 996 | hit=7,347 | 6.97 / 3.58 / 6.30 ms |
+| ordinary, g5, after (0 retained) | 996 | hit=7,347 | 6.97 / 3.58 / 6.30 ms |
 
 Rows and buffers are the claim. The wall times were taken under concurrent load
-on a shared machine -- the same before cell read 730-798 ms earlier in the same
-session -- so they establish the order of magnitude and nothing finer.
+on a shared machine, and an earlier run of BOTH cells in the same session reads
+730.6 / 705.5 / 798.4 ms before and 1.75 / 1.72 / 1.78 ms after -- different
+absolute numbers, the same three orders of magnitude. That earlier pair is not
+the headline because it was taken before the proof schema had been analyzed. The
+ratio is what survives a loaded machine; the seconds are not.
 
 The before figures match the ones #6527 was filed with: 1,000,497 rows there and
 here at the five-repository grant, and 800,373 there against 800,497 here at
@@ -326,17 +338,20 @@ read=46,253` against 404.5 ms at `hit=22,641 read=24,358`), which is why the
 buffer total is the claim and the seconds are not.
 
 The reducer's write path maintains one more btree, and that is the real cost.
-A 200,000-row reachability insert, alternated so both arms saw the table grow:
+Measured against the SEVEN-column index on the same corpus, `EXPLAIN (ANALYZE,
+BUFFERS, WAL)` over a 200,000-row reachability insert, arms alternated:
 
-| arm | rows in the table | wall |
-| --- | ---: | --- |
-| without the index | 2.2M, 2.2M | 6.02 s, 6.06 s |
-| with the index | 2.4M, 2.4M | 7.24 s, 7.47 s |
-| with the index | 2.6M, 2.6M | 7.63 s, 7.39 s |
-| without the index | 2.8M, 3.0M | 6.46 s, 6.72 s |
+| arm | WAL records | buffers dirtied |
+| --- | ---: | ---: |
+| without the index | 1,221,760 / 1,221,774 / 1,221,777 | 16,001 / 15,934 / 16,004 |
+| with the index | 1,424,877 / 1,424,879 / 1,424,883 | 19,158 / 19,099 / 19,167 |
 
-About +15-20%, roughly +6 us per row, and the second without-arm ran on the
-LARGER table, so the gap is if anything understated. On disk the index is 201 MB
+**+16.6% WAL records and +19.8% buffers dirtied**, or about one extra WAL record
+per row inserted. WAL records rather than seconds because seconds do not survive
+this machine: the same six inserts timed 11.36 / 16.98 / 7.58 / 7.44 s without
+the index against 9.66 / 11.56 / 18.85 / 8.19 s with it -- fully overlapping, no
+signal. The three samples per arm above vary by three records out of 1.2 million,
+which is what makes them a measurement. On disk the index is 201 MB
 built in 10-20 s `CONCURRENTLY`, against a 367 MB heap and 808 MB of existing
 indexes: the relation grows about 17%. The five-column form without the tiebreak
 was 163 MB in 6.6 s, so the tiebreak costs 38 MB and buys the page one order.

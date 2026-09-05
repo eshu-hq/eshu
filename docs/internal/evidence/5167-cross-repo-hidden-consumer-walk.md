@@ -408,11 +408,13 @@ carried that order, so its scan was bounded by a producer entity's fan-in rather
 than by the limit: 885 ms reading 1,000,497 rows on this seed with the whole
 five-repository grant bound, and 752 ms reading 800,373 with four of the five.
 Removing the second traversal of that group is what this change buys. The page's
-own bound was filed as #6527 with those measurements and is fixed in the
-follow-up that closes it — migration 103 builds the index that order needs, and
-the same page then reads 1,001 rows in 2.03/1.77/1.49 ms. The statement did not change, so neither
-did the answer; the measurements are in [#6527 the consumer-evidence page's own
-bound](5167-cross-repo-consumer-page-bound.md).
+own bound was filed as #6527 with those measurements, and the follow-up to this
+change answers it — migration 103 builds the index that order needs, and the
+same page then reads 1,001 rows in 2.03/1.77/1.49 ms. The rows it returns are
+unchanged against what main ships; what the follow-up does change is which of two
+rows tied on the ranking lands at the cap, which the five-column order left to
+whichever plan ran. The measurements are in [#6527 the consumer-evidence page's
+own bound](5167-cross-repo-consumer-page-bound.md).
 
 Root-Cause Evidence: the pre-index plan for that page read is a `Limit` over an `Incremental Sort` whose `Presorted Key` is `entity_id` alone, over an `Index Scan using code_reachability_entity_repository_scope_generation_idx` that reports `rows=1000497` for a page whose answer is 1,001 rows. Every group is therefore read in full before its first row can be ordered by confidence.
 

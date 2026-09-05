@@ -20,11 +20,13 @@ import (
 //
 // buildCrossRepoDeadCodeConsumerEvidenceQuery orders a page of producer
 // entities' consumers (entity_id, confidence DESC, depth, repository_id,
-// root_entity_id) and stops at maxCrossRepoDeadCodeConsumerEvidenceRows+1. The
-// LIMIT bounds what comes back, not what is read: without an index in that
-// order Postgres has to rank a producer entity's whole fan-in group before it
-// can emit the group's first row, so one busy symbol costs the page its entire
-// consumer set. Migration 103 builds that index.
+// root_entity_id, scope_id, generation_id) and stops at
+// maxCrossRepoDeadCodeConsumerEvidenceRows+1. The LIMIT bounds what comes back,
+// not what is read: without an index in that order Postgres has to rank a
+// producer entity's whole fan-in group before it can emit the group's first
+// row, so one busy symbol costs the page its entire consumer set. Migration 103
+// builds that index, and the two arms below measure what the cap does and does
+// not bound once it exists.
 //
 // Three guards, because they fail to different mutations and none of them sees
 // another's:
@@ -151,7 +153,9 @@ var crossRepoDeadCodeConsumerPageMigrations = []string{
 
 // crossRepoDeadCodeConsumerPageRankIndex is the index migration 103 builds: the
 // consumer-evidence page's ORDER BY, with entity_id pinned by the statement's
-// IN list, so the scan is already in output order and the LIMIT stops it.
+// IN list, so the scan is answered in output order instead of ranking the group
+// first. Its last two key columns are a tiebreak rather than a ranking, and the
+// cap it lets the scan stop at bounds rows RETURNED, not rows read.
 const crossRepoDeadCodeConsumerPageRankIndex = "code_reachability_entity_confidence_rank_idx"
 
 // crossRepoDeadCodeConsumerPageHotRepositories are the consumer repositories

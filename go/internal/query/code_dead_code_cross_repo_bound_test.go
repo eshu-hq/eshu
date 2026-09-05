@@ -213,12 +213,15 @@ const crossRepoDeadCodeConsumerPageRankMigration = "../storage/postgres/migratio
 // (#6527, and the tiebreak from #6535's replacement review).
 //
 // They are one decision written in two places. With entity_id pinned by the
-// statement's IN list the index's key columns ARE the ordering, so the scan is
-// already in output order and the LIMIT stops it. Edit either alone and the
-// LIMIT silently goes back to bounding only what comes back: Postgres has to
-// rank a producer entity's whole consumer fan-in before it can emit that
-// entity's first row, which is 1,000,497 rows read for a 1,001-row answer on
-// the corpus in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+// statement's IN list the index's key columns ARE the ordering, so the scan can
+// be answered in output order. Edit either alone and it cannot: Postgres goes
+// back to ranking a producer entity's whole consumer fan-in before it can emit
+// that entity's first row, which is 1,000,497 rows read for a 1,001-row answer
+// on the corpus in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
+//
+// Answered in output order is not the same as bounded by the cap. The cap bounds
+// rows RETURNED; the scan walks one entry per retained generation per position,
+// because the liveness test is a join above it.
 //
 // Nothing else can catch that drift. The answer is identical either way, so no
 // behavioural assertion moves; the live proof sees it, but only against a real
