@@ -1,6 +1,6 @@
 ---
 name: eshu-contract-rigor
-description: Use when adding or changing a fact kind, changing a payload shape, editing sdk/go/factschema or sdk/go/collector, editing specs/fact-kind-registry.v1.yaml, editing fixture packs, or touching anything where an Odù (fixture-pack entry) overlaps a cassette or the B-12 snapshot. Encodes the Contract System v1 rules: typed structs over hand-built maps, version shims that live in the contracts module and never in reducer handlers, and the major/minor/patch break policy for payload schemas.
+description: Change Eshu fact kinds, payload schemas, SDK contracts, registry entries, or contract fixture packs.
 ---
 
 # eshu-contract-rigor

@@ -5,95 +5,72 @@ chain, infrastructure, and runtime into one queryable, evidence-backed source of
 truth for CLI, MCP, and HTTP API workflows. Treat it as a production data
 platform, not a script collection.
 
-This file is mandatory. AI agents MUST follow it continuously while working in
-this repository. The linked [Agent Engineering Guide](docs/internal/agent-guide.md)
-is also mandatory; it is not optional background reading. If a rule here and a
-linked detailed rule both apply, follow both. If the correct action is unclear,
-stop and ask.
-
-The root agent files (`AGENTS.md` and `CLAUDE.md`) MUST stay in lockstep.
+This file defines the shared rules for agents working in Eshu. Keep `AGENTS.md`
+and `CLAUDE.md` byte-identical. Detailed rules apply to their named surfaces;
+load the relevant sections when the task needs them.
 
 ## Mandatory Startup
 
-Before making code or documentation changes, agents MUST:
+Read this file and scoped `AGENTS.md` instructions for the touched directories.
+Use [Read These First](#read-these-first) and [Skill Routing](#skill-routing) to
+load only the context needed to understand the change and its verification.
+The [Agent Engineering Guide](docs/internal/agent-guide.md) provides detailed
+contracts; [Agent Orchestration Model](docs/internal/agent-orchestration.md)
+applies when delegating work. A prose correction does not require a runtime
+architecture tour.
 
-1. Read this file.
-2. Read [Agent Engineering Guide](docs/internal/agent-guide.md).
-3. Read [Agent Orchestration Model](docs/internal/agent-orchestration.md) for
-   how work is split across harnesses and models (coordinator/executor/debugger
-   roles, the handoff contract, and the CI gate floor).
-4. Read the local docs named under [Read These First](#read-these-first) when
-   the touched surface matches those docs.
-5. Load the applicable project skill from `.agents/skills/`.
-6. Stop and ask if the correct owner, design intent, performance contract, or
-   verification gate is unclear.
+Resolve uncertainty from source, docs, or a bounded experiment when possible.
+Ask when missing ownership, design intent, acceptance criteria, or authorization
+cannot be established from the task and available evidence.
 
-Skipping any startup step is not acceptable. Treat these rules as active for the
-entire session, not as one-time context.
+Complete the authorized work through relevant validation and fixes. A first
+implementation is not completion when the task includes a working result or a
+PR. Continue reversible local work without repeatedly asking for approval;
+report a concrete blocker when further progress needs user action.
 
 ## Mandatory Pre-PR Code Review
 
-Before creating any PR, pushing changes intended for an existing PR, or marking
-an Eshu PR merge-ready, agents MUST run `eshu-code-review` against the final
-diff. This applies to separate-context review and self-review. The verdict MUST
-include the selected proof tier, all required passes including hostile read,
-cross-pass contradiction check, severity/confidence/disposition for every
-finding, generated-artifact and private-data scans, verification evidence, and
-the disposition of every out-of-scope defect -- fixed inline by default, routed
-to a tracked follow-up only when the fix genuinely cannot ride along and the
-owner agreed.
+Before opening a PR, pushing a PR update, or claiming merge-ready, run
+`eshu-code-review` on the final diff. Select proof by the changed contracts and
+claims, cover all applicable review surfaces including hostile read, and record
+severity, confidence, disposition, and evidence for every finding. Preserve
+independent review where the harness permits it. A small diff still requires
+review; irrelevant runtime detail does not belong in its report.
 
-PRs MUST NOT be created, updated, pushed, or merged from unreviewed diffs.
-Before the expensive `make pre-pr` promotion gate, agents MUST run a preliminary
-full `eshu-code-review`. If that review reports any P0, P1, or blocking P2
-finding, fix it, rerun the affected focused verification, and repeat the full
-review; `make pre-pr` MUST NOT run until the verdict is P0=0, P1=0, and
-P2-blocking=0. A P2 blocks when it contradicts a claim the PR itself makes or is
-cheap and in the same edit; any other P2 is tracked in a linked issue with the
-owner's agreement quoted in the PR, and named there with its severity-table
-category, rather than blocking. The bar and the unbounded loop it prevents are in
-`.agents/skills/eshu-code-review/references/merge-bar.md`.
+Fix P0, P1, and blocking P2 findings before the expensive promotion gate. A P2
+blocks when it contradicts a PR claim or is cheap and in the same edit. Other
+P2s require a linked issue, the owner's agreement quoted in the PR, and their
+severity-table category. P3s do not block. The authoritative bar is
+[merge-bar.md](.agents/skills/eshu-code-review/references/merge-bar.md).
 
-Once the preliminary review is clean, capture a `ci-gates review-attest`
-receipt, then run `make pre-pr` exactly when the branch is otherwise ready for
-its intended push or PR update. If the post-preflight receipt verifies, the
-exact reviewed inputs did not change and a second full semantic review is not
-required. A changed base, commit, tree, worktree, submodule, PR claim, review
-packet, or verdict invalidates the receipt; repeat the affected proof and full
-review before pushing. A deferred P2 is already tracked and a P3 is cosmetic by
-definition; neither restarts this loop. No code or documentation edits may
-occur between the verified attestation and push.
+After focused proof and a clean preliminary review, capture a
+`ci-gates review-attest` receipt and run `make pre-pr` when ready to push.
+Verify the receipt after preflight: a match replaces a second full semantic
+review. Changed base, commit, tree, worktree, submodule, PR claims, packet, or
+verdict invalidates the receipt and requires affected proof and full review
+again. Make no edits between verified attestation and push. Never publish an
+unreviewed diff.
 
 ## Mandatory Pre-PR Local Proof
 
-Before creating any PR, and before pushing changes intended for an existing PR,
-agents MUST prove the fix works on the local machine by running the actual
-reproduction on the same branch until it demonstrably passes. A change either
-works or it does not; agents MUST NOT open a PR to find out.
+Prove the requested behavior locally before opening or updating a PR. For a bug,
+run the failing regression to green; for performance, measure before/after on
+the touched path; for runtime changes, observe the changed behavior. For docs,
+features, and refactors without a prior failure, use their appropriate checks;
+do not invent a failing reproduction.
 
-Speculative "does this work?" PRs are not acceptable. CI is not a test harness
-for unproven changes, and opening PRs to discover whether a fix works wastes
-CI/CD capacity for little gain.
+Run focused verification during development, fix failures caused by the change,
+and rerun affected checks. Preserve all repository-required gates, but avoid
+repeating unchanged proof without an invalidating edit, failure, or environment
+change. Local fixture tests that have no production access may run within the
+authorized task without a separate approval at each step. This does not grant
+access to production data or authorize external mutations.
 
-"Proven locally" means the reproduction that failed before the change now
-passes on the branch, run on this machine and cited in the PR body: a bug fix
-runs its failing regression test to green, a performance change shows
-before/after numbers on the touched path, and a runtime change shows the
-observed behavior. Only after that local proof passes do agents complete the
-preliminary clean review, run `make pre-pr` immediately before the intended
-push, complete the final clean review, and open or update the PR.
-
-For a change that is not fixing a failure — a docs update, a refactor, or a new
-feature with no prior repro — local proof is the change's own appropriate
-verification, run locally and cited: the docs build for docs/navigation
-changes, the tests exercising the new or refactored behavior for a feature or
-refactor, and the focused verification selected for the touched surface. The
-late `make pre-pr` promotion gate remains reserved for after a preliminary
-P0=0/P1=0/P2-blocking=0 review. This rule bars opening a PR to discover whether a change
-works; it does not require a failing reproduction where none exists.
-
-If the change cannot be proven locally, agents MUST stop and report exactly what
-was run and what blocked it, rather than open a PR to find out.
+The order is focused local proof, clean preliminary review, one late
+`make pre-pr`, attestation verification (or a new full review if invalidated),
+then push and PR creation/update. CI must not be the first test of an unproven
+change. If local proof is blocked, report the command and cause before
+publishing; do not open a speculative PR to discover whether the change works.
 
 ## Mandatory Prove-The-Theory-First
 
@@ -151,34 +128,24 @@ procedure and the incident behind each rule below.
 
 - MUST use `rg` for all text searches. NEVER use `grep`.
 - MUST use `rg --files` or globbing for file discovery. NEVER use `find`.
-- MUST read local repo docs before searching code or the web.
-- When something is unclear, MUST route by why, not by discomfort. If a
-  committed fact — code, a local doc, an ADR, a measurement, or a cheap
-  experiment — can settle it, MUST research it, cite the settling evidence, and
-  proceed; architecture questions under a settled design intent are research
-  tasks, per
-  [Delegate An Undecided Design](docs/internal/agent-guide.md#delegate-an-undecided-design-do-not-escalate-it).
-  MUST NOT put a question to the owner that a Deep-tier model could answer:
-  dispatch one first with the codebase, the issue, and this canon, and escalate
-  only if it reports the answer cannot be inferred. A recommendation is a
-  judgment, not a request for validation — on reversible work, act on it and
-  say what would change your mind. MUST ask, carrying that recommendation, when
-  the owner, design intent, performance contract, or verification gate is
-  unsettled, or when complete evidence would still leave a product-taste or
-  business trade-off. Consent for an irreversible act needs no such
-  precondition, and MUST always be sought: push, merge, deploy, delete, data
-  mutation, golden-standard (cassette/snapshot) change, or anything
-  outward-facing. The one exception is a durable grant the owner has already
-  given for that act — written into the session's goal file as
-  `CONSENT: <acts>`, or `CONSENT: all` for a blanket grant, or passed to the
-  run as `CLAUDE_GOAL_CONSENT` (see
-  [Agent Hooks](docs/internal/agent-hooks.md)). A named grant covers only the
-  acts it names, and an act outside it MUST still be asked for. Nothing
-  verifies who wrote a grant, so agents MUST NOT write one for themselves; the
-  rule is enforced by the owner reading the honoured-consent line the hook
-  prints, not by the harness. Research never waives Prove-The-Theory-First or the
-  pre-PR proof ladder.
-- MUST apply TDD when writing or modifying code.
+- Use local docs to establish the relevant contract; read source or external
+  documentation as needed to settle the task's actual uncertainty.
+- Research questions under settled design intent are work to complete. Use a
+  bounded specialist when that adds useful expertise; ask the owner only for
+  decisions or information the evidence cannot settle. The detailed guidance
+  is [Delegate An Undecided Design](docs/internal/agent-guide.md#delegate-an-undecided-design-do-not-escalate-it).
+- Honor authorization already supplied in the conversation for the named acts.
+  A request to create a PR includes its necessary branch push, not permission
+  to merge or deploy. Ask before external mutations outside that authorization,
+  destructive deletion, production data changes, or changing the golden
+  standard without explicit approval. Scope approval is not permission to
+  perform unrelated acts. Harnesses may persist the owner's grant through
+  `CONSENT: <acts>`, `CONSENT: all`, or `CLAUDE_GOAL_CONSENT` per
+  [Agent Hooks](docs/internal/agent-hooks.md); never invent or expand a grant.
+- Bug fixes require a failing regression test before the fix. New behavior
+  needs tests of its contract; refactors need proof that the existing contract
+  is preserved. Choose checks that exercise the behavior, not tests that merely
+  match implementation wording or harmless documentation edits.
 - MUST keep files under 500 lines; split before they approach the limit.
 - MUST NOT add AI attribution to commits, PRs, or docs.
 - MUST NOT push to `main` or `master`.
@@ -227,13 +194,14 @@ single-threading work, or inventing silent fallbacks.
 
 ## Read These First
 
-Before changing runtime, deployment, ingestion, parsing, graph, queue, or
-observability behavior, agents MUST read:
+Read the sections relevant to the changed contract:
 
-1. [Service Runtimes](docs/public/deployment/service-runtimes.md)
-2. [Local Testing](docs/public/reference/local-testing.md)
-3. [Telemetry](docs/public/reference/telemetry/index.md)
-4. [Architecture](docs/public/architecture.md)
+- [Service Runtimes](docs/public/deployment/service-runtimes.md) for service
+  ownership, startup, and deployment behavior.
+- [Local Testing](docs/public/reference/local-testing.md) for selecting and
+  running verification gates.
+- [Telemetry](docs/public/reference/telemetry/index.md) for operator signals.
+- [Architecture](docs/public/architecture.md) for pipeline and ownership changes.
 
 If a change affects Docker Compose, agents MUST also read
 [Docker Compose](docs/public/run-locally/docker-compose.md).
@@ -250,54 +218,37 @@ If a change affects NornicDB knobs or compatibility, agents MUST also read:
 
 ## Skill Routing
 
-Project skills in `.agents/skills/` are the source of truth for Eshu. Agents
-MUST inspect the project skill names and descriptions before editing, then load
-every project skill whose trigger applies to the touched surface. The short
-list below is not exhaustive. The `.claude/skills/` and `.codex/skills/`
-directories symlink to those repository-owned skills.
+Project skills in `.agents/skills/` are the source of truth; `.claude/skills/`
+and `.codex/skills/` symlink to them. Select the smallest set that covers the
+actual task. Use available names and descriptions for discovery, read a skill
+once when it applies, and load its references only for the selected workflow.
+Do not reload an unchanged skill for each edit or every status message.
 
-Skipping an applicable skill is a rule violation. If more than one skill
-applies, use the minimal set that covers the touched surface and state which
-skills are active.
+| Task | Skill |
+| --- | --- |
+| Diagnose unexplained runtime, backend, or queue behavior | `eshu-diagnostic-rigor` |
+| Benchmark, optimize, or validate a performance claim | `eshu-performance-rigor` |
+| Postgres SQL, schema, transactions, locks, or queue claims | `eshu-postgres-rigor` |
+| Go code or tests | `golang-engineering` |
+| Cypher, graph queries/writes/indexes, backend dialect | `cypher-query-rigor` |
+| Workers, leases, retries, shared state, queue ordering | `concurrency-deadlock-rigor` |
+| Correlation, materialization, deployment tracing, query truth | `eshu-correlation-truth` |
+| Eshu MCP/API calls or bounded tool contracts | `eshu-mcp-call-rigor` |
+| Facts, projected truth, query shapes asserted by B-7; cassettes or B-12 snapshot | `eshu-golden-corpus-rigor` |
+| Fact kinds, payload schemas, SDK contracts, registry or fixture packs | `eshu-contract-rigor` |
+| Release, version, image, Helm, or GitHub Release | `eshu-release` |
+| Package README, doc.go, scoped AGENTS.md | `eshu-folder-doc-keeper` |
+| Telemetry contracts, coverage, dashboards, missing signals | `telemetry-coverage-discipline` |
+| Generators and committed outputs | `generator-script-discipline` |
+| Security-scan workflow or scanner failures | `eshu-security-scan-gates` |
+| Issue/epic work explicitly requested through closure | `eshu-issue-driver` |
+| Final diff, pre-push review, merge-readiness | `eshu-code-review` |
+| Resolve review threads after verified fixes | `resolve-review-threads` |
+| Resume, handoff, PR monitoring, liveness, worktree cleanup | `eshu-session-lifecycle` |
+| Draft or polish PRs, reviews, issues, docs, or substantial updates | `eshu-humanizer` |
 
-- MUST use `eshu-diagnostic-rigor` for runtime diagnosis, reducer/queue
-  attribution, graph backend diagnosis, local/CI proof runs, and evidence.
-- MUST add `eshu-performance-rigor` for benchmarks, query/index optimization,
-  throughput or bootstrap changes, scaled/remote performance proof, and every
-  before/after latency or wall-time claim.
-- MUST add `eshu-postgres-rigor` for Postgres SQL, schema DDL, indexes,
-  migrations, queue/liveness/status queries, transactions, locks, or relational
-  performance diagnostics.
-- MUST add `golang-engineering` for Go edits and tests.
-- MUST add `cypher-query-rigor` for Cypher, graph query/write/index, or backend
-  dialect work.
-- MUST add `concurrency-deadlock-rigor` for workers, leases, conflict keys,
-  retries, or queue ordering.
-- MUST add `eshu-correlation-truth` for correlation, materialization, deployment
-  tracing, or query truth.
-- MUST add `eshu-mcp-call-rigor` for MCP/API tool calls or bounded
-  graph-backed query contracts.
-- MUST add `eshu-golden-corpus-rigor` for changes the B-7 golden-corpus gate
-  asserts (collector facts, reducer/projector graph output, query/MCP response
-  shapes, a new verb/edge/correlation) or any cassette, B-12 snapshot, or gate
-  file — keep the cassettes and snapshot (the golden standard) in lockstep.
-- MUST add `eshu-release` for release, versioning, image, Helm, and GitHub
-  Release work.
-- MUST add `eshu-folder-doc-keeper` for package `README.md`, `doc.go`, or
-  scoped `AGENTS.md` changes.
-- MUST add `eshu-contract-rigor` for a fact-kind add/change, a payload-shape
-  change, edits to `sdk/go/factschema` or `sdk/go/collector`, edits to
-  `specs/fact-kind-registry.v1.yaml`, fixture packs, or an Odù overlapping a
-  cassette or the B-12 snapshot.
-- MUST add `eshu-session-lifecycle` when the session itself starts, stops, or
-  hands off rather than when code changes: taking over a branch or transcript,
-  resuming stale work, pausing before going offline or before compaction,
-  watching an open PR through review and CI, judging whether a subagent is
-  alive, or pruning worktrees.
-- MUST add `eshu-humanizer` as the last pass over anything a human reads: PR
-  titles and bodies, review comments and replies, issue comments, commit
-  messages, evidence docs, CHANGELOG entries, and status updates. Applies to
-  text a subagent drafted, not only your own.
+State which skills are active. Routine status messages use the same plain,
+evidence-backed house style without loading a writing playbook each time.
 
 ## Golden Rules
 
@@ -309,7 +260,7 @@ skills are active.
 - MUST account for invalid input, empty state, stale state, partial failure,
   duplicates, retries, ordering, idempotency, concurrency, and rollback.
 - MUST preserve package ownership boundaries. The ownership table lives in
-  [Agent Engineering Guide](docs/internal/agent-guide.md#service-boundaries).
+  [Agent Engineering Guide](docs/internal/agent-guide.md#ownership-boundaries).
 - MUST include telemetry an operator can use at 3 AM for runtime-affecting
   changes.
 - MUST research official documentation before deciding on external SDK,
@@ -484,8 +435,8 @@ diagnosis.
 
 ## Orchestration, PR, And CI Discipline
 
-- For substantive implementation, review, and research, the orchestrator MUST
-  dispatch subagents rather than doing everything in one context. Match model
+- For substantive implementation, review, and research, the orchestrator should
+  use bounded subagents when independent work or review adds value. Match model
   capability to task difficulty using the tier map in
   [Agent Orchestration Model](docs/internal/agent-orchestration.md#roles-models-and-tools).
   A subagent never downgrades its own model. Leaf agents (executor, debugger,
@@ -508,13 +459,14 @@ diagnosis.
 
 ## Pre-Ready Checklist
 
-Every line MUST be true before claiming work is ready. An unchecked line is a
-blocker, not a nice-to-have.
+Every applicable condition must hold before claiming ready. State why a
+condition is inapplicable when that is material to the review; do not manufacture
+runtime or telemetry work for a prose-only edit.
 
 - Relevant local docs read.
 - Relevant project skill used.
 - Flow and ownership understood end to end.
-- Tests written first for code changes.
+- Bug fixes have a failing regression first; other code changes have contract proof.
 - Performance impact declared for runtime-affecting work.
 - Edge cases and concurrency behavior considered.
 - Telemetry or explicit no-observability-change evidence recorded.

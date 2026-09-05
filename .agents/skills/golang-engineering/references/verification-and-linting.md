@@ -2,16 +2,13 @@
 
 Use this file when deciding what to run, how broad to verify, and how to treat lint findings.
 
-## Discover the Repo's Verification Entrypoint
+## Eshu entrypoints
 
-Check these first, in order:
-- `README*`, `CONTRIBUTING*`, and developer docs for required commands
-- `Makefile`, `Taskfile.yml`, `justfile`, `magefile.go`, or repo scripts
-- CI workflows such as `.github/workflows/*`, `.circleci/*`, or other pipeline config
-- `.golangci.yml`, `.golangci.yaml`, or linter commands referenced in CI
-- `go.mod` and `go.work` for Go version, toolchain, workspace, and package layout
-
-If the repo already defines `make test`, `make lint`, or a composite verification target, prefer that over inventing custom commands. Use raw `go test` and `golangci-lint` only when the repo does not provide a clearer entrypoint.
+Use `docs/public/reference/local-testing.md` (repository-relative) for required
+gates. Inspect the relevant script or CI entry when its scope or behavior is
+unclear; do not load an unrelated repository tool inventory. Run Go commands
+from `go/`. Prefer `scripts/dev/precommit-go.sh lint` for ordinary lint checks;
+bare `golangci-lint` needs the local custom plugins built first.
 
 ## Targeted vs Full Verification
 

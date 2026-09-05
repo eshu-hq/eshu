@@ -1,6 +1,6 @@
 ---
 name: eshu-golden-corpus-rigor
-description: Use when changing anything the B-7 golden-corpus gate asserts — collector fact emission, reducer/projector graph writes, correlation/materialization output, query or MCP tool response shapes, fact-kind or schema constants, or a new verb/edge/node/correlation — and when editing the cassettes (testdata/cassettes/), the B-12 snapshot (testdata/golden/e2e-20repo-snapshot.json), or scripts/verify-golden-corpus-gate.sh, or when the golden-corpus gate goes red. The cassettes plus the snapshot are Eshu's golden standard; a code change that alters projected truth without updating them in the same change fails the gate.
+description: Update or debug Eshu golden replay contracts when facts, projected truth, query shapes, cassettes, or snapshots change.
 ---
 
 # eshu-golden-corpus-rigor

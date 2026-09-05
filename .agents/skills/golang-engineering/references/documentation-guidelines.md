@@ -17,7 +17,8 @@ Documentation must earn its keep. Add information the code and type signatures d
 
 ## Package Docs
 
-- Add a package comment when the package is intended for reuse, has non-obvious boundaries, or benefits from a one-sentence purpose statement.
+- Eshu packages require `doc.go`, `README.md`, and scoped `AGENTS.md`; use
+  `eshu-folder-doc-keeper` for that package baseline.
 - Explain what the package is for, not how every file works.
 - Keep package comments accurate and short enough to stay maintained.
 
@@ -37,7 +38,8 @@ package cache
 
 ## Doc Comments
 
-- Exported identifiers should be documented when they are part of the package contract or their behavior is not obvious from the signature.
+- Document new or touched exported identifiers as required by the root canon,
+  including their contract, invariant, or failure mode.
 - Start doc comments with the identifier name.
 - Write doc comments as documentation, not placeholders.
 - Avoid boilerplate that merely repeats the name and types.

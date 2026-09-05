@@ -1,6 +1,6 @@
 ---
 name: eshu-postgres-rigor
-description: Use when writing, reviewing, debugging, or optimizing Eshu Postgres SQL, schema DDL, indexes, migrations, queue claims, liveness/readiness/status queries, transactions, lock waits, pg_stat_activity output, or relational performance diagnostics.
+description: Design, debug, or review Eshu Postgres SQL, schema, transactions, queue claims, and relational performance.
 ---
 
 # Eshu Postgres Rigor

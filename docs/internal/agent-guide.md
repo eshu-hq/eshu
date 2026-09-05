@@ -4,7 +4,8 @@ This maintainer-only guide expands the mandatory root `AGENTS.md` and
 `CLAUDE.md` rules. Keep root guidance mirrored; put detailed workflow guidance
 here or in scoped package docs.
 
-This guide is mandatory for agents. It is not optional background reading.
+The rules for a touched surface are mandatory. Read the relevant sections when
+the task needs them; this guide is not a startup reading list for every edit.
 
 ## Operating Standard
 
@@ -25,8 +26,8 @@ Use the project skill that matches the touched surface:
 
 - `eshu-correlation-truth` for materialization, deployment tracing, or query
   truth
-- `eshu-diagnostic-rigor` for runtime proof, reducer throughput, queue behavior,
-  or performance evidence
+- `eshu-diagnostic-rigor` for diagnosing unexplained runtime, backend, or queue
+  behavior; `eshu-performance-rigor` for measured performance claims
 - `eshu-postgres-rigor` for Postgres SQL, schema, indexes, queues, locks,
   transactions, or relational performance diagnostics
 - `cypher-query-rigor` for graph query/write/index or backend dialect work
@@ -277,18 +278,15 @@ full-package build caught it.
 
 ### Delegate An Undecided Design, Do Not Escalate It
 
-Subordinate to Mandatory Startup: while the correct owner, design intent,
-performance contract, or verification gate is unclear, the answer is still to
-stop and ask. No agent resolves an unowned design decision by dispatching an
-agent at it.
+Establish ownership, design intent, performance contract, and verification
+requirements from the task and available evidence. Ask if those remain
+unsettled; dispatching another agent cannot authorize an unowned decision.
 
-Once those four are settled, a remaining technical question is a research task.
-When evidence contradicts itself, or the settled intent admits two defensible
-implementations, dispatch a Deep-tier agent to adjudicate rather than parking the
-work (per-harness map in
-[Agent Orchestration Model](agent-orchestration.md#roles-models-and-tools) —
-Fable under Claude Code, Sol under Codex; never assume the other harness has your
-model). Production facts and business calls still go to the owner.
+Once those are settled, remaining technical uncertainty is a research task.
+Investigate directly or use a bounded specialist when independent reasoning
+would help resolve contradictory evidence. Select capability through the active
+runtime per [Agent Orchestration Model](agent-orchestration.md#roles-models-and-tools).
+Product and business trade-offs that evidence cannot settle go to the owner.
 
 Give it the symptom and raw observations, never your hypothesis. Twice in one
 session a Deep-tier investigation rejected the framing it was handed and found

@@ -27,9 +27,11 @@ A rebase or amend after `make pre-pr` invalidates the stamp — re-run it before
 pushing. This bites most often when a coverage or generated artifact is committed
 after the gate: regenerate BEFORE the promotion run, not after.
 
-The only sanctioned bypass is `ESHU_ALLOW_UNSTAMPED_PUSH=1`, used only when you
-accept CI as the first gate for that push. CI re-checks every gate regardless and
-remains the non-bypassable source of truth.
+The transport exposes `ESHU_ALLOW_UNSTAMPED_PUSH=1` for an explicit owner
+exception. Its availability is not authorization: agents must not select it to
+skip local proof or promotion. Report the blocked gate and obtain a specific
+owner decision before any exception; normal PR requests retain the root proof
+requirements. CI still re-checks the required gates.
 
 ## Verify `pwd` before any edit
 
@@ -47,8 +49,9 @@ diagnostic or investigative purposes.
 The main checkout must stay a clean fast-forward of `origin/main` between merges.
 A dirty main checkout confuses the next agent and makes the owner's own
 uncommitted work look like an agent's. If a diagnostic mutation has already
-leaked in, stop, `git restore <file>` the uncommitted change, fetch, and re-apply
-the regeneration inside a worktree if the result is still needed.
+leaked in, stop and report the affected paths. Preserve the diff and let the
+owner choose recovery; do not silently restore files that may include another
+contributor's work. Apply the agreed recovery in the intended worktree.
 
 ## Never `git stash` across concurrent worktrees
 
