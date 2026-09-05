@@ -45,7 +45,7 @@ WITH lease AS MATERIALIZED (
     WHERE source.stage = 'reducer'
       AND source.status IN ('claimed', 'running', 'succeeded')
     ORDER BY source.work_item_id COLLATE "C"
-    FOR UPDATE OF source
+    FOR NO KEY UPDATE OF source
 ), captured AS MATERIALIZED (
     SELECT event.event_id, event.producer_item_count
     FROM cross_scope_completion_events AS event

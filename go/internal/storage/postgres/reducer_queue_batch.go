@@ -229,7 +229,7 @@ WITH locked_work AS MATERIALIZED (
       AND lease_owner = $2
       AND status IN ('claimed', 'running')
     ORDER BY work_item_id COLLATE "C"
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ), acknowledged AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
@@ -308,7 +308,7 @@ WITH locked_work AS MATERIALIZED (
       AND lease_owner = $2
       AND status IN ('claimed', 'running')
     ORDER BY work_item_id COLLATE "C"
-    FOR UPDATE
+    FOR NO KEY UPDATE
 ), acknowledged AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
@@ -370,7 +370,7 @@ WITH locked_work AS MATERIALIZED (
       AND lease_owner = $2
       AND status IN ('claimed', 'running')
     ORDER BY work_item_id COLLATE "C"
-    FOR UPDATE
+    FOR NO KEY UPDATE
 )
 UPDATE fact_work_items
 SET status = 'succeeded',

@@ -6,8 +6,10 @@ executor. The production contention probe reproduced a PostgreSQL deadlock;
 the change gives those statements a common work-item order and acquires queued
 completion events only after the consumer locks.
 
-Focused live validation passed on the candidate after the same tests failed on
-the baseline. Actual plans confirm ordered locks and drained dependencies on
+Focused ordering and replay validation passed on the initial candidate after
+the same tests failed on the baseline. A subsequent foreign-key compatibility
+regression failed on that candidate; the work-lock-strength correction awaits
+live validation. Actual plans confirm ordered locks and drained dependencies on
 the 64-consumer fixture. Broader validation remains pending; the single timing
 sample does not establish a speedup or a general performance guarantee.
 
@@ -51,6 +53,13 @@ captured-event count, so event capture precedes consumer state updates. These
 are data dependencies, not an assumption that textual CTE order controls
 execution. The plan proof must show the sort feeding `LockRows` and the
 aggregate dependencies consuming the full lock sets.
+
+Work-row prelocks use `FOR NO KEY UPDATE`: these statements do not change the
+referenced `work_item_id`, and the weaker lock still conflicts with competing
+ACK/fanout mutations. It remains compatible with an audit foreign key's
+`KEY SHARE`. The exact lease and captured event rows retain `FOR UPDATE` because
+fanout deletes the captured events. Lock strength changes do not change the
+shared work-item order or the full-consumption dependencies.
 
 The participating resource order is:
 
@@ -109,13 +118,16 @@ counts only acknowledged rows whose returned status is actually succeeded.
   producer ACK calls on both sides of queued-event capture for both producer
   domains. It checks exact counts, retained events, and an already-dirty
   consumer ACK waiting on the fanout before returning to pending.
+- `TEST: TestReducerContentionGateAckFanoutAuditFKCompatibilityLive` holds a real
+  `fact_replay_events` insert transaction open and requires all four writer
+  paths to complete while its validated work-item foreign key holds `KEY SHARE`.
 - `TEST: TestCrossScopeCompletionEventAfterFanoutSnapshotRemainsPendingLive`
   covers an event inserted outside the captured statement snapshot.
 
-All three issue regressions use the `TestReducerContentionGate` prefix selected
+All four issue regressions use the `TestReducerContentionGate` prefix selected
 by the contention workflow. They accept its `ESHU_POSTGRES_DSN` environment
 variable and bridge it into the existing isolated-schema helper's test-DSN
-setting. The CI-parity invocation must list all three and execute them with
+setting. The CI-parity invocation must list all four and execute them with
 only the workflow's DSN variable supplied.
 
 The contention probe captures `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for the
@@ -163,8 +175,26 @@ speedup, a stable latency distribution, or a bound for large/already-dirty
 backlogs. The deterministic dirty-consumer test proves the held replay
 obligation; broader dirty-backlog performance still needs measurement.
 
-Full-module build passed. Vet, broader unit/existing live tests, B-7/B-12
-equivalence, and final review/preflight receipts remain pending at this update.
+A subsequent review found that the initial `FOR UPDATE` work prelocks were
+stronger than the non-key mutations required. The audit-FK regression at
+`cbaad84040c6f4eebd6e72d33d3959b91b88a1c5` exited 1 in all four writer arms,
+each with SQLSTATE `55P03` after waiting for the open audit insert's `KEY SHARE`.
+Artifacts are `/tmp/6488-fk-red-run.log` and `/tmp/6488-fk-red-remote.log`.
+The other three contention tests passed (40 trials, nine ordering arms, four
+capture arms) with only CI's `ESHU_POSTGRES_DSN` supplied and no skipped cases.
+This establishes avoidable blocking, not a new production deadlock: the current
+admin replay path updates work before inserting its audit events.
+
+Only the three ACK work prelocks and fanout's consumer prelock changed to
+`FOR NO KEY UPDATE`. Event locks remain unchanged. The earlier live GREEN and
+single-sample plan costs apply to the initial stronger-lock candidate; the
+corrected lock strength still needs focused live and paired scale validation.
+The existing scale test now logs its complete metric vector before threshold
+assertions, preserving measurements on failure without changing any limit.
+
+Full-module build passed on the earlier candidate. Broader validation and final
+review/preflight receipts remain outstanding; failures require baseline control
+or a fix before promotion. No earlier result proves this latest edit green.
 
 ## Operator signals and limits
 
