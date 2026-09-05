@@ -26,8 +26,9 @@
 //
 // # Package boundary
 //
-// Imports point strictly downward: this package reaches [reducercontract],
-// [factload], [gpphase], [payloadcore], internal/facts and pkg/log, and never
+// Imports point strictly downward: this package reaches reducer/contract,
+// reducer/factload, reducer/gpphase, reducer/payloadcore, internal/facts and
+// pkg/log, and never
 // the parent internal/reducer package. The dependency runs the other way —
 // the root's handler catalog constructs [SemanticEntityMaterializationHandler]
 // and wires its Writer, PhasePublisher and RepairQueue. See AGENTS.md in this

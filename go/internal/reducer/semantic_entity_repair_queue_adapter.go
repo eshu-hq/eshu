@@ -12,7 +12,7 @@ import (
 // semanticEntityRepairQueueAdapter adapts the reducer root's
 // GraphProjectionPhaseRepairQueue to semanticentity.GraphProjectionPhaseRepairQueue.
 //
-// The two interfaces are structurally identical, but semanticentity declares
+// The two repair structs are field-for-field identical, but semanticentity declares
 // its own GraphProjectionPhaseRepair struct locally (issue #6061, see
 // semanticentity/graph_ports.go) rather than importing the root's, so Go
 // requires exact type identity for Enqueue's []GraphProjectionPhaseRepair

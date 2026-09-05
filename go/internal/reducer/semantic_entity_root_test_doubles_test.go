@@ -19,7 +19,9 @@ import (
 // defaults_semantic_entity_domain_wiring_test.go,
 // workload_materialization_phase_repair_test.go,
 // workload_materialization_phase_repair_wiring_test.go) still reference
-// these under their original unqualified names, so root keeps this trimmed
+// these under their original unqualified names, as do the two same-family
+// tests this move adds (defaults_domain_catalog_semantic_repair_queue_test.go,
+// semantic_entity_repair_queue_adapter_test.go), so root keeps this trimmed
 // copy rather than requiring every one of those files to import
 // semanticentity and requalify every call site. Mirrors
 // container_image_identity_root_test_doubles_test.go for the same reason.

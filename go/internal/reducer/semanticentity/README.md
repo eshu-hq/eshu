@@ -157,8 +157,11 @@ are the same before and after the move.
 - **`GraphProjectionPhaseRepairQueue` here is narrower than the root's.** It
   declares only `Enqueue`, the one method `SemanticEntityMaterializationHandler`
   calls, not the root's full `Enqueue`/`ListDue`/`Delete`/`MarkFailed` set
-  the repair runner needs. A wider concrete implementation still satisfies
-  it structurally.
+  the repair runner needs. Narrowing the method set is not enough on its own:
+  a wider implementation satisfies this interface only if its `Enqueue` takes
+  `[]semanticentity.GraphProjectionPhaseRepair`. The root's takes the root's
+  own struct, and Go requires exact type identity in a method signature, which
+  is why `semanticEntityRepairQueueAdapter` exists. Do not delete it.
 - **Delta scoping is per repository**, carried on each generation's
   repository fact (`delta_generation`, `delta_relative_paths`,
   `delta_deleted_relative_paths`). Never treat it as scope-wide.

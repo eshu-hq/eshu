@@ -54,9 +54,12 @@ type GraphProjectionPhaseRepairQueue interface {
 
 // graphProjectionPhaseRepairsFromStates converts exact readiness publications
 // into durable repair rows that can be retried later if publication failed.
-// Copied byte-for-byte from root's GraphProjectionPhaseRepairsFromStates
-// (graph_projection_phase_repair.go), which this package cannot import for
-// the same reason as above.
+// The body is a byte-for-byte copy of root's
+// GraphProjectionPhaseRepairsFromStates (graph_projection_phase_repair.go),
+// which this package cannot import for the same reason as above. The
+// signature differs: the name is unexported here, and the parameter is spelled
+// []gpphase.PhaseState rather than []GraphProjectionPhaseState -- the same
+// type through the root's alias.
 func graphProjectionPhaseRepairsFromStates(
 	states []gpphase.PhaseState,
 	lastError string,
