@@ -551,8 +551,6 @@ LINE docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md go/inte
 LINE docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md go/internal/reducer/symbol_runtime_refresh_intents.go:66
 LINE docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md go/internal/storage/postgres/shared_intents.go:161
 LINE docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md go/internal/reducer/shared_projection_runner.go:24
-LINE docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md go/internal/reducer/shared_projection_worker_refresh_fence.go:115
-LINE docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md go/internal/reducer/shared_projection_worker_refresh_fence.go:91
 LINE docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md go/internal/storage/cypher/edge_writer_logging.go:232
 LINE docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go:22
 LINE docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md go/internal/storage/cypher/edge_writer_nil_fence_whole_scope_test.go:37
