@@ -7,7 +7,7 @@ relationship-story, code-search, and codeowners-ownership reads.
 
 It moved out of root package `query` (#6060 lane A) so the family can be
 read, tested, and changed without pulling in the rest of the query
-surface. Depends only on dependency-neutral leaves (`querycontract`,
+surface. May import only dependency-neutral leaves (`querycontract`,
 `queryauth`, `queryspan`, the `internal/search*` hybrid ranking packages,
 `internal/facts`, `internal/codeprovenance`) — never on root package
 `query` itself, which would create an import cycle: root's

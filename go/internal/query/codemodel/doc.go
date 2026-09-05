@@ -9,7 +9,7 @@
 //
 // It moved out of root package query (#6060 lane A) so the family can be
 // read, tested, and changed without pulling in the rest of the query
-// surface. It depends only on dependency-neutral leaves -- querycontract
+// surface. It may import only dependency-neutral leaves -- querycontract
 // (envelopes, capabilities, row-value decoders, repository access filter),
 // queryauth (request auth bounds), queryspan (span plumbing), the
 // internal/search* hybrid ranking packages, internal/facts, and
