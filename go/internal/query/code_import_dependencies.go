@@ -99,7 +99,11 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		// should read here, which is why it denies every backend rather than
 		// only the graph: "no graph read was issued" beside a content_index
 		// basis would invite the reader to infer a content read that also
-		// never happened. Language-query's empty page says the same sentence.
+		// never happened. The sentence is reasonEmptyGrantNoBackendRead, the
+		// same constant language-query's empty page uses -- shared rather than
+		// duplicated so the two pages cannot be reworded apart. Each route's
+		// test still pins the text as a literal, which is what catches a
+		// rewording of the constant itself.
 		emptyPage := importDependencyResponse(req, nil)
 		emptyPage["source_backend"] = noBackendReadSourceBackend
 		WriteSuccess(
@@ -107,7 +111,7 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 			r,
 			http.StatusOK,
 			emptyPage,
-			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisContentIndex, "the caller's grant admits no repository, so no backend was read"),
+			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisContentIndex, reasonEmptyGrantNoBackendRead),
 		)
 		return
 	}

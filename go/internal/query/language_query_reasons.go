@@ -102,7 +102,7 @@ func (h *LanguageQueryHandler) writeLanguageQueryEmptyGrantResult(
 	body := languageQueryResponseBody(language, entityType, query, []map[string]any{})
 	body["source_backend"] = noBackendReadSourceBackend
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
-		h.profile(), languageQueryCapability, TruthBasisContentIndex, reasonLanguageQueryEmptyGrant,
+		h.profile(), languageQueryCapability, TruthBasisContentIndex, reasonEmptyGrantNoBackendRead,
 	))
 }
 

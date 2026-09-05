@@ -50,9 +50,11 @@ const languageQueryCapability = "symbol_graph.language_entities"
 const (
 	reasonLanguageQueryGraphOnly   = "graph-only read served this entity type"
 	reasonLanguageQueryContentOnly = "content-store read served this entity type"
-	// reasonLanguageQueryEmptyGrant describes the empty page a scoped caller
-	// with no repository grants gets. It is the route's normal success shape,
-	// answered without reaching either backend.
+	// reasonEmptyGrantNoBackendRead describes the empty page a scoped caller
+	// with no repository grants gets. BOTH routes in this family use it --
+	// language-query here and imports/investigate's grantless branch -- so the
+	// two pages cannot be reworded apart. It is their normal success shape,
+	// answered without reaching any backend.
 	//
 	// It does NOT hide the grantless case from the caller: this string is
 	// serialized in the truth envelope's reason, so a grantless caller can tell
@@ -61,7 +63,7 @@ const (
 	// its own grant, which it already knows. What stays unprobeable is the
 	// INDEX: neither answer says whether any repository, entity or row exists,
 	// because no backend was read to find out.
-	reasonLanguageQueryEmptyGrant = "the caller's grant admits no repository, so no backend was read"
+	reasonEmptyGrantNoBackendRead = "the caller's grant admits no repository, so no backend was read"
 )
 
 // languageQueryMaxLimit bounds the caller-supplied limit before it reaches

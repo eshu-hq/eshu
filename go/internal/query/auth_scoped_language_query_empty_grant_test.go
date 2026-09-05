@@ -49,7 +49,7 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			// grantless case, and language-query-dsl.md tells callers so.
 			//
 			// The wanted text is written out here rather than compared against
-			// reasonLanguageQueryEmptyGrant on purpose. Comparing the response
+			// reasonEmptyGrantNoBackendRead on purpose. Comparing the response
 			// to the same constant that produced it passes whatever the
 			// constant says -- including "no results", which was tried, and
 			// which the documented contract does NOT allow. A literal is what
