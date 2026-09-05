@@ -129,8 +129,14 @@ func TestLiveNornicDBRelationshipStoryFullProjectionUnscopedIsUnchanged(t *testi
 		"outgoing",
 		repositoryAccessFilter{AllScopes: true},
 	)
-	if strings.Contains(cypher, "relationship_repo_ids") {
-		t.Fatalf("an unscoped caller still rendered a grant array:\n%s", cypher)
+	// The parameter names the builders actually bind, through
+	// RepositoryAccessFilter.GraphParams. "relationship_repo_ids" was the
+	// pre-batch name and production emits it nowhere, so guarding on it guarded
+	// nothing. These are the same two names the CI-lane pins assert.
+	for _, grantParam := range []string{"$allowed_repository_ids", "$allowed_scope_ids"} {
+		if strings.Contains(cypher, grantParam) {
+			t.Fatalf("an unscoped caller still rendered %s:\n%s", grantParam, cypher)
+		}
 	}
 	rows, err := reader.Run(ctx, cypher, params)
 	if err != nil {
