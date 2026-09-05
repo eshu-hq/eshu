@@ -251,8 +251,9 @@ func TestLiveNornicDBRelationshipStoryCompatBuilderMustNotLeakUngrantedRows(t *t
 
 // TestLiveNornicDBRelationshipStoryClassMethodsHaveNoRepositoryBinding pins the
 // second half of question 1: the class-methods and inheritance-depth builders
-// carry no repository binding at all, in either backend's builder. The probe
-// anchors on an out-of-grant class and records what comes back.
+// carried no repository binding at all, in either backend's builder, before
+// this batch. The probe anchors on an out-of-grant class and records what came
+// back.
 func TestLiveNornicDBRelationshipStoryClassMethodsHaveNoRepositoryBinding(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

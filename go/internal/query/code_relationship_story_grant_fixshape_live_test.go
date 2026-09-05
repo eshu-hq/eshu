@@ -151,10 +151,10 @@ func TestLiveNornicDBRelationshipStoryFullProjectionUnscopedIsUnchanged(t *testi
 	}
 }
 
-// TestLiveNornicDBRelationshipStoryClassMethodsFixShape measures a binding for
-// the class-methods read, which carries none today. The class and the method
-// both have to sit in grant: a class can contain a method the projector
-// attributed to another repository.
+// TestLiveNornicDBRelationshipStoryClassMethodsFixShape measures the binding
+// for the class-methods read, which carried none before this batch. The class
+// and the method both have to sit in grant: a class can contain a method the
+// projector attributed to another repository.
 func TestLiveNornicDBRelationshipStoryClassMethodsFixShape(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
