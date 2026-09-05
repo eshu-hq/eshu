@@ -1,5 +1,10 @@
 # #6527 The Cross-Repo Consumer-Evidence Page's Own Bound
 
+This is the follow-up to #6535, and it closes #6527. #6535 bounded the
+hidden-consumer probe and filed the page read's own bound as an issue off its
+own measurements; that issue is what this note answers, so nothing here is part
+of #6535 and everything here lands after it.
+
 `POST /api/v0/code/dead-code/cross-repo` answers with two bounded reads. The
 hidden-consumer probe is measured in
 [#5167 cross-repo hidden-consumer walk](5167-cross-repo-hidden-consumer-walk.md).
@@ -13,11 +18,12 @@ rows. Nothing on `code_reachability_rows` carried that order, so Postgres had to
 rank a producer entity's whole fan-in group before it could emit the group's
 first row. One busy symbol therefore cost the page its entire consumer set.
 
-The fix is an index and nothing else. Migration 103 builds `(entity_id,
-confidence DESC, depth, repository_id, root_entity_id)`, which IS that `ORDER
-BY` with `entity_id` pinned by the statement's `IN` list, so the scan is already
-in output order and the `LIMIT` stops it. The statement, the page contract, the
-`consumer_evidence_truncated` marker and the OpenAPI shape are untouched.
+The fix is an index plus a tiebreak on the statement's ordering. Migration 103
+builds `(entity_id, confidence DESC, depth, repository_id, root_entity_id,
+scope_id, generation_id)`, which IS that `ORDER BY` with `entity_id` pinned by
+the statement's `IN` list, so the scan is answered in output order rather than
+by ranking the group first. The page contract, the `consumer_evidence_truncated`
+marker and the OpenAPI shape are untouched.
 
 Root-Cause Evidence: the shipped plan is
 `Limit -> Incremental Sort (Presorted Key: entity_id) -> Nested Loop -> Index
@@ -222,7 +228,7 @@ The second needed a fixture that seed could not produce. Two rows tie on all
 five ranking columns exactly when one `(entity_id, repository_id,
 root_entity_id)` triple has rows under two ingestion scopes whose generations
 are both active, with equal confidence and depth -- the two-scopes-per-repository
-case this PR's walk rewrite is built on, and impossible on a single-scope seed.
+case #6535's walk rewrite is built on, and impossible on a single-scope seed.
 The fixture builds that pair and puts it at the 1,001 boundary, which is the
 only place a tie can change what comes back.
 

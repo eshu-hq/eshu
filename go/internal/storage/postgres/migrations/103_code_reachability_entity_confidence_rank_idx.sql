@@ -1,6 +1,8 @@
 -- Let the cross-repo dead-code consumer-evidence PAGE be answered in its own
 -- ORDER BY, instead of ranking a producer entity's whole consumer fan-in first
--- (#6527), and give rows that tie on the ranking a defined order (#6535 F-2).
+-- (#6527), and give rows that tie on the ranking a defined order. This lands
+-- after #6535, which bounded the hidden-consumer probe beside this read and
+-- filed #6527 off its own measurements.
 --
 -- buildCrossRepoDeadCodeConsumerEvidenceQuery selects one page of consumer
 -- evidence for the producer entities on a dead-code page, ordered

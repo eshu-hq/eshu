@@ -408,9 +408,9 @@ carried that order, so its scan was bounded by a producer entity's fan-in rather
 than by the limit: 885 ms reading 1,000,497 rows on this seed with the whole
 five-repository grant bound, and 752 ms reading 800,373 with four of the five.
 Removing the second traversal of that group is what this change buys. The page's
-own bound was filed as #6527 with those measurements and is fixed in the same
-PR — migration 103 builds the index that order needs, and the same page then
-reads 1,124 rows in 1.68/4.56/1.66 ms. The statement did not change, so neither
+own bound was filed as #6527 with those measurements and is fixed in the
+follow-up that closes it — migration 103 builds the index that order needs, and
+the same page then reads 1,001 rows in 2.03/1.77/1.49 ms. The statement did not change, so neither
 did the answer; the measurements are in [#6527 the consumer-evidence page's own
 bound](5167-cross-repo-consumer-page-bound.md).
 

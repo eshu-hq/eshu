@@ -452,10 +452,11 @@ candidate on the page `unknown_needs_evidence` whatever its own evidence said �
 cannot happen, because the probe answers for every entity it is given.
 `TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven` is the guard.
 
-The page half got its own bound in the same PR: #6527, where the `LIMIT` capped
-what came back and not what was read. Migration 103 carries the order the
-statement ranks by, 1,000,497 rows scanned becomes 1,124, and the statement is
-untouched — [#6527 the page's own bound](5167-cross-repo-consumer-page-bound.md).
+The page half kept its own bound, filed here as #6527: the `LIMIT` capped what
+came back and not what was read. It is closed by the follow-up to this change,
+not by this change — migration 103 carries the order the statement ranks by and
+1,000,497 rows scanned becomes 1,001 —
+[#6527 the page's own bound](5167-cross-repo-consumer-page-bound.md).
 
 ## Verification
 

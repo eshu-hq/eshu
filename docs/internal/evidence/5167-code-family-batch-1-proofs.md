@@ -242,6 +242,12 @@ mutation was restored and its guard rerun at exit `0`.
 | 62 | migration 103 drops the tiebreak from the key while the statement keeps it | the same two commands | `1` and `1` (5 failing sub-tests). The pin reports `migration 103's index key is (entity_id, confidence DESC, depth, repository_id, root_entity_id)` beside the statement's seven, and the live index guard reports the same mismatch against `pg_indexes` |
 | 63 | the live fixture's `crossRepoDeadCodeConsumerPageRetainedGenerations` is set to 0, so the retention arm retains nothing | the live page proof | `1` (`the retention arm scanned 1001 rows, no more than the no-retention budget of 1200; the fixture is not carrying retained generations and this guard is vacuous`). The ceiling would have passed — 1,001 is comfortably under the retention budget — which is why the arm carries a floor as well |
 
+Rows 55 through 63 belong to the FOLLOW-UP that closes #6527, not to the change
+this note otherwise records. They are kept here because they mutate the same
+statement and the same migration family, and splitting them into a second ledger
+would separate a mutation from the guard it is judged by. Everything numbered 54
+and below shipped in #6535.
+
 An earlier attempt at #1 deleted the whole helper body and failed as an unused
 import rather than an assertion, which proves nothing; the mutations above keep
 the package compiling so the failure is the assertion's.
