@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iamescalation
 
 import (
 	"reflect"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 )
 
 // TestIAMEscalationUnscannedTargetIsSkipped proves a target ARN that was not
@@ -38,7 +39,7 @@ func TestIAMEscalationUnscannedTargetIsSkipped(t *testing.T) {
 func TestIAMEscalationStsAssumeRoleIsDeferred(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypeRole, targetRoleARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypeRole, targetRoleARN)}
 	perms := []facts.Envelope{escalationPermissionEnvelope(attackerUserARN, "Allow",
 		[]string{"sts:assumerole"}, []string{targetRoleARN})}
 
@@ -78,7 +79,7 @@ func TestIAMEscalationUnscannedPrincipalIsSkipped(t *testing.T) {
 	t.Parallel()
 
 	// Only the target is scanned, not the principal.
-	resources := []facts.Envelope{iamNodeEnvelope(iamResourceTypePolicy, targetPolicyARN)}
+	resources := []facts.Envelope{iamNodeEnvelope(iampolicy.ResourceTypePolicy, targetPolicyARN)}
 	perms := []facts.Envelope{escalationPermissionEnvelope(attackerUserARN, "Allow",
 		[]string{"iam:createpolicyversion"}, []string{targetPolicyARN})}
 
@@ -100,7 +101,7 @@ func TestIAMEscalationUnscannedPrincipalIsSkipped(t *testing.T) {
 func TestIAMEscalationMultiplePrimitivesMergeIntoOneEdge(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypeRole, targetRoleARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypeRole, targetRoleARN)}
 	// Both AttachRolePolicy and PutRolePolicy target the same role.
 	perms := []facts.Envelope{
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"iam:attachrolepolicy", "iam:putrolepolicy"}, []string{targetRoleARN}),
@@ -109,7 +110,7 @@ func TestIAMEscalationMultiplePrimitivesMergeIntoOneEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExtractIAMEscalationEdges() error = %v, want nil", err)
 	}
-	edge := edgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), uidOf(iamResourceTypeRole, targetRoleARN))
+	edge := edgeFor(result.Edges, uidOf(iampolicy.ResourceTypeUser, attackerUserARN), uidOf(iampolicy.ResourceTypeRole, targetRoleARN))
 	if edge == nil {
 		t.Fatalf("expected one merged edge; rows=%v", result.Edges)
 	}
@@ -131,14 +132,14 @@ func TestIAMEscalationMultiplePrimitivesMergeIntoOneEdge(t *testing.T) {
 func TestIAMEscalationServiceWildcardCoversAction(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypeRole, targetRoleARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypeRole, targetRoleARN)}
 	perms := []facts.Envelope{escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"iam:*"}, []string{targetRoleARN})}
 
 	result, err := ExtractIAMEscalationEdges(resources, perms)
 	if err != nil {
 		t.Fatalf("ExtractIAMEscalationEdges() error = %v, want nil", err)
 	}
-	edge := edgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), uidOf(iamResourceTypeRole, targetRoleARN))
+	edge := edgeFor(result.Edges, uidOf(iampolicy.ResourceTypeUser, attackerUserARN), uidOf(iampolicy.ResourceTypeRole, targetRoleARN))
 	if edge == nil {
 		t.Fatalf("iam:* must arm iam: role primitives; rows=%v", result.Edges)
 	}
@@ -158,8 +159,8 @@ func TestIAMEscalationDeterministicAndIdempotent(t *testing.T) {
 
 	resources := []facts.Envelope{
 		attackerNode(),
-		iamNodeEnvelope(iamResourceTypePolicy, targetPolicyARN),
-		iamNodeEnvelope(iamResourceTypeRole, targetRoleARN),
+		iamNodeEnvelope(iampolicy.ResourceTypePolicy, targetPolicyARN),
+		iamNodeEnvelope(iampolicy.ResourceTypeRole, targetRoleARN),
 	}
 	perms := []facts.Envelope{
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"iam:createpolicyversion"}, []string{targetPolicyARN}),

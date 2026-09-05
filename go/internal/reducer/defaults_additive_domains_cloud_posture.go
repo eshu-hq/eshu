@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 )
 
@@ -92,8 +93,8 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 		definitions = append(definitions, kubernetesEdges)
 	}
 	if handlers.FactLoader != nil && handlers.IAMEscalationEdgeWriter != nil {
-		iamEscalation := iamEscalationMaterializationDomainDefinition()
-		iamEscalation.Handler = IAMEscalationMaterializationHandler{
+		iamEscalation := iamescalation.MaterializationDomainDefinition()
+		iamEscalation.Handler = iamescalation.IAMEscalationMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			Writer:               handlers.IAMEscalationEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

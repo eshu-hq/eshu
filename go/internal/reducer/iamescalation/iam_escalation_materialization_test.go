@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iamescalation
 
 import (
 	"context"
@@ -13,6 +13,9 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -50,12 +53,12 @@ func (w *recordingIAMEscalationWriter) RetractIAMEscalationEdges(
 	return nil
 }
 
-func iamEscalationIntent() Intent {
-	return Intent{
+func iamEscalationIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-iam-esc-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainIAMEscalationMaterialization,
+		Domain:       reducercontract.DomainIAMEscalationMaterialization,
 		EntityKeys:   []string{"aws_resource_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -66,8 +69,8 @@ func iamEscalationIntent() Intent {
 // target, and one complete iam:CreatePolicyVersion grant — exactly one edge.
 func iamEscalationFacts() []facts.Envelope {
 	return []facts.Envelope{
-		iamNodeEnvelope(iamResourceTypeUser, attackerUserARN),
-		iamNodeEnvelope(iamResourceTypePolicy, targetPolicyARN),
+		iamNodeEnvelope(iampolicy.ResourceTypeUser, attackerUserARN),
+		iamNodeEnvelope(iampolicy.ResourceTypePolicy, targetPolicyARN),
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"iam:createpolicyversion"}, []string{targetPolicyARN}),
 	}
 }
@@ -81,7 +84,7 @@ func TestIAMEscalationHandlerRejectsMismatchedDomain(t *testing.T) {
 		ReadinessLookup: allKeyspacesReady(),
 	}
 	intent := iamEscalationIntent()
-	intent.Domain = DomainSQLRelationshipMaterialization
+	intent.Domain = reducercontract.DomainSQLRelationshipMaterialization
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -114,7 +117,7 @@ func TestIAMEscalationHandlerGatesOnCloudResourceUID(t *testing.T) {
 	handler := IAMEscalationMaterializationHandler{
 		FactLoader:      &stubFactLoader{envelopes: iamEscalationFacts()},
 		Writer:          writer,
-		ReadinessLookup: readyExceptKeyspace(GraphProjectionKeyspaceCloudResourceUID),
+		ReadinessLookup: readyExceptKeyspace(gpphase.KeyspaceCloudResourceUID),
 	}
 	_, err := handler.Handle(context.Background(), iamEscalationIntent())
 	if err == nil {
@@ -145,7 +148,7 @@ func TestIAMEscalationHandlerProjectsResolvedEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.edgeCalls != 1 || len(writer.edgeRows) != 1 {
@@ -177,7 +180,7 @@ func TestIAMEscalationHandlerQuarantinesMalformedFact(t *testing.T) {
 	// valid principal/policy/grant still resolves exactly one edge.
 	malformed := awsResourceEnvelope(map[string]any{
 		"region":        iamEscRegion,
-		"resource_type": iamResourceTypeUser,
+		"resource_type": iampolicy.ResourceTypeUser,
 		"resource_id":   "arn:aws:iam::111122223333:user/poison",
 	})
 	envelopes := append([]facts.Envelope{malformed}, iamEscalationFacts()...)
@@ -280,7 +283,7 @@ func TestIAMEscalationHandlerWildcardTargetIsGracefulNoEdge(t *testing.T) {
 	}
 
 	envs := []facts.Envelope{
-		iamNodeEnvelope(iamResourceTypeUser, attackerUserARN),
+		iamNodeEnvelope(iampolicy.ResourceTypeUser, attackerUserARN),
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"iam:createpolicyversion"}, []string{"*"}),
 	}
 	writer := &recordingIAMEscalationWriter{}
@@ -295,7 +298,7 @@ func TestIAMEscalationHandlerWildcardTargetIsGracefulNoEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.edgeCalls != 0 {

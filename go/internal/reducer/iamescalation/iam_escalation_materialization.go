@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iamescalation
 
 import (
 	"context"
@@ -14,6 +14,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -24,16 +28,16 @@ import (
 // and never touches edges or nodes owned by other writers.
 const iamEscalationEvidenceSource = "reducer/iam-escalation"
 
-// iamEscalationMaterializationDomainDefinition returns the additive definition for
+// MaterializationDomainDefinition returns the additive definition for
 // the IAM privilege-escalation edge projection. It is additive (not part of
 // DefaultDomainDefinitions) because the handler requires an explicitly wired
 // IAMEscalationEdgeWriter and FactLoader; registering it without them would
 // silently drop every escalation intent. See issue #1134.
-func iamEscalationMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainIAMEscalationMaterialization,
+func MaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainIAMEscalationMaterialization,
 		Summary: "project merged aws_iam_permission facts into conservative IAM CAN_ESCALATE_TO privilege-escalation edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -61,8 +65,8 @@ type IAMEscalationEdgeWriter interface {
 // iamEscalationGateKeyspaces are the canonical-nodes keyspaces the edge domain
 // gates on. An escalation edge may only resolve once the IAM principal/role/user/
 // group/policy CloudResource nodes have committed for this scope generation.
-var iamEscalationGateKeyspaces = []GraphProjectionKeyspace{
-	GraphProjectionKeyspaceCloudResourceUID,
+var iamEscalationGateKeyspaces = []gpphase.Keyspace{
+	gpphase.KeyspaceCloudResourceUID,
 }
 
 // IAMEscalationMaterializationHandler reduces one IAM privilege-escalation
@@ -73,16 +77,16 @@ var iamEscalationGateKeyspaces = []GraphProjectionKeyspace{
 // per-edge graph round trip), writes the resolved edges, and counts skipped /
 // deferred primitives instead of dropping them silently.
 type IAMEscalationMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	Writer     IAMEscalationEdgeWriter
 	// ReadinessLookup reports whether a canonical-nodes-committed phase has been
 	// published for the intent's scope generation on a given keyspace. A nil lookup
 	// keeps the gate open (test wiring); production wires the durable Postgres
 	// lookup.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation. Nil
 	// keeps retract behavior conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	Instruments          *telemetry.Instruments
 }
@@ -90,20 +94,20 @@ type IAMEscalationMaterializationHandler struct {
 // Handle executes one IAM escalation materialization intent.
 func (h IAMEscalationMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainIAMEscalationMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainIAMEscalationMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"iam escalation materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("iam escalation materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("iam escalation materialization fact loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("iam escalation materialization writer is required")
+		return reducercontract.Result{}, fmt.Errorf("iam escalation materialization writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -123,7 +127,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 	// is not yet published, the intent re-enters the durable queue (retryable)
 	// rather than writing edges against a node set that does not exist yet.
 	if notReady := h.firstNotReadyKeyspace(intent); notReady != "" {
-		return Result{}, iamEscalationNotReadyError{
+		return reducercontract.Result{}, iamEscalationNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 			keyspace:     notReady,
@@ -131,7 +135,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -139,7 +143,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 		[]string{facts.AWSResourceFactKind, facts.AWSIAMPermissionFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for iam escalation materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for iam escalation materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -151,18 +155,18 @@ func (h IAMEscalationMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load, unsupported schema major, or
 		// other fatal condition partitionDecodeFailures did NOT quarantine) fails
 		// the whole intent so the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource/aws_iam_permission fact (a
 	// missing required identity field) is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while every valid fact still
 	// resolves its escalation edge below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainIAMEscalationMaterialization, intent.ScopeID, intent.GenerationID, result.Quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainIAMEscalationMaterialization, intent.ScopeID, intent.GenerationID, result.Quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -173,7 +177,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 			intent.GenerationID,
 			iamEscalationEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical iam escalation edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical iam escalation edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -181,7 +185,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 	writeStart := time.Now()
 	if len(result.Edges) > 0 {
 		if err := h.Writer.WriteIAMEscalationEdges(ctx, result.Edges, intent.ScopeID, intent.GenerationID, iamEscalationEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical iam escalation edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical iam escalation edges: %w", err)
 		}
 	}
 	writeDuration := time.Since(writeStart)
@@ -201,10 +205,10 @@ func (h IAMEscalationMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainIAMEscalationMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainIAMEscalationMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d CAN_ESCALATE_TO edge(s) from %d iam permission fact(s); %d skipped/deferred; %d input_invalid fact(s) quarantined",
 			len(result.Edges),
@@ -213,7 +217,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(result.Edges),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -221,17 +225,17 @@ func (h IAMEscalationMaterializationHandler) Handle(
 // canonical-nodes-committed phase is not yet published for this intent's scope
 // generation, or "" when ready. A nil ReadinessLookup keeps the gate open for test
 // wiring.
-func (h IAMEscalationMaterializationHandler) firstNotReadyKeyspace(intent Intent) GraphProjectionKeyspace {
+func (h IAMEscalationMaterializationHandler) firstNotReadyKeyspace(intent reducercontract.Intent) gpphase.Keyspace {
 	if h.ReadinessLookup == nil {
 		return ""
 	}
 	now := time.Now().UTC()
 	for _, keyspace := range iamEscalationGateKeyspaces {
-		state, ok := graphProjectionPhaseStateForIntent(intent, keyspace, GraphProjectionPhaseCanonicalNodesCommitted, now)
+		state, ok := gpphase.StateForIntentValue(intent, keyspace, gpphase.PhaseCanonicalNodesCommitted, now)
 		if !ok {
 			return keyspace
 		}
-		ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+		ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 		if !found || !ready {
 			return keyspace
 		}
@@ -243,7 +247,7 @@ func (h IAMEscalationMaterializationHandler) firstNotReadyKeyspace(intent Intent
 // skip the prior-edge retract on the very first generation for a scope (no prior
 // edges to remove) and only on the first attempt, so a retried attempt still cleans
 // up a partial prior write.
-func (h IAMEscalationMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h IAMEscalationMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -305,7 +309,7 @@ func splitIAMEscalationEnvelopes(envelopes []facts.Envelope) (resources, permiss
 type iamEscalationNotReadyError struct {
 	scopeID      string
 	generationID string
-	keyspace     GraphProjectionKeyspace
+	keyspace     gpphase.Keyspace
 }
 
 func (e iamEscalationNotReadyError) Error() string {
@@ -339,7 +343,7 @@ func (iamEscalationNotReadyError) FailureClass() string {
 // completion log identifies fact-load, extraction, retract, and graph-write time,
 // plus why primitives lost edges.
 type iamEscalationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	resourceCount   int
 	permissionCount int
 	edgeCount       int
