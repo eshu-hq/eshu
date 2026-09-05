@@ -386,23 +386,28 @@ func (h *CodeHandler) nornicDBRelationshipStoryInheritanceDepthRows(
 	req relationshipStoryRequest,
 	entityID string,
 	direction string,
-) ([]map[string]any, error) {
+) ([]map[string]any, int, error) {
 	access := codeGrantAccessFilter(ctx)
 	for _, property := range []string{"uid", "id"} {
 		cypher, params := nornicDBRelationshipStoryInheritanceDepthCypher(req, entityID, direction, property, access)
 		rows, err := h.Neo4j.Run(ctx, cypher, params)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		// The raw count decides which id property anchors the walk, before the
 		// grant filter runs. Filtering first would let a walk whose every row is
 		// out of grant look like "this property did not match" and fall through
 		// to the next property, which is a different question.
 		if len(rows) > 0 {
-			return normalizeNornicDBRelationshipStoryRows(nornicDBInheritanceRowsInGrant(rows, access)), nil
+			// The raw count is also what the caller's truncation signal must be
+			// computed from. The statement binds LIMIT normalizedLimit()+1, so a
+			// full page means "there is more"; measuring that after the grant
+			// filter would report a page thinned to exactly `limit` as complete
+			// when granted rows beyond it were never fetched.
+			return normalizeNornicDBRelationshipStoryRows(nornicDBInheritanceRowsInGrant(rows, access)), len(rows), nil
 		}
 	}
-	return []map[string]any{}, nil
+	return []map[string]any{}, 0, nil
 }
 
 func nornicDBRelationshipStoryInheritanceDepthCypher(

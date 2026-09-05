@@ -66,6 +66,7 @@ func (h *CodeHandler) relationshipStoryClassHierarchy(
 	var methods []map[string]any
 	var ancestorDepthRows []map[string]any
 	var descendantDepthRows []map[string]any
+	var ancestorRawCount, descendantRawCount int
 	errs := make(chan error, 3)
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -81,21 +82,21 @@ func (h *CodeHandler) relationshipStoryClassHierarchy(
 	}()
 	go func() {
 		defer wg.Done()
-		rows, err := h.relationshipStoryInheritanceDepthRows(ctx, req, entity, "outgoing")
+		rows, rawCount, err := h.relationshipStoryInheritanceDepthRows(ctx, req, entity, "outgoing")
 		if err != nil {
 			errs <- err
 			return
 		}
-		ancestorDepthRows = rows
+		ancestorDepthRows, ancestorRawCount = rows, rawCount
 	}()
 	go func() {
 		defer wg.Done()
-		rows, err := h.relationshipStoryInheritanceDepthRows(ctx, req, entity, "incoming")
+		rows, rawCount, err := h.relationshipStoryInheritanceDepthRows(ctx, req, entity, "incoming")
 		if err != nil {
 			errs <- err
 			return
 		}
-		descendantDepthRows = rows
+		descendantDepthRows, descendantRawCount = rows, rawCount
 	}()
 	wg.Wait()
 	close(errs)
@@ -111,7 +112,9 @@ func (h *CodeHandler) relationshipStoryClassHierarchy(
 		"methods_truncated": len(methods) > req.NormalizedLimit(),
 		"parents":           relationshipStoryRowsWithHandles(limitRelationshipStoryRows(parents, req.NormalizedLimit())),
 		"children":          relationshipStoryRowsWithHandles(limitRelationshipStoryRows(children, req.NormalizedLimit())),
-		"depth_summary":     relationshipStoryDepthSummary(ancestorDepthRows, descendantDepthRows, req.NormalizedLimit()),
+		"depth_summary": relationshipStoryDepthSummary(
+			ancestorDepthRows, descendantDepthRows,
+			ancestorRawCount, descendantRawCount, req.NormalizedLimit()),
 	}, nil
 }
 
@@ -188,19 +191,22 @@ func (h *CodeHandler) relationshipStoryInheritanceDepthRows(
 	req relationshipStoryRequest,
 	entity *EntityContent,
 	direction string,
-) ([]map[string]any, error) {
+) ([]map[string]any, int, error) {
 	if h == nil || h.Neo4j == nil {
-		return []map[string]any{}, nil
+		return []map[string]any{}, 0, nil
 	}
 	entityID := relationshipStoryEntityID(req, entity)
 	if entityID == "" {
-		return []map[string]any{}, nil
+		return []map[string]any{}, 0, nil
 	}
 	if h.graphBackend() == GraphBackendNornicDB {
 		return h.nornicDBRelationshipStoryInheritanceDepthRows(ctx, req, entityID, direction)
 	}
 	cypher, params := relationshipStoryInheritanceDepthCypher(req, entityID, direction, graphEntityIDPredicate, codeGrantAccessFilter(ctx))
-	return h.Neo4j.Run(ctx, cypher, params)
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	// The compat lane bounds its interior in the statement, so no row is
+	// dropped after the read and the raw count is the returned count.
+	return rows, len(rows), err
 }
 
 func relationshipStoryInheritanceDepthCypher(
@@ -289,16 +295,34 @@ func relationshipStoryMethodRowsWithHandles(rows []map[string]any, limit int) []
 	return out
 }
 
+// relationshipStoryDepthSummary reports the deepest inheritance hop in each
+// direction and whether the caller's page was full.
+//
+// The truncated flags are computed from ancestorsRaw/descendantsRaw -- the row
+// counts the BACKEND returned -- not from the slices beside them. On NornicDB
+// those slices have already had out-of-grant paths removed in Go
+// (nornicDBInheritanceRowsInGrant), so a page the statement filled to its
+// LIMIT of normalizedLimit()+1 can arrive here at exactly `limit` rows. Reading
+// the flag off the filtered slice would then report a full page as complete and
+// tell the caller it had seen everything while granted rows beyond the page
+// were never fetched. This is the rule the pitfalls page states for every
+// project-and-filter-in-Go read on this backend.
+//
+// The depths are read from the FILTERED rows on purpose: a depth measured
+// through a class the caller cannot read is the disclosure #6548 closed, so it
+// must not come back through this summary either.
 func relationshipStoryDepthSummary(
 	ancestors []map[string]any,
 	descendants []map[string]any,
+	ancestorsRaw int,
+	descendantsRaw int,
 	limit int,
 ) map[string]any {
 	return map[string]any{
 		"max_parent_depth": maxRelationshipStoryDepth(ancestors),
 		"max_child_depth":  maxRelationshipStoryDepth(descendants),
-		"parent_truncated": len(ancestors) > limit,
-		"child_truncated":  len(descendants) > limit,
+		"parent_truncated": ancestorsRaw > limit,
+		"child_truncated":  descendantsRaw > limit,
 	}
 }
 

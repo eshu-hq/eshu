@@ -86,7 +86,7 @@ func TestNornicDBInheritanceWalkDropsAnOutOfGrantInteriorClass(t *testing.T) {
 	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
 	ctx := ContextWithAuthContext(context.Background(), codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
 
-	rows, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(ctx, relationshipStoryRequest{Limit: 50}, "class:a", "outgoing")
+	rows, _, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(ctx, relationshipStoryRequest{Limit: 50}, "class:a", "outgoing")
 	if err != nil {
 		t.Fatalf("inheritance rows: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestNornicDBInheritanceWalkFailsClosedOnAnUnattributableHop(t *testing.T) {
 			}}}
 			handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
 			ctx := ContextWithAuthContext(context.Background(), codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
-			rows, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(ctx, relationshipStoryRequest{Limit: 50}, "class:a", "outgoing")
+			rows, _, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(ctx, relationshipStoryRequest{Limit: 50}, "class:a", "outgoing")
 			if err != nil {
 				t.Fatalf("inheritance rows: %v", err)
 			}
@@ -153,7 +153,7 @@ func TestNornicDBInheritanceWalkLeavesAnUnscopedCallerAlone(t *testing.T) {
 		{"direction": "outgoing", "target_uid": "class:b", "target_name": "GrantedB", "depth": int64(2)},
 	}}
 	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
-	rows, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(
+	rows, _, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(
 		context.Background(), relationshipStoryRequest{Limit: 50}, "class:a", "outgoing")
 	if err != nil {
 		t.Fatalf("inheritance rows: %v", err)
@@ -190,4 +190,68 @@ func containsAny(haystack string, needles ...string) bool {
 		}
 	}
 	return false
+}
+
+// The statement binds LIMIT normalizedLimit()+1 so the caller can tell a full
+// page from a complete one: relationshipStoryDepthSummary reports
+// parent_truncated as len(rows) > limit. On NornicDB the rows reaching that
+// comparison are now the grant-FILTERED ones, so a page whose extra row crossed
+// an ungranted class arrives as exactly `limit` rows and reports
+// parent_truncated false, telling the caller it has seen everything when
+// granted rows beyond the page were never fetched.
+//
+// docs/public/reference/nornicdb-query-pitfalls.md states the rule this batch
+// has to follow: compute the truncation signal from the RAW row count, before
+// the Go filter.
+
+// TestNornicDBInheritanceWalkReportsTruncationFromTheRawCount drives the seam
+// with limit+1 raw rows of which one crosses an ungranted class.
+func TestNornicDBInheritanceWalkReportsTruncationFromTheRawCount(t *testing.T) {
+	t.Parallel()
+
+	const limit = 2
+	granted := func(name string, depth int64) map[string]any {
+		return map[string]any{
+			"direction": "outgoing", "source_uid": "class:a", "target_uid": "class:" + name,
+			"target_name": name, "depth": depth,
+			"path_nodes": []any{
+				inheritancePathNode(codeGrantGrantedRepo),
+				inheritancePathNode(codeGrantGrantedRepo),
+			},
+		}
+	}
+	// limit+1 raw rows: the page is full, so the caller must be told there is
+	// more. The third one is the row that crosses an ungranted class.
+	raw := []map[string]any{
+		granted("GrantedOne", 1),
+		granted("GrantedTwo", 1),
+		{
+			"direction": "outgoing", "source_uid": "class:a", "target_uid": "class:c",
+			"target_name": "GrantedThree", "depth": int64(2),
+			"path_nodes": []any{
+				inheritancePathNode(codeGrantGrantedRepo),
+				inheritancePathNode(codeGrantOtherRepo),
+				inheritancePathNode(codeGrantGrantedRepo),
+			},
+		},
+	}
+	graph := &inheritanceInteriorGraph{rows: raw}
+	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, GraphBackend: GraphBackendNornicDB, Neo4j: graph}
+	ctx := ContextWithAuthContext(context.Background(), codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+
+	rows, rawCount, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(
+		ctx, relationshipStoryRequest{Limit: limit}, "class:a", "outgoing")
+	if err != nil {
+		t.Fatalf("inheritance rows: %v", err)
+	}
+	if len(rows) != limit {
+		t.Fatalf("filtered rows = %d, want %d", len(rows), limit)
+	}
+	if rawCount != limit+1 {
+		t.Fatalf("raw count = %d, want %d -- the truncation signal must come from before the filter", rawCount, limit+1)
+	}
+	summary := relationshipStoryDepthSummary(rows, nil, rawCount, 0, limit)
+	if truncated, _ := summary["parent_truncated"].(bool); !truncated {
+		t.Fatalf("parent_truncated = false on a page the backend filled to LIMIT: %#v", summary)
+	}
 }

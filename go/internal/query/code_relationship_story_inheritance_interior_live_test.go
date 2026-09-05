@@ -96,7 +96,7 @@ func TestLiveNornicDBInheritanceWalkDropsAnOutOfGrantInteriorClass(t *testing.T)
 		Neo4j:        reader,
 	}
 	scoped := ContextWithAuthContext(ctx, codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
-	rows, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(scoped, req, liveInteriorAnchorUID, "outgoing")
+	rows, _, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(scoped, req, liveInteriorAnchorUID, "outgoing")
 	if err != nil {
 		t.Fatalf("shipped inheritance read: %v", err)
 	}
