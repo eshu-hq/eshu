@@ -828,7 +828,8 @@ answers:
 ```cypher
 MATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:CONTAINS]-(r:Repository)
 WITH d, r, count(f) AS c
-RETURN d.name AS name, labels(d) AS labels, c            -- 4 rows
+RETURN d.name AS name, labels(d) AS labels, c            -- 4 rows  (function call)
+RETURN d.name AS name, ['Directory'] AS labels, c        -- 4 rows  (list literal)
 ```
 
 It is a row drop, not an error: the statement succeeds and the caller sees an

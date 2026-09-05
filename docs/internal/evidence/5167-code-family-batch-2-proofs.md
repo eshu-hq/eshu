@@ -3,8 +3,10 @@
 The red/green runs and mutation ledger for
 [#5167 Code Family, Batch 2a](5167-code-family-batch-2.md). This document holds
 the proofs; that one holds the change and its reasoning. They are split only
-because together they outgrow the repository's 500-line Markdown cap, and
-nothing here stands on its own.
+because together they outgrow the 500-line file rule in `CLAUDE.md`, and
+nothing here stands on its own. (The committed cap gate,
+`scripts/lib/markdown-line-cap-core.sh`, only scans under `go/`, so it would
+not have caught the merged file either way.)
 
 ## Red Then Green
 
@@ -219,7 +221,7 @@ to 2 — below the six rows the out-of-grant repository can supply.
 `assertLiveGrantSqueezed` is the assertion the argument rests on: EVERY row of
 the unscoped control must be out-of-grant. A page holding one row of each would
 survive a filter applied after the bound, and the scoped result would then prove
-nothing about when the predicate ran. It held for all fourteen shapes.
+nothing about when the predicate ran. It held for all fifteen shapes.
 
 | Shape | Query type | Scoped rows | Unscoped rows |
 | --- | --- | ---: | ---: |
@@ -257,6 +259,34 @@ That one is fixed in this change rather than recorded and left; the nine-probe
 bisection stays committed inside
 `TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing` as the control
 that fails when the backend behaviour moves.
+
+### What the directory rewrite's timing does NOT say
+
+No-Regression Evidence: the rewritten `buildDirectoryCypher` is measured at
+FIXTURE SCALE ONLY. The "every statement under 4ms" figure above comes from the
+live tagged run's seed — eight nodes across two repositories, three directories
+in total — which is a correctness fixture, not a performance corpus. Four
+things follow, and none of them are hidden by that number:
+
+- No corpus-scale timing was taken for the rewritten statement. The old
+  two-clause shape returned ZERO rows on this backend, so there is no
+  before/after to take at any scale: the comparison would be against a
+  statement that did not answer.
+- The pinned build reports no plan at all (`EXPLAIN` and `PROFILE` both return
+  zero rows and leave the driver summary without `Plan()` or `Profile()`), so
+  the shape cannot be checked against a planner here the way the Postgres
+  predicate below could be.
+- The variable-length `<-[:REPO_CONTAINS|CONTAINS*]-` chain is the part whose
+  cost is unknown at depth. A fixture three directories deep cannot exercise it.
+- The route's callsite is a grandfathered `non_hot` entry
+  (`(*LanguageQueryHandler).queryByLanguageWithSemanticFilter`, class
+  `label_inventory`) in `go/internal/queryplan/testdata/query-source-coverage.yaml`,
+  so it sits outside the CI plan-profile family and no gate will measure it
+  either.
+
+The scaled half is deferred to #6541, tracked rather than dropped:
+severity-table category **genuine missing coverage**. This note claims
+no-regression at fixture scale and claims nothing beyond it.
 
 ## The `content_entities` Grant Predicate, Measured
 

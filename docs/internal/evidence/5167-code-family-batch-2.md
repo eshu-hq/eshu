@@ -226,7 +226,7 @@ than after. Those are backend questions, and only the backend answers them.
 
 `TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder` and
 `TestLiveNornicDBImportDependencyGrantBindsEveryBuilder` (build tag
-`live_nornicdb_language_imports_grant`) run all fourteen shipped statement
+`live_nornicdb_language_imports_grant`) run all fifteen shipped statement
 shapes against the pinned image, scoped and unscoped, on a two-repository graph
 seeded through the labels, relationship types and properties the canonical
 projector writes. The out-of-grant repository gets six rows to the granted
