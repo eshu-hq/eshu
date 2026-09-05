@@ -30,7 +30,6 @@
 #
 # Regenerate with:
 #   bash scripts/verify-doc-citations.sh -update
-
 # --- TEST records ---
 # --- FIXTURE records ---
 FIXTURE tests/fixtures/ecosystems/argocd_comprehensive/
@@ -170,6 +169,7 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/relationship.go:103
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/resource_change.go:105
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/cicdrun/envelope.go:1
+LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/cicdrun/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/generation.go:95
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/generation.go:95
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/gcpcloud/iam_policy_observation.go:98
@@ -180,6 +180,7 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/git_documentation_facts.go:412
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/git_observability_facts.go:121
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/git_observability_facts.go:121
+LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/jira/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/jira/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/kuberneteslive/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/kuberneteslive/envelope.go:1
@@ -195,6 +196,8 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/packageregistry/warning.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/pagerduty/config_envelope.go:19
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/pagerduty/envelope.go:17
+LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/pagerduty/envelope.go:17
+LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/sbomdocument/cyclonedx_fixture.go:85
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/sbomdocument/cyclonedx_fixture.go:85
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/scannerworker/imageanalyzer/analyzer.go:190
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/scannerworker/imageanalyzer/analyzer.go:190
@@ -204,6 +207,7 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/secretsiam/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/secretsiam/kubernetes_envelope.go:355
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/secretsiam/kubernetes_envelope.go:355
+LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/securityalerts/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/servicecatalog/facts_builder.go:37
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/pagerduty_applied.go:181
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/terraformstate/parser.go:223
