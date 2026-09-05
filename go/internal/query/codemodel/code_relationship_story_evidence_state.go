@@ -439,7 +439,6 @@ func (r RelationshipStoryRequest) NormalizedRelationshipTypes() ([]string, error
 	return out, nil
 }
 
-// zero values as "no budget".
 // NormalizedTokenBudget returns the effective token budget, treating
 // negative or zero values as "no budget".
 func (r RelationshipStoryRequest) NormalizedTokenBudget() int {
