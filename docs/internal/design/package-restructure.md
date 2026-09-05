@@ -549,6 +549,24 @@ bench; it remains a shape argument (each wrapper's next step is a store read,
 covered in production by `eshu_dp_postgres_query_duration_seconds`), and the
 bench's claim stops at the wrapper-frame cost it actually measures.
 
+Benchmark Evidence: baseline is the direct `factload.LoadFactsForKinds` call
+at 5.67 ns/op (median of three runs); after (through the thin wrapper) is
+6.64 ns/op, so the hoist-introduced frame costs ~1 ns/op. Backend/version:
+in-memory `stubFactLoader` fallback branch (the branch a non-push-down store
+takes), go1.27.0, darwin/arm64 Apple M4 Pro. Input shape: shared 601-envelope
+corpus (`benchFactloadCorpusEnvelopes(100)`), `go test ./internal/reducer/
+-run '^$' -bench 'MaterializationFacts|WrapperFrameOverhead' -benchmem
+-count=3`, 0 allocs/op throughout. Terminal counts: every wrapper returns the
+full seeded generation (pinned by `TestFactloadMaterializationWrappersReturnSeededEnvelopes`
+FactID-multiset identity). Safe because the measured frame is nanoseconds
+against the store read each wrapper immediately issues.
+
+No-Observability-Change: no metric, span, log field, status field, or runtime
+setting is added, removed, or renamed by the wrapper hoist or its benchmarks.
+Loader reads stay covered by `eshu_dp_postgres_query_duration_seconds` and the
+owning pass by `eshu_dp_reducer_executions_total` and
+`eshu_dp_reducer_run_duration_seconds`.
+
 The probe, so the next reader can reproduce it rather than trust the list. The
 inline LIST (function names) reproduces with plain `-m`, but the COST figures
 above came from `-m=2`: on go1.27.0, plain `-gcflags=-m` prints neither costs
