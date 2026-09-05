@@ -280,9 +280,13 @@ func callChainClausePredicates(cypher string) (endpoints []string, hops []string
 	return endpoints, storySplitPredicates(strings.TrimSpace(block[:end])), true
 }
 
-// callChainHopAdmits evaluates one hop predicate. The hop conditions are written
-// on coalesce(node.repo_id, ”) rather than a bare property, so they need their
-// own matcher rather than storyPredicateAdmits.
+// callChainHopAdmits evaluates one hop predicate. The request's own hop bounds
+// coalesce node.repo_id against the empty string, the grant's reads the bare
+// property, and neither matches storyPredicateAdmits' per-alias keys, so they
+// need their own matcher.
+//
+// The Cypher literal is spelled out rather than quoted because gofmt reformats
+// doc comments and turns a pair of single quotes into a typographic quote pair.
 func callChainHopAdmits(predicate, repoID string, params map[string]any) bool {
 	switch {
 	case strings.Contains(predicate, "IN $allowed_repository_ids"):
