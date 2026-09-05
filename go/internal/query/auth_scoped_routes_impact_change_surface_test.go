@@ -257,7 +257,7 @@ func TestAnalyzePreChangeImpactScopedRepoGrantAndDeny(t *testing.T) {
 }
 
 // TestPlanDeveloperChangeScopedRepoGrantAndDeny proves plan_developer_change
-// (a thin wrapper over the same preChangeImpactResponse pipeline) inherits the
+// (a thin wrapper over the same PreChangeImpactResponse pipeline) inherits the
 // same repo_id grant check.
 func TestPlanDeveloperChangeScopedRepoGrantAndDeny(t *testing.T) {
 	t.Parallel()

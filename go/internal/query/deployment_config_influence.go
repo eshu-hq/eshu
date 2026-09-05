@@ -95,11 +95,11 @@ func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Conte
 	k8sCh := make(chan deploymentConfigK8sResult, 1)
 
 	go func() {
-		result, err := h.fetchDeploymentSourceResult(ctx, workloadID, repoID)
+		result, err := h.FetchDeploymentSourceResult(ctx, workloadID, repoID)
 		sourceCh <- deploymentConfigSourcesResult{result: result, err: err}
 	}()
 	go func() {
-		result, err := h.fetchK8sResourceResult(ctx, repoID, safeStr(workload, "name"))
+		result, err := h.FetchK8sResourceResult(ctx, repoID, safeStr(workload, "name"))
 		k8sCh <- deploymentConfigK8sResult{result: result, err: err}
 	}()
 
@@ -117,7 +117,7 @@ func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Conte
 	// the grant here before feeding the influencing-repositories and gitops
 	// enrichment below.
 	sourceResult.result.rows = filterRowsByRepoIDForAccess(sourceResult.result.rows, repositoryAccessFilterFromContext(ctx))
-	controllerEntities, deploymentRepoK8s, _, deploymentRepoLowerBound, err := h.fetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), repoID, sourceResult.result.rows)
+	controllerEntities, deploymentRepoK8s, _, deploymentRepoLowerBound, err := h.FetchDeploymentSourceGitOps(ctx, safeStr(workload, "name"), repoID, sourceResult.result.rows)
 	if err != nil {
 		return fmt.Errorf("query deployment source gitops evidence: %w", err)
 	}

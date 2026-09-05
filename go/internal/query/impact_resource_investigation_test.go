@@ -12,8 +12,18 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
+// recordingResourceInvestigationGraph keeps the original lowercase field
+// names and delegates every call to
+// querytestutil.RecordingResourceInvestigationGraph through promoted(), so
+// the dispatch lives in exactly one place (see the adapter rule in
+// querytestutil/AGENTS.md). Config and recorded state are copied into the
+// delegate per call and the mutated state (recorded calls, consumed queued
+// rows) is taken back, so consumers keep reading graph.runCalls with no
+// edits.
 type recordingResourceInvestigationGraph struct {
 	mu                   sync.Mutex
 	runCalls             []resourceInvestigationRunCall
@@ -34,53 +44,59 @@ type resourceInvestigationRunCall struct {
 	params map[string]any
 }
 
+func (g *recordingResourceInvestigationGraph) promoted() *querytestutil.RecordingResourceInvestigationGraph {
+	calls := make([]querytestutil.ResourceInvestigationRunCall, len(g.runCalls))
+	for i, c := range g.runCalls {
+		calls[i] = querytestutil.ResourceInvestigationRunCall{Cypher: c.cypher, Params: c.params}
+	}
+	return &querytestutil.RecordingResourceInvestigationGraph{
+		RunCalls:             calls,
+		RunRows:              g.runRows,
+		WorkloadRows:         g.workloadRows,
+		InstanceWorkloadRows: g.instanceWorkloadRows,
+		IncomingRows:         g.incomingRows,
+		OutgoingRows:         g.outgoingRows,
+		WorkloadErr:          g.workloadErr,
+		InstanceWorkloadErr:  g.instanceWorkloadErr,
+		IncomingErr:          g.incomingErr,
+		OutgoingErr:          g.outgoingErr,
+		SelectorLabel:        g.selectorLabel,
+	}
+}
+
+func (g *recordingResourceInvestigationGraph) takeBack(d *querytestutil.RecordingResourceInvestigationGraph) {
+	calls := make([]resourceInvestigationRunCall, len(d.RunCalls))
+	for i, c := range d.RunCalls {
+		calls[i] = resourceInvestigationRunCall{cypher: c.Cypher, params: c.Params}
+	}
+	g.runCalls = calls
+	g.runRows = d.RunRows
+}
+
 func (g *recordingResourceInvestigationGraph) Run(
-	_ context.Context,
+	ctx context.Context,
 	cypher string,
 	params map[string]any,
 ) ([]map[string]any, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.runCalls = append(g.runCalls, resourceInvestigationRunCall{cypher: cypher, params: params})
-	switch {
-	case strings.Contains(cypher, "-[:INSTANCE_OF]->(workload:Workload)"):
-		if g.instanceWorkloadErr != nil {
-			return nil, g.instanceWorkloadErr
-		}
-		return g.instanceWorkloadRows, nil
-	case strings.Contains(cypher, "MATCH (instance:WorkloadInstance)"):
-		if g.workloadErr != nil {
-			return nil, g.workloadErr
-		}
-		return g.workloadRows, nil
-	case strings.Contains(cypher, "<-[rels"):
-		if g.incomingErr != nil {
-			return nil, g.incomingErr
-		}
-		return g.incomingRows, nil
-	case strings.Contains(cypher, "-[rels"):
-		if g.outgoingErr != nil {
-			return nil, g.outgoingErr
-		}
-		return g.outgoingRows, nil
-	}
-	if g.selectorLabel != "" && !strings.Contains(cypher, "MATCH (n:"+g.selectorLabel+")") {
-		return nil, nil
-	}
-	if len(g.runRows) == 0 {
-		return nil, nil
-	}
-	rows := g.runRows[0]
-	g.runRows = g.runRows[1:]
-	return rows, nil
+	d := g.promoted()
+	rows, err := d.Run(ctx, cypher, params)
+	g.takeBack(d)
+	return rows, err
 }
 
 func (g *recordingResourceInvestigationGraph) RunSingle(
-	context.Context,
-	string,
-	map[string]any,
+	ctx context.Context,
+	cypher string,
+	params map[string]any,
 ) (map[string]any, error) {
-	return nil, nil
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	d := g.promoted()
+	row, err := d.RunSingle(ctx, cypher, params)
+	g.takeBack(d)
+	return row, err
 }
 
 func TestInvestigateResourceReturnsAmbiguityWithoutTraversal(t *testing.T) {
