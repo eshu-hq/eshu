@@ -222,10 +222,11 @@ func (r MaterializedEdgeOduResolver) Resolve(entry replaycoverage.CoverageEntry)
 	// reducer.DirectMaterializedEdgeFamilies() entries whose reducer port
 	// writes straight to a storage/cypher writer with no intent row between.
 	//
-	// A registered guard is NOT a coverage claim. All three families still
-	// carry their waiver rows in
-	// specs/ifa-materialized-edge-coverage-direct.v1.yaml because neither
-	// live matrix drives them. What these arms buy is that a coverage row
+	// A registered guard is NOT a coverage claim. Since #6309 two of the three
+	// families carry coverage rows instead of waivers in
+	// specs/ifa-materialized-edge-coverage-direct.v1.yaml because both live
+	// matrices drive them; workload_cloud_relationship alone still carries
+	// its waiver rows. What these arms buy is that a coverage row
 	// COULD resolve, which is one of the three things those waiver reasons
 	// said was missing.
 	case kubernetesNamespaceEnvironmentFamily:

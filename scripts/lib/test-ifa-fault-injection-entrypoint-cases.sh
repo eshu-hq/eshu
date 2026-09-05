@@ -117,6 +117,44 @@ run_ifa_fault_cell_catalog_cases() {
 	if [[ "${entries}" != "${dispatched}" ]]; then
 		fail "cell catalog lists ${entries} entrie(s) but the gate dispatches ${dispatched} cell(s); add or remove the numbered entry in docs/internal/ifa-fault-cell-catalog.md so the two stay in lockstep"
 	fi
+
+	# Ordered roster: the catalog numbers entries in dispatch order and
+	# other gate prose cross-references those numbers, so a count match
+	# alone lets mislabeled positions through (the six #6309 cells landed
+	# dispatched after submodule-pin but numbered 44-49, shifting every
+	# later label wrong while the count stayed green). Translate each
+	# dispatched cell_* identifier to its catalog label and require the
+	# catalog's numbered titles to match in order. The translation is
+	# prefix-mechanical except the three symbol kill cells, whose labels
+	# name the runner-lease-wait variant explicitly.
+	local cell rest label actual_title pos=0
+	while IFS= read -r cell; do
+		pos=$((pos + 1))
+		cell="${cell#cell_}"
+		# Catalog labels hyphenate the whole remainder (code_calls reads
+		# code-calls there), so translate first, hyphenate after.
+		case "${cell}" in
+			baseline_*) rest="${cell#baseline_}"; label="baseline-${rest//_/-}" ;;
+			baseline) label="baseline" ;;
+			killworker_handles_route|killworker_runs_in|killworker_invokes_cloud_action)
+				rest="${cell#killworker_}"; label="kill-worker-after-runner-lease-wait-${rest//_/-}" ;;
+			killworker_*) rest="${cell#killworker_}"; label="kill-worker-after-claim-${rest//_/-}" ;;
+			killworker) label="kill-worker-after-claim" ;;
+			expirelease) label="expire-lease-mid-handler" ;;
+			failgraphwrite_*) rest="${cell#failgraphwrite_}"; label="fail-graph-write-once-then-succeed-${rest//_/-}" ;;
+			failgraphwrite) label="fail-graph-write-once-then-succeed" ;;
+			restartbackend) label="restart-backend-between-phase-groups" ;;
+			duplicatedelivery) label="duplicate-delivery" ;;
+			deltaretract) label="delta-retract" ;;
+			*) fail "no catalog-label translation for dispatched cell ${cell}; extend the roster check, not just the catalog" ;;
+		esac
+		actual_title="$(sed -n "s/^${pos}\\. \\([^ ]*\\) .*/\\1/p" "${catalog}" | head -n 1)"
+		if [[ "${actual_title}" != "${label}" ]]; then
+			fail "catalog entry ${pos} is ${actual_title:-<missing>} but dispatch position ${pos} is ${label}; renumber docs/internal/ifa-fault-cell-catalog.md to dispatch order"
+		fi
+	done < <(rg --no-filename -o '^ifa_fault_shard_run cell_[a-z_0-9]+' "${gate}" | sed 's/^ifa_fault_shard_run //' || printf '')
+	[[ "${pos}" == "${dispatched}" ]] \
+		|| fail "roster walk saw ${pos} dispatched cell(s), want ${dispatched}; the dispatch derivation drifted from the count check above"
 }
 
 # run_ifa_fault_lib_cap_coverage_cases caps EVERY sourced case module by globbing

@@ -14,25 +14,20 @@
 # second-stage runner lease to hold (runner_lease_hold). Do not "fix" this row
 # by reaching for either.
 #
-# DETERMINISM-ONLY REGISTRATION (#6309). scripts/verify-ifa-determinism.sh
-# drives and asserts this row; nothing else does. The family has NO
-# fault-injection cells -- no cell function anywhere under scripts/lib/, no
-# IFA_FAULT_ALL_CELLS entry, no IFA_FAULT_ATOMIC_GROUPS entry, and no dispatch
-# in scripts/verify-ifa-fault-injection.sh. The fault gate cannot even reach
-# the callbacks by name: it sources scripts/lib/ifa_fault_injection_sources.sh,
-# which does not list ifa_direct_family_live.sh. cell_kind below records that
-# in the one field a reader checks, and specs/ci-gates.v1.yaml deliberately
-# gives this family NO ifa-fault-injection triggers, so an edit to its
-# cassette or its writer does not re-run a four-shard matrix that observes
-# nothing. Writing the cells is tracked follow-up work on #6309.
+# FAULT CELLS LANDED (#6309). scripts/verify-ifa-fault-injection.sh drives
+# and asserts this row through
+# scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
+# (baseline/killworker/failgraphwrite trio, dispatched in shard order with a
+# co-location atomic group). cell_kind=custom below records the hand-written
+# dispatch; specs/ci-gates.v1.yaml gives this family ifa-fault-injection
+# triggers so an edit to its cassette or its writer re-runs the matrix that
+# observes it.
 #
 # blocker_kind and anchor below stay hand-derived and pinned because they are
-# what that follow-up needs and what scripts/lib/ifa_family_registry_pins/
-# holds it to. They describe what a fault cell WOULD engage. They are not a
-# claim that one engages them today; nothing does.
+# what scripts/lib/ifa_family_registry_pins/ holds this row to.
 
-# Hand-derived for the fault cell this family does not have yet, and
-# non-vacuous when it is written: KubernetesNamespaceMaterializationHandler embeds
+# Hand-derived for this family's fault cells, and non-vacuous now they run:
+# KubernetesNamespaceMaterializationHandler embeds
 # `FactLoader FactLoader` (go/internal/reducer/kubernetes_namespace_materialization.go:129)
 # and Handle refuses to run without it (:147) before passing it to the
 # extraction path (:157). The handler therefore reads fact_records AFTER
@@ -67,22 +62,15 @@ IFA_FAMILY_EXPECTED_VAR[kubernetes_namespace_environment]="kubernetes_namespace_
 # row.environment is non-empty, so an unbound namespace never reaches this
 # statement at all.
 IFA_FAMILY_ANCHOR[kubernetes_namespace_environment]="MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)"
-# none: this family has no fault cells, so neither "generic" (dispatched
-# through cell_killworker_family / cell_failgraphwrite_family) nor "custom"
-# (dispatched by naming its own hand-written cells) is a true statement about
-# how the fault gate reaches it. Recording custom here would assert a dispatch
-# that does not exist, which is the nominally-covered shape #6181 was filed to
-# remove -- and it read as custom on the first cut of this row.
-#
-# When #6309's follow-up writes the cells they will be custom rather than
-# generic: scripts/lib/ifa_fault_generic_table_lock.sh's header records that no
-# family has ever run the generic table_lock path live, and that
+# custom: hand-written cells, dispatched by name (not through the generic
+# cell_killworker_family / cell_failgraphwrite_family dispatcher).
+# scripts/lib/ifa_fault_generic_table_lock.sh's header records that no family
+# has ever run the generic table_lock path live, and that
 # _ifa_generic_require_table_domain_written assumes the locked table carries a
 # `domain` column fact_records does not have, so the generic dispatcher would
 # error part-way into a live shard. codeowners_ownership_edges is the precedent
-# for hand-written cells on the same blocker and the same table. That is a
-# plan, and this field is not where a plan belongs.
-IFA_FAMILY_CELL_KIND[kubernetes_namespace_environment]="none"
+# for hand-written cells on the same blocker and the same table.
+IFA_FAMILY_CELL_KIND[kubernetes_namespace_environment]="custom"
 
 # Not a shared_intent_lock family, so the generic kill cell never asks for a
 # retry baseline. Declared empty rather than omitted because
@@ -91,9 +79,8 @@ IFA_FAMILY_CELL_KIND[kubernetes_namespace_environment]="none"
 IFA_FAMILY_RETRY_BASELINE_VAR[kubernetes_namespace_environment]=""
 
 # 0: drive_all_cassettes (scripts/lib/ifa_fault_injection_driver.sh) does not
-# produce this family, and no fault cell drives it through DRIVE_FN/CASSETTE_VAR
-# either, because it has no fault cells. The field is what a future cell must
-# read; it is not a claim that one is reading it.
+# produce this family; each fault cell drives it through DRIVE_FN/CASSETTE_VAR
+# instead, which is why each family needs its own baseline cell.
 IFA_FAMILY_FAULT_SHARED_DRIVE[kubernetes_namespace_environment]="0"
 
 IFA_FAMILY_HANDLER_GO_FILE[kubernetes_namespace_environment]="go/internal/reducer/kubernetes_namespace_materialization.go"

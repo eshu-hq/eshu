@@ -130,6 +130,13 @@ func resolveKubernetesNamespaceEnvironmentMaterializedEdges(odu ifa.Odu, expecte
 // evidence_class IS asserted, because the template SETs it on the relationship
 // itself and a blank one would mean the binding lost its evidence class while
 // keeping its identity.
+//
+// evidence_source is likewise SET on the relationship (not the node) by the
+// same template, from the writer's evidenceSource argument -- a compile-time
+// constant (reducer.KubernetesNamespaceEvidenceSource), so it is knowable
+// offline and is stamped here unconditionally: the stale-binding retraction
+// matches on it, and the live `assert-edges` half asserts it from the fixture,
+// so both halves now prove the same key.
 func kubernetesNamespaceRowsToExpectedEdges(rows []map[string]any) []ExpectedEdge {
 	edges := make([]ExpectedEdge, 0, len(rows))
 	for _, row := range rows {
@@ -141,9 +148,12 @@ func kubernetesNamespaceRowsToExpectedEdges(rows []map[string]any) []ExpectedEdg
 			RelationshipType: kubernetesNamespaceEnvironmentRelationshipType,
 			SourceEntityID:   anyToStringValue(row["uid"]),
 			TargetEntityID:   environmentName,
+			Properties: map[string]string{
+				"evidence_source": reducer.KubernetesNamespaceEvidenceSource,
+			},
 		}
 		if evidenceClass := anyToStringValue(row["evidence_class"]); evidenceClass != "" {
-			edge.Properties = map[string]string{"evidence_class": evidenceClass}
+			edge.Properties["evidence_class"] = evidenceClass
 		}
 		edges = append(edges, edge)
 	}

@@ -168,6 +168,19 @@ sql_edge_operation_match="MERGE (source)-[rel:QUERIES_TABLE]->(target)"
 codeowners_edge_operation_match="MERGE (repo)-[rel:DECLARES_CODEOWNER"  # PREFIX, verified vs canonical_codeowners_edges.go:35; see the cells lib header
 submodule_pin_edge_operation_match="MERGE (parent)-[rel:PINS_SUBMODULE"  # PREFIX, verified vs canonical_submodule_edges.go:32; see the cells lib header
 
+# The TARGETS_ENVIRONMENT MERGE anchor cell_failgraphwrite_kubernetes_namespace_environment
+# (#6309) targets: go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90 emits
+# this exact MERGE clause text -- read off the writer's executed statement, same
+# rationale as cloud_resource_operation_match above.
+kubernetes_namespace_environment_edge_operation_match="MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)"
+# The HAS_ROLE MERGE anchor cell_failgraphwrite_iam_instance_profile_role (#6309)
+# targets: go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go:22
+# emits MERGE (profile)-[rel:%s]->(role), filled from a closed single-member
+# vocabulary, so the anchor carries the INTERPOLATED type. A literal %s would
+# match no executed statement and the fault would never fire. It is NOT
+# IAM_INSTANCE_PROFILE_HAS_ROLE, which is statement metadata beside the query.
+iam_instance_profile_role_edge_operation_match="MERGE (profile)-[rel:HAS_ROLE]->(role)"
+
 # The DOCUMENTS edge MERGE anchor cell_failgraphwrite_documentation targets:
 # go/internal/storage/cypher/canonical_documentation_edges.go's
 # batchCanonicalDocumentationEntityEdgeCypher emits this exact MERGE clause
@@ -357,6 +370,16 @@ ifa_fault_shard_run cell_failgraphwrite_repo_dependency
 ifa_fault_shard_run cell_baseline_submodule_pin
 ifa_fault_shard_run cell_killworker_submodule_pin
 ifa_fault_shard_run cell_failgraphwrite_submodule_pin
+# kubernetes_namespace_environment (#6309) and iam_instance_profile_role
+# (#6309): first direct-materialization families in this gate. Each trio is
+# baseline first (sole writer of that family's digest and retry baseline),
+# same shape as codeowners above.
+ifa_fault_shard_run cell_baseline_kubernetes_namespace_environment
+ifa_fault_shard_run cell_killworker_kubernetes_namespace_environment
+ifa_fault_shard_run cell_failgraphwrite_kubernetes_namespace_environment
+ifa_fault_shard_run cell_baseline_iam_instance_profile_role
+ifa_fault_shard_run cell_killworker_iam_instance_profile_role
+ifa_fault_shard_run cell_failgraphwrite_iam_instance_profile_role
 # inheritance_edges (#5996) and shell_exec (#6001): generic dispatch, baseline
 # first in each trio (sole writer of that family's digest and retry baseline;
 # the atomic-group ordering check enforces it). Both are FAULT_SHARED_DRIVE=0,

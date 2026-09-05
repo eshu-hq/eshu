@@ -5,8 +5,9 @@ Every cell `scripts/verify-ifa-fault-injection.sh` dispatches, in dispatch order
 This lived as a comment block inside that script until the script reached its 500-line cap and
 a three-entry correction could not be added without breaking it. It is prose — nothing parses
 it — but it drifts silently, so `scripts/test-verify-ifa-fault-injection.sh` asserts that the
-number of entries here equals the number of `ifa_fault_shard_run` dispatches in the gate. Add a
-cell, add its entry, or that check reds.
+number of entries here equals the number of `ifa_fault_shard_run` dispatches in the gate AND that
+the numbered titles match the dispatch order entry for entry. Add a cell, add its entry in
+dispatch position, or that check reds.
 
 Entries are numbered in dispatch order. The number is a stable label for cross-references
 elsewhere in the gate (for example the once-fired marker list), not an index into
@@ -112,21 +113,27 @@ than there are entries here.
 25. baseline-submodule-pin (#6002) -- family-scoped fault-free baseline.
 26. kill-worker-after-claim-submodule-pin (#6002) -- lease reclaim proof.
 27. fail-graph-write-once-then-succeed-submodule-pin (#6002) -- retry proof.
-28. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
-29. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
-30. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
-31. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
-32. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
-33. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
-34. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
-35. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
-36. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
-37. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
+28. baseline-kubernetes-namespace-environment (#6309) -- family-scoped fault-free baseline; first direct-materialization family in this gate.
+29. kill-worker-after-claim-kubernetes-namespace-environment (#6309) -- lease reclaim proof.
+30. fail-graph-write-once-then-succeed-kubernetes-namespace-environment (#6309) -- TARGETS_ENVIRONMENT retry proof.
+31. baseline-iam-instance-profile-role (#6309) -- family-scoped fault-free baseline.
+32. kill-worker-after-claim-iam-instance-profile-role (#6309) -- lease reclaim proof.
+33. fail-graph-write-once-then-succeed-iam-instance-profile-role (#6309) -- HAS_ROLE retry proof.
+34. baseline-inheritance (#5996) -- family-scoped fault-free baseline.
+35. kill-worker-after-claim-inheritance (#5996) -- lease reclaim proof.
+36. fail-graph-write-once-then-succeed-inheritance (#5996) -- retry proof.
+37. baseline-shell-exec (#6001) -- family-scoped fault-free baseline.
+38. kill-worker-after-claim-shell-exec (#6001) -- lease reclaim proof.
+39. fail-graph-write-once-then-succeed-shell-exec (#6001) -- retry proof.
+40. baseline-workload-dependency (#6003) -- family-scoped fault-free baseline.
+41. kill-worker-after-claim-workload-dependency (#6003) -- lease reclaim proof.
+42. fail-graph-write-once-then-succeed-workload-dependency (#6003) -- retry proof.
+43. baseline-symbol-runtime (#5995/#6000/#5997) -- ONE baseline shared by
    handles_route/runs_in/invokes_cloud_action; no kill-worker cell (ifa_fault_injection_symbol_runtime_cells.sh's header explains why).
-38. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
-39. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
-40. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
+44. fail-graph-write-once-then-succeed-handles-route (#5995) -- HANDLES_ROUTE retry proof.
+45. fail-graph-write-once-then-succeed-runs-in (#6000) -- RUNS_IN retry proof.
+46. fail-graph-write-once-then-succeed-invokes-cloud-action (#5997) -- INVOKES_CLOUD_ACTION retry proof.
 
-41. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
-42. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
-43. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.
+47. kill-worker-after-runner-lease-wait-handles-route (#6208) -- exact-key reclaim proof.
+48. kill-worker-after-runner-lease-wait-runs-in (#6208) -- exact-key reclaim proof.
+49. kill-worker-after-runner-lease-wait-invokes-cloud-action (#6208) -- exact-key reclaim proof.

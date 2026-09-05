@@ -116,10 +116,18 @@ func resolveIAMInstanceProfileRoleMaterializedEdges(odu ifa.Odu, expectedEdgesPa
 // one edge rather than duplicating it -- and is asserted here as a mutable
 // property so a stale mode cannot pass on edge identity alone.
 //
-// scope_id, generation_id and evidence_source are stamped by the WRITER from
-// its own arguments rather than carried on the extractor's rows, so they are
-// not part of what this offline guard can or should assert; they belong to the
-// live `assert-edges` half of the family's proof.
+// scope_id and generation_id are stamped by the WRITER from its own per-run
+// intent arguments rather than carried on the extractor's rows, so they are
+// not part of what this offline guard can or should assert; no static set can
+// pin per-run values. Their stamping is covered by the writer unit test
+// asserting the annotated row contents instead.
+//
+// evidence_source is stamped by the writer too, but from a compile-time
+// constant (reducer.IAMInstanceProfileRoleEvidenceSource), so it IS knowable
+// offline and is stamped here: the live `assert-edges` half asserts it from
+// the fixture, and both halves now prove the same key. A writer that stopped
+// stamping it fails both, instead of passing the offline half on extractor
+// identity while the live half stayed blind to it.
 func iamInstanceProfileRoleRowsToExpectedEdges(rows []map[string]any) []ExpectedEdge {
 	edges := make([]ExpectedEdge, 0, len(rows))
 	for _, row := range rows {
@@ -127,9 +135,12 @@ func iamInstanceProfileRoleRowsToExpectedEdges(rows []map[string]any) []Expected
 			RelationshipType: anyToStringValue(row["relationship_type"]),
 			SourceEntityID:   anyToStringValue(row["profile_uid"]),
 			TargetEntityID:   anyToStringValue(row["role_uid"]),
+			Properties: map[string]string{
+				"evidence_source": reducer.IAMInstanceProfileRoleEvidenceSource,
+			},
 		}
 		if mode := anyToStringValue(row["resolution_mode"]); mode != "" {
-			edge.Properties = map[string]string{"resolution_mode": mode}
+			edge.Properties["resolution_mode"] = mode
 		}
 		edges = append(edges, edge)
 	}

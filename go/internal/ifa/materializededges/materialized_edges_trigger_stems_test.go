@@ -39,14 +39,14 @@ import (
 // is the same obligation arriving when it can actually be met.
 //
 // TWO EXCEPTIONS, and they are exceptions to the REASON rather than to the
-// rule: iam_instance_profile_role and kubernetes_namespace_environment carry
+// rule: iam_instance_profile_role and kubernetes_namespace_environment carried
 // stems while still waived. #6228 wired both into the live determinism matrix,
-// so their ifa-determinism triggers are written files, not guesses, and the
-// stems below are read off them. Both stay waived until the fault half exists
-// (#6309), so nothing here asserts a proof either family has not earned --
-// the coverage-keyed checks skip them exactly as they skip the other
-// twenty-six. Do not re-remove them by applying the paragraph above: a stem
-// whose triggers exist is the thing that paragraph is waiting for.
+// so their ifa-determinism triggers were written files, not guesses, and the
+// stems below were read off them. #6309 then wired the fault half and converted
+// both waivers to coverage rows, so both families are now covered and the
+// coverage-keyed checks hold them the same as every other covered family. Do
+// not re-remove them by applying the paragraph above: a stem whose triggers
+// exist is the thing that paragraph is waiting for.
 var materializedEdgeFamilyTriggerStems = map[string]string{
 	"code_calls":                 "code_call",
 	"codeowners_ownership_edges": "codeowners",
@@ -79,12 +79,11 @@ var materializedEdgeFamilyTriggerStems = map[string]string{
 	// writer -- rather than guesses at paths nobody has written, which is the
 	// state the comment above describes for the remaining direct families.
 	//
-	// NOT in the ifa-fault-injection block, deliberately: neither family has a
-	// fault cell (#6309), so triggering that gate on their inputs would arm a
-	// four-shard matrix that never reads them. The both-gates check below is
-	// keyed to coverage rows, and both families are waived, so it does not
-	// demand the fault-side trigger yet -- it will on the day the coverage row
-	// lands, which is the same day the cells have to exist.
+	// In the ifa-fault-injection block since #6309: both families have fault
+	// cells asserting their exact edge sets, so their inputs retrigger that
+	// gate. The both-gates check below is keyed to coverage rows, and both
+	// families are covered, so it demands the fault-side trigger -- and finds
+	// it, in the per-family cell files and the shared fault seams.
 	"iam_instance_profile_role":        "iam_instance_profile_role",
 	"kubernetes_namespace_environment": "kubernetes_namespace_environment",
 }

@@ -27,19 +27,15 @@ IFA_FAMILY_PIN_WAIT_KEY="kubernetes_namespace_materialization"
 
 # go/internal/storage/cypher/kubernetes_namespace_node_writer.go:90. The
 # preceding line (:89) MERGEs the Environment node by name; the anchor names the
-# RELATIONSHIP merge because that is the write a fault cell would interrupt.
-# No cell interrupts it today -- this family has none (#6309); the pin exists so
-# the follow-up that writes one inherits a checked value.
+# RELATIONSHIP merge because that is the write the fault cell interrupts.
 IFA_FAMILY_PIN_ANCHOR="MERGE (n)-[env_rel:TARGETS_ENVIRONMENT]->(env)"
 # shared_cell: a plain reducer family needing no maintenance pass, so it is
 # driven in the determinism gate's shared N={1,2,4} cell.
 IFA_FAMILY_PIN_SHARED_CELL=1
-# cell_kind: derived from the gate's call sites, and there are none. No cell
-# function names this family, no IFA_FAULT_ALL_CELLS entry declares one, and
-# scripts/verify-ifa-fault-injection.sh dispatches nothing for it, so the
-# honest value is `none` -- neither generic nor custom describes a dispatch
-# that happens (#6309). When the cells are written they will be custom:
+# cell_kind: derived from the gate's call sites -- the custom trio in
+# scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh,
+# dispatched by name (#6309). Not generic:
 # scripts/lib/ifa_fault_generic_table_lock.sh's header records that the generic
 # table_lock path has never run live and that its mandatory precondition
 # assumes a `domain` column fact_records lacks.
-IFA_FAMILY_PIN_CELL_KIND="none"
+IFA_FAMILY_PIN_CELL_KIND="custom"

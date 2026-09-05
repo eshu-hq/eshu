@@ -3,16 +3,12 @@
 # Live-gate drive/assert callbacks for the two DIRECT-materialization families
 # (#6228): kubernetes_namespace_environment and iam_instance_profile_role.
 #
-# SOURCED BY scripts/verify-ifa-determinism.sh ONLY. The fault gate does not
-# source it: scripts/verify-ifa-fault-injection.sh loads its libs through
-# scripts/lib/ifa_fault_injection_sources.sh, which does not list this file.
-# Neither family has a fault cell of any kind (#6309) -- nothing here is
-# reachable from the fault gate, and nothing below should be read as evidence
-# that a fault cell exists. The families are registered through
-# scripts/lib/ifa_family_registry/rows/12_kubernetes_namespace_environment.sh
-# and rows/13_iam_instance_profile_role.sh, which say the same thing in
-# cell_kind=none; this file only supplies the drive/assert callbacks the
-# determinism gate's N-loop names. Callers own strict mode and cleanup.
+# SOURCED BY scripts/verify-ifa-determinism.sh AND, since #6309, the fault
+# gate through scripts/lib/ifa_fault_injection_sources.sh. The fault cells
+# (scripts/lib/ifa_fault_injection_kubernetes_namespace_environment_cells.sh
+# and scripts/lib/ifa_fault_injection_iam_instance_profile_role_cells.sh)
+# call the drive/assert callbacks below; the families' registry rows carry
+# cell_kind=custom. Callers own strict mode and cleanup.
 #
 # ONE FILE FOR TWO FAMILIES, unlike the shared-projection families' one file
 # each. Their drive and assert bodies differ only in a cassette path, a domain
@@ -97,6 +93,55 @@ ifa_iam_instance_profile_role_drive() {
 	local label="$1" bin_dir="$2" cassette="$3" workers="$4" log_dir="$5"
 	_ifa_direct_family_drive iam-instance-profile-role \
 		"${label}" "${bin_dir}" "${cassette}" "${workers}" "${log_dir}"
+}
+
+# ifa_fault_count_retry_attempts totals the EXCESS attempts
+# (sum(attempt_count - 1)) for one materialization domain, and
+# ifa_fault_assert_retry_attempts_above proves the fault ADDED attempts the
+# fault-free baseline lacked by requiring a strict increase over it.
+#
+# Why a second retry signal next to ifa_fault_count_retried's row COUNT in
+# ifa_fault_injection_common.sh: each direct-family cassette creates exactly
+# ONE targeted work item, so the count form saturates at 1. A single natural
+# counting-class retry in the fault-free baseline (a real NornicDB deadlock or
+# a transient EntityNotFound under the concurrent projector+reducer this gate
+# runs -- both documented on the count helper) makes the baseline 1; the
+# forced kill then adds another attempt to the SAME row, the kill-run count
+# stays 1, and 1 > 1 false-fails a correct recovery. The sum form has no
+# ceiling: the kill always adds attempts the baseline lacked. Multi-row
+# domains keep the count form -- saturating every row naturally is
+# implausible there, and the count form's "measured inert" reasoning (a
+# natural retry also appears in the identical baseline drive, so it cannot
+# green the check while the decorator sits inert) carries over unchanged:
+# only attempts the baseline lacked move this sum.
+#
+# Args (count): compose_project use_compose dsn compose_file [domain].
+# Args (assert): compose_project use_compose dsn compose_file baseline [budget_seconds=15] [domain].
+ifa_fault_count_retry_attempts() {
+	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
+	local domain="${5:-kubernetes_namespace_materialization}"
+	if [[ ! "${domain}" =~ ^[a-z0-9_]+$ ]]; then
+		echo "ifa_fault_count_retry_attempts: domain must match ^[a-z0-9_]+$, got ${domain}" >&2
+		return 1
+	fi
+	ifa_det_pg "${compose_project}" "${use_compose}" "${dsn}" \
+		"SELECT coalesce(sum(attempt_count - 1), 0) FROM fact_work_items WHERE stage = 'reducer' AND status = 'succeeded' AND attempt_count > 1 AND domain = '${domain}';" \
+		"${compose_file}" | tr -d '[:space:]'
+}
+
+ifa_fault_assert_retry_attempts_above() {
+	local compose_project="$1" use_compose="$2" dsn="$3" compose_file="$4"
+	local baseline="$5" budget="${6:-15}" domain="${7:-kubernetes_namespace_materialization}"
+	local i count
+	for i in $(seq 1 "${budget}"); do
+		count="$(ifa_fault_count_retry_attempts "${compose_project}" "${use_compose}" "${dsn}" "${compose_file}" "${domain}")"
+		if [[ -n "${count}" && "${count}" -gt "${baseline}" ]]; then
+			printf '%s' "${count}"
+			return 0
+		fi
+		sleep 1
+	done
+	return 1
 }
 
 # ifa_iam_instance_profile_role_assert pins the two-edge exact set. Called twice

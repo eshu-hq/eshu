@@ -39,6 +39,16 @@ func iamInstanceProfileRoleMaterializationDomainDefinition() DomainDefinition {
 
 const iamInstanceProfileRoleEvidenceSource = "reducer/iam-instance-profile-role"
 
+// IAMInstanceProfileRoleEvidenceSource is the exported view of the same value,
+// for the Ifá materialized-edge offline guard (#6309). It is an alias of the
+// unexported constant above rather than a second literal, so the two cannot
+// drift. The offline guard stamps it onto its derived edges so the live
+// `assert-edges` half and the offline half assert the same property set: a
+// writer that stopped stamping evidence_source fails both, and the edge
+// retraction (which matches on scope_id AND this source) keeps reaping what
+// the gate asserts.
+const IAMInstanceProfileRoleEvidenceSource = iamInstanceProfileRoleEvidenceSource
+
 // IAMInstanceProfileRoleEdgeWriter persists and retracts canonical HAS_ROLE
 // edges between IAM instance-profile CloudResource nodes and IAM role
 // CloudResource nodes. Implementations MUST be idempotent by

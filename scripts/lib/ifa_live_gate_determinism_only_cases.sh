@@ -38,29 +38,11 @@ ifa_live_gate_determinism_only_seams=(
 	'scripts/lib/test-ifa-determinism-*.sh|scripts/lib/test-ifa-determinism-teeth-cases.sh'
 	'scripts/lib/test-ifa-family-registry-*.sh|scripts/lib/test-ifa-family-registry-derived-pins-cases.sh'
 	'scripts/lib/ifa_family_registry_pins/**|scripts/lib/ifa_family_registry_pins/code_calls.sh'
-	# kubernetes_namespace_environment / iam_instance_profile_role (#6228,
-	# #6309). Thirteen triggers landed for these two families; these are the
-	# six that are load-bearing. The other seven are already matched on BOTH
-	# gates by 'go/internal/ifa/*.go', 'go/internal/reducer/**' and
-	# 'scripts/lib/ifa_*_live*.sh' (each with its own seam above), so they
-	# select what they always selected and a typo in one of them changes
-	# nothing -- which is exactly why they are not pinned here as if they did.
-	#
-	# These six are determinism-only rather than common because neither family
-	# has a fault cell: registering them on ifa-fault-injection would arm the
-	# four-shard matrix for a cassette and a writer it never reads. The
-	# forbidden half of this loop is what holds that split to the real matcher
-	# instead of a comment in the registry.
-	#
-	# The four glob entries carry the weight the two literals cannot: a
-	# registry/workflow comparison is a STRING comparison and agrees just as
-	# happily on '**' quietly narrowed to '*' (which does not cross '/') as on
-	# a working pattern, and the driven cassette is the most common edit these
-	# families will ever see.
-	'go/internal/storage/cypher/kubernetes_namespace_node_writer.go|go/internal/storage/cypher/kubernetes_namespace_node_writer.go'
-	'go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go|go/internal/storage/cypher/iam_instance_profile_role_edge_writer.go'
-	'testdata/cassettes/kubernetesnamespaceenvironment/**|testdata/cassettes/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family.json'
-	'testdata/cassettes/iaminstanceprofilerole/**|testdata/cassettes/iaminstanceprofilerole/ifa-iam-instance-profile-role-family.json'
-	'go/internal/ifa/testdata/kubernetesnamespaceenvironment/**|go/internal/ifa/testdata/kubernetesnamespaceenvironment/ifa-kubernetes-namespace-environment-family-expected-edges.json'
-	'go/internal/ifa/testdata/iaminstanceprofilerole/**|go/internal/ifa/testdata/iaminstanceprofilerole/ifa-iam-instance-profile-role-family-expected-edges.json'
+	# kubernetes_namespace_environment / iam_instance_profile_role (#6228)
+	# carried six determinism-only seams here until #6309 landed the fault
+	# cells: the writers, cassettes, and expected-edge sets now select BOTH
+	# gates, so they moved to ifa_live_gate_common_seams beside the sibling
+	# families. The other seven of the thirteen triggers were already matched
+	# on BOTH gates by 'go/internal/ifa/*.go', 'go/internal/reducer/**' and
+	# 'scripts/lib/ifa_*_live*.sh' (each with its own seam above).
 )

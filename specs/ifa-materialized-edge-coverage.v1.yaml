@@ -30,7 +30,7 @@
 #     the absolute expected set can, which is why the proof_gate is only honest
 #     with the assert-edges wiring in scripts/verify-ifa-determinism.sh.)
 #   - a `coverage:` row with scenario_type: fault, proof_gate: ifa-fault-injection
-#     (The 43-cell fault matrix drives the same family cassette into every
+#     (The 49-cell fault matrix drives the same family cassette into every
 #     cell so lease-expiry / kill-worker recovery exercises the family's real
 #     durable handler replay, asserts the fault-free baseline carries exactly
 #     the expected edges via `ifa assert-edges`, then compares every recovery
@@ -258,7 +258,7 @@ coverage:
   # EXPLAINS records. The determinism gate replays it in every N=1,2,4 cell and
   # exact-compares the complete Rationale source, EXPLAINS relationship, and
   # Function target records. The same matrix drives generation 2 and requires
-  # the exact one-edge survivor. The 43-cell fault
+  # the exact one-edge survivor. The 49-cell fault
   # matrix drives the cassette in every cell; its domain-scoped worker-kill and
   # one-shot EXPLAINS-write cells converge to the same exact three-record set
   # with zero dead letters.

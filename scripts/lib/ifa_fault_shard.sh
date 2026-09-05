@@ -135,6 +135,18 @@ IFA_FAULT_ALL_CELLS=(
 	cell_baseline_submodule_pin
 	cell_killworker_submodule_pin
 	cell_failgraphwrite_submodule_pin
+	# kubernetes_namespace_environment + iam_instance_profile_role (#6309):
+	# the first direct-materialization families in this gate, same
+	# family-scoped-baseline-plus-two shape as codeowners_ownership_edges
+	# above (cell_kind=custom on a table_lock:fact_records blocker). Each
+	# baseline writes its own digests[baseline_<family>], so each trio must
+	# stay co-located -- see IFA_FAULT_ATOMIC_GROUPS below.
+	cell_baseline_kubernetes_namespace_environment
+	cell_killworker_kubernetes_namespace_environment
+	cell_failgraphwrite_kubernetes_namespace_environment
+	cell_baseline_iam_instance_profile_role
+	cell_killworker_iam_instance_profile_role
+	cell_failgraphwrite_iam_instance_profile_role
 	cell_baseline_inheritance
 	cell_killworker_inheritance
 	cell_failgraphwrite_inheritance
@@ -186,6 +198,8 @@ IFA_FAULT_ATOMIC_GROUPS=(
 	"cell_baseline_codeowners cell_killworker_codeowners cell_failgraphwrite_codeowners"
 	"cell_baseline_repo_dependency cell_killworker_repo_dependency cell_failgraphwrite_repo_dependency"
 	"cell_baseline_submodule_pin cell_killworker_submodule_pin cell_failgraphwrite_submodule_pin"
+	"cell_baseline_kubernetes_namespace_environment cell_killworker_kubernetes_namespace_environment cell_failgraphwrite_kubernetes_namespace_environment"
+	"cell_baseline_iam_instance_profile_role cell_killworker_iam_instance_profile_role cell_failgraphwrite_iam_instance_profile_role"
 	"cell_baseline_inheritance cell_killworker_inheritance cell_failgraphwrite_inheritance"
 	"cell_baseline_shell_exec cell_killworker_shell_exec cell_failgraphwrite_shell_exec"
 	"cell_baseline_workload_dependency cell_killworker_workload_dependency cell_failgraphwrite_workload_dependency"
