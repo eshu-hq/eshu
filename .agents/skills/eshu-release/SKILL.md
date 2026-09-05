@@ -1,10 +1,6 @@
 ---
 name: eshu-release
-description: |
-  Eshu release, versioning, and open-source deployment pipeline.
-  Use when releasing Eshu, bumping the Helm chart, publishing Docker images or
-  CLI binaries, checking version mismatches, or coordinating image tag, chart
-  version, appVersion, GHCR, OCI, and GitHub Release work.
+description: Release Eshu or reconcile CLI, image, Helm chart, and GitHub Release versions.
 ---
 
 # Eshu Release And Deployment Pipeline

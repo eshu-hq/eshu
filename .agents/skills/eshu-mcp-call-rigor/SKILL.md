@@ -1,6 +1,6 @@
 ---
 name: eshu-mcp-call-rigor
-description: Use when calling Eshu MCP/API tools, debugging local Eshu MCP connectivity, designing or reviewing MCP tool schemas, or running graph-backed query tools where scope, pagination, timeout, stale local owner ports, truth labels, or payload size affect correctness and performance.
+description: Call Eshu MCP/API tools or change their bounded scope, pagination, timeout, and response contracts.
 ---
 
 # eshu-mcp-call-rigor

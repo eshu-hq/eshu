@@ -1,6 +1,6 @@
 ---
 name: eshu-correlation-truth
-description: Use when changing Eshu workload admission, deployable-unit correlation, materialization, deployment tracing, service/repository story synthesis, or query truth where positive, negative, ambiguous, graph, and API evidence must all agree before the change is considered correct.
+description: Verify agreement between source evidence, projected graph truth, and query results for Eshu correlation changes.
 ---
 
 # Eshu Correlation Truth

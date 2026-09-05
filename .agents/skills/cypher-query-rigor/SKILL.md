@@ -1,11 +1,6 @@
 ---
 name: cypher-query-rigor
-description: >
-  Use when writing, reviewing, debugging, or optimizing Cypher for Neo4j,
-  NornicDB, or graph-backed application work, including graph schema design,
-  graph indexes and constraints, MATCH, MERGE, UNWIND, query plans, graph write
-  performance, graph read performance, graph-backed API/query handlers,
-  materialization jobs, projection code, migrations, and backend portability.
+description: Write, debug, or review Eshu Cypher queries, graph schema, and backend-specific query behavior.
 ---
 
 # Cypher Query Rigor

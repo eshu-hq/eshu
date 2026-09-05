@@ -1,16 +1,6 @@
 ---
 name: resolve-review-threads
-description: |
-  Resolve unresolved GitHub PR review threads after their referenced code has
-  been fixed in the latest commit. Use this skill right after pushing changes
-  that address reviewer feedback on an Eshu PR, so threads do not linger open
-  on the conversation tab. The skill takes a PR number, classifies each
-  unresolved thread as `fixed`, `unchanged`, or `ambiguous` against the
-  current HEAD, and only auto-resolves the `fixed` ones. The rest stay open
-  with a structured report. Treats every reviewer uniformly — codex,
-  GitHub Copilot, Claude (when present), and human reviewers — by reading the
-  comment body and checking the cited file:line, not by trusting the bot
-  label.
+description: Resolve Eshu PR review threads after verifying their findings are fixed in the current pushed commit.
 ---
 
 # Resolve Review Threads

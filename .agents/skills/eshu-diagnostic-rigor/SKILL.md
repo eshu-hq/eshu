@@ -1,235 +1,69 @@
 ---
 name: eshu-diagnostic-rigor
-description: |
-  Use for Eshu runtime diagnostics, reducer throughput work,
-  graph backend diagnosis, local or CI proof runs, queue/shared projection
-  analysis, or ADR evidence updates. Add `eshu-performance-rigor` whenever the
-  work makes or validates a latency, throughput, resource, or wall-time claim;
-  add Go, Cypher, concurrency, or correlation skills for those surfaces.
+description: Establish causes of Eshu runtime failures, queue stalls, backend slowness, or intermittent proof failures before changing behavior.
 ---
 
 # Eshu Diagnostic Rigor
 
-Use this skill before Eshu reducer, ingester, projector, queue, graph backend,
-NornicDB, or runtime performance work.
+This skill owns causal diagnosis and observability. Use
+[eshu-performance-rigor](../eshu-performance-rigor/SKILL.md) for optimization,
+benchmark design, or any latency, throughput, resource, or wall-time claim.
+Ordinary passing test runs do not require this diagnostic workflow.
 
-## Skill Routing
+## Establish The Cause
 
-Start with this skill for Eshu diagnostic work. Add other skills only when the
-change needs their domain:
+Read the relevant runtime contracts and active ADR before changing behavior.
+Start from the failing run's logs, state, and artifacts. Attach each causal claim
+to an observation; label unproven causes as hypotheses whenever repeated. Give
+an independent investigator the symptom and raw evidence, not a cause to confirm.
+For intermittent behavior, report a measured occurrence rate rather than treating
+one passing sample as proof.
 
-- `eshu-performance-rigor`: benchmarks, optimization, scaled/remote proof, or
-  any before/after performance claim.
-- `golang-engineering`: Go code edits or Go tests.
-- `eshu-postgres-rigor`: Postgres SQL, schema, indexes, locks, transactions,
-  queue/liveness/status queries, or relational performance diagnostics.
-- `cypher-query-rigor`: graph query, write shape, indexes, or backend dialect.
-- `concurrency-deadlock-rigor`: workers, leases, retries, conflict keys, or queue ordering.
-- `eshu-correlation-truth`: correlation, materialization truth, or query truth.
+Form a narrow hypothesis and add telemetry if existing signals cannot test it.
+Use focused local proof; rebuild production binaries before runtime validation.
+Preserve correctness, bounded runtime cost, and intended concurrent behavior.
+A performance-sensitive change needs the impact declaration and applicable proof
+from [eshu-performance-rigor](../eshu-performance-rigor/SKILL.md) before
+implementation; this skill does not define a second proof ladder.
 
-## Operating Rules
+Bind proof to exact source, binary/image digest, retained-data and harness/browser
+runner identity. A stale artifact invalidates a final claim. Never source Compose
+env files as shell programs; pass required variables explicitly without leaking
+secrets into logs or tracked evidence.
 
-- MUST read repo docs and the active ADR before changing runtime behavior.
-- MUST preserve correctness before performance. A fast wrong graph is a failure.
-- MUST NOT introduce unmeasured performance regressions. New capability cost is
-  acceptable only when documented, bounded, and justified by correctness.
-- MUST write a performance impact declaration before implementation for
-  collectors, parsers, reducers, projectors, graph writes, queues, workers,
-  runtime Compose/Helm settings, NornicDB defaults, and graph-backed API/MCP
-  calls. Name the affected stage, expected cardinality, baseline or
-  known-normal band, proof ladder, and stop threshold.
-- Design MCP/API calls to be bounded before running them: scope first, limit
-  required, timeout expected, and truncation explicit.
-- MUST rebuild binaries before runtime testing.
-- MUST NOT start with the full corpus. Use one large repo, one small/medium proof,
-  then the 20-25 repo corpus, then full corpus.
-- MUST NOT increase worker defaults without evidence of safe conflict domains and
-  backend headroom.
-- MUST re-rank open diagnostic or performance issues against the latest accepted
-  measured bottleneck before implementation. If live phase evidence makes an
-  issue stale, superseded, or merely hygiene, update the issue framing instead
-  of implementing from the old title/body.
-- For remote or full-corpus proof, enable pprof and capture the effective
-  runtime environment from the containers before interpreting slowness.
-- Keep machine-specific hostnames, keys, paths, and IPs out of repo docs.
+## Read The Relevant Procedure
 
-## Diagnostic Model
+- For reducer, queue, projector, or backend slowness, read
+  [runtime-attribution.md](references/runtime-attribution.md). Separate waiting,
+  handler work, graph writes, fact loads, conflict/readiness blocking, host
+  pressure, ambient backend work, and stale setup before tuning.
+- For dashboard/API/MCP failures, read
+  [api-mcp-validation.md](references/api-mcp-validation.md). Scope first, require
+  limits/timeouts and explicit truncation, inspect truth envelopes, and prove
+  response ownership. Do not repeat an unbounded slow or hung call.
+- For intermittent tests or live-gate failures, read
+  [gate-contention.md](references/gate-contention.md). Check resource contention
+  first and serialize heavy gates across the shared host without killing peers.
+- For remote/scaled diagnostics, read the performance skill's
+  [scaled-run procedure](../eshu-performance-rigor/references/scaled-runs.md)
+  and [run manifest](../eshu-performance-rigor/references/run-manifest.md).
+  Enable pprof and capture the effective container environment before
+  interpreting slowness; machine-specific connection details stay operator-local.
 
-Separate these before proposing an optimization:
+Use Go, Postgres, Cypher, concurrency, or correlation skills for those changed
+surfaces. Worker/lease/claim rewrites require independent concurrency proof;
+row-set equivalence does not establish lock or lease safety.
 
-- queue wait
-- handler duration
-- actual graph/backend write time
-- fact/input load time
-- shared projection wait and processing time
-- conflict blocking or readiness wait
-- CPU idle, IO wait, and disk idle
-- ambient backend work such as embeddings, background indexing, or non-Eshu
-  runtime features
-- stale image, wrong branch, missing schema/bootstrap, or mismatched backend
-  build
+## Record The Result
 
-If CPU and disk are idle, suspect serialization, queue fences, query shape,
-backend lookup/validation behavior, or data shape before adding workers.
+State the established cause, evidence, remaining uncertainty, and next action.
+Distinguish diagnostic visibility, correctness, handler work, scheduling, and
+end-to-end improvements; a diagnostic result need not claim a speedup. Record
+rejected hypotheses to avoid repeating them.
 
-Timeout-shaped failures are only evidence, not diagnosis. Classify the failure
-as timeout budget, query shape, missing schema/index, backend fallback,
-transaction validation, retry/idempotency behavior, stale image, or ambient
-backend work before patching.
-
-For dashboard/API/MCP validation, classify every failure as incorrect data or
-behavior, latency, response-ownership mismatch, or harness/setup failure. Do
-not combine those categories into a generic broken-surface count. Bind the
-proof to the exact source hash, binary or image digest, retained-data identity,
-and browser-runner hash; a stale supposedly final artifact invalidates the
-claim.
-
-Compose env files are Compose input, not shell programs. Never `source` one to
-prepare a proof. Pass the minimum required variables explicitly and keep secret
-values out of logs, evidence, and tracked files.
-
-## MCP/API Call Checklist
-
-Before calling or designing an Eshu MCP/API tool:
-
-- resolve the smallest canonical scope first (`repo_id`, `workload_id`,
-  `service_id`, or `environment`)
-- prefer cheap summary/count/handle calls before payload-heavy drilldowns
-- confirm local MCP owner ports are current when running against a local Eshu
-  service
-- inspect the Eshu envelope (`truth.level`, `truth.profile`,
-  `truth.freshness.state`, and `error`) before interpreting results
-- bind visible, empty, and error UI states to the exact response owner and
-  lifecycle phase; a selector match or unrelated successful request is not
-  proof of the displayed data
-- accept bootstrap or cached data only when the exact owning bootstrap response
-  and its source/runtime identity are recorded
-- classify slowness as transport, stale owner ports, backend health, query
-  shape, payload size, or runtime-mode selection before retrying
-
-Do not repeat the same unbounded call after a slow or hung attempt.
-
-## Evidence Ladder
-
-For each runtime slice:
-
-1. Form a narrow hypothesis.
-2. Add telemetry first when the current signal cannot prove or disprove it.
-3. Run focused local tests.
-4. Rebuild binaries.
-5. Run the small proof ladder before any full corpus run.
-6. Capture wall time, terminal queue state, shared projection completion, CPU
-   idle, IO wait, disk idle, and relevant handler/stage sums.
-7. For full-corpus or remote proof, report collector stream complete,
-   projection/bootstrap complete, and queue-zero as separate timings. Also
-   record queue counts, retrying, dead letters, Eshu commit, NornicDB commit or
-   image tag, clean-volume state, schema/bootstrap state, pprof state, and
-   effective container runtime knobs.
-8. If a run is healthy but slower than the known-normal band by more than about
-   10% or 60 seconds, stop and profile before merge.
-9. Record repository size signals, indexed file count, fact count, backend, and
-   commit id for every run used as performance evidence.
-10. Classify the result in the ADR.
-
-## Concrete Repo Gates
-
-Before finishing any hot-path runtime PR, run:
-
-```bash
-scripts/test-verify-performance-evidence.sh
-scripts/verify-performance-evidence.sh
-```
-
-The gate fails when changed Go files introduce or modify Cypher, graph writes,
-worker claims, leases, batching, goroutines, channels, queue behavior, or
-runtime stages without a tracked docs/ADR/package note containing:
-
-- `Performance Evidence:`, `Benchmark Evidence:`, or
-  `No-Regression Evidence:`
-- `Observability Evidence:` or `No-Observability-Change:`
-
-The note must name the measurement, backend/version, input shape, queue or row
-counts, and the metrics/spans/logs/status fields that let an operator diagnose
-the path. PR text alone is not durable evidence.
-
-## Result Classification
-
-Every change must be labeled honestly:
-
-- `Diagnostic win`: improves visibility but not necessarily wall time.
-- `Correctness win`: fixes truth, readiness, or completion behavior.
-- `Handler win`: reduces measured handler work.
-- `Wall-clock win`: reduces end-to-end proof wall time.
-- `Scheduling win`: reduces queue wait without moving wall time.
-- `Rejected hypothesis`: measured no material improvement; revert if the code
-  change is not otherwise needed.
-
-Do not present handler-only wins as throughput wins unless wall-clock evidence
-supports it.
-
-### "Flake" is a diagnosis, not a shrug
-
-Before labeling an intermittent gate or test failure a flake, rule out **resource
-contention** — it is the most common cause and the easiest to miss, because the
-symptom points somewhere else entirely.
-
-```bash
-uptime                                   # load average
-pgrep -fl 'make pre-pr|verify-golden'    # concurrent gates (they bind fixed ports)
-df -h /System/Volumes/Data               # build-cache exhaustion
-```
-
-The asymmetry that makes this tractable: **contention shows up as false FAILURES,
-not as false passes.** So a gate that failed under load has proven nothing, while
-one that passed under load is usually trustworthy — the exception being an
-assertion whose own timing budget the load inflated, which is why a timing gate
-still deserves a quiet re-run on an idle machine. Re-running a contended failure
-without changing the conditions produces no new information, however many times
-it is repeated.
-
-Worked example. A live golden-corpus run failed twice with
-`fact_work_items_residual: residual=1 (dead_letter=1)` after the drain timeout —
-a signature that reads as a reducer or queue defect and invites a deep,
-expensive, wrong investigation. It passed on the third run. The variable was not
-the code, which was byte-identical throughout: three full-module gates were
-running concurrently at load ~30. Serializing them made it pass every time.
-
-A dead-lettered item is a real failure of *something*. Ask what changed between
-the passing and failing runs, and include the machine in "what changed". If the
-only difference is load, the finding is contention — record that, fix the
-scheduling, and do not file a phantom reducer bug.
-
-## ADR Evidence
-
-Update the active ADR with:
-
-- commit id
-- run id
-- corpus size and terminal state
-- wall time before and after
-- repository size signals, indexed file count, and fact count
-- key stage sums/maxima
-- CPU idle, IO wait, and disk idle
-- classification and next action
-
-Record no-win experiments. They are valuable because they prevent repeated
-false leads.
-
-## Common Eshu Reducer Lessons
-
-- Queue wait alone is not proof that more concurrency helps.
-- Broad conflict keys may be correct and still not be the current bottleneck.
-- Full fact loads can dominate handlers even when graph writes are cheap.
-- Shared projection wall time must be split into wait, selection, lease claim,
-  processing, graph write, and completion/ack before tuning workers.
-- NornicDB performance depends on exact Cypher shape, label/index lookup,
-  relationship-existence checks, transaction validation, and commit behavior.
-- A shim or `EXPLAIN (ANALYZE, BUFFERS)` proves query SHAPE; only a re-drain of
-  the built binary against the real worst-case backlog proves WALL-CLOCK. A
-  small-N EXPLAIN can pass while the live drain exposes a missing `AS
-  MATERIALIZED` (CTE re-inlined per reference) or a residual correlated subquery
-  (O(N^2) tail). End the proof ladder on the binary, not the EXPLAIN.
-- A row-set equivalence differential (bidirectional `EXCEPT` / set+order 0/0)
-  proves the candidate SET, not locking or lease behavior — it drops `FOR
-  UPDATE`. Any claim/lock/lease/queue rewrite needs a separate concurrency proof
-  (contention / EvalPlanQual recheck / lease-safety).
+For runtime evidence updates and hot-path PRs, read
+[performance evidence](../eshu-performance-rigor/references/evidence.md) for
+tracked markers, commands, and ADR fields. Root-cause notes carry
+`Root-Cause Evidence:` naming the establishing observation. A gate verifies that
+evidence exists, not that the causal reasoning is sound. Follow the root review
+and promotion workflow when implementing the diagnosed fix.

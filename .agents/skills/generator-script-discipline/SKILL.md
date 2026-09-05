@@ -1,269 +1,40 @@
 ---
 name: generator-script-discipline
-description: |
-  Use when a change adds a shell script that produces a generated artifact
-  and commits it to the repo: a JSON schema, a Grafana dashboard, a
-  verifier-generated file, a manifest, a fixture catalogue, a typed-API
-  definition, or any other file whose committed form is a function of
-  source-of-truth data plus a deterministic transformation. Activate for
-  new scripts under `scripts/` that emit files under `docs/`,
-  `go/internal/*/data/`, `deploy/`, or any checked-in artifact directory.
-  Captures the three-file pattern (slim `generate-*.sh` + `lib/` chunks +
-  `test-generate-*.sh` mirror), idempotency as a first-class test case,
-  and the 500-line cap pre-planned rather than retrofitted.
+description: Build or change deterministic generators, checked-in artifacts, and their drift checks in Eshu.
 ---
 
-# generator-script-discipline
+# Generator script discipline
 
-Use this skill whenever a change adds a shell script that produces a
-generated artifact and commits it to the repo: a JSON schema, a
-Grafana dashboard, a Verifier-generated file, a manifest, a fixture
-catalogue, a typed-API definition, or any other file whose committed
-form is a function of source-of-truth data plus a deterministic
-transformation. Activate for new scripts under `scripts/` that emit
-files under `docs/`, `go/internal/*/data/`, `deploy/`, or any
-checked-in artifact directory.
+A generator must produce identical bytes from identical inputs, keep its
+committed output current, and fail visibly when the output contract is broken.
+This applies to generators and their data registries, templates, tests, and CI
+checks, including generators written outside shell.
 
-This is the discipline Epic X4 (operator dashboard) and S2/S3
-(skillgen) converged on. Both shipped a generator + test mirror + CI
-gate, both required idempotency, both needed a `lib/` split to keep
-the script under the 500-line cap, and both had to be wired into GHA
-the same way.
+Keep rendering code separate from substantial data or templates when that makes
+changes clearer. Every file remains under the repo's 500-line cap; a tiny
+generator does not need empty library fragments to satisfy a prescribed layout.
+Provide a test mirror that runs without Postgres, NornicDB, or a Go build.
 
-## When To Use
+## Proof and integration
 
-- Adding a new `scripts/generate-*.sh` (or `*.py`, `*.ts`, etc.) that
-  writes a checked-in artifact.
-- Refactoring an existing generator to make it idempotent or to add
-  its own test mirror.
-- Adding a CI workflow that enforces a generator's output is in sync
-  with what the generator produces.
-- Adding or editing a `scripts/lib/*.sh` that holds data registries
-  (metric names, panel definitions, etc.) sourced by a generator.
+- Test byte-for-byte idempotency (`cmp -s` is portable), required output shape,
+  source-registry cross-links, and a meaningful negative case.
+- Regenerate changed artifacts before final verification and include the output
+  in the change. Re-running must produce no further drift.
+- For a release-blocking drift check, add the test and gate commands to
+  `.github/workflows/static-contract-gates.yml` by default. Use a standalone
+  workflow only for trigger, permission, or artifact-upload needs that the
+  shared matrix cannot support. Read [CI integration](references/ci.md) for
+  that exceptional workflow shape.
+- Run the affected generator's test mirror and drift gate. Add docs validation
+  when documentation changes; preserve the repository's required gate floor.
 
-## The Three-File Pattern
+Read [test examples](references/testing.md) when implementing or extending a
+mirror. For shell generators that render substantial template bodies, read
+[shell portability](references/shell-portability.md) before choosing the output
+mechanism. It records the Homebrew/Linuxbrew heredoc hang and the template-file
+workaround; retain bounded watchdog tests for that failure mode.
 
-Every generator in this repo should land as three files:
-
-1. **`scripts/generate-<name>.sh`** — the entry point. Sources the lib,
-   renders template data files (see the heredoc warning below), writes
-   to the output path. Should be the *slimmest* of the three files;
-   under 100 lines if possible.
-2. **`scripts/lib/<name>-*.sh`** (data registry) and
-   **`scripts/lib/<name>-*.json.tmpl`** (or `.yaml.tmpl`, etc. — large
-   template bodies) — the data and the fragment / template
-   definitions the generator assembles. Multiple files if the data is
-   large. Each file under the 500-line cap.
-3. **`scripts/test-generate-<name>.sh`** — the test mirror. Asserts
-   idempotency, asserts the output is well-formed, asserts the
-   headline content is present. Must run without a live runtime
-   dependency (no Postgres, NornicDB, or Go build).
-
-Plus, when the generator's drift is a release-blocker (the operator
-dashboard drift would silently produce a wrong panel):
-
-4. **`.github/workflows/generate-<name>.yml`** — the CI gate. Runs the
-   test mirror in one job, runs the generator and asserts
-   `git diff --exit-code` on the output in another.
-
-## Idempotency Is A First-Class Test
-
-A generator that produces different bytes on a clean re-run is a bug,
-not a feature. The test mirror MUST include an idempotency case as
-its first check:
-
-```bash
-# Case 1: generator is idempotent — re-running with the same inputs
-# produces the same bytes. (Deterministic output is the load-bearing
-# property of the gate.) Use the byte-comparison form below, which is
-# portable across macOS and the GHA ubuntu-latest runner.
-if cmp -s "${output_path}" "${output_path}.bak"; then
-  record_pass "generator is idempotent on a clean re-run"
-else
-  record_fail "generator output is not byte-for-byte deterministic"
-fi
-```
-
-The byte-comparison form matches the convention used by
-`scripts/test-verify-telemetry-coverage.sh` and
-`scripts/test-generate-operator-dashboard.sh`. Capture the expected
-output once with `cp "${output_path}" "${output_path}.bak"` before
-running the second pass; if the second pass produces the same bytes,
-the generator is deterministic. Do not use `md5 -q` (macOS-only) or
-`md5sum` (Linux-only) — `cmp -s` works on both and is the repo
-convention.
-
-This catches timestamp embedding, hostname leaks, unkeyed `map`
-iteration in templating languages, and any other non-determinism that
-would otherwise only show up when CI runs.
-
-## Heredocs Deadlock On Large Bodies (bash >= 5.1) — Never Emit Data Through One
-
-Issue #5019 (reopened after #5068 only patched the symptom): bash 5.1+
-delivers a `<<EOF` heredoc body to its reader by writing the ENTIRE
-body to a pipe before the reader process is even spawned. macOS's pipe
-buffer is 512 bytes, so any heredoc body strictly between 512 bytes
-and the ~64KB pipe-buffer ceiling deadlocks under Homebrew bash (5.1+)
-while the same script runs fine under macOS's stock `/bin/bash`
-(3.2.57, which never had this heredoc-writer change). A 10-13KB JSON
-panel body — routine for a Grafana dashboard generator — sits
-squarely in the hang zone. This is the same class of bug as the `<<<`
-here-string hang fixed in #4718; treat both as "large body through a
-shell here-construct" and route around it the same way.
-
-**Rule: any generator whose body content exceeds a couple hundred
-bytes MUST NOT use a `cat <<EOF` heredoc (or a `<<<` here-string) to
-emit or capture it.** Use one of:
-
-- A **template DATA FILE** (`scripts/lib/<name>-<part>.json.tmpl`)
-  read with the `$(<file)` builtin and emitted with `printf '%s'`.
-  Neither construct touches a pipe, so neither can hang. This is the
-  pattern the operator dashboard generator now uses: `${NAME}` tokens
-  in the template are substituted via an explicit allowlist loop
-  (`scripts/lib/operator-dashboard-metrics.sh`'s
-  `OPERATOR_DASHBOARD_METRIC_VARS`), and the literal Grafana
-  `${DS_PROMETHEUS}` / `$__all` tokens pass through untouched because
-  they are never looked up.
-- If a function must still assemble the body in-process, emit it with
-  `printf` — a builtin, so no pipe and no fork — either one `printf`
-  per fragment or a single `printf '%s'` over a variable built by
-  concatenation. Do NOT reach for `cat <<EOF` here: the bash 5.1+
-  deadlock is in how the heredoc body is delivered to `cat` (the whole
-  body is written to a pipe before `cat` is forked), so redirecting
-  `cat`'s stdout to a real file (`cat <<EOF >file`) does not help — the
-  body still traverses the pipe and hangs in the 512 B–64 KB range.
-  That redirect-to-file shape is exactly what #5068 shipped for the
-  operator dashboard, and it still hung. Capturing via
-  `$(function_name)` is also out (large-input-in-command-substitution
-  hangs the same way).
-
-A generator that still uses a heredoc for a small (well under 512
-bytes), fixed, non-data body — a one-line usage message, for example
-— is fine; the hang only bites past the pipe-buffer threshold.
-
-## The 500-Line Cap Is Real, Plan The Split Up Front
-
-The repo's `AGENTS.md` requires every file under 500 lines. A
-generator that emits a Grafana dashboard with 20 panels will exceed
-500 lines on the first draft. **Plan the lib/ split before writing
-any template body.** The split has two natural axes:
-
-- **Data** vs **structure**: a `lib/<name>-metrics.sh` (or
-  `lib/<name>-fragments.yaml`) holds the data; the main script holds
-  the structure that consumes it.
-- **By row / by section**: a Grafana dashboard with 5 rows splits as
-  `lib/<name>-panels-{1,2}.json.tmpl`, where each file holds the panel
-  JSON for one or two rows as template data (see the heredoc warning
-  above — not as a sourced shell function). The main script emits
-  each rendered template in sequence, joined by a literal `,` between
-  panel groups.
-
-The split should be visible in the directory listing before the
-generator reaches 200 lines, not after it crosses 500.
-
-## Test Cases That Catch Real Bugs
-
-The cases in `scripts/test-verify-telemetry-coverage.sh` and
-`scripts/test-generate-operator-dashboard.sh` are the worked examples. Run them
-for the current count — both print `tests passed: N/N` — rather than trusting a
-number written here, which is how the counts quoted in this section went stale.
-The patterns that caught real bugs:
-
-- **Idempotency** (above).
-- **Top-level shape**: parse the JSON / YAML with `jq` or `yq` and
-  assert `title`, `uid`, `schemaVersion`, or schema-required keys
-  are present.
-- **Cross-link enforcement**: for every data name in the registry,
-  assert the generated output references it. This is the link
-  between "the source of truth changed" and "the artifact kept up".
-  For the dashboard, every `eshu_dp_*` in the metrics lib must
-  appear in some panel expression.
-- **Negative cases**: at least one negative case that proves the
-  script can fail. The "doc references unregistered metric" case in
-  the X2 test mirror is the model.
-
-## CI Workflow Shape
-
-Older generators (skillgen roundtrip, telemetry coverage) each shipped as
-their own single-purpose workflow file with this two-job shape. Since the
-#4218 consolidation, new gates are added as a matrix entry inside
-`.github/workflows/static-contract-gates.yml` instead of a new workflow
-file — see the `skill` and `telemetry` entries there (the "Verify
-skillgen roundtrip gate" and "Verify telemetry coverage gate" matrix jobs)
-for the current pattern: one `changes` job filters paths with
-`dorny/paths-filter`, and one shared matrix job runs each selected gate's
-`test` command then its `gate` command, reusing one checkout/Go/ripgrep
-setup instead of duplicating it per generator.
-
-A standalone workflow is still the right shape when a generator's drift
-check needs its own trigger, permissions, or artifact upload that does not
-fit the shared matrix — for example, if the drift log itself must be
-uploaded on failure:
-
-```yaml
-name: Generate <Name>
-
-on:
-  pull_request:
-  push:
-    branches:
-      - main
-
-permissions:
-  contents: read
-
-jobs:
-  test-generate:
-    name: Verify <name> test mirror
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with: { go-version-file: go/go.mod }
-      - run: sudo apt-get update && sudo apt-get install -y ripgrep jq
-      - run: scripts/test-generate-<name>.sh
-
-  generate:
-    name: Verify <name> gate
-    runs-on: ubuntu-latest
-    needs: test-generate
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
-        with: { go-version-file: go/go.mod }
-      - run: sudo apt-get update && sudo apt-get install -y ripgrep jq
-      - name: Generate
-        shell: bash
-        run: |
-          set -o pipefail
-          scripts/generate-<name>.sh 2>&1 | tee /tmp/<name>.log
-      - name: Check drift
-        run: |
-          if ! git diff --exit-code -- <output-path>; then
-            { echo "re-run: scripts/generate-<name>.sh"; git diff; } >&2
-            exit 1
-          fi
-      - name: Upload drift report on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with: { name: <name>-drift-report, path: /tmp/<name>.log, if-no-files-found: warn }
-```
-
-Two jobs: `test-generate` (mirror) and `generate` (gate). The `generate`
-job re-runs the generator and uses `git diff --exit-code` to assert the
-output is in sync. On failure, the drift log is uploaded as an artifact
-so the reviewer can see what changed. Prefer adding a matrix entry to
-`.github/workflows/static-contract-gates.yml` over this standalone shape
-unless the artifact-upload or bespoke-trigger need above applies.
-
-## Failure Modes
-
-| Failure | What to do |
-| --- | --- |
-| `jq` not installed | Add `sudo apt-get install -y jq` to the workflow step. `jq` is the standard for shell-side JSON validation in this repo. |
-| `mkdocs build --strict` rejects a link to a generated JSON | The JSON is not a documentation page. Reference it by prose, not by markdown link. The X4 dashboard is the worked example. |
-| The 500-line cap blocks the script | Pre-plan the lib/ split. The dashboard generator split 4 ways: data (`lib/operator-dashboard-metrics.sh`) + head/tail + 2 panel template files (`lib/operator-dashboard-{head,tail,panels-1,panels-2}.json.tmpl`). |
-| Test mirror passes locally but fails in CI | Probably a `PATH` or `LANG` issue. Use `LC_ALL=C` and absolute paths in the test mirror. |
-| Generator produces different bytes on every run | Idempotency violation. The likely culprits are timestamps, unkeyed map iteration, or `sort | uniq` without a stable order. Add a stable sort, remove the timestamp, or move the generator to a language that sorts deterministically. |
-| The committed artifact is out of date with the generator | The PR author regenerated locally but forgot to commit. The CI gate catches this; the fix is to run the generator and commit the result. |
-| Generator hangs (or times out at exit 124) only under Homebrew/Linuxbrew bash, not the OS-stock bash | A `cat <<EOF` heredoc body (or a `<<<` here-string) in the 512-byte-to-64KB range deadlocked on bash >= 5.1's pipe-buffer behavior (issue #5019). Move the body to a `.json.tmpl` data file read with `$(<file)` and emitted with `printf`; see "Heredocs Deadlock On Large Bodies" above. Add a `timeout`/background-watchdog wrapper around the generator call in the test mirror so a regression fails in seconds, not by hanging `make pre-pr` silently. |
+Use `LC_ALL=C` and stable ordering where output depends on locale. Validate JSON
+with the repo's `jq` convention. Reference generated JSON in MkDocs prose when
+it is not a documentation page; do not add a broken page link.

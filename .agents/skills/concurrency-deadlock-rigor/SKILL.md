@@ -1,6 +1,6 @@
 ---
 name: concurrency-deadlock-rigor
-description: Use when designing, debugging, refactoring, or reviewing Eshu workers, queues, leases, transactions, retries, batching, fan-out/fan-in, shared state, lock ordering, database writes, or distributed coordination where deadlocks, races, contention, starvation, or unsafe overlap may exist.
+description: Design or verify Eshu concurrent workers, queues, leases, retries, and shared-state coordination.
 ---
 
 # Concurrency And Deadlock Rigor

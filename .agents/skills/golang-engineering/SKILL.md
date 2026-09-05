@@ -1,105 +1,57 @@
 ---
 name: golang-engineering
-description: Use when changing, reviewing, testing, or documenting Go code in Eshu, including parser work, runtime services, storage adapters, query handlers, package APIs, test additions, and Go docs tied to code changes.
+description: Apply Eshu-specific Go contracts, regression coverage, and verification when changing Go code or tests.
 ---
 
-# Golang Engineering
+# Go engineering in Eshu
 
-Use this skill for Eshu Go work. Repository guidance in `AGENTS.md`, package
-`AGENTS.md`, `README.md`, and `doc.go` wins over generic Go advice. Read the
-reference files only when local repo guidance does not answer the question.
+Use owning-package guidance to resolve ownership and behavior before changing
+its contract. Read the relevant entrypoint or dispatcher when the change crosses
+runtime boundaries; a small edit does not require an unrelated package tour.
 
-References:
+## Behavioral proof
 
-- `references/go-best-practices.md` for default Go design, API, naming, error,
-  and concurrency choices.
-- `references/tdd-workflow.md` for red-green-refactor, regression tests,
-  table-driven tests, and subtests.
-- `references/documentation-guidelines.md` for package docs and doc comments.
-- `references/verification-and-linting.md` for Go verification and linting.
+Follow the root TDD policy. Bug fixes need a regression that fails for the
+intended reason before the implementation changes. Tests must exercise the
+production path, not a copied implementation or a stand-in for the behavior
+being asserted. Cover every affected dispatch variant of shared helpers,
+query builders, replay paths, and retry classifiers. Confirm filtered tests
+actually ran. Use deliberate mutation of the production assertion when test
+sensitivity is uncertain; do not require a separate mutation exercise for every
+test whose regression failure already demonstrates that sensitivity.
 
-## Mandatory Workflow
+Keep ownership boundaries intact. For workers, queues, transactions, retries,
+or shared-state changes, use `concurrency-deadlock-rigor` for the relevant proof.
+Runtime and performance work retains the repo's accuracy, performance, and
+concurrency evidence requirements.
 
-- MUST inspect the owning package docs and entrypoint/orchestrator before
-  editing runtime, collector, reducer, storage, parser, query, or command code.
-- MUST write or update the failing test before implementation for bug fixes and
-  parser/runtime behavior changes.
-- MUST cover every dispatch variant touched by a shared helper, constant family,
-  query builder, replay path, or retry classifier. Do not rely on one
-  representative case when the production code has multiple variants.
-- MUST make tests exercise the production code under test, not a mock, fake, or
-  inline re-implementation of the logic they claim to cover. A test that asserts
-  only against a hand-built stand-in is a false green — it passes while guarding
-  nothing, which is worse than no test. A negative or regression test MUST fail
-  when the real assertion is removed; prove it by breaking the production path,
-  not a copy of it. Extract the asserted logic into one helper called by both the
-  positive and the negative test so they exercise the same code.
-- MUST run `gofmt` on changed Go files. The repo linter enforces `gofumpt`
-  (stricter superset of `gofmt`) — run `gofumpt -w <files>` before committing
-  to avoid lint failures that block CI.
-- MUST isolate the Go build cache per worktree when running parallel agents.
-  Set `GOCACHE=<worktree-path>/.gocache` in each agent's environment before
-  any `go build`, `go test`, or `golangci-lint` invocation. Parallel agents
-  sharing the default `~/.cache/go-build` corrupt each other's incremental
-  builds and can wipe in-progress compilation for a sibling agent.
-- MUST NOT run `go env -w` on a shared machine. That file
-  (`$(go env GOENV)`) is read by every concurrent `go` invocation, so a write
-  lands inside whatever gate another session is running, and a run that reads
-  it twice can see two configurations. Export the variable in your own shell
-  instead; announce it first if you must write the file.
-- MUST keep `GOTMPDIR` short and outside every worktree, or leave it unset.
-  macOS caps a unix-socket path at 104 bytes, so a long `GOTMPDIR` makes
-  `t.TempDir()` hand socket-binding tests a path they cannot bind — it presents
-  as an ordinary red that a quiet re-run will not fix. A worktree-internal one
-  inverts git-dependent tests, so the two constraints pull opposite ways.
-- MUST use distinct `GOCACHE` directories for concurrent Go commands launched
-  inside the same worktree, or run those commands serially. Sharing one
-  worktree-local cache across simultaneous `go test`, `go run`, verifier, or
-  lint commands can produce missing cache object, vet, or linker failures that
-  look like product regressions.
-- MUST run focused Go tests before broader package tests.
-- MUST run `golangci-lint` when Go code changed unless the user explicitly
-  narrows verification.
-- MUST run `scripts/verify-package-docs.sh` for Go package changes under
-  `go/internal` or `go/cmd`; new packages need `doc.go`, `README.md`, and
-  `AGENTS.md` before they land.
-- MUST run `scripts/verify-performance-evidence.sh` when Go changes touch
-  Cypher, graph writes, runtime stages, workers, queues, leases, batching, or
-  concurrency. New collectors are covered when they introduce those patterns.
-- MUST report exactly what passed and what was not run.
+## Local verification and docs
 
-## Design Rules
+Use `gofumpt` on changed Go files; it includes `gofmt` formatting. Run focused
+proof, then broader checks when callers or shared contracts are affected.
+Required lint, race, documentation, and promotion gates still apply regardless
+of how small the focused test is. Use
+[local testing](../../../docs/public/reference/local-testing.md) as the gate
+source of truth; the coordinator owns the late `make pre-pr` promotion run.
 
-- Prefer simple, readable Go over clever abstractions.
-- Prefer concrete types until a real consumer needs an interface.
-- Define interfaces where they are consumed.
-- Keep exported APIs narrow and package boundaries cohesive.
-- Prefer the standard library before adding dependencies.
-- Preserve error context; wrap with `%w` when callers may inspect the cause.
-- Keep concurrency explicit and justified. Use `concurrency-deadlock-rigor`
-  when workers, queues, locks, transactions, retries, or shared state change.
+- Go code changes require the repo lint entrypoint unless the user narrows
+  verification. See [verification](references/verification-and-linting.md) when
+  selecting the scope or diagnosing lint setup.
+- Changed packages under `go/internal` or `go/cmd` need `doc.go`, `README.md`,
+  and `AGENTS.md`; run `scripts/verify-package-docs.sh`. Update their contents
+  when contracts or contributor guidance change, using `eshu-folder-doc-keeper`.
+- Run `scripts/verify-performance-evidence.sh` for Cypher, graph-write, runtime
+  stage, worker, queue, lease, batching, or concurrency changes, including new
+  collectors that introduce those patterns. Use the reviewed branch base.
+- Report commands, actual results, and unverified scope.
 
-## Documentation Rules
+When running Go tools on a shared host or with concurrent agents, read
+[shared-machine constraints](references/shared-machine.md) before execution.
+They cover isolated caches, process-local environment settings, and short
+`GOTMPDIR` paths outside worktrees.
 
-- Document every new or changed exported identifier whose behavior is part of a
-  package contract.
-- Document unexported helpers when they encode a contract, storage/query
-  assumption, concurrency rule, retry rule, or regression purpose.
-- Update package `README.md`, `doc.go`, and package `AGENTS.md` when code
-  changes alter the package contract or contributor guidance.
-- For a new package, create all three package docs before merging:
-  `doc.go` for godoc, `README.md` for humans, and `AGENTS.md` for future AI
-  edits. CI enforces this with `scripts/verify-package-docs.sh`.
-- Prefer short comments that explain intent, invariant, or failure mode; do not
-  add comments that only restate the identifier.
-
-## Review Checklist
-
-- Local conventions and package docs were read.
-- The behavior has focused test coverage.
-- The test failed for the intended reason before the fix when TDD applies.
-- Tests drive the real subject under test, not a mock or re-implementation of it;
-  the negative/regression test fails when the production assertion is broken.
-- API surface, naming, errors, context use, and package boundaries stayed clear.
-- Concurrency and storage changes have an explicit safety argument.
-- Verification evidence is listed with any gaps or remaining risk.
+For a specific unresolved Go design, testing, or documentation question, consult
+only the relevant reference: [design](references/go-best-practices.md),
+[testing](references/tdd-workflow.md), or
+[documentation](references/documentation-guidelines.md). Repository contracts
+and conventions take precedence over generic examples.

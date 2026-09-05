@@ -1,6 +1,8 @@
 # Cold Review Probes
 
-Use this reference with `eshu-code-review` before writing the verdict.
+Use this reference with `eshu-code-review` before writing the verdict. Apply
+only the surface-specific probes matching the diff; record the reason for
+excluded concerns together when they share one boundary.
 
 ## Full-Picture Gate
 
@@ -35,6 +37,10 @@ Trace the changed flow before judging it:
 | Queue, worker, retry, or concurrent write | Prove idempotency key, conflict domain, claim/lock ordering, duplicate delivery, retry scope, dead-letter behavior, and contention impact. |
 
 ## Output Template
+
+This is an evidence checklist, not a mandatory verbosity level. Group clean
+passes and inapplicable surfaces with reasons; retain every required result,
+finding disposition, and stale-input condition from the skill entrypoint.
 
 ```text
 Eshu code review verdict: self-review|separate-review

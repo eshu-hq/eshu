@@ -19,4 +19,5 @@ where the proof lives:
 Naming a class is not the same as clearing it. For each class the diff could
 plausibly trigger, cite the specific evidence that rules it out — the test that
 exercises the production subject, the gate run that covers the snapshot, the
-trace flag that proves the fast path. "Not applicable" needs a reason.
+trace flag that proves the fast path. "Not applicable" needs a reason; classes excluded by the same scope boundary
+may share one explanation.
