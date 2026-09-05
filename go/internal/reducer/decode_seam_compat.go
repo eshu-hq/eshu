@@ -17,7 +17,6 @@ import (
 
 var (
 	codegraphDecodeQuarantine        = schemadecode.CodegraphDecodeQuarantine
-	decodeAWSIAMPermission           = schemadecode.DecodeAWSIAMPermission
 	decodeAWSRelationship            = schemadecode.DecodeAWSRelationship
 	decodeAWSResource                = schemadecode.DecodeAWSResource
 	decodeAWSSecurityGroupRule       = schemadecode.DecodeAWSSecurityGroupRule

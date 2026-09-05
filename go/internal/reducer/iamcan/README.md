@@ -47,9 +47,10 @@ Two shared leaves were carved out for this move, because their symbols have
 consumers on both sides of the boundary and neither side may import the other:
 
 - `reducer/cloudjoin` — the CloudResource join index, also used by the AWS
-  relationship, security-group and IAM-escalation slices at the root;
+  relationship and security-group slices at the root and the IAM-escalation
+  slice in `reducer/iamescalation`;
 - `reducer/iampolicy` — the IAM statement/grant/target vocabulary, also used by
-  the IAM privilege-escalation slice at the root.
+  the IAM privilege-escalation slice in `reducer/iamescalation`.
 
 `gpphase.KeyFromScope` was extracted for the same reason: both handlers gate on
 the canonical-nodes-committed readiness phase, and the key derivation used to

@@ -115,7 +115,7 @@ func inheritanceTestDeltaFilePaths(rows []sharedintent.Row) (map[string]struct{}
 			continue
 		}
 		hasDelta = true
-		for _, filePath := range payloadStringSlice(row.Payload, "delta_file_paths") {
+		for _, filePath := range payloadcore.PayloadOrderedStrings(row.Payload, "delta_file_paths") {
 			filePath = strings.TrimSpace(filePath)
 			if filePath == "" {
 				continue

@@ -13,9 +13,9 @@ This package is a shared-core tier. It may import `reducer/factdecode`,
 `reducer/payloadcore`, `reducer/schemadecode` and `internal/facts`. It must
 **never** import the parent `internal/reducer` package or any family package,
 directly or transitively. Reaching upward would recreate the exact import cycle
-this package exists to break: the reducer root's AWS relationship,
-security-group and IAM-escalation slices and the `reducer/iamcan` family all
-need this index, and the root imports the families.
+this package exists to break: the reducer root's AWS relationship and
+security-group slices, plus the `reducer/iamescalation` and `reducer/iamcan`
+families, all need this index, and the root imports the families.
 
 ## What must not change casually
 

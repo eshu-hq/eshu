@@ -45,7 +45,9 @@
 // cmd/reducer wires, SecretsIAMEndpointNotReadyFailureClass and
 // SecretsIAMTrustChainLoadStats, which internal/storage/postgres' readiness
 // claim gate and evidence loader name, and SecretsIAMGraphProjectionHandler,
-// which internal/replay/costcounting's cost test constructs.
+// which internal/replay/costcounting's cost test constructs, and
+// iam_escalation_compat.go's IAMEscalationNodesNotReadyFailureClass, which
+// internal/storage/postgres' readiness claim gate also names.
 // ParseDomain accepts the known reducer validation identifiers, including the
 // three reserved non-registrable identifiers. Shared-projection constants
 // remain runner names and are not admitted into the durable queue.

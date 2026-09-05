@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iamescalation
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 // Skip / deferral reason labels for the escalation skipped counter. They are the
@@ -56,7 +60,7 @@ type IAMEscalationResult struct {
 	// Quarantined carries the facts skipped as input_invalid during decode (a
 	// missing required identity field), so the handler emits a visible per-fact
 	// dead-letter while the valid facts still project.
-	Quarantined []quarantinedFact
+	Quarantined []factdecode.QuarantinedFact
 }
 
 // ExtractIAMEscalationEdges resolves each IAM principal's privilege-escalation
@@ -81,7 +85,7 @@ func ExtractIAMEscalationEdges(
 		return result, nil
 	}
 
-	index, resourceQuarantined, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, resourceQuarantined, err := cloudjoin.BuildCloudResourceJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return IAMEscalationResult{}, err
 	}
@@ -94,7 +98,7 @@ func ExtractIAMEscalationEdges(
 
 	// edge identity -> merged primitive token set, so two primitives reaching the
 	// same target converge on one idempotent edge with a sorted primitives list.
-	primitivesByEdge := make(map[edgeKey]map[string]struct{})
+	primitivesByEdge := make(map[iampolicy.EdgeKey]map[string]struct{})
 
 	for _, principal := range principals {
 		grant := buildIAMPrincipalGrant(principal.Permissions, &result.Tally)
@@ -107,21 +111,23 @@ func ExtractIAMEscalationEdges(
 			case iamPrimitiveIncomplete:
 				result.Tally.skippedIncomplete++
 				continue
+			case iamPrimitiveArmed:
+				// Falls through to target resolution below.
 			}
 			targetUID, status := resolveIAMEscalationTarget(index, grant, primitive)
 			switch status {
-			case iamTargetResolved:
+			case iampolicy.TargetResolved:
 				if targetUID == principal.PrincipalUID {
 					// A self-escalation (e.g. CreateAccessKey on self) carries no
 					// escalation truth; drop without counting it as a skip.
 					continue
 				}
-				key := edgeKey{PrincipalUID: principal.PrincipalUID, TargetUID: targetUID}
+				key := iampolicy.EdgeKey{PrincipalUID: principal.PrincipalUID, TargetUID: targetUID}
 				if primitivesByEdge[key] == nil {
 					primitivesByEdge[key] = make(map[string]struct{})
 				}
 				primitivesByEdge[key][primitive.Token] = struct{}{}
-			case iamTargetAmbiguous:
+			case iampolicy.TargetAmbiguous:
 				result.Tally.skippedAmbiguous++
 			default:
 				result.Tally.skippedUnresolved++
@@ -139,20 +145,20 @@ func ExtractIAMEscalationEdges(
 // and counted skippedUnresolved (one count per principal). The returned slice is
 // sorted by principal uid for deterministic iteration.
 func groupIAMPermissionsByPrincipal(
-	index cloudResourceJoinIndex,
+	index cloudjoin.CloudResourceJoinIndex,
 	permissionEnvelopes []facts.Envelope,
 	tally *iamEscalationTally,
-) ([]iamPrincipalStatements, []quarantinedFact, error) {
-	byPrincipalARN := make(map[string][]iamPermissionStatement)
+) ([]iampolicy.PrincipalStatements, []factdecode.QuarantinedFact, error) {
+	byPrincipalARN := make(map[string][]iampolicy.Statement)
 	order := make([]string, 0)
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range permissionEnvelopes {
 		if env.FactKind != facts.AWSIAMPermissionFactKind || env.IsTombstone {
 			continue
 		}
-		permission, err := decodeAWSIAMPermission(env)
+		permission, err := schemadecode.DecodeAWSIAMPermission(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -167,10 +173,10 @@ func groupIAMPermissionsByPrincipal(
 		if _, seen := byPrincipalARN[permission.PrincipalARN]; !seen {
 			order = append(order, permission.PrincipalARN)
 		}
-		byPrincipalARN[permission.PrincipalARN] = append(byPrincipalARN[permission.PrincipalARN], iamPermissionStatement{FactID: env.FactID, Permission: permission})
+		byPrincipalARN[permission.PrincipalARN] = append(byPrincipalARN[permission.PrincipalARN], iampolicy.Statement{FactID: env.FactID, Permission: permission})
 	}
 
-	principals := make([]iamPrincipalStatements, 0, len(order))
+	principals := make([]iampolicy.PrincipalStatements, 0, len(order))
 	for _, principalARN := range order {
 		uid, ok := index.ByARN[principalARN]
 		if !ok {
@@ -179,7 +185,7 @@ func groupIAMPermissionsByPrincipal(
 			tally.skippedUnresolved++
 			continue
 		}
-		principals = append(principals, iamPrincipalStatements{PrincipalUID: uid, Permissions: byPrincipalARN[principalARN]})
+		principals = append(principals, iampolicy.PrincipalStatements{PrincipalUID: uid, Permissions: byPrincipalARN[principalARN]})
 	}
 	sort.Slice(principals, func(a, b int) bool {
 		return principals[a].PrincipalUID < principals[b].PrincipalUID
@@ -191,7 +197,7 @@ func groupIAMPermissionsByPrincipal(
 // byte-stable edge rows. Each row carries the merged sorted primitives list and a
 // primitive_count for cheap operator filtering. Rows are sorted by
 // (principal_uid, target_uid) so the batched write is deterministic.
-func buildIAMEscalationEdgeRows(primitivesByEdge map[edgeKey]map[string]struct{}) []map[string]any {
+func buildIAMEscalationEdgeRows(primitivesByEdge map[iampolicy.EdgeKey]map[string]struct{}) []map[string]any {
 	if len(primitivesByEdge) == 0 {
 		return nil
 	}
@@ -206,33 +212,9 @@ func buildIAMEscalationEdgeRows(primitivesByEdge map[edgeKey]map[string]struct{}
 		})
 	}
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["principal_uid"]) + "->" + anyToString(rows[a]["target_uid"])
-		right := anyToString(rows[b]["principal_uid"]) + "->" + anyToString(rows[b]["target_uid"])
+		left := payloadcore.AnyToString(rows[a]["principal_uid"]) + "->" + payloadcore.AnyToString(rows[a]["target_uid"])
+		right := payloadcore.AnyToString(rows[b]["principal_uid"]) + "->" + payloadcore.AnyToString(rows[b]["target_uid"])
 		return left < right
 	})
 	return rows
-}
-
-// payloadStringSlice reads a string slice payload field, tolerating both the
-// in-memory []string path and the []any path a Postgres JSON roundtrip produces.
-// It preserves order and case (resources/principals are case-sensitive ARNs).
-func payloadStringSlice(payload map[string]any, key string) []string {
-	raw, ok := payload[key]
-	if !ok {
-		return nil
-	}
-	switch typed := raw.(type) {
-	case []string:
-		return typed
-	case []any:
-		out := make([]string, 0, len(typed))
-		for _, value := range typed {
-			if text := strings.TrimSpace(anyToString(value)); text != "" {
-				out = append(out, text)
-			}
-		}
-		return out
-	default:
-		return nil
-	}
 }

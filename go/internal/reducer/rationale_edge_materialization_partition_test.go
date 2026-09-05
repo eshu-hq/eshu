@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // rationaleStateModelingEdgeWriter models the canonical rationale EXPLAINS edge
@@ -118,7 +119,7 @@ func rationaleTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[string]s
 			continue
 		}
 		hasDelta = true
-		for _, filePath := range payloadStringSlice(row.Payload, "delta_file_paths") {
+		for _, filePath := range payloadcore.PayloadOrderedStrings(row.Payload, "delta_file_paths") {
 			filePath = strings.TrimSpace(filePath)
 			if filePath == "" {
 				continue

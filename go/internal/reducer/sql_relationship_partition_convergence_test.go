@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
@@ -122,7 +123,7 @@ func sqlRelationshipTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[st
 			continue
 		}
 		hasDelta = true
-		for _, filePath := range payloadStringSlice(row.Payload, "delta_file_paths") {
+		for _, filePath := range payloadcore.PayloadOrderedStrings(row.Payload, "delta_file_paths") {
 			filePath = strings.TrimSpace(filePath)
 			if filePath == "" {
 				continue

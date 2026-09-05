@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iamescalation
 
 import "github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 
@@ -25,10 +25,11 @@ const (
 // under-approximation removes the principal from the primitive. It is the AND
 // gate for multi-action primitives.
 //
-// It is a free function, not a method: the grant shape now lives in [iampolicy]
-// so the reducer root cannot attach methods to it, and the escalation primitive
-// vocabulary it reads is root-owned.
-func grantArmStatus(g iamPrincipalGrant, primitive iamEscalationPrimitive) iamPrimitiveArmStatus {
+// It is a free function, not a method: the grant shape lives in [iampolicy], so
+// no package outside iampolicy can attach methods to it. The escalation
+// primitive vocabulary it reads is owned by this package
+// (iam_escalation_catalog.go), not by the reducer root.
+func grantArmStatus(g iampolicy.PrincipalGrant, primitive iamEscalationPrimitive) iamPrimitiveArmStatus {
 	for _, action := range primitive.Actions {
 		if g.Denied(action) {
 			return iamPrimitiveDenied
@@ -49,11 +50,11 @@ func grantArmStatus(g iamPrincipalGrant, primitive iamEscalationPrimitive) iamPr
 // catalog-relevant action are counted as the matching skip reason so an operator
 // sees why a primitive that "looks" granted did not arm; sts:AssumeRole anywhere
 // is counted as deferred.
-func buildIAMPrincipalGrant(statements []iamPermissionStatement, tally *iamEscalationTally) iamPrincipalGrant {
-	grant := iamPrincipalGrant{
+func buildIAMPrincipalGrant(statements []iampolicy.Statement, tally *iamEscalationTally) iampolicy.PrincipalGrant {
+	grant := iampolicy.PrincipalGrant{
 		TrustedActions:     make(map[string]struct{}),
 		DenyActions:        make(map[string]struct{}),
-		StatementsByAction: make(map[string][]iamPermissionStatement),
+		StatementsByAction: make(map[string][]iampolicy.Statement),
 	}
 	catalogActions := iamEscalationCatalogActions()
 	deferredCounted := false
@@ -74,7 +75,7 @@ func buildIAMPrincipalGrant(statements []iamPermissionStatement, tally *iamEscal
 
 		// sts:AssumeRole is recognized and deferred to the CAN_ASSUME edge. Count it
 		// once per principal regardless of how many statements carry it.
-		if !deferredCounted && allowStatementTouches(actions, iamEscalationStsAssumeRoleAction) {
+		if !deferredCounted && iampolicy.AllowStatementTouches(actions, iamEscalationStsAssumeRoleAction) {
 			tally.deferredCanAssume++
 			deferredCounted = true
 		}
@@ -83,7 +84,7 @@ func buildIAMPrincipalGrant(statements []iamPermissionStatement, tally *iamEscal
 			// Cannot be conservatively trusted. If it carries a catalog action, count
 			// the precise reason so the skip is visible rather than silent. It does not
 			// contribute to trustedActions.
-			if statementTouchesCatalog(actions, catalogActions) {
+			if iampolicy.StatementTouchesCatalog(actions, catalogActions) {
 				if shape.HasConditions {
 					tally.skippedConditioned++
 				} else {

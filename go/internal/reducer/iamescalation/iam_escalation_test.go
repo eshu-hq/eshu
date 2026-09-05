@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iamescalation
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 )
 
 // iamEscAccount and iamEscRegion are the fixed scope every fixture principal and
@@ -89,7 +91,9 @@ const (
 	targetGroupARN  = "arn:aws:iam::111122223333:group/admins"
 )
 
-func attackerNode() facts.Envelope { return iamNodeEnvelope(iamResourceTypeUser, attackerUserARN) }
+func attackerNode() facts.Envelope {
+	return iamNodeEnvelope(iampolicy.ResourceTypeUser, attackerUserARN)
+}
 
 // edgeFor returns the single edge row for a (principal,target) pair, or nil.
 func edgeFor(rows []map[string]any, principalUID, targetUID string) map[string]any {
@@ -102,7 +106,7 @@ func edgeFor(rows []map[string]any, principalUID, targetUID string) map[string]a
 }
 
 func uidOf(resourceType, arn string) string {
-	return cloudResourceUID(iamEscAccount, iamEscRegion, resourceType, arn)
+	return cloudjoin.CloudResourceUID(iamEscAccount, iamEscRegion, resourceType, arn)
 }
 
 // TestIAMEscalationSingleActionPrimitivesEmitEdge proves each single-action
@@ -118,19 +122,19 @@ func TestIAMEscalationSingleActionPrimitivesEmitEdge(t *testing.T) {
 		targetTyp string
 		primitive string
 	}{
-		{"create policy version", "iam:createpolicyversion", targetPolicyARN, iamResourceTypePolicy, "iam_create_policy_version"},
-		{"set default policy version", "iam:setdefaultpolicyversion", targetPolicyARN, iamResourceTypePolicy, "iam_set_default_policy_version"},
-		{"attach user policy", "iam:attachuserpolicy", victimUserARN, iamResourceTypeUser, "iam_attach_user_policy"},
-		{"attach role policy", "iam:attachrolepolicy", targetRoleARN, iamResourceTypeRole, "iam_attach_role_policy"},
-		{"attach group policy", "iam:attachgrouppolicy", targetGroupARN, iamResourceTypeGroup, "iam_attach_group_policy"},
-		{"put user policy", "iam:putuserpolicy", victimUserARN, iamResourceTypeUser, "iam_put_user_policy"},
-		{"put role policy", "iam:putrolepolicy", targetRoleARN, iamResourceTypeRole, "iam_put_role_policy"},
-		{"put group policy", "iam:putgrouppolicy", targetGroupARN, iamResourceTypeGroup, "iam_put_group_policy"},
-		{"update assume role policy", "iam:updateassumerolepolicy", targetRoleARN, iamResourceTypeRole, "iam_update_assume_role_policy"},
-		{"create access key", "iam:createaccesskey", victimUserARN, iamResourceTypeUser, "iam_create_access_key"},
-		{"create login profile", "iam:createloginprofile", victimUserARN, iamResourceTypeUser, "iam_create_login_profile"},
-		{"update login profile", "iam:updateloginprofile", victimUserARN, iamResourceTypeUser, "iam_update_login_profile"},
-		{"add user to group", "iam:addusertogroup", targetGroupARN, iamResourceTypeGroup, "iam_add_user_to_group"},
+		{"create policy version", "iam:createpolicyversion", targetPolicyARN, iampolicy.ResourceTypePolicy, "iam_create_policy_version"},
+		{"set default policy version", "iam:setdefaultpolicyversion", targetPolicyARN, iampolicy.ResourceTypePolicy, "iam_set_default_policy_version"},
+		{"attach user policy", "iam:attachuserpolicy", victimUserARN, iampolicy.ResourceTypeUser, "iam_attach_user_policy"},
+		{"attach role policy", "iam:attachrolepolicy", targetRoleARN, iampolicy.ResourceTypeRole, "iam_attach_role_policy"},
+		{"attach group policy", "iam:attachgrouppolicy", targetGroupARN, iampolicy.ResourceTypeGroup, "iam_attach_group_policy"},
+		{"put user policy", "iam:putuserpolicy", victimUserARN, iampolicy.ResourceTypeUser, "iam_put_user_policy"},
+		{"put role policy", "iam:putrolepolicy", targetRoleARN, iampolicy.ResourceTypeRole, "iam_put_role_policy"},
+		{"put group policy", "iam:putgrouppolicy", targetGroupARN, iampolicy.ResourceTypeGroup, "iam_put_group_policy"},
+		{"update assume role policy", "iam:updateassumerolepolicy", targetRoleARN, iampolicy.ResourceTypeRole, "iam_update_assume_role_policy"},
+		{"create access key", "iam:createaccesskey", victimUserARN, iampolicy.ResourceTypeUser, "iam_create_access_key"},
+		{"create login profile", "iam:createloginprofile", victimUserARN, iampolicy.ResourceTypeUser, "iam_create_login_profile"},
+		{"update login profile", "iam:updateloginprofile", victimUserARN, iampolicy.ResourceTypeUser, "iam_update_login_profile"},
+		{"add user to group", "iam:addusertogroup", targetGroupARN, iampolicy.ResourceTypeGroup, "iam_add_user_to_group"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -142,7 +146,7 @@ func TestIAMEscalationSingleActionPrimitivesEmitEdge(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ExtractIAMEscalationEdges() error = %v, want nil", err)
 			}
-			edge := edgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), uidOf(tc.targetTyp, tc.target))
+			edge := edgeFor(result.Edges, uidOf(iampolicy.ResourceTypeUser, attackerUserARN), uidOf(tc.targetTyp, tc.target))
 			if edge == nil {
 				t.Fatalf("expected one CAN_ESCALATE_TO edge for %s, got rows=%v skips=%d", tc.action, result.Edges, result.Tally.total())
 			}
@@ -160,7 +164,7 @@ func TestIAMEscalationSingleActionPrimitivesEmitEdge(t *testing.T) {
 func TestIAMEscalationMultiActionRequiresAllActions(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypeRole, targetRoleARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypeRole, targetRoleARN)}
 
 	// Only two of the three lambda actions: must NOT produce an edge.
 	partial := []facts.Envelope{
@@ -183,7 +187,7 @@ func TestIAMEscalationMultiActionRequiresAllActions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExtractIAMEscalationEdges() error = %v, want nil", err)
 	}
-	edge := edgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), uidOf(iamResourceTypeRole, targetRoleARN))
+	edge := edgeFor(result.Edges, uidOf(iampolicy.ResourceTypeUser, attackerUserARN), uidOf(iampolicy.ResourceTypeRole, targetRoleARN))
 	if edge == nil {
 		t.Fatalf("complete lambda primitive must arm; rows=%v", result.Edges)
 	}
@@ -197,7 +201,7 @@ func TestIAMEscalationMultiActionRequiresAllActions(t *testing.T) {
 func TestIAMEscalationWildcardResourceIsSkippedAmbiguous(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypePolicy, targetPolicyARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypePolicy, targetPolicyARN)}
 	perms := []facts.Envelope{escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"iam:createpolicyversion"}, []string{"*"})}
 
 	result, err := ExtractIAMEscalationEdges(resources, perms)
@@ -221,8 +225,8 @@ func TestIAMEscalationManyMatchingTargetsIsAmbiguous(t *testing.T) {
 	policyB := "arn:aws:iam::111122223333:policy/team-b"
 	resources := []facts.Envelope{
 		attackerNode(),
-		iamNodeEnvelope(iamResourceTypePolicy, policyA),
-		iamNodeEnvelope(iamResourceTypePolicy, policyB),
+		iamNodeEnvelope(iampolicy.ResourceTypePolicy, policyA),
+		iamNodeEnvelope(iampolicy.ResourceTypePolicy, policyB),
 	}
 	perms := []facts.Envelope{escalationPermissionEnvelope(attackerUserARN, "Allow",
 		[]string{"iam:createpolicyversion"}, []string{"arn:aws:iam::111122223333:policy/team-*"})}
@@ -244,7 +248,7 @@ func TestIAMEscalationManyMatchingTargetsIsAmbiguous(t *testing.T) {
 func TestIAMEscalationSingleGlobMatchEmitsEdge(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypePolicy, targetPolicyARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypePolicy, targetPolicyARN)}
 	perms := []facts.Envelope{escalationPermissionEnvelope(attackerUserARN, "Allow",
 		[]string{"iam:createpolicyversion"}, []string{"arn:aws:iam::111122223333:policy/team-*"})}
 
@@ -252,7 +256,7 @@ func TestIAMEscalationSingleGlobMatchEmitsEdge(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExtractIAMEscalationEdges() error = %v, want nil", err)
 	}
-	if edge := edgeFor(result.Edges, uidOf(iamResourceTypeUser, attackerUserARN), uidOf(iamResourceTypePolicy, targetPolicyARN)); edge == nil {
+	if edge := edgeFor(result.Edges, uidOf(iampolicy.ResourceTypeUser, attackerUserARN), uidOf(iampolicy.ResourceTypePolicy, targetPolicyARN)); edge == nil {
 		t.Fatalf("single glob match must emit an edge; rows=%v tally=%+v", result.Edges, result.Tally)
 	}
 }
@@ -262,7 +266,7 @@ func TestIAMEscalationSingleGlobMatchEmitsEdge(t *testing.T) {
 func TestIAMEscalationDenyIsSkipped(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypePolicy, targetPolicyARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypePolicy, targetPolicyARN)}
 	perms := []facts.Envelope{
 		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"iam:createpolicyversion"}, []string{targetPolicyARN}),
 		escalationPermissionEnvelope(attackerUserARN, "Deny", []string{"iam:createpolicyversion"}, []string{"*"}),
@@ -284,7 +288,7 @@ func TestIAMEscalationDenyIsSkipped(t *testing.T) {
 func TestIAMEscalationConditionedStatementIsSkipped(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypePolicy, targetPolicyARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypePolicy, targetPolicyARN)}
 	perms := []facts.Envelope{escalationPermissionEnvelope(attackerUserARN, "Allow",
 		[]string{"iam:createpolicyversion"}, []string{targetPolicyARN}, withConditions())}
 
@@ -305,7 +309,7 @@ func TestIAMEscalationConditionedStatementIsSkipped(t *testing.T) {
 func TestIAMEscalationNotActionStatementIsSkipped(t *testing.T) {
 	t.Parallel()
 
-	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iamResourceTypePolicy, targetPolicyARN)}
+	resources := []facts.Envelope{attackerNode(), iamNodeEnvelope(iampolicy.ResourceTypePolicy, targetPolicyARN)}
 	perms := []facts.Envelope{escalationPermissionEnvelope(attackerUserARN, "Allow",
 		[]string{"iam:createpolicyversion"}, []string{targetPolicyARN}, withNotActions("iam:deleteuser"))}
 

@@ -28,7 +28,7 @@ cloud fact is the capability competitors structurally cannot build.
 The **cloud sink catalog** (`sink_catalog.go`): a closed set of `SinkKind` values,
 each recognized by a declared graph relationship + target node label (plus
 optional target-property predicates), modeled on
-`reducer/iam_escalation_catalog.go`.
+`reducer/iamescalation/iam_escalation_catalog.go`.
 
 | SinkKind                    | Qualifying edge                                              | Severity | Graph-backed |
 | --------------------------- | ----------------------------------------------------------- | -------- | ------------ |
