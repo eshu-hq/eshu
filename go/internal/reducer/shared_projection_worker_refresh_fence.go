@@ -19,9 +19,10 @@ import (
 // issue the single repo-wide retract for a repo-wide-retract domain. Five
 // emitters reference this constant: inheritance/intents.go,
 // rationale_edge_intents.go, shell_exec_intents.go,
-// sql_relationship_intents.go and symbol_runtime_refresh_intents.go. The
-// rationale one is what the graph-write side below keys on. It carries no edge
-// of its own; filterUpsertRows drops it from writes because its action is
+// sqlrelationship/sql_relationship_intents.go and
+// symbol_runtime_refresh_intents.go. The rationale one is what the
+// graph-write side below keys on. It carries no edge of its own;
+// filterUpsertRows drops it from writes because its action is
 // repoRefreshAction.
 //
 // Four further production sites spell the same value as a hard-coded literal

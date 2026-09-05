@@ -290,7 +290,8 @@ no reducer conflict key, intent emit, queue SQL, graph write, Cypher, worker,
 lease, batch, runtime knob, schema DDL, metric, span, log field, status field,
 API/MCP route, collector runtime, or provider call. The classification is backed
 by the existing delta-scope retract proofs (`inheritance/delta_scope_test.go`,
-`sql_relationship_delta_scope_test.go`) and the direct-write handler call sites.
+`sqlrelationship/sql_relationship_delta_scope_test.go`) and the direct-write
+handler call sites.
 
 No-Observability-Change: the audit records which durable anchors and convergence
 proofs a future promotion must carry; it changes no runtime telemetry.

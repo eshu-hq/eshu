@@ -58,8 +58,8 @@ before touching any file in this directory.
 - **SQL trigger functions materialize as `EXECUTES` edges** —
   `ExtractSQLRelationshipRows` reads `function_name` from `SqlTrigger`
   metadata and writes trigger-to-`SqlFunction` `EXECUTES` rows
-  (`sql_relationship_materialization.go:347`). Code dead-code uses those rows
-  as incoming reachability for stored routines.
+  (`sqlrelationship/sql_relationship_materialization.go:347`). Code dead-code
+  uses those rows as incoming reachability for stored routines.
 - **SQL migration files materialize as `MIGRATES` edges** — the `SqlMigration`
   case in `ExtractSQLRelationshipRows` reads `migration_targets` (`{kind,name,
   operation}`) from `SqlMigration` metadata and resolves each via
@@ -1975,8 +1975,8 @@ reducer handlers decode them through the typed contracts seam via the
 (`ExtractDocumentationEdgeRowsWithQuarantine`) precedent: the storage adapter
 owns the SQL fetch, the reducer owns the typed decode AND the input_invalid
 dead-letter. Also converts `shell_exec_materialization.go`'s and
-`sql_relationship_delta_scope.go`'s `file`/`repository` identity reads to
-Wave 4f S1's `decodeCodegraphFile`/`decodeCodegraphRepository`.
+`sqlrelationship/sql_relationship_delta_scope.go`'s `file`/`repository` identity
+reads to Wave 4f S1's `decodeCodegraphFile`/`decodeCodegraphRepository`.
 
 Dead-letter Evidence (epic #4566 §1, the migration's core deliverable): a fact
 missing a required identity field — `function_uid` (taint),

@@ -92,11 +92,11 @@ trigger-to-function `EXECUTES` edges from the same `SqlTrigger` entity when the
 parser proves both targets. The `EXECUTES` row is part of code dead-code
 reachability for `SqlFunction` routines, so removing it can turn trigger-bound
 stored procedures into false cleanup candidates. The helper code in
-`sql_relationship_names.go` indexes both qualified names and trailing
-unqualified aliases, then `resolveSQLRelationshipTarget` prefers the same
-repository and relative path before falling back only when the SQL name is
-unique in the repository; ambiguous cross-file names stay unresolved rather
-than creating false reachability.
+`sqlrelationship/sql_relationship_names.go` indexes both qualified names and
+trailing unqualified aliases, then `resolveSQLRelationshipTarget` prefers the
+same repository and relative path before falling back only when the SQL name
+is unique in the repository; ambiguous cross-file names stay unresolved
+rather than creating false reachability.
 
 ## Gotchas
 

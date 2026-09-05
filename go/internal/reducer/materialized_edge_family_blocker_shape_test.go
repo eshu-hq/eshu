@@ -110,9 +110,10 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 	// ProjectionDomain: DomainCodeCalls; code_call_materialization.go:224
 	// writes them via h.IntentWriter.UpsertIntents.
 	DomainCodeCalls: {routedDomain: DomainCodeCallMaterialization},
-	// sql_relationship_intents.go:101,154 tag rows
-	// ProjectionDomain: DomainSQLRelationships; sql_relationship_materialization.go:113
-	// writes them via h.IntentWriter.UpsertIntents.
+	// sqlrelationship/sql_relationship_intents.go:108,167 tag rows
+	// ProjectionDomain: DomainSQLRelationships;
+	// sqlrelationship/sql_relationship_materialization.go:117 writes them via
+	// h.IntentWriter.UpsertIntents.
 	DomainSQLRelationships: {routedDomain: DomainSQLRelationshipMaterialization},
 	// shell_exec_intents.go:58,106 tag rows ProjectionDomain: DomainShellExec;
 	// shell_exec_materialization.go writes them via h.IntentWriter.UpsertIntents.
