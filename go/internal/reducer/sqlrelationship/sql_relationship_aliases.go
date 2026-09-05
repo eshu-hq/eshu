@@ -148,7 +148,7 @@ func copyPayload(m map[string]any) map[string]any {
 // rather than imported: that helper is owned by the code_call family, which
 // has not moved out of root yet, so this package cannot import it without
 // violating the "never import the reducer root" rule (issue #6061). It is a
-// four-branch type switch with no reducer-specific behavior, so a local copy
+// five-branch type switch with no reducer-specific behavior, so a local copy
 // carries no drift risk worth a shared package for.
 func codeCallInt(values ...any) int {
 	for _, value := range values {
