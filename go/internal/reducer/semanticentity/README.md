@@ -92,8 +92,11 @@ their unqualified root spelling: `payloadMap`, `semanticPayloadString`,
 `semanticDeltaPayloadBool`, `deltaScopeRepositorySet`, and
 `applyRepoRefreshDeltaScope` now live in
 `internal/reducer/shared_payload_delta_compat.go`. This package calls the
-shared-tier functions they forward to (`payloadcore`, `sharedintent`)
-directly instead of reaching back into root for them.
+shared-tier functions they forward to directly instead of reaching back into
+root for them. In practice that means `payloadcore` only: the two
+`sharedintent` forwarders were cross-family helpers that merely lived in the
+old `semantic_entity_delta_scope.go`, and this family's own logic never called
+them, so `sharedintent` is not among this package's imports.
 
 ## Telemetry
 
