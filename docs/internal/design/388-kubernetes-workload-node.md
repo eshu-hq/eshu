@@ -10,7 +10,7 @@ focus.
 **Related:** #388 (reducer Kubernetes Git/runtime correlation and drift read
 model), the merged #388 PR1 fact-only correlation domain
 (`docs/internal/design/388-kubernetes-correlation-readmodel.md`,
-`go/internal/reducer/kubernetes_correlation*.go`), the merged Kubernetes live
+`go/internal/reducer/kubernetescorrelation/`), the merged Kubernetes live
 collector (`go/internal/collector/kuberneteslive/`), and the #805 AWS
 relationship edge materialization
 (`docs/internal/aws-relationship-edge-materialization-design.md`) whose
