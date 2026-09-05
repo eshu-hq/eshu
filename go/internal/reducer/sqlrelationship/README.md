@@ -69,7 +69,7 @@ and none of the root's other family subpackages.
 
 Two small pure helpers are duplicated from the reducer root rather than
 imported, because their owning family (`code_call`) has not moved out of
-root yet: `codeCallInt` (a four-branch numeric type switch) and
+root yet: `codeCallInt` (a five-branch numeric type switch) and
 `codeCallDeltaRelativePathsFromRepository` (a `codegraphv1.Repository`
 field union) — see the comments on `sql_relationship_aliases.go`'s
 `codeCallInt` and `codeCallDeltaRelativePathsFromRepository`.
