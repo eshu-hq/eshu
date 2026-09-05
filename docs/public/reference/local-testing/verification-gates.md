@@ -171,13 +171,14 @@ acceptance evidence.
 
 > **Advisory known-bad:** `verify-graph-rebuild-from-facts.sh` **does not
 > pass today** — this is the documented known state, not a regression signal.
-> Recorded decision (#6184, settling the call #6098 left open): the strict
-> bidirectional-identity assertion stays as written, and the engine fix behind
-> it (the `MATCH`-only `CALLS` edge write and the non-deterministic indexing
-> broken down in `docs/internal/evidence/4594-graph-rebuild-from-facts.md`)
-> rides a future graph-engine change with live Compose proof rather than this
-> gate. Do not treat a red result here as a regression without diffing it
-> against that breakdown first.
+> Proposed settlement (#6184; owner sign-off pending on the call #6098 left
+> open): the strict bidirectional-identity assertion stays as written, and
+> the engine fix behind it (the `MATCH`-only `CALLS` edge write and the
+> non-deterministic indexing broken down in
+> `docs/internal/evidence/4594-graph-rebuild-from-facts.md`) rides a future
+> graph-engine change with live Compose proof, tracked by #6184, rather than
+> this gate. Do not treat a red result here as a regression without diffing
+> it against that breakdown first.
 
 `verify-graph-rebuild-from-facts.sh` runs the disaster-recovery procedure rather
 than a single behavior: it indexes the corpus, snapshots the identity of every
