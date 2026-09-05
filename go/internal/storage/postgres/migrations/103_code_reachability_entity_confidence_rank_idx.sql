@@ -32,8 +32,9 @@
 -- retained generations per position, not by the cap. Measured on a
 -- retention-representative seed (one ingestion scope per consumer repository,
 -- every superseded generation carrying the same population as the active one):
--- 1,001 entries walked at zero retained generations, 11,081 at twenty, for the
--- same 1,001-row answer -- 1.43/1.51/1.48 ms against 9.18/9.73/9.16 ms. Both are
+-- 1,001 entries walked at zero retained generations, 11,081 at twenty, both
+-- serial (max_parallel_workers_per_gather = 0), for the same 1,001-row answer --
+-- 1.43/1.51/1.48 ms against 9.18/9.73/9.16 ms. Both are
 -- three independent runs that agree exactly, measured with
 -- max_parallel_workers_per_gather = 0: with the default two workers the planner
 -- takes a Parallel Index Scan under a Gather Merge and the entries walked depend

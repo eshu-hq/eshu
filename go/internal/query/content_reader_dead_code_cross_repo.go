@@ -266,8 +266,12 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 // What the LIMIT bounds is rows RETURNED, not rows read, and the gap is the
 // retention window: the active-generation test is a join above this scan, so
 // the scan emits one entry per retained generation per position and the join
-// discards the superseded ones. Measured at 1,001 entries walked with no
-// retained generations and 11,081 at twenty, for the same 1,001-row answer.
+// discards the superseded ones. Measured serially
+// (max_parallel_workers_per_gather = 0) at 1,001 entries walked with no retained
+// generations and 11,081 at twenty, for the same 1,001-row answer. On the
+// default two workers the planner parallelises the scan and the count varies
+// with how the workers race to fill the cap -- about 60% higher in the readings
+// in docs/internal/evidence/5167-cross-repo-consumer-page-bound.md.
 //
 // depth > 0 stays a plain predicate rather than part of the ranking: depth 0 is
 // the root's own row, not a consumer edge.
