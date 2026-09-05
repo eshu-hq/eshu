@@ -5,6 +5,7 @@ package query
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -245,6 +246,31 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			}
 			if len(rows) != 0 {
 				t.Fatalf("results = %#v, want no rows for a grantless caller", rows)
+			}
+
+			// The empty page is NOT indistinguishable from a granted search
+			// that matched nothing: the truth envelope's reason names the
+			// grantless case, and language-query-dsl.md tells callers so.
+			//
+			// The wanted text is written out here rather than compared against
+			// reasonLanguageQueryEmptyGrant on purpose. Comparing the response
+			// to the same constant that produced it passes whatever the
+			// constant says -- including "no results", which was tried, and
+			// which the documented contract does NOT allow. A literal is what
+			// makes a reword red this test and send whoever rewords it to the
+			// page that promises the old words.
+			var envelope struct {
+				Truth struct {
+					Reason string `json:"reason"`
+				} `json:"truth"`
+			}
+			if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+				t.Fatalf("decode the truth envelope: %v; body = %s", err, rec.Body.String())
+			}
+			const wantReason = "the caller's grant admits no repository, so no backend was read"
+			if got := envelope.Truth.Reason; got != wantReason {
+				t.Fatalf("truth.reason = %q, want %q; the grantless page must name its own case, and "+
+					"docs/public/reference/language-query-dsl.md quotes this sentence to callers", got, wantReason)
 			}
 		})
 	}

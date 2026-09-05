@@ -52,8 +52,15 @@ const (
 	reasonLanguageQueryContentOnly = "content-store read served this entity type"
 	// reasonLanguageQueryEmptyGrant describes the empty page a scoped caller
 	// with no repository grants gets. It is the route's normal success shape,
-	// answered without reaching either backend, so index existence cannot be
-	// probed from the difference between "no grants" and "no rows".
+	// answered without reaching either backend.
+	//
+	// It does NOT hide the grantless case from the caller: this string is
+	// serialized in the truth envelope's reason, so a grantless caller can tell
+	// its empty page from a granted search that matched nothing. That is
+	// deliberate -- the distinction is useful to the caller and reveals only
+	// its own grant, which it already knows. What stays unprobeable is the
+	// INDEX: neither answer says whether any repository, entity or row exists,
+	// because no backend was read to find out.
 	reasonLanguageQueryEmptyGrant = "the caller's grant admits no repository, so no backend was read"
 )
 

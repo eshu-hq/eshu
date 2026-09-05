@@ -150,8 +150,11 @@ func codeContentGrantScope(ctx context.Context, repoID string) (allowed []string
 // renders the Cypher condition and binds $allowed_repository_ids /
 // $allowed_scope_ids, and allowedRepositoryIDs is the id list the SQL builder
 // binds to `repo_id = ANY($n)`. Both are empty for an unscoped caller, and a
-// grantless scoped caller never reaches a read at all -- languageQueryGrantFor
-// reports that case as blocked.
+// grantless scoped caller reaches no ENTITY read -- languageQueryGrantFor
+// reports that case as blocked, ahead of both entity backends. The selector's
+// own repository lookup can still run before that gate, when the request
+// carries a non-canonical repo_id to resolve; it is grant-filtered in
+// queryselector, so it cannot see outside the caller's grant either.
 type languageQueryGrant struct {
 	access               repositoryAccessFilter
 	allowedRepositoryIDs []string
