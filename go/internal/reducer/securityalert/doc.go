@@ -14,7 +14,12 @@
 // (SecurityAlertReconciliationHandler), the domain definition
 // (SecurityAlertReconciliationDomainDefinition), and the Postgres writer
 // (PostgresSecurityAlertReconciliationWriter). SecurityAlertReconciliationDecision
-// is the family's canonical output row; SecurityAlertReconciliationStatus
+// is the family's canonical output row; the consumption-matching helpers
+// (MatchSecurityAlertConsumption, SecurityAlertRepositoryScopeMatches and
+// SecurityAlertIDMatches) decide which recorded consumption an alert
+// reconciles against, and were promoted from unexported reducer-root
+// helpers by the move because callers now sit outside this package.
+// SecurityAlertReconciliationStatus
 // names the possible comparison outcomes (matched, unmatched, stale,
 // dismissed, fixed, provider_only, unsupported, ambiguous).
 //
