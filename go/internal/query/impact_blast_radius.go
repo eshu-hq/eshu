@@ -133,11 +133,11 @@ const blastRadiusSqlTableBranches = 9
 // #5330: this UNION only claims edge types the graph actually writes.
 // CONTAINS/QUERIES_TABLE always had writers. TRIGGERS replaces the
 // never-written TRIGGERS_ON name (the reducer only ever emits TRIGGERS — see
-// reducer/sqlrelationship/sql_relationship_materialization.go) with an
-// explicit (:SqlTrigger) endpoint-label constraint so a same-named
-// unrelated label cannot inflate the count. INDEXES is newly wired
-// (SqlIndex.table_name metadata -> reducer -> edge writer, #5330 Task 3),
-// also endpoint-label constrained.
+// reducer/sqlrelationship/sql_relationship_materialization.go) with an explicit
+// (:SqlTrigger) endpoint-label constraint so a same-named unrelated label
+// cannot inflate the count. INDEXES is newly wired (SqlIndex.table_name
+// metadata -> reducer -> edge writer, #5330 Task 3), also endpoint-label
+// constrained.
 //
 // #5345: the SqlView and SqlFunction READS_FROM branches replace the dead
 // (:SqlTable)-[:REFERENCES_TABLE]->(table) branch, which never had a writer
@@ -154,11 +154,10 @@ const blastRadiusSqlTableBranches = 9
 // now emits one SqlMigration entity per recognized migration file with its
 // resolved forward targets nested under migration_targets metadata, and the
 // reducer resolves each target directly (see
-// reducer/sqlrelationship/sql_relationship_materialization.go's SqlMigration
-// case). MAPS_TO_TABLE still has no writer at all (confirmed by auditing
-// every reducer/edge-writer path) and is intentionally NOT UNIONed here —
-// reporting it as a silent zero would be a correctness bug.
-// blastRadiusAffected reports its absence honestly
+// reducer/sqlrelationship/sql_relationship_materialization.go's SqlMigration case). MAPS_TO_TABLE
+// still has no writer at all (confirmed by auditing every reducer/edge-writer
+// path) and is intentionally NOT UNIONed here — reporting it as a silent zero
+// would be a correctness bug. blastRadiusAffected reports its absence honestly
 // via the coverage/complete response fields instead
 // (sqlTableBlastRadiusEdgeTypes, sqlTableBlastRadiusCoverage).
 // blastRadiusSqlTableQuery applies the caller's grant on the affected repo node
