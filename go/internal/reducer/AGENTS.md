@@ -2022,7 +2022,7 @@ System v1 wave already accepted.
 
 No-Regression Evidence (review-fix pass, same PR): four accuracy gaps found in
 review and closed before merge, each with a regression test:
-(1) `buildSQLRelationshipDeltaScope` reused Wave 4f S1's
+(1) `sqlrelationship.BuildDeltaScope` reused Wave 4f S1's
 `codeCallDeltaRelativePathsFromRepository`, which returns each
 `delta_relative_paths` JSON element RAW (no trim/drop-empty), unlike the
 removed `semanticPayloadStringSlice`; a whitespace-only entry could qualify

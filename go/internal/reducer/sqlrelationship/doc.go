@@ -30,11 +30,16 @@
 // delta-scope and embedded-code-index machinery for its own materialization
 // (shell_exec_materialization.go, issue #6061) rather than duplicating it.
 //
-// BuildRefreshIntents is exported for a different reason. shell_exec does not
-// reuse it — it owns buildShellExecRefreshIntents in shell_exec_intents.go.
-// The only caller outside this package is the shared table in
-// sibling_edge_intent_delta_gate_test.go, which drives this family and
-// inheritance through the same assertions.
+// BuildRefreshIntents and BuildSharedIntentRows are exported for a different
+// reason. shell_exec does not reuse them — it owns buildShellExecRefreshIntents
+// in shell_exec_intents.go. Their only caller outside this package is the
+// shared table in sibling_edge_intent_delta_gate_test.go, which drives this
+// family and inheritance through the same assertions.
+//
+// BuildRetractRows has no caller inside this package at all. It is exported
+// solely for the reducer root's sql_relationship_partition_convergence_test.go,
+// which asserts the retract and refresh partition keys converge — a property
+// only a caller holding both halves can check.
 //
 // This package imports [github.com/eshu-hq/eshu/go/internal/reducer/contract]
 // (the dependency-neutral domain/intent/result vocabulary),
@@ -44,7 +49,9 @@
 // (the typed-payload decode seam), and
 // [github.com/eshu-hq/eshu/go/internal/reducer/sharedintent] (the shared
 // projection intent builder and refresh-fence helpers), plus
-// [github.com/eshu-hq/eshu/go/internal/facts] and the generated
+// [github.com/eshu-hq/eshu/go/internal/facts],
+// [github.com/eshu-hq/eshu/go/pkg/log] (the structured-log helpers
+// sql_relationship_materialization.go uses), and the generated
 // sdk/go/factschema/codegraph/v1 package. It must never import the parent
 // reducer package or a sibling domain-family subpackage -- see AGENTS.md.
 package sqlrelationship

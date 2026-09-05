@@ -182,7 +182,7 @@ func shellExecFamilyRepositoryFact(repository codegraphv1.Repository) facts.Enve
 // shellExecFamilyFunctionEntity carries the content_entity fact that actually
 // materializes a graph Function node at entityUID (the
 // parsed_file_data.functions[] entry alone does NOT -- that array is read
-// only by this package's embeddedSQLFunctionIDsByNameLine convenience
+// only by sqlrelationship.EmbeddedSQLFunctionIDsByNameLine, the convenience
 // lookup, not by the projector's canonical entity writer; see this file's
 // ShellExecFamilyDeployFunctionUID doc comment). It is inert for the pure
 // vacuity guard (ExtractShellExecRows never reads content_entity facts) but
@@ -299,7 +299,7 @@ func shellExecFamilyParsedFile(relativePath string, functions, commands []any) m
 // shellExecFamilyFunctionEntry builds one parsed_file_data.functions[] entry.
 // Its "uid" MUST be the same canonical Function uid the content_entity fact
 // for this function carries (see ShellExecFamilyDeployFunctionUID's doc
-// comment) -- embeddedSQLFunctionIDsByNameLine reads this field verbatim as
+// comment) -- sqlrelationship.EmbeddedSQLFunctionIDsByNameLine reads this field verbatim as
 // the row's source_entity_id.
 func shellExecFamilyFunctionEntry(name, uid string, line int) map[string]any {
 	return map[string]any{

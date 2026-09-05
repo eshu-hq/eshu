@@ -66,8 +66,10 @@ type SharedProjectionIntentInput = sharedintent.Input
 // intent is emitted under. Alias for [sharedintent.ProjectionContext].
 type ProjectionContext = sharedintent.ProjectionContext
 
-// BuildSharedProjectionIntent forwards to [sharedintent.Build].
-func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjectionIntentRow {
+// buildSharedProjectionIntent forwards to [sharedintent.Build]. It stays
+// unexported: its only callers are in this package, and this package's own
+// AGENTS.md bars exporting a name with no cross-package consumer.
+func buildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjectionIntentRow {
 	return sharedintent.Build(input)
 }
 

@@ -13,7 +13,7 @@ import (
 
 // rationalePartitionKeyVersion namespaces every rationale_edges partition key so
 // a future key-shape change can run alongside the old one without colliding. It
-// mirrors inheritance.PartitionKeyVersion and sqlRelationshipPartitionKeyVersion
+// mirrors inheritance.PartitionKeyVersion and sqlrelationship.PartitionKeyVersion
 // (#2869).
 const rationalePartitionKeyVersion = "rationale-edges:v1"
 

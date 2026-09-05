@@ -285,7 +285,7 @@ func sqlFamilySchemaFileFact(generationID string) facts.Envelope {
 // fact with entity_type "Function" is what actually materializes a graph
 // Function node (the parsed_file_data.functions[] entry in
 // sqlFamilyFileWithEmbeddedQuery alone does NOT — that array is read only by
-// this package's own embeddedSQLFunctionIDsByNameLine convenience lookup, not
+// sqlrelationship.EmbeddedSQLFunctionIDsByNameLine, the convenience lookup, not
 // by the projector's canonical entity writer). Its entity_id is set to the
 // same precomputed canonical uid the label="Function" branch of
 // canonicalGraphEntityID derives regardless of what this payload supplies,

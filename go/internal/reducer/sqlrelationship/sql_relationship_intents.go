@@ -104,7 +104,7 @@ func BuildSharedIntentRows(
 		payload["action"] = "upsert"
 		payload[retractViaRefreshKey] = true
 
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		intents = append(intents, buildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainSQLRelationships,
 			PartitionKey:     FilePartitionKey(repoID, sourcePath, edgeIdentity),
 			IdentityKey:      edgeIdentity,
@@ -163,7 +163,7 @@ func BuildRefreshIntents(
 		// carries the full rule and why the two obvious alternatives lose
 		// edges (#6216).
 		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.FilePathsByRepoID)
-		intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
+		intents = append(intents, buildSharedProjectionIntent(SharedProjectionIntentInput{
 			ProjectionDomain: DomainSQLRelationships,
 			PartitionKey:     WholeScopePartitionKey(repoID),
 			ScopeID:          context.ScopeID,
