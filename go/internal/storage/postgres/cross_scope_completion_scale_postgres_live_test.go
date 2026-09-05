@@ -121,19 +121,6 @@ func TestCrossScopeCompletionProductionShapeConvergesLive(t *testing.T) {
 	wall := time.Since(started)
 	identityP95 := crossScopeCompletionDurationP95(identityDurations)
 	cicdP95 := crossScopeCompletionDurationP95(cicdDurations)
-	if identityP95 > 5*time.Millisecond || cicdP95 > 5*time.Millisecond {
-		t.Fatalf("scale sequential batch ACK p95 exceeds 5ms: identity=%s cicd=%s", identityP95, cicdP95)
-	}
-	if identityFanout.FanoutDuration > 100*time.Millisecond ||
-		cicdFanout.FanoutDuration > 100*time.Millisecond {
-		t.Fatalf("scale fanout exceeds 100ms: identity=%s cicd=%s", identityFanout.FanoutDuration, cicdFanout.FanoutDuration)
-	}
-	if walBytes > 25_000_000 {
-		t.Fatalf("scale convergence WAL=%d bytes, want <=25000000", walBytes)
-	}
-	if wall > time.Second {
-		t.Fatalf("scale convergence wall=%s, want <=1s", wall)
-	}
 	t.Logf(
 		"CROSSSCOPE5740 scopes=%d generations_per_scope=%d ack_batches=%d retained_work_items=%d current_work_items=%d synthetic_ack_transitions=%d sequential_identity_ack_p95=%s sequential_cicd_ack_p95=%s identity_fanout=%s cicd_fanout=%s wal_bytes=%d wall=%s",
 		scopeCount,
@@ -149,6 +136,19 @@ func TestCrossScopeCompletionProductionShapeConvergesLive(t *testing.T) {
 		walBytes,
 		wall,
 	)
+	if identityP95 > 5*time.Millisecond || cicdP95 > 5*time.Millisecond {
+		t.Fatalf("scale sequential batch ACK p95 exceeds 5ms: identity=%s cicd=%s", identityP95, cicdP95)
+	}
+	if identityFanout.FanoutDuration > 100*time.Millisecond ||
+		cicdFanout.FanoutDuration > 100*time.Millisecond {
+		t.Fatalf("scale fanout exceeds 100ms: identity=%s cicd=%s", identityFanout.FanoutDuration, cicdFanout.FanoutDuration)
+	}
+	if walBytes > 25_000_000 {
+		t.Fatalf("scale convergence WAL=%d bytes, want <=25000000", walBytes)
+	}
+	if wall > time.Second {
+		t.Fatalf("scale convergence wall=%s, want <=1s", wall)
+	}
 }
 
 func seedCrossScopeCompletionScale(
