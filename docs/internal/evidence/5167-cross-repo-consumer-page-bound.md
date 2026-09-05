@@ -68,7 +68,7 @@ nothing is retained, and at the cap times the retained generations per position
 where something is. This seed carries one generation per position, so the after
 rows below are the first case and the entries walked equal the rows returned;
 [What The LIMIT Bounds](#what-the-limit-bounds-and-what-it-does-not) measures the
-second, where 1,001 becomes 11,780. The rows under the driving scan are the
+second, where 1,001 becomes 11,081. The rows under the driving scan are the
 claim; the times follow them.
 
 | page and grant | rows under the driving scan | shared buffers | custom plan |
@@ -144,11 +144,19 @@ rows, 250-entity page, ordered path taken.
 
 | retained generations per position | entries walked | buffers | ms |
 | ---: | ---: | ---: | --- |
-| 0 | 1,001 | hit=929 | 1.43 / 1.42 / 1.44 |
-| 20 | 11,780 | hit=2,504 read=3 | 10.92 / 10.75 / 11.08 |
+| 0 | 1,001 | hit=929 | 1.43 / 1.51 / 1.48 |
+| 20 | 11,081 | hit=2,402 | 9.18 / 9.73 / 9.16 |
 
-11.8x the entries for the same 1,001-row answer. Not 21x, because the answer is
+11.1x the entries for the same 1,001-row answer. Not 21x, because the answer is
 drawn partly from ordinary entities that carry no retained generations.
+
+Both rows are three independent runs that agree exactly, and they are measured
+with `max_parallel_workers_per_gather = 0`. That is not tidying: with the
+default two workers the planner takes a `Parallel Index Scan` under a
+`Gather Merge`, and the entries walked then depend on how the workers race to
+fill the cap -- the same arm read 11,780 in one run and 17,835 in another. The
+multiplication is real either way, but only the serial number is a figure that
+reproduces, so it is the one quoted here and in migration 103's header.
 
 An earlier version of this note said the `LIMIT` was the only thing deciding how
 far the scan goes. That was true of the one-generation seed it was measured on
@@ -348,7 +356,7 @@ BUFFERS, WAL)` over a 200,000-row reachability insert, arms alternated:
 
 **+16.6% WAL records and +19.8% buffers dirtied**, or about one extra WAL record
 per row inserted. WAL records rather than seconds because seconds do not survive
-this machine: the same six inserts timed 11.36 / 16.98 / 7.58 / 7.44 s without
+this machine: the same eight inserts, four per arm, timed 11.36 / 16.98 / 7.58 / 7.44 s without
 the index against 9.66 / 11.56 / 18.85 / 8.19 s with it -- fully overlapping, no
 signal. The three samples per arm above vary by three records out of 1.2 million,
 which is what makes them a measurement. On disk the index is 201 MB

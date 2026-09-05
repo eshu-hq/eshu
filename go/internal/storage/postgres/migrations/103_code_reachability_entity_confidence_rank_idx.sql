@@ -32,8 +32,14 @@
 -- retained generations per position, not by the cap. Measured on a
 -- retention-representative seed (one ingestion scope per consumer repository,
 -- every superseded generation carrying the same population as the active one):
--- 1,001 entries walked at zero retained generations, 11,780 at twenty, for the
--- same 1,001-row answer -- 1.43/1.42/1.44 ms against 10.92/10.75/11.08 ms.
+-- 1,001 entries walked at zero retained generations, 11,081 at twenty, for the
+-- same 1,001-row answer -- 1.43/1.51/1.48 ms against 9.18/9.73/9.16 ms. Both are
+-- three independent runs that agree exactly, measured with
+-- max_parallel_workers_per_gather = 0: with the default two workers the planner
+-- takes a Parallel Index Scan under a Gather Merge and the entries walked depend
+-- on how the workers race to fill the cap, which read 11,780 in one run and
+-- 17,835 in another. The multiplication is real either way; only the serial
+-- number reproduces.
 --
 -- Past some retention depth the planner stops choosing this index at all. At
 -- twenty retained generations it costs the active-generation join at 1,905 rows
@@ -92,7 +98,7 @@
 -- records and 16,001/15,934/16,004 buffers dirtied without this index against
 -- 1,424,877/1,424,879/1,424,883 and 19,158/19,099/19,167 with it -- +16.6% WAL
 -- records and +19.8% buffers dirtied, about one extra WAL record per row. WAL
--- records rather than seconds because the same six inserts timed
+-- records rather than seconds because the same eight inserts, four per arm, timed
 -- 11.36/16.98/7.58/7.44 s without against 9.66/11.56/18.85/8.19 s with, which
 -- is no signal at all on a shared machine. Nothing is dropped to
 -- pay for it. code_reachability_entity_lookup_idx looks superseded on paper and

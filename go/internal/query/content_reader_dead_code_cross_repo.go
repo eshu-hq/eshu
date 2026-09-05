@@ -267,7 +267,7 @@ func crossRepoDeadCodeGrantFilter(args []any, allowedRepositoryIDs []string) ([]
 // retention window: the active-generation test is a join above this scan, so
 // the scan emits one entry per retained generation per position and the join
 // discards the superseded ones. Measured at 1,001 entries walked with no
-// retained generations and 11,780 at twenty, for the same 1,001-row answer.
+// retained generations and 11,081 at twenty, for the same 1,001-row answer.
 //
 // depth > 0 stays a plain predicate rather than part of the ranking: depth 0 is
 // the root's own row, not a consumer edge.
