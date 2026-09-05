@@ -199,12 +199,13 @@ gates:
     hook_id: go-dir-gate
 
   - id: markdown-file-cap
-    name: Markdown 500-line file cap (go/)
+    name: Markdown 500-line file cap (go/ and docs/)
     category: hygiene
     tier: pre-commit
     blocking: true
     triggers:
       - "go/**/*.md"
+      - "docs/**/*.md"
       - "scripts/verify-markdown-line-cap.sh"
       - "scripts/test-verify-markdown-line-cap.sh"
       # Glob, for the reason go-dir-gate globs its own lib files: the core
@@ -1462,6 +1463,7 @@ gates:
       - "scripts/lib/test-verify-doc-citations-review-cases.sh"
       - "scripts/lib/test-verify-doc-citations-binary-cases.sh"
       - "scripts/lib/test-verify-doc-citations-preparation-cases.sh"
+      - "scripts/lib/test-verify-doc-citations-scope-cases.sh"
       - "scripts/lib/gate-diff-base.sh"
       - "scripts/docs-citations-baseline.txt"
       - "specs/ci-gates.v1.yaml"

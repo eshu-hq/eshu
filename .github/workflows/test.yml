@@ -168,10 +168,9 @@ jobs:
           scripts/test-verify-package-docs.sh
           scripts/verify-package-docs.sh
 
-      # Markdown 500-line cap under go/ (issue #6187). Sits beside the
-      # package-docs step above because it governs the same three documents
-      # (doc.go / README.md / AGENTS.md), from the other direction: that gate
-      # asserts they EXIST, this one asserts they stayed readable. The Go cap
+      # Markdown 500-line cap under go/ and docs/ (#6187/#6545). Package-docs
+      # checks required package documentation exists; this gate checks Markdown
+      # length, including internal evidence and public reference pages. The Go cap
       # is enforced in go-core by the golangci-lint filelength plugin, which
       # walks the Go AST and cannot see Markdown at all -- see
       # specs/ci-gates.v1.yaml's markdown-file-cap entry, which declares this
@@ -184,7 +183,7 @@ jobs:
       # that could not run is not a gate that passed. The test mirror on the
       # line above drives scratch repos that have no origin remote at all and
       # must stay permissive, which is why this is not a step-level `env:`.
-      - name: Verify Markdown file cap (go/)
+      - name: Verify Markdown file cap (go/ and docs/)
         run: |
           scripts/test-verify-markdown-line-cap.sh
           MARKDOWN_LINE_CAP_REQUIRE_BASE=1 scripts/verify-markdown-line-cap.sh --all

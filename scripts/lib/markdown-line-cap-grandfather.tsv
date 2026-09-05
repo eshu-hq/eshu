@@ -1,5 +1,5 @@
 # Line-count-pinned grandfather ledger for the Markdown 500-line file cap
-# under go/ (issue #6187), the Markdown sibling of
+# under go/ and docs/ (issues #6187/#6545), the Markdown sibling of
 # scripts/lib/dirgate-grandfather.tsv: a closed list of the .md files that
 # already exceeded the cap when the gate landed, so the gate lands green on
 # today's tree and new or growing files fail immediately.
@@ -14,7 +14,9 @@
 # "Closed list" is enforced, not merely intended. The gate compares this file
 # against its committed baseline (MARKDOWN_LINE_CAP_BASE_REF, default
 # origin/main), and accepts only two edits: REMOVING a row, or LOWERING a pin.
-# Adding a row, or raising one, is refused -- otherwise a change could add an
+# New docs/ rows may import an existing over-cap file only up to its line
+# count at the resolved immutable base (#6545 scope rollout). Otherwise,
+# adding a row or raising one is refused -- a change could add an
 # over-cap file together with the row exempting it and satisfy every check,
 # which is exactly what it did before #6279. If you are here to add a row for a
 # new file, that is the case this refuses: split the file by audience instead.
@@ -89,3 +91,48 @@ go/internal/storage/postgres/README.md	3766
 go/internal/storage/postgres/evidence-notes.md	1032
 go/internal/telemetry/README.md	558
 go/internal/workflow/README.md	518
+
+# Docs scope introduced by #6545. Each pin is measured from origin/main;
+# the gate independently verifies imports against the immutable base.
+docs/internal/aws-relationship-edge-materialization-design.md	690
+docs/internal/design/391-observability-coverage-correlation.md	624
+docs/internal/design/4389-ifa-conformance-platform.md	990
+docs/internal/design/4588-collector-claim-pacing.md	1114
+docs/internal/design/4595-wrong-answer-report-capture-plan.md	523
+docs/internal/design/5007-cross-scope-node-ownership.md	914
+docs/internal/design/5385-workload-identity-key.md	1503
+docs/internal/design/package-restructure.md	2468
+docs/internal/design/restructure-research.md	506
+docs/internal/evidence/4594-graph-rebuild-from-facts.md	975
+docs/internal/evidence/5238-account-alias-rollout-gap-signal.md	677
+docs/internal/evidence/5244-5253-dashboard-correctness.md	641
+docs/internal/evidence/5426-golden-corpus-coverage.md	615
+docs/internal/evidence/5441-edge-node-properties.md	1011
+docs/internal/evidence/5490-k8sresource-candidate-index.md	507
+docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md	746
+docs/internal/evidence/5813-5801-scanner-diagnostic-and-source-label-dedup.md	556
+docs/internal/evidence/5837-aws-drift-reopen.md	1502
+docs/internal/evidence/5847-container-image-identity-retire.md	926
+docs/internal/evidence/5998-rationale-retract-probe-guard.md	681
+docs/internal/evidence/publish-safety-screen-shape-coverage.md	974
+docs/public/contributing-language-support.md	503
+docs/public/observability/telemetry-coverage.md	1141
+docs/public/operate/hosted-governance.md	672
+docs/public/reference/cypher-performance.md	1821
+docs/public/reference/environment-collectors.md	577
+docs/public/reference/fact-envelope-reference.md	504
+docs/public/reference/gcp-cloud-collector-contract.md	1894
+docs/public/reference/http-api/evidence-and-supply-chain.md	1697
+docs/public/reference/http-api/iac-content-infra.md	1104
+docs/public/reference/http-api/status-admin.md	828
+docs/public/reference/http-api/vulnerability-impact.md	551
+docs/public/reference/local-performance-envelope.md	977
+docs/public/reference/local-testing.md	655
+docs/public/reference/nornicdb-pitfalls.md	1265
+docs/public/reference/nornicdb-query-pitfalls.md	882
+docs/public/reference/remote-e2e-runtime-state.md	501
+docs/public/reference/search-benchmark-evidence.md	510
+docs/public/reference/security-intelligence.md	611
+docs/public/reference/telemetry/index.md	1270
+docs/public/run-locally/docker-compose.md	771
+docs/public/services/collector-aws-cloud-scanners.md	505

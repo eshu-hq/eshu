@@ -133,7 +133,16 @@ source "${script_root}/lib/test-verify-markdown-line-cap-cap-cases.sh"
 # shellcheck source=lib/test-verify-markdown-line-cap-ledger-cases.sh
 source "${script_root}/lib/test-verify-markdown-line-cap-ledger-cases.sh"
 
+# shellcheck source=lib/test-verify-markdown-line-cap-scope-cases.sh
+source "${script_root}/lib/test-verify-markdown-line-cap-scope-cases.sh"
+
 main() {
+	run_markdown_scope_cases
+	if [[ "${1:-}" == "--scope-only" ]]; then
+		printf 'scope tests: %d passed, %d failed\n' "${pass_count}" "${fail_count}"
+		[[ "${fail_count}" -eq 0 ]]
+		return $?
+	fi
 	# The three directions #6187's acceptance criterion names, first.
 	test_over_cap_file_is_red
 	test_at_cap_file_is_green
@@ -173,4 +182,4 @@ main() {
 	[[ "${fail_count}" -eq 0 ]]
 }
 
-main
+main "$@"

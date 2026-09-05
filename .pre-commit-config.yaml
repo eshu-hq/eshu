@@ -129,14 +129,14 @@ repos:
       #
       # `files:` rather than `types: [markdown]` so an edit to the gate's own
       # ledger or scripts fires it too -- verify-markdown-line-cap.sh --files
-      # filters the paths it is handed to go/**.md and verifies the pinned
+      # filters the paths it is handed to go/**.md and docs/**.md and verifies the pinned
       # ledger on every run, so a ledger-only commit is checked rather than
       # exiting 0 having evaluated nothing.
       - id: markdown-file-cap
-        name: 500-line Markdown file cap (go/)
+        name: 500-line Markdown file cap (go/ and docs/)
         entry: scripts/verify-markdown-line-cap.sh --files
         language: script
-        files: '^(go/.*\.md|scripts/(test-)?verify-markdown-line-cap\.sh|scripts/lib/(test-verify-)?markdown-line-cap-.*)$'
+        files: '^((go|docs)/.*\.md|scripts/(test-)?verify-markdown-line-cap\.sh|scripts/lib/(test-verify-)?markdown-line-cap-.*)$'
         pass_filenames: true
 
       - id: go-package-docs
