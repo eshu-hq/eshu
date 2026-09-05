@@ -28,7 +28,8 @@
 // they share these shapes and matchers. A family package may never import the
 // reducer root, so the shared half lives below both. The root keeps four
 // resource-type const aliases in iam_permission_grant_compat.go; the type
-// aliases and forwarders it once held went with the escalation family.
+// aliases, the target-status const aliases and the forwarders it once held
+// lost their last root caller with the escalation family and were deleted.
 //
 // This package holds plain data and pure functions. It imports only the
 // standard library and the factschema SDK, and it must never import the
