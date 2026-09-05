@@ -34,13 +34,17 @@ the full ownership boundary and exported surface.
     by the reducer root's `shell_exec` family
     (`shell_exec_materialization.go`, `shell_exec_intents.go`), which has not
     moved out of root yet.
-  - `BuildRefreshIntents` and `BuildSharedIntentRows` are used only by the
-    sibling-family test (`sibling_edge_intent_delta_gate_test.go`), which
-    drives them alongside `inheritance` through one shared table — nothing in
-    `shell_exec`'s own production code calls either.
-  - `BuildRetractRows` has no caller inside this package. It exists for the
-    reducer root's `sql_relationship_partition_convergence_test.go`, which
-    asserts the retract and refresh partition keys converge.
+  - `BuildRefreshIntents` is used outside this package only by
+    `sibling_edge_intent_delta_gate_test.go`, which drives it alongside
+    `inheritance` through one shared table — nothing in `shell_exec`'s own
+    production code calls it.
+  - `BuildSharedIntentRows` is used outside this package by
+    `sql_relationship_partition_convergence_test.go` and
+    `sibling_edge_intent_retract_reachability_test.go`.
+  - `BuildRetractRows` is used outside this package by
+    `sql_relationship_partition_convergence_test.go`, which asserts the retract
+    and refresh partition keys converge. Its only in-package caller is its own
+    test, so the export exists for that root test.
   - `EvidenceSource`, `FilePartitionKey`, `WholeScopePartitionKey`, and
     `PartitionKeyVersion` are not consumed by `shell_exec` at all: they
     support the root's generic shared-projection worker test

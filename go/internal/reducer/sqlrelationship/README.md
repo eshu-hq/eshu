@@ -45,7 +45,7 @@ AGENTS.md.
 | `SQLRelationshipRowStats` | per-relationship-type unresolved/ambiguous target-resolution counts `ExtractSQLRelationshipRows` reports instead of silently dropping (#5345, #5346) |
 | `DeltaScope` / `BuildDeltaScope()` / `MergeRepositoryIDs()` | the delta-generation scope this family derives from `repository` facts; exported for cross-family reuse by `shell_exec` |
 | `BuildSharedIntentRows()` / `BuildRefreshIntents()` | promote extracted edge rows to durable shared-projection intents (file-scoped per-edge plus one whole-scope per-repo refresh, #2868/#2898) |
-| `BuildRetractRows()` | build the retract rows for a delta scope. No caller inside this package; it is exported for `go/internal/reducer/sql_relationship_partition_convergence_test.go`, which asserts the retract and refresh partition keys converge |
+| `BuildRetractRows()` | build the retract rows for a delta scope. Exported for `go/internal/reducer/sql_relationship_partition_convergence_test.go`, which asserts the retract and refresh partition keys converge; in-package it is called only by its own test |
 | `EvidenceSource` / `FilePartitionKey()` / `WholeScopePartitionKey()` / `PartitionKeyVersion` | this family's evidence-source tag and partition-key builders; exported for cross-family reuse and for the reducer root's generic refresh-fence proofs |
 | `EmbeddedSQLFunctionIDsByNameLine()` / `EmbeddedSQLFunctionKey()` | index a parsed file's functions by (name, line) so an embedded-code scanner can resolve the enclosing function's entity ID; exported for cross-family reuse by `shell_exec` |
 
@@ -61,8 +61,9 @@ The reducer root wires `DefaultHandlers.SQLRelationshipIntentWriter`
 `internal/reducer/schemadecode` (the typed-payload decode seam for
 `repository`/`file` facts), `internal/reducer/sharedintent` (the shared
 projection intent builder, `ProjectionContext`, and refresh-fence helpers),
-`internal/facts`, `pkg/log` (the `log.Err`/`log.FailureClass` structured-log
-helpers used by `sql_relationship_materialization.go`), and the generated
+`internal/facts`, `pkg/log` (the `log.ScopeID`/`log.GenerationID`/`log.Domain`
+structured-log field helpers used by `sql_relationship_materialization.go`),
+and the generated
 `sdk/go/factschema/codegraph/v1` package. No dependency on the reducer root,
 and none of the root's other family subpackages.
 

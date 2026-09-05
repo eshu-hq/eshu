@@ -30,16 +30,21 @@
 // delta-scope and embedded-code-index machinery for its own materialization
 // (shell_exec_materialization.go, issue #6061) rather than duplicating it.
 //
-// BuildRefreshIntents and BuildSharedIntentRows are exported for a different
-// reason. shell_exec does not reuse them — it owns buildShellExecRefreshIntents
-// in shell_exec_intents.go. Their only caller outside this package is the
-// shared table in sibling_edge_intent_delta_gate_test.go, which drives this
-// family and inheritance through the same assertions.
+// BuildRefreshIntents, BuildSharedIntentRows and BuildRetractRows are exported
+// for a different reason. shell_exec reuses none of them — it owns
+// buildShellExecRefreshIntents in shell_exec_intents.go. Their callers outside
+// this package are all reducer-root tests:
 //
-// BuildRetractRows has no caller inside this package at all. It is exported
-// solely for the reducer root's sql_relationship_partition_convergence_test.go,
-// which asserts the retract and refresh partition keys converge — a property
-// only a caller holding both halves can check.
+//   - BuildRefreshIntents: sibling_edge_intent_delta_gate_test.go, the shared
+//     table that drives this family and inheritance through one set of
+//     assertions.
+//   - BuildSharedIntentRows: sql_relationship_partition_convergence_test.go and
+//     sibling_edge_intent_retract_reachability_test.go.
+//   - BuildRetractRows: sql_relationship_partition_convergence_test.go, which
+//     asserts the retract and refresh partition keys converge — a property only
+//     a caller holding both halves can check. It also has one in-package
+//     caller, its own test in sql_relationship_delta_scope_test.go, so the
+//     export exists for the root test rather than for lack of any caller.
 //
 // This package imports [github.com/eshu-hq/eshu/go/internal/reducer/contract]
 // (the dependency-neutral domain/intent/result vocabulary),
