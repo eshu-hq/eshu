@@ -218,13 +218,28 @@ func relationshipStoryInheritanceDepthCypher(
 	if access.Scoped() {
 		params = access.GraphParams(params)
 	}
-	// Only the two endpoints bind. Bounding every hop would need
-	// all(node IN nodes(path) WHERE node.repo_id IN $ids), and that list form is
-	// inert on the pinned backend -- see the path-predicate table in
-	// docs/internal/evidence/5167-code-family-batch-2b.md.
+	// Endpoints and interior both bind here. This is the Neo4j-compat builder --
+	// relationshipStoryInheritanceDepthRows sends a NornicDB backend to
+	// nornicDBRelationshipStoryInheritanceDepthRows before this function is
+	// reached -- and on Neo4j all(node IN nodes(path) WHERE node.repo_id IN $ids)
+	// does evaluate, which is why the compat call-chain bounds its interior with
+	// exactly that shape (callChainPathHopPredicates, code_call_chain.go). The
+	// inertness of the list form is a fact about the pinned NornicDB build only,
+	// and it is the sibling builder that carries it and says so.
+	//
+	// The clause is rendered by the grant contract rather than written out, so a
+	// change to how it renders moves this predicate with the endpoint ones. The
+	// bare property is right: a null repo_id makes the membership test null,
+	// all() over a null yields null, and WHERE null drops the row, so an
+	// unattributable interior class still fails closed.
 	inheritancePredicates := func(anchor string) string {
-		return strings.Join(append([]string{predicate(anchor, "$entity_id")},
-			relationshipStoryGrantPredicates(access, "source", "target")...), " AND ")
+		predicates := append([]string{predicate(anchor, "$entity_id")},
+			relationshipStoryGrantPredicates(access, "source", "target")...)
+		if access.Scoped() {
+			predicates = append(predicates,
+				"all(node IN nodes(path) WHERE "+access.GraphConditionOnProperty("node", "repo_id")+")")
+		}
+		return strings.Join(predicates, " AND ")
 	}
 	if direction == "incoming" {
 		return fmt.Sprintf(`

@@ -309,3 +309,61 @@ func TestStoryClauseGraphRecordsParallelRuns(t *testing.T) {
 }
 
 func firstOf(cypher string, _ map[string]any) string { return cypher }
+
+// storyInheritanceHopClause is the frozen text of the interior bound the
+// Neo4j-compat inheritance walk must carry, rendered through the grant contract
+// rather than written out, so a change to how the contract renders moves this
+// pin with the predicate instead of leaving it behind.
+func storyInheritanceHopClause(access repositoryAccessFilter) string {
+	return "all(node IN nodes(path) WHERE " + access.GraphConditionOnProperty("node", "repo_id") + ")"
+}
+
+// TestRelationshipStoryInheritanceBoundsInteriorHopsOnCompatOnly pins which of
+// the two inheritance builders bounds the nodes between the endpoints.
+//
+// The compat builder runs on Neo4j, where all(node IN nodes(path) ...) with a
+// list-membership test evaluates, so it bounds every hop. Its NornicDB sibling
+// must NOT gain the same clause: that list form is inert on the pinned build
+// (the path-predicate table in
+// docs/public/reference/nornicdb-query-pitfalls.md), so writing it there would
+// be grant text that grants nothing -- the exact defect this batch fixed.
+func TestRelationshipStoryInheritanceBoundsInteriorHopsOnCompatOnly(t *testing.T) {
+	t.Parallel()
+
+	access := storyScopedAccess()
+	req := relationshipStoryRequest{EntityID: storyGrantedAnchor, RelationshipType: "INHERITS", Limit: 50}
+
+	t.Run("compat_bounds_every_hop", func(t *testing.T) {
+		t.Parallel()
+		for _, direction := range []string{"outgoing", "incoming"} {
+			cypher := firstOf(relationshipStoryInheritanceDepthCypher(
+				req, storyGrantedAnchor, direction, graphEntityIDPredicate, access))
+			if !strings.Contains(cypher, storyInheritanceHopClause(access)) {
+				t.Fatalf("compat %s inheritance walk does not bound its interior hops with %q:\n%s",
+					direction, storyInheritanceHopClause(access), cypher)
+			}
+		}
+	})
+
+	t.Run("nornicdb_binds_endpoints_only", func(t *testing.T) {
+		t.Parallel()
+		for _, direction := range []string{"outgoing", "incoming"} {
+			cypher := firstOf(nornicDBRelationshipStoryInheritanceDepthCypher(
+				req, storyGrantedAnchor, direction, "uid", access))
+			if strings.Contains(cypher, "nodes(path)") {
+				t.Fatalf("the NornicDB %s inheritance walk gained a path predicate the backend does not evaluate:\n%s",
+					direction, cypher)
+			}
+		}
+	})
+
+	t.Run("unscoped_carries_no_hop_clause", func(t *testing.T) {
+		t.Parallel()
+		unscoped := repositoryAccessFilter{AllScopes: true}
+		cypher := firstOf(relationshipStoryInheritanceDepthCypher(
+			req, storyGrantedAnchor, "outgoing", graphEntityIDPredicate, unscoped))
+		if strings.Contains(cypher, "nodes(path)") {
+			t.Fatalf("an unscoped caller rendered a hop clause:\n%s", cypher)
+		}
+	})
+}
