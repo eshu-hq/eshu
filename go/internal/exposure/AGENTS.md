@@ -36,6 +36,13 @@ bounded tracer (a later slice, in `internal/query`) consumes these catalogs.
   tracer reports it `unresolved`.
 - **Conservative predicates** — a missing target property fails the predicate
   (`predicatesSatisfied`). Never treat absence as a match.
+- **One Provenance path is knowingly stale — do NOT repoint it on its own.**
+  `sink_catalog.go`'s `SinkCloudResource` spec cites
+  `reducer/iam_escalation_materialization.go`, which #6061 moved to
+  `reducer/iamescalation/`. `hashSinkSpecs` serializes `Provenance` into
+  `SinkCatalogVersion`, so correcting the string invalidates every cached
+  reachability finding. It is tracked in #6547 and belongs in a change that
+  bumps the catalog version deliberately, with this package's owner.
 - **Provenance required** — every graph-backed spec cites the reducer/graph file
   that authors its edge, verified against the real materializer.
 - **Deterministic content hash** — `SinkCatalogVersion` sorts before hashing so

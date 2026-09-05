@@ -153,7 +153,7 @@ func (h IAMEscalationMaterializationHandler) Handle(
 	result, err := ExtractIAMEscalationEdges(resourceEnvelopes, permissionEnvelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load, unsupported schema major, or
-		// other fatal condition partitionDecodeFailures did NOT quarantine) fails
+		// other fatal condition factdecode.PartitionDecodeFailures did NOT quarantine) fails
 		// the whole intent so the durable queue triages it correctly.
 		return reducercontract.Result{}, err
 	}

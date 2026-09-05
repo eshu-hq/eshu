@@ -46,17 +46,17 @@ type, so a single-segment over-match cannot fabricate a cross-type edge.
 
 ## Why this is a shared leaf
 
-The IAM privilege-escalation slice at the reducer root and the `reducer/iamcan`
+The IAM privilege-escalation slice in `reducer/iamescalation` and the `reducer/iamcan`
 family evaluate the same decoded statements. They count into different tallies
 and check against different catalogs, so the folds stay separate — but the
 statement and grant shapes, the matchers, and the resolution outcome are one
 vocabulary. A family package may never import the reducer root, so the shared
 half lives below both. The root keeps its spelling through aliases and
-forwarders in `iam_permission_grant_compat.go`.
+const aliases in `iam_permission_grant_compat.go`.
 
 Because `PrincipalGrant` now lives here, the root cannot attach methods to it.
 The escalation-specific `armStatus` became the free function `grantArmStatus` in
-`iam_escalation_grant.go`; it reads root-owned primitive vocabulary and did not
+`iamescalation/iam_escalation_grant.go`; it reads that package's own primitive vocabulary and did not
 belong here.
 
 Imports point strictly downward. This package reaches only the standard library
@@ -69,7 +69,7 @@ This package registers no instrument and performs no I/O.
 
 Every refusal it classifies — a Deny, a condition, an ambiguous target — is
 counted by the caller against that caller's own skip counter
-(`eshu_dp_iam_escalation_skipped_total` at the root,
+(`eshu_dp_iam_escalation_skipped_total` from `reducer/iamescalation`,
 `eshu_dp_iam_can_perform_skipped_total` in `reducer/iamcan`). Keeping the
 counting at the caller is what lets one shared matcher serve two domains with
 different skip taxonomies.
@@ -77,13 +77,13 @@ different skip taxonomies.
 No-Regression Evidence: #6061 relocates this code from `iam_escalation.go`,
 `iam_escalation_grant.go` and `iam_escalation_target.go` without changing it.
 The bodies are unchanged; the diff is the package clause, the identifiers and
-struct fields becoming exported, and root aliases and forwarders replacing the
+struct fields becoming exported, and root const aliases replacing the
 original declarations. The one added declaration is `Classify`, which lifts an
 extraction both grant folds performed inline and identically -- same fields,
 same nil-pointer default, same `Allow`/`Deny` comparison -- so each fold now
 reads a `StatementShape` instead of six selector expressions. The reducer suites
 that cover both folds pass unchanged, and the payloadusage manifest again
-attributes `actions` and `not_actions` to a wrapper-mediated read. Behavior stays covered by the existing root escalation
+attributes `actions` and `not_actions` to a wrapper-mediated read. Behavior stays covered by the existing iamescalation
 suites (`iam_escalation_test.go`, `iam_escalation_skips_test.go`,
 `iam_escalation_materialization_test.go`) and by `internal/reducer/iamcan`.
 Measured on this branch: `go build ./...` exits 0, `go vet

@@ -61,13 +61,24 @@ completion log carries per-stage `load` / `extract` / `retract` /
 `graph_write` / `total_duration_seconds`.
 
 No-Regression Evidence: #6061 relocates this family's production logic
-without changing it. Every hunk in the moved production files is a package
-clause, an import requalification, or an identifier requalification: symbols
-the reducer root supplied as one-line forwarders are now imported directly
-from the leaf that already owned them. The one deletion is
-`payloadStringSlice`, an inverse misfiling with zero family callers and three
-unrelated root test callers, repointed to the equivalent
-`payloadcore.PayloadOrderedStrings`. Measured on this branch: `go build ./...`
+without changing it. Almost every hunk in the moved production files is a
+package clause, an import requalification, or an identifier requalification:
+symbols the reducer root supplied as one-line forwarders are now imported
+directly from the leaf that already owned them. There is one hunk of a fourth
+kind: `iam_escalation.go:114` gains an empty `case iamPrimitiveArmed:` arm so
+the switch lists all three members of a closed enum. An empty Go case breaks
+out of the switch, which is what an unmatched value did before -- there is no
+`default` and no `fallthrough` -- so behaviour is unchanged. It exists because
+this move deleted a stale `go/.golangci.yml` exclusion that had been
+suppressing the `exhaustive` finding on the old path.
+
+The one deletion is `payloadStringSlice`, an inverse misfiling with zero family
+callers and three unrelated root test callers, repointed to
+`payloadcore.PayloadOrderedStrings`. The two are not equivalent functions --
+`PayloadOrderedStrings` trims and drops empties on its `[]string` arm and
+accepts a bare `string` where the deleted helper returned nil -- but they are
+equivalent at these three call sites, each of which trims the value and skips
+empties immediately after the call. Measured on this branch: `go build ./...`
 exits 0, `go vet ./...` exits 0, `go test ./internal/reducer/iamescalation
 -count=1` passes, `go test ./internal/reducer/... -count=1` passes, and the
 three repointed convergence tests

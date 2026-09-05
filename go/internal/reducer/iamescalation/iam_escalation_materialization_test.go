@@ -168,7 +168,7 @@ func TestIAMEscalationHandlerProjectsResolvedEdge(t *testing.T) {
 
 // TestIAMEscalationHandlerQuarantinesMalformedFact proves the iam_escalation
 // handler records a per-fact input_invalid quarantine (the metric + structured
-// log via recordQuarantinedFacts, surfaced on Result.SubSignals) rather than
+// log via factdecode.RecordQuarantinedFacts, surfaced on Result.SubSignals) rather than
 // silently skipping it, while the batch's valid escalation edge still projects.
 // iam_escalation was the one migrated domain that collected result.Quarantined
 // but never recorded it — a silent skip the redesign forbids.

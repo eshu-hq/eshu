@@ -12,7 +12,7 @@ Imports point strictly downward:
 This package is a shared-core tier. It may import the standard library and the
 factschema SDK, and nothing else. It must **never** import the parent
 `internal/reducer` package or any family package. It exists because the IAM
-privilege-escalation slice at the root and the `reducer/iamcan` family evaluate
+privilege-escalation slice in `reducer/iamescalation` and the `reducer/iamcan` family evaluate
 the same decoded `aws_iam_permission` statements, and a family may not import
 the root.
 
@@ -58,7 +58,7 @@ belongs on that side. A generic helper (a deref, a payload accessor) belongs in
 
 Because the shapes here are exported, the reducer root can no longer attach
 methods to them — that is why the escalation-specific `armStatus` became the
-free function `grantArmStatus` at the root. Keep domain-specific behavior at its
+free function `grantArmStatus` in `reducer/iamescalation`. Keep domain-specific behavior at its
 domain; only the shared half comes here.
 
 ## Gates that will fire on your change

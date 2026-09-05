@@ -25,9 +25,10 @@ const (
 // under-approximation removes the principal from the primitive. It is the AND
 // gate for multi-action primitives.
 //
-// It is a free function, not a method: the grant shape now lives in [iampolicy]
-// so the reducer root cannot attach methods to it, and the escalation primitive
-// vocabulary it reads is root-owned.
+// It is a free function, not a method: the grant shape lives in [iampolicy], so
+// no package outside iampolicy can attach methods to it. The escalation
+// primitive vocabulary it reads is owned by this package
+// (iam_escalation_catalog.go), not by the reducer root.
 func grantArmStatus(g iampolicy.PrincipalGrant, primitive iamEscalationPrimitive) iamPrimitiveArmStatus {
 	for _, action := range primitive.Actions {
 		if g.Denied(action) {
