@@ -116,7 +116,7 @@ docs/internal/evidence/5847-container-image-identity-retire.md	926
 docs/internal/evidence/5998-rationale-retract-probe-guard.md	681
 docs/internal/evidence/publish-safety-screen-shape-coverage.md	974
 docs/public/contributing-language-support.md	503
-docs/public/observability/telemetry-coverage.md	1141
+docs/public/observability/telemetry-coverage.md	1142
 docs/public/operate/hosted-governance.md	672
 docs/public/reference/cypher-performance.md	1821
 docs/public/reference/environment-collectors.md	577
@@ -126,7 +126,7 @@ docs/public/reference/http-api/evidence-and-supply-chain.md	1697
 docs/public/reference/http-api/iac-content-infra.md	1104
 docs/public/reference/http-api/status-admin.md	828
 docs/public/reference/http-api/vulnerability-impact.md	551
-docs/public/reference/local-performance-envelope.md	977
+docs/public/reference/local-performance-envelope.md	978
 docs/public/reference/local-testing.md	655
 docs/public/reference/nornicdb-pitfalls.md	1265
 docs/public/reference/nornicdb-query-pitfalls.md	882
