@@ -44,7 +44,7 @@ routes, the other entry in that list whose grant lands in two backends.
 | Route | Binding | Symbol |
 | --- | --- | --- |
 | `POST /api/v0/code/language-query` (SQL) | `repo_id = ANY($n)` on every content read the route makes | `buildLanguageTypeEntityFilters` (`go/internal/query/content_reader_entity_search.go`) |
-| `POST /api/v0/code/language-query` (Cypher) | grant in the `WHERE` of the required `MATCH` block that binds Repository, in all four builders | `buildRepositoryCypher`, `buildDirectoryCypher`, `buildFileCypher`, `buildEntityCypherWithSemanticFilter` (`go/internal/query/language_query_cypher.go`) |
+| `POST /api/v0/code/language-query` (Cypher) | grant in the `WHERE` of the required `MATCH` that binds Repository, in all four builders | `buildRepositoryCypher`, `buildDirectoryCypher`, `buildFileCypher`, `buildEntityCypherWithSemanticFilter` (`go/internal/query/language_query_cypher.go`) |
 | `POST /api/v0/code/language-query` (selector) | `repo_id` resolved as a selector for every caller class; ungranted rejected with 400 for a scoped one | `applyRepositorySelectorForAccess` (`go/internal/query/code_repository_selector.go`) |
 | `POST /api/v0/code/imports/investigate` | grant per Repository alias in each of seven builders | `importDependencyGrantPredicates` (`go/internal/query/code_import_dependencies_queries.go`) |
 
@@ -71,17 +71,21 @@ tenant's metadata into a granted row. It is bound now, and
 The Cypher half is four builders behind one dispatcher,
 `buildLanguageCypherWithSemanticFilter`. Each assembles its own `WHERE`, so the
 grant is four small edits rather than one — but all four put it in the same
-place: appended to the `WHERE` of the required `MATCH` block that binds
-Repository, beside the optional `r.id = $repo_id` the builder already emitted,
-ahead of every `WITH`, `ORDER BY` and `LIMIT`.
+place: appended to the `WHERE` of the required `MATCH` that binds Repository,
+beside the optional `r.id = $repo_id` the builder already emitted, ahead of
+every `WITH`, `ORDER BY` and `LIMIT`.
 
-"`MATCH` block" is the accurate phrase, not "the anchoring `MATCH`".
-`buildDirectoryCypher` is written as two `MATCH` clauses and hangs its `WHERE`
-on the second, while `r` is bound in the first. Both are required, so the
-predicate constrains the joined row set and `r` is genuinely filtered — but a
-reader checking the clause-attachment argument against that builder would find
-the tighter sentence false, and the argument is what the whole "no live run"
-case rests on.
+"The anchoring `MATCH`" is exact for all four, and it was not always.
+`buildDirectoryCypher` used to be written as two `MATCH` clauses with its
+`WHERE` on the second while `r` was bound in the first. That was still
+correct — both clauses are required, so the predicate constrained the joined
+row set and `r` was genuinely filtered — but it made the tighter sentence
+false for one builder in four, which is why this note first reached for the
+looser "`MATCH` block". The builder is a single File-anchored clause now,
+rewritten for a backend reason that has nothing to do with the grant — see
+"The Directory Builder Answered Nothing On This Backend" below — so all four
+bind Repository in one clause and the grant lands in that clause's own
+`WHERE`.
 
 Clause attachment is settled by construction here, not by argument. The
 Repository binding is required in all four patterns, so an entity the graph
@@ -395,7 +399,7 @@ No-Regression Evidence: this is a correctness change with no latency claim
 attached; no benchmark was run and no speedup is asserted, so the claim being
 made is no-regression, not a win. Every predicate it adds is an `IN`/`ANY()`
 membership test against the caller's grant, on a node or column the query
-already matched, and it lands in the `WHERE` of the required `MATCH` block that
+already matched, and it lands in the `WHERE` of the required `MATCH` that
 binds Repository (Cypher) or the statement's `WHERE` (SQL) — ahead of
 `SKIP`/`LIMIT`, ahead of `LIMIT $scan_limit`, and ahead of `LIMIT`/`OFFSET`. A
 scoped caller therefore reads no more rows than before and, on these two
