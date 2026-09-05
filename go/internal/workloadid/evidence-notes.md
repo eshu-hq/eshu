@@ -29,7 +29,7 @@ the empty id for a blank one, where `fmt.Sprintf` produced `workload:` or
 | --- | --- | --- |
 | `projection.go:280` | `fmt.Sprintf("workload:%s", workloadName)` | Yes, all inputs. `candidateWorkloadName` returns a trimmed value and the caller skips `""` immediately above; `TrimSpace` is idempotent. |
 | `projection.go:328` | `fmt.Sprintf("workload-instance:%s:%s", …)` | Yes on every production input. Every `environment` arrives through `environment.Canonical()` plus a non-empty gate. |
-| `projection_helpers.go:111` | same | Yes, same funnel. |
+| `projection_helpers.go:119` | same | Yes, same funnel. |
 | `dependency.go:76` | `fmt.Sprintf("workload:%s", depName)` | Diverges on a blank `depName`, but `BuildWorkloadDependencyRows` has no production caller — `rg` finds it only from tests, as with its consumer `MaterializeDependencies`. |
 
 The environment funnel was proven empirically, not just read: hostile file facts
@@ -83,3 +83,42 @@ names the three that remain. The most consequential is
 against graph nodes — a re-key confined to this package would silently stop that
 resolver matching anything. Converting them is the re-key's work, not step
 zero's, but the claim is scoped here so it is not read as broader than it is.
+
+### Re-verified on current main (`043143bde`, branch `codex/5385-cleanup`)
+
+The four commits above were cherry-picked onto current main with no conflicts.
+Every claim re-checked against the current tree:
+
+- All four call sites route through the constructors
+  (`projection.go:280,:328`, `projection_helpers.go:119`, `dependency.go:76`).
+- `candidateWorkloadName` still trims both branches, so the constructor trim is
+  idempotent at sites 1, 3, and 4.
+- The environment funnel still normalizes at every producer:
+  `ExtractOverlayEnvironments` trims, drops blanks, and Canonicalizes
+  (`projection.go:220-224`); `helmValuesFilenameEnvironment` and
+  `collectNamespaceEnvironmentsFromFileData` go through `namespaceEnvironment`
+  (Normalize plus a non-empty allowlist gate, `environment_signals.go:65-81`);
+  the namespace fallback allowlists before Canonicalizing
+  (`projection_helpers.go:197-207`). No blank or untrimmed environment reaches
+  either instance site on the production path.
+- `BuildWorkloadDependencyRows` still has no non-test caller, and the live
+  DEPENDS_ON path (`BuildWorkloadDependencyIntentRowsFromEdges`) only carries
+  already-built ids from projection rows or stored graph reads — not a
+  construction site.
+- New regression coverage: `internal/reducer/projection_workloadid_test.go`
+  recomputes the constructors from each emitted row's own fields and pins the
+  blank-environment guard. The blank test was proven non-vacuous by
+  temporarily restoring the old inline `fmt.Sprintf` at `projection.go:328`:
+  it fails with `InstanceID = "workload-instance:checkout:"`, then passes
+  again after the restore.
+- Current counts: 111 `"workload:` and 76 `"workload-instance:` literals
+  across 31 reducer test files, all green unchanged — the byte-identity proof
+  on this base.
+- `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2007 pass,
+  0 fail, 2 skip (both pre-existing: a live-backend-gated Bolt retract test
+  and a provenance-replay tombstone test).
+  `go test ./internal/query/ ./internal/mcp/ -count=1`: green.
+  `go vet`, `gofmt`, `verify-package-docs.sh`,
+  `verify-performance-evidence.sh`, and `test-verify-golden-corpus-gate.sh`:
+  all exit 0. (`gofumpt -l` flags 11 reducer files, all pre-existing drift on
+  main in files this change does not touch.)
