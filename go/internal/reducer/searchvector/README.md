@@ -62,6 +62,8 @@ ready-publish gating rules.
 - `github.com/eshu-hq/eshu/go/internal/reducer/contract` — `DomainSearchVectorBuild`.
 - `github.com/eshu-hq/eshu/go/internal/telemetry` — `Instruments.SearchVectorBuildPhaseDuration`, `AttrDomain`, `AttrWritePhase`.
 - `github.com/eshu-hq/eshu/go/pkg/log` — `log.Err`/`log.FailureClass` structured-log helpers.
+- `go.opentelemetry.io/otel/metric` — the option types the phase-duration
+  histogram is recorded with (`search_vector_build_runner_log.go`).
 
 It imports nothing storage- or embedding-specific and never imports the
 reducer root. `go/cmd/reducer` adapts the concrete

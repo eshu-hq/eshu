@@ -63,7 +63,8 @@ func TestServiceStartsSearchVectorBuildRunner(t *testing.T) {
 }
 
 // fakeRootSearchVectorPendingLister is a minimal single-use double for
-// SearchVectorBuildPendingLister, scoped to this file's one wiring test. The
+// searchvector.SearchVectorBuildPendingLister, scoped to this file's one
+// wiring test. The
 // full-featured fake used by the runner's own behavior tests lives beside
 // them in searchvector, unexported and out of this package's reach.
 type fakeRootSearchVectorPendingLister struct {
@@ -83,7 +84,7 @@ func (f *fakeRootSearchVectorPendingLister) ListPendingSearchVectorScopes(
 }
 
 // fakeRootSearchVectorBuilder is a minimal single-use double for
-// SearchVectorBuilder, scoped to this file's one wiring test.
+// searchvector.SearchVectorBuilder, scoped to this file's one wiring test.
 type fakeRootSearchVectorBuilder struct {
 	mu      sync.Mutex
 	results []SearchVectorBuildResult

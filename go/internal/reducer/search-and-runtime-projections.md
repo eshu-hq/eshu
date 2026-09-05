@@ -263,9 +263,15 @@ because `./internal/reducer` does not descend into child packages.
 
 `SearchVectorBuildRunner` and its ports/request/result/config/identity types
 moved from the reducer root into `internal/reducer/searchvector`.
-No-Regression Evidence: pure relocation — package clause, imports, and export
-casing only; every method body, struct field, constant value, and interface
-method set is byte-identical to the pre-move root files. The root keeps
+No-Regression Evidence: pure relocation. In seven of the eight moved files the
+package clause is the only line that changed — no import moved and no
+identifier was re-cased. The eighth,
+`searchvector/search_vector_build_runner_test.go`, also had
+`TestServiceStartsSearchVectorBuildRunner` split out of it and left at root as
+`search_vector_build_runner_service_test.go`, because that test exercises
+`Service.startSideRunners`, which the leaf package cannot reach. Every method
+body, struct field, constant value, and interface method set is byte-identical
+to the pre-move root files. The root keeps
 compatibility type aliases (`search_vector_build_compat.go`) for the
 `Service.SearchVectorBuildRunner` field and the
 `TestServiceStartsSearchVectorBuildRunner` wiring proof;
@@ -347,11 +353,11 @@ signal an operator could watch. `TestSearchVectorBuildRunnerPublishesReadyWhenNo
 `TestSearchVectorBuildRunnerDoesNotPublishReadyWithPendingScopes`,
 `TestSearchVectorBuildRunnerPublishesReadyAfterDrainingLastPendingScopes`, and
 `TestSearchVectorBuildRunnerDoesNotPublishReadyOnBuildFailure`
-(`search_vector_build_ready_publisher_test.go`) prove the post-build publish
+(`searchvector/search_vector_build_ready_publisher_test.go`) prove the post-build publish
 gating on the serial path;
 `TestSearchVectorBuildRunnerBatchPathPublishesReadyAfterDrainingLastPendingScopes`
 and `TestSearchVectorBuildRunnerBatchPathDoesNotPublishReadyWithPendingScopes`
-(`search_vector_build_runner_batch_test.go`) prove the same gating on the
+(`searchvector/search_vector_build_runner_batch_test.go`) prove the same gating on the
 production batch fast path. `TestSearchVectorReadyWatermarkIsIdentityScopedLive`
 (`go/internal/storage/postgres/eshu_search_vector_build_ready_test.go`, gated
 on `ESHU_SEARCH_VECTOR_READY_LIVE=1` + `ESHU_POSTGRES_DSN`) proves the
