@@ -249,6 +249,7 @@ func newMCPQueryRouterWithSemanticEmbedding(
 			CloudResourceInventory:      query.NewPostgresCloudResourceListStore(db),
 			KubernetesWorkloadInventory: query.NewPostgresKubernetesRuntimeWorkloadStore(db),
 			CollectorReadiness:          query.NewPostgresCollectorListReadinessStore(db),
+			PacketResponder:             query.NewSupplyChainImpactPacketResponder(),
 			Profile:                     queryProfile,
 		},
 		Incident: &query.IncidentHandler{

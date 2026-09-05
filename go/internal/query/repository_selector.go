@@ -27,10 +27,6 @@ type repositorySelectorNotFoundError = queryselector.NotFoundError
 // one repository.
 type repositorySelectorAmbiguousError = queryselector.AmbiguousError
 
-func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, content ContentStore, selector string) (string, error) {
-	return queryselector.ResolveExact(ctx, graph, content, selector)
-}
-
 func resolveRepositorySelectorExactForAccess(
 	ctx context.Context,
 	graph GraphQuery,
@@ -55,10 +51,6 @@ func resolveRepositorySelectorForRequestWithAccess(
 
 func isRepositorySelectorNotFound(err error) bool {
 	return queryselector.IsNotFound(err)
-}
-
-func looksCanonicalRepositoryID(selector string) bool {
-	return queryselector.LooksCanonicalRepositoryID(selector)
 }
 
 func resolveRepositoryCatalogMatches(entries []RepositoryCatalogEntry, selector string) []string {

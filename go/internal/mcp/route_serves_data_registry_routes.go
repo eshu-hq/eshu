@@ -147,13 +147,13 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// producing projection (scanner_worker family, specs:346-356) — both are
 	// served by the same read.
 	"GET /api/v0/supply-chain/impact/findings": {
-		RegistrationFile: "go/internal/query/supply_chain.go",
+		RegistrationFile: "go/internal/query/supplychain/supply_chain.go",
 		HandlerStruct:    "SupplyChainHandler",
-		StructFile:       "go/internal/query/supply_chain.go",
+		StructFile:       "go/internal/query/supplychain/supply_chain.go",
 		Method:           "listImpactFindings",
-		MethodFile:       "go/internal/query/supply_chain_impact_findings_handler.go",
+		MethodFile:       "go/internal/query/supplychain/supply_chain_impact_findings_handler.go",
 		ScanFiles: []string{
-			"go/internal/query/supply_chain_impact_findings_handler.go",
+			"go/internal/query/supplychain/supply_chain_impact_findings_handler.go",
 			"go/internal/query/supplychain/impact/supply_chain_impact_findings.go",
 			"go/internal/query/supplychain/impact/supply_chain_impact_findings_queries.go",
 		},

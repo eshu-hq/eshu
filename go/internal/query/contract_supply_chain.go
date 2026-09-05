@@ -4,24 +4,13 @@
 package query
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 )
 
 func init() {
-	capabilityMatrix[vulnerabilityScannerReadContractCapability] = capabilitySupport{
-		LocalLightweightMax:   &truthExact,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalLightweight,
-	}
-	capabilityMatrix[sbomAttestationAttachmentsCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
+	capabilityMatrix[vulnerabilityScannerReadContractCapability] = supplychain.LightweightExactSupport()
+	capabilityMatrix[sbomAttestationAttachmentsCapability] = supplychain.AuthoritativeExactSupport()
 	capabilityMatrix[advisory.AdvisoryEvidenceCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
@@ -36,60 +25,12 @@ func init() {
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
-	capabilityMatrix[supplyChainImpactFindingsCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
-	capabilityMatrix[supplyChainImpactExplanationCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
-	capabilityMatrix[containerImageIdentitiesCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
-	capabilityMatrix[securityAlertReconciliationsCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
-	capabilityMatrix[supplyChainImpactAggregateCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
-	capabilityMatrix[securityAlertReconciliationAggregateCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
-	capabilityMatrix[containerImageIdentityAggregateCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
-	capabilityMatrix[sbomAttestationAttachmentAggregateCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	}
+	capabilityMatrix[supplyChainImpactFindingsCapability] = supplychain.AuthoritativeExactSupport()
+	capabilityMatrix[supplyChainImpactExplanationCapability] = supplychain.AuthoritativeExactSupport()
+	capabilityMatrix[containerImageIdentitiesCapability] = supplychain.AuthoritativeExactSupport()
+	capabilityMatrix[securityAlertReconciliationsCapability] = supplychain.AuthoritativeExactSupport()
+	capabilityMatrix[supplyChainImpactAggregateCapability] = supplychain.AuthoritativeExactSupport()
+	capabilityMatrix[securityAlertReconciliationAggregateCapability] = supplychain.AuthoritativeExactSupport()
+	capabilityMatrix[containerImageIdentityAggregateCapability] = supplychain.AuthoritativeExactSupport()
+	capabilityMatrix[sbomAttestationAttachmentAggregateCapability] = supplychain.AuthoritativeExactSupport()
 }

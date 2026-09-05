@@ -199,7 +199,7 @@ entries:
     domain: supply_chain
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/supply_chain_impact_kubernetes_runtime_probe.go, symbol: supplyChainKubernetesRuntimeProbeCypher, source_sha256: 383185402bc2bc51d84c0773866afa6bc1053a348ff0944fa0cc95cf38dd126d}
+    source: {file: go/internal/query/supplychain/supply_chain_impact_kubernetes_runtime_probe.go, symbol: SupplyChainKubernetesRuntimeProbeCypher, source_sha256: be29992cf2b99a5c708b5d70fed4c8fe5459c08ee91d09879fe0423d8648dd66}
     query_fragment: 'MATCH (img:ContainerImage {digest: candidate_digest})<-[rel:RUNS_IMAGE]-(w:KubernetesWorkload)'
     cypher_sha256: 1900bbe55bc2f6e63da43ec9f8a6c1ed67e416702ab718aebd4db6ea2c794fee
     required_anchors:

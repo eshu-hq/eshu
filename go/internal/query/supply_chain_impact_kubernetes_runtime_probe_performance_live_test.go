@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -58,7 +60,7 @@ func TestLiveKubernetesRuntimeProbePerformance(t *testing.T) {
 	reader := NewNeo4jReader(driver, "nornic")
 	store := NewPostgresKubernetesRuntimeWorkloadStore(db)
 	digests, candidates := seedKubernetesRuntimePerformanceDataset(t, ctx, driver, db)
-	sum := sha256.Sum256([]byte(supplyChainKubernetesRuntimeProbeCypher))
+	sum := sha256.Sum256([]byte(supplychain.SupplyChainKubernetesRuntimeProbeCypher))
 	if got := hex.EncodeToString(sum[:]); got != kubernetesRuntimeCypherSHA256 {
 		t.Fatalf("production Kubernetes runtime Cypher SHA-256 = %s, want %s", got, kubernetesRuntimeCypherSHA256)
 	}
@@ -74,8 +76,8 @@ ORDER BY matched_digest, workload_uid LIMIT 1`, nil)
 	t.Logf("seeded production graph row: %#v", seeded[0])
 	probeParams := map[string]any{
 		"subject_digests": []string{digests[0]},
-		"evidence_source": supplyChainKubernetesRuntimeEvidenceSource,
-		"resolution_mode": supplyChainKubernetesRuntimeResolutionMode,
+		"evidence_source": supplychain.SupplyChainKubernetesRuntimeEvidenceSource,
+		"resolution_mode": supplychain.SupplyChainKubernetesRuntimeResolutionMode,
 		"limit":           2,
 	}
 	filtered, err := reader.Run(ctx, `UNWIND $subject_digests AS candidate_digest
@@ -89,23 +91,23 @@ ORDER BY matched_digest, workload_uid LIMIT $limit`, probeParams)
 	if err != nil || len(filtered) != 2 {
 		t.Fatalf("read filtered single-arm graph shape: rows=%d error=%v", len(filtered), err)
 	}
-	exact, err := reader.Run(ctx, supplyChainKubernetesRuntimeProbeCypher, probeParams)
+	exact, err := reader.Run(ctx, supplychain.SupplyChainKubernetesRuntimeProbeCypher, probeParams)
 	if err != nil || len(exact) != 2 {
 		t.Fatalf("read exact production graph shape: rows=%d error=%v", len(exact), err)
 	}
 
-	plans := planKubernetesRuntimeProbeQueries(digests, true)
-	fanout, err := queryKubernetesRuntimeCandidates(ctx, reader, plans)
+	plans := supplychain.PlanKubernetesRuntimeProbeQueries(digests, true)
+	fanout, err := supplychain.QueryKubernetesRuntimeCandidates(ctx, reader, plans)
 	if err != nil {
 		t.Fatalf("run real balanced fanout: %v", err)
 	}
-	if fanout.maxConcurrency < 2 || fanout.maxConcurrency > supplyChainKubernetesRuntimeProbeMaxConcurrency {
-		t.Fatalf("real fanout max concurrency = %d, want 2..%d", fanout.maxConcurrency, supplyChainKubernetesRuntimeProbeMaxConcurrency)
+	if fanout.MaxConcurrency() < 2 || fanout.MaxConcurrency() > supplychain.SupplyChainKubernetesRuntimeProbeMaxConcurrency {
+		t.Fatalf("real fanout max concurrency = %d, want 2..%d", fanout.MaxConcurrency(), supplychain.SupplyChainKubernetesRuntimeProbeMaxConcurrency)
 	}
-	if got := len(fanout.candidates); got != supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("real fanout candidates = %d, want %d", got, supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if got := len(fanout.Candidates()); got != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("real fanout candidates = %d, want %d", got, supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
-	t.Logf("real driver fanout: queries=%d candidate_limit=%d max_concurrency=%d", len(plans), fanout.plannedCandidateLimit, fanout.maxConcurrency)
+	t.Logf("real driver fanout: queries=%d candidate_limit=%d max_concurrency=%d", len(plans), fanout.PlannedCandidateLimit(), fanout.MaxConcurrency())
 
 	legacy := func(runCtx context.Context) kubernetesRuntimePerformanceResult {
 		return runLegacyKubernetesRuntimePerformance(t, runCtx, reader, store, digests)
@@ -236,16 +238,16 @@ func runLegacyKubernetesRuntimePerformance(
 ) kubernetesRuntimePerformanceResult {
 	t.Helper()
 	started := time.Now()
-	rows, err := reader.Run(ctx, supplyChainKubernetesRuntimeProbeCypher, map[string]any{
+	rows, err := reader.Run(ctx, supplychain.SupplyChainKubernetesRuntimeProbeCypher, map[string]any{
 		"subject_digests": digests,
-		"evidence_source": supplyChainKubernetesRuntimeEvidenceSource,
-		"resolution_mode": supplyChainKubernetesRuntimeResolutionMode,
-		"limit":           supplyChainKubernetesRuntimeProbeMaxResults,
+		"evidence_source": supplychain.SupplyChainKubernetesRuntimeEvidenceSource,
+		"resolution_mode": supplychain.SupplyChainKubernetesRuntimeResolutionMode,
+		"limit":           supplychain.SupplyChainKubernetesRuntimeProbeMaxResults,
 	})
 	if err != nil {
 		t.Fatalf("run legacy global graph probe: %v", err)
 	}
-	matches, err := store.CurrentAuthorizedKubernetesRuntimeWorkloads(ctx, kubernetesRuntimeCandidates(rows), true, nil, nil)
+	matches, err := store.CurrentAuthorizedKubernetesRuntimeWorkloads(ctx, supplychain.KubernetesRuntimeCandidates(rows), true, nil, nil)
 	if err != nil {
 		t.Fatalf("run legacy global Postgres gate: %v", err)
 	}
@@ -270,7 +272,7 @@ func runBalancedKubernetesRuntimePerformance(
 	}
 	started := time.Now()
 	err := (&SupplyChainHandler{Neo4j: reader, KubernetesWorkloadInventory: store}).
-		applySupplyChainKubernetesRuntimeEvidence(ctx, repositoryAccessFilter{AllScopes: true}, findings)
+		ApplySupplyChainKubernetesRuntimeEvidenceLive(ctx, querycontract.RepositoryAccessFilter{AllScopes: true}, findings)
 	if err != nil {
 		t.Fatalf("run balanced production probe: %v", err)
 	}
@@ -295,7 +297,7 @@ func openKubernetesRuntimePerformanceGraph(
 		t.Fatal("ESHU_NEO4J_URI is required for the live performance proof")
 	}
 	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.NoAuth(), func(config *neo4jdriver.Config) {
-		config.MaxConnectionPoolSize = supplyChainKubernetesRuntimeProbeMaxConcurrency
+		config.MaxConnectionPoolSize = supplychain.SupplyChainKubernetesRuntimeProbeMaxConcurrency
 	})
 	if err != nil {
 		t.Fatalf("open NornicDB driver: %v", err)
@@ -315,7 +317,7 @@ func seedKubernetesRuntimePerformanceDataset(
 	db *sql.DB,
 ) ([]string, []KubernetesRuntimeCandidate) {
 	t.Helper()
-	digests := make([]string, supplyChainKubernetesRuntimeProbeMaxResults)
+	digests := make([]string, supplychain.SupplyChainKubernetesRuntimeProbeMaxResults)
 	candidates := make([]KubernetesRuntimeCandidate, 0, 1398)
 	graphRows := make([]map[string]any, 0, 1398)
 	for i := range digests {
@@ -356,8 +358,8 @@ SET runtime.evidence_source = $evidence_source,
     runtime.source_digest = row.digest,
     runtime.scope_id = $scope_id,
     runtime.generation_id = $generation_id`, map[string]any{
-		"rows": graphRows, "evidence_source": supplyChainKubernetesRuntimeEvidenceSource,
-		"resolution_mode": supplyChainKubernetesRuntimeResolutionMode,
+		"rows": graphRows, "evidence_source": supplychain.SupplyChainKubernetesRuntimeEvidenceSource,
+		"resolution_mode": supplychain.SupplyChainKubernetesRuntimeResolutionMode,
 		"scope_id":        kubernetesRuntimePerformanceScope, "generation_id": kubernetesRuntimePerformanceGen,
 	})
 	t.Cleanup(func() {
@@ -416,20 +418,20 @@ func assertKubernetesRuntimeCancellationRecovery(
 	t *testing.T,
 	ctx context.Context,
 	reader *Neo4jReader,
-	plans []kubernetesRuntimeProbePlan,
+	plans []supplychain.KubernetesRuntimeProbePlan,
 ) {
 	t.Helper()
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
-	if _, err := queryKubernetesRuntimeCandidates(canceled, reader, plans); !errors.Is(err, context.Canceled) {
+	if _, err := supplychain.QueryKubernetesRuntimeCandidates(canceled, reader, plans); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled fanout error = %v, want context canceled", err)
 	}
-	recovered, err := queryKubernetesRuntimeCandidates(ctx, reader, plans)
+	recovered, err := supplychain.QueryKubernetesRuntimeCandidates(ctx, reader, plans)
 	if err != nil {
 		t.Fatalf("fanout after cancellation: %v", err)
 	}
-	if len(recovered.candidates) != supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("fanout after cancellation candidates = %d, want %d", len(recovered.candidates), supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if len(recovered.Candidates()) != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("fanout after cancellation candidates = %d, want %d", len(recovered.Candidates()), supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
-	t.Logf("cancellation recovery: canceled request drained; next request candidates=%d", len(recovered.candidates))
+	t.Logf("cancellation recovery: canceled request drained; next request candidates=%d", len(recovered.Candidates()))
 }

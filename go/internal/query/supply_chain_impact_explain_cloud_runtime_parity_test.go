@@ -4,11 +4,13 @@
 package query
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
@@ -380,6 +382,7 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 		Readiness:              readiness,
 		Neo4j:                  graph,
 		CloudResourceInventory: inventory,
+		PacketResponder:        NewSupplyChainImpactPacketResponder(),
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -400,4 +403,241 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 	if len(contextStore.called) != 0 {
 		t.Fatalf("runtime-context probe repository ids = %#v, want none for a packet shape that omits runtime_context", contextStore.called)
 	}
+}
+
+// Cloud-runtime probe doubles for the parity tests above. Canonical copies
+// live with the moved cloud probe suite in internal/query/supplychain
+// (supply_chain_impact_cloud_runtime_probe_test.go); this twin exists
+// because the parity suite also drives the explain handler through the same
+// fake inventory and cannot import the hub test package. Keep both copies
+// behavior-identical; the hub copy is authoritative.
+
+// stubCloudRuntimeGraph is a GraphQuery stub for the #5452 runtime-image probe.
+// It returns rowsByDigest for any digest present in the query params and records
+// the digest list the probe passed, so a test can assert both the promotion
+// outcome and that the probe bounded/deduplicated its input.
+type stubCloudRuntimeGraph struct {
+	rowsByDigest map[string][]map[string]any
+	err          error
+	gotDigests   []string
+}
+
+func (s *stubCloudRuntimeGraph) Run(_ context.Context, _ string, params map[string]any) ([]map[string]any, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	digests, _ := params["digests"].([]string)
+	s.gotDigests = append([]string(nil), digests...)
+	var rows []map[string]any
+	for _, digest := range digests {
+		rows = append(rows, s.rowsByDigest[digest]...)
+	}
+	return rows, nil
+}
+
+func (s *stubCloudRuntimeGraph) RunSingle(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+// stubCloudInventory is a CloudResourceCurrentInventoryFilter stub: it returns
+// only the candidate uids present in `currentAuthorized`, modelling the
+// owner-ledger current-inventory + authorization gate. It records the candidate
+// uids and whether the caller was unscoped.
+type stubCloudInventory struct {
+	currentAuthorized map[string]struct{}
+	rowsByDigest      map[string][]map[string]any
+	err               error
+	gotDigests        []string
+	gotCandidates     []string
+	gotAllScopes      bool
+}
+
+func (s *stubCloudInventory) CurrentAuthorizedCloudResourceUIDs(
+	_ context.Context, candidateUIDs []string, allScopes bool, _ []string, _ []string,
+) ([]string, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.gotCandidates = append([]string(nil), candidateUIDs...)
+	s.gotAllScopes = allScopes
+	var out []string
+	for _, uid := range candidateUIDs {
+		if _, ok := s.currentAuthorized[uid]; ok {
+			out = append(out, uid)
+		}
+	}
+	return out, nil
+}
+
+func (s *stubCloudInventory) CurrentAuthorizedCloudResourcesByDigest(
+	_ context.Context, digests []string, allScopes bool, _ []string, _ []string,
+) ([]CloudResourceRuntimeDigestMatch, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	s.gotDigests = append([]string(nil), digests...)
+	s.gotAllScopes = allScopes
+	var out []CloudResourceRuntimeDigestMatch
+	for _, digest := range digests {
+		for _, row := range s.rowsByDigest[digest] {
+			uid := StringVal(row, "uid")
+			s.gotCandidates = append(s.gotCandidates, uid)
+			if _, ok := s.currentAuthorized[uid]; !ok {
+				continue
+			}
+			out = append(out, CloudResourceRuntimeDigestMatch{
+				UID:    uid,
+				Digest: StringVal(row, "digest"),
+				ARN:    StringVal(row, "arn"),
+			})
+		}
+	}
+	return out, nil
+}
+
+func cloudResourceGraphRow(uid, digest, arn string) map[string]any {
+	return map[string]any{"uid": uid, "digest": digest, "arn": arn}
+}
+
+// Kubernetes-runtime probe doubles for the parity tests above. Canonical
+// copies live with the moved probe suite in internal/query/supplychain
+// (supply_chain_impact_kubernetes_runtime_probe_test.go); this twin exists
+// because the parity suite also drives the findings/explain handlers through
+// the same fake graph and inventory and cannot import the hub test package.
+// The Run filtering logic is identical; only the recorded-call element type
+// differs (the hub records fairKubernetesRuntimeCall, unexported there, so
+// this twin records its own shape — the parity tests only assert the call
+// count). Keep the Run logic behavior-identical; the hub copy is
+// authoritative.
+
+// parityKubernetesRuntimeCall records one per-digest probe query the twin
+// graph served.
+type parityKubernetesRuntimeCall struct {
+	Digest string
+	Limit  int
+}
+
+type stubKubernetesRuntimeGraph struct {
+	mu       sync.Mutex
+	rows     []map[string]any
+	err      error
+	cypher   string
+	params   map[string]any
+	runCalls int
+	calls    []parityKubernetesRuntimeCall
+}
+
+func (s *stubKubernetesRuntimeGraph) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.runCalls++
+	s.cypher = cypher
+	s.params = params
+	digests, _ := params["subject_digests"].([]string)
+	if len(digests) == 1 {
+		s.calls = append(s.calls, parityKubernetesRuntimeCall{Digest: digests[0], Limit: IntVal(params, "limit")})
+	}
+	if s.err != nil || len(digests) != 1 {
+		return nil, s.err
+	}
+	filtered := make([]map[string]any, 0, len(s.rows))
+	for _, row := range s.rows {
+		if StringVal(row, "matched_digest") == digests[0] {
+			filtered = append(filtered, row)
+		}
+	}
+	if limit := IntVal(params, "limit"); len(filtered) > limit {
+		filtered = filtered[:limit]
+	}
+	return filtered, nil
+}
+
+func (s *stubKubernetesRuntimeGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+func (s *stubKubernetesRuntimeGraph) snapshot() (int, []parityKubernetesRuntimeCall) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.runCalls, append([]parityKubernetesRuntimeCall(nil), s.calls...)
+}
+
+type stubKubernetesWorkloadInventory struct {
+	rows         []KubernetesRuntimeWorkloadMatch
+	err          error
+	candidates   []KubernetesRuntimeCandidate
+	allScopes    bool
+	repositories []string
+	scopes       []string
+}
+
+func (s *stubKubernetesWorkloadInventory) CurrentAuthorizedKubernetesRuntimeWorkloads(
+	_ context.Context,
+	candidates []KubernetesRuntimeCandidate,
+	allScopes bool,
+	repositories []string,
+	scopes []string,
+) ([]KubernetesRuntimeWorkloadMatch, error) {
+	s.candidates = append([]KubernetesRuntimeCandidate(nil), candidates...)
+	s.allScopes = allScopes
+	s.repositories = append([]string(nil), repositories...)
+	s.scopes = append([]string(nil), scopes...)
+	return append([]KubernetesRuntimeWorkloadMatch(nil), s.rows...), s.err
+}
+
+// runtimeContextFindingStore satisfies BOTH SupplyChainImpactFindingStore and
+// the optional supplyChainImpactRuntimeContextReader capability, so the
+// parity tests exercise the handler's type-asserted read path without
+// Postgres. Canonical copy lives with the moved runtime-context suite in
+// internal/query/supplychain
+// (supply_chain_impact_runtime_context_probe_test.go); this twin exists
+// because the parity suite also drives the findings/explain handlers through
+// the same fake and cannot import the hub test package. Keep both copies
+// behavior-identical; the hub copy is authoritative.
+type runtimeContextFindingStore struct {
+	rows            []impact.SupplyChainImpactFindingRow
+	byRepo          map[string]impact.SupplyChainRuntimeContext
+	byDigest        map[string]map[string]string
+	called          []string
+	envCandidates   []impact.SupplyChainRuntimeEnvironmentCandidate
+	allowedRepoIDs  []string
+	allowedScopeIDs []string
+	err             error
+}
+
+func (f *runtimeContextFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
+	_ context.Context,
+	candidates []impact.SupplyChainRuntimeEnvironmentCandidate,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) (map[string]map[string]string, error) {
+	f.envCandidates = append([]impact.SupplyChainRuntimeEnvironmentCandidate(nil), candidates...)
+	f.allowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
+	f.allowedScopeIDs = append([]string(nil), allowedScopeIDs...)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.byDigest, nil
+}
+
+func (f *runtimeContextFindingStore) ListSupplyChainImpactFindings(
+	context.Context,
+	impact.SupplyChainImpactFindingFilter,
+) ([]impact.SupplyChainImpactFindingRow, error) {
+	return append([]impact.SupplyChainImpactFindingRow(nil), f.rows...), nil
+}
+
+func (f *runtimeContextFindingStore) ListSupplyChainImpactRuntimeContext(
+	_ context.Context,
+	repositoryIDs []string,
+	allowedRepositoryIDs []string,
+	allowedScopeIDs []string,
+) (map[string]impact.SupplyChainRuntimeContext, error) {
+	f.called = append([]string(nil), repositoryIDs...)
+	f.allowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
+	f.allowedScopeIDs = append([]string(nil), allowedScopeIDs...)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.byRepo, nil
 }

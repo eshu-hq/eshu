@@ -67,6 +67,7 @@ func newSupplyChainHandler(
 		CloudResourceInventory:      query.NewPostgresCloudResourceListStore(db),
 		KubernetesWorkloadInventory: query.NewPostgresKubernetesRuntimeWorkloadStore(db),
 		CollectorReadiness:          query.NewPostgresCollectorListReadinessStore(db),
+		PacketResponder:             query.NewSupplyChainImpactPacketResponder(),
 		Profile:                     profile,
 	}
 }
