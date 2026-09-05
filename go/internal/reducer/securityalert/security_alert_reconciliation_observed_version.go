@@ -103,7 +103,7 @@ func securityAlertVersionTextLooksLikeRange(raw string) bool {
 
 // securityAlertConsumptionEvidenceKind declares locally rather than importing
 // the reducer root's securityAlertConsumptionEvidenceKind
-// (supply_chain_impact_security_alert.go): a four-line fallback shared with
+// (supply_chain_impact_security_alert.go): a short fallback shared with
 // supply_chain's own finding assembly, which has not moved out of root yet
 // (issue #6061), for the same reason as the helpers in
 // security_alert_reconciliation.go.
@@ -116,8 +116,8 @@ func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) 
 
 // exactConsumptionDependencyVersion, exactManifestDependencyVersion, and
 // nonVersionDependencyPrefix declare locally rather than importing the
-// reducer root's versions (supply_chain_impact_ranges.go,
-// supply_chain_impact_version_match.go): pure version-string classification
+// reducer root's versions (all three in supply_chain_impact_ranges.go): pure
+// version-string classification
 // with no reducer-root state, shared with supply_chain's own observed-version
 // resolution, which has not moved out of root yet (issue #6061).
 // exactManifestDependencyVersion and nonVersionDependencyPrefix are

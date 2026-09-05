@@ -374,7 +374,7 @@ func securityAlertReconciliationSummary(
 
 // securityAlertHasPackageSourceRepositoryFact declares locally rather than
 // importing the reducer root's hasPackageSourceRepositoryFact
-// (package_source_correlation_handler.go): a four-line envelope-kind scan
+// (package_source_correlation_handler.go): a short envelope-kind scan
 // shared with the package-source-correlation family, which has not moved out
 // of root yet (issue #6061).
 func securityAlertHasPackageSourceRepositoryFact(envelopes []facts.Envelope) bool {

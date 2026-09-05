@@ -138,7 +138,8 @@ family subpackage is forbidden (issue #6061) and each is either not yet
 extracted into its own shared subpackage or genuinely root-scoped shared
 state. Nine functions are copied in this way. Four are byte-identical to their
 root originals; five are not: three were renamed (`securityAlertDependencyScope`,
-`securityAlertPayloadBoolPointer`, `securityAlertHasPackageSourceRepositoryFact`),
+`securityAlertPayloadBoolPointer`, `securityAlertHasPackageSourceRepositoryFact`) --
+two of those also name a leaf package where root named its own forwarder --
 `exactConsumptionDependencyVersion` was re-parameterised, and
 `securityAlertConsumptionEvidenceKind` returns the `factschema` constant
 directly where root returns its `packageConsumptionCorrelationFactKind` alias
@@ -164,13 +165,13 @@ for the same value. Each bullet below says which:
 - `securityAlertHasPackageSourceRepositoryFact`
   (`security_alert_reconciliation_handler.go`) is
   `package_source_correlation_handler.go`'s `hasPackageSourceRepositoryFact`
-  under a family-scoped name: a four-line envelope-kind scan. Root keeps its
+  under a family-scoped name: a short envelope-kind scan. Root keeps its
   own copy, because the package-source-correlation family still uses it.
 - `securityAlertConsumptionEvidenceKind`, `exactConsumptionDependencyVersion`,
   `exactManifestDependencyVersion`, and `nonVersionDependencyPrefix`
   (`security_alert_reconciliation_observed_version.go`) mirror
-  `supply_chain_impact_security_alert.go` / `supply_chain_impact_ranges.go` /
-  `supply_chain_impact_version_match.go`: pure version-string and
+  `supply_chain_impact_security_alert.go` and `supply_chain_impact_ranges.go`
+  (which holds all three version helpers): pure version-string and
   evidence-kind-fallback logic with no reducer-root state. Only
   `exactConsumptionDependencyVersion` is re-parameterised, to the three
   `SecurityAlertConsumption` fields the logic reads instead of the root's full
@@ -195,15 +196,15 @@ than an import (Go test files never export across packages regardless).
 No-Regression Evidence: #6061 relocates this family's production logic
 without changing its behavior. Most hunks inside the moved production files
 are package-clause and import requalification: symbols the reducer root
-used to supply as one-line forwarders or aliases (`Intent`, `Result`,
-`Domain`, `FactLoader`, `workloadIdentityExecer`, `quarantinedFact`, the
-`reducerFact*`/`reducerBatchInsert*` batch-insert family,
-`loadFactsForKinds`, `recordQuarantinedFacts`, `payloadStr`/`payloadBool`/
-`payloadOrderedStrings`/`payloadStrings`/`uniqueSortedStrings`/
-`compactStringSlice`, and `partitionDecodeFailures`) are now imported from
-the leaf package that already owned them.
+used to supply as one-line forwarders or aliases -- the reducer-contract
+types, the fact-load and quarantine helpers, the batch-insert family, and the
+payload accessors -- are now imported from the leaf package that already owned
+them. The rule holds for every such symbol rather than for a list of them:
+where root declared a forwarder, the call now names the forwarder's target
+directly, so the same function runs. `git diff` against the base file is the
+authority, not an enumeration here.
 
-The decode seam is the one exception in that list and did not survive as an
+The decode seam is the one exception and did not survive as an
 import. The root's unexported `decodeSecurityAlertRepositoryAlert` was
 deleted outright rather than requalified; call sites now use the exported
 [`schemadecode.DecodeSecurityAlertRepositoryAlert`]. Grouping it with the
@@ -211,12 +212,11 @@ unchanged imports above would suggest a forwarder that no longer exists.
 
 `activeRepositoryFactLoader`/
 `activePackageManifestDependencyFactLoader` are locally redeclared, not
-imported, for the reason above; `packageNameFromPURL`/
-`packageNameFromPackageID`/`securityAlertDependencyScope`/
-`securityAlertPayloadBoolPointer`/`securityAlertConsumptionEvidenceKind`/
-`exactConsumptionDependencyVersion`/`exactManifestDependencyVersion`/
-`nonVersionDependencyPrefix` are locally copied from their reducer root
-originals for the same reason. Two of the three version helpers are byte-identical;
+imported, for the reason above, and the nine functions listed under "Why some
+helpers are declared locally instead of imported" are locally copied from their
+reducer root originals for the same reason -- that bullet list is the single
+enumeration of the set, so it does not disagree with a second copy here. Two of
+the three version helpers are byte-identical;
 `exactConsumptionDependencyVersion` is re-parameterised to the three
 `SecurityAlertConsumption` fields it reads instead of the root's full
 `supplyChainPackageConsumption` value type, with a behaviour-equivalent body
