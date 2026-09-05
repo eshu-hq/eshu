@@ -169,16 +169,56 @@ func relationshipStoryGrantedCandidates(
 	if len(allowed) == 0 {
 		return content.SearchEntitiesByNameAnyRepo(ctx, "", target, limit)
 	}
+	return relationshipStoryExactCandidatesPerRepository(ctx, content, target, allowed, limit)
+}
+
+// relationshipStoryExactCandidatesPerRepository reads the granted repositories
+// one at a time and keeps only the exact name matches.
+//
+// It gives each repository its own budget instead of a share of one. The
+// content read behind this is a SUBSTRING search --
+// ContentReader.SearchEntitiesByName is `entity_name ILIKE '%' || $2 || '%'` --
+// while resolveRelationshipStoryTarget keeps only rows whose name equals the
+// target exactly (exactEntityNameMatches). Passing `limit-len(candidates)` let
+// one repository's near-misses spend the whole budget on rows that were
+// discarded a moment later, so an exact symbol in a repository further down the
+// grant was never queried and the caller got not_found. Filtering to exact
+// matches inside the loop is what makes the budget mean the same thing the
+// caller does.
+//
+// The bound, stated because it is looser than the one it replaces: at most
+// `limit` rows are read per granted repository, and the walk stops as soon as
+// `limit` exact matches are in hand, so the worst case is `limit` rows times
+// the number of granted repositories read, and at most `limit` returned. The
+// old shape read at most `limit` rows in total, and answered wrongly. A caller
+// with a wide grant and a common substring pays more reads for an answer that
+// is correct; an exact symbol name resolves in the first repository that holds
+// it.
+//
+// The other three branches above return substring rows and let the caller
+// filter, which is the same end state: that filter runs on whatever comes back.
+// Only this branch has to apply it early, because only this branch spends a
+// shared budget across several reads.
+func relationshipStoryExactCandidatesPerRepository(
+	ctx context.Context,
+	content ContentStore,
+	target string,
+	allowed []string,
+	limit int,
+) ([]EntityContent, error) {
 	candidates := make([]EntityContent, 0, limit)
 	for _, allowedRepoID := range allowed {
 		if len(candidates) >= limit {
 			break
 		}
-		rows, err := content.SearchEntitiesByName(ctx, allowedRepoID, "", target, limit-len(candidates))
+		rows, err := content.SearchEntitiesByName(ctx, allowedRepoID, "", target, limit)
 		if err != nil {
 			return nil, err
 		}
-		candidates = append(candidates, rows...)
+		candidates = append(candidates, exactEntityNameMatches(rows, target)...)
+	}
+	if len(candidates) > limit {
+		candidates = candidates[:limit]
 	}
 	return candidates, nil
 }
