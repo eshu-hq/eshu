@@ -407,7 +407,18 @@ Every command below was run after the last edit, from the batch-2 worktree with
 a worktree-local `GOCACHE`. Exit codes were captured directly.
 
 ```text
-cd go && go test ./internal/query ./internal/mcp ./internal/queryplan -count=1
+cd go && go test ./internal/query ./internal/mcp ./internal/queryplan -count=1   # 0
+cd go && go vet ./internal/query ./internal/mcp ./internal/queryplan             # 0
+scripts/dev/precommit-go.sh fmt   <changed .go>                                  # 0
+scripts/dev/precommit-go.sh lint  <changed .go>                                  # 0
+scripts/dev/precommit-go.sh filecap <changed .go>                                # 0
+scripts/verify-package-docs.sh                                                   # 0
+scripts/verify-openapi.sh                                                        # 0
+scripts/verify-doc-citations.sh                                                  # 0
+scripts/verify-markdown-line-cap.sh --all                                        # 0
+scripts/verify-performance-evidence.sh                                           # 0
+mkdocs build --strict --clean --config-file docs/mkdocs.yml                       # 0
+git diff --check                                                                 # 0
 ```
 
 The promotion gates specifically: `TestScopedTokenAllowlistCompleteness`,

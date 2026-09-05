@@ -57,6 +57,7 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			// page that promises the old words.
 			var envelope struct {
 				Truth struct {
+					Basis  string `json:"basis"`
 					Reason string `json:"reason"`
 				} `json:"truth"`
 			}
@@ -72,10 +73,17 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			// served it. Deriving source_backend from the basis answers
 			// postgres_content_store here, which is why the empty page does not
 			// go through writeLanguageQueryResult. Written out, not read from
-			// languageQueryNoBackendRead: an expectation taken from the value
+			// noBackendReadSourceBackend: an expectation taken from the value
 			// under test passes whatever that value becomes.
 			if got, want := data["source_backend"], "unavailable"; got != want {
 				t.Fatalf("source_backend = %v, want %q; no backend served this page", got, want)
+			}
+			// source_backend is an override on this page, so it no longer
+			// moves when the basis does: without this the basis could regress
+			// to authoritative_graph and every assertion above would still
+			// pass. Same assertion the imports empty-grant test makes.
+			if got, want := envelope.Truth.Basis, "content_index"; got != want {
+				t.Fatalf("truth.basis = %q, want %q; an unread page must not claim the authoritative graph", got, want)
 			}
 		})
 	}

@@ -70,8 +70,10 @@ func sourceBackendForTruthBasis(basis TruthBasis) string {
 	}
 }
 
-// languageQueryNoBackendRead is the source_backend an empty-grant page carries
-// on both routes in this family.
+// noBackendReadSourceBackend is the source_backend an empty-grant page carries
+// on both routes in this family: language-query's
+// writeLanguageQueryEmptyGrantResult and imports/investigate's grantless
+// branch. One constant, because the two pages must not drift apart on it.
 //
 // It reuses the "unavailable" sentinel OUTSIDE its documented meaning, and that
 // is deliberate rather than accidental. sourceBackendForTruthBasis has no
@@ -85,7 +87,7 @@ func sourceBackendForTruthBasis(basis TruthBasis) string {
 // this second meaning so a caller reading the field is not misled by the
 // original one. A no-read TruthBasis member would let both routes say this
 // properly and is worth its own issue.
-const languageQueryNoBackendRead = "unavailable"
+const noBackendReadSourceBackend = "unavailable"
 
 // writeLanguageQueryEmptyGrantResult writes the page a scoped caller with no
 // repository grants gets: the same body every other branch returns, but with
@@ -98,7 +100,7 @@ func (h *LanguageQueryHandler) writeLanguageQueryEmptyGrantResult(
 	language, entityType, query string,
 ) {
 	body := languageQueryResponseBody(language, entityType, query, []map[string]any{})
-	body["source_backend"] = languageQueryNoBackendRead
+	body["source_backend"] = noBackendReadSourceBackend
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(), languageQueryCapability, TruthBasisContentIndex, reasonLanguageQueryEmptyGrant,
 	))
@@ -106,7 +108,7 @@ func (h *LanguageQueryHandler) writeLanguageQueryEmptyGrantResult(
 
 // languageQueryResponseBody is the response shape every branch of this route
 // returns, without source_backend, which the callers set: derived from the
-// truth basis for a real read, and languageQueryNoBackendRead for a page that
+// truth basis for a real read, and noBackendReadSourceBackend for a page that
 // took none. Shared so the two writers cannot drift on the other four keys.
 func languageQueryResponseBody(language, entityType, query string, results []map[string]any) map[string]any {
 	return map[string]any{

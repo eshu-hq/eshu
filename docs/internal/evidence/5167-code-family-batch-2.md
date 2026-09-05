@@ -416,23 +416,10 @@ out because the two together outgrow the repository's 500-line Markdown cap.
 
 ## Verification
 
-Run after the last edit, exit codes captured directly (`cmd; echo $?`, never
-after a pipe):
-
-```text
-cd go && go test ./internal/query ./internal/mcp ./internal/queryplan -count=1   # 0
-cd go && go vet ./internal/query ./internal/mcp ./internal/queryplan             # 0
-scripts/dev/precommit-go.sh fmt   <changed .go>                                  # 0
-scripts/dev/precommit-go.sh lint  <changed .go>                                  # 0
-scripts/dev/precommit-go.sh filecap <changed .go>                                # 0
-scripts/verify-package-docs.sh                                                   # 0
-scripts/verify-openapi.sh                                                        # 0
-scripts/verify-doc-citations.sh                                                  # 0
-scripts/verify-markdown-line-cap.sh --all                                        # 0
-scripts/verify-performance-evidence.sh                                           # 0
-mkdocs build --strict --clean --config-file docs/mkdocs.yml                       # 0
-git diff --check                                                                 # 0
-```
+The command list and its exit codes live with the rest of the proofs, in
+[#5167 code family batch 2a proofs](5167-code-family-batch-2-proofs.md#verification).
+It used to be duplicated here; the evidence markers below stay in this note
+because they are claims about the change rather than records of a run.
 
 No-Regression Evidence: this is a correctness change with no latency claim
 attached; no benchmark was run and no speedup is asserted, so the claim being

@@ -15,24 +15,10 @@ import (
 )
 
 const (
-	importDependencyCapability = "symbol_graph.import_dependencies"
-	// importDependencyNoBackendRead is the source_backend an empty-grant page
-	// carries. importDependencyResponse hard-codes "graph" for every other
-	// response on this route, which is true of all of them except this one.
-	//
-	// The value reuses the "unavailable" sentinel OUTSIDE its documented
-	// meaning: sourceBackendForTruthBasis has no no-read case, and the public
-	// table in language-query-dsl.md documents "unavailable" as the fallback
-	// for an unrecognized basis. Nothing on the wire means "no backend was
-	// read", just as no TruthBasis member does, and naming a backend that was
-	// never read would be worse than reusing the one value that claims
-	// nothing. The public table carries this second meaning so a caller is not
-	// misled. Shares languageQueryNoBackendRead's wording for the same reason
-	// both routes share the reason string.
-	importDependencyNoBackendRead = "unavailable"
-	importDependencyDefaultLimit  = 25
-	importDependencyMaxLimit      = 200
-	importDependencyMaxOffset     = 10000
+	importDependencyCapability   = "symbol_graph.import_dependencies"
+	importDependencyDefaultLimit = 25
+	importDependencyMaxLimit     = 200
+	importDependencyMaxOffset    = 10000
 )
 
 var errImportDependencyUnavailable = errors.New("import dependency graph is unavailable")
@@ -106,14 +92,16 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		//
 		// Neither value is a perfect fit: the TruthBasis enum has no "no read
 		// happened" member, so content_index is the lowest-claim value
-		// available rather than a description of what occurred. The reason
-		// string is what actually says it, and it is the field a caller should
-		// read here -- which is why it denies every backend rather than only
-		// the graph. "No graph read was issued" beside a content_index basis
-		// would invite the reader to infer a content read that also never
-		// happened. It is the same sentence language-query's empty page uses.
+		// available rather than a description of what occurred, and
+		// noBackendReadSourceBackend reuses "unavailable" outside its
+		// documented meaning for the same reason -- see its comment. The
+		// reason string is what actually says it, and it is the field a caller
+		// should read here, which is why it denies every backend rather than
+		// only the graph: "no graph read was issued" beside a content_index
+		// basis would invite the reader to infer a content read that also
+		// never happened. Language-query's empty page says the same sentence.
 		emptyPage := importDependencyResponse(req, nil)
-		emptyPage["source_backend"] = importDependencyNoBackendRead
+		emptyPage["source_backend"] = noBackendReadSourceBackend
 		WriteSuccess(
 			w,
 			r,
