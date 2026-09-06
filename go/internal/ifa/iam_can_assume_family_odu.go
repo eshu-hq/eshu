@@ -103,7 +103,7 @@ var iamCanAssumeFamilyResources = []iamCanAssumeFamilyResourceFixture{
 	{ResourceType: awsv1.ResourceTypeIAMRole, ARN: iamCanAssumeFamilyDeployerRoleARN},
 	{ResourceType: awsv1.ResourceTypeIAMUser, ARN: iamCanAssumeFamilyBreakglassUserARN},
 	{ResourceType: awsv1.ResourceTypeIAMRole, ARN: iamCanAssumeFamilyObserverRoleARN},
-	{ResourceType: "aws_s3_bucket", ARN: "arn:aws:s3:::eshu-fixture-artifacts"},
+	{ResourceType: awsv1.ResourceTypeS3Bucket, ARN: "arn:aws:s3:::eshu-fixture-artifacts"},
 }
 
 // iamCanAssumeFamilyPermissionFixture describes one aws_iam_permission fact
