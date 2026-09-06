@@ -5,9 +5,13 @@ package query
 
 import "context"
 
-type repositoryScopedEntityContentStore interface {
-	GetEntityContentInRepositories(ctx context.Context, entityID string, repoIDs []string) (*EntityContent, error)
-}
+// This file holds the batch half of the entity-content repository-access
+// helpers. It split from content_entity_authz.go in the #6060 lane-B1 move:
+// the single-entity helper moved with the ContentHandler family to
+// internal/query/contentread, while this batch path stays in root because it
+// filters through filterEvidenceCitationEntitiesForAccess, which belongs to
+// the evidence handler family (evidence_citation.go) -- moving it would
+// couple contentread to a sibling lane.
 
 type repositoryScopedEntityBatchContentStore interface {
 	GetEntityContentsInRepositories(ctx context.Context, entityIDs []string, repoIDs []string) (map[string]*EntityContent, error)
@@ -15,36 +19,6 @@ type repositoryScopedEntityBatchContentStore interface {
 
 type entityContentBatchStore interface {
 	GetEntityContents(context.Context, []string) (map[string]*EntityContent, error)
-}
-
-func getEntityContentForRepositoryAccess(
-	ctx context.Context,
-	content ContentStore,
-	entityID string,
-	access repositoryAccessFilter,
-) (*EntityContent, error) {
-	if content == nil || access.Empty() {
-		return nil, nil
-	}
-	if !access.Scoped() {
-		return content.GetEntityContent(ctx, entityID)
-	}
-	repoIDs := access.RepositorySearchIDs()
-	if len(repoIDs) == 0 {
-		return nil, nil
-	}
-	store, ok := content.(repositoryScopedEntityContentStore)
-	if !ok {
-		return nil, nil
-	}
-	entity, err := store.GetEntityContentInRepositories(ctx, entityID, repoIDs)
-	if err != nil || entity == nil {
-		return entity, err
-	}
-	if !access.AllowsRepositoryID(entity.RepoID) {
-		return nil, nil
-	}
-	return entity, nil
 }
 
 func getEntityContentsForRepositoryAccess(

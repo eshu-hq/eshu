@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package contentread
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/searchbench"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 	"github.com/eshu-hq/eshu/go/internal/searchembed"
@@ -25,6 +28,20 @@ const contentHybridRerankLimit = 200
 // CPU-only over at most contentHybridRerankLimit request-local documents.
 const contentHybridRerankTimeout = 2 * time.Second
 
+// firstNonEmptyContentRepoID returns the first non-blank repository id. It
+// mirrors root package query's firstNonEmpty
+// (repository_deployment_evidence_read_model.go), which cannot be called
+// across the package boundary; the copy is deliberate and must stay trivial
+// so the two cannot drift.
+func firstNonEmptyContentRepoID(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 // ContentResultReranker reorders bounded content-search result rows by hybrid
 // relevance for the search_entity_content and search_file_content tools.
 //
@@ -34,8 +51,8 @@ const contentHybridRerankTimeout = 2 * time.Second
 // no in-scope signal to fuse (disabled, empty input, fewer than two rows, no
 // query-term overlap, no projectable documents, or an unavailable embedder).
 type ContentResultReranker interface {
-	RerankEntities(ctx context.Context, repoID, query string, rows []EntityContent) ([]EntityContent, bool)
-	RerankFiles(ctx context.Context, repoID, query string, rows []FileContent) ([]FileContent, bool)
+	RerankEntities(ctx context.Context, repoID, query string, rows []querycontract.EntityContent) ([]querycontract.EntityContent, bool)
+	RerankFiles(ctx context.Context, repoID, query string, rows []querycontract.FileContent) ([]querycontract.FileContent, bool)
 }
 
 // ContentHybridRanker reorders lexical content-search results by hybrid
@@ -94,8 +111,8 @@ func (r *ContentHybridRanker) RerankEntities(
 	ctx context.Context,
 	repoID string,
 	query string,
-	rows []EntityContent,
-) ([]EntityContent, bool) {
+	rows []querycontract.EntityContent,
+) ([]querycontract.EntityContent, bool) {
 	if !r.canRerank(ctx, repoID, len(rows)) {
 		return rows, false
 	}
@@ -120,8 +137,8 @@ func (r *ContentHybridRanker) RerankFiles(
 	ctx context.Context,
 	repoID string,
 	query string,
-	rows []FileContent,
-) ([]FileContent, bool) {
+	rows []querycontract.FileContent,
+) ([]querycontract.FileContent, bool) {
 	if !r.canRerank(ctx, repoID, len(rows)) {
 		return rows, false
 	}
@@ -204,7 +221,7 @@ func (r *ContentHybridRanker) rankDocuments(
 // keeping the in-process re-rank consistent with the durable retrieval lane.
 func projectEntityContentDocuments(
 	repoID string,
-	rows []EntityContent,
+	rows []querycontract.EntityContent,
 ) (map[string]searchdocs.Document, []string) {
 	docByID := make(map[string]searchdocs.Document, len(rows))
 	order := make([]string, 0, len(rows))
@@ -218,7 +235,7 @@ func projectEntityContentDocuments(
 		}
 		doc, decision := searchdocs.ProjectContentEntity(searchdocs.ContentEntity{
 			EntityID:     entityID,
-			RepoID:       firstNonEmpty(row.RepoID, repoID),
+			RepoID:       firstNonEmptyContentRepoID(row.RepoID, repoID),
 			RelativePath: row.RelativePath,
 			EntityType:   row.EntityType,
 			EntityName:   row.EntityName,
@@ -249,7 +266,7 @@ func projectEntityContentDocuments(
 // search_backend=hybrid instead of preserving the content_index truth basis.
 func projectFileContentDocuments(
 	repoID string,
-	rows []FileContent,
+	rows []querycontract.FileContent,
 ) (map[string]searchdocs.Document, []string) {
 	// Require at least one row with a populated body before building a hybrid
 	// index. The production file-search SQL paths return Content="" for every
@@ -269,7 +286,7 @@ func projectFileContentDocuments(
 	docByID := make(map[string]searchdocs.Document, len(rows))
 	order := make([]string, 0, len(rows))
 	for _, row := range rows {
-		rowRepoID := firstNonEmpty(row.RepoID, repoID)
+		rowRepoID := firstNonEmptyContentRepoID(row.RepoID, repoID)
 		fileID := fileContentDocumentID(rowRepoID, row.RelativePath)
 		if fileID == "" {
 			continue
@@ -298,13 +315,13 @@ func projectFileContentDocuments(
 // relative order and follow the ranked rows, so no lexical result is dropped.
 // Ranked rows carry SearchBackend="hybrid".
 func reorderEntityRowsByCandidates(
-	rows []EntityContent,
+	rows []querycontract.EntityContent,
 	candidates []searchretrieval.Candidate,
-) []EntityContent {
-	rank := candidateRankByID(candidates, entityIDFromDocument)
+) []querycontract.EntityContent {
+	rank := candidateRankByID(candidates, codemodel.EntityIDFromDocument)
 
-	ranked := make([]EntityContent, 0, len(rows))
-	unranked := make([]EntityContent, 0, len(rows))
+	ranked := make([]querycontract.EntityContent, 0, len(rows))
+	unranked := make([]querycontract.EntityContent, 0, len(rows))
 	placed := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		if _, ok := rank[row.EntityID]; ok {
@@ -326,13 +343,13 @@ func reorderEntityRowsByCandidates(
 // reorderEntityRowsByCandidates over the repo-scoped file id. Ranked rows carry
 // SearchBackend="hybrid"; unranked rows keep their lexical order and basis.
 func reorderFileRowsByCandidates(
-	rows []FileContent,
+	rows []querycontract.FileContent,
 	candidates []searchretrieval.Candidate,
-) []FileContent {
+) []querycontract.FileContent {
 	rank := candidateRankByID(candidates, fileIDFromDocument)
 
-	ranked := make([]FileContent, 0, len(rows))
-	unranked := make([]FileContent, 0, len(rows))
+	ranked := make([]querycontract.FileContent, 0, len(rows))
+	unranked := make([]querycontract.FileContent, 0, len(rows))
 	placed := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		fileID := fileContentDocumentID(row.RepoID, row.RelativePath)
@@ -374,7 +391,7 @@ func candidateRankByID(
 
 // sortEntityRowsByRank stably orders ranked entity rows by their fused-rank
 // position using an insertion sort, matching find_code's stable re-rank.
-func sortEntityRowsByRank(ranked []EntityContent, rank map[string]int) {
+func sortEntityRowsByRank(ranked []querycontract.EntityContent, rank map[string]int) {
 	for i := 1; i < len(ranked); i++ {
 		for j := i; j > 0; j-- {
 			if rank[ranked[j].EntityID] >= rank[ranked[j-1].EntityID] {
@@ -386,7 +403,7 @@ func sortEntityRowsByRank(ranked []EntityContent, rank map[string]int) {
 }
 
 // sortFileRowsByRank stably orders ranked file rows by their fused-rank position.
-func sortFileRowsByRank(ranked []FileContent, rank map[string]int) {
+func sortFileRowsByRank(ranked []querycontract.FileContent, rank map[string]int) {
 	for i := 1; i < len(ranked); i++ {
 		for j := i; j > 0; j-- {
 			if rank[fileContentDocumentID(ranked[j].RepoID, ranked[j].RelativePath)] >=

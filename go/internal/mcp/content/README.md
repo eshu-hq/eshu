@@ -61,12 +61,12 @@ the shared API request duration and error metrics (`request_metrics.go` in
   `contentSearchBody`: `query` prefers the `query` argument and falls back
   to `pattern`; the repo scope collapses to a single `repo_id` when zero or
   one selector is supplied and switches to `repo_ids` only when more than
-  one is supplied, because the handler (`internal/query/content_handler.go`)
+  one is supplied, because the handler (`internal/query/contentread/content_handler.go`)
   accepts only one of the two shapes per call. `limit` defaults to 10 here
   — this selector's own choice, matching the advertised schema default —
   which differs from the handler's own default of 50
-  (`contentSearchDefaultLimit`); the handler clamps anything above 200
-  (`contentSearchMaxLimit`) down to 200 rather than rejecting it.
+  (`ContentSearchDefaultLimit`); the handler clamps anything above 200
+  (`ContentSearchMaxLimit`) down to 200 rather than rejecting it.
 - Numeric coercion follows `routecontract.Arguments.IntOr`: `int`, `int64`,
   and `float64` are honoured, a `float64` truncates toward zero, and every
   other type — including a stringified `"10"` — falls back to the default.

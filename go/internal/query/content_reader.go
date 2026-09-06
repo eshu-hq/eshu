@@ -61,7 +61,7 @@ var (
 	_ hardcodedSecretInvestigator                = (*ContentReader)(nil)
 	_ symbolContentSearcher                      = (*ContentReader)(nil)
 	_ codeTopicContentInvestigator               = (*ContentReader)(nil)
-	_ pagedContentSearcher                       = (*ContentReader)(nil)
+	_ querycontract.PagedContentSearcher         = (*ContentReader)(nil)
 	_ documentationReadModelStore                = (*ContentReader)(nil)
 	_ relationshipEvidenceReadModelStore         = (*ContentReader)(nil)
 	_ repositoryDeploymentEvidenceReadModelStore = (*ContentReader)(nil)

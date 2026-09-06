@@ -1,19 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package contentread
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 )
 
+// Search-page bounds for the content read surface. Exported (#6060) so
+// root's OpenAPI sweep test can keep asserting the emitted schema maximum
+// against the same constant the handler validates: the offset maximum is
+// already wire-public (openapi_paths_content.go emits it), so naming it here
+// adds no new surface.
 const (
-	contentSearchDefaultLimit = 50
-	contentSearchMaxLimit     = 200
-	contentSearchMaxOffset    = 10000
+	ContentSearchDefaultLimit = 50
+	ContentSearchMaxLimit     = 200
+	ContentSearchMaxOffset    = 10000
 )
 
 var (
@@ -24,8 +32,8 @@ var (
 // ContentHandler serves HTTP endpoints for reading file and entity content
 // from the Postgres content store.
 type ContentHandler struct {
-	Content ContentStore
-	Profile QueryProfile
+	Content querycontract.ContentStore
+	Profile querycontract.QueryProfile
 	// HybridRanker, when set, reorders bounded content-search results by fused
 	// BM25+vector relevance over the already-authorized lexical rows. It is gated
 	// on the semantic-search embedder being enabled; when nil the lexical
@@ -33,11 +41,11 @@ type ContentHandler struct {
 	HybridRanker ContentResultReranker
 }
 
-func (h *ContentHandler) profile() QueryProfile {
+func (h *ContentHandler) profile() querycontract.QueryProfile {
 	if h == nil {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
-	return NormalizeQueryProfile(string(h.Profile))
+	return querycontract.NormalizeQueryProfile(string(h.Profile))
 }
 
 // Mount registers content query routes on the given mux.
@@ -57,20 +65,20 @@ func (h *ContentHandler) readFile(w http.ResponseWriter, r *http.Request) {
 		RepoID       string `json:"repo_id"`
 		RelativePath string `json:"relative_path"`
 	}
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if req.RepoID == "" {
-		WriteError(w, http.StatusBadRequest, "repo_id is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "repo_id is required")
 		return
 	}
 	if req.RelativePath == "" {
-		WriteError(w, http.StatusBadRequest, "relative_path is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "relative_path is required")
 		return
 	}
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	resolvedRepoID, err := h.resolveRepositorySelectorForAccess(r.Context(), req.RepoID, access)
 	if err != nil {
 		writeContentSelectorError(w, err)
@@ -80,15 +88,15 @@ func (h *ContentHandler) readFile(w http.ResponseWriter, r *http.Request) {
 
 	fc, err := h.Content.GetFileContent(r.Context(), req.RepoID, req.RelativePath)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if fc == nil {
-		WriteError(w, http.StatusNotFound, "file not found")
+		querycontract.WriteError(w, http.StatusNotFound, "file not found")
 		return
 	}
 
-	WriteSuccess(w, r, http.StatusOK, fc, BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from exact file content lookup"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, fc, querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from exact file content lookup"))
 }
 
 // readFileLines reads a line range from a file.
@@ -101,20 +109,20 @@ func (h *ContentHandler) readFileLines(w http.ResponseWriter, r *http.Request) {
 		StartLine    int    `json:"start_line"`
 		EndLine      int    `json:"end_line"`
 	}
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if req.RepoID == "" {
-		WriteError(w, http.StatusBadRequest, "repo_id is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "repo_id is required")
 		return
 	}
 	if req.RelativePath == "" {
-		WriteError(w, http.StatusBadRequest, "relative_path is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "relative_path is required")
 		return
 	}
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	resolvedRepoID, err := h.resolveRepositorySelectorForAccess(r.Context(), req.RepoID, access)
 	if err != nil {
 		writeContentSelectorError(w, err)
@@ -124,15 +132,15 @@ func (h *ContentHandler) readFileLines(w http.ResponseWriter, r *http.Request) {
 
 	fc, err := h.Content.GetFileLines(r.Context(), req.RepoID, req.RelativePath, req.StartLine, req.EndLine)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if fc == nil {
-		WriteError(w, http.StatusNotFound, "file not found")
+		querycontract.WriteError(w, http.StatusNotFound, "file not found")
 		return
 	}
 
-	WriteSuccess(w, r, http.StatusOK, fc, BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from exact file line lookup"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, fc, querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from exact file line lookup"))
 }
 
 // readEntity reads entity content by entity_id.
@@ -142,32 +150,32 @@ func (h *ContentHandler) readEntity(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		EntityID string `json:"entity_id"`
 	}
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if req.EntityID == "" {
-		WriteError(w, http.StatusBadRequest, "entity_id is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "entity_id is required")
 		return
 	}
 
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
-		WriteError(w, http.StatusNotFound, "entity not found")
+		querycontract.WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 	ec, err := getEntityContentForRepositoryAccess(r.Context(), h.Content, req.EntityID, access)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if ec == nil {
-		WriteError(w, http.StatusNotFound, "entity not found")
+		querycontract.WriteError(w, http.StatusNotFound, "entity not found")
 		return
 	}
 
-	WriteSuccess(w, r, http.StatusOK, ec, BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from exact entity content lookup"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, ec, querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from exact entity content lookup"))
 }
 
 // searchFiles searches file content by pattern.
@@ -176,11 +184,11 @@ func (h *ContentHandler) readEntity(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 	req, err := readContentSearchRequest(r)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := req.validate(); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
@@ -191,20 +199,20 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 
 	results, truncated, err := h.searchFilesByScope(r.Context(), req)
 	if err != nil {
-		if writeContentSubstringIndexUnavailable(w, err) {
+		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
 			return
 		}
 		if errors.Is(err, errUnsupportedPagedFileSearch) {
-			WriteError(w, http.StatusBadRequest, err.Error())
+			querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	results = h.rerankFileResults(r.Context(), req, results)
 
-	WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from bounded file content search"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from bounded file content search"))
 }
 
 // searchEntities searches entity source cache by pattern.
@@ -213,11 +221,11 @@ func (h *ContentHandler) searchFiles(w http.ResponseWriter, r *http.Request) {
 func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) {
 	req, err := readContentSearchRequest(r)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := req.validate(); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	req, err = h.normalizeContentSearchRequest(r.Context(), req)
@@ -228,20 +236,20 @@ func (h *ContentHandler) searchEntities(w http.ResponseWriter, r *http.Request) 
 
 	results, truncated, err := h.searchEntitiesByScope(r.Context(), req)
 	if err != nil {
-		if writeContentSubstringIndexUnavailable(w, err) {
+		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
 			return
 		}
 		if errors.Is(err, errUnsupportedPagedEntitySearch) {
-			WriteError(w, http.StatusBadRequest, err.Error())
+			querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	results = h.rerankEntityResults(r.Context(), req, results)
 
-	WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), BuildTruthEnvelope(h.profile(), "code_search.content_search", TruthBasisContentIndex, "resolved from bounded entity content search"))
+	querycontract.WriteSuccess(w, r, http.StatusOK, contentSearchResponse(results, req, truncated), querycontract.BuildTruthEnvelope(h.profile(), "code_search.content_search", querycontract.TruthBasisContentIndex, "resolved from bounded entity content search"))
 }
 
 type contentSearchRequest struct {
@@ -255,7 +263,7 @@ type contentSearchRequest struct {
 
 func readContentSearchRequest(r *http.Request) (contentSearchRequest, error) {
 	var req contentSearchRequest
-	if err := ReadJSON(r, &req); err != nil {
+	if err := querycontract.ReadJSON(r, &req); err != nil {
 		return contentSearchRequest{}, err
 	}
 	return req, nil
@@ -265,8 +273,8 @@ func (req contentSearchRequest) validate() error {
 	if req.pattern() == "" {
 		return errors.New("query is required")
 	}
-	if req.Offset > contentSearchMaxOffset {
-		return fmt.Errorf("offset exceeds maximum of %d", contentSearchMaxOffset)
+	if req.Offset > ContentSearchMaxOffset {
+		return fmt.Errorf("offset exceeds maximum of %d", ContentSearchMaxOffset)
 	}
 	return nil
 }
@@ -290,10 +298,10 @@ func (req contentSearchRequest) pattern() string {
 
 func (req contentSearchRequest) limit() int {
 	if req.Limit <= 0 {
-		return contentSearchDefaultLimit
+		return ContentSearchDefaultLimit
 	}
-	if req.Limit > contentSearchMaxLimit {
-		return contentSearchMaxLimit
+	if req.Limit > ContentSearchMaxLimit {
+		return ContentSearchMaxLimit
 	}
 	return req.Limit
 }
@@ -328,13 +336,13 @@ func (req contentSearchRequest) explicitRepoIDs() []string {
 func (h *ContentHandler) resolveRepositorySelectorForAccess(
 	ctx context.Context,
 	selector string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, error) {
-	return resolveRepositorySelectorExactForAccess(ctx, nil, h.Content, selector, access)
+	return queryselector.ResolveExactForAccess(ctx, nil, h.Content, selector, access)
 }
 
 func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req contentSearchRequest) (contentSearchRequest, error) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if req.RepoID != "" {
 		repoID, err := h.resolveRepositorySelectorForAccess(ctx, req.RepoID, access)
 		if err != nil {
@@ -367,12 +375,12 @@ func (h *ContentHandler) normalizeContentSearchRequest(ctx context.Context, req 
 	return req, nil
 }
 
-func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSearchRequest) ([]FileContent, bool, error) {
-	if repositoryAccessFilterFromContext(ctx).Empty() {
-		return []FileContent{}, false, nil
+func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSearchRequest) ([]querycontract.FileContent, bool, error) {
+	if querycontract.RepositoryAccessFilterFromContext(ctx).Empty() {
+		return []querycontract.FileContent{}, false, nil
 	}
-	if searcher, ok := h.Content.(pagedContentSearcher); ok {
-		results, err := searcher.SearchFiles(ctx, req)
+	if searcher, ok := h.Content.(querycontract.PagedContentSearcher); ok {
+		results, err := searcher.SearchFiles(ctx, req.repoID(), req.explicitRepoIDs(), req.pattern(), req.limit()+1, req.offset())
 		if err != nil {
 			return nil, false, err
 		}
@@ -387,7 +395,7 @@ func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSear
 		return trimFileContentSearchPage(results, req.limit()), len(results) > req.limit(), err
 	}
 	if repoIDs := req.explicitRepoIDs(); len(repoIDs) > 0 {
-		results := make([]FileContent, 0, probeLimit)
+		results := make([]querycontract.FileContent, 0, probeLimit)
 		for _, repoID := range repoIDs {
 			remaining := probeLimit - len(results)
 			if remaining <= 0 {
@@ -405,12 +413,12 @@ func (h *ContentHandler) searchFilesByScope(ctx context.Context, req contentSear
 	return trimFileContentSearchPage(results, req.limit()), len(results) > req.limit(), err
 }
 
-func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentSearchRequest) ([]EntityContent, bool, error) {
-	if repositoryAccessFilterFromContext(ctx).Empty() {
-		return []EntityContent{}, false, nil
+func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentSearchRequest) ([]querycontract.EntityContent, bool, error) {
+	if querycontract.RepositoryAccessFilterFromContext(ctx).Empty() {
+		return []querycontract.EntityContent{}, false, nil
 	}
-	if searcher, ok := h.Content.(pagedContentSearcher); ok {
-		results, err := searcher.SearchEntities(ctx, req)
+	if searcher, ok := h.Content.(querycontract.PagedContentSearcher); ok {
+		results, err := searcher.SearchEntities(ctx, req.repoID(), req.explicitRepoIDs(), req.pattern(), req.limit()+1, req.offset())
 		if err != nil {
 			return nil, false, err
 		}
@@ -425,7 +433,7 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 		return trimEntityContentSearchPage(results, req.limit()), len(results) > req.limit(), err
 	}
 	if repoIDs := req.explicitRepoIDs(); len(repoIDs) > 0 {
-		results := make([]EntityContent, 0, probeLimit)
+		results := make([]querycontract.EntityContent, 0, probeLimit)
 		for _, repoID := range repoIDs {
 			remaining := probeLimit - len(results)
 			if remaining <= 0 {
@@ -445,18 +453,18 @@ func (h *ContentHandler) searchEntitiesByScope(ctx context.Context, req contentS
 
 func writeContentSelectorError(w http.ResponseWriter, err error) {
 	status := http.StatusBadRequest
-	if isRepositorySelectorNotFound(err) {
+	if queryselector.IsNotFound(err) {
 		status = http.StatusNotFound
 	}
-	WriteError(w, status, err.Error())
+	querycontract.WriteError(w, status, err.Error())
 }
 
 func contentSearchResponse(results any, req contentSearchRequest, truncated bool) map[string]any {
 	count := 0
 	switch typed := results.(type) {
-	case []FileContent:
+	case []querycontract.FileContent:
 		count = len(typed)
-	case []EntityContent:
+	case []querycontract.EntityContent:
 		count = len(typed)
 	}
 	return map[string]any{
@@ -470,14 +478,14 @@ func contentSearchResponse(results any, req contentSearchRequest, truncated bool
 	}
 }
 
-func trimFileContentSearchPage(results []FileContent, limit int) []FileContent {
+func trimFileContentSearchPage(results []querycontract.FileContent, limit int) []querycontract.FileContent {
 	if len(results) <= limit {
 		return results
 	}
 	return results[:limit]
 }
 
-func trimEntityContentSearchPage(results []EntityContent, limit int) []EntityContent {
+func trimEntityContentSearchPage(results []querycontract.EntityContent, limit int) []querycontract.EntityContent {
 	if len(results) <= limit {
 		return results
 	}

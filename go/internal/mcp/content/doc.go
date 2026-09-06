@@ -43,8 +43,8 @@
 // dispatch selector's own choice, matching the advertised schema default in
 // tools_content.go — it is NOT the handler's default: an absent or
 // nonpositive limit reaching the handler independently substitutes 50
-// (contentSearchDefaultLimit in query's content_handler.go) before clamping
-// anything above 200 (contentSearchMaxLimit) down to 200, so a caller who
+// (ContentSearchDefaultLimit in query's contentread/content_handler.go) before
+// clamping anything above 200 (ContentSearchMaxLimit) down to 200, so a caller who
 // bypasses the advertised schema default still gets a bounded search.
 // Moving both tools into this package keeps the shared helper with the
 // family that owns it, per the entityresolution and codeintel package

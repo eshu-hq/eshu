@@ -11,41 +11,11 @@ import (
 	"testing"
 )
 
-func TestContentHandlerSearchFilesReturns503UntilSubstringIndexesReady(t *testing.T) {
-	t.Parallel()
-
-	handler := &ContentHandler{Content: contentSubstringIndexNotReadyStore{}}
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/content/files/search",
-		bytes.NewBufferString(`{"pattern":"renderApp","limit":10}`),
-	)
-	rec := httptest.NewRecorder()
-
-	handler.searchFiles(rec, req)
-
-	if got, want := rec.Code, http.StatusServiceUnavailable; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-	}
-}
-
-func TestContentHandlerSearchEntitiesReturns503UntilSubstringIndexesReady(t *testing.T) {
-	t.Parallel()
-
-	handler := &ContentHandler{Content: contentSubstringIndexNotReadyStore{}}
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/content/entities/search",
-		bytes.NewBufferString(`{"pattern":"renderApp","limit":10}`),
-	)
-	rec := httptest.NewRecorder()
-
-	handler.searchEntities(rec, req)
-
-	if got, want := rec.Code, http.StatusServiceUnavailable; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-	}
-}
+// The two ContentHandler sections of this file moved with the handler family
+// to internal/query/contentread (content_handler_index_readiness_test.go) in
+// the #6060 lane-B1 move: they drive the handler's unexported search
+// methods, which cannot be called from another package. The CodeHandler
+// section below and the shared store stay in root.
 
 func TestCodeHandlerSearchReturns503UntilSubstringIndexesReady(t *testing.T) {
 	t.Parallel()
