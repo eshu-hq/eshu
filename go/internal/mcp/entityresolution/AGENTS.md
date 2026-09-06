@@ -17,7 +17,7 @@
 6. `../routecontract/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/entity.go` (`resolveEntity`, `getEntityContext`),
    `go/internal/query/entity_resolve_page.go`
-   (`normalizeResolveEntityLimit`), and `go/internal/query/content_handler.go`
+   (`normalizeResolveEntityLimit`), and `go/internal/query/contentread/content_handler.go`
    (`readEntity`) for the handlers behind the three paths: the resolve
    handler substitutes 10 for a nonpositive `limit` and caps above 100 at
    100, requires `name`, rejects an unknown non-blank `type`, and requires a

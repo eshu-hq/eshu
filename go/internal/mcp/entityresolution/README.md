@@ -73,7 +73,7 @@ degraded-read metrics on `EntityHandler.Instruments`.
   dropped field.
 - `get_entity_content` always sends `entity_id`, as an explicit empty string
   when absent or wrong-typed; the handler (`readEntity` in query's
-  `content_handler.go`) decodes only `entity_id` and rejects the empty string
+  `contentread/content_handler.go`) decodes only `entity_id` and rejects the empty string
   with HTTP 400 ("entity_id is required").
 - Numeric coercion follows `routecontract.Arguments.IntOr`: `int`, `int64`,
   and `float64` are honoured, a `float64` truncates toward zero, and every
