@@ -93,7 +93,7 @@ over-claiming:
 
 - `internet_exposed` — an internet-exposable source whose endpoint **provably**
   reaches `0.0.0.0/0`/`::/0` (the boolean the tracer derives from
-  `reducer/security_group_reachability.go`).
+  `reducer/secgroup/security_group_reachability.go`).
 - `network_reachable` — internet-exposable but internet reachability unproven
   (may sit behind a private LB). Not over-claimed.
 - `internal` — not network-exposable (CLI, queue consumer).

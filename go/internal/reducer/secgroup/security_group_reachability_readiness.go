@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+)
 
 // securityGroupReachabilityNotReadyError marks a readiness-gate miss as retryable
 // so the durable queue re-runs the intent once the missing canonical nodes
@@ -11,7 +15,7 @@ import "fmt"
 type securityGroupReachabilityNotReadyError struct {
 	scopeID      string
 	generationID string
-	keyspace     GraphProjectionKeyspace
+	keyspace     gpphase.Keyspace
 }
 
 func (e securityGroupReachabilityNotReadyError) Error() string {

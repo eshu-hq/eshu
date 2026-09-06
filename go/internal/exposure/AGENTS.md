@@ -36,16 +36,19 @@ bounded tracer (a later slice, in `internal/query`) consumes these catalogs.
   tracer reports it `unresolved`.
 - **Conservative predicates** — a missing target property fails the predicate
   (`predicatesSatisfied`). Never treat absence as a match.
-- **Two Provenance paths are knowingly stale — do NOT repoint either on its own.**
-  `sink_catalog.go`'s `Kind: SinkIAMPrivilegedAction` /
+- **Three Provenance paths are knowingly stale — do NOT repoint any of them on
+  their own.** `sink_catalog.go`'s `Kind: SinkIAMPrivilegedAction` /
   `Relationship: "CAN_ESCALATE_TO"` spec -- three specs share that Kind, so the
   relationship is what identifies it -- cites
   `reducer/iam_escalation_materialization.go`, which #6061 moved to
-  `reducer/iamescalation/`. `hashSinkSpecs` serializes `Provenance` into
-  `SinkCatalogVersion`, so correcting the string invalidates every cached
-  reachability finding. Both stale paths -- this one and the `SinkSQLTable` /
-  `QUERIES_TABLE` spec's -- are tracked in #6547, and the fix belongs in a change that
-  bumps the catalog version deliberately, with this package's owner.
+  `reducer/iamescalation/`. `sink_catalog.go`'s `Kind: SinkInternetEndpoint`
+  spec cites `reducer/security_group_reachability.go`, which #6061 moved to
+  `reducer/secgroup/`. `hashSinkSpecs` serializes `Provenance` into
+  `SinkCatalogVersion`, so correcting either string invalidates every cached
+  reachability finding. All three stale paths -- these two and the
+  `SinkSQLTable` / `QUERIES_TABLE` spec's -- are tracked in #6547, and the fix
+  belongs in a change that bumps the catalog version deliberately, with this
+  package's owner.
 - **Provenance required** — every graph-backed spec cites the reducer/graph file
   that authors its edge, verified against the real materializer.
 - **Deterministic content hash** — `SinkCatalogVersion` sorts before hashing so

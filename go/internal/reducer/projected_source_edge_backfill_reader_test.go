@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 )
 
 // sequencedGraphQueryRunner returns one canned result per call, in call order,
@@ -50,7 +52,7 @@ func TestProjectedSourceEdgeBackfillReaderScansBothSourceLabels(t *testing.T) {
 					"source_uid":      "sg-uid-a",
 					"scope_id":        "scope-1",
 					"generation_id":   "gen-1",
-					"evidence_source": securityGroupReachabilityEvidenceSource,
+					"evidence_source": secgroup.SecurityGroupReachabilityEvidenceSource(),
 				},
 			},
 			{
@@ -58,14 +60,14 @@ func TestProjectedSourceEdgeBackfillReaderScansBothSourceLabels(t *testing.T) {
 					"source_uid":      "rule-uid-a",
 					"scope_id":        "scope-1",
 					"generation_id":   "gen-1",
-					"evidence_source": securityGroupReachabilityEvidenceSource,
+					"evidence_source": secgroup.SecurityGroupReachabilityEvidenceSource(),
 				},
 			},
 		},
 	}
 	reader := ProjectedSourceEdgeBackfillReader{Graph: graph}
 
-	rows, err := reader.EnumerateProjectedSourceEdges(context.Background(), []string{securityGroupReachabilityEvidenceSource})
+	rows, err := reader.EnumerateProjectedSourceEdges(context.Background(), []string{secgroup.SecurityGroupReachabilityEvidenceSource()})
 	if err != nil {
 		t.Fatalf("EnumerateProjectedSourceEdges returned error: %v", err)
 	}
