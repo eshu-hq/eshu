@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
@@ -60,7 +61,7 @@ type DefaultHandlers struct {
 	// AdmissionDecisionWriter persists shared explainability decisions for
 	// reducer domains that map local admission outcomes to the cross-domain
 	// admission_decisions read model. Nil keeps existing reducer behavior.
-	AdmissionDecisionWriter AdmissionDecisionWriter
+	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
 	// AdmissionDecisionNow supplies timestamps for shared admission decisions.
 	AdmissionDecisionNow func() time.Time
 

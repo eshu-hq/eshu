@@ -242,7 +242,7 @@ from the edge type and endpoint node, and they are out of scope for the Tier-2
 **non-`EvidenceKind`** provenance vocabulary in its `evidence_kinds` property
 (`repository_identity`, `deployable_unit_key`, `deployment_repo`, plus
 per-artifact tokens like `argocd`/`dockerfile`) —
-`go/internal/reducer/deployable_unit_correlation.go:306-392`. Do not conflate
+`deployableUnitModelCandidate` in `go/internal/reducer/deployable_unit_correlation.go`. Do not conflate
 these tokens with the `models.go` enum.
 
 ### Tier 2 — shared verbs; tool in `evidence_kinds`/`evidence_type`

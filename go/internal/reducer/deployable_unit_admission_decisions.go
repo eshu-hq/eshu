@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -22,8 +23,8 @@ func (h DeployableUnitCorrelationHandler) writeDeployableUnitAdmissionDecisions(
 	if h.AdmissionDecisionWriter == nil {
 		return nil
 	}
-	now := admissionNow(h.AdmissionDecisionNow)
-	writes := make([]AdmissionDecisionWrite, 0, len(evaluation.Results))
+	now := admissiondecision.AdmissionNow(h.AdmissionDecisionNow)
+	writes := make([]admissiondecision.AdmissionDecisionWrite, 0, len(evaluation.Results))
 	for _, result := range evaluation.Results {
 		candidate := result.Candidate
 		repoID := deployableUnitEvidenceValue(candidate, "repo_id")
@@ -45,7 +46,7 @@ func (h DeployableUnitCorrelationHandler) writeDeployableUnitAdmissionDecisions(
 			))
 		}
 	}
-	return writeAdmissionDecisions(ctx, h.AdmissionDecisionWriter, writes)
+	return admissiondecision.WriteAdmissionDecisions(ctx, h.AdmissionDecisionWriter, writes)
 }
 
 func deployableUnitAdmissionDecision(
@@ -55,9 +56,9 @@ func deployableUnitAdmissionDecision(
 	deploymentRepoID string,
 	canonicalWrites int,
 	now time.Time,
-) AdmissionDecisionWrite {
-	state := AdmissionStateRejected
-	canonical := AdmissionCanonicalWrite{
+) admissiondecision.AdmissionDecisionWrite {
+	state := admissiondecision.AdmissionStateRejected
+	canonical := admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      false,
 		Written:       false,
 		TargetKind:    DomainDeployableUnitEdges,
@@ -65,13 +66,13 @@ func deployableUnitAdmissionDecision(
 	}
 	if candidate.State == correlationmodel.CandidateStateAdmitted {
 		if strings.TrimSpace(deploymentRepoID) == "" {
-			state = AdmissionStateMissingEvidence
+			state = admissiondecision.AdmissionStateMissingEvidence
 			canonical.SkippedReason = "deployment repository evidence missing"
 		} else {
-			state = AdmissionStateAdmitted
+			state = admissiondecision.AdmissionStateAdmitted
 			canonical.Eligible = true
 			canonical.Written = canonicalWrites > 0
-			canonical.TargetID = stableAdmissionDecisionID(
+			canonical.TargetID = admissiondecision.StableAdmissionDecisionID(
 				string(DomainDeployableUnitCorrelation),
 				intent.GenerationID,
 				repoID,
@@ -86,13 +87,13 @@ func deployableUnitAdmissionDecision(
 		}
 	}
 	anchorID := strings.TrimSpace(repoID)
-	candidateID := stableAdmissionDecisionID(
+	candidateID := admissiondecision.StableAdmissionDecisionID(
 		string(DomainDeployableUnitCorrelation),
 		intent.GenerationID,
 		candidate.CorrelationKey,
 		deploymentRepoID,
 	)
-	decision := newAdmissionDecision(
+	decision := admissiondecision.NewAdmissionDecision(
 		DomainDeployableUnitCorrelation,
 		state,
 		string(candidate.State),
@@ -105,20 +106,20 @@ func deployableUnitAdmissionDecision(
 		now,
 	)
 	decision.ConfidenceScore = candidate.Confidence
-	decision.ConfidenceBucket = admissionConfidenceBucket(candidate.Confidence)
+	decision.ConfidenceBucket = admissiondecision.AdmissionConfidenceBucket(candidate.Confidence)
 	decision.ConfidenceBasis = deployableUnitRulePackName(candidate)
 	decision.SourceHandles = deployableUnitAdmissionSourceHandles(candidate, intent.ScopeID)
 	decision.CanonicalWrite = canonical
 	decision.RecommendedAction = deployableUnitAdmissionNextAction(state, candidate)
 
-	evidence := make([]AdmissionDecisionEvidence, 0, len(candidate.Evidence))
+	evidence := make([]admissiondecision.AdmissionDecisionEvidence, 0, len(candidate.Evidence))
 	for _, atom := range candidate.Evidence {
-		sourceHandle := stableAdmissionDecisionID(
+		sourceHandle := admissiondecision.StableAdmissionDecisionID(
 			decision.DecisionID,
 			atom.ID,
 			atom.EvidenceType,
 		)
-		evidence = append(evidence, admissionDecisionEvidence(
+		evidence = append(evidence, admissiondecision.NewAdmissionDecisionEvidence(
 			decision,
 			sourceHandle,
 			atom.EvidenceType,
@@ -130,22 +131,22 @@ func deployableUnitAdmissionDecision(
 			now,
 		))
 	}
-	return AdmissionDecisionWrite{Decision: decision, Evidence: evidence}
+	return admissiondecision.AdmissionDecisionWrite{Decision: decision, Evidence: evidence}
 }
 
 func deployableUnitAdmissionSourceHandles(
 	candidate correlationmodel.Candidate,
 	scopeID string,
-) []AdmissionDecisionSourceHandle {
-	handles := make([]AdmissionDecisionSourceHandle, 0, len(candidate.Evidence))
+) []admissiondecision.AdmissionDecisionSourceHandle {
+	handles := make([]admissiondecision.AdmissionDecisionSourceHandle, 0, len(candidate.Evidence))
 	seen := make(map[string]struct{})
 	for _, atom := range candidate.Evidence {
-		id := stableAdmissionDecisionID(atom.ID, atom.EvidenceType, atom.Key)
+		id := admissiondecision.StableAdmissionDecisionID(atom.ID, atom.EvidenceType, atom.Key)
 		if _, ok := seen[id]; ok {
 			continue
 		}
 		seen[id] = struct{}{}
-		handles = append(handles, AdmissionDecisionSourceHandle{
+		handles = append(handles, admissiondecision.AdmissionDecisionSourceHandle{
 			Kind:    atom.EvidenceType,
 			ID:      id,
 			ScopeID: payloadcore.FirstNonBlank(atom.ScopeID, scopeID),
@@ -155,19 +156,19 @@ func deployableUnitAdmissionSourceHandles(
 }
 
 func deployableUnitAdmissionNextAction(
-	state AdmissionState,
+	state admissiondecision.AdmissionState,
 	candidate correlationmodel.Candidate,
-) AdmissionNextAction {
+) admissiondecision.AdmissionNextAction {
 	switch state {
-	case AdmissionStateAdmitted:
-		return AdmissionNextAction{Action: "none"}
-	case AdmissionStateMissingEvidence:
-		return AdmissionNextAction{
+	case admissiondecision.AdmissionStateAdmitted:
+		return admissiondecision.AdmissionNextAction{Action: "none"}
+	case admissiondecision.AdmissionStateMissingEvidence:
+		return admissiondecision.AdmissionNextAction{
 			Action: "add_deployment_repository_evidence",
 			Reason: "deployable unit candidate was admitted but has no deployment repository target",
 		}
 	default:
-		return AdmissionNextAction{
+		return admissiondecision.AdmissionNextAction{
 			Action: "inspect_deployable_unit_evidence",
 			Reason: deployableUnitDecisionReason(candidate),
 		}

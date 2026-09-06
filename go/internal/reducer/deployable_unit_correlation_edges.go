@@ -13,6 +13,7 @@ import (
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -216,7 +217,7 @@ func deployableUnitCorrelationRow(
 		RepositoryID:     repoID,
 		SourceRunID:      intent.GenerationID,
 		GenerationID:     intent.GenerationID,
-		CreatedAt:        admissionNow(now),
+		CreatedAt:        admissiondecision.AdmissionNow(now),
 		Payload: map[string]any{
 			"repo_id":             repoID,
 			"deployment_repo_id":  deploymentRepoID,

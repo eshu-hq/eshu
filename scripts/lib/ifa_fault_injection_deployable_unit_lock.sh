@@ -21,9 +21,11 @@
 # about what a handler writes, unverified against the handler's actual code).
 #
 # Both writeDeployableUnitAdmissionDecisions (go/internal/reducer/
-# deployable_unit_admission_decisions.go) and the shared writeAdmissionDecisions
-# it calls (admission_decisions.go) return nil without writing anything when
-# their input is empty or their writer is nil -- the same "returns early, the
+# deployable_unit_admission_decisions.go) and the shared
+# admissiondecision.WriteAdmissionDecisions it calls
+# (go/internal/reducer/admissiondecision, issue #6061) return nil without
+# writing anything when their input is empty or their writer is nil -- the
+# same "returns early, the
 # check downstream never sees anything happen" shape as
 # publishIntentGraphPhase's two nil-exits. If this family's cassette ever
 # stopped producing an admitted candidate, admission_decisions would carry

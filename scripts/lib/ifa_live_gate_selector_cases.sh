@@ -139,7 +139,7 @@ ifa_live_gate_common_seams=(
 	# the second is files the old literal list did name, kept so a glob
 	# narrowed to something that no longer reaches them fails here instead of
 	# quietly selecting nothing.
-	'go/internal/reducer/**|go/internal/reducer/admission_decisions.go'
+	'go/internal/reducer/**|go/internal/reducer/admissiondecision/admission_decisions.go'
 	'go/internal/reducer/**|go/internal/reducer/projection_helpers.go'
 	'go/internal/reducer/**|go/internal/reducer/candidate_loader.go'
 	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase_publish.go'

@@ -15,8 +15,9 @@ changed in this branch:
   moved OUTSIDE the seam (see the be0b1bc49 note below); it is no longer one
   of the calls this function wraps. `now func() time.Time` is threaded
   through `deployableUnitCorrelationRows` / `deployableUnitCorrelationRow` to
-  stamp `CreatedAt`, defaulting through the existing `admissionNow(nil)`
-  helper to `time.Now().UTC()` — byte-identical to the pre-refactor literal.
+  stamp `CreatedAt`, defaulting through the existing
+  `admissiondecision.AdmissionNow(nil)` helper (issue #6061) to
+  `time.Now().UTC()` — byte-identical to the pre-refactor literal.
   `admittedDeployableUnitRows` is renamed to exported
   `AdmittedDeployableUnitRows`; its body is untouched.
 - `go/internal/reducer/deployable_unit_correlation.go` —
@@ -136,8 +137,9 @@ rather than "argued pure":
   asserts `len(evaluation.Results) == 1` and every admitted-row payload field
   for the non-empty case.
 - **The clock injection is behavior-identical for production.**
-  `admissionNow(nil)` (`go/internal/reducer/admission_decisions.go:221-226`)
-  returns `time.Now().UTC()`, the exact literal `deployableUnitCorrelationRow`
+  `admissiondecision.AdmissionNow(nil)` (the `AdmissionNow` clock-resolution
+  seam in `go/internal/reducer/admissiondecision`, issue #6061) returns
+  `time.Now().UTC()`, the exact literal `deployableUnitCorrelationRow`
   used before this change. `Handle` passes `nil`. Pinned by
   `TestExtractDeployableUnitCorrelationRowsUsesInjectedClock`.
 - **The doubled `deployableUnitCorrelationEntityKeys` call is real but

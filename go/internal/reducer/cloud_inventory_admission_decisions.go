@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 )
 
 func (h CloudInventoryAdmissionHandler) writeCloudInventoryAdmissionDecisions(
@@ -20,16 +21,16 @@ func (h CloudInventoryAdmissionHandler) writeCloudInventoryAdmissionDecisions(
 	if h.AdmissionDecisionWriter == nil {
 		return nil
 	}
-	now := admissionNow(h.AdmissionDecisionNow)
+	now := admissiondecision.AdmissionNow(h.AdmissionDecisionNow)
 	written := make(map[string]struct{}, len(writeResult.CanonicalIDs))
 	for _, id := range writeResult.CanonicalIDs {
 		written[strings.TrimSpace(id)] = struct{}{}
 	}
-	writes := make([]AdmissionDecisionWrite, 0, len(records))
+	writes := make([]admissiondecision.AdmissionDecisionWrite, 0, len(records))
 	for _, record := range records {
 		writes = append(writes, cloudInventoryAdmissionDecision(intent, record, written, now))
 	}
-	return writeAdmissionDecisions(ctx, h.AdmissionDecisionWriter, writes)
+	return admissiondecision.WriteAdmissionDecisions(ctx, h.AdmissionDecisionWriter, writes)
 }
 
 func cloudInventoryAdmissionDecision(
@@ -37,17 +38,17 @@ func cloudInventoryAdmissionDecision(
 	record CloudInventoryRecord,
 	written map[string]struct{},
 	now time.Time,
-) AdmissionDecisionWrite {
+) admissiondecision.AdmissionDecisionWrite {
 	resolution := cloudinventory.ResolveProviderIdentity(record.Provider, record.RawIdentity)
 	state := cloudInventoryAdmissionState(resolution.Outcome)
 	candidateID := cloudInventoryCandidateID(intent, record, resolution)
-	canonical := AdmissionCanonicalWrite{
+	canonical := admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      false,
 		Written:       false,
 		TargetKind:    cloudInventoryAdmissionFactKind,
 		SkippedReason: cloudInventoryAdmissionSkippedReason(state),
 	}
-	if state == AdmissionStateAdmitted {
+	if state == admissiondecision.AdmissionStateAdmitted {
 		canonical.Eligible = true
 		canonical.TargetID = resolution.CloudResourceUID
 		_, canonical.Written = written[resolution.CloudResourceUID]
@@ -57,7 +58,7 @@ func cloudInventoryAdmissionDecision(
 	}
 
 	handleID := cloudInventorySourceHandleID(intent, record)
-	decision := newAdmissionDecision(
+	decision := admissiondecision.NewAdmissionDecision(
 		DomainCloudInventoryAdmission,
 		state,
 		string(resolution.Outcome),
@@ -70,9 +71,9 @@ func cloudInventoryAdmissionDecision(
 		now,
 	)
 	decision.ConfidenceScore = cloudInventoryDecisionConfidence(state)
-	decision.ConfidenceBucket = admissionConfidenceBucket(decision.ConfidenceScore)
+	decision.ConfidenceBucket = admissiondecision.AdmissionConfidenceBucket(decision.ConfidenceScore)
 	decision.ConfidenceBasis = string(record.SourceLayer)
-	decision.SourceHandles = []AdmissionDecisionSourceHandle{{
+	decision.SourceHandles = []admissiondecision.AdmissionDecisionSourceHandle{{
 		Kind:    record.FactKind,
 		ID:      handleID,
 		ScopeID: intent.ScopeID,
@@ -80,10 +81,10 @@ func cloudInventoryAdmissionDecision(
 	decision.CanonicalWrite = canonical
 	decision.RecommendedAction = cloudInventoryAdmissionNextAction(state)
 
-	return AdmissionDecisionWrite{
+	return admissiondecision.AdmissionDecisionWrite{
 		Decision: decision,
-		Evidence: []AdmissionDecisionEvidence{
-			admissionDecisionEvidence(
+		Evidence: []admissiondecision.AdmissionDecisionEvidence{
+			admissiondecision.NewAdmissionDecisionEvidence(
 				decision,
 				handleID,
 				record.FactKind,
@@ -100,16 +101,16 @@ func cloudInventoryAdmissionDecision(
 	}
 }
 
-func cloudInventoryAdmissionState(outcome cloudinventory.ResolutionOutcome) AdmissionState {
+func cloudInventoryAdmissionState(outcome cloudinventory.ResolutionOutcome) admissiondecision.AdmissionState {
 	switch outcome {
 	case cloudinventory.ResolutionOutcomeAdmitted:
-		return AdmissionStateAdmitted
+		return admissiondecision.AdmissionStateAdmitted
 	case cloudinventory.ResolutionOutcomeAmbiguous:
-		return AdmissionStateAmbiguous
+		return admissiondecision.AdmissionStateAmbiguous
 	case cloudinventory.ResolutionOutcomeUnsupported:
-		return AdmissionStateUnsupported
+		return admissiondecision.AdmissionStateUnsupported
 	default:
-		return AdmissionStateMissingEvidence
+		return admissiondecision.AdmissionStateMissingEvidence
 	}
 }
 
@@ -121,7 +122,7 @@ func cloudInventoryCandidateID(
 	if strings.TrimSpace(resolution.CloudResourceUID) != "" {
 		return resolution.CloudResourceUID
 	}
-	return stableAdmissionDecisionID(
+	return admissiondecision.StableAdmissionDecisionID(
 		string(DomainCloudInventoryAdmission),
 		intent.ScopeID,
 		intent.GenerationID,
@@ -132,7 +133,7 @@ func cloudInventoryCandidateID(
 }
 
 func cloudInventorySourceHandleID(intent Intent, record CloudInventoryRecord) string {
-	return stableAdmissionDecisionID(
+	return admissiondecision.StableAdmissionDecisionID(
 		string(DomainCloudInventoryAdmission),
 		intent.ScopeID,
 		intent.GenerationID,
@@ -142,35 +143,35 @@ func cloudInventorySourceHandleID(intent Intent, record CloudInventoryRecord) st
 	)
 }
 
-func cloudInventoryDecisionConfidence(state AdmissionState) float64 {
-	if state == AdmissionStateAdmitted {
+func cloudInventoryDecisionConfidence(state admissiondecision.AdmissionState) float64 {
+	if state == admissiondecision.AdmissionStateAdmitted {
 		return 1
 	}
 	return 0
 }
 
-func cloudInventoryAdmissionSkippedReason(state AdmissionState) string {
+func cloudInventoryAdmissionSkippedReason(state admissiondecision.AdmissionState) string {
 	switch state {
-	case AdmissionStateAmbiguous:
+	case admissiondecision.AdmissionStateAmbiguous:
 		return "provider identity is ambiguous"
-	case AdmissionStateUnsupported:
+	case admissiondecision.AdmissionStateUnsupported:
 		return "provider identity is unsupported"
-	case AdmissionStateMissingEvidence:
+	case admissiondecision.AdmissionStateMissingEvidence:
 		return "provider identity evidence is missing"
 	default:
 		return "candidate was not admitted"
 	}
 }
 
-func cloudInventoryAdmissionNextAction(state AdmissionState) AdmissionNextAction {
+func cloudInventoryAdmissionNextAction(state admissiondecision.AdmissionState) admissiondecision.AdmissionNextAction {
 	switch state {
-	case AdmissionStateAdmitted:
-		return AdmissionNextAction{Action: "none"}
-	case AdmissionStateAmbiguous:
-		return AdmissionNextAction{Action: "normalize_provider_identity"}
-	case AdmissionStateUnsupported:
-		return AdmissionNextAction{Action: "add_provider_support"}
+	case admissiondecision.AdmissionStateAdmitted:
+		return admissiondecision.AdmissionNextAction{Action: "none"}
+	case admissiondecision.AdmissionStateAmbiguous:
+		return admissiondecision.AdmissionNextAction{Action: "normalize_provider_identity"}
+	case admissiondecision.AdmissionStateUnsupported:
+		return admissiondecision.AdmissionNextAction{Action: "add_provider_support"}
 	default:
-		return AdmissionNextAction{Action: "add_provider_identity"}
+		return admissiondecision.AdmissionNextAction{Action: "add_provider_identity"}
 	}
 }
