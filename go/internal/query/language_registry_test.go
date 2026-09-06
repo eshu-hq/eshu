@@ -3,7 +3,10 @@
 
 package query
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestSupportedLanguages(t *testing.T) {
 	langs := SupportedLanguages()
@@ -74,21 +77,27 @@ func TestSupportedEntityTypes(t *testing.T) {
 	}
 }
 
-func TestBuildExtensionFilter(t *testing.T) {
+// TestGraphLanguageSpellings pins the value list behind the graph builders'
+// `language IN $languages` predicate: the parser's own spelling for every
+// language whose parser key differs from the query name, each also
+// Title-cased for Python-era rows, canonical spelling first, no duplicates.
+func TestGraphLanguageSpellings(t *testing.T) {
 	tests := []struct {
-		name string
-		exts []string
-		want string
+		language string
+		want     []string
 	}{
-		{"empty", nil, ""},
-		{"single", []string{".go"}, " OR f.name ENDS WITH '.go'"},
-		{"multiple", []string{".py", ".pyi"}, " OR f.name ENDS WITH '.py' OR f.name ENDS WITH '.pyi'"},
+		{"go", []string{"go", "Go"}},
+		{"Python", []string{"python", "Python"}},
+		{"typescript", []string{"typescript", "Typescript", "tsx", "Tsx"}},
+		{"tsx", []string{"typescript", "Typescript", "tsx", "Tsx"}},
+		{"jsx", []string{"javascript", "Javascript", "jsx", "Jsx"}},
+		{"csharp", []string{"csharp", "Csharp", "c_sharp", "C_sharp"}},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := buildExtensionFilter(tt.exts)
-			if got != tt.want {
-				t.Errorf("buildExtensionFilter(%v) = %q, want %q", tt.exts, got, tt.want)
+		t.Run(tt.language, func(t *testing.T) {
+			got := graphLanguageSpellings(tt.language)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("graphLanguageSpellings(%q) = %v, want %v", tt.language, got, tt.want)
 			}
 		})
 	}

@@ -38,7 +38,7 @@ func defaultDefinitions() []Definition {
 		{
 			ParserKey:  "cpp",
 			Language:   "cpp",
-			Extensions: []string{".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp"},
+			Extensions: []string{".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx"},
 		},
 		{
 			ParserKey:  "dart",
@@ -109,7 +109,7 @@ func defaultDefinitions() []Definition {
 		{
 			ParserKey:  "kotlin",
 			Language:   "kotlin",
-			Extensions: []string{".kt"},
+			Extensions: []string{".kt", ".kts"},
 		},
 		{
 			ParserKey:  "maven",
@@ -129,7 +129,7 @@ func defaultDefinitions() []Definition {
 		{
 			ParserKey:  "python",
 			Language:   "python",
-			Extensions: []string{".ipynb", ".py", ".pyw"},
+			Extensions: []string{".ipynb", ".py", ".pyi", ".pyw"},
 		},
 		{
 			ParserKey:  "python_requirements",

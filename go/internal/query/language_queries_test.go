@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -23,9 +24,13 @@ func TestBuildLanguageCypher_Function(t *testing.T) {
 	if !searchString(cypher, "Function") {
 		t.Error("cypher should contain Function label")
 	}
-	// Must have language param.
-	if params["language"] != "python" {
-		t.Errorf("language param = %v, want python", params["language"])
+	// The canonical language leads the bound spelling list; no bare
+	// $language parameter is bound because no builder references one.
+	if got := boundCanonicalLanguage(t, params); got != "python" {
+		t.Errorf("bound canonical language = %v, want python", got)
+	}
+	if _, ok := params["language"]; ok {
+		t.Error("language param should not be bound; the builders reference $languages only")
 	}
 	if params["repo_id"] != "repo:123" {
 		t.Errorf("repo_id param = %v, want repo:123", params["repo_id"])
@@ -62,6 +67,17 @@ func TestBuildLanguageCypher_Repository(t *testing.T) {
 	if !searchString(cypher, "Repository") {
 		t.Error("cypher should contain Repository label")
 	}
+	// The Repository builder binds the same spelling list as the other three,
+	// so a csharp or typescript query reaches c_sharp and tsx rows (#6546).
+	if !searchString(cypher, "f.language IN $languages") {
+		t.Error("cypher should filter on f.language IN $languages")
+	}
+	if searchString(cypher, "$language_title") {
+		t.Error("cypher must not carry the retired $language_title equality")
+	}
+	if got, ok := params["languages"].([]string); !ok || !slices.Contains(got, "go") {
+		t.Errorf("params[languages] = %#v, want a list carrying go", params["languages"])
+	}
 	if params["limit"] != 25 {
 		t.Errorf("limit param = %v, want 25", params["limit"])
 	}
@@ -71,32 +87,6 @@ func TestBuildLanguageCypher_Repository(t *testing.T) {
 	}
 	if _, ok := params["query"]; ok {
 		t.Error("query should not be set when empty")
-	}
-}
-
-func TestBuildLanguageCypher_File(t *testing.T) {
-	cypher, params := buildLanguageCypher("rust", "File", "main", "", 10)
-
-	if !searchString(cypher, "File") {
-		t.Error("cypher should contain File label")
-	}
-	// Rust extension filter.
-	if !searchString(cypher, ".rs") {
-		t.Error("cypher should contain .rs extension filter")
-	}
-	if params["query"] != "main" {
-		t.Errorf("query param = %v, want main", params["query"])
-	}
-}
-
-func TestBuildLanguageCypher_Directory(t *testing.T) {
-	cypher, _ := buildLanguageCypher("java", "Directory", "", "repo:x", 5)
-
-	if !searchString(cypher, "Directory") {
-		t.Error("cypher should contain Directory label")
-	}
-	if !searchString(cypher, ".java") {
-		t.Error("cypher should contain .java extension filter")
 	}
 }
 
@@ -494,16 +484,6 @@ func TestSortStrings(t *testing.T) {
 	}
 }
 
-func TestLanguageFileExtensions_Coverage(t *testing.T) {
-	// Every supported language should have direct mappings or a canonical alias.
-	for lang := range supportedLanguages {
-		exts, ok := languageFileExtensions[canonicalLanguage(lang)]
-		if !ok || len(exts) == 0 {
-			t.Errorf("language %q has no file extension mappings", lang)
-		}
-	}
-}
-
 func TestBuildLanguageCypher_AllEntityTypes(t *testing.T) {
 	// Verify all entity types produce valid cypher.
 	for typeName, label := range graphBackedEntityTypes {
@@ -511,8 +491,8 @@ func TestBuildLanguageCypher_AllEntityTypes(t *testing.T) {
 		if cypher == "" {
 			t.Errorf("entity type %q produced empty cypher", typeName)
 		}
-		if params["language"] != "python" {
-			t.Errorf("entity type %q: language param = %v", typeName, params["language"])
+		if got := boundCanonicalLanguage(t, params); got != "python" {
+			t.Errorf("entity type %q: bound canonical language = %v", typeName, got)
 		}
 	}
 }

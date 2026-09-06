@@ -213,19 +213,21 @@ func (h *AdminHandler) recordRecoveryAction(
 }
 
 // adminRecoveryActor maps an auth context to a governance audit actor class and
-// identity hash. A shared admin token carries no per-subject hash, so it uses a
-// stable synthetic identity rather than an empty one.
+// identity hash. The class is actorClassForAuth's, so a cookie session is
+// browser_session here as it is on a route denial (#6566). A shared admin
+// token carries no per-subject hash, so it uses a stable synthetic identity
+// rather than an empty one; any other caller with no subject hash downgrades
+// to anonymous, because NormalizeEvent rejects an identity-bearing class
+// without an actor identity.
 func adminRecoveryActor(auth AuthContext) (governanceaudit.ActorClass, string) {
-	if auth.Mode == AuthModeScoped {
-		if auth.SubjectIDHash == "" {
-			return governanceaudit.ActorClassAnonymous, ""
-		}
-		return governanceaudit.ActorClassScopedToken, auth.SubjectIDHash
-	}
+	actorClass := actorClassForAuth(auth)
 	if auth.SubjectIDHash != "" {
-		return governanceaudit.ActorClassSharedToken, auth.SubjectIDHash
+		return actorClass, auth.SubjectIDHash
 	}
-	return governanceaudit.ActorClassSharedToken, sharedAdminActorIDHash
+	if actorClass == governanceaudit.ActorClassSharedToken {
+		return actorClass, sharedAdminActorIDHash
+	}
+	return governanceaudit.ActorClassAnonymous, ""
 }
 
 func (r *replayRequest) normalize() {

@@ -227,25 +227,14 @@ func recordReadAuthorizationUnavailable(
 // filtered by tenant_id, so a denial recorded without one is a denial only the
 // shared operator can ever see.
 //
-// The actor class follows the credential the caller presented: a cookie
-// session is browser_session, a scoped or OIDC bearer is scoped_token, and
-// the legacy shared bearer is shared_token (#6459). Both branches of
-// authMiddlewareWithRoutePolicy share this helper and both emit
-// scoped_route_all_scope_grant_required, so actor_class is the column that
-// tells an operator which population a row came from. Neither reuses
-// ActorClassOperator: that class is already stamped on a human's login and
-// identity-mutation rows, so a route denial carrying it would merge two
-// populations an operator filters apart. A caller with no subject hash
-// downgrades to anonymous, because NormalizeEvent rejects every
-// identity-bearing class without an actor identity.
-//
-// The mode switch names every AuthMode member and has no default on purpose.
-// A default would quietly file a mode added later under whichever class it
-// named, and the audit row would then lie about who was refused; with no
-// default, the exhaustive linter fails the build until the new mode is given
-// a class of its own. The shared bearer never reaches this helper today
-// (sharedAuthContext carries no subject hash and skips the route policy), but
-// it is listed so the switch stays a complete map rather than a two-way test.
+// The actor class comes from actorClassForAuth, the one mapping every audit
+// emitter shares (#6459, #6566). Both branches of authMiddlewareWithRoutePolicy
+// share this helper and both emit scoped_route_all_scope_grant_required, so
+// actor_class is the column that tells an operator which population a row
+// came from. A caller with no subject hash downgrades to anonymous, because
+// NormalizeEvent rejects every identity-bearing class without an actor
+// identity. The shared bearer never reaches this helper today
+// (sharedAuthContext carries no subject hash and skips the route policy).
 func recordScopedRouteAuthorizationDeniedWithReason(
 	r *http.Request,
 	audit GovernanceAuditAppender,
@@ -255,15 +244,7 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 	if audit == nil {
 		return
 	}
-	var actorClass governanceaudit.ActorClass
-	switch auth.Mode {
-	case AuthModeBrowserSession:
-		actorClass = governanceaudit.ActorClassBrowserSession
-	case AuthModeScoped:
-		actorClass = governanceaudit.ActorClassScopedToken
-	case AuthModeShared:
-		actorClass = governanceaudit.ActorClassSharedToken
-	}
+	actorClass := actorClassForAuth(auth)
 	if auth.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}
@@ -309,16 +290,16 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 	if allowedAudit == nil {
 		return
 	}
-	// Mirror the denial helper's empty-hash guard exactly:
+	// Mirror the denial helper's mapping and empty-hash guard exactly:
 	// a scoped token can resolve ok=true with an empty SubjectIDHash
 	// (scopedtoken/registry.go's validOptionalAuditHash accepts empty, and
-	// normalizeAuthContext never fills it). ActorClassScopedToken with an
+	// normalizeAuthContext never fills it). An identity-bearing class with an
 	// empty ActorIDHash fails NormalizeEvent's actor_identity check, and
 	// because the durable store Append is all-or-nothing that one invalid
 	// event would take its whole flush batch of well-formed allowed-read
 	// events down with it in the async appender's drain. Downgrading to
 	// anonymous keeps the event valid.
-	actorClass := governanceaudit.ActorClassScopedToken
+	actorClass := actorClassForAuth(auth)
 	if auth.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}
@@ -336,6 +317,50 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 		WorkspaceID:        auth.WorkspaceID,
 	}
 	_ = allowedAudit.Append(r.Context(), []governanceaudit.Event{event})
+}
+
+// actorClassForAuth maps the credential a caller presented to the governance
+// audit actor class every emitter in this package stamps: a cookie session is
+// browser_session, a scoped or OIDC bearer is scoped_token, and the legacy
+// shared bearer is shared_token. Route denials, allowed reads, identity
+// mutations, and admin recovery actions all use it, so one credential maps to
+// one class across the audit vocabulary and an operator filtering by
+// actor_class sees one population per credential (#6566). ActorClassOperator
+// is not produced here: it is reserved for a human asserting an identity
+// through an SSO login (sso_login_audit.go), which carries no AuthContext.
+//
+// Callers own the subject-hash rule, and each emitter keeps the rule it had
+// before #6566. Every class this returns except anonymous is identity-bearing.
+// Route denials, allowed reads, and admin recovery downgrade to anonymous when
+// the hash is blank. The shared bearer, which never carries a per-subject
+// hash, gets the stable synthetic identity sharedAdminActorIDHash on identity
+// mutations and recovery. Local-identity rows substitute localIdentityHash of
+// the mode for every mode. An identity mutation by a cookie or scoped caller
+// with a blank hash keeps its class with no hash, and the store's write-path
+// validation (NormalizeEvent at Append) rejects that row; the emitter logs
+// the failure and the request succeeds without an audit row.
+//
+// The switch names every AuthMode member and has no default on purpose. A
+// default would quietly file a mode added later under whichever class it
+// named, and the audit row would then lie about who acted; with no default
+// the exhaustive linter fails the build until the new mode is given a class
+// of its own. Only a blank mode reaches the final return: an AuthContext
+// nobody authenticated, and that is anonymous. Two callers reach it: the empty
+// context a failed local login carries, and the open posture where auth
+// enforcement is not configured and authMiddlewareWithRoutePolicy passes a
+// headerless, cookieless request through with no context. In that posture an
+// admin_recovery_action row is anonymous, where before #6566 adminRecoveryActor
+// stamped it shared_token with the synthetic identity.
+func actorClassForAuth(auth AuthContext) governanceaudit.ActorClass {
+	switch auth.Mode {
+	case AuthModeBrowserSession:
+		return governanceaudit.ActorClassBrowserSession
+	case AuthModeScoped:
+		return governanceaudit.ActorClassScopedToken
+	case AuthModeShared:
+		return governanceaudit.ActorClassSharedToken
+	}
+	return governanceaudit.ActorClassAnonymous
 }
 
 func safeAuditCorrelationID(value string) string {

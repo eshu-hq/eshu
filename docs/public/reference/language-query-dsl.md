@@ -96,6 +96,21 @@ Accepted names:
 `jsx` normalizes to `javascript`; `tsx` normalizes to `typescript`.
 Unsupported languages return HTTP 400 with the valid values.
 
+On the graph path the language filter matches the `language` property the
+projector stamped on each file or entity, bound as a list of spellings:
+the canonical name plus the parser's own key where they differ (`tsx` for
+`typescript`, `jsx` for `javascript`, `c_sharp` for `csharp`). It does not test
+file extensions; the `ENDS WITH` fallback the builders used to carry admitted
+every file on the pinned NornicDB build (#6546, recorded in
+[NornicDB Path-Predicate Pitfalls](nornicdb-path-predicate-pitfalls.md)).
+A file answers under the language whose parser claimed its extension, so `.h`
+headers are `cpp` rather than `c`. An extension no parser claims never becomes
+a File node and is under no language at all. Of the four the retired fallback
+map promised but no parser claimed, `.hxx`, `.kts` and `.pyi` are registered
+under cpp, kotlin and python since #6578 and answer like their siblings;
+`.lhs` stays unclaimed because the Haskell grammar has no literate mode and
+drops every symbol of a bird-track file.
+
 Accepted here means the route can query indexed entities for that language; it
 does not promote every framework, route, outbound-contract, dead-code, or
 cross-repo relationship claim to full parity. The current feature-level contract

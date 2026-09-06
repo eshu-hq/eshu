@@ -18,8 +18,8 @@ func TestHandleLanguageQueryProjectsTypeScriptGraphMetadata(t *testing.T) {
 	handler := &LanguageQueryHandler{
 		Neo4j: fakeGraphReader{
 			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-				if got, want := params["language"], "typescript"; got != want {
-					t.Fatalf("params[language] = %#v, want %#v", got, want)
+				if got, want := boundCanonicalLanguage(t, params), "typescript"; got != want {
+					t.Fatalf("bound canonical language = %#v, want %#v", got, want)
 				}
 				for _, fragment := range []string{
 					"e.type_parameters as type_parameters",

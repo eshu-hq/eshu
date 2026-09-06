@@ -60,6 +60,11 @@ func NormalizedLanguageVariants(language string) []string {
 		return []string{"javascript", "jsx"}
 	case "typescript":
 		return []string{"typescript", "tsx"}
+	case "csharp":
+		// The C# parser's registry key, and so the language it stamps on
+		// every file and entity it emits, is c_sharp; the query DSL accepts
+		// csharp. Both spellings are the same language in the store.
+		return []string{"csharp", "c_sharp"}
 	default:
 		return []string{CanonicalLanguage(language)}
 	}

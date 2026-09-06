@@ -296,24 +296,24 @@ parser path.
 | --- | --- | --- | --- |
 | C | `c` | `.c` | yes |
 | C# | `c_sharp` | `.cs`, `.csx` | yes |
-| C++ | `cpp` | `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp` | yes |
+| C++ | `cpp` | `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp`, `.hxx` | yes |
 | Dart | `dart` | `.dart` | yes |
 | Dockerfile | `__dockerfile__` | `Dockerfile`, `Dockerfile.*` | — |
 | Elixir | `elixir` | `.ex`, `.exs`, `mix.lock` | yes |
 | Go | `go` | `.go` | yes |
 | Go modules | `gomod` | `go.mod`, `go.sum` (exact filenames) | — |
 | Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | yes (metadata scanners remain bounded) |
-| Haskell | `haskell` | `.hs` | yes |
+| Haskell | `haskell` | `.hs` (`.lhs` stays unclaimed: the grammar has no literate mode) | yes |
 | HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |
 | Java | `java` | `.java` | yes |
 | Java metadata | `java_metadata` | META-INF/services/*, AutoConfiguration.imports, spring.factories | — |
 | JavaScript | `javascript` | `.cjs`, `.js`, `.jsx`, `.mjs` | yes |
 | JSON | `json` | `.json`, `.jsonc` | — |
-| Kotlin | `kotlin` | `.kt` | yes |
+| Kotlin | `kotlin` | `.kt`, `.kts` | yes |
 | NuGet project | `nuget_project` | `.csproj` | — |
 | Perl | `perl` | `.pl`, `.pm` | yes |
 | PHP | `php` | `.php` | yes |
-| Python | `python` | `.ipynb`, `.py`, `.pyw` | yes |
+| Python | `python` | `.ipynb`, `.py`, `.pyi`, `.pyw` | yes |
 | Raw text | `raw_text` | `.cnf`, `.cfg`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tpl`, `.tftpl` | — |
 | Ruby | `ruby` | `.rb`, `Gemfile`, `Gemfile.lock` | yes for `.rb`; Bundler manifests scanned |
 | Rust | `rust` | `.rs` | yes |
