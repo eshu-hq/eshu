@@ -56,8 +56,10 @@ See `doc.go` for the godoc-rendered contract.
 | `eshu_dp_ec2_block_device_kms_posture_decisions_total` | `outcome` (`encrypted`/`not_encrypted`/`mixed`/`unknown`), `reason` |
 | `eshu_dp_ec2_block_device_kms_posture_skipped_total` | `skip_reason` (`source_unresolved`/`tombstone`) |
 
-Every decision outcome/reason and skip reason is recorded even at zero so the
-series exists and a rising skip rate charts from zero. Span
+Only outcome/reason pairs and skip reasons observed in a run are emitted: the tally
+maps start empty and `recordDecisionCounters` ranges over what the run produced,
+so a series first appears when its value is first seen and an absent series
+means zero, not a dropped primitive. Span
 `reducer.ec2_block_device_kms_posture_materialization`; each handler's
 completion log carries per-stage `load` / `derive` / `retract` / `graph_write`
 / `total_duration_seconds`.

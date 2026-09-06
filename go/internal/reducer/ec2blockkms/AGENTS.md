@@ -50,8 +50,10 @@ came to exist.
   conflicting volume facts for the same id, two conflicting KMS relationships
   for the same volume) MUST resolve to `state=unknown` with a specific
   reason -- never a guessed `encrypted`/`not_encrypted` value.
-- Every decision outcome/reason and skip reason is a bounded metric dimension
-  recorded even at zero -- a primitive is never dropped silently.
+- Every decision outcome/reason and skip reason is a bounded metric dimension.
+  Counters are emitted only for values a run observed (the tally maps start
+  empty); an absent series means zero, so do not add "recorded even at zero"
+  wording here or in the README unless the tally is first prepopulated.
 
 ## Gates that will fire on your change
 
