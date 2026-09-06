@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
+
 // appendSecretsAndDriftAdditiveDomains registers the secrets/IAM trust and
 // cloud-runtime drift domains: secrets-IAM trust chain, secrets-IAM graph
 // projection, AWS cloud-runtime drift, multi-cloud runtime drift, and
@@ -55,8 +57,8 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 	}
 	if handlers.MultiCloudRuntimeDriftEvidenceLoader != nil &&
 		handlers.MultiCloudRuntimeDriftWriter != nil {
-		multiCloudDrift := multiCloudRuntimeDriftDomainDefinition()
-		multiCloudDrift.Handler = MultiCloudRuntimeDriftHandler{
+		multiCloudDrift := multicloudruntimedrift.MaterializationDomainDefinition()
+		multiCloudDrift.Handler = multicloudruntimedrift.MultiCloudRuntimeDriftHandler{
 			EvidenceLoader: handlers.MultiCloudRuntimeDriftEvidenceLoader,
 			Writer:         handlers.MultiCloudRuntimeDriftWriter,
 			Instruments:    handlers.Instruments,

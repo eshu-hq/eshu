@@ -84,7 +84,7 @@ by design). A readiness defer that could not tell "not yet" from "never" would
 either suppress valid orphan findings for those providers or defer them until
 the terminal fallback fires on every run. This branch's defer cannot reach
 that domain at all: `MultiCloudRuntimeDriftHandler`
-(`go/internal/reducer/multi_cloud_runtime_drift.go`) is a SEPARATE Go struct
+(`go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift.go`) is a SEPARATE Go struct
 and `Handle` method from `AWSCloudRuntimeDriftHandler`, with its own field set
 (`EvidenceLoader`, `Writer`, `Instruments`, `Logger` — no `ReadinessChecker`
 field exists on it, confirmed by direct read of the struct literal). The

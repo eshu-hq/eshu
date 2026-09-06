@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package multicloudruntimedrift
 
 import (
 	"bytes"
@@ -23,6 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -113,13 +114,13 @@ func awsAndGCPAndAzureDriftRows() []multicloud.Row {
 	})
 }
 
-func multiCloudDriftIntent() Intent {
-	return Intent{
+func multiCloudDriftIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:        "intent-multi-drift",
 		ScopeID:         "multi:tenant",
 		GenerationID:    "generation-multi",
 		SourceSystem:    "gcp",
-		Domain:          DomainMultiCloudRuntimeDrift,
+		Domain:          reducercontract.DomainMultiCloudRuntimeDrift,
 		Cause:           "provider runtime facts observed",
 		RelatedScopeIDs: []string{"gcp:proj:z", "azure:sub:rg"},
 	}
@@ -137,8 +138,8 @@ func TestMultiCloudRuntimeDriftHandlerPublishesGCPAndAzureFindings(t *testing.T)
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("Handle().Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("Handle().Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("Handle().CanonicalWrites = %d, want %d", got, want)
@@ -289,11 +290,11 @@ func TestMultiCloudRuntimeDriftHandlerRequiresAdapters(t *testing.T) {
 func TestMultiCloudRuntimeDriftHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	_, err := MultiCloudRuntimeDriftHandler{}.Handle(context.Background(), Intent{
+	_, err := MultiCloudRuntimeDriftHandler{}.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-multi-drift",
 		ScopeID:      "multi:tenant",
 		GenerationID: "generation-multi",
-		Domain:       DomainWorkloadIdentity,
+		Domain:       reducercontract.DomainWorkloadIdentity,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want wrong-domain error")
@@ -332,7 +333,7 @@ func TestPostgresMultiCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testin
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 14, 12, 0, 0, 0, time.UTC)
-	db := &fakeWorkloadIdentityExecer{}
+	db := &fakeMultiCloudRuntimeDriftExecer{}
 	writer := PostgresMultiCloudRuntimeDriftWriter{DB: db, Now: func() time.Time { return now }}
 
 	write := buildAdmittedMultiCloudWrite()
@@ -403,12 +404,12 @@ func TestPostgresMultiCloudRuntimeDriftWriterIsIdempotentAcrossReplays(t *testin
 	now := time.Date(2026, time.May, 14, 12, 0, 0, 0, time.UTC)
 	writer := PostgresMultiCloudRuntimeDriftWriter{Now: func() time.Time { return now }}
 
-	first := &fakeWorkloadIdentityExecer{}
+	first := &fakeMultiCloudRuntimeDriftExecer{}
 	writer.DB = first
 	if _, err := writer.WriteMultiCloudRuntimeDriftFindings(context.Background(), buildAdmittedMultiCloudWrite()); err != nil {
 		t.Fatalf("first write error = %v", err)
 	}
-	second := &fakeWorkloadIdentityExecer{}
+	second := &fakeMultiCloudRuntimeDriftExecer{}
 	writer.DB = second
 	if _, err := writer.WriteMultiCloudRuntimeDriftFindings(context.Background(), buildAdmittedMultiCloudWrite()); err != nil {
 		t.Fatalf("replay write error = %v", err)

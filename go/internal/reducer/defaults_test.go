@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/truth"
@@ -476,7 +477,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesMultiCloudRuntimeDriftWhenAd
 	for _, def := range definitions {
 		if def.Domain == DomainMultiCloudRuntimeDrift {
 			found = true
-			if _, ok := def.Handler.(MultiCloudRuntimeDriftHandler); !ok {
+			if _, ok := def.Handler.(multicloudruntimedrift.MultiCloudRuntimeDriftHandler); !ok {
 				t.Fatalf("multi_cloud_runtime_drift handler type = %T, want MultiCloudRuntimeDriftHandler", def.Handler)
 			}
 		}

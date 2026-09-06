@@ -13,7 +13,7 @@ Eshu has four finding models with no common shape:
 | --- | --- | --- |
 | Supply chain | `SupplyChainImpactFinding` (`go/internal/reducer/supply_chain_impact_finding.go`) | `list_supply_chain_impact_findings` |
 | AWS runtime drift | `AWSCloudRuntimeDriftFindingWriter` (`go/internal/reducer/awscloud/aws_cloud_runtime_drift.go`) | `list_aws_runtime_drift_findings` |
-| Multi-cloud drift | `MultiCloudRuntimeDriftFindingWriter` (`go/internal/reducer/multi_cloud_runtime_drift.go`) | `list_cloud_runtime_drift_findings` |
+| Multi-cloud drift | `MultiCloudRuntimeDriftFindingWriter` (`go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift.go`) | `list_cloud_runtime_drift_findings` |
 | Documentation truth | `VerificationFinding` (`go/internal/doctruth/verifier.go`) | `list_documentation_findings` |
 
 A consumer asking "what is wrong in this repository?" must know four shapes,

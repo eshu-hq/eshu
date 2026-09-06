@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package multicloudruntimedrift
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 
 // TestPostgresMultiCloudRuntimeDriftWriterPersistsBatchedFacts proves
 // WriteMultiCloudRuntimeDriftFindings upserts candidates through the shared
-// reducerBatchInsertVersionedFacts bulk-insert path (issue #5317) rather than
-// one ExecContext per candidate, and that the decoded rows carry
+// factwrite.BatchInsertVersionedFacts bulk-insert path (issue #5317) rather
+// than one ExecContext per candidate, and that the decoded rows carry
 // byte-identical content — including the governed schema_version — to what
 // the retired per-row canonicalVersionedReducerFactInsertQuery loop produced:
 // the row-building helpers (multiCloudRuntimeDriftFactID/StableFactKey/
@@ -27,7 +27,7 @@ import (
 func TestPostgresMultiCloudRuntimeDriftWriterPersistsBatchedFacts(t *testing.T) {
 	t.Parallel()
 
-	db := &fakeWorkloadIdentityExecer{}
+	db := &fakeMultiCloudRuntimeDriftExecer{}
 	writer := PostgresMultiCloudRuntimeDriftWriter{DB: db}
 
 	write := buildAdmittedMultiCloudWrite()
@@ -104,7 +104,7 @@ func TestWriteMultiCloudRuntimeDriftFindingsBoundedExecCount(t *testing.T) {
 		}
 	}
 
-	db := &fakeWorkloadIdentityExecer{}
+	db := &fakeMultiCloudRuntimeDriftExecer{}
 	writer := PostgresMultiCloudRuntimeDriftWriter{DB: db}
 
 	result, err := writer.WriteMultiCloudRuntimeDriftFindings(context.Background(), MultiCloudRuntimeDriftWrite{

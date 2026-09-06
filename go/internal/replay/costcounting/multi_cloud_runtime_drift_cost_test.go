@@ -16,7 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/multicloud"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 )
 
 // multiCloudRuntimeDriftBudgetRelPath is the committed cost budget for the
@@ -24,8 +24,8 @@ import (
 // reducer_derived, reducer_domain reducer_derived_findings, kind
 // reducer_multi_cloud_runtime_drift_finding, specs/fact-kind-registry.v1.yaml
 // :127-138, C-14 issue #4367). The production writer,
-// reducer.PostgresMultiCloudRuntimeDriftWriter.WriteMultiCloudRuntimeDriftFindings
-// (go/internal/reducer/multi_cloud_runtime_drift_writer.go:35), operates over
+// multicloudruntimedrift.PostgresMultiCloudRuntimeDriftWriter.WriteMultiCloudRuntimeDriftFindings
+// (go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift_writer.go), operates over
 // []model.Candidate Go values, not a CanonicalMaterialization, so the fixture
 // candidates live inline in this file, matching the container_image_identity_
 // cost_test.go / package_source_correlation_cost_test.go convention for
@@ -43,7 +43,7 @@ const multiCloudRuntimeDriftCostIntentID = "intent-multi-cloud-runtime-drift-cos
 // multicloud.BuildCandidates emits (go/internal/correlation/drift/multicloud/
 // candidate.go buildOneCandidate) and the fixture
 // TestPostgresMultiCloudRuntimeDriftWriterPersistsOneFactPerFinding drives
-// (go/internal/reducer/multi_cloud_runtime_drift_test.go
+// (go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift_test.go
 // gcpAndAzureDriftRows/buildAdmittedMultiCloudWrite). Built directly at the
 // Candidate level (not through BuildCandidates' Row/classify pipeline) so
 // this scenario stays independent of that classification path, mirroring
@@ -104,16 +104,16 @@ func multiCloudRuntimeDriftFixtureCandidates() []model.Candidate {
 }
 
 // newInstrumentedMultiCloudRuntimeDriftWriter builds the PRODUCTION Postgres
-// write dispatch for this domain: reducer.PostgresMultiCloudRuntimeDriftWriter
+// write dispatch for this domain: multicloudruntimedrift.PostgresMultiCloudRuntimeDriftWriter
 // over the shared newInstrumentedReducerDB seam (postgres_cost_helpers_test.go),
 // the same postgres.InstrumentedDB shape go/cmd/reducer/observed_service_
 // wiring.go wires for every reducer Postgres writer. WriteMultiCloudRuntimeDriftFindings
-// (go/internal/reducer/multi_cloud_runtime_drift_writer.go) now calls the
-// shared reducerBatchInsertVersionedFacts bounded chunked bulk insert (issue
-// #5317) instead of one ExecContext per candidate, so this writer's Postgres
-// write cost is O(N/batchSize) round-trips, not O(N).
+// (go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift_writer.go)
+// calls the shared factwrite.BatchInsertVersionedFacts bounded chunked bulk
+// insert (issue #5317) instead of one ExecContext per candidate, so this
+// writer's Postgres write cost is O(N/batchSize) round-trips, not O(N).
 func newInstrumentedMultiCloudRuntimeDriftWriter(t *testing.T) (
-	writer reducer.PostgresMultiCloudRuntimeDriftWriter,
+	writer multicloudruntimedrift.PostgresMultiCloudRuntimeDriftWriter,
 	fake *countingExecQueryer,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -121,7 +121,7 @@ func newInstrumentedMultiCloudRuntimeDriftWriter(t *testing.T) (
 
 	fake = &countingExecQueryer{}
 	db, manualReader := newInstrumentedReducerDB(t, fake)
-	writer = reducer.PostgresMultiCloudRuntimeDriftWriter{
+	writer = multicloudruntimedrift.PostgresMultiCloudRuntimeDriftWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
@@ -142,7 +142,7 @@ func newInstrumentedMultiCloudRuntimeDriftWriter(t *testing.T) (
 // postgres.InstrumentedDB.ExecContext (go/internal/storage/postgres/
 // instrumented.go) records this once per ExecContext round-trip.
 // WriteMultiCloudRuntimeDriftFindings now calls the shared
-// reducerBatchInsertVersionedFacts bounded chunked bulk insert (issue #5317)
+// factwrite.BatchInsertVersionedFacts bounded chunked bulk insert (issue #5317)
 // instead of one ExecContext per candidate, so two candidates fit one chunk
 // and this scenario asserts exactly one write observation. The companion N+1
 // negative control below
@@ -154,7 +154,7 @@ func TestCostBudget_MultiCloudRuntimeDrift(t *testing.T) {
 	budget := loadBudgetFrom(t, multiCloudRuntimeDriftBudgetRelPath)
 	writer, fake, reader := newInstrumentedMultiCloudRuntimeDriftWriter(t)
 
-	result, err := writer.WriteMultiCloudRuntimeDriftFindings(context.Background(), reducer.MultiCloudRuntimeDriftWrite{
+	result, err := writer.WriteMultiCloudRuntimeDriftFindings(context.Background(), multicloudruntimedrift.MultiCloudRuntimeDriftWrite{
 		IntentID:     multiCloudRuntimeDriftCostIntentID,
 		ScopeID:      "multi:tenant",
 		GenerationID: "generation-multi-cloud-runtime-drift-cost",
@@ -232,7 +232,7 @@ func TestCostBudget_MultiCloudRuntimeDrift_N1_ExceedsBudget(t *testing.T) {
 	writer, _, reader := newInstrumentedMultiCloudRuntimeDriftWriter(t)
 
 	for _, candidate := range candidates {
-		if _, err := writer.WriteMultiCloudRuntimeDriftFindings(context.Background(), reducer.MultiCloudRuntimeDriftWrite{
+		if _, err := writer.WriteMultiCloudRuntimeDriftFindings(context.Background(), multicloudruntimedrift.MultiCloudRuntimeDriftWrite{
 			IntentID:     multiCloudRuntimeDriftCostIntentID,
 			ScopeID:      "multi:tenant",
 			GenerationID: "generation-multi-cloud-runtime-drift-cost",

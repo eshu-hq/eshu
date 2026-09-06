@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package multicloudruntimedrift
 
 import (
 	"context"
@@ -15,6 +15,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/multicloud"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
@@ -24,7 +27,7 @@ const multiCloudRuntimeDriftFactKind = facts.ReducerMultiCloudRuntimeDriftFindin
 // PostgresMultiCloudRuntimeDriftWriter persists admitted provider-neutral runtime
 // drift findings into the shared fact store.
 type PostgresMultiCloudRuntimeDriftWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -40,9 +43,9 @@ func (w PostgresMultiCloudRuntimeDriftWriter) WriteMultiCloudRuntimeDriftFinding
 		return MultiCloudRuntimeDriftWriteResult{}, fmt.Errorf("multi cloud runtime drift database is required")
 	}
 
-	now := reducerWriterNow(w.Now)
+	now := factwrite.Now(w.Now)
 	canonicalIDs := make([]string, 0, len(write.Candidates))
-	rows := make([]reducerFactVersionedRow, 0, len(write.Candidates))
+	rows := make([]factwrite.VersionedRow, 0, len(write.Candidates))
 	for _, candidate := range write.Candidates {
 		canonicalID := canonicalMultiCloudRuntimeDriftID(write, candidate)
 		payload, err := factschema.EncodeReducerMultiCloudRuntimeDriftFinding(
@@ -56,14 +59,14 @@ func (w PostgresMultiCloudRuntimeDriftWriter) WriteMultiCloudRuntimeDriftFinding
 			return MultiCloudRuntimeDriftWriteResult{}, fmt.Errorf("marshal multi cloud runtime drift payload: %w", err)
 		}
 
-		rows = append(rows, reducerFactVersionedRow{
+		rows = append(rows, factwrite.VersionedRow{
 			FactID:           multiCloudRuntimeDriftFactID(write, candidate),
 			ScopeID:          write.ScopeID,
 			GenerationID:     write.GenerationID,
 			FactKind:         multiCloudRuntimeDriftFactKind,
 			StableFactKey:    multiCloudRuntimeDriftStableFactKey(write, candidate),
 			SchemaVersion:    facts.ReducerDerivedSchemaVersionV1,
-			CollectorKind:    reducerFactCollectorKind(write.SourceSystem),
+			CollectorKind:    factwrite.CollectorKind(write.SourceSystem),
 			SourceConfidence: facts.SourceConfidenceInferred,
 			SourceSystem:     write.SourceSystem,
 			SourceFactKey:    write.IntentID,
@@ -75,7 +78,7 @@ func (w PostgresMultiCloudRuntimeDriftWriter) WriteMultiCloudRuntimeDriftFinding
 	}
 	// Bounded chunked bulk insert: candidates are upserted in O(N/batchSize)
 	// round-trips rather than one ExecContext per candidate.
-	if err := reducerBatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
+	if err := factwrite.BatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
 		return MultiCloudRuntimeDriftWriteResult{}, fmt.Errorf("write multi cloud runtime drift fact: %w", err)
 	}
 
@@ -126,7 +129,7 @@ func multiCloudRuntimeDriftTypedPayload(
 ) reducerderivedv1.MultiCloudRuntimeDriftFinding {
 	status := multicloud.ManagementStatusFromCandidate(candidate)
 	return reducerderivedv1.MultiCloudRuntimeDriftFinding{
-		ReducerDomain:    string(DomainMultiCloudRuntimeDrift),
+		ReducerDomain:    string(reducercontract.DomainMultiCloudRuntimeDrift),
 		IntentID:         write.IntentID,
 		ScopeID:          write.ScopeID,
 		GenerationID:     write.GenerationID,
@@ -147,10 +150,10 @@ func multiCloudRuntimeDriftTypedPayload(
 			multicloud.EvidenceTypeStateResource,
 			"resource_address",
 		),
-		MissingEvidence:     nonNilStrings(multiCloudRuntimeMissingEvidence(candidate, status)),
-		WarningFlags:        nonNilStrings(multiCloudRuntimeWarningFlags(candidate, status)),
+		MissingEvidence:     payloadcore.NonNilStrings(multiCloudRuntimeMissingEvidence(candidate, status)),
+		WarningFlags:        payloadcore.NonNilStrings(multiCloudRuntimeWarningFlags(candidate, status)),
 		RecommendedAction:   multiCloudRuntimeRecommendedAction(status),
-		Evidence:            nonNilMapSlice(multiCloudRuntimeDriftEvidencePayload(candidate.Evidence)),
+		Evidence:            payloadcore.NonNilMapSlice(multiCloudRuntimeDriftEvidencePayload(candidate.Evidence)),
 		OrphanedResources:   write.Summary.OrphanedResources,
 		UnmanagedResources:  write.Summary.UnmanagedResources,
 		AmbiguousResources:  write.Summary.AmbiguousResources,

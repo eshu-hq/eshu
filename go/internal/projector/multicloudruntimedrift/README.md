@@ -29,7 +29,7 @@ root `internal/projector` package validates scope-generation boundaries,
 constructs and owns the immutable fact lookup, preserves family order, and
 owns projection lifecycle, queue writes, retries, and telemetry. The
 reducer's `DomainMultiCloudRuntimeDrift` handler
-(`go/internal/reducer/multi_cloud_runtime_drift.go` and its sibling files)
+(`go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift.go` and its sibling files)
 owns the bounded `cloud_resource_uid` join, provider partitioning
 (`excludeAWSOwnedRows`), and the `reducer_multi_cloud_runtime_drift_finding`
 write; none of that happens here.
