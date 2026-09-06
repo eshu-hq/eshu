@@ -120,7 +120,8 @@ load_documented_relocated_rust_test_names() {
   fi
   while IFS= read -r name; do
     [ -n "$name" ] && PARSER_RELOCATED_RUST_TEST_NAMES+=("$name")
-  done <<<"$output"
+  # NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3 on multi-KB input.
+  done < <(printf '%s\n' "$output")
   if [ "${#PARSER_RELOCATED_RUST_TEST_NAMES[@]}" -eq 0 ]; then
     printf '%s\n' \
       'verify-parser-relationship-kit: relocated Rust test inventory is empty' >&2

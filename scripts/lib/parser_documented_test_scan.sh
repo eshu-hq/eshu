@@ -124,7 +124,8 @@ validate_documented_parser_test_commands() {
     cleanup_documented_selector_test_binary
     return 1
   fi
-  if ! jq -j '
+  # NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3 on multi-KB input.
+  if ! printf '%s\n' "$matches" | jq -j '
     def strip_command_substitution_newlines: sub("\n+$"; "");
     def strip_markdown_fence:
       if test("^[ ]{0,3}(?:`{3,}|~{3,})[^\\n]*\\n") then
@@ -146,7 +147,7 @@ validate_documented_parser_test_commands() {
     else
       ($fields[] | strip_command_substitution_newlines, "\u0000")
     end
-  ' <<<"$matches" >"$records_file"; then
+  ' >"$records_file"; then
     unlink "$records_file"
     printf '%s\n' \
       'verify-parser-relationship-kit: could not decode documented Rust command matches' >&2
