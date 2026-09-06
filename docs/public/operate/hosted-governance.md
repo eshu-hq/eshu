@@ -375,8 +375,8 @@ membership changes refresh inside a bounded public-safe window.
    `audit.reason_count`.
 3. Query the private audit sink by `event_type=read_authorization`,
    `decision=denied`, actor class, scope class, reason code, and time window.
-   Actor class is the credential refused: `browser_session` a dashboard cookie
-   session, `scoped_token` a scoped or OIDC bearer, `anonymous` no subject hash.
+   Actor class: `browser_session` a dashboard cookie session, `scoped_token` a scoped
+   or OIDC bearer, `anonymous` a missing or rejected credential, or no subject hash.
 4. If the reason is `subject_scope_missing`, verify the scoped token or service
    principal policy against the intended low-cardinality scope class.
 5. Put only the event type, actor class, scope class, decision, reason code,
