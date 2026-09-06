@@ -5,6 +5,7 @@ package governanceaudit_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -40,5 +41,44 @@ func TestUnknownEnumsNamesOnlyFieldsOutsideRegistry(t *testing.T) {
 	want = []governanceaudit.UnknownEnum{{Field: "actor_class", Value: "future_class"}}
 	if got := governanceaudit.UnknownEnums(event); !reflect.DeepEqual(got, want) {
 		t.Fatalf("UnknownEnums(one unknown) = %v, want %v", got, want)
+	}
+}
+
+// TestUnknownEnumsSkipsValuesThatAreNotBoundedTokens: the helper is safe by
+// construction, not by caller discipline. An out-of-registry value that fails
+// the bounded-token shape (a URL, a principal with spaces, mixed case, an
+// over-length string) must never be reported, because the store logs the
+// reported value and a caller that skipped NormalizeStoredEvent must not be
+// able to leak it (#6584 review).
+func TestUnknownEnumsSkipsValuesThatAreNotBoundedTokens(t *testing.T) {
+	t.Parallel()
+
+	unsafe := []string{
+		"https://example.com/principal",
+		"alice smith",
+		"Future_Class",
+		"user@example.com",
+		"../../etc/passwd",
+		strings.Repeat("a", 65),
+		"",
+	}
+	for _, value := range unsafe {
+		event := storedEventFixture()
+		event.Type = governanceaudit.EventType(value)
+		event.ActorClass = governanceaudit.ActorClass(value)
+		event.ScopeClass = governanceaudit.ScopeClass(value)
+		event.Decision = governanceaudit.Decision(value)
+		if got := governanceaudit.UnknownEnums(event); got != nil {
+			t.Fatalf("UnknownEnums(unsafe %q) = %v, want nil", value, got)
+		}
+	}
+
+	// A safe unknown token beside an unsafe one: only the token is reported.
+	event := storedEventFixture()
+	event.ActorClass = "future_class"
+	event.ScopeClass = "https://example.com/scope"
+	want := []governanceaudit.UnknownEnum{{Field: "actor_class", Value: "future_class"}}
+	if got := governanceaudit.UnknownEnums(event); !reflect.DeepEqual(got, want) {
+		t.Fatalf("UnknownEnums(mixed) = %v, want %v", got, want)
 	}
 }

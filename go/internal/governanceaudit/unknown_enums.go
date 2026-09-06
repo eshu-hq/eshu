@@ -14,23 +14,25 @@ type UnknownEnum struct {
 
 // UnknownEnums lists the enum fields of an event whose values this build does
 // not know, in column order, so a reader that tolerated them can tell an
-// operator which fields a newer build wrote (#6574). It validates nothing:
-// call it on an event NormalizeStoredEvent already accepted, whose unknown
-// values are therefore bounded lowercase tokens safe to log. An event whose
-// four enums are all in the registry yields nil.
+// operator which fields a newer build wrote (#6574). It reports a value only
+// when the value is also a bounded lowercase token, the same shape
+// NormalizeStoredEvent keeps, so every reported value is safe to log no matter
+// how the caller obtained the event. A value that fails the shape check is
+// never reported: the write-path validator rejects it and the read path never
+// returns it, so an unvalidated event cannot leak a raw principal or URL
+// through this helper. An event whose four enums are all in the registry
+// yields nil.
 func UnknownEnums(event Event) []UnknownEnum {
 	var unknown []UnknownEnum
-	if !validEventType(event.Type) {
-		unknown = append(unknown, UnknownEnum{Field: "event_type", Value: string(event.Type)})
+	report := func(field, value string, known bool) {
+		if known || !validBoundedToken(value) {
+			return
+		}
+		unknown = append(unknown, UnknownEnum{Field: field, Value: value})
 	}
-	if !validActorClass(event.ActorClass) {
-		unknown = append(unknown, UnknownEnum{Field: "actor_class", Value: string(event.ActorClass)})
-	}
-	if !validScopeClass(event.ScopeClass) {
-		unknown = append(unknown, UnknownEnum{Field: "scope_class", Value: string(event.ScopeClass)})
-	}
-	if !validDecision(event.Decision) {
-		unknown = append(unknown, UnknownEnum{Field: "decision", Value: string(event.Decision)})
-	}
+	report("event_type", string(event.Type), validEventType(event.Type))
+	report("actor_class", string(event.ActorClass), validActorClass(event.ActorClass))
+	report("scope_class", string(event.ScopeClass), validScopeClass(event.ScopeClass))
+	report("decision", string(event.Decision), validDecision(event.Decision))
 	return unknown
 }

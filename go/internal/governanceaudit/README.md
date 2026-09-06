@@ -26,7 +26,8 @@ See `doc.go` for the godoc contract.
   keeps an enum value this build does not know when it is a bounded lowercase
   token (#6574).
 - `UnknownEnums` names the enum fields of a stored event whose values this
-  build does not know, so the store can log them once per page.
+  build does not know and are bounded lowercase tokens, so the store can log
+  them once per page; a value of any other shape is never reported.
 - `Aggregate` validates events with `NormalizeStoredEvent` and returns
   status-safe counts, so an unknown class is its own count bucket, as it is in
   the SQL summary.
