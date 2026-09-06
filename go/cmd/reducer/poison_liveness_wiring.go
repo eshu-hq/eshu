@@ -7,7 +7,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -25,11 +25,11 @@ type postgresPoisonLivenessRecoverer struct {
 func poisonLivenessRunnerFor(
 	database postgres.ExecQueryer,
 	cfg poisonLivenessConfig,
-) *reducer.PoisonLivenessRunner {
+) *maintenance.PoisonLivenessRunner {
 	if !cfg.Runner.AutoRetryEnabled {
 		return nil
 	}
-	return &reducer.PoisonLivenessRunner{
+	return &maintenance.PoisonLivenessRunner{
 		Recoverer: postgresPoisonLivenessRecoverer{
 			store: postgres.NewPoisonLivenessStore(database),
 		},
@@ -39,17 +39,17 @@ func poisonLivenessRunnerFor(
 
 func (r postgresPoisonLivenessRecoverer) RecoverPoisonDeadLetters(
 	ctx context.Context,
-	policy reducer.PoisonLivenessPolicy,
+	policy maintenance.PoisonLivenessPolicy,
 	now time.Time,
-) (reducer.PoisonLivenessResult, error) {
+) (maintenance.PoisonLivenessResult, error) {
 	result, err := r.store.RecoverPoisonDeadLetters(ctx, postgres.PoisonLivenessPolicy{
 		MaxRecoverAttempts: policy.MaxRecoverAttempts,
 		BatchLimit:         policy.BatchLimit,
 	}, now)
 	if err != nil {
-		return reducer.PoisonLivenessResult{}, err
+		return maintenance.PoisonLivenessResult{}, err
 	}
-	return reducer.PoisonLivenessResult{
+	return maintenance.PoisonLivenessResult{
 		Recovered: result.Recovered,
 	}, nil
 }

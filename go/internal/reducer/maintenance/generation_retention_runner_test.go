@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package maintenance
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -90,41 +89,6 @@ func TestGenerationRetentionRunnerRecordsSkipReasonMetric(t *testing.T) {
 		"eshu_dp_generation_retention_skipped_total",
 		map[string]string{"reason": "row_limit"},
 	))
-}
-
-func TestServiceStartsGenerationRetentionRunner(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	pruner := &fakeGenerationRetentionPruner{
-		results: []GenerationRetentionResult{{RowsPruned: map[string]int64{}}},
-	}
-	started := make(chan struct{}, 1)
-	runner := &GenerationRetentionRunner{
-		Pruner: pruner,
-		Config: GenerationRetentionRunnerConfig{PollInterval: time.Hour},
-		Wait: func(ctx context.Context, _ time.Duration) error {
-			started <- struct{}{}
-			<-ctx.Done()
-			return ctx.Err()
-		},
-	}
-	service := Service{GenerationRetentionRunner: runner}
-	var wg sync.WaitGroup
-	var gotErr error
-	service.startSideRunners(ctx, &wg, func(err error) {
-		if !errors.Is(err, context.Canceled) {
-			gotErr = err
-		}
-	})
-
-	require.Eventually(t, func() bool {
-		return pruner.callCount() == 1
-	}, time.Second, 10*time.Millisecond)
-	<-started
-	cancel()
-	wg.Wait()
-
-	require.NoError(t, gotErr)
 }
 
 type fakeGenerationRetentionPruner struct {

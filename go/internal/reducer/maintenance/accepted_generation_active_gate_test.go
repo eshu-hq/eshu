@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package maintenance
 
 import (
 	"context"
 	"errors"
 	"testing"
-	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // TestGateAcceptedGenerationOnActiveDefersUntilActive proves the decorator
@@ -30,7 +31,7 @@ func TestGateAcceptedGenerationOnActiveDefersUntilActive(t *testing.T) {
 
 	// Use a cross-repo source-run ID — only this variant triggers the
 	// relationship_generations activation check.
-	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
+	key := sharedintent.AcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
 
 	// Acceptance committed, generation NOT active yet -> defer (not authoritative).
 	if gen, ok := gated(key); ok {
@@ -61,7 +62,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughMissingAcceptance(t *testing
 		nil,
 	)
 
-	if gen, ok := gated(SharedProjectionAcceptanceKey{AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}); ok {
+	if gen, ok := gated(sharedintent.AcceptanceKey{AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}); ok {
 		t.Fatalf("gated lookup = (%q, true), want (\"\", false) for missing acceptance", gen)
 	}
 	if called {
@@ -84,7 +85,7 @@ func TestGateAcceptedGenerationOnActiveDefersOnError(t *testing.T) {
 		nil,
 	)
 
-	if gen, ok := gated(SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-a"}); ok {
+	if gen, ok := gated(sharedintent.AcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-a"}); ok {
 		t.Fatalf("gated lookup = (%q, true) on error, want deferred (\"\", false)", gen)
 	}
 }
@@ -94,7 +95,7 @@ func TestGateAcceptedGenerationOnActiveDefersOnError(t *testing.T) {
 func TestGateAcceptedGenerationPrefetchOnActiveDefersUntilActive(t *testing.T) {
 	t.Parallel()
 
-	basePrefetch := func(_ context.Context, _ []SharedProjectionIntentRow) (AcceptedGenerationLookup, error) {
+	basePrefetch := func(_ context.Context, _ []sharedintent.Row) (AcceptedGenerationLookup, error) {
 		return acceptedGenerationFixed("gen-2", true), nil
 	}
 	active := false
@@ -107,7 +108,7 @@ func TestGateAcceptedGenerationPrefetchOnActiveDefersUntilActive(t *testing.T) {
 		t.Fatalf("gated prefetch error = %v", err)
 	}
 	// Use a cross-repo source-run ID so the prefetch gate is exercised.
-	key := SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:s"}
+	key := sharedintent.AcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:s"}
 	if gen, ok := lookup(key); ok {
 		t.Fatalf("prefetched lookup = (%q, true) before activation, want deferred", gen)
 	}
@@ -129,7 +130,7 @@ func TestGateAcceptedGenerationPrefetchOnActiveDefersUntilActive(t *testing.T) {
 func TestGateAcceptedGenerationPrefetchMemoizesActiveCheck(t *testing.T) {
 	t.Parallel()
 
-	basePrefetch := func(_ context.Context, _ []SharedProjectionIntentRow) (AcceptedGenerationLookup, error) {
+	basePrefetch := func(_ context.Context, _ []sharedintent.Row) (AcceptedGenerationLookup, error) {
 		return acceptedGenerationFixed("gen-2", true), nil
 	}
 	checks := 0
@@ -144,7 +145,7 @@ func TestGateAcceptedGenerationPrefetchMemoizesActiveCheck(t *testing.T) {
 	}
 	for i := 0; i < 5; i++ {
 		// Cross-repo source run so the active check is actually invoked.
-		key := SharedProjectionAcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:s"}
+		key := sharedintent.AcceptanceKey{ScopeID: "s", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:s"}
 		if gen, ok := lookup(key); !ok || gen != "gen-2" {
 			t.Fatalf("lookup #%d = (%q, %v), want (gen-2, true)", i, gen, ok)
 		}
@@ -174,7 +175,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughCodeImportSourceRun(t *testi
 
 	// "code_import_repo_dependency:<scope>" is the source-run form for
 	// code-import intents. The gate must NOT apply the activation check.
-	key := SharedProjectionAcceptanceKey{
+	key := sharedintent.AcceptanceKey{
 		ScopeID:          "git-repository-scope:repository:r_app",
 		AcceptanceUnitID: "repository:r_app",
 		SourceRunID:      "code_import_repo_dependency:git-repository-scope:repository:r_app",
@@ -196,7 +197,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughCodeImportBareSourceRun(t *t
 		func(string) (bool, error) { return false, nil },
 		nil,
 	)
-	key := SharedProjectionAcceptanceKey{
+	key := sharedintent.AcceptanceKey{
 		ScopeID:          "s",
 		AcceptanceUnitID: "repository:r_app",
 		SourceRunID:      "code_import_repo_dependency",
@@ -219,7 +220,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughPackageConsumptionSourceRun(
 		func(string) (bool, error) { return false, nil },
 		nil,
 	)
-	key := SharedProjectionAcceptanceKey{
+	key := sharedintent.AcceptanceKey{
 		ScopeID:          "package-registry-scope:pkg-scope",
 		AcceptanceUnitID: "repository:r_consumer",
 		SourceRunID:      "package_consumption_repo_dependency:package-registry-scope:pkg-scope",
@@ -239,7 +240,7 @@ func TestGateAcceptedGenerationOnActivePassesThroughPackageConsumptionSourceRun(
 func TestGateAcceptedGenerationPrefetchPassesThroughCodeImportSourceRun(t *testing.T) {
 	t.Parallel()
 
-	basePrefetch := func(_ context.Context, _ []SharedProjectionIntentRow) (AcceptedGenerationLookup, error) {
+	basePrefetch := func(_ context.Context, _ []sharedintent.Row) (AcceptedGenerationLookup, error) {
 		return acceptedGenerationFixed("scope-gen-ci", true), nil
 	}
 	// isActive always returns false — simulates a scope generation ID that is
@@ -252,7 +253,7 @@ func TestGateAcceptedGenerationPrefetchPassesThroughCodeImportSourceRun(t *testi
 	if err != nil {
 		t.Fatalf("gated prefetch error = %v", err)
 	}
-	key := SharedProjectionAcceptanceKey{
+	key := sharedintent.AcceptanceKey{
 		ScopeID:          "git-repository-scope:repository:r_lib",
 		AcceptanceUnitID: "repository:r_lib",
 		SourceRunID:      "code_import_repo_dependency:git-repository-scope:repository:r_lib",
@@ -269,7 +270,7 @@ func TestGateAcceptedGenerationPrefetchPassesThroughCodeImportSourceRun(t *testi
 func TestGateAcceptedGenerationPrefetchPassesThroughPackageConsumptionSourceRun(t *testing.T) {
 	t.Parallel()
 
-	basePrefetch := func(_ context.Context, _ []SharedProjectionIntentRow) (AcceptedGenerationLookup, error) {
+	basePrefetch := func(_ context.Context, _ []sharedintent.Row) (AcceptedGenerationLookup, error) {
 		return acceptedGenerationFixed("scope-gen-pc", true), nil
 	}
 	gatedPrefetch := GateAcceptedGenerationPrefetchOnActive(basePrefetch, func(string) (bool, error) {
@@ -280,7 +281,7 @@ func TestGateAcceptedGenerationPrefetchPassesThroughPackageConsumptionSourceRun(
 	if err != nil {
 		t.Fatalf("gated prefetch error = %v", err)
 	}
-	key := SharedProjectionAcceptanceKey{
+	key := sharedintent.AcceptanceKey{
 		ScopeID:          "package-registry-scope:pkg-scope",
 		AcceptanceUnitID: "repository:r_consumer",
 		SourceRunID:      "package_consumption_repo_dependency:package-registry-scope:pkg-scope",
@@ -288,72 +289,5 @@ func TestGateAcceptedGenerationPrefetchPassesThroughPackageConsumptionSourceRun(
 	gen, ok := lookup(key)
 	if !ok || gen != "scope-gen-pc" {
 		t.Fatalf("prefetch lookup = (%q, %v), want (scope-gen-pc, true) for package-consumption source run", gen, ok)
-	}
-}
-
-// TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive proves the
-// end-to-end fence at the runner: with acceptance committed for the intent's
-// generation but that generation NOT yet active, the repo-dependency runner
-// writes NO graph edges and processes no intents; once the generation is
-// activated, the next cycle projects the edges.
-func TestRepoDependencyRunnerDefersGraphWriteUntilGenerationActive(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.June, 22, 12, 0, 0, 0, time.UTC)
-	repoID := "repository:r_repo_a"
-	intent := repoDependencyIntentRow(
-		"active-1", "scope-b", repoID, repoID, "repo_dependency:scope-b", "gen-2", now,
-		map[string]any{
-			"repo_id":           repoID,
-			"target_repo_id":    "repository:r_target_1",
-			"relationship_type": "DEPENDS_ON",
-			"evidence_source":   CrossRepoEvidenceSource,
-		},
-	)
-	reader := &fakeRepoDependencyIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{intent},
-		pendingByAcceptanceUnit: map[string][]SharedProjectionIntentRow{
-			repoID: {intent},
-		},
-		leaseGranted: true,
-	}
-	writer := &recordingCodeCallProjectionEdgeWriter{}
-
-	active := false
-	gated := GateAcceptedGenerationOnActive(
-		acceptedGenerationFixed("gen-2", true),
-		func(string) (bool, error) { return active, nil },
-		nil,
-	)
-	runner := RepoDependencyProjectionRunner{
-		IntentReader:       reader,
-		LeaseManager:       reader,
-		AcceptanceUnitGate: reader,
-		EdgeWriter:         writer,
-		AcceptedGen:        gated,
-		Config:             RepoDependencyProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
-	}
-
-	result, err := runner.processOnce(context.Background(), now)
-	if err != nil {
-		t.Fatalf("processOnce() (inactive) error = %v", err)
-	}
-	if result.ProcessedIntents != 0 {
-		t.Fatalf("ProcessedIntents = %d before activation, want 0", result.ProcessedIntents)
-	}
-	if len(writer.writeCalls) != 0 {
-		t.Fatalf("graph write calls = %d before activation, want 0", len(writer.writeCalls))
-	}
-
-	active = true
-	result, err = runner.processOnce(context.Background(), now)
-	if err != nil {
-		t.Fatalf("processOnce() (active) error = %v", err)
-	}
-	if result.ProcessedIntents != 1 {
-		t.Fatalf("ProcessedIntents = %d after activation, want 1", result.ProcessedIntents)
-	}
-	if len(writer.writeCalls) != 1 {
-		t.Fatalf("graph write calls = %d after activation, want 1", len(writer.writeCalls))
 	}
 }

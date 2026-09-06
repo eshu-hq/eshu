@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -420,7 +421,7 @@ func buildReducerService(
 			LeaseOwner:   defaultSupplyChainImpactWinnersLeaseOwner(),
 			Logger:       logger,
 		},
-		CollectorEvidenceSummaryMaintainer: &reducer.CollectorEvidenceSummaryMaintainer{
+		CollectorEvidenceSummaryMaintainer: &maintenance.CollectorEvidenceSummaryMaintainer{
 			Rebuilder:    postgres.NewCollectorEvidenceSummaryStore(database),
 			Freshness:    postgres.NewCollectorEvidenceSummaryStore(database),
 			LeaseManager: intentStore,
