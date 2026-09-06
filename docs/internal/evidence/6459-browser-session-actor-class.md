@@ -44,8 +44,10 @@ out an API pod still on the old build answers
 `GET /api/v0/auth/admin/audit/events` with 500 for any page holding a
 `browser_session` row. The row is persisted correctly, the summary counts do
 not scan rows and are unaffected, and the error ends when every pod is on the
-new build. That window still applies to that release, because its old pods
-ship the strict reader. From #6574 on the scanner uses
-`governanceaudit.NormalizeStoredEvent`, which keeps an unknown class verbatim,
-so a later class addition no longer has this window; see
+new build. That window applies to any rollout whose old pods predate #6574,
+this release included, because every build before it ships the strict reader.
+From #6574 on the scanner uses `governanceaudit.NormalizeStoredEvent`, which
+keeps an unknown class verbatim and logs `governance audit list kept a value
+this build does not know` once per field per list call, so a later class
+addition has no window and the old pod names itself in the log; see
 `6574-audit-reader-unknown-class.md`.

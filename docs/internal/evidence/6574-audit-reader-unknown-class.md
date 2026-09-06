@@ -100,6 +100,10 @@ than by ordering the rollout.
 
 ## Rollout window
 
-The release that introduced `browser_session` still has the window, because
-its old pods ship the strict reader. From this change on, an old pod reads a
-newer pod's rows, so a later class addition has no window.
+Every build before this change ships the strict reader, so the 500 window
+applies to any rollout whose old pods predate it, not only the release that
+introduced `browser_session`: an operator upgrading from any pre-#6574 build
+straight to a later release that adds a class still sees it until the last
+old pod is gone. From this change on, an old pod reads a newer pod's rows and
+logs the warn line above once per field per list call, so a later class
+addition has no window and the log says which pod is behind.
