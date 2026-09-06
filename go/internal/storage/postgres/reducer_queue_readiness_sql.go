@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 )
 
@@ -82,7 +83,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.RDSPostureNodesNotReadyFailureClass,
 	secgroup.SecurityGroupReachabilityNodesNotReadyFailureClass,
 	reducer.WorkloadCloudRelationshipNodesNotReadyFailureClass,
-	reducer.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
+	ec2blockkms.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
 	reducer.EC2InternetExposureNodesNotReadyFailureClass,
 	reducer.EC2UsesProfileNodesNotReadyFailureClass,
 	reducer.S3ExternalPrincipalGrantNodesNotReadyFailureClass,

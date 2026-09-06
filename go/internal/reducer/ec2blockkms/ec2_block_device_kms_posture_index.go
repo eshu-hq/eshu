@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2blockkms
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -39,7 +42,7 @@ type ec2BlockDeviceKMSIndex struct {
 func buildEC2BlockDeviceKMSIndex(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
-) (ec2BlockDeviceKMSIndex, []quarantinedFact, error) {
+) (ec2BlockDeviceKMSIndex, []factdecode.QuarantinedFact, error) {
 	index := ec2BlockDeviceKMSIndex{
 		volumesByID:          make(map[string]ec2BlockDeviceKMSVolume, len(resourceEnvelopes)),
 		ambiguousVolumesByID: make(map[string]struct{}),
@@ -47,14 +50,14 @@ func buildEC2BlockDeviceKMSIndex(
 		kmsByVolume:          make(map[string]string, len(relationshipEnvelopes)),
 		ambiguousKMSByVolume: make(map[string]struct{}),
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range resourceEnvelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		resource, err := decodeAWSResource(env)
+		resource, err := schemadecode.DecodeAWSResource(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return ec2BlockDeviceKMSIndex{}, nil, fatal
 			}
@@ -67,7 +70,7 @@ func buildEC2BlockDeviceKMSIndex(
 		case ec2BlockDeviceKMSResourceTypeVolume:
 			volume, ok, attrErr := ec2BlockDeviceKMSVolumeFromResource(resource)
 			if attrErr != nil {
-				quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+				quarantined = append(quarantined, factdecode.QuarantinedAttributeShapeFact(env, attrErr))
 				continue
 			}
 			if ok {
@@ -76,7 +79,7 @@ func buildEC2BlockDeviceKMSIndex(
 		case ec2BlockDeviceKMSResourceTypeKey:
 			key, identities, ok, attrErr := ec2BlockDeviceKMSKeyFromResource(resource)
 			if attrErr != nil {
-				quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+				quarantined = append(quarantined, factdecode.QuarantinedAttributeShapeFact(env, attrErr))
 				continue
 			}
 			if ok {
@@ -90,9 +93,9 @@ func buildEC2BlockDeviceKMSIndex(
 		if env.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		relationship, err := decodeAWSRelationship(env)
+		relationship, err := schemadecode.DecodeAWSRelationship(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return ec2BlockDeviceKMSIndex{}, nil, fatal
 			}
@@ -105,7 +108,7 @@ func buildEC2BlockDeviceKMSIndex(
 			continue
 		}
 		targetID := firstTrimmed(
-			derefString(relationship.TargetARN),
+			payloadcore.DerefString(relationship.TargetARN),
 			relationship.TargetResourceID,
 		)
 		if targetID == "" {
@@ -113,7 +116,7 @@ func buildEC2BlockDeviceKMSIndex(
 		}
 		for _, sourceID := range []string{
 			relationship.SourceResourceID,
-			derefString(relationship.SourceARN),
+			payloadcore.DerefString(relationship.SourceARN),
 		} {
 			index.indexKMSRelationship(sourceID, targetID)
 		}
@@ -122,7 +125,7 @@ func buildEC2BlockDeviceKMSIndex(
 }
 
 func (i *ec2BlockDeviceKMSIndex) indexVolume(volume ec2BlockDeviceKMSVolume) {
-	for _, identity := range uniqueSortedStrings([]string{volume.id, volume.arn}) {
+	for _, identity := range payloadcore.UniqueSortedStrings([]string{volume.id, volume.arn}) {
 		if identity == "" {
 			continue
 		}
@@ -176,7 +179,7 @@ func (i *ec2BlockDeviceKMSIndex) indexKMSRelationship(sourceID, targetID string)
 }
 
 func ec2BlockDeviceKMSVolumeFromResource(resource awsv1.Resource) (ec2BlockDeviceKMSVolume, bool, error) {
-	arn := derefString(resource.ARN)
+	arn := payloadcore.DerefString(resource.ARN)
 	resourceID := firstTrimmed(resource.ResourceID, arn)
 	if resourceID == "" {
 		return ec2BlockDeviceKMSVolume{}, false, nil
@@ -202,7 +205,7 @@ func ec2BlockDeviceKMSVolumeFromResource(resource awsv1.Resource) (ec2BlockDevic
 }
 
 func ec2BlockDeviceKMSKeyFromResource(resource awsv1.Resource) (ec2BlockDeviceKMSKey, []string, bool, error) {
-	arn := derefString(resource.ARN)
+	arn := payloadcore.DerefString(resource.ARN)
 	resourceID := firstTrimmed(resource.ResourceID, arn)
 	if resourceID == "" {
 		return ec2BlockDeviceKMSKey{}, nil, false, nil
@@ -217,12 +220,12 @@ func ec2BlockDeviceKMSKeyFromResource(resource awsv1.Resource) (ec2BlockDeviceKM
 	}
 	identities := []string{resourceID, arn}
 	identities = append(identities, resource.CorrelationAnchors...)
-	return key, uniqueSortedStrings(identities), true, nil
+	return key, payloadcore.UniqueSortedStrings(identities), true, nil
 }
 
 func ec2BlockDeviceKMSVolumeKeyID(volume ec2BlockDeviceKMSVolume, index ec2BlockDeviceKMSIndex) (string, string) {
 	keyIDs := make([]string, 0, 2)
-	for _, volumeIdentity := range uniqueSortedStrings([]string{volume.id, volume.arn}) {
+	for _, volumeIdentity := range payloadcore.UniqueSortedStrings([]string{volume.id, volume.arn}) {
 		if _, ambiguous := index.ambiguousKMSByVolume[volumeIdentity]; ambiguous {
 			return "", ec2BlockDeviceKMSReasonAmbiguousKMSRelationship
 		}
@@ -230,7 +233,7 @@ func ec2BlockDeviceKMSVolumeKeyID(volume ec2BlockDeviceKMSVolume, index ec2Block
 			keyIDs = append(keyIDs, keyID)
 		}
 	}
-	keyIDs = uniqueSortedStrings(keyIDs)
+	keyIDs = payloadcore.UniqueSortedStrings(keyIDs)
 	switch len(keyIDs) {
 	case 0:
 		return "", ec2BlockDeviceKMSReasonMissingKMSRelationship

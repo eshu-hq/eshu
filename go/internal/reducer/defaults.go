@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
@@ -333,7 +334,7 @@ type DefaultHandlers struct {
 	// gates on a DUAL readiness lookup — the EC2 instance node phase plus the
 	// EBS/KMS CloudResource node phase — so properties never write against
 	// uncommitted node truth.
-	EC2BlockDeviceKMSPostureNodeWriter EC2BlockDeviceKMSPostureNodeWriter
+	EC2BlockDeviceKMSPostureNodeWriter ec2blockkms.EC2BlockDeviceKMSPostureNodeWriter
 
 	// S3InternetExposureNodeWriter derives s3_bucket_posture internet exposure
 	// state and writes reducer-owned properties onto existing S3 CloudResource
