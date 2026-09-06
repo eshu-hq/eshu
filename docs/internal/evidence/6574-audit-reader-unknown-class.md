@@ -74,7 +74,8 @@ transaction boundary changes. `governance_audit_events` is unchanged; the
 `actor_class` column was already unconstrained `TEXT`.
 
 Observability Evidence: `GovernanceAuditStore.List` logs one line per affected
-field per call when a page holds a value outside the running build's registry:
+field per call when a page holds a value outside the running build's registry.
+In the API it lands in the API's JSON log with the service attributes:
 
 ```json
 {"level":"WARN","msg":"governance audit list kept a value this build does not know; this pod is likely on an older build than the writer","field":"actor_class","rows":3,"values":"future_class,other_class"}
@@ -90,8 +91,15 @@ rollout in progress from a stray writer.
 through the production `List` with a JSON handler and pins one line per
 field, the counts, and silence on an all-known page.
 `TestGovernanceAuditStoreListWarnsThroughDefaultLoggerWhenUnset` pins that a
-store built without `WithLogger` still emits it through `slog.Default`, which
-is how `cmd/api` builds the store. No metric, span, or status field is added.
+store built without `WithLogger` still emits it through `slog.Default`.
+`cmd/api` builds both of its stores (the admin reader's List store and the
+shared summary store) with `WithLogger` on the logger `main` builds through
+`telemetry.NewLoggerWithWriter`, so the line carries the JSON shape above plus
+`service_name`, `component`, `runtime_role`, and trace attributes rather than
+falling to Go's default text handler on stderr.
+`TestNewRouterWiresGovernanceAuditStoreLogger` drives `newRouter` with a
+distinguishable logger and pins pointer identity on both stores. No metric,
+span, or status field is added.
 
 Concurrency: `List` is a read-only `SELECT` with no lock, claim, or lease. The
 only conflict domain is the rolling-upgrade interleaving itself (new pod

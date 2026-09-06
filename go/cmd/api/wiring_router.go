@@ -92,7 +92,7 @@ func newRouterWithSemanticEmbedding(
 		statusReader = newStatusStore(pgstatus.SQLQueryer{DB: db}, instruments)
 	}
 	if governanceAudit == nil && db != nil {
-		governanceAudit = newGovernanceAuditStore(db, instruments)
+		governanceAudit = newGovernanceAuditStore(db, instruments, logger)
 	}
 	var containerImageIdentities query.ContainerImageIdentityStore
 	var sbomAttachments query.SBOMAttestationAttachmentStore
@@ -104,7 +104,7 @@ func newRouterWithSemanticEmbedding(
 		LocalIdentity:          newLocalIdentityHandler(db, instruments, governanceAudit, cookieSecureMode),
 		BrowserSessions:        newBrowserSessionHandler(db, instruments, cookieSecureMode),
 		SessionList:            newBrowserSessionListHandler(db, instruments),
-		AdminIdentityReads:     newAdminIdentityReadHandler(db, instruments, governanceAudit),
+		AdminIdentityReads:     newAdminIdentityReadHandler(db, instruments, governanceAudit, logger),
 		AdminIdentityMutations: newAdminIdentityMutationHandler(db, instruments, governanceAudit),
 		Profile:                newProfileHandler(db, instruments, governanceAudit),
 		Repositories: &query.RepositoryHandler{
