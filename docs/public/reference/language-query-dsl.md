@@ -104,8 +104,12 @@ file extensions; the `ENDS WITH` fallback the builders used to carry admitted
 every file on the pinned NornicDB build (#6546, recorded in
 [NornicDB Path-Predicate Pitfalls](nornicdb-path-predicate-pitfalls.md)).
 A file answers under the language whose parser claimed its extension, so `.h`
-headers are `cpp` rather than `c`, and an extension no parser claims (`.pyi`,
-`.kts`, `.hxx`) is under no language at all.
+headers are `cpp` rather than `c`. An extension no parser claims never becomes
+a File node and is under no language at all. Of the four the retired fallback
+map promised but no parser claimed, `.hxx`, `.kts` and `.pyi` are registered
+under cpp, kotlin and python since #6578 and answer like their siblings;
+`.lhs` stays unclaimed because the Haskell grammar has no literate mode and
+drops every symbol of a bird-track file.
 
 Accepted here means the route can query indexed entities for that language; it
 does not promote every framework, route, outbound-contract, dead-code, or
