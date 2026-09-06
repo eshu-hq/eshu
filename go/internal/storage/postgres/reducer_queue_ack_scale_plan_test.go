@@ -62,7 +62,8 @@ func (db *ackScalePlanDB) ExecContext(ctx context.Context, query string, args ..
 	domain := "generic"
 	if strings.Contains(query, "domain = 'container_image_identity'") {
 		domain = "identity"
-	} else if strings.Contains(query, "domain = 'ci_cd_run_correlation'") {
+	} else if strings.Contains(query, "domain = 'ci_cd_run_correlation'") ||
+		strings.Contains(query, "'ci_cd_run_correlation'::text AS expected_domain") {
 		domain = "cicd"
 	}
 	db.calls[domain]++
