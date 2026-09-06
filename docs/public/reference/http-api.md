@@ -156,7 +156,9 @@ These routes refuse a scoped caller in every mode, not only under
 declares `403`, states the reason in its own OpenAPI description, and repeats it
 in the MCP tool description a caller sees; the same reason is annotated on
 `pendingRowFilteringRoutes` in the Go source (#5167). A tenant-bound all-scope
-console session is still admitted where the modes above admit it.
+console session is still admitted only where the modes above admit it:
+`local_no_policy`, `hosted_single_tenant`, and an unset mode let it through;
+`hosted_multi_tenant` and any unrecognized value refuse it with the same `403`.
 
 | Route | Why no grant binds yet |
 | --- | --- |

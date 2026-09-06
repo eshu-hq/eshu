@@ -218,7 +218,7 @@ const openAPIPathsStatusAndCompare = `
       "get": {
         "tags": ["status"],
         "summary": "Get index status",
-        "description": "Returns the index status summary. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the report is deployment-wide: the repository count and the queue, coordinator, scope-activity, and AWS materialization sections are stack-wide aggregates with no caller grant to intersect, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id). The route stays on the #5167 pending row-filtering ledger until a scoped payload shape is settled.",
+        "description": "Returns the index status summary. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the report is deployment-wide: the repository count and the queue, coordinator, scope-activity, and AWS materialization sections are stack-wide aggregates with no caller grant to intersect, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id). That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger until a scoped payload shape is settled.",
         "operationId": "getIndexStatus",
         "responses": {
           "200": {
@@ -335,7 +335,7 @@ const openAPIPathsStatusAndCompare = `
       "get": {
         "tags": ["status"],
         "summary": "Get index status",
-        "description": "Legacy compatibility alias for the Go-owned index status summary. It shares the handler with GET /api/v0/status/index and refuses scoped tokens (all-scope bearer tokens included) and browser sessions other than a tenant-bound all-scope console session with a 403, for the same reason: the report is deployment-wide, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id). The route stays on the #5167 pending row-filtering ledger.",
+        "description": "Legacy compatibility alias for the Go-owned index status summary. It shares the handler with GET /api/v0/status/index and refuses scoped tokens (all-scope bearer tokens included) and browser sessions other than a tenant-bound all-scope console session with a 403, for the same reason: the report is deployment-wide, and a queue_blockages row reports conflict_key as COALESCE(conflict_key, scope_id). That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger.",
         "operationId": "getIndexStatusLegacy",
         "responses": {
           "200": {
