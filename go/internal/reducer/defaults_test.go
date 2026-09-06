@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -81,8 +82,8 @@ func TestNewDefaultRuntimeUsesDefaultDomainHandlers(t *testing.T) {
 				CanonicalWrites: 1,
 			},
 		},
-		CloudAssetResolutionWriter: &recordingCloudAssetResolutionWriter{
-			result: CloudAssetResolutionWriteResult{
+		CloudAssetResolutionWriter: &stubCloudAssetResolutionWriter{
+			result: cloudasset.CloudAssetResolutionWriteResult{
 				CanonicalWrites: 1,
 			},
 		},
@@ -292,8 +293,8 @@ func TestDefaultHandlersWiresCrossRepoResolver(t *testing.T) {
 		WorkloadIdentityWriter: &recordingWorkloadIdentityWriter{
 			result: WorkloadIdentityWriteResult{CanonicalWrites: 1},
 		},
-		CloudAssetResolutionWriter: &recordingCloudAssetResolutionWriter{
-			result: CloudAssetResolutionWriteResult{CanonicalWrites: 1},
+		CloudAssetResolutionWriter: &stubCloudAssetResolutionWriter{
+			result: cloudasset.CloudAssetResolutionWriteResult{CanonicalWrites: 1},
 		},
 		PlatformMaterializationWriter: &recordingPlatformMaterializationWriter{
 			result: PlatformMaterializationWriteResult{CanonicalWrites: 1},

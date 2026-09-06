@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
@@ -23,7 +24,7 @@ import (
 type DefaultHandlers struct {
 	DeployableUnitCorrelationHandler Handler
 	WorkloadIdentityWriter           WorkloadIdentityWriter
-	CloudAssetResolutionWriter       CloudAssetResolutionWriter
+	CloudAssetResolutionWriter       cloudasset.CloudAssetResolutionWriter
 	PlatformMaterializationWriter    PlatformMaterializationWriter
 	PlatformGraphLocker              PlatformGraphLocker
 	WorkloadMaterializationReplayer  WorkloadMaterializationReplayer

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudasset
 
 import (
 	"context"
 	"slices"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestCloudAssetResolutionHandlerBuildsCanonicalWriteRequest(t *testing.T) {
@@ -23,12 +26,12 @@ func TestCloudAssetResolutionHandlerBuildsCanonicalWriteRequest(t *testing.T) {
 	}
 	handler := CloudAssetResolutionHandler{Writer: writer}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-123",
 		GenerationID: "generation-456",
 		SourceSystem: "git",
-		Domain:       DomainCloudAssetResolution,
+		Domain:       reducercontract.DomainCloudAssetResolution,
 		Cause:        "shared cloud asset follow-up required",
 		EntityKeys: []string{
 			"aws:s3:bucket:logs-prod",
@@ -42,7 +45,7 @@ func TestCloudAssetResolutionHandlerBuildsCanonicalWriteRequest(t *testing.T) {
 		},
 		EnqueuedAt:  time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC),
 		AvailableAt: time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC),
-		Status:      IntentStatusClaimed,
+		Status:      reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -69,10 +72,10 @@ func TestCloudAssetResolutionHandlerBuildsCanonicalWriteRequest(t *testing.T) {
 		t.Fatalf("request.RelatedScopeIDs = %v, want %v", request.RelatedScopeIDs, wantRelatedScopes)
 	}
 
-	if got, want := result.Domain, DomainCloudAssetResolution; got != want {
+	if got, want := result.Domain, reducercontract.DomainCloudAssetResolution; got != want {
 		t.Fatalf("result.Domain = %q, want %q", got, want)
 	}
-	if got, want := result.Status, ResultStatusSucceeded; got != want {
+	if got, want := result.Status, reducercontract.ResultStatusSucceeded; got != want {
 		t.Fatalf("result.Status = %q, want %q", got, want)
 	}
 	if got, want := result.CanonicalWrites, 1; got != want {
@@ -89,17 +92,17 @@ func TestCloudAssetResolutionHandlerRejectsMissingEntityKeys(t *testing.T) {
 	writer := &recordingCloudAssetResolutionWriter{}
 	handler := CloudAssetResolutionHandler{Writer: writer}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-2",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
 		SourceSystem:    "git",
-		Domain:          DomainCloudAssetResolution,
+		Domain:          reducercontract.DomainCloudAssetResolution,
 		Cause:           "shared cloud asset follow-up required",
 		RelatedScopeIDs: []string{"scope-123"},
 		EnqueuedAt:      time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")
@@ -120,18 +123,18 @@ func TestCloudAssetResolutionHandlerPublishesCloudCanonicalPhase(t *testing.T) {
 		PhasePublisher: publisher,
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-cloud-phase",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
 		SourceSystem:    "git",
-		Domain:          DomainCloudAssetResolution,
+		Domain:          reducercontract.DomainCloudAssetResolution,
 		Cause:           "shared cloud asset follow-up required",
 		EntityKeys:      []string{"aws:s3:bucket:logs-prod"},
 		RelatedScopeIDs: []string{"scope-123"},
 		EnqueuedAt:      time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
@@ -139,10 +142,10 @@ func TestCloudAssetResolutionHandlerPublishesCloudCanonicalPhase(t *testing.T) {
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher call count = %d, want %d", got, want)
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceCloudResourceUID; got != want {
 		t.Fatalf("published keyspace = %q, want %q", got, want)
 	}
-	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := publisher.calls[0][0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("published phase = %q, want %q", got, want)
 	}
 }
@@ -152,18 +155,18 @@ func TestCloudAssetResolutionHandlerRequiresCanonicalWriter(t *testing.T) {
 
 	handler := CloudAssetResolutionHandler{}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:        "intent-5",
 		ScopeID:         "scope-123",
 		GenerationID:    "generation-456",
 		SourceSystem:    "git",
-		Domain:          DomainCloudAssetResolution,
+		Domain:          reducercontract.DomainCloudAssetResolution,
 		Cause:           "shared cloud asset follow-up required",
 		EntityKeys:      []string{"aws:s3:bucket:logs-prod"},
 		RelatedScopeIDs: []string{"scope-123"},
 		EnqueuedAt:      time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC),
 		AvailableAt:     time.Date(2026, time.April, 12, 12, 0, 0, 0, time.UTC),
-		Status:          IntentStatusClaimed,
+		Status:          reducercontract.IntentStatusClaimed,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")

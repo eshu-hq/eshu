@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudasset
 
 import (
 	"context"
 	"fmt"
 	"strings"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // CloudAssetResolutionWrite captures the bounded canonical reconciliation
@@ -41,42 +45,42 @@ type CloudAssetResolutionWriter interface {
 // bounded canonical write request.
 type CloudAssetResolutionHandler struct {
 	Writer         CloudAssetResolutionWriter
-	PhasePublisher GraphProjectionPhasePublisher
+	PhasePublisher gpphase.PhasePublisher
 }
 
 // Handle executes the cloud asset resolution path.
 func (h CloudAssetResolutionHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
-	if intent.Domain != DomainCloudAssetResolution {
-		return Result{}, fmt.Errorf(
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainCloudAssetResolution {
+		return reducercontract.Result{}, fmt.Errorf(
 			"cloud asset resolution handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("cloud asset resolution writer is required")
+		return reducercontract.Result{}, fmt.Errorf("cloud asset resolution writer is required")
 	}
 
 	request, err := cloudAssetResolutionWriteFromIntent(intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	writeResult, err := h.Writer.WriteCloudAssetResolution(ctx, request)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
-	if err := publishIntentGraphPhase(
+	if err := gpphase.PublishIntentGraphPhase(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	evidenceSummary := strings.TrimSpace(writeResult.EvidenceSummary)
@@ -88,17 +92,17 @@ func (h CloudAssetResolutionHandler) Handle(
 		)
 	}
 
-	return Result{
+	return reducercontract.Result{
 		IntentID:        intent.IntentID,
-		Domain:          DomainCloudAssetResolution,
-		Status:          ResultStatusSucceeded,
+		Domain:          reducercontract.DomainCloudAssetResolution,
+		Status:          reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: writeResult.CanonicalWrites,
 	}, nil
 }
 
-func cloudAssetResolutionWriteFromIntent(intent Intent) (CloudAssetResolutionWrite, error) {
-	entityKeys := uniqueSortedStrings(intent.EntityKeys)
+func cloudAssetResolutionWriteFromIntent(intent reducercontract.Intent) (CloudAssetResolutionWrite, error) {
+	entityKeys := payloadcore.UniqueSortedStrings(intent.EntityKeys)
 	if len(entityKeys) == 0 {
 		return CloudAssetResolutionWrite{}, fmt.Errorf(
 			"cloud asset resolution intent %q must include at least one entity key",
@@ -106,7 +110,7 @@ func cloudAssetResolutionWriteFromIntent(intent Intent) (CloudAssetResolutionWri
 		)
 	}
 
-	relatedScopeIDs := uniqueSortedStrings(append(intent.RelatedScopeIDs, intent.ScopeID))
+	relatedScopeIDs := payloadcore.UniqueSortedStrings(append(intent.RelatedScopeIDs, intent.ScopeID))
 	if len(relatedScopeIDs) == 0 {
 		return CloudAssetResolutionWrite{}, fmt.Errorf(
 			"cloud asset resolution intent %q must include at least one related scope id",

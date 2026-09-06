@@ -12,7 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 )
 
 // cloudAssetResolutionBudgetRelPath is the committed cost budget for the
@@ -28,19 +28,19 @@ var cloudAssetResolutionBudgetRelPath = filepath.Join(
 const cloudAssetResolutionCostIntentID = "intent-cloud-asset-resolution-cost"
 
 // newInstrumentedCloudAssetResolutionWriter builds the PRODUCTION Postgres
-// write dispatch for this domain: reducer.PostgresCloudAssetResolutionWriter
+// write dispatch for this domain: cloudasset.PostgresCloudAssetResolutionWriter
 // over a postgres.InstrumentedDB (StoreName "reducer") wrapping a
 // countingExecQueryer. Unlike container_image_identity/ci_cd_run_correlation/
-// sbom_attestation_attachment (all batched via reducerBatchInsertFacts),
-// WriteCloudAssetResolution (go/internal/reducer/cloud_asset_resolution_
-// writer.go) persists exactly ONE canonical fact record per call via
-// canonicalReducerFactInsertQuery — there is no []Decision slice to batch,
-// the identity is the EntityKeys/RelatedScopeIDs the ONE write already
-// carries, so one production call for a cross-scope resolution costs exactly
-// one ExecContext round-trip regardless of how many entity keys that single
-// resolution correlates.
+// sbom_attestation_attachment (all batched via factwrite.BatchInsertFacts),
+// WriteCloudAssetResolution (go/internal/reducer/cloudasset/
+// cloud_asset_resolution_writer.go) persists exactly ONE canonical fact
+// record per call via factwrite.SingleInsertQuery — there is no []Decision
+// slice to batch, the identity is the EntityKeys/RelatedScopeIDs the ONE
+// write already carries, so one production call for a cross-scope resolution
+// costs exactly one ExecContext round-trip regardless of how many entity keys
+// that single resolution correlates.
 func newInstrumentedCloudAssetResolutionWriter(t *testing.T) (
-	writer reducer.PostgresCloudAssetResolutionWriter,
+	writer cloudasset.PostgresCloudAssetResolutionWriter,
 	fake *countingExecQueryer,
 	reader *sdkmetric.ManualReader,
 ) {
@@ -48,7 +48,7 @@ func newInstrumentedCloudAssetResolutionWriter(t *testing.T) (
 
 	fake = &countingExecQueryer{}
 	db, manualReader := newInstrumentedReducerDB(t, fake)
-	writer = reducer.PostgresCloudAssetResolutionWriter{
+	writer = cloudasset.PostgresCloudAssetResolutionWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
@@ -70,7 +70,7 @@ func TestCostBudget_CloudAssetResolution(t *testing.T) {
 	budget := loadBudgetFrom(t, cloudAssetResolutionBudgetRelPath)
 	writer, fake, reader := newInstrumentedCloudAssetResolutionWriter(t)
 
-	result, err := writer.WriteCloudAssetResolution(context.Background(), reducer.CloudAssetResolutionWrite{
+	result, err := writer.WriteCloudAssetResolution(context.Background(), cloudasset.CloudAssetResolutionWrite{
 		IntentID:        cloudAssetResolutionCostIntentID,
 		ScopeID:         "aws:123456789012:us-east-1",
 		GenerationID:    "generation-cloud-asset-resolution-cost",
@@ -150,7 +150,7 @@ func TestCostBudget_CloudAssetResolution_N1_ExceedsBudget(t *testing.T) {
 	writer, _, reader := newInstrumentedCloudAssetResolutionWriter(t)
 
 	for _, key := range entityKeys {
-		if _, err := writer.WriteCloudAssetResolution(context.Background(), reducer.CloudAssetResolutionWrite{
+		if _, err := writer.WriteCloudAssetResolution(context.Background(), cloudasset.CloudAssetResolutionWrite{
 			IntentID:        cloudAssetResolutionCostIntentID,
 			ScopeID:         "aws:123456789012:us-east-1",
 			GenerationID:    "generation-cloud-asset-resolution-cost",

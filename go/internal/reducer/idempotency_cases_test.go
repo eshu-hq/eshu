@@ -10,10 +10,30 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
+
+// replayRecordingCloudAssetResolutionWriter is a local copy of cloudasset's
+// own recordingCloudAssetResolutionWriter test fake, scoped to this replay
+// case: it records every write request so the idempotency case can compare
+// contents across replays. Go test files cannot share unexported symbols
+// across a package boundary (issue #6061).
+type replayRecordingCloudAssetResolutionWriter struct {
+	requests []cloudasset.CloudAssetResolutionWrite
+	result   cloudasset.CloudAssetResolutionWriteResult
+	err      error
+}
+
+func (w *replayRecordingCloudAssetResolutionWriter) WriteCloudAssetResolution(
+	_ context.Context,
+	request cloudasset.CloudAssetResolutionWrite,
+) (cloudasset.CloudAssetResolutionWriteResult, error) {
+	w.requests = append(w.requests, request)
+	return w.result, w.err
+}
 
 // idempotencyReplayFencingToken is the single fencing token stamped on every
 // fact a replay case loads. The acceptance criterion (#3799) requires replaying
@@ -152,8 +172,8 @@ func cloudAssetResolutionReplayCase() idempotencyReplayCase {
 		domain: DomainCloudAssetResolution,
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
-			writer := &recordingCloudAssetResolutionWriter{result: CloudAssetResolutionWriteResult{CanonicalWrites: 1}}
-			handler := CloudAssetResolutionHandler{Writer: writer}
+			writer := &replayRecordingCloudAssetResolutionWriter{result: cloudasset.CloudAssetResolutionWriteResult{CanonicalWrites: 1}}
+			handler := cloudasset.CloudAssetResolutionHandler{Writer: writer}
 			intent := replayIntent(DomainCloudAssetResolution, "scope-ca", []string{"arn:aws:s3:::bucket-a", "arn:aws:s3:::bucket-b"})
 			if _, err := handler.Handle(drainContext(), intent); err != nil {
 				t.Fatalf("cloud asset Handle: %v", err)
