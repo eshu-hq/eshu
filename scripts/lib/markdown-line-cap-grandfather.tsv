@@ -101,7 +101,7 @@ docs/internal/design/4588-collector-claim-pacing.md	1114
 docs/internal/design/4595-wrong-answer-report-capture-plan.md	523
 docs/internal/design/5007-cross-scope-node-ownership.md	914
 docs/internal/design/5385-workload-identity-key.md	1503
-docs/internal/design/package-restructure.md	2468
+docs/internal/design/package-restructure.md	2464
 docs/internal/design/restructure-research.md	506
 docs/internal/evidence/4594-graph-rebuild-from-facts.md	975
 docs/internal/evidence/5238-account-alias-rollout-gap-signal.md	677
