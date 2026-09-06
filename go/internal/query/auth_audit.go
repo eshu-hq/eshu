@@ -226,6 +226,26 @@ func recordReadAuthorizationUnavailable(
 // recordScopedReadAuthorized below: a tenant admin's governance-audit read is
 // filtered by tenant_id, so a denial recorded without one is a denial only the
 // shared operator can ever see.
+//
+// The actor class follows the credential the caller presented: a cookie
+// session is browser_session, a scoped or OIDC bearer is scoped_token, and
+// the legacy shared bearer is shared_token (#6459). Both branches of
+// authMiddlewareWithRoutePolicy share this helper and both emit
+// scoped_route_all_scope_grant_required, so actor_class is the column that
+// tells an operator which population a row came from. Neither reuses
+// ActorClassOperator: that class is already stamped on a human's login and
+// identity-mutation rows, so a route denial carrying it would merge two
+// populations an operator filters apart. A caller with no subject hash
+// downgrades to anonymous, because NormalizeEvent rejects every
+// identity-bearing class without an actor identity.
+//
+// The mode switch names every AuthMode member and has no default on purpose.
+// A default would quietly file a mode added later under whichever class it
+// named, and the audit row would then lie about who was refused; with no
+// default, the exhaustive linter fails the build until the new mode is given
+// a class of its own. The shared bearer never reaches this helper today
+// (sharedAuthContext carries no subject hash and skips the route policy), but
+// it is listed so the switch stays a complete map rather than a two-way test.
 func recordScopedRouteAuthorizationDeniedWithReason(
 	r *http.Request,
 	audit GovernanceAuditAppender,
@@ -235,18 +255,15 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 	if audit == nil {
 		return
 	}
-	// The closed governanceaudit.ActorClass enum (governanceaudit/audit.go)
-	// has no browser-session member, so a cookie-session denial is stamped
-	// scoped_token on purpose. Read it as "identity-resolved caller", not
-	// "bearer token". Do not "correct" it to ActorClassOperator: that member
-	// means a human operator carrying no direct identifier, and this helper is
-	// shared with the scoped-bearer denial path in
-	// authMiddlewareWithRoutePolicy, where scoped_token is literally right --
-	// including for scoped_route_all_scope_grant_required, which since #6450's
-	// residual item 1 closed is emitted for an all-scope bearer as well as an
-	// all-scope cookie session. Widening the enum with a browser-session
-	// member is tracked in #6459.
-	actorClass := governanceaudit.ActorClassScopedToken
+	var actorClass governanceaudit.ActorClass
+	switch auth.Mode {
+	case AuthModeBrowserSession:
+		actorClass = governanceaudit.ActorClassBrowserSession
+	case AuthModeScoped:
+		actorClass = governanceaudit.ActorClassScopedToken
+	case AuthModeShared:
+		actorClass = governanceaudit.ActorClassSharedToken
+	}
 	if auth.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}

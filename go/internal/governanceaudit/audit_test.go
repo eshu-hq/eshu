@@ -209,3 +209,42 @@ func requireCount(t *testing.T, rows []governanceaudit.Count, name string, want 
 	}
 	t.Fatalf("missing count %q in %#v", name, rows)
 }
+
+// TestNormalizeEventAcceptsBrowserSessionActor pins the browser_session actor
+// class (#6459): a cookie-authenticated dashboard session is its own actor
+// class, distinct from scoped_token, and like every identity-bearing class it
+// still needs an actor identity.
+func TestNormalizeEventAcceptsBrowserSessionActor(t *testing.T) {
+	t.Parallel()
+
+	base := governanceaudit.Event{
+		Type:               governanceaudit.EventTypeReadAuthorization,
+		ActorClass:         governanceaudit.ActorClassBrowserSession,
+		ActorIDHash:        "sha256:abcdef1234567890",
+		ScopeClass:         governanceaudit.ScopeClassAdmin,
+		Decision:           governanceaudit.DecisionDenied,
+		ReasonCode:         "scoped_route_all_scope_grant_required",
+		CorrelationID:      "corr:browser-session-denied",
+		PolicyRevisionHash: "sha256:1111222233334444",
+		OccurredAt:         time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC),
+	}
+
+	event, err := governanceaudit.NormalizeEvent(base)
+	if err != nil {
+		t.Fatalf("NormalizeEvent() error = %v, want nil", err)
+	}
+	if got, want := event.ActorClass, governanceaudit.ActorClass("browser_session"); got != want {
+		t.Fatalf("ActorClass = %q, want %q", got, want)
+	}
+
+	unidentified := base
+	unidentified.ActorIDHash = ""
+	unidentified.ServicePrincipalID = ""
+	_, err = governanceaudit.NormalizeEvent(unidentified)
+	if err == nil {
+		t.Fatal("NormalizeEvent() error = nil, want actor_identity rejection for a browser session with no subject hash")
+	}
+	if !strings.Contains(err.Error(), "actor_identity") {
+		t.Fatalf("NormalizeEvent() error = %v, want it to name actor_identity", err)
+	}
+}
