@@ -289,36 +289,6 @@ func awsCloudRuntimeDriftDomainDefinition() DomainDefinition {
 	}
 }
 
-// multiCloudRuntimeDriftDomainDefinition returns the additive definition for the
-// provider-neutral runtime drift publication path (issues #1997, #1998, #5759).
-// The domain consumes admitted multi_cloud_runtime_drift candidates keyed on
-// canonical cloud_resource_uid and writes durable reducer facts for GCP and
-// Azure through the same drift vocabulary AWS uses; AWS itself stays exclusively
-// DomainAWSCloudRuntimeDrift's (excludeAWSOwnedRows drops any AWS-provider row
-// the shared evidence loader also resolves). Like the AWS drift domain it
-// deliberately does not declare graph writes until the drift node and query
-// surface shape are frozen in the active ADR.
-func multiCloudRuntimeDriftDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainMultiCloudRuntimeDrift,
-		Summary: "publish admitted multi-cloud runtime orphan, unmanaged, ambiguous, and unknown drift findings as canonical reducer facts",
-		Ownership: OwnershipShape{
-			CrossSource:    true,
-			CrossScope:     true,
-			CanonicalWrite: true,
-			CounterEmit:    true,
-		},
-		TruthContract: truth.Contract{
-			CanonicalKind: "multi_cloud_runtime_drift",
-			SourceLayers: []truth.Layer{
-				truth.LayerSourceDeclaration,
-				truth.LayerAppliedDeclaration,
-				truth.LayerObservedResource,
-			},
-		},
-	}
-}
-
 // cloudInventoryAdmissionDomainDefinition returns the additive definition for
 // the shared multi-cloud inventory identity admission path. The domain consumes
 // aws_resource, gcp_cloud_resource, and azure_cloud_resource source facts and

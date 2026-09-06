@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -25,7 +26,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				PhasePublisher: handlers.GraphProjectionPhasePublisher,
 			}
 		case DomainCloudAssetResolution:
-			def.Handler = CloudAssetResolutionHandler{
+			def.Handler = cloudasset.CloudAssetResolutionHandler{
 				Writer:         handlers.CloudAssetResolutionWriter,
 				PhasePublisher: handlers.GraphProjectionPhasePublisher,
 			}

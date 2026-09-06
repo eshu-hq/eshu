@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graphowner"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
@@ -229,7 +230,7 @@ func buildReducerService(
 		WorkloadDependencyLookup:           neo4jWorkloadDependencyLookup{reader: graphReader},
 		InstanceRetractionLookup:           neo4jWorkloadInstanceRetractionLookup{reader: graphReader},
 		WorkloadIdentityWriter:             reducer.PostgresWorkloadIdentityWriter{DB: database},
-		CloudAssetResolutionWriter:         reducer.PostgresCloudAssetResolutionWriter{DB: database},
+		CloudAssetResolutionWriter:         cloudasset.PostgresCloudAssetResolutionWriter{DB: database},
 		PlatformMaterializationWriter:      reducer.PostgresPlatformMaterializationWriter{DB: database},
 		PlatformGraphLocker:                platformGraphLockerForReducer(database),
 		WorkloadMaterializationReplayer:    workQueue,

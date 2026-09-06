@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package multicloudruntimedrift
 
 import (
 	"context"
@@ -16,9 +16,41 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	"github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
+
+// MaterializationDomainDefinition returns the additive definition for the
+// provider-neutral runtime drift publication path (issues #1997, #1998,
+// #5759). The domain consumes admitted multi_cloud_runtime_drift candidates
+// keyed on canonical cloud_resource_uid and writes durable reducer facts for
+// GCP and Azure through the same drift vocabulary AWS uses; AWS itself stays
+// exclusively DomainAWSCloudRuntimeDrift's (excludeAWSOwnedRows drops any
+// AWS-provider row the shared evidence loader also resolves). Like the AWS
+// drift domain it deliberately does not declare graph writes until the drift
+// node and query surface shape are frozen in the active ADR.
+func MaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainMultiCloudRuntimeDrift,
+		Summary: "publish admitted multi-cloud runtime orphan, unmanaged, ambiguous, and unknown drift findings as canonical reducer facts",
+		Ownership: reducercontract.OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "multi_cloud_runtime_drift",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerAppliedDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
 
 // MultiCloudRuntimeDriftEvidenceLoader supplies the joined provider-neutral
 // cloud, Terraform-state, and Terraform-config rows classified by the
@@ -80,23 +112,23 @@ type MultiCloudRuntimeDriftHandler struct {
 }
 
 // Handle executes one multi-cloud runtime drift publication intent.
-func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainMultiCloudRuntimeDrift {
-		return Result{}, fmt.Errorf(
+func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainMultiCloudRuntimeDrift {
+		return reducercontract.Result{}, fmt.Errorf(
 			"multi_cloud_runtime_drift handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.EvidenceLoader == nil {
-		return Result{}, fmt.Errorf("multi cloud runtime drift evidence loader is required")
+		return reducercontract.Result{}, fmt.Errorf("multi cloud runtime drift evidence loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("multi cloud runtime drift writer is required")
+		return reducercontract.Result{}, fmt.Errorf("multi cloud runtime drift writer is required")
 	}
 
 	rows, err := h.EvidenceLoader.LoadMultiCloudRuntimeDriftEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load multi cloud runtime drift evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load multi cloud runtime drift evidence: %w", err)
 	}
 	rows = excludeAWSOwnedRows(rows)
 
@@ -104,7 +136,7 @@ func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent
 	pack := rules.MultiCloudRuntimeDriftRulePack()
 	evaluation, err := engine.Evaluate(pack, candidates)
 	if err != nil {
-		return Result{}, fmt.Errorf("evaluate multi cloud runtime drift rule pack: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("evaluate multi cloud runtime drift rule pack: %w", err)
 	}
 
 	admitted := admittedMultiCloudRuntimeDriftCandidates(evaluation)
@@ -120,16 +152,16 @@ func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent
 		Summary:      summary,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write multi cloud runtime drift findings: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write multi cloud runtime drift findings: %w", err)
 	}
 
 	multicloud.RecordEvaluation(ctx, h.Instruments, evaluation)
 	h.logAdmittedFindings(ctx, intent, admitted)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
-		Status:   ResultStatusSucceeded,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: multiCloudRuntimeDriftSummary(
 			len(candidates),
 			summary,
@@ -151,7 +183,7 @@ func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent Intent
 // because multi-cloud should ALSO publish an AWS finding. Without this filter,
 // a scope that carries both AWS and GCP/Azure facts (which enqueues this
 // domain for its GCP/Azure coverage; see
-// multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent)
+// projector/multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent)
 // would silently republish every AWS orphaned/unmanaged/ambiguous/unknown
 // finding a second time under reducer_multi_cloud_runtime_drift_finding,
 // duplicating what list_aws_runtime_drift_findings already reports for the
@@ -228,7 +260,7 @@ func summarizeMultiCloudRuntimeDriftCandidates(candidates []model.Candidate) mul
 
 func (h MultiCloudRuntimeDriftHandler) logAdmittedFindings(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	candidates []model.Candidate,
 ) {
 	if h.Logger == nil {

@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -66,8 +67,8 @@ type DriftHandlers struct {
 	// publication or admit findings with no durable truth surface. The path
 	// mirrors the AWS drift adapters but joins on canonical cloud_resource_uid so
 	// AWS, GCP, and Azure share one drift domain.
-	MultiCloudRuntimeDriftEvidenceLoader MultiCloudRuntimeDriftEvidenceLoader
-	MultiCloudRuntimeDriftWriter         MultiCloudRuntimeDriftFindingWriter
+	MultiCloudRuntimeDriftEvidenceLoader multicloudruntimedrift.MultiCloudRuntimeDriftEvidenceLoader
+	MultiCloudRuntimeDriftWriter         multicloudruntimedrift.MultiCloudRuntimeDriftFindingWriter
 	MultiCloudRuntimeDriftLogger         *slog.Logger
 }
 

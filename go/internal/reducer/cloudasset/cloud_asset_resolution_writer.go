@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudasset
 
 import (
 	"context"
@@ -11,12 +11,15 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // PostgresCloudAssetResolutionWriter persists one cloud-asset reducer
 // reconciliation into the shared fact store.
 type PostgresCloudAssetResolutionWriter struct {
-	DB  workloadIdentityExecer
+	DB  factwrite.Execer
 	Now func() time.Time
 }
 
@@ -29,7 +32,7 @@ func (w PostgresCloudAssetResolutionWriter) WriteCloudAssetResolution(
 		return CloudAssetResolutionWriteResult{}, fmt.Errorf("cloud asset resolution database is required")
 	}
 
-	now := reducerWriterNow(w.Now)
+	now := factwrite.Now(w.Now)
 	canonicalID := canonicalCloudAssetResolutionID(write)
 	payloadJSON, err := json.Marshal(cloudAssetResolutionPayload(write, canonicalID))
 	if err != nil {
@@ -38,13 +41,13 @@ func (w PostgresCloudAssetResolutionWriter) WriteCloudAssetResolution(
 
 	if _, err := w.DB.ExecContext(
 		ctx,
-		canonicalReducerFactInsertQuery,
+		factwrite.SingleInsertQuery,
 		write.IntentID,
 		write.ScopeID,
 		write.GenerationID,
 		"reducer_cloud_asset_resolution",
 		cloudAssetResolutionStableFactKey(write),
-		reducerFactCollectorKind(write.SourceSystem),
+		factwrite.CollectorKind(write.SourceSystem),
 		facts.SourceConfidenceInferred,
 		write.SourceSystem,
 		write.IntentID,
@@ -61,7 +64,7 @@ func (w PostgresCloudAssetResolutionWriter) WriteCloudAssetResolution(
 	return CloudAssetResolutionWriteResult{
 		CanonicalID:      canonicalID,
 		CanonicalWrites:  1,
-		ReconciledScopes: len(uniqueSortedStrings(write.RelatedScopeIDs)),
+		ReconciledScopes: len(payloadcore.UniqueSortedStrings(write.RelatedScopeIDs)),
 		EvidenceSummary: fmt.Sprintf(
 			"wrote cloud asset canonical fact %s",
 			canonicalID,
@@ -70,8 +73,8 @@ func (w PostgresCloudAssetResolutionWriter) WriteCloudAssetResolution(
 }
 
 func cloudAssetResolutionStableFactKey(write CloudAssetResolutionWrite) string {
-	entityKeys := uniqueSortedStrings(write.EntityKeys)
-	relatedScopeIDs := uniqueSortedStrings(write.RelatedScopeIDs)
+	entityKeys := payloadcore.UniqueSortedStrings(write.EntityKeys)
+	relatedScopeIDs := payloadcore.UniqueSortedStrings(write.RelatedScopeIDs)
 	parts := []string{
 		"cloud_asset_resolution",
 		strings.TrimSpace(write.ScopeID),
@@ -84,8 +87,8 @@ func cloudAssetResolutionStableFactKey(write CloudAssetResolutionWrite) string {
 }
 
 func canonicalCloudAssetResolutionID(write CloudAssetResolutionWrite) string {
-	entityKeys := uniqueSortedStrings(write.EntityKeys)
-	relatedScopeIDs := uniqueSortedStrings(write.RelatedScopeIDs)
+	entityKeys := payloadcore.UniqueSortedStrings(write.EntityKeys)
+	relatedScopeIDs := payloadcore.UniqueSortedStrings(write.RelatedScopeIDs)
 	parts := []string{
 		"cloud_asset",
 		strings.TrimSpace(write.ScopeID),
@@ -103,14 +106,14 @@ func cloudAssetResolutionPayload(
 	canonicalID string,
 ) map[string]any {
 	return map[string]any{
-		"reducer_domain":    string(DomainCloudAssetResolution),
+		"reducer_domain":    string(reducercontract.DomainCloudAssetResolution),
 		"intent_id":         write.IntentID,
 		"scope_id":          write.ScopeID,
 		"generation_id":     write.GenerationID,
 		"source_system":     write.SourceSystem,
 		"cause":             write.Cause,
-		"entity_keys":       uniqueSortedStrings(write.EntityKeys),
-		"related_scope_ids": uniqueSortedStrings(write.RelatedScopeIDs),
+		"entity_keys":       payloadcore.UniqueSortedStrings(write.EntityKeys),
+		"related_scope_ids": payloadcore.UniqueSortedStrings(write.RelatedScopeIDs),
 		"canonical_id":      canonicalID,
 		"source_layers": []string{
 			"source_declaration",

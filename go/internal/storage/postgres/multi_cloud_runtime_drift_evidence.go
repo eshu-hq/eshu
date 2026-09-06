@@ -71,7 +71,7 @@ type multiCloudStateRow struct {
 }
 
 // LoadMultiCloudRuntimeDriftEvidence implements
-// reducer.MultiCloudRuntimeDriftEvidenceLoader. It returns one multicloud.Row per
+// multicloudruntimedrift.MultiCloudRuntimeDriftEvidenceLoader. It returns one multicloud.Row per
 // resolved canonical identity in the runtime scope, joining observed, Terraform
 // state, and Terraform config layers on cloud_resource_uid.
 func (l PostgresMultiCloudRuntimeDriftEvidenceLoader) LoadMultiCloudRuntimeDriftEvidence(

@@ -8,7 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -65,7 +65,7 @@ func multiCloudRuntimeDriftWiring(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
-) (reducer.MultiCloudRuntimeDriftEvidenceLoader, reducer.MultiCloudRuntimeDriftFindingWriter, *slog.Logger) {
+) (multicloudruntimedrift.MultiCloudRuntimeDriftEvidenceLoader, multicloudruntimedrift.MultiCloudRuntimeDriftFindingWriter, *slog.Logger) {
 	loader := postgres.PostgresMultiCloudRuntimeDriftEvidenceLoader{
 		DB: database,
 		ConfigResolver: tfstatebackend.NewResolver(
@@ -75,6 +75,6 @@ func multiCloudRuntimeDriftWiring(
 		Logger:      logger,
 		Instruments: instruments,
 	}
-	writer := reducer.PostgresMultiCloudRuntimeDriftWriter{DB: database}
+	writer := multicloudruntimedrift.PostgresMultiCloudRuntimeDriftWriter{DB: database}
 	return loader, writer, logger
 }

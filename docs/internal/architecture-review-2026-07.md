@@ -318,7 +318,7 @@ There is **no first-class Finding/Issue concept anywhere** in the product: no
 domain finding models**: `SupplyChainImpactFinding`
 (`go/internal/reducer/supply_chain_impact.go:54-137`),
 `AWSCloudRuntimeDriftFindingWriter` (`aws_cloud_runtime_drift.go:35-45`),
-`MultiCloudRuntimeDriftFindingWriter` (`multi_cloud_runtime_drift.go`), and
+`MultiCloudRuntimeDriftFindingWriter` (`reducer/multicloudruntimedrift/multi_cloud_runtime_drift.go`), and
 documentation `VerificationFinding`
 (`go/internal/doctruth/verifier.go:234-280`). They persist as reducer-emitted
 **facts** (kinds like `reducer_supply_chain_impact_finding`), not graph

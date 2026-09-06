@@ -10,7 +10,7 @@
    runs after `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` and before
    `awsresource.BuildAWSResourceMaterializationReducerIntent`.
 5. `go/internal/reducer/multi-cloud-runtime-drift.md` and
-   `go/internal/reducer/multi_cloud_runtime_drift.go`: what the reducer does
+   `go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift.go`: what the reducer does
    with the intent this package enqueues, including the bounded
    `cloud_resource_uid` join and the `excludeAWSOwnedRows` provider
    partitioning.
