@@ -74,7 +74,10 @@
 // the exit code. --self-tests=changed skips a verifier's distinct self-test only
 // when none of its declared self_test_triggers changed. --blocking-only excludes
 // advisory gates, and --report-file writes command timing and reuse evidence.
-// `make pre-pr` uses these flags for its credential-free registry lane (#4214).
+// `make pre-pr` also passes --pre-pr-whole-module on its full lane. That mode
+// runs registry-owned go-fmt then go-lint while go-build and go-vet run beside
+// them, then reuses the exact results when normal selected dispatch reaches the
+// same registry rows. The documentation-only fast lane omits the mode.
 
 // # review-attest
 //

@@ -33,6 +33,26 @@ FAIL=0
 record_pass() { PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
 record_fail() { FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
 
+usage() {
+  printf 'usage: %s [--repository-only|--fixtures-only|--scope-only]\n' "${0##*/}"
+}
+
+mode=full
+if [[ "$#" -gt 1 ]]; then
+  usage >&2
+  exit 2
+fi
+case "${1:-}" in
+  "") ;;
+  --repository-only) mode=repository ;;
+  --fixtures-only) mode=fixtures ;;
+  --scope-only) mode=scope ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
 assert_contains() {
   local needle="$1" file="$2" label="$3"
   if rg -q --fixed-strings "${needle}" "${file}"; then
@@ -340,35 +360,105 @@ source "${repo_root}/scripts/lib/test-verify-doc-citations-preparation-cases.sh"
 
 # shellcheck source=scripts/lib/test-verify-doc-citations-scope-cases.sh
 source "${repo_root}/scripts/lib/test-verify-doc-citations-scope-cases.sh"
-run_doc_citation_scope_cases
-if [[ "${1:-}" == "--scope-only" ]]; then
-  printf 'scope tests: %d passed, %d failed\n' "${PASS}" "${FAIL}"
-  [[ "${FAIL}" -eq 0 ]]
-  exit $?
-fi
 
-test_update_is_idempotent
-test_existing_test_citation_passes
-test_phantom_test_citation_fails
-test_missing_file_citation_fails
-test_baselined_phantom_test_citation_passes
-test_subtest_citation_always_fails
-test_used_fixture_citation_passes
-test_unused_fixture_citation_fails
-test_missing_fixture_citation_fails
-test_baselined_unused_fixture_shared_across_docs_passes
-test_fails_closed_on_bad_baseline
-test_real_tree_result_is_reused_for_floor
-test_real_baseline_matches_fresh_regeneration
-test_real_line_ledger_preserves_multiplicity
-run_line_citation_cases
-run_line_citation_review_cases
-run_line_citation_binary_cases
-run_line_citation_preparation_cases
+test_mode_partition_contract() {
+  local out="${tmp_root}/mode-dispatch.out" status
+  local helper_dir="${repo_root}/scripts/lib"
+  local full fixtures repository moved_dir added_dir removed_dir
+  mode_trace() {
+    "${BASH:-bash}" -c '
+      set -euo pipefail
+      source "$1/test-verify-doc-citations-line-cases.sh"
+      source "$1/test-verify-doc-citations-review-cases.sh"
+      source "$1/test-verify-doc-citations-binary-cases.sh"
+      source "$1/test-verify-doc-citations-preparation-cases.sh"
+      source "$1/test-verify-doc-citations-scope-cases.sh"
+      for test_case in $(declare -F | awk "{ print \$3 }"); do
+        case "$test_case" in
+          test_*) eval "$test_case() { printf \"%s\\n\" \"$test_case\"; }" ;;
+        esac
+      done
+      run_doc_citation_case() { printf "%s\n" "$1"; }
+      begin_real_tree_verifier_reuse_proof() { :; }
+      end_real_tree_verifier_reuse_proof() { :; }
+      run_doc_citation_test_mode "$2"
+    ' bash "$1" "$2"
+  }
+  full="$(mode_trace "${helper_dir}" full)"
+  fixtures="$(mode_trace "${helper_dir}" fixtures)"
+  repository="$(mode_trace "${helper_dir}" repository)"
+  if doc_citation_mode_partition_holds "${full}" "${fixtures}" "${repository}"; then
+    record_pass "mode dispatch: leaf repository and fixture cases partition the default suite"
+  else
+    record_fail "mode dispatch: leaf repository and fixture cases must partition the default suite"
+  fi
+
+  moved_dir="${tmp_root}/mode-cases-moved"
+  copy_doc_citation_mode_helpers "${helper_dir}" "${moved_dir}"
+  move_doc_citation_real_case_to_fixtures \
+    "${helper_dir}/test-verify-doc-citations-scope-cases.sh" \
+    "${moved_dir}/test-verify-doc-citations-scope-cases.sh"
+  if doc_citation_mode_partition_holds \
+    "$(mode_trace "${moved_dir}" full)" \
+    "$(mode_trace "${moved_dir}" fixtures)" \
+    "$(mode_trace "${moved_dir}" repository)"; then
+    record_fail "mode dispatch: moving a real-tree case into a fixture runner is rejected"
+  else
+    record_pass "mode dispatch: moving a real-tree case into a fixture runner is rejected"
+  fi
+
+  added_dir="${tmp_root}/mode-cases-added"
+  copy_doc_citation_mode_helpers "${helper_dir}" "${added_dir}"
+  add_doc_citation_real_case_to_fixture_runner \
+    "${helper_dir}/test-verify-doc-citations-review-cases.sh" \
+    "${added_dir}/test-verify-doc-citations-review-cases.sh"
+  if doc_citation_mode_partition_holds \
+    "$(mode_trace "${added_dir}" full)" \
+    "$(mode_trace "${added_dir}" fixtures)" \
+    "$(mode_trace "${added_dir}" repository)"; then
+    record_fail "mode dispatch: adding a real-tree case to a fixture runner is rejected"
+  else
+    record_pass "mode dispatch: adding a real-tree case to a fixture runner is rejected"
+  fi
+
+  removed_dir="${tmp_root}/mode-cases-floor-removed"
+  copy_doc_citation_mode_helpers "${helper_dir}" "${removed_dir}"
+  remove_doc_citation_repository_floor_case \
+    "${helper_dir}/test-verify-doc-citations-scope-cases.sh" \
+    "${removed_dir}/test-verify-doc-citations-scope-cases.sh"
+  if doc_citation_mode_partition_holds \
+    "$(mode_trace "${removed_dir}" full)" \
+    "$(mode_trace "${removed_dir}" fixtures)" \
+    "$(mode_trace "${removed_dir}" repository)"; then
+    record_fail "mode dispatch: removing the real-tree floor assertion is rejected"
+  else
+    record_pass "mode dispatch: removing the real-tree floor assertion is rejected"
+  fi
+
+  if "${BASH:-bash}" "${repo_root}/scripts/test-verify-doc-citations.sh" --unknown >"${out}" 2>&1; then
+    record_fail "mode dispatch: an unknown option fails"
+  else
+    status=$?
+    if [[ "${status}" -eq 2 ]] && rg -q '^usage:' "${out}"; then
+      record_pass "mode dispatch: an unknown option fails with usage and exit 2"
+    else
+      record_fail "mode dispatch: unknown option exit=${status}, want usage and exit 2"
+    fi
+  fi
+}
+
+if [[ "${mode}" != scope ]]; then
+  test_mode_partition_contract
+fi
+run_doc_citation_test_mode "${mode}"
 
 if [[ "${FAIL}" -ne 0 ]]; then
   printf 'test-verify-doc-citations FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
   exit 1
 fi
 
+if [[ "${mode}" == scope ]]; then
+  printf 'scope tests: %d passed, %d failed\n' "${PASS}" "${FAIL}"
+  exit 0
+fi
 printf 'test-verify-doc-citations passed: %d/%d\n' "${PASS}" "$((PASS + FAIL))"

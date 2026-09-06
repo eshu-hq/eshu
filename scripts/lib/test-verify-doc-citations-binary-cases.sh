@@ -91,7 +91,11 @@ test_non_nul_unknown_suffix_is_scanned() {
 }
 
 run_line_citation_binary_cases() {
-  test_known_binary_suffixes_are_excluded
-  test_nul_unknown_suffix_fails_closed
-  test_non_nul_unknown_suffix_is_scanned
+  local test_case
+  for test_case in \
+    test_known_binary_suffixes_are_excluded \
+    test_nul_unknown_suffix_fails_closed \
+    test_non_nul_unknown_suffix_is_scanned; do
+    run_doc_citation_case "${test_case}"
+  done
 }

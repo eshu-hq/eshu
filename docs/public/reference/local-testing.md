@@ -82,7 +82,7 @@ runs by default, but `make pre-pr` may skip it when the registry declares
 `self_test_triggers` and none of those harness paths changed. Entries without
 that field stay fail-closed and run both commands. The per-SHA stamp directory
 also retains a JSON report with command hashes, run/reuse decisions, skip
-reasons, and durations.
+reasons, and durations. See [execution ownership](local-testing/pre-pr-execution.md).
 
 Frontend- and security-heavy lanes are not in `make pre-pr` (they need Node, the
 network, or are slow); run `make frontend-preflight` / `make security-preflight`
@@ -343,7 +343,7 @@ have to remember the matching verifier — the selector picks it.
 
 | You changed | `make pre-pr` additionally runs | Also run |
 | --- | --- | --- |
-| Docs only (fast-path-recognized paths — see above) | whole-module Go build/vet/fmt/lint and race lanes SKIPPED; changed-package `go test` still runs, narrowed to any fixture-consumer package (e.g. root `AGENTS.md`/`CLAUDE.md` maps to `./internal/runtime`) and a no-op otherwise; the selected exactness/telemetry/hygiene/docs gates still run, as do file cap and package docs (both no-ops with no changed Go file) | docs build (pre-push) |
+| Docs only (fast-path-recognized paths — see above) | whole-module Go build/vet/fmt/lint and race lanes SKIPPED; changed-package `go test` still runs, narrowed to any fixture-consumer package (e.g. root `AGENTS.md`/`CLAUDE.md` maps to `./internal/runtime`) and a no-op otherwise; the selected exactness/telemetry/hygiene/docs gates still run; the focused Go file-cap step is a no-op without changed Go files, and package docs runs when its registry gate is selected | docs build (pre-push) |
 | Frontend only (`src/**`, `apps/console/**`) | nothing backend | `make frontend-preflight` |
 | Parser (`go/internal/parser/**`) | parser relationship kit, accuracy golden gate, scoped race; a direct parent-package change runs focused tests recursively across `./internal/parser/...` | — |
 | Reducer / storage (`go/internal/reducer/**`, `storage/**`) | query-plan regression, scale gates, **targeted graph-write race** | reducer-contention is CI-only (Postgres) |

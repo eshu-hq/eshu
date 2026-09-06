@@ -21,12 +21,11 @@
 #     docs/public/reference/local-testing.md.
 #   - 500-line file cap + package docs: the cheap structural gates.
 #
-# The whole-module gates keep their full scope while reducing stacked wall
-# time: go build and go vet run alongside the precommit helper lane, and that
-# lane runs gofumpt before golangci-lint. fmt/lint stay serialized because both
-# call scripts/dev/precommit-go.sh, whose result/config cache is worktree-local
-# but remains single-writer within this preflight. On an 18-core/128GB dev box
-# this keeps most of the speedup while avoiding first-run cache races.
+# The selected-gate runner owns the whole-module Go prelude and its later
+# registry reuse. It runs go build and go vet alongside the precommit helper
+# lane, while that lane runs gofumpt before golangci-lint so the worktree-local
+# precommit cache remains single-writer. The later hygiene rows reuse those
+# exact in-memory results rather than executing the same commands again.
 #
 # Every step runs even if an earlier one fails (accumulate), so you see all
 # problems at once. Exit status is non-zero if any step failed.
@@ -59,6 +58,7 @@ pre_pr_git_state_init
 # shellcheck disable=SC2154  # pre_pr_state_dir is set by the sourced library.
 trap '[[ -n "${pre_pr_state_dir}" ]] && rm -rf "${pre_pr_state_dir}"' EXIT
 pre_pr_gate_report="${pre_pr_state_dir}/selected-gates.json"
+pre_pr_whole_module_args=()
 
 # changed_go_files: the Go files under go/ among those paths.
 changed_go_files() {
@@ -117,77 +117,6 @@ run_step() {
 	fi
 }
 
-step_fmt() { "${precommit}" fmt-all; }
-step_lint() { "${precommit}" lint-all; }
-step_build() { ( cd "${go_dir}" && go build ./... ); }
-step_vet() { ( cd "${go_dir}" && go vet ./... ); }
-
-# capture_whole_module_gate runs one whole-module gate, captures its output,
-# and records duration at the point the gate exits. The parent prints results
-# in a stable order after all lanes finish.
-capture_whole_module_gate() {
-	local tmpdir="$1" n="$2" label="$3"
-	shift 3
-	local start=${SECONDS} status=0
-	{
-		printf '\n\033[1m==> %s\033[0m\n' "${label}"
-		if "$@"; then
-			status=0
-		else
-			status=$?
-		fi
-	} >"${tmpdir}/${n}.log" 2>&1
-	printf '%s\n' "${status}" >"${tmpdir}/${n}.status"
-	printf '%s\n' "$((SECONDS - start))" >"${tmpdir}/${n}.duration"
-	return 0
-}
-
-# run_precommit_gates_serial keeps this worktree's precommit-go cache
-# single-writer.
-# Build and vet still overlap with this lane, but fmt and lint do not overlap
-# with each other.
-run_precommit_gates_serial() {
-	local tmpdir="$1"
-	capture_whole_module_gate "${tmpdir}" fmt "gofumpt (whole module)" step_fmt
-	capture_whole_module_gate "${tmpdir}" lint "golangci-lint (whole module)" step_lint
-}
-
-# run_whole_module_gates_parallel runs the race-free lanes concurrently:
-# precommit helper checks (fmt then lint), go build, and go vet. Output remains
-# per-step and printed in a fixed order, so a failure is never lost to
-# interleaving.
-run_whole_module_gates_parallel() {
-	local names=(fmt lint build vet)
-	local labels=("gofumpt (whole module)" "golangci-lint (whole module)" "go build ./..." "go vet ./...")
-	local tmpdir pids=() i n status duration
-	tmpdir="$(mktemp -d)"
-	run_precommit_gates_serial "${tmpdir}" &
-	pids+=($!)
-	capture_whole_module_gate "${tmpdir}" build "go build ./..." step_build &
-	pids+=($!)
-	capture_whole_module_gate "${tmpdir}" vet "go vet ./..." step_vet &
-	pids+=($!)
-
-	for i in "${!pids[@]}"; do
-		wait "${pids[$i]}" || true
-	done
-	for i in "${!names[@]}"; do
-		n="${names[$i]}"
-		status="$(cat "${tmpdir}/${n}.status" 2>/dev/null || printf "1")"
-		duration="$(cat "${tmpdir}/${n}.duration" 2>/dev/null || printf "0")"
-		if [[ "${status}" == "0" ]]; then
-			results+=("PASS  ${labels[$i]} (${duration}s)")
-		else
-			results+=("FAIL  ${labels[$i]} (${duration}s)")
-			overall=1
-		fi
-	done
-	for i in "${!names[@]}"; do
-		cat "${tmpdir}/${names[$i]}.log"
-	done
-	rm -rf "${tmpdir}"
-}
-
 step_test() {
 	local dirs=() d
 	# A direct parent-parser change selects the full parser tree so external
@@ -214,15 +143,6 @@ step_filecap() {
 	"${precommit}" filecap "${files[@]}"
 }
 
-step_docs() {
-	if changed_go_files | rg -q '^go/(internal|cmd)/'; then
-		"${repo_root}/scripts/verify-package-docs.sh"
-	else
-		printf 'no go/internal|cmd changes — skipping package docs\n'
-	fi
-}
-
-
 step_exactness() {
 	local exactness_args=(
 		--base "${base}" --tier pre-pr --category exactness,telemetry,hygiene,docs
@@ -230,6 +150,9 @@ step_exactness() {
 	)
 	if [[ "${ESHU_PRE_PR_INCLUDE_ADVISORY:-0}" != "1" ]]; then
 		exactness_args+=(--blocking-only)
+	fi
+	if (( ${#pre_pr_whole_module_args[@]} > 0 )); then
+		exactness_args+=("${pre_pr_whole_module_args[@]}")
 	fi
 	bash "${repo_root}/scripts/dev/run-selected-gates.sh" "${exactness_args[@]}" || return $?
 	[[ -s "${pre_pr_gate_report}" ]] || {
@@ -413,7 +336,7 @@ fi
 # lanes while the banner said FULL and the run still stamped the SHA -- the
 # invisible-failure shape this whole fast path exists to prevent.
 if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
-	run_whole_module_gates_parallel
+	pre_pr_whole_module_args=(--pre-pr-whole-module)
 else
 	while IFS= read -r pre_pr_skip_name; do
 		results+=("SKIP  ${pre_pr_skip_name} (documentation-only fast path)")
@@ -422,8 +345,9 @@ else
 fi
 # go test runs on BOTH lanes, always. Its own scope (changed-Go-package dirs
 # plus fixture_consumer_dirs) already narrows to nothing on a genuinely
-# docs-only diff -- see the file-cap and package-docs steps below for the same
-# always-run-but-no-op pattern. Skipping this step wholesale on the FAST lane,
+# docs-only diff -- see the file-cap step and selected package-docs gate below
+# for the same always-run-but-no-op pattern. Skipping this step wholesale on
+# the FAST lane,
 # as pre-pr.sh used to do, made fixture_consumer_dirs's CLAUDE.md/AGENTS.md
 # mapping dead code for the one diff shape it exists to catch: a root-agent-
 # file-only change both qualifies for FAST and needs that guard to run
@@ -431,14 +355,13 @@ fi
 # scripts/lib/pre-pr-lane.sh for the regression guard.
 run_step "go test (changed packages)" step_test
 run_step "500-line file cap" step_filecap
-run_step "package docs" step_docs
 # The build-tag compile sweep (scripts/verify-tagged-builds.sh) reaches this
 # gate through step_exactness, not a step of its own: it is registered as
 # `tagged-builds` in specs/ci-gates.v1.yaml at tier pre-pr, category exactness,
 # so run-selected-gates.sh picks it for any go/** diff. It had a hardcoded step
 # here first, and keeping both ran it twice -- 58 `go vet` invocations where 29
 # would do, and two places to keep in sync.
-run_step "selected exactness + telemetry gates" step_exactness
+run_step "selected local gates" step_exactness
 if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
 	run_step "race lane (Go changes)" step_race
 else

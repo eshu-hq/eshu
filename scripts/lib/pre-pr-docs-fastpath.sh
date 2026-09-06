@@ -85,14 +85,17 @@ pre_pr_resolve_lane_base() {
 # for; returns 1 (false) for everything else, including paths it does not
 # recognize at all, and including an allowlisted path that no longer exists.
 #
-# The allowlist intentionally covers only the doc/spec examples #5721 names
-# as fast-path-safe, not every path that merely "looks like" documentation:
+# The allowlist covers known documentation and data surfaces, not every path
+# that merely looks like documentation:
 #
 #   - docs/**                                                    the docs tree
 #   - a root-level *.md file (README.md, CLAUDE.md, AGENTS.md, ...) --
 #     root-anchored: a nested path/*.md (e.g. a package README under go/) is
 #     NOT covered, matching the root-anchor precedent already established by
 #     scripts/verify-docs-build-changed.sh's is_docs_trigger.
+#   - .agents/skills/**/*.md -- skill entrypoints and reference prose; the
+#     selected canon, workflow-reference, and generated-skill gates still run.
+#     Bundled scripts, Go examples, and discovery configuration are not covered.
 #   - specs/capability-matrix.v1.yaml and specs/capability-matrix/**    --
 #     capability-matrix rows are data the capability-inventory tool verifies
 #     as part of the fast path itself (`-mode verify` / `-mode docs`); they
@@ -139,6 +142,7 @@ pre_pr_path_is_fastpath_safe() {
 
 	case "${path}" in
 		docs/*) : ;;
+		.agents/skills/*/*.md) : ;;
 		specs/capability-matrix.v1.yaml) : ;;
 		specs/capability-matrix/*) : ;;
 		# A bash `case` glob crosses `/`, so `data/*.generated.json` alone would

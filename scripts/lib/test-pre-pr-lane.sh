@@ -373,6 +373,17 @@ else
 	chmod 700 "${pre_pr_state_dir}"
 fi
 
+# Skill prose participates in the real Git collector and must not hide an
+# untracked executable beside it.
+mkdir -p "${repo_ok}/.agents/skills/example"
+printf '# Skill\n' >"${repo_ok}/.agents/skills/example/SKILL.md"
+decide "${root_pass}" "${repo_ok}" ok paths_from_diff_and_untracked
+assert_eq "decide_skill_prose_is_fast" "fast" "${PRE_PR_FASTPATH_LANE}"
+printf 'package example\n' >"${repo_ok}/.agents/skills/example/example.go"
+decide "${root_pass}" "${repo_ok}" ok paths_from_diff_and_untracked
+assert_eq "decide_skill_with_untracked_go_is_full" "full" "${PRE_PR_FASTPATH_LANE}"
+rm -rf "${repo_ok}/.agents"
+
 # An untracked .go file on an otherwise docs-only branch: no `git diff` sees it,
 # and on the FAST lane no `go build` would either.
 mkdir -p "${repo_ok}/go/internal/newpkg"
