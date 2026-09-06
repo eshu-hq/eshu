@@ -180,8 +180,7 @@ export ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[{"profile_id":"semanti
 ```
 
 Pair the profile with source policy, semantic-provider egress policy, limits,
-redaction, and retention. Compose development proof is not hosted isolation
-proof.
+redaction, and retention. Compose proof is not hosted isolation proof.
 
 ### Hosted Provider-Key Mode
 
@@ -202,9 +201,8 @@ through a governed gateway. The gateway still needs source policy,
 semantic-provider egress policy, tenant or workspace routing, redaction,
 retention, budget, and audit controls. A gateway endpoint in docs should be a
 generic service URL, not a private hostname. Hosted Helm values should express
-that gateway through
-`networkPolicy.egress.classes.semanticProviders.to` using public-safe label
-selectors in shared examples and concrete selectors in private operator values.
+that gateway through `networkPolicy.egress.classes.semanticProviders.to` with
+public-safe selectors in shared examples and concrete ones in private values.
 
 ## Safe Example Shapes
 
@@ -310,8 +308,7 @@ membership changes refresh inside a bounded public-safe window.
 ### Denied Reads
 
 1. Confirm the caller used the intended token source and endpoint.
-2. Check `/readyz`; a 401 or 403 is an authentication or authorization failure,
-   not an index problem.
+2. Check `/readyz`; a 401 or 403 is an authentication or authorization failure, not an index problem.
 3. Check the specific query envelope for `unsupported_capability`,
    `permission_denied`, `not_found`, or missing evidence.
 4. Check `/api/v0/status/index` and repository coverage before reindexing.
@@ -358,16 +355,21 @@ membership changes refresh inside a bounded public-safe window.
 1. Check `/api/v0/status/governance` or `get_hosted_governance_status`.
 2. Review aggregate audit event, denied decision, unavailable decision,
    event-type, actor-class, scope-class, reason, and ACL-state counts.
-3. Use the private audit sink for detailed event fields only after confirming
-   the operator is authorized for that scope.
+3. Use the private audit sink for detailed event fields only after confirming the operator is authorized for that scope.
 4. Keep detailed audit searches bounded by actor class, scope class, decision,
    reason code, correlation id, and a narrow time window. Do not search by raw
    names, paths, URLs, document titles, prompts, or credential handles.
 5. Retain detailed event fields only in the private audit sink for the hosted
    policy retention window. Status and MCP surfaces keep aggregate counts only.
-6. Keep actor identifiers, tenant names, repository names, source identifiers,
-   prompts, provider responses, credential handles, private URLs, and token
-   values out of tickets.
+6. Keep actor identifiers, tenant names, repository names, source identifiers, prompts,
+   provider responses, credential handles, private URLs, and token values out of tickets.
+
+Rolling-upgrade note: while the release that adds `browser_session` rolls out,
+an API pod still on the old build answers `GET /api/v0/auth/admin/audit/events`
+with 500 for any page holding a new row, because it checks each row against the
+class list built into its binary. The row is stored correctly and summary counts
+are unaffected; the error stops when every pod is on the new build. #6574 tracks
+a reader that accepts a class it does not know.
 
 ### Denied Read Investigation
 
@@ -377,6 +379,8 @@ membership changes refresh inside a bounded public-safe window.
    `audit.reason_count`.
 3. Query the private audit sink by `event_type=read_authorization`,
    `decision=denied`, actor class, scope class, reason code, and time window.
+   Actor class: `browser_session` a dashboard cookie session, `scoped_token` a scoped
+   or OIDC bearer, `anonymous` a missing or rejected credential, or no subject hash.
 4. If the reason is `subject_scope_missing`, verify the scoped token or service
    principal policy against the intended low-cardinality scope class.
 5. Put only the event type, actor class, scope class, decision, reason code,
@@ -402,8 +406,7 @@ membership changes refresh inside a bounded public-safe window.
 
 ### Redaction Regression
 
-1. Check the affected surface in
-   [Hosted Redaction Registry](../reference/hosted-redaction-registry.md).
+1. Check the affected surface in [Hosted Redaction Registry](../reference/hosted-redaction-registry.md).
 2. Add or update a focused test that calls
    `Registry.AssertNoForbiddenCanary(surface, payload)` after the owning
    surface applies its source-specific redaction.
@@ -415,11 +418,9 @@ membership changes refresh inside a bounded public-safe window.
 Hosted community extension execution is not enabled by the shipped chart or
 Compose stack today. For policy review or future rollout:
 
-1. Revoke by component ID, publisher, artifact digest, version range, or policy
-   revision.
+1. Revoke by component ID, publisher, artifact digest, version range, or policy revision.
 2. Stop new coordinator claims for the revoked identity.
-3. Mark pending work ineligible with a bounded reason such as
-   `revoked_policy`.
+3. Mark pending work ineligible with a bounded reason such as `revoked_policy`.
 4. Confirm `ESHU_HOSTED_EXTENSION_EGRESS_POLICY_JSON` no longer allows the
    component identity before expecting new workflow rows to stop.
 5. Re-check policy before launching work and before committing facts.
@@ -609,8 +610,7 @@ Tenant offboarding combines scoped-token revocation with rule and state cleanup:
 
 ### Retention Or Deletion Progress
 
-1. Check the affected data class in
-   [Hosted Retention And Deletion Policy](../reference/hosted-retention-deletion-policy.md).
+1. Check the affected data class in [Hosted Retention And Deletion Policy](../reference/hosted-retention-deletion-policy.md).
 2. Confirm new governed work stopped for the affected source class.
 3. Check deletion state, aggregate counts, policy revision hash, and bounded
    reason codes in governance status.

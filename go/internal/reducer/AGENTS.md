@@ -1147,7 +1147,7 @@ Digest-anchor the OS-package scan tier (#5463): `addSupplyChainImpactIndexEntry`
 now decodes the sibling `scanner_worker.analysis` fact
 (`factschema_decode_scannerworker.go`) and indexes it on
 `supplyChainImpactIndex.scannerAnalyses`, keyed by ScopeID+GenerationID
-(`supplyChainScopeGenerationKey`, which defers to `facts.Envelope.
+(`supplychainmodel.ScopeGenerationKey`, which defers to `facts.Envelope.
 ScopeGenerationKey()` so the join key matches the platform's durable
 scope-generation boundary). The sibling analysis must first be LOADED, and a
 scanner_worker.analysis fact lives in the os_package's own scan scope, not the
@@ -1163,7 +1163,7 @@ No-regression (#5463): the sibling-load stage adds at most
 `maxSupplyChainImpactScannerAnalysisScopeLoads` sequential scoped
 `loadFactsForKinds` reads per intent — one per DISTINCT os_package scan scope
 already present in the envelope set, deduped by
-`supplyChainScopeGenerationKey`, and zero when no os_package fact was loaded
+`supplychainmodel.ScopeGenerationKey`, and zero when no os_package fact was loaded
 (the common case for a non-vendor intent). It follows the same bounded,
 data-gated shape as the existing active-evidence / repository / manifest-
 dependency stages, and its per-intent cost is guarded by the CI reducer

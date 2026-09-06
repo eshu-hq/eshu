@@ -84,7 +84,7 @@ the test now closes the gap in milliseconds instead of a three-minute run.
 
 The decision records `environment_evidence` as `deploy_event` or `declared` and
 publishes it on the correlation payload and the HTTP read model. #5426 reads that
-key into `supplyChainDeploymentContext` and branches at
+key into `supplychainmodel.DeploymentContext` and branches at
 `supply_chain_impact_runtime.go:68-71` instead of promoting `deployed_image` from
 a declared free-text environment alone.
 

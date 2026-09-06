@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 // These tests prove that supply-chain impact admission preserves per-source
@@ -28,35 +29,35 @@ func TestSupplyChainCVEGroupRepresentativeUsesSourcePriority(t *testing.T) {
 
 	group := supplyChainCVEGroup{
 		cveID: "CVE-2026-4242",
-		observations: []supplyChainImpactCVE{
+		observations: []supplychainmodel.ImpactCVE{
 			{
-				cveID:       "CVE-2026-4242",
-				source:      "osv",
-				advisoryID:  "GHSA-withdrawn",
-				factID:      "fact-001",
-				withdrawnAt: "2026-05-24T10:00:00Z",
+				CVEID:       "CVE-2026-4242",
+				Source:      "osv",
+				AdvisoryID:  "GHSA-withdrawn",
+				FactID:      "fact-001",
+				WithdrawnAt: "2026-05-24T10:00:00Z",
 			},
 			{
-				cveID:      "CVE-2026-4242",
-				source:     "nvd",
-				advisoryID: "CVE-2026-4242",
-				factID:     "fact-002",
+				CVEID:      "CVE-2026-4242",
+				Source:     "nvd",
+				AdvisoryID: "CVE-2026-4242",
+				FactID:     "fact-002",
 			},
 			{
-				cveID:      "CVE-2026-4242",
-				source:     "glad",
-				advisoryID: "GMS-2026-4242",
-				factID:     "fact-003",
+				CVEID:      "CVE-2026-4242",
+				Source:     "glad",
+				AdvisoryID: "GMS-2026-4242",
+				FactID:     "fact-003",
 			},
 		},
 	}
 
 	representative := group.representative()
-	if representative.source != "glad" {
-		t.Fatalf("representative source = %q, want glad priority over nvd while skipping withdrawn ghsa", representative.source)
+	if representative.Source != "glad" {
+		t.Fatalf("representative source = %q, want glad priority over nvd while skipping withdrawn ghsa", representative.Source)
 	}
-	if representative.factID != "fact-003" {
-		t.Fatalf("representative factID = %q, want fact-003", representative.factID)
+	if representative.FactID != "fact-003" {
+		t.Fatalf("representative factID = %q, want fact-003", representative.FactID)
 	}
 }
 

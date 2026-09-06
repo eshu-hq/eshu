@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 const jvmRuntimeReachabilityPackageAPIReachable = "jvm_package_api_reachable"
@@ -128,29 +129,29 @@ func jvmReachabilityUsagesFromFile(factID string, fileData map[string]any) []jvm
 
 func applyJVMSupplyChainReachability(
 	finding *SupplyChainImpactFinding,
-	consumption supplyChainPackageConsumption,
+	consumption supplychainmodel.PackageConsumption,
 	index supplyChainImpactIndex,
 ) []string {
 	if !jvmPackageManager(finding.Ecosystem) {
 		return nil
 	}
 	missing := jvmReachabilityBaselineMissingEvidence(consumption)
-	if consumption.repositoryID == "" {
+	if consumption.RepositoryID == "" {
 		return append(missing, "jvm repository evidence missing")
 	}
-	if !strings.EqualFold(consumption.dependencyResolutionState, "resolved") {
+	if !strings.EqualFold(consumption.DependencyResolutionState, "resolved") {
 		return append(missing, "jvm dependency resolver evidence missing")
 	}
-	if len(consumption.packageAPIPackages) == 0 || strings.TrimSpace(consumption.packageAPIIdentitySource) == "" {
+	if len(consumption.PackageAPIPackages) == 0 || strings.TrimSpace(consumption.PackageAPIIdentitySource) == "" {
 		return append(missing, "jvm package API identity evidence missing")
 	}
-	usage, ok := index.jvmReachability.match(consumption.repositoryID, consumption.packageAPIPackages)
+	usage, ok := index.jvmReachability.match(consumption.RepositoryID, consumption.PackageAPIPackages)
 	if !ok {
 		return append(missing, "jvm parser or SCIP package usage evidence missing")
 	}
 	finding.RuntimeReachability = jvmRuntimeReachabilityPackageAPIReachable
 	finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, usage.evidenceFactIDs...)
-	finding.EvidencePath = append(finding.EvidencePath, factKindFile, usage.evidenceKind, consumption.packageAPIIdentitySource)
+	finding.EvidencePath = append(finding.EvidencePath, factKindFile, usage.evidenceKind, consumption.PackageAPIIdentitySource)
 	finding.EvidenceFactIDs = uniqueSortedStrings(finding.EvidenceFactIDs)
 	finding.EvidencePath = uniqueSortedStrings(finding.EvidencePath)
 	return missing
@@ -168,15 +169,15 @@ func (index jvmReachabilityIndex) match(repositoryID string, apiPackages []strin
 	return jvmReachabilityUsage{}, false
 }
 
-func jvmReachabilityBaselineMissingEvidence(consumption supplyChainPackageConsumption) []string {
+func jvmReachabilityBaselineMissingEvidence(consumption supplychainmodel.PackageConsumption) []string {
 	missing := []string{
 		"jvm dependency-injection evidence incomplete",
 		"jvm reflection evidence incomplete",
 	}
-	if strings.TrimSpace(consumption.sourceSet) == "" {
+	if strings.TrimSpace(consumption.SourceSet) == "" {
 		missing = append(missing, "jvm source-set evidence missing")
 	}
-	if consumption.generatedCode == nil {
+	if consumption.GeneratedCode == nil {
 		missing = append(missing, "jvm generated-code evidence missing")
 	}
 	return missing

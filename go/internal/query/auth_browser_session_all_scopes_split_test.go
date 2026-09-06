@@ -264,8 +264,8 @@ func TestAuthMiddlewareAllScopesBrowserSessionRefusedOnGrantBoundRouteUnderFailC
 			if got, want := event.Decision, governanceaudit.DecisionDenied; got != want {
 				t.Fatalf("event.Decision = %q, want %q", got, want)
 			}
-			if got, want := event.ActorClass, governanceaudit.ActorClassScopedToken; got != want {
-				t.Fatalf("event.ActorClass = %q, want %q", got, want)
+			if got, want := event.ActorClass, governanceaudit.ActorClassBrowserSession; got != want {
+				t.Fatalf("event.ActorClass = %q, want %q -- a cookie-session denial is a browser_session row, not a bearer one (#6459)", got, want)
 			}
 			if got, want := event.ActorIDHash, "sha256:abcdef12"; got != want {
 				t.Fatalf("event.ActorIDHash = %q, want %q", got, want)
@@ -346,8 +346,8 @@ func TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified(t
 			if got, want := event.Decision, governanceaudit.DecisionDenied; got != want {
 				t.Fatalf("event.Decision = %q, want %q", got, want)
 			}
-			if got, want := event.ActorClass, governanceaudit.ActorClassScopedToken; got != want {
-				t.Fatalf("event.ActorClass = %q, want %q", got, want)
+			if got, want := event.ActorClass, governanceaudit.ActorClassBrowserSession; got != want {
+				t.Fatalf("event.ActorClass = %q, want %q -- the fallback path classes the actor like every other denial (#6459)", got, want)
 			}
 			if got, want := event.ActorIDHash, "sha256:abcdef12"; got != want {
 				t.Fatalf("event.ActorIDHash = %q, want %q", got, want)
@@ -363,6 +363,130 @@ func TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified(t
 			}
 			if _, err := governanceaudit.NormalizeEvent(event); err != nil {
 				t.Fatalf("governanceaudit.NormalizeEvent() error = %v, want nil -- a blank code must not produce an event the durable store rejects", err)
+			}
+		})
+	}
+}
+
+// TestRecordScopedRouteAuthorizationDeniedActorClassFollowsAuthMode pins the
+// actor_class stamped on a scoped-route denial to the credential the caller
+// actually presented (#6459). recordScopedRouteAuthorizationDeniedWithReason
+// is shared by the cookie-session and scoped-bearer branches of
+// authMiddlewareWithRoutePolicy, and since #6450's residual item 1 closed both
+// branches emit scoped_route_all_scope_grant_required, so the actor class is
+// the only column that tells an operator which population a row came from.
+//
+// The bearer case is the no-change half: a scoped or OIDC bearer keeps
+// scoped_token, byte-identical to before the browser_session member existed.
+// The table names every AuthMode member, so a mode the helper's switch does
+// not list fails here as well as under the exhaustive linter. The shared
+// bearer never reaches this helper in production (sharedAuthContext carries
+// no subject hash and skips the route policy), but the switch still has to
+// classify it as shared_token rather than fold it into scoped_token. The
+// blank-hash cases pin the anonymous downgrade for every mode, because
+// NormalizeEvent rejects each identity-bearing class without an actor
+// identity and the durable store's Append is all-or-nothing.
+func TestRecordScopedRouteAuthorizationDeniedActorClassFollowsAuthMode(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		auth           AuthContext
+		wantActorClass governanceaudit.ActorClass
+		wantActorHash  string
+	}{
+		{
+			name: "browser session is browser_session",
+			auth: AuthContext{
+				Mode:               AuthModeBrowserSession,
+				TenantID:           "tenant-a",
+				WorkspaceID:        "workspace-a",
+				SubjectClass:       "local_user",
+				SubjectIDHash:      "sha256:abcdef12",
+				PolicyRevisionHash: "sha256:01234567",
+				AllScopes:          true,
+			},
+			wantActorClass: governanceaudit.ActorClassBrowserSession,
+			wantActorHash:  "sha256:abcdef12",
+		},
+		{
+			name: "scoped bearer stays scoped_token",
+			auth: AuthContext{
+				Mode:               AuthModeScoped,
+				TenantID:           "tenant-a",
+				WorkspaceID:        "workspace-a",
+				SubjectClass:       "team",
+				SubjectIDHash:      "sha256:abcdef12",
+				PolicyRevisionHash: "sha256:01234567",
+				AllScopes:          true,
+			},
+			wantActorClass: governanceaudit.ActorClassScopedToken,
+			wantActorHash:  "sha256:abcdef12",
+		},
+		{
+			name: "shared bearer is shared_token",
+			auth: AuthContext{
+				Mode:          AuthModeShared,
+				SubjectClass:  "shared_token",
+				SubjectIDHash: "sha256:abcdef12",
+				AllScopes:     true,
+			},
+			wantActorClass: governanceaudit.ActorClassSharedToken,
+			wantActorHash:  "sha256:abcdef12",
+		},
+		{
+			name: "shared bearer with no subject hash downgrades to anonymous",
+			auth: AuthContext{
+				Mode:         AuthModeShared,
+				SubjectClass: "shared_token",
+				AllScopes:    true,
+			},
+			wantActorClass: governanceaudit.ActorClassAnonymous,
+		},
+		{
+			name: "browser session with no subject hash downgrades to anonymous",
+			auth: AuthContext{
+				Mode:        AuthModeBrowserSession,
+				TenantID:    "tenant-a",
+				WorkspaceID: "workspace-a",
+				AllScopes:   true,
+			},
+			wantActorClass: governanceaudit.ActorClassAnonymous,
+		},
+		{
+			name: "scoped bearer with no subject hash downgrades to anonymous",
+			auth: AuthContext{
+				Mode:        AuthModeScoped,
+				TenantID:    "tenant-a",
+				WorkspaceID: "workspace-a",
+				AllScopes:   true,
+			},
+			wantActorClass: governanceaudit.ActorClassAnonymous,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			audit := &fakeGovernanceAuditAppender{}
+			req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories", nil)
+			recordScopedRouteAuthorizationDeniedWithReason(req, audit, tc.auth, "scoped_route_all_scope_grant_required")
+
+			if len(audit.events) != 1 {
+				t.Fatalf("len(audit.events) = %d, want 1: %#v", len(audit.events), audit.events)
+			}
+			event := audit.events[0]
+			if got, want := event.ActorClass, tc.wantActorClass; got != want {
+				t.Fatalf("event.ActorClass = %q, want %q", got, want)
+			}
+			if got, want := event.ActorIDHash, tc.wantActorHash; got != want {
+				t.Fatalf("event.ActorIDHash = %q, want %q", got, want)
+			}
+			if got, want := event.ReasonCode, "scoped_route_all_scope_grant_required"; got != want {
+				t.Fatalf("event.ReasonCode = %q, want %q", got, want)
+			}
+			if _, err := governanceaudit.NormalizeEvent(event); err != nil {
+				t.Fatalf("governanceaudit.NormalizeEvent() error = %v, want nil -- every actor class the helper stamps must survive the durable store", err)
 			}
 		})
 	}

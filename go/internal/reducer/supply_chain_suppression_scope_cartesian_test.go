@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 // TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnverifiedCombination
@@ -190,11 +191,11 @@ func TestFinalizeSupplyChainImpactFindingPopulatesServiceWorkloadPairsForSuppres
 	}{
 		{
 			name: "matched pair from one service context suppresses",
-			index: supplyChainImpactIndex{services: []supplyChainServiceContext{{
-				factID:       "service-context:matched",
-				repositoryID: repository,
-				serviceID:    serviceID,
-				workloadID:   workloadID,
+			index: supplyChainImpactIndex{services: []supplychainmodel.ServiceContext{{
+				FactID:       "service-context:matched",
+				RepositoryID: repository,
+				ServiceID:    serviceID,
+				WorkloadID:   workloadID,
 			}}},
 			wantPair:      SupplyChainServiceWorkloadPair{ServiceID: serviceID, WorkloadID: workloadID},
 			wantDecision:  SupplyChainSuppressionStateNotAffected,
@@ -203,15 +204,15 @@ func TestFinalizeSupplyChainImpactFindingPopulatesServiceWorkloadPairsForSuppres
 		{
 			name: "unrelated workload does not pair with service",
 			index: supplyChainImpactIndex{
-				workloads: []supplyChainWorkloadContext{{
-					factID:       "workload-context:unrelated",
-					repositoryID: repository,
-					workloadID:   workloadID,
+				workloads: []supplychainmodel.WorkloadContext{{
+					FactID:       "workload-context:unrelated",
+					RepositoryID: repository,
+					WorkloadID:   workloadID,
 				}},
-				services: []supplyChainServiceContext{{
-					factID:       "service-context:without-workload",
-					repositoryID: repository,
-					serviceID:    serviceID,
+				services: []supplychainmodel.ServiceContext{{
+					FactID:       "service-context:without-workload",
+					RepositoryID: repository,
+					ServiceID:    serviceID,
 				}},
 			},
 			wantPair:      SupplyChainServiceWorkloadPair{ServiceID: serviceID},

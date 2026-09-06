@@ -318,7 +318,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "search_registry_bundles",
-			Description: "Search the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL. Supply a non-empty query or ecosystem scope; unscoped requests are rejected.",
+			Description: "Search the pre-indexed package registry catalog (package bundles) by package name, namespace, or PURL. Supply a non-empty query or ecosystem scope; unscoped requests are rejected. Scoped (personal-token) callers are refused with a 403: the bundle catalog is a whole-graph read with no per-repository binding for the caller's grant (#5167 Group B). Use the shared ESHU_API_KEY for this tool.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+
 // SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.
 //
 // Severity, fixed-version, and vulnerable-range fields carry per-source
@@ -120,28 +122,28 @@ type SupplyChainImpactFinding struct {
 // disagreement lets query-time version resolution report it.
 func bakeSupplyChainCIDeclaredArtifactIdentity(
 	finding *SupplyChainImpactFinding,
-	deployments []supplyChainDeploymentContext,
+	deployments []supplychainmodel.DeploymentContext,
 ) {
-	var firstImageRefMatch supplyChainDeploymentContext
+	var firstImageRefMatch supplychainmodel.DeploymentContext
 	hasImageRefMatch := false
 	for _, deployment := range deployments {
-		strongDigestMatch := finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
-			deployment.artifactDigest == finding.SubjectDigest
+		strongDigestMatch := finding.SubjectDigest != "" && deployment.ArtifactDigest != "" &&
+			deployment.ArtifactDigest == finding.SubjectDigest
 		if strongDigestMatch {
-			finding.CIDeclaredArtifactDigest = deployment.artifactDigest
-			finding.CIDeclaredImageRef = deployment.imageRef
+			finding.CIDeclaredArtifactDigest = deployment.ArtifactDigest
+			finding.CIDeclaredImageRef = deployment.ImageRef
 			return
 		}
 		if !hasImageRefMatch &&
 			finding.ImageRef != "" &&
-			deployment.imageRef != "" &&
-			deployment.imageRef == finding.ImageRef {
+			deployment.ImageRef != "" &&
+			deployment.ImageRef == finding.ImageRef {
 			firstImageRefMatch = deployment
 			hasImageRefMatch = true
 		}
 	}
 	if hasImageRefMatch {
-		finding.CIDeclaredArtifactDigest = firstImageRefMatch.artifactDigest
-		finding.CIDeclaredImageRef = firstImageRefMatch.imageRef
+		finding.CIDeclaredArtifactDigest = firstImageRefMatch.ArtifactDigest
+		finding.CIDeclaredImageRef = firstImageRefMatch.ImageRef
 	}
 }

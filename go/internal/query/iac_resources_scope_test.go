@@ -81,13 +81,17 @@ func TestScopedIaCResourceListGateRejectsSharedKeyOnlyRoute(t *testing.T) {
 	// the caller's literal Cypher with no selector to intersect against a grant,
 	// so it is excluded by design, not pending.
 	//
-	// Do NOT repoint this to a pendingRowFilteringRoutes entry: every route in
-	// that ledger is destined for scoped promotion by some F-6 family (the
-	// ledger draining to empty IS the epic's exit criterion), so a pending
-	// route would flip this control's expected 403 to 200 the moment its family
-	// lands -- exactly the W6 regression this replaced (aws/runtime-drift/findings
+	// Do NOT repoint this to a pendingRowFilteringRoutes entry: a route on that
+	// ledger may be promoted by its F-6 family at any time, so it would flip
+	// this control's expected 403 to 200 the moment that lands -- exactly the
+	// W6 regression this replaced (aws/runtime-drift/findings
 	// was pending when W4 authored this test, then W6 promoted it and enforced
 	// the grant at its own handler via TestHandleAWSRuntimeDriftFindingsScoped*).
+	// An earlier version of this comment called an empty ledger the epic's exit
+	// criterion; it is not. A route that genuinely cannot be tenant-filtered may
+	// stay on the ledger with a reason and a tool description that discloses the
+	// 403. Which routes those are is not settled, so the argument above holds
+	// either way.
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/cypher", nil)
 	req.Header.Set("Authorization", "Bearer scoped-token")
 	rec := httptest.NewRecorder()

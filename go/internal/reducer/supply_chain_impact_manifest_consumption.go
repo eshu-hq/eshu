@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func addManifestDependencySupplyChainConsumption(
@@ -31,8 +32,8 @@ func addManifestDependencySupplyChainConsumption(
 			if !manifestDependencyMatchesAffectedPackage(dependencyKeys, affected.keys) {
 				continue
 			}
-			index.consumption[affected.pkg.packageID] = append(
-				index.consumption[affected.pkg.packageID],
+			index.consumption[affected.pkg.PackageID] = append(
+				index.consumption[affected.pkg.PackageID],
 				supplyChainConsumptionFromManifestDependency(dependency, affected.pkg),
 			)
 		}
@@ -40,11 +41,11 @@ func addManifestDependencySupplyChainConsumption(
 }
 
 type manifestAffectedPackageMatch struct {
-	pkg  supplyChainAffectedPackage
+	pkg  supplychainmodel.AffectedPackage
 	keys []string
 }
 
-func manifestAffectedPackageMatches(groups map[string][]supplyChainAffectedPackage) []manifestAffectedPackageMatch {
+func manifestAffectedPackageMatches(groups map[string][]supplychainmodel.AffectedPackage) []manifestAffectedPackageMatch {
 	out := make([]manifestAffectedPackageMatch, 0)
 	for _, pkgs := range groups {
 		for _, pkg := range pkgs {
@@ -61,8 +62,8 @@ func manifestAffectedPackageMatches(groups map[string][]supplyChainAffectedPacka
 	return out
 }
 
-func affectedPackageConsumptionKeys(pkg supplyChainAffectedPackage) []string {
-	ecosystem := packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(pkg.ecosystem))
+func affectedPackageConsumptionKeys(pkg supplychainmodel.AffectedPackage) []string {
+	ecosystem := packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(pkg.Ecosystem))
 	if ecosystem == "" {
 		return nil
 	}
@@ -87,31 +88,31 @@ func manifestDependencyMatchesAffectedPackage(
 
 func supplyChainConsumptionFromManifestDependency(
 	dependency packageManifestDependency,
-	pkg supplyChainAffectedPackage,
-) supplyChainPackageConsumption {
-	return supplyChainPackageConsumption{
-		factID:                    dependency.FactID,
-		evidenceKind:              factKindContentEntity,
-		packageID:                 pkg.packageID,
-		repositoryID:              strings.TrimSpace(dependency.RepositoryID),
-		dependencyRange:           strings.TrimSpace(dependency.DependencyRange),
-		observedVersion:           strings.TrimSpace(dependency.ObservedVersion),
-		requestedRange:            strings.TrimSpace(dependency.RequestedRange),
-		installedVersion:          strings.TrimSpace(dependency.InstalledVersion),
-		dependencyPath:            append([]string(nil), dependency.DependencyPath...),
-		dependencyDepth:           dependency.DependencyDepth,
-		directDependency:          cloneBoolPointer(dependency.DirectDependency),
-		dependencyScope:           strings.TrimSpace(dependency.DependencyScope),
-		versionEvidence:           strings.TrimSpace(dependency.VersionEvidence),
-		unresolvedMSBuildProperty: strings.TrimSpace(dependency.UnresolvedMSBuildProperty),
-		ambiguousMSBuildProperty:  strings.TrimSpace(dependency.AmbiguousMSBuildProperty),
-		packageAPIPackages:        uniqueSortedStrings(dependency.PackageAPIPackages),
-		packageAPIIdentitySource:  strings.TrimSpace(dependency.PackageAPIIdentitySource),
-		dependencyResolutionState: strings.TrimSpace(dependency.DependencyResolutionState),
-		sourceSet:                 strings.TrimSpace(dependency.SourceSet),
-		generatedCode:             cloneBoolPointer(dependency.GeneratedCode),
-		partialEvidence:           dependency.PartialEvidence,
-		lockfile:                  dependency.Lockfile,
+	pkg supplychainmodel.AffectedPackage,
+) supplychainmodel.PackageConsumption {
+	return supplychainmodel.PackageConsumption{
+		FactID:                    dependency.FactID,
+		EvidenceKind:              factKindContentEntity,
+		PackageID:                 pkg.PackageID,
+		RepositoryID:              strings.TrimSpace(dependency.RepositoryID),
+		DependencyRange:           strings.TrimSpace(dependency.DependencyRange),
+		ObservedVersion:           strings.TrimSpace(dependency.ObservedVersion),
+		RequestedRange:            strings.TrimSpace(dependency.RequestedRange),
+		InstalledVersion:          strings.TrimSpace(dependency.InstalledVersion),
+		DependencyPath:            append([]string(nil), dependency.DependencyPath...),
+		DependencyDepth:           dependency.DependencyDepth,
+		DirectDependency:          cloneBoolPointer(dependency.DirectDependency),
+		DependencyScope:           strings.TrimSpace(dependency.DependencyScope),
+		VersionEvidence:           strings.TrimSpace(dependency.VersionEvidence),
+		UnresolvedMSBuildProperty: strings.TrimSpace(dependency.UnresolvedMSBuildProperty),
+		AmbiguousMSBuildProperty:  strings.TrimSpace(dependency.AmbiguousMSBuildProperty),
+		PackageAPIPackages:        uniqueSortedStrings(dependency.PackageAPIPackages),
+		PackageAPIIdentitySource:  strings.TrimSpace(dependency.PackageAPIIdentitySource),
+		DependencyResolutionState: strings.TrimSpace(dependency.DependencyResolutionState),
+		SourceSet:                 strings.TrimSpace(dependency.SourceSet),
+		GeneratedCode:             cloneBoolPointer(dependency.GeneratedCode),
+		PartialEvidence:           dependency.PartialEvidence,
+		Lockfile:                  dependency.Lockfile,
 	}
 }
 

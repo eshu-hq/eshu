@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -86,9 +87,9 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 // scanner_worker.analysis fact within one intent. In production, os_package
 // facts arrive from the active-evidence SQL stage carrying their own
 // scan-target ScopeID — a different scope than the intent's
-// vulnerability-intelligence scope (see classifySupplyChainImpactPackage and
-// supplyChainScopeGenerationKey in supply_chain_impact_index.go for the join
-// this feeds). This cap keeps a pathological generation with an unbounded
+// vulnerability-intelligence scope (see classifySupplyChainImpactPackage in
+// supply_chain_impact_index.go and supplychainmodel.ScopeGenerationKey for
+// the join this feeds). This cap keeps a pathological generation with an unbounded
 // number of distinct scan targets from turning the sibling load into
 // unbounded per-intent fan-out.
 const maxSupplyChainImpactScannerAnalysisScopeLoads = 256
@@ -122,7 +123,7 @@ func supplyChainImpactOSPackageScopeGenerationPairs(
 			continue
 		}
 		generationID := strings.TrimSpace(envelope.GenerationID)
-		key := supplyChainScopeGenerationKey(scopeID, generationID)
+		key := supplychainmodel.ScopeGenerationKey(scopeID, generationID)
 		if _, ok := seen[key]; ok {
 			continue
 		}
@@ -144,7 +145,7 @@ func supplyChainImpactOSPackageScopeGenerationPairs(
 // the intent's vulnerability-intelligence scope, so it can only be reached by
 // querying each os_package's ScopeID+GenerationID directly. Without this
 // stage classifySupplyChainImpactPackage's digest join
-// (supplyChainScopeGenerationKey) never has a scanner analysis to match and
+// (supplychainmodel.ScopeGenerationKey) never has a scanner analysis to match and
 // SubjectDigest stays blank for every os_package finding.
 func (h SupplyChainImpactHandler) loadSupplyChainImpactScannerAnalysisScopeFacts(
 	ctx context.Context,

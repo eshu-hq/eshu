@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cpubudget"
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -89,12 +90,12 @@ const (
 
 type generationRetentionConfig struct {
 	Enabled bool
-	Runner  reducer.GenerationRetentionRunnerConfig
+	Runner  maintenance.GenerationRetentionRunnerConfig
 }
 
 type generationLivenessConfig struct {
 	Enabled bool
-	Runner  reducer.GenerationLivenessRunnerConfig
+	Runner  maintenance.GenerationLivenessRunnerConfig
 }
 
 // poisonLivenessConfig configures the #4740 dead-letter/poison bounded
@@ -102,12 +103,12 @@ type generationLivenessConfig struct {
 // when Runner.AutoRetryEnabled is true; the stuck-gauge is wired independently
 // in registerReducerObservableGauges and is always active.
 type poisonLivenessConfig struct {
-	Runner reducer.PoisonLivenessRunnerConfig
+	Runner maintenance.PoisonLivenessRunnerConfig
 }
 
 type graphOrphanSweepConfig struct {
 	Enabled bool
-	Runner  reducer.GraphOrphanSweepRunnerConfig
+	Runner  maintenance.GraphOrphanSweepRunnerConfig
 }
 
 func loadReducerQueueConfig(getenv func(string) string) (runtimecfg.RetryPolicyConfig, error) {
@@ -264,9 +265,9 @@ func loadGenerationRetentionConfig(getenv func(string) string) generationRetenti
 	defaults := postgres.DefaultGenerationRetentionPolicy()
 	return generationRetentionConfig{
 		Enabled: loadBoolOrDefault(getenv, generationRetentionEnabledEnv, true),
-		Runner: reducer.GenerationRetentionRunnerConfig{
+		Runner: maintenance.GenerationRetentionRunnerConfig{
 			PollInterval: loadDurationOrDefault(getenv, generationRetentionPollIntervalEnv, defaultGenerationRetentionPollInterval),
-			Policy: reducer.GenerationRetentionPolicy{
+			Policy: maintenance.GenerationRetentionPolicy{
 				MinSupersededGenerations: loadPositiveIntOrDefault(getenv, generationRetentionMinSupersededGenerationsEnv, defaults.MinSupersededGenerations),
 				MaxSupersededAge:         loadDurationOrDefault(getenv, generationRetentionMaxSupersededAgeEnv, defaults.MaxSupersededAge),
 				BatchGenerationLimit:     loadPositiveIntOrDefault(getenv, generationRetentionBatchGenerationLimitEnv, defaults.BatchGenerationLimit),
@@ -284,9 +285,9 @@ func loadGenerationLivenessConfig(getenv func(string) string) generationLiveness
 	}
 	return generationLivenessConfig{
 		Enabled: loadBoolOrDefault(getenv, generationLivenessEnabledEnv, true),
-		Runner: reducer.GenerationLivenessRunnerConfig{
+		Runner: maintenance.GenerationLivenessRunnerConfig{
 			PollInterval: loadDurationOrDefault(getenv, generationLivenessPollIntervalEnv, defaultGenerationLivenessPollInterval),
-			Policy: reducer.GenerationLivenessPolicy{
+			Policy: maintenance.GenerationLivenessPolicy{
 				ActivationDeadline: loadDurationOrDefault(getenv, generationLivenessActivationDeadlineEnv, defaultGenerationLivenessActivationDeadline),
 				MaxRecoverAttempts: loadPositiveIntOrDefault(getenv, generationLivenessMaxRecoverAttemptsEnv, defaultGenerationLivenessMaxRecoverAttempts),
 				BatchLimit:         loadPositiveIntOrDefault(getenv, generationLivenessBatchLimitEnv, defaultGenerationLivenessBatchLimit),
@@ -300,10 +301,10 @@ func loadPoisonLivenessConfig(getenv func(string) string) poisonLivenessConfig {
 		getenv = func(string) string { return "" }
 	}
 	return poisonLivenessConfig{
-		Runner: reducer.PoisonLivenessRunnerConfig{
+		Runner: maintenance.PoisonLivenessRunnerConfig{
 			AutoRetryEnabled: loadBoolOrDefault(getenv, poisonLivenessAutoRetryEnabledEnv, false),
 			PollInterval:     loadDurationOrDefault(getenv, poisonLivenessPollIntervalEnv, defaultPoisonLivenessPollInterval),
-			Policy: reducer.PoisonLivenessPolicy{
+			Policy: maintenance.PoisonLivenessPolicy{
 				MaxRecoverAttempts: loadPositiveIntOrDefault(getenv, poisonLivenessMaxRecoverAttemptsEnv, defaultPoisonLivenessMaxRecoverAttempts),
 				BatchLimit:         loadPositiveIntOrDefault(getenv, poisonLivenessBatchLimitEnv, defaultPoisonLivenessBatchLimit),
 			},
@@ -339,11 +340,11 @@ func loadGraphOrphanSweepConfig(getenv func(string) string) graphOrphanSweepConf
 	}
 	return graphOrphanSweepConfig{
 		Enabled: loadBoolOrDefault(getenv, graphOrphanSweepEnabledEnv, true),
-		Runner: reducer.GraphOrphanSweepRunnerConfig{
+		Runner: maintenance.GraphOrphanSweepRunnerConfig{
 			PollInterval: loadDurationOrDefault(getenv, graphOrphanSweepPollIntervalEnv, defaultGraphOrphanSweepPollInterval),
 			LeaseOwner:   loadStringOrDefault(getenv, graphOrphanSweepLeaseOwnerEnv, defaultGraphOrphanSweepLeaseOwner()),
 			LeaseTTL:     loadDurationOrDefault(getenv, graphOrphanSweepLeaseTTLEnv, defaultGraphOrphanSweepLeaseTTL),
-			Policy: reducer.GraphOrphanSweepPolicy{
+			Policy: maintenance.GraphOrphanSweepPolicy{
 				OrphanTTL:  loadDurationOrDefault(getenv, graphOrphanSweepTTLEnv, defaultGraphOrphanSweepTTL),
 				BatchLimit: loadPositiveIntOrDefault(getenv, graphOrphanSweepBatchLimitEnv, defaultGraphOrphanSweepBatchLimit),
 				CountLimit: loadPositiveIntOrDefault(getenv, graphOrphanSweepCountLimitEnv, defaultGraphOrphanSweepCountLimit),

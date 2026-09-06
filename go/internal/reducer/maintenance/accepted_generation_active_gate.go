@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package maintenance
 
 import (
 	"context"
@@ -9,8 +9,21 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// AcceptedGenerationLookup mirrors reducer.AcceptedGenerationLookup
+// (reducer/shared_projection_worker.go): it is a type alias over the same
+// underlying shared-projection acceptance lookup signature, so a value of
+// either type is assignable to the other with no conversion. It is declared
+// locally rather than imported from the reducer root because a family
+// subpackage never imports the reducer root (issue #6061).
+type AcceptedGenerationLookup = func(key sharedintent.AcceptanceKey) (string, bool)
+
+// AcceptedGenerationPrefetch mirrors reducer.AcceptedGenerationPrefetch for the
+// same reason AcceptedGenerationLookup does above.
+type AcceptedGenerationPrefetch = func(ctx context.Context, intents []sharedintent.Row) (AcceptedGenerationLookup, error)
 
 // RelationshipGenerationActiveLookup reports whether a relationship generation
 // is currently active (published) in Postgres. It backs the repo-dependency
@@ -57,7 +70,7 @@ func GateAcceptedGenerationOnActive(
 	if base == nil || isActive == nil {
 		return base
 	}
-	return func(key SharedProjectionAcceptanceKey) (string, bool) {
+	return func(key sharedintent.AcceptanceKey) (string, bool) {
 		generationID, ok := base(key)
 		if !ok {
 			return "", false
@@ -146,7 +159,7 @@ func GateAcceptedGenerationPrefetchOnActive(
 	if base == nil || isActive == nil {
 		return base
 	}
-	return func(ctx context.Context, intents []SharedProjectionIntentRow) (AcceptedGenerationLookup, error) {
+	return func(ctx context.Context, intents []sharedintent.Row) (AcceptedGenerationLookup, error) {
 		resolved, err := base(ctx, intents)
 		if err != nil {
 			return nil, err

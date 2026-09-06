@@ -59,7 +59,7 @@ The root-cause fix gates repo-dependency graph-projection authority on the
 relationship generation being active. `RelationshipStore.IsGenerationActive` (a
 primary-key lookup on `relationship_generations`) is adapted via
 `postgres.NewRelationshipGenerationActiveLookup` and composed over the runner's
-`AcceptedGen`/`AcceptedGenPrefetch` with `reducer.GateAcceptedGenerationOnActive`
+`AcceptedGen`/`AcceptedGenPrefetch` with `maintenance.GateAcceptedGenerationOnActive`
 / `GateAcceptedGenerationPrefetchOnActive`. The gate returns "not authoritative"
 (defer) whenever the accepted generation is not yet active, the active check
 errors, or there is no acceptance row. This makes activation the single fence

@@ -17,8 +17,8 @@ Measured wall-clock (#6359, closes the argument-from-shape above).
 `BenchmarkLoad{CodeownersOwnership,Documentation,Rationale,ShellExec,SubmodulePin}MaterializationFacts`
 (`go/internal/reducer/factload_materialization_bench_test.go`, shared
 601-envelope in-memory corpus over `stubFactLoader`, `go test
-./internal/reducer/ -run '^$' -bench 'MaterializationFacts' -benchmem
--count=3`), darwin/arm64 Apple M4 Pro, go1.27.0 — the same toolchain the
+./internal/reducer/ -run '^$' -bench 'MaterializationFacts|WrapperFrameOverhead'
+-benchmem -count=3`), darwin/arm64 Apple M4 Pro, go1.27.0 — the same toolchain the
 `-m=2` costs above were taken on, so compiler, corpus, and loader path match
 the inline decision. Medians of three runs, 0 allocs/op throughout:
 
@@ -42,6 +42,11 @@ noise on this path. The store-read magnitude itself is not measured by this
 bench; it remains a shape argument (each wrapper's next step is a store read,
 covered in production by `eshu_dp_postgres_query_duration_seconds`), and the
 bench's claim stops at the wrapper-frame cost it actually measures.
+
+Benchmark Evidence (follow-up #6549 review): the repro `-bench` pattern was
+widened to `MaterializationFacts|WrapperFrameOverhead` so the ~1ns figure
+reproduces; re-executed with both sub-benchmarks running green.
+No-Observability-Change (follow-up): prose-only correction, no code touched.
 
 Benchmark Evidence: baseline is the direct `factload.LoadFactsForKinds` call
 at 5.67 ns/op (median of three runs); after (through the thin wrapper) is

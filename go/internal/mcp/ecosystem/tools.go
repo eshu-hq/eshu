@@ -287,7 +287,7 @@ func repositoryImpactTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "trace_resource_to_code",
-			Description: "Trace an infrastructure resource back to the code and repositories that own or configure it.",
+			Description: "Trace an infrastructure resource back to the code and repositories that own or configure it. Scoped (personal-token) callers are refused with a 403: reachable node types mostly carry no repo_id, so the traversal cannot be bound to the caller's repository grant (#5167 Group B). Use the shared ESHU_API_KEY for this tool.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -317,7 +317,7 @@ func repositoryImpactTools() []toolcontract.ToolDefinition {
 		},
 		{
 			Name:        "explain_dependency_path",
-			Description: "Explain the dependency path between two canonical entities.",
+			Description: "Explain the dependency path between two canonical entities. Scoped (personal-token) callers are refused with a 403: reachable node types mostly carry no repo_id, so the traversal cannot be bound to the caller's repository grant (#5167 Group B). Use the shared ESHU_API_KEY for this tool.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

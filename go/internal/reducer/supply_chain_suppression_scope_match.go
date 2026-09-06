@@ -76,9 +76,9 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	// scope combining Environment with either one can only be verified when
 	// every referenced dimension is single-valued (see that function's doc).
 	// WorkloadID and ServiceID DO share a
-	// genuine join: supplyChainServiceContext (supply_chain_impact_index.go)
-	// carries both together from the SAME reducer_service_catalog_
-	// correlation record, and applySupplyChainRuntimeContext preserves that
+	// genuine join: supplychainmodel.ServiceContext carries both together from
+	// the SAME reducer_service_catalog_correlation record, and
+	// applySupplyChainRuntimeContext preserves that
 	// exact pairing in finding.ServiceWorkloadPairs -- so a scope naming
 	// BOTH is verified against a real pair instead of the (unsound, see
 	// suppressionServiceWorkloadPairMatches) cardinality heuristic.
@@ -115,8 +115,9 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 // The two remaining dimension-pairs are verified by GENUINELY DIFFERENT
 // mechanisms, because only one of them has real correlating evidence:
 //
-//   - WorkloadID+ServiceID: supplyChainServiceContext (supply_chain_impact_
-//     index.go) carries serviceID and workloadID together on the SAME row --
+//   - WorkloadID+ServiceID: supplychainmodel.ServiceContext
+//     (supplychainmodel/types.go) carries ServiceID and WorkloadID together
+//     on the SAME row --
 //     both fields come from the SAME reducer_service_catalog_correlation
 //     fact. That is real correlation, so when the scope references BOTH,
 //     this delegates to suppressionServiceWorkloadPairMatches, which checks
@@ -125,7 +126,7 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 //     heuristic is unsound for this pair specifically).
 //   - Environment+either: Environment is populated from a DIFFERENT fact
 //     kind entirely (reducer_ci_cd_run_correlation via
-//     supplyChainDeploymentContext), correlated to the finding only by
+//     supplychainmodel.DeploymentContext), correlated to the finding only by
 //     repository_id -- there is no row anywhere that carries Environment
 //     alongside WorkloadID or ServiceID, so it cannot be tupled with either
 //     the way WorkloadID and ServiceID can be tupled with each other. A

@@ -36,14 +36,18 @@ import "net/http"
 //     a grant at all.
 //
 // trace_resource_to_code, explain_dependency_path (impact.go/impact_anchor_resolve.go)
-// and trace_exposure_path (exposure_path.go) are NOT included here: they
-// resolve an arbitrary graph node across many labels (impactAnchorLabelDisjunction,
-// or an unbounded CALLS chain to a cross-repo cloud sink) with no repo_id
-// property on most of the reachable node types, so binding every traversal
-// endpoint to a grant needs a live-graph schema check and very likely a
-// NornicDB-safe Cypher rewrite (see docs/public/reference/cypher-performance.md
-// and nornicdb-pitfalls.md) before it is safe to allowlist -- they remain in
-// pendingRowFilteringRoutes (#5167 flagged for follow-up, not guessed at).
+// and trace_exposure_path (exposure_path.go) are NOT included here. Their walks
+// are bounded -- max_depth 1..20 with normalizeImpactListLimit, one shortestPath
+// of at most 8 hops, and clampExposureDepth with exposurePathResultLimit
+// respectively -- so the bound is not what excludes them. The grant is: each
+// resolves an arbitrary graph node across many labels
+// (impactAnchorLabelDisjunction) and walks through cloud and infrastructure hops
+// that carry no repo_id property, so binding every traversal endpoint to a grant
+// needs a live-graph schema check and very likely a NornicDB-safe Cypher rewrite
+// (see docs/public/reference/cypher-performance.md and nornicdb-pitfalls.md)
+// before it is safe to allowlist -- they remain in pendingRowFilteringRoutes
+// (#5167 flagged for follow-up, not guessed at), each with the reason recorded
+// on its entry there.
 func scopedImpactCompareRoute(r *http.Request) bool {
 	if r.Method != http.MethodPost {
 		return false

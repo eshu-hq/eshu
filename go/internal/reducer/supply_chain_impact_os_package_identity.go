@@ -3,14 +3,18 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
 
-func affectedOSPackageLookupKeys(pkg supplyChainAffectedPackage) []string {
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+)
+
+func affectedOSPackageLookupKeys(pkg supplychainmodel.AffectedPackage) []string {
 	var keys []string
-	if key := strings.TrimSpace(pkg.packageID); key != "" {
+	if key := strings.TrimSpace(pkg.PackageID); key != "" {
 		keys = append(keys, key)
 	}
-	if key := packageIDFromPURL(pkg.purl); key != "" {
+	if key := packageIDFromPURL(pkg.PURL); key != "" {
 		keys = append(keys, key)
 	}
 	if key := osPackageIdentityFromAffectedPackage(pkg); key != "" {
@@ -19,26 +23,26 @@ func affectedOSPackageLookupKeys(pkg supplyChainAffectedPackage) []string {
 	return uniqueSortedStrings(keys)
 }
 
-func classifyAffectedPackageAdvisorySource(pkg supplyChainAffectedPackage) string {
-	if pkg.factID == "" && pkg.packageID == "" && pkg.purl == "" {
+func classifyAffectedPackageAdvisorySource(pkg supplychainmodel.AffectedPackage) string {
+	if pkg.FactID == "" && pkg.PackageID == "" && pkg.PURL == "" {
 		return ""
 	}
-	source := classifyAdvisorySource(pkg.source, pkg.advisoryID)
+	source := classifyAdvisorySource(pkg.Source, pkg.AdvisoryID)
 	if source != "osv" && source != "" {
 		return source
 	}
-	if strings.ToLower(strings.TrimSpace(pkg.ecosystem)) != "os" {
+	if strings.ToLower(strings.TrimSpace(pkg.Ecosystem)) != "os" {
 		return source
 	}
-	return osPackageVendorFromPURL(pkg.purl)
+	return osPackageVendorFromPURL(pkg.PURL)
 }
 
-func osPackageIdentityFromAffectedPackage(pkg supplyChainAffectedPackage) string {
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(pkg.packageID)), "os://") {
-		return strings.ToLower(strings.TrimSpace(pkg.packageID))
+func osPackageIdentityFromAffectedPackage(pkg supplychainmodel.AffectedPackage) string {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(pkg.PackageID)), "os://") {
+		return strings.ToLower(strings.TrimSpace(pkg.PackageID))
 	}
-	vendor := osPackageVendorFromPURL(pkg.purl)
-	name := strings.ToLower(strings.TrimSpace(pkg.name))
+	vendor := osPackageVendorFromPURL(pkg.PURL)
+	name := strings.ToLower(strings.TrimSpace(pkg.Name))
 	if vendor == "" || name == "" {
 		return ""
 	}

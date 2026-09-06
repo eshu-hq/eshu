@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 var pypiVersionPattern = regexp.MustCompile(`^(?:(\d+)!)?(\d+(?:\.\d+)*)(?:(a|b|rc)(\d+))?(?:\.post(\d+))?(?:\.dev(\d+))?$`)
@@ -21,7 +23,7 @@ type pypiVersion struct {
 func evaluatePyPIPep440Match(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validPyPIVersion(observed) {
 		return malformedInstalledVersionDecision()
@@ -43,7 +45,7 @@ func evaluatePyPIPep440Match(
 	return possiblyAffectedDecision(supplyChainVersionReasonNoAffectedMatch, nil)
 }
 
-func pypiAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage) (bool, bool) {
+func pypiAffectedByAnyPackage(observed string, pkgs []supplychainmodel.AffectedPackage) (bool, bool) {
 	malformed := false
 	for _, pkg := range pkgs {
 		if affected, valid := pypiAffectedByPackage(observed, pkg); affected {
@@ -55,9 +57,9 @@ func pypiAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage
 	return false, malformed
 }
 
-func pypiAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool, bool) {
+func pypiAffectedByPackage(observed string, pkg supplychainmodel.AffectedPackage) (bool, bool) {
 	valid := true
-	for _, candidate := range pkg.affectedVersions {
+	for _, candidate := range pkg.AffectedVersions {
 		candidate = strings.TrimSpace(candidate)
 		if candidate == "" {
 			continue
@@ -68,9 +70,9 @@ func pypiAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (boo
 			valid = false
 		}
 	}
-	for _, affectedRange := range pkg.affectedRanges {
-		if !strings.EqualFold(affectedRange.kind, "ECOSYSTEM") &&
-			!strings.EqualFold(affectedRange.kind, "SEMVER") {
+	for _, affectedRange := range pkg.AffectedRanges {
+		if !strings.EqualFold(affectedRange.Kind, "ECOSYSTEM") &&
+			!strings.EqualFold(affectedRange.Kind, "SEMVER") {
 			continue
 		}
 		if affected, ok := pypiRangeContainsDecision(affectedRange, observed); affected {
@@ -79,7 +81,7 @@ func pypiAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (boo
 			valid = false
 		}
 	}
-	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+	if raw := strings.TrimSpace(pkg.AffectedRangeRaw); raw != "" {
 		if affected, ok := pypiSpecifierSetContains(raw, observed); affected {
 			return true, true
 		} else if !ok {
@@ -90,31 +92,31 @@ func pypiAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (boo
 }
 
 func pypiRangeContainsDecision(
-	affectedRange supplyChainAffectedRange,
+	affectedRange supplychainmodel.AffectedRange,
 	observed string,
 ) (bool, bool) {
-	if ok, valid := pypiBeforeLimitsDecision(observed, affectedRange.events); !valid {
+	if ok, valid := pypiBeforeLimitsDecision(observed, affectedRange.Events); !valid {
 		return false, false
 	} else if !ok {
 		return false, true
 	}
 	vulnerable := false
-	for _, event := range affectedRange.events {
+	for _, event := range affectedRange.Events {
 		switch {
-		case event.introduced != "":
-			if ok, valid := pypiAtLeast(observed, event.introduced); !valid {
+		case event.Introduced != "":
+			if ok, valid := pypiAtLeast(observed, event.Introduced); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = true
 			}
-		case event.fixed != "":
-			if ok, valid := pypiAtLeast(observed, event.fixed); !valid {
+		case event.Fixed != "":
+			if ok, valid := pypiAtLeast(observed, event.Fixed); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
 			}
-		case event.lastAffected != "":
-			if ok, valid := pypiGreaterThan(observed, event.lastAffected); !valid {
+		case event.LastAffected != "":
+			if ok, valid := pypiGreaterThan(observed, event.LastAffected); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
@@ -124,10 +126,10 @@ func pypiRangeContainsDecision(
 	return vulnerable, true
 }
 
-func pypiBeforeLimitsDecision(observed string, events []supplyChainAffectedRangeEvent) (bool, bool) {
+func pypiBeforeLimitsDecision(observed string, events []supplychainmodel.AffectedRangeEvent) (bool, bool) {
 	hasLimit := false
 	for _, event := range events {
-		limit := strings.TrimSpace(event.limit)
+		limit := strings.TrimSpace(event.Limit)
 		if limit == "" {
 			continue
 		}

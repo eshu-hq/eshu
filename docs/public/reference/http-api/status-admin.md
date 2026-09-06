@@ -558,8 +558,8 @@ Scoped tokens are refused with a 403, all-scope bearer tokens included. So is
 every browser session except one that is all-scope and bound to a single tenant
 and workspace: in `local_no_policy`, `hosted_single_tenant`, and an unset mode
 (which defaults to `local_no_policy`) the browser-session route policy admits
-that console session, as it does on every route outside the scoped-token
-allowlist, and `hosted_multi_tenant` (or any other unrecognized mode) refuses
+that console session, as it does on the routes of the pending row-filtering
+ledger, and `hosted_multi_tenant` (or any other unrecognized mode) refuses
 it.
 
 The incidents family's production loader is held behind a durable

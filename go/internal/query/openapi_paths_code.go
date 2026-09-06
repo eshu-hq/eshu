@@ -127,7 +127,7 @@ const openAPIPathsCode = `
       "post": {
         "tags": ["code"],
         "summary": "Get code relationships",
-        "description": "Returns incoming and outgoing relationships for an entity.",
+        "description": "Returns incoming and outgoing relationships for an entity. This is where the analyze_code_relationships MCP tool sends its who_modifies, module_deps, variable_scope, find_complexity, find_functions_by_argument, and find_functions_by_decorator query types; its relationship-story and call-chain query types go to the grant-bound routes instead. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the handler expands a resolved entity's neighbours with no grant to intersect. That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger until the #6553 anchoring-MATCH grant shape is applied here.",
         "operationId": "getCodeRelationships",
         "requestBody": {
           "required": true,
@@ -198,6 +198,7 @@ const openAPIPathsCode = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

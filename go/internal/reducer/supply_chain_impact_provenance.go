@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 // supplyChainCVEGroup is the consolidated per-(cve_id) view of every
@@ -16,7 +17,7 @@ import (
 // per source overwriting earlier rows.
 type supplyChainCVEGroup struct {
 	cveID        string
-	observations []supplyChainImpactCVE
+	observations []supplychainmodel.ImpactCVE
 }
 
 // representative returns the highest-priority non-withdrawn observation for
@@ -28,19 +29,19 @@ type supplyChainCVEGroup struct {
 // remains the deterministic tail of that ranking. Withdrawn observations
 // are only returned when every observation in the group is withdrawn, so
 // callers still get a row with `WithdrawnAt` set rather than the zero value.
-func (g supplyChainCVEGroup) representative() supplyChainImpactCVE {
+func (g supplyChainCVEGroup) representative() supplychainmodel.ImpactCVE {
 	if len(g.observations) == 0 {
-		return supplyChainImpactCVE{cveID: g.cveID}
+		return supplychainmodel.ImpactCVE{CVEID: g.cveID}
 	}
 	best := -1
 	bestRank := 0
 	for i, observation := range g.observations {
-		if strings.TrimSpace(observation.withdrawnAt) != "" {
+		if strings.TrimSpace(observation.WithdrawnAt) != "" {
 			continue
 		}
-		rank := advisorySourcePriority("", classifyAdvisorySource(observation.source, observation.advisoryID))
+		rank := advisorySourcePriority("", classifyAdvisorySource(observation.Source, observation.AdvisoryID))
 		if best < 0 || rank < bestRank ||
-			(rank == bestRank && observation.factID < g.observations[best].factID) {
+			(rank == bestRank && observation.FactID < g.observations[best].FactID) {
 			best = i
 			bestRank = rank
 		}
@@ -51,13 +52,13 @@ func (g supplyChainCVEGroup) representative() supplyChainImpactCVE {
 	return g.observations[best]
 }
 
-func groupSupplyChainCVEsByID(observations []supplyChainImpactCVE) map[string]supplyChainCVEGroup {
+func groupSupplyChainCVEsByID(observations []supplychainmodel.ImpactCVE) map[string]supplyChainCVEGroup {
 	groups := make(map[string]supplyChainCVEGroup, len(observations))
 	for _, observation := range observations {
-		group := groups[observation.cveID]
-		group.cveID = observation.cveID
+		group := groups[observation.CVEID]
+		group.cveID = observation.CVEID
 		group.observations = append(group.observations, observation)
-		groups[observation.cveID] = group
+		groups[observation.CVEID] = group
 	}
 	return groups
 }
@@ -71,15 +72,15 @@ func sortedCVEKeys(groups map[string]supplyChainCVEGroup) []string {
 	return keys
 }
 
-func groupSupplyChainAffectedByPackage(observations []supplyChainAffectedPackage) map[string][]supplyChainAffectedPackage {
-	groups := make(map[string][]supplyChainAffectedPackage, len(observations))
+func groupSupplyChainAffectedByPackage(observations []supplychainmodel.AffectedPackage) map[string][]supplychainmodel.AffectedPackage {
+	groups := make(map[string][]supplychainmodel.AffectedPackage, len(observations))
 	for _, observation := range observations {
-		groups[observation.packageID] = append(groups[observation.packageID], observation)
+		groups[observation.PackageID] = append(groups[observation.PackageID], observation)
 	}
 	return groups
 }
 
-func sortedPackageKeys(groups map[string][]supplyChainAffectedPackage) []string {
+func sortedPackageKeys(groups map[string][]supplychainmodel.AffectedPackage) []string {
 	keys := make([]string, 0, len(groups))
 	for key := range groups {
 		keys = append(keys, key)
@@ -92,27 +93,27 @@ func sortedPackageKeys(groups map[string][]supplyChainAffectedPackage) []string 
 // package as the row used for shape fields (ecosystem, package name, purl).
 // Per-source provenance still flows through the AdvisoryProvenanceObservation
 // list so callers do not lose vendor or upstream rows.
-func representativeAffectedPackage(packages []supplyChainAffectedPackage) supplyChainAffectedPackage {
+func representativeAffectedPackage(packages []supplychainmodel.AffectedPackage) supplychainmodel.AffectedPackage {
 	if len(packages) == 0 {
-		return supplyChainAffectedPackage{}
+		return supplychainmodel.AffectedPackage{}
 	}
 	if len(packages) == 1 {
 		return packages[0]
 	}
-	ecosystem := strings.ToLower(strings.TrimSpace(packages[0].ecosystem))
-	sorted := append([]supplyChainAffectedPackage(nil), packages...)
+	ecosystem := strings.ToLower(strings.TrimSpace(packages[0].Ecosystem))
+	sorted := append([]supplychainmodel.AffectedPackage(nil), packages...)
 	sort.SliceStable(sorted, func(i, j int) bool {
-		si := classifyAdvisorySource(sorted[i].source, sorted[i].advisoryID)
-		sj := classifyAdvisorySource(sorted[j].source, sorted[j].advisoryID)
+		si := classifyAdvisorySource(sorted[i].Source, sorted[i].AdvisoryID)
+		sj := classifyAdvisorySource(sorted[j].Source, sorted[j].AdvisoryID)
 		ri := advisorySourcePriority(ecosystem, si)
 		rj := advisorySourcePriority(ecosystem, sj)
 		if ri != rj {
 			return ri < rj
 		}
-		if sorted[i].source != sorted[j].source {
-			return sorted[i].source < sorted[j].source
+		if sorted[i].Source != sorted[j].Source {
+			return sorted[i].Source < sorted[j].Source
 		}
-		return sorted[i].factID < sorted[j].factID
+		return sorted[i].FactID < sorted[j].FactID
 	})
 	return sorted[0]
 }
@@ -125,65 +126,65 @@ func representativeAffectedPackage(packages []supplyChainAffectedPackage) supply
 // matching counterpart are still preserved so callers see the full source
 // list.
 func buildAdvisoryProvenanceObservations(
-	cves []supplyChainImpactCVE,
-	packages []supplyChainAffectedPackage,
+	cves []supplychainmodel.ImpactCVE,
+	packages []supplychainmodel.AffectedPackage,
 ) []AdvisoryProvenanceObservation {
 	observations := make([]AdvisoryProvenanceObservation, 0, len(cves)+len(packages))
 	matchedAffected := make(map[string]bool, len(packages))
 	for _, cve := range cves {
 		matched := matchAffectedForCVE(cve, packages, matchedAffected)
-		source := classifyAdvisorySource(cve.source, cve.advisoryID)
+		source := classifyAdvisorySource(cve.Source, cve.AdvisoryID)
 		if packageSource := classifyAffectedPackageAdvisorySource(matched); packageSource != "" {
 			source = packageSource
 		}
 		observations = append(observations, AdvisoryProvenanceObservation{
 			Source:          source,
-			AdvisoryID:      payloadcore.FirstNonBlank(cve.advisoryID, cve.cveID),
-			SourceUpdatedAt: strings.TrimSpace(cve.sourceUpdatedAt),
-			SeverityScore:   cve.cvssScore,
-			SeverityVector:  strings.TrimSpace(cve.cvssVector),
-			SeverityLabel:   strings.TrimSpace(cve.severityLabel),
-			FixedVersions:   append([]string(nil), matched.fixedVersions...),
+			AdvisoryID:      payloadcore.FirstNonBlank(cve.AdvisoryID, cve.CVEID),
+			SourceUpdatedAt: strings.TrimSpace(cve.SourceUpdatedAt),
+			SeverityScore:   cve.CVSSScore,
+			SeverityVector:  strings.TrimSpace(cve.CVSSVector),
+			SeverityLabel:   strings.TrimSpace(cve.SeverityLabel),
+			FixedVersions:   append([]string(nil), matched.FixedVersions...),
 			AffectedRange:   supplyChainAffectedRangeSummary(matched),
-			WithdrawnAt:     strings.TrimSpace(cve.withdrawnAt),
-			CVEFactID:       cve.factID,
-			AffectedFactID:  matched.factID,
+			WithdrawnAt:     strings.TrimSpace(cve.WithdrawnAt),
+			CVEFactID:       cve.FactID,
+			AffectedFactID:  matched.FactID,
 		})
 	}
 	for _, pkg := range packages {
-		if matchedAffected[pkg.factID] {
+		if matchedAffected[pkg.FactID] {
 			continue
 		}
 		observations = append(observations, AdvisoryProvenanceObservation{
 			Source:         classifyAffectedPackageAdvisorySource(pkg),
-			AdvisoryID:     payloadcore.FirstNonBlank(pkg.advisoryID, pkg.cveID),
-			FixedVersions:  append([]string(nil), pkg.fixedVersions...),
+			AdvisoryID:     payloadcore.FirstNonBlank(pkg.AdvisoryID, pkg.CVEID),
+			FixedVersions:  append([]string(nil), pkg.FixedVersions...),
 			AffectedRange:  supplyChainAffectedRangeSummary(pkg),
-			AffectedFactID: pkg.factID,
+			AffectedFactID: pkg.FactID,
 		})
 	}
 	return observations
 }
 
 func matchAffectedForCVE(
-	cve supplyChainImpactCVE,
-	packages []supplyChainAffectedPackage,
+	cve supplychainmodel.ImpactCVE,
+	packages []supplychainmodel.AffectedPackage,
 	matched map[string]bool,
-) supplyChainAffectedPackage {
+) supplychainmodel.AffectedPackage {
 	for _, pkg := range packages {
-		if matched[pkg.factID] {
+		if matched[pkg.FactID] {
 			continue
 		}
-		if classifyAdvisorySource(pkg.source, pkg.advisoryID) != classifyAdvisorySource(cve.source, cve.advisoryID) {
+		if classifyAdvisorySource(pkg.Source, pkg.AdvisoryID) != classifyAdvisorySource(cve.Source, cve.AdvisoryID) {
 			continue
 		}
-		if pkg.advisoryID != "" && cve.advisoryID != "" && pkg.advisoryID != cve.advisoryID {
+		if pkg.AdvisoryID != "" && cve.AdvisoryID != "" && pkg.AdvisoryID != cve.AdvisoryID {
 			continue
 		}
-		matched[pkg.factID] = true
+		matched[pkg.FactID] = true
 		return pkg
 	}
-	return supplyChainAffectedPackage{}
+	return supplychainmodel.AffectedPackage{}
 }
 
 // AdvisoryProvenanceObservation captures one source-attributed advisory

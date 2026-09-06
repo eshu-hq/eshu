@@ -48,6 +48,13 @@ metrics, spans, and structured logs.
   they cross a sensitive-data or export boundary.
 - Aggregation validates every event before counting it, so unsafe rows cannot
   become status readbacks.
+- `actor_class` is a closed enum too. `scoped_token` is a scoped-token or
+  OIDC-bearer caller and `browser_session` is a cookie-authenticated dashboard
+  session (#6459); both need an `ActorIDHash` or `ServicePrincipalID`, and an
+  emitter that has neither records `anonymous` instead. `operator` is
+  identity-bearing too, and it is the class already stamped on a human's
+  login and identity-mutation rows, so reusing it on a route denial would
+  merge two populations an operator filters apart.
 - `reason_code` is a bounded enum an operator filters and groups by, so the
   emitting package owns its closed set rather than passing through whatever a
   dependency reports. For bearer/token resolution denials that set is

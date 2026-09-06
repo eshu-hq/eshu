@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 // buildSupplyChainImpactIndexWithQuarantine is the quarantine-aware index
@@ -26,14 +27,14 @@ import (
 // triage.
 func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supplyChainImpactIndex, []quarantinedFact, error) {
 	index := supplyChainImpactIndex{
-		affectedPackages:        map[string][]supplyChainAffectedPackage{},
-		affectedProducts:        map[string][]supplyChainAffectedProduct{},
-		consumption:             map[string][]supplyChainPackageConsumption{},
-		osPackages:              map[string][]supplyChainOSPackage{},
-		attachments:             map[string]supplyChainAttachment{},
+		affectedPackages:        map[string][]supplychainmodel.AffectedPackage{},
+		affectedProducts:        map[string][]supplychainmodel.AffectedProduct{},
+		consumption:             map[string][]supplychainmodel.PackageConsumption{},
+		osPackages:              map[string][]supplychainmodel.OSPackage{},
+		attachments:             map[string]supplychainmodel.Attachment{},
 		images:                  map[string]supplyChainImageIdentity{},
-		riskSignals:             map[string]supplyChainRiskSignals{},
-		scannerAnalyses:         map[string]supplyChainScannerAnalysis{},
+		riskSignals:             map[string]supplychainmodel.RiskSignals{},
+		scannerAnalyses:         map[string]supplychainmodel.ScannerAnalysis{},
 		goReachability:          map[string]GoVulnerabilityFinding{},
 		jsTSPackageReachability: buildJSTSPackageReachabilityIndex(envelopes),
 		pythonReachability:      map[string]pythonReachabilityRepositoryEvidence{},
@@ -70,7 +71,7 @@ func buildSupplyChainImpactIndexWithQuarantine(envelopes []facts.Envelope) (supp
 	index.pythonReachability = extractPythonReachabilityEvidence(envelopes)
 	addManifestDependencySupplyChainConsumption(&index, envelopes)
 	sort.SliceStable(index.cves, func(i, j int) bool {
-		return index.cves[i].cveID < index.cves[j].cveID
+		return index.cves[i].CVEID < index.cves[j].CVEID
 	})
 	return index, quarantined, nil
 }
@@ -93,7 +94,7 @@ func addSupplyChainImpactIndexEntry(
 		if err != nil {
 			return partitionDecodeFailures(envelope, err)
 		}
-		if cve.cveID != "" {
+		if cve.CVEID != "" {
 			index.cves = append(index.cves, cve)
 		}
 	case facts.VulnerabilityAffectedPackageFactKind:
@@ -101,32 +102,32 @@ func addSupplyChainImpactIndexEntry(
 		if err != nil {
 			return partitionDecodeFailures(envelope, err)
 		}
-		if pkg.cveID != "" {
-			index.affectedPackages[pkg.cveID] = append(index.affectedPackages[pkg.cveID], pkg)
+		if pkg.CVEID != "" {
+			index.affectedPackages[pkg.CVEID] = append(index.affectedPackages[pkg.CVEID], pkg)
 		}
 	case facts.VulnerabilityAffectedProductFactKind:
 		product, err := supplyChainAffectedProductFromEnvelope(envelope)
 		if err != nil {
 			return partitionDecodeFailures(envelope, err)
 		}
-		if product.cveID != "" && product.criteria != "" && product.vulnerable {
-			index.affectedProducts[product.cveID] = append(index.affectedProducts[product.cveID], product)
+		if product.CVEID != "" && product.Criteria != "" && product.Vulnerable {
+			index.affectedProducts[product.CVEID] = append(index.affectedProducts[product.CVEID], product)
 		}
 	case packageConsumptionCorrelationFactKind:
 		consumption, err := supplyChainConsumptionFromEnvelope(envelope)
 		if err != nil {
 			return partitionDecodeFailures(envelope, err)
 		}
-		if consumption.packageID != "" {
-			index.consumption[consumption.packageID] = append(index.consumption[consumption.packageID], consumption)
+		if consumption.PackageID != "" {
+			index.consumption[consumption.PackageID] = append(index.consumption[consumption.PackageID], consumption)
 		}
 	case facts.VulnerabilityOSPackageFactKind:
 		pkg, err := supplyChainOSPackageFromEnvelope(envelope)
 		if err != nil {
 			return partitionDecodeFailures(envelope, err)
 		}
-		if pkg.packageID != "" && pkg.vendorAdvisorySource != "" && pkg.repositoryClass == "vendor" {
-			index.osPackages[pkg.packageID] = append(index.osPackages[pkg.packageID], pkg)
+		if pkg.PackageID != "" && pkg.VendorAdvisorySource != "" && pkg.RepositoryClass == "vendor" {
+			index.osPackages[pkg.PackageID] = append(index.osPackages[pkg.PackageID], pkg)
 		}
 	case facts.ScannerWorkerAnalysisFactKind:
 		analysis, err := supplyChainScannerAnalysisFromEnvelope(envelope)
@@ -145,18 +146,18 @@ func addSupplyChainImpactIndexEntry(
 		// target, so any winner yields the same digest. EvidenceFactIDs may then
 		// cite an arbitrary analyzer of that scan, which is acceptable evidence
 		// provenance for a digest that all of them agree on.
-		if analysis.imageDigest != "" {
-			index.scannerAnalyses[supplyChainScopeGenerationKey(analysis.scopeID, analysis.generationID)] = analysis
+		if analysis.ImageDigest != "" {
+			index.scannerAnalyses[supplychainmodel.ScopeGenerationKey(analysis.ScopeID, analysis.GenerationID)] = analysis
 		}
 	case facts.SBOMComponentFactKind:
 		component := supplyChainSBOMComponentFromEnvelope(envelope)
-		if component.purl != "" || component.packageID != "" || component.cpe != "" {
+		if component.PURL != "" || component.PackageID != "" || component.CPE != "" {
 			index.components = append(index.components, component)
 		}
 	case sbomAttestationAttachmentFactKind:
 		attachment := supplyChainAttachmentFromEnvelope(envelope)
-		if attachment.documentID != "" {
-			index.attachments[attachment.documentID] = attachment
+		if attachment.DocumentID != "" {
+			index.attachments[attachment.DocumentID] = attachment
 		}
 	case containerImageIdentityFactKind:
 		image := supplyChainImageIdentityFromEnvelope(envelope)
@@ -168,19 +169,19 @@ func addSupplyChainImpactIndexEntry(
 		}
 	case cicdRunCorrelationFactKind:
 		deployment := supplyChainDeploymentContextFromEnvelope(envelope)
-		if deployment.factID != "" {
+		if deployment.FactID != "" {
 			index.deployments = append(index.deployments, deployment)
 		}
 	case platformMaterializationFactKind:
 		lane := supplyChainDeploymentLaneContextFromEnvelope(envelope)
-		if lane.repositoryID != "" && len(lane.deploymentIDs) > 0 {
+		if lane.RepositoryID != "" && len(lane.DeploymentIDs) > 0 {
 			index.deploymentLanes = append(index.deploymentLanes, lane)
 		}
 	case workloadIdentityFactKind:
 		index.workloads = append(index.workloads, supplyChainWorkloadContextsFromEnvelope(envelope)...)
 	case serviceCatalogCorrelationFactKind:
 		service := supplyChainServiceContextFromEnvelope(envelope)
-		if service.repositoryID != "" {
+		if service.RepositoryID != "" {
 			index.services = append(index.services, service)
 		}
 	case facts.VulnerabilityEPSSScoreFactKind:
@@ -189,9 +190,9 @@ func addSupplyChainImpactIndexEntry(
 			return partitionDecodeFailures(envelope, err)
 		}
 		signals := index.riskSignals[score.CVEID]
-		signals.epssFactID = envelope.FactID
-		signals.epssProbability = derefString(score.Probability)
-		signals.epssPercentile = derefString(score.Percentile)
+		signals.EPSSFactID = envelope.FactID
+		signals.EPSSProbability = derefString(score.Probability)
+		signals.EPSSPercentile = derefString(score.Percentile)
 		index.riskSignals[score.CVEID] = signals
 	case facts.VulnerabilityKnownExploitedFactKind:
 		kev, err := decodeVulnerabilityKnownExploited(envelope)
@@ -199,8 +200,8 @@ func addSupplyChainImpactIndexEntry(
 			return partitionDecodeFailures(envelope, err)
 		}
 		signals := index.riskSignals[kev.CVEID]
-		signals.kevFactID = envelope.FactID
-		signals.knownExploited = true
+		signals.KEVFactID = envelope.FactID
+		signals.KnownExploited = true
 		index.riskSignals[kev.CVEID] = signals
 	}
 	return quarantinedFact{}, false, nil

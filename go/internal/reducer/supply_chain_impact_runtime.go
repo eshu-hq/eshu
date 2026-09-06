@@ -6,6 +6,8 @@ package reducer
 import (
 	"slices"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 // SupplyChainServiceWorkloadPair records one (ServiceID, WorkloadID) pair
@@ -82,40 +84,40 @@ func applySupplyChainRuntimeContext(
 	var missing []string
 	workloads := matchingSupplyChainWorkloads(*finding, index.workloads)
 	for _, workload := range workloads {
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, workload.factID)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, workload.FactID)
 		finding.EvidencePath = append(finding.EvidencePath, workloadIdentityFactKind)
-		finding.WorkloadIDs = append(finding.WorkloadIDs, workload.workloadID)
+		finding.WorkloadIDs = append(finding.WorkloadIDs, workload.WorkloadID)
 	}
 	for _, lane := range matchingSupplyChainDeploymentLanes(*finding, index.deploymentLanes) {
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, lane.factID)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, lane.FactID)
 		finding.EvidencePath = append(finding.EvidencePath, platformMaterializationFactKind)
-		finding.DeploymentIDs = append(finding.DeploymentIDs, lane.deploymentIDs...)
+		finding.DeploymentIDs = append(finding.DeploymentIDs, lane.DeploymentIDs...)
 	}
 	services, serviceMissing := matchingSupplyChainServices(*finding, index.services)
 	missing = append(missing, serviceMissing...)
 	for _, service := range services {
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, service.factID)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, service.FactID)
 		finding.EvidencePath = append(finding.EvidencePath, serviceCatalogCorrelationFactKind)
-		finding.ServiceIDs = append(finding.ServiceIDs, service.serviceID)
-		finding.WorkloadIDs = append(finding.WorkloadIDs, service.workloadID)
+		finding.ServiceIDs = append(finding.ServiceIDs, service.ServiceID)
+		finding.WorkloadIDs = append(finding.WorkloadIDs, service.WorkloadID)
 		finding.ServiceWorkloadPairs = append(finding.ServiceWorkloadPairs, SupplyChainServiceWorkloadPair{
-			ServiceID:  service.serviceID,
-			WorkloadID: service.workloadID,
+			ServiceID:  service.ServiceID,
+			WorkloadID: service.WorkloadID,
 		})
-		finding.CatalogEntityRefs = append(finding.CatalogEntityRefs, service.entityRef)
-		finding.CatalogOwnerRefs = append(finding.CatalogOwnerRefs, service.ownerRef)
+		finding.CatalogEntityRefs = append(finding.CatalogEntityRefs, service.EntityRef)
+		finding.CatalogOwnerRefs = append(finding.CatalogOwnerRefs, service.OwnerRef)
 	}
 	deployments, deploymentMissing := matchingSupplyChainDeployments(*finding, index.deployments)
 	missing = append(missing, deploymentMissing...)
 	for _, deployment := range deployments {
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, deployment.factID)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, deployment.FactID)
 		finding.EvidencePath = append(finding.EvidencePath, cicdRunCorrelationFactKind)
-		finding.Environments = append(finding.Environments, deployment.environment)
+		finding.Environments = append(finding.Environments, deployment.Environment)
 		finding.EnvironmentEvidence = recordSupplyChainEnvironmentEvidence(
-			finding.EnvironmentEvidence, deployment.environment, deployment.environmentEvidence,
+			finding.EnvironmentEvidence, deployment.Environment, deployment.EnvironmentEvidence,
 		)
 		if finding.RepositoryID == "" {
-			finding.RepositoryID = deployment.repositoryID
+			finding.RepositoryID = deployment.RepositoryID
 		}
 	}
 	bakeSupplyChainCIDeclaredArtifactIdentity(finding, deployments)
@@ -138,21 +140,21 @@ func applySupplyChainRuntimeContext(
 
 func matchingSupplyChainDeployments(
 	finding SupplyChainImpactFinding,
-	deployments []supplyChainDeploymentContext,
-) ([]supplyChainDeploymentContext, []string) {
+	deployments []supplychainmodel.DeploymentContext,
+) ([]supplychainmodel.DeploymentContext, []string) {
 	if strings.TrimSpace(finding.SubjectDigest) == "" && strings.TrimSpace(finding.ImageRef) == "" &&
 		!supplyChainFindingHasOperationalAnchor(finding) {
 		return nil, nil
 	}
-	var matches []supplyChainDeploymentContext
+	var matches []supplychainmodel.DeploymentContext
 	var rejected []string
 	for _, deployment := range deployments {
 		if !supplyChainDeploymentMatchesFinding(finding, deployment) {
 			continue
 		}
-		switch deployment.outcome {
+		switch deployment.Outcome {
 		case string(CICDRunCorrelationExact), string(CICDRunCorrelationDerived), "":
-			if deployment.provenanceOnly {
+			if deployment.ProvenanceOnly {
 				rejected = append(rejected, "deployment evidence provenance-only")
 				continue
 			}
@@ -172,12 +174,12 @@ func matchingSupplyChainDeployments(
 
 func supplyChainDeploymentMatchesFinding(
 	finding SupplyChainImpactFinding,
-	deployment supplyChainDeploymentContext,
+	deployment supplychainmodel.DeploymentContext,
 ) bool {
-	if finding.SubjectDigest != "" && deployment.artifactDigest == finding.SubjectDigest {
+	if finding.SubjectDigest != "" && deployment.ArtifactDigest == finding.SubjectDigest {
 		return true
 	}
-	if finding.ImageRef != "" && deployment.imageRef == finding.ImageRef {
+	if finding.ImageRef != "" && deployment.ImageRef == finding.ImageRef {
 		return true
 	}
 	// The free-text-environment branch is the only one where the deployment
@@ -188,8 +190,8 @@ func supplyChainDeploymentMatchesFinding(
 	// itself still carries the environment, the cicd_run_correlation evidence
 	// hop, and the correlation fact ID, all of which a declared-only
 	// deployment legitimately contributes.
-	if finding.RepositoryID != "" && deployment.repositoryID == finding.RepositoryID &&
-		deployment.environment != "" &&
+	if finding.RepositoryID != "" && deployment.RepositoryID == finding.RepositoryID &&
+		deployment.Environment != "" &&
 		supplyChainFindingHasOperationalAnchor(finding) {
 		return true
 	}
@@ -229,19 +231,19 @@ func supplyChainDeploymentMatchesFinding(
 // identity to compare against. applySupplyChainRuntimeContext enforces this.
 func supplyChainDeploymentPromotesRuntimeReachability(
 	finding SupplyChainImpactFinding,
-	deployment supplyChainDeploymentContext,
+	deployment supplychainmodel.DeploymentContext,
 ) bool {
-	if finding.SubjectDigest != "" && deployment.artifactDigest != "" &&
-		deployment.artifactDigest != finding.SubjectDigest {
+	if finding.SubjectDigest != "" && deployment.ArtifactDigest != "" &&
+		deployment.ArtifactDigest != finding.SubjectDigest {
 		return false
 	}
-	if finding.SubjectDigest != "" && deployment.artifactDigest == finding.SubjectDigest {
+	if finding.SubjectDigest != "" && deployment.ArtifactDigest == finding.SubjectDigest {
 		return true
 	}
-	if finding.ImageRef != "" && deployment.imageRef == finding.ImageRef {
+	if finding.ImageRef != "" && deployment.ImageRef == finding.ImageRef {
 		return true
 	}
-	return deployment.environmentEvidence == supplyChainEnvironmentEvidenceDeployEvent
+	return deployment.EnvironmentEvidence == supplyChainEnvironmentEvidenceDeployEvent
 }
 
 // supplyChainDeploymentsPromoteRuntimeReachability reports whether ANY matched
@@ -256,7 +258,7 @@ func supplyChainDeploymentPromotesRuntimeReachability(
 // and it satisfies this; keep it that way.
 func supplyChainDeploymentsPromoteRuntimeReachability(
 	finding SupplyChainImpactFinding,
-	deployments []supplyChainDeploymentContext,
+	deployments []supplychainmodel.DeploymentContext,
 ) bool {
 	for _, deployment := range deployments {
 		if supplyChainDeploymentPromotesRuntimeReachability(finding, deployment) {
@@ -272,15 +274,15 @@ func supplyChainFindingHasOperationalAnchor(finding SupplyChainImpactFinding) bo
 
 func matchingSupplyChainWorkloads(
 	finding SupplyChainImpactFinding,
-	workloads []supplyChainWorkloadContext,
-) []supplyChainWorkloadContext {
+	workloads []supplychainmodel.WorkloadContext,
+) []supplychainmodel.WorkloadContext {
 	repositoryID := strings.TrimSpace(finding.RepositoryID)
 	if repositoryID == "" {
 		return nil
 	}
-	matches := make([]supplyChainWorkloadContext, 0, len(workloads))
+	matches := make([]supplychainmodel.WorkloadContext, 0, len(workloads))
 	for _, workload := range workloads {
-		if workload.repositoryID != repositoryID || workload.workloadID == "" {
+		if workload.RepositoryID != repositoryID || workload.WorkloadID == "" {
 			continue
 		}
 		matches = append(matches, workload)
@@ -290,15 +292,15 @@ func matchingSupplyChainWorkloads(
 
 func matchingSupplyChainDeploymentLanes(
 	finding SupplyChainImpactFinding,
-	lanes []supplyChainDeploymentLaneContext,
-) []supplyChainDeploymentLaneContext {
+	lanes []supplychainmodel.DeploymentLaneContext,
+) []supplychainmodel.DeploymentLaneContext {
 	repositoryID := strings.TrimSpace(finding.RepositoryID)
 	if repositoryID == "" {
 		return nil
 	}
-	matches := make([]supplyChainDeploymentLaneContext, 0, len(lanes))
+	matches := make([]supplychainmodel.DeploymentLaneContext, 0, len(lanes))
 	for _, lane := range lanes {
-		if lane.repositoryID != repositoryID || len(lane.deploymentIDs) == 0 {
+		if lane.RepositoryID != repositoryID || len(lane.DeploymentIDs) == 0 {
 			continue
 		}
 		matches = append(matches, lane)
@@ -308,25 +310,25 @@ func matchingSupplyChainDeploymentLanes(
 
 func matchingSupplyChainServices(
 	finding SupplyChainImpactFinding,
-	services []supplyChainServiceContext,
-) ([]supplyChainServiceContext, []string) {
+	services []supplychainmodel.ServiceContext,
+) ([]supplychainmodel.ServiceContext, []string) {
 	repositoryID := strings.TrimSpace(finding.RepositoryID)
 	if repositoryID == "" {
 		return nil, nil
 	}
-	var matches []supplyChainServiceContext
+	var matches []supplychainmodel.ServiceContext
 	var rejected []string
 	for _, service := range services {
-		if service.repositoryID != repositoryID {
+		if service.RepositoryID != repositoryID {
 			continue
 		}
-		switch service.outcome {
+		switch service.Outcome {
 		case string(ServiceCatalogCorrelationExact), string(ServiceCatalogCorrelationDerived), "":
-			if service.provenanceOnly {
+			if service.ProvenanceOnly {
 				rejected = append(rejected, "service catalog evidence provenance-only")
 				continue
 			}
-			if service.serviceID == "" && service.workloadID == "" &&
+			if service.ServiceID == "" && service.WorkloadID == "" &&
 				!supplyChainServiceCatalogContextHasResolvedAnchor(finding, service) {
 				rejected = append(rejected, "service/workload catalog anchor missing")
 			}
@@ -348,7 +350,7 @@ func matchingSupplyChainServices(
 
 func supplyChainServiceCatalogContextHasResolvedAnchor(
 	finding SupplyChainImpactFinding,
-	service supplyChainServiceContext,
+	service supplychainmodel.ServiceContext,
 ) bool {
-	return len(finding.WorkloadIDs) > 0 && service.entityRef != ""
+	return len(finding.WorkloadIDs) > 0 && service.EntityRef != ""
 }

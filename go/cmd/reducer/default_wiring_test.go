@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -71,8 +71,8 @@ func orphanSweepLabelStrings(labels []sourcecypher.OrphanSweepLabel) []string {
 	return values
 }
 
-func reducerGenerationRetentionPolicy(policy postgres.GenerationRetentionPolicy) reducer.GenerationRetentionPolicy {
-	return reducer.GenerationRetentionPolicy{
+func reducerGenerationRetentionPolicy(policy postgres.GenerationRetentionPolicy) maintenance.GenerationRetentionPolicy {
+	return maintenance.GenerationRetentionPolicy{
 		MinSupersededGenerations: policy.MinSupersededGenerations,
 		MaxSupersededAge:         policy.MaxSupersededAge,
 		BatchGenerationLimit:     policy.BatchGenerationLimit,

@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -82,7 +83,7 @@ type Service struct {
 	// model reconciled with the active fact set (#3466) via a lease-guarded
 	// periodic atomic resweep, so the collector-readiness API read joins a small
 	// materialized table instead of scanning fact_records. Nil disables it.
-	CollectorEvidenceSummaryMaintainer *CollectorEvidenceSummaryMaintainer
+	CollectorEvidenceSummaryMaintainer *maintenance.CollectorEvidenceSummaryMaintainer
 
 	// CodeCallProjectionRunner runs the controlled code-call projection lane
 	// concurrently with the main claim/execute/ack loop. Nil disables the lane.
@@ -102,23 +103,23 @@ type Service struct {
 
 	// GenerationRetentionRunner prunes superseded source-generation history in
 	// bounded transactions. Nil disables automated cleanup.
-	GenerationRetentionRunner *GenerationRetentionRunner
+	GenerationRetentionRunner *maintenance.GenerationRetentionRunner
 
 	// GenerationLivenessRunner re-drives active generations that wedge past the
 	// activation deadline and supersedes orphaned older actives. Nil disables
 	// generation lifecycle self-healing.
-	GenerationLivenessRunner *GenerationLivenessRunner
+	GenerationLivenessRunner *maintenance.GenerationLivenessRunner
 
 	// PoisonLivenessRunner bounds-recovers the dead-letter/poison class (#4740):
 	// fact_work_items rows that are terminally 'dead_letter' with no newer
 	// scope generation, a class GenerationLivenessRunner does not reach. Nil
 	// when bounded auto-retry is disabled (the default, surface-only posture);
 	// the stuck-gauge remains active independently of this field.
-	PoisonLivenessRunner *PoisonLivenessRunner
+	PoisonLivenessRunner *maintenance.PoisonLivenessRunner
 
 	// GraphOrphanSweepRunner marks and deletes aged zero-relationship graph
 	// nodes in bounded batches. Nil disables automated cleanup.
-	GraphOrphanSweepRunner *GraphOrphanSweepRunner
+	GraphOrphanSweepRunner *maintenance.GraphOrphanSweepRunner
 
 	// CodeValueFlowStaleCleanupRunner removes reducer-owned value-flow evidence
 	// from older source generations in bounded batches. Nil disables cleanup.

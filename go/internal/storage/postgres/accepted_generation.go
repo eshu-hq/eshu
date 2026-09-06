@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 )
 
 // RelationshipGenerationActiveChecker reports whether a relationship generation
@@ -23,7 +24,7 @@ type RelationshipGenerationActiveChecker interface {
 // the Postgres relationship read models.
 func NewRelationshipGenerationActiveLookup(
 	checker RelationshipGenerationActiveChecker,
-) reducer.RelationshipGenerationActiveLookup {
+) maintenance.RelationshipGenerationActiveLookup {
 	return func(generationID string) (bool, error) {
 		generationID = strings.TrimSpace(generationID)
 		if generationID == "" {
