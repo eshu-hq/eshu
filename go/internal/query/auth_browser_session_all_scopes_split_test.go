@@ -378,8 +378,13 @@ func TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified(t
 //
 // The bearer case is the no-change half: a scoped or OIDC bearer keeps
 // scoped_token, byte-identical to before the browser_session member existed.
-// The blank-hash cases pin the anonymous downgrade for both modes, because
-// NormalizeEvent rejects either identity-bearing class without an actor
+// The table names every AuthMode member, so a mode the helper's switch does
+// not list fails here as well as under the exhaustive linter. The shared
+// bearer never reaches this helper in production (sharedAuthContext carries
+// no subject hash and skips the route policy), but the switch still has to
+// classify it as shared_token rather than fold it into scoped_token. The
+// blank-hash cases pin the anonymous downgrade for every mode, because
+// NormalizeEvent rejects each identity-bearing class without an actor
 // identity and the durable store's Append is all-or-nothing.
 func TestRecordScopedRouteAuthorizationDeniedActorClassFollowsAuthMode(t *testing.T) {
 	t.Parallel()
@@ -417,6 +422,26 @@ func TestRecordScopedRouteAuthorizationDeniedActorClassFollowsAuthMode(t *testin
 			},
 			wantActorClass: governanceaudit.ActorClassScopedToken,
 			wantActorHash:  "sha256:abcdef12",
+		},
+		{
+			name: "shared bearer is shared_token",
+			auth: AuthContext{
+				Mode:          AuthModeShared,
+				SubjectClass:  "shared_token",
+				SubjectIDHash: "sha256:abcdef12",
+				AllScopes:     true,
+			},
+			wantActorClass: governanceaudit.ActorClassSharedToken,
+			wantActorHash:  "sha256:abcdef12",
+		},
+		{
+			name: "shared bearer with no subject hash downgrades to anonymous",
+			auth: AuthContext{
+				Mode:         AuthModeShared,
+				SubjectClass: "shared_token",
+				AllScopes:    true,
+			},
+			wantActorClass: governanceaudit.ActorClassAnonymous,
 		},
 		{
 			name: "browser session with no subject hash downgrades to anonymous",
