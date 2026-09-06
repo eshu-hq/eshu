@@ -353,30 +353,30 @@ membership changes refresh inside a bounded public-safe window.
 ### Governance Audit Review
 
 1. Check `/api/v0/status/governance` or `get_hosted_governance_status`.
-2. Review aggregate audit event, denied decision, unavailable decision,
-   event-type, actor-class, scope-class, reason, and ACL-state counts.
+2. Review aggregate audit event, denied decision, unavailable decision, event-type, actor-class, scope-class, reason, and ACL-state counts.
 3. Use the private audit sink for detailed event fields only after confirming the operator is authorized for that scope.
-4. Keep detailed audit searches bounded by actor class, scope class, decision,
-   reason code, correlation id, and a narrow time window. Do not search by raw
-   names, paths, URLs, document titles, prompts, or credential handles.
-5. Retain detailed event fields only in the private audit sink for the hosted
-   policy retention window. Status and MCP surfaces keep aggregate counts only.
-6. Keep actor identifiers, tenant names, repository names, source identifiers, prompts,
-   provider responses, credential handles, private URLs, and token values out of tickets.
+4. Keep detailed audit searches bounded by actor class, scope class, decision, reason code, correlation id, and a narrow time window. Do not search by raw names, paths, URLs, document titles, prompts, or credential handles.
+5. Retain detailed event fields only in the private audit sink for the hosted policy retention window. Status and MCP surfaces keep aggregate counts only.
+6. Keep actor identifiers, tenant names, repository names, source identifiers, prompts, provider responses, credential handles, private URLs, and token values out of tickets.
 
 Rolling-upgrade note: while the release that adds `browser_session` rolls out,
 an API pod still on the old build answers `GET /api/v0/auth/admin/audit/events`
 with 500 for any page holding a new row, because it checks each row against the
 class list built into its binary. The row is stored correctly and summary counts
-are unaffected; the error stops when every pod is on the new build. #6574 tracks
-a reader that accepts a class it does not know.
+are unaffected; the error stops when every pod is on the new build. #6574 tracks a reader that accepts a class it does not know.
+
+Actor-class cut-over note: a dashboard cookie session is `browser_session` on
+route denials, identity mutations, and `admin_recovery_action` rows alike;
+`scoped_token` and `shared_token` are unchanged. Rows written before the release
+that carries #6566 still hold `operator` (identity mutations) or `shared_token`
+(recovery actions) for a cookie session and are not rewritten, so a filter by
+actor class that spans that window includes both values.
 
 ### Denied Read Investigation
 
 1. Check `/api/v0/status/governance` or `get_hosted_governance_status`.
 2. Confirm `audit.denied_decision_count` increased and review
-   `audit.actor_class_count`, `audit.scope_class_count`, and
-   `audit.reason_count`.
+   `audit.actor_class_count`, `audit.scope_class_count`, and `audit.reason_count`.
 3. Query the private audit sink by `event_type=read_authorization`,
    `decision=denied`, actor class, scope class, reason code, and time window.
    Actor class: `browser_session` a dashboard cookie session, `scoped_token` a scoped
