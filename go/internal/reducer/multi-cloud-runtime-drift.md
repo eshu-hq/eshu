@@ -50,8 +50,8 @@ never yields two safety verdicts.
 
 No-Regression Evidence (#5759): `go test ./internal/correlation/drift/multicloud
 ./internal/correlation/rules -count=1` proves the GCP/Azure classifications, uid keying,
-unresolved/converged skips, and declared-config non-overwrite. `go test ./internal/reducer
--run 'MultiCloud' -race -count=1` proves publication, no-emit-before-durable-write,
+unresolved/converged skips, and declared-config non-overwrite. `go test
+./internal/reducer/multicloudruntimedrift -run 'MultiCloud' -race -count=1` proves publication, no-emit-before-durable-write,
 redaction, idempotent replay (stable fact id, `stable_fact_key`), concurrent-worker key
 stability, and (`TestMultiCloudRuntimeDriftHandlerExcludesAWSOwnedRowsFromPublication`,
 #5759) that an AWS row mixed with GCP/Azure rows is dropped, not duplicated. `go test

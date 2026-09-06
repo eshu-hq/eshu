@@ -52,9 +52,8 @@ See `doc.go` for the godoc-rendered contract.
 No metric instrument of its own. `multicloud.RecordEvaluation` records the
 shared correlation-engine counters (`eshu_dp_correlation_rule_matches_total`,
 `eshu_dp_correlation_orphan_detected_total`,
-`eshu_dp_correlation_unmanaged_detected_total`, and related admission/skip
-counters) the AWS structural drift path and every other rule-pack consumer
-already emit through; `factwrite.BatchInsertVersionedFacts` and the storage
+`eshu_dp_correlation_unmanaged_detected_total`) the AWS structural drift path
+and every other rule-pack consumer already emit through; `factwrite.BatchInsertVersionedFacts` and the storage
 layer's `PostgresMultiCloudRuntimeDriftEvidenceLoader` cover Postgres query
 duration. See `docs/public/observability/telemetry-coverage.md` (no row change:
 this move is a rename, not a new stage).

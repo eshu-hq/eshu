@@ -2273,7 +2273,7 @@ copy of just the versioned-insert shapes it needs
 `factwrite.BatchInsertVersionedQuery`/`factwrite.BatchSize` instead of the
 root's compat aliases. The symmetric direction also surfaced: `counterTotal`
 was defined inside the moved `terraform_config_state_drift_test.go` but three
-other still-in-root test files
+other still-in-root test files at the time (the first two have since moved out with their own copies; only `cloud_inventory_admission_test.go` still calls the root one)
 (`aws_cloud_runtime_drift_test.go`, `multi_cloud_runtime_drift_test.go`,
 `cloud_inventory_admission_test.go`) called it too, so a root-owned copy was
 added back (`metrics_counter_total_test_helper_test.go`) rather than moved.

@@ -540,7 +540,8 @@ families:
     # terraform_state_resource, _module, _output, _snapshot, and
     # _tag_observation are consumed by the projector (go/internal/projector/
     # tfstate_canonical.go) and/or the reducer (aws_cloud_runtime_drift_writer.go,
-    # multi_cloud_runtime_drift_writer.go). terraform_state_provider_binding
+    # reducer/multicloudruntimedrift/multi_cloud_runtime_drift_writer.go).
+    # terraform_state_provider_binding
     # gained a projector consumer in #5446
     # (terraformStateProviderBindingsByResource in
     # go/internal/projector/tfstate_canonical.go), joined onto each

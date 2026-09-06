@@ -3,6 +3,11 @@
 Scoped instructions for this package. Read them before editing anything here.
 The root `AGENTS.md` and `CLAUDE.md` still apply; these add to them.
 
+`internal/projector/multicloudruntimedrift` is a DIFFERENT package that
+happens to share this base name; qualify any cross-reference to it as
+`projector/multicloudruntimedrift` (never bare `multicloudruntimedrift`) so a
+doc comment in this package cannot be misread as a local self-reference.
+
 ## The import rule is the one that matters
 
 Imports point strictly downward:

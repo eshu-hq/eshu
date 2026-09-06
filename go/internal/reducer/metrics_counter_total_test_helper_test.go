@@ -9,10 +9,9 @@ import "go.opentelemetry.io/otel/sdk/metric/metricdata"
 // collected resource metrics. Several drift and admission test suites in
 // this package assert on OTEL counter totals; this helper stayed in the
 // reducer root when the terraform_config_state_drift family moved to
-// internal/reducer/tfconfigstate (issue #6061), since aws_cloud_runtime_drift,
-// multi_cloud_runtime_drift, and cloud_inventory_admission still use it here
-// and tfconfigstate's own tests keep an identical copy scoped to that
-// package.
+// internal/reducer/tfconfigstate (issue #6061), since cloud_inventory_admission
+// still uses it here and tfconfigstate's own tests keep an identical copy
+// scoped to that package.
 func counterTotal(rm metricdata.ResourceMetrics, name string) int64 {
 	var total int64
 	for _, sm := range rm.ScopeMetrics {
