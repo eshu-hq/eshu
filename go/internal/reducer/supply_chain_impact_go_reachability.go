@@ -7,17 +7,18 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func applyGoSupplyChainReachability(
 	finding *SupplyChainImpactFinding,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) []string {
 	if normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "gomod" {
 		return nil
 	}
-	modulePath := representativeAffectedPackage(pkgs).name
+	modulePath := representativeAffectedPackage(pkgs).Name
 	goFinding, ok := index.goReachability[goSupplyChainReachabilityKey(finding.CVEID, modulePath, finding.RepositoryID)]
 	if !ok {
 		return []string{"govulncheck call-graph evidence missing"}

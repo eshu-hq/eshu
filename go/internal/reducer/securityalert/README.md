@@ -175,9 +175,9 @@ for the same value. Each bullet below says which:
   (which holds all three version helpers): pure version-string and
   evidence-kind-fallback logic with no reducer-root state. Only
   `exactConsumptionDependencyVersion` is re-parameterised, to the three
-  `SecurityAlertConsumption` fields the logic reads instead of the root's full
-  `supplyChainPackageConsumption` value type; the Evidence section below has the
-  detail.
+  `SecurityAlertConsumption` fields the logic reads instead of the full
+  `supplychainmodel.PackageConsumption` value type; the Evidence section below
+  has the detail.
 
 ### Tests
 
@@ -220,8 +220,9 @@ enumeration of the copied functions, so it does not disagree with a second copy
 here. Two of
 the three version helpers are byte-identical;
 `exactConsumptionDependencyVersion` is re-parameterised to the three
-`SecurityAlertConsumption` fields it reads instead of the root's full
-`supplyChainPackageConsumption` value type, with a behaviour-equivalent body
+`SecurityAlertConsumption` fields it reads instead of the full
+`supplychainmodel.PackageConsumption` value type, with a behaviour-equivalent
+body
 (root's one-line `normalizedSupplyChainVersionEcosystem` inlined). The one real signature change is
 `BuildSecurityAlertReconciliations`/`WithQuarantine` and
 `SecurityAlertReconciliationHandler` gaining the injected

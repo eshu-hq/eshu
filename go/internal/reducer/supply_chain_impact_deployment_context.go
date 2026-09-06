@@ -7,28 +7,29 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
-func supplyChainDeploymentContextFromEnvelope(envelope facts.Envelope) supplyChainDeploymentContext {
-	return supplyChainDeploymentContext{
-		factID:         envelope.FactID,
-		artifactDigest: payloadStr(envelope.Payload, "artifact_digest"),
-		imageRef:       payloadStr(envelope.Payload, "image_ref"),
-		repositoryID:   payloadStr(envelope.Payload, "repository_id"),
-		environment:    payloadStr(envelope.Payload, "environment"),
-		environmentEvidence: normalizeSupplyChainEnvironmentEvidence(
+func supplyChainDeploymentContextFromEnvelope(envelope facts.Envelope) supplychainmodel.DeploymentContext {
+	return supplychainmodel.DeploymentContext{
+		FactID:         envelope.FactID,
+		ArtifactDigest: payloadStr(envelope.Payload, "artifact_digest"),
+		ImageRef:       payloadStr(envelope.Payload, "image_ref"),
+		RepositoryID:   payloadStr(envelope.Payload, "repository_id"),
+		Environment:    payloadStr(envelope.Payload, "environment"),
+		EnvironmentEvidence: normalizeSupplyChainEnvironmentEvidence(
 			payloadStr(envelope.Payload, "environment_evidence"),
 		),
-		outcome:        payloadStr(envelope.Payload, "outcome"),
-		provenanceOnly: payloadBool(envelope.Payload, "provenance_only"),
+		Outcome:        payloadStr(envelope.Payload, "outcome"),
+		ProvenanceOnly: payloadBool(envelope.Payload, "provenance_only"),
 	}
 }
 
-func supplyChainDeploymentLaneContextFromEnvelope(envelope facts.Envelope) supplyChainDeploymentLaneContext {
-	return supplyChainDeploymentLaneContext{
-		factID:        envelope.FactID,
-		repositoryID:  supplyChainWorkloadRepositoryID(envelope),
-		deploymentIDs: supplyChainDeploymentIDsFromPayload(envelope.Payload),
+func supplyChainDeploymentLaneContextFromEnvelope(envelope facts.Envelope) supplychainmodel.DeploymentLaneContext {
+	return supplychainmodel.DeploymentLaneContext{
+		FactID:        envelope.FactID,
+		RepositoryID:  supplyChainWorkloadRepositoryID(envelope),
+		DeploymentIDs: supplyChainDeploymentIDsFromPayload(envelope.Payload),
 	}
 }
 

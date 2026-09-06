@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func (h SupplyChainImpactHandler) loadActivePackageManifestDependencyFacts(
@@ -48,12 +49,12 @@ func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) Packa
 		if !ok {
 			continue
 		}
-		ecosystem := packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(pkg.ecosystem))
+		ecosystem := packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(pkg.Ecosystem))
 		if ecosystem == "" {
 			continue
 		}
 		ecosystems = append(ecosystems, string(ecosystem))
-		packageIDs = append(packageIDs, pkg.packageID)
+		packageIDs = append(packageIDs, pkg.PackageID)
 		for _, name := range supplyChainAffectedPackageNameCandidates(pkg) {
 			names = append(names, packageConsumptionNameCandidates(ecosystem, name)...)
 		}
@@ -72,12 +73,12 @@ func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) Packa
 // "not usable as a filter hint" (ok=false) rather than quarantining; the
 // authoritative index build still quarantines and reports it as an
 // input_invalid dead-letter.
-func supplyChainImpactManifestDependencyPackage(envelope facts.Envelope) (supplyChainAffectedPackage, bool) {
+func supplyChainImpactManifestDependencyPackage(envelope facts.Envelope) (supplychainmodel.AffectedPackage, bool) {
 	switch envelope.FactKind {
 	case facts.VulnerabilityAffectedPackageFactKind:
 		pkg, err := supplyChainAffectedPackageFromEnvelope(envelope)
 		if err != nil {
-			return supplyChainAffectedPackage{}, false
+			return supplychainmodel.AffectedPackage{}, false
 		}
 		return pkg, true
 	case facts.SecurityAlertRepositoryAlertFactKind:
@@ -98,14 +99,14 @@ func supplyChainImpactManifestDependencyPackage(envelope facts.Envelope) (supply
 			},
 		}), true
 	default:
-		return supplyChainAffectedPackage{}, false
+		return supplychainmodel.AffectedPackage{}, false
 	}
 }
 
-func supplyChainAffectedPackageNameCandidates(pkg supplyChainAffectedPackage) []string {
-	candidates := []string{pkg.name}
-	candidates = append(candidates, packageNameFromPURL(pkg.purl))
-	candidates = append(candidates, packageNameFromPackageID(pkg.packageID))
+func supplyChainAffectedPackageNameCandidates(pkg supplychainmodel.AffectedPackage) []string {
+	candidates := []string{pkg.Name}
+	candidates = append(candidates, packageNameFromPURL(pkg.PURL))
+	candidates = append(candidates, packageNameFromPackageID(pkg.PackageID))
 	return uniqueSortedStrings(candidates)
 }
 

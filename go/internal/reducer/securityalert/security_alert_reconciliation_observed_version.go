@@ -124,7 +124,7 @@ func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) 
 // byte-identical to the root originals. exactConsumptionDependencyVersion is
 // not: it takes only the three SecurityAlertConsumption fields the logic
 // actually reads (lockfile, installedVersion, dependencyRange) instead of the
-// root's full supplyChainPackageConsumption value type, and inlines the root's
+// full supplychainmodel.PackageConsumption value type, and inlines the root's
 // one-line normalizedSupplyChainVersionEcosystem. The behaviour is equivalent;
 // the body is not the same text.
 func exactConsumptionDependencyVersion(ecosystem string, lockfile bool, installedVersion, dependencyRange string) (string, bool) {

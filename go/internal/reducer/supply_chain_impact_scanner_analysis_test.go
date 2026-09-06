@@ -172,7 +172,7 @@ func TestBuildSupplyChainImpactFindingsLeavesOSPackageSubjectDigestBlankWithoutS
 // scannerWorkerAnalysisFact builds a scanner_worker.analysis fixture carrying
 // a ScopeID/GenerationID matching a sibling os_package fact, so
 // classifySupplyChainImpactPackage's ScopeID+GenerationID join
-// (supplyChainScopeGenerationKey) resolves the os_package's real image
+// (supplychainmodel.ScopeGenerationKey) resolves the os_package's real image
 // digest/reference from this fact instead of the os_package's own ScopeID.
 func scannerWorkerAnalysisFact(scopeID, generationID, imageDigest, imageReference string) facts.Envelope {
 	return facts.Envelope{

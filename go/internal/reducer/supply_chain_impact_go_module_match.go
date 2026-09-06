@@ -3,9 +3,13 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
 
-func goModuleAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage) (bool, bool) {
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+)
+
+func goModuleAffectedByAnyPackage(observed string, pkgs []supplychainmodel.AffectedPackage) (bool, bool) {
 	malformed := false
 	for _, pkg := range pkgs {
 		if affected, valid := goModuleAffectedByPackage(observed, pkg); affected {
@@ -17,9 +21,9 @@ func goModuleAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPac
 	return false, malformed
 }
 
-func goModuleAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool, bool) {
+func goModuleAffectedByPackage(observed string, pkg supplychainmodel.AffectedPackage) (bool, bool) {
 	valid := true
-	for _, candidate := range pkg.affectedVersions {
+	for _, candidate := range pkg.AffectedVersions {
 		candidate = strings.TrimSpace(candidate)
 		if candidate == "" {
 			continue
@@ -30,9 +34,9 @@ func goModuleAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 			valid = false
 		}
 	}
-	for _, affectedRange := range pkg.affectedRanges {
-		if !strings.EqualFold(affectedRange.kind, "SEMVER") &&
-			!strings.EqualFold(affectedRange.kind, "ECOSYSTEM") {
+	for _, affectedRange := range pkg.AffectedRanges {
+		if !strings.EqualFold(affectedRange.Kind, "SEMVER") &&
+			!strings.EqualFold(affectedRange.Kind, "ECOSYSTEM") {
 			continue
 		}
 		if affected, ok := goModuleRangeContainsDecision(affectedRange, observed); affected {
@@ -41,7 +45,7 @@ func goModuleAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 			valid = false
 		}
 	}
-	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+	if raw := strings.TrimSpace(pkg.AffectedRangeRaw); raw != "" {
 		if affected, ok := goModuleComparatorRangeContains(raw, observed); affected {
 			return true, true
 		} else if !ok {
@@ -52,35 +56,35 @@ func goModuleAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 }
 
 func goModuleRangeContainsDecision(
-	affectedRange supplyChainAffectedRange,
+	affectedRange supplychainmodel.AffectedRange,
 	observed string,
 ) (bool, bool) {
-	if ok, valid := versionBeforeLimitsDecision(observed, affectedRange.events, compareOSVSemver); !valid {
+	if ok, valid := versionBeforeLimitsDecision(observed, affectedRange.Events, compareOSVSemver); !valid {
 		return false, false
 	} else if !ok {
 		return false, true
 	}
 	vulnerable := false
-	for _, event := range affectedRange.events {
+	for _, event := range affectedRange.Events {
 		switch {
-		case event.introduced != "":
-			if goModuleVersionFloor(event.introduced) {
+		case event.Introduced != "":
+			if goModuleVersionFloor(event.Introduced) {
 				vulnerable = true
 				continue
 			}
-			if ok, valid := semverAtLeast(observed, event.introduced); !valid {
+			if ok, valid := semverAtLeast(observed, event.Introduced); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = true
 			}
-		case event.fixed != "":
-			if ok, valid := semverAtLeast(observed, event.fixed); !valid {
+		case event.Fixed != "":
+			if ok, valid := semverAtLeast(observed, event.Fixed); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
 			}
-		case event.lastAffected != "":
-			if ok, valid := versionGreaterThan(observed, event.lastAffected, compareOSVSemver); !valid {
+		case event.LastAffected != "":
+			if ok, valid := versionGreaterThan(observed, event.LastAffected, compareOSVSemver); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false

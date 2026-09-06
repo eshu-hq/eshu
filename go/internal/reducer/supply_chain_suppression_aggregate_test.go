@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func TestEvaluateSupplyChainSuppressionEnvironmentScopeKeepsMultiEnvironmentAggregateVisible(t *testing.T) {
@@ -22,22 +23,22 @@ func TestEvaluateSupplyChainSuppressionEnvironmentScopeKeepsMultiEnvironmentAggr
 		SubjectDigest: digest,
 	}
 	finalizeSupplyChainImpactFinding(&finding, supplyChainImpactIndex{
-		deployments: []supplyChainDeploymentContext{
+		deployments: []supplychainmodel.DeploymentContext{
 			{
-				factID:              "deployment:stage",
-				artifactDigest:      digest,
-				repositoryID:        finding.RepositoryID,
-				environment:         "stage",
-				environmentEvidence: supplyChainEnvironmentEvidenceDeployEvent,
-				outcome:             string(CICDRunCorrelationExact),
+				FactID:              "deployment:stage",
+				ArtifactDigest:      digest,
+				RepositoryID:        finding.RepositoryID,
+				Environment:         "stage",
+				EnvironmentEvidence: supplyChainEnvironmentEvidenceDeployEvent,
+				Outcome:             string(CICDRunCorrelationExact),
 			},
 			{
-				factID:              "deployment:prod",
-				artifactDigest:      digest,
-				repositoryID:        finding.RepositoryID,
-				environment:         "prod",
-				environmentEvidence: supplyChainEnvironmentEvidenceDeployEvent,
-				outcome:             string(CICDRunCorrelationExact),
+				FactID:              "deployment:prod",
+				ArtifactDigest:      digest,
+				RepositoryID:        finding.RepositoryID,
+				Environment:         "prod",
+				EnvironmentEvidence: supplyChainEnvironmentEvidenceDeployEvent,
+				Outcome:             string(CICDRunCorrelationExact),
 			},
 		},
 	})

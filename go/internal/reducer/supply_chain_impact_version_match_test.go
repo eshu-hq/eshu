@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func TestBuildSupplyChainImpactFindingsExplainsNPMSemverRangeMatch(t *testing.T) {
@@ -213,14 +214,14 @@ func TestEvaluateNuGetSemverMatchAcceptsShortLockfileVersion(t *testing.T) {
 		"13.0",
 		"",
 		"",
-		[]supplyChainAffectedPackage{
+		[]supplychainmodel.AffectedPackage{
 			{
-				affectedRanges: []supplyChainAffectedRange{
+				AffectedRanges: []supplychainmodel.AffectedRange{
 					{
-						kind: "SEMVER",
-						events: []supplyChainAffectedRangeEvent{
-							{introduced: "0"},
-							{fixed: "13.0.1"},
+						Kind: "SEMVER",
+						Events: []supplychainmodel.AffectedRangeEvent{
+							{Introduced: "0"},
+							{Fixed: "13.0.1"},
 						},
 					},
 				},
@@ -244,14 +245,14 @@ func TestEvaluateNuGetSemverMatchAcceptsFourSegmentRevision(t *testing.T) {
 		"1.2.3.4",
 		"",
 		"",
-		[]supplyChainAffectedPackage{
+		[]supplychainmodel.AffectedPackage{
 			{
-				affectedRanges: []supplyChainAffectedRange{
+				AffectedRanges: []supplychainmodel.AffectedRange{
 					{
-						kind: "SEMVER",
-						events: []supplyChainAffectedRangeEvent{
-							{introduced: "1.2.3.3"},
-							{fixed: "1.2.3.5"},
+						Kind: "SEMVER",
+						Events: []supplychainmodel.AffectedRangeEvent{
+							{Introduced: "1.2.3.3"},
+							{Fixed: "1.2.3.5"},
 						},
 					},
 				},

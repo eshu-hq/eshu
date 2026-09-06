@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 var benchmarkDetectionProfile DetectionProfile
@@ -51,15 +52,15 @@ func BenchmarkEvaluateOSPackageVersionMatchAndClassify(b *testing.B) {
 		name         string
 		observed     string
 		fixedVersion string
-		packages     []supplyChainAffectedPackage
+		packages     []supplychainmodel.AffectedPackage
 		compare      versionCompareFunc
 	}{
 		{
 			name:         "dpkg exact affected",
 			observed:     "3.0.11-1~deb12u2",
 			fixedVersion: "3.0.11-1~deb12u3",
-			packages: []supplyChainAffectedPackage{{
-				affectedVersions: []string{"3.0.11-1~deb12u2"},
+			packages: []supplychainmodel.AffectedPackage{{
+				AffectedVersions: []string{"3.0.11-1~deb12u2"},
 			}},
 			compare: compareDPKGVersion,
 		},
@@ -301,7 +302,7 @@ func TestSupplyChainImpactExactOSPackageReasonsQualifyForPreciseProfile(t *testi
 			decision := evaluateOSPackageVersionMatch(
 				test.observedVersion,
 				test.fixedVersion,
-				[]supplyChainAffectedPackage{{affectedVersions: test.affectedVersions}},
+				[]supplychainmodel.AffectedPackage{{AffectedVersions: test.affectedVersions}},
 				test.affectedReason,
 				test.knownFixedReason,
 				test.rangeAffectedReason,

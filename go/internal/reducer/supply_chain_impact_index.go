@@ -8,193 +8,54 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
-type supplyChainImpactCVE struct {
-	factID          string
-	cveID           string
-	advisoryID      string
-	source          string
-	cvssScore       float64
-	cvssVector      string
-	severityLabel   string
-	publishedAt     string
-	sourceUpdatedAt string
-	withdrawnAt     string
-}
-
-type supplyChainAffectedPackage struct {
-	factID           string
-	cveID            string
-	source           string
-	advisoryID       string
-	packageID        string
-	ecosystem        string
-	name             string
-	purl             string
-	affectedVersions []string
-	affectedRanges   []supplyChainAffectedRange
-	affectedRangeRaw string
-	fixedVersions    []string
-}
-
-type supplyChainAffectedProduct struct {
-	factID          string
-	cveID           string
-	criteria        string
-	matchCriteriaID string
-	vulnerable      bool
-}
-
-type supplyChainPackageConsumption struct {
-	factID                    string
-	evidenceKind              string
-	packageID                 string
-	repositoryID              string
-	dependencyRange           string
-	observedVersion           string
-	requestedRange            string
-	installedVersion          string
-	dependencyPath            []string
-	dependencyDepth           int
-	directDependency          *bool
-	dependencyScope           string
-	versionEvidence           string
-	unresolvedMSBuildProperty string
-	ambiguousMSBuildProperty  string
-	packageAPIPackages        []string
-	packageAPIIdentitySource  string
-	dependencyResolutionState string
-	sourceSet                 string
-	generatedCode             *bool
-	partialEvidence           bool
-	lockfile                  bool
-}
-
-type supplyChainSBOMComponent struct {
-	factID     string
-	documentID string
-	purl       string
-	cpe        string
-	packageID  string
-	version    string
-}
-
-type supplyChainOSPackage struct {
-	factID               string
-	scopeID              string
-	generationID         string
-	packageID            string
-	purl                 string
-	distro               string
-	distroVersion        string
-	packageManager       string
-	name                 string
-	arch                 string
-	installedVersion     string
-	repositoryClass      string
-	vendorAdvisorySource string
-}
-
-// supplyChainScannerAnalysis is the reducer's internal projection of one
-// scanner_worker.analysis envelope: the sibling fact that carries the real,
-// content-addressed image digest/reference for the image a scanner_worker
-// analyzer (including the OS-package analyzer) inspected. os_package facts
-// only carry an opaque ScopeID (a scan-target locator, never a sha256), so
-// classifySupplyChainImpactPackage joins an os_package to its sibling
-// analysis by ScopeID+GenerationID (supplyChainScopeGenerationKey) to anchor
-// SubjectDigest on a real image digest instead of the scope_id.
-type supplyChainScannerAnalysis struct {
-	factID         string
-	scopeID        string
-	generationID   string
-	imageDigest    string
-	imageReference string
-}
-
-// supplyChainScopeGenerationKey returns the composite key
-// (ScopeID+GenerationID) supplyChainImpactIndex.scannerAnalyses is keyed by,
-// and the same key classifySupplyChainImpactPackage looks an os_package's
-// sibling scanner_worker.analysis up by. It defers to facts.Envelope's own
-// ScopeGenerationKey formatting so the reducer's join key stays byte-identical
-// to the durable scope-generation boundary the rest of the platform uses,
-// rather than re-deriving an equivalent format locally.
-func supplyChainScopeGenerationKey(scopeID, generationID string) string {
-	return facts.Envelope{ScopeID: scopeID, GenerationID: generationID}.ScopeGenerationKey()
-}
-
-type supplyChainAttachment struct {
-	factID        string
-	documentID    string
-	subjectDigest string
-	status        string
-}
+// The 15 DTO types the supply-chain-impact family used to declare — 13 in
+// this file (supplychainmodel.ImpactCVE, supplychainmodel.AffectedPackage,
+// supplychainmodel.AffectedProduct, supplychainmodel.PackageConsumption,
+// supplychainmodel.SBOMComponent, supplychainmodel.OSPackage,
+// supplychainmodel.ScannerAnalysis, supplychainmodel.Attachment,
+// supplychainmodel.DeploymentContext, supplychainmodel.DeploymentLaneContext,
+// supplychainmodel.WorkloadContext, supplychainmodel.ServiceContext,
+// supplychainmodel.RiskSignals) and 2 in the sibling
+// supply_chain_impact_ranges.go (supplychainmodel.AffectedRange,
+// supplychainmodel.AffectedRangeEvent) — plus the supplyChainScopeGenerationKey
+// function, now supplychainmodel.ScopeGenerationKey, all moved to
+// [supplychainmodel] (issue #6061 PR1); this file, and every other
+// reducer-root file that used them, now spells the qualified
+// supplychainmodel.* names directly. supplyChainImpactIndex below
+// deliberately did not move — see that type's own doc comment.
 
 // supplyChainImageIdentity, its envelope decode, and the anchor-tier ranking
 // logic that resolves it to a single repository (both row-level and
 // cross-row) live in supply_chain_impact_anchor_tier.go (split out to keep
 // this file under the repo's 500-line cap).
 
-type supplyChainDeploymentContext struct {
-	factID         string
-	artifactDigest string
-	imageRef       string
-	repositoryID   string
-	environment    string
-	// environmentEvidence is the #5425 corroboration state normalized by
-	// normalizeSupplyChainEnvironmentEvidence: "deploy_event" or "declared".
-	environmentEvidence string
-	outcome             string
-	provenanceOnly      bool
-}
-
-type supplyChainDeploymentLaneContext struct {
-	factID        string
-	repositoryID  string
-	deploymentIDs []string
-}
-
-type supplyChainWorkloadContext struct {
-	factID       string
-	repositoryID string
-	workloadID   string
-}
-
-type supplyChainServiceContext struct {
-	factID         string
-	repositoryID   string
-	serviceID      string
-	workloadID     string
-	entityRef      string
-	ownerRef       string
-	outcome        string
-	driftStatus    string
-	provenanceOnly bool
-}
-
-type supplyChainRiskSignals struct {
-	epssFactID      string
-	epssProbability string
-	epssPercentile  string
-	kevFactID       string
-	knownExploited  bool
-}
-
+// supplyChainImpactIndex aggregates every supply-chain-impact evidence
+// cluster classifySupplyChainImpactPackage reads: the supplychainmodel DTOs
+// (cves, affectedPackages, ..., scannerAnalyses) alongside four
+// reachability-cluster indexes (goReachability, jsTSPackageReachability,
+// pythonReachability, jvmReachability) and the container-image-identity
+// index (images). Those five fields name types this PR's leaf package does
+// not own, so the aggregate itself stays at the reducer root rather than
+// dragging them into supplychainmodel; see
+// supplychainmodel/README.md#ownership-boundary.
 type supplyChainImpactIndex struct {
-	cves                    []supplyChainImpactCVE
-	affectedPackages        map[string][]supplyChainAffectedPackage
-	affectedProducts        map[string][]supplyChainAffectedProduct
-	consumption             map[string][]supplyChainPackageConsumption
-	osPackages              map[string][]supplyChainOSPackage
-	components              []supplyChainSBOMComponent
-	attachments             map[string]supplyChainAttachment
+	cves                    []supplychainmodel.ImpactCVE
+	affectedPackages        map[string][]supplychainmodel.AffectedPackage
+	affectedProducts        map[string][]supplychainmodel.AffectedProduct
+	consumption             map[string][]supplychainmodel.PackageConsumption
+	osPackages              map[string][]supplychainmodel.OSPackage
+	components              []supplychainmodel.SBOMComponent
+	attachments             map[string]supplychainmodel.Attachment
 	images                  map[string]supplyChainImageIdentity
-	deployments             []supplyChainDeploymentContext
-	deploymentLanes         []supplyChainDeploymentLaneContext
-	workloads               []supplyChainWorkloadContext
-	services                []supplyChainServiceContext
-	riskSignals             map[string]supplyChainRiskSignals
-	scannerAnalyses         map[string]supplyChainScannerAnalysis
+	deployments             []supplychainmodel.DeploymentContext
+	deploymentLanes         []supplychainmodel.DeploymentLaneContext
+	workloads               []supplychainmodel.WorkloadContext
+	services                []supplychainmodel.ServiceContext
+	riskSignals             map[string]supplychainmodel.RiskSignals
+	scannerAnalyses         map[string]supplychainmodel.ScannerAnalysis
 	goReachability          map[string]GoVulnerabilityFinding
 	jsTSPackageReachability jsTSPackageReachabilityIndex
 	pythonReachability      map[string]pythonReachabilityRepositoryEvidence
@@ -207,13 +68,13 @@ type supplyChainImpactIndex struct {
 
 func classifySupplyChainImpactPackage(
 	cves supplyChainCVEGroup,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	finding := baseSupplyChainImpactFinding(cves, pkgs, index)
 	pkg := representativeAffectedPackage(pkgs)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
-	consumption := firstConsumption(pkg.packageID, index.consumption)
+	consumption := firstConsumption(pkg.PackageID, index.consumption)
 	osPackage, hasOSPackage := firstOSPackageImpactPath(pkg, index)
 	// repoFromConsumption is the single provenance signal both image-evidence
 	// branches below gate on: the SBOM branch must not overwrite a
@@ -221,24 +82,24 @@ func classifySupplyChainImpactPackage(
 	// and the os_package branch must not overwrite it with the image-identity
 	// source anchor (#5779). It is hoisted here (rather than computed inside
 	// the os_package branch) so the SBOM branch, which runs first, can see it.
-	repoFromConsumption := consumption.factID != "" && strings.TrimSpace(consumption.repositoryID) != ""
+	repoFromConsumption := consumption.FactID != "" && strings.TrimSpace(consumption.RepositoryID) != ""
 	var reconciliationMissing []string
-	if consumption.factID != "" {
-		finding.RepositoryID = consumption.repositoryID
+	if consumption.FactID != "" {
+		finding.RepositoryID = consumption.RepositoryID
 		finding.RequestedRange = payloadcore.FirstNonBlank(
-			strings.TrimSpace(consumption.requestedRange),
-			strings.TrimSpace(consumption.dependencyRange),
+			strings.TrimSpace(consumption.RequestedRange),
+			strings.TrimSpace(consumption.DependencyRange),
 		)
-		finding.DependencyScope = strings.TrimSpace(consumption.dependencyScope)
-		finding.DependencyPath = append([]string(nil), consumption.dependencyPath...)
-		finding.DependencyDepth = consumption.dependencyDepth
-		if consumption.directDependency != nil {
-			value := *consumption.directDependency
+		finding.DependencyScope = strings.TrimSpace(consumption.DependencyScope)
+		finding.DependencyPath = append([]string(nil), consumption.DependencyPath...)
+		finding.DependencyDepth = consumption.DependencyDepth
+		if consumption.DirectDependency != nil {
+			value := *consumption.DirectDependency
 			finding.DirectDependency = &value
 		}
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
-		finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.evidenceKind, packageConsumptionCorrelationFactKind))
-		finding.ObservedVersion = strings.TrimSpace(consumption.observedVersion)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.FactID)
+		finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.EvidenceKind, packageConsumptionCorrelationFactKind))
+		finding.ObservedVersion = strings.TrimSpace(consumption.ObservedVersion)
 		if finding.ObservedVersion == "" {
 			if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {
 				finding.ObservedVersion = manifestVersion
@@ -246,11 +107,11 @@ func classifySupplyChainImpactPackage(
 		}
 	}
 	if hasComponentPath {
-		finding.PURL = payloadcore.FirstNonBlank(component.purl, finding.PURL)
-		finding.ObservedVersion = payloadcore.FirstNonBlank(component.version, finding.ObservedVersion)
-		finding.SubjectDigest = attachment.subjectDigest
+		finding.PURL = payloadcore.FirstNonBlank(component.PURL, finding.PURL)
+		finding.ObservedVersion = payloadcore.FirstNonBlank(component.Version, finding.ObservedVersion)
+		finding.SubjectDigest = attachment.SubjectDigest
 		finding.ImageRef = image.imageRef
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.factID, attachment.factID, image.factID)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.FactID, attachment.FactID, image.factID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.SBOMComponentFactKind, sbomAttestationAttachmentFactKind, containerImageIdentityFactKind)
 		// image.repositoryID is the OCI/container registry's OWN repository
 		// identifier ("oci-registry://..."), a namespace disjoint from every git
@@ -269,9 +130,9 @@ func classifySupplyChainImpactPackage(
 		}
 	}
 	if hasOSPackage {
-		finding.PURL = payloadcore.FirstNonBlank(osPackage.purl, finding.PURL)
-		finding.ObservedVersion = payloadcore.FirstNonBlank(osPackage.installedVersion, finding.ObservedVersion)
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.factID)
+		finding.PURL = payloadcore.FirstNonBlank(osPackage.PURL, finding.PURL)
+		finding.ObservedVersion = payloadcore.FirstNonBlank(osPackage.InstalledVersion, finding.ObservedVersion)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.FactID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.VulnerabilityOSPackageFactKind)
 		// An os_package fact's ScopeID is an opaque scan-target locator, never a
 		// sha256 digest — it MUST NOT stand in for SubjectDigest. The real digest
@@ -280,11 +141,11 @@ func classifySupplyChainImpactPackage(
 		// no sibling analysis is indexed (or it decoded with a blank digest),
 		// SubjectDigest stays whatever it already was (empty, or an SBOM-derived
 		// digest set earlier) rather than falling back to the scope_id.
-		analysisKey := supplyChainScopeGenerationKey(osPackage.scopeID, osPackage.generationID)
-		if analysis, ok := index.scannerAnalyses[analysisKey]; ok && analysis.imageDigest != "" {
-			finding.SubjectDigest = analysis.imageDigest
-			finding.ImageRef = payloadcore.FirstNonBlank(analysis.imageReference, finding.ImageRef)
-			finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, analysis.factID)
+		analysisKey := supplychainmodel.ScopeGenerationKey(osPackage.ScopeID, osPackage.GenerationID)
+		if analysis, ok := index.scannerAnalyses[analysisKey]; ok && analysis.ImageDigest != "" {
+			finding.SubjectDigest = analysis.ImageDigest
+			finding.ImageRef = payloadcore.FirstNonBlank(analysis.ImageReference, finding.ImageRef)
+			finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, analysis.FactID)
 			finding.EvidencePath = append(finding.EvidencePath, facts.ScannerWorkerAnalysisFactKind)
 		}
 		// Anchor RepositoryID from the scanned image's own identity fact
@@ -366,7 +227,7 @@ func classifySupplyChainImpactPackage(
 		pkgs,
 	)
 	consumptionMissing := supplyChainConsumptionMissingEvidence(consumption)
-	if consumption.factID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
+	if consumption.FactID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		reachabilityMissing := applyPackageSupplyChainReachability(&finding, consumption, pkgs, index)
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, reachabilityMissing, reconciliationMissing)
@@ -411,8 +272,8 @@ func classifySupplyChainImpactPackage(
 
 func applyPackageSupplyChainReachability(
 	finding *SupplyChainImpactFinding,
-	consumption supplyChainPackageConsumption,
-	pkgs []supplyChainAffectedPackage,
+	consumption supplychainmodel.PackageConsumption,
+	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) []string {
 	missing := applyGoSupplyChainReachability(finding, pkgs, index)
@@ -437,15 +298,15 @@ func applySupplyChainVersionDecision(
 	finding.MissingEvidence = combinedMissingImpactEvidence(*finding, decision.MissingEvidence)
 }
 
-func supplyChainConsumptionMissingEvidence(consumption supplyChainPackageConsumption) []string {
-	if consumption.factID == "" || !consumption.partialEvidence {
+func supplyChainConsumptionMissingEvidence(consumption supplychainmodel.PackageConsumption) []string {
+	if consumption.FactID == "" || !consumption.PartialEvidence {
 		return nil
 	}
 	var missing []string
-	if property := strings.TrimSpace(consumption.unresolvedMSBuildProperty); property != "" {
+	if property := strings.TrimSpace(consumption.UnresolvedMSBuildProperty); property != "" {
 		missing = append(missing, "msbuild property unresolved: "+property)
 	}
-	if property := strings.TrimSpace(consumption.ambiguousMSBuildProperty); property != "" {
+	if property := strings.TrimSpace(consumption.AmbiguousMSBuildProperty); property != "" {
 		missing = append(missing, "msbuild property ambiguous: "+property)
 	}
 	return uniqueSortedStrings(missing)

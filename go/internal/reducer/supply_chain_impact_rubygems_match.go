@@ -3,7 +3,11 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+)
 
 const (
 	supplyChainVersionReasonRubyGemsAffectedRange = "rubygems_affected_range"
@@ -13,7 +17,7 @@ const (
 func evaluateRubyGemsVersionMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validRubyGemsVersion(observed) {
 		return malformedInstalledVersionDecision()
@@ -35,7 +39,7 @@ func evaluateRubyGemsVersionMatch(
 	return possiblyAffectedDecision(supplyChainVersionReasonNoAffectedMatch, nil)
 }
 
-func rubyGemsAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage) (bool, bool) {
+func rubyGemsAffectedByAnyPackage(observed string, pkgs []supplychainmodel.AffectedPackage) (bool, bool) {
 	malformed := false
 	for _, pkg := range pkgs {
 		if affected, valid := rubyGemsAffectedByPackage(observed, pkg); affected {
@@ -47,9 +51,9 @@ func rubyGemsAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPac
 	return false, malformed
 }
 
-func rubyGemsAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool, bool) {
+func rubyGemsAffectedByPackage(observed string, pkg supplychainmodel.AffectedPackage) (bool, bool) {
 	valid := true
-	for _, candidate := range pkg.affectedVersions {
+	for _, candidate := range pkg.AffectedVersions {
 		candidate = strings.TrimSpace(candidate)
 		if candidate == "" {
 			continue
@@ -60,8 +64,8 @@ func rubyGemsAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 			valid = false
 		}
 	}
-	for _, affectedRange := range pkg.affectedRanges {
-		if !rubyGemsAffectedRangeKind(affectedRange.kind) {
+	for _, affectedRange := range pkg.AffectedRanges {
+		if !rubyGemsAffectedRangeKind(affectedRange.Kind) {
 			continue
 		}
 		if affected, ok := rubyGemsRangeContainsDecision(affectedRange, observed); affected {
@@ -70,7 +74,7 @@ func rubyGemsAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 			valid = false
 		}
 	}
-	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+	if raw := strings.TrimSpace(pkg.AffectedRangeRaw); raw != "" {
 		if affected, ok := rubyGemsRequirementContains(raw, observed); affected {
 			return true, true
 		} else if !ok {

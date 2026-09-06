@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func appendUniqueSupplyChainImpactFacts(envelopes []facts.Envelope, active ...facts.Envelope) []facts.Envelope {
@@ -245,11 +246,11 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 		if err != nil {
 			continue
 		}
-		if consumption.repositoryID == "" {
+		if consumption.RepositoryID == "" {
 			continue
 		}
-		if _, ok := affectedByPackageID[consumption.packageID]; ok {
-			repositoryIDs = append(repositoryIDs, consumption.repositoryID)
+		if _, ok := affectedByPackageID[consumption.PackageID]; ok {
+			repositoryIDs = append(repositoryIDs, consumption.RepositoryID)
 		}
 	}
 
@@ -286,9 +287,9 @@ func ociRegistryImageRef(payload map[string]any, tag string) string {
 // path — buildSupplyChainImpactIndex is. A fact that fails typed decode here
 // is silently skipped rather than quarantined; the authoritative index build
 // still quarantines and reports it as an input_invalid dead-letter.
-func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[string][]supplyChainAffectedPackage) {
+func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[string][]supplychainmodel.AffectedPackage) {
 	byPackageID := map[string]struct{}{}
-	groups := map[string][]supplyChainAffectedPackage{}
+	groups := map[string][]supplychainmodel.AffectedPackage{}
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.VulnerabilityAffectedPackageFactKind {
 			continue
@@ -297,14 +298,14 @@ func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[s
 		if err != nil {
 			continue
 		}
-		if normalizedSupplyChainVersionEcosystem(pkg.ecosystem) != "npm" {
+		if normalizedSupplyChainVersionEcosystem(pkg.Ecosystem) != "npm" {
 			continue
 		}
-		if pkg.packageID != "" {
-			byPackageID[pkg.packageID] = struct{}{}
+		if pkg.PackageID != "" {
+			byPackageID[pkg.PackageID] = struct{}{}
 		}
-		if pkg.cveID != "" {
-			groups[pkg.cveID] = append(groups[pkg.cveID], pkg)
+		if pkg.CVEID != "" {
+			groups[pkg.CVEID] = append(groups[pkg.CVEID], pkg)
 		}
 	}
 	return byPackageID, groups

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 const (
@@ -59,7 +60,7 @@ func evaluateSupplyChainVersionMatch(
 	observed string,
 	requestedRange string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	observed = strings.TrimSpace(observed)
 	requestedRange = strings.TrimSpace(requestedRange)
@@ -144,9 +145,9 @@ func evaluateSupplyChainVersionMatch(
 	}
 }
 
-func osPackageVersionFamily(pkgs []supplyChainAffectedPackage) string {
+func osPackageVersionFamily(pkgs []supplychainmodel.AffectedPackage) string {
 	for _, pkg := range pkgs {
-		if family := osPackageFamilyFromPURL(pkg.purl); family != "" {
+		if family := osPackageFamilyFromPURL(pkg.PURL); family != "" {
 			return family
 		}
 	}
@@ -160,7 +161,7 @@ func normalizedSupplyChainVersionEcosystem(ecosystem string) string {
 func evaluateNPMSemverMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validSupplyChainSemver(observed) {
 		return malformedInstalledVersionDecision()
@@ -182,7 +183,7 @@ func evaluateNPMSemverMatch(
 	return possiblyAffectedDecision(supplyChainVersionReasonNoAffectedMatch, nil)
 }
 
-func npmAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage) (bool, bool) {
+func npmAffectedByAnyPackage(observed string, pkgs []supplychainmodel.AffectedPackage) (bool, bool) {
 	malformed := false
 	for _, pkg := range pkgs {
 		if affected, valid := npmAffectedByPackage(observed, pkg); affected {
@@ -194,9 +195,9 @@ func npmAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage)
 	return false, malformed
 }
 
-func npmAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool, bool) {
+func npmAffectedByPackage(observed string, pkg supplychainmodel.AffectedPackage) (bool, bool) {
 	valid := true
-	for _, candidate := range pkg.affectedVersions {
+	for _, candidate := range pkg.AffectedVersions {
 		candidate = strings.TrimSpace(candidate)
 		if candidate == "" {
 			continue
@@ -207,8 +208,8 @@ func npmAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool
 			valid = false
 		}
 	}
-	for _, affectedRange := range pkg.affectedRanges {
-		if !strings.EqualFold(affectedRange.kind, "SEMVER") {
+	for _, affectedRange := range pkg.AffectedRanges {
+		if !strings.EqualFold(affectedRange.Kind, "SEMVER") {
 			continue
 		}
 		if affected, ok := semverRangeContainsDecision(affectedRange, observed); affected {
@@ -217,7 +218,7 @@ func npmAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool
 			valid = false
 		}
 	}
-	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+	if raw := strings.TrimSpace(pkg.AffectedRangeRaw); raw != "" {
 		if affected, ok := comparatorRangeContains(raw, observed, compareOSVSemver); affected {
 			return true, true
 		} else if !ok {
@@ -230,7 +231,7 @@ func npmAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool
 func evaluateNuGetSemverMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validNuGetVersion(observed) {
 		return malformedInstalledVersionDecision()
@@ -252,7 +253,7 @@ func evaluateNuGetSemverMatch(
 	return possiblyAffectedDecision(supplyChainVersionReasonNoAffectedMatch, nil)
 }
 
-func nugetAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage) (bool, bool) {
+func nugetAffectedByAnyPackage(observed string, pkgs []supplychainmodel.AffectedPackage) (bool, bool) {
 	malformed := false
 	for _, pkg := range pkgs {
 		if affected, valid := nugetAffectedByPackage(observed, pkg); affected {
@@ -264,9 +265,9 @@ func nugetAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackag
 	return false, malformed
 }
 
-func nugetAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool, bool) {
+func nugetAffectedByPackage(observed string, pkg supplychainmodel.AffectedPackage) (bool, bool) {
 	valid := true
-	for _, candidate := range pkg.affectedVersions {
+	for _, candidate := range pkg.AffectedVersions {
 		candidate = strings.TrimSpace(candidate)
 		if candidate == "" {
 			continue
@@ -277,8 +278,8 @@ func nugetAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bo
 			valid = false
 		}
 	}
-	for _, affectedRange := range pkg.affectedRanges {
-		if !strings.EqualFold(affectedRange.kind, "SEMVER") {
+	for _, affectedRange := range pkg.AffectedRanges {
+		if !strings.EqualFold(affectedRange.Kind, "SEMVER") {
 			continue
 		}
 		if affected, ok := nugetSemverRangeContainsDecision(affectedRange, observed); affected {
@@ -287,7 +288,7 @@ func nugetAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bo
 			valid = false
 		}
 	}
-	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+	if raw := strings.TrimSpace(pkg.AffectedRangeRaw); raw != "" {
 		if affected, ok := nugetAffectedRangeRawContains(raw, observed); affected {
 			return true, true
 		} else if !ok {
@@ -300,7 +301,7 @@ func nugetAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bo
 func evaluateCargoSemverMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
 	switch decision.Reason {
@@ -315,7 +316,7 @@ func evaluateCargoSemverMatch(
 func evaluateGoSemverMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validSupplyChainSemver(observed) {
 		return malformedInstalledVersionDecision()
@@ -340,7 +341,7 @@ func evaluateGoSemverMatch(
 func evaluateHexSemverMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
 	switch decision.Reason {
@@ -355,7 +356,7 @@ func evaluateHexSemverMatch(
 func evaluateSwiftSemverMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
 	switch decision.Reason {
@@ -370,7 +371,7 @@ func evaluateSwiftSemverMatch(
 func evaluatePubSemverMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
 	switch decision.Reason {
@@ -385,7 +386,7 @@ func evaluatePubSemverMatch(
 func evaluateMavenVersionMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validMavenVersion(observed) {
 		return malformedInstalledVersionDecision()
@@ -407,7 +408,7 @@ func evaluateMavenVersionMatch(
 	return possiblyAffectedDecision(supplyChainVersionReasonNoAffectedMatch, nil)
 }
 
-func mavenAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage) (bool, bool) {
+func mavenAffectedByAnyPackage(observed string, pkgs []supplychainmodel.AffectedPackage) (bool, bool) {
 	malformed := false
 	for _, pkg := range pkgs {
 		if affected, valid := mavenAffectedByPackage(observed, pkg); affected {
@@ -419,9 +420,9 @@ func mavenAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackag
 	return false, malformed
 }
 
-func mavenAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool, bool) {
+func mavenAffectedByPackage(observed string, pkg supplychainmodel.AffectedPackage) (bool, bool) {
 	valid := true
-	for _, candidate := range pkg.affectedVersions {
+	for _, candidate := range pkg.AffectedVersions {
 		candidate = strings.TrimSpace(candidate)
 		if candidate == "" {
 			continue
@@ -432,7 +433,7 @@ func mavenAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bo
 			valid = false
 		}
 	}
-	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+	if raw := strings.TrimSpace(pkg.AffectedRangeRaw); raw != "" {
 		if affected, ok := mavenRangeContains(raw, observed); affected {
 			return true, true
 		} else if !ok {
