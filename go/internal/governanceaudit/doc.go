@@ -9,4 +9,10 @@
 // does not persist events, emit telemetry, or accept raw principals, source
 // identifiers, prompts, provider responses, credential handles, private URLs, or
 // token values.
+//
+// Actor classes are closed: NormalizeEvent rejects any value outside the
+// ActorClass constants. ActorClassScopedToken names a scoped-token or
+// OIDC-bearer caller and ActorClassBrowserSession names a cookie-authenticated
+// dashboard session; both carry an actor identity, and an event that has none
+// must use ActorClassAnonymous or ActorClassSystem instead.
 package governanceaudit

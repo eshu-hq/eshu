@@ -64,8 +64,12 @@ const (
 	ActorClassAnonymous ActorClass = "anonymous"
 	// ActorClassSharedToken marks the legacy shared bearer-token actor class.
 	ActorClassSharedToken ActorClass = "shared_token"
-	// ActorClassScopedToken marks a future scoped token actor class.
+	// ActorClassScopedToken marks a scoped-token or OIDC-bearer actor class.
 	ActorClassScopedToken ActorClass = "scoped_token"
+	// ActorClassBrowserSession marks a cookie-authenticated dashboard session
+	// actor class. It is identity-bearing like ActorClassScopedToken, so an
+	// event with it still needs an ActorIDHash or ServicePrincipalID.
+	ActorClassBrowserSession ActorClass = "browser_session"
 	// ActorClassServicePrincipal marks an internal service principal.
 	ActorClassServicePrincipal ActorClass = "service_principal"
 	// ActorClassOperator marks a human operator class without a direct identifier.
@@ -272,7 +276,8 @@ func validEventType(value EventType) bool {
 func validActorClass(value ActorClass) bool {
 	switch value {
 	case ActorClassAnonymous, ActorClassSharedToken, ActorClassScopedToken,
-		ActorClassServicePrincipal, ActorClassOperator, ActorClassSystem:
+		ActorClassBrowserSession, ActorClassServicePrincipal, ActorClassOperator,
+		ActorClassSystem:
 		return true
 	default:
 		return false
