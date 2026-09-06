@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package contentread
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/searchembed"
 )
 
@@ -23,7 +25,7 @@ func TestSearchEntityContentResultsAreHybridReranked(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		byEntityRepo: map[string][]EntityContent{
+		byEntityRepo: map[string][]querycontract.EntityContent{
 			"repo-team-a": {
 				{
 					RepoID:       "repo-team-a",
@@ -48,7 +50,7 @@ func TestSearchEntityContentResultsAreHybridReranked(t *testing.T) {
 	}
 	handler := &ContentHandler{
 		Content:      store,
-		Profile:      ProfileLocalAuthoritative,
+		Profile:      querycontract.ProfileLocalAuthoritative,
 		HybridRanker: NewContentHybridRanker(true),
 	}
 
@@ -57,8 +59,8 @@ func TestSearchEntityContentResultsAreHybridReranked(t *testing.T) {
 		"/api/v0/content/entities/search",
 		bytes.NewBufferString(`{"query":"payment refund","repo_id":"repo-team-a","limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -91,7 +93,7 @@ func TestSearchFileContentResultsAreHybridReranked(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		byFileRepo: map[string][]FileContent{
+		byFileRepo: map[string][]querycontract.FileContent{
 			"repo-team-a": {
 				{
 					RepoID:       "repo-team-a",
@@ -110,7 +112,7 @@ func TestSearchFileContentResultsAreHybridReranked(t *testing.T) {
 	}
 	handler := &ContentHandler{
 		Content:      store,
-		Profile:      ProfileLocalAuthoritative,
+		Profile:      querycontract.ProfileLocalAuthoritative,
 		HybridRanker: NewContentHybridRanker(true),
 	}
 
@@ -119,8 +121,8 @@ func TestSearchFileContentResultsAreHybridReranked(t *testing.T) {
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"query":"payment refund","repo_id":"repo-team-a","limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -158,7 +160,7 @@ func TestContentHybridRerankNeverInvokesProviderEmbedder(t *testing.T) {
 		t.Fatalf("ranker.localEmbedder = %T, want *searchembed.HashEmbedder (no provider egress)", ranker.localEmbedder)
 	}
 
-	entities := []EntityContent{
+	entities := []querycontract.EntityContent{
 		{EntityID: "entity-a", EntityName: "Alpha", RepoID: "repo-team-a", SourceCache: "alpha refund payment body"},
 		{EntityID: "entity-b", EntityName: "Beta", RepoID: "repo-team-a", SourceCache: "beta refund payment body"},
 	}
@@ -179,11 +181,11 @@ func TestContentHybridRerankNeverInvokesProviderEmbedder(t *testing.T) {
 func TestContentHybridRerankFallsBackToLexicalOrder(t *testing.T) {
 	t.Parallel()
 
-	entities := []EntityContent{
+	entities := []querycontract.EntityContent{
 		{EntityID: "entity-a", EntityName: "Alpha", RepoID: "repo-team-a", SourceCache: "alpha"},
 		{EntityID: "entity-b", EntityName: "Beta", RepoID: "repo-team-a", SourceCache: "beta"},
 	}
-	files := []FileContent{
+	files := []querycontract.FileContent{
 		{RepoID: "repo-team-a", RelativePath: "a.go", Content: "alpha"},
 		{RepoID: "repo-team-a", RelativePath: "b.go", Content: "beta"},
 	}
@@ -218,7 +220,7 @@ func TestContentHybridRerankFallsBackToLexicalOrder(t *testing.T) {
 	}
 
 	// Single result on the enabled ranker: nothing to reorder, pass skipped.
-	single := []EntityContent{{EntityID: "entity-a", RepoID: "repo-team-a", SourceCache: "alpha"}}
+	single := []querycontract.EntityContent{{EntityID: "entity-a", RepoID: "repo-team-a", SourceCache: "alpha"}}
 	_, applied := NewContentHybridRanker(true).RerankEntities(context.Background(), "repo-team-a", "alpha", single)
 	if applied {
 		t.Fatal("RerankEntities applied = true for single result, want false")
@@ -237,7 +239,7 @@ func TestSearchFileContentWithEmptyBodiesKeepsLexicalOrder(t *testing.T) {
 	// Simulate the production SQL paths: Content is always '' because the
 	// SELECT hardcodes an empty string literal instead of the content column.
 	store := &recordingContentAuthzStore{
-		byFileRepo: map[string][]FileContent{
+		byFileRepo: map[string][]querycontract.FileContent{
 			"repo-team-a": {
 				{
 					RepoID:       "repo-team-a",
@@ -256,7 +258,7 @@ func TestSearchFileContentWithEmptyBodiesKeepsLexicalOrder(t *testing.T) {
 	}
 	handler := &ContentHandler{
 		Content:      store,
-		Profile:      ProfileLocalAuthoritative,
+		Profile:      querycontract.ProfileLocalAuthoritative,
 		HybridRanker: NewContentHybridRanker(true),
 	}
 
@@ -265,8 +267,8 @@ func TestSearchFileContentWithEmptyBodiesKeepsLexicalOrder(t *testing.T) {
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"query":"payment refund","repo_id":"repo-team-a","limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -305,7 +307,7 @@ func TestRerankFilesSkipsWhenAllBodiesEmpty(t *testing.T) {
 	t.Parallel()
 
 	ranker := NewContentHybridRanker(true)
-	rows := []FileContent{
+	rows := []querycontract.FileContent{
 		{RepoID: "repo-team-a", RelativePath: "billing/totals.go", Content: ""},
 		{RepoID: "repo-team-a", RelativePath: "payments/refund.go", Content: ""},
 	}
@@ -333,7 +335,7 @@ func TestRerankEntitiesUnaffectedByFileFix(t *testing.T) {
 	t.Parallel()
 
 	ranker := NewContentHybridRanker(true)
-	rows := []EntityContent{
+	rows := []querycontract.EntityContent{
 		{
 			RepoID:      "repo-team-a",
 			EntityID:    "entity-weak",

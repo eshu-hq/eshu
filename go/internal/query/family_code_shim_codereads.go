@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
-	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
 
 // complexityAmbiguousError aliases the leaf-owned ambiguous-name refusal
@@ -135,13 +134,13 @@ func codeFlowFactKinds(kind CodeFlowKind) []string {
 	return codemodel.CodeFlowFactKinds(kind)
 }
 
-// entityIDFromDocument forwards to the leaf-owned document-ID reader so
-// the staying content-hybrid lane (ambiguous ownership, never edited)
-// keeps passing it as a rank function unchanged. Delete with code.go's
-// handler move.
-func entityIDFromDocument(doc searchdocs.Document) string {
-	return codemodel.EntityIDFromDocument(doc)
-}
+// entityIDFromDocument (a forwarder to codemodel.EntityIDFromDocument for
+// the content-hybrid ranker) was deleted here in the #6060 lane-B1 move:
+// its only non-self caller moved to internal/query/contentread, which
+// calls the leaf directly, leaving this shim unused. This is the deletion
+// this file already scheduled ("Delete with code.go's handler move"),
+// executed early because the orphaning move landed first; no behavior
+// changes, since the forwarder added no logic.
 
 // listActiveCodeFlowFactsSQL aliases the leaf-owned flow read so the
 // staying flow SQL tests keep asserting on its text. Delete with

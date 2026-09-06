@@ -12,42 +12,38 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// pagedContentSearcher is implemented by content readers that can push offset
-// and multi-repo scope into SQL instead of paginating in handler memory.
-type pagedContentSearcher interface {
-	SearchFiles(context.Context, contentSearchRequest) ([]FileContent, error)
-	SearchEntities(context.Context, contentSearchRequest) ([]EntityContent, error)
-}
-
 // SearchFiles chooses the narrowest paged SQL shape for a file-content search.
-// Exported (#6060) so pagedContentSearcher's optional-interface type
-// assertion keeps matching this method if ContentReader ever moves to a
-// different package than the interface: Go qualifies an unexported method
-// name by its declaring package for interface satisfaction, so an unexported
-// searchFiles here would silently stop satisfying pagedContentSearcher the
-// moment the two sides split packages -- no compile error, just a silent
-// fallback to the slower per-request search path.
-func (cr *ContentReader) SearchFiles(ctx context.Context, req contentSearchRequest) ([]FileContent, error) {
-	if repoIDs := req.explicitRepoIDs(); len(repoIDs) > 1 {
-		return cr.searchFileContentInRepos(ctx, repoIDs, req.pattern(), req.limit()+1, req.offset())
+// Exported (#6060) so the optional-interface type assertion keeps matching
+// this method: Go qualifies an unexported method name by its declaring
+// package for interface satisfaction, so an unexported searchFiles here
+// would silently stop satisfying querycontract.PagedContentSearcher -- no
+// compile error, just a silent fallback to the slower per-request search
+// path. The parameters are decomposed primitives (rather than the handler's
+// unexported request type) for the same reason: an unexported parameter type
+// cannot be named from the contentread package that asserts the interface
+// since the lane-B1 move, so sharing the request type would break
+// satisfaction the same silent way.
+func (cr *ContentReader) SearchFiles(ctx context.Context, repoID string, repoIDs []string, pattern string, limit, offset int) ([]FileContent, error) {
+	if len(repoIDs) > 1 {
+		return cr.searchFileContentInRepos(ctx, repoIDs, pattern, limit, offset)
 	}
-	if repoID := req.repoID(); repoID != "" {
-		return cr.searchFileContentPage(ctx, repoID, req.pattern(), req.limit()+1, req.offset())
+	if repoID != "" {
+		return cr.searchFileContentPage(ctx, repoID, pattern, limit, offset)
 	}
-	return cr.searchFileContentAnyRepoPage(ctx, req.pattern(), req.limit()+1, req.offset())
+	return cr.searchFileContentAnyRepoPage(ctx, pattern, limit, offset)
 }
 
 // SearchEntities chooses the narrowest paged SQL shape for an entity-content
 // search. Exported for the same #6060 interface-export reason as SearchFiles
 // above.
-func (cr *ContentReader) SearchEntities(ctx context.Context, req contentSearchRequest) ([]EntityContent, error) {
-	if repoIDs := req.explicitRepoIDs(); len(repoIDs) > 1 {
-		return cr.searchEntityContentInRepos(ctx, repoIDs, req.pattern(), req.limit()+1, req.offset())
+func (cr *ContentReader) SearchEntities(ctx context.Context, repoID string, repoIDs []string, pattern string, limit, offset int) ([]EntityContent, error) {
+	if len(repoIDs) > 1 {
+		return cr.searchEntityContentInRepos(ctx, repoIDs, pattern, limit, offset)
 	}
-	if repoID := req.repoID(); repoID != "" {
-		return cr.searchEntityContentPage(ctx, repoID, req.pattern(), req.limit()+1, req.offset())
+	if repoID != "" {
+		return cr.searchEntityContentPage(ctx, repoID, pattern, limit, offset)
 	}
-	return cr.searchEntityContentAnyRepoPage(ctx, req.pattern(), req.limit()+1, req.offset())
+	return cr.searchEntityContentAnyRepoPage(ctx, pattern, limit, offset)
 }
 
 // searchFileContentPage searches one repository with deterministic pagination.

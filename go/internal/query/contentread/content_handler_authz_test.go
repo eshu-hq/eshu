@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package contentread
 
 import (
 	"bytes"
@@ -11,24 +11,28 @@ import (
 	"net/http/httptest"
 	"slices"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestContentHandlerScopedSearchFilesUsesAllowedReposWithoutAnyRepoFallback(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		byFileRepo: map[string][]FileContent{
+		byFileRepo: map[string][]querycontract.FileContent{
 			"repo-team-a": {{RepoID: "repo-team-a", RelativePath: "src/app.go"}},
 		},
 	}
-	handler := &ContentHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	handler := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"pattern":"handler","limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -56,14 +60,14 @@ func TestContentHandlerScopedSearchEntitiesEmptyGrantReturnsEmptyWithoutBroadSca
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{}
-	handler := &ContentHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	handler := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/content/entities/search",
 		bytes.NewBufferString(`{"pattern":"handler","limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:        AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:        queryauth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))
@@ -90,16 +94,16 @@ func TestContentHandlerAllScopeContentSearchKeepsAnyRepoFallback(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		anyFiles: []FileContent{{RepoID: "repo-team-a", RelativePath: "src/app.go"}},
+		anyFiles: []querycontract.FileContent{{RepoID: "repo-team-a", RelativePath: "src/app.go"}},
 	}
-	handler := &ContentHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	handler := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"pattern":"handler","limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:        AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:        queryauth.AuthModeScoped,
 		TenantID:    "tenant-admin",
 		WorkspaceID: "workspace-admin",
 		AllScopes:   true,
@@ -120,14 +124,14 @@ func TestContentHandlerScopedSearchFilesWithStaleGrantReturnsEmpty(t *testing.T)
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{}
-	handler := &ContentHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	handler := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"pattern":"handler","limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-missing"},
@@ -155,24 +159,24 @@ func TestContentHandlerScopedSearchFilesFiltersDuplicateRepositoryNames(t *testi
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		fakePortContentStore: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{
+		FakePortContentStore: querytestutil.FakePortContentStore{
+			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repo-team-a", Name: "payments", RepoSlug: "acme/payments"},
 				{ID: "repo-team-b", Name: "payments", RepoSlug: "other/payments"},
 			},
 		},
-		byFileRepo: map[string][]FileContent{
+		byFileRepo: map[string][]querycontract.FileContent{
 			"repo-team-a": {{RepoID: "repo-team-a", RelativePath: "src/app.go"}},
 		},
 	}
-	handler := &ContentHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	handler := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/content/files/search",
 		bytes.NewBufferString(`{"pattern":"handler","repo_id":"payments","limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -193,21 +197,21 @@ func TestContentHandlerScopedSearchEntitiesDeniesOutOfScopeRepositoryList(t *tes
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		fakePortContentStore: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{
+		FakePortContentStore: querytestutil.FakePortContentStore{
+			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repo-team-a", Name: "payments", RepoSlug: "acme/payments"},
 				{ID: "repo-team-b", Name: "orders", RepoSlug: "acme/orders"},
 			},
 		},
 	}
-	handler := &ContentHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	handler := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/content/entities/search",
 		bytes.NewBufferString(`{"pattern":"handler","repo_ids":["acme/orders"],"limit":5}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -228,21 +232,21 @@ func TestContentHandlerScopedReadFileDeniesOutOfScopeSelector(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		fakePortContentStore: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{
+		FakePortContentStore: querytestutil.FakePortContentStore{
+			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repo-team-a", Name: "payments", RepoSlug: "acme/payments"},
 				{ID: "repo-team-b", Name: "orders", RepoSlug: "acme/orders"},
 			},
 		},
 	}
-	handler := &ContentHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	handler := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/content/files/read",
 		bytes.NewBufferString(`{"repo_id":"acme/orders","relative_path":"src/app.go"}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -263,18 +267,18 @@ func TestContentHandlerScopedReadEntityHidesOutOfScopeEntity(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingContentAuthzStore{
-		entitiesByID: map[string]*EntityContent{
+		entitiesByID: map[string]*querycontract.EntityContent{
 			"entity-b": {EntityID: "entity-b", RepoID: "repo-team-b", RelativePath: "src/app.go"},
 		},
 	}
-	handler := &ContentHandler{Content: store, Profile: ProfileLocalAuthoritative}
+	handler := &ContentHandler{Content: store, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/content/entities/read",
 		bytes.NewBufferString(`{"entity_id":"entity-b"}`),
 	)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -306,11 +310,11 @@ func decodeContentAuthzBody(t *testing.T, rec *httptest.ResponseRecorder) map[st
 }
 
 type recordingContentAuthzStore struct {
-	fakePortContentStore
-	byFileRepo        map[string][]FileContent
-	byEntityRepo      map[string][]EntityContent
-	anyFiles          []FileContent
-	entitiesByID      map[string]*EntityContent
+	querytestutil.FakePortContentStore
+	byFileRepo        map[string][]querycontract.FileContent
+	byEntityRepo      map[string][]querycontract.EntityContent
+	anyFiles          []querycontract.FileContent
+	entitiesByID      map[string]*querycontract.EntityContent
 	fileRepoCalls     []string
 	entityRepoCalls   []string
 	anyFileCalls      int
@@ -329,15 +333,15 @@ func (s *recordingContentAuthzStore) GetFileContent(
 	ctx context.Context,
 	repoID string,
 	relativePath string,
-) (*FileContent, error) {
+) (*querycontract.FileContent, error) {
 	s.fileReadCalls++
-	return s.fakePortContentStore.GetFileContent(ctx, repoID, relativePath)
+	return s.FakePortContentStore.GetFileContent(ctx, repoID, relativePath)
 }
 
 func (s *recordingContentAuthzStore) GetEntityContent(
 	_ context.Context,
 	entityID string,
-) (*EntityContent, error) {
+) (*querycontract.EntityContent, error) {
 	s.entityReadCalls++
 	if s.entitiesByID == nil {
 		return nil, nil
@@ -349,7 +353,7 @@ func (s *recordingContentAuthzStore) GetEntityContentInRepositories(
 	_ context.Context,
 	entityID string,
 	repoIDs []string,
-) (*EntityContent, error) {
+) (*querycontract.EntityContent, error) {
 	s.entityScopedReads = append(s.entityScopedReads, entityScopedRead{
 		entityID: entityID,
 		repoIDs:  append([]string(nil), repoIDs...),
@@ -371,7 +375,7 @@ func (s *recordingContentAuthzStore) SearchFileContent(
 	repoID string,
 	_ string,
 	limit int,
-) ([]FileContent, error) {
+) ([]querycontract.FileContent, error) {
 	s.fileRepoCalls = append(s.fileRepoCalls, repoID)
 	return limitFileContentAuthzRows(s.byFileRepo[repoID], limit), nil
 }
@@ -380,7 +384,7 @@ func (s *recordingContentAuthzStore) SearchFileContentAnyRepo(
 	_ context.Context,
 	_ string,
 	limit int,
-) ([]FileContent, error) {
+) ([]querycontract.FileContent, error) {
 	s.anyFileCalls++
 	return limitFileContentAuthzRows(s.anyFiles, limit), nil
 }
@@ -390,7 +394,7 @@ func (s *recordingContentAuthzStore) SearchEntityContent(
 	repoID string,
 	_ string,
 	limit int,
-) ([]EntityContent, error) {
+) ([]querycontract.EntityContent, error) {
 	s.entityRepoCalls = append(s.entityRepoCalls, repoID)
 	return limitEntityContentAuthzRows(s.byEntityRepo[repoID], limit), nil
 }
@@ -399,21 +403,21 @@ func (s *recordingContentAuthzStore) SearchEntityContentAnyRepo(
 	context.Context,
 	string,
 	int,
-) ([]EntityContent, error) {
+) ([]querycontract.EntityContent, error) {
 	s.anyEntityCalls++
 	return nil, nil
 }
 
-func limitFileContentAuthzRows(rows []FileContent, limit int) []FileContent {
+func limitFileContentAuthzRows(rows []querycontract.FileContent, limit int) []querycontract.FileContent {
 	if limit > 0 && limit < len(rows) {
-		return append([]FileContent(nil), rows[:limit]...)
+		return append([]querycontract.FileContent(nil), rows[:limit]...)
 	}
-	return append([]FileContent(nil), rows...)
+	return append([]querycontract.FileContent(nil), rows...)
 }
 
-func limitEntityContentAuthzRows(rows []EntityContent, limit int) []EntityContent {
+func limitEntityContentAuthzRows(rows []querycontract.EntityContent, limit int) []querycontract.EntityContent {
 	if limit > 0 && limit < len(rows) {
-		return append([]EntityContent(nil), rows[:limit]...)
+		return append([]querycontract.EntityContent(nil), rows[:limit]...)
 	}
-	return append([]EntityContent(nil), rows...)
+	return append([]querycontract.EntityContent(nil), rows...)
 }
