@@ -17,7 +17,7 @@ import (
 // fmt.Sprintf("workload:...") or "workload:" + name site in this package
 // would still compile and silently reintroduce hand-built identifiers, and
 // the rows-track test passes byte-identical reintroductions by design. So
-// this test scans the package's own non-test sources for the three hand-built
+// this test scans the package's own non-test sources for the four hand-built
 // shapes and fails on any.
 //
 // Deliberately narrow patterns, not a broad "workload:" match:
@@ -29,7 +29,10 @@ import (
 //     `workload-` follows `Sprintf("`, not `workload:` (#6580 P2 — the
 //     guard first shipped without this shape and would have missed two
 //     of the four removed lines).
-//   - `"workload:" +` is concatenation construction. Zero hits today.
+//   - `"workload:" +` and `"workload-instance:" +` are concatenation
+//     construction for the two shapes. Zero hits today; the instance
+//     concat was added after review showed the workload-only concat
+//     pattern misses it (#6580 P2).
 //
 // Test files are out of scope: fixtures legitimately quote identifier
 // literals as expected values, and test code does not ship.
@@ -46,6 +49,7 @@ func TestWorkloadIDsRouteThroughConstructors(t *testing.T) {
 		`Sprintf("workload:%s",`,
 		`Sprintf("workload-instance:`,
 		`"workload:" +`,
+		`"workload-instance:" +`,
 	}
 
 	var violations []string

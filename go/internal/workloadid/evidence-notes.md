@@ -122,15 +122,16 @@ Every claim re-checked against the current tree:
   temporarily removing the `continue`: it fails with one emitted
   `InstanceRow`, then passes again after the restore.
 - `internal/reducer/workloadid_routing_guard_test.go` scans the package's
-  own non-test sources for hand-built `Sprintf("workload:%s",` /
-  `Sprintf("workload-instance:` / `"workload:" +` construction and fails
-  on any (#6580 P2), so the compiler-enumeration claim survives the next
-  edit instead of resting on a manual `rg`. The patterns deliberately
-  exclude the `workload:%s->%s` partition keys, which are not identifiers.
-  The instance shape was added after review caught its absence: verified
-  against the base tree, it matches exactly the two removed instance
-  sites the workload-only pattern missed, and a probe reintroducing that
-  shape fails the guard.
+  own non-test sources for four hand-built shapes — `Sprintf("workload:%s",`,
+  `Sprintf("workload-instance:`, `"workload:" +`, `"workload-instance:" +` —
+  and fails on any (#6580 P2), so the compiler-enumeration claim survives
+  the next edit instead of resting on a manual `rg`. The patterns
+  deliberately exclude the `workload:%s->%s` partition keys, which are not
+  identifiers. The instance `Sprintf` shape was added after review caught
+  its absence (verified against the base tree: matches exactly the two
+  removed instance sites), and the instance concat shape after a second
+  review round caught that one too; both were sensitivity-proven with
+  probes that fail the guard and leave no remnants.
 - `TestIdentifierTypesAreOpaque` pins every field of both identifier
   types unexported via reflection, so a future exported field (or a
   regression to a string underlying type) fails loudly (#6580 codex P1).
