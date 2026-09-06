@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # #6545: exercise the real CLI outside the old languages/parity scan roots.
 # Sourced by test-verify-doc-citations.sh, which owns scratch cleanup.
-run_doc_citation_scope_cases() {
-  run_doc_citation_ignore_cases
+test_doc_citation_scope_matrix() {
   local scope kind root page out status
   for scope in internal/evidence public/reference .internal/evidence internal/.evidence; do
     for kind in TEST FIXTURE; do
@@ -61,7 +60,7 @@ run_doc_citation_scope_cases() {
 # Tracked docs remain evidence even when an ignore file hides them from rg.
 # Each ignore source gets an isolated repository, ordinary and hidden paths,
 # and independent TEST/FIXTURE failures followed by a checked valid citation.
-run_doc_citation_ignore_cases() {
+test_doc_citation_ignore_cases() {
   local ignore scope kind root page out status label
   for ignore in .gitignore .ignore .rgignore; do
     for scope in internal/evidence internal/.evidence; do
@@ -117,6 +116,11 @@ run_doc_citation_ignore_cases() {
       done
     done
   done
+}
+
+run_doc_citation_scope_cases() {
+  run_doc_citation_case test_doc_citation_ignore_cases
+  run_doc_citation_case test_doc_citation_scope_matrix
 }
 
 # Real-tree scope and committed-ledger checks (cases 12-15). The driver keeps
@@ -237,6 +241,111 @@ test_real_line_ledger_preserves_multiplicity() {
   else
     record_fail "case15: LINE ledger collapsed multiplicity (${occurrences} occurrences, ${unique_pairs} unique pairs)"
   fi
+}
+
+doc_citation_mode_partition_holds() {
+  local full="$1" fixtures="$2" repository="$3" combined required
+  combined="$(printf '%s\n%s\n' "${fixtures}" "${repository}" | LC_ALL=C sort)"
+  [[ "$(printf '%s\n' "${full}" | LC_ALL=C sort)" == "${combined}" ]] || return 1
+  for required in \
+    test_real_tree_result_is_reused_for_floor \
+    test_real_baseline_matches_fresh_regeneration \
+    test_real_line_ledger_preserves_multiplicity \
+    test_public_gate_name_states_recurrence_scope; do
+    printf '%s\n' "${repository}" | rg -qx "${required}" || return 1
+    ! printf '%s\n' "${fixtures}" | rg -qx "${required}" || return 1
+  done
+  ! printf '%s\n' "${fixtures}" |
+    rg -q '^(test_real_|test_public_gate_name_states_recurrence_scope$)'
+}
+
+copy_doc_citation_mode_helpers() {
+  local source_dir="$1" destination="$2"
+  mkdir -p "${destination}"
+  cp \
+    "${source_dir}/test-verify-doc-citations-line-cases.sh" \
+    "${source_dir}/test-verify-doc-citations-review-cases.sh" \
+    "${source_dir}/test-verify-doc-citations-binary-cases.sh" \
+    "${source_dir}/test-verify-doc-citations-preparation-cases.sh" \
+    "${source_dir}/test-verify-doc-citations-scope-cases.sh" \
+    "${destination}/"
+}
+
+move_doc_citation_real_case_to_fixtures() {
+  local source="$1" destination="$2"
+  awk '
+    /^run_basic_fixture_cases\(\)/ { in_fixture = 1 }
+    in_fixture && /^  for test_case in \\/ {
+      print
+      print "    test_real_baseline_matches_fresh_regeneration \\"
+      inserted = 1
+      next
+    }
+    /^run_repository_cases\(\)/ { in_repository = 1 }
+    in_repository && /test_real_baseline_matches_fresh_regeneration/ { next }
+    in_fixture && /^}/ { in_fixture = 0 }
+    in_repository && /^}/ { in_repository = 0 }
+    { print }
+    END { if (!inserted) exit 2 }
+  ' "${source}" >"${destination}"
+}
+
+add_doc_citation_real_case_to_fixture_runner() {
+  local source="$1" destination="$2"
+  awk '
+    /^run_line_citation_review_cases\(\)/ { inside = 1 }
+    inside && /^}/ {
+      print "  test_real_new_repository_guard"
+      inserted = 1
+      inside = 0
+    }
+    { print }
+    END {
+      if (!inserted) exit 2
+      print ""
+      print "test_real_new_repository_guard() { :; }"
+    }
+  ' "${source}" >"${destination}"
+}
+
+run_doc_citation_case() {
+  "$1"
+}
+
+run_basic_fixture_cases() {
+  local test_case
+  for test_case in \
+    test_update_is_idempotent \
+    test_existing_test_citation_passes \
+    test_phantom_test_citation_fails \
+    test_missing_file_citation_fails \
+    test_baselined_phantom_test_citation_passes \
+    test_subtest_citation_always_fails \
+    test_used_fixture_citation_passes \
+    test_unused_fixture_citation_fails \
+    test_missing_fixture_citation_fails \
+    test_baselined_unused_fixture_shared_across_docs_passes \
+    test_fails_closed_on_bad_baseline; do
+    run_doc_citation_case "${test_case}"
+  done
+}
+
+run_repository_cases() {
+  local test_case
+  for test_case in \
+    test_real_tree_result_is_reused_for_floor \
+    test_real_baseline_matches_fresh_regeneration \
+    test_real_line_ledger_preserves_multiplicity; do
+    run_doc_citation_case "${test_case}"
+  done
+  run_line_citation_repository_cases
+}
+
+run_line_fixture_cases() {
+  run_line_citation_cases
+  run_line_citation_review_cases
+  run_line_citation_binary_cases
+  run_line_citation_preparation_cases
 }
 
 run_doc_citation_test_mode() {

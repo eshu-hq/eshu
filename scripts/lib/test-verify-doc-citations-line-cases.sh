@@ -472,20 +472,24 @@ test_line_contract_help_and_registry_comment() {
 }
 
 run_line_citation_cases() {
-  test_in_range_line_citation_fails
-  test_underscore_digit_line_citation_fails
-  test_stale_line_baseline_fails
-  test_duplicate_line_citation_in_same_source_fails
-  test_update_refuses_new_line_debt
-  test_update_allows_line_debt_reduction
-  test_full_sha_permalink_passes
-  test_mutable_or_short_permalink_fails
-  test_branch_cannot_self_authorize_line_debt
-  test_update_reconciles_debt_already_present_at_base
-  test_tracked_hidden_sources_are_scanned
-  test_empty_line_scan_fails_closed
-  test_line_scanner_error_fails_closed
-  test_line_trigger_lockstep
-  test_line_trigger_contract_is_block_scoped
-  test_line_contract_help_and_registry_comment
+  local test_case
+  for test_case in \
+    test_in_range_line_citation_fails \
+    test_underscore_digit_line_citation_fails \
+    test_stale_line_baseline_fails \
+    test_duplicate_line_citation_in_same_source_fails \
+    test_update_refuses_new_line_debt \
+    test_update_allows_line_debt_reduction \
+    test_full_sha_permalink_passes \
+    test_mutable_or_short_permalink_fails \
+    test_branch_cannot_self_authorize_line_debt \
+    test_update_reconciles_debt_already_present_at_base \
+    test_tracked_hidden_sources_are_scanned \
+    test_empty_line_scan_fails_closed \
+    test_line_scanner_error_fails_closed \
+    test_line_trigger_lockstep \
+    test_line_trigger_contract_is_block_scoped \
+    test_line_contract_help_and_registry_comment; do
+    run_doc_citation_case "${test_case}"
+  done
 }

@@ -363,32 +363,62 @@ source "${repo_root}/scripts/lib/test-verify-doc-citations-scope-cases.sh"
 
 test_mode_partition_contract() {
   local out="${tmp_root}/mode-dispatch.out" status
-  local full fixtures repository combined
+  local helper_dir="${repo_root}/scripts/lib"
+  local full fixtures repository moved_dir added_dir
   mode_trace() {
     "${BASH:-bash}" -c '
-      source "$1"
-      run_doc_citation_scope_cases() { printf "%s\n" scope; }
-      run_basic_fixture_cases() { printf "%s\n" basic; }
-      run_repository_cases() { printf "%s\n" repository; }
-      run_line_fixture_cases() { printf "%s\n" line; }
+      set -euo pipefail
+      source "$1/test-verify-doc-citations-line-cases.sh"
+      source "$1/test-verify-doc-citations-review-cases.sh"
+      source "$1/test-verify-doc-citations-binary-cases.sh"
+      source "$1/test-verify-doc-citations-preparation-cases.sh"
+      source "$1/test-verify-doc-citations-scope-cases.sh"
+      for test_case in $(declare -F | awk "{ print \$3 }"); do
+        case "$test_case" in
+          test_*) eval "$test_case() { printf \"%s\\n\" \"$test_case\"; }" ;;
+        esac
+      done
+      run_doc_citation_case() { printf "%s\n" "$1"; }
       run_doc_citation_test_mode "$2"
-    ' bash "${repo_root}/scripts/lib/test-verify-doc-citations-scope-cases.sh" "$1"
+    ' bash "$1" "$2"
   }
-  full="$(mode_trace full)"
-  fixtures="$(mode_trace fixtures)"
-  repository="$(mode_trace repository)"
-  combined="$(printf '%s\n%s\n' "${fixtures}" "${repository}" | LC_ALL=C sort)"
-  if [[ "$(printf '%s\n' "${full}" | LC_ALL=C sort)" == "${combined}" ]]; then
-    record_pass "mode dispatch: repository and fixture partitions cover the default suite"
+  full="$(mode_trace "${helper_dir}" full)"
+  fixtures="$(mode_trace "${helper_dir}" fixtures)"
+  repository="$(mode_trace "${helper_dir}" repository)"
+  if doc_citation_mode_partition_holds "${full}" "${fixtures}" "${repository}"; then
+    record_pass "mode dispatch: leaf repository and fixture cases partition the default suite"
   else
-    record_fail "mode dispatch: repository and fixture partitions must cover the default suite"
+    record_fail "mode dispatch: leaf repository and fixture cases must partition the default suite"
   fi
-  if printf '%s\n' "${repository}" | rg -qx repository &&
-    ! printf '%s\n' "${fixtures}" | rg -qx repository; then
-    record_pass "mode dispatch: repository cases run only in the repository partition"
+
+  moved_dir="${tmp_root}/mode-cases-moved"
+  copy_doc_citation_mode_helpers "${helper_dir}" "${moved_dir}"
+  move_doc_citation_real_case_to_fixtures \
+    "${helper_dir}/test-verify-doc-citations-scope-cases.sh" \
+    "${moved_dir}/test-verify-doc-citations-scope-cases.sh"
+  if doc_citation_mode_partition_holds \
+    "$(mode_trace "${moved_dir}" full)" \
+    "$(mode_trace "${moved_dir}" fixtures)" \
+    "$(mode_trace "${moved_dir}" repository)"; then
+    record_fail "mode dispatch: moving a real-tree case into a fixture runner is rejected"
   else
-    record_fail "mode dispatch: repository cases must run only in the repository partition"
+    record_pass "mode dispatch: moving a real-tree case into a fixture runner is rejected"
   fi
+
+  added_dir="${tmp_root}/mode-cases-added"
+  copy_doc_citation_mode_helpers "${helper_dir}" "${added_dir}"
+  add_doc_citation_real_case_to_fixture_runner \
+    "${helper_dir}/test-verify-doc-citations-review-cases.sh" \
+    "${added_dir}/test-verify-doc-citations-review-cases.sh"
+  if doc_citation_mode_partition_holds \
+    "$(mode_trace "${added_dir}" full)" \
+    "$(mode_trace "${added_dir}" fixtures)" \
+    "$(mode_trace "${added_dir}" repository)"; then
+    record_fail "mode dispatch: adding a real-tree case to a fixture runner is rejected"
+  else
+    record_pass "mode dispatch: adding a real-tree case to a fixture runner is rejected"
+  fi
+
   if "${BASH:-bash}" "${repo_root}/scripts/test-verify-doc-citations.sh" --unknown >"${out}" 2>&1; then
     record_fail "mode dispatch: an unknown option fails"
   else
@@ -399,46 +429,6 @@ test_mode_partition_contract() {
       record_fail "mode dispatch: unknown option exit=${status}, want usage and exit 2"
     fi
   fi
-}
-
-run_basic_fixture_cases() {
-  local test_case
-  for test_case in \
-    test_update_is_idempotent \
-    test_existing_test_citation_passes \
-    test_phantom_test_citation_fails \
-    test_missing_file_citation_fails \
-    test_baselined_phantom_test_citation_passes \
-    test_subtest_citation_always_fails \
-    test_used_fixture_citation_passes \
-    test_unused_fixture_citation_fails \
-    test_missing_fixture_citation_fails \
-    test_baselined_unused_fixture_shared_across_docs_passes \
-    test_fails_closed_on_bad_baseline; do
-    "${test_case}"
-  done
-}
-
-run_repository_cases() {
-  local test_case
-  for test_case in \
-    test_real_tree_result_is_reused_for_floor \
-    test_real_baseline_matches_fresh_regeneration \
-    test_real_line_ledger_preserves_multiplicity \
-    run_line_citation_repository_cases; do
-    "${test_case}"
-  done
-}
-
-run_line_fixture_cases() {
-  local test_case
-  for test_case in \
-    run_line_citation_cases \
-    run_line_citation_review_cases \
-    run_line_citation_binary_cases \
-    run_line_citation_preparation_cases; do
-    "${test_case}"
-  done
 }
 
 if [[ "${mode}" != scope ]]; then

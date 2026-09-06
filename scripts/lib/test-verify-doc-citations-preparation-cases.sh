@@ -225,11 +225,15 @@ test_colon_number_binary_path_remains_excluded() {
 }
 
 run_line_citation_preparation_cases() {
-  test_file_preparation_is_shared_across_scan_modes
-  test_shared_scan_preserves_mixed_same_line_matches
-  test_shared_scan_preserves_mixed_raw_multiplicity
-  test_shared_scan_rejects_mixed_raw_drop_mutation
-  test_colon_number_paths_fail_closed_independently
-  test_legal_colon_paths_pass
-  test_colon_number_binary_path_remains_excluded
+  local test_case
+  for test_case in \
+    test_file_preparation_is_shared_across_scan_modes \
+    test_shared_scan_preserves_mixed_same_line_matches \
+    test_shared_scan_preserves_mixed_raw_multiplicity \
+    test_shared_scan_rejects_mixed_raw_drop_mutation \
+    test_colon_number_paths_fail_closed_independently \
+    test_legal_colon_paths_pass \
+    test_colon_number_binary_path_remains_excluded; do
+    run_doc_citation_case "${test_case}"
+  done
 }

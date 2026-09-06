@@ -289,6 +289,43 @@ func TestPrePRWholeModuleRejectsCIOnlyCoreGateBeforeExecution(t *testing.T) {
 	}
 }
 
+// A new mandatory gate must execute and retain its failure in both the report
+// and reuse map, even when the resolved work list grows beyond today's four.
+func TestPrePRWholeModuleExecutesAdditionalResolvedGate(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	runs, err := resolvePrePRWholeModuleRuns(prePRCoreSelections(false, map[string]string{
+		"go-fmt": "true", "go-lint": "true", "go-build": "true", "go-vet": "true",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gate := selectedGateWithCI("extra-core", "printf 'extra\\n' >> extra.log; exit 23", true, "test.yml", "go-core").Gate
+	command := localGateCommands(gate.Local, false)[0]
+	key, reusable := sharedCommandKey(gate, command.label, command.command)
+	if !reusable {
+		t.Fatal("additional core gate must have a reusable command")
+	}
+	runs = append(runs, prePRWholeModuleRun{gate: gate, command: command, key: key})
+	var output bytes.Buffer
+	var report gateRunReport
+	sharedResults := make(map[sharedGateCommandKey]sharedGateCommandResult)
+	if !executePrePRWholeModuleRuns(&output, runs, root, &report, sharedResults) {
+		t.Fatalf("additional failing core gate did not block promotion:\n%s", output.String())
+	}
+	assertFile(t, root, "extra.log", "extra\n")
+	if report.Summary.CommandsRun != len(runs) || report.Summary.BlockingFailures != 1 {
+		t.Fatalf("summary = %+v, want all commands executed and one blocking failure", report.Summary)
+	}
+	last := report.Commands[len(report.Commands)-1]
+	if last.GateID != gate.ID || last.Outcome != "fail" {
+		t.Fatalf("additional gate report = %+v, want failure", last)
+	}
+	if result, ok := sharedResults[key]; !ok || result.gateID != gate.ID || result.err == nil {
+		t.Fatalf("additional gate reuse result = %+v (present %t), want original failure", result, ok)
+	}
+}
+
 func prePRCoreSelections(selected bool, commands map[string]string) []cigates.Selection {
 	selections := make([]cigates.Selection, 0, len(prePRWholeModuleGateIDs))
 	for _, id := range prePRWholeModuleGateIDs {

@@ -4,13 +4,18 @@ No-Regression Evidence: The [runner integration tests](../../../go/cmd/ci-gates/
 exercise the actual CLI, mandatory whole-module commands on unselected paths,
 command-result reuse, failed-result propagation, and rejection of missing or
 CI-only core commands before execution. A bounded process handshake checks
-that build and vet overlap the ordered formatting and lint stage.
+that build and vet overlap the ordered formatting and lint stage. A regression
+appends a failing mandatory command and verifies execution, a blocking report,
+and the original failure in the reuse map when the work list grows.
 
 The shell scheduling tests preserve FULL/FAST routing. Classifier and Git
 collector regressions cover skill Markdown, executable and configuration
 siblings, deleted paths, and untrusted or untracked input. The citation driver
 retains its full default suite; repository-only mode keeps real-tree checks,
-and an injected verifier failure exits unsuccessfully.
+and an injected verifier failure exits unsuccessfully. Its partition contract
+traces individual checks through the actual runners. Mutated helper copies
+prove that moving an existing real-tree check or adding one inside a fixture
+runner is rejected; the real recurrence-scope check remains repository-only.
 
 Performance Evidence: Citation command-scope durations are recorded as
 ledger:prepr-selection-20260906-citations-full and

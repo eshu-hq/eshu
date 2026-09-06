@@ -39,11 +39,20 @@ func executePrePRWholeModulePrelude(
 	if err != nil {
 		return false, err
 	}
+	return executePrePRWholeModuleRuns(w, runs, repoRoot, report, sharedResults), nil
+}
+
+func executePrePRWholeModuleRuns(
+	w io.Writer,
+	runs []prePRWholeModuleRun,
+	repoRoot string,
+	report *gateRunReport,
+	sharedResults map[sharedGateCommandKey]sharedGateCommandResult,
+) bool {
 	_, _ = fmt.Fprintln(w, "WHOLE   pre-pr: fmt then lint; build and vet run in parallel")
 
 	var wg sync.WaitGroup
 	run := func(index int) {
-		defer wg.Done()
 		var output bytes.Buffer
 		started := time.Now()
 		runs[index].result = sharedGateCommandResult{
@@ -58,24 +67,21 @@ func executePrePRWholeModulePrelude(
 
 	// The precommit helper uses worktree-local mutable state and stays
 	// single-writer: lint begins only after formatting returns.
-	wg.Add(3)
+	serialCount := min(2, len(runs))
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		for _, index := range []int{0, 1} {
-			var output bytes.Buffer
-			started := time.Now()
-			runs[index].result = sharedGateCommandResult{
-				gateID: runs[index].gate.ID,
-				err: runShellCommandWithOutput(
-					runs[index].command.command, repoRoot, &output, &output,
-				),
-				durationMS: time.Since(started).Milliseconds(),
-			}
-			runs[index].output = output.String()
+		for index := range serialCount {
+			run(index)
 		}
 	}()
-	go run(2)
-	go run(3)
+	for index := serialCount; index < len(runs); index++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			run(index)
+		}()
+	}
 	wg.Wait()
 
 	failed := false
@@ -90,7 +96,7 @@ func executePrePRWholeModulePrelude(
 			printGateFailure(w, entry.gate, entry.command.label, entry.result.err)
 		}
 	}
-	return failed, nil
+	return failed
 }
 
 func resolvePrePRWholeModuleRuns(sels []cigates.Selection) ([]prePRWholeModuleRun, error) {
