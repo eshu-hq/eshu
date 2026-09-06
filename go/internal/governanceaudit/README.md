@@ -20,8 +20,17 @@ where approved events are persisted or displayed.
 See `doc.go` for the godoc contract.
 
 - `Event` is the audit-safe decision envelope.
-- `NormalizeEvent` trims and validates a single event.
-- `Aggregate` validates events and returns status-safe counts.
+- `NormalizeEvent` trims and validates a single event on the write path; the
+  four enums are closed there.
+- `NormalizeStoredEvent` does the same for a row read back from storage, but
+  keeps an enum value this build does not know when it is a bounded lowercase
+  token (#6574).
+- `UnknownEnums` names the enum fields of a stored event whose values this
+  build does not know and are bounded lowercase tokens, so the store can log
+  them once per page; a value of any other shape is never reported.
+- `Aggregate` validates events with `NormalizeStoredEvent` and returns
+  status-safe counts, so an unknown class is its own count bucket, as it is in
+  the SQL summary.
 - `EventType`, `ActorClass`, `ScopeClass`, and `Decision` define the stable
   low-cardinality enums.
 - `Summary` and `Count` are readback shapes safe for status and MCP surfaces.
@@ -48,7 +57,17 @@ metrics, spans, and structured logs.
   they cross a sensitive-data or export boundary.
 - Aggregation validates every event before counting it, so unsafe rows cannot
   become status readbacks.
-- `actor_class` is a closed enum too. `scoped_token` is a scoped-token or
+- The enums are closed on write and tolerated on read. `NormalizeEvent` rejects
+  a `type`, `actor_class`, `scope_class`, or `decision` outside this package's
+  constants, so a producer on this build cannot emit one. `NormalizeStoredEvent`
+  keeps such a value verbatim when it is 1-64 bytes of `[a-z0-9_]`, the shape
+  every constant has, and rejects anything else; hash, token, reason-code, and
+  `occurred_at` guards run unchanged, and the actor-identity rule applies only
+  to a class this build knows. The reason is rolling upgrades: a release that
+  adds a class has newer pods writing rows older pods must still list. Before
+  #6574 the Postgres scanner used the write-path validator and an old pod
+  answered the audit-list page with 500 until the rollout finished.
+- `actor_class` is closed on write too. `scoped_token` is a scoped-token or
   OIDC-bearer caller and `browser_session` is a cookie-authenticated dashboard
   session (#6459); both need an `ActorIDHash` or `ServicePrincipalID`, and an
   emitter that has neither records `anonymous` instead. One credential maps

@@ -9,6 +9,8 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
+	"sort"
 	"strings"
 	"time"
 
@@ -178,7 +180,11 @@ func scanGovernanceAuditEvent(rows Rows) (governanceaudit.Event, error) {
 	event.PolicyRevisionHash = policyRevisionHash.String
 	event.TenantID = tenantID.String
 	event.WorkspaceID = workspaceID.String
-	normalized, err := governanceaudit.NormalizeEvent(event)
+	// Read-path normalization (#6574): Append already ran the closed write-path
+	// validator, so a stored class this build does not know came from a newer
+	// build during a rolling upgrade. Return it verbatim rather than failing
+	// the whole page; hash, token, and reason-code guards still apply.
+	normalized, err := governanceaudit.NormalizeStoredEvent(event)
 	if err != nil {
 		return governanceaudit.Event{}, err
 	}
@@ -219,5 +225,62 @@ func applyGovernanceAuditSummaryRow(
 		summary.ActorClassCounts = append(summary.ActorClassCounts, governanceaudit.Count{Name: name, Count: count})
 	case "scope_class":
 		summary.ScopeClassCounts = append(summary.ScopeClassCounts, governanceaudit.Count{Name: name, Count: count})
+	}
+}
+
+// governanceAuditUnknownEnumMessage is the warn line an operator looks for
+// when the audit-list page shows an event type, actor class, scope class, or
+// decision the running build does not know. It means this pod is on an older
+// build than the pod that wrote the row, which is expected mid-rollout and
+// worth a look at any other time (#6574). One line per field per List call,
+// with `field`, `rows` (rows on the page with an unknown value in that
+// field), and `values` (the distinct values, sorted, comma-joined).
+const governanceAuditUnknownEnumMessage = "governance audit list kept a value this build does not know; this pod is likely on an older build than the writer"
+
+// governanceAuditEnumFields is the column order the warn lines follow.
+var governanceAuditEnumFields = [...]string{"event_type", "actor_class", "scope_class", "decision"}
+
+// governanceAuditUnknownTally counts, per enum field, the rows on one List
+// page whose value is outside this build's registry and the distinct values
+// seen, so List logs one line per field rather than one per row. Values only
+// reach the tally after NormalizeStoredEvent accepted them, so each is a
+// bounded lowercase token and safe to put in a log line.
+type governanceAuditUnknownTally struct {
+	rows   map[string]int
+	values map[string]map[string]struct{}
+}
+
+func (t *governanceAuditUnknownTally) add(event governanceaudit.Event) {
+	for _, unknown := range governanceaudit.UnknownEnums(event) {
+		if t.rows == nil {
+			t.rows = map[string]int{}
+			t.values = map[string]map[string]struct{}{}
+		}
+		if t.values[unknown.Field] == nil {
+			t.values[unknown.Field] = map[string]struct{}{}
+		}
+		t.rows[unknown.Field]++
+		t.values[unknown.Field][unknown.Value] = struct{}{}
+	}
+}
+
+// warn emits governanceAuditUnknownEnumMessage once per field that saw an
+// unknown value, in column order. A page of known values emits nothing.
+func (t *governanceAuditUnknownTally) warn(ctx context.Context, logger *slog.Logger) {
+	for _, field := range governanceAuditEnumFields {
+		rows := t.rows[field]
+		if rows == 0 {
+			continue
+		}
+		values := make([]string, 0, len(t.values[field]))
+		for value := range t.values[field] {
+			values = append(values, value)
+		}
+		sort.Strings(values)
+		logger.LogAttrs(ctx, slog.LevelWarn, governanceAuditUnknownEnumMessage,
+			slog.String("field", field),
+			slog.Int("rows", rows),
+			slog.String("values", strings.Join(values, ",")),
+		)
 	}
 }

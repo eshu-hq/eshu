@@ -279,7 +279,13 @@ reducer/query adapter.
 - `GovernanceAuditStore` / `NewGovernanceAuditStore` — validation-safe hosted
   governance audit persistence with retry-idempotent `Append`, private
   operator-authorized bounded `List`, aggregate-only `Summary`, and
-  retention-oriented `DeleteExpired`
+  retention-oriented `DeleteExpired`. `List` keeps an `event_type`,
+  `actor_class`, `scope_class`, or `decision` outside the running build's
+  registry and logs `governance audit list kept a value this build does not
+  know; this pod is likely on an older build than the writer` at WARN, once
+  per field per call, with `field`, `rows`, and `values` (distinct
+  shape-checked tokens, sorted, comma-joined) (#6574). A nil `Logger` means
+  `slog.Default`; `WithLogger` sets one.
 - `GovernanceAuditEventsSchemaSQL` — idempotent DDL for the private
   `governance_audit_events` sink
 

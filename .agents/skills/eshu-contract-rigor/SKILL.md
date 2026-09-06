@@ -68,7 +68,15 @@ Classify every payload schema change against this policy (design doc section
   the meaning of a field, including changing how a stable key is derived.
   Requires a conversion shim in the same contracts change.
 - **Minor** — an additive optional field. The reducer needs no change and
-  ignores it until a handler opts in.
+  ignores a new field until a handler opts in. A new member of a closed
+  string enum is minor only where every reader of that enum keeps a member
+  it does not know rather than failing the read; today that holds for the
+  governance-audit stored-row reader (actor class, scope class, decision,
+  event type), where treating membership as read-side validation turned
+  every rolling upgrade that added a member into a 500 on the audit-list
+  page (#6574). For a fact-payload enum whose consumers still reject an
+  unfamiliar member, adding one is a major change until those readers are
+  made tolerant.
 - **Patch** — docs only.
 
 Name the gates a payload change must clear when you touch this surface. These

@@ -37,10 +37,17 @@ with no constraint (migration 006b), so no migration runs. `go test
 ./internal/query ./internal/governanceaudit ./internal/governanceauditasync
 -count=1` passes at the branch head.
 
-Rolling-upgrade caveat: `scanGovernanceAuditEvent` runs each stored row through
-`governanceaudit.NormalizeEvent`, whose actor-class list is closed, so while the
-release rolls out an API pod still on the old build answers
+Rolling-upgrade caveat: at the time of this change `scanGovernanceAuditEvent`
+ran each stored row through `governanceaudit.NormalizeEvent`, whose actor-class
+list is closed, so while the release that introduced `browser_session` rolls
+out an API pod still on the old build answers
 `GET /api/v0/auth/admin/audit/events` with 500 for any page holding a
 `browser_session` row. The row is persisted correctly, the summary counts do
 not scan rows and are unaffected, and the error ends when every pod is on the
-new build. #6574 tracks the durable reader change; it is out of this PR.
+new build. That window applies to any rollout whose old pods predate #6574,
+this release included, because every build before it ships the strict reader.
+From #6574 on the scanner uses `governanceaudit.NormalizeStoredEvent`, which
+keeps an unknown class verbatim and logs `governance audit list kept a value
+this build does not know` once per field per list call, so a later class
+addition has no window and the old pod names itself in the log; see
+`6574-audit-reader-unknown-class.md`.

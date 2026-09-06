@@ -1,0 +1,122 @@
+# #6574: the governance-audit reader keeps a class it does not know
+
+Issue #6574. Branch `claude/6574-audit-reader`. Follow-up to
+`6459-browser-session-actor-class.md`, whose rolling-upgrade caveat this
+change retires for future class additions.
+
+## What was wrong
+
+`scanGovernanceAuditEvent` in `go/internal/storage/postgres` ran every stored
+row through `governanceaudit.NormalizeEvent`, the write-path validator whose
+`type`, `actor_class`, `scope_class`, and `decision` enums are closed. A row
+whose class the running binary did not know failed the whole `List` call, so
+`GET /api/v0/auth/admin/audit/events` answered 500 for any page holding it.
+
+That is a rolling-upgrade problem: when a release adds a class, a new pod
+writes it while an old pod is still serving reads. #6573 added
+`browser_session` and hit exactly this. The row itself was persisted
+correctly; only the read failed, and only until every pod was on the new
+build. It would recur on the next class addition.
+
+## What changed
+
+`governanceaudit` now has one normalizer with two enum policies:
+
+- `NormalizeEvent` stays the write-path contract. `Append` still rejects an
+  unknown class, so a producer on this build cannot emit one.
+- `NormalizeStoredEvent` is the read-path contract. It keeps a `type`,
+  `actor_class`, `scope_class`, or `decision` this build does not know,
+  verbatim, when it is 1-64 bytes of `[a-z0-9_]` (the shape every registry
+  constant has), and rejects anything else. Trimming, the hash and token
+  guards, the reason-code guard, and the `occurred_at` guard run unchanged.
+  The actor-identity rule applies only to a class this build knows; the
+  build that accepted an unknown class is the one that knows whether it
+  carries an identity.
+
+`scanGovernanceAuditEvent` uses `NormalizeStoredEvent`. `Aggregate` does too,
+so the in-memory summary counts an unknown class under its stored name, which
+is what the SQL `Summary` already did (it groups the column as a plain string
+and `applyGovernanceAuditSummaryRow` appends whatever name it gets).
+
+No sentinel such as `unknown` is introduced; the operator sees the value the
+writer stored, which is the value they will filter by once their pod is
+upgraded.
+
+## Evidence
+
+The regression test `TestGovernanceAuditStoreListKeepsUnknownEnumValuesVerbatim`
+(`go/internal/storage/postgres`) drives the production `List` path over a fake
+row with `actor_class = future_class` (and one case each for `event_type`,
+`scope_class`, `decision`). Before the fix:
+
+```text
+--- FAIL: TestGovernanceAuditStoreListKeepsUnknownEnumValuesVerbatim/actor_class
+    List error = governance audit field "actor_class" is invalid, want nil
+```
+
+After the fix the four cases pass and the row comes back with the stored
+value. `TestGovernanceAuditStoreListStillRejectsUnsafeStoredRows` and
+`TestNormalizeStoredEventStillRejectsUnsafeValues` pin what the tolerant reader
+does not loosen (a non-token class, a raw email in a hash field, a URL in a
+correlation id). `TestGovernanceAuditStoreAppendRejectsUnknownActorClass` and
+`TestNormalizeStoredEventKeepsUnknownEnumsThatWriteRejects` pin the write side
+staying closed. `TestAggregateCountsUnknownClassAsPlainString` covers the
+in-memory summary.
+
+No-Regression Evidence: the scanner still runs one normalizer call per row
+with the same trim and guard checks; the only added work is a byte scan of an
+enum value that is at most 64 bytes, and it runs only when the value is
+outside the registry. The warn tally re-runs the four registry lookups per
+listed row and touches a map only for an unknown value; the page is bounded
+by `maxGovernanceAuditLimit` (500 rows), so the added work is at most 2,000
+switch evaluations per call. No SQL text, predicate, index, lease, worker, batch, or
+transaction boundary changes. `governance_audit_events` is unchanged; the
+`actor_class` column was already unconstrained `TEXT`.
+
+Observability Evidence: `GovernanceAuditStore.List` logs one line per affected
+field per call when a page holds a value outside the running build's registry.
+Through the store's own logger the line has the plain `slog` JSON shape:
+
+```json
+{"level":"WARN","msg":"governance audit list kept a value this build does not know; this pod is likely on an older build than the writer","field":"actor_class","rows":3,"values":"future_class,other_class"}
+```
+
+`field` is the stored column (`event_type`, `actor_class`, `scope_class`, or
+`decision`), `rows` is how many rows on that page carried an unknown value in
+it, and `values` lists the distinct shape-checked values, sorted and
+comma-joined. Known values log nothing, so the line appears only while a pod
+is older than the pod that wrote the row; that is how an operator tells a
+rollout in progress from a stray writer.
+`TestGovernanceAuditStoreListWarnsOncePerUnknownEnumField` captures the line
+through the production `List` with a JSON handler and pins one line per
+field, the counts, and silence on an all-known page.
+`TestGovernanceAuditStoreListWarnsThroughDefaultLoggerWhenUnset` pins that a
+store built without `WithLogger` still emits it through `slog.Default`.
+`cmd/api` builds both of its stores (the admin reader's List store and the
+shared summary store) with `WithLogger` on the logger `main` builds through
+`telemetry.NewLoggerWithWriter`, so in the API pod the same line is written by
+that handler, which renames the standard keys: `time` becomes `timestamp`,
+`level` becomes `severity_text` and `msg` becomes `message`, and adds
+`service_name`, `service_namespace`, `component` and `runtime_role`;
+`trace_id`, `span_id` and `severity_number` appear only when the request
+context carries a valid span. A log filter for the API pod therefore matches
+`"message":"governance audit list kept a value"`, not `msg`. Without that
+wiring the line would fall to Go's default text handler on stderr.
+`TestNewRouterWiresGovernanceAuditStoreLogger` drives `newRouter` with a
+distinguishable logger and pins pointer identity on both stores. No metric,
+span, or status field is added.
+
+Concurrency: `List` is a read-only `SELECT` with no lock, claim, or lease. The
+only conflict domain is the rolling-upgrade interleaving itself (new pod
+writes, old pod reads), which this change makes safe by construction rather
+than by ordering the rollout.
+
+## Rollout window
+
+Every build before this change ships the strict reader, so the 500 window
+applies to any rollout whose old pods predate it, not only the release that
+introduced `browser_session`: an operator upgrading from any pre-#6574 build
+straight to a later release that adds a class still sees it until the last
+old pod is gone. From this change on, an old pod reads a newer pod's rows and
+logs the warn line above once per field per list call, so a later class
+addition has no window and the log says which pod is behind.

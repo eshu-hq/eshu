@@ -177,7 +177,7 @@ func wireAPI(
 		}
 		return nil, nil, nil, fmt.Errorf("configure metrics time-series source: %w", err)
 	}
-	governanceAudit := newGovernanceAuditStore(db, instruments)
+	governanceAudit := newGovernanceAuditStore(db, instruments, logger)
 
 	// IdP bearer-token resolver (#5162): validates an IdP-issued OAuth2
 	// access token presented as Authorization: Bearer <token> against the

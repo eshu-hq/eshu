@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 
 	"go.opentelemetry.io/otel"
 
@@ -18,17 +19,19 @@ import (
 // newAdminIdentityReadHandler wires the tenant-scoped admin identity read
 // endpoints over Postgres. The handler is nil-safe: a nil database yields a
 // handler whose store and audit reader are nil, so each route returns 503
-// rather than panicking.
+// rather than panicking. logger is the API's structured logger, threaded to the
+// audit reader's store so its unknown-enum warn (#6574) lands in the API log.
 func newAdminIdentityReadHandler(
 	db *sql.DB,
 	instruments *telemetry.Instruments,
 	governanceAudit query.GovernanceAuditSummaryReader,
+	logger *slog.Logger,
 ) *query.AdminIdentityReadHandler {
 	handler := &query.AdminIdentityReadHandler{}
 	if store := newPostgresAdminIdentityReadAdapter(db, instruments); store != nil {
 		handler.Store = store
 	}
-	if reader := newAdminGovernanceAuditReader(db, instruments, governanceAudit); reader != nil {
+	if reader := newAdminGovernanceAuditReader(db, instruments, governanceAudit, logger); reader != nil {
 		handler.Audit = reader
 	}
 	return handler
@@ -225,6 +228,7 @@ func newAdminGovernanceAuditReader(
 	db *sql.DB,
 	instruments *telemetry.Instruments,
 	summary query.GovernanceAuditSummaryReader,
+	logger *slog.Logger,
 ) *adminGovernanceAuditReader {
 	if db == nil {
 		return nil
@@ -239,7 +243,7 @@ func newAdminGovernanceAuditReader(
 		}
 	}
 	return &adminGovernanceAuditReader{
-		store:   pgstatus.NewGovernanceAuditStore(governanceAuditDB),
+		store:   pgstatus.NewGovernanceAuditStore(governanceAuditDB).WithLogger(logger),
 		summary: summary,
 	}
 }
