@@ -75,7 +75,7 @@ transaction boundary changes. `governance_audit_events` is unchanged; the
 
 Observability Evidence: `GovernanceAuditStore.List` logs one line per affected
 field per call when a page holds a value outside the running build's registry.
-In the API it lands in the API's JSON log with the service attributes:
+Through the store's own logger the line has the plain `slog` JSON shape:
 
 ```json
 {"level":"WARN","msg":"governance audit list kept a value this build does not know; this pod is likely on an older build than the writer","field":"actor_class","rows":3,"values":"future_class,other_class"}
@@ -94,9 +94,14 @@ field, the counts, and silence on an all-known page.
 store built without `WithLogger` still emits it through `slog.Default`.
 `cmd/api` builds both of its stores (the admin reader's List store and the
 shared summary store) with `WithLogger` on the logger `main` builds through
-`telemetry.NewLoggerWithWriter`, so the line carries the JSON shape above plus
-`service_name`, `component`, `runtime_role`, and trace attributes rather than
-falling to Go's default text handler on stderr.
+`telemetry.NewLoggerWithWriter`, so in the API pod the same line is written by
+that handler, which renames the standard keys: `time` becomes `timestamp`,
+`level` becomes `severity_text` and `msg` becomes `message`, and adds
+`service_name`, `service_namespace`, `component` and `runtime_role`;
+`trace_id`, `span_id` and `severity_number` appear only when the request
+context carries a valid span. A log filter for the API pod therefore matches
+`"message":"governance audit list kept a value"`, not `msg`. Without that
+wiring the line would fall to Go's default text handler on stderr.
 `TestNewRouterWiresGovernanceAuditStoreLogger` drives `newRouter` with a
 distinguishable logger and pins pointer identity on both stores. No metric,
 span, or status field is added.
