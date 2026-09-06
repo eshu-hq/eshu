@@ -104,6 +104,11 @@ func TestGovernanceAuditStoreListStillRejectsUnsafeStoredRows(t *testing.T) {
 			wantField: "actor_class",
 		},
 		{
+			name:      "actor class with spaces and a slash",
+			mutate:    func(row []any) { row[1] = "not a token/with spaces" },
+			wantField: "actor_class",
+		},
+		{
 			name:      "actor id hash that is not a sha256 hash",
 			mutate:    func(row []any) { row[2] = sql.NullString{String: "alice@example.invalid", Valid: true} },
 			wantField: "actor_id_hash",
@@ -126,7 +131,7 @@ func TestGovernanceAuditStoreListStillRejectsUnsafeStoredRows(t *testing.T) {
 			if !strings.Contains(err.Error(), tc.wantField) {
 				t.Fatalf("List error = %q, want it to name %q", err, tc.wantField)
 			}
-			for _, raw := range []string{"example.invalid", "Future Class"} {
+			for _, raw := range []string{"example.invalid", "Future Class", "not a token"} {
 				if strings.Contains(err.Error(), raw) {
 					t.Fatalf("List error echoes raw value %q: %v", raw, err)
 				}

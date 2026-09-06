@@ -121,6 +121,14 @@ func TestNormalizeEventRejectsUnsafeValues(t *testing.T) {
 				event.CorrelationID = "operator.person@example.invalid"
 			},
 		},
+		{
+			// The write path stays closed (#6574): NormalizeStoredEvent keeps
+			// this value, NormalizeEvent must not.
+			name: "actor class outside the registry",
+			mutate: func(event *governanceaudit.Event) {
+				event.ActorClass = "future_class"
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -138,6 +146,7 @@ func TestNormalizeEventRejectsUnsafeValues(t *testing.T) {
 				"service.example.invalid",
 				"repo://private/source",
 				"operator.person@example.invalid",
+				"future_class",
 			} {
 				if strings.Contains(err.Error(), forbidden) {
 					t.Fatalf("error %q exposed unsafe value %q", err, forbidden)
