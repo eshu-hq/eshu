@@ -66,7 +66,7 @@ metrics, spans, and structured logs.
   adds a class has newer pods writing rows older pods must still list. Before
   #6574 the Postgres scanner used the write-path validator and an old pod
   answered the audit-list page with 500 until the rollout finished.
-- `actor_class` is a closed enum too. `scoped_token` is a scoped-token or
+- `actor_class` is closed on write too. `scoped_token` is a scoped-token or
   OIDC-bearer caller and `browser_session` is a cookie-authenticated dashboard
   session (#6459); both need an `ActorIDHash` or `ServicePrincipalID`, and an
   emitter that has neither records `anonymous` instead. One credential maps
