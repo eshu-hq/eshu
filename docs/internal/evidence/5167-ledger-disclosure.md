@@ -6,13 +6,13 @@ flagged `go/internal/query/auth_scoped_routes_pending_row_filtering.go` and
 prose, not code. The ledger comment for `GET /api/v0/index-status` quotes the
 unfiltered `MATCH (r:Repository) RETURN count(r)` that `getIndexStatus` runs,
 to say why the route cannot bind a grant; the OpenAPI fragment gained a `403`
-response and new description sentences. Neither file changes a statement, a
-handler, a route table or a test assertion.
+response and new description sentences. Neither file changes code.
 
 ## What the branch changes
 
-- Seven MCP tool descriptions and their contract-matrix rows say that scoped
-  tokens are refused with a 403 and why.
+- The seven MCP tool descriptions come from main (#6570); this branch adds only
+  the `dead_code` note on `analyze_code_relationships`, and its contract-matrix
+  rows mirror #6570's wording.
 - The pending row-filtering ledger gains reason comments for three routes,
   corrects the impact family's note (the walks are bounded), points
   tag-history at #6564, and states the issue's terminal state. Two test files
@@ -26,7 +26,7 @@ handler, a route table or a test assertion.
 
 No-Regression Evidence: no Cypher, SQL, handler, middleware or route-table
 text changes. No route moved between the allowlist, the shared-key-only ledger
-and the pending ledger: `git diff` from the merge base `276d75016` over the
+and the pending ledger: `git diff` from the merge base `e55bcef7c` over the
 three `auth_scoped_routes_*` ledger files (`completeness`,
 `pending_row_filtering`, `impact`) leaves the first untouched and changes only
 comments in the other two, gofmt realigning two unchanged map keys aside.
