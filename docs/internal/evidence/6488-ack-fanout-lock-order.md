@@ -6,12 +6,14 @@ executor. The production contention probe reproduced a PostgreSQL deadlock;
 the change gives those statements a common work-item order and acquires queued
 completion events only after the consumer locks.
 
-Focused ordering and replay validation passed on the initial candidate after
-the same tests failed on the baseline. A subsequent foreign-key compatibility
-regression failed on that candidate; the work-lock-strength correction awaits
-live validation. Actual plans confirm ordered locks and drained dependencies on
-the 64-consumer fixture. Broader validation remains pending; the single timing
-sample does not establish a speedup or a general performance guarantee.
+The last live-validated production checkpoint is
+`87860a397ce6e5b3c73c3da7a76b22cacf8c7993`. All seven focused live tests pass,
+including the correction from exclusive work-row locks to `NO KEY UPDATE` for
+foreign-key compatibility. The historical RED and intermediate performance
+failures below explain the revisions. Seven paired scale trials produced six candidate passes and one ACK p95
+failure; final build/vet, full golden-corpus proof and promotion review remain
+pending.
+Neither a single timing sample nor focused correctness establishes readiness.
 
 ## Observed failure and ownership
 
@@ -31,7 +33,7 @@ must be retained with the promotion evidence; their paths alone are not a
 portable proof packet. This reproduction establishes a reachable ACK/fanout
 cycle. It does not identify every participant in the earlier B-7 incident.
 
-The implementation checkpoint is
+The initial implementation checkpoint was
 `8be53b9cda17c551da430e757faa20301a846851`; its test-only parent is
 `37e1fb548341bd337f14b591225e6c079f7007af`. Production edits are limited to
 `go/internal/storage/postgres/reducer_queue_batch.go` and
@@ -340,6 +342,58 @@ The plan retains the complete consumer-lock and event-capture barriers.
 Identity fanout server execution was 148.735 versus 70.405 ms and CI/CD fanout
 68.511 versus 42.305 ms in single rollback samples, with 1,800 and 900 matching
 consumer rows respectively. These samples establish neither p95 nor scale-gate
-success. Production now uses that measured active-generation relation; renewed
-contention, EPQ, capture-horizon and full scale proof remains pending. The prior
-ACK p95 failure is still unresolved and no gate threshold changed.
+success. Production checkpoint `87860a397ce6e5b3c73c3da7a76b22cacf8c7993` uses that
+measured active-generation relation. All seven recursive contention-gate tests
+were listed and passed with the CI-only DSN: 40 overlapping trials, nine ordered
+lock/stale/dirty arms, four capture schedules, four audit-FK writers, three
+positive ACK EPQ arms, and both telemetry tests. Listing and live exits were 0.
+A separate bounded review found no correctness gap in the fanout delta and
+confirmed unchanged statement-snapshot semantics; it is not a promotion verdict.
+The full scale rerun below still leaves ACK p95 unresolved. No gate threshold
+changed.
+
+At the same checkpoint, the 435 tracked cassette, B-12 snapshot and ecosystem
+fixture blobs were compared by path, mode and SHA-256 against main
+`043143bde0a744ae73500c9a92165b5a2358f2b3`; all were byte-identical. This is an
+input-integrity check, not a substitute for the still-pending full B-7 run.
+
+## Seven-pair fanout candidate scale result
+
+The unchanged production-shaped gate ran seven alternating-order pairs of
+baseline `f84496a062c5fc01fff6c48e279ac958d6b9d1f6` and candidate `87860a397` on
+the same quiet host and 4 GiB PostgreSQL fixture. All seven baselines failed the
+100 ms identity-fanout bound. Six candidates passed; trial seven failed because
+CI/CD ACK p95 was 5.002624 ms against the unchanged 5 ms bound. The complete
+collection exited 1; this is not a GREEN gate result.
+
+Baseline/candidate medians were: identity ACK 2.014665/2.300026 ms; CI/CD ACK
+4.630461/4.894135 ms; identity fanout 128.962132/66.245694 ms; CI/CD fanout
+63.663072/39.270248 ms; total wall 1.028121078/0.970186687 seconds; WAL
+15,744,304/15,576,936 bytes. Candidate ACK p95 ranged from 4.886622 to
+5.002624 ms. All candidate fanout, wall and WAL values met their bounds, and
+all terminal row-state checks passed. The remaining ACK failure is retained;
+neither a threshold change nor repeated runs until GREEN is an acceptable fix.
+
+## CI/CD primary-key lock lookup, pending runtime validation
+
+Before this production edit, diagnostic
+`237e03d597271ca77c77be7c241b3f5ca1ee8707` ran 24 rollback plans and matching
+row-effect comparisons with statistics refresh disabled. A separate control
+had found 67,500 live rows with absent table statistics; refreshing statistics
+changed CI/CD's access path, but those changed-fixture timings were never used
+as gate evidence. Explicit collation and a row-specific ID alone did not solve
+CI/CD's broad partial-index choice and were rejected.
+
+The measured variant puts the fixed reducer stage and CI/CD domain in the
+materialized requested-ID relation, checking those same values inside each
+locking lookup. The actual plan sorts requested IDs in C order, then performs
+15/16 dependent primary-key lookups with owner, status, stage and domain checks
+below `LockRows`. The lock-count dependency still drains every lookup before
+UPDATE. First/middle CI/CD rollback samples changed from 5.124/4.467 ms to
+1.357/1.384 ms; these are neither p95 nor a production speedup claim.
+
+Only the CI/CD ACK builder adopts this shape. Generic and identity ACK SQL,
+arguments, workers, batch sizes, triggers and completion counts remain as
+previously tested. No table statistics, indexes or planner settings changed.
+Actual contention, stale-claim and positive EPQ proof plus the unchanged paired
+scale gate must pass before this revision can be promoted.

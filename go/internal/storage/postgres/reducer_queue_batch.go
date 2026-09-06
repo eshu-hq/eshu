@@ -293,17 +293,29 @@ func ackCICDRunCorrelationReducerWorkBatchQuery(
 		ids = append(ids, intent.IntentID)
 	}
 	sort.Strings(ids)
+	// Bind fixed eligibility to the ordered requested rows to avoid the broad
+	// partial-index plan observed when startup statistics were absent.
+	// Each dependent lookup checks eligibility before acquiring its row lock.
 	return `
-WITH locked_work AS MATERIALIZED (
-    SELECT work_item_id
-    FROM fact_work_items
-    WHERE work_item_id = ANY($3::text[])
-      AND stage = 'reducer'
-      AND domain = 'ci_cd_run_correlation'
-      AND lease_owner = $2
-      AND status IN ('claimed', 'running')
-    ORDER BY work_item_id COLLATE "C"
-    FOR NO KEY UPDATE
+WITH requested AS MATERIALIZED (
+    SELECT id, 'reducer'::text AS expected_stage,
+           'ci_cd_run_correlation'::text AS expected_domain
+    FROM (SELECT unnest($3::text[]) AS id) AS input
+    GROUP BY id
+    ORDER BY id COLLATE "C"
+), locked_work AS MATERIALIZED (
+    SELECT lookup.work_item_id
+    FROM requested
+    CROSS JOIN LATERAL (
+        SELECT work_item_id
+        FROM fact_work_items
+        WHERE work_item_id = requested.id
+          AND stage = requested.expected_stage
+          AND domain = requested.expected_domain
+          AND lease_owner = $2
+          AND status IN ('claimed', 'running')
+        FOR NO KEY UPDATE
+    ) AS lookup
 ), acknowledged AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
