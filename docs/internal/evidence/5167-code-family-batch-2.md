@@ -313,14 +313,12 @@ caller**, not only a scoped one: a request that returned `results: []` on
 NornicDB now returns directories. And it is the one place on this route where
 the unscoped query text deliberately changes — every other builder's unscoped
 text is byte-identical to before.
-Superseded for the File and entity builders by #6546, which replaced their
-language predicate; the frozen baselines now hold that text.
+Superseded for the Repository, File and entity builders by #6546, which
+replaced their language predicate; the frozen baselines now hold that text.
 `TestLanguageQueryUnscopedCypherTextIsFrozen` is what pins that: it compares
 each builder's unscoped statement against a frozen baseline character for
-character, with `buildRepositoryCypher`, `buildFileCypher` and
-`buildEntityCypherWithSemanticFilter` frozen to their `origin/main` text and
-`buildDirectoryCypher` frozen to its new text, so a rewrite of any of the four
-fails it. The grant guard next to it,
+character, with each of the four frozen to the text it carries after #6546,
+so a rewrite of any of them fails it. The grant guard next to it,
 `TestLanguageQueryBuildersBindTheGrantInTheShippedCypher`, pins the narrower
 claim that no grant condition or grant parameter reaches an unscoped caller.
 No queryplan digest moves with it: the manifest's only language-query entry records a

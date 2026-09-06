@@ -35,18 +35,20 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // decides row membership rather than nulling a projection (the OPTIONAL MATCH
 // trap #5167 batch 1 hit on complexityListAnchor).
 //
-// The language predicate of the Directory, File and entity builders is
-// `f.language IN $languages`, and nothing else: no file-extension fallback.
-// The three used to OR `f.name ENDS WITH '<ext>'` terms into the same WHERE,
+// The language predicate of all four builders is `f.language IN $languages`,
+// and nothing else: no file-extension fallback. The Directory, File and entity
+// builders used to OR `f.name ENDS WITH '<ext>'` terms into the same WHERE,
 // and on the pinned NornicDB build ENDS WITH (STARTS WITH too) evaluates as
 // true for every row of a multi-node MATCH, so `OR true` admitted every file
 // in the store whatever language was asked for (#6546). The projector writes
 // `language` onto every File and semantic entity it emits, using the parser's
 // own spelling, so the property carries the answer on its own once
-// graphLanguageSpellings supplies those spellings. The measurement behind the
-// shape is in docs/internal/evidence/6546-language-query-extension-filter.md
-// and the live proof in
-// TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage.
+// graphLanguageSpellings supplies those spellings. The Repository builder
+// never carried the fallback, but its two equalities never reached those
+// spellings either, so a csharp repository query found nothing; it binds the
+// same list now. The measurement behind the shape is in
+// docs/internal/evidence/6546-language-query-extension-filter.md and the live
+// proof in TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage.
 func buildLanguageCypherWithSemanticFilter(
 	language,
 	label,
@@ -85,18 +87,18 @@ func buildLanguageCypherWithSemanticFilter(
 }
 
 // buildRepositoryCypher returns a query for repositories that contain files
-// in the given language.
+// in the given language, counted per repository.
 func buildRepositoryCypher(language, query, repoID string, limit int, access repositoryAccessFilter) (string, map[string]any) {
 	params := map[string]any{
-		"language": language,
-		"limit":    limit,
+		"language":  language,
+		"languages": graphLanguageSpellings(language),
+		"limit":     limit,
 	}
 
 	cypher := `
 		MATCH (r:Repository)-[:REPO_CONTAINS]->(f:File)
-		WHERE (f.language = $language OR f.language = $language_title)
+		WHERE f.language IN $languages
 	`
-	params["language_title"] = strings.Title(language) //nolint:staticcheck
 
 	if repoID != "" {
 		cypher += " AND r.id = $repo_id"

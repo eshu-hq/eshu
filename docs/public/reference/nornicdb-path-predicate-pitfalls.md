@@ -142,12 +142,13 @@ the projector's own shapes.
 
 Do not put `STARTS WITH` or `ENDS WITH` in the `WHERE` of a multi-node `MATCH`
 on this build. Filter on a property the projector writes and compare it with
-`=` or `IN`. The language-query builders (`buildDirectoryCypher`,
-`buildFileCypher`, `buildEntityCypherWithSemanticFilter`) now carry
-`f.language IN $languages` and no extension fallback; the projector stamps
-`language` on every `File` and semantic entity it writes, so nothing is lost by
-dropping the file-name test, and the bound list carries the parser spellings
-(`tsx`, `jsx`, `c_sharp`) the fallback used to reach by extension.
+`=` or `IN`. All four language-query builders (`buildRepositoryCypher`,
+`buildDirectoryCypher`, `buildFileCypher`,
+`buildEntityCypherWithSemanticFilter`) now carry `f.language IN $languages`
+and no extension fallback; the projector stamps `language` on every `File` and
+semantic entity it writes, so nothing is lost by dropping the file-name test,
+and the bound list carries the parser spellings (`tsx`, `jsx`, `c_sharp`) the
+fallback used to reach by extension.
 
 Two shapes were measured and rejected. `CONTAINS '<ext>'` is honoured but is
 not anchored, so `.go` also matches `x.gov`. A single-node pre-filter carried

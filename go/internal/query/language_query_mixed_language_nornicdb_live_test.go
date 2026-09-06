@@ -21,7 +21,11 @@
 // typescript query must reach the file the tsx parser stamped `tsx`; a csharp
 // query must reach the file the C# parser stamped `c_sharp`. Those two prove
 // that dropping the extension fallback did not lose the parser spellings the
-// fallback used to paper over.
+// fallback used to paper over. The Repository builder never carried the
+// fallback, but its two equalities never reached those spellings either: on
+// this fixture a csharp repository query answered zero repositories and a
+// typescript one counted one file instead of two, so it is asked the same
+// questions here.
 //
 // The fixture is shaped to stay out of the grant proof's way, since both run
 // under one build tag against one store. The grant proof's unscoped controls
@@ -112,6 +116,31 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 			got := liveMixedFileNames(rows)
 			if !slices.Equal(got, testCase.wantFiles) {
 				t.Fatalf("%s returned files %v, want exactly %v; a language filter the backend does not apply looks like every file of the repository", name, got, testCase.wantFiles)
+			}
+		})
+	}
+
+	// The Repository builder aggregates, so the answer is one row per
+	// repository with a file_count rather than one row per file.
+	for _, testCase := range []struct {
+		language  string
+		wantCount int
+	}{
+		{language: "go", wantCount: 2},
+		{language: "csharp", wantCount: 1},
+		{language: "typescript", wantCount: 2},
+	} {
+		name := "Repository " + testCase.language
+		t.Run(name, func(t *testing.T) {
+			cypher, params := buildLanguageCypherWithSemanticFilter(
+				testCase.language, "Repository", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
+			)
+			rows := runLiveGrantStatement(ctx, t, driver, name, cypher, params)
+			if len(rows) != 1 {
+				t.Fatalf("%s returned %d row(s), want the one seeded repository; zero means the builder missed the parser's spelling: %#v", name, len(rows), rows)
+			}
+			if got := IntVal(rows[0], "file_count"); got != testCase.wantCount {
+				t.Fatalf("%s counted %d file(s), want %d", name, got, testCase.wantCount)
 			}
 		})
 	}

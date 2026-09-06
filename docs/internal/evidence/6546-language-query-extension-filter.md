@@ -8,7 +8,11 @@ The Directory, File and entity builders in
 and the pinned NornicDB build (`timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`)
 evaluates ENDS WITH as `true` for every row of such a MATCH, so the predicate
 read as `<language test> OR true`. `buildRepositoryCypher` carries no extension
-term and was never affected.
+term, so it never admitted every row, but its two equalities
+(`f.language = $language OR f.language = $language_title`) never reached the
+parser spellings either: a `csharp` repository query answered zero repositories
+and a `typescript` one left out every `tsx` file. It binds the same spelling
+list now.
 
 Root-Cause Evidence: the issue's bisection on a 180-file corpus (105 `.go`):
 `MATCH (f:File) WHERE f.name ENDS WITH '.go'` returns 105 rows and
@@ -56,17 +60,22 @@ seeds one repository holding `alpha.go`, `beta.go`, `gamma.py`, `delta.tsx`
 (language `tsx`), `epsilon.cs` (`c_sharp`), `zeta.ts` and `eta.hcl`, with one
 Function per file, and asks each builder for one language.
 
-Before the change, every case returned all seven files and the Directory case
-counted 7:
+Before the change, every File and entity case returned all seven files, the
+Directory case counted 7, and the Repository builder, run against the same
+fixture with its previous two-equality text, missed the parser spellings:
 
 ```text
 File go returned files [alpha.go beta.go delta.tsx epsilon.cs eta.hcl gamma.py zeta.ts], want exactly [alpha.go beta.go]
 Directory go counted 7 file(s), want 2
+Repository csharp returned 0 row(s), want the one seeded repository; zero means the builder missed the parser's spelling: []map[string]interface {}{}
+Repository typescript counted 1 file(s), want 2
 ```
 
 After it, `File go` and `Function go` return 2 rows, `File python` 1,
 `File typescript` and `Function typescript` 2 (`delta.tsx`, `zeta.ts`),
-`File csharp` 1, `File hcl` 1, and `Directory go` counts 2. The whole
+`File csharp` 1, `File hcl` 1, `Directory go` counts 2, and `Repository go`,
+`Repository csharp` and `Repository typescript` each return the one repository
+with `file_count` 2, 1 and 2. The whole
 `live_nornicdb_language_imports_grant` suite, grant squeezes included, passes
 against the same store (`go test ./internal/query -tags
 live_nornicdb_language_imports_grant -run TestLiveNornicDB -count=1`, exit 0).
@@ -80,7 +89,12 @@ No-Regression Evidence: same corpus and same read path as the theory table,
 File builder median 13.2 ms shipped against 2.8 ms with `f.language IN
 $languages`; the difference is the 3,333 rows the fixed predicate no longer
 returns, not a faster executor. The route's `limit`, ORDER BY and deadline are
-unchanged. The Repository builder's text and cost are untouched.
+unchanged. The Repository builder swaps its two equalities for the same `IN`
+list; that swap measured 3.2 ms against 2.8 ms on the File builder above, and
+on the live fixture the unscoped Repository read answered in 680 µs with the
+new text against 676 µs with the previous one (one warm sample each, from the
+grant suite's `buildRepositoryCypher unscoped` line and the new
+`Repository go` case).
 
 No-Observability-Change: no metric, span, log event, or status field moves.
 The route keeps its `query.graph_read.warning` deadline event and the
@@ -88,10 +102,5 @@ language-query span; operators diagnose the path as before.
 
 ## Follow-ups
 
-- `buildRepositoryCypher` still matches `f.language = $language OR
-  f.language = $language_title` without the parser spellings, so a
-  `typescript` or `csharp` repository query misses `tsx` and `c_sharp` files.
-  It was correct on this backend before and after, and its frozen text was
-  left alone; aligning it with the spelling list is a separate change.
 - The upstream report to NornicDB with the bisection table is the issue's
   remaining deliverable and is not part of this change.

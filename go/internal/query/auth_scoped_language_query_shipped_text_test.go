@@ -154,21 +154,23 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 // wholesale rewrite would pass; this one compares the entire statement,
 // whitespace included.
 //
-// buildRepositoryCypher is frozen to the text it has carried since before the
-// grant work: that work appended access.GraphPredicate("r") and
-// access.GraphParams(params) and changed nothing else, and both are empty for
-// an unscoped caller.
+// The grant work appended access.GraphPredicate("r") and
+// access.GraphParams(params) to every builder and changed nothing else; both
+// are empty for an unscoped caller, so the baselines carry no grant text.
 //
-// The other three are frozen to text that has since moved twice for backend
-// reasons, each measured on the pinned NornicDB build. buildDirectoryCypher's
-// two MATCH clauses collapsed into one, because the two-clause shape drops
-// every row there (the reasoning is on buildDirectoryCypher, the measurement
-// in TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing). Then
+// The four are frozen to text that has since moved for backend reasons, each
+// measured on the pinned NornicDB build. buildDirectoryCypher's two MATCH
+// clauses collapsed into one, because the two-clause shape drops every row
+// there (the reasoning is on buildDirectoryCypher, the measurement in
+// TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing). Then
 // #6546 replaced the language predicate of the Directory, File and entity
 // builders -- two equalities OR-ed with one `f.name ENDS WITH` term per
 // extension -- with `f.language IN $languages`, because ENDS WITH is true for
-// every row of a multi-node MATCH on that build and admitted every file. Each
-// is frozen to its NEW text, so an accidental revert of either fails here.
+// every row of a multi-node MATCH on that build and admitted every file, and
+// moved buildRepositoryCypher's two equalities onto the same spelling list so
+// a `csharp` or `typescript` repository query reaches the `c_sharp` and `tsx`
+// rows the parsers write. Each is frozen to its NEW text, so an accidental
+// revert of any fails here.
 //
 // The shared semantic-metadata projection is spliced from
 // graphSemanticMetadataProjection() rather than copied into the baseline: eight
@@ -221,7 +223,7 @@ func frozenCypherLines(lines ...string) string {
 var frozenUnscopedRepositoryCypher = frozenCypherLines(
 	"",
 	"\t\tMATCH (r:Repository)-[:REPO_CONTAINS]->(f:File)",
-	"\t\tWHERE (f.language = $language OR f.language = $language_title)",
+	"\t\tWHERE f.language IN $languages",
 	"\t",
 	"\t\tWITH r, count(f) as file_count",
 	"\t\tRETURN r.id as id, r.name as name,",

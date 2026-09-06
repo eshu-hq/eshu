@@ -63,6 +63,17 @@ func TestBuildLanguageCypher_Repository(t *testing.T) {
 	if !searchString(cypher, "Repository") {
 		t.Error("cypher should contain Repository label")
 	}
+	// The Repository builder binds the same spelling list as the other three,
+	// so a csharp or typescript query reaches c_sharp and tsx rows (#6546).
+	if !searchString(cypher, "f.language IN $languages") {
+		t.Error("cypher should filter on f.language IN $languages")
+	}
+	if searchString(cypher, "$language_title") {
+		t.Error("cypher must not carry the retired $language_title equality")
+	}
+	if got, ok := params["languages"].([]string); !ok || !slices.Contains(got, "go") {
+		t.Errorf("params[languages] = %#v, want a list carrying go", params["languages"])
+	}
 	if params["limit"] != 25 {
 		t.Errorf("limit param = %v, want 25", params["limit"])
 	}
