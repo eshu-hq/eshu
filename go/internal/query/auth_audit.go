@@ -226,6 +226,16 @@ func recordReadAuthorizationUnavailable(
 // recordScopedReadAuthorized below: a tenant admin's governance-audit read is
 // filtered by tenant_id, so a denial recorded without one is a denial only the
 // shared operator can ever see.
+//
+// The actor class follows the credential the caller presented: a cookie
+// session is browser_session and a scoped or OIDC bearer is scoped_token
+// (#6459). Both branches of authMiddlewareWithRoutePolicy share this helper
+// and both emit scoped_route_all_scope_grant_required, so actor_class is the
+// column that tells an operator which population a row came from. Neither is
+// ActorClassOperator: that member means a human with no direct identifier,
+// and both of these callers carry a subject hash. A caller with no subject
+// hash downgrades to anonymous, because NormalizeEvent rejects either
+// identity-bearing class without an actor identity.
 func recordScopedRouteAuthorizationDeniedWithReason(
 	r *http.Request,
 	audit GovernanceAuditAppender,
@@ -235,18 +245,10 @@ func recordScopedRouteAuthorizationDeniedWithReason(
 	if audit == nil {
 		return
 	}
-	// The closed governanceaudit.ActorClass enum (governanceaudit/audit.go)
-	// has no browser-session member, so a cookie-session denial is stamped
-	// scoped_token on purpose. Read it as "identity-resolved caller", not
-	// "bearer token". Do not "correct" it to ActorClassOperator: that member
-	// means a human operator carrying no direct identifier, and this helper is
-	// shared with the scoped-bearer denial path in
-	// authMiddlewareWithRoutePolicy, where scoped_token is literally right --
-	// including for scoped_route_all_scope_grant_required, which since #6450's
-	// residual item 1 closed is emitted for an all-scope bearer as well as an
-	// all-scope cookie session. Widening the enum with a browser-session
-	// member is tracked in #6459.
 	actorClass := governanceaudit.ActorClassScopedToken
+	if auth.Mode == AuthModeBrowserSession {
+		actorClass = governanceaudit.ActorClassBrowserSession
+	}
 	if auth.SubjectIDHash == "" {
 		actorClass = governanceaudit.ActorClassAnonymous
 	}
