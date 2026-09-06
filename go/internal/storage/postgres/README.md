@@ -140,10 +140,10 @@ High-signal invariants for this package:
   conflict keys so stale workers or replayed deliveries cannot overwrite newer
   durable truth.
 - `GovernanceAuditStore` validates writes with `governanceaudit.NormalizeEvent`
-  and reads with `NormalizeStoredEvent` (unknown class kept verbatim, #6574),
-  derives a deterministic event id from the safe fields, and dedupes retries
-  with `ON CONFLICT DO NOTHING`. It stores no raw principal, source name,
-  prompt, provider response, credential handle, private URL, or token value.
+  and reads with `NormalizeStoredEvent` (unknown value kept, warned once per
+  field per `List`, #6574), derives the event id from the safe fields, dedupes
+  retries with `ON CONFLICT DO NOTHING`, and stores no raw principal, source
+  name, prompt, provider response, credential handle, private URL, or token value.
 - Tenant/workspace grant storage persists opaque tenant and workspace IDs,
   redacted display-handle hashes, scope grants, and repository grants. Active
   reads and claimed fact commits apply status, tombstone, effective-at, expiry,

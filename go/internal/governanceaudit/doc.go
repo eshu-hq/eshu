@@ -23,5 +23,6 @@
 // build does not know, provided it is a bounded lowercase token, and runs
 // every other guard unchanged. During a rolling upgrade a newer pod can write a
 // class an older pod's registry lacks; the older pod returns the row with its
-// stored value rather than failing the whole audit page (#6574).
+// stored value rather than failing the whole audit page (#6574). UnknownEnums
+// names the fields that held such a value so the reader can log them.
 package governanceaudit

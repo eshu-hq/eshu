@@ -25,6 +25,8 @@ See `doc.go` for the godoc contract.
 - `NormalizeStoredEvent` does the same for a row read back from storage, but
   keeps an enum value this build does not know when it is a bounded lowercase
   token (#6574).
+- `UnknownEnums` names the enum fields of a stored event whose values this
+  build does not know, so the store can log them once per page.
 - `Aggregate` validates events with `NormalizeStoredEvent` and returns
   status-safe counts, so an unknown class is its own count bucket, as it is in
   the SQL summary.

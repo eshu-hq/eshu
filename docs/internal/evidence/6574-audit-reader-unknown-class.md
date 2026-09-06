@@ -66,14 +66,32 @@ in-memory summary.
 No-Regression Evidence: the scanner still runs one normalizer call per row
 with the same trim and guard checks; the only added work is a byte scan of an
 enum value that is at most 64 bytes, and it runs only when the value is
-outside the registry. No SQL text, predicate, index, lease, worker, batch, or
+outside the registry. The warn tally re-runs the four registry lookups per
+listed row and touches a map only for an unknown value; the page is bounded
+by `maxGovernanceAuditLimit` (500 rows), so the added work is at most 2,000
+switch evaluations per call. No SQL text, predicate, index, lease, worker, batch, or
 transaction boundary changes. `governance_audit_events` is unchanged; the
 `actor_class` column was already unconstrained `TEXT`.
 
-No-Observability-Change: no metric, span, log scope, or status field is added
-or removed. The operator-visible change is that the audit-list page no longer
-returns 500 for a row with an unfamiliar class; the row appears with its
-stored value.
+Observability Evidence: `GovernanceAuditStore.List` logs one line per affected
+field per call when a page holds a value outside the running build's registry:
+
+```json
+{"level":"WARN","msg":"governance audit list kept a value this build does not know; this pod is likely on an older build than the writer","field":"actor_class","rows":3,"values":"future_class,other_class"}
+```
+
+`field` is the stored column (`event_type`, `actor_class`, `scope_class`, or
+`decision`), `rows` is how many rows on that page carried an unknown value in
+it, and `values` lists the distinct shape-checked values, sorted and
+comma-joined. Known values log nothing, so the line appears only while a pod
+is older than the pod that wrote the row; that is how an operator tells a
+rollout in progress from a stray writer.
+`TestGovernanceAuditStoreListWarnsOncePerUnknownEnumField` captures the line
+through the production `List` with a JSON handler and pins one line per
+field, the counts, and silence on an all-known page.
+`TestGovernanceAuditStoreListWarnsThroughDefaultLoggerWhenUnset` pins that a
+store built without `WithLogger` still emits it through `slog.Default`, which
+is how `cmd/api` builds the store. No metric, span, or status field is added.
 
 Concurrency: `List` is a read-only `SELECT` with no lock, claim, or lease. The
 only conflict domain is the rolling-upgrade interleaving itself (new pod

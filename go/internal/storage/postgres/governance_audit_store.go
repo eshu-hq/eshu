@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -147,11 +148,27 @@ type GovernanceAuditQuery struct {
 // GovernanceAuditStore persists normalized hosted governance audit events.
 type GovernanceAuditStore struct {
 	db ExecQueryer
+	// Logger receives the per-List warning List emits when a page holds an
+	// enum value this build's registry lacks (#6574). Nil means slog.Default.
+	Logger *slog.Logger
 }
 
 // NewGovernanceAuditStore creates a Postgres-backed governance audit store.
 func NewGovernanceAuditStore(db ExecQueryer) GovernanceAuditStore {
 	return GovernanceAuditStore{db: db}
+}
+
+// WithLogger returns a copy that logs through logger instead of slog.Default.
+func (s GovernanceAuditStore) WithLogger(logger *slog.Logger) GovernanceAuditStore {
+	s.Logger = logger
+	return s
+}
+
+func (s GovernanceAuditStore) logger() *slog.Logger {
+	if s.Logger != nil {
+		return s.Logger
+	}
+	return slog.Default()
 }
 
 // GovernanceAuditEventsSchemaSQL returns the private audit sink DDL.
@@ -214,16 +231,21 @@ func (s GovernanceAuditStore) List(ctx context.Context, filter GovernanceAuditQu
 	defer func() { _ = rows.Close() }()
 
 	events := []governanceaudit.Event{}
+	var unknown governanceAuditUnknownTally
 	for rows.Next() {
 		event, err := scanGovernanceAuditEvent(rows)
 		if err != nil {
 			return nil, err
 		}
+		unknown.add(event)
 		events = append(events, event)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate governance audit events: %w", err)
 	}
+	// One warn per field per page, so an operator can see that this pod is
+	// listing rows a newer build wrote (#6574) without a line per row.
+	unknown.warn(ctx, s.logger())
 	return events, nil
 }
 
