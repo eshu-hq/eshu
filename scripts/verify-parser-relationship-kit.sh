@@ -269,11 +269,11 @@ validate_parser_backing_ledger() {
       in_block { print }
     ' "$repo_root/$spec" 2>/dev/null || true)"
 
-    if ! printf '%s\n' "$block" | rg -q "^[[:space:]]*implementation_class:[[:space:]]*structured-parser-backed-exception[[:space:]]*$"; then
+    if [ -z "$(printf '%s\n' "$block" | rg "^[[:space:]]*implementation_class:[[:space:]]*structured-parser-backed-exception[[:space:]]*$")" ]; then
       printf 'verify-parser-relationship-kit: %s row must be structured-parser-backed-exception\n' "$parser" >&2
       issues=1
     fi
-    if ! printf '%s\n' "$block" | rg -q "^[[:space:]]*no_provider_required:[[:space:]]*true[[:space:]]*$"; then
+    if [ -z "$(printf '%s\n' "$block" | rg "^[[:space:]]*no_provider_required:[[:space:]]*true[[:space:]]*$")" ]; then
       printf 'verify-parser-relationship-kit: %s row must declare no_provider_required: true\n' "$parser" >&2
       issues=1
     fi
@@ -330,7 +330,7 @@ validate_support_maturity_matrix() {
       "|"*) ;;
       *) continue ;;
     esac
-    IFS='|' read -r _ parser _ _ _ framework _ query _ e2e _ <<<"$line"
+    IFS='|' read -r _ parser _ _ _ framework _ query _ e2e _ < <(printf '%s' "$line")
     parser="$(trim_cell "$parser")"
     framework="$(lower_cell "$framework")"
     query="$(trim_cell "$query")"
@@ -356,7 +356,7 @@ validate_full_capability_table() {
       "|"*) ;;
       *) continue ;;
     esac
-    IFS='|' read -r _ capability _ status _ _ graph unit integration _ <<<"$line"
+    IFS='|' read -r _ capability _ status _ _ graph unit integration _ < <(printf '%s' "$line")
     capability="$(trim_cell "$capability")"
     status="$(lower_cell "$status")"
     case "$status" in
@@ -394,7 +394,7 @@ validate_compact_capability_table() {
       "|"*) ;;
       *) continue ;;
     esac
-    IFS='|' read -r _ capability _ status evidence _ <<<"$line"
+    IFS='|' read -r _ capability _ status evidence _ < <(printf '%s' "$line")
     capability="$(trim_cell "$capability")"
     status="$(lower_cell "$status")"
     case "$status" in

@@ -211,7 +211,7 @@ validate_language_feature_table() {
       "|"*) ;;
       *) continue ;;
     esac
-    IFS='|' read -r _ _ feature status _ <<<"$line"
+    IFS='|' read -r _ _ feature status _ < <(printf '%s' "$line")
     feature="$(trim_cell "$feature")"
     status="$(lower_cell "$status")"
     [ -z "$feature" ] && continue
