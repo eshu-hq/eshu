@@ -161,30 +161,53 @@ type Summary struct {
 	ScopeClassCounts []Count
 }
 
-// NormalizeEvent trims and validates an event without returning raw unsafe values.
-func NormalizeEvent(event Event) (Event, error) {
-	event.Type = EventType(strings.TrimSpace(string(event.Type)))
-	event.ActorClass = ActorClass(strings.TrimSpace(string(event.ActorClass)))
-	event.ActorIDHash = strings.TrimSpace(event.ActorIDHash)
-	event.ServicePrincipalID = strings.TrimSpace(event.ServicePrincipalID)
-	event.ScopeClass = ScopeClass(strings.TrimSpace(string(event.ScopeClass)))
-	event.ScopeIDHash = strings.TrimSpace(event.ScopeIDHash)
-	event.Decision = Decision(strings.TrimSpace(string(event.Decision)))
-	event.ReasonCode = strings.TrimSpace(event.ReasonCode)
-	event.CorrelationID = strings.TrimSpace(event.CorrelationID)
-	event.PolicyRevisionHash = strings.TrimSpace(event.PolicyRevisionHash)
-	event.OccurredAt = event.OccurredAt.UTC()
-	event.TenantID = strings.TrimSpace(event.TenantID)
-	event.WorkspaceID = strings.TrimSpace(event.WorkspaceID)
+// enumPolicy says what normalizeEvent does with a Type, ActorClass, ScopeClass,
+// or Decision that is not among the constants compiled into this build.
+type enumPolicy int
 
-	if !validEventType(event.Type) {
+const (
+	// enumClosed rejects the value. It is the write-path policy: a producer on
+	// this build must not emit a class the registry does not know.
+	enumClosed enumPolicy = iota
+	// enumTolerant keeps the value verbatim when it is shaped like a registry
+	// token. It is the read-path policy, so a row written by a newer build
+	// during a rolling upgrade is returned with the class it was stored with
+	// instead of failing the page (#6574).
+	enumTolerant
+)
+
+// NormalizeEvent trims and validates an event without returning raw unsafe
+// values. It is the write-path contract: Type, ActorClass, ScopeClass, and
+// Decision are closed enums and any value outside the constants in this
+// package is rejected.
+func NormalizeEvent(event Event) (Event, error) {
+	return normalizeEvent(event, enumClosed)
+}
+
+// NormalizeStoredEvent trims and validates an event read back from durable
+// storage. It applies the same trimming, hash, token, reason-code, and
+// occurred-at guards as NormalizeEvent, but keeps a Type, ActorClass,
+// ScopeClass, or Decision this build does not know as long as it is a bounded
+// lowercase token, which every registry constant is. That lets an API pod on
+// an older build list rows a newer pod wrote during a rolling upgrade instead
+// of failing the whole page. The actor-identity rule is applied only to a
+// known actor class, because the build that accepted the unknown class is
+// the one that knows whether it carries an identity.
+func NormalizeStoredEvent(event Event) (Event, error) {
+	return normalizeEvent(event, enumTolerant)
+}
+
+func normalizeEvent(event Event, policy enumPolicy) (Event, error) {
+	event = trimEvent(event)
+
+	if !policy.accepts(validEventType(event.Type), string(event.Type)) {
 		return Event{}, fieldError("type")
 	}
-	if !validActorClass(event.ActorClass) {
+	if !policy.accepts(validActorClass(event.ActorClass), string(event.ActorClass)) {
 		return Event{}, fieldError("actor_class")
 	}
-	if event.ActorIDHash == "" && event.ServicePrincipalID == "" &&
-		event.ActorClass != ActorClassAnonymous && event.ActorClass != ActorClassSystem {
+	if actorIdentityRequired(event.ActorClass) &&
+		event.ActorIDHash == "" && event.ServicePrincipalID == "" {
 		return Event{}, fieldError("actor_identity")
 	}
 	if !validOptionalHash(event.ActorIDHash) {
@@ -193,13 +216,13 @@ func NormalizeEvent(event Event) (Event, error) {
 	if !validOptionalToken(event.ServicePrincipalID) {
 		return Event{}, fieldError("service_principal_id")
 	}
-	if !validScopeClass(event.ScopeClass) {
+	if !policy.accepts(validScopeClass(event.ScopeClass), string(event.ScopeClass)) {
 		return Event{}, fieldError("scope_class")
 	}
 	if !validOptionalHash(event.ScopeIDHash) {
 		return Event{}, fieldError("scope_id_hash")
 	}
-	if !validDecision(event.Decision) {
+	if !policy.accepts(validDecision(event.Decision), string(event.Decision)) {
 		return Event{}, fieldError("decision")
 	}
 	if !validReasonCode(event.ReasonCode) {
@@ -217,7 +240,46 @@ func NormalizeEvent(event Event) (Event, error) {
 	return event, nil
 }
 
-// Aggregate validates events and returns low-cardinality counts.
+// accepts reports whether an enum value passes under the policy: a known
+// value always does, and an unknown one only under enumTolerant and only when
+// it is a bounded lowercase token, so an unknown value can never carry a raw
+// principal, URL, or credential through the read path.
+func (p enumPolicy) accepts(known bool, raw string) bool {
+	if known {
+		return true
+	}
+	return p == enumTolerant && validBoundedToken(raw)
+}
+
+// actorIdentityRequired reports whether the class must carry an ActorIDHash
+// or ServicePrincipalID. Anonymous and system events carry none by design; an
+// actor class this build does not know is left to the build that wrote it.
+func actorIdentityRequired(class ActorClass) bool {
+	return validActorClass(class) &&
+		class != ActorClassAnonymous && class != ActorClassSystem
+}
+
+func trimEvent(event Event) Event {
+	event.Type = EventType(strings.TrimSpace(string(event.Type)))
+	event.ActorClass = ActorClass(strings.TrimSpace(string(event.ActorClass)))
+	event.ActorIDHash = strings.TrimSpace(event.ActorIDHash)
+	event.ServicePrincipalID = strings.TrimSpace(event.ServicePrincipalID)
+	event.ScopeClass = ScopeClass(strings.TrimSpace(string(event.ScopeClass)))
+	event.ScopeIDHash = strings.TrimSpace(event.ScopeIDHash)
+	event.Decision = Decision(strings.TrimSpace(string(event.Decision)))
+	event.ReasonCode = strings.TrimSpace(event.ReasonCode)
+	event.CorrelationID = strings.TrimSpace(event.CorrelationID)
+	event.PolicyRevisionHash = strings.TrimSpace(event.PolicyRevisionHash)
+	event.OccurredAt = event.OccurredAt.UTC()
+	event.TenantID = strings.TrimSpace(event.TenantID)
+	event.WorkspaceID = strings.TrimSpace(event.WorkspaceID)
+	return event
+}
+
+// Aggregate validates events and returns low-cardinality counts. It validates
+// with NormalizeStoredEvent, so a class this build does not know is counted
+// under its stored name, matching the SQL summary path, which groups the
+// stored column as a plain string.
 func Aggregate(events []Event) (Summary, error) {
 	var summary Summary
 	eventTypes := map[string]int{}
@@ -227,7 +289,7 @@ func Aggregate(events []Event) (Summary, error) {
 	scopes := map[string]int{}
 
 	for _, event := range events {
-		normalized, err := NormalizeEvent(event)
+		normalized, err := NormalizeStoredEvent(event)
 		if err != nil {
 			return Summary{}, err
 		}
@@ -331,6 +393,13 @@ func validOptionalHash(value string) bool {
 }
 
 func validReasonCode(value string) bool {
+	return validBoundedToken(value)
+}
+
+// validBoundedToken is the shape every registry constant and reason code has:
+// 1 to 64 bytes of lowercase ASCII letters, digits, and underscores. It is the
+// bar an unknown enum value must clear on the read path.
+func validBoundedToken(value string) bool {
 	if len(value) == 0 || len(value) > 64 {
 		return false
 	}

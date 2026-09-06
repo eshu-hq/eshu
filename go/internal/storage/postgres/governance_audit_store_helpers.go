@@ -178,7 +178,11 @@ func scanGovernanceAuditEvent(rows Rows) (governanceaudit.Event, error) {
 	event.PolicyRevisionHash = policyRevisionHash.String
 	event.TenantID = tenantID.String
 	event.WorkspaceID = workspaceID.String
-	normalized, err := governanceaudit.NormalizeEvent(event)
+	// Read-path normalization (#6574): Append already ran the closed write-path
+	// validator, so a stored class this build does not know came from a newer
+	// build during a rolling upgrade. Return it verbatim rather than failing
+	// the whole page; hash, token, and reason-code guards still apply.
+	normalized, err := governanceaudit.NormalizeStoredEvent(event)
 	if err != nil {
 		return governanceaudit.Event{}, err
 	}

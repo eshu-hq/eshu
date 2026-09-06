@@ -13,6 +13,10 @@
   but must never echo the rejected value.
 - **Bounded enums only** - event types, actor classes, scope classes, decisions,
   and reason codes must stay low-cardinality for status and metrics safety.
+  The enums are closed on write (`NormalizeEvent`) and tolerated on read
+  (`NormalizeStoredEvent` keeps an unknown value that is a bounded lowercase
+  token) so a rolling upgrade that adds a class does not fail the audit-list
+  page on older pods (#6574). Do not put the read policy on a write path.
 - **Hashes for identities** - actor, scope, and policy revision identifiers
   are hashes when present.
 - **Pure helpers only** - this package does not persist events, emit telemetry,
