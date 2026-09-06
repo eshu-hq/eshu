@@ -12,7 +12,7 @@ const openAPIPathsExposure = `
       "post": {
         "tags": ["impact"],
         "summary": "Trace code-to-cloud exposure path",
-        "description": "Traces bounded reachability from an internet-exposed handler source through CALLS edges (and, when materialized, code-to-cloud bridge edges) to a cloud sink from the curated catalog. Findings are derived (symbol-level reachability, not value-flow) and use the conservative truth-state vocabulary (exact/partial/ambiguous/unresolved). Never fabricates a path: when a bridge edge is not materialized the cloud-sink segment is reported unresolved.",
+        "description": "Traces bounded reachability from an internet-exposed handler source through CALLS edges (and, when materialized, code-to-cloud bridge edges) to a cloud sink from the curated catalog. Findings are derived (symbol-level reachability, not value-flow) and use the conservative truth-state vocabulary (exact/partial/ambiguous/unresolved). Never fabricates a path: when a bridge edge is not materialized the cloud-sink segment is reported unresolved. The walk is bounded: max_depth defaults to 5 and is clamped to 1-10, and at most 25 paths are returned. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the sink end of the path lands on cloud nodes that carry no repo_id property, so a repository grant has nothing to bind to. The route stays on the #5167 pending row-filtering ledger.",
         "operationId": "traceExposurePath",
         "requestBody": {
           "required": true,
@@ -53,6 +53,7 @@ const openAPIPathsExposure = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"}
         }

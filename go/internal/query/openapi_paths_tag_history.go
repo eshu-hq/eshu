@@ -8,7 +8,7 @@ const openAPIPathsTagHistory = `
       "get": {
         "tags": ["images"],
         "summary": "List one image_ref's captured tag-mutation history (OCI)",
-        "description": "Lists the bounded, ordered ContainerImageTagObservation history captured for one repository_id+tag over the authoritative graph (issue #5459): what digest the tag was first observed as, and the order its digests changed. Anchored on the existing container_image_tag_observation_ref index over image_ref, which the API composes server-side from repository_id and tag. The list is bounded by limit+1 with deterministic ordering by first_observed_at then uid, and exposes offset-based continuation via next_cursor when truncated. A tag that flips back to a previously observed digest collapses onto the same observation node, and first_observed_at is a set-once value that holds the first projected observation rather than a full chronological event log; see TagHistoryHandler's doc comment for both limitations.",
+        "description": "Lists the bounded, ordered ContainerImageTagObservation history captured for one repository_id+tag over the authoritative graph (issue #5459): what digest the tag was first observed as, and the order its digests changed. Anchored on the existing container_image_tag_observation_ref index over image_ref, which the API composes server-side from repository_id and tag. The list is bounded by limit+1 with deterministic ordering by first_observed_at then uid, and exposes offset-based continuation via next_cursor when truncated. A tag that flips back to a previously observed digest collapses onto the same observation node, and first_observed_at is a set-once value that holds the first projected observation rather than a full chronological event log; see TagHistoryHandler's doc comment for both limitations. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because ContainerImageTagObservation nodes are keyed by the OCI registry repository_id (oci-registry://...), not a code repository_id, and carry no edge to the source repository the grant model filters on. The route stays on the #5167 pending row-filtering ledger until #6564 settles whether the digest join through BUILT_FROM can bind a grant.",
         "operationId": "listContainerImageTagHistory",
         "parameters": [
           {"name": "repository_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "OCI repository id such as oci-registry://host/path. Required; must carry the oci-registry:// prefix."},
@@ -62,6 +62,7 @@ const openAPIPathsTagHistory = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"},
           "501": {"$ref": "#/components/responses/NotImplemented"},
           "503": {"$ref": "#/components/responses/ServiceUnavailable"}

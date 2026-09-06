@@ -34,7 +34,7 @@ The mounted Go runtime admin OpenAPI contract lives in
 | Deployment evidence, admission decisions, citations, live evidence bundle, documentation findings, packages, CI/CD, SBOM, vulnerability impact with read-time runtime corroboration, codeowners ownership | [Evidence and supply-chain routes](http-api/evidence-and-supply-chain.md) |
 | Investigation evidence packets for supply-chain impact, deployable-unit truth, and runtime drift | [Investigation Evidence Packet Contract](investigation-evidence-packet.md#http-and-mcp-surfaces) |
 | Source repository to container image identity bridge | [Container image source bridge](http-api/container-image-source-bridge.md) |
-| Container image (OCI) list, and bounded per-tag digest mutation history (`GET /api/v0/images`, `GET /api/v0/images/tag-history`) | [Container image, ingester, and bundle routes](http-api/images-ingesters-bundles.md) (`GET /api/v0/images`; `listContainerImageTagHistory` has no narrative sub-page yet) |
+| Container image (OCI) list, and bounded per-tag digest mutation history (`GET /api/v0/images`, `GET /api/v0/images/tag-history`) | [Container image, ingester, and bundle routes](http-api/images-ingesters-bundles.md) (`GET /api/v0/images`; `listContainerImageTagHistory` has no narrative sub-page yet); `GET /api/v0/images/tag-history` refuses scoped tokens with a `403`, all-scope bearer tokens included, because its observation nodes are keyed by the OCI registry `repository_id` rather than a code `repository_id`, with #6564 tracking whether the digest join through `BUILT_FROM` can bind a grant) |
 | Secrets/IAM trust chains, posture evidence, access paths, gaps, and posture summary | [Secrets/IAM routes](http-api/secrets-iam.md) |
 | Entity resolution, context, incident/work-item evidence, and catalog | [Context routes and shared response contracts](http-api/context-and-stories.md) |
 | Repository, workload, and service stories, intelligence reports, and investigations | [Story routes](http-api/story-routes.md) |
@@ -150,6 +150,24 @@ in every mode. Credentials carrying real ids are unaffected in every mode.
 Every operation that can refuse a caller this way declares `403` in the OpenAPI
 document, so a generated client has a case for it without deploying under
 `hosted_multi_tenant` to discover the status.
+
+These routes refuse a scoped caller in every mode, not only under
+`hosted_multi_tenant`, because their handlers bind no grant at all yet. Each
+declares `403`, states the reason in its own OpenAPI description, and repeats it
+in the MCP tool description a caller sees; the same reason is annotated on
+`pendingRowFilteringRoutes` in the Go source (#5167). A tenant-bound all-scope
+console session is still admitted where the modes above admit it.
+
+| Route | Why no grant binds yet |
+| --- | --- |
+| `GET /api/v0/index-status` (alias `GET /api/v0/status/index`) | The report is deployment-wide: queue, coordinator, scope-activity, and AWS materialization aggregates with no caller grant to intersect, and a `queue_blockages` row reports `conflict_key` as `COALESCE(conflict_key, scope_id)`, so a raw scope id can appear. |
+| `POST /api/v0/code/bundles` | The catalog read never intersects the caller's grant, and a `Package` node carries `visibility` and `scope_id` but no repository key. |
+| `POST /api/v0/code/relationships` | The handler expands a resolved entity's neighbors with no grant to intersect. This is where `analyze_code_relationships` sends its `who_modifies`, `module_deps`, `variable_scope`, `find_complexity`, `find_functions_by_argument`, and `find_functions_by_decorator` query types; its relationship-story and call-chain types use the grant-bound routes instead. |
+| `GET /api/v0/images/tag-history` | Observation nodes are keyed by the OCI registry `repository_id` (`oci-registry://…`), not a code `repository_id`, and carry no edge to the source repository. #6564 tracks whether the digest join through `BUILT_FROM` can bind a grant. |
+| `GET /api/v0/freshness/services/changed-since` | The service lineage tables carry no column naming the tenant a row belongs to (#6475). |
+| `POST /api/v0/impact/trace-resource-to-code` | The anchor and the infrastructure hops it walks through carry no `repo_id` property. The walk itself is bounded: `max_depth` clamped to 1-20, at most 200 rows. |
+| `POST /api/v0/impact/explain-dependency-path` | Same missing `repo_id` on the anchors and hops along the path. Bounded to one `shortestPath` of at most 8 hops. |
+| `POST /api/v0/impact/trace-exposure-path` | The sink end of the path lands on cloud nodes carrying no `repo_id`. Bounded to `max_depth` 1-10 and at most 25 paths. |
 
 The rule reaches bearer tokens and browser sessions alike, with one difference:
 it never widens a token's reach. A route absent from the scoped-token allowlist
