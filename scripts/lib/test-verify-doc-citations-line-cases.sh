@@ -362,7 +362,7 @@ line_trigger_contract_holds() {
   awk '
     /^  - id: doc-citations$/ { in_gate = 1 }
     in_gate && /^    triggers:$/ { in_triggers = 1; next }
-    in_triggers && /^    local:$/ { exit }
+    in_triggers && /^    [[:alnum:]_]+:$/ { exit }
     in_triggers && /^      - / {
       value = $0
       sub(/^      - "/, "", value)
@@ -401,7 +401,7 @@ remove_registry_trigger() {
   local source="$1" target="$2" destination="$3"
   awk -v target="${target}" '
     /^  - id: doc-citations$/ { in_block = 1 }
-    in_block && /^    local:/ { in_block = 0 }
+    in_block && /^    (self_test_triggers|local):/ { in_block = 0 }
     in_block && index($0, target) { next }
     { print }
   ' "${source}" >"${destination}"
