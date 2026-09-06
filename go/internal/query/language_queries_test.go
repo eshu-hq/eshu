@@ -24,9 +24,13 @@ func TestBuildLanguageCypher_Function(t *testing.T) {
 	if !searchString(cypher, "Function") {
 		t.Error("cypher should contain Function label")
 	}
-	// Must have language param.
-	if params["language"] != "python" {
-		t.Errorf("language param = %v, want python", params["language"])
+	// The canonical language leads the bound spelling list; no bare
+	// $language parameter is bound because no builder references one.
+	if got := boundCanonicalLanguage(t, params); got != "python" {
+		t.Errorf("bound canonical language = %v, want python", got)
+	}
+	if _, ok := params["language"]; ok {
+		t.Error("language param should not be bound; the builders reference $languages only")
 	}
 	if params["repo_id"] != "repo:123" {
 		t.Errorf("repo_id param = %v, want repo:123", params["repo_id"])
@@ -487,8 +491,8 @@ func TestBuildLanguageCypher_AllEntityTypes(t *testing.T) {
 		if cypher == "" {
 			t.Errorf("entity type %q produced empty cypher", typeName)
 		}
-		if params["language"] != "python" {
-			t.Errorf("entity type %q: language param = %v", typeName, params["language"])
+		if got := boundCanonicalLanguage(t, params); got != "python" {
+			t.Errorf("entity type %q: bound canonical language = %v", typeName, got)
 		}
 	}
 }

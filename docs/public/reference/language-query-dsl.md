@@ -103,6 +103,9 @@ the canonical name plus the parser's own key where they differ (`tsx` for
 file extensions; the `ENDS WITH` fallback the builders used to carry admitted
 every file on the pinned NornicDB build (#6546, recorded in
 [NornicDB Path-Predicate Pitfalls](nornicdb-path-predicate-pitfalls.md)).
+A file answers under the language whose parser claimed its extension, so `.h`
+headers are `cpp` rather than `c`, and an extension no parser claims (`.pyi`,
+`.kts`, `.hxx`) is under no language at all.
 
 Accepted here means the route can query indexed entities for that language; it
 does not promote every framework, route, outbound-contract, dead-code, or

@@ -154,7 +154,7 @@ Two shapes were measured and rejected. `CONTAINS '<ext>'` is honoured but is
 not anchored, so `.go` also matches `x.gov`. A single-node pre-filter carried
 through `WITH` (`MATCH (f:File) WHERE … WITH f MATCH (f)<-[:REPO_CONTAINS]-(r)`)
 is honoured but exceeded the route's 10 s graph-read deadline on a 4,000-file
-store where the one-clause form answered in 2.4 ms. The measurement table is in
+store where the one-clause form answered in 2.8 ms. The measurement table is in
 `docs/internal/evidence/6546-language-query-extension-filter.md`.
 
 ### Validation

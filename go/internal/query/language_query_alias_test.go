@@ -30,8 +30,8 @@ func TestSupportedLanguages_ExplicitJSXAndTSX(t *testing.T) {
 func TestBuildLanguageCypher_JSXBindsJavaScriptSpellings(t *testing.T) {
 	cypher, params := buildLanguageCypher("jsx", "File", "Button", "", 5)
 
-	if got, want := params["language"], "javascript"; got != want {
-		t.Fatalf("params[language] = %#v, want %#v", got, want)
+	if got, want := boundCanonicalLanguage(t, params), "javascript"; got != want {
+		t.Fatalf("bound canonical language = %#v, want %#v", got, want)
 	}
 	if !searchString(cypher, "f.language IN $languages") {
 		t.Fatalf("buildLanguageCypher(\"jsx\") missing the spelling-list predicate in %q", cypher)
@@ -42,13 +42,24 @@ func TestBuildLanguageCypher_JSXBindsJavaScriptSpellings(t *testing.T) {
 func TestBuildLanguageCypher_TSXBindsTypeScriptSpellings(t *testing.T) {
 	cypher, params := buildLanguageCypher("tsx", "File", "Component", "", 5)
 
-	if got, want := params["language"], "typescript"; got != want {
-		t.Fatalf("params[language] = %#v, want %#v", got, want)
+	if got, want := boundCanonicalLanguage(t, params), "typescript"; got != want {
+		t.Fatalf("bound canonical language = %#v, want %#v", got, want)
 	}
 	if !searchString(cypher, "f.language IN $languages") {
 		t.Fatalf("buildLanguageCypher(\"tsx\") missing the spelling-list predicate in %q", cypher)
 	}
 	assertLanguageSpellingsBound(t, params, "typescript", "tsx")
+}
+
+// boundCanonicalLanguage returns the first entry of the bound $languages list,
+// which graphLanguageSpellings documents as the canonical name.
+func boundCanonicalLanguage(t *testing.T, params map[string]any) string {
+	t.Helper()
+	bound, ok := params["languages"].([]string)
+	if !ok || len(bound) == 0 {
+		t.Fatalf("params[languages] = %#v, want a non-empty []string", params["languages"])
+	}
+	return bound[0]
 }
 
 // assertLanguageSpellingsBound checks that every named spelling is in the

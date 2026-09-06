@@ -60,9 +60,10 @@ func buildLanguageCypherWithSemanticFilter(
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	language = canonicalLanguage(language)
+	// Only $languages and $limit are referenced by the builders below; the
+	// canonical name reaches the graph through graphLanguageSpellings.
 	params := map[string]any{
-		"language": language,
-		"limit":    limit,
+		"limit": limit,
 	}
 
 	switch label {
@@ -90,7 +91,6 @@ func buildLanguageCypherWithSemanticFilter(
 // in the given language, counted per repository.
 func buildRepositoryCypher(language, query, repoID string, limit int, access repositoryAccessFilter) (string, map[string]any) {
 	params := map[string]any{
-		"language":  language,
 		"languages": graphLanguageSpellings(language),
 		"limit":     limit,
 	}
