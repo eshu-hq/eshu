@@ -96,6 +96,14 @@ Accepted names:
 `jsx` normalizes to `javascript`; `tsx` normalizes to `typescript`.
 Unsupported languages return HTTP 400 with the valid values.
 
+On the graph path the language filter matches the `language` property the
+projector stamped on each file or entity, bound as a list of spellings:
+the canonical name plus the parser's own key where they differ (`tsx` for
+`typescript`, `jsx` for `javascript`, `c_sharp` for `csharp`). It does not test
+file extensions; the `ENDS WITH` fallback the builders used to carry admitted
+every file on the pinned NornicDB build (#6546, recorded in
+[NornicDB Path-Predicate Pitfalls](nornicdb-path-predicate-pitfalls.md)).
+
 Accepted here means the route can query indexed entities for that language; it
 does not promote every framework, route, outbound-contract, dead-code, or
 cross-repo relationship claim to full parity. The current feature-level contract

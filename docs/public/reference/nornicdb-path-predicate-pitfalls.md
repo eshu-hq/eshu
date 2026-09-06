@@ -111,3 +111,55 @@ between two granted ones still yielded a depth number.
 TestLiveNornicDBPathListPredicateBehaviour -count=1` against a standalone pinned
 container pins every row of the table above as a MEASURED value, so a later
 build that changes any of them is seen rather than silently absorbed.
+
+## Pitfall: `STARTS WITH` And `ENDS WITH` Are True For Every Row Of A Multi-Node `MATCH`
+
+### Observed shape
+
+Measured on the pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
+(#6546) against a 180-file corpus, 105 of them `.go`. A `STARTS WITH` or
+`ENDS WITH` term is evaluated correctly when the `MATCH` binds one node and
+evaluates as `true` for every row when it binds two or more. `CONTAINS` and a
+plain equality are correct in both. An AND-ed second condition still filters,
+so it is the string operator that becomes `true`, not the whole `WHERE` that is
+dropped.
+
+| `WHERE` | `MATCH (f:File)` | `MATCH (f:File)<-[:CONTAINS]-(d:Directory)` |
+| --- | ---: | ---: |
+| `f.name ENDS WITH '.go'` | 105 | **180** |
+| `f.name STARTS WITH 'f00000'` | 30 | **180** |
+| `f.name CONTAINS '.go'` | 105 | 105 |
+| `f.name ENDS WITH '.go' AND f.language = 'python'` | 0 | **60** |
+
+The consequence for a predicate written as `<right test> OR f.name ENDS WITH
+'<ext>'` is that it reads as `<right test> OR true` and admits every row. That
+is what the language-query builders did: `buildFileCypher` asked for `go` at a
+row bound of 200 answered with 200 rows, 200 of them not Go, on a synthetic
+graph of 50 repositories, 20,000 directories and 200,000 files seeded through
+the projector's own shapes.
+
+### Eshu implications
+
+Do not put `STARTS WITH` or `ENDS WITH` in the `WHERE` of a multi-node `MATCH`
+on this build. Filter on a property the projector writes and compare it with
+`=` or `IN`. The language-query builders (`buildDirectoryCypher`,
+`buildFileCypher`, `buildEntityCypherWithSemanticFilter`) now carry
+`f.language IN $languages` and no extension fallback; the projector stamps
+`language` on every `File` and semantic entity it writes, so nothing is lost by
+dropping the file-name test, and the bound list carries the parser spellings
+(`tsx`, `jsx`, `c_sharp`) the fallback used to reach by extension.
+
+Two shapes were measured and rejected. `CONTAINS '<ext>'` is honoured but is
+not anchored, so `.go` also matches `x.gov`. A single-node pre-filter carried
+through `WITH` (`MATCH (f:File) WHERE … WITH f MATCH (f)<-[:REPO_CONTAINS]-(r)`)
+is honoured but exceeded the route's 10 s graph-read deadline on a 4,000-file
+store where the one-clause form answered in 2.4 ms. The measurement table is in
+`docs/internal/evidence/6546-language-query-extension-filter.md`.
+
+### Validation
+
+`go test ./internal/query -tags live_nornicdb_language_imports_grant -run
+TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage -count=1` against a
+standalone pinned container seeds one polyglot repository and asks each builder
+for one language at a time; before the change every case returned all seven
+files, after it each returns exactly the files of the language asked for.

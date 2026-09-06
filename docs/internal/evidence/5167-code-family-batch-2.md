@@ -313,6 +313,8 @@ caller**, not only a scoped one: a request that returned `results: []` on
 NornicDB now returns directories. And it is the one place on this route where
 the unscoped query text deliberately changes — every other builder's unscoped
 text is byte-identical to before.
+Superseded for the File and entity builders by #6546, which replaced their
+language predicate; the frozen baselines now hold that text.
 `TestLanguageQueryUnscopedCypherTextIsFrozen` is what pins that: it compares
 each builder's unscoped statement against a frozen baseline character for
 character, with `buildRepositoryCypher`, `buildFileCypher` and
