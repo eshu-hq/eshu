@@ -295,7 +295,7 @@ documents and issues cite them.
    `AuthModeScoped`, and a blank subject hash still downgrades to `anonymous`
    in both modes. `localIdentityActorClass` and `adminRecoveryActor` still
    map a browser session to `operator` and `shared_token`; that is a separate
-   inconsistency, not touched by #6459.
+   inconsistency, tracked as #6566.
 
 Residual 4 is why the `scopedRouteClass` doc comment says an identity-bound
 handler answers from the tenant the session is *currently* bound to, rather
