@@ -43,8 +43,11 @@ and moving reducer families are outside this change.
 Each generic, container-image, and CI/CD batch ACK selects its eligible work
 rows with the existing status, owner, domain, and applicable claim-epoch
 fences, then locks them in `work_item_id COLLATE "C"` order. A count dependency
-drains the entire locking CTE before the target UPDATE. Target-level fences
-remain in place; stale work cannot borrow another row's successful ACK.
+drains the entire locking CTE before the target UPDATE. That SELECT rechecks
+eligibility after a concurrent update and holds the admitted rows through the
+statement. The UPDATE targets their immutable work IDs; it does not repeat the
+index-driving eligibility filters. Stale work cannot enter the locked set or
+borrow another row's successful ACK.
 
 Fanout retains the exact claimed-event lease check, then locks every eligible
 current-generation consumer in the same order. It drains that consumer CTE
@@ -193,7 +196,7 @@ CI-parity recursive listing and live invocation with direct exit 0. All four
 tests executed without skips: 40 contention trials, nine ordering/stale-state
 arms, four producer-capture arms, and four audit-FK compatibility arms. Logs
 are `/tmp/6488-no-key-green-list.log`, `/tmp/6488-no-key-green-run.log`, and
-`/tmp/6488-no-key-green-remote.log`. Paired scale validation remains outstanding.
+`/tmp/6488-no-key-green-remote.log`. The subsequent paired scale result is recorded below.
 The existing scale test now logs its complete metric vector before threshold
 assertions, preserving measurements on failure without changing any limit.
 
@@ -237,6 +240,33 @@ The opt-in `TEST: TestReducerAckFanoutScalePlanProbe` captures rolled-back
 production SQL plans at the same fixture size for diagnosis. Instrumented plan
 runs are distinct from these uninstrumented timings.
 
+## Measured target-selection correction
+
+Before revising production SQL, checkpoint
+`882d2d68eb3cb3ccb547de72a6998f258a2e988c` compared two rollback-only SQL
+shims against the same 900-scope fixture. The immutable locked-ID shim retained
+all eligibility predicates in the drained locking SELECT and removed only
+redundant UPDATE-level filters. Its UPDATE plan used primary-key lookups:
+60 shared hits for 15 rows instead of 914 hits in the broad CI/CD target scan.
+The first CI/CD sample changed from 7.979 ms to 4.002 ms; the middle-batch sample
+changed from 7.199 ms to 4.130 ms. These ordered single-sample diagnostics
+identify the extra scan, not an uninstrumented p95 or speedup distribution.
+
+The alternative physical-tuple shim was rejected. Three positive concurrent-row
+recheck arms changed the row's physical version while keeping owner, status and
+epoch eligible. All tuple-target arms silently acknowledged zero rows; all
+shipped-ID controls and immutable locked-ID shims acknowledged exactly one and
+preserved producer counts. The aggregate diagnostic exited 1 because those
+three tuple arms failed, not because a fixture failed. Raw plans and results
+are `/tmp/6488-target-shims-run.log` and `/tmp/6488-scale-plans-shims.json`.
+
+Only the measured immutable-ID target change is adopted. Production contains
+no physical tuple identifier. `TEST: TestReducerContentionGateAckEligibleEPQLive`
+retains the three positive concurrent-update arms against the actual builders;
+negative owner/epoch/status and lock-order tests remain required. The corrected
+production target still needs full focused GREEN and an uninstrumented scale
+comparison before promotion.
+
 ## Operator signals and limits
 
 No-Observability-Change: `eshu_dp_queue_depth` and
@@ -264,10 +294,17 @@ age, storage spans/duration, the returned SQLSTATE, and server-side
 `pg_blocking_pids`, `pg_stat_activity`, and deadlock detail. Confirm progress with
 committed fanout counts and queue drain, not handler success alone.
 
-No new telemetry source is introduced by this ordering change. The focused live tests observe storage completion, blocked backends, and durable
-queue state. They do not exercise the hosted runner's exported telemetry;
-runtime signal emission remains part of broader validation. A static coverage
-check cannot substitute for that evidence.
+No new telemetry source is introduced by this ordering change. The live
+`TEST: TestReducerContentionGateAckFanoutTelemetryLive` passed at diagnostic
+checkpoint `882d2d68eb3cb3ccb547de72a6998f258a2e988c`: actual ACK and fanout
+calls emitted reducer read/write duration histograms and spans, completion
+gauges went from depth 1 to 0, and the real runner emitted its bounded success
+log with committed counts. `TEST: TestReducerContentionGateAckFanoutTelemetryErrors`
+also passed, observing both synchronous error spans, exception events, positive
+durations and the runner's fenced error context for a controlled SQLSTATE.
+The error is injected for telemetry coverage, not another deadlock reproduction.
+These are SDK collection and structured-log proofs, not hosted exporter or
+collector deployment validation. Raw output is `/tmp/6488-target-shims-run.log`.
 
 PostgreSQL references used for the design:
 [CTE evaluation](https://www.postgresql.org/docs/18/queries-with.html),

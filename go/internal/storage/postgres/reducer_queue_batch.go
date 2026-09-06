@@ -254,11 +254,6 @@ SET status = 'succeeded',
     failure_details = NULL
 WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
   AND (SELECT count(*) FROM locked_work) > 0
-  AND (` + strings.Join(predicates, " OR ") + `)
-  AND stage = 'reducer'
-  AND domain = 'container_image_identity'
-  AND lease_owner = $2
-  AND status IN ('claimed', 'running')
 RETURNING work.work_item_id, work.status
 ), emission_clock AS MATERIALIZED (
     SELECT clock_timestamp() AS emitted_at
@@ -322,11 +317,6 @@ SET status = 'succeeded',
     failure_details = NULL
 WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
   AND (SELECT count(*) FROM locked_work) > 0
-  AND work.work_item_id = ANY($3::text[])
-  AND stage = 'reducer'
-  AND domain = 'ci_cd_run_correlation'
-  AND lease_owner = $2
-  AND status IN ('claimed', 'running')
 RETURNING work.work_item_id, work.status
 ), emission_clock AS MATERIALIZED (
     SELECT clock_timestamp() AS emitted_at
@@ -384,11 +374,7 @@ SET status = 'succeeded',
     failure_details = NULL
 WHERE work_item_id IN (SELECT work_item_id FROM locked_work)
   AND (SELECT count(*) FROM locked_work) > 0
-  AND work_item_id IN (%s)
-  AND stage = 'reducer'
-  AND lease_owner = $2
-  AND status IN ('claimed', 'running')
-`, strings.Join(placeholders, ", "), strings.Join(placeholders, ", "))
+`, strings.Join(placeholders, ", "))
 }
 
 // FailBatch marks multiple claimed reducer work items as failed in a single
