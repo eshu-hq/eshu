@@ -206,29 +206,35 @@ test_real_tree_meets_citation_floor() {
   fi
 }
 
-test_real_tree_result_is_reused_for_floor() {
-  local real_verifier="${verifier}"
-  local wrapper="${tmp_root}/count-real-tree-verifier.sh"
-  local count_file="${tmp_root}/real-tree-verifier.count" count
+begin_real_tree_verifier_reuse_proof() {
+  real_tree_proof_verifier="${verifier}"
+  real_tree_proof_wrapper="${tmp_root}/count-real-tree-verifier.sh"
+  real_tree_proof_count_file="${tmp_root}/real-tree-verifier.count"
+  : >"${real_tree_proof_count_file}"
   {
     printf '%s\n' '#!/usr/bin/env bash'
     printf '%s\n' 'printf x >>"${REAL_TREE_VERIFIER_COUNT:?}"'
     printf '%s\n' 'exec "${REAL_TREE_VERIFIER:?}" "$@"'
-  } >"${wrapper}"
-  export REAL_TREE_VERIFIER="${real_verifier}"
-  export REAL_TREE_VERIFIER_COUNT="${count_file}"
-  verifier="${wrapper}"
-  test_real_tree_passes_with_committed_baseline
-  test_real_tree_meets_citation_floor
-  verifier="${real_verifier}"
-  unset REAL_TREE_VERIFIER REAL_TREE_VERIFIER_COUNT
+  } >"${real_tree_proof_wrapper}"
+  export REAL_TREE_VERIFIER="${real_tree_proof_verifier}"
+  export REAL_TREE_VERIFIER_COUNT="${real_tree_proof_count_file}"
+  verifier="${real_tree_proof_wrapper}"
+}
 
-  count="$(wc -c <"${count_file}" | tr -d ' ')"
+end_real_tree_verifier_reuse_proof() {
+  verifier="${real_tree_proof_verifier}"
+  unset REAL_TREE_VERIFIER REAL_TREE_VERIFIER_COUNT
+}
+
+test_real_tree_verifier_is_invoked_once() {
+  local count
+  count="$(wc -c <"${real_tree_proof_count_file}" | tr -d ' ')"
   if [[ "${count}" -eq 1 ]]; then
     record_pass "case14: citation floor reuses the proven case12 verifier output"
   else
     record_fail "case14: citation floor reuses the proven case12 verifier output (got ${count} verifier runs)"
   fi
+  unset real_tree_proof_verifier real_tree_proof_wrapper real_tree_proof_count_file
 }
 
 test_real_line_ledger_preserves_multiplicity() {
@@ -248,7 +254,9 @@ doc_citation_mode_partition_holds() {
   combined="$(printf '%s\n%s\n' "${fixtures}" "${repository}" | LC_ALL=C sort)"
   [[ "$(printf '%s\n' "${full}" | LC_ALL=C sort)" == "${combined}" ]] || return 1
   for required in \
-    test_real_tree_result_is_reused_for_floor \
+    test_real_tree_passes_with_committed_baseline \
+    test_real_tree_meets_citation_floor \
+    test_real_tree_verifier_is_invoked_once \
     test_real_baseline_matches_fresh_regeneration \
     test_real_line_ledger_preserves_multiplicity \
     test_public_gate_name_states_recurrence_scope; do
@@ -308,6 +316,20 @@ add_doc_citation_real_case_to_fixture_runner() {
   ' "${source}" >"${destination}"
 }
 
+remove_doc_citation_repository_floor_case() {
+  local source="$1" destination="$2"
+  awk '
+    /^run_repository_cases\(\)/ { inside = 1 }
+    inside && /run_doc_citation_case test_real_tree_meets_citation_floor/ {
+      removed = 1
+      next
+    }
+    inside && /^}/ { inside = 0 }
+    { print }
+    END { if (!removed) exit 2 }
+  ' "${source}" >"${destination}"
+}
+
 run_doc_citation_case() {
   "$1"
 }
@@ -331,13 +353,13 @@ run_basic_fixture_cases() {
 }
 
 run_repository_cases() {
-  local test_case
-  for test_case in \
-    test_real_tree_result_is_reused_for_floor \
-    test_real_baseline_matches_fresh_regeneration \
-    test_real_line_ledger_preserves_multiplicity; do
-    run_doc_citation_case "${test_case}"
-  done
+  begin_real_tree_verifier_reuse_proof
+  run_doc_citation_case test_real_tree_passes_with_committed_baseline
+  run_doc_citation_case test_real_tree_meets_citation_floor
+  end_real_tree_verifier_reuse_proof
+  run_doc_citation_case test_real_tree_verifier_is_invoked_once
+  run_doc_citation_case test_real_baseline_matches_fresh_regeneration
+  run_doc_citation_case test_real_line_ledger_preserves_multiplicity
   run_line_citation_repository_cases
 }
 

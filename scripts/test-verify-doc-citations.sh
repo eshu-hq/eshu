@@ -364,7 +364,7 @@ source "${repo_root}/scripts/lib/test-verify-doc-citations-scope-cases.sh"
 test_mode_partition_contract() {
   local out="${tmp_root}/mode-dispatch.out" status
   local helper_dir="${repo_root}/scripts/lib"
-  local full fixtures repository moved_dir added_dir
+  local full fixtures repository moved_dir added_dir removed_dir
   mode_trace() {
     "${BASH:-bash}" -c '
       set -euo pipefail
@@ -379,6 +379,8 @@ test_mode_partition_contract() {
         esac
       done
       run_doc_citation_case() { printf "%s\n" "$1"; }
+      begin_real_tree_verifier_reuse_proof() { :; }
+      end_real_tree_verifier_reuse_proof() { :; }
       run_doc_citation_test_mode "$2"
     ' bash "$1" "$2"
   }
@@ -417,6 +419,20 @@ test_mode_partition_contract() {
     record_fail "mode dispatch: adding a real-tree case to a fixture runner is rejected"
   else
     record_pass "mode dispatch: adding a real-tree case to a fixture runner is rejected"
+  fi
+
+  removed_dir="${tmp_root}/mode-cases-floor-removed"
+  copy_doc_citation_mode_helpers "${helper_dir}" "${removed_dir}"
+  remove_doc_citation_repository_floor_case \
+    "${helper_dir}/test-verify-doc-citations-scope-cases.sh" \
+    "${removed_dir}/test-verify-doc-citations-scope-cases.sh"
+  if doc_citation_mode_partition_holds \
+    "$(mode_trace "${removed_dir}" full)" \
+    "$(mode_trace "${removed_dir}" fixtures)" \
+    "$(mode_trace "${removed_dir}" repository)"; then
+    record_fail "mode dispatch: removing the real-tree floor assertion is rejected"
+  else
+    record_pass "mode dispatch: removing the real-tree floor assertion is rejected"
   fi
 
   if "${BASH:-bash}" "${repo_root}/scripts/test-verify-doc-citations.sh" --unknown >"${out}" 2>&1; then
