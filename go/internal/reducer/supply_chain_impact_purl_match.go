@@ -3,7 +3,11 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+)
 
 // componentMatchesAffectedPackage reports whether an SBOM component and a
 // vulnerability affected_package describe the same package. It bridges the two
@@ -13,25 +17,25 @@ import "strings"
 // package_id). Matching the version-stripped purl keeps version-qualified
 // components correlating with versionless advisory purls without widening to
 // name-only coincidence.
-func componentMatchesAffectedPackage(component supplyChainSBOMComponent, pkg supplyChainAffectedPackage) bool {
-	if pkg.purl != "" && component.purl == pkg.purl {
+func componentMatchesAffectedPackage(component supplychainmodel.SBOMComponent, pkg supplychainmodel.AffectedPackage) bool {
+	if pkg.PURL != "" && component.PURL == pkg.PURL {
 		return true
 	}
-	if pkg.packageID != "" && component.packageID == pkg.packageID {
+	if pkg.PackageID != "" && component.PackageID == pkg.PackageID {
 		return true
 	}
-	if pkg.purl != "" && component.purl != "" &&
-		packageIDFromPURL(component.purl) == packageIDFromPURL(pkg.purl) {
+	if pkg.PURL != "" && component.PURL != "" &&
+		packageIDFromPURL(component.PURL) == packageIDFromPURL(pkg.PURL) {
 		return true
 	}
 	return false
 }
 
-func componentMatchesAffectedProduct(component supplyChainSBOMComponent, product supplyChainAffectedProduct) bool {
-	if product.criteria == "" || component.cpe == "" {
+func componentMatchesAffectedProduct(component supplychainmodel.SBOMComponent, product supplychainmodel.AffectedProduct) bool {
+	if product.Criteria == "" || component.CPE == "" {
 		return false
 	}
-	return strings.EqualFold(strings.TrimSpace(product.criteria), strings.TrimSpace(component.cpe))
+	return strings.EqualFold(strings.TrimSpace(product.Criteria), strings.TrimSpace(component.CPE))
 }
 
 // packageIDFromPURL returns the purl with any version qualifier removed, giving

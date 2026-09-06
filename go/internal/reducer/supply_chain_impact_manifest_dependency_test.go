@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 type manifestBackedSupplyChainImpactLoader struct {
@@ -327,17 +328,17 @@ func TestBuildSupplyChainImpactFindingsUsesProviderAlertManifestDependencyEviden
 
 func BenchmarkAddManifestDependencySupplyChainConsumption(b *testing.B) {
 	observedAt := time.Date(2026, 5, 26, 8, 30, 0, 0, time.UTC)
-	affectedPackages := make(map[string][]supplyChainAffectedPackage, 1)
+	affectedPackages := make(map[string][]supplychainmodel.AffectedPackage, 1)
 	envelopes := make([]facts.Envelope, 0, 200)
 	for i := 0; i < 200; i++ {
 		packageName := "package-" + strings.Repeat("x", i%8) + string(rune('a'+i%26))
 		packageID := "npm://registry.npmjs.org/" + packageName
-		affectedPackages["CVE-2026-0001"] = append(affectedPackages["CVE-2026-0001"], supplyChainAffectedPackage{
-			factID:    "affected-" + packageName,
-			cveID:     "CVE-2026-0001",
-			packageID: packageID,
-			ecosystem: "npm",
-			name:      packageName,
+		affectedPackages["CVE-2026-0001"] = append(affectedPackages["CVE-2026-0001"], supplychainmodel.AffectedPackage{
+			FactID:    "affected-" + packageName,
+			CVEID:     "CVE-2026-0001",
+			PackageID: packageID,
+			Ecosystem: "npm",
+			Name:      packageName,
 		})
 		envelopes = append(envelopes, packageManifestDependencyFactWithMetadata(
 			testImpactRepositoryID,
@@ -355,7 +356,7 @@ func BenchmarkAddManifestDependencySupplyChainConsumption(b *testing.B) {
 	for b.Loop() {
 		index := &supplyChainImpactIndex{
 			affectedPackages: affectedPackages,
-			consumption:      map[string][]supplyChainPackageConsumption{},
+			consumption:      map[string][]supplychainmodel.PackageConsumption{},
 		}
 		addManifestDependencySupplyChainConsumption(index, envelopes)
 	}

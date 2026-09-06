@@ -3,7 +3,11 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+)
 
 const (
 	supplyChainVersionReasonDPKGExactAffected   = "dpkg_exact_affected_version"
@@ -19,7 +23,7 @@ const (
 func evaluateOSPackageVersionMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 	affectedReason string,
 	knownFixedReason string,
 	rangeAffectedReason string,
@@ -47,7 +51,7 @@ func evaluateOSPackageVersionMatch(
 		}
 	}
 	for _, pkg := range pkgs {
-		for _, candidate := range pkg.affectedVersions {
+		for _, candidate := range pkg.AffectedVersions {
 			candidate = strings.TrimSpace(candidate)
 			if candidate == "" {
 				continue
@@ -65,7 +69,7 @@ func evaluateOSPackageVersionMatch(
 
 func osPackageAffectedByAnyPackage(
 	observed string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 	compare versionCompareFunc,
 ) (bool, bool) {
 	malformed := false
@@ -81,12 +85,12 @@ func osPackageAffectedByAnyPackage(
 
 func osPackageAffectedByPackage(
 	observed string,
-	pkg supplyChainAffectedPackage,
+	pkg supplychainmodel.AffectedPackage,
 	compare versionCompareFunc,
 ) (bool, bool) {
 	valid := true
-	for _, affectedRange := range pkg.affectedRanges {
-		if !strings.EqualFold(affectedRange.kind, "ECOSYSTEM") {
+	for _, affectedRange := range pkg.AffectedRanges {
+		if !strings.EqualFold(affectedRange.Kind, "ECOSYSTEM") {
 			continue
 		}
 		if affected, ok := versionRangeContainsDecision(affectedRange, observed, compare); affected {

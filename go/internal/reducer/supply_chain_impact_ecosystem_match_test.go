@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func TestBuildSupplyChainImpactFindingsMatchesPyPISpecifierSets(t *testing.T) {
@@ -55,7 +56,7 @@ func TestEvaluatePyPIMatchHandlesCompatibleReleaseAndPrerelease(t *testing.T) {
 		"2.2.0rc1",
 		"",
 		"",
-		[]supplyChainAffectedPackage{{affectedRangeRaw: "~=2.2.0rc1"}},
+		[]supplychainmodel.AffectedPackage{{AffectedRangeRaw: "~=2.2.0rc1"}},
 	)
 
 	if decision.Status != SupplyChainImpactAffectedExact {
@@ -74,7 +75,7 @@ func TestEvaluatePyPIMatchHandlesEpochCompatibleReleaseWithWhitespace(t *testing
 		"1!4.2.1",
 		"",
 		"",
-		[]supplyChainAffectedPackage{{affectedRangeRaw: "~= 1!4.2, != 1!4.2.5"}},
+		[]supplychainmodel.AffectedPackage{{AffectedRangeRaw: "~= 1!4.2, != 1!4.2.5"}},
 	)
 
 	if decision.Status != SupplyChainImpactAffectedExact {
@@ -93,7 +94,7 @@ func TestEvaluatePyPIMatchFailsClosedForSingleSegmentCompatibleRelease(t *testin
 		"1.2.0",
 		"",
 		"",
-		[]supplyChainAffectedPackage{{affectedRangeRaw: "~=1"}},
+		[]supplychainmodel.AffectedPackage{{AffectedRangeRaw: "~=1"}},
 	)
 
 	if decision.Status != SupplyChainImpactPossiblyAffected {
@@ -113,7 +114,7 @@ func TestEvaluatePyPIMatchFailsClosedForLocalVersionSpecifier(t *testing.T) {
 		"1.2.1+consumer.1",
 		"",
 		"",
-		[]supplyChainAffectedPackage{{affectedRangeRaw: ">=1.2+advisory.1"}},
+		[]supplychainmodel.AffectedPackage{{AffectedRangeRaw: ">=1.2+advisory.1"}},
 	)
 
 	if decision.Status != SupplyChainImpactPossiblyAffected {
@@ -197,7 +198,7 @@ func TestEvaluateComposerMatchFailsClosedForBranchAlias(t *testing.T) {
 		"dev-main",
 		"",
 		"",
-		[]supplyChainAffectedPackage{{affectedRangeRaw: "dev-main as 1.0.x-dev"}},
+		[]supplychainmodel.AffectedPackage{{AffectedRangeRaw: "dev-main as 1.0.x-dev"}},
 	)
 
 	if decision.Status != SupplyChainImpactPossiblyAffected {
@@ -249,7 +250,7 @@ func TestEvaluateRubyGemsMatchHandlesPrereleaseRequirement(t *testing.T) {
 		"2.2.beta.12",
 		"",
 		"",
-		[]supplyChainAffectedPackage{{affectedRangeRaw: "~> 2.2.beta"}},
+		[]supplychainmodel.AffectedPackage{{AffectedRangeRaw: "~> 2.2.beta"}},
 	)
 
 	if decision.Status != SupplyChainImpactAffectedExact {

@@ -7,20 +7,13 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 	"golang.org/x/mod/semver"
 )
 
-type supplyChainAffectedRange struct {
-	kind   string
-	events []supplyChainAffectedRangeEvent
-}
-
-type supplyChainAffectedRangeEvent struct {
-	introduced   string
-	fixed        string
-	lastAffected string
-	limit        string
-}
+// supplyChainAffectedRange and supplyChainAffectedRangeEvent moved to
+// [supplychainmodel.AffectedRange] / [supplychainmodel.AffectedRangeEvent]
+// (#6061 PR1); this file spells the qualified names directly.
 
 // The raw-payload-map range decoders (supplyChainAffectedRangesFromPayload,
 // supplyChainAffectedRangeEvents) were replaced by the typed contracts-seam
@@ -31,22 +24,22 @@ type supplyChainAffectedRangeEvent struct {
 // vulnerability.affected_package decode, so the raw-map path has no caller
 // left.
 
-func supplyChainAffectedRangeSummary(pkg supplyChainAffectedPackage) string {
-	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+func supplyChainAffectedRangeSummary(pkg supplychainmodel.AffectedPackage) string {
+	if raw := strings.TrimSpace(pkg.AffectedRangeRaw); raw != "" {
 		return raw
 	}
-	for _, affectedRange := range pkg.affectedRanges {
-		parts := make([]string, 0, len(affectedRange.events))
-		for _, event := range affectedRange.events {
+	for _, affectedRange := range pkg.AffectedRanges {
+		parts := make([]string, 0, len(affectedRange.Events))
+		for _, event := range affectedRange.Events {
 			switch {
-			case event.introduced != "":
-				parts = append(parts, ">="+event.introduced)
-			case event.fixed != "":
-				parts = append(parts, "<"+event.fixed)
-			case event.lastAffected != "":
-				parts = append(parts, "<="+event.lastAffected)
-			case event.limit != "":
-				parts = append(parts, "<"+event.limit)
+			case event.Introduced != "":
+				parts = append(parts, ">="+event.Introduced)
+			case event.Fixed != "":
+				parts = append(parts, "<"+event.Fixed)
+			case event.LastAffected != "":
+				parts = append(parts, "<="+event.LastAffected)
+			case event.Limit != "":
+				parts = append(parts, "<"+event.Limit)
 			}
 		}
 		if len(parts) > 0 {
@@ -57,46 +50,46 @@ func supplyChainAffectedRangeSummary(pkg supplyChainAffectedPackage) string {
 }
 
 func semverRangeContainsDecision(
-	affectedRange supplyChainAffectedRange,
+	affectedRange supplychainmodel.AffectedRange,
 	observed string,
 ) (bool, bool) {
 	return versionRangeContainsDecision(affectedRange, observed, compareOSVSemver)
 }
 
 func rubyGemsRangeContainsDecision(
-	affectedRange supplyChainAffectedRange,
+	affectedRange supplychainmodel.AffectedRange,
 	observed string,
 ) (bool, bool) {
 	return versionRangeContainsDecision(affectedRange, observed, compareRubyGemsVersion)
 }
 
 func versionRangeContainsDecision(
-	affectedRange supplyChainAffectedRange,
+	affectedRange supplychainmodel.AffectedRange,
 	observed string,
 	compare versionCompareFunc,
 ) (bool, bool) {
-	if ok, valid := versionBeforeLimitsDecision(observed, affectedRange.events, compare); !valid {
+	if ok, valid := versionBeforeLimitsDecision(observed, affectedRange.Events, compare); !valid {
 		return false, false
 	} else if !ok {
 		return false, true
 	}
 	vulnerable := false
-	for _, event := range affectedRange.events {
+	for _, event := range affectedRange.Events {
 		switch {
-		case event.introduced != "":
-			if ok, valid := versionAtLeast(observed, event.introduced, compare); !valid {
+		case event.Introduced != "":
+			if ok, valid := versionAtLeast(observed, event.Introduced, compare); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = true
 			}
-		case event.fixed != "":
-			if ok, valid := versionAtLeast(observed, event.fixed, compare); !valid {
+		case event.Fixed != "":
+			if ok, valid := versionAtLeast(observed, event.Fixed, compare); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
 			}
-		case event.lastAffected != "":
-			if ok, valid := versionGreaterThan(observed, event.lastAffected, compare); !valid {
+		case event.LastAffected != "":
+			if ok, valid := versionGreaterThan(observed, event.LastAffected, compare); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
@@ -108,12 +101,12 @@ func versionRangeContainsDecision(
 
 func versionBeforeLimitsDecision(
 	observed string,
-	events []supplyChainAffectedRangeEvent,
+	events []supplychainmodel.AffectedRangeEvent,
 	compare versionCompareFunc,
 ) (bool, bool) {
 	hasLimit := false
 	for _, event := range events {
-		limit := strings.TrimSpace(event.limit)
+		limit := strings.TrimSpace(event.Limit)
 		if limit == "" {
 			continue
 		}
@@ -256,22 +249,22 @@ func exactManifestDependencyVersion(raw string) (string, bool) {
 
 func exactConsumptionDependencyVersion(
 	ecosystem string,
-	consumption supplyChainPackageConsumption,
+	consumption supplychainmodel.PackageConsumption,
 ) (string, bool) {
 	switch normalizedSupplyChainVersionEcosystem(ecosystem) {
 	case string(packageidentity.EcosystemCargo), string(packageidentity.EcosystemNuGet):
-		if !consumption.lockfile {
+		if !consumption.Lockfile {
 			return "", false
 		}
 	}
-	if version, ok := exactManifestDependencyVersion(consumption.installedVersion); ok {
+	if version, ok := exactManifestDependencyVersion(consumption.InstalledVersion); ok {
 		return version, true
 	}
-	if consumption.lockfile {
-		version := strings.TrimSpace(consumption.dependencyRange)
+	if consumption.Lockfile {
+		version := strings.TrimSpace(consumption.DependencyRange)
 		return version, version != ""
 	}
-	return exactManifestDependencyVersion(consumption.dependencyRange)
+	return exactManifestDependencyVersion(consumption.DependencyRange)
 }
 
 func nonVersionDependencyPrefix(lower string) bool {

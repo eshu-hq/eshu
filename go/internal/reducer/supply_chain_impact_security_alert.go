@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 // appendSecurityAlertImpactFindings seeds supply-chain-impact findings from
@@ -70,9 +71,9 @@ func buildSecurityAlertImpactFinding(
 
 	observedVersion := strings.TrimSpace(consumption.ObservedVersion)
 	if observedVersion == "" {
-		if manifestVersion, ok := exactConsumptionDependencyVersion(alert.Ecosystem, supplyChainPackageConsumption{
-			dependencyRange: consumption.DependencyRange,
-			lockfile:        consumption.Lockfile,
+		if manifestVersion, ok := exactConsumptionDependencyVersion(alert.Ecosystem, supplychainmodel.PackageConsumption{
+			DependencyRange: consumption.DependencyRange,
+			Lockfile:        consumption.Lockfile,
 		}); ok {
 			observedVersion = manifestVersion
 		}
@@ -87,7 +88,7 @@ func buildSecurityAlertImpactFinding(
 		observedVersion,
 		requestedRange,
 		alert.PatchedVersion,
-		[]supplyChainAffectedPackage{pkg},
+		[]supplychainmodel.AffectedPackage{pkg},
 	)
 	finding := SupplyChainImpactFinding{
 		CVEID:              securityAlertImpactCVEID(alert),
@@ -145,17 +146,17 @@ func securityAlertCanSeedImpact(alert securityalert.ProviderSecurityAlert) bool 
 		strings.TrimSpace(securityAlertImpactAdvisoryID(alert)) != ""
 }
 
-func supplyChainAffectedPackageFromSecurityAlert(alert securityalert.ProviderSecurityAlert) supplyChainAffectedPackage {
-	return supplyChainAffectedPackage{
-		factID:           alert.ProviderAlertFactID,
-		cveID:            securityAlertImpactCVEID(alert),
-		source:           strings.TrimSpace(alert.Provider),
-		advisoryID:       securityAlertImpactAdvisoryID(alert),
-		packageID:        alert.PackageID,
-		ecosystem:        strings.ToLower(strings.TrimSpace(alert.Ecosystem)),
-		name:             alert.PackageName,
-		affectedRangeRaw: normalizeSecurityAlertComparatorRange(alert.VulnerableRange),
-		fixedVersions:    compactStringSlice(alert.PatchedVersion),
+func supplyChainAffectedPackageFromSecurityAlert(alert securityalert.ProviderSecurityAlert) supplychainmodel.AffectedPackage {
+	return supplychainmodel.AffectedPackage{
+		FactID:           alert.ProviderAlertFactID,
+		CVEID:            securityAlertImpactCVEID(alert),
+		Source:           strings.TrimSpace(alert.Provider),
+		AdvisoryID:       securityAlertImpactAdvisoryID(alert),
+		PackageID:        alert.PackageID,
+		Ecosystem:        strings.ToLower(strings.TrimSpace(alert.Ecosystem)),
+		Name:             alert.PackageName,
+		AffectedRangeRaw: normalizeSecurityAlertComparatorRange(alert.VulnerableRange),
+		FixedVersions:    compactStringSlice(alert.PatchedVersion),
 	}
 }
 

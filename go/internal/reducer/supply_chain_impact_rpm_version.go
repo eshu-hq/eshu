@@ -7,18 +7,20 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func evaluateRPMVersionMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validRPMEVR(observed) {
 		return malformedInstalledVersionDecision()
 	}
 	for _, pkg := range pkgs {
-		for _, affected := range pkg.affectedVersions {
+		for _, affected := range pkg.AffectedVersions {
 			cmp, ok := compareRPMEVR(observed, affected)
 			if ok && cmp == 0 {
 				return affectedVersionDecision(supplyChainVersionReasonRPMExactAffected)

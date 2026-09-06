@@ -112,8 +112,8 @@ func TestSupplyChainDeploymentContextFromEnvelopeDecodesEnvironmentEvidence(t *t
 				FactKind: cicdRunCorrelationFactKind,
 				Payload:  payload,
 			})
-			if got.environmentEvidence != tc.want {
-				t.Fatalf("environmentEvidence = %q, want %q", got.environmentEvidence, tc.want)
+			if got.EnvironmentEvidence != tc.want {
+				t.Fatalf("environmentEvidence = %q, want %q", got.EnvironmentEvidence, tc.want)
 			}
 		})
 	}

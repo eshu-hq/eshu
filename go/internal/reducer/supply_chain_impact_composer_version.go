@@ -3,12 +3,16 @@
 
 package reducer
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
+)
 
 func evaluateComposerSemverMatch(
 	observed string,
 	fixedVersion string,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validComposerVersion(observed) {
 		return malformedInstalledVersionDecision()
@@ -30,7 +34,7 @@ func evaluateComposerSemverMatch(
 	return possiblyAffectedDecision(supplyChainVersionReasonNoAffectedMatch, nil)
 }
 
-func composerAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage) (bool, bool) {
+func composerAffectedByAnyPackage(observed string, pkgs []supplychainmodel.AffectedPackage) (bool, bool) {
 	malformed := false
 	for _, pkg := range pkgs {
 		if affected, valid := composerAffectedByPackage(observed, pkg); affected {
@@ -42,9 +46,9 @@ func composerAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPac
 	return false, malformed
 }
 
-func composerAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool, bool) {
+func composerAffectedByPackage(observed string, pkg supplychainmodel.AffectedPackage) (bool, bool) {
 	valid := true
-	for _, candidate := range pkg.affectedVersions {
+	for _, candidate := range pkg.AffectedVersions {
 		candidate = strings.TrimSpace(candidate)
 		if candidate == "" {
 			continue
@@ -55,8 +59,8 @@ func composerAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 			valid = false
 		}
 	}
-	for _, affectedRange := range pkg.affectedRanges {
-		if !strings.EqualFold(affectedRange.kind, "SEMVER") {
+	for _, affectedRange := range pkg.AffectedRanges {
+		if !strings.EqualFold(affectedRange.Kind, "SEMVER") {
 			continue
 		}
 		if affected, ok := versionRangeContainsDecision(affectedRange, observed, compareComposerVersion); affected {
@@ -65,7 +69,7 @@ func composerAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 			valid = false
 		}
 	}
-	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+	if raw := strings.TrimSpace(pkg.AffectedRangeRaw); raw != "" {
 		if affected, ok := composerConstraintContains(raw, observed); affected {
 			return true, true
 		} else if !ok {

@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 // The typed-contracts-seam extraction functions for vulnerability.cve,
@@ -19,29 +20,29 @@ import (
 // supplyChainOSPackageFromEnvelope) live in supply_chain_impact_typed_decode.go
 // (split out to keep this file under the repo's 500-line cap).
 
-func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplyChainPackageConsumption, error) {
+func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplychainmodel.PackageConsumption, error) {
 	correlation, err := decodeReducerPackageConsumptionCorrelation(envelope)
 	if err != nil {
-		return supplyChainPackageConsumption{}, err
+		return supplychainmodel.PackageConsumption{}, err
 	}
-	return supplyChainPackageConsumption{
-		factID:                    envelope.FactID,
-		evidenceKind:              packageConsumptionCorrelationFactKind,
-		packageID:                 strings.TrimSpace(correlation.PackageID),
-		repositoryID:              strings.TrimSpace(derefString(correlation.RepositoryID)),
-		dependencyRange:           strings.TrimSpace(derefString(correlation.DependencyRange)),
-		observedVersion:           payloadcore.FirstNonBlank(derefString(correlation.ObservedVersion), derefString(correlation.ResolvedVersion)),
-		requestedRange:            strings.TrimSpace(derefString(correlation.RequestedRange)),
-		installedVersion:          strings.TrimSpace(derefString(correlation.InstalledVersion)),
-		dependencyPath:            orderedStrings(correlation.DependencyPath),
-		dependencyDepth:           payloadcore.DerefInt(correlation.DependencyDepth),
-		directDependency:          correlation.DirectDependency,
-		dependencyScope:           supplyChainDependencyScopeFromCorrelation(correlation.DependencyScope, correlation.ManifestSection),
-		versionEvidence:           strings.TrimSpace(derefString(correlation.VersionEvidence)),
-		unresolvedMSBuildProperty: strings.TrimSpace(derefString(correlation.UnresolvedMSBuildProperty)),
-		ambiguousMSBuildProperty:  strings.TrimSpace(derefString(correlation.AmbiguousMSBuildProperty)),
-		partialEvidence:           payloadcore.DerefBool(correlation.PartialEvidence),
-		lockfile:                  payloadcore.DerefBool(correlation.Lockfile),
+	return supplychainmodel.PackageConsumption{
+		FactID:                    envelope.FactID,
+		EvidenceKind:              packageConsumptionCorrelationFactKind,
+		PackageID:                 strings.TrimSpace(correlation.PackageID),
+		RepositoryID:              strings.TrimSpace(derefString(correlation.RepositoryID)),
+		DependencyRange:           strings.TrimSpace(derefString(correlation.DependencyRange)),
+		ObservedVersion:           payloadcore.FirstNonBlank(derefString(correlation.ObservedVersion), derefString(correlation.ResolvedVersion)),
+		RequestedRange:            strings.TrimSpace(derefString(correlation.RequestedRange)),
+		InstalledVersion:          strings.TrimSpace(derefString(correlation.InstalledVersion)),
+		DependencyPath:            orderedStrings(correlation.DependencyPath),
+		DependencyDepth:           payloadcore.DerefInt(correlation.DependencyDepth),
+		DirectDependency:          correlation.DirectDependency,
+		DependencyScope:           supplyChainDependencyScopeFromCorrelation(correlation.DependencyScope, correlation.ManifestSection),
+		VersionEvidence:           strings.TrimSpace(derefString(correlation.VersionEvidence)),
+		UnresolvedMSBuildProperty: strings.TrimSpace(derefString(correlation.UnresolvedMSBuildProperty)),
+		AmbiguousMSBuildProperty:  strings.TrimSpace(derefString(correlation.AmbiguousMSBuildProperty)),
+		PartialEvidence:           payloadcore.DerefBool(correlation.PartialEvidence),
+		Lockfile:                  payloadcore.DerefBool(correlation.Lockfile),
 	}, nil
 }
 
@@ -59,28 +60,28 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplyChainPac
 // consumers to their own conversion. The WIRED sbom.component consumer that
 // IS typed this wave is sbom_attestation_attachment_index.go's
 // buildSBOMAttachmentIndex.
-func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplyChainSBOMComponent {
+func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplychainmodel.SBOMComponent {
 	purl := payloadStr(envelope.Payload, "purl")
-	return supplyChainSBOMComponent{
-		factID:     envelope.FactID,
-		documentID: payloadStr(envelope.Payload, "document_id"),
-		purl:       purl,
-		cpe:        payloadStr(envelope.Payload, "cpe"),
+	return supplychainmodel.SBOMComponent{
+		FactID:     envelope.FactID,
+		DocumentID: payloadStr(envelope.Payload, "document_id"),
+		PURL:       purl,
+		CPE:        payloadStr(envelope.Payload, "cpe"),
 		// Prefer the canonical package_id the collector now emits so the
 		// component joins vulnerability facts on the same identity every
 		// other package fact uses; fall back to the version-stripped purl for
 		// components ingested before the collector carried package_id.
-		packageID: payloadcore.FirstNonBlank(payloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
-		version:   payloadcore.FirstNonBlank(payloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
+		PackageID: payloadcore.FirstNonBlank(payloadStr(envelope.Payload, "package_id"), packageIDFromPURL(purl)),
+		Version:   payloadcore.FirstNonBlank(payloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
 	}
 }
 
-func supplyChainAttachmentFromEnvelope(envelope facts.Envelope) supplyChainAttachment {
-	return supplyChainAttachment{
-		factID:        envelope.FactID,
-		documentID:    payloadStr(envelope.Payload, "document_id"),
-		subjectDigest: payloadStr(envelope.Payload, "subject_digest"),
-		status:        payloadStr(envelope.Payload, "attachment_status"),
+func supplyChainAttachmentFromEnvelope(envelope facts.Envelope) supplychainmodel.Attachment {
+	return supplychainmodel.Attachment{
+		FactID:        envelope.FactID,
+		DocumentID:    payloadStr(envelope.Payload, "document_id"),
+		SubjectDigest: payloadStr(envelope.Payload, "subject_digest"),
+		Status:        payloadStr(envelope.Payload, "attachment_status"),
 	}
 }
 
@@ -88,18 +89,18 @@ func supplyChainAttachmentFromEnvelope(envelope facts.Envelope) supplyChainAttac
 // and singleSupplyChainRepositoryID live in supply_chain_impact_anchor_tier.go
 // (split out to keep this file under the repo's 500-line cap).
 
-func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplyChainWorkloadContext {
+func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplychainmodel.WorkloadContext {
 	repositoryID := supplyChainWorkloadRepositoryID(envelope)
 	workloadIDs := supplyChainWorkloadIDsFromPayload(envelope.Payload)
 	if repositoryID == "" || len(workloadIDs) == 0 {
 		return nil
 	}
-	out := make([]supplyChainWorkloadContext, 0, len(workloadIDs))
+	out := make([]supplychainmodel.WorkloadContext, 0, len(workloadIDs))
 	for _, workloadID := range workloadIDs {
-		out = append(out, supplyChainWorkloadContext{
-			factID:       envelope.FactID,
-			repositoryID: repositoryID,
-			workloadID:   workloadID,
+		out = append(out, supplychainmodel.WorkloadContext{
+			FactID:       envelope.FactID,
+			RepositoryID: repositoryID,
+			WorkloadID:   workloadID,
 		})
 	}
 	return out
@@ -138,17 +139,17 @@ func supplyChainWorkloadIDsFromPayload(payload map[string]any) []string {
 	return payloadcore.SupplyChainWorkloadIDsFromPayload(payload)
 }
 
-func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplyChainServiceContext {
-	return supplyChainServiceContext{
-		factID:         envelope.FactID,
-		repositoryID:   supplyChainServiceRepositoryID(envelope),
-		serviceID:      payloadStr(envelope.Payload, "service_id"),
-		workloadID:     payloadStr(envelope.Payload, "workload_id"),
-		entityRef:      payloadStr(envelope.Payload, "entity_ref"),
-		ownerRef:       payloadStr(envelope.Payload, "owner_ref"),
-		outcome:        payloadStr(envelope.Payload, "outcome"),
-		driftStatus:    payloadStr(envelope.Payload, "drift_status"),
-		provenanceOnly: payloadBool(envelope.Payload, "provenance_only"),
+func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplychainmodel.ServiceContext {
+	return supplychainmodel.ServiceContext{
+		FactID:         envelope.FactID,
+		RepositoryID:   supplyChainServiceRepositoryID(envelope),
+		ServiceID:      payloadStr(envelope.Payload, "service_id"),
+		WorkloadID:     payloadStr(envelope.Payload, "workload_id"),
+		EntityRef:      payloadStr(envelope.Payload, "entity_ref"),
+		OwnerRef:       payloadStr(envelope.Payload, "owner_ref"),
+		Outcome:        payloadStr(envelope.Payload, "outcome"),
+		DriftStatus:    payloadStr(envelope.Payload, "drift_status"),
+		ProvenanceOnly: payloadBool(envelope.Payload, "provenance_only"),
 	}
 }
 
@@ -171,17 +172,17 @@ func supplyChainDependencyScopeFromCorrelation(dependencyScope, manifestSection 
 
 func firstConsumption(
 	packageID string,
-	consumption map[string][]supplyChainPackageConsumption,
-) supplyChainPackageConsumption {
-	var fallback supplyChainPackageConsumption
+	consumption map[string][]supplychainmodel.PackageConsumption,
+) supplychainmodel.PackageConsumption {
+	var fallback supplychainmodel.PackageConsumption
 	for _, row := range consumption[packageID] {
-		if row.repositoryID == "" {
+		if row.RepositoryID == "" {
 			continue
 		}
-		if strings.TrimSpace(row.installedVersion) != "" || row.lockfile {
+		if strings.TrimSpace(row.InstalledVersion) != "" || row.Lockfile {
 			return row
 		}
-		if fallback.repositoryID == "" {
+		if fallback.RepositoryID == "" {
 			fallback = row
 		}
 	}
@@ -189,19 +190,19 @@ func firstConsumption(
 }
 
 func firstSBOMImpactPath(
-	pkg supplyChainAffectedPackage,
+	pkg supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
-) (supplyChainSBOMComponent, supplyChainAttachment, supplyChainImageIdentity, bool, []string) {
+) (supplychainmodel.SBOMComponent, supplychainmodel.Attachment, supplyChainImageIdentity, bool, []string) {
 	var missing []string
 	for _, component := range index.components {
 		if !componentMatchesAffectedPackage(component, pkg) {
 			continue
 		}
-		attachment := index.attachments[component.documentID]
-		if attachment.subjectDigest == "" || attachment.status == "subject_mismatch" || attachment.status == "unknown_subject" {
+		attachment := index.attachments[component.DocumentID]
+		if attachment.SubjectDigest == "" || attachment.Status == "subject_mismatch" || attachment.Status == "unknown_subject" {
 			continue
 		}
-		image := index.images[attachment.subjectDigest]
+		image := index.images[attachment.SubjectDigest]
 		if image.digest == "" {
 			missing = append(missing, "image identity evidence missing")
 			continue
@@ -212,16 +213,16 @@ func firstSBOMImpactPath(
 		}
 		return component, attachment, image, true, nil
 	}
-	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false, uniqueSortedStrings(missing)
+	return supplychainmodel.SBOMComponent{}, supplychainmodel.Attachment{}, supplyChainImageIdentity{}, false, uniqueSortedStrings(missing)
 }
 
 func firstOSPackageImpactPath(
-	pkg supplyChainAffectedPackage,
+	pkg supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
-) (supplyChainOSPackage, bool) {
+) (supplychainmodel.OSPackage, bool) {
 	vendorSource := classifyAffectedPackageAdvisorySource(pkg)
 	if vendorSource == "" {
-		return supplyChainOSPackage{}, false
+		return supplychainmodel.OSPackage{}, false
 	}
 	for _, key := range affectedOSPackageLookupKeys(pkg) {
 		for _, installed := range index.osPackages[key] {
@@ -231,31 +232,31 @@ func firstOSPackageImpactPath(
 			return installed, true
 		}
 	}
-	return supplyChainOSPackage{}, false
+	return supplychainmodel.OSPackage{}, false
 }
 
 func osPackageMatchesAffectedPackage(
-	installed supplyChainOSPackage,
-	pkg supplyChainAffectedPackage,
+	installed supplychainmodel.OSPackage,
+	pkg supplychainmodel.AffectedPackage,
 	vendorSource string,
 ) bool {
-	if !supportedOSPackageImpactManager(installed.packageManager) ||
-		installed.distroVersion == "" || installed.arch == "" {
+	if !supportedOSPackageImpactManager(installed.PackageManager) ||
+		installed.DistroVersion == "" || installed.Arch == "" {
 		return false
 	}
-	if installed.repositoryClass != "vendor" || installed.vendorAdvisorySource == "" {
+	if installed.RepositoryClass != "vendor" || installed.VendorAdvisorySource == "" {
 		return false
 	}
-	if installed.vendorAdvisorySource != vendorSource {
+	if installed.VendorAdvisorySource != vendorSource {
 		return false
 	}
-	if !osPackageEcosystemMatchesVendor(pkg.ecosystem, installed.packageManager, installed.vendorAdvisorySource, installed.distro) {
+	if !osPackageEcosystemMatchesVendor(pkg.Ecosystem, installed.PackageManager, installed.VendorAdvisorySource, installed.Distro) {
 		return false
 	}
-	if pkg.packageID != "" && pkg.packageID == installed.packageID {
+	if pkg.PackageID != "" && pkg.PackageID == installed.PackageID {
 		return true
 	}
-	return pkg.purl != "" && packageIDFromPURL(pkg.purl) == installed.packageID
+	return pkg.PURL != "" && packageIDFromPURL(pkg.PURL) == installed.PackageID
 }
 
 func supportedOSPackageImpactManager(manager string) bool {
@@ -304,19 +305,19 @@ func osPackageEcosystemMatchesVendor(
 }
 
 func firstSBOMProductImpactPath(
-	product supplyChainAffectedProduct,
+	product supplychainmodel.AffectedProduct,
 	index supplyChainImpactIndex,
-) (supplyChainSBOMComponent, supplyChainAttachment, supplyChainImageIdentity, bool, []string) {
+) (supplychainmodel.SBOMComponent, supplychainmodel.Attachment, supplyChainImageIdentity, bool, []string) {
 	var missing []string
 	for _, component := range index.components {
 		if !componentMatchesAffectedProduct(component, product) {
 			continue
 		}
-		attachment := index.attachments[component.documentID]
-		if attachment.subjectDigest == "" || attachment.status == "subject_mismatch" || attachment.status == "unknown_subject" {
+		attachment := index.attachments[component.DocumentID]
+		if attachment.SubjectDigest == "" || attachment.Status == "subject_mismatch" || attachment.Status == "unknown_subject" {
 			continue
 		}
-		image := index.images[attachment.subjectDigest]
+		image := index.images[attachment.SubjectDigest]
 		if image.digest == "" {
 			missing = append(missing, "image identity evidence missing")
 			continue
@@ -327,7 +328,7 @@ func firstSBOMProductImpactPath(
 		}
 		return component, attachment, image, true, nil
 	}
-	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false, uniqueSortedStrings(missing)
+	return supplychainmodel.SBOMComponent{}, supplychainmodel.Attachment{}, supplyChainImageIdentity{}, false, uniqueSortedStrings(missing)
 }
 
 func unusableSupplyChainImageIdentityReason(image supplyChainImageIdentity) string {

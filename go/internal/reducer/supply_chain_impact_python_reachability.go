@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 const (
@@ -152,7 +153,7 @@ func supplyChainImpactHasPyPIEvidence(envelopes []facts.Envelope) bool {
 
 func applyPythonSupplyChainReachability(
 	finding *SupplyChainImpactFinding,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) []string {
 	if normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "pypi" {
@@ -247,11 +248,11 @@ func (e pythonReachabilityRepositoryEvidence) ambiguousMissingEvidence(reason st
 	return uniqueSortedStrings(missing)
 }
 
-func pythonPackageAPIIdentities(pkg supplyChainAffectedPackage) []string {
+func pythonPackageAPIIdentities(pkg supplychainmodel.AffectedPackage) []string {
 	candidates := []string{
-		strings.TrimSpace(pkg.name),
-		pythonPackageNameFromPURL(pkg.purl),
-		pythonPackageNameFromPackageID(pkg.packageID),
+		strings.TrimSpace(pkg.Name),
+		pythonPackageNameFromPURL(pkg.PURL),
+		pythonPackageNameFromPackageID(pkg.PackageID),
 	}
 	identities := make([]string, 0, len(candidates))
 	for _, candidate := range candidates {

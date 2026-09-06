@@ -6,6 +6,8 @@ package reducer
 import (
 	"strconv"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 type nugetVersionParts struct {
@@ -138,31 +140,31 @@ func nugetPrereleaseNumber(value string) (int, bool) {
 }
 
 func nugetSemverRangeContainsDecision(
-	affectedRange supplyChainAffectedRange,
+	affectedRange supplychainmodel.AffectedRange,
 	observed string,
 ) (bool, bool) {
-	if ok, valid := nugetVersionBeforeLimitsDecision(observed, affectedRange.events); !valid {
+	if ok, valid := nugetVersionBeforeLimitsDecision(observed, affectedRange.Events); !valid {
 		return false, false
 	} else if !ok {
 		return false, true
 	}
 	vulnerable := false
-	for _, event := range affectedRange.events {
+	for _, event := range affectedRange.Events {
 		switch {
-		case event.introduced != "":
-			if ok, valid := nugetVersionAtLeast(observed, event.introduced); !valid {
+		case event.Introduced != "":
+			if ok, valid := nugetVersionAtLeast(observed, event.Introduced); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = true
 			}
-		case event.fixed != "":
-			if ok, valid := nugetVersionAtLeast(observed, event.fixed); !valid {
+		case event.Fixed != "":
+			if ok, valid := nugetVersionAtLeast(observed, event.Fixed); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
 			}
-		case event.lastAffected != "":
-			if ok, valid := nugetVersionGreaterThan(observed, event.lastAffected); !valid {
+		case event.LastAffected != "":
+			if ok, valid := nugetVersionGreaterThan(observed, event.LastAffected); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
@@ -270,10 +272,10 @@ func nugetRangeBranchContains(raw string, observed string) (bool, bool) {
 	return true, true
 }
 
-func nugetVersionBeforeLimitsDecision(observed string, events []supplyChainAffectedRangeEvent) (bool, bool) {
+func nugetVersionBeforeLimitsDecision(observed string, events []supplychainmodel.AffectedRangeEvent) (bool, bool) {
 	hasLimit := false
 	for _, event := range events {
-		limit := event.limit
+		limit := event.Limit
 		if limit == "" {
 			continue
 		}

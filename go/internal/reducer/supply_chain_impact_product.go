@@ -9,20 +9,21 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
 func classifySupplyChainImpactProduct(
-	cve supplyChainImpactCVE,
-	product supplyChainAffectedProduct,
+	cve supplychainmodel.ImpactCVE,
+	product supplychainmodel.AffectedProduct,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	finding := baseSupplyChainImpactProductFinding(cve, product, index)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMProductImpactPath(product, index)
 	if hasComponentPath {
-		finding.ObservedVersion = payloadcore.FirstNonBlank(component.version, versionFromCPE23Criteria(product.criteria))
-		finding.SubjectDigest = attachment.subjectDigest
+		finding.ObservedVersion = payloadcore.FirstNonBlank(component.Version, versionFromCPE23Criteria(product.Criteria))
+		finding.SubjectDigest = attachment.SubjectDigest
 		finding.ImageRef = image.imageRef
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.factID, attachment.factID, image.factID)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.FactID, attachment.FactID, image.factID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.SBOMComponentFactKind, sbomAttestationAttachmentFactKind, containerImageIdentityFactKind)
 		if image.repositoryID != "" {
 			finding.RepositoryID = image.repositoryID
@@ -34,7 +35,7 @@ func classifySupplyChainImpactProduct(
 		finalizeSupplyChainImpactFinding(&finding, index, imagePathMissing)
 		return finding
 	}
-	finding.ObservedVersion = versionFromCPE23Criteria(product.criteria)
+	finding.ObservedVersion = versionFromCPE23Criteria(product.Criteria)
 	finding.Status = SupplyChainImpactPossiblyAffected
 	finding.Confidence = "weak_product"
 	finding.RuntimeReachability = "unknown"
@@ -44,49 +45,49 @@ func classifySupplyChainImpactProduct(
 }
 
 func baseSupplyChainImpactProductFinding(
-	cve supplyChainImpactCVE,
-	product supplyChainAffectedProduct,
+	cve supplychainmodel.ImpactCVE,
+	product supplychainmodel.AffectedProduct,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	finding := SupplyChainImpactFinding{
-		CVEID:               cve.cveID,
-		AdvisoryID:          payloadcore.FirstNonBlank(cve.advisoryID, cve.cveID),
-		ProductCriteria:     product.criteria,
-		MatchCriteriaID:     product.matchCriteriaID,
-		CVSSScore:           cve.cvssScore,
-		AdvisoryPublishedAt: cve.publishedAt,
-		AdvisoryUpdatedAt:   cve.sourceUpdatedAt,
+		CVEID:               cve.CVEID,
+		AdvisoryID:          payloadcore.FirstNonBlank(cve.AdvisoryID, cve.CVEID),
+		ProductCriteria:     product.Criteria,
+		MatchCriteriaID:     product.MatchCriteriaID,
+		CVSSScore:           cve.CVSSScore,
+		AdvisoryPublishedAt: cve.PublishedAt,
+		AdvisoryUpdatedAt:   cve.SourceUpdatedAt,
 		EvidencePath:        []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedProductFactKind},
-		EvidenceFactIDs:     []string{cve.factID, product.factID},
+		EvidenceFactIDs:     []string{cve.FactID, product.FactID},
 	}
-	applyRiskSignals(&finding, index.riskSignals[cve.cveID])
+	applyRiskSignals(&finding, index.riskSignals[cve.CVEID])
 	return finding
 }
 
 func baseSupplyChainImpactFinding(
 	cves supplyChainCVEGroup,
-	pkgs []supplyChainAffectedPackage,
+	pkgs []supplychainmodel.AffectedPackage,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	pkg := representativeAffectedPackage(pkgs)
 	observations := buildAdvisoryProvenanceObservations(cves.observations, pkgs)
-	provenance := selectAdvisoryProvenance(pkg.ecosystem, observations)
+	provenance := selectAdvisoryProvenance(pkg.Ecosystem, observations)
 	advisoryID := provenanceAdvisoryID(provenance, cves)
 
 	finding := SupplyChainImpactFinding{
 		CVEID:                cves.cveID,
 		AdvisoryID:           advisoryID,
-		PackageID:            pkg.packageID,
-		Ecosystem:            pkg.ecosystem,
-		PackageName:          pkg.name,
-		PURL:                 pkg.purl,
+		PackageID:            pkg.PackageID,
+		Ecosystem:            pkg.Ecosystem,
+		PackageName:          pkg.Name,
+		PURL:                 pkg.PURL,
 		FixedVersion:         provenance.FixedVersion,
 		CVSSScore:            provenance.SeverityScore,
 		SeveritySource:       provenance.SeveritySource,
 		SeverityVector:       provenance.SeverityVector,
 		SeverityLabel:        provenance.SeverityLabel,
-		AdvisoryPublishedAt:  cves.representative().publishedAt,
-		AdvisoryUpdatedAt:    cves.representative().sourceUpdatedAt,
+		AdvisoryPublishedAt:  cves.representative().PublishedAt,
+		AdvisoryUpdatedAt:    cves.representative().SourceUpdatedAt,
 		AlternateSeverities:  provenance.AlternateSeverities,
 		FixedVersionSource:   provenance.FixedVersionSource,
 		FixedVersionBranches: provenance.FixedVersionBranches,
@@ -117,22 +118,22 @@ func provenanceAdvisoryID(provenance advisoryProvenanceSelection, cves supplyCha
 		return provenance.AdvisorySources[0].AdvisoryID
 	}
 	rep := cves.representative()
-	return payloadcore.FirstNonBlank(rep.advisoryID, rep.cveID)
+	return payloadcore.FirstNonBlank(rep.AdvisoryID, rep.CVEID)
 }
 
-func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplyChainRiskSignals) {
-	finding.EPSSProbability = signals.epssProbability
-	finding.EPSSPercentile = signals.epssPercentile
-	finding.KnownExploited = signals.knownExploited
-	finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, signals.epssFactID, signals.kevFactID)
+func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplychainmodel.RiskSignals) {
+	finding.EPSSProbability = signals.EPSSProbability
+	finding.EPSSPercentile = signals.EPSSPercentile
+	finding.KnownExploited = signals.KnownExploited
+	finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, signals.EPSSFactID, signals.KEVFactID)
 	var reasons []string
 	if finding.CVSSScore > 0 {
 		reasons = append(reasons, fmt.Sprintf("cvss=%.1f", finding.CVSSScore))
 	}
-	if signals.epssProbability != "" {
-		reasons = append(reasons, "epss="+signals.epssProbability)
+	if signals.EPSSProbability != "" {
+		reasons = append(reasons, "epss="+signals.EPSSProbability)
 	}
-	if signals.knownExploited {
+	if signals.KnownExploited {
 		reasons = append(reasons, "kev=true")
 	}
 	if len(reasons) > 0 {
