@@ -323,3 +323,23 @@ PostgreSQL references used for the design:
 [CTE evaluation](https://www.postgresql.org/docs/18/queries-with.html),
 [ordered row locking](https://www.postgresql.org/docs/18/sql-select.html), and
 [Read Committed concurrent-row rechecks](https://www.postgresql.org/docs/18/transaction-iso.html).
+
+## Active-generation fanout plan, pending runtime revalidation
+
+The opt-in lookup diagnostic at `af4b30134fc8420991702b0b71aa747b04270862`
+ran 22 rollback plans against 900 scopes and 25 retained generations. Listing
+and live execution exited 0. Full work-row digests (with clock fields normalized)
+and event counters matched in every comparison. Both lateral ACK variants
+repeated broad-index scans per requested ID and were rejected; neither changed
+production ACK SQL.
+
+The independently measured fanout variant materializes the 900 active
+scope/generation pairs once. Consumer eligibility still joins the exact claimed
+lease and locks work rows in C order before draining the completion horizon.
+The plan retains the complete consumer-lock and event-capture barriers.
+Identity fanout server execution was 148.735 versus 70.405 ms and CI/CD fanout
+68.511 versus 42.305 ms in single rollback samples, with 1,800 and 900 matching
+consumer rows respectively. These samples establish neither p95 nor scale-gate
+success. Production now uses that measured active-generation relation; renewed
+contention, EPQ, capture-horizon and full scale proof remains pending. The prior
+ACK p95 failure is still unresolved and no gate threshold changed.
