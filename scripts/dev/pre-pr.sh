@@ -151,7 +151,9 @@ step_exactness() {
 	if [[ "${ESHU_PRE_PR_INCLUDE_ADVISORY:-0}" != "1" ]]; then
 		exactness_args+=(--blocking-only)
 	fi
-	exactness_args+=("${pre_pr_whole_module_args[@]}")
+	if (( ${#pre_pr_whole_module_args[@]} > 0 )); then
+		exactness_args+=("${pre_pr_whole_module_args[@]}")
+	fi
 	bash "${repo_root}/scripts/dev/run-selected-gates.sh" "${exactness_args[@]}" || return $?
 	[[ -s "${pre_pr_gate_report}" ]] || {
 		printf 'pre-pr: selected-gate runner returned success without its timing report\n' >&2

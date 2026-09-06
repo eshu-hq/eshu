@@ -389,4 +389,74 @@ assert_fast_runner_parser_tree() {
 assert_fast_runner_parser_tree unit
 assert_fast_runner_parser_tree fast
 
+# Execute the unchanged driver, with only external gate work replaced, so
+# Bash 3.2 nounset failures and driver reachability cannot hide behind text pins.
+assert_driver_lane() {
+	local shell_path="$1" lane="$2" gate_status="$3" fixture log status=0 stamp head
+	fixture="${temp_root}/driver-${lane}-${gate_status}-${shell_path##*/}"
+	rm -rf "${fixture}"
+	mkdir -p "${fixture}/scripts/dev" "${fixture}/scripts/lib" "${fixture}/go" "${fixture}/bin"
+	cp "${script}" "${fixture}/scripts/dev/pre-pr.sh"
+	cp "${repo_root}"/scripts/lib/pre-pr-*.sh "${fixture}/scripts/lib/"
+	cp "${repo_root}"/scripts/lib/test-pre-pr-*.sh "${fixture}/scripts/lib/"
+	printf '#!/bin/sh\nexit 0\n' > "${fixture}/bin/go"
+	ln -s "${shell_path}" "${fixture}/bin/bash"
+	cat > "${fixture}/scripts/dev/run-selected-gates.sh" <<'GATE'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >> "${DRIVER_ARGS_LOG}"
+while (( $# )); do
+	if [[ "$1" == --report-file ]]; then
+		printf '{}\n' > "$2"
+		shift
+	fi
+	shift
+done
+exit "${DRIVER_GATE_STATUS}"
+GATE
+	chmod +x "${fixture}/bin/go"
+	printf 'baseline\n' | tee "${fixture}/README.md" > "${fixture}/unknown.cfg"
+	git -C "${fixture}" init -q
+	git -C "${fixture}" -c core.hooksPath=/dev/null add .
+	git -C "${fixture}" -c core.hooksPath=/dev/null -c user.name=Test -c user.email=test@example.invalid commit -qm baseline
+	head="$(git -C "${fixture}" rev-parse HEAD)"
+	git -C "${fixture}" update-ref refs/remotes/origin/main "${head}"
+	if [[ "${lane}" == fast ]]; then
+		printf 'changed\n' >> "${fixture}/README.md"
+	else
+		printf 'changed\n' >> "${fixture}/unknown.cfg"
+	fi
+	log="${fixture}.log"
+	: > "${fixture}.args"
+	DRIVER_ARGS_LOG="${fixture}.args" DRIVER_GATE_STATUS="${gate_status}" \
+		PATH="${fixture}/bin:${PATH}" "${shell_path}" "${fixture}/scripts/dev/pre-pr.sh" > "${log}" 2>&1 || status=$?
+	stamp="${fixture}/.git/eshu-prepr-stamp/${head}"
+	if ! rg -q -- '--self-tests' "${fixture}.args"; then
+		cat "${log}" >&2
+		fail "${shell_path} ${lane}: driver never reached selected exactness gates"
+	fi
+	if [[ "${lane}" == fast ]]; then
+		if rg -q -- '--pre-pr-whole-module' "${fixture}.args"; then
+			fail "${shell_path}: fast lane requested whole-module work"
+		fi
+	else
+		rg -q -- '--pre-pr-whole-module' "${fixture}.args" || fail "${shell_path}: full lane omitted core work"
+	fi
+	if [[ "${gate_status}" == 0 ]]; then
+		[[ "${status}" == 0 && -s "${stamp}" && -s "${stamp}.gates.json" ]] || {
+			cat "${log}" >&2
+			fail "${shell_path} ${lane}: successful driver did not retain its stamp/report"
+		}
+	else
+		[[ "${status}" != 0 && ! -e "${stamp}" ]] || fail "${shell_path}: failed gates wrote a success stamp"
+	fi
+	printf 'PASS: actual pre-pr driver %s lane, gate exit %s, shell %s\n' "${lane}" "${gate_status}" "${shell_path}"
+}
+
+for driver_shell in /bin/bash "${BASH}"; do
+	assert_driver_lane "${driver_shell}" fast 0
+	assert_driver_lane "${driver_shell}" fast 23
+	assert_driver_lane "${driver_shell}" full 0
+done
+
 printf 'PASS: pre-pr scheduling and fast local parser selection are pinned\n'
