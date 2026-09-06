@@ -84,7 +84,7 @@ against graph nodes — a re-key confined to this package would silently stop th
 resolver matching anything. Converting them is the re-key's work, not step
 zero's, but the claim is scoped here so it is not read as broader than it is.
 
-### Re-verified on current main (`23b696127`, branch `codex/5385-cleanup`)
+### Re-verified on current main (`e55bcef7c`, branch `codex/5385-cleanup`)
 
 The six commits above were rebased onto current main with conflicts
 resolved to main where main moved underneath (relationship-story and
