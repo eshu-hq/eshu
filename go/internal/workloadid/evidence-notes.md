@@ -119,9 +119,14 @@ Every claim re-checked against the current tree:
   temporarily restoring the old inline `fmt.Sprintf` at `projection.go:328`:
   it fails with `InstanceID = "workload-instance:checkout:"`, then passes
   again after the restore.
-- Current counts: 123 `"workload:` literals across 30 reducer test files
-  and 90 `"workload-instance:` literals across 11 reducer test files, all
-  green unchanged — the byte-identity proof on this base.
+- Current counts (`rg -o '"workload:[^"]*"'` / `'"workload-instance:[^"]*"'`
+  `--glob '*_test.go'`, balanced-quote literal methodology): 123 `"workload:`
+  literals across 30 reducer test files and 90 `"workload-instance:`
+  literals across 11 reducer test files, all green unchanged — the
+  byte-identity proof on this base. (An opening-quote-only count reads
+  +1/+1 from the rows-track-constructors comment quoting the
+  `Sprintf("workload:` pattern; the balanced-quote methodology used here
+  is unaffected.)
 - `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2546 pass
   (incl. subtests), 0 fail, 5 skip — all pre-existing and unrelated to this
   change: a live-backend-gated Bolt retract test, a provenance-replay
