@@ -28,8 +28,18 @@ and `TestRecordScopedRouteAuthorizationDeniedBlankReasonFallsBackToUnspecified`
 unchanged. Operators filtering by actor class see the new value from this
 change on.
 
-No-Regression Evidence: one enum member and one branch on a field the helper
-already holds; no query, statement, lease or worker path changes. The
-`actor_class` column is `TEXT` with no constraint (migration 006b), so no
-migration runs. `go test ./internal/query ./internal/governanceaudit
-./internal/governanceauditasync -count=1` passes at the branch head.
+No-Regression Evidence: one enum member and a three-way switch on a field the
+helper already holds, listing every `AuthMode` with no default so the
+`exhaustive` linter fails a fourth mode instead of misfiling it; no query,
+statement, lease or worker path changes. The `actor_class` column is `TEXT`
+with no constraint (migration 006b), so no migration runs. `go test
+./internal/query ./internal/governanceaudit ./internal/governanceauditasync
+-count=1` passes at the branch head.
+
+Rolling-upgrade caveat: `scanGovernanceAuditEvent` runs each stored row through
+`governanceaudit.NormalizeEvent`, whose actor-class list is closed, so while the
+release rolls out an API pod still on the old build answers
+`GET /api/v0/auth/admin/audit/events` with 500 for any page holding a
+`browser_session` row. The row is persisted correctly, the summary counts do
+not scan rows and are unaffected, and the error ends when every pod is on the
+new build. #6574 tracks the durable reader change; it is out of this PR.
