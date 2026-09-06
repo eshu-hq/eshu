@@ -58,5 +58,5 @@ reducer boundary.
 It is unrelated to the reducer's `reducer_workload_identity` fact and its
 `DomainWorkloadIdentity` intent. That is a **different** key, built as
 `"workload:" + filepath.Base(repoPath)` in
-`go/internal/collector/git_followup_facts.go`, and reconciling the two is an open
+`go/internal/collector/gitrepo/git_followup_facts.go`, and reconciling the two is an open
 question on #5385 rather than something this package settles.

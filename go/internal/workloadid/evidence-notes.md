@@ -12,7 +12,7 @@ the repository-scoped key the design proposes.
 
 `scripts/verify-performance-evidence.sh` flags `workloadid.go` as hot-path. The
 directory is **not** in `is_hot_path_by_location` — the gate fires on *content*,
-and the only match in the whole file is the word `MERGE` on line 43, **inside a
+and the only match in the whole file is the word `MERGE` on line 46, **inside a
 doc comment** explaining why a blank segment must not yield a bare prefix. There
 is no Cypher, worker, lease, batch, or concurrency construct in this package; it
 imports `fmt` and `strings` and nothing else. The three touched
@@ -84,9 +84,14 @@ against graph nodes — a re-key confined to this package would silently stop th
 resolver matching anything. Converting them is the re-key's work, not step
 zero's, but the claim is scoped here so it is not read as broader than it is.
 
-### Re-verified on current main (`043143bde`, branch `codex/5385-cleanup`)
+### Re-verified on current main (`23b696127`, branch `codex/5385-cleanup`)
 
-The four commits above were cherry-picked onto current main with no conflicts.
+The six commits above were rebased onto current main with conflicts
+resolved to main where main moved underneath (relationship-story and
+call-chain descriptions plus `code.md` now document #6553's
+grant-filtered rows; the ledger-driven contract caught one more silent
+tool, `search_registry_bundles`, and one half-documented multiplexed
+tool, `analyze_code_relationships`, live on the rebase — both fixed).
 Every claim re-checked against the current tree:
 
 - All four call sites route through the constructors
@@ -114,12 +119,14 @@ Every claim re-checked against the current tree:
   temporarily restoring the old inline `fmt.Sprintf` at `projection.go:328`:
   it fails with `InstanceID = "workload-instance:checkout:"`, then passes
   again after the restore.
-- Current counts: 111 `"workload:` and 76 `"workload-instance:` literals
-  across 31 reducer test files, all green unchanged — the byte-identity proof
-  on this base.
-- `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2007 pass,
-  0 fail, 2 skip (both pre-existing: a live-backend-gated Bolt retract test
-  and a provenance-replay tombstone test).
+- Current counts: 123 `"workload:` literals across 30 reducer test files
+  and 90 `"workload-instance:` literals across 11 reducer test files, all
+  green unchanged — the byte-identity proof on this base.
+- `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2546 pass
+  (incl. subtests), 0 fail, 5 skip — all pre-existing and unrelated to this
+  change: a live-backend-gated Bolt retract test, a provenance-replay
+  tombstone test, and three data-driven conditional skips in the main-side
+  family-registry coherence test.
   `go test ./internal/query/ ./internal/mcp/ -count=1`: green.
   `go vet`, `gofmt`, `verify-package-docs.sh`,
   `verify-performance-evidence.sh`, and `test-verify-golden-corpus-gate.sh`:

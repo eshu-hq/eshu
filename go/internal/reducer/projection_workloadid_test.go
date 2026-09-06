@@ -10,11 +10,16 @@ import (
 )
 
 // Every identifier BuildProjectionRows emits must equal the workloadid
-// constructor recomputed from the row's own fields. This pins the step-zero
-// wiring (#5385): rows must come from the single constructors, so the
-// repository-scoped re-key lands inside those constructors rather than at
-// each call site. A call site that drifts back to an inline format string
-// fails here.
+// constructor recomputed from the row's own fields. This pins that rows
+// track the single constructors (#5385): a future format divergence
+// between a row and its constructor fails here, so the repository-scoped
+// re-key lands inside those constructors rather than at each call site.
+// It does not pin today's routing on its own — a faithful restore of the
+// old inline format string yields byte-identical values on row-shaped
+// inputs — so current routing proof is TestProjectionBlankEnvironment-
+// YieldsEmptyInstanceID plus `rg -n 'Sprintf\(\"workload:' internal/reducer/`
+// whose only remaining hits are `workload:a->b` partition keys, not
+// identifier construction sites.
 func TestProjectionWorkloadIDsMatchConstructors(t *testing.T) {
 	t.Parallel()
 	candidates := []WorkloadCandidate{
