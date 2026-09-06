@@ -326,6 +326,33 @@ func routeToCallerEntityFromChain(chain any) map[string]any {
 // lastChainNodeProps returns the property map of the last node in a nodes(path)
 // value, decoding both the neo4j.Node driver shape and a map[string]any
 // fallback.
+// graphPathNodeProps returns one projected path node's property map.
+//
+// It lives in this file because internal/query's depguard rule
+// `query-no-graph-driver` keeps the Bolt driver's types in the handful of
+// driver-owning files, and its own message names the remedy: reach the graph
+// through a port or an existing driver-owning file. Callers that only need a
+// property off a node in a `nodes(path)` projection -- the NornicDB inheritance
+// walk's interior grant filter, for one -- take this instead of importing the
+// driver themselves.
+//
+// The second result reports whether the value was a node shape at all, so a
+// caller can fail closed on something it does not understand rather than treat
+// it as a node with no properties.
+func graphPathNodeProps(node any) (map[string]any, bool) {
+	switch value := node.(type) {
+	case neo4jdriver.Node:
+		return value.Props, true
+	case map[string]any:
+		if props, ok := value["properties"].(map[string]any); ok {
+			return props, true
+		}
+		return value, true
+	default:
+		return nil, false
+	}
+}
+
 func lastChainNodeProps(chain any) map[string]any {
 	items, ok := chain.([]any)
 	if !ok || len(items) == 0 {

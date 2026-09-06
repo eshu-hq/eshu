@@ -161,6 +161,10 @@ func (h *CodeHandler) callChainCandidateOneHopRows(
 		params["traversal_repo_ids"] = repoIDs
 		repoPredicate = " AND coalesce(target.repo_id, '') IN $traversal_repo_ids"
 	}
+	if access := codeGrantAccessFilter(ctx); access.Scoped() {
+		params = access.GraphParams(params)
+		repoPredicate += " AND " + access.GraphConditionOnProperty("target", "repo_id")
+	}
 	return h.Neo4j.Run(ctx, `
 		MATCH (source)-[:CALLS]->(target)
 		WHERE `+graphEntityIDPredicate("source", "$source_id")+repoPredicate+`

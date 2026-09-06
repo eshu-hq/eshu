@@ -516,11 +516,11 @@ MATCH path = (handler:Function)-[:CALLS*1..5]->(callee) WHERE handler.id = $hid
 RETURN nodes(path) AS chain
 ```
 
-A path whose BOTH endpoints are pre-bound in their own `MATCH` clauses works
-without a label on the path pattern (e.g. `buildNornicDBCallChainCypher`'s
-`MATCH (start {uid:$s}) MATCH (end {uid:$e}) MATCH path=shortestPath((start)-[:CALLS*1..N]->(end))`),
-because the endpoints are already bound nodes. Only a fresh-variable far end
-needs the anchored end labelled.
+A path whose BOTH endpoints are pre-bound in their own `MATCH` clauses was
+recorded here as working without a label on the path pattern. That was measured
+on v1.1.11 and does NOT hold on the current pin, where the shape fails to parse:
+see [NornicDB Path-Predicate Pitfalls](nornicdb-path-predicate-pitfalls.md) for
+the error, the shape that does work, and why nothing in production hits it.
 
 ### Eshu implications
 

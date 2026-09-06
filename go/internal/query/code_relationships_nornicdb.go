@@ -75,7 +75,7 @@ func (h *CodeHandler) nornicDBRelationshipMetadataRow(
 	if err != nil {
 		return nil, err
 	}
-	predicate, params := nornicDBRelationshipMetadataPredicate(name, repoID)
+	predicate, params := nornicDBRelationshipMetadataPredicate(name, repoID, codeGrantAccessFilter(ctx))
 	entityID = strings.TrimSpace(entityID)
 	if predicate == "" && entityID == "" {
 		return nil, nil
@@ -115,52 +115,6 @@ func nornicDBGraphLabelForContentEntityType(entityType string) string {
 		return ""
 	}
 	return label
-}
-
-func nornicDBRelationshipMetadataPredicate(
-	name string,
-	repoID string,
-) (string, map[string]any) {
-	params := make(map[string]any)
-	var predicates []string
-	if trimmed := strings.TrimSpace(name); trimmed != "" {
-		predicates = append(predicates, "e.name = $name")
-		params["name"] = trimmed
-	}
-	if trimmed := strings.TrimSpace(repoID); trimmed != "" {
-		predicates = append(predicates, "repo.id = $repo_id")
-		params["repo_id"] = trimmed
-	}
-	return strings.Join(predicates, " AND "), params
-}
-
-func nornicDBRelationshipMetadataCypher(predicate string, entityLabel string, entityIDProperty string) string {
-	entityPattern := "(e" + nornicDBLabelPattern(entityLabel) + ")"
-	if strings.TrimSpace(entityIDProperty) != "" {
-		entityPattern = nornicDBNodePatternWithProperty("e", entityLabel, entityIDProperty, "$entity_id")
-	}
-	var predicates []string
-	if trimmed := strings.TrimSpace(predicate); trimmed != "" {
-		predicates = append(predicates, trimmed)
-	}
-	whereClause := ""
-	if len(predicates) > 0 {
-		whereClause = `
-		WHERE ` + strings.Join(predicates, " AND ")
-	}
-	return `
-		MATCH ` + entityPattern + `<-[:CONTAINS]-(f:File)
-		MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
-		` + whereClause + `
-		RETURN coalesce(e.id, e.uid) as id, e.name as name, labels(e) as labels,
-		       f.relative_path as file_path,
-		       repo.id as repo_id, repo.name as repo_name,
-		       coalesce(e.language, f.language) as language,
-		       e.start_line as start_line,
-		       e.end_line as end_line,
-` + graphSemanticMetadataProjection() + `
-		LIMIT 2
-	`
 }
 
 // nornicDBOneHopRelationships returns a single symbol's direct relationships for

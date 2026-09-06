@@ -23,7 +23,7 @@ func (h *CodeHandler) nornicDBRelationshipStoryGraphRows(
 	if entity != nil {
 		entityLabel = nornicDBGraphLabelForContentEntityType(entity.EntityType)
 	}
-	access := repositoryAccessFilterFromContext(ctx)
+	access := codeGrantAccessFilter(ctx)
 	properties := []string{"uid", "id"}
 	if req.GraphAnchorPropertyResolved {
 		if req.GraphAnchorProperty == "" {
@@ -151,14 +151,14 @@ func nornicDBRelationshipStoryGraphCypher(
 	relPattern := ":" + relationshipType
 	entityPattern := nornicDBNodePatternWithProperty("anchor", entityLabel, property, "$entity_id")
 	if direction == "incoming" {
-		predicates := relationshipStoryRepoPredicates(req, access, "targetRepo")
+		predicates := relationshipStoryRepoPredicates(req, access, "source", "anchor", "anchor")
 		return `
 		MATCH ` + entityPattern + `<-[rel` + relPattern + `]-(source)
+		` + nornicDBRelationshipStoryWhere(predicates) + `
 		OPTIONAL MATCH (source)<-[:CONTAINS]-(sourceFile:File)
 		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
 		OPTIONAL MATCH (anchor)<-[:CONTAINS]-(targetFile:File)
 		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
-		` + nornicDBRelationshipStoryWhere(predicates) + `
 		RETURN 'incoming' as direction,
 		       '` + relationshipType + `' as type,
 		       'direct_code_edge' as edge_origin,
@@ -194,14 +194,14 @@ func nornicDBRelationshipStoryGraphCypher(
 		LIMIT $limit
 	`, params
 	}
-	predicates := relationshipStoryRepoPredicates(req, access, "sourceRepo")
+	predicates := relationshipStoryRepoPredicates(req, access, "anchor", "target", "anchor")
 	return `
 		MATCH ` + entityPattern + `-[rel` + relPattern + `]->(target)
+		` + nornicDBRelationshipStoryWhere(predicates) + `
 		OPTIONAL MATCH (anchor)<-[:CONTAINS]-(sourceFile:File)
 		OPTIONAL MATCH (sourceRepo:Repository)-[:REPO_CONTAINS]->(sourceFile)
 		OPTIONAL MATCH (target)<-[:CONTAINS]-(targetFile:File)
 		OPTIONAL MATCH (targetRepo:Repository)-[:REPO_CONTAINS]->(targetFile)
-		` + nornicDBRelationshipStoryWhere(predicates) + `
 		RETURN 'outgoing' as direction,
 		       '` + relationshipType + `' as type,
 		       'direct_code_edge' as edge_origin,
@@ -334,8 +334,9 @@ func (h *CodeHandler) nornicDBRelationshipStoryClassMethods(
 	req relationshipStoryRequest,
 	entityID string,
 ) ([]map[string]any, error) {
+	access := codeGrantAccessFilter(ctx)
 	for _, property := range []string{"uid", "id"} {
-		cypher, params := nornicDBRelationshipStoryClassMethodsCypher(req, entityID, property)
+		cypher, params := nornicDBRelationshipStoryClassMethodsCypher(req, entityID, property, access)
 		rows, err := h.Neo4j.Run(ctx, cypher, params)
 		if err != nil {
 			return nil, err
@@ -351,15 +352,23 @@ func nornicDBRelationshipStoryClassMethodsCypher(
 	req relationshipStoryRequest,
 	entityID string,
 	property string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
 		"limit":     req.NormalizedLimit() + 1,
 		"offset":    req.Offset,
 	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
 	classPattern := nornicDBNodePatternWithProperty("class", "Class", property, "$entity_id")
+	// Both endpoints bind: a class in grant can contain a method the projector
+	// attributed to another repository, and the method row is what ships.
+	predicates := relationshipStoryGrantPredicates(access, "class", "method")
 	return `
 		MATCH ` + classPattern + `-[:CONTAINS]->(method:Function)
+		` + nornicDBRelationshipStoryWhere(predicates) + `
 		RETURN method.id as method_legacy_id,
 		       method.uid as method_uid,
 		       method.name as method_name,
@@ -377,18 +386,41 @@ func (h *CodeHandler) nornicDBRelationshipStoryInheritanceDepthRows(
 	req relationshipStoryRequest,
 	entityID string,
 	direction string,
-) ([]map[string]any, error) {
+) ([]map[string]any, int, error) {
+	access := codeGrantAccessFilter(ctx)
 	for _, property := range []string{"uid", "id"} {
-		cypher, params := nornicDBRelationshipStoryInheritanceDepthCypher(req, entityID, direction, property)
+		cypher, params := nornicDBRelationshipStoryInheritanceDepthCypher(req, entityID, direction, property, access)
 		rows, err := h.Neo4j.Run(ctx, cypher, params)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
+		// The raw count decides which id property anchors the walk, before the
+		// grant filter runs. Filtering first would let a walk whose every row is
+		// out of grant look like "this property did not match" and fall through
+		// to the next property, which is a different question.
 		if len(rows) > 0 {
-			return normalizeNornicDBRelationshipStoryRows(rows), nil
+			// The raw count is also what the caller's truncation signal must be
+			// computed from. The statement binds LIMIT normalizedLimit()+1, so a
+			// full page means "there is more"; measuring that after the grant
+			// filter would report a page thinned to exactly `limit` as complete
+			// when granted rows beyond it were never fetched.
+			//
+			// Say the rest of it plainly, because the raw count makes this
+			// honest without removing it: the filter runs AFTER the LIMIT, and
+			// rows past that LIMIT were never read. So a page whose first
+			// limit+1 rows carry out-of-grant interiors comes back with FEWER
+			// than `limit` in-grant ancestors even though the caller is
+			// entitled to more, and the truncated flag is what tells them the
+			// page is incomplete. Filling it would need an over-fetch -- read
+			// more than limit+1 and stop once limit+1 rows survive the filter --
+			// which is a bounded-read change with its own performance
+			// argument, not a change to make while closing #6548.
+			// TestNornicDBInheritanceWalkPageCanBeThinnerThanTheLimit pins the
+			// shape so it is a known cost rather than a surprise.
+			return normalizeNornicDBRelationshipStoryRows(nornicDBInheritanceRowsInGrant(rows, access)), len(rows), nil
 		}
 	}
-	return []map[string]any{}, nil
+	return []map[string]any{}, 0, nil
 }
 
 func nornicDBRelationshipStoryInheritanceDepthCypher(
@@ -396,16 +428,37 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 	entityID string,
 	direction string,
 	property string,
+	access repositoryAccessFilter,
 ) (string, map[string]any) {
 	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
 		"limit":     req.NormalizedLimit() + 1,
 	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
 	anchorPattern := nornicDBNodePatternWithProperty("anchor", "Class", property, "$entity_id")
+	// The two endpoints bind in Cypher; the classes between them are bound in Go
+	// by nornicDBInheritanceRowsInGrant, off this projection.
+	//
+	// No all(node IN nodes(path) ...) predicate can do it on the pinned build,
+	// and the reason is stronger than the one recorded before #6548: the list
+	// form never filters AND the scalar form filters everything out, including a
+	// chain on which every node is granted. Both directions measured, including
+	// on the shortestPath shape the pitfalls page tabulates -- see the
+	// path-predicate table in docs/public/reference/nornicdb-path-predicate-pitfalls.md.
+	// A list comprehension over nodes(path) is no good either: it comes back as
+	// literal expression text. Raw nodes(path) does come back, with real per-hop
+	// properties, so the filter reads that.
+	pathProjection := ""
+	if access.Scoped() {
+		pathProjection = ",\n\t\t       nodes(path) as path_nodes"
+	}
 	if direction == "incoming" {
 		return fmt.Sprintf(`
 		MATCH path = (source:Class)-[:INHERITS*1..%d]->%s
+		`+nornicDBRelationshipStoryWhere(relationshipStoryGrantPredicates(access, "source", "anchor"))+`
 		RETURN 'incoming' as direction,
 		       source.id as source_legacy_id,
 		       source.uid as source_uid,
@@ -413,13 +466,14 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 		       anchor.id as target_legacy_id,
 		       anchor.uid as target_uid,
 		       anchor.name as target_name,
-		       length(path) as depth
+		       length(path) as depth`+pathProjection+`
 		ORDER BY depth DESC, source.name, source.id, source.uid
 		LIMIT $limit
 	`, maxDepth, anchorPattern), params
 	}
 	return fmt.Sprintf(`
 		MATCH path = %s-[:INHERITS*1..%d]->(target:Class)
+		`+nornicDBRelationshipStoryWhere(relationshipStoryGrantPredicates(access, "anchor", "target"))+`
 		RETURN 'outgoing' as direction,
 		       anchor.id as source_legacy_id,
 		       anchor.uid as source_uid,
@@ -427,7 +481,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 		       target.id as target_legacy_id,
 		       target.uid as target_uid,
 		       target.name as target_name,
-		       length(path) as depth
+		       length(path) as depth`+pathProjection+`
 		ORDER BY depth DESC, target.name, target.id, target.uid
 		LIMIT $limit
 	`, anchorPattern, maxDepth), params
