@@ -67,7 +67,7 @@ func handlesRouteExpectedEdgesPath(repoRoot string) string {
 // LoadWorkloadProjectionInputs
 // (go/internal/reducer/correlated_workload_projection_input_loader.go:71) ->
 // admittedCorrelatedWorkloadCandidates -> deployableUnitRulePack's rule-pack
-// selection (go/internal/reducer/deployable_unit_correlation.go:258-273). A
+// selection (deployableUnitRulePack in go/internal/reducer/deployable_unit_correlation.go). A
 // candidate this guard's pure projection sees as fully materialized can
 // still be REJECTED live if its provenance selects a rule pack whose
 // MinAdmissionConfidence or RequiredEvidence the candidate does not satisfy.

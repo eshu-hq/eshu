@@ -654,14 +654,12 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/request_m
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/setup_handler.go:1
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/sign_in_policy_mutations.go:159
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/tag_history.go:102
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/cloud_inventory_admission.go:413
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/ec2_instance_node_materialization.go:184
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/factdecode/quarantine_record.go:64
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/gcp_materialization_observability.go:22
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/incident/incident_repository_correlation.go:278
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/incident/incident_routing_materialization.go:203
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/package_provenance_edges.go:128
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/package_source_correlation_handler.go:289
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/repo_dependency_projection_runner.go:149
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:189
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:358
@@ -774,7 +772,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/telemetry/loggi
 LINE docs/public/reference/collector-performance-envelope.md go/internal/collector/emit_bench_test.go:88
 LINE docs/public/reference/collector-performance-envelope.md go/internal/collector/emit_bench_test.go:88
 LINE docs/public/reference/collector-performance-envelope.md go/internal/scope/scope.go:130
-LINE docs/public/reference/edge-source-tool-provenance.md go/internal/reducer/deployable_unit_correlation.go:306
 LINE docs/public/reference/edge-source-tool-provenance.md go/internal/relationships/models.go:20
 LINE docs/public/reference/environment-alias-contract.md go/internal/storage/cypher/workload_cloud_relationship_writer.go:22
 LINE docs/public/reference/read-surface-consumer-existence-gate.md go/internal/projector/tfstate_canonical.go:113
@@ -800,12 +797,10 @@ LINE go/internal/ifa/inheritance_family_odu.go go/internal/collector/git_followu
 LINE go/internal/ifa/inheritance_family_odu.go go/internal/projector/canonical_entity_identity.go:12
 LINE go/internal/ifa/materializededges/README.md go/internal/reducer/shared_projection_runner.go:31
 LINE go/internal/ifa/materializededges/materialized_edges_handles_route.go go/internal/reducer/correlated_workload_projection_input_loader.go:71
-LINE go/internal/ifa/materializededges/materialized_edges_handles_route.go go/internal/reducer/deployable_unit_correlation.go:258
 LINE go/internal/ifa/materializededges/materialized_edges_handles_route_test.go go/internal/reducer/handles_route_intents.go:80
 LINE go/internal/ifa/materializededges/materialized_edges_inheritance_test.go go/internal/collector/git_followup_facts.go:279
 LINE go/internal/ifa/materializededges/materialized_edges_runs_in.go go/internal/reducer/candidate_loader.go:37
 LINE go/internal/ifa/materializededges/materialized_edges_runs_in.go go/internal/reducer/correlated_workload_projection_input_loader.go:71
-LINE go/internal/ifa/materializededges/materialized_edges_runs_in.go go/internal/reducer/deployable_unit_correlation.go:258
 LINE go/internal/ifa/materializededges/materialized_edges_runs_in.go go/internal/reducer/projection.go:259
 LINE go/internal/ifa/materializededges/materialized_edges_runs_in.go go/internal/storage/cypher/canonical_runs_in_edges.go:26
 LINE go/internal/ifa/materializededges/materialized_edges_runs_in_test.go go/internal/reducer/projection.go:259
