@@ -111,9 +111,9 @@ func TestImpactTraceK8sSelectWideningUnderLinkingRegression(t *testing.T) {
 	})
 
 	handler := &ImpactHandler{Content: newK8sSelectWideningStore([]EntityContent{deployment, service})}
-	result, err := handler.fetchK8sResourceResult(context.Background(), "repo-1", "web")
+	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 
 	surfaced := surfacedEntityIDs(result.rows)
@@ -150,9 +150,9 @@ func TestImpactTraceK8sSelectWideningRespectsNonMatchingSelector(t *testing.T) {
 	})
 
 	handler := &ImpactHandler{Content: newK8sSelectWideningStore([]EntityContent{deployment, service})}
-	result, err := handler.fetchK8sResourceResult(context.Background(), "repo-1", "web")
+	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 
 	relationships := buildK8sRelationships(result.rows)
@@ -176,9 +176,9 @@ func TestImpactTraceK8sSelectWideningEnforcesNamespaceEquality(t *testing.T) {
 	})
 
 	handler := &ImpactHandler{Content: newK8sSelectWideningStore([]EntityContent{deployment, service})}
-	result, err := handler.fetchK8sResourceResult(context.Background(), "repo-1", "web")
+	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 
 	if _, ok := surfacedEntityIDs(result.rows)["svc-web"]; ok {
@@ -218,9 +218,9 @@ func TestImpactTraceK8sSelectWideningPoolPurity(t *testing.T) {
 	}
 
 	handler := &ImpactHandler{Content: newK8sSelectWideningStore(entities)}
-	result, err := handler.fetchK8sResourceResult(context.Background(), "repo-1", "web")
+	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 
 	surfaced := surfacedEntityIDs(result.rows)
@@ -267,9 +267,9 @@ func TestImpactTraceK8sSelectWideningSelectorAbsentNeverWidens(t *testing.T) {
 	service := k8sEntity("svc-web", "web-svc", "svc/web.yaml", "Service", "prod", nil)
 
 	handler := &ImpactHandler{Content: newK8sSelectWideningStore([]EntityContent{deployment, service})}
-	result, err := handler.fetchK8sResourceResult(context.Background(), "repo-1", "web")
+	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 	if _, ok := surfacedEntityIDs(result.rows)["svc-web"]; ok {
 		t.Fatalf("selector-absent, differently-named Service must not widen in; rows = %#v", result.rows)
@@ -290,9 +290,9 @@ func TestImpactTraceK8sSelectWideningMixedVintageDrops(t *testing.T) {
 	})
 
 	handler := &ImpactHandler{Content: newK8sSelectWideningStore([]EntityContent{deployment, service})}
-	result, err := handler.fetchK8sResourceResult(context.Background(), "repo-1", "web")
+	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 	if _, ok := surfacedEntityIDs(result.rows)["svc-web"]; ok {
 		t.Fatalf("mixed-vintage candidate must not surface; rows = %#v", result.rows)
@@ -323,9 +323,9 @@ func TestImpactTraceK8sSelectWideningFrozenSubSurfaceOnNoMatch(t *testing.T) {
 	})
 
 	handler := &ImpactHandler{Content: newK8sSelectWideningStore([]EntityContent{deployment, service})}
-	result, err := handler.fetchK8sResourceResult(context.Background(), "repo-1", "web")
+	result, err := handler.FetchK8sResourceResult(context.Background(), "repo-1", "web")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 
 	surfaced := surfacedEntityIDs(result.rows)

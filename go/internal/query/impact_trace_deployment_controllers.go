@@ -49,7 +49,10 @@ func (h *ImpactHandler) fetchControllerEntities(
 	return controllers, nil
 }
 
-func (h *ImpactHandler) fetchDeploymentSourceGitOps(
+// FetchDeploymentSourceGitOps is the exported rename of
+// fetchDeploymentSourceGitOps, which the deployment-config-influence family
+// calls from outside the impact move set. See #6060.
+func (h *ImpactHandler) FetchDeploymentSourceGitOps(
 	ctx context.Context,
 	serviceName string,
 	workloadRepoID string,

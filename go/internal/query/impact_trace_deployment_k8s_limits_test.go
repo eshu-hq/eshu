@@ -62,18 +62,18 @@ func TestFetchK8sResourceResultUsesSentinelAndReportsTruncation(t *testing.T) {
 	store := &recordingK8sContentStore{rows: rows}
 	handler := &ImpactHandler{Content: store}
 
-	result, err := handler.fetchK8sResourceResult(t.Context(), "repo-service", "payments-api")
+	result, err := handler.FetchK8sResourceResult(t.Context(), "repo-service", "payments-api")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 	if got, want := store.queryLimit, serviceStoryItemLimit+1; got != want {
 		t.Fatalf("SearchEntitiesByName limit = %d, want sentinel limit %d", got, want)
 	}
 	if got, want := len(result.rows), serviceStoryItemLimit; got != want {
-		t.Fatalf("len(fetchK8sResourceResult().rows) = %d, want %d", got, want)
+		t.Fatalf("len(FetchK8sResourceResult().rows) = %d, want %d", got, want)
 	}
 	if got, want := len(result.imageRefs), serviceStoryItemLimit; got != want {
-		t.Fatalf("len(fetchK8sResourceResult().imageRefs) = %d, want images from returned rows only (%d)", got, want)
+		t.Fatalf("len(FetchK8sResourceResult().imageRefs) = %d, want images from returned rows only (%d)", got, want)
 	}
 	if got, want := IntVal(result.limits, "limit"), serviceStoryItemLimit; got != want {
 		t.Fatalf("k8s_resource_limits.limit = %d, want %d", got, want)
@@ -117,12 +117,12 @@ func TestFetchK8sResourceResultReportsLowerBoundWhenSubstringRowsFillProbe(t *te
 	}
 	handler := &ImpactHandler{Content: &recordingK8sContentStore{rows: rows}}
 
-	result, err := handler.fetchK8sResourceResult(t.Context(), "repo-service", "payments-api")
+	result, err := handler.FetchK8sResourceResult(t.Context(), "repo-service", "payments-api")
 	if err != nil {
-		t.Fatalf("fetchK8sResourceResult() error = %v", err)
+		t.Fatalf("FetchK8sResourceResult() error = %v", err)
 	}
 	if got, want := len(result.rows), 1; got != want {
-		t.Fatalf("len(fetchK8sResourceResult().rows) = %d, want exact-name row count %d", got, want)
+		t.Fatalf("len(FetchK8sResourceResult().rows) = %d, want exact-name row count %d", got, want)
 	}
 	if got, want := IntVal(result.limits, "observed_count"), 1; got != want {
 		t.Fatalf("k8s_resource_limits.observed_count = %d, want observed exact-name count %d", got, want)
@@ -139,20 +139,20 @@ func TestFetchDeploymentSourceGitOpsReportsRepositoryProbeLowerBound(t *testing.
 	store := &recordingDeploymentSourceGitOpsContentStore{rows: rows}
 	handler := &ImpactHandler{Content: store}
 
-	_, _, _, lowerBound, err := handler.fetchDeploymentSourceGitOps(
+	_, _, _, lowerBound, err := handler.FetchDeploymentSourceGitOps(
 		t.Context(),
 		"payments-api",
 		"",
 		[]map[string]any{{"repo_id": "repository:deploy"}},
 	)
 	if err != nil {
-		t.Fatalf("fetchDeploymentSourceGitOps() error = %v", err)
+		t.Fatalf("FetchDeploymentSourceGitOps() error = %v", err)
 	}
 	if got, want := store.queryLimit, repositorySemanticEntityLimit+1; got != want {
 		t.Fatalf("ListRepoEntities limit = %d, want sentinel limit %d", got, want)
 	}
 	if !lowerBound {
-		t.Fatal("fetchDeploymentSourceGitOps() lowerBound = false, want true after sentinel saturation")
+		t.Fatal("FetchDeploymentSourceGitOps() lowerBound = false, want true after sentinel saturation")
 	}
 }
 

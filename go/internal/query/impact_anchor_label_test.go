@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -343,22 +344,23 @@ func TestImpactAnchorLabelDisjunctionIncludesKubernetesWorkload(t *testing.T) {
 
 // fakeGraphReaderWithSingle is a GraphQuery test double that scripts both Run
 // and RunSingle so the dependency-path and resource-to-code fallback paths can
-// be exercised independently.
+// be exercised independently. It keeps the original lowercase field names and
+// delegates every call to querytestutil.FakeGraphReaderWithSingle through
+// promoted(), so the dispatch lives in exactly one place (see the adapter
+// rule in querytestutil/AGENTS.md).
 type fakeGraphReaderWithSingle struct {
 	run       func(context.Context, string, map[string]any) ([]map[string]any, error)
 	runSingle func(context.Context, string, map[string]any) (map[string]any, error)
 }
 
+func (f fakeGraphReaderWithSingle) promoted() querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{RunFn: f.run, RunSingleFn: f.runSingle}
+}
+
 func (f fakeGraphReaderWithSingle) Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-	if f.run == nil {
-		return nil, nil
-	}
-	return f.run(ctx, cypher, params)
+	return f.promoted().Run(ctx, cypher, params)
 }
 
 func (f fakeGraphReaderWithSingle) RunSingle(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
-	if f.runSingle == nil {
-		return nil, nil
-	}
-	return f.runSingle(ctx, cypher, params)
+	return f.promoted().RunSingle(ctx, cypher, params)
 }
