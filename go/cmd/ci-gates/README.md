@@ -78,8 +78,9 @@ mode. It requires the blocking `go-fmt`, `go-lint`, `go-build`, and `go-vet`
 registry rows, runs formatting before lint while build and vet run in parallel,
 and seeds normal dispatch with those exact command results. Matching selected
 rows report reuse and retain the original failure; missing or malformed core
-rows fail before any command runs. The documentation-only fast lane omits this
-mode and retains its explicit skip report.
+rows fail before any command runs. The resolved core order must begin with
+`go-fmt`, then `go-lint`; an unsafe order also fails before dispatch. The
+documentation-only fast lane omits this mode and retains its explicit skip report.
 
 For a `command` shape of `bash scripts/verify-*.sh`, the inner `bash` token
 resolves via PATH, and on macOS that finds the system `/bin/bash` (3.2.57)

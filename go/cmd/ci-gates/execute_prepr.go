@@ -23,7 +23,7 @@ type prePRWholeModuleRun struct {
 	output  string
 }
 
-// executePrePRWholeModulePrelude runs the four whole-module Go checks before
+// executePrePRWholeModulePrelude runs the whole-module Go checks before
 // normal path-selected dispatch. Formatting and linting share one serial lane;
 // build and vet run alongside it. Results seed the normal command-reuse map, so
 // selected hygiene rows observe the exact same pass or failure without running
@@ -136,6 +136,9 @@ func resolvePrePRWholeModuleRuns(sels []cigates.Selection) ([]prePRWholeModuleRu
 			command: commands[0],
 			key:     key,
 		})
+	}
+	if len(runs) < 2 || runs[0].gate.ID != "go-fmt" || runs[1].gate.ID != "go-lint" {
+		return nil, fmt.Errorf("pre-pr whole-module gate order must start with go-fmt then go-lint")
 	}
 	return runs, nil
 }

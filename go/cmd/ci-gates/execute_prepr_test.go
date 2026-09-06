@@ -326,6 +326,44 @@ func TestPrePRWholeModuleExecutesAdditionalResolvedGate(t *testing.T) {
 	}
 }
 
+func TestPrePRWholeModuleRejectsUnsafeCoreOrderBeforeExecution(t *testing.T) {
+	// Keep this test serial: it changes the production gate order while the
+	// parallel tests use the normal order after this test and its cleanup finish.
+	originalIDs := prePRWholeModuleGateIDs
+	t.Cleanup(func() { prePRWholeModuleGateIDs = originalIDs })
+	for _, tc := range []struct {
+		name string
+		a, b int
+	}{
+		{name: "lint-before-fmt", a: 0, b: 1},
+		{name: "build-before-fmt", a: 0, b: 2},
+		{name: "lint-in-parallel-lane", a: 1, b: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			prePRWholeModuleGateIDs = originalIDs
+			prePRWholeModuleGateIDs[tc.a], prePRWholeModuleGateIDs[tc.b] = prePRWholeModuleGateIDs[tc.b], prePRWholeModuleGateIDs[tc.a]
+			root := t.TempDir()
+			selections := prePRCoreSelections(false, map[string]string{
+				"go-fmt": "touch must-not-run", "go-lint": "touch must-not-run",
+				"go-build": "touch must-not-run", "go-vet": "touch must-not-run",
+			})
+			var output bytes.Buffer
+			report, err := executeGatesWithOptions(&output, selections, root, executeOptions{
+				selfTests: selfTestsChanged, blockingOnly: true, prePRWholeModule: true,
+			})
+			if err == nil || !strings.Contains(err.Error(), "must start with go-fmt then go-lint") {
+				t.Errorf("error = %v, want unsafe core order rejection", err)
+			}
+			if report.Summary.CommandsRun != 0 {
+				t.Errorf("executed %d commands before rejecting unsafe order", report.Summary.CommandsRun)
+			}
+			if _, statErr := os.Stat(filepath.Join(root, "must-not-run")); !os.IsNotExist(statErr) {
+				t.Errorf("prelude command ran before order validation: stat error = %v", statErr)
+			}
+		})
+	}
+}
+
 func prePRCoreSelections(selected bool, commands map[string]string) []cigates.Selection {
 	selections := make([]cigates.Selection, 0, len(prePRWholeModuleGateIDs))
 	for _, id := range prePRWholeModuleGateIDs {
