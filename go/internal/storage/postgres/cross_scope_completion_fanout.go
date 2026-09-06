@@ -22,24 +22,17 @@ WITH lease AS MATERIALIZED (
       AND status IN ('claimed', 'running')
       AND claim_until > $1
     FOR UPDATE
-), captured AS MATERIALIZED (
-    SELECT event.event_id, event.producer_item_count
-    FROM cross_scope_completion_events AS event
-    CROSS JOIN lease
-    WHERE event.producer_domain = lease.producer_domain
-      AND (
-            event.event_id = lease.event_id
-         OR (event.status IN ('pending', 'retrying')
-             AND (event.visible_at IS NULL OR event.visible_at <= $1))
-      )
-    ORDER BY CASE WHEN event.event_id = lease.event_id THEN 0 ELSE 1 END,
-             event.event_id
-    LIMIT $6
-    FOR UPDATE OF event
 ), dependencies(producer_domain, consumer_domain) AS (
     SELECT producer_domain, consumer_domain
     FROM unnest($7::text[], $8::text[])
          AS edge(producer_domain, consumer_domain)
+), active_generations AS MATERIALIZED (
+    SELECT scope.scope_id, generation.generation_id
+    FROM ingestion_scopes AS scope
+    JOIN scope_generations AS generation
+      ON generation.scope_id = scope.scope_id
+     AND generation.generation_id = scope.active_generation_id
+     AND generation.status = 'active'
 ), current_consumers AS MATERIALIZED (
     SELECT source.work_item_id,
            source.status,
@@ -49,15 +42,29 @@ WITH lease AS MATERIALIZED (
       ON dependency.consumer_domain = source.domain
     JOIN lease
       ON lease.producer_domain = dependency.producer_domain
-    JOIN ingestion_scopes AS scope
-      ON scope.scope_id = source.scope_id
-     AND scope.active_generation_id = source.generation_id
-    JOIN scope_generations AS generation
+    JOIN active_generations AS generation
       ON generation.scope_id = source.scope_id
      AND generation.generation_id = source.generation_id
-     AND generation.status = 'active'
     WHERE source.stage = 'reducer'
       AND source.status IN ('claimed', 'running', 'succeeded')
+    ORDER BY source.work_item_id COLLATE "C"
+    FOR NO KEY UPDATE OF source
+), captured AS MATERIALIZED (
+    SELECT event.event_id, event.producer_item_count
+    FROM cross_scope_completion_events AS event
+    CROSS JOIN lease
+    WHERE event.producer_domain = lease.producer_domain
+      -- Drain the ordered row locks before acquiring queued event locks.
+      AND (SELECT count(*) FROM current_consumers) >= 0
+      AND (
+            event.event_id = lease.event_id
+         OR (event.status IN ('pending', 'retrying')
+             AND (event.visible_at IS NULL OR event.visible_at <= $1))
+      )
+    ORDER BY CASE WHEN event.event_id = lease.event_id THEN 0 ELSE 1 END,
+             event.event_id
+    LIMIT $6
+    FOR UPDATE OF event
 ), scheduled AS (
     UPDATE fact_work_items AS consumer
     SET status = CASE
@@ -110,10 +117,12 @@ WITH lease AS MATERIALIZED (
         END
     FROM current_consumers AS source
     WHERE consumer.work_item_id = source.work_item_id
+      -- Capture the completion horizon before changing the locked consumers.
+      AND (SELECT count(*) FROM captured) > 0
       AND (
-            source.status = 'succeeded'
-         OR (source.status IN ('claimed', 'running')
-             AND NOT source.cross_scope_replay_required)
+            consumer.status = 'succeeded'
+         OR (consumer.status IN ('claimed', 'running')
+             AND NOT consumer.cross_scope_replay_required)
       )
     RETURNING 1
 ), deleted AS (

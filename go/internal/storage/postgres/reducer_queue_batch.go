@@ -220,7 +220,17 @@ func ackContainerImageIdentityReducerWorkBatchQuery(
 	}
 
 	return `
-WITH acknowledged AS MATERIALIZED (
+WITH locked_work AS MATERIALIZED (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE (` + strings.Join(predicates, " OR ") + `)
+      AND stage = 'reducer'
+      AND domain = 'container_image_identity'
+      AND lease_owner = $2
+      AND status IN ('claimed', 'running')
+    ORDER BY work_item_id COLLATE "C"
+    FOR NO KEY UPDATE
+), acknowledged AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
     provenance_edge_identity_upgrade_required = FALSE,
@@ -242,11 +252,8 @@ SET status = 'succeeded',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL
-WHERE (` + strings.Join(predicates, " OR ") + `)
-  AND stage = 'reducer'
-  AND domain = 'container_image_identity'
-  AND lease_owner = $2
-  AND status IN ('claimed', 'running')
+WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
+  AND (SELECT count(*) FROM locked_work) > 0
 RETURNING work.work_item_id, work.status
 ), emission_clock AS MATERIALIZED (
     SELECT clock_timestamp() AS emitted_at
@@ -286,8 +293,30 @@ func ackCICDRunCorrelationReducerWorkBatchQuery(
 		ids = append(ids, intent.IntentID)
 	}
 	sort.Strings(ids)
+	// Bind fixed eligibility to the ordered requested rows to avoid the broad
+	// partial-index plan observed when startup statistics were absent.
+	// Each dependent lookup checks eligibility before acquiring its row lock.
 	return `
-WITH acknowledged AS MATERIALIZED (
+WITH requested AS MATERIALIZED (
+    SELECT id, 'reducer'::text AS expected_stage,
+           'ci_cd_run_correlation'::text AS expected_domain
+    FROM (SELECT unnest($3::text[]) AS id) AS input
+    GROUP BY id
+    ORDER BY id COLLATE "C"
+), locked_work AS MATERIALIZED (
+    SELECT lookup.work_item_id
+    FROM requested
+    CROSS JOIN LATERAL (
+        SELECT work_item_id
+        FROM fact_work_items
+        WHERE work_item_id = requested.id
+          AND stage = requested.expected_stage
+          AND domain = requested.expected_domain
+          AND lease_owner = $2
+          AND status IN ('claimed', 'running')
+        FOR NO KEY UPDATE
+    ) AS lookup
+), acknowledged AS MATERIALIZED (
 UPDATE fact_work_items AS work
 SET status = 'succeeded',
     cross_scope_completion_ack_epoch = cross_scope_completion_ack_epoch + 1,
@@ -298,11 +327,8 @@ SET status = 'succeeded',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL
-WHERE work.work_item_id = ANY($3::text[])
-  AND stage = 'reducer'
-  AND domain = 'ci_cd_run_correlation'
-  AND lease_owner = $2
-  AND status IN ('claimed', 'running')
+WHERE work.work_item_id IN (SELECT work_item_id FROM locked_work)
+  AND (SELECT count(*) FROM locked_work) > 0
 RETURNING work.work_item_id, work.status
 ), emission_clock AS MATERIALIZED (
     SELECT clock_timestamp() AS emitted_at
@@ -338,6 +364,16 @@ func ackReducerWorkBatchQuery(itemCount int) string {
 		placeholders[index] = fmt.Sprintf("$%d", index+3)
 	}
 	return fmt.Sprintf(`
+WITH locked_work AS MATERIALIZED (
+    SELECT work_item_id
+    FROM fact_work_items
+    WHERE work_item_id IN (%s)
+      AND stage = 'reducer'
+      AND lease_owner = $2
+      AND status IN ('claimed', 'running')
+    ORDER BY work_item_id COLLATE "C"
+    FOR NO KEY UPDATE
+)
 UPDATE fact_work_items
 SET status = 'succeeded',
     provenance_edge_identity_upgrade_required = FALSE,
@@ -348,10 +384,8 @@ SET status = 'succeeded',
     failure_class = NULL,
     failure_message = NULL,
     failure_details = NULL
-WHERE work_item_id IN (%s)
-  AND stage = 'reducer'
-  AND lease_owner = $2
-  AND status IN ('claimed', 'running')
+WHERE work_item_id IN (SELECT work_item_id FROM locked_work)
+  AND (SELECT count(*) FROM locked_work) > 0
 `, strings.Join(placeholders, ", "))
 }
 
