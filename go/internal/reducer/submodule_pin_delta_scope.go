@@ -35,15 +35,15 @@ type submodulePinDeltaScope struct {
 	hasDelta                 bool
 }
 
-// loadSubmodulePinMaterializationFacts loads the repository delta facts plus
-// every submodule.pin fact for the generation. submodule.pin is a
-// directly-emitted fact (Contract System v1), so no content_entity/
-// parsed_file_data join is needed.
 // submodulePinMaterializationFactKinds is the single source for the kind set
 // loadSubmodulePinMaterializationFacts requests; the bench corpus guard in
 // factload_materialization_bench_test.go reads the same slice.
 var submodulePinMaterializationFactKinds = []string{factKindRepository, factKindSubmodulePin}
 
+// loadSubmodulePinMaterializationFacts loads the repository delta facts plus
+// every submodule.pin fact for the generation. submodule.pin is a
+// directly-emitted fact (Contract System v1), so no content_entity/
+// parsed_file_data join is needed.
 func loadSubmodulePinMaterializationFacts(
 	ctx context.Context,
 	loader FactLoader,
