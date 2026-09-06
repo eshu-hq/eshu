@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeowners
 
 import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // codeownersCrossTenantRepo is the ungranted repository whose ownership and
@@ -32,9 +35,25 @@ func codeownersCrossTenantGraph() *recordingCodeownersGraphReader {
 // service-catalog precedence branch too, not only through ownership[].
 func codeownersCrossTenantCorrelations() *fakeCodeownersCorrelationStore {
 	return &fakeCodeownersCorrelationStore{
-		rows: []ServiceCatalogCorrelationRow{
+		rows: []querycontract.ServiceCatalogCorrelationRow{
 			{RepositoryID: codeownersCrossTenantRepo, OwnerRef: "@org/team-b-manifest", Outcome: "exact"},
 		},
+	}
+}
+
+// codeownersScopedTestAuthContext builds a scoped queryauth.AuthContext
+// granted allowedRepositoryIDs. It is this package's own double for root's
+// scopedTestAuthContext (which this package cannot import without an import
+// cycle): same mode and grant fields, nothing more.
+func codeownersScopedTestAuthContext(tenant string, allowedRepositoryIDs []string) queryauth.AuthContext {
+	return queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
+		TenantID:             tenant,
+		WorkspaceID:          tenant,
+		SubjectClass:         "team",
+		SubjectIDHash:        "sha256:" + tenant,
+		PolicyRevisionHash:   "sha256:policy",
+		AllowedRepositoryIDs: allowedRepositoryIDs,
 	}
 }
 
@@ -50,11 +69,11 @@ func codeownersCrossTenantCorrelations() *fakeCodeownersCorrelationStore {
 func TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository(t *testing.T) {
 	t.Parallel()
 
-	newReq := func(auth *AuthContext) (*httptest.ResponseRecorder, string) {
+	newReq := func(auth *queryauth.AuthContext) (*httptest.ResponseRecorder, string) {
 		mux := newCodeownersOwnershipMux(codeownersCrossTenantGraph(), codeownersCrossTenantCorrelations())
 		req := httptest.NewRequest(http.MethodGet, "/api/v0/codeowners/ownership?repository_id="+codeownersCrossTenantRepo, nil)
 		if auth != nil {
-			req = req.WithContext(ContextWithAuthContext(req.Context(), *auth))
+			req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), *auth))
 		}
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
@@ -76,7 +95,7 @@ func TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository(t *testing
 	t.Run("scoped caller granted only repo-a sees no repo-b data", func(t *testing.T) {
 		t.Parallel()
 
-		scoped := scopedTestAuthContext("tenant-a", []string{"repo-a"})
+		scoped := codeownersScopedTestAuthContext("tenant-a", []string{"repo-a"})
 		w, body := newReq(&scoped)
 
 		if got, want := w.Code, http.StatusOK; got != want {
@@ -94,7 +113,7 @@ func TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository(t *testing
 	t.Run("scoped caller granted repo-b sees repo-b data", func(t *testing.T) {
 		t.Parallel()
 
-		scoped := scopedTestAuthContext("tenant-b", []string{codeownersCrossTenantRepo})
+		scoped := codeownersScopedTestAuthContext("tenant-b", []string{codeownersCrossTenantRepo})
 		w, body := newReq(&scoped)
 
 		if got, want := w.Code, http.StatusOK; got != want {

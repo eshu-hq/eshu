@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeowners
 
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -18,11 +20,11 @@ const (
 )
 
 // effectiveRepositoryOwnerCorrelationLimit bounds the manifest-precedence
-// lookup. It reuses serviceCatalogCorrelationMaxLimit (200): a single
-// repository can have more than one catalog provider/entity correlated to it,
-// and the resolver must see every row to find an exact/derived declaration,
-// not just the first page.
-const effectiveRepositoryOwnerCorrelationLimit = serviceCatalogCorrelationMaxLimit
+// lookup. It reuses querycontract.ServiceCatalogCorrelationMaxLimit (200): a
+// single repository can have more than one catalog provider/entity correlated
+// to it, and the resolver must see every row to find an exact/derived
+// declaration, not just the first page.
+const effectiveRepositoryOwnerCorrelationLimit = querycontract.ServiceCatalogCorrelationMaxLimit
 
 // EffectiveRepositoryOwner is the resolved owner_ref plus its provenance for
 // GET /api/v0/codeowners/ownership's "effective_owner" field. A zero value
@@ -46,7 +48,7 @@ type EffectiveRepositoryOwner struct {
 //     semantics (sdk/go/factschema/codeowners/v1.Ownership's documented
 //     contract): the DECLARES_CODEOWNER edge with the highest order_index is
 //     the last pattern in the file that would match, so its owner is the
-//     repository-wide fallback. codeownersLastMatchOwnerCypher resolves this
+//     repository-wide fallback. CodeownersLastMatchOwnerCypher resolves this
 //     with a dedicated DESC-ordered, LIMIT-1 read (see its doc comment for
 //     why the paginated ascending list cannot be reused here).
 //  3. If neither source resolves an owner, the zero-value
@@ -58,12 +60,12 @@ type EffectiveRepositoryOwner struct {
 // wiring still gets whichever precedence branch it can serve.
 func resolveEffectiveRepositoryOwner(
 	ctx context.Context,
-	neo4j GraphQuery,
-	correlations ServiceCatalogCorrelationStore,
+	neo4j querycontract.GraphQuery,
+	correlations querycontract.ServiceCatalogCorrelationStore,
 	repoID string,
 ) (EffectiveRepositoryOwner, error) {
 	if correlations != nil {
-		rows, err := correlations.ListServiceCatalogCorrelations(ctx, ServiceCatalogCorrelationFilter{
+		rows, err := correlations.ListServiceCatalogCorrelations(ctx, querycontract.ServiceCatalogCorrelationFilter{
 			RepositoryID: repoID,
 			Limit:        effectiveRepositoryOwnerCorrelationLimit,
 		})
@@ -86,12 +88,12 @@ func resolveEffectiveRepositoryOwner(
 	if neo4j == nil {
 		return EffectiveRepositoryOwner{}, nil
 	}
-	cypher, params := codeownersLastMatchOwnerCypher(repoID)
+	cypher, params := CodeownersLastMatchOwnerCypher(repoID)
 	row, err := neo4j.RunSingle(ctx, cypher, params)
 	if err != nil {
 		return EffectiveRepositoryOwner{}, fmt.Errorf("resolve codeowners last-match owner: %w", err)
 	}
-	ownerRef := StringVal(row, "owner_ref")
+	ownerRef := querycontract.StringVal(row, "owner_ref")
 	if ownerRef == "" {
 		return EffectiveRepositoryOwner{}, nil
 	}

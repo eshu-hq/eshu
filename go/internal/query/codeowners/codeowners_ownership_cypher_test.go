@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeowners
 
 import (
 	"strings"
@@ -11,11 +11,11 @@ import (
 func TestCodeownersOwnershipCypherAnchorsOnRepositoryAndOrdersDeterministically(t *testing.T) {
 	t.Parallel()
 
-	queries := codeownersOwnershipCyphers("repo-1", -1, "", "", 51)
+	queries := CodeownersOwnershipCyphers("repo-1", -1, "", "", 51)
 	if got, want := len(queries), 1; got != want {
 		t.Fatalf("query count = %d, want %d without a cursor", got, want)
 	}
-	cypher, params := queries[0].cypher, queries[0].params
+	cypher, params := queries[0].Cypher, queries[0].params
 
 	for _, fragment := range []string{
 		"MATCH (repo:Repository {id: $repo_id})-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)",
@@ -51,7 +51,7 @@ func TestCodeownersOwnershipCypherAnchorsOnRepositoryAndOrdersDeterministically(
 func TestCodeownersOwnershipCypherThreadsKeysetCursorParams(t *testing.T) {
 	t.Parallel()
 
-	queries := codeownersOwnershipCyphers("repo-1", 3, "*.go", "@org/team-a", 10)
+	queries := CodeownersOwnershipCyphers("repo-1", 3, "*.go", "@org/team-a", 10)
 	if got, want := len(queries), 3; got != want {
 		t.Fatalf("query count = %d, want %d with a cursor", got, want)
 	}
@@ -61,11 +61,11 @@ func TestCodeownersOwnershipCypherThreadsKeysetCursorParams(t *testing.T) {
 		"rel.order_index = $after_order_index AND rel.pattern = $after_pattern AND team.ref > $after_ref",
 	}
 	for i, query := range queries {
-		if !strings.Contains(query.cypher, wantPredicates[i]) {
-			t.Fatalf("query %d = %q, want predicate %q", i, query.cypher, wantPredicates[i])
+		if !strings.Contains(query.Cypher, wantPredicates[i]) {
+			t.Fatalf("query %d = %q, want predicate %q", i, query.Cypher, wantPredicates[i])
 		}
-		if strings.Contains(query.cypher, " OR ") || strings.Contains(query.cypher, "\n  OR ") {
-			t.Fatalf("query %d contains NornicDB-incompatible cursor OR: %q", i, query.cypher)
+		if strings.Contains(query.Cypher, " OR ") || strings.Contains(query.Cypher, "\n  OR ") {
+			t.Fatalf("query %d contains NornicDB-incompatible cursor OR: %q", i, query.Cypher)
 		}
 		if got, want := query.params["after_order_index"], 3; got != want {
 			t.Fatalf("query %d after_order_index = %#v, want %#v", i, got, want)

@@ -1,27 +1,29 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeowners
 
 import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // fakeCodeownersCorrelationStore is a test double for
-// ServiceCatalogCorrelationStore that returns a fixed slice of rows and
-// records the filter the resolver passed.
+// querycontract.ServiceCatalogCorrelationStore that returns a fixed slice of
+// rows and records the filter the resolver passed.
 type fakeCodeownersCorrelationStore struct {
-	rows   []ServiceCatalogCorrelationRow
-	filter ServiceCatalogCorrelationFilter
+	rows   []querycontract.ServiceCatalogCorrelationRow
+	filter querycontract.ServiceCatalogCorrelationFilter
 	err    error
 }
 
 func (f *fakeCodeownersCorrelationStore) ListServiceCatalogCorrelations(
 	_ context.Context,
-	filter ServiceCatalogCorrelationFilter,
-) ([]ServiceCatalogCorrelationRow, error) {
+	filter querycontract.ServiceCatalogCorrelationFilter,
+) ([]querycontract.ServiceCatalogCorrelationRow, error) {
 	f.filter = filter
 	if f.err != nil {
 		return nil, f.err
@@ -65,7 +67,7 @@ func TestResolveEffectiveRepositoryOwnerPrefersManifestOwner(t *testing.T) {
 	t.Parallel()
 
 	correlations := &fakeCodeownersCorrelationStore{
-		rows: []ServiceCatalogCorrelationRow{
+		rows: []querycontract.ServiceCatalogCorrelationRow{
 			{RepositoryID: "repo-1", OwnerRef: "", Outcome: "exact"},
 			{RepositoryID: "repo-1", OwnerRef: "team-manifest", Outcome: "exact"},
 		},
@@ -91,7 +93,7 @@ func TestResolveEffectiveRepositoryOwnerIgnoresAmbiguousOutcomeAndFallsBackToCod
 	t.Parallel()
 
 	correlations := &fakeCodeownersCorrelationStore{
-		rows: []ServiceCatalogCorrelationRow{
+		rows: []querycontract.ServiceCatalogCorrelationRow{
 			// Non-empty owner_ref but an "ambiguous" outcome must not win: only
 			// exact/derived outcomes count as a resolved manifest declaration.
 			{RepositoryID: "repo-1", OwnerRef: "team-ambiguous", Outcome: "ambiguous"},

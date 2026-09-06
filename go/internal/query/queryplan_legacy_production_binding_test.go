@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/codeowners"
 	"github.com/eshu-hq/eshu/go/internal/query/packagereg"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
@@ -182,9 +183,9 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	if len(sourceToolQueries) != 2 {
 		t.Fatalf("source-tool query count = %d, want 2", len(sourceToolQueries))
 	}
-	codeownersOwnershipList := codeownersOwnershipCyphers("proof-repository", -1, "", "", 51)[0].cypher
-	codeownersOwnershipCursor := codeownersOwnershipCyphers("proof-repository", 1, "*.go", "@proof/team", 51)
-	codeownersLastMatchOwner, _ := codeownersLastMatchOwnerCypher("proof-repository")
+	codeownersOwnershipList := codeowners.CodeownersOwnershipCyphers("proof-repository", -1, "", "", 51)[0].Cypher
+	codeownersOwnershipCursor := codeowners.CodeownersOwnershipCyphers("proof-repository", 1, "*.go", "@proof/team", 51)
+	codeownersLastMatchOwner, _ := codeowners.CodeownersLastMatchOwnerCypher("proof-repository")
 	return map[string]string{
 		"QP-SC-DEPS":                                      forwardDependenciesCypher("proof"),
 		"QP-SC-PKGREG-DEPS":                               packageRegistryDependencies,
@@ -220,9 +221,9 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 			"RETURN bucket, bucket_count",
 		),
 		"QP-CODEOWNERS-OWNERSHIP-LIST":           codeownersOwnershipList,
-		"QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER":   codeownersOwnershipCursor[0].cypher,
-		"QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN": codeownersOwnershipCursor[1].cypher,
-		"QP-CODEOWNERS-OWNERSHIP-CURSOR-REF":     codeownersOwnershipCursor[2].cypher,
+		"QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER":   codeownersOwnershipCursor[0].Cypher,
+		"QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN": codeownersOwnershipCursor[1].Cypher,
+		"QP-CODEOWNERS-OWNERSHIP-CURSOR-REF":     codeownersOwnershipCursor[2].Cypher,
 		"QP-CODEOWNERS-LAST-MATCH-OWNER":         codeownersLastMatchOwner,
 	}
 }

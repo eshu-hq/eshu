@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeowners
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // recordingCodeownersGraphReader is a GraphQuery test double covering both
@@ -66,8 +68,8 @@ func (r *recordingCodeownersGraphReader) RunSingle(
 	return r.singleRow, nil
 }
 
-func newCodeownersOwnershipMux(neo4j GraphQuery, correlations ServiceCatalogCorrelationStore) *http.ServeMux {
-	handler := &CodeownersOwnershipHandler{Neo4j: neo4j, Correlations: correlations}
+func newCodeownersOwnershipMux(neo4j querycontract.GraphQuery, correlations querycontract.ServiceCatalogCorrelationStore) *http.ServeMux {
+	handler := &Handler{Neo4j: neo4j, Correlations: correlations}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	return mux
@@ -115,7 +117,7 @@ func TestCodeownersOwnershipRejectsInvalidLimitAndHalfCursor(t *testing.T) {
 func TestCodeownersOwnershipBackendUnavailableWhenGraphMissing(t *testing.T) {
 	t.Parallel()
 
-	handler := &CodeownersOwnershipHandler{Correlations: &fakeCodeownersCorrelationStore{}}
+	handler := &Handler{Correlations: &fakeCodeownersCorrelationStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -194,7 +196,7 @@ func TestCodeownersOwnershipEffectiveOwnerPrefersManifestSource(t *testing.T) {
 
 	graph := &recordingCodeownersGraphReader{singleRow: map[string]any{"owner_ref": "@org/team-codeowners"}}
 	correlations := &fakeCodeownersCorrelationStore{
-		rows: []ServiceCatalogCorrelationRow{
+		rows: []querycontract.ServiceCatalogCorrelationRow{
 			{RepositoryID: "repo-1", OwnerRef: "@org/team-manifest", Outcome: "exact"},
 		},
 	}

@@ -148,19 +148,19 @@ func TestListCatalogSkipsCorrelationEnrichmentWhenStoreIsNil(t *testing.T) {
 func TestServiceCatalogCorrelationFilterHasScopeWithAllowedRepositoryIDs(t *testing.T) {
 	t.Parallel()
 
-	// hasScope() must return true when only AllowedRepositoryIDs is set so the
+	// HasScope() must return true when only AllowedRepositoryIDs is set so the
 	// catalog enrichment path can issue a scope-bounded lookup without a required
 	// single-id field (AllowedRepositoryIDs becomes the SQL $13 array predicate).
 	f := ServiceCatalogCorrelationFilter{
 		AllowedRepositoryIDs: []string{"repository:r_alpha"},
 	}
-	if !f.hasScope() {
-		t.Fatal("hasScope() = false with non-empty AllowedRepositoryIDs, want true")
+	if !f.HasScope() {
+		t.Fatal("HasScope() = false with non-empty AllowedRepositoryIDs, want true")
 	}
 
 	// Empty filter must still return false.
 	empty := ServiceCatalogCorrelationFilter{}
-	if empty.hasScope() {
-		t.Fatal("hasScope() = true for empty filter, want false")
+	if empty.HasScope() {
+		t.Fatal("HasScope() = true for empty filter, want false")
 	}
 }

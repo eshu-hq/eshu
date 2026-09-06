@@ -79,7 +79,7 @@ func TestCodeownersOwnershipListOwnershipMapsGraphReadAvailabilityErrors(t *test
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.listOwnership(rec, req)
+			handler.ListOwnership(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
