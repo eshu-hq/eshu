@@ -6,14 +6,11 @@ executor. The production contention probe reproduced a PostgreSQL deadlock;
 the change gives those statements a common work-item order and acquires queued
 completion events only after the consumer locks.
 
-The last live-validated production checkpoint is
-`8cb067c70a26e4e2790bf377e9301001c4de1813`. All seven focused live tests pass,
-including the correction from exclusive work-row locks to `NO KEY UPDATE` for
-foreign-key compatibility. The historical RED and intermediate performance
-failures below explain the revisions. The previous fanout-only revision passed six paired scale trials and failed
-one ACK p95 limit; the CI/CD lookup revision passed all seven paired runs; final build/vet, full golden-corpus proof and promotion review remain
-pending.
-Neither a single timing sample nor focused correctness establishes readiness.
+The final production patch passes focused concurrency and telemetry tests,
+seven alternating representative scale pairs, build/vet, and the built golden
+corpus gate. The final sections bind those executions to their exact heads and
+hosts. Historical RED and rejected intermediate performance results below
+explain the revisions; full review and promotion remain separate requirements.
 
 ## Observed failure and ownership
 
@@ -444,3 +441,52 @@ representative fixture; the separate already-dirty backlog and full golden
 pipeline proof remain outstanding. Raw vectors and every direct status are in
 `/tmp/6488-requested-cicd-pairs-remote.log`; summary values are in
 `/tmp/6488-requested-cicd-paired-summary.json`.
+
+## Rebased runtime and already-dirty validation
+
+Runtime head `20d7d3c756ddd2d022536d6b89e62f19b2246b74` rebases the final
+candidate onto `ef7e301bd6b778cafcaeb07de2a0478d50230542`; storage blobs and
+stable patch ID are unchanged. Whole-module build/vet, recursive PostgreSQL
+unit tests, and all seven live contention/telemetry tests pass with direct exit 0.
+The initial broader listing correctly refused a stale renamed horizon selector;
+a corrected listing selects all 27 intended tests. Their run has 22 passes,
+five failures and no skips. Clean main `ef7e301bd6` reproduces the same five
+previously listed failures, including identical legacy-marker assertions and
+PostgreSQL-microsecond versus Go-nanosecond retry timestamp mismatch.
+The candidate's production-scale test also passes unchanged bounds on this head.
+All 435 tracked cassette, snapshot and ecosystem-fixture blobs match main.
+
+The separate test-only `75da672ea7156072e3beb08027e96fcff85bcad9` diagnostic
+uses the identical final runtime with 900 scopes and 25 generations. It commits
+running+dirty setup before each measured transaction, releasing setup locks.
+Actual main/current fanout calls and rollback EXPLAIN calls preserve every work
+row, dirty flag and exact event state, report 900 producer items, and schedule
+zero unnecessary work. Exact recursive listing and live execution exit 0.
+
+| Producer wave | Main/current work locks | Main/current EXPLAIN ms | Main/current shared hits |
+| --- | --- | --- | --- |
+| Identity | 0 / 1,800 | 76.857 / 19.813 | 145,566 / 14,459 |
+| CI/CD | 0 / 900 | 39.894 / 15.599 | 72,848 / 9,959 |
+
+These ordered, warm samples measure freshly acquired uncontended locks;
+they are not p95, contended latency or a production speedup guarantee.
+Both owned schemas are removed by test cleanup. No planner settings,
+statistics refresh, workload reduction or acceptance limits changed.
+
+## Current-main golden corpus proof
+
+Head `5f4d52f3414941d626ed788130ae522ac0679321` incorporates main
+`0e43ba2bfcdff886d3d129289bd37dbb068bff8e`; its storage patch is byte-identical
+to the preceding runtime proof. The built golden-corpus gate passes 561 checks,
+with zero required failures and one advisory: maintenance drains took 94s
+against the advisory 30s ceiling. Pipeline time is 202s against the unchanged
+1,800s required ceiling. Bootstrap, all drains, graph/API/MCP assertions and
+the existing snapshot expectations pass; all 435 cassette/snapshot/fixture
+inputs remain byte-identical to main. Gate, wrapper and owned cleanup exit 0.
+
+This native functional run uses Go 1.26.6 darwin/arm64, PostgreSQL 18.4 and
+NornicDB revision `3722b483c02c38a8e046d198f8768f200f31023c` on 12 CPUs/64 GiB.
+It does not replace the separately attributed PostgreSQL 18.6 scale pairs.
+The first local attempt exited 1 because the psql client was absent, before
+acceptance checks; installing psql 18.6 repaired that harness prerequisite.
+The interrupted remote run has no confirmed terminal result and is not proof.
