@@ -7,11 +7,11 @@ the change gives those statements a common work-item order and acquires queued
 completion events only after the consumer locks.
 
 The last live-validated production checkpoint is
-`87860a397ce6e5b3c73c3da7a76b22cacf8c7993`. All seven focused live tests pass,
+`8cb067c70a26e4e2790bf377e9301001c4de1813`. All seven focused live tests pass,
 including the correction from exclusive work-row locks to `NO KEY UPDATE` for
 foreign-key compatibility. The historical RED and intermediate performance
-failures below explain the revisions. Seven paired scale trials produced six candidate passes and one ACK p95
-failure; final build/vet, full golden-corpus proof and promotion review remain
+failures below explain the revisions. The previous fanout-only revision passed six paired scale trials and failed
+one ACK p95 limit; the CI/CD lookup revision passed all seven paired runs; final build/vet, full golden-corpus proof and promotion review remain
 pending.
 Neither a single timing sample nor focused correctness establishes readiness.
 
@@ -397,3 +397,50 @@ arguments, workers, batch sizes, triggers and completion counts remain as
 previously tested. No table statistics, indexes or planner settings changed.
 Actual contention, stale-claim and positive EPQ proof plus the unchanged paired
 scale gate must pass before this revision can be promoted.
+
+The final CI/CD lookup checkpoint `8cb067c70a26e4e2790bf377e9301001c4de1813`
+listed and passed all seven recursive contention tests (direct exits 0), with
+no skipped tests. The positive heartbeat/EPQ arm now repeats the CI/CD input ID
+and still requires one affected ACK and one producer item. Raw closing logs are
+`/tmp/6488-requested-cicd-list.log` and `/tmp/6488-requested-cicd-run.log`.
+
+## Broader live baseline controls
+
+The earlier broader live run at `8be53b9cda17c551da430e757faa20301a846851`
+exited 1. The following failures also reproduced with unchanged production SQL
+at baseline `37e1fb548341bd337f14b591225e6c079f7007af`:
+
+- `TestContainerImageIdentityAckAttemptFenceSurvivesSameOwnerReclaimAndReplayLive`
+- `TestContainerImageIdentityAckAttemptFenceMixedVersionLive`
+- `TestContainerImageIdentityAckStatusAuthorizationHonorsTransactionBoundariesLive`
+- `TestContainerImageIdentityAckMarkerOrderingLive`
+- `TestCrossScopeCompletionRetryMergesPendingAndStaysBoundedLive`
+
+The first four expected legacy attempt-token rejection but received no error;
+the marker-ordering test also reported corresponding state mismatches. The last
+test compared PostgreSQL's microsecond timestamp with an untruncated Go value.
+Artifacts `/tmp/6488-existing-live.log` and
+`/tmp/6488-existing-baseline-control.log` preserve the actual failures and
+terminal statuses. These controls distinguish pre-existing failures; they do
+not establish a fully GREEN broader suite or waive a required gate. The scale
+test failed too; its separate controlled measurements and subsequent revisions
+are reported above. Final-source broader validation remains pending.
+
+## CI/CD lookup seven-pair closing scale result
+
+At `8cb067c70a26e4e2790bf377e9301001c4de1813`, all seven candidate trials
+passed every unchanged bound and terminal-state assertion. The seven baseline
+controls failed. The collection exited 1 because it retains baseline failures;
+each candidate test exited 0. Both arms used the same 900-scope/25-generation
+fixture, backend settings and alternating-order protocol described above.
+
+Baseline/candidate medians were: identity ACK 2.047804/2.367256 ms; CI/CD ACK
+4.717822/1.762945 ms; identity fanout 131.052837/68.552372 ms; CI/CD fanout
+64.937907/40.388371 ms; wall 1.053160958/0.812831842 seconds; WAL
+15,744,312/15,576,912 bytes. Candidate CI/CD ACK p95 ranged from 1.734524 to
+1.799815 ms; maximum identity ACK p95 was 2.430716 ms. No bound, worker count,
+batch size or fixture workload changed. These measurements apply to this
+representative fixture; the separate already-dirty backlog and full golden
+pipeline proof remain outstanding. Raw vectors and every direct status are in
+`/tmp/6488-requested-cicd-pairs-remote.log`; summary values are in
+`/tmp/6488-requested-cicd-paired-summary.json`.
