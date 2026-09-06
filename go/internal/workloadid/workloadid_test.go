@@ -3,7 +3,10 @@
 
 package workloadid
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 // These tests pin the CURRENT identifier format on purpose. This step changes
 // no identifier value — it only makes construction enumerable by the compiler
@@ -16,7 +19,7 @@ func TestNewWorkloadIDPinsCurrentFormat(t *testing.T) {
 		name     string
 		repoID   string
 		workload string
-		want     WorkloadID
+		want     string
 	}{
 		{"plain name", "repo:alpha", "checkout", "workload:checkout"},
 		{"repository is not yet part of the key", "repo:beta", "checkout", "workload:checkout"},
@@ -25,7 +28,7 @@ func TestNewWorkloadIDPinsCurrentFormat(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := NewWorkloadID(tc.repoID, tc.workload); got != tc.want {
+			if got := NewWorkloadID(tc.repoID, tc.workload).String(); got != tc.want {
 				t.Fatalf("NewWorkloadID(%q, %q) = %q, want %q", tc.repoID, tc.workload, got, tc.want)
 			}
 		})
@@ -44,8 +47,8 @@ func TestNewWorkloadIDCollidesAcrossRepositories(t *testing.T) {
 }
 
 func TestNewWorkloadInstanceIDPinsCurrentFormat(t *testing.T) {
-	got := NewWorkloadInstanceID("repo:alpha", "checkout", "production")
-	if want := WorkloadInstanceID("workload-instance:checkout:production"); got != want {
+	got := NewWorkloadInstanceID("repo:alpha", "checkout", "production").String()
+	if want := "workload-instance:checkout:production"; got != want {
 		t.Fatalf("NewWorkloadInstanceID = %q, want %q", got, want)
 	}
 }
@@ -64,11 +67,28 @@ func TestWorkloadIDStringRoundTrip(t *testing.T) {
 	if got := NewWorkloadID("repo:alpha", "checkout").String(); got != "workload:checkout" {
 		t.Fatalf("String() = %q", got)
 	}
-	if got := WorkloadID("").String(); got != "" {
+	if got := (WorkloadID{}).String(); got != "" {
 		t.Fatalf("empty id must stringify to empty, got %q", got)
 	}
 	if got := NewWorkloadInstanceID("repo:alpha", "checkout", "production").String(); got != "workload-instance:checkout:production" {
 		t.Fatalf("instance String() = %q", got)
+	}
+}
+
+// The identifier types must stay opaque: every field unexported, so no
+// caller can convert or composite-literal its way around the constructors.
+// Without this, a re-key that changes NewWorkloadID would leave hand-built
+// values compiling on the old format (#6580 codex P1).
+func TestIdentifierTypesAreOpaque(t *testing.T) {
+	for _, typ := range []reflect.Type{reflect.TypeOf(WorkloadID{}), reflect.TypeOf(WorkloadInstanceID{})} {
+		if typ.Kind() != reflect.Struct {
+			t.Fatalf("%s must be a struct, got %s", typ.Name(), typ.Kind())
+		}
+		for i := 0; i < typ.NumField(); i++ {
+			if field := typ.Field(i); field.PkgPath == "" {
+				t.Fatalf("%s.%s must stay unexported", typ.Name(), field.Name)
+			}
+		}
 	}
 }
 

@@ -117,6 +117,11 @@ func provisionedRuntimePlatformRows(
 				// into one entry -- but under the #5385 re-key the wrong one
 				// here would key a second node for the same instance.
 				instanceID := workloadid.NewWorkloadInstanceID(candidate.RepoID, workloadName, environment).String()
+				if instanceID == "" {
+					// Same blank-environment drop as the deployment-env
+					// sibling site in projection.go (#6580 P1).
+					continue
+				}
 				rows = append(rows, RuntimePlatformRow{
 					Environment:      environment,
 					Confidence:       confidence,

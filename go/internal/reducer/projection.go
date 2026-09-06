@@ -326,6 +326,15 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 
 		for _, environment := range environments {
 			instanceID := workloadid.NewWorkloadInstanceID(candidate.RepoID, workloadName, environment).String()
+			if instanceID == "" {
+				// A blank environment yields the empty id rather than a
+				// bare-prefix identifier; emitting it would MERGE every
+				// affected candidate onto one shared node, so the row is
+				// dropped instead (#6580 P1). Unreachable on production
+				// inputs (environments arrive Canonicalized and gated),
+				// hence outside the byte-identity proof.
+				continue
+			}
 
 			if _, ok := seenInstances[instanceID]; !ok {
 				seenInstances[instanceID] = struct{}{}

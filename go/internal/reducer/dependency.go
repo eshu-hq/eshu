@@ -74,6 +74,11 @@ func BuildWorkloadDependencyRows(
 				continue
 			}
 			targetWorkloadID := workloadid.NewWorkloadID(targetRepoID, depName).String()
+			if targetWorkloadID == "" {
+				// A blank depName yields the empty id; emitting it would
+				// key a shared edge row, so the row is dropped (#6580 P1).
+				continue
+			}
 			edgeKey := descriptor.WorkloadID + "|" + targetRepoID
 			if _, ok := seen[edgeKey]; ok {
 				continue

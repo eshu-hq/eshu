@@ -23,16 +23,27 @@ import (
 // this type removes. Nothing outside this file can produce a WorkloadID without
 // the compiler saying so.
 //
-// That guarantee covers the TYPE, not the string. Callers that still assemble
-// "workload:" + name by hand are outside its reach -- see the package README
-// for the ones that remain and why they are the re-key's work rather than this
-// package's.
-type WorkloadID string
+// The representation is opaque on purpose: the field is unexported, so the
+// only way to mint a WorkloadID is a constructor in this package. A
+// hand-built conversion such as WorkloadID("workload:" + name) does not
+// compile, which means the re-key cannot silently leave a caller behind on
+// the old format while the constructors move (#6580 codex P1). Callers that
+// still assemble "workload:" + name by hand as a plain string are outside
+// its reach -- see the package README for the ones that remain and why they
+// are the re-key's work rather than this package's.
+type WorkloadID struct {
+	// v is the identifier text.
+	v string
+}
 
 // WorkloadInstanceID is the canonical graph identifier for a WorkloadInstance
 // node. It carries the same collision defect as WorkloadID and exists for the
-// same reason: to make construction sites enumerable by the compiler.
-type WorkloadInstanceID string
+// same reason: to make construction sites enumerable by the compiler. It is
+// opaque for the same reason as WorkloadID.
+type WorkloadInstanceID struct {
+	// v is the identifier text.
+	v string
+}
 
 // NewWorkloadID builds the canonical Workload identifier.
 //
@@ -49,9 +60,9 @@ func NewWorkloadID(repoID, workloadName string) WorkloadID {
 	_ = repoID // reserved for the repository-scoped key; see #5385.
 	name := strings.TrimSpace(workloadName)
 	if name == "" {
-		return ""
+		return WorkloadID{}
 	}
-	return WorkloadID(fmt.Sprintf("workload:%s", name))
+	return WorkloadID{v: fmt.Sprintf("workload:%s", name)}
 }
 
 // NewWorkloadInstanceID builds the canonical WorkloadInstance identifier.
@@ -65,16 +76,16 @@ func NewWorkloadInstanceID(repoID, workloadName, environment string) WorkloadIns
 	name := strings.TrimSpace(workloadName)
 	env := strings.TrimSpace(environment)
 	if name == "" || env == "" {
-		return ""
+		return WorkloadInstanceID{}
 	}
-	return WorkloadInstanceID(fmt.Sprintf("workload-instance:%s:%s", name, env))
+	return WorkloadInstanceID{v: fmt.Sprintf("workload-instance:%s:%s", name, env)}
 }
 
 // String returns the identifier as a plain string, for the Cypher parameters,
 // row builders and struct fields that still take one. Converting those
 // consumers is deliberately not part of this step: this step only makes
 // construction enumerable, and changes no identifier value.
-func (id WorkloadID) String() string { return string(id) }
+func (id WorkloadID) String() string { return id.v }
 
 // String returns the identifier as a plain string. See WorkloadID.String.
-func (id WorkloadInstanceID) String() string { return string(id) }
+func (id WorkloadInstanceID) String() string { return id.v }

@@ -30,7 +30,7 @@ the empty id for a blank one, where `fmt.Sprintf` produced `workload:` or
 | `projection.go:280` | `fmt.Sprintf("workload:%s", workloadName)` | Yes, all inputs. `candidateWorkloadName` returns a trimmed value and the caller skips `""` immediately above; `TrimSpace` is idempotent. |
 | `projection.go:328` | `fmt.Sprintf("workload-instance:%s:%s", …)` | Yes on every production input. Every `environment` arrives through `environment.Canonical()` plus a non-empty gate. |
 | `projection_helpers.go:119` | same | Yes, same funnel. |
-| `dependency.go:76` | `fmt.Sprintf("workload:%s", depName)` | Diverges on a blank `depName`, but `BuildWorkloadDependencyRows` has no production caller — `rg` finds it only from tests, as with its consumer `MaterializeDependencies`. |
+| `dependency.go:76` | `fmt.Sprintf("workload:%s", depName)` | Diverged on a blank `depName`, but `BuildWorkloadDependencyRows` has no production caller — `rg` finds it only from tests, as with its consumer `MaterializeDependencies`. The site now drops the row on an empty id like the other two (#6580 P1). |
 
 The environment funnel was proven empirically, not just read: hostile file facts
 (`"  prod  "` namespaces, an `overlays/  prod  /` path, `values-STAGING.yaml`,
@@ -114,11 +114,22 @@ Every claim re-checked against the current tree:
   already-built ids from projection rows or stored graph reads — not a
   construction site.
 - New regression coverage: `internal/reducer/projection_workloadid_test.go`
-  recomputes the constructors from each emitted row's own fields and pins the
-  blank-environment guard. The blank test was proven non-vacuous by
-  temporarily restoring the old inline `fmt.Sprintf` at `projection.go:328`:
-  it fails with `InstanceID = "workload-instance:checkout:"`, then passes
-  again after the restore.
+  recomputes the constructors from each emitted row's own fields, pins the
+  blank-environment drop (zero `InstanceRows`), and pins every
+  `RuntimePlatformRow.InstanceID` from the provisioned-platforms path
+  against the constructor recomputed from the row's own repo and
+  environment (#6580 P2). The blank test was proven non-vacuous by
+  temporarily removing the `continue`: it fails with one emitted
+  `InstanceRow`, then passes again after the restore.
+- `internal/reducer/workloadid_routing_guard_test.go` scans the package's
+  own non-test sources for hand-built `Sprintf("workload:%s",` /
+  `"workload:" +` construction and fails on either (#6580 P2), so the
+  compiler-enumeration claim survives the next edit instead of resting on
+  a manual `rg`. The patterns deliberately exclude the
+  `workload:%s->%s` partition keys, which are not identifiers.
+- `TestIdentifierTypesAreOpaque` pins every field of both identifier
+  types unexported via reflection, so a future exported field (or a
+  regression to a string underlying type) fails loudly (#6580 codex P1).
 - Current counts (run from `go/`; `rg -o '"workload:[^"]*"'` /
   `'"workload-instance:[^"]*"'` `--glob '*_test.go'`, balanced-quote literal
   methodology): 123 `"workload:`
@@ -128,6 +139,11 @@ Every claim re-checked against the current tree:
   +1/+1 from the rows-track-constructors comment quoting the
   `Sprintf("workload:` pattern; the balanced-quote methodology used here
   is unaffected.)
+  Post-#6580 counts (same methodology, same cwd): 131 `"workload:`
+  literals across 32 reducer test files and 90 `"workload-instance:`
+  literals across 11 reducer test files — the +8/+2 delta is exactly the
+  new guard test's own pattern strings plus the rows-track header quote,
+  verified by file attribution; all green unchanged.
 - `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2546 pass
   (incl. subtests), 0 fail, 5 skip — all pre-existing and unrelated to this
   change: a live-backend-gated Bolt retract test, a provenance-replay
