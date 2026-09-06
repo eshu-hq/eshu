@@ -72,7 +72,9 @@ const (
 	ActorClassBrowserSession ActorClass = "browser_session"
 	// ActorClassServicePrincipal marks an internal service principal.
 	ActorClassServicePrincipal ActorClass = "service_principal"
-	// ActorClassOperator marks a human operator class without a direct identifier.
+	// ActorClassOperator marks a human operator asserting an identity, such as
+	// an interactive login or a local-identity mutation. It is identity-bearing:
+	// an event with it needs an ActorIDHash or ServicePrincipalID.
 	ActorClassOperator ActorClass = "operator"
 	// ActorClassSystem marks internal system maintenance work.
 	ActorClassSystem ActorClass = "system"

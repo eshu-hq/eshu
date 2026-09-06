@@ -231,10 +231,11 @@ func recordReadAuthorizationUnavailable(
 // session is browser_session and a scoped or OIDC bearer is scoped_token
 // (#6459). Both branches of authMiddlewareWithRoutePolicy share this helper
 // and both emit scoped_route_all_scope_grant_required, so actor_class is the
-// column that tells an operator which population a row came from. Neither is
-// ActorClassOperator: that member means a human with no direct identifier,
-// and both of these callers carry a subject hash. A caller with no subject
-// hash downgrades to anonymous, because NormalizeEvent rejects either
+// column that tells an operator which population a row came from. Neither
+// reuses ActorClassOperator: that class is already stamped on a human's login
+// and identity-mutation rows, so a route denial carrying it would merge two
+// populations an operator filters apart. A caller with no subject hash
+// downgrades to anonymous, because NormalizeEvent rejects every
 // identity-bearing class without an actor identity.
 func recordScopedRouteAuthorizationDeniedWithReason(
 	r *http.Request,
