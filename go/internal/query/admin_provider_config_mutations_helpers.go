@@ -28,7 +28,7 @@ func (h *AdminProviderConfigMutationHandler) audit(
 	}
 	auth, _ := AuthContextFromContext(r.Context())
 	auth = normalizeAuthContext(auth)
-	actorClass := localIdentityActorClass(auth)
+	actorClass := actorClassForAuth(auth)
 	if actorIDHash == "" {
 		actorIDHash = auth.SubjectIDHash
 	}

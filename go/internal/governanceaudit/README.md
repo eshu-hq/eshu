@@ -51,10 +51,20 @@ metrics, spans, and structured logs.
 - `actor_class` is a closed enum too. `scoped_token` is a scoped-token or
   OIDC-bearer caller and `browser_session` is a cookie-authenticated dashboard
   session (#6459); both need an `ActorIDHash` or `ServicePrincipalID`, and an
-  emitter that has neither records `anonymous` instead. `operator` is
-  identity-bearing too, and it is the class already stamped on a human's
-  login and identity-mutation rows, so reusing it on a route denial would
-  merge two populations an operator filters apart.
+  emitter that has neither records `anonymous` instead. One credential maps
+  to one class on every event (#6566): `actorClassForAuth` in
+  `internal/query/auth_audit.go` is the single mapping behind route denials,
+  allowed reads, identity mutations, and admin recovery actions. `operator`
+  is identity-bearing too and is reserved for a human asserting an identity
+  through an SSO login, which carries no resolved credential; a cookie
+  session acting on an identity mutation is `browser_session`, not
+  `operator`, so the two populations stay apart when an operator filters by
+  class. A request that carries no credential in the open posture (auth
+  enforcement not configured) is `anonymous` on recovery actions, where it
+  was `shared_token` with the synthetic identity before #6566. Rows written
+  before #6566 still carry `operator` (identity mutations) or `shared_token`
+  (recovery actions by a cookie session or by an open-posture request) and
+  are not rewritten; a filter by class that spans that window includes both.
 - `reason_code` is a bounded enum an operator filters and groups by, so the
   emitting package owns its closed set rather than passing through whatever a
   dependency reports. For bearer/token resolution denials that set is

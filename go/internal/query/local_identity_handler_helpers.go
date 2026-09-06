@@ -340,7 +340,7 @@ func (h *LocalIdentityHandler) auditLocalIdentity(
 	}
 	event := governanceaudit.Event{
 		Type:        eventType,
-		ActorClass:  localIdentityActorClass(auth),
+		ActorClass:  actorClassForAuth(auth),
 		ActorIDHash: actorIDHash,
 		ScopeClass:  governanceaudit.ScopeClassAdmin,
 		Decision:    decision,
@@ -363,19 +363,6 @@ func (h *LocalIdentityHandler) requirePermissionFeature(
 	h.auditLocalIdentity(r, eventType, governanceaudit.DecisionDenied, "permission_catalog_denied", "")
 	writePermissionDeniedEnvelope(w, capability)
 	return false
-}
-
-func localIdentityActorClass(auth AuthContext) governanceaudit.ActorClass {
-	switch auth.Mode {
-	case AuthModeShared:
-		return governanceaudit.ActorClassSharedToken
-	case AuthModeBrowserSession:
-		return governanceaudit.ActorClassOperator
-	case AuthModeScoped:
-		return governanceaudit.ActorClassScopedToken
-	default:
-		return governanceaudit.ActorClassAnonymous
-	}
 }
 
 // IdentityHash is the exported form of localIdentityHash, for the callers

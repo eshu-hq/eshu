@@ -14,7 +14,8 @@ console session from a bearer.
 `go/internal/query/auth_audit.go` picks it when `AuthContext.Mode` is
 `AuthModeBrowserSession`. Bearer denials keep `scoped_token`; a blank subject
 hash still downgrades to `anonymous`. Local-identity writes and admin
-recovery keep their own mappings; #6566 tracks aligning them.
+recovery keep their own mappings; #6566 tracks aligning them (aligned; see
+`6566-actor-class-alignment.md`).
 
 ## Evidence
 

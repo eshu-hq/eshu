@@ -72,9 +72,13 @@ const (
 	ActorClassBrowserSession ActorClass = "browser_session"
 	// ActorClassServicePrincipal marks an internal service principal.
 	ActorClassServicePrincipal ActorClass = "service_principal"
-	// ActorClassOperator marks a human operator asserting an identity, such as
-	// an interactive login or a local-identity mutation. It is identity-bearing:
-	// an event with it needs an ActorIDHash or ServicePrincipalID.
+	// ActorClassOperator marks a human operator asserting an identity through
+	// an interactive SSO login. A caller acting on a credential that is
+	// already resolved (a cookie session, a scoped bearer, the shared bearer)
+	// takes that credential's class instead, so identity mutations and
+	// recovery actions by a dashboard session are ActorClassBrowserSession
+	// (#6566). It is identity-bearing: an event with it needs an ActorIDHash
+	// or ServicePrincipalID.
 	ActorClassOperator ActorClass = "operator"
 	// ActorClassSystem marks internal system maintenance work.
 	ActorClassSystem ActorClass = "system"
