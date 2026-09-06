@@ -333,7 +333,7 @@ const openAPIPathsImpactRest = `
       "post": {
         "tags": ["impact"],
         "summary": "Trace resource to code",
-        "description": "Traces a resource back to its source code repositories.",
+        "description": "Traces a resource back to its source code repositories. The walk is bounded: max_depth defaults to 8 and is clamped to 1-20, and at most 200 rows are returned. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the anchor and the infrastructure hops it walks through carry no repo_id property, so a repository grant has nothing to bind to. That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger.",
         "operationId": "traceResourceToCode",
         "requestBody": {
           "required": true,
@@ -374,6 +374,7 @@ const openAPIPathsImpactRest = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }
       }
@@ -382,7 +383,7 @@ const openAPIPathsImpactRest = `
       "post": {
         "tags": ["impact"],
         "summary": "Explain dependency path",
-        "description": "Finds and explains the shortest path between two entities.",
+        "description": "Finds and explains the shortest path between two entities. The walk is bounded: one shortestPath of at most 8 hops. Scoped tokens, all-scope bearer tokens included, are refused with a 403, and so is every browser session except a tenant-bound all-scope console session, because the anchors and the infrastructure hops on the path carry no repo_id property, so a repository grant has nothing to bind to. That console session is admitted only when ESHU_GOVERNANCE_MODE is local_no_policy, hosted_single_tenant, or unset (which defaults to local_no_policy); hosted_multi_tenant and any unrecognized mode refuse it with the same 403. The route stays on the #5167 pending row-filtering ledger.",
         "operationId": "explainDependencyPath",
         "requestBody": {
           "required": true,
@@ -422,6 +423,7 @@ const openAPIPathsImpactRest = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
           "404": {"$ref": "#/components/responses/NotFound"},
           "500": {"$ref": "#/components/responses/InternalError"}
         }

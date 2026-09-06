@@ -250,8 +250,8 @@ surfaces along with the promotion, and what ships is the refusal.
 a 403 "in every deployment, and so is every browser session except a
 tenant-bound all-scope console session", because the service lineage tables
 carry no column naming the tenant a row belongs to, and that `local_no_policy`
-and `hosted_single_tenant` admit that console session "as it does on every
-route outside the scoped-token allowlist". The `get_service_changed_since`
+and `hosted_single_tenant` admit that console session "as it does on the routes
+of the pending row-filtering ledger". The `get_service_changed_since`
 definition says the same in its own space. The clause above comes back with the
 promotion once #6475 lands.
 

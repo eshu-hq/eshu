@@ -36,10 +36,14 @@ func (f fakeScopedResolver) ResolveScopedToken(_ context.Context, token string) 
 // can never join scopedHTTPRouteSupportsTenantFilter and this assertion stays
 // valid for the whole #5167 epic. Do NOT repoint this to a pendingRowFilteringRoutes
 // entry (e.g. the get_ecosystem_overview → /api/v0/ecosystem/overview route this
-// test used before #5167 F-6 W6): every pending route is destined for scoped
-// promotion (the ledger draining to empty is the epic's exit criterion), which
-// would flip this control's expected denial to a reachable 200 — exactly the W6
-// regression this replaced when W6 promoted ecosystem/overview.
+// test used before #5167 F-6 W6): a pending route may be promoted by its family
+// at any time, which would flip this control's expected denial to a reachable
+// 200 — exactly the W6 regression this replaced when W6 promoted
+// ecosystem/overview. (The epic's exit criterion is not an empty ledger, as an
+// earlier version of this comment said: a route that genuinely cannot be
+// tenant-filtered may stay on the ledger with a reason and a tool description
+// that discloses the 403. But which routes those are is not settled, so a
+// pending route is still the wrong control to pin this assertion to.)
 func TestMCPRunner_ScopedCaller_CannotReachNonScopedRoute(t *testing.T) {
 	t.Parallel()
 

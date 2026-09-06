@@ -157,6 +157,17 @@ filters include `direction`, `relationship_type`, `transitive`, and
 `max_depth`. Set `transitive=true` with `relationship_type=CALLS` for indirect
 callers or callees; `max_depth` caps traversal.
 
+This route binds no grant, so scoped tokens are refused with a `403`, all-scope
+bearer tokens included, and so is every browser session except a tenant-bound
+all-scope console session under `local_no_policy`, `hosted_single_tenant`, or an
+unset `ESHU_GOVERNANCE_MODE` (`hosted_multi_tenant` and any unrecognized value
+refuse it too). It is where the `analyze_code_relationships` MCP tool sends its
+`who_modifies`, `module_deps`, `variable_scope`, `find_complexity`,
+`find_functions_by_argument`, and `find_functions_by_decorator` query types; the
+relationship-story and call-chain query types go to the grant-bound routes below
+instead. Promotion applies the same anchoring-`MATCH` grant those routes carry
+(#5167).
+
 `POST /api/v0/code/relationships/story` resolves one target first. If the target
 is ambiguous, it returns bounded candidates instead of guessing. It supports
 direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
@@ -475,3 +486,12 @@ and both are rejected before the handler runs.
 (package bundles) by name, namespace, or PURL. It requires a non-empty `query`
 or `ecosystem` scope and rejects unscoped requests. It does not upload files,
 import `.eshu` archives, or mutate graph state.
+
+The handler never intersects the caller's repository grant, and a `Package` node
+carries `visibility` and `scope_id` but no repository key to bind one to, so
+scoped tokens are refused with a `403`, all-scope bearer tokens included, and so
+is every browser session except a tenant-bound all-scope console session under
+`local_no_policy`, `hosted_single_tenant`, or an unset `ESHU_GOVERNANCE_MODE`
+(`hosted_multi_tenant` and any unrecognized value refuse it too). Promotion
+applies the package-registry visibility gate the ecosystem browse route already
+ships (#5167).

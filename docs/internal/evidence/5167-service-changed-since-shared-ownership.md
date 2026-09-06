@@ -371,14 +371,14 @@ with the promotion. A route whose middleware refuses every scoped caller must
 not advertise what it would do for one. What ships instead is the refusal, and
 it names who is refused rather than saying "scoped tokens and browser
 sessions", which over-claimed: `browserSessionRouteDenialReason` admits a
-tenant-bound all-scope console session on any route outside the scoped-token
-allowlist wherever `ScopedRoutePolicyForGovernanceMode` sets
-`AllowTenantBoundAllScopes`, and this route is outside that allowlist.
+tenant-bound all-scope console session on the routes of the pending
+row-filtering ledger wherever `ScopedRoutePolicyForGovernanceMode` sets
+`AllowTenantBoundAllScopes`, and this route is on that ledger.
 `openAPIPathsFreshnessServiceChangedSince` now says scoped tokens are refused
 "in every deployment, and so is every browser session except a tenant-bound
 all-scope console session", and that `local_no_policy` and
-`hosted_single_tenant` admit that console session "as it does on every route
-outside the scoped-token allowlist". The `get_service_changed_since`
+`hosted_single_tenant` admit that console session "as it does on the routes of
+the pending row-filtering ledger". The `get_service_changed_since`
 definition, the status-admin section, and the contract-matrix row say the same
 in the space each has. The admission sentence comes back with the promotion,
 once #6475 gives the lineage tables a column naming the tenant.
