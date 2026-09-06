@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+// Package admissiondecision holds the shared reducer admission-decision
+// vocabulary and helpers (issue #6061). See doc.go for the package contract.
+package admissiondecision
 
 import (
 	"context"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 const admissionDecisionPayloadVersion = "v1"
@@ -121,7 +124,10 @@ type AdmissionDecisionWriter interface {
 	WriteAdmissionDecisions(context.Context, []AdmissionDecisionWrite) error
 }
 
-func writeAdmissionDecisions(
+// WriteAdmissionDecisions persists decisions through writer, no-op when the
+// writer is nil or decisions is empty so callers can wire an optional
+// AdmissionDecisionWriter without a nil check at every call site.
+func WriteAdmissionDecisions(
 	ctx context.Context,
 	writer AdmissionDecisionWriter,
 	decisions []AdmissionDecisionWrite,
@@ -135,8 +141,10 @@ func writeAdmissionDecisions(
 	return nil
 }
 
-func newAdmissionDecision(
-	domain Domain,
+// NewAdmissionDecision builds one AdmissionDecision with a stable decision id
+// derived from domain, scope, generation, anchor, and candidate identity.
+func NewAdmissionDecision(
+	domain reducercontract.Domain,
 	state AdmissionState,
 	domainState string,
 	scopeID string,
@@ -147,7 +155,7 @@ func newAdmissionDecision(
 	candidateID string,
 	now time.Time,
 ) AdmissionDecision {
-	decisionID := stableAdmissionDecisionID(
+	decisionID := StableAdmissionDecisionID(
 		string(domain),
 		scopeID,
 		generationID,
@@ -176,7 +184,11 @@ func newAdmissionDecision(
 	}
 }
 
-func admissionDecisionEvidence(
+// NewAdmissionDecisionEvidence builds one bounded evidence row for decision.
+// Named New-prefixed rather than a bare AdmissionDecisionEvidence to avoid
+// colliding with the AdmissionDecisionEvidence type of the same name once
+// exported (issue #6061).
+func NewAdmissionDecisionEvidence(
 	decision AdmissionDecision,
 	sourceHandle string,
 	evidenceKind string,
@@ -184,7 +196,7 @@ func admissionDecisionEvidence(
 	now time.Time,
 ) AdmissionDecisionEvidence {
 	return AdmissionDecisionEvidence{
-		EvidenceID: stableAdmissionDecisionID(
+		EvidenceID: StableAdmissionDecisionID(
 			decision.DecisionID,
 			sourceHandle,
 			evidenceKind,
@@ -197,7 +209,9 @@ func admissionDecisionEvidence(
 	}
 }
 
-func stableAdmissionDecisionID(parts ...string) string {
+// StableAdmissionDecisionID derives a stable, prefixed identity hash from
+// parts. Callers use it for both decision and evidence identity.
+func StableAdmissionDecisionID(parts ...string) string {
 	identity := make(map[string]any, len(parts))
 	for idx, part := range parts {
 		identity[fmt.Sprintf("part_%02d", idx)] = strings.TrimSpace(part)
@@ -205,7 +219,10 @@ func stableAdmissionDecisionID(parts ...string) string {
 	return "admission:" + facts.StableID("admission_decision", identity)
 }
 
-func admissionConfidenceBucket(confidence float64) string {
+// AdmissionConfidenceBucket buckets a raw confidence score into the
+// coarse-grained "high"/"medium"/"low"/"unknown" vocabulary the read model
+// exposes.
+func AdmissionConfidenceBucket(confidence float64) string {
 	switch {
 	case confidence >= 0.90:
 		return "high"
@@ -218,7 +235,14 @@ func admissionConfidenceBucket(confidence float64) string {
 	}
 }
 
-func admissionNow(now func() time.Time) time.Time {
+// AdmissionNow resolves the timestamp an admission decision or correlation
+// row is stamped with. It is the seam callers use to inject a deterministic
+// clock in tests: pass a handler's own optional now field (e.g.
+// AdmissionDecisionNow), and AdmissionNow falls back to time.Now().UTC() when
+// that field is nil. AdmissionNow itself holds no state -- it is a pure
+// resolver, not a package-level clock var -- so callers remain free to pass
+// distinct clocks (or nil) per call site.
+func AdmissionNow(now func() time.Time) time.Time {
 	if now != nil {
 		return now().UTC()
 	}

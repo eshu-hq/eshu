@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -23,7 +23,7 @@ func newAdmissionDecisionWriter(db postgres.ExecQueryer) postgresAdmissionDecisi
 
 func (w postgresAdmissionDecisionWriter) WriteAdmissionDecisions(
 	ctx context.Context,
-	writes []reducer.AdmissionDecisionWrite,
+	writes []admissiondecision.AdmissionDecisionWrite,
 ) error {
 	if w.store == nil {
 		return fmt.Errorf("admission decision store is required")
@@ -42,7 +42,7 @@ func (w postgresAdmissionDecisionWriter) WriteAdmissionDecisions(
 	return nil
 }
 
-func postgresAdmissionDecision(decision reducer.AdmissionDecision) postgres.AdmissionDecision {
+func postgresAdmissionDecision(decision admissiondecision.AdmissionDecision) postgres.AdmissionDecision {
 	return postgres.AdmissionDecision{
 		DecisionID:          decision.DecisionID,
 		Domain:              decision.Domain,
@@ -82,7 +82,7 @@ func postgresAdmissionDecision(decision reducer.AdmissionDecision) postgres.Admi
 }
 
 func postgresAdmissionSourceHandles(
-	handles []reducer.AdmissionDecisionSourceHandle,
+	handles []admissiondecision.AdmissionDecisionSourceHandle,
 ) []postgres.AdmissionDecisionSourceHandle {
 	out := make([]postgres.AdmissionDecisionSourceHandle, 0, len(handles))
 	for _, handle := range handles {
@@ -96,7 +96,7 @@ func postgresAdmissionSourceHandles(
 }
 
 func postgresAdmissionEvidence(
-	rows []reducer.AdmissionDecisionEvidence,
+	rows []admissiondecision.AdmissionDecisionEvidence,
 ) []postgres.AdmissionDecisionEvidence {
 	out := make([]postgres.AdmissionDecisionEvidence, 0, len(rows))
 	for _, row := range rows {

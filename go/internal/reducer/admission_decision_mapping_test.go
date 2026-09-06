@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -18,15 +19,15 @@ type recordingAdmissionDecisionWriter struct {
 }
 
 type admissionDecisionWriterCall struct {
-	decisions []AdmissionDecisionWrite
+	decisions []admissiondecision.AdmissionDecisionWrite
 }
 
 func (w *recordingAdmissionDecisionWriter) WriteAdmissionDecisions(
 	_ context.Context,
-	decisions []AdmissionDecisionWrite,
+	decisions []admissiondecision.AdmissionDecisionWrite,
 ) error {
 	w.calls = append(w.calls, admissionDecisionWriterCall{
-		decisions: append([]AdmissionDecisionWrite(nil), decisions...),
+		decisions: append([]admissiondecision.AdmissionDecisionWrite(nil), decisions...),
 	})
 	return nil
 }
@@ -86,8 +87,8 @@ func TestDeployableUnitCorrelationWritesSharedAdmissionDecision(t *testing.T) {
 	if decision.Domain != string(DomainDeployableUnitCorrelation) {
 		t.Fatalf("Domain = %q, want %q", decision.Domain, DomainDeployableUnitCorrelation)
 	}
-	if decision.State != AdmissionStateAdmitted {
-		t.Fatalf("State = %q, want %q", decision.State, AdmissionStateAdmitted)
+	if decision.State != admissiondecision.AdmissionStateAdmitted {
+		t.Fatalf("State = %q, want %q", decision.State, admissiondecision.AdmissionStateAdmitted)
 	}
 	if decision.DomainState != "admitted" {
 		t.Fatalf("DomainState = %q, want admitted", decision.DomainState)
@@ -156,11 +157,11 @@ func TestCloudInventoryAdmissionWritesSharedAdmittedAndNonAdmittedDecisions(t *t
 		t.Fatalf("shared admission decisions = %d, want %d", got, want)
 	}
 	counts := countAdmissionStates(decisions)
-	for state, want := range map[AdmissionState]int{
-		AdmissionStateAdmitted:        1,
-		AdmissionStateAmbiguous:       1,
-		AdmissionStateUnsupported:     1,
-		AdmissionStateMissingEvidence: 1,
+	for state, want := range map[admissiondecision.AdmissionState]int{
+		admissiondecision.AdmissionStateAdmitted:        1,
+		admissiondecision.AdmissionStateAmbiguous:       1,
+		admissiondecision.AdmissionStateUnsupported:     1,
+		admissiondecision.AdmissionStateMissingEvidence: 1,
 	} {
 		if got := counts[state]; got != want {
 			t.Fatalf("state %q count = %d, want %d", state, got, want)
@@ -170,7 +171,7 @@ func TestCloudInventoryAdmissionWritesSharedAdmittedAndNonAdmittedDecisions(t *t
 		if write.Decision.Domain != string(DomainCloudInventoryAdmission) {
 			t.Fatalf("Domain = %q, want %q", write.Decision.Domain, DomainCloudInventoryAdmission)
 		}
-		if write.Decision.CanonicalWrite.Written && write.Decision.State != AdmissionStateAdmitted {
+		if write.Decision.CanonicalWrite.Written && write.Decision.State != admissiondecision.AdmissionStateAdmitted {
 			t.Fatalf("non-admitted decision wrote canonical truth: %+v", write.Decision)
 		}
 		if write.Decision.CandidateID == "resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/api" {
@@ -249,10 +250,10 @@ func TestPackageSourceCorrelationWritesSharedOwnershipAndConsumptionDecisions(t 
 		t.Fatalf("shared admission decisions = %d, want ownership, consumption, and publication", got)
 	}
 	counts := countAdmissionStates(decisions)
-	if got := counts[AdmissionStateAdmitted]; got != 1 {
+	if got := counts[admissiondecision.AdmissionStateAdmitted]; got != 1 {
 		t.Fatalf("admitted decisions = %d, want 1 consumption admission", got)
 	}
-	if got := counts[AdmissionStateMissingEvidence]; got != 2 {
+	if got := counts[admissiondecision.AdmissionStateMissingEvidence]; got != 2 {
 		t.Fatalf("missing evidence decisions = %d, want 2 provenance-only package decisions", got)
 	}
 	for _, write := range decisions {
@@ -271,7 +272,7 @@ func TestPackageSourceCorrelationWritesSharedOwnershipAndConsumptionDecisions(t 
 func onlyAdmissionDecisionBatch(
 	t *testing.T,
 	writer *recordingAdmissionDecisionWriter,
-) []AdmissionDecisionWrite {
+) []admissiondecision.AdmissionDecisionWrite {
 	t.Helper()
 	if len(writer.calls) != 1 {
 		t.Fatalf("WriteAdmissionDecisions calls = %d, want 1", len(writer.calls))
@@ -279,8 +280,8 @@ func onlyAdmissionDecisionBatch(
 	return writer.calls[0].decisions
 }
 
-func countAdmissionStates(decisions []AdmissionDecisionWrite) map[AdmissionState]int {
-	counts := make(map[AdmissionState]int)
+func countAdmissionStates(decisions []admissiondecision.AdmissionDecisionWrite) map[admissiondecision.AdmissionState]int {
+	counts := make(map[admissiondecision.AdmissionState]int)
 	for _, write := range decisions {
 		counts[write.Decision.State]++
 	}

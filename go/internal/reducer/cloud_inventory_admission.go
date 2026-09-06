@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -233,7 +234,7 @@ type CloudInventoryAdmissionHandler struct {
 	Instruments *telemetry.Instruments
 	// AdmissionDecisionWriter, when set, persists explainable shared admission
 	// decisions after the canonical admission writer succeeds.
-	AdmissionDecisionWriter AdmissionDecisionWriter
+	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
 	// AdmissionDecisionNow supplies timestamps for shared admission decisions.
 	AdmissionDecisionNow func() time.Time
 }
