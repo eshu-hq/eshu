@@ -6,8 +6,8 @@ flagged `go/internal/query/auth_scoped_routes_pending_row_filtering.go` and
 were flagged for prose, not code. The ledger comment for
 `GET /api/v0/index-status` quotes the unfiltered `MATCH (r:Repository)
 RETURN count(r)` that `getIndexStatus` runs, to say why the route cannot bind a
-grant; the OpenAPI fragment gained a `403` response and a description
-sentence. Neither file changes a statement, a handler, a route table or a
+grant; the OpenAPI fragment gained a `403` response and four description
+sentences. Neither file changes a statement, a handler, a route table or a
 test assertion.
 
 ## What the branch changes
@@ -27,8 +27,8 @@ test assertion.
 
 No-Regression Evidence: no Cypher, SQL, handler, middleware or route-table
 text changes; every statement the flagged files reference is quoted in a
-comment or an OpenAPI description. Baseline and after are the same binaries
-for every request path: `go test ./internal/query ./internal/mcp/...
+comment or an OpenAPI description. The executed code path is identical for
+every request: `go test ./internal/query ./internal/mcp/...
 ./internal/ask/engine -count=1` passes (38 packages) at the branch head, and
 `TestPolicyGatedRoutesDeclareForbiddenResponse`,
 `TestScopedTokenAllowlistCompleteness`,
@@ -37,8 +37,8 @@ for every request path: `go test ./internal/query ./internal/mcp/...
 between the allowlist, the shared-key-only ledger and the pending ledger.
 `scripts/verify-openapi.sh` reports the same 255 routes and 255 path entries
 as main. Input shape, row counts and backend version are unchanged because no
-read runs differently; the only measurable delta is a larger `tools/list`
-payload from longer descriptions, which carries no query.
+read runs differently; the only measurable deltas are a larger `tools/list`
+payload and a larger OpenAPI document, neither of which carries a query.
 
 No-Observability-Change: no metric, span, log or status field is added or
 removed; the 403 these routes return was already emitted by
