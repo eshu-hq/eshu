@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 func TestSecurityGroupCidrMaterializationHandleWritesNodes(t *testing.T) {
@@ -27,18 +29,18 @@ func TestSecurityGroupCidrMaterializationHandleWritesNodes(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupCidrMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupCidrMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.cidrCalls != 1 {
@@ -72,18 +74,18 @@ func TestSecurityGroupCidrMaterializationHandleNoFactsIsNoOp(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupCidrMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupCidrMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.cidrCalls != 0 || writer.prefixCalls != 0 {
@@ -103,11 +105,11 @@ func TestSecurityGroupCidrMaterializationHandleIsIdempotentAcrossReprojection(t 
 		NodeWriter: &recordingSecurityGroupEndpointNodeWriter{},
 	}
 
-	intent := Intent{
+	intent := reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupCidrMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupCidrMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	}
@@ -143,11 +145,11 @@ func TestSecurityGroupCidrMaterializationHandlePublishesCanonicalNodesCommittedP
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupCidrMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupCidrMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	}); err != nil {
@@ -161,10 +163,10 @@ func TestSecurityGroupCidrMaterializationHandlePublishesCanonicalNodesCommittedP
 	if len(rows) != 1 {
 		t.Fatalf("published rows = %d, want 1", len(rows))
 	}
-	if got, want := rows[0].Key.Keyspace, GraphProjectionKeyspaceSecurityGroupEndpointUID; got != want {
+	if got, want := rows[0].Key.Keyspace, gpphase.KeyspaceSecurityGroupEndpointUID; got != want {
 		t.Fatalf("keyspace = %q, want %q", got, want)
 	}
-	if got, want := rows[0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := rows[0].Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("phase = %q, want %q", got, want)
 	}
 }
@@ -182,11 +184,11 @@ func TestSecurityGroupCidrMaterializationHandlePublishesPhaseOnEmptyGeneration(t
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupCidrMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupCidrMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	}); err != nil {
@@ -199,7 +201,7 @@ func TestSecurityGroupCidrMaterializationHandlePublishesPhaseOnEmptyGeneration(t
 	if len(publisher.calls) != 1 {
 		t.Fatalf("publisher.calls = %d, want 1 (empty generation must still unblock the edge slice)", len(publisher.calls))
 	}
-	if got, want := publisher.calls[0][0].Key.Keyspace, GraphProjectionKeyspaceSecurityGroupEndpointUID; got != want {
+	if got, want := publisher.calls[0][0].Key.Keyspace, gpphase.KeyspaceSecurityGroupEndpointUID; got != want {
 		t.Fatalf("keyspace = %q, want %q", got, want)
 	}
 }
@@ -220,11 +222,11 @@ func TestSecurityGroupCidrMaterializationHandleDoesNotPublishPhaseOnWriteFailure
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupCidrMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupCidrMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	}); err == nil {

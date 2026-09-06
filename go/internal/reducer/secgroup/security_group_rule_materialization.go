@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
 import (
 	"context"
@@ -12,21 +12,25 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// securityGroupRuleMaterializationDomainDefinition returns the additive
-// definition for the :SecurityGroupRule node materialization. It is additive (not
-// part of DefaultDomainDefinitions) because the handler requires an explicitly
-// wired node writer and FactLoader; registering it without them would silently
-// drop every rule node before the edge slice could MATCH it. See issue #1135.
-func securityGroupRuleMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainSecurityGroupRuleMaterialization,
+// RuleMaterializationDomainDefinition returns the additive definition for the
+// :SecurityGroupRule node materialization. It is additive (not part of
+// DefaultDomainDefinitions) because the handler requires an explicitly wired
+// node writer and FactLoader; registering it without them would silently drop
+// every rule node before the edge slice could MATCH it. See issue #1135.
+func RuleMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainSecurityGroupRuleMaterialization,
 		Summary: "materialize aws_security_group_rule facts into canonical port-precise SecurityGroupRule graph nodes",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -56,17 +60,17 @@ type SecurityGroupRuleNodeWriter interface {
 //
 // After the node write succeeds (or is a legitimate no-op for an empty
 // generation), the handler publishes the
-// GraphProjectionKeyspaceSecurityGroupRuleUID /
-// GraphProjectionPhaseCanonicalNodesCommitted readiness phase. The reachability
-// edge slice gates its projection on this phase (alongside the endpoint and SG
-// node phases), so edges never resolve against rule nodes that have not committed.
+// gpphase.KeyspaceSecurityGroupRuleUID / gpphase.PhaseCanonicalNodesCommitted
+// readiness phase. The reachability edge slice gates its projection on this
+// phase (alongside the endpoint and SG node phases), so edges never resolve
+// against rule nodes that have not committed.
 type SecurityGroupRuleMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter SecurityGroupRuleNodeWriter
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the reachability edge projection. A nil publisher is a no-op so the
 	// additive domain stays safe to register before the edge slice is wired.
-	PhasePublisher GraphProjectionPhasePublisher
+	PhasePublisher gpphase.PhasePublisher
 	// Instruments records the rule-nodes-materialized counter. Nil-safe.
 	Instruments *telemetry.Instruments
 }
@@ -74,24 +78,24 @@ type SecurityGroupRuleMaterializationHandler struct {
 // Handle executes one :SecurityGroupRule node materialization intent.
 func (h SecurityGroupRuleMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainSecurityGroupRuleMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainSecurityGroupRuleMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"security group rule materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("security group rule materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("security group rule materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("security group rule materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("security group rule materialization node writer is required")
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -99,7 +103,7 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 		[]string{facts.AWSResourceFactKind, facts.AWSSecurityGroupRuleFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for security group rule materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for security group rule materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -111,19 +115,19 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load, unsupported major, or other
 		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
 		// whole intent so the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource/aws_security_group_rule fact
 	// (a missing required identity field) is quarantined as a visible
 	// input_invalid dead-letter — counter + structured error log — while the
 	// batch's valid facts still project below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityGroupRuleMaterialization, intent.ScopeID, intent.GenerationID, reach.Quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecurityGroupRuleMaterialization, intent.ScopeID, intent.GenerationID, reach.Quarantined)
 	extractDuration := time.Since(extractStart)
 
 	writeStart := time.Now()
 	if len(reach.RuleNodes) > 0 {
 		if err := h.NodeWriter.WriteSecurityGroupRuleNodes(ctx, reach.RuleNodes, securityGroupReachabilityEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical security group rule nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical security group rule nodes: %w", err)
 		}
 	}
 	writeDuration := time.Since(writeStart)
@@ -134,15 +138,15 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 	// committed; not publishing on an empty generation would block the edge slice
 	// forever.
 	phasePublishStart := time.Now()
-	if err := publishIntentGraphPhase(
+	if err := gpphase.PublishIntentGraphPhase(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceSecurityGroupRuleUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceSecurityGroupRuleUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, fmt.Errorf("publish canonical security group rule nodes phase: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("publish canonical security group rule nodes phase: %w", err)
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
@@ -165,10 +169,10 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 		slog.Float64("total_duration_seconds", time.Since(totalStart).Seconds()),
 	)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainSecurityGroupRuleMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainSecurityGroupRuleMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d security group rule node(s) from %d rule fact(s); %d input_invalid fact(s) quarantined",
 			len(reach.RuleNodes),
@@ -176,7 +180,7 @@ func (h SecurityGroupRuleMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(reach.RuleNodes),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -190,6 +194,6 @@ func (h SecurityGroupRuleMaterializationHandler) recordRuleNodes(ctx context.Con
 		return
 	}
 	h.Instruments.SecurityGroupReachabilityRuleNodes.Add(ctx, int64(count), metric.WithAttributes(
-		telemetry.AttrDomain(string(DomainSecurityGroupRuleMaterialization)),
+		telemetry.AttrDomain(string(reducercontract.DomainSecurityGroupRuleMaterialization)),
 	))
 }

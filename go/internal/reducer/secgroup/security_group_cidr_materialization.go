@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
 import (
 	"context"
@@ -15,6 +15,11 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -53,18 +58,18 @@ const (
 	internetCIDRIPv6 = "::/0"
 )
 
-// securityGroupCidrMaterializationDomainDefinition returns the additive
-// definition for security-group CIDR and prefix-list endpoint node
-// materialization. It is additive (not part of DefaultDomainDefinitions) because
-// the handler requires an explicitly wired SecurityGroupEndpointNodeWriter and
-// FactLoader; registering it without them would silently drop every intent. The
+// CidrMaterializationDomainDefinition returns the additive definition for
+// security-group CIDR and prefix-list endpoint node materialization. It is
+// additive (not part of DefaultDomainDefinitions) because the handler requires
+// an explicitly wired SecurityGroupEndpointNodeWriter and FactLoader;
+// registering it without them would silently drop every intent. The
 // network-reachability edge slice (#1135 PR2b) joins against the nodes this
 // domain commits. See issue #1135.
-func securityGroupCidrMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainSecurityGroupCidrMaterialization,
+func CidrMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainSecurityGroupCidrMaterialization,
 		Summary: "materialize aws_security_group_rule CIDR and prefix-list endpoints into canonical CidrBlock and PrefixList graph nodes",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -107,17 +112,17 @@ type SecurityGroupEndpointNodeWriter interface {
 // a CloudResource node and is not re-materialized here.
 //
 // After the canonical node writes succeed, the handler publishes the
-// GraphProjectionKeyspaceSecurityGroupEndpointUID /
-// GraphProjectionPhaseCanonicalNodesCommitted readiness phase. The edge slice
-// gates its projection on this phase, so edges never resolve against a generation
-// whose endpoint nodes have not yet committed.
+// gpphase.KeyspaceSecurityGroupEndpointUID / gpphase.PhaseCanonicalNodesCommitted
+// readiness phase. The edge slice gates its projection on this phase, so edges
+// never resolve against a generation whose endpoint nodes have not yet
+// committed.
 type SecurityGroupCidrMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter SecurityGroupEndpointNodeWriter
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the network-reachability edge projection. A nil publisher is a no-op so
 	// the additive domain stays safe to register before the edge slice is wired.
-	PhasePublisher GraphProjectionPhasePublisher
+	PhasePublisher gpphase.PhasePublisher
 	// Instruments records the endpoint-nodes-materialized counter. Nil-safe.
 	Instruments *telemetry.Instruments
 }
@@ -125,24 +130,24 @@ type SecurityGroupCidrMaterializationHandler struct {
 // Handle executes one security-group endpoint materialization intent.
 func (h SecurityGroupCidrMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainSecurityGroupCidrMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainSecurityGroupCidrMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"security group cidr materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("security group cidr materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("security group cidr materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("security group cidr materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("security group cidr materialization node writer is required")
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -150,7 +155,7 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 		[]string{facts.AWSSecurityGroupRuleFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for security group cidr materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for security group cidr materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -160,24 +165,24 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load, unsupported major, or other
 		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
 		// whole intent so the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_security_group_rule fact (a missing
 	// required identity field) is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while the batch's valid
 	// rules still materialize below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityGroupCidrMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecurityGroupCidrMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	writeStart := time.Now()
 	if len(cidrRows) > 0 {
 		if err := h.NodeWriter.WriteCidrBlockNodes(ctx, cidrRows, securityGroupEndpointEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical cidr block nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical cidr block nodes: %w", err)
 		}
 	}
 	if len(prefixRows) > 0 {
 		if err := h.NodeWriter.WritePrefixListNodes(ctx, prefixRows, securityGroupEndpointEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical prefix list nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical prefix list nodes: %w", err)
 		}
 	}
 	writeDuration := time.Since(writeStart)
@@ -188,15 +193,15 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 	// write would let edges resolve against nodes that never committed, and not
 	// publishing on an empty generation would block the edge slice forever.
 	phasePublishStart := time.Now()
-	if err := publishIntentGraphPhase(
+	if err := gpphase.PublishIntentGraphPhase(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceSecurityGroupEndpointUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceSecurityGroupEndpointUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, fmt.Errorf("publish canonical security group endpoint nodes phase: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("publish canonical security group endpoint nodes phase: %w", err)
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
@@ -214,10 +219,10 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 		totalDuration:        time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainSecurityGroupCidrMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainSecurityGroupCidrMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d cidr block + %d prefix list node(s) from %d security group rule fact(s); %d input_invalid fact(s) quarantined",
 			len(cidrRows),
@@ -226,7 +231,7 @@ func (h SecurityGroupCidrMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(cidrRows) + len(prefixRows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -240,7 +245,7 @@ func (h SecurityGroupCidrMaterializationHandler) recordEndpointsMaterialized(ctx
 		return
 	}
 	h.Instruments.SecurityGroupEndpointNodes.Add(ctx, int64(count), metric.WithAttributes(
-		telemetry.AttrDomain(string(DomainSecurityGroupCidrMaterialization)),
+		telemetry.AttrDomain(string(reducercontract.DomainSecurityGroupCidrMaterialization)),
 		telemetry.AttrEndpointKind(endpointKind),
 	))
 }
@@ -253,7 +258,7 @@ func (h SecurityGroupCidrMaterializationHandler) recordEndpointsMaterialized(ctx
 // scoped uid. Tombstoned rules, referenced-security-group and unknown sources,
 // and unparseable CIDRs are dropped rather than fabricating an endpoint node. The
 // returned rows are each sorted by uid for deterministic batch output.
-func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, prefixRows []map[string]any, quarantined []quarantinedFact, err error) {
+func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, prefixRows []map[string]any, quarantined []factdecode.QuarantinedFact, err error) {
 	if len(envelopes) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -270,9 +275,9 @@ func ExtractSecurityGroupEndpointRows(envelopes []facts.Envelope) (cidrRows, pre
 		if env.IsTombstone {
 			continue
 		}
-		rule, decodeErr := decodeAWSSecurityGroupRule(env)
+		rule, decodeErr := schemadecode.DecodeAWSSecurityGroupRule(env)
 		if decodeErr != nil {
-			q, ok, fatal := partitionDecodeFailures(env, decodeErr)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, decodeErr)
 			if fatal != nil {
 				return nil, nil, nil, fatal
 			}
@@ -415,7 +420,7 @@ func sortRowsByUID(byUID map[string]map[string]any) []map[string]any {
 // log can identify whether endpoint work is fact loading, extraction, or graph
 // backend time.
 type securityGroupCidrMaterializationTiming struct {
-	intent               Intent
+	intent               reducercontract.Intent
 	factCount            int
 	cidrCount            int
 	prefixCount          int

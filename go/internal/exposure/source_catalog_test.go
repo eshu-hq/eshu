@@ -113,7 +113,7 @@ func TestClassifySourcePrefersInternetExposable(t *testing.T) {
 // TestRankSourceExposure proves the exposure ranking is honest: a non-network
 // source is internal regardless of reachability; an internet-exposable source
 // whose endpoint provably reaches 0.0.0.0/0 (the boolean the tracer derives from
-// reducer/security_group_reachability.go) is internet_exposed; an
+// reducer/secgroup/security_group_reachability.go) is internet_exposed; an
 // internet-exposable source without proven reachability is network_reachable, not
 // over-claimed as internet-exposed.
 func TestRankSourceExposure(t *testing.T) {

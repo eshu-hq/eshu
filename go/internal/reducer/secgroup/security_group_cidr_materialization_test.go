@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // recordingSecurityGroupEndpointNodeWriter captures the rows handed to the
@@ -79,11 +80,11 @@ func TestSecurityGroupCidrMaterializationRejectsMismatchedDomain(t *testing.T) {
 		NodeWriter: &recordingSecurityGroupEndpointNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSQLRelationshipMaterialization,
+		Domain:       reducercontract.DomainSQLRelationshipMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -99,11 +100,11 @@ func TestSecurityGroupCidrMaterializationRequiresFactLoader(t *testing.T) {
 		NodeWriter: &recordingSecurityGroupEndpointNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupCidrMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupCidrMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -119,11 +120,11 @@ func TestSecurityGroupCidrMaterializationRequiresNodeWriter(t *testing.T) {
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupCidrMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupCidrMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})

@@ -3,6 +3,8 @@
 
 package reducer
 
+import "github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
+
 // appendSecurityGroupEndpointDomain registers the additive security-group
 // endpoint node materialization domain (issue #1135 PR2a) when its node writer
 // and the fact loader are both wired. It is additive — registering the domain
@@ -13,8 +15,8 @@ func appendSecurityGroupEndpointDomain(definitions []DomainDefinition, handlers 
 	if handlers.FactLoader == nil || handlers.SecurityGroupEndpointNodeWriter == nil {
 		return definitions
 	}
-	endpoints := securityGroupCidrMaterializationDomainDefinition()
-	endpoints.Handler = SecurityGroupCidrMaterializationHandler{
+	endpoints := secgroup.CidrMaterializationDomainDefinition()
+	endpoints.Handler = secgroup.SecurityGroupCidrMaterializationHandler{
 		FactLoader:     handlers.FactLoader,
 		NodeWriter:     handlers.SecurityGroupEndpointNodeWriter,
 		PhasePublisher: handlers.GraphProjectionPhasePublisher,
@@ -33,8 +35,8 @@ func appendSecurityGroupEndpointDomain(definitions []DomainDefinition, handlers 
 // AWS resource->relationship node/edge split (#805).
 func appendSecurityGroupReachabilityDomains(definitions []DomainDefinition, handlers DefaultHandlers) []DomainDefinition {
 	if handlers.FactLoader != nil && handlers.SecurityGroupRuleNodeWriter != nil {
-		ruleNodes := securityGroupRuleMaterializationDomainDefinition()
-		ruleNodes.Handler = SecurityGroupRuleMaterializationHandler{
+		ruleNodes := secgroup.RuleMaterializationDomainDefinition()
+		ruleNodes.Handler = secgroup.SecurityGroupRuleMaterializationHandler{
 			FactLoader:     handlers.FactLoader,
 			NodeWriter:     handlers.SecurityGroupRuleNodeWriter,
 			PhasePublisher: handlers.GraphProjectionPhasePublisher,
@@ -43,8 +45,8 @@ func appendSecurityGroupReachabilityDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, ruleNodes)
 	}
 	if handlers.FactLoader != nil && handlers.SecurityGroupReachabilityWriter != nil {
-		edges := securityGroupReachabilityMaterializationDomainDefinition()
-		edges.Handler = SecurityGroupReachabilityMaterializationHandler{
+		edges := secgroup.ReachabilityMaterializationDomainDefinition()
+		edges.Handler = secgroup.SecurityGroupReachabilityMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			Writer:               handlers.SecurityGroupReachabilityWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

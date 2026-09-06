@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -86,8 +88,8 @@ func (w *recordingSecurityGroupReachabilityWriter) RetractSecurityGroupReachabil
 // for every keyspace, so a test can exercise the post-gate path. The
 // per-keyspace gating itself is covered by the not-ready tests below, which use a
 // lookup that withholds exactly one keyspace.
-func allKeyspacesReady() GraphProjectionReadinessLookup {
-	return func(_ GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool) {
+func allKeyspacesReady() gpphase.ReadinessLookup {
+	return func(_ gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 		return true, true
 	}
 }
@@ -95,8 +97,8 @@ func allKeyspacesReady() GraphProjectionReadinessLookup {
 // readyExceptKeyspace reports every keyspace ready except the named one, which is
 // reported not-found, so a test can prove the triple gate blocks until ALL three
 // phases commit.
-func readyExceptKeyspace(withheld GraphProjectionKeyspace) GraphProjectionReadinessLookup {
-	return func(key GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool) {
+func readyExceptKeyspace(withheld gpphase.Keyspace) gpphase.ReadinessLookup {
+	return func(key gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 		if key.Keyspace == withheld {
 			return false, false
 		}
@@ -104,12 +106,12 @@ func readyExceptKeyspace(withheld GraphProjectionKeyspace) GraphProjectionReadin
 	}
 }
 
-func securityGroupReachabilityIntent() Intent {
-	return Intent{
+func securityGroupReachabilityIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-sg-edges-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupReachabilityMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupReachabilityMaterialization,
 		EntityKeys:   []string{"aws_resource_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -125,7 +127,7 @@ func TestSecurityGroupReachabilityRejectsMismatchedDomain(t *testing.T) {
 		ReadinessLookup: allKeyspacesReady(),
 	}
 	intent := securityGroupReachabilityIntent()
-	intent.Domain = DomainSQLRelationshipMaterialization
+	intent.Domain = reducercontract.DomainSQLRelationshipMaterialization
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -155,10 +157,10 @@ func TestSecurityGroupReachabilityRequiresFactLoaderAndWriter(t *testing.T) {
 func TestSecurityGroupReachabilityTripleGate(t *testing.T) {
 	t.Parallel()
 
-	for _, withheld := range []GraphProjectionKeyspace{
-		GraphProjectionKeyspaceSecurityGroupRuleUID,
-		GraphProjectionKeyspaceSecurityGroupEndpointUID,
-		GraphProjectionKeyspaceCloudResourceUID,
+	for _, withheld := range []gpphase.Keyspace{
+		gpphase.KeyspaceSecurityGroupRuleUID,
+		gpphase.KeyspaceSecurityGroupEndpointUID,
+		gpphase.KeyspaceCloudResourceUID,
 	} {
 		withheld := withheld
 		t.Run(string(withheld), func(t *testing.T) {
@@ -173,7 +175,7 @@ func TestSecurityGroupReachabilityTripleGate(t *testing.T) {
 			if err == nil {
 				t.Fatalf("expected a retryable error while %s is not committed", withheld)
 			}
-			if !IsRetryable(err) {
+			if !reducercontract.IsRetryable(err) {
 				t.Fatalf("error must be retryable so the intent re-enters the queue, got %v", err)
 			}
 			if writer.ruleNodeCalls != 0 || writer.sgEdgeCalls != 0 || writer.toEdgeCalls != 0 || writer.retractCalls != 0 {
@@ -208,7 +210,7 @@ func TestSecurityGroupReachabilityProjectsResolvedGraph(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.ruleNodeCalls != 1 || len(writer.ruleNodeRows) != 1 {
@@ -308,7 +310,7 @@ func TestSecurityGroupReachabilityUnresolvedAnchorIsGracefulNoEdge(t *testing.T)
 	if writer.ruleNodeCalls != 0 || writer.sgEdgeCalls != 0 || writer.toEdgeCalls != 0 {
 		t.Fatalf("unresolved anchor must write nothing: %+v", writer)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded (graceful degrade)", result.Status)
 	}
 }
@@ -330,7 +332,7 @@ func TestSecurityGroupReachabilityEmptyGenerationIsNoOp(t *testing.T) {
 	if writer.ruleNodeCalls != 0 || writer.sgEdgeCalls != 0 || writer.toEdgeCalls != 0 {
 		t.Fatalf("empty generation must write nothing: %+v", writer)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 }

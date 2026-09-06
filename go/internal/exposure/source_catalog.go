@@ -39,7 +39,7 @@ const (
 // ExposureRank is the honest, conservative exposure ranking of a source. It is
 // derived by combining a source's InternetExposable capability with whether its
 // endpoint provably reaches the public internet (the boolean the tracer computes
-// from reducer/security_group_reachability.go at trace time).
+// from reducer/secgroup/security_group_reachability.go at trace time).
 type ExposureRank string
 
 const (
