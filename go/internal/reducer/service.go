@@ -17,6 +17,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -127,7 +128,7 @@ type Service struct {
 
 	// SearchVectorBuildRunner builds derived search-vector rows for active
 	// curated search documents. Nil disables vector build work.
-	SearchVectorBuildRunner *SearchVectorBuildRunner
+	SearchVectorBuildRunner *searchvector.SearchVectorBuildRunner
 
 	// CrossScopeCompletionRunner converges producer completion by scheduling
 	// current-generation canonical consumer rows. Nil disables completion fanout.

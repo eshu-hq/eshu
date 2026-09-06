@@ -51,10 +51,13 @@ family evaluate the same decoded statements. They count into different tallies
 and check against different catalogs, so the folds stay separate — but the
 statement and grant shapes, the matchers, and the resolution outcome are one
 vocabulary. A family package may never import the reducer root, so the shared
-half lives below both. The root keeps four resource-type const aliases in
+half lives below both. The root once kept four resource-type const aliases in
 `iam_permission_grant_compat.go`; the type aliases, the target-status const
 aliases and the forwarders it once held lost their last root caller with the
-escalation family and were deleted.
+escalation family and were deleted, and the four resource-type aliases
+themselves lost their last root caller (`iam_instance_profile_role_edge_rows.go`,
+repointed directly to `iampolicy.ResourceTypeRole`) and were deleted too, so
+the whole file is gone (#6061).
 
 Because `PrincipalGrant` now lives here, the root cannot attach methods to it.
 The escalation-specific `armStatus` became the free function `grantArmStatus` in
@@ -80,7 +83,9 @@ No-Regression Evidence: #6061 relocates this code from `iam_escalation.go`,
 `iam_escalation_grant.go` and `iam_escalation_target.go` without changing it.
 The bodies are unchanged; the diff is the package clause, the identifiers and
 struct fields becoming exported, and root const aliases replacing the
-original declarations. The one added declaration is `Classify`, which lifts an
+original declarations (those aliases were later deleted in later #6061
+changes; every caller now names `ResourceType*` here directly). The one added
+declaration is `Classify`, which lifts an
 extraction both grant folds performed inline and identically -- same fields,
 same nil-pointer default, same `Allow`/`Deny` comparison -- so each fold now
 reads a `StatementShape` instead of six selector expressions. The reducer suites

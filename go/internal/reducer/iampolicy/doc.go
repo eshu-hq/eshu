@@ -26,10 +26,12 @@
 // The [iamescalation] family and the [iamcan] family evaluate the same decoded
 // statements against different catalogs and tally into different counters, but
 // they share these shapes and matchers. A family package may never import the
-// reducer root, so the shared half lives below both. The root keeps four
+// reducer root, so the shared half lives below both. The root once kept four
 // resource-type const aliases in iam_permission_grant_compat.go; the type
 // aliases, the target-status const aliases and the forwarders it once held
-// lost their last root caller with the escalation family and were deleted.
+// lost their last root caller with the escalation family and were deleted,
+// and the four resource-type aliases themselves later lost their last root
+// caller and were deleted too, so the whole file is gone (#6061).
 //
 // This package holds plain data and pure functions. It imports only the
 // standard library and the factschema SDK, and it must never import the

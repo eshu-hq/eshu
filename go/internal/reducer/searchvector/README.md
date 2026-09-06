@@ -106,9 +106,10 @@ this package's three files.
   imports both in `search_vector_build_wiring.go` and aliases this package's
   import as `reducersearchvector` to disambiguate.
 - **Never import the reducer root.** This package is a leaf below
-  `internal/reducer`; the root imports it (through the compatibility aliases
-  in `search_vector_build_compat.go`) for the `Service.SearchVectorBuildRunner`
-  field, never the reverse.
+  `internal/reducer`; the root imports it directly, for the
+  `Service.SearchVectorBuildRunner` field (the compatibility aliases that once
+  stood in for it, in `search_vector_build_compat.go`, were deleted once that
+  field and the wiring test were repointed), never the reverse.
 - **Backoff is load-bearing, not cosmetic.** `searchVectorBuildSweepMadeProgress`
   gates the immediate-continue vs. poll-interval-backoff branch in `Run`. A
   regression here reopens the #4885 hot loop: a never-draining pending set
