@@ -59,6 +59,7 @@ A path is fast-path-safe only when it matches one of these:
 | --- | --- |
 | `docs/**` | the docs tree, excluding `*.go` / `go.mod` / `go.sum` (see below) |
 | a root-level `*.md` | `README.md`, `CLAUDE.md`, `AGENTS.md`, … — root-anchored, so a nested `README.md` under `go/` does not qualify |
+| `.agents/skills/<skill>/**/*.md` | skill entrypoints and reference prose; bundled scripts and discovery configuration stay on the full lane |
 | `specs/capability-matrix.v1.yaml` | the exact file, not a `capability-matrix`-prefixed sibling |
 | `specs/capability-matrix/**` | matrix rows |
 | `go/internal/capabilitycatalog/data/*.generated.json` | **one directory level only** — a nested `data/sub/x.generated.json` takes the full lane |
@@ -233,9 +234,12 @@ in `.github/workflows/test.yml`. It negates `docs/**`, a root-level `*.md`,
 
 - **adds** `specs/capability-matrix.v1.yaml`, `specs/capability-matrix/**`, and
   `go/internal/capabilitycatalog/data/*.generated.json`
-- **omits** `.agents/**`, `.github/**/*.md` — anything under `.github/` takes
-  the FULL lane here — and a root-level `mkdocs.yml`, since this repo keeps its
-  nav file at `docs/mkdocs.yml`, which `docs/**` already covers
+- **narrows** `.agents/**` to Markdown under `.agents/skills/<skill>/`;
+  instruction-canon, generated-skill, and workflow-reference gates still run
+  when selected, as do focused root-canon fixture tests
+- **omits** other `.agents/**` paths and `.github/**/*.md` — anything under
+  `.github/` takes the FULL lane here — and a root-level `mkdocs.yml`, since
+  this repo keeps its nav file at `docs/mkdocs.yml`, which `docs/**` already covers
 
 They serve different gates with different blast radii, so they are allowed to
 differ — but a change to either one is not automatically safe for the other.

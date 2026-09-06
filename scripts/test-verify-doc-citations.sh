@@ -33,6 +33,26 @@ FAIL=0
 record_pass() { PASS=$((PASS + 1)); printf 'ok - %s\n' "$1"; }
 record_fail() { FAIL=$((FAIL + 1)); printf 'not ok - %s\n' "$1" >&2; }
 
+usage() {
+  printf 'usage: %s [--repository-only|--fixtures-only|--scope-only]\n' "${0##*/}"
+}
+
+mode=full
+if [[ "$#" -gt 1 ]]; then
+  usage >&2
+  exit 2
+fi
+case "${1:-}" in
+  "") ;;
+  --repository-only) mode=repository ;;
+  --fixtures-only) mode=fixtures ;;
+  --scope-only) mode=scope ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
+
 assert_contains() {
   local needle="$1" file="$2" label="$3"
   if rg -q --fixed-strings "${needle}" "${file}"; then
@@ -340,35 +360,99 @@ source "${repo_root}/scripts/lib/test-verify-doc-citations-preparation-cases.sh"
 
 # shellcheck source=scripts/lib/test-verify-doc-citations-scope-cases.sh
 source "${repo_root}/scripts/lib/test-verify-doc-citations-scope-cases.sh"
-run_doc_citation_scope_cases
-if [[ "${1:-}" == "--scope-only" ]]; then
-  printf 'scope tests: %d passed, %d failed\n' "${PASS}" "${FAIL}"
-  [[ "${FAIL}" -eq 0 ]]
-  exit $?
-fi
 
-test_update_is_idempotent
-test_existing_test_citation_passes
-test_phantom_test_citation_fails
-test_missing_file_citation_fails
-test_baselined_phantom_test_citation_passes
-test_subtest_citation_always_fails
-test_used_fixture_citation_passes
-test_unused_fixture_citation_fails
-test_missing_fixture_citation_fails
-test_baselined_unused_fixture_shared_across_docs_passes
-test_fails_closed_on_bad_baseline
-test_real_tree_result_is_reused_for_floor
-test_real_baseline_matches_fresh_regeneration
-test_real_line_ledger_preserves_multiplicity
-run_line_citation_cases
-run_line_citation_review_cases
-run_line_citation_binary_cases
-run_line_citation_preparation_cases
+test_mode_partition_contract() {
+  local out="${tmp_root}/mode-dispatch.out" status
+  local full fixtures repository combined
+  mode_trace() {
+    "${BASH:-bash}" -c '
+      source "$1"
+      run_doc_citation_scope_cases() { printf "%s\n" scope; }
+      run_basic_fixture_cases() { printf "%s\n" basic; }
+      run_repository_cases() { printf "%s\n" repository; }
+      run_line_fixture_cases() { printf "%s\n" line; }
+      run_doc_citation_test_mode "$2"
+    ' bash "${repo_root}/scripts/lib/test-verify-doc-citations-scope-cases.sh" "$1"
+  }
+  full="$(mode_trace full)"
+  fixtures="$(mode_trace fixtures)"
+  repository="$(mode_trace repository)"
+  combined="$(printf '%s\n%s\n' "${fixtures}" "${repository}" | LC_ALL=C sort)"
+  if [[ "$(printf '%s\n' "${full}" | LC_ALL=C sort)" == "${combined}" ]]; then
+    record_pass "mode dispatch: repository and fixture partitions cover the default suite"
+  else
+    record_fail "mode dispatch: repository and fixture partitions must cover the default suite"
+  fi
+  if printf '%s\n' "${repository}" | rg -qx repository &&
+    ! printf '%s\n' "${fixtures}" | rg -qx repository; then
+    record_pass "mode dispatch: repository cases run only in the repository partition"
+  else
+    record_fail "mode dispatch: repository cases must run only in the repository partition"
+  fi
+  if "${BASH:-bash}" "${repo_root}/scripts/test-verify-doc-citations.sh" --unknown >"${out}" 2>&1; then
+    record_fail "mode dispatch: an unknown option fails"
+  else
+    status=$?
+    if [[ "${status}" -eq 2 ]] && rg -q '^usage:' "${out}"; then
+      record_pass "mode dispatch: an unknown option fails with usage and exit 2"
+    else
+      record_fail "mode dispatch: unknown option exit=${status}, want usage and exit 2"
+    fi
+  fi
+}
+
+run_basic_fixture_cases() {
+  local test_case
+  for test_case in \
+    test_update_is_idempotent \
+    test_existing_test_citation_passes \
+    test_phantom_test_citation_fails \
+    test_missing_file_citation_fails \
+    test_baselined_phantom_test_citation_passes \
+    test_subtest_citation_always_fails \
+    test_used_fixture_citation_passes \
+    test_unused_fixture_citation_fails \
+    test_missing_fixture_citation_fails \
+    test_baselined_unused_fixture_shared_across_docs_passes \
+    test_fails_closed_on_bad_baseline; do
+    "${test_case}"
+  done
+}
+
+run_repository_cases() {
+  local test_case
+  for test_case in \
+    test_real_tree_result_is_reused_for_floor \
+    test_real_baseline_matches_fresh_regeneration \
+    test_real_line_ledger_preserves_multiplicity \
+    run_line_citation_repository_cases; do
+    "${test_case}"
+  done
+}
+
+run_line_fixture_cases() {
+  local test_case
+  for test_case in \
+    run_line_citation_cases \
+    run_line_citation_review_cases \
+    run_line_citation_binary_cases \
+    run_line_citation_preparation_cases; do
+    "${test_case}"
+  done
+}
+
+if [[ "${mode}" != scope ]]; then
+  test_mode_partition_contract
+fi
+run_doc_citation_test_mode "${mode}"
 
 if [[ "${FAIL}" -ne 0 ]]; then
   printf 'test-verify-doc-citations FAILED: %d/%d\n' "${FAIL}" "$((PASS + FAIL))" >&2
   exit 1
 fi
 
+if [[ "${mode}" == scope ]]; then
+  printf 'scope tests: %d passed, %d failed\n' "${PASS}" "${FAIL}"
+  exit 0
+fi
 printf 'test-verify-doc-citations passed: %d/%d\n' "${PASS}" "$((PASS + FAIL))"

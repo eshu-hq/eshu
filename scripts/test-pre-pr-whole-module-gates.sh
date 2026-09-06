@@ -156,18 +156,18 @@ require_precommit "nancy delegates to nancy-local.sh" 'bash "${repo_root}/script
 # shellcheck disable=SC2016
 reject_precommit "nancy no longer runs unpiped inline" '&& "${bin}" sleuth --no-color ) \'
 
-require "serial precommit lane" "run_precommit_gates_serial()"
-require "captured gate helper" "capture_whole_module_gate()"
-# shellcheck disable=SC2016 # The needles must stay literal shell source.
-require "fmt capture" 'capture_whole_module_gate "${tmpdir}" fmt "gofumpt (whole module)" step_fmt'
-# shellcheck disable=SC2016
-require "lint capture" 'capture_whole_module_gate "${tmpdir}" lint "golangci-lint (whole module)" step_lint'
-# shellcheck disable=SC2016
-require "build capture" 'capture_whole_module_gate "${tmpdir}" build "go build ./..." step_build'
-# shellcheck disable=SC2016
-require "vet capture" 'capture_whole_module_gate "${tmpdir}" vet "go vet ./..." step_vet'
-# shellcheck disable=SC2016
-require "stored duration readback" 'duration="$(cat "${tmpdir}/${n}.duration" 2>/dev/null || printf "0")"'
+require "registry-owned whole-module prelude" '--pre-pr-whole-module'
+reject "raw whole-module fmt" 'step_fmt()'
+reject "raw whole-module lint" 'step_lint()'
+reject "raw whole-module build" 'step_build()'
+reject "raw whole-module vet" 'step_vet()'
+reject "raw fmt command" '"${precommit}" fmt-all'
+reject "raw lint command" '"${precommit}" lint-all'
+reject "raw build command" '( cd "${go_dir}" && go build ./... )'
+reject "raw vet command" '( cd "${go_dir}" && go vet ./... )'
+reject "duplicate package-doc step" 'step_docs()'
+reject "duplicate package-doc invocation" 'run_step "package docs"'
+reject "raw package-doc command" '"${repo_root}/scripts/verify-package-docs.sh"'
 require "changed verifier self-tests" '--self-tests changed'
 require "structured gate report" '--report-file "${pre_pr_gate_report}"'
 require "default blocking promotion path" 'exactness_args+=(--blocking-only)'
@@ -176,25 +176,6 @@ rg --fixed-strings --quiet -- 'ESHU_PRE_PR_INCLUDE_ADVISORY=1' "${makefile}" ||
 
 reject "shared parallel launcher state" "starts=()"
 reject "wait-time duration accounting" 'SECONDS - starts[i]'
-
-awk '
-	/^run_precommit_gates_serial\(\)/ { in_func=1 }
-	in_func && /capture_whole_module_gate .* fmt / { saw_fmt=NR }
-	in_func && /capture_whole_module_gate .* lint / {
-		if (saw_fmt == 0) {
-			print "lint is captured before fmt in run_precommit_gates_serial" > "/dev/stderr"
-			exit 1
-		}
-		saw_lint=NR
-	}
-	in_func && /^}/ { in_func=0 }
-	END {
-		if (saw_fmt == 0 || saw_lint == 0) {
-			print "run_precommit_gates_serial must capture fmt then lint" > "/dev/stderr"
-			exit 1
-		}
-	}
-' "${script}" || fail "fmt/lint are not serialized in the precommit lane"
 
 # ─── #5721 documentation fast-path wiring ────────────────────────────────────
 # The lane decision itself lives in scripts/lib/pre-pr-lane.sh and has its own
@@ -230,14 +211,14 @@ require_block "a red self-check fails the run" \
 	'	results+=("FAIL  docs fast-path classifier self-check (${PRE_PR_LANE_SELFCHECK_SECONDS}s)")
 	overall=1'
 
-# Both Go-lane gates ask whether the lane is NOT "fast". Asking whether it IS
+# All Go-lane checks ask whether the lane is NOT "fast". Asking whether it IS
 # "full" instead means any third value would skip the Go lanes while the banner
 # said FULL and the run still stamped the SHA. Inverting either one swaps the
 # lanes outright -- FULL skipping the gates, FAST running them.
 # shellcheck disable=SC2016
 require_block "module gates gated on a non-fast lane" \
 	'if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then
-	run_whole_module_gates_parallel
+	pre_pr_whole_module_args=(--pre-pr-whole-module)
 else'
 # shellcheck disable=SC2016
 require_block "race lane gated on a non-fast lane" \
@@ -246,7 +227,7 @@ require_block "race lane gated on a non-fast lane" \
 # shellcheck disable=SC2016
 lane_gate_count="$(rg --fixed-strings -c -- 'if [[ "${PRE_PR_FASTPATH_LANE}" != "fast" ]]; then' "${script}")"
 [[ "${lane_gate_count}" == "2" ]] ||
-	fail "lane gate count = ${lane_gate_count}, want 2 (whole-module gates + race lane)"
+	fail "lane gate count = ${lane_gate_count}, want 2 (whole-module mode + race lane)"
 # shellcheck disable=SC2016
 reject "lane gate asking whether the lane IS fast" '"${PRE_PR_FASTPATH_LANE}" == "fast"'
 # shellcheck disable=SC2016

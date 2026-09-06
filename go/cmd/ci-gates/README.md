@@ -44,6 +44,7 @@ ci-gates run \
   [--paths-from paths.txt] \
   [--category exactness,telemetry,hygiene,docs] \
   [--self-tests all|changed] [--blocking-only] \
+  [--pre-pr-whole-module] \
   [--report-file /path/to/report.json] \
   [--repo-root /path/to/repo]
 ```
@@ -70,7 +71,15 @@ field keeps the safe legacy behavior and always runs its distinct
 `test_command`. `--blocking-only` leaves advisory gates outside the promotion
 path. `--report-file` writes an atomic mode-0600 JSON record with command
 hashes, durations, reuse, skip reasons, and failure counts. `make pre-pr` uses
-all three flags; `make pre-pr-full` includes advisory gates.
+these policy and reporting flags; `make pre-pr-full` includes advisory gates.
+
+`--pre-pr-whole-module` is the full pre-PR lane's registry-owned scheduling
+mode. It requires the blocking `go-fmt`, `go-lint`, `go-build`, and `go-vet`
+registry rows, runs formatting before lint while build and vet run in parallel,
+and seeds normal dispatch with those exact command results. Matching selected
+rows report reuse and retain the original failure; missing or malformed core
+rows fail before any command runs. The documentation-only fast lane omits this
+mode and retains its explicit skip report.
 
 For a `command` shape of `bash scripts/verify-*.sh`, the inner `bash` token
 resolves via PATH, and on macOS that finds the system `/bin/bash` (3.2.57)

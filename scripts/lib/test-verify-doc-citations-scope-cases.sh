@@ -238,3 +238,22 @@ test_real_line_ledger_preserves_multiplicity() {
     record_fail "case15: LINE ledger collapsed multiplicity (${occurrences} occurrences, ${unique_pairs} unique pairs)"
   fi
 }
+
+run_doc_citation_test_mode() {
+  case "$1" in
+    full)
+      run_doc_citation_scope_cases
+      run_basic_fixture_cases
+      run_repository_cases
+      run_line_fixture_cases
+      ;;
+    repository) run_repository_cases ;;
+    fixtures)
+      run_doc_citation_scope_cases
+      run_basic_fixture_cases
+      run_line_fixture_cases
+      ;;
+    scope) run_doc_citation_scope_cases ;;
+    *) return 2 ;;
+  esac
+}

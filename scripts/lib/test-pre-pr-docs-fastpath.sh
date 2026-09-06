@@ -74,6 +74,15 @@ make_fixture \
 	README.md \
 	CLAUDE.md \
 	AGENTS.md \
+	.agents/skills/example/SKILL.md \
+	.agents/skills/example/references/proof.md \
+	.agents/skills/example/scripts/check.sh \
+	.agents/skills/example/examples/main.go \
+	.agents/skills/example/examples/go.mod \
+	.agents/skills/example/examples/go.sum \
+	.agents/skills/example/agents/openai.yaml \
+	.agents/skills-other/example/SKILL.md \
+	.agents/other/README.md \
 	specs/capability-matrix.v1.yaml \
 	specs/capability-matrix/ask.v1.yaml \
 	go/internal/capabilitycatalog/data/catalog.generated.json \
@@ -157,6 +166,9 @@ assert_lane "docs_nested_page_is_fast" fast "docs/public/reference/local-testing
 assert_lane "root_readme_is_fast" fast "README.md"
 assert_lane "root_claude_md_is_fast" fast "CLAUDE.md"
 assert_lane "root_agents_md_is_fast" fast "AGENTS.md"
+assert_lane "skill_entrypoint_is_fast" fast ".agents/skills/example/SKILL.md"
+assert_lane "skill_reference_is_fast" fast ".agents/skills/example/references/proof.md"
+assert_lane "skill_and_root_canon_are_fast" fast ".agents/skills/example/SKILL.md" "AGENTS.md"
 assert_lane "capability_matrix_root_is_fast" fast "specs/capability-matrix.v1.yaml"
 assert_lane "capability_matrix_row_is_fast" fast "specs/capability-matrix/ask.v1.yaml"
 assert_lane "capabilitycatalog_generated_json_is_fast" fast \
@@ -187,6 +199,21 @@ assert_lane "one_go_file_among_docs_is_full" full \
 	"docs/public/architecture.md" "go/internal/query/handler.go"
 assert_lane "unrecognized_novel_path_is_full" full "tools/newthing/manifest.xyz"
 assert_lane "empty_path_argument_is_full" full ""
+
+# Skill prose is allowlisted, but bundled executables and discovery configuration
+# still need the full lane. These paths exist so absence cannot hide an overly
+# broad allowlist. Existing untracked-file collection feeds this same classifier.
+assert_lane "skill_script_is_full" full ".agents/skills/example/scripts/check.sh"
+assert_lane "skill_go_example_is_full" full ".agents/skills/example/examples/main.go"
+assert_lane "skill_module_is_full" full ".agents/skills/example/examples/go.mod"
+assert_lane "skill_module_sum_is_full" full ".agents/skills/example/examples/go.sum"
+assert_lane "skill_discovery_config_is_full" full ".agents/skills/example/agents/openai.yaml"
+assert_lane "skill_prefixed_sibling_is_full" full ".agents/skills-other/example/SKILL.md"
+assert_lane "agent_non_skill_prose_is_full" full ".agents/other/README.md"
+assert_lane "skill_with_executable_is_full" full \
+	".agents/skills/example/SKILL.md" ".agents/skills/example/examples/main.go"
+assert_lane "deleted_skill_is_full" full ".agents/skills/example/removed.md"
+assert_lane_untrusted "untrusted_skill_diff_is_full" "git-diff-failed" ".agents/skills/example/SKILL.md"
 
 # Deletion and rename. `git diff --name-only` prints a removed path exactly like
 # a modified one, and the go:embed directives in

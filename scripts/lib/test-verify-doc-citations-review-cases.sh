@@ -467,7 +467,6 @@ run_line_citation_review_cases() {
   test_byte_identical_same_line_move_is_allowed
   test_force_added_ignored_hidden_files_are_scanned
   test_query_string_line_permalinks_follow_ref_contract
-  test_public_gate_name_states_recurrence_scope
   test_bounded_batches_scan_later_files
   test_later_batch_scanner_failure_fails_closed
   test_nul_bearing_raw_citation_file_fails_closed
@@ -476,4 +475,8 @@ run_line_citation_review_cases() {
   test_newline_path_fails_closed_in_check_and_update
   test_baseline_validation_has_bounded_awk_processes
   test_baseline_malformed_diagnostics_are_exact
+}
+
+run_line_citation_repository_cases() {
+  test_public_gate_name_states_recurrence_scope
 }

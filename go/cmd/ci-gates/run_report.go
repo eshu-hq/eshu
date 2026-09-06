@@ -33,19 +33,21 @@ type gateCommandReport struct {
 }
 
 type gateRunReport struct {
-	SchemaVersion string              `json:"schema_version"`
-	SelfTests     string              `json:"self_tests"`
-	BlockingOnly  bool                `json:"blocking_only"`
-	DurationMS    int64               `json:"duration_ms"`
-	Summary       gateRunSummary      `json:"summary"`
-	Commands      []gateCommandReport `json:"commands"`
+	SchemaVersion    string              `json:"schema_version"`
+	SelfTests        string              `json:"self_tests"`
+	BlockingOnly     bool                `json:"blocking_only"`
+	PrePRWholeModule bool                `json:"pre_pr_whole_module"`
+	DurationMS       int64               `json:"duration_ms"`
+	Summary          gateRunSummary      `json:"summary"`
+	Commands         []gateCommandReport `json:"commands"`
 }
 
 func newGateRunReport(options executeOptions) gateRunReport {
 	return gateRunReport{
-		SchemaVersion: "v1",
-		SelfTests:     string(options.selfTests),
-		BlockingOnly:  options.blockingOnly,
+		SchemaVersion:    "v1",
+		SelfTests:        string(options.selfTests),
+		BlockingOnly:     options.blockingOnly,
+		PrePRWholeModule: options.prePRWholeModule,
 	}
 }
 
@@ -58,7 +60,10 @@ func (r *gateRunReport) addCommand(
 	outcome := "pass"
 	if result.err != nil {
 		outcome = "fail"
-		if gate.Blocking {
+		// A pre-PR whole-module prelude result is later revisited by the same
+		// selected registry row. Keep the REUSE record, but count the logical
+		// gate failure once rather than once per view of the same execution.
+		if gate.Blocking && (!reused || result.gateID != gate.ID) {
 			r.Summary.BlockingFailures++
 		}
 	}

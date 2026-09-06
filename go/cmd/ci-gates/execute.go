@@ -40,9 +40,10 @@ const (
 )
 
 type executeOptions struct {
-	changedPaths []string
-	selfTests    selfTestPolicy
-	blockingOnly bool
+	changedPaths     []string
+	selfTests        selfTestPolicy
+	blockingOnly     bool
+	prePRWholeModule bool
 }
 
 // executeGates runs all selected gates, accumulates results, and returns an
@@ -63,6 +64,15 @@ func executeGatesWithOptions(
 	runStarted := time.Now()
 	anyBlockingFail := false
 	sharedResults := make(map[sharedGateCommandKey]sharedGateCommandResult)
+	if options.prePRWholeModule {
+		preludeFailed, err := executePrePRWholeModulePrelude(
+			w, sels, repoRoot, &report, sharedResults,
+		)
+		if err != nil {
+			return report, err
+		}
+		anyBlockingFail = preludeFailed
+	}
 	for _, selection := range sels {
 		if selection.Gate.CIOnlyReason != "" {
 			_, _ = fmt.Fprintf(w, "CI-ONLY  %s: %s\n", selection.Gate.ID, selection.Gate.CIOnlyReason)
@@ -214,10 +224,14 @@ func printGateFailure(w io.Writer, gate cigates.Gate, label string, err error) {
 // token does not silently resolve to macOS's bash 3.2. See
 // resolveBash44Dir's doc comment for the full rationale (#5050).
 func runShellCommand(command, repoRoot string) error {
+	return runShellCommandWithOutput(command, repoRoot, os.Stdout, os.Stderr)
+}
+
+func runShellCommandWithOutput(command, repoRoot string, stdout, stderr io.Writer) error {
 	cmd := exec.Command("/bin/sh", "-c", command) // #nosec G204 -- command comes from the operator-controlled gate registry
 	cmd.Dir = repoRoot
 	cmd.Env = gateSubprocessEnv()
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
 	return cmd.Run()
 }

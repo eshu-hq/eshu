@@ -82,7 +82,7 @@ runs by default, but `make pre-pr` may skip it when the registry declares
 `self_test_triggers` and none of those harness paths changed. Entries without
 that field stay fail-closed and run both commands. The per-SHA stamp directory
 also retains a JSON report with command hashes, run/reuse decisions, skip
-reasons, and durations.
+reasons, and durations. See [execution ownership](local-testing/pre-pr-execution.md).
 
 Frontend- and security-heavy lanes are not in `make pre-pr` (they need Node, the
 network, or are slow); run `make frontend-preflight` / `make security-preflight`
