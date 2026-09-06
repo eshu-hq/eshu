@@ -206,11 +206,10 @@ select for a `specs/capability-matrix**` change, which is also fast-path-safe â€
 so the selected set depends on which kind of fast-path input you have, not just
 on "it was fast".
 
-The 500-line file cap and the package-docs gate run on every `make pre-pr`, fast
-lane included, but both are no-ops for a docs-only diff: each filters the changed
-set to `^go/.*\.go$` first and prints `no changed Go files â€” skipping file cap`.
-Neither one caps the length of a Markdown page. 34 files under `docs/` are over
-500 lines today.
+The focused Go file-cap step runs on every `make pre-pr` and skips when there
+are no changed Go files. Package documentation runs through the selected
+`package-docs` registry gate. Markdown length is checked separately by
+`markdown-file-cap`, including its recorded grandfather allowances.
 
 ### A `go/` fast path skips less than a `docs/` one
 
