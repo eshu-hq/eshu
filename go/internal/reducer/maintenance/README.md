@@ -41,12 +41,14 @@ See `doc.go` for the godoc-rendered contract.
 
 `reducer/sharedintent`, `internal/telemetry`, `pkg/log`. Never `internal/reducer`.
 
-`AcceptedGenerationLookup` and `AcceptedGenerationPrefetch` are type aliases
-over `sharedintent.AcceptanceKey`/`sharedintent.Row`, mirroring the reducer
-root's own aliases (`shared_projection.go`) so a root-typed
-`AcceptedGenerationLookup` value is directly assignable to this package's
-functions with no conversion. `PartitionLeaseManager` is a plain interface
-mirroring `reducer.PartitionLeaseManager` (`shared_projection_worker.go`)
+`AcceptedGenerationLookup` and `AcceptedGenerationPrefetch` are aliases to the
+unnamed function signatures that `reducer.AcceptedGenerationLookup` and
+`reducer.AcceptedGenerationPrefetch` (`shared_projection_worker.go`) define
+as named types. Because the local names are aliases rather than defined
+types, a root-typed `AcceptedGenerationLookup` value is directly assignable
+to this package's functions with no conversion. `PartitionLeaseManager` is a
+plain interface mirroring `reducer.PartitionLeaseManager`
+(`shared_projection_worker.go`)
 method-for-method -- Go interfaces are satisfied structurally, so this needs
 no conversion either. `AcceptedGenerationPrefetch`'s nested return type
 (`AcceptedGenerationLookup`) means the two packages' `AcceptedGenerationPrefetch`
