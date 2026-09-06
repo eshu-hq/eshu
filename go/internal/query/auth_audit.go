@@ -329,19 +329,28 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 // is not produced here: it is reserved for a human asserting an identity
 // through an SSO login (sso_login_audit.go), which carries no AuthContext.
 //
-// Callers own the subject-hash rule. Every class this returns except anonymous
-// is identity-bearing, so an emitter with no hash either downgrades to
-// anonymous (route denials, allowed reads, recovery by a scoped or cookie
-// caller) or supplies the stable synthetic identity the shared bearer uses
-// (identity mutations and recovery by the shared bearer).
+// Callers own the subject-hash rule, and each emitter keeps the rule it had
+// before #6566. Every class this returns except anonymous is identity-bearing.
+// Route denials, allowed reads, and admin recovery downgrade to anonymous when
+// the hash is blank. The shared bearer, which never carries a per-subject
+// hash, gets the stable synthetic identity sharedAdminActorIDHash on identity
+// mutations and recovery. Local-identity rows substitute localIdentityHash of
+// the mode for every mode. An identity mutation by a cookie or scoped caller
+// with a blank hash keeps its class with no hash, and the store's write-path
+// validation (NormalizeEvent at Append) rejects that row; the emitter logs
+// the failure and the request succeeds without an audit row.
 //
 // The switch names every AuthMode member and has no default on purpose. A
 // default would quietly file a mode added later under whichever class it
 // named, and the audit row would then lie about who acted; with no default
 // the exhaustive linter fails the build until the new mode is given a class
 // of its own. Only a blank mode reaches the final return: an AuthContext
-// nobody authenticated, such as the empty context a failed local login
-// carries, and that is anonymous.
+// nobody authenticated, and that is anonymous. Two callers reach it: the empty
+// context a failed local login carries, and the open posture where auth
+// enforcement is not configured and authMiddlewareWithRoutePolicy passes a
+// headerless, cookieless request through with no context. In that posture an
+// admin_recovery_action row is anonymous, where before #6566 adminRecoveryActor
+// stamped it shared_token with the synthetic identity.
 func actorClassForAuth(auth AuthContext) governanceaudit.ActorClass {
 	switch auth.Mode {
 	case AuthModeBrowserSession:

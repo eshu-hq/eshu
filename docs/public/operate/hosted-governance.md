@@ -367,10 +367,15 @@ are unaffected; the error stops when every pod is on the new build. #6574 tracks
 
 Actor-class cut-over note: a dashboard cookie session is `browser_session` on
 route denials, identity mutations, and `admin_recovery_action` rows alike;
-`scoped_token` and `shared_token` are unchanged. Rows written before the release
-that carries #6566 still hold `operator` (identity mutations) or `shared_token`
-(recovery actions) for a cookie session and are not rewritten, so a filter by
-actor class that spans that window includes both values.
+`scoped_token` is unchanged, and so is `shared_token` when a shared bearer is
+presented. A request that carries no credential in the open posture (auth
+enforcement not configured, so every admin route is open) is `anonymous` on
+`admin_recovery_action` rows, where it was `shared_token` with the synthetic
+identity before this release. Rows written before the release that carries
+#6566 still hold `operator` (identity mutations) or `shared_token` (recovery
+actions by a cookie session or by an open-posture request) and are not
+rewritten, so a filter by actor class that spans that window includes both
+values.
 
 ### Denied Read Investigation
 
@@ -381,25 +386,20 @@ actor class that spans that window includes both values.
    `decision=denied`, actor class, scope class, reason code, and time window.
    Actor class: `browser_session` a dashboard cookie session, `scoped_token` a scoped
    or OIDC bearer, `anonymous` a missing or rejected credential, or no subject hash.
-4. If the reason is `subject_scope_missing`, verify the scoped token or service
-   principal policy against the intended low-cardinality scope class.
+4. If the reason is `subject_scope_missing`, verify the scoped token or service principal policy against the intended low-cardinality scope class.
 5. Put only the event type, actor class, scope class, decision, reason code,
    correlation id, and timestamp in the ticket.
 
 ### Blocked Semantic Egress
 
 1. Check `/api/v0/status/semantic-extraction`.
-2. Confirm the redacted provider profile, source-policy, policy-denied,
-   unsafe-payload, provider-unavailable, and budget-exhausted counts before
-   enabling provider traffic.
+2. Confirm the redacted provider profile, source-policy, policy-denied, unsafe-payload, provider-unavailable, and budget-exhausted counts before enabling provider traffic.
 3. Current semantic egress decisions intentionally do not append governance
    audit events because the shipped semantic policy and queue packages are pure
    parser/planner code with no provider work writer. Do not expect
    `event_type=semantic_policy_decision` rows until a source-level semantic
    planner owns an audit sink.
-4. If the reason is `egress_policy_missing`, verify that the provider profile,
-   source class, redaction posture, retention posture, and budget posture are
-   configured before enabling egress.
+4. If the reason is `egress_policy_missing`, verify that the provider profile, source class, redaction posture, retention posture, and budget posture are configured before enabling egress.
 5. Put only safe classes and reason codes in the ticket; keep prompts, provider
    responses, source identifiers, provider endpoints, and credential handles in
    private operator storage.

@@ -250,3 +250,50 @@ func TestRecordScopedReadAuthorizedActorClassFollowsAuthMode(t *testing.T) {
 		}
 	})
 }
+
+// TestIdentityMutationAuditsWithNoSubjectHash pins the hash rule each
+// identity-mutation emitter kept through #6566 when a cookie session carries
+// no subject hash. The local-identity helper substitutes localIdentityHash of
+// the mode and the row is valid. The admin identity, provider config, and
+// sign-in policy emitters keep browser_session with a blank hash, and
+// NormalizeEvent, which the durable store runs at Append, rejects that row.
+func TestIdentityMutationAuditsWithNoSubjectHash(t *testing.T) {
+	t.Parallel()
+
+	substitutesHash := map[string]bool{"local identity": true}
+	for _, emitter := range identityMutationEmitters() {
+		t.Run(emitter.name, func(t *testing.T) {
+			t.Parallel()
+			audit := &recordingAuditAppender{}
+			auth := AuthContext{Mode: AuthModeBrowserSession, AllScopes: true}
+			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/anything", nil)
+			req = req.WithContext(ContextWithAuthContext(req.Context(), auth))
+
+			emitter.emit(req, audit)
+
+			if len(audit.events) != 1 {
+				t.Fatalf("audit events = %d, want 1", len(audit.events))
+			}
+			event := audit.events[0]
+			if got, want := event.ActorClass, governanceaudit.ActorClassBrowserSession; got != want {
+				t.Errorf("event.ActorClass = %q, want %q", got, want)
+			}
+			_, err := governanceaudit.NormalizeEvent(event)
+			if substitutesHash[emitter.name] {
+				if got, want := event.ActorIDHash, localIdentityHash(string(AuthModeBrowserSession)); got != want {
+					t.Errorf("event.ActorIDHash = %q, want localIdentityHash(mode) %q", got, want)
+				}
+				if err != nil {
+					t.Errorf("NormalizeEvent rejected the local-identity row: %v", err)
+				}
+				return
+			}
+			if event.ActorIDHash != "" {
+				t.Errorf("event.ActorIDHash = %q, want blank: this emitter substitutes a hash only for shared_token", event.ActorIDHash)
+			}
+			if err == nil {
+				t.Errorf("NormalizeEvent accepted a browser_session row with no actor identity; the store would persist it")
+			}
+		})
+	}
+}

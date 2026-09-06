@@ -25,10 +25,21 @@ by a scoped or cookie caller downgrade to `anonymous` without a hash; the
 shared bearer keeps its stable synthetic identity on identity mutations and
 recovery actions.
 
+One more row moves at the cut-over. In the open posture (auth enforcement
+not configured, `auth.Mode == ""`, where every admin route is open) a request
+carries no credential, and `adminRecoveryActor` now returns `anonymous` with
+no hash where the base returned `shared_token` with the synthetic identity.
+So `admin_recovery_action` rows in such a deployment move from `shared_token`
+to `anonymous`; no credential was presented, so the mapping stays, but an
+operator filtering recovery rows by `shared_token` must include `anonymous`
+after the release. `scoped_token` rows and `shared_token` rows for a
+presented shared bearer are unchanged.
+
 Historical rows are not migrated. The runbook in
 `docs/public/operate/hosted-governance.md` and the `governanceaudit` README
 say that rows written before this change carry the old classes for a cookie
-session, so a filter by class spanning the cut-over includes both values.
+session or an open-posture request, so a filter by class spanning the
+cut-over includes both values.
 
 ## Evidence
 

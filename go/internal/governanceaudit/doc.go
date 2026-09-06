@@ -14,5 +14,7 @@
 // ActorClass constants. ActorClassScopedToken names a scoped-token or
 // OIDC-bearer caller and ActorClassBrowserSession names a cookie-authenticated
 // dashboard session; both carry an actor identity, and an event that has none
-// must use ActorClassAnonymous or ActorClassSystem instead.
+// must use ActorClassAnonymous or ActorClassSystem instead. ActorClassOperator
+// is reserved for a human asserting an identity through an SSO login; a cookie
+// session acting on an identity mutation is ActorClassBrowserSession.
 package governanceaudit
