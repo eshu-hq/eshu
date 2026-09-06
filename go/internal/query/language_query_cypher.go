@@ -34,6 +34,19 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // The Repository binding is non-optional in all four patterns, so the condition
 // decides row membership rather than nulling a projection (the OPTIONAL MATCH
 // trap #5167 batch 1 hit on complexityListAnchor).
+//
+// The language predicate of the Directory, File and entity builders is
+// `f.language IN $languages`, and nothing else: no file-extension fallback.
+// The three used to OR `f.name ENDS WITH '<ext>'` terms into the same WHERE,
+// and on the pinned NornicDB build ENDS WITH (STARTS WITH too) evaluates as
+// true for every row of a multi-node MATCH, so `OR true` admitted every file
+// in the store whatever language was asked for (#6546). The projector writes
+// `language` onto every File and semantic entity it emits, using the parser's
+// own spelling, so the property carries the answer on its own once
+// graphLanguageSpellings supplies those spellings. The measurement behind the
+// shape is in docs/internal/evidence/6546-language-query-extension-filter.md
+// and the live proof in
+// TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage.
 func buildLanguageCypherWithSemanticFilter(
 	language,
 	label,
@@ -50,22 +63,17 @@ func buildLanguageCypherWithSemanticFilter(
 		"limit":    limit,
 	}
 
-	// Build the extension filter for this language.
-	exts := languageFileExtensions[language]
-	extFilter := buildExtensionFilter(exts)
-
 	switch label {
 	case "Repository":
 		return buildRepositoryCypher(language, query, repoID, limit, access)
 	case "Directory":
-		return buildDirectoryCypher(language, extFilter, query, repoID, params, access)
+		return buildDirectoryCypher(language, query, repoID, params, access)
 	case "File":
-		return buildFileCypher(language, extFilter, query, repoID, params, access)
+		return buildFileCypher(language, query, repoID, params, access)
 	default:
 		return buildEntityCypherWithSemanticFilter(
 			language,
 			label,
-			extFilter,
 			query,
 			repoID,
 			params,
@@ -137,12 +145,12 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access rep
 // directory disappears from the answer. Anchoring at File keeps the last
 // CONTAINS hop out of the variable-length chain, so `d` binds to the directory
 // that directly holds each file, which is what `count(f)` has to mean.
-func buildDirectoryCypher(language, extFilter, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
-	params["language_title"] = strings.Title(language) //nolint:staticcheck
+func buildDirectoryCypher(language, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
+	params["languages"] = graphLanguageSpellings(language)
 
 	cypher := `
 		MATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)
-		WHERE (f.language = $language OR f.language = $language_title` + extFilter + `)
+		WHERE f.language IN $languages
 	`
 
 	if repoID != "" {
@@ -169,12 +177,12 @@ func buildDirectoryCypher(language, extFilter, query, repoID string, params map[
 }
 
 // buildFileCypher returns a query for files in the given language.
-func buildFileCypher(language, extFilter, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
-	params["language_title"] = strings.Title(language) //nolint:staticcheck
+func buildFileCypher(language, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
+	params["languages"] = graphLanguageSpellings(language)
 
 	cypher := `
 		MATCH (f:File)<-[:REPO_CONTAINS]-(r:Repository)
-		WHERE (f.language = $language OR f.language = $language_title` + extFilter + `)
+		WHERE f.language IN $languages
 	`
 
 	if repoID != "" {
@@ -199,20 +207,23 @@ func buildFileCypher(language, extFilter, query, repoID string, params map[strin
 	return cypher, params
 }
 
+// buildEntityCypherWithSemanticFilter returns a query for semantic entities of
+// one label in the given language. The language is read from the entity first
+// and from its file second, because a few entity kinds are projected without
+// their own `language` while their File always carries one.
 func buildEntityCypherWithSemanticFilter(
-	language, label, extFilter, query, repoID string,
+	language, label, query, repoID string,
 	params map[string]any,
 	semanticFilterKey string,
 	semanticFilterValue string,
 	access repositoryAccessFilter,
 ) (string, map[string]any) {
-	params["language_title"] = strings.Title(language) //nolint:staticcheck
+	params["languages"] = graphLanguageSpellings(language)
 
 	cypher := fmt.Sprintf(`
 		MATCH (e:%s)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)
-		WHERE (e.language = $language OR e.language = $language_title
-		       OR f.language = $language OR f.language = $language_title%s)
-	`, label, extFilter)
+		WHERE (e.language IN $languages OR f.language IN $languages)
+	`, label)
 
 	if semanticFilterKey != "" {
 		cypher += fmt.Sprintf(" AND coalesce(e.%s, '') = $semantic_filter", semanticFilterKey)
@@ -241,20 +252,6 @@ func buildEntityCypherWithSemanticFilter(
 		LIMIT $limit
 	`
 	return cypher, params
-}
-
-// buildExtensionFilter returns a Cypher OR clause fragment that matches common
-// file extensions for a language. Returns an empty string when no extensions
-// are registered.
-func buildExtensionFilter(exts []string) string {
-	if len(exts) == 0 {
-		return ""
-	}
-	clauses := make([]string, 0, len(exts))
-	for _, ext := range exts {
-		clauses = append(clauses, fmt.Sprintf("f.name ENDS WITH '%s'", ext))
-	}
-	return " OR " + strings.Join(clauses, " OR ")
 }
 
 // buildLanguageResult converts a Neo4j result row into the response shape.

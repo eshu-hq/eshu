@@ -181,10 +181,11 @@ func repositoryGoverningPredicatesForAlias(cypher, alias string) []string {
 // keyword that starts a new clause.
 //
 // A plain substring scan for " WITH " is wrong: `f.name ENDS WITH '.go'`, the
-// extension filter the language-query builders splice into their WHERE, ends
-// the block halfway through its first predicate and hides every predicate after
-// it, including the grant. STARTS WITH has the same shape. Only a WITH that is
-// not the tail of one of those operators is a clause boundary.
+// extension filter the language-query builders spliced into their WHERE until
+// #6546, ended the block halfway through its first predicate and hid every
+// predicate after it, including the grant. STARTS WITH has the same shape, and
+// other builders may still use either. Only a WITH that is not the tail of one
+// of those operators is a clause boundary.
 func clauseTerminatorIndex(block string) int {
 	terminators := []string{
 		" OPTIONAL MATCH ", " MATCH ", " WITH ", " RETURN ", " ORDER BY ", " SKIP ", " LIMIT ",

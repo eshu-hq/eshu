@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -80,9 +81,16 @@ func TestBuildLanguageCypher_File(t *testing.T) {
 	if !searchString(cypher, "File") {
 		t.Error("cypher should contain File label")
 	}
-	// Rust extension filter.
-	if !searchString(cypher, ".rs") {
-		t.Error("cypher should contain .rs extension filter")
+	// The language filter is the property predicate alone; no extension
+	// fallback is spliced into the WHERE (#6546).
+	if !searchString(cypher, "f.language IN $languages") {
+		t.Error("cypher should filter on f.language IN $languages")
+	}
+	if searchString(cypher, "ENDS WITH") {
+		t.Error("cypher must not carry an ENDS WITH extension fallback")
+	}
+	if got, ok := params["languages"].([]string); !ok || !slices.Contains(got, "rust") {
+		t.Errorf("params[languages] = %#v, want a list carrying rust", params["languages"])
 	}
 	if params["query"] != "main" {
 		t.Errorf("query param = %v, want main", params["query"])
@@ -95,8 +103,11 @@ func TestBuildLanguageCypher_Directory(t *testing.T) {
 	if !searchString(cypher, "Directory") {
 		t.Error("cypher should contain Directory label")
 	}
-	if !searchString(cypher, ".java") {
-		t.Error("cypher should contain .java extension filter")
+	if !searchString(cypher, "f.language IN $languages") {
+		t.Error("cypher should filter on f.language IN $languages")
+	}
+	if searchString(cypher, "ENDS WITH") {
+		t.Error("cypher must not carry an ENDS WITH extension fallback")
 	}
 }
 
@@ -490,16 +501,6 @@ func TestSortStrings(t *testing.T) {
 	for i := 1; i < len(s); i++ {
 		if s[i] < s[i-1] {
 			t.Errorf("not sorted at index %d: %v", i, s)
-		}
-	}
-}
-
-func TestLanguageFileExtensions_Coverage(t *testing.T) {
-	// Every supported language should have direct mappings or a canonical alias.
-	for lang := range supportedLanguages {
-		exts, ok := languageFileExtensions[canonicalLanguage(lang)]
-		if !ok || len(exts) == 0 {
-			t.Errorf("language %q has no file extension mappings", lang)
 		}
 	}
 }

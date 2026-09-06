@@ -125,9 +125,7 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 			}
 			// The governing-predicates assertion above already proves the
 			// grant sits in the anchoring MATCH's own WHERE, which is ahead
-			// of any WITH. These pin the rest of the ordering directly. A
-			// literal " WITH " scan is not usable here: the extension filter
-			// spliced into the same WHERE contains `ENDS WITH`.
+			// of any WITH. These pin the rest of the ordering directly.
 			for _, clause := range []string{" RETURN ", " ORDER BY ", " LIMIT "} {
 				at := strings.Index(normalized, clause)
 				if at >= 0 && strings.Index(normalized, want) > at {
@@ -156,19 +154,21 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 // wholesale rewrite would pass; this one compares the entire statement,
 // whitespace included.
 //
-// Three of the baselines are the text as it stands on origin/main
-// (`git show origin/main:go/internal/query/language_query_cypher.go`). The
-// grant work appended access.GraphPredicate("r") and access.GraphParams(params)
-// to each builder and changed nothing else, and both are empty for an unscoped
-// caller, so an unscoped request must still get byte-for-byte what it got
-// before the grant landed.
+// buildRepositoryCypher is frozen to the text it has carried since before the
+// grant work: that work appended access.GraphPredicate("r") and
+// access.GraphParams(params) and changed nothing else, and both are empty for
+// an unscoped caller.
 //
-// buildDirectoryCypher is the declared exception. Its unscoped text changed in
-// this same commit -- two MATCH clauses collapsed into one, because the
-// two-clause shape drops every row on the pinned NornicDB build (the reasoning
-// is on buildDirectoryCypher, the measurement in
-// TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing). It is
-// frozen to its NEW text, so an accidental revert fails here too.
+// The other three are frozen to text that has since moved twice for backend
+// reasons, each measured on the pinned NornicDB build. buildDirectoryCypher's
+// two MATCH clauses collapsed into one, because the two-clause shape drops
+// every row there (the reasoning is on buildDirectoryCypher, the measurement
+// in TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing). Then
+// #6546 replaced the language predicate of the Directory, File and entity
+// builders -- two equalities OR-ed with one `f.name ENDS WITH` term per
+// extension -- with `f.language IN $languages`, because ENDS WITH is true for
+// every row of a multi-node MATCH on that build and admitted every file. Each
+// is frozen to its NEW text, so an accidental revert of either fails here.
 //
 // The shared semantic-metadata projection is spliced from
 // graphSemanticMetadataProjection() rather than copied into the baseline: eight
@@ -200,8 +200,9 @@ func TestLanguageQueryUnscopedCypherTextIsFrozen(t *testing.T) {
 			if got != tc.want {
 				t.Fatalf("%s builder's unscoped text moved off its frozen baseline.\n got: %q\nwant: %q\n"+
 					"An unscoped caller's statement is not supposed to change. If it must, "+
-					"re-measure the route and update this baseline and the claim in "+
-					"docs/internal/evidence/5167-code-family-batch-2.md together.", tc.label, got, tc.want)
+					"re-measure the route and update this baseline and the claims in "+
+					"docs/internal/evidence/5167-code-family-batch-2.md and "+
+					"docs/internal/evidence/6546-language-query-extension-filter.md together.", tc.label, got, tc.want)
 			}
 		})
 	}
@@ -235,7 +236,7 @@ var frozenUnscopedRepositoryCypher = frozenCypherLines(
 var frozenUnscopedDirectoryCypher = frozenCypherLines(
 	"",
 	"\t\tMATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)",
-	"\t\tWHERE (f.language = $language OR f.language = $language_title OR f.name ENDS WITH '.go')",
+	"\t\tWHERE f.language IN $languages",
 	"\t",
 	"\t\tWITH d, r, count(f) as file_count",
 	"\t\tRETURN d.id as entity_id, d.name as name, labels(d) as labels,",
@@ -250,7 +251,7 @@ var frozenUnscopedDirectoryCypher = frozenCypherLines(
 var frozenUnscopedFileCypher = frozenCypherLines(
 	"",
 	"\t\tMATCH (f:File)<-[:REPO_CONTAINS]-(r:Repository)",
-	"\t\tWHERE (f.language = $language OR f.language = $language_title OR f.name ENDS WITH '.go')",
+	"\t\tWHERE f.language IN $languages",
 	"\t",
 	"\t\tRETURN f.id as entity_id, f.name as name, labels(f) as labels,",
 	"\t\t       f.relative_path as file_path,",
@@ -264,8 +265,7 @@ var frozenUnscopedFileCypher = frozenCypherLines(
 var frozenUnscopedEntityCypherHead = frozenCypherLines(
 	"",
 	"\t\tMATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(r:Repository)",
-	"\t\tWHERE (e.language = $language OR e.language = $language_title",
-	"\t\t       OR f.language = $language OR f.language = $language_title OR f.name ENDS WITH '.go')",
+	"\t\tWHERE (e.language IN $languages OR f.language IN $languages)",
 	"\t",
 	"\t\tRETURN e.id as entity_id, e.name as name, labels(e) as labels,",
 	"\t\t       f.relative_path as file_path,",

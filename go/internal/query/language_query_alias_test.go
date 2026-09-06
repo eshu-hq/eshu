@@ -3,7 +3,11 @@
 
 package query
 
-import "testing"
+import (
+	"slices"
+	"strings"
+	"testing"
+)
 
 func TestSupportedLanguages_ExplicitJSXAndTSX(t *testing.T) {
 	langs := SupportedLanguages()
@@ -19,28 +23,50 @@ func TestSupportedLanguages_ExplicitJSXAndTSX(t *testing.T) {
 	}
 }
 
-func TestBuildLanguageCypher_JSXUsesJavaScriptExtensions(t *testing.T) {
+// TestBuildLanguageCypher_JSXBindsJavaScriptSpellings: a jsx request is a
+// javascript request whose bound spelling list still reaches jsx-stamped
+// rows. The predicate is `language IN $languages`; there is no extension
+// fallback to carry the alias (#6546).
+func TestBuildLanguageCypher_JSXBindsJavaScriptSpellings(t *testing.T) {
 	cypher, params := buildLanguageCypher("jsx", "File", "Button", "", 5)
 
 	if got, want := params["language"], "javascript"; got != want {
 		t.Fatalf("params[language] = %#v, want %#v", got, want)
 	}
-	for _, fragment := range []string{".js", ".jsx", ".mjs", ".cjs"} {
-		if !searchString(cypher, fragment) {
-			t.Fatalf("buildLanguageCypher(\"jsx\") missing %q in %q", fragment, cypher)
-		}
+	if !searchString(cypher, "f.language IN $languages") {
+		t.Fatalf("buildLanguageCypher(\"jsx\") missing the spelling-list predicate in %q", cypher)
 	}
+	assertLanguageSpellingsBound(t, params, "javascript", "jsx")
 }
 
-func TestBuildLanguageCypher_TSXUsesTypeScriptExtensions(t *testing.T) {
+func TestBuildLanguageCypher_TSXBindsTypeScriptSpellings(t *testing.T) {
 	cypher, params := buildLanguageCypher("tsx", "File", "Component", "", 5)
 
 	if got, want := params["language"], "typescript"; got != want {
 		t.Fatalf("params[language] = %#v, want %#v", got, want)
 	}
-	for _, fragment := range []string{".ts", ".tsx"} {
-		if !searchString(cypher, fragment) {
-			t.Fatalf("buildLanguageCypher(\"tsx\") missing %q in %q", fragment, cypher)
+	if !searchString(cypher, "f.language IN $languages") {
+		t.Fatalf("buildLanguageCypher(\"tsx\") missing the spelling-list predicate in %q", cypher)
+	}
+	assertLanguageSpellingsBound(t, params, "typescript", "tsx")
+}
+
+// assertLanguageSpellingsBound checks that every named spelling is in the
+// bound $languages list, and that nothing that looks like a file extension is.
+func assertLanguageSpellingsBound(t *testing.T, params map[string]any, want ...string) {
+	t.Helper()
+	bound, ok := params["languages"].([]string)
+	if !ok {
+		t.Fatalf("params[languages] = %#v, want a []string", params["languages"])
+	}
+	for _, spelling := range want {
+		if !slices.Contains(bound, spelling) {
+			t.Fatalf("params[languages] = %v, missing %q", bound, spelling)
+		}
+	}
+	for _, spelling := range bound {
+		if strings.HasPrefix(spelling, ".") {
+			t.Fatalf("params[languages] = %v carries a file extension; the graph filter matches the language property only", bound)
 		}
 	}
 }
