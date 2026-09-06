@@ -359,11 +359,12 @@ membership changes refresh inside a bounded public-safe window.
 5. Retain detailed event fields only in the private audit sink for the hosted policy retention window. Status and MCP surfaces keep aggregate counts only.
 6. Keep actor identifiers, tenant names, repository names, source identifiers, prompts, provider responses, credential handles, private URLs, and token values out of tickets.
 
-Rolling-upgrade note: while the release that adds `browser_session` rolls out,
-an API pod still on the old build answers `GET /api/v0/auth/admin/audit/events`
-with 500 for any page holding a new row, because it checks each row against the
-class list built into its binary. The row is stored correctly and summary counts
-are unaffected; the error stops when every pod is on the new build. #6574 tracks a reader that accepts a class it does not know.
+Rolling-upgrade note: the audit reader returns a row whose actor class, scope
+class, decision, or event type it does not know with the stored value (#6574),
+so a later release that adds a class no longer breaks the list page mid-rollout.
+The exception is the release that introduced `browser_session`: its old pods
+carry the strict reader and answer `GET /api/v0/auth/admin/audit/events` with
+500 for a page holding a `browser_session` row until every pod is on that build.
 
 Actor-class cut-over note: a dashboard cookie session is `browser_session` on
 route denials, identity mutations, and `admin_recovery_action` rows alike;
