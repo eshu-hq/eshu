@@ -160,7 +160,7 @@ console session is still admitted where the modes above admit it.
 
 | Route | Why no grant binds yet |
 | --- | --- |
-| `GET /api/v0/index-status` (alias `GET /api/v0/status/index`) | The report is deployment-wide: queue, coordinator, scope-activity, and AWS materialization aggregates with no caller grant to intersect, and a `queue_blockages` row reports `conflict_key` as `COALESCE(conflict_key, scope_id)`, so a raw scope id can appear. |
+| `GET /api/v0/status/index` (legacy alias `GET /api/v0/index-status`) | The report is deployment-wide: the repository count and the queue, coordinator, scope-activity, and AWS materialization aggregates carry no caller grant to intersect, and a `queue_blockages` row reports `conflict_key` as `COALESCE(conflict_key, scope_id)`, so a raw scope id can appear. |
 | `POST /api/v0/code/bundles` | The catalog read never intersects the caller's grant, and a `Package` node carries `visibility` and `scope_id` but no repository key. |
 | `POST /api/v0/code/relationships` | The handler expands a resolved entity's neighbors with no grant to intersect. This is where `analyze_code_relationships` sends its `who_modifies`, `module_deps`, `variable_scope`, `find_complexity`, `find_functions_by_argument`, and `find_functions_by_decorator` query types; its relationship-story and call-chain types use the grant-bound routes instead. |
 | `GET /api/v0/images/tag-history` | Observation nodes are keyed by the OCI registry `repository_id` (`oci-registry://…`), not a code `repository_id`, and carry no edge to the source repository. #6564 tracks whether the digest join through `BUILT_FROM` can bind a grant. |
