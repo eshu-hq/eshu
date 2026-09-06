@@ -269,10 +269,12 @@ validate_parser_backing_ledger() {
       in_block { print }
     ' "$repo_root/$spec" 2>/dev/null || true)"
 
+    # NOTE: no rg -q here: it SIGPIPEs the writer under pipefail; test output emptiness instead.
     if [ -z "$(printf '%s\n' "$block" | rg "^[[:space:]]*implementation_class:[[:space:]]*structured-parser-backed-exception[[:space:]]*$")" ]; then
       printf 'verify-parser-relationship-kit: %s row must be structured-parser-backed-exception\n' "$parser" >&2
       issues=1
     fi
+    # NOTE: no rg -q here: it SIGPIPEs the writer under pipefail; test output emptiness instead.
     if [ -z "$(printf '%s\n' "$block" | rg "^[[:space:]]*no_provider_required:[[:space:]]*true[[:space:]]*$")" ]; then
       printf 'verify-parser-relationship-kit: %s row must declare no_provider_required: true\n' "$parser" >&2
       issues=1
@@ -330,7 +332,8 @@ validate_support_maturity_matrix() {
       "|"*) ;;
       *) continue ;;
     esac
-    IFS='|' read -r _ parser _ _ _ framework _ query _ e2e _ < <(printf '%s' "$line")
+    # NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3; printf pipe is byte-equivalent.
+    IFS='|' read -r _ parser _ _ _ framework _ query _ e2e _ < <(printf '%s\n' "$line")
     parser="$(trim_cell "$parser")"
     framework="$(lower_cell "$framework")"
     query="$(trim_cell "$query")"
@@ -356,7 +359,8 @@ validate_full_capability_table() {
       "|"*) ;;
       *) continue ;;
     esac
-    IFS='|' read -r _ capability _ status _ _ graph unit integration _ < <(printf '%s' "$line")
+    # NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3; printf pipe is byte-equivalent.
+    IFS='|' read -r _ capability _ status _ _ graph unit integration _ < <(printf '%s\n' "$line")
     capability="$(trim_cell "$capability")"
     status="$(lower_cell "$status")"
     case "$status" in
@@ -394,7 +398,8 @@ validate_compact_capability_table() {
       "|"*) ;;
       *) continue ;;
     esac
-    IFS='|' read -r _ capability _ status evidence _ < <(printf '%s' "$line")
+    # NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3; printf pipe is byte-equivalent.
+    IFS='|' read -r _ capability _ status evidence _ < <(printf '%s\n' "$line")
     capability="$(trim_cell "$capability")"
     status="$(lower_cell "$status")"
     case "$status" in

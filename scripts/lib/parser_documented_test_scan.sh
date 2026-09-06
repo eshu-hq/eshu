@@ -124,6 +124,7 @@ validate_documented_parser_test_commands() {
     cleanup_documented_selector_test_binary
     return 1
   fi
+  # NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3 on multi-KB input.
   if ! printf '%s\n' "$matches" | jq -j '
     def strip_command_substitution_newlines: sub("\n+$"; "");
     def strip_markdown_fence:

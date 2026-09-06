@@ -211,7 +211,8 @@ validate_language_feature_table() {
       "|"*) ;;
       *) continue ;;
     esac
-    IFS='|' read -r _ _ feature status _ < <(printf '%s' "$line")
+    # NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3; printf pipe is byte-equivalent.
+    IFS='|' read -r _ _ feature status _ < <(printf '%s\n' "$line")
     feature="$(trim_cell "$feature")"
     status="$(lower_cell "$status")"
     [ -z "$feature" ] && continue
