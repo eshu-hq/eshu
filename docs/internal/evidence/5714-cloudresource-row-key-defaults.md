@@ -112,7 +112,7 @@ For a resource that disappears from the cloud account entirely (no longer
 observed by any sync), its CloudResource node stops being reprocessed and any
 already-corrupted property would persist until whatever pre-existing
 lifecycle mechanism reaps stale/orphaned nodes runs
-(`go/internal/reducer/graph_orphan_sweep_runner.go`) — the same staleness
+(`go/internal/reducer/maintenance/graph_orphan_sweep_runner.go`) — the same staleness
 exposure any other property on that node already has independent of this
 bug, and out of scope for #5714.
 

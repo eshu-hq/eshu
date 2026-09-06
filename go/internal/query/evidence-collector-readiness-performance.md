@@ -33,7 +33,7 @@ materialized table `collector_evidence_summary`
 (`schema/data-plane/postgres/036_collector_evidence_summary.sql`), refreshed by a
 lease-guarded atomic full resweep
 (`CollectorEvidenceSummaryStore.RebuildAllCollectorEvidence` /
-`reducer.CollectorEvidenceSummaryMaintainer`). This mirrors the #3389
+`reducer/maintenance.CollectorEvidenceSummaryMaintainer`). This mirrors the #3389
 supply-chain winners maintainer.
 
 After #3466 the read keeps the `active_scopes` and `workflow_instances` CTEs and

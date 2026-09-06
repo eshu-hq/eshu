@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package maintenance
 
 import (
 	"context"
@@ -18,6 +18,21 @@ const (
 	defaultGraphOrphanSweepPollInterval = time.Hour
 	defaultGraphOrphanSweepLeaseTTL     = 5 * time.Minute
 )
+
+// PartitionLeaseManager manages partition leases for the graph orphan sweep.
+// It mirrors reducer.PartitionLeaseManager (shared_projection_worker.go)
+// method-for-method. It is declared locally rather than imported from the
+// reducer root: the root's own PartitionLeaseManager is genuine root-owned
+// logic shared by several families that have not moved out of root yet, so
+// importing it would violate the rule that a family subpackage never imports
+// the reducer root (issue #6061). Go interfaces are satisfied structurally,
+// so the same concrete lease-store implementation root wires into other
+// families' readers also satisfies this local declaration without any code
+// duplication.
+type PartitionLeaseManager interface {
+	ClaimPartitionLease(ctx context.Context, domain string, partitionID, partitionCount int, leaseOwner string, leaseTTL time.Duration) (bool, error)
+	ReleasePartitionLease(ctx context.Context, domain string, partitionID, partitionCount int, leaseOwner string) error
+}
 
 const (
 	graphOrphanSweepLeaseDomain         = "graph_orphan_sweep"

@@ -149,7 +149,7 @@ cadence is `<<` the stale window. (30s cadence -> 2880x; either is safe.)
 
 ## Maintainer
 
-`go/internal/reducer/collector_evidence_summary_maintainer.go`, modeled on
+`go/internal/reducer/maintenance/collector_evidence_summary_maintainer.go`, modeled on
 `SupplyChainImpactWinnersMaintainer`:
 
 - single-owner partition lease (`partitionCount = 1`) so exactly one reducer
@@ -186,7 +186,7 @@ all readers (net win whenever readiness is queried more than ~once/cadence).
 - `schema/data-plane/postgres/036_collector_evidence_summary.sql` (new)
 - `go/internal/storage/postgres/collector_evidence_summary.go` (new: resweep store)
 - `go/internal/storage/postgres/status_collector_evidence.go` (read swap)
-- `go/internal/reducer/collector_evidence_summary_maintainer.go` (new)
+- `go/internal/reducer/maintenance/collector_evidence_summary_maintainer.go` (new)
 - reducer service/run wiring (`go/internal/reducer/service.go`, `go/cmd/reducer/run.go`)
 - `go/internal/telemetry/instruments.go` (instruments)
 - tests beside each

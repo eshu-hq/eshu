@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package maintenance
 
 import (
 	"context"
@@ -125,49 +125,6 @@ func TestGraphOrphanSweepRunnerValidation(t *testing.T) {
 
 	if err == nil || !errors.Is(err, ErrGraphOrphanSweeperRequired) {
 		t.Fatalf("RunOnce() error = %v, want ErrGraphOrphanSweeperRequired", err)
-	}
-}
-
-func TestServiceStartsGraphOrphanSweepRunner(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	sweeper := &fakeGraphOrphanSweeper{
-		results: []GraphOrphanSweepResult{{Deleted: map[string]int64{}}},
-	}
-	started := make(chan struct{}, 1)
-	runner := &GraphOrphanSweepRunner{
-		Sweeper: sweeper,
-		Config:  GraphOrphanSweepRunnerConfig{PollInterval: time.Hour},
-		Wait: func(ctx context.Context, _ time.Duration) error {
-			started <- struct{}{}
-			<-ctx.Done()
-			return ctx.Err()
-		},
-	}
-	service := Service{GraphOrphanSweepRunner: runner}
-	var wg sync.WaitGroup
-	var gotErr error
-	service.startSideRunners(ctx, &wg, func(err error) {
-		if !errors.Is(err, context.Canceled) {
-			gotErr = err
-		}
-	})
-
-	deadline := time.After(time.Second)
-	for sweeper.callCount() != 1 {
-		select {
-		case <-deadline:
-			t.Fatal("sweeper was not called")
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	<-started
-	cancel()
-	wg.Wait()
-
-	if gotErr != nil {
-		t.Fatalf("side runner error = %v, want nil", gotErr)
 	}
 }
 

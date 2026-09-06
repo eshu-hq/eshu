@@ -6,7 +6,7 @@ package main
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -17,11 +17,11 @@ type postgresGenerationRetentionPruner struct {
 func generationRetentionRunnerFor(
 	database postgres.ExecQueryer,
 	cfg generationRetentionConfig,
-) *reducer.GenerationRetentionRunner {
+) *maintenance.GenerationRetentionRunner {
 	if !cfg.Enabled {
 		return nil
 	}
-	return &reducer.GenerationRetentionRunner{
+	return &maintenance.GenerationRetentionRunner{
 		Pruner: postgresGenerationRetentionPruner{
 			store: postgres.NewGenerationRetentionStore(database),
 		},
@@ -31,8 +31,8 @@ func generationRetentionRunnerFor(
 
 func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 	ctx context.Context,
-	policy reducer.GenerationRetentionPolicy,
-) (reducer.GenerationRetentionResult, error) {
+	policy maintenance.GenerationRetentionPolicy,
+) (maintenance.GenerationRetentionResult, error) {
 	result, err := p.store.PruneSupersededGenerations(ctx, postgres.GenerationRetentionPolicy{
 		MinSupersededGenerations: policy.MinSupersededGenerations,
 		MaxSupersededAge:         policy.MaxSupersededAge,
@@ -42,9 +42,9 @@ func (p postgresGenerationRetentionPruner) PruneSupersededGenerations(
 		PolicyRevision:           policy.PolicyRevision,
 	})
 	if err != nil {
-		return reducer.GenerationRetentionResult{}, err
+		return maintenance.GenerationRetentionResult{}, err
 	}
-	return reducer.GenerationRetentionResult{
+	return maintenance.GenerationRetentionResult{
 		GenerationsPruned: result.GenerationsPruned,
 		RowsPruned:        result.RowsPruned,
 		Skipped:           result.Skipped,

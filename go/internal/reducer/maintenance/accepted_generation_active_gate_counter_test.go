@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package maintenance
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -76,7 +77,7 @@ func TestGateAcceptedGenerationOnActiveCountersBypassed(t *testing.T) {
 		instruments,
 	)
 
-	key := SharedProjectionAcceptanceKey{
+	key := sharedintent.AcceptanceKey{
 		ScopeID:          "git-repository-scope:repository:r_app",
 		AcceptanceUnitID: "repository:r_app",
 		SourceRunID:      "code_import_repo_dependency:git-repository-scope:repository:r_app",
@@ -116,7 +117,7 @@ func TestGateAcceptedGenerationOnActiveCountersDeferredInactive(t *testing.T) {
 		instruments,
 	)
 
-	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
+	key := sharedintent.AcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
 	if gen, ok := gated(key); ok {
 		t.Fatalf("gated lookup = (%q, true), want deferred for inactive gen", gen)
 	}
@@ -150,7 +151,7 @@ func TestGateAcceptedGenerationOnActiveCountersDeferredError(t *testing.T) {
 		instruments,
 	)
 
-	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
+	key := sharedintent.AcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
 	if gen, ok := gated(key); ok {
 		t.Fatalf("gated lookup = (%q, true), want deferred on error", gen)
 	}
@@ -186,7 +187,7 @@ func TestGateAcceptedGenerationOnActiveCountersPerKeyNotPerPrefetchBatch(t *test
 		instruments,
 	)
 
-	keys := []SharedProjectionAcceptanceKey{
+	keys := []sharedintent.AcceptanceKey{
 		{ScopeID: "s1", AcceptanceUnitID: "r1", SourceRunID: "code_import_repo_dependency:s1"},
 		{ScopeID: "s2", AcceptanceUnitID: "r2", SourceRunID: "code_import_repo_dependency:s2"},
 		{ScopeID: "s3", AcceptanceUnitID: "r3", SourceRunID: "code_import_repo_dependency:s3"},
@@ -219,7 +220,7 @@ func TestGateAcceptedGenerationOnActiveNilInstrumentsNoPanic(t *testing.T) {
 		nil,
 	)
 
-	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
+	key := sharedintent.AcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
 	// Must not panic — no instruments. Defer as expected.
 	if gen, ok := gated(key); ok {
 		t.Fatalf("gated lookup = (%q, true), want deferred for inactive gen (nil instruments)", gen)
@@ -245,7 +246,7 @@ func TestGateAcceptedGenerationOnActiveCountersRepeatedCalls(t *testing.T) {
 		instruments,
 	)
 
-	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
+	key := sharedintent.AcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
 	for i := 0; i < 3; i++ {
 		if gen, ok := gated(key); ok {
 			t.Fatalf("gated lookup %d = (%q, true), want deferred", i, gen)
@@ -282,7 +283,7 @@ func TestGateAcceptedGenerationOnActiveCountersNoIncrementForMissingAcceptance(t
 		instruments,
 	)
 
-	key := SharedProjectionAcceptanceKey{AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
+	key := sharedintent.AcceptanceKey{AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
 	if _, ok := gated(key); ok {
 		t.Fatal("gated lookup = true, want false for missing acceptance")
 	}
@@ -320,7 +321,7 @@ func TestGateAcceptedGenerationOnActiveCountersActive(t *testing.T) {
 		instruments,
 	)
 
-	key := SharedProjectionAcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
+	key := sharedintent.AcceptanceKey{ScopeID: "scope-1", AcceptanceUnitID: "repo-a", SourceRunID: "repo_dependency:scope-1"}
 	gen, ok := gated(key)
 	if !ok || gen != "gen-2" {
 		t.Fatalf("gated lookup = (%q, %v), want (gen-2, true)", gen, ok)
