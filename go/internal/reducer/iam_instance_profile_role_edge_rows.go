@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -65,7 +66,7 @@ func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, []quar
 			}
 			continue
 		}
-		if resource.ResourceType != iamResourceTypeRole {
+		if resource.ResourceType != iampolicy.ResourceTypeRole {
 			continue
 		}
 		arn := strings.TrimSpace(derefString(resource.ARN))
@@ -76,7 +77,7 @@ func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, []quar
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(resource.AccountID, resource.Region, iamResourceTypeRole, resourceID)
+		uid := cloudResourceUID(resource.AccountID, resource.Region, iampolicy.ResourceTypeRole, resourceID)
 		if arn != "" {
 			if _, exists := index.byARN[arn]; !exists {
 				index.byARN[arn] = uid

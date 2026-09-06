@@ -73,9 +73,10 @@ domain; only the shared half comes here.
 - **`verify-performance-evidence.sh`** — fires on this path. `README.md` carries
   the `No-Regression Evidence:` and `No-Observability-Change:` markers; keep
   them unbolded and at the start of their line or the gate stops seeing them.
-- **`verify-dirgate.sh`** — a root file may not be named after this directory,
-  so the root's compatibility shim is `iam_permission_grant_compat.go`, not
-  `iampolicy_compat.go`.
+- **`verify-dirgate.sh`** — a root file may not be named after this directory;
+  the root's compatibility shim was `iam_permission_grant_compat.go` (not
+  `iampolicy_compat.go`) until its four resource-type const aliases lost
+  their last root caller and the file was deleted (#6061).
 
 ## Do not
 

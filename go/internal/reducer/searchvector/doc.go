@@ -52,9 +52,10 @@
 // [SearchVectorBuildReadyPublisher], and [SearchVectorScopeStateManager] to
 // the concrete internal/searchvector builder and internal/storage/postgres
 // stores, keeping this package free of storage and embedding dependencies.
-// The reducer root keeps a compatibility surface
-// (search_vector_build_compat.go) that aliases the runner and its request/
-// result/config types back for the root's own Service wiring field and
-// TestServiceStartsSearchVectorBuildRunner, so the import direction stays
-// one-way: root depends on searchvector, never the reverse.
+// The reducer root imports this package directly for its own Service wiring
+// field and TestServiceStartsSearchVectorBuildRunner (the compatibility
+// surface that once aliased the runner and its request/result/config types
+// back, search_vector_build_compat.go, was deleted once both were repointed),
+// so the import direction stays one-way: root depends on searchvector, never
+// the reverse.
 package searchvector

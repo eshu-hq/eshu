@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
@@ -45,8 +46,8 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 		definitions = append(definitions, profileRole)
 	}
 	if handlers.FactLoader != nil && handlers.EC2BlockDeviceKMSPostureNodeWriter != nil {
-		ec2BlockDeviceKMS := ec2BlockDeviceKMSPostureMaterializationDomainDefinition()
-		ec2BlockDeviceKMS.Handler = EC2BlockDeviceKMSPostureMaterializationHandler{
+		ec2BlockDeviceKMS := ec2blockkms.MaterializationDomainDefinition()
+		ec2BlockDeviceKMS.Handler = ec2blockkms.EC2BlockDeviceKMSPostureMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			NodeWriter:           handlers.EC2BlockDeviceKMSPostureNodeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

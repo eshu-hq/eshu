@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2blockkms
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 type recordingEC2BlockDeviceKMSPostureNodeWriter struct {
@@ -49,15 +51,37 @@ func (w *recordingEC2BlockDeviceKMSPostureNodeWriter) RetractEC2BlockDeviceKMSPo
 	return nil
 }
 
-func ec2BlockDeviceKMSPostureIntent() Intent {
-	return Intent{
+func ec2BlockDeviceKMSPostureIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-ec2-block-device-kms-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2BlockDeviceKMSPostureMaterialization,
+		Domain:       reducercontract.DomainEC2BlockDeviceKMSPostureMaterialization,
 		EntityKeys:   []string{"ec2_block_device_kms_posture_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
+	}
+}
+
+// ec2BlockDeviceKMSDualKeyLookup returns a readiness lookup that only reports
+// the canonical-nodes-committed phase ready for the entity keys present in the
+// readyKeys set. It lets a test prove the dual-key gate stays closed unless
+// BOTH the aws_resource node phase AND the ec2_instance node phase are
+// present. Local copy of the reducer-root test helper (there named
+// ec2UsesProfileDualKeyLookup) this family's tests used before the move (issue
+// #6061): go test files cannot share unexported symbols across a package
+// boundary, so it is duplicated here rather than exported from the root for
+// test-only use.
+func ec2BlockDeviceKMSDualKeyLookup(readyKeys map[string]bool) gpphase.ReadinessLookup {
+	return func(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
+		if phase != gpphase.PhaseCanonicalNodesCommitted {
+			return false, false
+		}
+		if key.Keyspace != gpphase.KeyspaceCloudResourceUID {
+			return false, false
+		}
+		ready, found := readyKeys[key.AcceptanceUnitID]
+		return ready, found
 	}
 }
 
@@ -106,7 +130,7 @@ func TestEC2BlockDeviceKMSPostureMaterializationGatesUntilBothPhasesCommit(t *te
 			handler := EC2BlockDeviceKMSPostureMaterializationHandler{
 				FactLoader:           &stubFactLoader{envelopes: ec2BlockDeviceKMSPostureFixture()},
 				NodeWriter:           writer,
-				ReadinessLookup:      ec2UsesProfileDualKeyLookup(tc.readyKeys),
+				ReadinessLookup:      ec2BlockDeviceKMSDualKeyLookup(tc.readyKeys),
 				PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 			}
 
@@ -123,7 +147,7 @@ func TestEC2BlockDeviceKMSPostureMaterializationGatesUntilBothPhasesCommit(t *te
 			if err == nil {
 				t.Fatal("expected retryable error while a readiness phase is missing")
 			}
-			if !IsRetryable(err) {
+			if !reducercontract.IsRetryable(err) {
 				t.Fatalf("error must be retryable so the intent re-enters the queue, got %v", err)
 			}
 			if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -140,7 +164,7 @@ func TestEC2BlockDeviceKMSPostureMaterializationProjectsNodeProperties(t *testin
 	handler := EC2BlockDeviceKMSPostureMaterializationHandler{
 		FactLoader:           &stubFactLoader{envelopes: ec2BlockDeviceKMSPostureFixture()},
 		NodeWriter:           writer,
-		ReadinessLookup:      ec2UsesProfileDualKeyLookup(ec2BlockDeviceKMSBothReady()),
+		ReadinessLookup:      ec2BlockDeviceKMSDualKeyLookup(ec2BlockDeviceKMSBothReady()),
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
 
@@ -148,7 +172,7 @@ func TestEC2BlockDeviceKMSPostureMaterializationProjectsNodeProperties(t *testin
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.retractCalls != 1 {
@@ -178,7 +202,7 @@ func TestEC2BlockDeviceKMSPostureMaterializationRetractsStalePropertiesWhenGener
 	handler := EC2BlockDeviceKMSPostureMaterializationHandler{
 		FactLoader:           &stubFactLoader{envelopes: nil},
 		NodeWriter:           writer,
-		ReadinessLookup:      ec2UsesProfileDualKeyLookup(ec2BlockDeviceKMSBothReady()),
+		ReadinessLookup:      ec2BlockDeviceKMSDualKeyLookup(ec2BlockDeviceKMSBothReady()),
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
 
