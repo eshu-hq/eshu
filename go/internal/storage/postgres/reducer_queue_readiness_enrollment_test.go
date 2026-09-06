@@ -90,9 +90,10 @@ type unreadableFailureClassRef struct {
 }
 
 // readinessFailureClassesInReducer returns every `*_not_ready` failure class
-// returned by a type in internal/reducer whose Retryable() reports true,
-// mapped to the file that declares it, plus every FailureClass() on such a type
-// that the scan could NOT read.
+// returned by a type in internal/reducer or one of its immediate family
+// subpackages (awscloud, iamcan, secgroup, ...) whose Retryable() reports
+// true, mapped to the reducerDir-relative file that declares it, plus every
+// FailureClass() on such a type that the scan could NOT read.
 //
 // The second return is what keeps the first honest. A class the scan cannot
 // read is indistinguishable from a class that does not exist, so without it a
@@ -107,32 +108,57 @@ func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unread
 	}
 	reducerDir := filepath.Join(filepath.Dir(thisFile), "..", "..", "reducer")
 
-	entries, err := os.ReadDir(reducerDir)
+	// #6061 is moving readiness families out of the reducer root into their own
+	// one-level-deep subpackages (awscloud, iamcan, secgroup, ...), and eight
+	// classes had already gone dark this way before this scan was fixed: the
+	// AST walk below only ever looked at reducerDir's own files, so a class
+	// whose type moved into a subpackage silently dropped out of `found` while
+	// this guard kept passing. Fixed by walking reducerDir AND each of its
+	// immediate subdirectories -- but not deeper. Every *_not_ready class in the
+	// tree today lives at one of those two depths; going deeper would start
+	// descending into a family's own nested test-helper packages (for example
+	// internal/reducer/factwrite/factwritetest), which declare no reducer types
+	// at all.
+	dirs := []string{reducerDir}
+	topEntries, err := os.ReadDir(reducerDir)
 	if err != nil {
 		t.Fatalf("read %s: %v", reducerDir, err)
+	}
+	for _, entry := range topEntries {
+		if entry.IsDir() {
+			dirs = append(dirs, filepath.Join(reducerDir, entry.Name()))
+		}
 	}
 
 	// Walked explicitly rather than with parser.ParseDir, which is deprecated as
 	// of Go 1.25. Mode 0 (not SkipObjectResolution) is load-bearing: FailureClass
 	// returns a named constant, and returnedStringLiteral follows Ident.Obj to its
-	// declaration. Each constant is declared in the same file as its method, so
-	// per-file resolution is enough.
+	// declaration. Each constant is declared in the same file as its method --
+	// true at the reducer root, and independently re-verified for every family
+	// subpackage this scan covers when this was widened -- so per-file (not
+	// per-package) resolution is enough.
 	fset := token.NewFileSet()
-	parsedFiles := make(map[string]*ast.File, len(entries))
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
+	parsedFiles := make(map[string]*ast.File)
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("read %s: %v", dir, err)
 		}
-		path := filepath.Join(reducerDir, name)
-		parsed, parseErr := parser.ParseFile(fset, path, nil, 0)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", path, parseErr)
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			path := filepath.Join(dir, name)
+			parsed, parseErr := parser.ParseFile(fset, path, nil, 0)
+			if parseErr != nil {
+				t.Fatalf("parse %s: %v", path, parseErr)
+			}
+			parsedFiles[path] = parsed
 		}
-		parsedFiles[path] = parsed
 	}
 	if len(parsedFiles) == 0 {
-		t.Fatalf("no non-test Go files parsed under %s; the guard would pass vacuously", reducerDir)
+		t.Fatalf("no non-test Go files parsed under %s (root + immediate subpackages); the guard would pass vacuously", reducerDir)
 	}
 
 	// receiver type name -> true when Retryable() returns true
@@ -161,11 +187,11 @@ func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unread
 				class, unresolvedIdent := returnedStringLiteral(fn)
 				switch {
 				case strings.HasSuffix(class, "_not_ready"):
-					classes[recv] = [2]string{class, filepath.Base(path)}
+					classes[recv] = [2]string{class, reducerRelativePath(reducerDir, path)}
 				case unresolvedIdent != "":
 					unreadable[recv] = unreadableFailureClassRef{
 						ident: unresolvedIdent,
-						file:  filepath.Base(path),
+						file:  reducerRelativePath(reducerDir, path),
 					}
 				}
 			}
@@ -191,6 +217,22 @@ func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unread
 		return unreadableRefs[i].ident < unreadableRefs[j].ident
 	})
 	return found, unreadableRefs
+}
+
+// reducerRelativePath renders path relative to reducerDir, e.g.
+// "aws_relationship_materialization.go" for a root file and
+// "awscloud/aws_cloud_image_materialization.go" for a family-subpackage one.
+// A bare base name is ambiguous once the scan covers subpackages -- two
+// families could each have a file with the same name -- so this is what keeps
+// the reported location unambiguous. Falls back to the base name only if path
+// somehow is not under reducerDir, which parser.ParseFile could not have
+// produced.
+func reducerRelativePath(reducerDir, path string) string {
+	rel, err := filepath.Rel(reducerDir, path)
+	if err != nil {
+		return filepath.Base(path)
+	}
+	return rel
 }
 
 func receiverTypeName(expr ast.Expr) string {
