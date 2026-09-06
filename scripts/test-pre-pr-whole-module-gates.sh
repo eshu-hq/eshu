@@ -457,6 +457,7 @@ for driver_shell in /bin/bash "${BASH}"; do
 	assert_driver_lane "${driver_shell}" fast 0
 	assert_driver_lane "${driver_shell}" fast 23
 	assert_driver_lane "${driver_shell}" full 0
+	assert_driver_lane "${driver_shell}" full 23
 done
 
 printf 'PASS: pre-pr scheduling and fast local parser selection are pinned\n'
