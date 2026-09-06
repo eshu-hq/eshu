@@ -180,8 +180,7 @@ export ESHU_SEMANTIC_PROVIDER_PROFILES_JSON='{"profiles":[{"profile_id":"semanti
 ```
 
 Pair the profile with source policy, semantic-provider egress policy, limits,
-redaction, and retention. Compose development proof is not hosted isolation
-proof.
+redaction, and retention. Compose proof is not hosted isolation proof.
 
 ### Hosted Provider-Key Mode
 
@@ -202,9 +201,8 @@ through a governed gateway. The gateway still needs source policy,
 semantic-provider egress policy, tenant or workspace routing, redaction,
 retention, budget, and audit controls. A gateway endpoint in docs should be a
 generic service URL, not a private hostname. Hosted Helm values should express
-that gateway through
-`networkPolicy.egress.classes.semanticProviders.to` using public-safe label
-selectors in shared examples and concrete selectors in private operator values.
+that gateway through `networkPolicy.egress.classes.semanticProviders.to` with
+public-safe selectors in shared examples and concrete ones in private values.
 
 ## Safe Example Shapes
 
@@ -377,6 +375,8 @@ membership changes refresh inside a bounded public-safe window.
    `audit.reason_count`.
 3. Query the private audit sink by `event_type=read_authorization`,
    `decision=denied`, actor class, scope class, reason code, and time window.
+   Actor class is the credential refused: `browser_session` a dashboard cookie
+   session, `scoped_token` a scoped or OIDC bearer, `anonymous` no subject hash.
 4. If the reason is `subject_scope_missing`, verify the scoped token or service
    principal policy against the intended low-cardinality scope class.
 5. Put only the event type, actor class, scope class, decision, reason code,

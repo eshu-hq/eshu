@@ -234,7 +234,7 @@ outcomes, not scoped-route refusals.
 This change fixes one thing: an all-scope browser session no longer gets a
 whole-graph read on a grant-bound allowlisted route. It is not a claim that
 the identity-bound population is airtight for such a session. Six residuals
-were named here; five stay open and are tracked separately, none of them fixed
+were named here; four stay open and are tracked separately, none of them fixed
 in the original change. Item numbers are kept as written, because other
 documents and issues cite them.
 
@@ -281,20 +281,21 @@ documents and issues cite them.
    session if one can exist, not as a known-live production shape. Resolving
    that reachability question is out of scope here. Tracked as #6450 item 2
    of the auth-slice findings.
-6. **`actor_class` on the new audit code**, narrowed by item 1's closure.
-   `recordScopedRouteAuthorizationDeniedWithReason` (`auth_audit.go`) stamps
-   `actor_class = scoped_token` on a
-   `scoped_route_all_scope_grant_required` row, because that is the closest
-   member of the closed `governanceaudit.ActorClass` enum that
-   `NormalizeEvent` validates against, and widening a validated enum is
-   outside this change. When the row came only from a browser session that was
-   a compromise; now that an all-scope bearer produces the same code, it is
-   literally right for that half of the population and remains a compromise
-   for the other. An operator filtering by `actor_class` should read
-   `scoped_token` as "identity-resolved caller", not "bearer token". The
-   mapping is marked at the assignment in `auth_audit.go` so it is not
-   "corrected" by a later reader, and adding a browser-session member to the
-   enum is tracked in #6459.
+6. **`actor_class` on the new audit code. CLOSED**, by #6459's two commits
+   `feat(governanceaudit): add the browser_session actor class` and
+   `fix(query): stamp cookie-session route denials as browser_session`. As
+   originally written: `recordScopedRouteAuthorizationDeniedWithReason`
+   (`auth_audit.go`) stamped `actor_class = scoped_token` on a
+   `scoped_route_all_scope_grant_required` row, because the closed
+   `governanceaudit.ActorClass` enum had no browser-session member and
+   widening a validated enum was outside this change. Once item 1 closed the
+   same code came from all-scope bearers too, so `actor_class` could not tell
+   the two populations apart. The enum now has `browser_session`, the helper
+   picks it for `AuthModeBrowserSession` and keeps `scoped_token` for
+   `AuthModeScoped`, and a blank subject hash still downgrades to `anonymous`
+   in both modes. `localIdentityActorClass` and `adminRecoveryActor` still
+   map a browser session to `operator` and `shared_token`; that is a separate
+   inconsistency, not touched by #6459.
 
 Residual 4 is why the `scopedRouteClass` doc comment says an identity-bound
 handler answers from the tenant the session is *currently* bound to, rather
