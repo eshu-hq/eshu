@@ -263,9 +263,22 @@ are `/tmp/6488-target-shims-run.log` and `/tmp/6488-scale-plans-shims.json`.
 Only the measured immutable-ID target change is adopted. Production contains
 no physical tuple identifier. `TEST: TestReducerContentionGateAckEligibleEPQLive`
 retains the three positive concurrent-update arms against the actual builders;
-negative owner/epoch/status and lock-order tests remain required. The corrected
-production target still needs full focused GREEN and an uninstrumented scale
-comparison before promotion.
+negative owner/epoch/status and lock-order tests remain required. At `6c1ab322c0234a03c046a57ad62bc7a694bd7da5`, recursive listing selected
+all seven focused tests and the CI-parity live run exited 0 without skips:
+40 overlaps, nine ordering/stale-state arms, four capture arms, four FK arms,
+three positive concurrent-row rechecks, and both telemetry tests. Logs are
+`/tmp/6488-locked-id-list.log` and `/tmp/6488-locked-id-run.log`.
+
+A second seven-pair uninstrumented comparison still failed every scale gate.
+Median CI/CD ACK p95 was 4.693 ms baseline versus 5.056 ms candidate; all seven
+candidate trials exceeded 5 ms (range 5.036–5.167 ms). Median convergence was
+1.051741525 s versus 1.092046414 s; identity fanout remained above 100 ms in
+both arms (131.347 ms versus 133.667 ms medians). The repeated outer scan is
+removed, but the remaining added lock cost still exceeds the contract. This
+is unresolved, not a passing no-regression result. Artifacts are
+`/tmp/6488-locked-id-pairs-remote.log`,
+`/tmp/6488-locked-id-scale-{baseline,candidate}-{1..7}.log`, and
+`/tmp/6488-locked-id-scale-summary.json`.
 
 ## Operator signals and limits
 
