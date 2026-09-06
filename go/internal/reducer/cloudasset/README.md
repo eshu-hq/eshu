@@ -40,9 +40,12 @@ See `doc.go` for the godoc-rendered contract.
 
 No metric instrument. The domain publishes a graph-readiness phase
 (`gpphase.PublishIntentGraphPhase`, keyspace `cloud_resource_uid`, phase
-`canonical_nodes_committed`) on a successful write; that phase publication is
-observed through the existing `graph_projection_phase_state` durable rows and
-`GraphProjectionPhaseRepairQueue`, not a dedicated counter.
+`canonical_nodes_committed`) on a successful write; a successful publication is
+observed through the existing `graph_projection_phase_state` durable rows, not
+a dedicated counter. A failed publication returns the publisher error to the
+caller with no `GraphProjectionPhaseRepairQueue` enqueue for this handler (only
+`publishIntentGraphPhaseWithRepair` paths enqueue repairs); the durable write
+already stands and recovery is a caller-driven intent retry, not a repair entry.
 
 No-Regression Evidence: #6061 relocates this family's production logic without
 changing it. Every hunk in the moved production files is a package clause, an
