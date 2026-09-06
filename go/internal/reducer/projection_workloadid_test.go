@@ -19,7 +19,8 @@ import (
 // inputs — so current routing proof is
 // TestProjectionBlankEnvironmentDropsInstanceRow plus
 // TestWorkloadIDsRouteThroughConstructors, which scans the package sources
-// for hand-built `Sprintf("workload:` / `"workload:" +` construction sites.
+// for hand-built workload and workload-instance `Sprintf` / `"workload:" +`
+// construction sites.
 func TestProjectionWorkloadIDsMatchConstructors(t *testing.T) {
 	t.Parallel()
 	candidates := []WorkloadCandidate{
