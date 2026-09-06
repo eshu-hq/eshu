@@ -3,7 +3,34 @@
 
 package reducer
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+)
+
+// stubEC2BlockDeviceKMSPostureNodeWriter is a minimal root-side fake satisfying
+// ec2blockkms.EC2BlockDeviceKMSPostureNodeWriter. This wiring test only proves
+// the writer identity was threaded through to the handler, never exercising its
+// methods, so it does not need the family's recording behavior -- and Go test
+// files cannot share an unexported test type (recordingEC2BlockDeviceKMSPostureNodeWriter)
+// across the reducer/ec2blockkms package boundary (issue #6061).
+// The id field is load-bearing: a zero-size struct compares equal to every
+// other instance of itself, so an identity assertion over a struct{} value
+// passes even when a DIFFERENT writer reaches the handler. A pointer to an
+// empty struct is not sufficient either -- Go permits distinct zero-size
+// allocations to share an address -- so the field is what makes the
+// comparison sound rather than lucky.
+type stubEC2BlockDeviceKMSPostureNodeWriter struct{ id int }
+
+func (stubEC2BlockDeviceKMSPostureNodeWriter) WriteEC2BlockDeviceKMSPostureNodes(context.Context, []map[string]any, string, string, string) error {
+	return nil
+}
+
+func (stubEC2BlockDeviceKMSPostureNodeWriter) RetractEC2BlockDeviceKMSPostureNodes(context.Context, []string, string, string) error {
+	return nil
+}
 
 func TestImplementedDefaultDomainDefinitionsOmitsEC2BlockDeviceKMSPostureWithoutNodeWriter(t *testing.T) {
 	t.Parallel()
@@ -22,7 +49,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesEC2BlockDeviceKMSPostureWhen
 	t.Parallel()
 
 	loader := &stubFactLoader{}
-	writer := &recordingEC2BlockDeviceKMSPostureNodeWriter{}
+	writer := &stubEC2BlockDeviceKMSPostureNodeWriter{id: 1}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		FactLoader:                         loader,
 		EC2BlockDeviceKMSPostureNodeWriter: writer,
@@ -34,9 +61,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesEC2BlockDeviceKMSPostureWhen
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(EC2BlockDeviceKMSPostureMaterializationHandler)
+		handler, ok := def.Handler.(ec2blockkms.EC2BlockDeviceKMSPostureMaterializationHandler)
 		if !ok {
-			t.Fatalf("ec2_block_device_kms_posture_materialization handler type = %T, want EC2BlockDeviceKMSPostureMaterializationHandler", def.Handler)
+			t.Fatalf("ec2_block_device_kms_posture_materialization handler type = %T, want ec2blockkms.EC2BlockDeviceKMSPostureMaterializationHandler", def.Handler)
 		}
 		if handler.FactLoader != loader {
 			t.Fatal("ec2_block_device_kms_posture_materialization handler FactLoader was not wired")

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2blockkms
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 func ec2BlockKMSPostureEnvelope(factID, account, region, instanceID string, volumeIDs ...string) facts.Envelope {
@@ -94,7 +95,7 @@ func attachedTo(instanceID, volumeID string) []map[string]any {
 }
 
 func ec2BlockKMSUID(account, region, instanceID string) string {
-	return cloudResourceUID(account, region, "aws_ec2_instance", instanceID)
+	return cloudjoin.CloudResourceUID(account, region, "aws_ec2_instance", instanceID)
 }
 
 func requireEC2BlockKMSRow(t *testing.T, rows []map[string]any, uid string) map[string]any {

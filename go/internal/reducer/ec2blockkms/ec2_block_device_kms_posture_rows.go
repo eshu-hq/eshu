@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2blockkms
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -89,13 +93,13 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 	resourceEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2BlockDeviceKMSPostureTally, []quarantinedFact, error) {
+) ([]map[string]any, ec2BlockDeviceKMSPostureTally, []factdecode.QuarantinedFact, error) {
 	tally := newEC2BlockDeviceKMSPostureTally()
 	if len(postureEnvelopes) == 0 {
 		return nil, tally, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	index, indexQuarantined, err := buildEC2BlockDeviceKMSIndex(resourceEnvelopes, relationshipEnvelopes)
 	if err != nil {
 		return nil, tally, nil, err
@@ -214,7 +218,7 @@ func deriveEC2BlockDeviceKMSDecision(
 		decision.encryptedVolumeCount++
 		kmsKeys = append(kmsKeys, key.id)
 	}
-	decision.kmsKeyIDs = uniqueSortedStrings(kmsKeys)
+	decision.kmsKeyIDs = payloadcore.UniqueSortedStrings(kmsKeys)
 	decision.kmsKeyCount = int64(len(decision.kmsKeyIDs))
 	decision.state, decision.reason = ec2BlockDeviceKMSAggregate(decision, reason)
 	return decision
@@ -240,7 +244,7 @@ func ec2BlockDeviceKMSAttachmentReason(posture awsv1.EC2InstancePosture, volume 
 	if len(volume.attachments) == 0 {
 		return ec2BlockDeviceKMSReasonVolumeDetached
 	}
-	instanceID := derefString(posture.InstanceID)
+	instanceID := payloadcore.DerefString(posture.InstanceID)
 	for _, attachment := range volume.attachments {
 		if attachment.instanceID != instanceID {
 			continue
@@ -262,9 +266,9 @@ func ec2BlockDeviceKMSVolumeIDs(posture awsv1.EC2InstancePosture) []string {
 	}
 	values := make([]string, 0, len(posture.BlockDevices))
 	for _, device := range posture.BlockDevices {
-		values = append(values, derefString(device.VolumeID))
+		values = append(values, payloadcore.DerefString(device.VolumeID))
 	}
-	return uniqueSortedStrings(values)
+	return payloadcore.UniqueSortedStrings(values)
 }
 
 // ec2BlockDeviceKMSPostureItem pairs a decoded ec2_instance_posture struct with
@@ -275,16 +279,16 @@ type ec2BlockDeviceKMSPostureItem struct {
 	posture awsv1.EC2InstancePosture
 }
 
-func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) ([]ec2BlockDeviceKMSPostureItem, []quarantinedFact, error) {
+func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) ([]ec2BlockDeviceKMSPostureItem, []factdecode.QuarantinedFact, error) {
 	postures := make([]ec2BlockDeviceKMSPostureItem, 0, len(envelopes))
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.EC2InstancePostureFactKind {
 			continue
 		}
-		posture, err := decodeEC2InstancePosture(env)
+		posture, err := schemadecode.DecodeEC2InstancePosture(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -307,14 +311,14 @@ func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) ([]ec2BlockDevi
 }
 
 func ec2BlockDeviceKMSSourceUID(posture awsv1.EC2InstancePosture) (string, bool) {
-	instanceID := derefString(posture.InstanceID)
-	arn := derefString(posture.ARN)
+	instanceID := payloadcore.DerefString(posture.InstanceID)
+	arn := payloadcore.DerefString(posture.ARN)
 	resourceID := firstTrimmed(instanceID, arn)
 	if resourceID == "" {
 		return "", false
 	}
-	resourceType := firstTrimmed(derefString(posture.ResourceType), ec2BlockDeviceKMSResourceTypeInstance)
-	return cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), true
+	resourceType := firstTrimmed(payloadcore.DerefString(posture.ResourceType), ec2BlockDeviceKMSResourceTypeInstance)
+	return cloudjoin.CloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), true
 }
 
 func firstTrimmed(values ...string) string {

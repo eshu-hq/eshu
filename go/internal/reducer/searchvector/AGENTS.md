@@ -28,10 +28,10 @@ paths when reasoning about what a change here can break.
 ## Invariants
 
 - **No import of the reducer root, ever.** This package is a leaf below
-  `internal/reducer`: the root imports it (through
-  `search_vector_build_compat.go`'s type aliases) for the
-  `Service.SearchVectorBuildRunner` field and its own
-  `TestServiceStartsSearchVectorBuildRunner` wiring proof, never the reverse.
+  `internal/reducer`: the root imports it directly for the
+  `Service.SearchVectorBuildRunner` field in `service.go` and for its own
+  `TestServiceStartsSearchVectorBuildRunner` wiring proof (the compatibility
+  type aliases that once stood in for it were deleted), never the reverse.
 - **`searchVectorBuildSweepMadeProgress` gates the hot-loop guard.** `Run`
   backs off on the poll interval instead of re-looping immediately when a
   sweep selected pending scopes but produced zero finalized/document/vector/

@@ -271,10 +271,12 @@ identifier was re-cased. The eighth,
 `search_vector_build_runner_service_test.go`, because that test exercises
 `Service.startSideRunners`, which the leaf package cannot reach. Every method
 body, struct field, constant value, and interface method set is byte-identical
-to the pre-move root files. The root keeps
+to the pre-move root files. The root kept
 compatibility type aliases (`search_vector_build_compat.go`) for the
 `Service.SearchVectorBuildRunner` field and the
-`TestServiceStartsSearchVectorBuildRunner` wiring proof;
+`TestServiceStartsSearchVectorBuildRunner` wiring proof until both were
+repointed directly to `searchvector` and the file was deleted (issue #6061
+dead-forwarder cleanup).
 `go/cmd/reducer` was updated to import `searchvector` directly (aliased as
 `reducersearchvector` in `search_vector_build_wiring.go` to avoid colliding
 with the unrelated top-level `internal/searchvector` package it also
