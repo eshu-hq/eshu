@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
 	"github.com/eshu-hq/eshu/go/internal/correlation/rules"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
@@ -27,7 +28,7 @@ type DeployableUnitCorrelationHandler struct {
 	ResolvedLoader          ResolvedRelationshipLoader
 	PhasePublisher          GraphProjectionPhasePublisher
 	EdgeWriter              SharedProjectionEdgeWriter
-	AdmissionDecisionWriter AdmissionDecisionWriter
+	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
 	AdmissionDecisionNow    func() time.Time
 }
 

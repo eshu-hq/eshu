@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 )
 
 func (h PackageSourceCorrelationHandler) writePackageSourceAdmissionDecisions(
@@ -19,8 +21,8 @@ func (h PackageSourceCorrelationHandler) writePackageSourceAdmissionDecisions(
 	if h.AdmissionDecisionWriter == nil {
 		return nil
 	}
-	now := admissionNow(h.AdmissionDecisionNow)
-	writes := make([]AdmissionDecisionWrite, 0, len(ownership)+len(consumption)+len(publication))
+	now := admissiondecision.AdmissionNow(h.AdmissionDecisionNow)
+	writes := make([]admissiondecision.AdmissionDecisionWrite, 0, len(ownership)+len(consumption)+len(publication))
 	for _, decision := range ownership {
 		writes = append(writes, packageOwnershipAdmissionDecision(intent, decision, now))
 	}
@@ -30,16 +32,16 @@ func (h PackageSourceCorrelationHandler) writePackageSourceAdmissionDecisions(
 	for _, decision := range publication {
 		writes = append(writes, packagePublicationAdmissionDecision(intent, decision, now))
 	}
-	return writeAdmissionDecisions(ctx, h.AdmissionDecisionWriter, writes)
+	return admissiondecision.WriteAdmissionDecisions(ctx, h.AdmissionDecisionWriter, writes)
 }
 
 func packageOwnershipAdmissionDecision(
 	intent Intent,
 	source PackageSourceCorrelationDecision,
 	now time.Time,
-) AdmissionDecisionWrite {
+) admissiondecision.AdmissionDecisionWrite {
 	state := packageSourceAdmissionState(source.Outcome, source.ProvenanceOnly, source.CanonicalWrites)
-	candidateID := stableAdmissionDecisionID(
+	candidateID := admissiondecision.StableAdmissionDecisionID(
 		string(DomainPackageSourceCorrelation),
 		"ownership",
 		source.PackageID,
@@ -47,7 +49,7 @@ func packageOwnershipAdmissionDecision(
 		source.RepositoryID,
 		strings.Join(source.CandidateRepositoryIDs, ","),
 	)
-	decision := newAdmissionDecision(
+	decision := admissiondecision.NewAdmissionDecision(
 		DomainPackageSourceCorrelation,
 		state,
 		string(source.Outcome),
@@ -60,17 +62,17 @@ func packageOwnershipAdmissionDecision(
 		now,
 	)
 	decision.ConfidenceScore = packageSourceAdmissionConfidence(state)
-	decision.ConfidenceBucket = admissionConfidenceBucket(decision.ConfidenceScore)
+	decision.ConfidenceBucket = admissiondecision.AdmissionConfidenceBucket(decision.ConfidenceScore)
 	decision.ConfidenceBasis = "package_registry_source_hint"
 	decision.SourceHandles = packageSourceFactHandles(source.EvidenceFactIDs, intent.ScopeID)
-	decision.CanonicalWrite = AdmissionCanonicalWrite{
+	decision.CanonicalWrite = admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      false,
 		Written:       false,
 		TargetKind:    packageOwnershipCorrelationFactKind,
 		SkippedReason: "source hint is provenance-only until stronger package ownership evidence exists",
 	}
 	decision.RecommendedAction = packageSourceAdmissionNextAction(state, "package ownership")
-	return AdmissionDecisionWrite{
+	return admissiondecision.AdmissionDecisionWrite{
 		Decision: decision,
 		Evidence: packageSourceDecisionEvidence(
 			decision,
@@ -92,19 +94,19 @@ func packageConsumptionAdmissionDecision(
 	intent Intent,
 	source PackageConsumptionDecision,
 	now time.Time,
-) AdmissionDecisionWrite {
-	state := AdmissionStateMissingEvidence
+) admissiondecision.AdmissionDecisionWrite {
+	state := admissiondecision.AdmissionStateMissingEvidence
 	if source.CanonicalWrites > 0 {
-		state = AdmissionStateAdmitted
+		state = admissiondecision.AdmissionStateAdmitted
 	}
-	targetID := stableAdmissionDecisionID(
+	targetID := admissiondecision.StableAdmissionDecisionID(
 		string(DomainPackageSourceCorrelation),
 		"consumption",
 		source.PackageID,
 		source.RepositoryID,
 		source.RelativePath,
 	)
-	canonical := AdmissionCanonicalWrite{
+	canonical := admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      source.CanonicalWrites > 0,
 		Written:       source.CanonicalWrites > 0,
 		TargetKind:    packageConsumptionCorrelationFactKind,
@@ -114,7 +116,7 @@ func packageConsumptionAdmissionDecision(
 	if canonical.Written {
 		canonical.SkippedReason = ""
 	}
-	decision := newAdmissionDecision(
+	decision := admissiondecision.NewAdmissionDecision(
 		DomainPackageSourceCorrelation,
 		state,
 		string(source.Outcome),
@@ -127,12 +129,12 @@ func packageConsumptionAdmissionDecision(
 		now,
 	)
 	decision.ConfidenceScore = packageSourceAdmissionConfidence(state)
-	decision.ConfidenceBucket = admissionConfidenceBucket(decision.ConfidenceScore)
+	decision.ConfidenceBucket = admissiondecision.AdmissionConfidenceBucket(decision.ConfidenceScore)
 	decision.ConfidenceBasis = "manifest_dependency"
 	decision.SourceHandles = packageSourceFactHandles(source.EvidenceFactIDs, intent.ScopeID)
 	decision.CanonicalWrite = canonical
 	decision.RecommendedAction = packageSourceAdmissionNextAction(state, "package consumption")
-	return AdmissionDecisionWrite{
+	return admissiondecision.AdmissionDecisionWrite{
 		Decision: decision,
 		Evidence: packageSourceDecisionEvidence(
 			decision,
@@ -154,16 +156,16 @@ func packagePublicationAdmissionDecision(
 	intent Intent,
 	source PackagePublicationDecision,
 	now time.Time,
-) AdmissionDecisionWrite {
+) admissiondecision.AdmissionDecisionWrite {
 	state := packageSourceAdmissionState(source.Outcome, source.ProvenanceOnly, source.CanonicalWrites)
-	candidateID := stableAdmissionDecisionID(
+	candidateID := admissiondecision.StableAdmissionDecisionID(
 		string(DomainPackageSourceCorrelation),
 		"publication",
 		source.PackageID,
 		source.VersionID,
 		source.SourceHintFactID,
 	)
-	decision := newAdmissionDecision(
+	decision := admissiondecision.NewAdmissionDecision(
 		DomainPackageSourceCorrelation,
 		state,
 		string(source.Outcome),
@@ -176,17 +178,17 @@ func packagePublicationAdmissionDecision(
 		now,
 	)
 	decision.ConfidenceScore = packageSourceAdmissionConfidence(state)
-	decision.ConfidenceBucket = admissionConfidenceBucket(decision.ConfidenceScore)
+	decision.ConfidenceBucket = admissiondecision.AdmissionConfidenceBucket(decision.ConfidenceScore)
 	decision.ConfidenceBasis = "package_registry_publication_hint"
 	decision.SourceHandles = packageSourceFactHandles(source.EvidenceFactIDs, intent.ScopeID)
-	decision.CanonicalWrite = AdmissionCanonicalWrite{
+	decision.CanonicalWrite = admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      false,
 		Written:       false,
 		TargetKind:    packagePublicationCorrelationFactKind,
 		SkippedReason: "publication hint is provenance-only until release or build evidence exists",
 	}
 	decision.RecommendedAction = packageSourceAdmissionNextAction(state, "package publication")
-	return AdmissionDecisionWrite{
+	return admissiondecision.AdmissionDecisionWrite{
 		Decision: decision,
 		Evidence: packageSourceDecisionEvidence(
 			decision,
@@ -209,30 +211,30 @@ func packageSourceAdmissionState(
 	outcome PackageSourceCorrelationOutcome,
 	provenanceOnly bool,
 	canonicalWrites int,
-) AdmissionState {
+) admissiondecision.AdmissionState {
 	if canonicalWrites > 0 && !provenanceOnly {
-		return AdmissionStateAdmitted
+		return admissiondecision.AdmissionStateAdmitted
 	}
 	switch outcome {
 	case PackageSourceCorrelationAmbiguous:
-		return AdmissionStateAmbiguous
+		return admissiondecision.AdmissionStateAmbiguous
 	case PackageSourceCorrelationStale:
-		return AdmissionStateStale
+		return admissiondecision.AdmissionStateStale
 	case PackageSourceCorrelationRejected:
-		return AdmissionStateRejected
+		return admissiondecision.AdmissionStateRejected
 	default:
-		return AdmissionStateMissingEvidence
+		return admissiondecision.AdmissionStateMissingEvidence
 	}
 }
 
-func packageSourceFactHandles(factIDs []string, scopeID string) []AdmissionDecisionSourceHandle {
+func packageSourceFactHandles(factIDs []string, scopeID string) []admissiondecision.AdmissionDecisionSourceHandle {
 	ids := uniqueSortedStrings(factIDs)
-	handles := make([]AdmissionDecisionSourceHandle, 0, len(ids))
+	handles := make([]admissiondecision.AdmissionDecisionSourceHandle, 0, len(ids))
 	for _, id := range ids {
 		if strings.TrimSpace(id) == "" {
 			continue
 		}
-		handles = append(handles, AdmissionDecisionSourceHandle{
+		handles = append(handles, admissiondecision.AdmissionDecisionSourceHandle{
 			Kind:    "fact_record",
 			ID:      id,
 			ScopeID: scopeID,
@@ -242,48 +244,48 @@ func packageSourceFactHandles(factIDs []string, scopeID string) []AdmissionDecis
 }
 
 func packageSourceDecisionEvidence(
-	decision AdmissionDecision,
+	decision admissiondecision.AdmissionDecision,
 	factIDs []string,
 	evidenceKind string,
 	detail map[string]any,
 	now time.Time,
-) []AdmissionDecisionEvidence {
+) []admissiondecision.AdmissionDecisionEvidence {
 	ids := uniqueSortedStrings(factIDs)
 	if len(ids) == 0 {
-		return []AdmissionDecisionEvidence{
-			admissionDecisionEvidence(decision, decision.DecisionID, evidenceKind, detail, now),
+		return []admissiondecision.AdmissionDecisionEvidence{
+			admissiondecision.NewAdmissionDecisionEvidence(decision, decision.DecisionID, evidenceKind, detail, now),
 		}
 	}
-	rows := make([]AdmissionDecisionEvidence, 0, len(ids))
+	rows := make([]admissiondecision.AdmissionDecisionEvidence, 0, len(ids))
 	for _, id := range ids {
-		rows = append(rows, admissionDecisionEvidence(decision, id, evidenceKind, detail, now))
+		rows = append(rows, admissiondecision.NewAdmissionDecisionEvidence(decision, id, evidenceKind, detail, now))
 	}
 	return rows
 }
 
-func packageSourceAdmissionConfidence(state AdmissionState) float64 {
+func packageSourceAdmissionConfidence(state admissiondecision.AdmissionState) float64 {
 	switch state {
-	case AdmissionStateAdmitted:
+	case admissiondecision.AdmissionStateAdmitted:
 		return 1
-	case AdmissionStateMissingEvidence:
+	case admissiondecision.AdmissionStateMissingEvidence:
 		return 0.5
 	default:
 		return 0
 	}
 }
 
-func packageSourceAdmissionNextAction(state AdmissionState, subject string) AdmissionNextAction {
+func packageSourceAdmissionNextAction(state admissiondecision.AdmissionState, subject string) admissiondecision.AdmissionNextAction {
 	switch state {
-	case AdmissionStateAdmitted:
-		return AdmissionNextAction{Action: "none"}
-	case AdmissionStateAmbiguous:
-		return AdmissionNextAction{Action: "disambiguate_" + strings.ReplaceAll(subject, " ", "_")}
-	case AdmissionStateStale:
-		return AdmissionNextAction{Action: "refresh_" + strings.ReplaceAll(subject, " ", "_")}
-	case AdmissionStateRejected:
-		return AdmissionNextAction{Action: "inspect_" + strings.ReplaceAll(subject, " ", "_")}
+	case admissiondecision.AdmissionStateAdmitted:
+		return admissiondecision.AdmissionNextAction{Action: "none"}
+	case admissiondecision.AdmissionStateAmbiguous:
+		return admissiondecision.AdmissionNextAction{Action: "disambiguate_" + strings.ReplaceAll(subject, " ", "_")}
+	case admissiondecision.AdmissionStateStale:
+		return admissiondecision.AdmissionNextAction{Action: "refresh_" + strings.ReplaceAll(subject, " ", "_")}
+	case admissiondecision.AdmissionStateRejected:
+		return admissiondecision.AdmissionNextAction{Action: "inspect_" + strings.ReplaceAll(subject, " ", "_")}
 	default:
-		return AdmissionNextAction{
+		return admissiondecision.AdmissionNextAction{
 			Action: "add_stronger_" + strings.ReplaceAll(subject, " ", "_") + "_evidence",
 		}
 	}

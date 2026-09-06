@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -38,7 +39,7 @@ type PackageSourceCorrelationHandler struct {
 	FactLoader              FactLoader
 	Writer                  PackageCorrelationWriter
 	Instruments             *telemetry.Instruments
-	AdmissionDecisionWriter AdmissionDecisionWriter
+	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
 	AdmissionDecisionNow    func() time.Time
 	// RepoDependencyIntentWriter persists consumer-repo DEPENDS_ON owner-repo
 	// projection intents derived from package consumption-to-owner correlation
