@@ -643,7 +643,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/capabilit
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/cloud_resources.go:58
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/code.go:25
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/component_extensions.go:149
-LINE docs/public/observability/telemetry-coverage.md go/internal/query/content_handler.go:42
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/entity_context_content.go:54
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/images.go:89
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/impact_trace_deployment_k8s_select.go:166

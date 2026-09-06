@@ -168,58 +168,14 @@ func TestCodeHandlerCodeTopicRowsUsesInvestigatorFastPath(t *testing.T) {
 }
 
 // --- pagedContentSearcher ---
-
-type fakePagedContentTripwireStore struct {
-	fakePortContentStore
-	fileCalls   int
-	entityCalls int
-}
-
-func (s *fakePagedContentTripwireStore) SearchFiles(context.Context, contentSearchRequest) ([]FileContent, error) {
-	s.fileCalls++
-	return nil, nil
-}
-
-func (s *fakePagedContentTripwireStore) SearchEntities(context.Context, contentSearchRequest) ([]EntityContent, error) {
-	s.entityCalls++
-	return nil, nil
-}
-
-// TestContentHandlerSearchByScopeUsesPagedSearcherFastPath proves
-// (h *ContentHandler).searchFilesByScope/searchEntitiesByScope's
-// h.Content.(pagedContentSearcher) assertion resolves to a real implementer
-// rather than the per-repo SearchFileContent/SearchEntityContent loop
-// fallback. Both the interface and its only assertion site live inside
-// content*.go, so unlike the other 13 this one needs no cross-family
-// coordination -- it is self-contained regardless of any future contentread
-// package move.
-func TestContentHandlerSearchByScopeUsesPagedSearcherFastPath(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakePagedContentTripwireStore{}
-	h := &ContentHandler{Content: fake, Profile: ProfileLocalAuthoritative}
-	ctx := ContextWithAuthContext(context.Background(), AuthContext{
-		Mode:                 AuthModeScoped,
-		TenantID:             "tenant-a",
-		WorkspaceID:          "workspace-a",
-		AllowedRepositoryIDs: []string{"repo-a"},
-	})
-	req := contentSearchRequest{Pattern: "handle", RepoID: "repo-a", Limit: 10}
-
-	if _, _, err := h.searchFilesByScope(ctx, req); err != nil {
-		t.Fatalf("searchFilesByScope() error = %v, want nil", err)
-	}
-	if got, want := fake.fileCalls, 1; got != want {
-		t.Fatalf("fileCalls = %d, want %d (fast path not taken)", got, want)
-	}
-
-	if _, _, err := h.searchEntitiesByScope(ctx, req); err != nil {
-		t.Fatalf("searchEntitiesByScope() error = %v, want nil", err)
-	}
-	if got, want := fake.entityCalls, 1; got != want {
-		t.Fatalf("entityCalls = %d, want %d (fast path not taken)", got, want)
-	}
-}
+//
+// The paged-searcher tripwire moved with the ContentHandler family to
+// internal/query/contentread (paged_searcher_tripwire_test.go) in the #6060
+// lane-B1 move: it drives the handler's unexported searchFilesByScope and
+// the unexported request type, neither of which can be named from root once
+// the family moves. Root keeps the compile-time half
+// (_ querycontract.PagedContentSearcher = (*ContentReader)(nil) in
+// content_reader.go).
 
 // --- documentationReadModelStore ---
 

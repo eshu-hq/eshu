@@ -84,6 +84,6 @@ func resolveEntityBody(args routecontract.Arguments) map[string]any {
 // dropped field.
 //
 // get_entity_content always sends entity_id, as an empty string when the
-// argument is absent or wrong-typed; the handler (query/content_handler.go
+// argument is absent or wrong-typed; the handler (query/contentread/content_handler.go
 // readEntity) decodes only entity_id and rejects the empty string with HTTP
 // 400 "entity_id is required".

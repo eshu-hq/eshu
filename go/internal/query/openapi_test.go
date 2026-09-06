@@ -322,7 +322,7 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 		t.Fatal("content/entities/search schema missing pattern property")
 	}
 	offsetSchema := querytestutil.MustMapField(t, searchRequestProperties, "offset")
-	if got, want := int(offsetSchema["maximum"].(float64)), contentSearchMaxOffset; got != want {
+	if got, want := int(offsetSchema["maximum"].(float64)), ContentSearchMaxOffset; got != want {
 		t.Fatalf("content/entities/search offset maximum = %d, want %d", got, want)
 	}
 	searchRequestRequirements, ok := searchRequestSchema["anyOf"].([]any)

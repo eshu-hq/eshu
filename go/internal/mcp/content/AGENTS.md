@@ -15,7 +15,7 @@
 7. `../entityresolution/doc.go` and `../codeintel/routes.go` for why
    `get_entity_content` and `search_entity_content` sit in different
    families despite the shared `content`/`entity` spelling.
-8. `go/internal/query/content_handler.go`, `content_reader.go`, and
+8. `go/internal/query/contentread/content_handler.go`, `content_reader.go`, and
    `evidence_citation.go` for the handlers behind the five paths: content
    search defaults an absent/nonpositive limit to 50 and clamps above 200,
    evidence citation defaults to 10 and caps at 50 with a 500-handle input
