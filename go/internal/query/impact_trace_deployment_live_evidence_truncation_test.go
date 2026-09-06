@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// #5663: response-level proof that buildDeploymentFactSummary surfaces
+// #5663: response-level proof that impacttrace.BuildDeploymentFactSummary surfaces
 // live_instance_count_truncated, split out of
 // impact_trace_deployment_live_evidence_test.go to stay under the repo's
 // 500-line-per-file cap. Shares that file's sampleServiceDossierContext
@@ -9,7 +9,12 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+)
 
 // TestBuildDeploymentFactSummaryLiveInstanceCountTruncatedTrue is the #5663
 // response-level proof: when the handler observed an anchor read hitting
@@ -19,11 +24,11 @@ import "testing"
 func TestBuildDeploymentFactSummaryLiveInstanceCountTruncatedTrue(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["_live_instance_count"] = 50
 	ctx["_live_instance_count_truncated"] = true
 	instances, _ := ctx["instances"].([]map[string]any)
-	summary := buildDeploymentFactSummary(
+	summary := impacttrace.BuildDeploymentFactSummary(
 		ctx, instances, []string{"production"}, nil, []string{"eks-prod"},
 		nil, nil, nil, nil, nil, "controller", true,
 	)

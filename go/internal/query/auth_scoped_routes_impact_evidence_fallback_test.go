@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // fallbackArtifactOverviewGraph resolves the orders-api workload (repo-a) with
@@ -22,9 +24,9 @@ import (
 // DEPENDS_ON|USES_MODULE|... traversal in queryRelatedRepositoryArtifactSources:
 // repo-b, a DIFFERENT tenant's repository. Every other enrichment query returns
 // no rows.
-func fallbackArtifactOverviewGraph() fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+func fallbackArtifactOverviewGraph() querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -34,7 +36,7 @@ func fallbackArtifactOverviewGraph() fakeGraphReaderWithSingle {
 				return nil, nil
 			}
 		},
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}
@@ -90,7 +92,7 @@ func TestServiceContextFallbackArtifactOverviewScopedFiltersCrossTenantRepo(t *t
 		t.Fatalf("all-scope caller: expected cross-tenant repo-b artifact source present in unfiltered fallback overview, got: %s", allScope)
 	}
 
-	scoped := scopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	scopedBody := get(&scoped)
 	if strings.Contains(scopedBody, "other-tenant-infra") {
 		t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b via the deployment-artifact-overview fallback: %s", scopedBody)

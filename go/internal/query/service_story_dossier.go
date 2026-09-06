@@ -6,9 +6,15 @@ package query
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-const serviceStoryItemLimit = 50
+// serviceStoryItemLimit bounds relationship and instance fan-out attached to
+// service workload context/story payloads. The implementation moved to
+// querycontract for #6060 so the impact handler-family subpackages can share
+// it without importing this package; this alias keeps root callers unchanged.
+const serviceStoryItemLimit = querycontract.ServiceStoryItemLimit
 
 func enrichServiceStoryDossierResponseWithContext(response map[string]any, buildCtx serviceStoryBuildContext) {
 	workloadContext := buildCtx.workloadContext
@@ -352,46 +358,36 @@ func serviceDeploymentArtifacts(workloadContext map[string]any) []map[string]any
 	return mapSliceValue(mapValue(workloadContext, "deployment_evidence"), "artifacts")
 }
 
+// capMapRows truncates rows to limit. The implementation moved to
+// querycontract for #6060; this wrapper keeps root callers unchanged.
 func capMapRows(rows []map[string]any, limit int) ([]map[string]any, bool) {
-	if len(rows) <= limit {
-		return rows, false
-	}
-	return rows[:limit], true
+	return querycontract.CapMapRows(rows, limit)
 }
 
+// copyMap returns a shallow copy of the input map. The implementation moved
+// to querycontract for #6060; this wrapper keeps root callers unchanged.
 func copyMap(input map[string]any) map[string]any {
-	out := make(map[string]any, len(input))
-	for key, value := range input {
-		out[key] = value
-	}
-	return out
+	return querycontract.CopyMap(input)
 }
 
+// addUniqueStringField appends value to the row's key slice. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func addUniqueStringField(row map[string]any, key string, value string) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return
-	}
-	values := StringSliceVal(row, key)
-	values = append(values, value)
-	row[key] = uniqueSortedStrings(values)
+	querycontract.AddUniqueStringField(row, key, value)
 }
 
+// sortStringFields sorts the row's string-slice columns in place. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func sortStringFields(row map[string]any, keys ...string) {
-	for _, key := range keys {
-		values := StringSliceVal(row, key)
-		sort.Strings(values)
-		row[key] = values
-	}
+	querycontract.SortStringFields(row, keys...)
 }
 
+// firstNonEmptyString returns the first non-blank value. The implementation
+// moved to querycontract for #6060; this wrapper keeps root callers unchanged.
 func firstNonEmptyString(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
+	return querycontract.FirstNonEmptyString(values...)
 }
 
 func maxFloat(left float64, right float64) float64 {

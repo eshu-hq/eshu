@@ -6,6 +6,9 @@ package query
 import (
 	"slices"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // evidenceBoundariesFromMap extracts []PostgresOnlyBoundary from a response
@@ -131,7 +134,7 @@ func TestEvidenceBoundariesDeterministicOrder(t *testing.T) {
 func TestBuildServiceStoryResponseOmitsEvidenceBoundariesField(t *testing.T) {
 	t.Parallel()
 
-	workloadContext := sampleServiceDossierContext()
+	workloadContext := querytestutil.SampleServiceDossierContext()
 	got := buildServiceStoryResponse("workload:sample-service-api", workloadContext)
 
 	if _, exists := got["evidence_boundaries"]; exists {
@@ -142,7 +145,7 @@ func TestBuildServiceStoryResponseOmitsEvidenceBoundariesField(t *testing.T) {
 func TestBuildWorkloadStoryResponseIncludesEvidenceBoundaries(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 
 	// The handler builds the response map directly.
 	response := map[string]any{
@@ -188,8 +191,8 @@ func TestBuildRepositoryStoryResponseOmitsEvidenceBoundaries(t *testing.T) {
 func TestBuildDeploymentTraceResponseIncludesEvidenceBoundaries(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
-	got := buildDeploymentTraceResponse("sample-service-api", ctx)
+	ctx := querytestutil.SampleServiceDossierContext()
+	got := impacttrace.BuildDeploymentTraceResponse("sample-service-api", ctx, map[string]any{})
 
 	// The handler attaches after buildDeploymentTraceResponse.
 	attachEvidenceBoundaries(got, "trace_deployment_chain")
@@ -249,13 +252,13 @@ func TestAttachEvidenceBoundariesSliceUsesPostgresOnlyBoundary(t *testing.T) {
 // wrongly disclosed a ci_cd_run_correlation boundary even though the response
 // already serves that domain through the top-level ci_cd_evidence field. The
 // pre-fix declaration in evidenceBoundariesFor contradicted the response it
-// described. sampleServiceDossierContext() never set ci_cd_evidence, which is
+// described. querytestutil.SampleServiceDossierContext() never set ci_cd_evidence, which is
 // why TestBuildServiceStoryResponseIncludesEvidenceBoundaries above did not
 // catch the contradiction; this test populates it explicitly.
 func TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed(t *testing.T) {
 	t.Parallel()
 
-	workloadContext := sampleServiceDossierContext()
+	workloadContext := querytestutil.SampleServiceDossierContext()
 	workloadContext["ci_cd_evidence"] = map[string]any{
 		"static_workflow_artifacts": map[string]any{"state": "materialized"},
 	}
@@ -288,14 +291,14 @@ func TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed(t *testing.
 // embeds container-image-identity evidence — repository_id, identity_id,
 // identity_outcome, identity_strength, identity_evidence_fact_ids — read back
 // from workloadContext["supply_chain_evidence"]["image_package"]
-// (service_story_supply_chain.go:314-347). sampleServiceDossierContext() never
+// (service_story_supply_chain.go:314-347). querytestutil.SampleServiceDossierContext() never
 // sets supply_chain_evidence, the same vacuous-coverage shape that let the
 // original ci_cd_run_correlation contradiction through; this test populates it
 // explicitly.
 func TestBuildServiceStoryResponseOmitsContainerImageIdentityBoundaryForFieldAlreadyServed(t *testing.T) {
 	t.Parallel()
 
-	workloadContext := sampleServiceDossierContext()
+	workloadContext := querytestutil.SampleServiceDossierContext()
 	workloadContext["supply_chain_evidence"] = map[string]any{
 		"image_package": map[string]any{
 			"evidence": []map[string]any{
@@ -348,7 +351,7 @@ func TestBuildServiceStoryResponseOmitsContainerImageIdentityBoundaryForFieldAlr
 func TestBuildServiceStoryResponseOmitsEvidenceBoundariesWhenFullyServed(t *testing.T) {
 	t.Parallel()
 
-	workloadContext := sampleServiceDossierContext()
+	workloadContext := querytestutil.SampleServiceDossierContext()
 	workloadContext["ci_cd_evidence"] = map[string]any{
 		"static_workflow_artifacts": map[string]any{"state": "materialized"},
 	}

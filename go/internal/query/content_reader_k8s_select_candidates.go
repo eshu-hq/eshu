@@ -32,21 +32,11 @@ import (
 // losslessly to the same k8sSelectMatchInput the entity path would produce.
 type K8sSelectCandidate = querycontract.K8sSelectCandidate
 
-// k8sSelectMatchInputFromCandidate adapts a K8sSelectCandidate into the shared k8sSelectMatchInput.
-// The mapping is 1:1 with k8sSelectMatchInputFromEntity for the same source
-// row, so a directed match over candidates produces byte-for-byte the same
-// verdict the entity-context path would produce over the equivalent
-// EntityContent.
+// k8sSelectMatchInputFromCandidate adapts a K8sSelectCandidate into the shared
+// k8sSelectMatchInput. The implementation moved to querycontract for #6060;
+// this wrapper keeps root callers unchanged.
 func k8sSelectMatchInputFromCandidate(c K8sSelectCandidate) k8sSelectMatchInput {
-	return k8sSelectMatchInput{
-		kind:                     c.Kind,
-		name:                     c.EntityName,
-		namespace:                c.Namespace,
-		selector:                 c.Selector,
-		selectorPresent:          c.SelectorPresent,
-		podTemplateLabels:        c.PodTemplateLabels,
-		podTemplateLabelsPresent: c.PodTemplateLabelsPresent,
-	}
+	return querycontract.K8sSelectMatchInputFromCandidate(c)
 }
 
 // The EntityContent -> K8sSelectCandidate projection this file used to declare

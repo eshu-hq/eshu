@@ -14,13 +14,13 @@ source_coverage:
     calls:
       - {symbol: "(*RepositoryHandler).assembleCatalogWorkloadsFromGraph", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*RepositoryHandler).catalogWorkloadEnrichments", count: 3, source_sha256: 9b229875007dea30e912d535d547932e1b03da048d1dae61fe98a855ea3b5419, entry_ids: [QP-DEPLOY-CATALOG-ENV, QP-DEPLOY-CATALOG-WORKLOAD-REPO, QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE]}
-  - file: cloud_resource_candidates.go
+  - file: impacttrace/cloud_resource_candidates.go
     calls:
-      - {symbol: "loadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: bcd4ad345892ad7cfd50c6e9f6b41d64d3001f0863c355d14885c7aaf70002cc, key_bound: single_key, max_results: 51}}
-  - file: cloud_resource_dependencies.go
+      - {symbol: "LoadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: 4e68e222f8f3a30f8a9eecdde969a0d9c7548928f6427b43085356917659d0ed, key_bound: single_key, max_results: 51}}
+  - file: impacttrace/cloud_resource_dependencies.go
     calls:
-      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 51e29be5639780d02800350db0f55a9b15e49e77528bf9cd835784389e884130, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
-      - {symbol: "loadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: 67df862808606cdb678f47d1f7d09cf3665f6dd6a3050fb97006188c913c096b, entry_ids: [QP-SVC-CLOUD-DEPS]}
+      - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 7d33975ea4d3dbd2e2e57236a8b6d0cf52b6a65ea297bfaea95a8d89eb70f552, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
+      - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: b5727b664fcdf7fd3c717b4a0d65e62783d90c92465ffb2cfed1e3118152a83e, entry_ids: [QP-SVC-CLOUD-DEPS]}
   - file: cloud_resource_owner_backfill.go
     calls:
       - symbol: "(CloudResourceOwnerBackfiller).Backfill"
@@ -152,7 +152,7 @@ source_coverage:
     calls:
       - {symbol: "(*CompareHandler).environmentSnapshot", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CompareHandler).fetchWorkload", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: contract_impact.go
+  - file: impact/contract_impact.go
     calls:
       - {symbol: "(*ImpactHandler).contractImpactResponse", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: dependencies.go
@@ -176,12 +176,12 @@ source_coverage:
           key_bound: bounded_key_batch
           max_keys: 101
           max_results: 101
-  - file: entity_map_resolver.go
+  - file: impact/entity_map_resolver.go
     calls:
-      - {symbol: "(*ImpactHandler).resolveEntityMapStart", count: 1, source_sha256: c8e809a08354bf2502860bbdb2904406110d83a192d7cadb59afceb5b21adff3, entry_ids: [QP-ENTITY-MAP-RESOLVE-REPOSITORY]}
-  - file: entity_map_traversal.go
+      - {symbol: "(*ImpactHandler).resolveEntityMapStart", count: 1, source_sha256: 576ed46f94d8ecdf7f321dff8d00e4685ebafdf862a810eb6d8f18e74330d1a5, entry_ids: [QP-ENTITY-MAP-RESOLVE-REPOSITORY]}
+  - file: impact/entity_map_traversal.go
     calls:
-      - {symbol: "(*ImpactHandler).entityMapNeighborhoodRows", count: 1, source_sha256: 5c91dacd107e037ad4ceffb0804c89b1f6baca7a66c314407b3e3359dc80bfb2, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
+      - {symbol: "(*ImpactHandler).entityMapNeighborhoodRows", count: 1, source_sha256: 4e06552660640a60368827c6f3cfc55b7eb82f171e0ee733cb71f5786c05fb51, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
   - file: entity_resolve_identity.go
     calls:
       - symbol: "hydrateResolvedEntityRepoIdentity"
@@ -208,7 +208,7 @@ source_coverage:
           source_sha256: "72c69f58632aca2fe15f955cb1488cb608169255301392cf0477d6a00f358a0f"
           label: Repository
           max_results: 1
-  - file: exposure_path.go
+  - file: impact/exposure_path.go
     calls:
       - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: graph_entity_inventory.go
@@ -242,71 +242,71 @@ source_coverage:
           source_sha256: "df54140253a6bb42f6e2607bf49e8b8c5a0563f5a097c03a91c8ef911621309c"
           key_bound: single_key
           max_results: 201
-  - file: impact.go
+  - file: impact/impact.go
     calls:
       - {symbol: "(*ImpactHandler).explainDependencyPath", count: 1, non_hot_reason: "dynamic typed-anchor dependency path remains inventory-only pending a standalone PROFILE registration"}
       - {symbol: "(*ImpactHandler).traceResourceToCode", count: 1, non_hot_reason: "dynamic typed-anchor resource path remains inventory-only pending a standalone PROFILE registration"}
-  - file: impact_anchor_resolve.go
+  - file: impacttrace/impact_anchor_resolve.go
     calls:
-      - {symbol: "resolveImpactAnchorNode", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: impact_blast_radius.go
+      - {symbol: "ResolveImpactAnchorNode", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+  - file: impact/impact_blast_radius.go
     calls:
       - symbol: "(*ImpactHandler).blastRadiusAffected"
         count: 5
         non_hot:
           class: keyed_support
-          source_sha256: 4baba0e6e7c41effab4ceb901c2652e29e01f9182adb9add0d4a2c7c22aa7dac
+          source_sha256: 21a8cf7ca6ec628d80422f1780208ef9b8edc1d348f2006b3301108b3d73db07
           key_bound: single_key
           max_results: 1005
       - {symbol: "(*ImpactHandler).enrichBlastRadiusTiers", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: impact_change_surface_investigation.go
+  - file: impact/impact_change_surface_investigation.go
     calls:
       - symbol: "(*ImpactHandler).resolveChangeSurfaceTarget"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 9fc2eb58c5cbb10812066ce62b3f44178e6dfad2bc7dfdc04f562da5f43be790
+          source_sha256: c519e9032c9a8837b1bcae7960ca2d02589a552a0b6202b888dafc05e7f72384
           key_bound: single_key
           max_results: 1212
-  - file: impact_change_surface_traversal.go
+  - file: impact/impact_change_surface_traversal.go
     calls:
-      - {symbol: "(*ImpactHandler).runChangeSurfaceOutgoing", count: 1, source_sha256: 7015261af1e9042c558ca94e41ec5dd78494fa27c5331989df5ce3b57e4bba25, entry_ids: [QP-IMPACT-CHANGE-SURFACE, QP-IMPACT-CHANGE-SURFACE-SCOPED]}
-      - {symbol: "(*ImpactHandler).runChangeSurfaceRepositoryConsumers", count: 1, source_sha256: 2244efa6da854e50b88c84d0c1415350571cad930a1a510cccb54d3f14f36fb6, entry_ids: [QP-IMPACT-CHANGE-SURFACE-CONSUMERS, QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED]}
-  - file: impact_resource_investigation_selector.go
+      - {symbol: "(*ImpactHandler).RunChangeSurfaceOutgoing", count: 1, source_sha256: 71bd5b83cd32baa090834e7aa8a6be3e0af72d6f26b8e090679f3e574e7255f1, entry_ids: [QP-IMPACT-CHANGE-SURFACE, QP-IMPACT-CHANGE-SURFACE-SCOPED]}
+      - {symbol: "(*ImpactHandler).RunChangeSurfaceRepositoryConsumers", count: 1, source_sha256: 6cfeb605ca12a54cab455f1a5546d5299cd3a13c3890e977a633ad3fa013e7c0, entry_ids: [QP-IMPACT-CHANGE-SURFACE-CONSUMERS, QP-IMPACT-CHANGE-SURFACE-CONSUMERS-SCOPED]}
+  - file: impact/impact_resource_investigation_selector.go
     calls:
-      - {symbol: "runResourceInvestigationSelectorFanout", count: 1, source_sha256: d9db84043aeb47b46543f15a2c74b0877c9ae55ba83bc1dd53b42258edb56e60, entry_ids: [QP-RESOURCE-INVESTIGATION-SELECTOR]}
-  - file: impact_resource_investigation_reads.go
+      - {symbol: "runResourceInvestigationSelectorFanout", count: 1, source_sha256: 6a6ea3aa13feb8ae8887ff401e261d084de14fccae239b7a49da3526978b2d02, entry_ids: [QP-RESOURCE-INVESTIGATION-SELECTOR]}
+  - file: impact/impact_resource_investigation_reads.go
     calls:
-      - {symbol: "(*ImpactHandler).resourceInvestigationInstanceWorkloads", count: 1, source_sha256: 3c3cae8c5c8b8822f10a0e68fe0eb89a7e24c8a4febd5699e88e3dcf2867a442, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
-      - {symbol: "(*ImpactHandler).resourceInvestigationRepoPaths", count: 1, source_sha256: 2eb5d9a7bfdb90837012816f3440ae1ecbab98430307b41d93f72ab94adf1b09, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
-      - {symbol: "(*ImpactHandler).resourceInvestigationWorkloads", count: 1, source_sha256: 00c5f56bc81d1adf4ea1db1cbd2dbcad1e5a3b569ca26440ae4495f87956b2f4, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
-  - file: impact_trace_deployment_controllers.go
+      - {symbol: "(*ImpactHandler).ResourceInvestigationInstanceWorkloads", count: 1, source_sha256: 847620b67d408c46277e6a88de0ac58d9524767b277c9f85a208639a7c44b9c8, entry_ids: [QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS]}
+      - {symbol: "(*ImpactHandler).ResourceInvestigationRepoPaths", count: 1, source_sha256: f7e91791fde0c2e35ea6cbaec091b9aafd999ba9226275c2b4636fad7efd029e, entry_ids: [QP-RESOURCE-INVESTIGATION-REPO-PATHS]}
+      - {symbol: "(*ImpactHandler).ResourceInvestigationWorkloads", count: 1, source_sha256: 47c1ec754df6e2b7080fb7c9488852d6903dfa7c8a48db2fb7640de8137647d8, entry_ids: [QP-RESOURCE-INVESTIGATION-WORKLOADS]}
+  - file: impact/impact_trace_deployment_controllers.go
     calls:
       - symbol: "countWorkloadsDefinedByRepo"
         count: 1
-        non_hot: {class: keyed_support, source_sha256: 6b2603cd740a418737d8b0b2e386f16e668e121455fd07494ee1108fee7f366e, key_bound: single_key, max_results: 2}
-  - file: impact_trace_deployment_flux_bindings.go
+        non_hot: {class: keyed_support, source_sha256: 216f4cf94b082753ed5c6f832a6cae1950cd485f9cb6c11e73e2a62360bdb938, key_bound: single_key, max_results: 2}
+  - file: impacttrace/impact_trace_deployment_flux_bindings.go
     calls:
-      - {symbol: "fetchFluxDeploymentSourceTargetBindings", count: 2, source_sha256: 64083312618ddf77929edf96de6ac2f928bbcc42a5a660f18f12ec3eb2d9f74f, entry_ids: [QP-IMPACT-FLUX-BINDINGS-FIRST-HOP, QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION]}
-  - file: impact_trace_deployment_sources.go
+      - {symbol: "FetchFluxDeploymentSourceTargetBindings", count: 2, source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459, entry_ids: [QP-IMPACT-FLUX-BINDINGS-FIRST-HOP, QP-IMPACT-FLUX-BINDINGS-TARGET-EXPANSION]}
+  - file: impact/impact_trace_deployment_sources.go
     calls:
       - symbol: "fetchCanonicalDeploymentSourceRows"
         count: 1
-        non_hot: {class: keyed_support, source_sha256: f7167baaf793e5aee331fe08062e1872887fb55ac7b7f95eb8088fb170e1b9f1, key_bound: single_key, max_results: 51}
+        non_hot: {class: keyed_support, source_sha256: 0a8073f5e711d974828ff5fcfda9d0b9a72d73f53b8fae146edbfc3b9be28ee2, key_bound: single_key, max_results: 51}
       - symbol: "fetchRepositoryDeploymentSourceRows"
         count: 1
-        non_hot: {class: keyed_support, source_sha256: 12cb8dfe70b37004401807308b61c3d1781877aca3e1c1b65cb3ae9d49ab32d3, key_bound: single_key, max_results: 51}
-  - file: impact_trace_deployment_oci.go
+        non_hot: {class: keyed_support, source_sha256: ca7405c98d34a314c9adedfd341f37654883bdda17e8ecdfd56c57ba6fca9a6d, key_bound: single_key, max_results: 51}
+  - file: impact/impact_trace_deployment_oci.go
     calls:
       - {symbol: "fetchOCIImageTagRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: impact_trace_deployment_resources.go
+  - file: impact/impact_trace_deployment_resources.go
     calls:
-      - {symbol: "(*ImpactHandler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 67e1ba558a62608f1e84072bf11a76188d3dc7b437a43ccd301eafc4f52a5345, key_bound: single_key, max_results: 2501}}
-  - file: impact_trace_workload_selection.go
+      - {symbol: "(*ImpactHandler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 3d38a851e027a6a186c3ce9f6bbc1348e1fe5392600c2883cc54015a2b6492b6, key_bound: single_key, max_results: 2501}}
+  - file: impacttrace/impact_trace_workload_selection.go
     calls:
-      - {symbol: "resolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: b881883727855cd7a5da4626f5338dad1eecc7f7b3b08810b6d756e49f41d92e, key_bound: single_key, max_results: 1}}
+      - {symbol: "ResolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: ee9afd150e614dec4e7479c1866062e0ebfd05b07b8fccd59cbc8647298c15d9, key_bound: single_key, max_results: 1}}
   - file: workload_provisioned_platforms.go
     calls:
       - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 1edfe1d48cc68839ed75890d8e0adc5c35da6c8d6a112eef60237ec14802354e, key_bound: single_key, max_results: 51}}

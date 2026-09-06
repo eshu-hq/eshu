@@ -3,12 +3,16 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+)
 
 func TestBuildDeploymentFactsPreservesExactTopologyRelationships(t *testing.T) {
 	t.Parallel()
 
-	facts := buildDeploymentFacts(
+	facts := impacttrace.BuildDeploymentFacts(
 		[]map[string]any{{
 			"instance_id": "instance:sample-service:production",
 			"platforms": []map[string]any{{
@@ -59,7 +63,7 @@ func TestBuildDeploymentFactsPreservesExactTopologyRelationships(t *testing.T) {
 func TestBuildDeploymentTraceResponseReportsCollectionCoverage(t *testing.T) {
 	t.Parallel()
 
-	got := buildDeploymentTraceResponse("service-edge-api", map[string]any{
+	got := impacttrace.BuildDeploymentTraceResponse("service-edge-api", map[string]any{
 		"id": "workload:service-edge-api", "name": "service-edge-api",
 		"deployment_sources": []map[string]any{},
 		"deployment_source_limits": map[string]any{
@@ -70,7 +74,7 @@ func TestBuildDeploymentTraceResponseReportsCollectionCoverage(t *testing.T) {
 		"runtime_topology_limits": map[string]any{
 			"instances": map[string]any{"limit": contextStoryItemLimit, "truncated": false},
 		},
-	})
+	}, map[string]any{})
 
 	deploymentLimits := mapValue(got, "deployment_source_limits")
 	if !BoolVal(deploymentLimits, "truncated") || !BoolVal(deploymentLimits, "observed_count_is_lower_bound") {

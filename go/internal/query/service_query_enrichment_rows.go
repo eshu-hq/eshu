@@ -6,6 +6,8 @@ package query
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func buildServiceHostnameRows(rows []ServiceHostnameEvidence) []map[string]any {
@@ -38,21 +40,6 @@ func buildServiceEntrypointCandidateRows(rows []ServiceEntrypointCandidateEviden
 		})
 	}
 	return result
-}
-
-func hostnameLabels(rows []map[string]any) []string {
-	if len(rows) == 0 {
-		return nil
-	}
-	values := make([]string, 0, len(rows))
-	for _, row := range rows {
-		hostname := StringVal(row, "hostname")
-		if hostname == "" {
-			continue
-		}
-		values = append(values, hostname)
-	}
-	return uniqueSortedStrings(values)
 }
 
 func buildServiceAPISurface(evidence ServiceQueryEvidence) map[string]any {
@@ -226,32 +213,16 @@ func serviceEvidenceEnvironmentNames(rows []ServiceEnvironmentEvidence) []string
 	return uniqueSortedStrings(values)
 }
 
+// lowerStrings lowercases every value and returns the set sorted. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func lowerStrings(values []string) []string {
-	result := make([]string, len(values))
-	for i, v := range values {
-		result[i] = strings.ToLower(v)
-	}
-	sort.Strings(result)
-	return result
+	return querycontract.LowerStrings(values)
 }
 
+// uniqueSortedStrings drops blank and duplicate values and returns the set
+// sorted. The implementation moved to querycontract for #6060; this wrapper
+// keeps root callers unchanged.
 func uniqueSortedStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		result = append(result, value)
-	}
-	sort.Strings(result)
-	return result
+	return querycontract.UniqueSortedStrings(values)
 }

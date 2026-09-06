@@ -6,8 +6,8 @@ package query
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func queryRepositoryNamesByID(ctx context.Context, graph GraphQuery, repoIDs []string) (map[string]string, error) {
@@ -37,23 +37,10 @@ func queryRepositoryNamesByID(ctx context.Context, graph GraphQuery, repoIDs []s
 	return names, nil
 }
 
+// sortedUniqueStrings drops blank and duplicate values and returns the set
+// sorted. It is behavior-identical to querycontract.UniqueSortedStrings; the
+// implementation moved to querycontract for #6060 and this wrapper keeps
+// root callers unchanged.
 func sortedUniqueStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(values))
-	result := make([]string, 0, len(values))
-	for _, value := range values {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			continue
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		result = append(result, value)
-	}
-	sort.Strings(result)
-	return result
+	return querycontract.UniqueSortedStrings(values)
 }

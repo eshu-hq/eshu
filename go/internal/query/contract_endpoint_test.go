@@ -45,38 +45,6 @@ func TestHandleRelationshipsTransitiveCallers_LocalLightweightReturnsStructuredU
 	}
 }
 
-func TestFindBlastRadius_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
-	handler := &ImpactHandler{Profile: ProfileLocalLightweight}
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/blast-radius", strings.NewReader(`{"target":"repo","target_type":"repository"}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	w := httptest.NewRecorder()
-
-	handler.findBlastRadius(w, req)
-
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)
-	}
-	if body := w.Body.String(); !strings.Contains(body, `"unsupported_capability"`) {
-		t.Fatalf("body = %s, want unsupported_capability envelope", body)
-	}
-}
-
-func TestTraceDeploymentChain_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
-	handler := &ImpactHandler{Profile: ProfileLocalLightweight}
-	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/trace-deployment-chain", strings.NewReader(`{"service_name":"payments"}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	w := httptest.NewRecorder()
-
-	handler.traceDeploymentChain(w, req)
-
-	if w.Code != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)
-	}
-	if body := w.Body.String(); !strings.Contains(body, `"unsupported_capability"`) {
-		t.Fatalf("body = %s, want unsupported_capability envelope", body)
-	}
-}
-
 func TestGetEcosystemOverview_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
 	handler := &InfraHandler{Profile: ProfileLocalLightweight}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/ecosystem/overview", nil)

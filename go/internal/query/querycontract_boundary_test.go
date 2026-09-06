@@ -67,7 +67,7 @@ func TestK8sSelectCandidateConversionPreservesPresenceTriState(t *testing.T) {
 			candidate: K8sSelectCandidate{
 				Kind: "Service", EntityName: "api", Namespace: "apps",
 			},
-			want: k8sSelectMatchInput{kind: "Service", name: "api", namespace: "apps"},
+			want: k8sSelectMatchInput{Kind: "Service", Name: "api", Namespace: "apps"},
 		},
 		{
 			name: "present empty",
@@ -76,8 +76,8 @@ func TestK8sSelectCandidateConversionPreservesPresenceTriState(t *testing.T) {
 				SelectorPresent: true, PodTemplateLabelsPresent: true,
 			},
 			want: k8sSelectMatchInput{
-				kind: "Service", name: "api", namespace: "apps",
-				selectorPresent: true, podTemplateLabelsPresent: true,
+				Kind: "Service", Name: "api", Namespace: "apps",
+				SelectorPresent: true, PodTemplateLabelsPresent: true,
 			},
 		},
 		{
@@ -88,9 +88,9 @@ func TestK8sSelectCandidateConversionPreservesPresenceTriState(t *testing.T) {
 				PodTemplateLabels: "app=api", PodTemplateLabelsPresent: true,
 			},
 			want: k8sSelectMatchInput{
-				kind: "Service", name: "api", namespace: "apps",
-				selector: "app=api", selectorPresent: true,
-				podTemplateLabels: "app=api", podTemplateLabelsPresent: true,
+				Kind: "Service", Name: "api", Namespace: "apps",
+				Selector: "app=api", SelectorPresent: true,
+				PodTemplateLabels: "app=api", PodTemplateLabelsPresent: true,
 			},
 		},
 	}

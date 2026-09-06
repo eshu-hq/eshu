@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/codeowners"
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/packagereg"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
@@ -126,9 +128,9 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	})
 	changeSurface := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
-		_, err := handler.runChangeSurfaceOutgoing(
+		_, err := handler.RunChangeSurfaceOutgoing(
 			context.Background(), "(start:Workload {id: $target_id})", "",
-			changeSurfaceLegacyDefaultDepth, 10, map[string]any{"target_id": "workload:proof"},
+			impact.ChangeSurfaceLegacyDefaultDepth, 10, map[string]any{"target_id": "workload:proof"},
 			repositoryAccessFilter{AllScopes: true},
 		)
 		return err
@@ -139,17 +141,17 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	}
 	changeSurfaceScoped := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
-		_, err := handler.runChangeSurfaceOutgoing(
+		_, err := handler.RunChangeSurfaceOutgoing(
 			context.Background(), "(start:Workload {id: $target_id})", "",
-			changeSurfaceLegacyDefaultDepth, 10, map[string]any{"target_id": "workload:proof"},
+			impact.ChangeSurfaceLegacyDefaultDepth, 10, map[string]any{"target_id": "workload:proof"},
 			scopedAccess,
 		)
 		return err
 	})
 	changeSurfaceConsumers := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
-		_, err := handler.runChangeSurfaceRepositoryConsumers(
-			context.Background(), "", changeSurfaceLegacyDefaultDepth, 10,
+		_, err := handler.RunChangeSurfaceRepositoryConsumers(
+			context.Background(), "", impact.ChangeSurfaceLegacyDefaultDepth, 10,
 			map[string]any{"target_id": "repository:proof"},
 			repositoryAccessFilter{AllScopes: true},
 		)
@@ -157,8 +159,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	})
 	changeSurfaceConsumersScoped := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &ImpactHandler{Neo4j: graphQuery}
-		_, err := handler.runChangeSurfaceRepositoryConsumers(
-			context.Background(), "", changeSurfaceLegacyDefaultDepth, 10,
+		_, err := handler.RunChangeSurfaceRepositoryConsumers(
+			context.Background(), "", impact.ChangeSurfaceLegacyDefaultDepth, 10,
 			map[string]any{"target_id": "repository:proof"},
 			scopedAccess,
 		)
@@ -256,7 +258,7 @@ func captureFluxDeploymentBindingQueryplanRuns(t *testing.T) *legacyQueryplanCap
 		}
 		return nil
 	}}
-	if _, err := fetchFluxDeploymentSourceTargetBindings(
+	if _, err := impacttrace.FetchFluxDeploymentSourceTargetBindings(
 		context.Background(),
 		graphQuery,
 		"repository:target",

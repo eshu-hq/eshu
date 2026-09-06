@@ -211,7 +211,9 @@ func TestInvestigateDeploymentConfigInfluenceMapsGraphReadAvailabilityErrors(t *
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.investigateDeploymentConfigInfluence(rec, req)
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

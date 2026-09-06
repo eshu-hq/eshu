@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -299,7 +300,7 @@ func handlerQueryplanSafeCypherVariants() map[string]string {
 	for _, label := range allInfraLabels {
 		for _, withARN := range []bool{false, true} {
 			identityName := "resource-id"
-			selected := &resourceInvestigationCandidate{
+			selected := &impact.ResourceInvestigationCandidate{
 				ID:     "proof-resource",
 				Labels: []string{label},
 			}
@@ -308,11 +309,11 @@ func handlerQueryplanSafeCypherVariants() map[string]string {
 				selected.Arn = "arn:proof"
 			}
 			prefix := fmt.Sprintf("resource/%s/%s", label, identityName)
-			variants[prefix+"/workloads"] = resourceInvestigationWorkloadsCypher(selected)
-			for _, depth := range []int{1, resourceInvestigationMaxDepth} {
+			variants[prefix+"/workloads"] = impact.ResourceInvestigationWorkloadsCypher(selected)
+			for _, depth := range []int{1, impact.ResourceInvestigationMaxDepth} {
 				for _, direction := range []string{"incoming", "outgoing"} {
-					variants[fmt.Sprintf("%s/paths/%s/depth-%d", prefix, direction, depth)] = resourceInvestigationRepoPathsCypher(
-						resourceInvestigationRequest{MaxDepth: depth, Limit: 10},
+					variants[fmt.Sprintf("%s/paths/%s/depth-%d", prefix, direction, depth)] = impact.ResourceInvestigationRepoPathsCypher(
+						impact.ResourceInvestigationRequest{MaxDepth: depth, Limit: 10},
 						selected,
 						direction,
 					)
@@ -348,8 +349,8 @@ func resourceSelectorQueryplanVariants() map[string]string {
 		phase      string
 		predicates []string
 	}{
-		{phase: "exact", predicates: resourceInvestigationExactSelectorPredicates},
-		{phase: "fuzzy", predicates: resourceInvestigationFuzzySelectorPredicates},
+		{phase: "exact", predicates: impact.ResourceInvestigationExactSelectorPredicates},
+		{phase: "fuzzy", predicates: impact.ResourceInvestigationFuzzySelectorPredicates},
 	}
 	for _, access := range accesses {
 		for _, shape := range shapes {
@@ -361,8 +362,8 @@ func resourceSelectorQueryplanVariants() map[string]string {
 				{name: "environment", value: "proof-environment"},
 			} {
 				for _, phase := range phases {
-					for _, label := range resourceInvestigationSelectorLabels(shape.resourceType) {
-						req := resourceInvestigationRequest{
+					for _, label := range impact.ResourceInvestigationSelectorLabels(shape.resourceType) {
+						req := impact.ResourceInvestigationRequest{
 							Query:        "proof",
 							ResourceType: shape.resourceType,
 							Environment:  environment.value,
@@ -376,7 +377,7 @@ func resourceSelectorQueryplanVariants() map[string]string {
 							phase.phase,
 							strings.ToLower(label),
 						)
-						variants[name] = resourceInvestigationSelectorLabelCypher(
+						variants[name] = impact.ResourceInvestigationSelectorLabelCypher(
 							req,
 							access.filter,
 							label,

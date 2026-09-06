@@ -8,19 +8,22 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
-	defaultIndirectEvidenceSearchLimit = 25
-	maxIndirectEvidenceSearchLimit     = 100
+	// Pinned to querycontract so impact/ tests can reference the bound without
+	// importing the query root. See #6060.
+	defaultIndirectEvidenceSearchLimit = querycontract.DefaultIndirectEvidenceSearchLimit
+	maxIndirectEvidenceSearchLimit     = querycontract.MaxIndirectEvidenceSearchLimit
 )
 
-type provisioningRepositoryCandidate struct {
-	RepoID              string
-	RepoName            string
-	RelationshipTypes   []string
-	RelationshipReasons []string
-}
+// provisioningRepositoryCandidate aliases the impacttrace home (moved there
+// with lane B2 of #6060); the root producer and readers keep the
+// package-local name.
+type provisioningRepositoryCandidate = impacttrace.ProvisioningRepositoryCandidate
 
 type traceEvidenceAccumulator struct {
 	samplePaths   map[string]struct{}

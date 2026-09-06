@@ -304,10 +304,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/cloud_resource_dependencies.go
-      symbol: loadMaterializedServiceCloudResourceDependencies
-      source_sha256: 67df862808606cdb678f47d1f7d09cf3665f6dd6a3050fb97006188c913c096b
-      line_hint: 10
+      file: go/internal/query/impacttrace/cloud_resource_dependencies.go
+      symbol: LoadMaterializedServiceCloudResourceDependencies
+      source_sha256: b5727b664fcdf7fd3c717b4a0d65e62783d90c92465ffb2cfed1e3118152a83e
+      line_hint: 19
     required_anchors:
       - label: Repository
         property: id
@@ -513,10 +513,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impact_change_surface_traversal.go
-      symbol: (*ImpactHandler).runChangeSurfaceOutgoing
-      source_sha256: 7015261af1e9042c558ca94e41ec5dd78494fa27c5331989df5ce3b57e4bba25
-      line_hint: 93
+      file: go/internal/query/impact/impact_change_surface_traversal.go
+      symbol: (*ImpactHandler).RunChangeSurfaceOutgoing
+      source_sha256: 71bd5b83cd32baa090834e7aa8a6be3e0af72d6f26b8e090679f3e574e7255f1
+      line_hint: 99
     required_anchors:
       - label: Workload
         property: id
@@ -543,10 +543,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impact_change_surface_traversal.go
-      symbol: (*ImpactHandler).runChangeSurfaceOutgoing
-      source_sha256: 7015261af1e9042c558ca94e41ec5dd78494fa27c5331989df5ce3b57e4bba25
-      line_hint: 93
+      file: go/internal/query/impact/impact_change_surface_traversal.go
+      symbol: (*ImpactHandler).RunChangeSurfaceOutgoing
+      source_sha256: 71bd5b83cd32baa090834e7aa8a6be3e0af72d6f26b8e090679f3e574e7255f1
+      line_hint: 99
     required_anchors:
       - label: Workload
         property: id
@@ -573,10 +573,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impact_change_surface_traversal.go
-      symbol: (*ImpactHandler).runChangeSurfaceRepositoryConsumers
-      source_sha256: 2244efa6da854e50b88c84d0c1415350571cad930a1a510cccb54d3f14f36fb6
-      line_hint: 124
+      file: go/internal/query/impact/impact_change_surface_traversal.go
+      symbol: (*ImpactHandler).RunChangeSurfaceRepositoryConsumers
+      source_sha256: 6cfeb605ca12a54cab455f1a5546d5299cd3a13c3890e977a633ad3fa013e7c0
+      line_hint: 133
     required_anchors:
       - label: Repository
         property: id
@@ -603,10 +603,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impact_change_surface_traversal.go
-      symbol: (*ImpactHandler).runChangeSurfaceRepositoryConsumers
-      source_sha256: 2244efa6da854e50b88c84d0c1415350571cad930a1a510cccb54d3f14f36fb6
-      line_hint: 124
+      file: go/internal/query/impact/impact_change_surface_traversal.go
+      symbol: (*ImpactHandler).RunChangeSurfaceRepositoryConsumers
+      source_sha256: 6cfeb605ca12a54cab455f1a5546d5299cd3a13c3890e977a633ad3fa013e7c0
+      line_hint: 133
     required_anchors:
       - label: Repository
         property: id
@@ -633,10 +633,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impact_trace_deployment_flux_bindings.go
-      symbol: fetchFluxDeploymentSourceTargetBindings
-      source_sha256: 64083312618ddf77929edf96de6ac2f928bbcc42a5a660f18f12ec3eb2d9f74f
-      line_hint: 18
+      file: go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
+      symbol: FetchFluxDeploymentSourceTargetBindings
+      source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459
+      line_hint: 34
     required_anchors:
       - label: Repository
         property: id
@@ -661,10 +661,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/impact_trace_deployment_flux_bindings.go
-      symbol: fetchFluxDeploymentSourceTargetBindings
-      source_sha256: 64083312618ddf77929edf96de6ac2f928bbcc42a5a660f18f12ec3eb2d9f74f
-      line_hint: 18
+      file: go/internal/query/impacttrace/impact_trace_deployment_flux_bindings.go
+      symbol: FetchFluxDeploymentSourceTargetBindings
+      source_sha256: 6c2e8eff2e37fb816d77ab9436f5ccb78dfbef8a8625b18ab9b6694e91f1d459
+      line_hint: 34
     required_anchors:
       - label: EvidenceArtifact
         property: id

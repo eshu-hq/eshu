@@ -6,6 +6,8 @@ package query
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func buildRepositoryStoryResponse(
@@ -285,15 +287,10 @@ func appendNonEmptyLimitations(limitations []string, extra []string) []string {
 	return limitations
 }
 
+// nonEmptyStrings drops empty values. The implementation moved to
+// querycontract for #6060; this wrapper keeps root callers unchanged.
 func nonEmptyStrings(values []string) []string {
-	filtered := make([]string, 0, len(values))
-	for _, value := range values {
-		if value == "" {
-			continue
-		}
-		filtered = append(filtered, value)
-	}
-	return filtered
+	return querycontract.NonEmptyStrings(values)
 }
 
 // containsGitOpsSignals reports whether any platform or infrastructure-family
@@ -361,27 +358,9 @@ func mergeStringSets(left []string, right []string) []string {
 	return merged
 }
 
+// stringSliceMapValue extracts a []string from a map value. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func stringSliceMapValue(value map[string]any, key string) []string {
-	if len(value) == 0 {
-		return nil
-	}
-	raw, ok := value[key]
-	if !ok {
-		return nil
-	}
-	switch typed := raw.(type) {
-	case []string:
-		return nonEmptyStrings(typed)
-	case []any:
-		items := make([]string, 0, len(typed))
-		for _, item := range typed {
-			text, ok := item.(string)
-			if ok && text != "" {
-				items = append(items, text)
-			}
-		}
-		return items
-	default:
-		return nil
-	}
+	return querycontract.StringSliceMapValue(value, key)
 }

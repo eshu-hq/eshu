@@ -27,7 +27,7 @@ import "net/http"
 //     impacted row (including an explicit repo_id used for changed_paths/topic
 //     evidence) are bound to the grant.
 //   - trace_deployment_chain, investigate_deployment_config
-//     (impact_trace_deployment.go, deployment_config_influence.go): the anchor
+//     (impact/impact_trace_deployment.go, impact/deployment_config_influence.go): the anchor
 //     workload is already grant-filtered by fetchServiceWorkloadContext
 //     (shared with the already-allowlisted GET /services/{name}/context); this
 //     family additionally binds cross-repository deployment-source rows to the

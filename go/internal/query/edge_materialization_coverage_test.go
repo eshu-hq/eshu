@@ -3,7 +3,11 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // TestEdgeMaterializationCoverageReportsKnownWriters proves the registry
 // reports materialized:true with a real reason for edge types this task wires
@@ -15,15 +19,15 @@ func TestEdgeMaterializationCoverageReportsKnownWriters(t *testing.T) {
 	t.Parallel()
 
 	for _, edgeType := range []string{"CONTAINS", "QUERIES_TABLE", "READS_FROM", "WRITES_TO", "REFERENCES_TABLE", "TRIGGERS", "INDEXES", "MIGRATES"} {
-		got := EdgeMaterializationCoverage(edgeType)
+		got := querycontract.EdgeMaterializationCoverage(edgeType)
 		if !got.Materialized {
-			t.Errorf("EdgeMaterializationCoverage(%q).Materialized = false, want true", edgeType)
+			t.Errorf("querycontract.EdgeMaterializationCoverage(%q).Materialized = false, want true", edgeType)
 		}
 		if got.EdgeType != edgeType {
-			t.Errorf("EdgeMaterializationCoverage(%q).EdgeType = %q, want %q", edgeType, got.EdgeType, edgeType)
+			t.Errorf("querycontract.EdgeMaterializationCoverage(%q).EdgeType = %q, want %q", edgeType, got.EdgeType, edgeType)
 		}
 		if got.Reason == "" {
-			t.Errorf("EdgeMaterializationCoverage(%q).Reason is empty, want a real reason", edgeType)
+			t.Errorf("querycontract.EdgeMaterializationCoverage(%q).Reason is empty, want a real reason", edgeType)
 		}
 	}
 }
@@ -37,12 +41,12 @@ func TestEdgeMaterializationCoverageReportsDeadBranches(t *testing.T) {
 	t.Parallel()
 
 	for _, edgeType := range []string{"MAPS_TO_TABLE"} {
-		got := EdgeMaterializationCoverage(edgeType)
+		got := querycontract.EdgeMaterializationCoverage(edgeType)
 		if got.Materialized {
-			t.Errorf("EdgeMaterializationCoverage(%q).Materialized = true, want false (no writer exists)", edgeType)
+			t.Errorf("querycontract.EdgeMaterializationCoverage(%q).Materialized = true, want false (no writer exists)", edgeType)
 		}
 		if got.Reason != "no_writer" {
-			t.Errorf("EdgeMaterializationCoverage(%q).Reason = %q, want %q", edgeType, got.Reason, "no_writer")
+			t.Errorf("querycontract.EdgeMaterializationCoverage(%q).Reason = %q, want %q", edgeType, got.Reason, "no_writer")
 		}
 	}
 }
@@ -55,12 +59,12 @@ func TestEdgeMaterializationCoverageReportsDeadBranches(t *testing.T) {
 func TestEdgeMaterializationCoverageReportsSatisfiedByMaterialized(t *testing.T) {
 	t.Parallel()
 
-	got := EdgeMaterializationCoverage("SATISFIED_BY")
+	got := querycontract.EdgeMaterializationCoverage("SATISFIED_BY")
 	if !got.Materialized {
-		t.Error("EdgeMaterializationCoverage(\"SATISFIED_BY\").Materialized = false, want true (cypher.CrossplaneSatisfiedByEdgeWriter MERGEs it)")
+		t.Error("querycontract.EdgeMaterializationCoverage(\"SATISFIED_BY\").Materialized = false, want true (cypher.CrossplaneSatisfiedByEdgeWriter MERGEs it)")
 	}
 	if got.Reason == "" || got.Reason == "no_writer" {
-		t.Errorf("EdgeMaterializationCoverage(\"SATISFIED_BY\").Reason = %q, want a real reason", got.Reason)
+		t.Errorf("querycontract.EdgeMaterializationCoverage(\"SATISFIED_BY\").Reason = %q, want a real reason", got.Reason)
 	}
 }
 
@@ -74,12 +78,12 @@ func TestEdgeMaterializationCoverageReportsStructuralEdgeTypes(t *testing.T) {
 	t.Parallel()
 
 	for _, edgeType := range []string{"DEPENDS_ON", "REPO_CONTAINS"} {
-		got := EdgeMaterializationCoverage(edgeType)
+		got := querycontract.EdgeMaterializationCoverage(edgeType)
 		if !got.Materialized {
-			t.Errorf("EdgeMaterializationCoverage(%q).Materialized = false, want true", edgeType)
+			t.Errorf("querycontract.EdgeMaterializationCoverage(%q).Materialized = false, want true", edgeType)
 		}
 		if got.Reason == "" {
-			t.Errorf("EdgeMaterializationCoverage(%q).Reason is empty, want a real reason", edgeType)
+			t.Errorf("querycontract.EdgeMaterializationCoverage(%q).Reason is empty, want a real reason", edgeType)
 		}
 	}
 }
@@ -91,15 +95,15 @@ func TestEdgeMaterializationCoverageReportsStructuralEdgeTypes(t *testing.T) {
 func TestMaterializedEdgeTypeSetIsRegistryDerived(t *testing.T) {
 	t.Parallel()
 
-	set := MaterializedEdgeTypeSet()
+	set := querycontract.MaterializedEdgeTypeSet()
 	for _, want := range []string{"CONTAINS", "QUERIES_TABLE", "READS_FROM", "WRITES_TO", "REFERENCES_TABLE", "HAS_COLUMN", "TRIGGERS", "EXECUTES", "INDEXES", "MIGRATES", "DEPENDS_ON", "REPO_CONTAINS"} {
 		if _, ok := set[want]; !ok {
-			t.Errorf("MaterializedEdgeTypeSet() missing %q", want)
+			t.Errorf("querycontract.MaterializedEdgeTypeSet() missing %q", want)
 		}
 	}
 	for _, notWant := range []string{"MAPS_TO_TABLE", "TRIGGERS_ON"} {
 		if _, ok := set[notWant]; ok {
-			t.Errorf("MaterializedEdgeTypeSet() unexpectedly contains %q (no writer produces it)", notWant)
+			t.Errorf("querycontract.MaterializedEdgeTypeSet() unexpectedly contains %q (no writer produces it)", notWant)
 		}
 	}
 }
@@ -113,11 +117,11 @@ func TestMaterializedEdgeTypeSetIsRegistryDerived(t *testing.T) {
 func TestEdgeMaterializationCoverageReportsFluxReconcilesFromMaterialized(t *testing.T) {
 	t.Parallel()
 
-	got := EdgeMaterializationCoverage("RECONCILES_FROM")
+	got := querycontract.EdgeMaterializationCoverage("RECONCILES_FROM")
 	if !got.Materialized {
-		t.Error("EdgeMaterializationCoverage(\"RECONCILES_FROM\").Materialized = false, want true (cypher.FluxRelationshipMaterializedEdgeTypes merges it)")
+		t.Error("querycontract.EdgeMaterializationCoverage(\"RECONCILES_FROM\").Materialized = false, want true (cypher.FluxRelationshipMaterializedEdgeTypes merges it)")
 	}
 	if got.Reason == "" || got.Reason == "no_writer" {
-		t.Errorf("EdgeMaterializationCoverage(\"RECONCILES_FROM\").Reason = %q, want a real reason", got.Reason)
+		t.Errorf("querycontract.EdgeMaterializationCoverage(\"RECONCILES_FROM\").Reason = %q, want a real reason", got.Reason)
 	}
 }

@@ -9,13 +9,16 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestFetchDeploymentSourcesReturnsExactRelationshipEndpoints(t *testing.T) {
 	t.Parallel()
 
-	got, err := fetchDeploymentSourcesFromGraph(t.Context(), fakeRepoGraphReader{
-		runByMatch: map[string][]map[string]any{
+	got, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
 				"instance_id": "instance:runtime-deploy:prod",
 				"repo_id":     "repo-runtime-deploy",
@@ -32,10 +35,10 @@ func TestFetchDeploymentSourcesReturnsExactRelationshipEndpoints(t *testing.T) {
 		},
 	}, "workload:service-edge-api", "repository:r_service_edge_api")
 	if err != nil {
-		t.Fatalf("fetchDeploymentSourcesFromGraph() error = %v, want nil", err)
+		t.Fatalf("impact.FetchDeploymentSourcesFromGraph() error = %v, want nil", err)
 	}
 	if len(got) != 2 {
-		t.Fatalf("len(fetchDeploymentSourcesFromGraph()) = %d, want 2", len(got))
+		t.Fatalf("len(impact.FetchDeploymentSourcesFromGraph()) = %d, want 2", len(got))
 	}
 	assertDeploymentSourceEndpoints(
 		t,
@@ -56,8 +59,8 @@ func TestFetchDeploymentSourcesReturnsExactRelationshipEndpoints(t *testing.T) {
 func TestFetchDeploymentSourcesRejectsNonFiniteConfidence(t *testing.T) {
 	t.Parallel()
 
-	_, err := fetchDeploymentSourcesFromGraph(t.Context(), fakeRepoGraphReader{
-		runByMatch: map[string][]map[string]any{
+	_, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
 				"instance_id": "instance:runtime-deploy:prod",
 				"repo_id":     "repo-runtime-deploy",
@@ -66,15 +69,15 @@ func TestFetchDeploymentSourcesRejectsNonFiniteConfidence(t *testing.T) {
 		},
 	}, "workload:service-edge-api", "")
 	if err == nil || !strings.Contains(err.Error(), "deployment source confidence") {
-		t.Fatalf("fetchDeploymentSourcesFromGraph() error = %v, want non-finite deployment-source confidence error", err)
+		t.Fatalf("impact.FetchDeploymentSourcesFromGraph() error = %v, want non-finite deployment-source confidence error", err)
 	}
 }
 
 func TestFetchDeploymentSourcesPreservesRelationshipFamiliesForSameRepository(t *testing.T) {
 	t.Parallel()
 
-	got, err := fetchDeploymentSourcesFromGraph(t.Context(), fakeRepoGraphReader{
-		runByMatch: map[string][]map[string]any{
+	got, err := impact.FetchDeploymentSourcesFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
 				"instance_id": "instance:runtime-deploy:prod",
 				"repo_id":     "repo-runtime-deploy",
@@ -91,10 +94,10 @@ func TestFetchDeploymentSourcesPreservesRelationshipFamiliesForSameRepository(t 
 		},
 	}, "workload:service-edge-api", "repository:r_service_edge_api")
 	if err != nil {
-		t.Fatalf("fetchDeploymentSourcesFromGraph() error = %v, want nil", err)
+		t.Fatalf("impact.FetchDeploymentSourcesFromGraph() error = %v, want nil", err)
 	}
 	if len(got) != 2 {
-		t.Fatalf("len(fetchDeploymentSourcesFromGraph()) = %d, want 2 relationship families", len(got))
+		t.Fatalf("len(impact.FetchDeploymentSourcesFromGraph()) = %d, want 2 relationship families", len(got))
 	}
 	if got[0]["relationship_type"] != "DEPLOYMENT_SOURCE" || got[1]["relationship_type"] != "DEPLOYS_FROM" {
 		t.Fatalf("relationship families = %#v, want DEPLOYMENT_SOURCE and DEPLOYS_FROM", got)
@@ -104,8 +107,8 @@ func TestFetchDeploymentSourcesPreservesRelationshipFamiliesForSameRepository(t 
 func TestFetchDeploymentSourcesRejectsRelationshipsWithoutCanonicalEndpoints(t *testing.T) {
 	t.Parallel()
 
-	result, err := fetchDeploymentSourceResultFromGraph(t.Context(), fakeRepoGraphReader{
-		runByMatch: map[string][]map[string]any{
+	result, err := impact.FetchDeploymentSourceResultFromGraph(t.Context(), querytestutil.FakeRepoGraphReader{
+		RunByMatch: map[string][]map[string]any{
 			"MATCH (w:Workload {id: $workload_id})<-[:INSTANCE_OF]-(i:WorkloadInstance)-[rel:DEPLOYMENT_SOURCE]->(repo:Repository)": {{
 				"repo_id":   "repository:deploy",
 				"repo_name": "deploy",
@@ -113,12 +116,12 @@ func TestFetchDeploymentSourcesRejectsRelationshipsWithoutCanonicalEndpoints(t *
 		},
 	}, "workload:orders", "")
 	if err != nil {
-		t.Fatalf("fetchDeploymentSourceResultFromGraph() error = %v", err)
+		t.Fatalf("impact.FetchDeploymentSourceResultFromGraph() error = %v", err)
 	}
-	if len(result.rows) != 0 {
-		t.Fatalf("deployment source rows = %#v, want malformed endpoint row rejected", result.rows)
+	if len(result.Rows()) != 0 {
+		t.Fatalf("deployment source rows = %#v, want malformed endpoint row rejected", result.Rows())
 	}
-	if got := IntVal(result.limits, "canonical_observed_count"); got != 0 {
+	if got := IntVal(result.Limits(), "canonical_observed_count"); got != 0 {
 		t.Fatalf("canonical_observed_count = %d, want malformed row excluded", got)
 	}
 }
@@ -126,7 +129,7 @@ func TestFetchDeploymentSourcesRejectsRelationshipsWithoutCanonicalEndpoints(t *
 func TestFetchDeploymentSourcesOrdersCanonicalEndpointTiesDeterministically(t *testing.T) {
 	t.Parallel()
 
-	reader := fakeGraphReader{run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "DEPLOYMENT_SOURCE") &&
 			!strings.Contains(cypher, "ORDER BY repo_name, instance_id, repo_id") {
 			t.Fatalf("canonical deployment-source query lacks endpoint tie-breakers:\n%s", cypher)
@@ -137,13 +140,13 @@ func TestFetchDeploymentSourcesOrdersCanonicalEndpointTiesDeterministically(t *t
 		}
 		return []map[string]any{}, nil
 	}}
-	if _, err := fetchDeploymentSourcesFromGraph(
+	if _, err := impact.FetchDeploymentSourcesFromGraph(
 		t.Context(),
 		reader,
 		"workload:service-edge-api",
 		"repository:r_service_edge_api",
 	); err != nil {
-		t.Fatalf("fetchDeploymentSourcesFromGraph() error = %v, want nil", err)
+		t.Fatalf("impact.FetchDeploymentSourcesFromGraph() error = %v, want nil", err)
 	}
 }
 
@@ -156,7 +159,7 @@ func TestFetchDeploymentSourcesScopesEveryRepositoryEndpointBeforeLimit(t *testi
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repository:allowed"},
 	})
-	reader := fakeGraphReader{run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		limitIndex := strings.Index(cypher, "LIMIT $source_limit")
 		if limitIndex < 0 {
 			t.Fatalf("deployment-source query is missing its bound:\n%s", cypher)
@@ -185,24 +188,24 @@ func TestFetchDeploymentSourcesScopesEveryRepositoryEndpointBeforeLimit(t *testi
 		return nil, nil
 	}}
 
-	result, err := fetchDeploymentSourceResultFromGraph(
+	result, err := impact.FetchDeploymentSourceResultFromGraph(
 		ctx,
 		reader,
 		"workload:orders",
 		"repository:allowed",
 	)
 	if err != nil {
-		t.Fatalf("fetchDeploymentSourceResultFromGraph() error = %v", err)
+		t.Fatalf("impact.FetchDeploymentSourceResultFromGraph() error = %v", err)
 	}
-	if len(result.rows) != 0 {
-		t.Fatalf("deployment source rows = %#v, want no cross-grant repositories", result.rows)
+	if len(result.Rows()) != 0 {
+		t.Fatalf("deployment source rows = %#v, want no cross-grant repositories", result.Rows())
 	}
 }
 
 func TestFetchDeploymentSourcesBoundsGraphExpansionAndReportsCoverage(t *testing.T) {
 	t.Parallel()
 
-	reader := fakeGraphReader{run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 		if !strings.Contains(cypher, "LIMIT $source_limit") {
 			t.Fatalf("deployment-source query is unbounded:\n%s", cypher)
 		}
@@ -223,36 +226,36 @@ func TestFetchDeploymentSourcesBoundsGraphExpansionAndReportsCoverage(t *testing
 		return rows, nil
 	}}
 
-	result, err := fetchDeploymentSourceResultFromGraph(
+	result, err := impact.FetchDeploymentSourceResultFromGraph(
 		t.Context(),
 		reader,
 		"workload:service-edge-api",
 		"repository:r_service_edge_api",
 	)
 	if err != nil {
-		t.Fatalf("fetchDeploymentSourceResultFromGraph() error = %v, want nil", err)
+		t.Fatalf("impact.FetchDeploymentSourceResultFromGraph() error = %v, want nil", err)
 	}
-	if got, want := len(result.rows), contextStoryItemLimit; got != want {
+	if got, want := len(result.Rows()), contextStoryItemLimit; got != want {
 		t.Fatalf("deployment source rows = %d, want capped %d", got, want)
 	}
-	if !BoolVal(result.limits, "truncated") {
-		t.Fatalf("deployment source limits = %#v, want truncated", result.limits)
+	if !BoolVal(result.Limits(), "truncated") {
+		t.Fatalf("deployment source limits = %#v, want truncated", result.Limits())
 	}
-	if got, want := IntVal(result.limits, "returned_count"), contextStoryItemLimit; got != want {
+	if got, want := IntVal(result.Limits(), "returned_count"), contextStoryItemLimit; got != want {
 		t.Fatalf("returned_count = %d, want %d", got, want)
 	}
-	if got, want := IntVal(result.limits, "observed_count"), contextStoryItemLimit+1; got != want {
+	if got, want := IntVal(result.Limits(), "observed_count"), contextStoryItemLimit+1; got != want {
 		t.Fatalf("observed_count = %d, want sentinel lower bound %d", got, want)
 	}
-	if !BoolVal(result.limits, "observed_count_is_lower_bound") {
-		t.Fatalf("deployment source limits = %#v, want lower-bound disclosure", result.limits)
+	if !BoolVal(result.Limits(), "observed_count_is_lower_bound") {
+		t.Fatalf("deployment source limits = %#v, want lower-bound disclosure", result.Limits())
 	}
 }
 
 func TestFetchDeploymentSourcesDeduplicatesEndpointsBeforeSentinel(t *testing.T) {
 	t.Parallel()
 
-	reader := fakeGraphReader{run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		if strings.Contains(cypher, "DEPLOYMENT_SOURCE") {
 			if !strings.Contains(cypher, "WITH i.id as instance_id, repo.id as repo_id") {
 				t.Fatalf("canonical query does not group unique endpoints before LIMIT: %s", cypher)
@@ -268,12 +271,12 @@ func TestFetchDeploymentSourcesDeduplicatesEndpointsBeforeSentinel(t *testing.T)
 		return nil, nil
 	}}
 
-	result, err := fetchDeploymentSourceResultFromGraph(t.Context(), reader, "workload:orders", "repository:orders")
+	result, err := impact.FetchDeploymentSourceResultFromGraph(t.Context(), reader, "workload:orders", "repository:orders")
 	if err != nil {
-		t.Fatalf("fetchDeploymentSourceResultFromGraph() error = %v", err)
+		t.Fatalf("impact.FetchDeploymentSourceResultFromGraph() error = %v", err)
 	}
-	if BoolVal(result.limits, "truncated") {
-		t.Fatalf("limits = %#v, want one unique endpoint complete", result.limits)
+	if BoolVal(result.Limits(), "truncated") {
+		t.Fatalf("limits = %#v, want one unique endpoint complete", result.Limits())
 	}
 }
 

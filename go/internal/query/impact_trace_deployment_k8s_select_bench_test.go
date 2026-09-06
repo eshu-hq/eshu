@@ -26,11 +26,11 @@ func BenchmarkK8sWorkloadMatchTargetDirectedScan(b *testing.B) {
 		labels = append(labels, fmt.Sprintf("k%02d=v%02d", i, i))
 	}
 	workload := k8sSelectMatchInput{
-		kind:                     "Deployment",
-		name:                     "web",
-		namespace:                "ns-0",
-		podTemplateLabels:        strings.Join(labels, ","),
-		podTemplateLabelsPresent: true,
+		Kind:                     "Deployment",
+		Name:                     "web",
+		Namespace:                "ns-0",
+		PodTemplateLabels:        strings.Join(labels, ","),
+		PodTemplateLabelsPresent: true,
 	}
 
 	candidates := make([]K8sSelectCandidate, 0, 5000)

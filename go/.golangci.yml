@@ -93,17 +93,20 @@ linters:
         # driver interaction and are listed as exceptions, so this is a ratchet:
         # the driver stays where it is today and no NEW query file may reach for
         # it. Test files are excluded because the live/differential suites drive
-        # a real Bolt session on purpose.
+        # a real Bolt session on purpose; the handler-family subpackages
+        # (internal/query/<family>/) inherit the same test exclusion so moved
+        # backend-shape parity tests keep their intentional driver-type use.
         query-no-graph-driver:
           files:
             - "**/internal/query/**"
             - "!**/internal/query/*_test.go"
+            - "!**/internal/query/**/*_test.go"
             - "!**/internal/query/neo4j.go"
             - "!**/internal/query/neo4j_read_policy.go"
-            - "!**/internal/query/impact_change_surface_legacy.go"
+            - "!**/internal/query/impact/impact_change_surface_legacy.go"
             - "!**/internal/query/visualization_packet_graph_query.go"
             - "!**/internal/query/code_call_chain.go"
-            - "!**/internal/query/exposure_path_mapping.go"
+            - "!**/internal/query/impact/exposure_path_mapping.go"
           deny:
             - pkg: github.com/neo4j/neo4j-go-driver
               desc: query owns handlers and read surfaces; reach the graph through a port or an existing driver-owning file, not a new direct driver import
@@ -430,7 +433,7 @@ linters:
       - path: 'internal/query/handler\.go'
         linters:
           - funlen
-      - path: 'internal/query/impact_trace_deployment\.go'
+      - path: 'internal/query/impact/impact_trace_deployment\.go'
         linters:
           - funlen
       - path: 'internal/query/infra\.go'

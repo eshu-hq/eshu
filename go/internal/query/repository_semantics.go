@@ -8,9 +8,15 @@ import (
 	"context"
 	"fmt"
 	"slices"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-const repositorySemanticEntityLimit = 5000
+// repositorySemanticEntityLimit caps semantic entity reads per repository.
+// The value moved to querycontract for #6060 so the impact handler-family
+// subpackages can share it without importing this package; this alias keeps
+// root callers unchanged.
+const repositorySemanticEntityLimit = querycontract.RepositorySemanticEntityLimit
 
 func buildRepositorySemanticOverview(entities []EntityContent) map[string]any {
 	return buildRepositorySemanticOverviewWithFiles(entities, nil)

@@ -14,7 +14,7 @@
    `../tools_reachability.go` for `trace_exposure_path`'s. The schemas stay
    there and must keep naming the same fields these builders select.
 7. `../routecontract/README.md` for the dependency-neutral request contract.
-8. `go/internal/query/impact_trace_deployment.go` for the
+8. `go/internal/query/impact/impact_trace_deployment.go` for the
    trace-deployment-chain handler this family's most commented default feeds:
    `normalizeTraceDeploymentChainMaxDepth` clamps `max_depth` into [0, 1000]
    rather than rejecting, and `boundedTraceEnrichmentLimit(0)` = 25 is what an

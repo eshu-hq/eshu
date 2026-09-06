@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // fetchWorkloadContext queries graph-backed workload context with a custom
@@ -362,17 +364,9 @@ func (h *EntityHandler) fetchWorkloadRepositoryForAccess(
 	return StringVal(selected, "repo_id"), StringVal(selected, "repo_name"), nil
 }
 
+// scopedWorkloadWhereClause appends the caller's workload grant predicate to
+// a Workload-anchored WHERE clause. The implementation moved to querycontract
+// for #6060; this wrapper keeps root callers unchanged.
 func scopedWorkloadWhereClause(whereClause string, access repositoryAccessFilter) string {
-	if !access.Scoped() {
-		return whereClause
-	}
-	return whereClause + `
-			AND (
-				w.repo_id IN $allowed_repository_ids
-				OR w.repo_id IN $allowed_scope_ids
-				OR EXISTS {
-					MATCH (scopeRepo:Repository)-[:DEFINES]->(w)
-					WHERE ` + access.GraphCondition("scopeRepo") + `
-				}
-			)`
+	return querycontract.ScopedWorkloadWhereClause(whereClause, access)
 }

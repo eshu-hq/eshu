@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -48,12 +49,12 @@ func handlerQueryplanProductionCypher() map[string]string {
 	cloudCypher, _ := buildCloudResourceHydrationQuery([]CloudResourceListIdentity{{
 		UID: "proof-cloud-resource", ResourceType: "proof-type",
 	}})
-	selectedResource := &resourceInvestigationCandidate{
+	selectedResource := &impact.ResourceInvestigationCandidate{
 		ID:     "proof-resource",
 		Labels: []string{"CloudResource"},
 	}
-	resourceReq := resourceInvestigationRequest{MaxDepth: 3, Limit: 10}
-	resourceSelectorReq := resourceInvestigationRequest{
+	resourceReq := impact.ResourceInvestigationRequest{MaxDepth: 3, Limit: 10}
+	resourceSelectorReq := impact.ResourceInvestigationRequest{
 		Query:        "proof-resource",
 		ResourceType: "cloud",
 		Limit:        10,
@@ -114,21 +115,21 @@ func handlerQueryplanProductionCypher() map[string]string {
 			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}},
 			[]map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/target.py"}},
 		),
-		"QP-ENTITY-MAP-RESOLVE-REPOSITORY": entityMapNodeResolverQuery(
+		"QP-ENTITY-MAP-RESOLVE-REPOSITORY": impact.EntityMapNodeResolverQuery(
 			"Repository",
 			"id",
 			"proof-repository",
 			"id",
 			0,
 			51,
-		).cypher,
-		"QP-ENTITY-MAP-DIRECT-REPOSITORY": entityMapDirectTraversalCypher(
-			entityMapCandidate{AnchorLabel: "Repository", AnchorProperty: "id"},
-			entityMapTraversalSpec{direction: "outgoing", relationships: []string{"DEPENDS_ON"}, minHops: 1, maxHops: 1},
+		).Cypher,
+		"QP-ENTITY-MAP-DIRECT-REPOSITORY": impact.EntityMapDirectTraversalCypher(
+			impact.EntityMapCandidate{AnchorLabel: "Repository", AnchorProperty: "id"},
+			impact.EntityMapTraversalSpec{Direction: "outgoing", Relationships: []string{"DEPENDS_ON"}, MinHops: 1, MaxHops: 1},
 		),
-		"QP-ENTITY-MAP-BOUNDED-REPOSITORY": entityMapVariableTraversalCypher(
-			entityMapCandidate{AnchorLabel: "Repository", AnchorProperty: "id"},
-			entityMapTraversalSpec{direction: "outgoing", relationships: []string{"DEPENDS_ON"}, minHops: 2, maxHops: 3},
+		"QP-ENTITY-MAP-BOUNDED-REPOSITORY": impact.EntityMapVariableTraversalCypher(
+			impact.EntityMapCandidate{AnchorLabel: "Repository", AnchorProperty: "id"},
+			impact.EntityMapTraversalSpec{Direction: "outgoing", Relationships: []string{"DEPENDS_ON"}, MinHops: 2, MaxHops: 3},
 		),
 		"QP-CLOUD-RESOURCE-LIST-HYDRATION":   cloudCypher,
 		"QP-SUPPLY-CHAIN-KUBERNETES-RUNTIME": supplyChainKubernetesRuntimeProbeCypher,
@@ -138,17 +139,17 @@ func handlerQueryplanProductionCypher() map[string]string {
 		"QP-GRAPH-ENTITY-LIST":               graphEntityKindListCypher(graphEntityKinds[0], true),
 		"QP-WORKLOAD-RESOLVE-PROPERTY":       workloadPropertyCypher,
 		"QP-WORKLOAD-RESOLVE-RELATIONSHIP":   workloadRelationshipCypher,
-		"QP-RESOURCE-INVESTIGATION-WORKLOADS": resourceInvestigationWorkloadsCypher(
+		"QP-RESOURCE-INVESTIGATION-WORKLOADS": impact.ResourceInvestigationWorkloadsCypher(
 			selectedResource,
 		),
-		"QP-RESOURCE-INVESTIGATION-SELECTOR": resourceInvestigationSelectorLabelCypher(
+		"QP-RESOURCE-INVESTIGATION-SELECTOR": impact.ResourceInvestigationSelectorLabelCypher(
 			resourceSelectorReq,
 			allAccess,
 			"CloudResource",
-			resourceInvestigationExactSelectorPredicates,
+			impact.ResourceInvestigationExactSelectorPredicates,
 		),
-		"QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS": resourceInvestigationInstanceWorkloadsCypher(),
-		"QP-RESOURCE-INVESTIGATION-REPO-PATHS": resourceInvestigationRepoPathsCypher(
+		"QP-RESOURCE-INVESTIGATION-INSTANCE-WORKLOADS": impact.ResourceInvestigationInstanceWorkloadsCypher(),
+		"QP-RESOURCE-INVESTIGATION-REPO-PATHS": impact.ResourceInvestigationRepoPathsCypher(
 			resourceReq,
 			selectedResource,
 			"outgoing",

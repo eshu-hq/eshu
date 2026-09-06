@@ -56,7 +56,7 @@ func deploymentTools() []toolcontract.ToolDefinition {
 					// minimum, maximum, or default on purpose. The handler
 					// clamps rather than rejects (see
 					// normalizeTraceDeploymentChainMaxDepth in
-					// go/internal/query/impact_trace_deployment.go), and the
+					// go/internal/query/impact/impact_trace_deployment.go), and the
 					// route's OpenAPI fragment says so explicitly. A
 					// JSON-Schema minimum/maximum makes a validating MCP
 					// client reject exactly the out-of-range values the

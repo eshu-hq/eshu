@@ -6,6 +6,8 @@ package query
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 )
 
 // benchScopedGrantAccess grants half of the benchmark repositories so the
@@ -39,7 +41,7 @@ func benchRepoIDRows(repoCount int) []map[string]any {
 }
 
 // benchProvisioningCandidates builds repoCount provisioningRepositoryCandidate
-// values, the shape filterProvisioningRepositoryCandidatesForAccess iterates.
+// values, the shape impact.FilterProvisioningRepositoryCandidatesForAccess iterates.
 func benchProvisioningCandidates(repoCount int) []provisioningRepositoryCandidate {
 	candidates := make([]provisioningRepositoryCandidate, repoCount)
 	for i := range candidates {
@@ -80,7 +82,7 @@ func BenchmarkFilterRowsByRepoIDForAccess(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = filterRowsByRepoIDForAccess(rows, access)
+		_ = impact.FilterRowsByRepoIDForAccess(rows, access)
 	}
 }
 
@@ -90,7 +92,7 @@ func BenchmarkFilterProvisioningRepositoryCandidatesForAccess(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = filterProvisioningRepositoryCandidatesForAccess(candidates, access)
+		_ = impact.FilterProvisioningRepositoryCandidatesForAccess(candidates, access)
 	}
 }
 
@@ -109,6 +111,6 @@ func BenchmarkImpactRepoIDAllowed(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = impactRepoIDAllowed("repo-10", access)
+		_ = impact.ImpactRepoIDAllowed("repo-10", access)
 	}
 }

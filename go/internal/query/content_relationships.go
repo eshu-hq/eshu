@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const contentRelationshipLimit = 20
@@ -322,63 +324,16 @@ func splitKustomizePatchTarget(value string) (string, string, bool) {
 	return kind, name, true
 }
 
+// metadataStringSlice extracts a cleaned []string from a metadata map. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func metadataStringSlice(metadata map[string]any, key string) []string {
-	values, ok := metadata[key]
-	if !ok {
-		return nil
-	}
-
-	switch typed := values.(type) {
-	case []string:
-		items := make([]string, 0, len(typed))
-		for _, item := range typed {
-			if value := cleanMetadataString(item); value != "" {
-				items = append(items, value)
-			}
-		}
-		return items
-	case []any:
-		items := make([]string, 0, len(typed))
-		for _, item := range typed {
-			raw, ok := item.(string)
-			if !ok {
-				continue
-			}
-			if value := cleanMetadataString(raw); value != "" {
-				items = append(items, value)
-			}
-		}
-		return items
-	case string:
-		items := strings.Split(typed, ",")
-		result := make([]string, 0, len(items))
-		for _, item := range items {
-			if value := cleanMetadataString(item); value != "" {
-				result = append(result, value)
-			}
-		}
-		return result
-	default:
-		return nil
-	}
+	return querycontract.MetadataStringSlice(metadata, key)
 }
 
-func cleanMetadataString(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" || value == "<nil>" {
-		return ""
-	}
-	return value
-}
-
+// metadataNonEmptyString extracts a cleaned non-empty string from a metadata
+// map. The implementation moved to querycontract for #6060; this wrapper
+// keeps root callers unchanged.
 func metadataNonEmptyString(metadata map[string]any, key string) (string, bool) {
-	value, ok := metadata[key].(string)
-	if !ok {
-		return "", false
-	}
-	value = cleanMetadataString(value)
-	if value == "" {
-		return "", false
-	}
-	return value, true
+	return querycontract.MetadataNonEmptyString(metadata, key)
 }

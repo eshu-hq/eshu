@@ -387,7 +387,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 	t.Run("hostname affinity narrowing discloses", func(t *testing.T) {
 		t.Parallel()
 
-		// #5720 round-8 P1-2. boundedIndirectEvidenceHostnamesForService has
+		// #5720 round-8 P1-2. BoundedIndirectEvidenceHostnamesForService has
 		// two drop paths and returned one bool, which reported only the 4-cap.
 		// The subtest above routes AROUND the affinity filter on purpose (nine
 		// hostnames, none carrying the service's token, so it falls through to
@@ -403,7 +403,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 			"legacy-billing.acme.test",
 			"cart-gw.acme.test",
 		}
-		kept, hostnamesTruncated := boundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
+		kept, hostnamesTruncated := BoundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
 		if got, want := len(kept), 1; got != want {
 			t.Fatalf("len(kept hostnames) = %d, want %d (only orders.example.com carries the service token)", got, want)
 		}
@@ -412,7 +412,7 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesUpstreamHostnameAndSearchBound
 		}
 		if !hostnamesTruncated {
 			t.Fatalf(
-				"boundedIndirectEvidenceHostnamesForService(%d hostnames, %q) truncated = false, want true (%d were dropped by the affinity filter, not by indirectEvidenceHostnameLimit = %d)",
+				"BoundedIndirectEvidenceHostnamesForService(%d hostnames, %q) truncated = false, want true (%d were dropped by the affinity filter, not by indirectEvidenceHostnameLimit = %d)",
 				len(hostnames), "orders-api", len(hostnames)-len(kept), indirectEvidenceHostnameLimit,
 			)
 		}

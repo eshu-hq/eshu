@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -18,7 +19,7 @@ import (
 // #5287 OCI trace-deployment fix. It seeds a representative OCI registry graph
 // on a live NornicDB, captures the OLD multi-clause shapes (which corrupt on the
 // pinned build) for evidence, and asserts that the shipped single-clause
-// fetchOCIImageRegistryTruth returns the correct canonical-digest and
+// impact.FetchOCIImageRegistryTruth returns the correct canonical-digest and
 // tag-resolved registry truth.
 //
 //	Run: ESHU_OCI_PROVE_LIVE=1 ESHU_NEO4J_URI=bolt://localhost:17687 \
@@ -97,11 +98,11 @@ ORDER BY image_ref, digest`, map[string]any{"image_refs": []string{tagRef}})
 	}
 
 	// Assert the shipped single-clause path returns correct truth.
-	truth, err := fetchOCIImageRegistryTruth(ctx, reader, []string{digestRef, tagRef})
+	truth, err := impact.FetchOCIImageRegistryTruth(ctx, reader, []string{digestRef, tagRef})
 	if err != nil {
-		t.Fatalf("fetchOCIImageRegistryTruth() error = %v", err)
+		t.Fatalf("impact.FetchOCIImageRegistryTruth() error = %v", err)
 	}
-	logJSON(t, "NEW fetchOCIImageRegistryTruth (single-clause + Go join)", truth)
+	logJSON(t, "NEW impact.FetchOCIImageRegistryTruth (single-clause + Go join)", truth)
 
 	var digestRow, tagRow map[string]any
 	for _, row := range truth {

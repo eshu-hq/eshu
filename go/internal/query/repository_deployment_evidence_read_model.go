@@ -350,11 +350,9 @@ func isDeploymentEnvironmentToken(token string) bool {
 	return environment.IsKnownToken(token)
 }
 
+// firstNonEmpty returns the first non-blank value unchanged. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
+	return querycontract.FirstNonEmpty(values...)
 }

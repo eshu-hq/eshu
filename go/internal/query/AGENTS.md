@@ -279,7 +279,7 @@
   deployment topology the pre-#3492 untyped read surfaced — notably the
   `WorkloadInstance-[:DEPLOYMENT_SOURCE]->Repository` edge written by
   `canonicalDeploymentSourceUpsertCypher` and read by
-  `fetchDeploymentSourcesFromGraph` (`impact_trace_deployment.go`). For a
+  `FetchDeploymentSourcesFromGraph` (`impact/impact_trace_deployment_sources.go`). For a
   workload-instance target the tool could then report an empty deployment
   relationship even when the deployment-source edge exists. `what_deploys` now
   resolves to `{DEPLOYS_FROM, DEPLOYMENT_SOURCE, HAS_DEPLOYMENT_EVIDENCE}` —

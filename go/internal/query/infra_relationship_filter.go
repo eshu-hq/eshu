@@ -178,7 +178,7 @@ func filterNullRelationships(v any) []map[string]any {
 //     (entity_map_response.go entityMapIsDeployedBy).
 //   - DEPLOYMENT_SOURCE: WorkloadInstance->Repository runtime deployment source
 //     (canonical.go canonicalDeploymentSourceUpsertCypher, read by
-//     fetchDeploymentSourcesFromGraph). Narrowing what_deploys to DEPLOYS_FROM
+//     FetchDeploymentSourcesFromGraph). Narrowing what_deploys to DEPLOYS_FROM
 //     alone dropped this edge, so the tool could report an empty deployment
 //     relationship for a workload-instance target even when the graph holds the
 //     deployment-source edge.

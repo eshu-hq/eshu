@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -102,28 +103,28 @@ CREATE (artifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP {relationship_type: 'DEPLO
 	seedArtifact("duplicate-b", "team-dupe", "app-source", targetA)
 	seedArtifact("ambiguous-a", "team-amb", "app-source", targetA)
 	seedArtifact("ambiguous-b", "team-amb", "app-source", targetB)
-	rowsA, err := fetchFluxDeploymentSourceTargetBindings(ctx, reader, targetA, []string{sourceID}, 51, access)
+	rowsA, err := impacttrace.FetchFluxDeploymentSourceTargetBindings(ctx, reader, targetA, []string{sourceID}, 51, access)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rowsB, err := fetchFluxDeploymentSourceTargetBindings(ctx, reader, targetB, []string{sourceID}, 51, access)
+	rowsB, err := impacttrace.FetchFluxDeploymentSourceTargetBindings(ctx, reader, targetB, []string{sourceID}, 51, access)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rowsA.firstHopSaturated || rowsB.firstHopSaturated || rowsA.firstHopCount != 6 || rowsB.firstHopCount != 6 {
+	if rowsA.FirstHopSaturated() || rowsB.FirstHopSaturated() || rowsA.FirstHopCount() != 6 || rowsB.FirstHopCount() != 6 {
 		t.Fatalf("%s namespace seed first hops = %#v / %#v", backend, rowsA, rowsB)
 	}
-	sources := attachFluxDeploymentSourceTargetBindings([]map[string]any{
+	sources := impacttrace.AttachFluxDeploymentSourceTargetBindings([]map[string]any{
 		{"relationship_type": "DEPLOYS_FROM", "source_id": sourceID, "target_id": targetA},
 		{"relationship_type": "DEPLOYS_FROM", "source_id": sourceID, "target_id": targetB},
-	}, append(rowsA.rows, rowsB.rows...), false)
+	}, append(rowsA.Rows(), rowsB.Rows()...), false)
 	controller := func(namespace string) map[string]any {
 		return map[string]any{"controller_kind": "flux_kustomization", "repo_id": sourceID, "source_ref_kind": "GitRepository", "source_ref_name": "app-source", "namespace": namespace}
 	}
 	explicit, defaulted, duplicate, ambiguous, missing := controller("wrong"), controller("team-b"), controller("team-dupe"), controller("team-amb"), controller("")
 	explicit["source_ref_namespace"] = "team-a"
-	tally := bindFluxControllersToCrossRepoTargets([]map[string]any{explicit, defaulted, duplicate, ambiguous, missing}, sources)
-	if tally != (fluxTargetAttributionTally{Linked: 3, Ambiguous: 1, Missing: 1}) ||
+	tally := impacttrace.BindFluxControllersToCrossRepoTargets([]map[string]any{explicit, defaulted, duplicate, ambiguous, missing}, sources)
+	if tally != (impacttrace.FluxTargetAttributionTally{Linked: 3, Ambiguous: 1, Missing: 1}) ||
 		StringVal(explicit, "flux_target_repo_id") != targetA ||
 		StringVal(defaulted, "flux_target_repo_id") != targetB ||
 		StringVal(duplicate, "flux_target_repo_id") != targetA ||
@@ -143,11 +144,11 @@ CREATE (artifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP {relationship_type: 'DEPLO
 		seedArtifact(fmt.Sprintf("saturated-%02d", i), "flux-system", fmt.Sprintf("source-%02d", i), targetID)
 	}
 	for _, targetID := range []string{targetA, targetB} {
-		got, fetchErr := fetchFluxDeploymentSourceTargetBindings(ctx, reader, targetID, []string{sourceID}, 51, access)
+		got, fetchErr := impacttrace.FetchFluxDeploymentSourceTargetBindings(ctx, reader, targetID, []string{sourceID}, 51, access)
 		if fetchErr != nil {
 			t.Fatal(fetchErr)
 		}
-		if !got.firstHopSaturated || got.firstHopCount != 51 || len(got.rows) != 0 {
+		if !got.FirstHopSaturated() || got.FirstHopCount() != 51 || len(got.Rows()) != 0 {
 			t.Fatalf("%s target %s saturation = %#v, want 51-row first-hop lower bound and zero attribution", backend, targetID, got)
 		}
 	}

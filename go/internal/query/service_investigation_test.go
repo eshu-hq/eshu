@@ -9,12 +9,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestBuildServiceStoryResponseIncludesInvestigationPacket(t *testing.T) {
 	t.Parallel()
 
-	got := buildServiceStoryResponse("sample-service-api", sampleServiceDossierContext())
+	got := buildServiceStoryResponse("sample-service-api", querytestutil.SampleServiceDossierContext())
 
 	investigation := mapValue(got, "investigation")
 	if len(investigation) == 0 {

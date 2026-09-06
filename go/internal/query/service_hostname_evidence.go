@@ -5,15 +5,13 @@ package query
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/contentrefs"
-	"github.com/eshu-hq/eshu/go/internal/environment"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// environmentAliases caches the shared alias table from the environment
-// contract package at init time for substring-based alias detection.
-var environmentAliases = environment.Aliases()
+// The hostname environment alias table and its detector moved to
+// querycontract for #6060; the wrappers below keep root callers unchanged.
 
 func extractObservedHostnames(content string) []string {
 	return contentrefs.Hostnames(content)
@@ -74,32 +72,16 @@ func inferObservedEnvironments(relativePath string, content string, hostnames []
 	return environments
 }
 
+// detectEnvironmentAliases returns the sorted canonical environments in
+// text. The implementation moved to querycontract for #6060; this wrapper
+// keeps root callers unchanged.
 func detectEnvironmentAliases(text string) []string {
-	normalized := normalizeEvidenceToken(text)
-	if normalized == "" {
-		return nil
-	}
-	seen := map[string]struct{}{}
-	for _, row := range environmentAliases {
-		for _, alias := range row.Aliases {
-			if strings.Contains(normalized, "_"+alias+"_") {
-				seen[row.Canonical] = struct{}{}
-				break
-			}
-		}
-	}
-	environments := make([]string, 0, len(seen))
-	for environment := range seen {
-		environments = append(environments, environment)
-	}
-	sort.Strings(environments)
-	return environments
+	return querycontract.DetectEnvironmentAliases(text)
 }
 
+// inferHostnameEnvironment returns the first canonical environment inferred
+// from hostname. The implementation moved to querycontract for #6060; this
+// wrapper keeps root callers unchanged.
 func inferHostnameEnvironment(hostname string) string {
-	matches := detectEnvironmentAliases(hostname)
-	if len(matches) == 0 {
-		return ""
-	}
-	return matches[0]
+	return querycontract.InferHostnameEnvironment(hostname)
 }

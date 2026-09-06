@@ -3,13 +3,18 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+)
 
 func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 	t.Parallel()
 
-	serviceStory := buildServiceStoryResponse("workload:sample-service-api", sampleServiceDossierContext())
-	assertAnswerMetadata(t, "service story", serviceStory)
+	serviceStory := buildServiceStoryResponse("workload:sample-service-api", querytestutil.SampleServiceDossierContext())
+	querytestutil.AssertAnswerMetadata(t, "service story", serviceStory)
 
 	repositoryStory := buildRepositoryStoryResponseWithCoverage(
 		RepoRef{ID: "repo-payments", Name: "payments", HasRemote: true},
@@ -28,7 +33,7 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 		nil,
 		false,
 	)
-	assertAnswerMetadata(t, "repository story", repositoryStory)
+	querytestutil.AssertAnswerMetadata(t, "repository story", repositoryStory)
 
 	codeTopic := codeTopicResponse(codeTopicInvestigationRequest{
 		Topic:  "repo sync authentication",
@@ -45,41 +50,7 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 		StartLine:    10,
 		EndLine:      44,
 	}}, true)
-	assertAnswerMetadata(t, "code topic", codeTopic)
-
-	changeSurface := (&ImpactHandler{}).changeSurfaceResponse(
-		changeSurfaceInvestigationRequest{
-			Topic:      "auth flow",
-			RepoID:     "repo-payments",
-			Limit:      1,
-			MaxDepth:   2,
-			Target:     "payments-api",
-			TargetType: "service",
-		},
-		map[string]any{
-			"status":    "resolved",
-			"selected":  map[string]any{"id": "workload:payments-api"},
-			"truncated": false,
-		},
-		map[string]any{
-			"touched_symbols": []map[string]any{{
-				"entity_id": "entity-auth",
-				"source_handle": map[string]any{
-					"entity_id": "entity-auth",
-				},
-			}},
-			"coverage":  map[string]any{"query_shape": "content_topic_and_changed_path_surface"},
-			"truncated": false,
-		},
-		[]map[string]any{{
-			"id":     "repo-payments",
-			"name":   "payments",
-			"labels": []string{"Repository"},
-			"depth":  1,
-		}},
-		false,
-	)
-	assertAnswerMetadata(t, "change surface", changeSurface)
+	querytestutil.AssertAnswerMetadata(t, "code topic", codeTopic)
 
 	incident := BuildIncidentContextResponse(IncidentContextSnapshot{
 		Query: IncidentContextQuery{ProviderIncidentID: "INC-1", Limit: 1},
@@ -91,8 +62,8 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 		},
 		Truncated: true,
 	})
-	if incident.AnswerMetadata.SchemaVersion != answerMetadataSchemaVersion {
-		t.Fatalf("incident answer_metadata schema_version = %q, want %q", incident.AnswerMetadata.SchemaVersion, answerMetadataSchemaVersion)
+	if incident.AnswerMetadata.SchemaVersion != querycontract.AnswerMetadataSchemaVersion {
+		t.Fatalf("incident answer_metadata schema_version = %q, want %q", incident.AnswerMetadata.SchemaVersion, querycontract.AnswerMetadataSchemaVersion)
 	}
 	if !incident.AnswerMetadata.Truncated {
 		t.Fatal("incident answer_metadata.truncated = false, want true")
@@ -113,7 +84,7 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 		false,
 		false,
 	)
-	assertAnswerMetadata(t, "environment comparison", environment)
+	querytestutil.AssertAnswerMetadata(t, "environment comparison", environment)
 }
 
 func TestNewAnswerPacketFromMetadataConsumesNormalizedShape(t *testing.T) {
@@ -121,7 +92,7 @@ func TestNewAnswerPacketFromMetadataConsumesNormalizedShape(t *testing.T) {
 
 	data := map[string]any{
 		"answer_metadata": AnswerMetadata{
-			SchemaVersion: answerMetadataSchemaVersion,
+			SchemaVersion: querycontract.AnswerMetadataSchemaVersion,
 			EvidenceHandles: []map[string]any{{
 				"kind":          "entity",
 				"entity_id":     "entity-auth",
@@ -183,39 +154,5 @@ func TestNewAnswerPacketFromMetadataConsumesNormalizedShape(t *testing.T) {
 	}
 	if len(packet.Limitations) == 0 {
 		t.Fatal("packet.Limitations is empty, want metadata limitation reason")
-	}
-}
-
-func assertAnswerMetadata(t *testing.T, name string, data map[string]any) {
-	t.Helper()
-
-	raw, ok := data["answer_metadata"]
-	if !ok {
-		t.Fatalf("%s missing answer_metadata: %#v", name, data)
-	}
-	metadata, ok := raw.(AnswerMetadata)
-	if !ok {
-		t.Fatalf("%s answer_metadata type = %T, want AnswerMetadata", name, raw)
-	}
-	if metadata.SchemaVersion != answerMetadataSchemaVersion {
-		t.Fatalf("%s schema_version = %q, want %q", name, metadata.SchemaVersion, answerMetadataSchemaVersion)
-	}
-	if metadata.Coverage == nil {
-		t.Fatalf("%s coverage is nil", name)
-	}
-	if metadata.EvidenceHandles == nil {
-		t.Fatalf("%s evidence_handles is nil", name)
-	}
-	if metadata.MissingEvidence == nil {
-		t.Fatalf("%s missing_evidence is nil", name)
-	}
-	if metadata.Limitations == nil {
-		t.Fatalf("%s limitations is nil", name)
-	}
-	if metadata.PartialReasons == nil {
-		t.Fatalf("%s partial_reasons is nil", name)
-	}
-	if metadata.RecommendedNextCalls == nil {
-		t.Fatalf("%s recommended_next_calls is nil", name)
 	}
 }

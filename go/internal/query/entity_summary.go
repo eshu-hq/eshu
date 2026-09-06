@@ -6,6 +6,8 @@ package query
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func buildEntitySemanticSummary(entity map[string]any) string {
@@ -433,17 +435,10 @@ func primaryEntityLabel(entity map[string]any) string {
 	return labels[0]
 }
 
+// joinSentenceFragments joins parts in English prose style. The implementation
+// moved to querycontract for #6060; this wrapper keeps root callers unchanged.
 func joinSentenceFragments(parts []string) string {
-	switch len(parts) {
-	case 0:
-		return ""
-	case 1:
-		return parts[0]
-	case 2:
-		return parts[0] + " and " + parts[1]
-	default:
-		return strings.Join(parts[:len(parts)-1], ", ") + ", and " + parts[len(parts)-1]
-	}
+	return querycontract.JoinSentenceFragments(parts)
 }
 
 func humanizeSemanticValue(value string) string {

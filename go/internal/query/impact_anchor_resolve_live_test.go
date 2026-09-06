@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -70,14 +71,16 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 		map[string]any{"s": srcID, "m": midID, "t": tgtID})
 
 	// Capture the OLD label-disjunction anchor (matches zero rows) for evidence.
-	oldAnchor, _ := reader.Run(ctx, "MATCH (n:"+impactAnchorLabelDisjunction+") WHERE n.id = $id RETURN n.id AS id", map[string]any{"id": srcID})
+	oldAnchor, _ := reader.Run(ctx, "MATCH (n:"+impacttrace.ImpactAnchorLabelDisjunction+") WHERE n.id = $id RETURN n.id AS id", map[string]any{"id": srcID})
 	t.Logf("OLD label-disjunction anchor rows: %d (want 0 — broken)", len(oldAnchor))
 
-	post := func(path, body string, fn http.HandlerFunc) map[string]any {
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	post := func(path, body string) map[string]any {
 		req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 		req.Header.Set("Accept", EnvelopeMIMEType)
 		rec := httptest.NewRecorder()
-		fn(rec, req)
+		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("%s status = %d, body=%s", path, rec.Code, rec.Body.String())
 		}
@@ -92,7 +95,7 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 	}
 
 	// trace-resource-to-code: src -> tgt (Repository) at depth 2 with 2 hops.
-	trace := post("/api/v0/impact/trace-resource-to-code", `{"start":"`+srcID+`","max_depth":8,"limit":50}`, handler.traceResourceToCode)
+	trace := post("/api/v0/impact/trace-resource-to-code", `{"start":"`+srcID+`","max_depth":8,"limit":50}`)
 	if start, _ := trace["start"].(map[string]any); StringVal(start, "id") != srcID {
 		t.Errorf("trace start = %#v, want %s", trace["start"], srcID)
 	}
@@ -111,7 +114,7 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 
 	// Name resolution: callers may pass the node name, not the canonical id. The
 	// start seed is named "src"; tracing by name must resolve to the same node.
-	traceByName := post("/api/v0/impact/trace-resource-to-code", `{"start":"src","limit":50}`, handler.traceResourceToCode)
+	traceByName := post("/api/v0/impact/trace-resource-to-code", `{"start":"src","limit":50}`)
 	if start, _ := traceByName["start"].(map[string]any); StringVal(start, "id") != srcID {
 		t.Errorf("trace by name start = %#v, want resolved to %s", traceByName["start"], srcID)
 	}
@@ -120,7 +123,7 @@ func TestLiveByIdImpactAnchorReads(t *testing.T) {
 	}
 
 	// explain-dependency-path: src -> tgt, shortest path length 2, 2 hops.
-	explain := post("/api/v0/impact/explain-dependency-path", `{"source":"`+srcID+`","target":"`+tgtID+`"}`, handler.explainDependencyPath)
+	explain := post("/api/v0/impact/explain-dependency-path", `{"source":"`+srcID+`","target":"`+tgtID+`"}`)
 	pathInfo, ok := explain["path"].(map[string]any)
 	if !ok {
 		t.Fatalf("explain missing path: %#v", explain)

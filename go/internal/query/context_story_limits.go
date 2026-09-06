@@ -6,12 +6,17 @@ package query
 import (
 	"slices"
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // contextStoryItemLimit bounds relationship and instance fan-out attached to
 // entity and workload context/story payloads so a single prompt-ready read
-// stays within the route budget and exposes truncation explicitly.
-const contextStoryItemLimit = 50
+// stays within the route budget and exposes truncation explicitly. The value
+// moved to querycontract for #6060 so the impact handler-family subpackages
+// can share it without importing this package; this alias keeps root callers
+// unchanged.
+const contextStoryItemLimit = querycontract.ContextStoryItemLimit
 
 // entityContextResultLimits builds the shared result_limits drilldown block for
 // an entity context payload. It caps the relationships fan-out in place,
