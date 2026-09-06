@@ -130,7 +130,7 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 // BrowserSessionRoutePolicy.AllowTenantBoundAllScopes (local_no_policy,
 // hosted_single_tenant, unset); access.Scoped() is false for it, so it takes
 // the unscoped branch below and reads the lineage, exactly as it does on every
-// other route outside the scoped-token allowlist. This fence is
+// other route of the pending row-filtering ledger. This fence is
 // the first half of the route's promotion and it ships now, tested, so the
 // half that is left is only the schema work in #6475 (see the aged-out gap
 // below). Read every "scoped caller" sentence here as what happens once that
