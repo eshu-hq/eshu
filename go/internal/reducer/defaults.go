@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -434,21 +435,21 @@ type DefaultHandlers struct {
 	// GraphProjectionPhasePublisher so the later network-reachability edge slice
 	// (#1135 PR2b) can gate on it exactly like the AWS relationship edge gates on
 	// the CloudResource node phase (#805).
-	SecurityGroupEndpointNodeWriter SecurityGroupEndpointNodeWriter
+	SecurityGroupEndpointNodeWriter secgroup.SecurityGroupEndpointNodeWriter
 
 	// SecurityGroupRuleNodeWriter materializes aws_security_group_rule facts into
 	// canonical port-precise :SecurityGroupRule graph nodes and (via the handler)
 	// publishes the rule-uid canonical-nodes phase the edge slice gates on (issue
 	// #1135 PR2b, Option D). Required alongside FactLoader to register
 	// DomainSecurityGroupRuleMaterialization.
-	SecurityGroupRuleNodeWriter SecurityGroupRuleNodeWriter
+	SecurityGroupRuleNodeWriter secgroup.SecurityGroupRuleNodeWriter
 
 	// SecurityGroupReachabilityWriter projects aws_security_group_rule facts into
 	// the Option D reachability edges (SecurityGroup -> rule ALLOWS_INGRESS/EGRESS,
 	// rule -[:TO]-> endpoint). Required alongside FactLoader to register
 	// DomainSecurityGroupReachabilityMaterialization; the handler gates on the rule,
 	// endpoint, and SG node keyspaces via ReadinessLookup (#1135 PR2b).
-	SecurityGroupReachabilityWriter SecurityGroupReachabilityWriter
+	SecurityGroupReachabilityWriter secgroup.SecurityGroupReachabilityWriter
 
 	// IAMEscalationEdgeWriter projects merged aws_iam_permission facts into
 	// conservative IAM CAN_ESCALATE_TO privilege-escalation edges between IAM

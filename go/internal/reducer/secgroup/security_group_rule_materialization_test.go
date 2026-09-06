@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // recordingSecurityGroupRuleNodeWriter captures the rule-node write so tests can
@@ -31,21 +33,21 @@ func (w *recordingSecurityGroupRuleNodeWriter) WriteSecurityGroupRuleNodes(
 // recordingPhasePublisher captures published readiness phases so tests can assert
 // the node handler publishes the rule-uid canonical-nodes phase.
 type recordingPhasePublisher struct {
-	states []GraphProjectionPhaseState
+	states []gpphase.PhaseState
 	err    error
 }
 
-func (p *recordingPhasePublisher) PublishGraphProjectionPhases(_ context.Context, states []GraphProjectionPhaseState) error {
+func (p *recordingPhasePublisher) PublishGraphProjectionPhases(_ context.Context, states []gpphase.PhaseState) error {
 	p.states = append(p.states, states...)
 	return p.err
 }
 
-func securityGroupRuleIntent() Intent {
-	return Intent{
+func securityGroupRuleIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-sg-rule-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSecurityGroupRuleMaterialization,
+		Domain:       reducercontract.DomainSecurityGroupRuleMaterialization,
 		EntityKeys:   []string{"aws_resource_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -60,7 +62,7 @@ func TestSecurityGroupRuleMaterializationRejectsMismatchedDomain(t *testing.T) {
 		NodeWriter: &recordingSecurityGroupRuleNodeWriter{},
 	}
 	intent := securityGroupRuleIntent()
-	intent.Domain = DomainSQLRelationshipMaterialization
+	intent.Domain = reducercontract.DomainSQLRelationshipMaterialization
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -106,10 +108,10 @@ func TestSecurityGroupRuleMaterializationWritesNodesAndPublishesPhase(t *testing
 		t.Fatalf("expected exactly one published phase, got %d", len(publisher.states))
 	}
 	state := publisher.states[0]
-	if state.Key.Keyspace != GraphProjectionKeyspaceSecurityGroupRuleUID {
+	if state.Key.Keyspace != gpphase.KeyspaceSecurityGroupRuleUID {
 		t.Fatalf("phase keyspace = %q, want security_group_rule_uid", state.Key.Keyspace)
 	}
-	if state.Phase != GraphProjectionPhaseCanonicalNodesCommitted {
+	if state.Phase != gpphase.PhaseCanonicalNodesCommitted {
 		t.Fatalf("phase = %q, want canonical_nodes_committed", state.Phase)
 	}
 }

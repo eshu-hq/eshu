@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
 import (
 	"sort"
@@ -10,6 +10,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -57,7 +61,7 @@ type SecurityGroupReachabilityResult struct {
 	// Quarantined carries the facts skipped as input_invalid during decode (a
 	// missing required identity field), so the handler emits a visible per-fact
 	// dead-letter while the valid facts still project.
-	Quarantined []quarantinedFact
+	Quarantined []factdecode.QuarantinedFact
 }
 
 // securityGroupReachabilityTally is the honest accounting surface for skipped
@@ -99,7 +103,7 @@ func ExtractSecurityGroupReachability(
 		return result, nil
 	}
 
-	index, quarantined, err := buildCloudResourceJoinIndex(resourceEnvelopes)
+	index, quarantined, err := cloudjoin.BuildCloudResourceJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return SecurityGroupReachabilityResult{}, err
 	}
@@ -118,9 +122,9 @@ func ExtractSecurityGroupReachability(
 			continue
 		}
 
-		rule, err := decodeAWSSecurityGroupRule(env)
+		rule, err := schemadecode.DecodeAWSSecurityGroupRule(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return SecurityGroupReachabilityResult{}, fatal
 			}
@@ -226,11 +230,11 @@ func ExtractSecurityGroupReachability(
 // and confirms it is a materialized node in this scope generation. It returns
 // ok=false when the group was not scanned, so an unresolved anchor degrades
 // gracefully instead of dangling against a node that does not exist.
-func resolveSecurityGroupNode(index cloudResourceJoinIndex, accountID, region, groupID string) (string, bool) {
+func resolveSecurityGroupNode(index cloudjoin.CloudResourceJoinIndex, accountID, region, groupID string) (string, bool) {
 	if groupID == "" {
 		return "", false
 	}
-	uid := cloudResourceUID(accountID, region, securityGroupRuleResourceType, groupID)
+	uid := cloudjoin.CloudResourceUID(accountID, region, securityGroupRuleResourceType, groupID)
 	if _, ok := index.ByResourceID[groupID]; ok {
 		// The bare group id is the resource_id the EC2 scanner emits, so a hit
 		// confirms the node committed. The recomputed uid is byte-identical to the
@@ -248,7 +252,7 @@ func resolveSecurityGroupNode(index cloudResourceJoinIndex, accountID, region, g
 // referenced group that was not scanned returns ok=false so the edge degrades
 // gracefully rather than fabricating an endpoint.
 func resolveSecurityGroupRuleEndpoint(
-	index cloudResourceJoinIndex,
+	index cloudjoin.CloudResourceJoinIndex,
 	rule awsv1.SecurityGroupRule,
 ) (string, string, bool) {
 	switch rule.SourceKind {
@@ -414,8 +418,8 @@ func sortReachabilitySGEdges(byKey map[string]map[string]any) []map[string]any {
 		return nil
 	}
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["relationship_type"]) + ":" + anyToString(rows[a]["sg_uid"]) + "->" + anyToString(rows[a]["rule_uid"])
-		right := anyToString(rows[b]["relationship_type"]) + ":" + anyToString(rows[b]["sg_uid"]) + "->" + anyToString(rows[b]["rule_uid"])
+		left := payloadcore.AnyToString(rows[a]["relationship_type"]) + ":" + payloadcore.AnyToString(rows[a]["sg_uid"]) + "->" + payloadcore.AnyToString(rows[a]["rule_uid"])
+		right := payloadcore.AnyToString(rows[b]["relationship_type"]) + ":" + payloadcore.AnyToString(rows[b]["sg_uid"]) + "->" + payloadcore.AnyToString(rows[b]["rule_uid"])
 		return left < right
 	})
 	return rows
@@ -429,8 +433,8 @@ func sortReachabilityToEdges(byKey map[string]map[string]any) []map[string]any {
 		return nil
 	}
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["rule_uid"]) + "->" + anyToString(rows[a]["target_label"]) + ":" + anyToString(rows[a]["target_uid"])
-		right := anyToString(rows[b]["rule_uid"]) + "->" + anyToString(rows[b]["target_label"]) + ":" + anyToString(rows[b]["target_uid"])
+		left := payloadcore.AnyToString(rows[a]["rule_uid"]) + "->" + payloadcore.AnyToString(rows[a]["target_label"]) + ":" + payloadcore.AnyToString(rows[a]["target_uid"])
+		right := payloadcore.AnyToString(rows[b]["rule_uid"]) + "->" + payloadcore.AnyToString(rows[b]["target_label"]) + ":" + payloadcore.AnyToString(rows[b]["target_uid"])
 		return left < right
 	})
 	return rows

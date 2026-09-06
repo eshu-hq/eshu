@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package secgroup
 
 import (
 	"context"
@@ -14,6 +14,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -48,16 +53,17 @@ const (
 	securityGroupSkipUnknownSource      = "unknown_source"
 )
 
-// securityGroupReachabilityMaterializationDomainDefinition returns the additive
-// definition for the security-group network-reachability edge projection. It is
-// additive (not part of DefaultDomainDefinitions) because the handler requires an
-// explicitly wired SecurityGroupReachabilityWriter and FactLoader; registering it
-// without them would silently drop every reachability intent. See issue #1135.
-func securityGroupReachabilityMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainSecurityGroupReachabilityMaterialization,
+// ReachabilityMaterializationDomainDefinition returns the additive definition
+// for the security-group network-reachability edge projection. It is additive
+// (not part of DefaultDomainDefinitions) because the handler requires an
+// explicitly wired SecurityGroupReachabilityWriter and FactLoader; registering
+// it without them would silently drop every reachability intent. See issue
+// #1135.
+func ReachabilityMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainSecurityGroupReachabilityMaterialization,
 		Summary: "project aws_security_group_rule facts into the Option D network-reachability graph (SecurityGroupRule nodes + ALLOWS_INGRESS/EGRESS + TO edges)",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -96,10 +102,10 @@ type SecurityGroupReachabilityWriter interface {
 // and logging. An edge may only resolve once the rule nodes, the CIDR/prefix
 // endpoint nodes, AND the SG CloudResource nodes have all committed for this
 // scope generation.
-var securityGroupReachabilityGateKeyspaces = []GraphProjectionKeyspace{
-	GraphProjectionKeyspaceSecurityGroupRuleUID,
-	GraphProjectionKeyspaceSecurityGroupEndpointUID,
-	GraphProjectionKeyspaceCloudResourceUID,
+var securityGroupReachabilityGateKeyspaces = []gpphase.Keyspace{
+	gpphase.KeyspaceSecurityGroupRuleUID,
+	gpphase.KeyspaceSecurityGroupEndpointUID,
+	gpphase.KeyspaceCloudResourceUID,
 }
 
 // SecurityGroupReachabilityMaterializationHandler reduces one reachability
@@ -111,16 +117,16 @@ var securityGroupReachabilityGateKeyspaces = []GraphProjectionKeyspace{
 // edges so each edge has a committed node to MATCH, and counts unresolved/unknown
 // rules instead of dropping them silently.
 type SecurityGroupReachabilityMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	Writer     SecurityGroupReachabilityWriter
 	// ReadinessLookup reports whether a canonical-nodes-committed phase has been
 	// published for the intent's scope generation on a given keyspace. A nil lookup
 	// keeps the gate open (test wiring); production wires the durable Postgres
 	// lookup.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation. Nil
 	// keeps retract behavior conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	// Ledger records and enumerates the source uids of projected reachability
 	// edges — the union of SG CloudResource uids (SG->rule edge source) and
 	// SecurityGroupRule uids (rule->endpoint edge source) — so retraction can
@@ -128,7 +134,7 @@ type SecurityGroupReachabilityMaterializationHandler struct {
 	// scanning the whole :CloudResource / :SecurityGroupRule labels (issue
 	// #4858, #4881). Nil preserves the pre-ledger whole-scope retract
 	// (RetractSecurityGroupReachability).
-	Ledger      ProjectedSourceLedger
+	Ledger      reducercontract.ProjectedSourceLedger
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 }
@@ -136,20 +142,20 @@ type SecurityGroupReachabilityMaterializationHandler struct {
 // Handle executes one security-group reachability materialization intent.
 func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainSecurityGroupReachabilityMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainSecurityGroupReachabilityMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"security group reachability materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("security group reachability materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("security group reachability materialization fact loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("security group reachability materialization writer is required")
+		return reducercontract.Result{}, fmt.Errorf("security group reachability materialization writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -169,7 +175,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 	// not yet published, the intent re-enters the durable queue (retryable) rather
 	// than writing edges against a node set that does not exist yet.
 	if notReady := h.firstNotReadyKeyspace(intent); notReady != "" {
-		return Result{}, securityGroupReachabilityNotReadyError{
+		return reducercontract.Result{}, securityGroupReachabilityNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 			keyspace:     notReady,
@@ -177,7 +183,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -185,7 +191,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 		[]string{facts.AWSResourceFactKind, facts.AWSSecurityGroupRuleFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for security group reachability materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for security group reachability materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -197,27 +203,27 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load, unsupported major, or other
 		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
 		// whole intent so the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource/aws_security_group_rule fact
 	// (a missing required identity field) is quarantined as a visible
 	// input_invalid dead-letter — counter + structured error log — while the
 	// batch's valid facts still project below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainSecurityGroupReachabilityMaterialization, intent.ScopeID, intent.GenerationID, reach.Quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainSecurityGroupReachabilityMaterialization, intent.ScopeID, intent.GenerationID, reach.Quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	retractDuration, err := h.retractPriorGeneration(ctx, intent, skipRetract)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	writeStart := time.Now()
 	if err := h.writeReachability(ctx, intent, reach); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	writeDuration := time.Since(writeStart)
 
@@ -239,10 +245,10 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 	})
 
 	canonicalWrites := len(reach.RuleNodes) + len(reach.SGRuleEdges) + len(reach.RuleEndpointEdges)
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainSecurityGroupReachabilityMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainSecurityGroupReachabilityMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d security group rule node(s) + %d sg-rule edge(s) + %d rule-endpoint edge(s) from %d rule fact(s); %d skipped, %d input_invalid fact(s) quarantined",
 			len(reach.RuleNodes),
@@ -253,7 +259,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: canonicalWrites,
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -265,7 +271,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) Handle(
 // prunes the ledger; otherwise it falls back to the pre-ledger whole-scope
 // retract (RetractSecurityGroupReachability).
 func (h SecurityGroupReachabilityMaterializationHandler) retractPriorGeneration(
-	ctx context.Context, intent Intent, skipRetract bool,
+	ctx context.Context, intent reducercontract.Intent, skipRetract bool,
 ) (time.Duration, error) {
 	if skipRetract {
 		return 0, nil
@@ -304,7 +310,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) retractPriorGeneration(
 // The node write and both edge writes are each idempotent by uid, so a retry
 // after a partial failure converges on the same graph.
 func (h SecurityGroupReachabilityMaterializationHandler) writeReachability(
-	ctx context.Context, intent Intent, reach SecurityGroupReachabilityResult,
+	ctx context.Context, intent reducercontract.Intent, reach SecurityGroupReachabilityResult,
 ) error {
 	if len(reach.RuleNodes) > 0 {
 		if err := h.Writer.WriteSecurityGroupRuleNodes(ctx, reach.RuleNodes, securityGroupReachabilityEvidenceSource); err != nil {
@@ -313,8 +319,8 @@ func (h SecurityGroupReachabilityMaterializationHandler) writeReachability(
 	}
 	if h.Ledger != nil {
 		uids := append(
-			sourceUIDsFromRowsByKey(reach.SGRuleEdges, "sg_uid"),
-			sourceUIDsFromRowsByKey(reach.RuleEndpointEdges, "rule_uid")...,
+			payloadcore.SourceUIDsFromRowsByKey(reach.SGRuleEdges, "sg_uid"),
+			payloadcore.SourceUIDsFromRowsByKey(reach.RuleEndpointEdges, "rule_uid")...,
 		)
 		if len(uids) > 0 {
 			if err := h.Ledger.RecordProjectedSources(
@@ -342,17 +348,17 @@ func (h SecurityGroupReachabilityMaterializationHandler) writeReachability(
 // generation, or "" when all three are ready. A nil ReadinessLookup keeps the
 // gate open for test wiring. The phase key is derived the same way each node
 // materializer publishes it, so the lookup matches the published row.
-func (h SecurityGroupReachabilityMaterializationHandler) firstNotReadyKeyspace(intent Intent) GraphProjectionKeyspace {
+func (h SecurityGroupReachabilityMaterializationHandler) firstNotReadyKeyspace(intent reducercontract.Intent) gpphase.Keyspace {
 	if h.ReadinessLookup == nil {
 		return ""
 	}
 	now := time.Now().UTC()
 	for _, keyspace := range securityGroupReachabilityGateKeyspaces {
-		state, ok := graphProjectionPhaseStateForIntent(intent, keyspace, GraphProjectionPhaseCanonicalNodesCommitted, now)
+		state, ok := gpphase.StateForIntentValue(intent, keyspace, gpphase.PhaseCanonicalNodesCommitted, now)
 		if !ok {
 			return keyspace
 		}
-		ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+		ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 		if !found || !ready {
 			return keyspace
 		}
@@ -364,7 +370,7 @@ func (h SecurityGroupReachabilityMaterializationHandler) firstNotReadyKeyspace(i
 // domains: skip the prior-edge retract on the very first generation for a scope
 // (no prior edges to remove) and only on the first attempt, so a retried attempt
 // still cleans up a partial prior write.
-func (h SecurityGroupReachabilityMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h SecurityGroupReachabilityMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -426,7 +432,7 @@ func splitSecurityGroupReachabilityEnvelopes(envelopes []facts.Envelope) (resour
 // so the completion log identifies fact-load, extraction, retract, and graph-write
 // time, plus why rules lost edges.
 type securityGroupReachabilityTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	resourceCount   int
 	ruleCount       int
 	ruleNodeCount   int

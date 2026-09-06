@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
@@ -187,7 +188,7 @@ func seedReducerProjectedSourceLedgers(database postgres.ExecQueryer, graphReade
 			reducer.AzureRelationshipEvidenceSource(),
 			reducer.GCPRelationshipEvidenceSource(),
 			reducer.ObservabilityCoverageEvidenceSource(),
-			reducer.SecurityGroupReachabilityEvidenceSource(),
+			secgroup.SecurityGroupReachabilityEvidenceSource(),
 		},
 	}
 	if err := projectedSourceEdgeBackfiller.Run(context.Background()); err != nil {
