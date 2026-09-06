@@ -27,6 +27,16 @@
 // typescript one counted one file instead of two, so it is asked the same
 // questions here.
 //
+// The entity builder reads the language from the entity first and from its
+// File second (`e.language IN $languages OR f.language IN $languages`),
+// because a few entity kinds are projected without their own `language`. One
+// Function in this fixture is seeded with no `language` property at all, under
+// the Python file, so the left disjunct is evaluated against a missing
+// property on this build. A python entity query must reach it through the
+// File's language and report that language for it; a go entity query must
+// not, which is the row that would leak if a missing-property `IN` evaluated
+// as true the way ENDS WITH did.
+//
 // The fixture is shaped to stay out of the grant proof's way, since both run
 // under one build tag against one store. The grant proof's unscoped controls
 // take a page of two or three rows and require every row to belong to the
@@ -55,6 +65,13 @@ const (
 	liveMixedRepo   = "repo://live-mixed/polyglot"
 	liveMixedMarker = "live-mixed"
 	liveMixedDir    = "zz-mixed"
+
+	// liveMixedUntaggedFile carries the Function seeded without a `language`
+	// property; liveMixedUntaggedLanguage is that file's own language, the
+	// only one the entity builder can read for it.
+	liveMixedUntaggedFile     = "gamma.py"
+	liveMixedUntaggedLanguage = "python"
+	liveMixedUntaggedName     = "mixed_untagged"
 )
 
 // liveMixedFile is one seeded file: its name, and the `language` value the
@@ -157,6 +174,64 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 			t.Fatalf("Directory go counted %d file(s), want %d; a count of %d means every file was admitted regardless of language", got, want, len(liveMixedFiles))
 		}
 	})
+
+	// The Function without a `language` property answers through its File's
+	// language and nothing else. Both cases run the shipped entity text, so
+	// the missing-property `IN` is executed on this build in both the
+	// admitting and the excluding position.
+	untaggedID := liveMixedUntaggedFunctionID()
+	t.Run("Function python reaches the untagged function through its file", func(t *testing.T) {
+		name := "Function " + liveMixedUntaggedLanguage
+		cypher, params := buildLanguageCypherWithSemanticFilter(
+			liveMixedUntaggedLanguage, "Function", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
+		)
+		rows := runLiveGrantStatement(ctx, t, driver, name, cypher, params)
+		if got, want := liveMixedEntityNames(rows), []string{"mixed_" + liveMixedUntaggedLanguage, liveMixedUntaggedName}; !slices.Equal(got, want) {
+			t.Fatalf("%s returned entities %v, want exactly %v; the untagged one is missing when the builder does not fall back to f.language", name, got, want)
+		}
+		for _, row := range rows {
+			if StringVal(row, "entity_id") != untaggedID {
+				continue
+			}
+			if got := StringVal(row, "language"); got != liveMixedUntaggedLanguage {
+				t.Fatalf("%s reported language %q for the untagged function, want its file's %q", name, got, liveMixedUntaggedLanguage)
+			}
+			if got := StringVal(row, "file_path"); !strings.HasSuffix(got, "/"+liveMixedUntaggedFile) {
+				t.Fatalf("%s placed the untagged function in %q, want %s", name, got, liveMixedUntaggedFile)
+			}
+		}
+	})
+	t.Run("Function go excludes the untagged function", func(t *testing.T) {
+		cypher, params := buildLanguageCypherWithSemanticFilter(
+			"go", "Function", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
+		)
+		rows := runLiveGrantStatement(ctx, t, driver, "Function go", cypher, params)
+		for _, row := range rows {
+			if StringVal(row, "entity_id") == untaggedID {
+				t.Fatalf("Function go returned the untagged function %s under %s; a missing e.language must not satisfy IN $languages", untaggedID, StringVal(row, "file_path"))
+			}
+		}
+		if got, want := liveMixedFileNames(rows), []string{"alpha.go", "beta.go"}; !slices.Equal(got, want) {
+			t.Fatalf("Function go returned files %v, want exactly %v", got, want)
+		}
+	})
+}
+
+// liveMixedUntaggedFunctionID is the uid and id of the Function seeded without
+// a `language` property. It differs from the per-file `fn:` id so the two
+// Functions under the same file stay distinct rows.
+func liveMixedUntaggedFunctionID() string {
+	return "fn-untagged:/live/" + liveMixedMarker + "/" + liveMixedDir + "/" + liveMixedUntaggedFile
+}
+
+// liveMixedEntityNames reduces an entity page to its sorted entity names.
+func liveMixedEntityNames(rows []map[string]any) []string {
+	names := make([]string, 0, len(rows))
+	for _, row := range rows {
+		names = append(names, StringVal(row, "name"))
+	}
+	sort.Strings(names)
+	return names
 }
 
 // liveMixedFileNames reduces a page to the sorted base names of the files it
@@ -207,6 +282,14 @@ func seedLiveMixedGraph(ctx context.Context, t *testing.T, driver neo4jdriver.Dr
 				filePath, function, function, "mixed_"+file.language, file.language, file.language, liveMixedRepo),
 		)
 	}
+	// One Function with no `language` (and no `lang`) property at all, under
+	// the Python file: the builder can only reach it through f.language.
+	untaggedPath := dirPath + "/" + liveMixedUntaggedFile
+	untagged := liveMixedUntaggedFunctionID()
+	statements = append(statements,
+		fmt.Sprintf(`MATCH (f:File {path:%q}) MERGE (n:Function {uid:%q}) SET n.id=%q, n.name=%q, n.repo_id=%q, n.start_line=1, n.end_line=2 MERGE (f)-[:CONTAINS]->(n)`,
+			untaggedPath, untagged, untagged, liveMixedUntaggedName, liveMixedRepo),
+	)
 	for _, stmt := range statements {
 		if _, err := session.Run(ctx, stmt, nil); err != nil {
 			t.Fatalf("seed statement %q: %v", stmt, err)

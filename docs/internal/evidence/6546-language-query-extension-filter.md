@@ -58,7 +58,8 @@ form exceeds the route's graph-read deadline, so neither was pursued.
 `go/internal/query/language_query_mixed_language_nornicdb_live_test.go::TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage`
 seeds one repository holding `alpha.go`, `beta.go`, `gamma.py`, `delta.tsx`
 (language `tsx`), `epsilon.cs` (`c_sharp`), `zeta.ts` and `eta.hcl`, with one
-Function per file, and asks each builder for one language.
+Function per file plus a second Function under `gamma.py` seeded with no
+`language` property, and asks each builder for one language.
 
 Before the change, every File and entity case returned all seven files, the
 Directory case counted 7, and the Repository builder, run against the same
@@ -75,7 +76,19 @@ After it, `File go` and `Function go` return 2 rows, `File python` 1,
 `File typescript` and `Function typescript` 2 (`delta.tsx`, `zeta.ts`),
 `File csharp` 1, `File hcl` 1, `Directory go` counts 2, and `Repository go`,
 `Repository csharp` and `Repository typescript` each return the one repository
-with `file_count` 2, 1 and 2. The whole
+with `file_count` 2, 1 and 2.
+
+The entity builder's `e.language IN $languages OR f.language IN $languages`
+is measured on the missing-property side as well, since its left disjunct is
+there for the entity kinds projected without their own `language`. The
+Function seeded without one answers `Function python` through the File's
+language (the case returns the entity names `mixed_python` and
+`mixed_untagged`, and reports `python` for the untagged row), and `Function go`
+returns `alpha.go` and `beta.go` without it. So on this build a missing
+property under `IN` neither admits the row nor errors. Dropping the
+`f.language` disjunct from the builder makes the python case fail with
+`returned entities [mixed_python], want exactly [mixed_python mixed_untagged]`,
+which is how the case was shown to exercise that disjunct. The whole
 `live_nornicdb_language_imports_grant` suite, grant squeezes included, passes
 against the same store (`go test ./internal/query -tags
 live_nornicdb_language_imports_grant -run TestLiveNornicDB -count=1`, exit 0).

@@ -163,4 +163,10 @@ store where the one-clause form answered in 2.8 ms. The measurement table is in
 TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage -count=1` against a
 standalone pinned container seeds one polyglot repository and asks each builder
 for one language at a time; before the change every case returned all seven
-files, after it each returns exactly the files of the language asked for.
+files, after it each returns exactly the files of the language asked for. The
+entity builder's fallback is measured too: the fixture holds one Function with
+no `language` property under the Python file, so `e.language IN $languages`
+is evaluated against a missing property on this build. A python entity query
+returns that Function through `f.language IN $languages` and reports `python`
+for it, and a go entity query leaves it out, so a missing-property `IN` is
+neither true nor an error here, unlike the string operators above.
