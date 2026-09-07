@@ -197,6 +197,13 @@ your recovery objective against that. What the row does commit to is the relativ
 rule: a same-corpus rebuild that regresses more than 10 percent against your
 accepted baseline is a regression to investigate.
 
+Recorded decision (#6184): the fixture-scale number is all this metric carries.
+Reason: a bound needs repeated runs on one fixed definition at scale-lab size,
+and that measurement is a scale-lab task, not something a fixture corpus on a
+developer laptop can answer. A future scale-lab-slot measurement published from
+that environment replaces this paragraph; until then, do not read the 341 s
+single sample as a bound.
+
 No-Regression Evidence: first measurement of this operation — 26 s for 67 scopes
 and 3,866 `fact_records` on NornicDB `eshu-nornicdb-pr290:3722b483c02c`, queue
 terminal with zero retrying and zero dead-letter rows, full conditions and

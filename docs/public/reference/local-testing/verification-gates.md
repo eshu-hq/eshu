@@ -169,6 +169,22 @@ acceptance evidence.
 ./scripts/verify-graph-rebuild-from-facts.sh
 ```
 
+> **Advisory known-bad:** `verify-graph-rebuild-from-facts.sh` **does not
+> pass today** on the established-cause failures — the `MATCH`-only `CALLS`
+> edge write, the resolver ordering, the `Module` key (the documented known
+> state in `docs/internal/evidence/4594-graph-rebuild-from-facts.md`). The
+> intermittent `HANDLES_ROUTE`/`RUNS_IN` mismatch keeps its standing caveat
+> (evidence item 1b): a regression from #6074/#6085 is not ruled out, so a
+> red result there stays a signal until diffed against that breakdown.
+> Proposed settlement (#6184; owner sign-off pending on the call #6098 left
+> open): the strict bidirectional-identity assertion stays as written, and
+> the engine fix behind it (the `MATCH`-only `CALLS` edge write and the
+> non-deterministic indexing broken down in
+> `docs/internal/evidence/4594-graph-rebuild-from-facts.md`) rides a future
+> graph-engine change with live Compose proof, tracked by #6184, rather than
+> this gate. Do not treat a red result here as a regression without diffing
+> it against that breakdown first.
+
 `verify-graph-rebuild-from-facts.sh` runs the disaster-recovery procedure rather
 than a single behavior: it indexes the corpus, snapshots the identity of every
 node and edge, wipes the graph volume with Postgres preserved, reapplies graph
