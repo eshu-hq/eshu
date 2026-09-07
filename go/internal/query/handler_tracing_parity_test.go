@@ -11,6 +11,7 @@ import (
 	"go/token"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"testing"
 )
 
@@ -22,9 +23,11 @@ import (
 // forking emitted spans. It parses each file and compares the printed AST
 // of the queryHandlerTracer var and the startQueryHandlerSpan func,
 // ignoring the package clause, imports, and comments (each copy carries
-// family-specific prose). Anything behavioral -- a differently seeded
-// tracer, a dropped attribute, a renamed span, a changed signature --
-// changes the printed declarations and fails this test.
+// family-specific prose), and it requires the top-level declaration name
+// sets to match exactly, so an added, removed, or renamed helper fails
+// too. Anything behavioral -- a differently seeded tracer, a dropped
+// attribute, a renamed span, a changed signature -- changes the printed
+// declarations and fails this test.
 func TestHandlerTracingCopiesStayBehaviorIdentical(t *testing.T) {
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
@@ -37,9 +40,19 @@ func TestHandlerTracingCopiesStayBehaviorIdentical(t *testing.T) {
 		"codeowners":  filepath.Join(root, "codeowners", "handler_tracing.go"),
 	}
 	want := tracingBehaviorDecls(t, copies["root"])
+	wantNames := tracingDeclNames(t, copies["root"])
 	for name, path := range copies {
 		if name == "root" {
 			continue
+		}
+		gotNames := tracingDeclNames(t, path)
+		if len(gotNames) != len(wantNames) {
+			t.Fatalf("%s handler_tracing.go declares %d top-level names %v, want %d %v", name, len(gotNames), gotNames, len(wantNames), wantNames)
+		}
+		for i, wantName := range wantNames {
+			if gotNames[i] != wantName {
+				t.Fatalf("%s handler_tracing.go top-level names %v, want %v", name, gotNames, wantNames)
+			}
 		}
 		got := tracingBehaviorDecls(t, path)
 		if len(got) != len(want) {
@@ -95,6 +108,39 @@ func tracingBehaviorDecls(t *testing.T, path string) map[string]string {
 		}
 	}
 	return decls
+}
+
+// tracingDeclNames returns the sorted names of every top-level function,
+// type, const, and var declared in path, so a helper added to (or removed
+// from) one copy fails the comparison even when the two pinned behavior
+// declarations still match.
+func tracingDeclNames(t *testing.T, path string) []string {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		t.Fatalf("parser.ParseFile(%s) error = %v", path, err)
+	}
+	var names []string
+	for _, decl := range file.Decls {
+		switch typed := decl.(type) {
+		case *ast.GenDecl:
+			for _, spec := range typed.Specs {
+				switch spec := spec.(type) {
+				case *ast.ValueSpec:
+					for _, name := range spec.Names {
+						names = append(names, name.Name)
+					}
+				case *ast.TypeSpec:
+					names = append(names, spec.Name.Name)
+				}
+			}
+		case *ast.FuncDecl:
+			names = append(names, typed.Name.Name)
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 func printTracingDecl(fset *token.FileSet, node ast.Node) string {
