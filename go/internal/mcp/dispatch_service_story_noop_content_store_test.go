@@ -52,6 +52,18 @@ func (mcpNoopContentStore) SearchEntitiesByName(context.Context, string, string,
 	return nil, nil
 }
 
+func (mcpNoopContentStore) SearchEntitiesByExactName(
+	context.Context, string, string, string, int,
+) ([]query.EntityContent, error) {
+	return nil, nil
+}
+
+func (mcpNoopContentStore) SearchEntitiesByExactNameAnyRepo(
+	context.Context, string, string, int,
+) ([]query.EntityContent, error) {
+	return nil, nil
+}
+
 func (mcpNoopContentStore) SearchEntitiesByNameAnyRepo(context.Context, string, string, int) ([]query.EntityContent, error) {
 	return nil, nil
 }

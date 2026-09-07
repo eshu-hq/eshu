@@ -193,6 +193,17 @@ answer `ambiguous` may now resolve. An ungranted `repo_id` returns `400`, and a
 token with no repository grants gets `"status": "not_found"` without either
 backend being read.
 
+Target-name resolution reads the name exactly. The lookup behind it was a
+substring read bounded by `limit`, so a repository holding more than `limit`
+symbols that merely contain the requested name -- `PaymentGatewayFactory`,
+`PaymentGatewayBuilder`, `PaymentGatewayAdapter` around a requested
+`PaymentGateway` -- filled the page with rows the route then discarded, and a
+symbol that exists answered `"status": "not_found"`. A client that saw that
+answer now gets the symbol. Substring matching is unchanged everywhere it is
+the feature, including `POST /api/v0/code/search` and
+`POST /api/v0/code/language-query`; a story request that also names `language`
+resolves through the language read and keeps that read's substring shape.
+
 Two optional, additive parameters help agents stay within a prompt budget:
 
 - `relationship_types` (array): a multi-type filter that supersedes the singular

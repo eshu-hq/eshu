@@ -140,12 +140,28 @@ func (h *CodeHandler) relationshipStoryCandidates(
 //   - language named: the shared grant-bound entity search, which pushes the
 //     granted repository ids into the statement's own WHERE when the store can
 //     take them and otherwise asks one granted repository at a time.
-//   - repo_id named: unchanged. applyRepositorySelectorForCapability already
-//     resolved it against the grant, so an ungranted one never reaches here.
+//   - repo_id named: applyRepositorySelectorForCapability already resolved it
+//     against the grant, so an ungranted one never reaches here.
 //   - neither: a scoped caller reads its granted repositories one at a time
 //     rather than the whole corpus, the same fallback shape
 //     symbolNameFallbackEntities (code_symbol.go) uses. An unscoped caller
 //     keeps the corpus-wide read.
+//
+// The two branches that carry no language ask for the target name EXACTLY
+// (#6555). They used to ask for it as a substring and let the caller discard
+// everything that was not the name, which is a page of rows spent on an
+// answer nobody wanted: a repository holding more than `limit` near-misses
+// -- PaymentGatewayFactory, PaymentGatewayBuilder, PaymentGatewayAdapter --
+// filled the page and left the exact PaymentGateway unread, and the route
+// answered not_found for a symbol in the caller's own granted repository.
+// #6553 gave each granted repository its own budget, which fixed the same
+// defect ACROSS repositories; it could not fix it inside one, because there
+// the page is full before the exact row is reached no matter how the budget
+// is divided.
+//
+// The language branch still reads substrings. Its store contract is shared
+// with POST /api/v0/code/language-query, where matching a substring is the
+// feature -- see the note on searchEntitiesForGrant's fallback loop below.
 func relationshipStoryGrantedCandidates(
 	ctx context.Context,
 	content ContentStore,
@@ -165,45 +181,43 @@ func relationshipStoryGrantedCandidates(
 		})
 	}
 	if repoID != "" {
-		return content.SearchEntitiesByName(ctx, repoID, "", target, limit)
+		return content.SearchEntitiesByExactName(ctx, repoID, "", target, limit)
 	}
 	if len(allowed) == 0 {
-		return content.SearchEntitiesByNameAnyRepo(ctx, "", target, limit)
+		return content.SearchEntitiesByExactNameAnyRepo(ctx, "", target, limit)
 	}
 	return relationshipStoryExactCandidatesPerRepository(ctx, content, target, allowed, limit)
 }
 
 // relationshipStoryExactCandidatesPerRepository reads the granted repositories
-// one at a time and keeps only the exact name matches.
+// one at a time, asking each for the exact target name.
 //
-// It gives each repository its own budget instead of a share of one. The
-// content read behind this is a SUBSTRING search --
-// ContentReader.SearchEntitiesByName is `entity_name ILIKE '%' || $2 || '%'` --
-// while resolveRelationshipStoryTarget keeps only rows whose name equals the
-// target exactly (exactEntityNameMatches). Passing `limit-len(candidates)` let
-// one repository's near-misses spend the whole budget on rows that were
-// discarded a moment later, so an exact symbol in a repository further down the
-// grant was never queried and the caller got not_found. Filtering to exact
-// matches inside the loop is what makes the budget mean the same thing the
-// caller does.
+// Two bounds hold it together, and they were added by different changes.
+// #6553 gave each repository its own budget rather than a share of one, so a
+// first repository could no longer spend the whole page and leave a later
+// repository unread. #6555 changed what is read: SearchEntitiesByExactName
+// asks `entity_name = $n` instead of `entity_name ILIKE '%' || $n || '%'`, so
+// the rows that come back are the rows the caller keeps. Before it, a single
+// repository with more than `limit` near-misses returned a full page of them
+// and the exact symbol was never read at all -- a case no budgeting reaches,
+// because there is only one repository to budget.
 //
-// The bound, stated because it is looser than the one it replaces: at most
+// The bound, stated because it is looser than the pre-#6553 one: at most
 // `limit` rows are read per granted repository, and the walk stops as soon as
-// `limit` exact matches are in hand, so the worst case is `limit` rows times
-// the number of granted repositories read, and at most `limit` returned. The
-// old shape read at most `limit` rows in total, and answered wrongly. A caller
-// with a wide grant and a common substring pays more reads for an answer that
-// is correct; an exact symbol name resolves in the first repository that holds
-// it.
+// `limit` matches are in hand, so the worst case is `limit` rows times the
+// number of granted repositories read, and at most `limit` returned. The old
+// shape read at most `limit` rows in total, and answered wrongly. In practice
+// an exact name resolves in the first repository that holds it.
 //
-// The other three branches above return substring rows and let the caller
-// filter, which is the same end state: that filter runs on whatever comes back.
-// This branch has to apply it early because it spends a shared budget across
-// several reads.
+// exactEntityNameMatches still runs on each page. The read makes it a no-op
+// for a store that answers the question it was asked, and it is what keeps the
+// per-repository budget honest for one that does not -- resolveRelationship-
+// StoryTarget's own filter would catch the rows, but only after they had
+// already spent the budget.
 //
-// It is not the only place in this file that spends one. searchEntitiesForGrant's
-// legacy-store fallback does too, and deliberately keeps its rows unfiltered --
-// see the note on that loop for why the same fix does not belong there.
+// searchEntitiesForGrant's legacy-store fallback below spends a shared budget
+// on substring rows and deliberately keeps them unfiltered -- see the note on
+// that loop for why the same fix does not belong there.
 func relationshipStoryExactCandidatesPerRepository(
 	ctx context.Context,
 	content ContentStore,
@@ -216,7 +230,7 @@ func relationshipStoryExactCandidatesPerRepository(
 		if len(candidates) >= limit {
 			break
 		}
-		rows, err := content.SearchEntitiesByName(ctx, allowedRepoID, "", target, limit)
+		rows, err := content.SearchEntitiesByExactName(ctx, allowedRepoID, "", target, limit)
 		if err != nil {
 			return nil, err
 		}
@@ -292,8 +306,10 @@ func searchEntitiesForGrant(
 	// re-trips the parser-relationship-kit lane.
 	//
 	// So the shape is disclosed rather than mirrored, and the fix belongs to the
-	// caller that wants exact names rather than to this shared read: #6555. Its
-	// reach today is nil -- *ContentReader satisfies
+	// caller that wants exact names rather than to this shared read. #6555 made
+	// that fix for the two no-language branches, which have a read of their own
+	// to change; this loop keeps the substring rows its twin's callers need.
+	// Its reach today is nil -- *ContentReader satisfies
 	// languageEntityContentSearcher and takes the branch above, so this loop
 	// runs only for a fake or an older store.
 	entities := make([]EntityContent, 0, search.Limit)

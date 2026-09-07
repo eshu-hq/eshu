@@ -287,6 +287,127 @@ func (cr *ContentReader) SearchEntitiesByNameAnyRepo(
 	return results, nil
 }
 
+// SearchEntitiesByExactName returns the entities in one repository whose
+// materialized name is exactly name, optionally restricted to one entity type.
+//
+// It is SearchEntitiesByName's twin with `entity_name = $1` in place of
+// `entity_name ILIKE '%' || $1 || '%'`, for the callers that want the one
+// symbol they named rather than everything containing it. See the port
+// declaration in querycontract/ports.go for the defect that separates them
+// (#6555).
+//
+// The predicate is not a new shape for this table: SearchSymbols
+// (content_reader_symbol_search.go) already ships `entity_name = $1`, with and
+// without a `repo_id = $n` companion, against this same index set.
+func (cr *ContentReader) SearchEntitiesByExactName(
+	ctx context.Context,
+	repoID string,
+	entityType string,
+	name string,
+	limit int,
+) ([]EntityContent, error) {
+	return cr.searchEntitiesByExactName(ctx, repoID, entityType, name, limit)
+}
+
+// SearchEntitiesByExactNameAnyRepo is the corpus-wide twin of
+// SearchEntitiesByExactName, for the unscoped caller that names no repository.
+func (cr *ContentReader) SearchEntitiesByExactNameAnyRepo(
+	ctx context.Context,
+	entityType string,
+	name string,
+	limit int,
+) ([]EntityContent, error) {
+	return cr.searchEntitiesByExactName(ctx, "", entityType, name, limit)
+}
+
+// searchEntitiesByExactName serves both exact-name reads. An empty repoID
+// leaves the repository predicate off entirely, which is what makes the
+// any-repo call corpus-wide; every caller that must stay inside a grant passes
+// a repository the grant already resolved.
+func (cr *ContentReader) searchEntitiesByExactName(
+	ctx context.Context,
+	repoID string,
+	entityType string,
+	name string,
+	limit int,
+) ([]EntityContent, error) {
+	operation := "search_entities_by_exact_name"
+	if repoID == "" {
+		operation = "search_entities_by_exact_name_any_repo"
+	}
+	ctx, span := cr.tracer.Start(
+		ctx, "postgres.query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.operation", operation),
+			attribute.String("db.sql.table", "content_entities"),
+		),
+	)
+	defer span.End()
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	filters := []string{"entity_name = $1"}
+	args := []any{name}
+	nextArg := 2
+	if repoID != "" {
+		filters = append(filters, fmt.Sprintf("repo_id = $%d", nextArg))
+		args = append(args, repoID)
+		nextArg++
+	}
+	if entityType != "" {
+		filter, filterArgs, next := contentEntityTypeFilter(entityType, nextArg)
+		filters = append(filters, filter)
+		args = append(args, filterArgs...)
+		nextArg = next
+	}
+	// #nosec G201 -- interpolates only predicate strings built above and integer arg indices ($N); no user data concatenated into SQL
+	query := fmt.Sprintf(`
+		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
+		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
+		       metadata
+		FROM content_entities
+		WHERE %s
+		ORDER BY repo_id, relative_path, start_line
+		LIMIT $%d
+	`, strings.Join(filters, " AND "), nextArg)
+	args = append(args, limit)
+
+	rows, err := cr.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		return nil, fmt.Errorf("search entities by exact name: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var results []EntityContent
+	for rows.Next() {
+		var entity EntityContent
+		var rawMetadata []byte
+		if err := rows.Scan(
+			&entity.EntityID, &entity.RepoID, &entity.RelativePath, &entity.EntityType,
+			&entity.EntityName, &entity.StartLine, &entity.EndLine, &entity.Language,
+			&entity.SourceCache, &rawMetadata,
+		); err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan exact entity name result: %w", err)
+		}
+		entity.Metadata, err = decodeEntityMetadata(rawMetadata)
+		if err != nil {
+			span.RecordError(err)
+			return nil, fmt.Errorf("scan exact entity name result: %w", err)
+		}
+		results = append(results, entity)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return results, err
+	}
+	return results, nil
+}
+
 // SearchEntityContentAnyRepo searches entity source cache by pattern across all repos.
 func (cr *ContentReader) SearchEntityContentAnyRepo(
 	ctx context.Context,
