@@ -45,12 +45,22 @@ else
 	fi
 fi
 
-# 2. The SLO contract must record the explicit fixture-scale-only decision.
-if rg -qi 'decision.*fixture-scale|fixture-scale.*decision|recorded decision' "${slo_doc}"; then
-	record_pass "SLO contract records the explicit fixture-scale decision"
+# 2. The SLO contract must record the explicit fixture-scale-only decision,
+# with its substance (the scale-lab/single-sample reason), not just the word
+# "decision" somewhere in the file.
+check2_fail=""
+rg -qi 'fixture-scale' "${slo_doc}" || check2_fail="no fixture-scale statement"
+if [[ -z "${check2_fail}" ]]; then
+	rg -qi 'scale-lab|single sample|341' "${slo_doc}" || check2_fail="no scale-lab/single-sample reason"
+fi
+if [[ -z "${check2_fail}" ]]; then
+	rg -qi 'recorded decision|explicit decision|decision.*fixture-scale|fixture-scale.*decision' "${slo_doc}" || check2_fail="no recorded-decision statement"
+fi
+if [[ -z "${check2_fail}" ]]; then
+	record_pass "SLO contract records the explicit fixture-scale decision with reason"
 else
-	record_fail "SLO contract records the explicit fixture-scale decision" \
-		"no recorded-decision statement found"
+	record_fail "SLO contract records the explicit fixture-scale decision with reason" \
+		"${check2_fail}"
 fi
 
 printf '\n%d passed, %d failed\n' "${pass_count}" "${fail_count}"
