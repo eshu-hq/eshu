@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2usesprofile
 
 import (
 	"sort"
@@ -9,6 +9,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -104,16 +108,16 @@ type ec2InstanceProfileJoinIndex struct {
 // instance-profile node uid the aws_resource materialization committed is keyed by
 // the profile ARN (resource_id == arn for instance profiles), so the index value
 // is exactly that node uid.
-func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstanceProfileJoinIndex, []quarantinedFact, error) {
+func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstanceProfileJoinIndex, []factdecode.QuarantinedFact, error) {
 	index := ec2InstanceProfileJoinIndex{byARN: make(map[string]string, len(envelopes))}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		resource, err := decodeAWSResource(env)
+		resource, err := schemadecode.DecodeAWSResource(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return ec2InstanceProfileJoinIndex{}, nil, fatal
 			}
@@ -125,7 +129,7 @@ func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstancePr
 		if resource.ResourceType != ec2UsesProfileResourceTypeInstanceProfile {
 			continue
 		}
-		arn := strings.TrimSpace(derefString(resource.ARN))
+		arn := strings.TrimSpace(payloadcore.DerefString(resource.ARN))
 		resourceID := resource.ResourceID
 		if resourceID == "" {
 			resourceID = arn
@@ -133,7 +137,7 @@ func buildEC2InstanceProfileJoinIndex(envelopes []facts.Envelope) (ec2InstancePr
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(resource.AccountID, resource.Region, ec2UsesProfileResourceTypeInstanceProfile, resourceID)
+		uid := cloudjoin.CloudResourceUID(resource.AccountID, resource.Region, ec2UsesProfileResourceTypeInstanceProfile, resourceID)
 		// First writer wins on collision so a later duplicate cannot re-point an
 		// ARN to a different node. The ARN is the precise identity here.
 		if arn != "" {
@@ -178,7 +182,7 @@ func (i ec2InstanceProfileJoinIndex) resolve(arn string) (string, bool) {
 func ExtractEC2UsesProfileEdgeRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2UsesProfileEdgeTally, []quarantinedFact, error) {
+) ([]map[string]any, ec2UsesProfileEdgeTally, []factdecode.QuarantinedFact, error) {
 	tally := newEC2UsesProfileEdgeTally()
 	if len(postureEnvelopes) == 0 {
 		return nil, tally, nil, nil
@@ -206,9 +210,9 @@ func ExtractEC2UsesProfileEdgeRows(
 			continue
 		}
 
-		posture, err := decodeEC2InstancePosture(env)
+		posture, err := schemadecode.DecodeEC2InstancePosture(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, nil, fatal
 			}
@@ -218,7 +222,7 @@ func ExtractEC2UsesProfileEdgeRows(
 			continue
 		}
 
-		profileARN := strings.TrimSpace(derefString(posture.InstanceProfileARN))
+		profileARN := strings.TrimSpace(payloadcore.DerefString(posture.InstanceProfileARN))
 		if profileARN == "" {
 			// The instance has no attached profile — the normal no-edge state, not
 			// a skip-error.
@@ -261,8 +265,8 @@ func ExtractEC2UsesProfileEdgeRows(
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["source_uid"]) + "->" + anyToString(rows[a]["target_uid"])
-		right := anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["target_uid"])
+		left := payloadcore.AnyToString(rows[a]["source_uid"]) + "->" + payloadcore.AnyToString(rows[a]["target_uid"])
+		right := payloadcore.AnyToString(rows[b]["source_uid"]) + "->" + payloadcore.AnyToString(rows[b]["target_uid"])
 		return left < right
 	})
 	return rows, tally, quarantined, nil
@@ -276,8 +280,8 @@ func ExtractEC2UsesProfileEdgeRows(
 // scheme — so the edge's source endpoint resolves to the node PR-A materialized
 // rather than a fabricated uid.
 func ec2UsesProfileSourceUID(posture awsv1.EC2InstancePosture) (string, bool) {
-	instanceID := derefString(posture.InstanceID)
-	arn := derefString(posture.ARN)
+	instanceID := payloadcore.DerefString(posture.InstanceID)
+	arn := payloadcore.DerefString(posture.ARN)
 
 	resourceID := instanceID
 	if resourceID == "" {
@@ -287,9 +291,9 @@ func ec2UsesProfileSourceUID(posture awsv1.EC2InstancePosture) (string, bool) {
 		return "", false
 	}
 
-	resourceType := derefString(posture.ResourceType)
+	resourceType := payloadcore.DerefString(posture.ResourceType)
 	if resourceType == "" {
 		resourceType = ec2UsesProfileResourceTypeInstance
 	}
-	return cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), true
+	return cloudjoin.CloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), true
 }

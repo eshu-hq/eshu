@@ -17,12 +17,10 @@ func TestReducerAWSResourceTypeConstantsMatchFactSchema(t *testing.T) {
 		got  string
 		want string
 	}{
-		"iam_role":             {got: iampolicy.ResourceTypeRole, want: awsv1.ResourceTypeIAMRole},
-		"iam_user":             {got: iampolicy.ResourceTypeUser, want: awsv1.ResourceTypeIAMUser},
-		"iam_policy":           {got: iampolicy.ResourceTypePolicy, want: awsv1.ResourceTypeIAMPolicy},
-		"iam_group":            {got: iampolicy.ResourceTypeGroup, want: awsv1.ResourceTypeIAMGroup},
-		"iam_instance_profile": {got: ec2UsesProfileResourceTypeInstanceProfile, want: awsv1.ResourceTypeIAMInstanceProfile},
-		"ec2_instance":         {got: ec2UsesProfileResourceTypeInstance, want: awsv1.ResourceTypeEC2Instance},
+		"iam_role":   {got: iampolicy.ResourceTypeRole, want: awsv1.ResourceTypeIAMRole},
+		"iam_user":   {got: iampolicy.ResourceTypeUser, want: awsv1.ResourceTypeIAMUser},
+		"iam_policy": {got: iampolicy.ResourceTypePolicy, want: awsv1.ResourceTypeIAMPolicy},
+		"iam_group":  {got: iampolicy.ResourceTypeGroup, want: awsv1.ResourceTypeIAMGroup},
 	}
 	for name, tt := range tests {
 		name, tt := name, tt

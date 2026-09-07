@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -88,7 +89,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.WorkloadCloudRelationshipNodesNotReadyFailureClass,
 	ec2blockkms.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
 	reducer.EC2InternetExposureNodesNotReadyFailureClass,
-	reducer.EC2UsesProfileNodesNotReadyFailureClass,
+	ec2usesprofile.EC2UsesProfileNodesNotReadyFailureClass,
 	s3grant.S3ExternalPrincipalGrantNodesNotReadyFailureClass,
 	reducer.S3InternetExposureNodesNotReadyFailureClass,
 	s3logsto.S3LogsToNodesNotReadyFailureClass,

@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
@@ -22,8 +23,8 @@ import (
 // not runtime-observable.
 func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handlers DefaultHandlers) []DomainDefinition {
 	if handlers.FactLoader != nil && handlers.EC2UsesProfileEdgeWriter != nil {
-		ec2UsesProfile := ec2UsesProfileMaterializationDomainDefinition()
-		ec2UsesProfile.Handler = EC2UsesProfileMaterializationHandler{
+		ec2UsesProfile := ec2usesprofile.MaterializationDomainDefinition()
+		ec2UsesProfile.Handler = ec2usesprofile.EC2UsesProfileMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.EC2UsesProfileEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
@@ -319,7 +320,7 @@ type DefaultHandlers struct {
 	// gates on a DUAL readiness lookup — both the EC2 instance node phase and the
 	// IAM instance-profile node phase — so edges never resolve against an endpoint
 	// that has not committed.
-	EC2UsesProfileEdgeWriter EC2UsesProfileEdgeWriter
+	EC2UsesProfileEdgeWriter ec2usesprofile.EC2UsesProfileEdgeWriter
 
 	// IAMInstanceProfileRoleEdgeWriter projects IAM instance-profile role_arns
 	// into canonical HAS_ROLE edges between IAM instance-profile and role
