@@ -13,7 +13,7 @@ cap.
 Several SBOM attestation attachment evidence kinds
 (`sbom.component`, `sbom.dependency_relationship`, `sbom.external_reference`)
 need the SAME bounding discipline applied twice: once at reducer write time
-(`go/internal/reducer/sbom_attestation_attachment_evidence_bounds.go`, capping
+(`go/internal/reducer/sbomattest/sbom_attestation_attachment_evidence_bounds.go`, capping
 what gets persisted) and once defensively at query read time
 (`go/internal/query`, re-capping whatever was actually persisted — including
 a legacy, pre-cap fact written before the write-time cap existed). Two

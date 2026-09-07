@@ -110,14 +110,14 @@ copied the run's repository into `SourceRepositoryIDs` and left
 above is that function's fingerprint.
 
 **Fix:** `applyCIRunDigestRevision` now confers build provenance as well
-(`go/internal/reducer/container_image_identity_registry.go`).
+(`go/internal/reducer/containerimage/container_image_identity_registry.go`).
 `recordCIRunDigestAnchor` files a repository there only from a `ci.artifact`
 whose `artifact_type` is `container_image` and whose run reported PRODUCING that
 digest, so the attribution is build evidence by construction — the same evidence
 `addContainerImageDigestRef` already treats that way.
 
 Failing-then-green, in
-`go/internal/reducer/container_image_ci_run_digest_provenance_test.go`:
+`go/internal/reducer/containerimage/container_image_ci_run_digest_provenance_test.go`:
 
 - `TestCIRunDigestAnchorConfersBuildProvenanceOnCompetingImageRefDecision`
   BEFORE: `BuildProvenanceRepositoryIDs = []string(nil)` on the
@@ -165,7 +165,7 @@ were checked here rather than assumed:
 
 **The widening is INTRA-scope.** `ci.run` and `ci.artifact` are in
 `containerImageIdentityFactKinds()`
-(`go/internal/reducer/container_image_identity.go`), which is passed to
+(`go/internal/reducer/containerimage/container_image_identity.go`), which is passed to
 `loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, ...)`
 — a scope-local load. They are absent from every arm of `identityFactFilterSQL`,
 the filter `listActiveContainerImageIdentityFactsQuery` shares with the epoch
@@ -195,11 +195,11 @@ pair once; that is a payload and counter fix, not a correctness one, since
 Both properties are pinned so a later change cannot quietly break them:
 `TestContainerImageBuiltFromRowsPinCICompetingRefDigestToOneRepositoryPair` and
 `TestContainerImageBuiltFromRowsEmitNothingForDeployOnlyScope`
-(`go/internal/reducer/container_image_provenance_edges_test.go`) assert the
+(`go/internal/reducer/containerimage/container_image_provenance_edges_test.go`) assert the
 per-decision pair, the single distinct pair across decisions, the single row
 after dedup, and that a deploy-only scope emits nothing.
 `TestContainerImageDerivedFromRowsStayEmptyForCIRunScope`
-(`go/internal/reducer/container_image_derived_from_edges_test.go`) covers the
+(`go/internal/reducer/containerimage/container_image_derived_from_edges_test.go`) covers the
 other gated edge: a `ci_cd_run` scope resolves to an empty `owningRepositoryID`,
 owns no Dockerfile, and returns `nil` before the widened child gate is
 consulted — so DERIVED_FROM cannot grow a row from this change either.

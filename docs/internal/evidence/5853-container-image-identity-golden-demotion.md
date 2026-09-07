@@ -59,7 +59,7 @@ the durable current-support readback; it does not stop at an internal planner
 shape assertion.
 
 The mutation was then removed. `git diff --quiet --
-go/internal/reducer/container_image_identity_retirement.go` exited 0, proving
+go/internal/reducer/containerimage/container_image_identity_retirement.go` exited 0, proving
 the production file returned byte-for-byte to the branch base.
 
 ## Restored proof

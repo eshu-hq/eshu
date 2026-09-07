@@ -60,7 +60,7 @@ ownership boundary and exported surface.
 
 ## Root-side test doubles this package's move required
 
-`go/internal/reducer/container_image_identity_ci_fixtures_test.go` and
+`go/internal/reducer/containerimage/container_image_identity_ci_fixtures_test.go` and
 `go/internal/reducer/cross_scope_readiness_floor_handler_test.go` (root) each
 hold a SEPARATE, hand-kept-in-sync copy of a subset of this package's own
 test fixtures (`ciRunFact`, `ciArtifactFact`, `containerImageIdentityFact`,

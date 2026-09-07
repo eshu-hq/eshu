@@ -99,7 +99,7 @@ The duplicate-row defect is the same one #5837 fixes for
 ## What the identity is built from
 
 `containerImageIdentityIdentity`
-(`go/internal/reducer/container_image_identity_writer.go`) keys on `scope_id`,
+(`go/internal/reducer/containerimage/container_image_identity_writer.go`) keys on `scope_id`,
 `generation_id`, `image_ref`, and `outcome`.
 `containerImageIdentityStableFactKey` and `canonicalContainerImageIdentityID`
 are both built from that same map, so `outcome` reaches the `fact_id`.
@@ -231,7 +231,7 @@ Two further checks the retire needed on its own:
    `eshuSearchDocumentRetireQuery` does not rely on that exclusion either: it is
    protected by the #4233 invalidate-before-mutate `ProjectionState` fence
    (`BeginBuilding` returning a revision and a fence,
-   `go/internal/reducer/eshu_search_document_writer.go`).
+   `go/internal/reducer/eshusearch/eshu_search_document_writer.go`).
    `container_image_identity` has no `ProjectionState` at all, so it needs a
    fence of its own.
 

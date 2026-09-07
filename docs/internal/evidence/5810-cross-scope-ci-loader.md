@@ -6,7 +6,7 @@ are written by the `ci_cd_run` collector in the CI run's own, different
 scope), so the CI-run tier of `DERIVED_FROM` could never materialize outside
 a same-scope unit test that bypasses real scope separation. This branch adds:
 
-- `go/internal/reducer/container_image_identity_ci_loader.go` —
+- `go/internal/reducer/containerimage/container_image_identity_ci_loader.go` —
   `activeContainerImageCIFactLoader`/`loadActiveContainerImageCIFacts`, the
   cross-scope bridge, mirroring the existing `activeContainerImageSLSAFactLoader`
   pattern (#5456 PR #5707 P1-b).
@@ -19,7 +19,7 @@ a same-scope unit test that bypasses real scope separation. This branch adds:
   run (see the migration's own header comment and
   `facts_active_container_image_slsa.go`'s prior-art doc comment for the same
   reasoning).
-- `go/internal/reducer/container_image_identity_ref_parsing.go`,
+- `go/internal/reducer/containerimage/container_image_identity_ref_parsing.go`,
   `container_image_identity_slsa_refs.go` — pure in-process helpers split out
   of `container_image_identity.go`/`container_image_identity_evidence.go` for
   the repository's 500-line-per-file cap; see the telemetry-coverage rows for

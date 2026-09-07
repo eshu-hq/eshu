@@ -43,8 +43,8 @@ itself; no code path a production binary executes changed packages.
 
 ## #5996 — read relative_path in inheritance materialization, not path
 
-`go/internal/reducer/inheritance_materialization.go` and its new
-`inheritance_materialization_diagnostics.go` split fixed a field-name defect
+`go/internal/reducer/inheritance/materialization.go` and its new
+`materialization_diagnostics.go` split fixed a field-name defect
 (the same class #5998 fixed for rationale edges): every `content_entity`
 read asked for a `"path"` key production content_entity facts never carry
 (`git_content_fact_envelopes.go` emits `relative_path` only), so
@@ -69,9 +69,9 @@ that deliberately keep a `"path"` fixture key (their assertions never read
 `child_path`) still pass, proving the fix is scoped to the actually-broken
 read path.
 
-No-Observability-Change: `inheritance_materialization_diagnostics.go` adds
+No-Observability-Change: `materialization_diagnostics.go` adds
 no new metric, span, or log key -- it splits existing diagnostic helper
-functions out of `inheritance_materialization.go` to keep that file under
+functions out of `materialization.go` to keep that file under
 the repository's 500-line cap. The handler's existing
 `inheritance materialization started/fact inputs/completed` structured logs
 and `load_facts_duration_seconds`/`build_intents_duration_seconds`/

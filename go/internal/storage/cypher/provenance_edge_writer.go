@@ -130,7 +130,7 @@ SET rel.generation_id = row.generation_id,
 // canonicalProvenanceBuiltFromCypher upserts a BUILT_FROM edge from a
 // ContainerImage to the Repository its container_image_identity decision
 // resolved as source. The ContainerImage endpoint is matched by digest, not
-// uid: ContainerImageIdentityDecision (go/internal/reducer/container_image_identity.go)
+// uid: ContainerImageIdentityDecision (go/internal/reducer/containerimage/container_image_identity.go)
 // carries only ImageRef/Digest, never the OciImageManifest node uid, and
 // oci_registry_canonical_writer.go SETs digest on every ContainerImage node it
 // writes, so digest is the correct and only available join key.

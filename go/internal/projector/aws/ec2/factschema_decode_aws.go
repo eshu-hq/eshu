@@ -15,7 +15,7 @@ import (
 // This file holds this family's decode wrapper for the ec2_instance_posture
 // fact kind, named factschema_decode_aws.go to match the repo-wide convention
 // (root's go/internal/projector/factschema_decode_aws.go,
-// go/internal/reducer/factschema_decode.go) so the payload-usage manifest gate
+// go/internal/reducer/schemadecode/factschema_decode.go) so the payload-usage manifest gate
 // (scripts/verify-payload-usage-manifest.sh, issue #4573) discovers it: that
 // gate globs factschema_decode*.go files and AST-scans each function body for
 // a factschema.FactKindXxx reference to recognize it as a decode seam.

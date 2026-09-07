@@ -546,7 +546,7 @@ sibling ci_cd_run_correlation/container_image_identity/package domains:
   `CanonicalWrites`/`edge_count`/evidence-summary count, even though the
   writer's two-MATCH-MERGE silently no-op'd (the graph had NO edge). `Handle`
   now runs the extracted rows through `ContainerImageExistenceLookup`
-  (`go/internal/reducer/container_image_existence_lookup.go`, a bounded
+  (`go/internal/reducer/containerimage/container_image_existence_lookup.go`, a bounded
   `UNWIND`-batched existence read mirroring `filterRowsToExistingCloudResourceUIDs`'s
   pattern) immediately after extraction, BEFORE any metric, `CanonicalWrites`,
   or evidence summary reads `rows`/`tally`: a target-miss row is reclassified

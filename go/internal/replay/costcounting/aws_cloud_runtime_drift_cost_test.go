@@ -244,7 +244,7 @@ func collectHistogramCount(rm metricdata.ResourceMetrics, name string) uint64 {
 // WriteAWSCloudRuntimeDriftFindings now runs THREE statements per call inside
 // one transaction (#5848): the insert-admission check, the batched versioned
 // upsert (reducerBatchInsertVersionedFacts,
-// go/internal/reducer/reducer_fact_batch_insert.go, issue #5317 — two
+// go/internal/reducer/factwrite/batch_insert.go, issue #5317 — two
 // admitted candidates still fit one chunk), and the generation-authoritative
 // retire. That raised this budget from 1 to 3; the companion N+1 negative
 // controls below still exceed the tightened budget because a duplicate

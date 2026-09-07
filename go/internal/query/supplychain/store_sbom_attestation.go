@@ -270,7 +270,7 @@ const SBOMAttestationWarningSummaryPreviewMaxCount = 10
 
 // DependencyRelationshipRow exposes one bounded sbom.dependency_relationship
 // evidence row attached to a document. Rows are bounded and deduplicated at
-// reducer write time (go/internal/reducer/sbom_attestation_attachment_evidence_bounds.go);
+// reducer write time (go/internal/reducer/sbomattest/sbom_attestation_attachment_evidence_bounds.go);
 // DependencyRelationshipCount on the parent row/result reports the full
 // distinct-tuple count so a caller can detect truncation.
 type DependencyRelationshipRow struct {

@@ -68,7 +68,7 @@ func (p containerImageIdentityCompletedCutoverCostPath) ExecContainerImageIdenti
 // positive and N+1 scenarios: two canonical (CanonicalWrites=1) exact-digest
 // decisions for distinct image references in one scope. Both survive
 // containerImageIdentityCanonicalDecisions' CanonicalWrites>0 filter
-// (go/internal/reducer/container_image_identity.go), so both become rows the
+// (go/internal/reducer/containerimage/container_image_identity.go), so both become rows the
 // batched writer persists.
 func containerImageIdentityFixtureDecisions() []reducer.ContainerImageIdentityDecision {
 	row := func(id string) reducer.ContainerImageIdentityDecision {

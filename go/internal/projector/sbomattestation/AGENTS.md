@@ -8,7 +8,7 @@
 3. `../intent/AGENTS.md` for the neutral builder contract.
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after CI/CD run correlation and before service-catalog correlation.
-5. `go/internal/reducer/sbom_attestation_attachment.go` for what the reducer
+5. `go/internal/reducer/sbomattest/sbom_attestation_attachment.go` for what the reducer
    does with the intent this package enqueues.
 
 ## Invariants

@@ -9,7 +9,7 @@
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `s3.BuildInternetExposureMaterializationReducerIntent`
    and before `cicdruncorrelation.BuildCICDRunCorrelationReducerIntent`.
-5. `go/internal/reducer/container_image_identity.go` and its sibling
+5. `go/internal/reducer/containerimage/container_image_identity.go` and its sibling
    `container_image_identity_*.go` files for what the reducer does with the
    intent this package enqueues: the cross-source digest-first join, tier
    ranking, decision classification, retirement, and provenance-edge writes.

@@ -1,6 +1,6 @@
 # #5796 BUILT_FROM build-provenance narrowing: correctness evidence
 
-`containerImageBuiltFromRows` (`go/internal/reducer/container_image_provenance_edges.go`)
+`containerImageBuiltFromRows` (`go/internal/reducer/containerimage/container_image_provenance_edges.go`)
 projected one `ContainerImage-[:BUILT_FROM]->Repository` row per entry in
 `decision.SourceRepositoryIDs`. That field is broader than "repositories that
 built this image": `containerImageSourceRepositoryIDs`

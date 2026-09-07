@@ -16,7 +16,7 @@ import (
 // (fact_records_active_container_image_ci_idx) indexes together:
 //
 //   - ci.run: every run row is a potential repository/commit anchor
-//     (containerImageCIRuns, go/internal/reducer/container_image_identity_typed_evidence.go),
+//     (containerImageCIRuns, go/internal/reducer/containerimage/container_image_identity_typed_evidence.go),
 //     so it cannot be narrowed further.
 //   - ci.artifact: narrowed to artifact_type = 'container_image'. Non-image
 //     artifacts (coverage reports, SBOM bundles, test reports) are the bulk of
@@ -83,7 +83,7 @@ const listActiveContainerImageCIRunRepositoryFilterSQLQualified = `fact.fact_kin
 // repository down into Postgres (#5810 P1 follow-up) instead of loading
 // every active ci.run/ci.artifact fact platform-wide and filtering to the
 // owner in Go (filterContainerImageCIFactsForOwner,
-// go/internal/reducer/container_image_identity_ci_loader.go). At the
+// go/internal/reducer/containerimage/container_image_identity_ci_loader.go). At the
 // documented 500,000-active-CI-run-scope worst case (see
 // docs/internal/evidence/5810-cross-scope-ci-loader.md), the prior
 // unfiltered shape still transferred and decoded every active CI fact on
@@ -203,7 +203,7 @@ LIMIT $4
 // DERIVED_FROM (base-image lineage, #5460) projection is owner-scoped to the
 // repository whose Dockerfile declares the base image
 // (projectContainerImageDerivedFromEdges,
-// go/internal/reducer/container_image_derived_from_edges.go); the CI provider's
+// go/internal/reducer/containerimage/container_image_derived_from_edges.go); the CI provider's
 // run->artifact->digest evidence that proves a repository BUILT a given digest
 // is written by the ci_cd_run collector in the CI run's OWN scope, a different
 // scope than the repository the DERIVED_FROM projection actually runs in. Without
@@ -226,7 +226,7 @@ LIMIT $4
 //
 // ownerRepositoryID is required (a blank value returns immediately with no
 // query issued): the caller, ContainerImageIdentityHandler.loadActiveContainerImageCIFacts
-// (go/internal/reducer/container_image_identity_ci_loader.go), already skips
+// (go/internal/reducer/containerimage/container_image_identity_ci_loader.go), already skips
 // calling this loader at all for a non-repository scope, so a blank owner
 // reaching here would only ever be a caller bug -- returning an empty result
 // rather than issuing an unbounded, unowned query is the safe failure mode.

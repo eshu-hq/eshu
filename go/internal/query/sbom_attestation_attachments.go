@@ -17,7 +17,7 @@ import (
 // (docs/internal/design/4784-reducer-derived-fact-governance.md) — full
 // governance requires a landed sdk/go/factschema struct, generated JSON
 // Schema, and a typed reducer writer (producer:
-// go/internal/reducer/sbom_attestation_attachment_writer.go) before
+// go/internal/reducer/sbomattest/sbom_attestation_attachment_writer.go) before
 // decodeSBOMAttestationAttachmentRow below (and the
 // sbomAttestationAttachmentMissingEvidenceQuery's read of the sibling
 // reducer_container_image_identity kind, also governed and also unstructed)

@@ -203,7 +203,7 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 			t.Fatal("test premise broken: aws_resource must not be in the disclosure ledger")
 		}
 		if !real.hasRealConsumer(entry.Kind) {
-			t.Fatalf("aws_resource must have a real decode-seam consumer (go/internal/reducer/factschema_decode.go)")
+			t.Fatalf("aws_resource must have a real decode-seam consumer (go/internal/reducer/schemadecode/factschema_decode.go)")
 		}
 		ok2, _ := resolveKindConsumer(factKindRegistryConsumerEvidence{
 			Kind: entry.Kind, ReducerDomain: entry.ReducerDomain, PayloadSchema: entry.PayloadSchema,

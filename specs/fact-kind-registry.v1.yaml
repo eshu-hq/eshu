@@ -354,7 +354,7 @@ families:
     admission_hook: facts.ValidateSchemaVersion
     read_surface: "GET /api/v0/supply-chain/sbom-attestations/attachments"
     # sbom.dependency_relationship and sbom.external_reference are decoded by
-    # buildSBOMAttachmentIndex (go/internal/reducer/sbom_attestation_attachment_index.go)
+    # buildSBOMAttachmentIndex (go/internal/reducer/sbomattest/sbom_attestation_attachment_index.go)
     # and surfaced on the attachments read surface as bounded, write-time
     # capped dependency_relationships/external_references evidence (#5370).
     # attestation.slsa_provenance is emitted by the SBOM runtime collector

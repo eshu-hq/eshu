@@ -31,7 +31,7 @@ const sbomAttestationAttachmentCostIntentID = "intent-sbom-attestation-attachmen
 // positive and N+1 scenarios: two verified attachment decisions for distinct
 // SBOM documents in one scope. WriteSBOMAttestationAttachments persists every
 // attachment status regardless of outcome
-// (go/internal/reducer/sbom_attestation_attachment_writer.go), so both rows
+// (go/internal/reducer/sbomattest/sbom_attestation_attachment_writer.go), so both rows
 // are written.
 func sbomAttestationAttachmentFixtureDecisions() []reducer.SBOMAttestationAttachmentDecision {
 	row := func(id string) reducer.SBOMAttestationAttachmentDecision {

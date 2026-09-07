@@ -21,7 +21,7 @@ root `internal/projector` package validates scope-generation boundaries,
 constructs and owns the immutable fact lookup, preserves family order, and
 owns projection lifecycle, queue writes, retries, and telemetry. The
 reducer's `DomainContainerImageIdentity` handler
-(`go/internal/reducer/container_image_identity.go` and its sibling files)
+(`go/internal/reducer/containerimage/container_image_identity.go` and its sibling files)
 owns the cross-source join, tier ranking, decision classification
 (exact/derived/ambiguous/unresolved/stale), retirement, and the
 `BUILT_FROM`/`DERIVED_FROM` graph writes; none of that happens here.

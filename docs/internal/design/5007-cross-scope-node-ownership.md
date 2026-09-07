@@ -139,9 +139,9 @@ How the rest of Eshu models multi-source evidence: reducer-side sorted-set
 unions written as whole values —
 `evidence_fact_ids: uniqueSortedStrings(...)`
 (`go/internal/reducer/servicecatalog/service_catalog_correlation_writer.go`,
-`go/internal/reducer/secrets_iam_trust_chain_writer.go:168-220`,
+`go/internal/reducer/secretsiam/secrets_iam_trust_chain_writer.go`,
 `go/internal/reducer/incident/incident_repository_correlation_writer.go:150`,
-`go/internal/reducer/ci_cd_run_correlation_writer.go:123`) and
+`go/internal/reducer/cicdrun/ci_cd_run_correlation_writer.go`) and
 `related_scope_ids`/`entity_keys` unions
 (`go/internal/reducer/workload_identity_writer.go:164-165`, `:200-201`).
 The critical structural difference: every one of those unions is computed
