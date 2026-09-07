@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package internetexposure
 
 import (
 	"context"
@@ -14,16 +14,26 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-func ec2InternetExposureMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainEC2InternetExposureMaterialization,
+// EC2InternetExposureMaterializationDomainDefinition returns the additive
+// definition for EC2 internet-exposure node-property projection (issue #1301).
+// It is additive (not part of DefaultDomainDefinitions) because the handler
+// requires an explicitly wired EC2InternetExposureNodeWriter and FactLoader;
+// registering it without them would silently drop every intent.
+func EC2InternetExposureMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainEC2InternetExposureMaterialization,
 		Summary: "derive ec2_instance_posture internet exposure and set EC2 CloudResource properties",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -53,14 +63,14 @@ type EC2InternetExposureNodeWriter interface {
 // posture, AWS relationship, and security-group rule facts, and never treats
 // missing ENI/SG/reachability evidence as a safe false value.
 type EC2InternetExposureMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter EC2InternetExposureNodeWriter
 	// ReadinessLookup reports whether EC2 CloudResource nodes for this generation
 	// are committed. A nil lookup keeps tests light; production wires Postgres.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether a scope has prior rows to retract.
 	// Nil keeps retract behavior conservative.
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	Instruments          *telemetry.Instruments
 }
@@ -76,17 +86,17 @@ func ec2InternetExposureFactKinds() []string {
 // Handle executes one EC2 internet-exposure materialization intent.
 func (h EC2InternetExposureMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainEC2InternetExposureMaterialization {
-		return Result{}, fmt.Errorf("ec2 internet exposure materialization handler does not accept domain %q", intent.Domain)
+	if intent.Domain != reducercontract.DomainEC2InternetExposureMaterialization {
+		return reducercontract.Result{}, fmt.Errorf("ec2 internet exposure materialization handler does not accept domain %q", intent.Domain)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("ec2 internet exposure materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("ec2 internet exposure materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("ec2 internet exposure materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("ec2 internet exposure materialization node writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -102,16 +112,16 @@ func (h EC2InternetExposureMaterializationHandler) Handle(
 	}
 
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, ec2InternetExposureNodesNotReadyError{
+		return reducercontract.Result{}, ec2InternetExposureNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, ec2InternetExposureFactKinds())
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, ec2InternetExposureFactKinds())
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for ec2 internet exposure materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for ec2 internet exposure materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -120,20 +130,20 @@ func (h EC2InternetExposureMaterializationHandler) Handle(
 	rows, tally, quarantined, err := ExtractEC2InternetExposureRows(postureEnvelopes, relationshipEnvelopes, ruleEnvelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load, unsupported major, or other
-		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
-		// whole intent so the durable queue triages it correctly.
-		return Result{}, err
+		// fatal condition factdecode.PartitionDecodeFailures did NOT quarantine)
+		// fails the whole intent so the durable queue triages it correctly.
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_security_group_rule/aws_relationship/
 	// ec2_instance_posture fact (a missing required identity field) is
 	// quarantined as a visible input_invalid dead-letter — counter + structured
 	// error log — while the batch's valid facts still project below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainEC2InternetExposureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainEC2InternetExposureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -144,7 +154,7 @@ func (h EC2InternetExposureMaterializationHandler) Handle(
 			intent.GenerationID,
 			ec2InternetExposureEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical ec2 internet exposure properties: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical ec2 internet exposure properties: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -159,7 +169,7 @@ func (h EC2InternetExposureMaterializationHandler) Handle(
 			intent.GenerationID,
 			ec2InternetExposureEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical ec2 internet exposure properties: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical ec2 internet exposure properties: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -182,10 +192,10 @@ func (h EC2InternetExposureMaterializationHandler) Handle(
 		totalDuration:     time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainEC2InternetExposureMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainEC2InternetExposureMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d EC2 internet exposure row(s) from %d posture fact(s); %d posture fact(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -194,28 +204,28 @@ func (h EC2InternetExposureMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
-func (h EC2InternetExposureMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+func (h EC2InternetExposureMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
+	state, ok := gpphase.StateForIntentValue(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
-func (h EC2InternetExposureMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h EC2InternetExposureMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -295,7 +305,7 @@ func (ec2InternetExposureNodesNotReadyError) FailureClass() string {
 }
 
 type ec2InternetExposureTiming struct {
-	intent            Intent
+	intent            reducercontract.Intent
 	postureCount      int
 	relationshipCount int
 	ruleCount         int
@@ -324,9 +334,9 @@ func logEC2InternetExposureMaterializationCompleted(
 		slog.Int("relationship_fact_count", timing.relationshipCount),
 		slog.Int("security_group_rule_fact_count", timing.ruleCount),
 		slog.Int("row_count", timing.rowCount),
-		slog.String("decisions", formatTally(timing.decisions)),
-		slog.String("reasons", formatTally(timing.reasons)),
-		slog.String("skipped_by_reason", formatTally(timing.skippedByReason)),
+		slog.String("decisions", payloadcore.FormatTally(timing.decisions)),
+		slog.String("reasons", payloadcore.FormatTally(timing.reasons)),
+		slog.String("skipped_by_reason", payloadcore.FormatTally(timing.skippedByReason)),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("derive_duration_seconds", timing.extractDuration.Seconds()),

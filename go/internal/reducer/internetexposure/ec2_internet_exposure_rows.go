@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package internetexposure
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -74,13 +78,13 @@ func ExtractEC2InternetExposureRows(
 	postureEnvelopes []facts.Envelope,
 	relationshipEnvelopes []facts.Envelope,
 	ruleEnvelopes []facts.Envelope,
-) ([]map[string]any, ec2InternetExposureTally, []quarantinedFact, error) {
+) ([]map[string]any, ec2InternetExposureTally, []factdecode.QuarantinedFact, error) {
 	tally := newEC2InternetExposureTally()
 	if len(postureEnvelopes) == 0 {
 		return nil, tally, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	relationships, relationshipQuarantined, err := buildEC2InternetExposureRelationshipIndex(relationshipEnvelopes)
 	if err != nil {
 		return nil, tally, nil, err
@@ -145,16 +149,16 @@ type ec2InternetExposurePosture struct {
 	posture awsv1.EC2InstancePosture
 }
 
-func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) ([]ec2InternetExposurePosture, []quarantinedFact, error) {
+func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) ([]ec2InternetExposurePosture, []factdecode.QuarantinedFact, error) {
 	postures := make([]ec2InternetExposurePosture, 0, len(envelopes))
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.EC2InstancePostureFactKind {
 			continue
 		}
-		posture, err := decodeEC2InstancePosture(env)
+		posture, err := schemadecode.DecodeEC2InstancePosture(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -166,8 +170,8 @@ func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) ([]ec2Interne
 		postures = append(postures, ec2InternetExposurePosture{env: env, posture: posture})
 	}
 	sort.SliceStable(postures, func(i, j int) bool {
-		left := derefString(postures[i].posture.InstanceID)
-		right := derefString(postures[j].posture.InstanceID)
+		left := payloadcore.DerefString(postures[i].posture.InstanceID)
+		right := payloadcore.DerefString(postures[j].posture.InstanceID)
 		if left != right {
 			return left < right
 		}
@@ -177,8 +181,8 @@ func sortedEC2InternetExposurePostures(envelopes []facts.Envelope) ([]ec2Interne
 }
 
 func ec2InternetExposureIdentity(posture awsv1.EC2InstancePosture) (uid, instanceID string, ok bool) {
-	instanceID = derefString(posture.InstanceID)
-	arn := derefString(posture.ARN)
+	instanceID = payloadcore.DerefString(posture.InstanceID)
+	arn := payloadcore.DerefString(posture.ARN)
 	resourceID := instanceID
 	if resourceID == "" {
 		resourceID = arn
@@ -186,11 +190,11 @@ func ec2InternetExposureIdentity(posture awsv1.EC2InstancePosture) (uid, instanc
 	if resourceID == "" {
 		return "", "", false
 	}
-	resourceType := derefString(posture.ResourceType)
+	resourceType := payloadcore.DerefString(posture.ResourceType)
 	if resourceType == "" {
 		resourceType = "aws_ec2_instance"
 	}
-	return cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), resourceID, true
+	return cloudjoin.CloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID), resourceID, true
 }
 
 func deriveEC2InternetExposureDecision(
@@ -269,19 +273,19 @@ type ec2InternetExposureRelationshipIndex struct {
 	sgsByENI       map[string]map[string]struct{}
 }
 
-func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) (ec2InternetExposureRelationshipIndex, []quarantinedFact, error) {
+func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) (ec2InternetExposureRelationshipIndex, []factdecode.QuarantinedFact, error) {
 	index := ec2InternetExposureRelationshipIndex{
 		enisByInstance: make(map[string]map[string]struct{}),
 		sgsByENI:       make(map[string]map[string]struct{}),
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSRelationshipFactKind || env.IsTombstone {
 			continue
 		}
-		relationship, err := decodeAWSRelationship(env)
+		relationship, err := schemadecode.DecodeAWSRelationship(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return ec2InternetExposureRelationshipIndex{}, nil, fatal
 			}
@@ -292,7 +296,7 @@ func buildEC2InternetExposureRelationshipIndex(envelopes []facts.Envelope) (ec2I
 		}
 		sourceID := relationship.SourceResourceID
 		targetID := relationship.TargetResourceID
-		targetType := derefString(relationship.TargetType)
+		targetType := payloadcore.DerefString(relationship.TargetType)
 		if sourceID == "" || targetID == "" {
 			continue
 		}
@@ -326,19 +330,19 @@ type ec2InternetExposureRuleIndex struct {
 	observedIngressSGs map[string]bool
 }
 
-func buildEC2InternetExposureRuleIndex(envelopes []facts.Envelope) (ec2InternetExposureRuleIndex, []quarantinedFact, error) {
+func buildEC2InternetExposureRuleIndex(envelopes []facts.Envelope) (ec2InternetExposureRuleIndex, []factdecode.QuarantinedFact, error) {
 	index := ec2InternetExposureRuleIndex{
 		internetIngressSGs: make(map[string]bool),
 		observedIngressSGs: make(map[string]bool),
 	}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSSecurityGroupRuleFactKind || env.IsTombstone {
 			continue
 		}
-		rule, err := decodeAWSSecurityGroupRule(env)
+		rule, err := schemadecode.DecodeAWSSecurityGroupRule(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return ec2InternetExposureRuleIndex{}, nil, fatal
 			}

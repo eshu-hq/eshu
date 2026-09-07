@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package internetexposure
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type recordingEC2InternetExposureNodeWriter struct {
@@ -49,12 +50,12 @@ func (w *recordingEC2InternetExposureNodeWriter) RetractEC2InternetExposureNodes
 	return nil
 }
 
-func ec2InternetExposureIntent() Intent {
-	return Intent{
+func ec2InternetExposureIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-ec2-internet-exposure-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InternetExposureMaterialization,
+		Domain:       reducercontract.DomainEC2InternetExposureMaterialization,
 		EntityKeys:   []string{"ec2_instance_node_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -84,7 +85,7 @@ func TestEC2InternetExposureMaterializationGatesOnEC2CanonicalNodesPhase(t *test
 	if err == nil {
 		t.Fatal("expected a retryable error while EC2 canonical nodes phase is not ready")
 	}
-	if !IsRetryable(err) {
+	if !reducercontract.IsRetryable(err) {
 		t.Fatalf("error must be retryable so the intent re-enters the queue, got %v", err)
 	}
 	if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -107,7 +108,7 @@ func TestEC2InternetExposureMaterializationProjectsNodeProperties(t *testing.T) 
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.retractCalls != 1 {

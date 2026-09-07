@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package internetexposure
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 // Local copies of the s3logsto family's test envelope builders, duplicated
-// here when that family moved to go/internal/reducer/s3logsto (issue #6061).
-// Go test files cannot share unexported symbols across a package boundary.
-// These move into the internetexposure package with this file's tests; until
-// then they stay byte-identical to the s3logsto copies.
+// here when that family moved to go/internal/reducer/s3logsto (issue #6061)
+// and carried along when this family moved to
+// go/internal/reducer/internetexposure. Go test files cannot share unexported
+// symbols across a package boundary. These stay byte-identical to the
+// s3logsto copies.
 func s3BucketResourceEnvelope(account, region, name string) facts.Envelope {
 	arn := "arn:aws:s3:::" + name
 	return facts.Envelope{
@@ -31,7 +33,7 @@ func s3BucketResourceEnvelope(account, region, name string) facts.Envelope {
 }
 
 func s3BucketUID(account, region, name string) string {
-	return cloudResourceUID(account, region, "aws_s3_bucket", "arn:aws:s3:::"+name)
+	return cloudjoin.CloudResourceUID(account, region, "aws_s3_bucket", "arn:aws:s3:::"+name)
 }
 
 func s3InternetExposurePostureEnvelope(factID, account, region, name string, payload map[string]any) facts.Envelope {

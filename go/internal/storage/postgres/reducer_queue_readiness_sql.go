@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -89,10 +90,10 @@ var nonCountingReducerRetryFailureClasses = []string{
 	secgroup.SecurityGroupReachabilityNodesNotReadyFailureClass,
 	reducer.WorkloadCloudRelationshipNodesNotReadyFailureClass,
 	ec2blockkms.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
-	reducer.EC2InternetExposureNodesNotReadyFailureClass,
+	internetexposure.EC2InternetExposureNodesNotReadyFailureClass,
 	ec2usesprofile.EC2UsesProfileNodesNotReadyFailureClass,
 	s3grant.S3ExternalPrincipalGrantNodesNotReadyFailureClass,
-	reducer.S3InternetExposureNodesNotReadyFailureClass,
+	internetexposure.S3InternetExposureNodesNotReadyFailureClass,
 	s3logsto.S3LogsToNodesNotReadyFailureClass,
 }
 

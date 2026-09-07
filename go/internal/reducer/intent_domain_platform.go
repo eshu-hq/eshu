@@ -162,6 +162,15 @@ const (
 	// state=unknown with no boolean exposure property, never fabricated false.
 	// See issue #1232.
 	DomainS3InternetExposureMaterialization = reducercontract.DomainS3InternetExposureMaterialization
+	// DomainEC2InternetExposureMaterialization derives conservative EC2
+	// internet-exposure state from ec2_instance_posture public-IP evidence plus
+	// ENI/security-group/rule facts and writes reducer-owned properties onto
+	// existing EC2 CloudResource nodes. It is node-property-only on the
+	// cloud_resource_uid keyspace and never persists raw public IP addresses.
+	// Consolidated here from ec2_internet_exposure_domain.go when the exposure
+	// slices moved to reducer/internetexposure (issue #6061), beside the S3
+	// exposure alias above.
+	DomainEC2InternetExposureMaterialization = reducercontract.DomainEC2InternetExposureMaterialization
 	// DomainIncidentRoutingMaterialization projects exact PagerDuty
 	// incident-routing evidence into reducer-owned IncidentRoutingEvidence graph
 	// nodes and evidence relationships. It preserves declared/applied/observed

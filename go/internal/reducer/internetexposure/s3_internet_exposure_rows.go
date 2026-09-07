@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package internetexposure
 
 import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -71,13 +74,13 @@ type s3InternetExposureDecision struct {
 func ExtractS3InternetExposureRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, s3InternetExposureTally, []quarantinedFact, error) {
+) ([]map[string]any, s3InternetExposureTally, []factdecode.QuarantinedFact, error) {
 	tally := newS3InternetExposureTally()
 	if len(postureEnvelopes) == 0 {
 		return nil, tally, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	index, indexQuarantined, err := cloudjoin.BuildS3BucketJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return nil, tally, nil, err
@@ -121,7 +124,7 @@ func ExtractS3InternetExposureRows(
 		return nil, tally, quarantined, nil
 	}
 	sort.Slice(rows, func(i, j int) bool {
-		return anyToString(rows[i]["uid"]) < anyToString(rows[j]["uid"])
+		return payloadcore.AnyToString(rows[i]["uid"]) < payloadcore.AnyToString(rows[j]["uid"])
 	})
 	return rows, tally, quarantined, nil
 }
@@ -134,16 +137,16 @@ type s3InternetExposurePosture struct {
 	posture awsv1.S3BucketPosture
 }
 
-func sortedS3InternetExposurePostures(envelopes []facts.Envelope) ([]s3InternetExposurePosture, []quarantinedFact, error) {
+func sortedS3InternetExposurePostures(envelopes []facts.Envelope) ([]s3InternetExposurePosture, []factdecode.QuarantinedFact, error) {
 	postures := make([]s3InternetExposurePosture, 0, len(envelopes))
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.S3BucketPostureFactKind {
 			continue
 		}
-		posture, err := decodeS3BucketPosture(env)
+		posture, err := schemadecode.DecodeS3BucketPosture(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}

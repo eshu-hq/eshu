@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package internetexposure
 
 import (
 	"context"
@@ -14,16 +14,26 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-func s3InternetExposureMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainS3InternetExposureMaterialization,
+// S3InternetExposureMaterializationDomainDefinition returns the additive
+// definition for S3 internet-exposure node-property projection (issue #1232).
+// It is additive (not part of DefaultDomainDefinitions) because the handler
+// requires an explicitly wired S3InternetExposureNodeWriter and FactLoader;
+// registering it without them would silently drop every intent.
+func S3InternetExposureMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainS3InternetExposureMaterialization,
 		Summary: "derive s3_bucket_posture internet exposure and set S3 CloudResource properties",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -53,14 +63,14 @@ type S3InternetExposureNodeWriter interface {
 // aws_resource plus s3_bucket_posture facts, and never treats unknown posture as
 // a safe false value.
 type S3InternetExposureMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter S3InternetExposureNodeWriter
 	// ReadinessLookup reports whether CloudResource nodes for this generation are
 	// committed. A nil lookup keeps tests light; production wires Postgres.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether a scope has prior rows to retract.
 	// Nil keeps retract behavior conservative.
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	Instruments          *telemetry.Instruments
 }
@@ -72,17 +82,17 @@ func s3InternetExposureFactKinds() []string {
 // Handle executes one S3 internet-exposure materialization intent.
 func (h S3InternetExposureMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainS3InternetExposureMaterialization {
-		return Result{}, fmt.Errorf("s3 internet exposure materialization handler does not accept domain %q", intent.Domain)
+	if intent.Domain != reducercontract.DomainS3InternetExposureMaterialization {
+		return reducercontract.Result{}, fmt.Errorf("s3 internet exposure materialization handler does not accept domain %q", intent.Domain)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("s3 internet exposure materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("s3 internet exposure materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("s3 internet exposure materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("s3 internet exposure materialization node writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -98,16 +108,16 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 	}
 
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, s3InternetExposureNodesNotReadyError{
+		return reducercontract.Result{}, s3InternetExposureNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, s3InternetExposureFactKinds())
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, s3InternetExposureFactKinds())
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for s3 internet exposure materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for s3 internet exposure materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -116,21 +126,21 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 	rows, tally, quarantined, err := ExtractS3InternetExposureRows(resourceEnvelopes, postureEnvelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load or other fatal condition
-		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
-		// the durable queue triages it correctly.
-		return Result{}, err
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole
+		// intent so the durable queue triages it correctly.
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource/s3_bucket_posture fact (a
 	// missing required identity field) is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while the batch's valid
 	// facts still materialize below and the readiness phase still publishes, so
 	// one bad fact never stalls the scope generation's graph.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainS3InternetExposureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainS3InternetExposureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -141,7 +151,7 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 			intent.GenerationID,
 			s3InternetExposureEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical s3 internet exposure properties: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical s3 internet exposure properties: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -156,7 +166,7 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 			intent.GenerationID,
 			s3InternetExposureEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical s3 internet exposure properties: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical s3 internet exposure properties: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -178,10 +188,10 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainS3InternetExposureMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainS3InternetExposureMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d S3 internet exposure row(s) from %d posture fact(s); %d posture fact(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -190,28 +200,28 @@ func (h S3InternetExposureMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
-func (h S3InternetExposureMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+func (h S3InternetExposureMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
+	state, ok := gpphase.StateForIntentValue(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
-func (h S3InternetExposureMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h S3InternetExposureMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -289,7 +299,7 @@ func (s3InternetExposureNodesNotReadyError) FailureClass() string {
 }
 
 type s3InternetExposureTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	resourceCount   int
 	postureCount    int
 	rowCount        int
@@ -316,9 +326,9 @@ func logS3InternetExposureMaterializationCompleted(
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("posture_fact_count", timing.postureCount),
 		slog.Int("row_count", timing.rowCount),
-		slog.String("decisions", formatTally(timing.decisions)),
-		slog.String("reasons", formatTally(timing.reasons)),
-		slog.String("skipped_by_reason", formatTally(timing.skippedByReason)),
+		slog.String("decisions", payloadcore.FormatTally(timing.decisions)),
+		slog.String("reasons", payloadcore.FormatTally(timing.reasons)),
+		slog.String("skipped_by_reason", payloadcore.FormatTally(timing.skippedByReason)),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("derive_duration_seconds", timing.extractDuration.Seconds()),

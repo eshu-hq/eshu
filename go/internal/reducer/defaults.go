@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -350,7 +351,7 @@ type DefaultHandlers struct {
 	// one would drop every exposure materialization intent before it reaches the
 	// graph. The handler also gates on ReadinessLookup so node properties never
 	// resolve against uncommitted S3 nodes.
-	S3InternetExposureNodeWriter S3InternetExposureNodeWriter
+	S3InternetExposureNodeWriter internetexposure.S3InternetExposureNodeWriter
 
 	// EC2InternetExposureNodeWriter derives ec2_instance_posture internet
 	// exposure state and writes reducer-owned properties onto existing EC2
@@ -359,7 +360,7 @@ type DefaultHandlers struct {
 	// missing either one would drop every exposure materialization intent before
 	// it reaches the graph. The handler gates on ReadinessLookup so node
 	// properties never resolve against uncommitted EC2 nodes.
-	EC2InternetExposureNodeWriter EC2InternetExposureNodeWriter
+	EC2InternetExposureNodeWriter internetexposure.EC2InternetExposureNodeWriter
 
 	// ContainerImageIdentityWriter persists image-reference-keyed identity
 	// decisions for Git, OCI registry, and runtime image evidence.

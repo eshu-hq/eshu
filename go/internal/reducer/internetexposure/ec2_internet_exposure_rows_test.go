@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package internetexposure
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 const (
@@ -88,7 +89,7 @@ func requireEC2InternetExposureRow(t *testing.T, rows []map[string]any, uid stri
 }
 
 func ec2ExposureUID(instanceID string) string {
-	return cloudResourceUID(ec2ExposureAccount, ec2ExposureRegion, "aws_ec2_instance", instanceID)
+	return cloudjoin.CloudResourceUID(ec2ExposureAccount, ec2ExposureRegion, "aws_ec2_instance", instanceID)
 }
 
 func TestExtractEC2InternetExposureRowsDerivesExposedFromPublicIPAndInternetReachableSG(t *testing.T) {

@@ -140,8 +140,8 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainRDSPostureMaterialization:               "additive, gated on FactLoader+RDSPostureNodeWriter with readiness lookup; graph read-back, idempotency proven by rdsposture/rds_posture_materialization_*_test.go (defaults_rds_posture_test.go)",
 	DomainEC2InstanceIdentityMaterialization:      "additive, gated on FactLoader+EC2InstanceIdentityNodeWriter with readiness lookup on the EC2 instance node phase; augment-only MERGE+SET of the disjoint ami_id property, never creates a node; idempotency proven by ec2instance/ec2_instance_identity_materialization_*_test.go and ec2_instance_identity_node_writer_test.go",
 	DomainEC2BlockDeviceKMSPostureMaterialization: "additive, gated on FactLoader+EC2BlockDeviceKMSPostureNodeWriter with readiness lookup; graph read-back, idempotency proven by ec2_block_device_kms_posture_materialization_*_test.go",
-	DomainS3InternetExposureMaterialization:       "additive, gated on FactLoader+S3InternetExposureNodeWriter with readiness lookup; graph read-back, idempotency proven by s3_internet_exposure_materialization_*_test.go (defaults_s3_internet_exposure_test.go)",
-	DomainEC2InternetExposureMaterialization:      "additive, gated on FactLoader+EC2InternetExposureNodeWriter with readiness lookup; graph read-back, idempotency proven by ec2_internet_exposure_materialization_*_test.go",
+	DomainS3InternetExposureMaterialization:       "additive, gated on FactLoader+S3InternetExposureNodeWriter with readiness lookup; graph read-back, idempotency proven by internetexposure/s3_internet_exposure_materialization_*_test.go (defaults_s3_internet_exposure_test.go)",
+	DomainEC2InternetExposureMaterialization:      "additive, gated on FactLoader+EC2InternetExposureNodeWriter with readiness lookup; graph read-back, idempotency proven by internetexposure/ec2_internet_exposure_materialization_*_test.go",
 
 	// Cloud relationship/edge materializers: readiness-gated edge writes against
 	// committed nodes, proven by their own suites.
