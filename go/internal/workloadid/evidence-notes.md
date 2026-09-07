@@ -135,25 +135,40 @@ tree:
 - `TestIdentifierTypesAreOpaque` pins every field of both identifier
   types unexported via reflection, so a future exported field (or a
   regression to a string underlying type) fails loudly (#6580 codex P1).
-- Current counts on this base (run from `go/`; `rg -o '"workload:[^"]*"'` /
-  `'"workload-instance:[^"]*"'` `--glob '*_test.go'`, balanced-quote literal
-  methodology): 131 `"workload:` literals across 32 reducer test files and
-  92 `"workload-instance:` literals across 12 reducer test files, all green
-  unchanged — the byte-identity proof on this base. (An opening-quote-only
-  count reads +1/+1 from the rows-track-constructors comment quoting the
-  `Sprintf("workload:` pattern; the balanced-quote methodology used here
-  is unaffected.) The +2/+1 instance delta over the pre-rebase 90/11 is
-  exactly upstream's new `workload_materializer_retract_instances_test.go`
-  (main commit `d9f5e43bf`, not this diff — confirmed outside
-  `origin/main..HEAD`), verified by file attribution.
+- Current counts on this base (run from `go/`, path `internal/reducer/`,
+  `rg -o '"workload:[^"]*"'` / `'"workload-instance:[^"]*"'`
+  `--glob '*_test.go'`, balanced-quote literal methodology): 131 `"workload:`
+  literals across 32 reducer test files and 92 `"workload-instance:`
+  literals across 12 reducer test files, all green unchanged — the
+  byte-identity proof on this base. Per-file diff against the bare old base
+  (`e55bcef7c`, counted the same way in a detached worktree: 123/30 and
+  89/10): the ONLY changed files are this diff's own two new test files —
+  `projection_workloadid_test.go` (+1 workload, +1 instance) and
+  `workloadid_routing_guard_test.go` (+7 workload, +2 instance). Every
+  upstream file's count is byte-identical, so no upstream test expectation
+  moved under the rebase. (Correction: the pre-rebase note's "90/11"
+  instance predecessor does not reproduce — the bare old base recounts
+  89/10 — so it is superseded by this per-file diff, not carried forward.)
+  Opening-quote-only methodology (`rg -o '"workload:'` /
+  `'"workload-instance:'`, same cwd/path): 131 (+0) and 94 (+2). The +2 is
+  exactly the guard test's two deliberately unclosed
+  `Sprintf("workload-instance:` pattern strings — it is the sole file in
+  the tree where open != balanced (4 open / 2 balanced); the old base has
+  none. The rows-track comment's quoted `Sprintf("workload:` pattern does
+  not perturb either count.
 - `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2468 pass
   (incl. subtests), 0 fail, 5 skip — all pre-existing and unrelated to this
   change: a live-backend-gated Bolt retract test, a provenance-replay
   tombstone test, and three data-driven conditional skips in the main-side
-  family-registry coherence test.
-  `go test ./internal/query/ ./internal/mcp/ -count=1`: green.
-  `go vet`, `gofmt`, `verify-package-docs.sh`,
-  `verify-performance-evidence.sh`, and `test-verify-golden-corpus-gate.sh`:
-  all exit 0. (`gofumpt` is not installed in this environment so its line
+  family-registry coherence test. Observed tails:
+  `ok github.com/eshu-hq/eshu/go/internal/reducer 3.148s`,
+  `ok github.com/eshu-hq/eshu/go/internal/workloadid 0.183s`.
+  `go test ./internal/query/ ./internal/mcp/ -count=1`: green, observed
+  `ok github.com/eshu-hq/eshu/go/internal/query 3.443s`,
+  `ok github.com/eshu-hq/eshu/go/internal/mcp 1.976s`.
+  `go vet ./internal/reducer/ ./internal/workloadid/`: exit 0, no findings.
+  `gofmt -l` on both packages: clean. `verify-package-docs.sh`,
+  `verify-performance-evidence.sh`, `test-verify-golden-corpus-gate.sh`:
+  each exit 0. (`gofumpt` is not installed in this environment so its line
   is unverified here; `gofmt -l` is clean on both touched packages and this
   change introduces no formatting drift.)
