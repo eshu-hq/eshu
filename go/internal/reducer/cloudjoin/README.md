@@ -35,8 +35,8 @@ The AWS relationship and security-group reachability slices at the reducer root
 all resolve endpoints against this index, and so do the
 `reducer/iamescalation` and `reducer/iamcan` families. A family package may never import the reducer root,
 so the index has to live below both. The S3 bucket-name index is shared the
-same way by the s3logsto family and the still-in-root s3grant and S3
-internet-exposure slices. The root keeps `cloudResourceJoinIndex`,
+same way by the s3logsto and s3grant families and the still-in-root S3
+internet-exposure slice. The root keeps `cloudResourceJoinIndex`,
 `buildCloudResourceJoinIndex` and `cloudResourceUID` as an alias and two
 forwarders in `cloud_resource_join_index_compat.go`, so its own callers compile
 unchanged.
