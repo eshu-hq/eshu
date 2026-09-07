@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rdsposture
 
 import (
 	"context"
@@ -13,20 +13,25 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// rdsPostureMaterializationDomainDefinition returns the additive definition for
+// MaterializationDomainDefinition returns the additive definition for
 // RDS posture node-property projection. It is additive because the handler
 // requires an explicitly wired RDSPostureNodeWriter and FactLoader; registering
 // it without them would silently drop every posture intent.
-func rdsPostureMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainRDSPostureMaterialization,
+func MaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainRDSPostureMaterialization,
 		Summary: "project rds_instance_posture facts onto canonical CloudResource node properties",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -60,14 +65,14 @@ type RDSPostureNodeWriter interface {
 // DB instance or Aurora cluster was scanned as a CloudResource in that
 // generation.
 type RDSPostureMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter RDSPostureNodeWriter
 	// ReadinessLookup reports whether the canonical CloudResource nodes have
 	// committed. A nil lookup keeps the gate open for test wiring.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative.
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
 	// when an aws_resource join fact is quarantined as input_invalid during the
@@ -79,20 +84,20 @@ type RDSPostureMaterializationHandler struct {
 // Handle executes one RDS posture materialization intent.
 func (h RDSPostureMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainRDSPostureMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainRDSPostureMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"rds posture materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("rds posture materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("rds posture materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("rds posture materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("rds posture materialization node writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -108,14 +113,14 @@ func (h RDSPostureMaterializationHandler) Handle(
 	}
 
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, rdsPostureNodesNotReadyError{
+		return reducercontract.Result{}, rdsPostureNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -123,7 +128,7 @@ func (h RDSPostureMaterializationHandler) Handle(
 		rdsPostureFactKinds(),
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for rds posture materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for rds posture materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -135,17 +140,17 @@ func (h RDSPostureMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource join fact (a missing required
 	// identity field) is quarantined as a visible input_invalid dead-letter —
 	// counter + structured error log — while valid posture still materializes.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainRDSPostureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainRDSPostureMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -156,7 +161,7 @@ func (h RDSPostureMaterializationHandler) Handle(
 			intent.GenerationID,
 			rdsPostureEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical rds posture properties: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical rds posture properties: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -171,7 +176,7 @@ func (h RDSPostureMaterializationHandler) Handle(
 			intent.GenerationID,
 			rdsPostureEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical rds posture properties: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical rds posture properties: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -190,10 +195,10 @@ func (h RDSPostureMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainRDSPostureMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainRDSPostureMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d rds posture node update(s) from %d posture fact(s); %d posture fact(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -202,7 +207,7 @@ func (h RDSPostureMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -210,24 +215,24 @@ func rdsPostureFactKinds() []string {
 	return []string{facts.AWSResourceFactKind, facts.RDSInstancePostureFactKind}
 }
 
-func (h RDSPostureMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+func (h RDSPostureMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
+	state, ok := gpphase.StateForIntentValue(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
-func (h RDSPostureMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h RDSPostureMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -284,7 +289,7 @@ func (rdsPostureNodesNotReadyError) FailureClass() string {
 }
 
 type rdsPostureMaterializationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	resourceCount   int
 	postureCount    int
 	rowCount        int
@@ -309,7 +314,7 @@ func logRDSPostureMaterializationCompleted(
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("posture_fact_count", timing.postureCount),
 		slog.Int("node_update_count", timing.rowCount),
-		slog.String("skipped_by_reason", formatTally(timing.skippedByReason)),
+		slog.String("skipped_by_reason", payloadcore.FormatTally(timing.skippedByReason)),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),

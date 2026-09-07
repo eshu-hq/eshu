@@ -13,6 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -295,7 +296,7 @@ type DefaultHandlers struct {
 	// one would drop every RDS posture intent before it reaches graph truth. The
 	// handler also gates on ReadinessLookup so posture fields never write against
 	// uncommitted CloudResource nodes.
-	RDSPostureNodeWriter RDSPostureNodeWriter
+	RDSPostureNodeWriter rdsposture.RDSPostureNodeWriter
 	// EC2InstanceIdentityNodeWriter projects the #5448 aws_ec2_instance
 	// aws_resource fact's ami_id onto the already-materialized EC2 instance
 	// CloudResource node (owned by DomainEC2InstanceNodeMaterialization). It

@@ -3,7 +3,10 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+)
 
 // appendCloudRelationshipAdditiveDomains registers the cloud-relationship edge
 // and posture-node domains that read back committed graph state through the
@@ -102,8 +105,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, s3Grant)
 	}
 	if handlers.FactLoader != nil && handlers.RDSPostureNodeWriter != nil {
-		rdsPosture := rdsPostureMaterializationDomainDefinition()
-		rdsPosture.Handler = RDSPostureMaterializationHandler{
+		rdsPosture := rdsposture.MaterializationDomainDefinition()
+		rdsPosture.Handler = rdsposture.RDSPostureMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			NodeWriter:           handlers.RDSPostureNodeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

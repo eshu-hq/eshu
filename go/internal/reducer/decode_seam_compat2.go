@@ -17,7 +17,6 @@ import (
 // into internal/reducer/secretsiam; both subpackages import schemadecode directly.
 
 var (
-	decodeRDSInstancePosture                   = schemadecode.DecodeRDSInstancePosture
 	decodeReducerPackageConsumptionCorrelation = schemadecode.DecodeReducerPackageConsumptionCorrelation
 	decodeReducerPackageOwnershipCorrelation   = schemadecode.DecodeReducerPackageOwnershipCorrelation
 	decodeReducerPackagePublicationCorrelation = schemadecode.DecodeReducerPackagePublicationCorrelation

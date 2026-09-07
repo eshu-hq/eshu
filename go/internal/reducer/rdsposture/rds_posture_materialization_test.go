@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rdsposture
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type recordingRDSPostureNodeWriter struct {
@@ -49,12 +50,12 @@ func (w *recordingRDSPostureNodeWriter) RetractRDSPostureNodes(
 	return nil
 }
 
-func rdsPostureIntent() Intent {
-	return Intent{
+func rdsPostureIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-rds-posture-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainRDSPostureMaterialization,
+		Domain:       reducercontract.DomainRDSPostureMaterialization,
 		EntityKeys:   []string{"aws_resource_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -81,7 +82,7 @@ func TestRDSPostureMaterializationRejectsMismatchedDomain(t *testing.T) {
 		ReadinessLookup: readyLookup(true, true),
 	}
 	intent := rdsPostureIntent()
-	intent.Domain = DomainS3LogsToMaterialization
+	intent.Domain = reducercontract.DomainS3LogsToMaterialization
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -125,7 +126,7 @@ func TestRDSPostureMaterializationGatesOnCanonicalNodesPhase(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected a retryable error while canonical CloudResource nodes are not ready")
 	}
-	if !IsRetryable(err) {
+	if !reducercontract.IsRetryable(err) {
 		t.Fatalf("error must be retryable, got %v", err)
 	}
 	if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -148,7 +149,7 @@ func TestRDSPostureMaterializationProjectsNodeProperties(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.writeCalls != 1 {

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rdsposture
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 const (
@@ -65,7 +66,7 @@ func rdsPostureEnvelope(resourceType, arn, identifier string, public bool) facts
 }
 
 func rdsUID(resourceType, arn string) string {
-	return cloudResourceUID(testRDSAccount, testRDSRegion, resourceType, arn)
+	return cloudjoin.CloudResourceUID(testRDSAccount, testRDSRegion, resourceType, arn)
 }
 
 func TestExtractRDSPostureRowsProjectsInstanceAndCluster(t *testing.T) {
@@ -258,7 +259,7 @@ func TestExtractRDSPostureRowsQuarantinesMissingRequiredField(t *testing.T) {
 		t.Fatalf("tally.updated = %d, want 1", tally.updated)
 	}
 	for _, row := range rows {
-		if row["uid"] == cloudResourceUID("", testRDSRegion, testRDSInstance, instanceARN) {
+		if row["uid"] == cloudjoin.CloudResourceUID("", testRDSRegion, testRDSInstance, instanceARN) {
 			t.Fatalf("found a row with a fabricated empty-account_id uid: %#v", row)
 		}
 	}
