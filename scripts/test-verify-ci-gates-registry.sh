@@ -401,11 +401,14 @@ linted_scripts="$(
 )" || fail "could not enumerate tracked linted scripts (git/rg failed)"
 [[ -n "${linted_scripts}" ]] ||
 	fail "no tracked linted scripts enumerated - the parity check would be vacuous"
+# NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3. The list is
+# already materialized and validated non-empty above, so the printf-fed
+# process substitution keeps the no-silent-false-green property.
 while IFS= read -r linted_script; do
 	[[ -n "${linted_script}" ]] || continue
 	require_path_line "${frontend_pull_request_paths}" "${linted_script}" \
 		"frontend pull_request paths omit linted script"
-done <<<"${linted_scripts}"
+done < <(printf '%s\n' "${linted_scripts}")
 
 # The published Cloudflare Pages assets. Vite has no publicDir/root override, so
 # public/ is copied verbatim into build.outDir and shipped - a direct input to

@@ -245,14 +245,18 @@ changed_paths() { changed_all_files; }
 # when a gate that actually RAN failed.
 run_or_defer() {
 	local name="$1" trigger="$2" prereq="$3"; shift 3
-	# Materialize the path list first, then feed it to rg via a here-string. A
-	# direct `changed_paths | rg -q` lets rg exit on its first match and SIGPIPE
-	# the upstream git/sort; under `pipefail` that nonzero would hit `|| return 0`
-	# and misclassify a genuinely-triggered gate as untriggered — skipping its
-	# live proof while still stamping the commit. The here-string has no upstream
-	# process to signal.
+	# Materialize the path list first, then branch on rg's exit status with
+	# stdout redirected. A direct `changed_paths | rg -q` lets rg exit on its
+	# first match and SIGPIPE the upstream git/sort; under `pipefail` that
+	# nonzero would hit `|| return 0` and misclassify a genuinely-triggered
+	# gate as untriggered — skipping its live proof while still stamping the
+	# commit. A here-string (<<<) is not the answer either: it deadlocks on
+	# bash >= 5.3. Without -q rg consumes all input, so no early-exit signal
+	# exists on either side; testing exit status (instead of output emptiness)
+	# also preserves the match when RIPGREP_CONFIG_PATH injects
+	# output-suppressing options like --quiet.
 	local _changed; _changed="$(changed_paths)"
-	rg -q "${trigger}" <<<"${_changed}" || return 0
+	printf '%s\n' "${_changed}" | rg "${trigger}" >/dev/null || return 0
 	if [[ "${ESHU_PREPR_SKIP_LIVE:-0}" == "1" ]]; then
 		printf '\033[33mlive lane: %s TRIGGERED but ESHU_PREPR_SKIP_LIVE=1 — DEFERRED to CI.\033[0m\n' "${name}"
 		live_deferred+=("${name}"); return 0
