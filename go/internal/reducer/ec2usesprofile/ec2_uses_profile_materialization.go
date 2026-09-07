@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2usesprofile
 
 import (
 	"context"
@@ -15,23 +15,28 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// ec2UsesProfileMaterializationDomainDefinition returns the additive definition
+// MaterializationDomainDefinition returns the additive definition
 // for EC2 USES_PROFILE instance-profile edge projection (#1146 PR-B). It is
 // additive (not part of DefaultDomainDefinitions) because the handler requires an
 // explicitly wired EC2UsesProfileEdgeWriter and FactLoader; registering it without
 // them would silently drop every intent. It mirrors
-// s3LogsToMaterializationDomainDefinition (#1144 PR2). See issue #1146 PR-B and
+// s3logsto.MaterializationDomainDefinition (#1144 PR2). See issue #1146 PR-B and
 // docs/internal/design/1146-ec2-uses-profile-edge.md.
-func ec2UsesProfileMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainEC2UsesProfileMaterialization,
+func MaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainEC2UsesProfileMaterialization,
 		Summary: "project ec2_instance_posture instance_profile_arn into canonical USES_PROFILE graph edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -107,17 +112,17 @@ type EC2UsesProfileEdgeWriter interface {
 //
 // See issue #1146 PR-B and docs/internal/design/1146-ec2-uses-profile-edge.md.
 type EC2UsesProfileMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	EdgeWriter EC2UsesProfileEdgeWriter
 	// ReadinessLookup reports whether a canonical-nodes-committed phase has been
 	// published for a given phase key. The handler queries it once per endpoint
 	// node phase (aws_resource and ec2_instance_node entity keys). A nil lookup
 	// keeps the gate open (test wiring); production wires the durable Postgres
 	// lookup, and the durable Postgres claim gate is the load-bearing fence.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation. Nil
 	// keeps retract behavior conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	Instruments          *telemetry.Instruments
 }
@@ -132,20 +137,20 @@ func ec2UsesProfileFactKinds() []string {
 // Handle executes one EC2 USES_PROFILE materialization intent.
 func (h EC2UsesProfileMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainEC2UsesProfileMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainEC2UsesProfileMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"ec2 uses-profile materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("ec2 uses-profile materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("ec2 uses-profile materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("ec2 uses-profile materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("ec2 uses-profile materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -166,7 +171,7 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 	// re-enters the durable queue (retryable) rather than writing an edge against
 	// a node set that does not exist yet — a silent missed edge.
 	if missing, ok := h.firstMissingNodePhase(intent); !ok {
-		return Result{}, ec2UsesProfileNodesNotReadyError{
+		return reducercontract.Result{}, ec2UsesProfileNodesNotReadyError{
 			scopeID:         intent.ScopeID,
 			generationID:    intent.GenerationID,
 			missingPhaseFor: missing,
@@ -174,7 +179,7 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -182,7 +187,7 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 		ec2UsesProfileFactKinds(),
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for ec2 uses-profile materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for ec2 uses-profile materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -194,18 +199,18 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load, unsupported major, or other
 		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
 		// whole intent so the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource/ec2_instance_posture fact (a
 	// missing required identity field) is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while the batch's valid
 	// facts still project below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainEC2UsesProfileMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainEC2UsesProfileMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -216,7 +221,7 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 			intent.GenerationID,
 			ec2UsesProfileEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical ec2 uses-profile edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical ec2 uses-profile edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -231,7 +236,7 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 			intent.GenerationID,
 			ec2UsesProfileEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical ec2 uses-profile edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical ec2 uses-profile edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -253,10 +258,10 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainEC2UsesProfileMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainEC2UsesProfileMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d USES_PROFILE edge(s) from %d posture fact(s); %d profile(s) skipped (source/target unscanned); %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -265,7 +270,7 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -278,7 +283,7 @@ func (h EC2UsesProfileMaterializationHandler) Handle(
 // Unlike the single-phase edges, the two phases publish under DIFFERENT entity
 // keys, so each lookup uses a fixed entity-key derived from the scope id rather
 // than the intent's own entity key.
-func (h EC2UsesProfileMaterializationHandler) firstMissingNodePhase(intent Intent) (string, bool) {
+func (h EC2UsesProfileMaterializationHandler) firstMissingNodePhase(intent reducercontract.Intent) (string, bool) {
 	if h.ReadinessLookup == nil {
 		return "", true
 	}
@@ -296,14 +301,14 @@ func (h EC2UsesProfileMaterializationHandler) firstMissingNodePhase(intent Inten
 		{label: "instance_node", entityKey: ec2UsesProfileInstanceNodeEntityKeyPrefix + scopeID},
 	}
 	for _, check := range checks {
-		key := GraphProjectionPhaseKey{
+		key := gpphase.PhaseKey{
 			ScopeID:          scopeID,
 			AcceptanceUnitID: check.entityKey,
 			SourceRunID:      generationID,
 			GenerationID:     generationID,
-			Keyspace:         GraphProjectionKeyspaceCloudResourceUID,
+			Keyspace:         gpphase.KeyspaceCloudResourceUID,
 		}
-		ready, found := h.ReadinessLookup(key, GraphProjectionPhaseCanonicalNodesCommitted)
+		ready, found := h.ReadinessLookup(key, gpphase.PhaseCanonicalNodesCommitted)
 		if !found || !ready {
 			return check.label, false
 		}
@@ -315,7 +320,7 @@ func (h EC2UsesProfileMaterializationHandler) firstMissingNodePhase(intent Inten
 // retract on the very first generation for a scope (no prior edges to remove) and
 // only on the first attempt, so a retried attempt still cleans up a partial prior
 // write.
-func (h EC2UsesProfileMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h EC2UsesProfileMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -340,7 +345,7 @@ func (h EC2UsesProfileMaterializationHandler) recordEdgeCounter(
 	}
 	counts := make(map[string]int, len(rows))
 	for _, row := range rows {
-		counts[anyToString(row["resolution_mode"])]++
+		counts[payloadcore.AnyToString(row["resolution_mode"])]++
 	}
 	for mode, count := range counts {
 		h.Instruments.EC2UsesProfileEdges.Add(ctx, int64(count), metric.WithAttributes(
@@ -429,7 +434,7 @@ func (ec2UsesProfileNodesNotReadyError) FailureClass() string {
 // the completion log identifies fact-load, resolve, retract, and graph-write time,
 // plus how many USES_PROFILE edges materialized and which profiles were skipped.
 type ec2UsesProfileMaterializationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	resourceCount   int
 	postureCount    int
 	edgeCount       int
@@ -455,8 +460,8 @@ func logEC2UsesProfileMaterializationCompleted(
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("posture_fact_count", timing.postureCount),
 		slog.Int("edge_count", timing.edgeCount),
-		slog.String("resolved_by_mode", formatTally(timing.resolvedByMode)),
-		slog.String("skipped_by_reason", formatTally(timing.skippedByReason)),
+		slog.String("resolved_by_mode", payloadcore.FormatTally(timing.resolvedByMode)),
+		slog.String("skipped_by_reason", payloadcore.FormatTally(timing.skippedByReason)),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("resolve_duration_seconds", timing.extractDuration.Seconds()),

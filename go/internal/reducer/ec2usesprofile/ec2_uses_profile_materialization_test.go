@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2usesprofile
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // recordingEC2UsesProfileEdgeWriter captures USES_PROFILE edge writes and retracts
@@ -53,12 +55,12 @@ func (w *recordingEC2UsesProfileEdgeWriter) RetractEC2UsesProfileEdges(
 	return w.retractErr
 }
 
-func ec2UsesProfileIntent() Intent {
-	return Intent{
+func ec2UsesProfileIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-ec2-uses-profile-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2UsesProfileMaterialization,
+		Domain:       reducercontract.DomainEC2UsesProfileMaterialization,
 		EntityKeys:   []string{"ec2_uses_profile_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -69,12 +71,12 @@ func ec2UsesProfileIntent() Intent {
 // canonical-nodes-committed phase ready for the entity keys that are present in
 // the readyKeys set. It lets a test prove the dual-key gate stays closed unless
 // BOTH the aws_resource node phase AND the ec2_instance node phase are present.
-func ec2UsesProfileDualKeyLookup(readyKeys map[string]bool) GraphProjectionReadinessLookup {
-	return func(key GraphProjectionPhaseKey, phase GraphProjectionPhase) (bool, bool) {
-		if phase != GraphProjectionPhaseCanonicalNodesCommitted {
+func ec2UsesProfileDualKeyLookup(readyKeys map[string]bool) gpphase.ReadinessLookup {
+	return func(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
+		if phase != gpphase.PhaseCanonicalNodesCommitted {
 			return false, false
 		}
-		if key.Keyspace != GraphProjectionKeyspaceCloudResourceUID {
+		if key.Keyspace != gpphase.KeyspaceCloudResourceUID {
 			return false, false
 		}
 		ready, found := readyKeys[key.AcceptanceUnitID]
@@ -114,7 +116,7 @@ func TestEC2UsesProfileMaterializationRejectsMismatchedDomain(t *testing.T) {
 		ReadinessLookup: ec2UsesProfileDualKeyLookup(ec2UsesProfileBothReady()),
 	}
 	intent := ec2UsesProfileIntent()
-	intent.Domain = DomainAWSRelationshipMaterialization
+	intent.Domain = reducercontract.DomainAWSRelationshipMaterialization
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -206,7 +208,7 @@ func TestEC2UsesProfileMaterializationGatesUntilBothPhasesCommit(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected a retryable error while a node phase is missing")
 			}
-			if !IsRetryable(err) {
+			if !reducercontract.IsRetryable(err) {
 				t.Fatalf("error must be retryable so the intent re-enters the queue, got %v", err)
 			}
 			if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -231,7 +233,7 @@ func TestEC2UsesProfileMaterializationProjectsEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.writeCalls != 1 {

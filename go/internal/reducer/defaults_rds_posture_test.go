@@ -3,7 +3,35 @@
 
 package reducer
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+)
+
+// stubRDSPostureNodeWriter is a minimal root-side fake satisfying
+// rdsposture.RDSPostureNodeWriter. This wiring test only proves the writer
+// identity was threaded through to the handler, never exercising its
+// methods, so it does not need the family's recording behavior -- and Go
+// test files cannot share an unexported test type
+// (recordingRDSPostureNodeWriter) across the reducer/rdsposture package
+// boundary (issue #6061).
+// The id field is load-bearing: a zero-size struct compares equal to every
+// other instance of itself, so an identity assertion over a struct{} value
+// passes even when a DIFFERENT writer reaches the handler. A pointer to an
+// empty struct is not sufficient either -- Go permits distinct zero-size
+// allocations to share an address -- so the field is what makes the
+// comparison sound rather than lucky.
+type stubRDSPostureNodeWriter struct{ id int }
+
+func (stubRDSPostureNodeWriter) WriteRDSPostureNodes(context.Context, []map[string]any, string, string, string) error {
+	return nil
+}
+
+func (stubRDSPostureNodeWriter) RetractRDSPostureNodes(context.Context, []string, string, string) error {
+	return nil
+}
 
 func TestImplementedDefaultDomainDefinitionsOmitsRDSPostureWithoutNodeWriter(t *testing.T) {
 	t.Parallel()
@@ -22,7 +50,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesRDSPostureWhenWired(t *testi
 	t.Parallel()
 
 	loader := &stubFactLoader{}
-	writer := &recordingRDSPostureNodeWriter{}
+	writer := &stubRDSPostureNodeWriter{id: 1}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		FactLoader:           loader,
 		RDSPostureNodeWriter: writer,
@@ -34,9 +62,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesRDSPostureWhenWired(t *testi
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(RDSPostureMaterializationHandler)
+		handler, ok := def.Handler.(rdsposture.RDSPostureMaterializationHandler)
 		if !ok {
-			t.Fatalf("rds_posture_materialization handler type = %T, want RDSPostureMaterializationHandler", def.Handler)
+			t.Fatalf("rds_posture_materialization handler type = %T, want rdsposture.RDSPostureMaterializationHandler", def.Handler)
 		}
 		if handler.FactLoader != loader {
 			t.Fatal("rds_posture_materialization handler FactLoader was not wired")

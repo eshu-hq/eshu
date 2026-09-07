@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package s3logsto
 
 import (
 	"context"
@@ -14,23 +14,28 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// s3LogsToMaterializationDomainDefinition returns the additive definition for S3
+// MaterializationDomainDefinition returns the additive definition for S3
 // LOGS_TO server-access-log edge projection. It is additive (not part of
 // DefaultDomainDefinitions) because the handler requires an explicitly wired
 // S3LogsToEdgeWriter and FactLoader; registering it without them would silently
-// drop every intent. It mirrors iamCanAssumeMaterializationDomainDefinition
+// drop every intent. It mirrors iamcan.AssumeMaterializationDomainDefinition
 // (#1134 PR2). See issue #1144 PR2 and
 // docs/internal/design/1144-s3-logs-to-edge.md.
-func s3LogsToMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainS3LogsToMaterialization,
+func MaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainS3LogsToMaterialization,
 		Summary: "project s3_bucket_posture logging_target_bucket into canonical LOGS_TO graph edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -74,15 +79,15 @@ type S3LogsToEdgeWriter interface {
 //
 // See issue #1144 PR2 and docs/internal/design/1144-s3-logs-to-edge.md.
 type S3LogsToMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	EdgeWriter S3LogsToEdgeWriter
 	// ReadinessLookup reports whether the canonical-nodes-committed phase has
 	// been published for the intent's scope generation. A nil lookup keeps the
 	// gate open (test wiring); production wires the durable Postgres lookup.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	Instruments          *telemetry.Instruments
 }
@@ -97,20 +102,20 @@ func s3LogsToFactKinds() []string {
 // Handle executes one S3 LOGS_TO materialization intent.
 func (h S3LogsToMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainS3LogsToMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainS3LogsToMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"s3 logs-to materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("s3 logs-to materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("s3 logs-to materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("s3 logs-to materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("s3 logs-to materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -130,14 +135,14 @@ func (h S3LogsToMaterializationHandler) Handle(
 	// published, the intent re-enters the durable queue (retryable) rather than
 	// writing edges against a node set that does not exist yet.
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, s3LogsToNodesNotReadyError{
+		return reducercontract.Result{}, s3LogsToNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -145,7 +150,7 @@ func (h S3LogsToMaterializationHandler) Handle(
 		s3LogsToFactKinds(),
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for s3 logs-to materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for s3 logs-to materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -157,18 +162,18 @@ func (h S3LogsToMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load, unsupported major, or other
 		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
 		// whole intent so the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource/s3_bucket_posture fact (a
 	// missing required identity field) is quarantined as a visible
 	// input_invalid dead-letter — counter + structured error log — while the
 	// batch's valid facts still project below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainS3LogsToMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainS3LogsToMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -179,7 +184,7 @@ func (h S3LogsToMaterializationHandler) Handle(
 			intent.GenerationID,
 			s3LogsToEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical s3 logs-to edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical s3 logs-to edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -194,7 +199,7 @@ func (h S3LogsToMaterializationHandler) Handle(
 			intent.GenerationID,
 			s3LogsToEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical s3 logs-to edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical s3 logs-to edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -216,10 +221,10 @@ func (h S3LogsToMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainS3LogsToMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainS3LogsToMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d LOGS_TO edge(s) from %d posture fact(s); %d log target(s) skipped (source/target unscanned); %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -228,7 +233,7 @@ func (h S3LogsToMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -237,20 +242,20 @@ func (h S3LogsToMaterializationHandler) Handle(
 // derived the same way DomainAWSResourceMaterialization publishes it, so the
 // lookup matches the published row. A nil lookup keeps the gate open for test
 // wiring.
-func (h S3LogsToMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+func (h S3LogsToMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
+	state, ok := gpphase.StateForIntentValue(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
@@ -258,7 +263,7 @@ func (h S3LogsToMaterializationHandler) canonicalNodesReady(intent Intent) bool 
 // retract on the very first generation for a scope (no prior edges to remove)
 // and only on the first attempt, so a retried attempt still cleans up a partial
 // prior write.
-func (h S3LogsToMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h S3LogsToMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -283,7 +288,7 @@ func (h S3LogsToMaterializationHandler) recordEdgeCounter(
 	}
 	counts := make(map[string]int, len(rows))
 	for _, row := range rows {
-		counts[anyToString(row["resolution_mode"])]++
+		counts[payloadcore.AnyToString(row["resolution_mode"])]++
 	}
 	for mode, count := range counts {
 		h.Instruments.S3LogsToEdges.Add(ctx, int64(count), metric.WithAttributes(
@@ -370,7 +375,7 @@ func (s3LogsToNodesNotReadyError) FailureClass() string {
 // completion log identifies fact-load, resolve, retract, and graph-write time,
 // plus how many LOGS_TO edges materialized and which log targets were skipped.
 type s3LogsToMaterializationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	resourceCount   int
 	postureCount    int
 	edgeCount       int
@@ -396,8 +401,8 @@ func logS3LogsToMaterializationCompleted(
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("posture_fact_count", timing.postureCount),
 		slog.Int("edge_count", timing.edgeCount),
-		slog.String("resolved_by_mode", formatTally(timing.resolvedByMode)),
-		slog.String("skipped_by_reason", formatTally(timing.skippedByReason)),
+		slog.String("resolved_by_mode", payloadcore.FormatTally(timing.resolvedByMode)),
+		slog.String("skipped_by_reason", payloadcore.FormatTally(timing.skippedByReason)),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("resolve_duration_seconds", timing.extractDuration.Seconds()),

@@ -23,5 +23,5 @@ func PartitionForKey(partitionKey string, partitionCount int) (int, error) {
 		return 0, fmt.Errorf("partitionCount must be positive, got %d", partitionCount)
 	}
 
-	return int(PartitionHashForKey(partitionKey) % uint64(partitionCount)), nil
+	return int(PartitionHashForKey(partitionKey) % uint64(partitionCount)), nil // #nosec G115 -- bounded: result is % partitionCount which is range-checked > 0 above, so the value fits int
 }

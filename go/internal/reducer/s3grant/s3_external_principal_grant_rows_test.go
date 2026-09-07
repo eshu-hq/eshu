@@ -1,13 +1,40 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package s3grant
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
+
+// Local copies of the s3logsto family's test envelope builders, duplicated
+// here when that family moved to go/internal/reducer/s3logsto (issue #6061)
+// and moved into this package with the s3grant tests. Go test files cannot
+// share unexported symbols across a package boundary, so these carry
+// s3grant-scoped names: the internetexposure tests keep the original names
+// until that family moves.
+func s3GrantBucketResourceEnvelope(account, region, name string) facts.Envelope {
+	arn := "arn:aws:s3:::" + name
+	return facts.Envelope{
+		FactKind: facts.AWSResourceFactKind,
+		Payload: map[string]any{
+			"account_id":          account,
+			"region":              region,
+			"resource_type":       "aws_s3_bucket",
+			"resource_id":         arn,
+			"arn":                 arn,
+			"name":                name,
+			"correlation_anchors": []string{arn, name, "s3://" + name},
+		},
+	}
+}
+
+func s3GrantBucketUID(account, region, name string) string {
+	return cloudjoin.CloudResourceUID(account, region, "aws_s3_bucket", "arn:aws:s3:::"+name)
+}
 
 func s3ExternalPrincipalGrantEnvelope(
 	account,
@@ -48,7 +75,7 @@ func TestExtractS3ExternalPrincipalGrantRowsProjectsExactPrincipals(t *testing.T
 	t.Parallel()
 
 	resources := []facts.Envelope{
-		s3BucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
+		s3GrantBucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
 	}
 	grants := []facts.Envelope{
 		s3ExternalPrincipalGrantEnvelope(
@@ -69,7 +96,7 @@ func TestExtractS3ExternalPrincipalGrantRowsProjectsExactPrincipals(t *testing.T
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
 	row := rows[0]
-	if got, want := row["source_uid"], s3BucketUID("111111111111", "us-east-1", "orders-artifacts"); got != want {
+	if got, want := row["source_uid"], s3GrantBucketUID("111111111111", "us-east-1", "orders-artifacts"); got != want {
 		t.Fatalf("source_uid = %v, want %v", got, want)
 	}
 	if got, want := row["principal_kind"], "aws_account"; got != want {
@@ -101,7 +128,7 @@ func TestExtractS3ExternalPrincipalGrantRowsSkipsUnsupportedAndUnresolvedSources
 	t.Parallel()
 
 	resources := []facts.Envelope{
-		s3BucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
+		s3GrantBucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
 	}
 	grants := []facts.Envelope{
 		s3ExternalPrincipalGrantEnvelope(
@@ -141,8 +168,8 @@ func TestExtractS3ExternalPrincipalGrantRowsDeduplicatesAndOrders(t *testing.T) 
 	t.Parallel()
 
 	resources := []facts.Envelope{
-		s3BucketResourceEnvelope("111111111111", "us-east-1", "alpha"),
-		s3BucketResourceEnvelope("111111111111", "us-east-1", "beta"),
+		s3GrantBucketResourceEnvelope("111111111111", "us-east-1", "alpha"),
+		s3GrantBucketResourceEnvelope("111111111111", "us-east-1", "beta"),
 	}
 	forward := []facts.Envelope{
 		s3ExternalPrincipalGrantEnvelope("111111111111", "us-east-1", "beta", "public", "*", "public"),
@@ -188,7 +215,7 @@ func TestExtractS3ExternalPrincipalGrantRowsQuarantinesMissingRequiredField(t *t
 	t.Parallel()
 
 	resources := []facts.Envelope{
-		s3BucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
+		s3GrantBucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
 	}
 	malformed := facts.Envelope{
 		FactID:   "fact-grant-missing-account",

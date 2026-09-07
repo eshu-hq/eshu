@@ -177,5 +177,5 @@ func (r *repoDependencyShardReader) MarkIntentsCompleted(
 func ifaRepoDependencyAcceptanceShard(acceptanceUnitID string, shardCount int) int {
 	hasher := fnv.New32a()
 	_, _ = hasher.Write([]byte(acceptanceUnitID))
-	return int(hasher.Sum32() % uint32(shardCount))
+	return int(hasher.Sum32() % uint32(shardCount)) // #nosec G115 -- bounded: shardCount is workers > 1 (early return above), so the modulo result fits int
 }

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2usesprofile
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // ec2UsesProfileResourceEnvelope builds an aws_resource fact envelope for one
@@ -55,7 +57,7 @@ func ec2UsesProfilePostureEnvelope(account, region, instanceID, profileARN strin
 // PR-A's ec2_instance_node_materialization does, so a test can assert the edge
 // source_uid points at the node PR-A committed.
 func ec2InstanceUID(account, region, instanceID string) string {
-	return cloudResourceUID(account, region, "aws_ec2_instance", instanceID)
+	return cloudjoin.CloudResourceUID(account, region, "aws_ec2_instance", instanceID)
 }
 
 // ec2InstanceProfileUID recomputes the IAM instance-profile CloudResource node
@@ -64,7 +66,7 @@ func ec2InstanceUID(account, region, instanceID string) string {
 // scanned profile node.
 func ec2InstanceProfileUID(account, region, name string) string {
 	arn := "arn:aws:iam::" + account + ":instance-profile/" + name
-	return cloudResourceUID(account, region, "aws_iam_instance_profile", arn)
+	return cloudjoin.CloudResourceUID(account, region, "aws_iam_instance_profile", arn)
 }
 
 func TestExtractEC2UsesProfileEdgeRowsResolvesScannedProfile(t *testing.T) {
@@ -90,16 +92,16 @@ func TestExtractEC2UsesProfileEdgeRowsResolvesScannedProfile(t *testing.T) {
 	}
 	wantSource := ec2InstanceUID(acct, region, "i-aaa")
 	wantTarget := ec2InstanceProfileUID(acct, profileRegion, "app")
-	if got := anyToString(rows[0]["source_uid"]); got != wantSource {
+	if got := payloadcore.AnyToString(rows[0]["source_uid"]); got != wantSource {
 		t.Fatalf("source_uid = %q, want %q", got, wantSource)
 	}
-	if got := anyToString(rows[0]["target_uid"]); got != wantTarget {
+	if got := payloadcore.AnyToString(rows[0]["target_uid"]); got != wantTarget {
 		t.Fatalf("target_uid = %q, want %q", got, wantTarget)
 	}
-	if got := anyToString(rows[0]["relationship_type"]); got != "USES_PROFILE" {
+	if got := payloadcore.AnyToString(rows[0]["relationship_type"]); got != "USES_PROFILE" {
 		t.Fatalf("relationship_type = %q, want USES_PROFILE", got)
 	}
-	if got := anyToString(rows[0]["resolution_mode"]); got != ec2UsesProfileModeARN {
+	if got := payloadcore.AnyToString(rows[0]["resolution_mode"]); got != ec2UsesProfileModeARN {
 		t.Fatalf("resolution_mode = %q, want %q", got, ec2UsesProfileModeARN)
 	}
 	if tally.totalSkipped() != 0 {
@@ -186,8 +188,8 @@ func TestExtractEC2UsesProfileEdgeRowsTwoInstancesSameProfile(t *testing.T) {
 	}
 	sources := map[string]struct{}{}
 	for _, row := range rows {
-		sources[anyToString(row["source_uid"])] = struct{}{}
-		if got := anyToString(row["target_uid"]); got != ec2InstanceProfileUID(acct, profileRegion, "app") {
+		sources[payloadcore.AnyToString(row["source_uid"])] = struct{}{}
+		if got := payloadcore.AnyToString(row["target_uid"]); got != ec2InstanceProfileUID(acct, profileRegion, "app") {
 			t.Fatalf("target_uid = %q, want the shared profile uid", got)
 		}
 	}
@@ -266,7 +268,7 @@ func TestExtractEC2UsesProfileEdgeRowsDeterministicOrder(t *testing.T) {
 		t.Fatalf("row count differs by ordering: %d vs %d", len(rowsForward), len(rowsReverse))
 	}
 	for i := range rowsForward {
-		if anyToString(rowsForward[i]["source_uid"]) != anyToString(rowsReverse[i]["source_uid"]) {
+		if payloadcore.AnyToString(rowsForward[i]["source_uid"]) != payloadcore.AnyToString(rowsReverse[i]["source_uid"]) {
 			t.Fatalf("row %d source_uid not stable across input ordering", i)
 		}
 	}

@@ -3,7 +3,12 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
+)
 
 // appendCloudRelationshipAdditiveDomains registers the cloud-relationship edge
 // and posture-node domains that read back committed graph state through the
@@ -78,8 +83,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, iamCanAssume)
 	}
 	if handlers.FactLoader != nil && handlers.S3LogsToEdgeWriter != nil {
-		s3LogsTo := s3LogsToMaterializationDomainDefinition()
-		s3LogsTo.Handler = S3LogsToMaterializationHandler{
+		s3LogsTo := s3logsto.MaterializationDomainDefinition()
+		s3LogsTo.Handler = s3logsto.S3LogsToMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.S3LogsToEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
@@ -90,8 +95,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, s3LogsTo)
 	}
 	if handlers.FactLoader != nil && handlers.S3ExternalPrincipalGrantWriter != nil {
-		s3Grant := s3ExternalPrincipalGrantMaterializationDomainDefinition()
-		s3Grant.Handler = S3ExternalPrincipalGrantMaterializationHandler{
+		s3Grant := s3grant.MaterializationDomainDefinition()
+		s3Grant.Handler = s3grant.S3ExternalPrincipalGrantMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			GrantWriter:          handlers.S3ExternalPrincipalGrantWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
@@ -102,8 +107,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, s3Grant)
 	}
 	if handlers.FactLoader != nil && handlers.RDSPostureNodeWriter != nil {
-		rdsPosture := rdsPostureMaterializationDomainDefinition()
-		rdsPosture.Handler = RDSPostureMaterializationHandler{
+		rdsPosture := rdsposture.MaterializationDomainDefinition()
+		rdsPosture.Handler = rdsposture.RDSPostureMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			NodeWriter:           handlers.RDSPostureNodeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

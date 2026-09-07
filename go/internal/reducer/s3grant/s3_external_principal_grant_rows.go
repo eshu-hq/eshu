@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package s3grant
 
 import (
 	"sort"
@@ -9,6 +9,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -66,13 +70,13 @@ func externalPrincipalUID(principalKind, principalValue string) string {
 func ExtractS3ExternalPrincipalGrantRows(
 	resourceEnvelopes []facts.Envelope,
 	grantEnvelopes []facts.Envelope,
-) ([]map[string]any, s3ExternalPrincipalGrantTally, []quarantinedFact, error) {
+) ([]map[string]any, s3ExternalPrincipalGrantTally, []factdecode.QuarantinedFact, error) {
 	tally := newS3ExternalPrincipalGrantTally()
 	if len(grantEnvelopes) == 0 {
 		return nil, tally, nil, nil
 	}
 
-	index, quarantined, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	index, quarantined, err := cloudjoin.BuildS3BucketJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return nil, tally, nil, err
 	}
@@ -88,9 +92,9 @@ func ExtractS3ExternalPrincipalGrantRows(
 			continue
 		}
 
-		grant, err := decodeS3ExternalPrincipalGrant(env)
+		grant, err := schemadecode.DecodeS3ExternalPrincipalGrant(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, quarantined, fatal
 			}
@@ -100,7 +104,7 @@ func ExtractS3ExternalPrincipalGrantRows(
 			continue
 		}
 
-		sourceUID, ok := index.resolve(s3ExternalPrincipalGrantBucketName(grant))
+		sourceUID, ok := index.Resolve(s3ExternalPrincipalGrantBucketName(grant))
 		if !ok {
 			tally.skipped[s3ExternalPrincipalGrantSkipSourceUnresolved]++
 			continue
@@ -131,9 +135,9 @@ func ExtractS3ExternalPrincipalGrantRows(
 			"principal_uid":        principalUID,
 			"principal_kind":       principalKind,
 			"principal_value":      principalValue,
-			"principal_account_id": strings.TrimSpace(derefString(grant.PrincipalAccountID)),
-			"principal_partition":  strings.TrimSpace(derefString(grant.PrincipalPartition)),
-			"principal_service":    strings.TrimSpace(derefString(grant.PrincipalService)),
+			"principal_account_id": strings.TrimSpace(payloadcore.DerefString(grant.PrincipalAccountID)),
+			"principal_partition":  strings.TrimSpace(payloadcore.DerefString(grant.PrincipalPartition)),
+			"principal_service":    strings.TrimSpace(payloadcore.DerefString(grant.PrincipalService)),
 			"relationship_type":    s3ExternalPrincipalGrantRelationshipType,
 			"grant_outcome":        outcome,
 			"is_public":            grant.IsPublic,
@@ -147,8 +151,8 @@ func ExtractS3ExternalPrincipalGrantRows(
 		return nil, tally, quarantined, nil
 	}
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["source_uid"]) + "->" + anyToString(rows[a]["principal_uid"])
-		right := anyToString(rows[b]["source_uid"]) + "->" + anyToString(rows[b]["principal_uid"])
+		left := payloadcore.AnyToString(rows[a]["source_uid"]) + "->" + payloadcore.AnyToString(rows[a]["principal_uid"])
+		right := payloadcore.AnyToString(rows[b]["source_uid"]) + "->" + payloadcore.AnyToString(rows[b]["principal_uid"])
 		return left < right
 	})
 	return rows, tally, quarantined, nil
@@ -171,8 +175,8 @@ func s3ExternalPrincipalGrantKindIsGraphProjectable(kind string) bool {
 // bare name was not observed (the collector's NewS3ExternalPrincipalGrantEnvelope
 // requires bucket_arn OR bucket_name, so exactly one may be blank).
 func s3ExternalPrincipalGrantBucketName(grant awsv1.S3ExternalPrincipalGrant) string {
-	if name := strings.TrimSpace(derefString(grant.BucketName)); name != "" {
+	if name := strings.TrimSpace(payloadcore.DerefString(grant.BucketName)); name != "" {
 		return name
 	}
-	return s3BucketNameFromARN(derefString(grant.BucketARN))
+	return cloudjoin.S3BucketNameFromARN(payloadcore.DerefString(grant.BucketARN))
 }

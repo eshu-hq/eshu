@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package rdsposture
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 )
 
 const (
@@ -45,7 +49,7 @@ func (t rdsPostureTally) totalSkipped() int {
 func ExtractRDSPostureRows(
 	resourceEnvelopes []facts.Envelope,
 	postureEnvelopes []facts.Envelope,
-) ([]map[string]any, rdsPostureTally, []quarantinedFact, error) {
+) ([]map[string]any, rdsPostureTally, []factdecode.QuarantinedFact, error) {
 	tally := newRDSPostureTally()
 	if len(postureEnvelopes) == 0 {
 		return nil, tally, nil, nil
@@ -62,7 +66,7 @@ func ExtractRDSPostureRows(
 		}
 		row, uid, ok, err := rdsPostureRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, quarantined, fatal
 			}
@@ -102,16 +106,16 @@ func ExtractRDSPostureRows(
 	return rows, tally, quarantined, nil
 }
 
-func buildRDSPostureResourceIndex(envelopes []facts.Envelope) (map[string]struct{}, []quarantinedFact, error) {
+func buildRDSPostureResourceIndex(envelopes []facts.Envelope) (map[string]struct{}, []factdecode.QuarantinedFact, error) {
 	index := make(map[string]struct{}, len(envelopes))
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind {
 			continue
 		}
-		resource, err := decodeAWSResource(env)
+		resource, err := schemadecode.DecodeAWSResource(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -125,12 +129,12 @@ func buildRDSPostureResourceIndex(envelopes []facts.Envelope) (map[string]struct
 		}
 		resourceID := resource.ResourceID
 		if resourceID == "" {
-			resourceID = derefString(resource.ARN)
+			resourceID = payloadcore.DerefString(resource.ARN)
 		}
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
+		uid := cloudjoin.CloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID)
 		index[uid] = struct{}{}
 	}
 	return index, quarantined, nil
@@ -147,15 +151,15 @@ func buildRDSPostureResourceIndex(envelopes []facts.Envelope) (map[string]struct
 // partitionDecodeFailures so it dead-letters as input_invalid instead of
 // silently zeroing the identity, per Contract System v1.
 func rdsPostureRow(env facts.Envelope) (map[string]any, string, bool, error) {
-	posture, err := decodeRDSInstancePosture(env)
+	posture, err := schemadecode.DecodeRDSInstancePosture(env)
 	if err != nil {
 		return nil, "", false, err
 	}
 
-	resourceType := derefString(posture.ResourceType)
-	resourceID := derefString(posture.ResourceID)
+	resourceType := payloadcore.DerefString(posture.ResourceType)
+	resourceID := payloadcore.DerefString(posture.ResourceID)
 	if resourceID == "" {
-		resourceID = derefString(posture.ARN)
+		resourceID = payloadcore.DerefString(posture.ARN)
 	}
 	if !isRDSPostureResourceType(resourceType) || resourceID == "" {
 		return nil, "", false, nil
@@ -171,26 +175,26 @@ func rdsPostureRow(env facts.Envelope) (map[string]any, string, bool, error) {
 		securityParameters = *posture.SecurityParameters
 	}
 
-	uid := cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID)
+	uid := cloudjoin.CloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID)
 	row := map[string]any{
 		"uid":                       uid,
-		"rds_identifier":            derefString(posture.Identifier),
+		"rds_identifier":            payloadcore.DerefString(posture.Identifier),
 		"rds_resource_type":         resourceType,
-		"rds_engine":                derefString(posture.Engine),
+		"rds_engine":                payloadcore.DerefString(posture.Engine),
 		"rds_publicly_accessible":   posture.PubliclyAccessible,
 		"rds_public_exposure_state": publicState,
 		"rds_storage_encrypted":     posture.StorageEncrypted,
-		"rds_kms_key_id":            derefString(posture.KMSKeyID),
+		"rds_kms_key_id":            payloadcore.DerefString(posture.KMSKeyID),
 		"rds_iam_database_authentication_enabled": posture.IAMDatabaseAuthenticationEnabled,
 		"rds_multi_az":                            posture.MultiAZ,
 		"rds_deletion_protection":                 posture.DeletionProtection,
 		"rds_backup_retention_period":             int64(posture.BackupRetentionPeriod),
 		"rds_performance_insights_enabled":        posture.PerformanceInsightsEnabled,
 		"rds_performance_insights_retention_days": int64(posture.PerformanceInsightsRetentionDays),
-		"rds_performance_insights_kms_key_id":     derefString(posture.PerformanceInsightsKMSKeyID),
-		"rds_ca_certificate_identifier":           derefString(posture.CACertificateIdentifier),
-		"rds_parameter_groups":                    uniqueSortedStrings(posture.ParameterGroups),
-		"rds_option_groups":                       uniqueSortedStrings(posture.OptionGroups),
+		"rds_performance_insights_kms_key_id":     payloadcore.DerefString(posture.PerformanceInsightsKMSKeyID),
+		"rds_ca_certificate_identifier":           payloadcore.DerefString(posture.CACertificateIdentifier),
+		"rds_parameter_groups":                    payloadcore.UniqueSortedStrings(posture.ParameterGroups),
+		"rds_option_groups":                       payloadcore.UniqueSortedStrings(posture.OptionGroups),
 		"rds_security_parameters":                 rdsPostureSecurityParameters(securityParameters),
 		"source_fact_id":                          env.FactID,
 	}
@@ -223,7 +227,7 @@ func rdsPostureSecurityParameters(params map[string]string) []string {
 	for key, value := range params {
 		values = appendRDSPostureKeyValue(values, key, value)
 	}
-	return uniqueSortedStrings(values)
+	return payloadcore.UniqueSortedStrings(values)
 }
 
 func appendRDSPostureKeyValue(values []string, key string, value string) []string {

@@ -17,12 +17,10 @@ import (
 // into internal/reducer/secretsiam; both subpackages import schemadecode directly.
 
 var (
-	decodeRDSInstancePosture                   = schemadecode.DecodeRDSInstancePosture
 	decodeReducerPackageConsumptionCorrelation = schemadecode.DecodeReducerPackageConsumptionCorrelation
 	decodeReducerPackageOwnershipCorrelation   = schemadecode.DecodeReducerPackageOwnershipCorrelation
 	decodeReducerPackagePublicationCorrelation = schemadecode.DecodeReducerPackagePublicationCorrelation
 	decodeS3BucketPosture                      = schemadecode.DecodeS3BucketPosture
-	decodeS3ExternalPrincipalGrant             = schemadecode.DecodeS3ExternalPrincipalGrant
 	decodeScannerWorkerAnalysis                = schemadecode.DecodeScannerWorkerAnalysis
 	decodeSubmodulePin                         = schemadecode.DecodeSubmodulePin
 	decodeVulnerabilityAffectedPackage         = schemadecode.DecodeVulnerabilityAffectedPackage

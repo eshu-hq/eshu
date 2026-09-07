@@ -3,7 +3,35 @@
 
 package reducer
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
+)
+
+// stubS3ExternalPrincipalGrantWriter is a minimal root-side fake satisfying
+// s3grant.S3ExternalPrincipalGrantWriter. This wiring test only proves the writer
+// identity was threaded through to the handler, never exercising its
+// methods, so it does not need the family's recording behavior -- and Go
+// test files cannot share an unexported test type
+// (recordingS3ExternalPrincipalGrantWriter) across the reducer/s3grant package
+// boundary (issue #6061).
+// The id field is load-bearing: a zero-size struct compares equal to every
+// other instance of itself, so an identity assertion over a struct{} value
+// passes even when a DIFFERENT writer reaches the handler. A pointer to an
+// empty struct is not sufficient either -- Go permits distinct zero-size
+// allocations to share an address -- so the field is what makes the
+// comparison sound rather than lucky.
+type stubS3ExternalPrincipalGrantWriter struct{ id int }
+
+func (stubS3ExternalPrincipalGrantWriter) WriteS3ExternalPrincipalGrants(context.Context, []map[string]any, string, string, string) error {
+	return nil
+}
+
+func (stubS3ExternalPrincipalGrantWriter) RetractS3ExternalPrincipalGrants(context.Context, []string, string, string) error {
+	return nil
+}
 
 func TestImplementedDefaultDomainDefinitionsOmitsS3ExternalPrincipalGrantWithoutWriter(t *testing.T) {
 	t.Parallel()
@@ -22,7 +50,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesS3ExternalPrincipalGrantWhen
 	t.Parallel()
 
 	loader := &stubFactLoader{}
-	writer := &recordingS3ExternalPrincipalGrantWriter{}
+	writer := &stubS3ExternalPrincipalGrantWriter{id: 1}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		FactLoader:                     loader,
 		S3ExternalPrincipalGrantWriter: writer,
@@ -34,9 +62,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesS3ExternalPrincipalGrantWhen
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(S3ExternalPrincipalGrantMaterializationHandler)
+		handler, ok := def.Handler.(s3grant.S3ExternalPrincipalGrantMaterializationHandler)
 		if !ok {
-			t.Fatalf("s3_external_principal_grant_materialization handler type = %T, want S3ExternalPrincipalGrantMaterializationHandler", def.Handler)
+			t.Fatalf("s3_external_principal_grant_materialization handler type = %T, want s3grant.S3ExternalPrincipalGrantMaterializationHandler", def.Handler)
 		}
 		if handler.FactLoader != loader {
 			t.Fatal("s3_external_principal_grant_materialization handler FactLoader was not wired")

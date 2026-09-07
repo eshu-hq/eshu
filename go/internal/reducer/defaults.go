@@ -12,7 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -277,7 +281,7 @@ type DefaultHandlers struct {
 	// LOGS_TO materialization intent before it reaches the graph. The handler
 	// also gates on ReadinessLookup so edges never resolve against uncommitted
 	// nodes.
-	S3LogsToEdgeWriter S3LogsToEdgeWriter
+	S3LogsToEdgeWriter s3logsto.S3LogsToEdgeWriter
 
 	// S3ExternalPrincipalGrantWriter projects metadata-only
 	// s3_external_principal_grant facts into canonical ExternalPrincipal nodes
@@ -287,7 +291,7 @@ type DefaultHandlers struct {
 	// drop every external-principal grant intent before it reaches graph truth.
 	// The handler also gates on ReadinessLookup so source S3 buckets resolve only
 	// after CloudResource nodes commit.
-	S3ExternalPrincipalGrantWriter S3ExternalPrincipalGrantWriter
+	S3ExternalPrincipalGrantWriter s3grant.S3ExternalPrincipalGrantWriter
 
 	// RDSPostureNodeWriter projects rds_instance_posture facts onto existing RDS
 	// CloudResource nodes (issue #1233). It must be non-nil alongside FactLoader
@@ -295,7 +299,7 @@ type DefaultHandlers struct {
 	// one would drop every RDS posture intent before it reaches graph truth. The
 	// handler also gates on ReadinessLookup so posture fields never write against
 	// uncommitted CloudResource nodes.
-	RDSPostureNodeWriter RDSPostureNodeWriter
+	RDSPostureNodeWriter rdsposture.RDSPostureNodeWriter
 	// EC2InstanceIdentityNodeWriter projects the #5448 aws_ec2_instance
 	// aws_resource fact's ami_id onto the already-materialized EC2 instance
 	// CloudResource node (owned by DomainEC2InstanceNodeMaterialization). It
@@ -316,7 +320,7 @@ type DefaultHandlers struct {
 	// gates on a DUAL readiness lookup — both the EC2 instance node phase and the
 	// IAM instance-profile node phase — so edges never resolve against an endpoint
 	// that has not committed.
-	EC2UsesProfileEdgeWriter EC2UsesProfileEdgeWriter
+	EC2UsesProfileEdgeWriter ec2usesprofile.EC2UsesProfileEdgeWriter
 
 	// IAMInstanceProfileRoleEdgeWriter projects IAM instance-profile role_arns
 	// into canonical HAS_ROLE edges between IAM instance-profile and role
