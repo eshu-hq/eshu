@@ -70,6 +70,24 @@ the embedded server deliberately stays derived, so the budget cannot be lowered
 below the invariant by configuration. Adding a local override is a separate
 change.
 
+## Known limit: the supervisor's own pools are unbounded
+
+The enumerated holder list implies a completeness it cannot have. The local
+supervisor opens connections with a bare `sql.Open("pgx", dsn)` and never calls
+`runtime.ConfigurePostgresPool` — `config.go:216`,
+`content_search_indexes.go:42`, `iac_reachability_finalizer.go:28`,
+`progress.go:28`. `database/sql` defaults `MaxOpenConns` to **0, i.e.
+unlimited**, and the first two are long-lived for a whole authoritative run.
+
+Verified: `rg -c ConfigurePostgresPool internal/cli/localsupervisor/*.go`
+returns nothing.
+
+So **no finite ceiling is strictly sound** until those are bounded. This change
+moves the local server from "guaranteed exhaustion at shipped defaults" to
+"covers every capped holder", which is an improvement rather than a proof, and
+the #4456 gap remains open in the supervisor. Stating it here rather than
+letting the list read as exhaustive.
+
 ## Proof
 
 RED/GREEN on the guard, run through the machine-wide build mutex, worktree
@@ -140,9 +158,47 @@ start parameters to the derived constant, so the ceiling cannot be raised while
 the running server keeps a stale literal.
 
 `TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive` (gated behind
-`ESHU_EMBEDDED_POSTGRES_LIVE`) now asserts `SHOW max_connections` equals the
-derived value, so the proof covers the postmaster actually booting with it and
-not merely a config struct carrying it.
+`ESHU_EMBEDDED_POSTGRES_LIVE`) asserts `SHOW max_connections` equals the derived
+value, so the proof covers the postmaster actually booting with it and not
+merely a config struct carrying it.
+
+**That test has been run, by the independent reviewer, and it passed:**
+
+```text
+$ ESHU_EMBEDDED_POSTGRES_LIVE=1 go test ./internal/eshulocal -run 'Live' -count=1 -v
+--- PASS: TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive (5.66s)
+```
+
+**Read that with its denominator.** The run was against `2f1bd4c6a`, where the
+derived ceiling was **110** (three holders). It proves the mechanism end to end
+— the postmaster boots with the derived value and reports it — but it is
+inherited proof at 110, not at the current 170. The arithmetic changed when the
+holder list went to five; the mechanism did not. A re-run at 170 would close
+that gap, and it is the one piece of proof here I am citing rather than having
+produced.
+
+## The mechanism-level justification (stronger than the headroom argument)
+
+`internal/graphowner/gated_writer.go:31-42` sizes `lockChunkSize` against
+Postgres's **shared advisory-lock table**, which holds roughly
+`max_locks_per_transaction * (max_connections + max_prepared_transactions)`
+slots — about **6,400** at the stock defaults it names (64 x 100). #5007 P2-1
+proved that assumption is load-bearing: one transaction taking 20,000
+`pg_advisory_xact_lock` acquisitions failed outright with *"out of shared
+memory"* against a default server.
+
+The reducer runs against the embedded server under `local_authoritative`. So:
+
+| max_connections | advisory-lock slots (64 x n) | vs the 6,400 the chunker assumes |
+|---|---|---|
+| **35** (shipped) | **2,240** | **35%** |
+| 110 (this change) | 7,040 | 110% |
+
+At 35 the embedded server offered barely a third of the slots the reducer's own
+chunker is sized against. That is a concrete mechanism by which the old value
+could break a component of this system, and it is a much better argument for the
+raise than "110 is near PostgreSQL's default of 100" — which is a headroom
+observation, not a mechanism. Credit to the reviewer for finding it.
 
 Performance Evidence: raising a Postgres server's `max_connections` increases
 allocated shared memory, which is why the change is bounded to 110 rather than

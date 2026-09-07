@@ -45,6 +45,17 @@ import (
 // against that owner's Postgres (cmd/eshu/gotchas-read-surface-commands.md).
 // All five take the shared 30-connection default, so the worst case is
 // concurrent, not hypothetical.
+//
+// KNOWN LIMIT, stated because the list implies a completeness it cannot have:
+// the local supervisor also opens its own connections with a bare
+// sql.Open("pgx", dsn) and never calls runtime.ConfigurePostgresPool --
+// config.go:216, content_search_indexes.go:42, iac_reachability_finalizer.go:28
+// and progress.go:28. database/sql defaults MaxOpenConns to 0, i.e. unlimited,
+// and the first two are long-lived for a whole authoritative run. So no finite
+// ceiling here is strictly sound until those are bounded; this raises the floor
+// from "guaranteed exhaustion" to "covers every capped holder", which is an
+// improvement rather than a proof. That is the #4456 gap still open in the
+// supervisor.
 var localPostgresPoolHolders = [...]string{
 	"eshu-reducer",
 	"eshu-ingester",
