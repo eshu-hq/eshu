@@ -27,6 +27,16 @@ subpackage can call the same logic without an import cycle (#6060):
 | Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases in `evidence_citation.go`, plus the exported `EvidenceCitationHandle` alias root already published in `evidence_citation_public.go` |
 | Language alias table and coverage maps | `language_registry.go` | unexported function forwarders |
 | `ContentStore` read models (#6060) | `documentation_read_models.go`, `repository_read_models.go`, `repository_summary_read_models.go`, `k8s_select_candidate_projection.go` | 20 unexported type aliases in root, plus four exported ones |
+| `AnswerMetadata` attach helper | `answer_metadata.go` | exported type alias + wrapper in `answer_metadata_alias.go`; `AssertAnswerMetadata` pin in `impact/` test |
+| Edge-materialization coverage | `edge_materialization_coverage.go` | `impact/` callers and the root coverage test reference directly |
+| Entity resolution | `entity_resolution.go` | unexported forwarding wrappers in root `entity_resolution.go`; root callers go through them |
+| Evidence-boundary disclosures | `evidence_boundaries.go` | type and const aliases in root `evidence_boundaries.go` |
+| Hostname environment inference | `hostname_environment.go` | root service-evidence callers reference directly |
+| Infra-label helpers | `infra_labels.go` | root infra-aggregate callers reference directly |
+| K8s SELECTS matcher | `k8s_select_match.go` | type aliases and wrappers in `k8s_match_alias.go` |
+| Story-collection helpers | `story_collection_helpers.go` | root and `impact/` callers reference directly |
+| Story-row helpers | `story_row_helpers.go` | root and `impact/` callers reference directly, including `CapMapRows` |
+| Scoped workload WHERE clause | `workload_where_clause.go` | root workload-context callers reference directly |
 
 Root's compatibility shape is not uniform, and the difference matters when
 adding to this list. A sentinel error compared with `errors.Is` has to be the
