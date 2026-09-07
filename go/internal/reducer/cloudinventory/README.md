@@ -93,8 +93,9 @@ root exposed as one-line forwarders (`workloadIdentityExecer` /
 `ResultStatusSucceeded` / `ResultStatusSuperseded` / `DomainDefinition` /
 `OwnershipShape` / `GenerationFreshnessCheck` /
 `DomainCloudInventoryAdmission` → `reducercontract.*`) are now called on the
-leaf package directly; `sortedKeys` is duplicated as a single-family helper
-(the root original stays for `candidate_loader.go`,
+leaf package directly; key sorting goes through the shared
+`payloadcore.SortedKeys` (the root `sortedKeys` forwarder in
+`candidate_loader.go` stays for `candidate_loader.go`,
 `code_import_repo_edge.go`, and `package_consumption_repo_edge.go`). The
 `correlation/cloudinventory`, `admissiondecision`, `facts`, `telemetry`, and
 `truth` calls were already leaf-qualified and are untouched. No handler

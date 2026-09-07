@@ -24,11 +24,10 @@ were hoisted — do not export it for lateral import, and do not duplicate
 production logic across families. (Test-only loader/writer fakes are the
 exception: Go test files cannot share unexported symbols across a package
 boundary, so those are duplicated verbatim with a comment, never exported.)
-`sortedKeys` is the deliberate single-family helper that moved here with the
-admission slice: its only consumer in this package is `admitCloudInventoryRecords`,
-while `candidate_loader.go`, `code_import_repo_edge.go`, and
-`package_consumption_repo_edge.go` keep calling the root original, so hoisting
-it would drag staying callers along for no multi-family reason.
+`payloadcore.SortedKeys` is the shared key-ordering helper this package
+uses (via `admitCloudInventoryRecords`), alongside the hoisted `cloudjoin`,
+`factdecode`, and `gpphase` leaves — do not add a leaf-local copy, and do
+not export it for lateral import.
 
 If you find yourself needing a symbol that the reducer root defines, that is a
 signal about where the symbol belongs, not a reason to reach upward:
