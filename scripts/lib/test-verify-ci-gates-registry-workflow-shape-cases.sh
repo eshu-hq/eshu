@@ -48,8 +48,9 @@ check_ci_gate_workflow_shapes() {
 	mirrored_count="$(printf '%s\n' "${mirrored_scripts}" | rg -c . || true)"
 	[[ "${mirrored_count:-0}" -ge 2 ]] ||
 		fail "ci-gate-registry test_command yielded ${mirrored_count:-0} test scripts; the extraction is broken, not the registry"
+	# NOTE: no herestring (<<<) here: it deadlocks on bash >= 5.3 past ~512 bytes.
 	while IFS= read -r mirrored_script; do
 		[[ -z "${mirrored_script}" ]] && continue
 		require "CI mirror runs ${mirrored_script}" "${mirrored_script}" "${registry_workflow}"
-	done <<<"${mirrored_scripts}"
+	done < <(printf '%s\n' "${mirrored_scripts}")
 }

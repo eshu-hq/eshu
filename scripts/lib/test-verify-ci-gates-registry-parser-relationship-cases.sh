@@ -52,12 +52,14 @@ check_parser_relationship_trigger_parity() {
 	require "parser relationship static-contract matrix entry" \
 		'append_gate "${{ steps.filter.outputs.parserrelationship }}" "parserrelationship" "Verify parser relationship kit gate" "bash scripts/test-verify-parser-relationship-kit.sh" "bash scripts/verify-parser-relationship-kit.sh"' \
 		"${static_contract_workflow}"
+	# NOTE: this rg reads via process substitution, not a herestring (<<<):
+	# herestrings deadlock on bash >= 5.3 past ~512 bytes; the bytes are identical.
 	rg --multiline --fixed-strings -- \
 		"      - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 2" \
-		<<<"${gate_job}" >/dev/null ||
+		<(printf '%s\n' "${gate_job}") >/dev/null ||
 		fail "the shared static-contract gate checkout needs exactly fetch-depth 2 for parser relationship diff-base selection"
 	printf '%s\n' "${gate_block}" |
 		rg -F 'workflow: static-contract-gates.yml' >/dev/null ||
