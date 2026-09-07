@@ -69,6 +69,15 @@ else
 	if [[ -z "${check2_fail}" ]]; then
 		printf '%s\n' "${paragraph}" | rg -qi 'is all .* carries|do not read|not .* bound|fixture-only' || check2_fail="no fixture-only/no-bound direction near the decision"
 	fi
+	# Negative: a production-bound declaration fails even when the
+	# fixture-only sentence is kept. Narrowly 'production bound': our own
+	# negated "as a bound" sentence must keep passing, so the broader
+	# 'as a bound|is a bound' variants are deliberately excluded — a bare
+	# negation-drop without the production word stays human-review
+	# territory, where normal docs review catches it.
+	if [[ -z "${check2_fail}" ]]; then
+		printf '%s\n' "${paragraph}" | rg -qi 'production bound' && check2_fail="production-bound declaration near the decision"
+	fi
 fi
 if [[ -z "${check2_fail}" ]]; then
 	record_pass "SLO contract records the explicit fixture-scale decision with reason"
