@@ -27,6 +27,11 @@
 // cloudResourceUID as aliases and forwarders in
 // cloud_resource_join_index_compat.go so its own callers compile unchanged.
 //
+// The S3 bucket-name index ([S3BucketJoinIndex]) follows the same rule one
+// level narrower: the s3logsto LOGS_TO slice, the s3grant slice, and the S3
+// internet-exposure slice all resolve bucket names against it, so it lives
+// here rather than in any one family.
+//
 // Imports point strictly downward: this package reaches [factdecode],
 // [payloadcore], [schemadecode] and internal/facts, and never the parent
 // internal/reducer package.

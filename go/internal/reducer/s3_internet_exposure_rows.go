@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -77,7 +78,7 @@ func ExtractS3InternetExposureRows(
 	}
 
 	var quarantined []quarantinedFact
-	index, indexQuarantined, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	index, indexQuarantined, err := cloudjoin.BuildS3BucketJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return nil, tally, nil, err
 	}
@@ -90,7 +91,7 @@ func ExtractS3InternetExposureRows(
 	seen := make(map[string]struct{}, len(postures))
 	rows := make([]map[string]any, 0, len(postures))
 	for _, item := range postures {
-		sourceUID, ok := index.resolve(s3PostureBucketName(item.posture))
+		sourceUID, ok := index.Resolve(cloudjoin.S3PostureBucketName(item.posture))
 		if !ok {
 			tally.skipped[s3InternetExposureSkipSourceUnresolved]++
 			continue
@@ -154,8 +155,8 @@ func sortedS3InternetExposurePostures(envelopes []facts.Envelope) ([]s3InternetE
 		postures = append(postures, s3InternetExposurePosture{env: env, posture: posture})
 	}
 	sort.SliceStable(postures, func(i, j int) bool {
-		leftName := s3PostureBucketName(postures[i].posture)
-		rightName := s3PostureBucketName(postures[j].posture)
+		leftName := cloudjoin.S3PostureBucketName(postures[i].posture)
+		rightName := cloudjoin.S3PostureBucketName(postures[j].posture)
 		if leftName != rightName {
 			return leftName < rightName
 		}

@@ -25,7 +25,7 @@ import (
 // additive (not part of DefaultDomainDefinitions) because the handler requires an
 // explicitly wired EC2UsesProfileEdgeWriter and FactLoader; registering it without
 // them would silently drop every intent. It mirrors
-// s3LogsToMaterializationDomainDefinition (#1144 PR2). See issue #1146 PR-B and
+// s3logsto.MaterializationDomainDefinition (#1144 PR2). See issue #1146 PR-B and
 // docs/internal/design/1146-ec2-uses-profile-edge.md.
 func ec2UsesProfileMaterializationDomainDefinition() DomainDefinition {
 	return DomainDefinition{

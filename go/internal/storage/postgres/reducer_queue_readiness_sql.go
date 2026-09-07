@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 )
 
@@ -89,7 +90,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.EC2UsesProfileNodesNotReadyFailureClass,
 	reducer.S3ExternalPrincipalGrantNodesNotReadyFailureClass,
 	reducer.S3InternetExposureNodesNotReadyFailureClass,
-	reducer.S3LogsToNodesNotReadyFailureClass,
+	s3logsto.S3LogsToNodesNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

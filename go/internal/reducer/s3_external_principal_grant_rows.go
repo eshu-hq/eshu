@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -72,7 +73,7 @@ func ExtractS3ExternalPrincipalGrantRows(
 		return nil, tally, nil, nil
 	}
 
-	index, quarantined, err := buildS3BucketJoinIndex(resourceEnvelopes)
+	index, quarantined, err := cloudjoin.BuildS3BucketJoinIndex(resourceEnvelopes)
 	if err != nil {
 		return nil, tally, nil, err
 	}
@@ -100,7 +101,7 @@ func ExtractS3ExternalPrincipalGrantRows(
 			continue
 		}
 
-		sourceUID, ok := index.resolve(s3ExternalPrincipalGrantBucketName(grant))
+		sourceUID, ok := index.Resolve(s3ExternalPrincipalGrantBucketName(grant))
 		if !ok {
 			tally.skipped[s3ExternalPrincipalGrantSkipSourceUnresolved]++
 			continue
@@ -174,5 +175,5 @@ func s3ExternalPrincipalGrantBucketName(grant awsv1.S3ExternalPrincipalGrant) st
 	if name := strings.TrimSpace(derefString(grant.BucketName)); name != "" {
 		return name
 	}
-	return s3BucketNameFromARN(derefString(grant.BucketARN))
+	return cloudjoin.S3BucketNameFromARN(derefString(grant.BucketARN))
 }

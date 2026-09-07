@@ -139,8 +139,8 @@ func TestS3ExternalPrincipalGrantMaterializationFirstGenerationSkipsRetract(t *t
 
 func s3ExternalPrincipalGrantFacts() []facts.Envelope {
 	return []facts.Envelope{
-		s3BucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
-		s3BucketResourceEnvelope("111111111111", "us-east-1", "reports"),
+		s3GrantBucketResourceEnvelope("111111111111", "us-east-1", "orders-artifacts"),
+		s3GrantBucketResourceEnvelope("111111111111", "us-east-1", "reports"),
 		s3ExternalPrincipalGrantEnvelope("111111111111", "us-east-1", "orders-artifacts", "aws_account", "999988887777", "cross_account"),
 		s3ExternalPrincipalGrantEnvelope("111111111111", "us-east-1", "reports", "public", "*", "public"),
 		s3ExternalPrincipalGrantEnvelope("111111111111", "us-east-1", "orders-artifacts", "unsupported", "AWS", "unsupported_principal"),

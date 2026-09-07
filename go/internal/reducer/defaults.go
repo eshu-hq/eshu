@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
@@ -278,7 +279,7 @@ type DefaultHandlers struct {
 	// LOGS_TO materialization intent before it reaches the graph. The handler
 	// also gates on ReadinessLookup so edges never resolve against uncommitted
 	// nodes.
-	S3LogsToEdgeWriter S3LogsToEdgeWriter
+	S3LogsToEdgeWriter s3logsto.S3LogsToEdgeWriter
 
 	// S3ExternalPrincipalGrantWriter projects metadata-only
 	// s3_external_principal_grant facts into canonical ExternalPrincipal nodes

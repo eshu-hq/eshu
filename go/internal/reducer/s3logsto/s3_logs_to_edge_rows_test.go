@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package s3logsto
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 // s3BucketResourceEnvelope builds an aws_resource fact envelope for one scanned
@@ -46,7 +47,7 @@ func s3PostureEnvelope(account, region, name, loggingTarget string) facts.Envelo
 }
 
 func s3BucketUID(account, region, name string) string {
-	return cloudResourceUID(account, region, "aws_s3_bucket", "arn:aws:s3:::"+name)
+	return cloudjoin.CloudResourceUID(account, region, "aws_s3_bucket", "arn:aws:s3:::"+name)
 }
 
 func TestExtractS3LogsToEdgeRowsResolvesScannedTarget(t *testing.T) {

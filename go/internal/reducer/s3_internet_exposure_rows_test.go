@@ -9,6 +9,31 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
+// Local copies of the s3logsto family's test envelope builders, duplicated
+// here when that family moved to go/internal/reducer/s3logsto (issue #6061).
+// Go test files cannot share unexported symbols across a package boundary.
+// These move into the internetexposure package with this file's tests; until
+// then they stay byte-identical to the s3logsto copies.
+func s3BucketResourceEnvelope(account, region, name string) facts.Envelope {
+	arn := "arn:aws:s3:::" + name
+	return facts.Envelope{
+		FactKind: facts.AWSResourceFactKind,
+		Payload: map[string]any{
+			"account_id":          account,
+			"region":              region,
+			"resource_type":       "aws_s3_bucket",
+			"resource_id":         arn,
+			"arn":                 arn,
+			"name":                name,
+			"correlation_anchors": []string{arn, name, "s3://" + name},
+		},
+	}
+}
+
+func s3BucketUID(account, region, name string) string {
+	return cloudResourceUID(account, region, "aws_s3_bucket", "arn:aws:s3:::"+name)
+}
+
 func s3InternetExposurePostureEnvelope(factID, account, region, name string, payload map[string]any) facts.Envelope {
 	arn := "arn:aws:s3:::" + name
 	merged := map[string]any{

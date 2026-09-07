@@ -15,6 +15,9 @@ and owns no domain, it just answers "which scanned node is this identity?".
 | `BuildCloudResourceJoinIndex` | `cloud_resource_join_index.go` | folds a scope generation's `aws_resource` facts into the index |
 | `CloudResourceUID` | `cloud_resource_join_index.go` | computes the stable node identity from account, region, type and id |
 | `CloudResourceJoinIndex.ARNForUID` | `cloud_resource_join_index.go` | reverses a uid back to the ARN it was keyed on |
+| `S3BucketJoinIndex` | `s3_bucket_join_index.go` | bucket-name to uid map shared by the three S3 slices |
+| `BuildS3BucketJoinIndex` | `s3_bucket_join_index.go` | folds a scope generation's `aws_resource` S3 bucket facts into the index |
+| `S3BucketNameFromARN`, `S3PostureBucketName` | `s3_bucket_join_index.go` | bucket-name derivation from S3 ARNs and posture structs |
 
 The index never fabricates a uid. Every entry comes from an `aws_resource` fact
 that carried its own `account_id` and `region`, so a cross-account or
@@ -31,7 +34,9 @@ identical uid without a graph round trip.
 The AWS relationship and security-group reachability slices at the reducer root
 all resolve endpoints against this index, and so do the
 `reducer/iamescalation` and `reducer/iamcan` families. A family package may never import the reducer root,
-so the index has to live below both. The root keeps `cloudResourceJoinIndex`,
+so the index has to live below both. The S3 bucket-name index is shared the
+same way by the s3logsto family and the still-in-root s3grant and S3
+internet-exposure slices. The root keeps `cloudResourceJoinIndex`,
 `buildCloudResourceJoinIndex` and `cloudResourceUID` as an alias and two
 forwarders in `cloud_resource_join_index_compat.go`, so its own callers compile
 unchanged.

@@ -6,6 +6,7 @@ package reducer
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 )
 
 // appendCloudRelationshipAdditiveDomains registers the cloud-relationship edge
@@ -81,8 +82,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, iamCanAssume)
 	}
 	if handlers.FactLoader != nil && handlers.S3LogsToEdgeWriter != nil {
-		s3LogsTo := s3LogsToMaterializationDomainDefinition()
-		s3LogsTo.Handler = S3LogsToMaterializationHandler{
+		s3LogsTo := s3logsto.MaterializationDomainDefinition()
+		s3LogsTo.Handler = s3logsto.S3LogsToMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.S3LogsToEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
