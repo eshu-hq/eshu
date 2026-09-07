@@ -162,6 +162,6 @@ new query path, so dashboards and 3 AM triage read exactly as before.
 
 ## Related docs
 
-- [HTTP API Reference](../../../../../docs/public/reference/http-api.md)
-- [Telemetry](../../../../../docs/public/reference/telemetry/index.md)
-- [Architecture](../../../../../docs/public/architecture.md)
+- [HTTP API Reference](../../../../docs/public/reference/http-api.md)
+- [Telemetry](../../../../docs/public/reference/telemetry/index.md)
+- [Architecture](../../../../docs/public/architecture.md)

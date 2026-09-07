@@ -29,16 +29,16 @@ func TestCodeownersOwnershipCapabilityMatchesFamilyConstructor(t *testing.T) {
 	}
 	want := codeowners.OwnershipSupport()
 
-	assertTruthLevelEqual(t, "LocalLightweightMax", row.LocalLightweightMax, want.LocalLightweightMax)
-	assertTruthLevelEqual(t, "LocalAuthoritativeMax", row.LocalAuthoritativeMax, want.LocalAuthoritativeMax)
-	assertTruthLevelEqual(t, "LocalFullStackMax", row.LocalFullStackMax, want.LocalFullStackMax)
-	assertTruthLevelEqual(t, "ProductionMax", row.ProductionMax, want.ProductionMax)
+	assertCodeownersTruthLevelEqual(t, "LocalLightweightMax", row.LocalLightweightMax, want.LocalLightweightMax)
+	assertCodeownersTruthLevelEqual(t, "LocalAuthoritativeMax", row.LocalAuthoritativeMax, want.LocalAuthoritativeMax)
+	assertCodeownersTruthLevelEqual(t, "LocalFullStackMax", row.LocalFullStackMax, want.LocalFullStackMax)
+	assertCodeownersTruthLevelEqual(t, "ProductionMax", row.ProductionMax, want.ProductionMax)
 	if row.RequiredProfile != want.RequiredProfile {
 		t.Fatalf("RequiredProfile = %q, want %q", row.RequiredProfile, want.RequiredProfile)
 	}
 }
 
-func assertTruthLevelEqual(t *testing.T, field string, got, want *querycontract.TruthLevel) {
+func assertCodeownersTruthLevelEqual(t *testing.T, field string, got, want *querycontract.TruthLevel) {
 	t.Helper()
 	if got == nil || want == nil {
 		if got != want {
