@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeshaping
 
-import "sort"
+import (
+	"sort"
 
-// relationshipStoryRankBasis names the ordering applied to relationship story
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+// RelationshipStoryRankBasis names the ordering applied to relationship story
 // rows in the response coverage. Centrality is measured within the resolved
 // bounded result set, not over the whole graph.
-const relationshipStoryRankBasis = "bounded_centrality"
+const RelationshipStoryRankBasis = "bounded_centrality"
 
-// relationshipStoryRankByCentrality stamps each row with a bounded centrality
+// RelationshipStoryRankByCentrality stamps each row with a bounded centrality
 // score and stably reorders the rows by that score, descending. Centrality is
 // the neighbor's degree within the resolved bounded result set: the number of
 // rows that reference the same neighbor entity (counting both directions and all
@@ -23,7 +27,10 @@ const relationshipStoryRankBasis = "bounded_centrality"
 // already produced deterministically (name then id), so the overall order stays
 // deterministic. Rows are mutated in place; callers own them and clone
 // downstream.
-func relationshipStoryRankByCentrality(rows []map[string]any) []map[string]any {
+//
+// It moved out of root package query (#6060 lane A L3); the staying story
+// handler calls it through root's family_code_shim_shaping.go forwarder.
+func RelationshipStoryRankByCentrality(rows []map[string]any) []map[string]any {
 	if len(rows) == 0 {
 		return rows
 	}
@@ -42,17 +49,19 @@ func relationshipStoryRankByCentrality(rows []map[string]any) []map[string]any {
 	return rows
 }
 
-// relationshipStoryNeighborID returns the id of the entity on the far side of a
-// relationship row: the source for an incoming edge, the target otherwise.
+// relationshipStoryNeighborID returns the id of the entity on the far side
+// of a relationship row: the source for an incoming edge, the target
+// otherwise. It stays leaf-private: only the ranker above calls it.
 func relationshipStoryNeighborID(row map[string]any) string {
-	if StringVal(row, "direction") == "incoming" {
-		return StringVal(row, "source_id")
+	if querycontract.StringVal(row, "direction") == "incoming" {
+		return querycontract.StringVal(row, "source_id")
 	}
-	return StringVal(row, "target_id")
+	return querycontract.StringVal(row, "target_id")
 }
 
 // relationshipStoryRowCentrality reads the centrality stamped by
-// relationshipStoryRankByCentrality, treating a missing value as zero.
+// RelationshipStoryRankByCentrality, treating a missing value as zero. It
+// stays leaf-private: only the ranker above calls it.
 func relationshipStoryRowCentrality(row map[string]any) int {
 	switch value := row["centrality"].(type) {
 	case int:

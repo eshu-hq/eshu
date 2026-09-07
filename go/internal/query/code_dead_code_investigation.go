@@ -173,7 +173,7 @@ func (h *CodeHandler) scanDeadCodeInvestigation(
 	)
 
 	for {
-		page, ok := schedule.nextPage()
+		page, ok := schedule.NextPage()
 		if !ok {
 			break
 		}
@@ -184,7 +184,7 @@ func (h *CodeHandler) scanDeadCodeInvestigation(
 		scan.CandidateScanPages++
 		rowCount := len(rows)
 		scan.CandidateScanRows += rowCount
-		schedule.record(page, rowCount)
+		schedule.Record(page, rowCount)
 		rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
 		results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
 		if err != nil {
@@ -207,7 +207,7 @@ func (h *CodeHandler) scanDeadCodeInvestigation(
 			return scan, nil
 		}
 	}
-	scan.CandidateScanTruncated = schedule.candidateScanTruncated()
+	scan.CandidateScanTruncated = schedule.CandidateScanTruncated()
 	return scan, nil
 }
 
