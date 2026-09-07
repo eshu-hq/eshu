@@ -465,3 +465,31 @@ read-model path -- is recorded in
 [AGENTS-evidence-history-4.md](AGENTS-evidence-history-4.md) to keep this
 file under CLAUDE.md's 500-line-per-file convention (not a repo-enforced
 gate).
+
+### Language entity page read short-circuits zero-match filters (#6540)
+
+`SearchEntitiesByLanguageAndTypeForAccess` pages with `ORDER BY
+relative_path, start_line, entity_name LIMIT $n`. A filter matching nothing
+(HCL functions, which no projection emits) walked `content_entities_path_idx`
+to the end: 557.941 ms with 2,009,402 buffers on a throwaway PG 18.6 rig
+(2M rows, skewed repos, correlated types, `work_mem=64MB`,
+`random_page_cost=4`, prepared statements). A composite `(language,
+entity_type)` index alone was measured and rejected -- 557.233 ms, the
+planner keeps the ordered walk -- so migration 104 pairs that index with an
+uncorrelated `EXISTS` gate over the same filters inside the one page
+statement: initplan one-time filter, empty case 0.071 ms with the inner scan
+never executed, matching path 0.43-0.60 ms vs 0.41-0.45 ms ungated. Same
+statement, same bind args, so no fake-driver script churned.
+
+No-Regression Evidence: `TestSearchEntitiesByLanguageAndTypeGatesPageReadOnSameFilters`
+and `TestSearchEntitiesByLanguageAndTypeGateKeepsBindArgs` (fake driver,
+red-first); `TestLivePostgresLanguageQueryZeroMatchShortCircuits` plus the
+sibling grant plan-shape test under the `live_postgres_language_grant_plan`
+tag against a disposable database (0 rows, one-time filter, no seq scan,
+migration 104 present); full `./internal/query/...`, storage replay pins
+(including the `orderedBootstrapDefinitionNames` mirror this change extends),
+`go vet ./...`, and the golden-corpus gate green.
+
+No-Observability-Change: same span, one statement, identical args -- no new
+telemetry surface; the one extra index seek per call is inside the existing
+read.

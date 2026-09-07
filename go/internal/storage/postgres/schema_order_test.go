@@ -209,4 +209,8 @@ var orderedBootstrapDefinitionNames = []string{
 	// producer entity's whole consumer fan-in first. Its last two key columns
 	// are a tiebreak, so rows equal on the ranking have one order in every plan.
 	"code_reachability_entity_confidence_rank_idx",
+	// migration 104 (#6540) backs the language entity page read's existence
+	// gate: the uncorrelated EXISTS subquery seeks (language, entity_type)
+	// instead of walking the whole path index on a zero-match filter.
+	"content_entities_language_type_idx",
 }
