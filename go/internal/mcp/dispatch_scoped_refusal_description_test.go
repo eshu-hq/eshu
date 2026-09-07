@@ -32,13 +32,17 @@ var sentenceBoundaryPattern = regexp.MustCompile(`[.?!;](?:\s+|$)`)
 // caller, not merely to appear near a scoped-token mention (Codex P1 on PR
 // #6587: the pre-#6570 analyze sentence names "a scoped token" and "reject
 // ... an ungranted repository selector" in one statement while refusing
-// scoped callers nothing). A statement qualifies when the scoped caller is
-// the subject of a passive refusal ("Scoped ... token ... are refused"),
-// the object of an active one ("refuses scoped ..."), or either side of an
-// explicit 403. Windows are generous on purpose: proximity never qualifies
-// without the grammatical binding, and every shape below is exercised by the
-// regression test plus the all-tools guard run.
-var boundRefusalPattern = regexp.MustCompile(`(?i)(scoped[^.?!;]{0,80}?token[^.?!;]{0,80}?(are|is)\s+(refused|rejected)|(?:refus|reject)[^.?!;]{0,80}?scoped|scoped[^.?!;]{0,80}?403|403[^.?!;]{0,80}?scoped)`)
+// scoped callers nothing; owner P2 round 2: the same hole in active voice
+// and bare 403 proximity). Only the passive scoped-subject binding qualifies
+// ("Scoped ... token ... are refused"): earlier revisions also accepted an
+// active-voice object branch and 403-proximity branches, but a probe over
+// every checked refusal sentence showed all of them satisfy the passive
+// branch while the extra branches admitted unbound outcomes (reviewer P2def
+// round 3: verb-near-403 firing far from the mention in comma-joined text),
+// so they were removed rather than documented. Future active-voice refusal
+// prose fails closed here and must use the precedent passive shape. Bare
+// proximity in any direction never qualifies.
+var boundRefusalPattern = regexp.MustCompile(`(?i)(scoped[^.?!;]{0,80}?token[^.?!;]{0,80}?(are|is)\s+(refused|rejected))`)
 
 // descriptionDocumentsScopedRefusal reports whether desc documents the
 // scoped-token refusal in a single statement: at least one statement must
@@ -47,7 +51,8 @@ var boundRefusalPattern = regexp.MustCompile(`(?i)(scoped[^.?!;]{0,80}?token[^.?
 // the gap #6572 closes.
 func descriptionDocumentsScopedRefusal(desc string) bool {
 	for _, sentence := range sentenceBoundaryPattern.Split(desc, -1) {
-		if boundRefusalPattern.MatchString(sentence) {
+		if scopedRefusalMentionPattern.MatchString(sentence) &&
+			boundRefusalPattern.MatchString(sentence) {
 			return true
 		}
 	}
@@ -142,5 +147,17 @@ func TestDescriptionDocumentsScopedRefusalRequiresSameStatement(t *testing.T) {
 	abbreviated := "Scoped tokens, e.g. browser tokens, are rejected with 403."
 	if descriptionDocumentsScopedRefusal(abbreviated) {
 		t.Errorf("abbreviation-split text must stay fail-safe: %q", abbreviated)
+	}
+
+	// Owner P2 round 2 on PR #6587: proximity is not binding, in active
+	// voice or around a bare 403. Both sentences refuse something other
+	// than the scoped caller while naming a scoped token in one statement.
+	for _, desc := range []string{
+		"The endpoint rejects an ungranted repository selector for a scoped token holder.",
+		"Scoped token users seeing 403 should retry.",
+	} {
+		if descriptionDocumentsScopedRefusal(desc) {
+			t.Errorf("unbound outcome must not satisfy the guard: %q", desc)
+		}
 	}
 }
