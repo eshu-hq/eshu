@@ -162,20 +162,26 @@ the running server keeps a stale literal.
 value, so the proof covers the postmaster actually booting with it and not
 merely a config struct carrying it.
 
-**That test has been run, by the independent reviewer, and it passed:**
+**That test has been run at the shipped value, and it passed:**
 
 ```text
 $ ESHU_EMBEDDED_POSTGRES_LIVE=1 go test ./internal/eshulocal -run 'Live' -count=1 -v
---- PASS: TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive (5.66s)
+--- PASS: TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive (5.59s)
+--- PASS: TestStopOrphanedPostgresFromLockFileStopsLiveWorkspacePostgres (0.00s)
+--- PASS: TestStartEmbeddedPostgresStopsOwnerlessLivePostgresBeforeStart (0.00s)
+PASS
+LIVE-EXIT=0
 ```
 
-**Read that with its denominator.** The run was against `2f1bd4c6a`, where the
-derived ceiling was **110** (three holders). It proves the mechanism end to end
-— the postmaster boots with the derived value and reports it — but it is
-inherited proof at 110, not at the current 170. The arithmetic changed when the
-holder list went to five; the mechanism did not. A re-run at 170 would close
-that gap, and it is the one piece of proof here I am citing rather than having
-produced.
+The constant under test at that run was the derived
+`localPostgresPoolHolderCount*30 + 20`, i.e. **170**. So a real postmaster
+started with the raised ceiling and reported it back through
+`SHOW max_connections`. This is the value proven, not merely the mechanism.
+
+That distinction was worth closing rather than waving at. An earlier run by the
+independent reviewer passed at **110**, and reporting it would have proven only
+that *a* raised ceiling boots -- 170 is a larger fixed shared-memory allocation,
+and nothing had booted at it. Running it took five seconds.
 
 ## The mechanism-level justification (stronger than the headroom argument)
 
