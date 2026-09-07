@@ -4,11 +4,12 @@
 package reducer
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
+
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 // EvidenceSourceWorkloads identifies workload finalization evidence emitted by
@@ -276,7 +277,7 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 			continue
 		}
 
-		workloadID := fmt.Sprintf("workload:%s", workloadName)
+		workloadID := workloadid.NewWorkloadID(candidate.RepoID, workloadName).String()
 		workloadKind := InferWorkloadKind(workloadName, candidate.ResourceKinds)
 		provenance := append([]string(nil), candidate.Provenance...)
 
@@ -324,7 +325,16 @@ func BuildProjectionRowsWithInfrastructurePlatforms(
 		platformKind := inferCandidateRuntimePlatformKind(candidate)
 
 		for _, environment := range environments {
-			instanceID := fmt.Sprintf("workload-instance:%s:%s", workloadName, environment)
+			instanceID := workloadid.NewWorkloadInstanceID(candidate.RepoID, workloadName, environment).String()
+			if instanceID == "" {
+				// A blank environment yields the empty id rather than a
+				// bare-prefix identifier; emitting it would MERGE every
+				// affected candidate onto one shared node, so the row is
+				// dropped instead (#6580 P1). Unreachable on production
+				// inputs (environments arrive Canonicalized and gated),
+				// hence outside the byte-identity proof.
+				continue
+			}
 
 			if _, ok := seenInstances[instanceID]; !ok {
 				seenInstances[instanceID] = struct{}{}

@@ -1,0 +1,182 @@
+# Evidence notes — `internal/workloadid`
+
+## Step zero: extracting the identifier constructors (#5385)
+
+This package is a pure extraction. Four call sites in `internal/reducer` that
+built `workload:<name>` and `workload-instance:<name>:<env>` with `fmt.Sprintf`
+now call `NewWorkloadID` and `NewWorkloadInstanceID`. The constructors reproduce
+the current format deliberately; `repoID` is accepted and ignored, reserved for
+the repository-scoped key the design proposes.
+
+### Why this file exists at all
+
+`scripts/verify-performance-evidence.sh` flags `workloadid.go` as hot-path. The
+directory is **not** in `is_hot_path_by_location` — the gate fires on *content*,
+and the only match in the whole file is the word `MERGE` on line 46, **inside a
+doc comment** explaining why a blank segment must not yield a bare prefix. There
+is no Cypher, worker, lease, batch, or concurrency construct in this package; it
+imports `fmt` and `strings` and nothing else. The three touched
+`internal/reducer` files are genuinely on the projection path, which is the real
+reason this note is warranted.
+
+No-Regression Evidence: the emitted identifiers are byte-identical, and that
+was measured rather than reasoned. The constructors and the old inline code do
+differ in general — the constructors `strings.TrimSpace` each segment and return
+the empty id for a blank one, where `fmt.Sprintf` produced `workload:` or
+`workload-instance:checkout:`. That divergence is unreachable at every call site:
+
+| Site | Old | Equal? |
+| --- | --- | --- |
+| `projection.go:280` | `fmt.Sprintf("workload:%s", workloadName)` | Yes, all inputs. `candidateWorkloadName` returns a trimmed value and the caller skips `""` immediately above; `TrimSpace` is idempotent. |
+| `projection.go:328` | `fmt.Sprintf("workload-instance:%s:%s", …)` | Yes on every production input. Every `environment` arrives through `environment.Canonical()` plus a non-empty gate. |
+| `projection_helpers.go:119` | same | Yes, same funnel. |
+| `dependency.go:76` | `fmt.Sprintf("workload:%s", depName)` | Diverged on a blank `depName`, but `BuildWorkloadDependencyRows` has no production caller — `rg` finds it only from tests, as with its consumer `MaterializeDependencies`. The site now drops the row on an empty id like the other two (#6580 P1). |
+
+The environment funnel was proven empirically, not just read: hostile file facts
+(`"  prod  "` namespaces, an `overlays/  prod  /` path, `values-STAGING.yaml`,
+`dest_namespace: "   "` and `""`, `namespace: "  Production  "`) fed through both
+production producers yielded only `prod` and `stage` — zero empty, zero
+untrimmed. A differential harness then recomputed the pre-refactor `fmt.Sprintf`
+from each emitted row's own fields and compared: 3 workload + 5 instance rows on
+production-shaped environments, 3 + 5 on namespace-fallback environments, and 2
+rows at `projection_helpers.go`, all byte-identical. Each harness fails on zero
+rows so a vacuous pass cannot read as green — that guard fired and caught a bad
+test input during the run.
+
+Existing coverage stands behind the same claim: 116 literal `"workload:` and 85
+literal `"workload-instance:` assertions across 34 reducer test files are green,
+and the B-12 golden snapshot carries 41 references including asserted ids such
+as `workload-instance:deployable-source:prod`.
+
+`go test ./internal/reducer ./internal/workloadid -count=1` exits 0 (3786 pass,
+0 fail, 20 skip in the reducer suite; 14 pass in this package's).
+`go test ./internal/query ./internal/mcp -count=1` exits 0. `go vet`, `filecap`,
+`dirgate`, package-docs, and telemetry checks all exit 0.
+
+No-Observability-Change: nothing is added, removed, or renamed. Grepping
+every added line for telemetry, instrument, metric, span, log, counter,
+histogram, gauge, worker, lease, queue, and environment-variable patterns returns
+zero hits. No telemetry-coverage rows are required: a row is demanded only for a
+newly added `.go` file under a stage-owner directory, and `internal/workloadid`
+is not one of those directories while the three reducer files are modifications
+rather than additions.
+
+### One correctness fix rode along
+
+`projection_helpers.go:111` passed `repoID` — which ranges over the candidate's
+*provisioning* repositories — where the sibling site at `projection.go:328`
+passes `candidate.RepoID`. The row it builds records `RepoID: candidate.RepoID`,
+and `projection.go:399` dedups both sites into one `seenInstances` map, so one
+logical WorkloadInstance was being keyed from two different repositories. Today
+both collapse to the same string because the constructor discards the argument.
+Under the re-key they would produce two ids and duplicate the node — which is
+precisely the failure the "accept `repoID` at every call site now" step exists to
+prevent. Corrected to `candidate.RepoID` while the argument is still inert.
+
+### What the type does not cover
+
+The compiler enumerates every construction of the typed value, which covers the
+reducer write path where projected graph truth is decided. It does not cover
+read-side callers that still concatenate the prefix by hand; the package README
+names the three that remain. The most consequential is
+`internal/query/impact_change_surface_resolvers.go:107`, whose result is matched
+against graph nodes — a re-key confined to this package would silently stop that
+resolver matching anything. Converting them is the re-key's work, not step
+zero's, but the claim is scoped here so it is not read as broader than it is.
+
+### Re-verified on current main (`555867de3`, branch `codex/5385-cleanup`)
+
+The fifteen commits above were rebased onto current main (`555867de3`,
+post-#6586) with zero conflicts — the base move touched gate scripts,
+the gate spec, cost budgets, and unrelated packages, none of which
+overlap this diff's surface. Every claim re-checked against the current
+tree:
+
+- All four call sites route through the constructors
+  (`projection.go:280,:328`, `projection_helpers.go:119`, `dependency.go:76`).
+- `candidateWorkloadName` still trims both branches, so the constructor trim is
+  idempotent at sites 1, 3, and 4.
+- The environment funnel still normalizes at every producer, and every output
+  is either blank or trimmed: `ExtractOverlayEnvironments` trims, drops
+  blanks, and Canonicalizes (`projection.go:220-224`);
+  `helmValuesFilenameEnvironment` admits only exact known tokens before
+  Canonicalizing (`environment_signals.go:35-53`);
+  `collectNamespaceEnvironmentsFromFileData` goes through `namespaceEnvironment`
+  (Normalize plus a non-empty allowlist gate, `environment_signals.go:65-81`);
+  the namespace fallback allowlists before Canonicalizing
+  (`projection_helpers.go:197-207`). No untrimmed environment reaches either
+  instance site on the production path; a blank one yields the empty id rather
+  than a colliding bare-prefix node.
+- `BuildWorkloadDependencyRows` still has no non-test caller, and the live
+  DEPENDS_ON path (`BuildWorkloadDependencyIntentRowsFromEdges`) only carries
+  already-built ids from projection rows or stored graph reads — not a
+  construction site. The same dead-code status covers the untrimmed-non-blank
+  `depName` divergence (`" x "` → old `workload: x ` vs new `workload:x`):
+  zero behavior impact today since no production caller can pass it.
+- New regression coverage: `internal/reducer/projection_workloadid_test.go`
+  recomputes the constructors from each emitted row's own fields, pins the
+  blank-environment drop (zero `InstanceRows`), and pins every
+  `RuntimePlatformRow.InstanceID` from the provisioned-platforms path
+  against the constructor recomputed from the row's own repo and
+  environment (#6580 P2). The blank test was proven non-vacuous by
+  temporarily removing the `continue`: it fails with one emitted
+  `InstanceRow`, then passes again after the restore.
+  `TestBuildWorkloadDependencyRowsDropsBlankDepName`
+  (`dependency_test.go`) pins the third site's blank-`depName` drop: a blank
+  name mapped to a non-empty repo must emit zero rows (#6580 P2). Proven
+  non-vacuous the same way — guard disabled emits exactly one row and the
+  test fails (`len = 1, want 0`), then passes again after the restore with
+  no remnants.
+- `internal/reducer/workloadid_routing_guard_test.go` scans the package's
+  own non-test sources for four hand-built shapes — `Sprintf("workload:%s",`,
+  `Sprintf("workload-instance:`, `"workload:" +`, `"workload-instance:" +` —
+  and fails on any (#6580 P2), so the compiler-enumeration claim survives
+  the next edit instead of resting on a manual `rg`. The patterns
+  deliberately exclude the `workload:%s->%s` partition keys, which are not
+  identifiers. The instance `Sprintf` shape was added after review caught
+  its absence (verified against the base tree: matches exactly the two
+  removed instance sites), and the instance concat shape after a second
+  review round caught that one too; both were sensitivity-proven with
+  probes that fail the guard and leave no remnants.
+- `TestIdentifierTypesAreOpaque` pins every field of both identifier
+  types unexported via reflection, so a future exported field (or a
+  regression to a string underlying type) fails loudly (#6580 codex P1).
+- Current counts on this base (run from `go/`, path `internal/reducer/`,
+  `rg -o '"workload:[^"]*"'` / `'"workload-instance:[^"]*"'`
+  `--glob '*_test.go'`, balanced-quote literal methodology): 132 `"workload:`
+  literals across 32 reducer test files and 92 `"workload-instance:`
+  literals across 12 reducer test files, all green unchanged — the
+  byte-identity proof on this base. Per-file diff against the bare old base
+  (`e55bcef7c`, counted the same way in a detached worktree: 123/30 and
+  89/10): the ONLY changed files are this diff's own additions —
+  `projection_workloadid_test.go` (+1 workload, +1 instance),
+  `workloadid_routing_guard_test.go` (+7 workload, +2 instance), and the new
+  `TestBuildWorkloadDependencyRowsDropsBlankDepName` in `dependency_test.go`
+  (+1 workload, same already-counted file; #6580 P2). Every other file's
+  count is byte-identical, so no upstream test expectation moved under the
+  rebase. (Correction: the pre-rebase note's "90/11"
+  instance predecessor does not reproduce — the bare old base recounts
+  89/10 — so it is superseded by this per-file diff, not carried forward.)
+  Opening-quote-only methodology (`rg -o '"workload:'` /
+  `'"workload-instance:'`, same cwd/path): 131 (+0) and 94 (+2). The +2 is
+  exactly the guard test's two deliberately unclosed
+  `Sprintf("workload-instance:` pattern strings — it is the sole file in
+  the tree where open != balanced (4 open / 2 balanced); the old base has
+  none. The rows-track comment's quoted `Sprintf("workload:` pattern does
+  not perturb either count.
+- `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2468 pass
+  (incl. subtests), 0 fail, 5 skip — all pre-existing and unrelated to this
+  change: a live-backend-gated Bolt retract test, a provenance-replay
+  tombstone test, and three data-driven conditional skips in the main-side
+  family-registry coherence test. Observed tails:
+  `ok github.com/eshu-hq/eshu/go/internal/reducer 3.148s`,
+  `ok github.com/eshu-hq/eshu/go/internal/workloadid 0.183s`.
+  `go test ./internal/query/ ./internal/mcp/ -count=1`: green, observed
+  `ok github.com/eshu-hq/eshu/go/internal/query 3.443s`,
+  `ok github.com/eshu-hq/eshu/go/internal/mcp 1.976s`.
+  `go vet ./internal/reducer/ ./internal/workloadid/`: exit 0, no findings.
+  `gofmt -l` on both packages: clean. `verify-package-docs.sh`,
+  `verify-performance-evidence.sh`, `test-verify-golden-corpus-gate.sh`:
+  each exit 0. (`gofumpt` is not installed in this environment so its line
+  is unverified here; `gofmt -l` is clean on both touched packages and this
+  change introduces no formatting drift.)

@@ -2097,6 +2097,7 @@ gates:
       - "go/internal/reducer/**"
       - "go/internal/query/**"
       - "go/internal/relationships/**"
+      - "go/internal/workloadid/**"
       - "go/internal/storage/**"
       - "sdk/go/factschema/**"
       # #5538: this registry entry had drifted from the workflow's own

@@ -121,6 +121,7 @@ require_workflow_path "package identity normalization (#5538)"    "go/internal/p
 require_workflow_path "repository identity normalization (#5538)" "go/internal/repositoryidentity/**"
 require_workflow_path "source_tool edge vocabulary (#5538)"       "go/internal/sourcetool/**"
 require_workflow_path "terraform schema data layer (#5538)"      "go/internal/terraformschema/**"
+require_workflow_path "workload graph identifier construction (#5385)" "go/internal/workloadid/**"
 
 # Bounded reachability check (#5538 review): does any package feed a response
 # the B-12 snapshot's query_shapes actually asserts? Checked, not assumed —

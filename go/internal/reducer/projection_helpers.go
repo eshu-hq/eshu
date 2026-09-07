@@ -6,11 +6,12 @@ package reducer
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
+
+	"github.com/eshu-hq/eshu/go/internal/workloadid"
 )
 
 func addAPIEndpointRows(
@@ -107,7 +108,20 @@ func provisionedRuntimePlatformRows(
 				continue
 			}
 			for _, environment := range environments {
-				instanceID := fmt.Sprintf("workload-instance:%s:%s", workloadName, environment)
+				// candidate.RepoID, not repoID. repoID here ranges over the
+				// provisioning repositories; the instance belongs to the
+				// workload's own repository, which is what the row below
+				// records and what projection.go passes at the sibling site.
+				// The argument is inert today because the constructor ignores
+				// it, so the two sites still produce the same string and dedup
+				// into one entry -- but under the #5385 re-key the wrong one
+				// here would key a second node for the same instance.
+				instanceID := workloadid.NewWorkloadInstanceID(candidate.RepoID, workloadName, environment).String()
+				if instanceID == "" {
+					// Same blank-environment drop as the deployment-env
+					// sibling site in projection.go (#6580 P1).
+					continue
+				}
 				rows = append(rows, RuntimePlatformRow{
 					Environment:      environment,
 					Confidence:       confidence,

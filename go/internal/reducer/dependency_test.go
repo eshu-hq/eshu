@@ -114,6 +114,26 @@ func TestBuildWorkloadDependencyRowsSingleDependency(t *testing.T) {
 	}
 }
 
+func TestBuildWorkloadDependencyRowsDropsBlankDepName(t *testing.T) {
+	t.Parallel()
+	descriptors := []RepoDescriptor{
+		{RepoID: "repo-a", RepoName: "svc-a", WorkloadID: "workload:svc-a"},
+	}
+	dependenciesByRepo := map[string][]string{
+		"repo-a": {""},
+	}
+	// Blank depName maps to a non-empty repo so the row reaches the
+	// empty-id guard instead of the unknown-target drop above it.
+	targetRepoIDs := map[string]string{
+		"": "repo-b",
+	}
+
+	rows := BuildWorkloadDependencyRows(descriptors, dependenciesByRepo, targetRepoIDs)
+	if len(rows) != 0 {
+		t.Fatalf("len = %d, want 0 (blank depName must not emit rows)", len(rows))
+	}
+}
+
 func TestBuildWorkloadDependencyRowsDeduplicates(t *testing.T) {
 	t.Parallel()
 	descriptors := []RepoDescriptor{
