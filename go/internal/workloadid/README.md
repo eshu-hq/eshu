@@ -32,9 +32,13 @@ reducer's 74-package closure, and it survives the reducer split tracked under
 - **One constructor per identifier.** Any second way to build one defeats the
   enumeration this package exists for. The invariant binds the **typed value**,
   and today that means the reducer write path — the code that decides projected
-  graph truth. It is not yet true of the string; see below.
+  graph truth. It is not yet true of the string; see below. Enforcement lives
+  in-tree: the representation is opaque (pinned by `TestIdentifierTypesAreOpaque`),
+  and `TestWorkloadIDsRouteThroughConstructors` in `internal/reducer` fails the
+  four hand-built shapes, so the claim survives the next edit.
 - **A blank segment yields the empty id**, never a bare prefix or an id with an
   empty segment — either would `MERGE` unrelated candidates onto one shared node.
+  The reducer emission sites drop empty-id rows instead of emitting them.
 
 ## Sites that still build the string by hand
 
