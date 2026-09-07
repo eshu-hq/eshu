@@ -84,9 +84,26 @@ defect did not reproduce. Confirm the build with `dbms.components()` before
 trusting any NornicDB result — the module version (`v1.0.45`) and the reported
 product version (`1.0.0`) do not match, so neither number alone identifies it.
 
-These tests are build-tagged `live_nornicdb_language_imports_grant` and no CI
-job builds that tag, exactly like the sibling grant tests. They are a tool for a
-human with a live backend, not a gate.
+These tests are build-tagged `live_nornicdb_language_imports_grant`, exactly like
+the four sibling grant tests in this package. CI **compiles** that tag but does
+not **run** it. An earlier version of this note said no CI job built the tag at
+all; that was wrong, and the distinction matters to anyone judging what this file
+actually protects.
+
+`scripts/verify-tagged-builds.sh` sweeps this file automatically: it "reads the
+constraints out of the files rather than from a hand-maintained list", and its
+`--all` mode walks every directory under `go/` holding a `//go:build` file, so a
+new tag needs no registration. Verified — the constraint sweep matches five files
+in `internal/query` including this one, and
+`go vet -tags live_nornicdb_language_imports_grant ./internal/query` exits 0.
+
+That gate is deliberately credential-free ("it compiles, it does not run
+anything"), so these assertions never pass or fail in a pipeline. Executing them
+needs a human with a live backend and `ESHU_NEO4J_URI` set. The compile sweep is
+still load-bearing: it exists because #5167's `live_nornicdb_complexity_grant`
+suite lost `ptrToCodeGrantAuthContext` to an unrelated refactor and sat
+uncompilable through a `make pre-pr` run, a push, a full CI run and eight review
+rounds.
 
 No-Regression Evidence: test-only change. No production file is touched, so
 there is no runtime path to measure; `verify-performance-evidence.sh` excludes
