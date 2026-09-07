@@ -63,4 +63,4 @@
 // The Available field several of these carry is a fallback signal, not an
 // emptiness one. A caller that reads a zero-value read model as "nothing
 // found" reports a repository with real data as having none.
-package querycontract
+package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: B2 promotes 10 seams here (41 non-test files vs the 40-file cap; lane-A's +1 tipped the full bucket) because root, impact/, and upcoming families must share them without an import cycle; the split is tracked in #6597, not done mid-move.
