@@ -62,6 +62,16 @@ func init() {
 			},
 		},
 		querycontract.CapabilityRegistration{
+			Capability: contractImpactCapability,
+			Support: querycontract.CapabilitySupport{
+				LocalLightweightMax:   nil,
+				LocalAuthoritativeMax: &impactTruthExact,
+				LocalFullStackMax:     &impactTruthExact,
+				ProductionMax:         &impactTruthExact,
+				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
+			},
+		},
+		querycontract.CapabilityRegistration{
 			Capability: "platform_impact.pre_change",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,

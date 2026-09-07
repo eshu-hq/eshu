@@ -124,9 +124,9 @@ consumer today.
 
 ## GATE 2 — scoped edge-materialization gate
 
-`go/internal/query/impact_edge_materialization_gate.go` audits the
+`go/internal/query/impact/impact_edge_materialization_gate.go` audits the
 target_type-scoped blast-radius Cypher constants in
-`go/internal/query/impact_blast_radius.go` (the six queries feeding
+`go/internal/query/impact/impact_blast_radius.go` (the six queries feeding
 `blastRadiusAffected`'s switch, plus the shared tier-lookup query).
 
 For each, `extractRelationshipTypeTokens` tokenizes every relationship-type
@@ -180,10 +180,10 @@ Two anti-false-green mitigations:
 
 ### Scope limits
 
-- Only the Cypher constants in `impact_blast_radius.go` that feed
+- Only the Cypher constants in `go/internal/query/impact/impact_blast_radius.go` that feed
   `blastRadiusAffected`'s switch are audited — not every "impact"-named
-  query in the package (`impact.go`'s dependency-path explainer,
-  `exposure_path.go`, and similar are out of v1 scope).
+  query in the package (`go/internal/query/impact/impact.go`'s dependency-path explainer,
+  `go/internal/query/impact/exposure_path.go`, and similar are out of v1 scope).
 - Node labels are not extracted or checked, only relationship types.
 
 ## Related gates

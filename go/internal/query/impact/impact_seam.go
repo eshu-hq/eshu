@@ -55,8 +55,9 @@ const (
 	ImpactMaxListLimit = impactMaxListLimit
 
 	// ContractImpactCapability is the exported seam for
-	// contractImpactCapability, which the root capability matrix names as a
-	// key from outside the impact move set. See #6060.
+	// contractImpactCapability, which root tests reference from outside
+	// the impact move set (the capability row itself registers in this
+	// package's capabilities.go). See #6060.
 	ContractImpactCapability = contractImpactCapability
 )
 

@@ -59,9 +59,6 @@ func TestExplainDependencyPathNullPathRecordOmitsPath(t *testing.T) {
 	}
 }
 
-// assertNoImpactLabelDisjunction fails when a by-id anchor uses the label
-// disjunction (`A|B|C`), which matches zero rows on the pinned NornicDB build.
-
 func TestTraceResourceToCodeAnchorsResolvedLabel(t *testing.T) {
 	t.Parallel()
 

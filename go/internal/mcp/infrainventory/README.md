@@ -92,7 +92,7 @@ and the same query handlers execute the requests.
 - The **route-serves-data registry** (`route_serves_data_registry*.go` in the
   parent package) cites `internal/query` handler files by path (for example
   `go/internal/query/infra_resource_aggregates_handler.go`,
-  `go/internal/query/impact_resource_investigation.go`, and
+  `go/internal/query/impact/impact_resource_investigation.go`, and
   `go/internal/query/infra_relationship_filter.go`), never
   `go/internal/mcp/dispatch.go`,
   `go/internal/mcp/dispatch_infra_resource_aggregates.go`, or this package,

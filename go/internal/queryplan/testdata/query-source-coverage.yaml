@@ -154,7 +154,7 @@ source_coverage:
       - {symbol: "(*CompareHandler).fetchWorkload", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: impact/contract_impact.go
     calls:
-      - {symbol: "(*ImpactHandler).contractImpactResponse", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*ImpactHandler).contractImpactResponse", count: 1, non_hot: {class: keyed_support, source_sha256: 54da06140547b3d0ce17d0e8d9837b669185271def591c50f6e1442363d2ddbd, key_bound: single_key, max_results: 101}}
   - file: dependencies.go
     calls:
       - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: 33e1e662b30f6fce9d4ed8f4bee0daa6ad24d7724fc7bb24f5fe8ef08be81df0, entry_ids: [QP-SC-DEPS]}
@@ -210,7 +210,7 @@ source_coverage:
           max_results: 1
   - file: impact/exposure_path.go
     calls:
-      - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*ImpactHandler).exposurePathCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 157383f76058132a7c74d0105bf806386cedd0a7eae975ddecd90f29ab28b243, key_bound: single_key, max_results: 25}}
   - file: graph_entity_inventory.go
     calls:
       - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: 8e1da79218bea919422ff65730c13968e0621495e9c28d30464c9477d1a2b5a7, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
@@ -244,11 +244,11 @@ source_coverage:
           max_results: 201
   - file: impact/impact.go
     calls:
-      - {symbol: "(*ImpactHandler).explainDependencyPath", count: 1, non_hot_reason: "dynamic typed-anchor dependency path remains inventory-only pending a standalone PROFILE registration"}
-      - {symbol: "(*ImpactHandler).traceResourceToCode", count: 1, non_hot_reason: "dynamic typed-anchor resource path remains inventory-only pending a standalone PROFILE registration"}
+      - {symbol: "(*ImpactHandler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: d1610ef5dbd0fd07e4efb368582a0f70d329ead81b3322697facdcca7d2cf9dd, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}
+      - {symbol: "(*ImpactHandler).traceResourceToCode", count: 1, non_hot: {class: keyed_support, source_sha256: 9bf38b943fe511a76f6c7f5ed41137b316c52dcd2d38dcb5bfb3f5305b8de335, key_bound: single_key, max_results: 201}}
   - file: impacttrace/impact_anchor_resolve.go
     calls:
-      - {symbol: "ResolveImpactAnchorNode", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "ResolveImpactAnchorNode", count: 1, non_hot: {class: keyed_support, source_sha256: 84c0a9f746449f8a7e30dbefc8a2371b1b03d4c660b774b1bfbe39a0fe6a9800, key_bound: single_key, max_results: 1}}
   - file: impact/impact_blast_radius.go
     calls:
       - symbol: "(*ImpactHandler).blastRadiusAffected"
@@ -258,7 +258,7 @@ source_coverage:
           source_sha256: 21a8cf7ca6ec628d80422f1780208ef9b8edc1d348f2006b3301108b3d73db07
           key_bound: single_key
           max_results: 1005
-      - {symbol: "(*ImpactHandler).enrichBlastRadiusTiers", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*ImpactHandler).enrichBlastRadiusTiers", count: 1, non_hot: {class: keyed_support, source_sha256: 458737198cb22ca29564b12b2f51743d575e4c611cd7ea872b4af520814f42d3, key_bound: bounded_key_batch, max_keys: 200, max_results: 200}}
   - file: impact/impact_change_surface_investigation.go
     calls:
       - symbol: "(*ImpactHandler).resolveChangeSurfaceTarget"
@@ -298,9 +298,9 @@ source_coverage:
         non_hot: {class: keyed_support, source_sha256: ca7405c98d34a314c9adedfd341f37654883bdda17e8ecdfd56c57ba6fca9a6d, key_bound: single_key, max_results: 51}
   - file: impact/impact_trace_deployment_oci.go
     calls:
-      - {symbol: "fetchOCIImageTagRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "fetchOCIImageTagRows", count: 1, non_hot: {class: keyed_support, source_sha256: b696666d7b9f461c79eb99405b9c774fcd2065fe392a856554f80e262f6a2235, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
+      - {symbol: "fetchOCIImagesByDigest", count: 1, non_hot: {class: keyed_support, source_sha256: 8fa07c65fe87f03fc96c2f5618e1b43030786ea2bb9f5488beca8c012d2cfe96, key_bound: bounded_key_batch, max_keys: 250, max_results: 750}}
+      - {symbol: "fetchOCIRepositoriesByUID", count: 1, non_hot: {class: keyed_support, source_sha256: d9aae7aec06912474f3f17100dbf4cccd048e576761d352c82a0a8c35fc9747e, key_bound: bounded_key_batch, max_keys: 250, max_results: 250}}
   - file: impact/impact_trace_deployment_resources.go
     calls:
       - {symbol: "(*ImpactHandler).fetchCloudResourceResult", count: 1, non_hot: {class: keyed_support, source_sha256: 3d38a851e027a6a186c3ce9f6bbc1348e1fe5392600c2883cc54015a2b6492b6, key_bound: single_key, max_results: 2501}}

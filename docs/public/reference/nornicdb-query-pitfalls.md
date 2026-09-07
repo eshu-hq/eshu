@@ -484,7 +484,7 @@ optional value is empty, and append ` OR n.prop = $param` (without the guard)
 only when the value is present, binding `$param` in lockstep. The
 resource-investigation anchor (`resourceInvestigationResourceAnchor` /
 `resourceInvestigationAnchorParams` in
-`go/internal/query/impact_resource_investigation.go`) follows this shape.
+`go/internal/query/impact/impact_resource_investigation.go`) follows this shape.
 
 ### Validation
 
@@ -666,7 +666,7 @@ whitelist sits in a `WITH`-attached `WHERE`, and the split is not gratuitous —
 combining the `repo_id` predicate and the label predicate in one `WHERE` empties
 that traversal on the same build. With no clause arrangement that filters
 correctly, the whitelist is enforced by `changeSurfaceImpactedLabels` in
-`go/internal/query/impact_change_surface_traversal.go`.
+`go/internal/query/impact/impact_change_surface_traversal.go`.
 
 A Go-side filter does not fully restore the contract, and the gap is worth
 stating. `LIMIT` still runs server-side against the unfiltered set, so a page
@@ -718,7 +718,7 @@ or SCALAR-comprehension projection (`[rel IN relationships(path) | type(rel)]`,
 relationship-property access do not), `CALL{…UNION…}` with a plain outer
 `RETURN` for multi-branch reads, and any secondary join (tier lookup) run as a
 SEPARATE single-clause query merged in Go. See
-`go/internal/query/impact_blast_radius.go` and the guard test
+`go/internal/query/impact/impact_blast_radius.go` and the guard test
 `TestBlastRadiusQueriesAreNornicDBSafe`. These shapes are also strictly more
 correct on Neo4j (`RETURN DISTINCT repo, hops` double-counts diamond-reachable
 repos and inflates `LIMIT`).
@@ -731,7 +731,7 @@ the safe fix is a per-label inline-property anchor (one `MATCH (n:Label {id:$id}
 per label) plus the single-clause projection contract.
 
 Both by-id impact reads were fixed this way (#5286,
-`go/internal/query/impact_anchor_resolve.go`, `impact.go`, guard test
+`go/internal/query/impacttrace/impact_anchor_resolve.go`, `go/internal/query/impact/impact.go`, guard test
 `TestImpactAnchorResolveCypherIsPerLabelUnion`, live proof
 `docs/internal/evidence/5286-by-id-impact-anchors-nornicdb.md`):
 `trace-resource-to-code` folds the label resolution into the traversal as a
@@ -747,7 +747,7 @@ The property-join variant was fixed the same way for the `trace-deployment-chain
 OCI registry-truth reads (#5287): the old two-MATCH digest read returned a null
 `coalesce(image.id, image.descriptor_id)` and the old three-MATCH tag read
 dropped every row, both replaced with single-clause per-label reads joined in Go
-(`go/internal/query/impact_trace_deployment_oci.go`, guard test
+(`go/internal/query/impact/impact_trace_deployment_oci.go`, guard test
 `TestOCIRegistryTruthQueriesAreNornicDBSafe`, live proof
 `docs/internal/evidence/5287-trace-deployment-oci-nornicdb.md`).
 
@@ -759,8 +759,8 @@ DISTINCT`) returned a single all-null row. Both collapse to a single
 `MATCH path = (start:Label {id:$id})-[*1..N]->(impacted)` clause that folds the
 anchor into the path pattern, with `min(length(path))` for the investigate read
 and a raw `relationships(path)` projection unwound per-edge in Go for the legacy
-read (`go/internal/query/impact_change_surface_response.go`,
-`impact_change_surface_legacy.go`, guard test
+read (`go/internal/query/impact/impact_change_surface_response.go`,
+`go/internal/query/impact/impact_change_surface_legacy.go`, guard test
 `TestChangeSurfaceTraversalQueriesAreNornicDBSafe`, live proof
 `docs/internal/evidence/5287-change-surface-nornicdb.md`). Two supporting
 findings from that proof:

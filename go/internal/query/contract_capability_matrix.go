@@ -4,7 +4,6 @@
 package query
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 )
@@ -294,13 +293,6 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
-	},
-	impact.ContractImpactCapability: {
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
 	},
 	"platform_impact.environment_compare": {
 		LocalLightweightMax:   nil,
