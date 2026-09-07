@@ -4,6 +4,7 @@
 package payloadcore_test
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -319,5 +320,28 @@ func TestFormatTallyIsDeterministic(t *testing.T) {
 	}
 	if !strings.HasPrefix(first, "a=") {
 		t.Errorf("FormatTally = %q, want it to start with the lowest key", first)
+	}
+}
+
+// TestSortedKeysReturnsNilForEmpty pins the nil return that separates
+// SortedKeys from the obvious unconditional-allocation rewrite. The difference
+// is invisible to len() and to ElementsMatch, and visible only to a `== nil`
+// check or a nil-sensitive reflect.DeepEqual — which is exactly how a test-local
+// reimplementation in the reducer root drifted from this helper (#6524). The
+// contrast with NonNilStrings above is deliberate: that helper promises a
+// non-nil empty slice, this one promises nil.
+func TestSortedKeysReturnsNilForEmpty(t *testing.T) {
+	t.Parallel()
+
+	if got := payloadcore.SortedKeys(map[string]struct{}{}); got != nil {
+		t.Errorf("SortedKeys(empty map) = %#v, want nil", got)
+	}
+	if got := payloadcore.SortedKeys(nil); got != nil {
+		t.Errorf("SortedKeys(nil) = %#v, want nil", got)
+	}
+	got := payloadcore.SortedKeys(map[string]struct{}{"z": {}, "a": {}, "m": {}})
+	want := []string{"a", "m", "z"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("SortedKeys = %#v, want %#v", got, want)
 	}
 }
