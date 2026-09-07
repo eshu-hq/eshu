@@ -84,15 +84,13 @@ against graph nodes — a re-key confined to this package would silently stop th
 resolver matching anything. Converting them is the re-key's work, not step
 zero's, but the claim is scoped here so it is not read as broader than it is.
 
-### Re-verified on current main (`e55bcef7c`, branch `codex/5385-cleanup`)
+### Re-verified on current main (`555867de3`, branch `codex/5385-cleanup`)
 
-The six commits above were rebased onto current main with conflicts
-resolved to main where main moved underneath (relationship-story and
-call-chain descriptions plus `code.md` now document #6553's
-grant-filtered rows; the ledger-driven contract caught one more silent
-tool, `search_registry_bundles`, and one half-documented multiplexed
-tool, `analyze_code_relationships`, live on the rebase — both fixed).
-Every claim re-checked against the current tree:
+The fifteen commits above were rebased onto current main (`555867de3`,
+post-#6586) with zero conflicts — the base move touched gate scripts,
+the gate spec, cost budgets, and unrelated packages, none of which
+overlap this diff's surface. Every claim re-checked against the current
+tree:
 
 - All four call sites route through the constructors
   (`projection.go:280,:328`, `projection_helpers.go:119`, `dependency.go:76`).
@@ -112,7 +110,9 @@ Every claim re-checked against the current tree:
 - `BuildWorkloadDependencyRows` still has no non-test caller, and the live
   DEPENDS_ON path (`BuildWorkloadDependencyIntentRowsFromEdges`) only carries
   already-built ids from projection rows or stored graph reads — not a
-  construction site.
+  construction site. The same dead-code status covers the untrimmed-non-blank
+  `depName` divergence (`" x "` → old `workload: x ` vs new `workload:x`):
+  zero behavior impact today since no production caller can pass it.
 - New regression coverage: `internal/reducer/projection_workloadid_test.go`
   recomputes the constructors from each emitted row's own fields, pins the
   blank-environment drop (zero `InstanceRows`), and pins every
@@ -135,21 +135,18 @@ Every claim re-checked against the current tree:
 - `TestIdentifierTypesAreOpaque` pins every field of both identifier
   types unexported via reflection, so a future exported field (or a
   regression to a string underlying type) fails loudly (#6580 codex P1).
-- Current counts (run from `go/`; `rg -o '"workload:[^"]*"'` /
+- Current counts on this base (run from `go/`; `rg -o '"workload:[^"]*"'` /
   `'"workload-instance:[^"]*"'` `--glob '*_test.go'`, balanced-quote literal
-  methodology): 123 `"workload:`
-  literals across 30 reducer test files and 90 `"workload-instance:`
-  literals across 11 reducer test files, all green unchanged — the
-  byte-identity proof on this base. (An opening-quote-only count reads
-  +1/+1 from the rows-track-constructors comment quoting the
+  methodology): 131 `"workload:` literals across 32 reducer test files and
+  92 `"workload-instance:` literals across 12 reducer test files, all green
+  unchanged — the byte-identity proof on this base. (An opening-quote-only
+  count reads +1/+1 from the rows-track-constructors comment quoting the
   `Sprintf("workload:` pattern; the balanced-quote methodology used here
-  is unaffected.)
-  Post-#6580 counts (same methodology, same cwd): 131 `"workload:`
-  literals across 32 reducer test files and 90 `"workload-instance:`
-  literals across 11 reducer test files — the +8/+2 delta is exactly the
-  new guard test's own pattern strings plus the rows-track header quote,
-  verified by file attribution; all green unchanged.
-- `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2546 pass
+  is unaffected.) The +2/+1 instance delta over the pre-rebase 90/11 is
+  exactly upstream's new `workload_materializer_retract_instances_test.go`
+  (main commit `d9f5e43bf`, not this diff — confirmed outside
+  `origin/main..HEAD`), verified by file attribution.
+- `go test ./internal/reducer/ ./internal/workloadid/ -count=1`: 2468 pass
   (incl. subtests), 0 fail, 5 skip — all pre-existing and unrelated to this
   change: a live-backend-gated Bolt retract test, a provenance-replay
   tombstone test, and three data-driven conditional skips in the main-side
@@ -157,5 +154,6 @@ Every claim re-checked against the current tree:
   `go test ./internal/query/ ./internal/mcp/ -count=1`: green.
   `go vet`, `gofmt`, `verify-package-docs.sh`,
   `verify-performance-evidence.sh`, and `test-verify-golden-corpus-gate.sh`:
-  all exit 0. (`gofumpt -l` flags 11 reducer files, all pre-existing drift on
-  main in files this change does not touch.)
+  all exit 0. (`gofumpt` is not installed in this environment so its line
+  is unverified here; `gofmt -l` is clean on both touched packages and this
+  change introduces no formatting drift.)
