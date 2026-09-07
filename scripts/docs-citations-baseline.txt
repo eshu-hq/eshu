@@ -161,7 +161,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/resource_policy_permission_envelope.go:76
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_external_principal_grant_envelope.go:103
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_external_principal_grant_envelope.go:103
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_external_principal_grant_envelope.go:71
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_posture_envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/envelope.go:28
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/envelope.go:28
@@ -312,7 +311,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:20
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/platform_materialization_writer.go:16
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/python_metaclass_materialization.go:50
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/s3_external_principal_grant_materialization.go:50
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/s3_internet_exposure_materialization.go:50
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/sbom_attestation_attachment_index.go:297
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/sbom_attestation_attachment_writer.go:17

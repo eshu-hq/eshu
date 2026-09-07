@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
@@ -289,7 +290,7 @@ type DefaultHandlers struct {
 	// drop every external-principal grant intent before it reaches graph truth.
 	// The handler also gates on ReadinessLookup so source S3 buckets resolve only
 	// after CloudResource nodes commit.
-	S3ExternalPrincipalGrantWriter S3ExternalPrincipalGrantWriter
+	S3ExternalPrincipalGrantWriter s3grant.S3ExternalPrincipalGrantWriter
 
 	// RDSPostureNodeWriter projects rds_instance_posture facts onto existing RDS
 	// CloudResource nodes (issue #1233). It must be non-nil alongside FactLoader

@@ -6,6 +6,7 @@ package reducer
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
+	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 )
 
@@ -94,8 +95,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, s3LogsTo)
 	}
 	if handlers.FactLoader != nil && handlers.S3ExternalPrincipalGrantWriter != nil {
-		s3Grant := s3ExternalPrincipalGrantMaterializationDomainDefinition()
-		s3Grant.Handler = S3ExternalPrincipalGrantMaterializationHandler{
+		s3Grant := s3grant.MaterializationDomainDefinition()
+		s3Grant.Handler = s3grant.S3ExternalPrincipalGrantMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			GrantWriter:          handlers.S3ExternalPrincipalGrantWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

@@ -165,7 +165,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainIAMEscalationMaterialization:             "additive, gated on FactLoader+IAMEscalationEdgeWriter with readiness lookup; idempotency proven by iam_escalation_materialization_*_test.go",
 	DomainIAMInstanceProfileRoleMaterialization:    "additive, gated on FactLoader+IAMInstanceProfileRoleEdgeWriter with readiness lookup; idempotency proven by iam_instance_profile_role_materialization_*_test.go",
 	DomainS3LogsToMaterialization:                  "additive, gated on FactLoader+S3LogsToEdgeWriter with readiness lookup; idempotency proven by s3logsto/s3_logs_to_materialization_*_test.go",
-	DomainS3ExternalPrincipalGrantMaterialization:  "additive, gated on FactLoader+S3ExternalPrincipalGrantWriter with readiness lookup; idempotency proven by s3_external_principal_grant_*_test.go (defaults_s3_external_principal_grant_test.go)",
+	DomainS3ExternalPrincipalGrantMaterialization:  "additive, gated on FactLoader+S3ExternalPrincipalGrantWriter with readiness lookup; idempotency proven by s3grant/s3_external_principal_grant_*_test.go (defaults_s3_external_principal_grant_test.go)",
 
 	// Code evidence materializers + incident correlation + deployable-unit
 	// correlation: evidence-loader gated cross-source fan-in, proven by their own

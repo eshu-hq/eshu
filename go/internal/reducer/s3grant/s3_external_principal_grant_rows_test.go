@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package s3grant
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 )
 
 // Local copies of the s3logsto family's test envelope builders, duplicated
-// here when that family moved to go/internal/reducer/s3logsto (issue #6061).
-// Go test files cannot share unexported symbols across a package boundary, so
-// these carry s3grant-scoped names: the internetexposure tests keep the
-// original names until that family moves. These move into the s3grant package
-// with this file's tests; until then they stay byte-identical in behavior to
-// the s3logsto copies.
+// here when that family moved to go/internal/reducer/s3logsto (issue #6061)
+// and moved into this package with the s3grant tests. Go test files cannot
+// share unexported symbols across a package boundary, so these carry
+// s3grant-scoped names: the internetexposure tests keep the original names
+// until that family moves.
 func s3GrantBucketResourceEnvelope(account, region, name string) facts.Envelope {
 	arn := "arn:aws:s3:::" + name
 	return facts.Envelope{
@@ -33,7 +33,7 @@ func s3GrantBucketResourceEnvelope(account, region, name string) facts.Envelope 
 }
 
 func s3GrantBucketUID(account, region, name string) string {
-	return cloudResourceUID(account, region, "aws_s3_bucket", "arn:aws:s3:::"+name)
+	return cloudjoin.CloudResourceUID(account, region, "aws_s3_bucket", "arn:aws:s3:::"+name)
 }
 
 func s3ExternalPrincipalGrantEnvelope(

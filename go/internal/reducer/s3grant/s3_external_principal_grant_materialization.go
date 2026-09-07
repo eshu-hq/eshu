@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package s3grant
 
 import (
 	"context"
@@ -13,6 +13,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
@@ -20,11 +25,16 @@ import (
 
 const s3ExternalPrincipalGrantEvidenceSource = "reducer/s3-external-principal-grant"
 
-func s3ExternalPrincipalGrantMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainS3ExternalPrincipalGrantMaterialization,
+// MaterializationDomainDefinition returns the additive definition for the S3
+// external-principal grant projection. It is additive (not part of
+// DefaultDomainDefinitions) because the handler requires an explicitly wired
+// S3ExternalPrincipalGrantWriter and FactLoader; registering it without them
+// would silently drop every intent.
+func MaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainS3ExternalPrincipalGrantMaterialization,
 		Summary: "project metadata-only S3 external-principal grants into canonical GRANTS_ACCESS_TO graph edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -53,10 +63,10 @@ type S3ExternalPrincipalGrantWriter interface {
 // only aws_resource and s3_external_principal_grant facts, and never persists raw
 // policy material.
 type S3ExternalPrincipalGrantMaterializationHandler struct {
-	FactLoader           FactLoader
+	FactLoader           factload.FactLoader
 	GrantWriter          S3ExternalPrincipalGrantWriter
-	ReadinessLookup      GraphProjectionReadinessLookup
-	PriorGenerationCheck PriorGenerationCheck
+	ReadinessLookup      gpphase.ReadinessLookup
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
 	// when an aws_resource join fact is quarantined as input_invalid during the
@@ -72,17 +82,17 @@ func s3ExternalPrincipalGrantFactKinds() []string {
 // Handle executes one S3 external-principal grant materialization intent.
 func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainS3ExternalPrincipalGrantMaterialization {
-		return Result{}, fmt.Errorf("s3 external-principal grant materialization handler does not accept domain %q", intent.Domain)
+	if intent.Domain != reducercontract.DomainS3ExternalPrincipalGrantMaterialization {
+		return reducercontract.Result{}, fmt.Errorf("s3 external-principal grant materialization handler does not accept domain %q", intent.Domain)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("s3 external-principal grant materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("s3 external-principal grant materialization fact loader is required")
 	}
 	if h.GrantWriter == nil {
-		return Result{}, fmt.Errorf("s3 external-principal grant materialization writer is required")
+		return reducercontract.Result{}, fmt.Errorf("s3 external-principal grant materialization writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -98,16 +108,16 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 	}
 
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, s3ExternalPrincipalGrantNodesNotReadyError{
+		return reducercontract.Result{}, s3ExternalPrincipalGrantNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, s3ExternalPrincipalGrantFactKinds())
+	envelopes, err := factload.LoadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, s3ExternalPrincipalGrantFactKinds())
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for s3 external-principal grant materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for s3 external-principal grant materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -118,24 +128,24 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource join fact (a missing required
 	// identity field) is quarantined as a visible input_invalid dead-letter —
 	// counter + structured error log — while the batch's valid grants still
 	// materialize below and the readiness phase still publishes.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainS3ExternalPrincipalGrantMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainS3ExternalPrincipalGrantMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
 		retractStart := time.Now()
 		if err := h.GrantWriter.RetractS3ExternalPrincipalGrants(ctx, []string{intent.ScopeID}, intent.GenerationID, s3ExternalPrincipalGrantEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("retract canonical s3 external-principal grant edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical s3 external-principal grant edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -144,7 +154,7 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 	if len(rows) > 0 {
 		writeStart := time.Now()
 		if err := h.GrantWriter.WriteS3ExternalPrincipalGrants(ctx, rows, intent.ScopeID, intent.GenerationID, s3ExternalPrincipalGrantEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical s3 external-principal grant edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical s3 external-principal grant edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -164,10 +174,10 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 		totalDuration:     time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainS3ExternalPrincipalGrantMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainS3ExternalPrincipalGrantMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d S3 external-principal grant edge(s) from %d grant fact(s); %d grant fact(s) skipped; %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -176,28 +186,28 @@ func (h S3ExternalPrincipalGrantMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
-func (h S3ExternalPrincipalGrantMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+func (h S3ExternalPrincipalGrantMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
+	state, ok := gpphase.StateForIntentValue(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
-func (h S3ExternalPrincipalGrantMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h S3ExternalPrincipalGrantMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -250,7 +260,7 @@ func (s3ExternalPrincipalGrantNodesNotReadyError) FailureClass() string {
 }
 
 type s3ExternalPrincipalGrantTiming struct {
-	intent            Intent
+	intent            reducercontract.Intent
 	resourceCount     int
 	grantCount        int
 	rowCount          int
@@ -276,8 +286,8 @@ func logS3ExternalPrincipalGrantMaterializationCompleted(
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("grant_fact_count", timing.grantCount),
 		slog.Int("edge_count", timing.rowCount),
-		slog.String("resolved_by_outcome", formatTally(timing.resolvedByOutcome)),
-		slog.String("skipped_by_reason", formatTally(timing.skippedByReason)),
+		slog.String("resolved_by_outcome", payloadcore.FormatTally(timing.resolvedByOutcome)),
+		slog.String("skipped_by_reason", payloadcore.FormatTally(timing.skippedByReason)),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
