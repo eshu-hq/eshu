@@ -49,7 +49,7 @@ bounded machine-readable diagnostics.
 | `level` | Rollup truth level for the response. |
 | `capability` | Capability ID from the conformance matrix. |
 | `profile` | `local_lightweight`, `local_authoritative`, `local_full_stack`, or `production`. |
-| `basis` | `authoritative_graph`, `semantic_facts`, `content_index`, or `hybrid`. |
+| `basis` | `authoritative_graph`, `semantic_facts`, `content_index`, `hybrid`, `runtime_state`, or `no_backend_read`. `no_backend_read` is the one value that names an absence rather than an evidence source: the answer was produced without reading any backend, which today is the empty page a scoped caller whose grant admits no repository receives. It always carries `level: fallback`. |
 | `backend` | Optional graph backend identity, currently `neo4j` or `nornicdb`. |
 | `freshness` | Object with `state`, optional `observed_at`, optional `detail`, optional `cause`, and optional `next_check`. |
 | `reason` | Human-readable explanation for logs, CLI output, and debugging. |

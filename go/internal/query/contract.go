@@ -76,6 +76,7 @@ const (
 	TruthBasisContentIndex       = querycontract.TruthBasisContentIndex
 	TruthBasisHybrid             = querycontract.TruthBasisHybrid
 	TruthBasisRuntimeState       = querycontract.TruthBasisRuntimeState
+	TruthBasisNoBackendRead      = querycontract.TruthBasisNoBackendRead
 
 	FreshnessFresh       = querycontract.FreshnessFresh
 	FreshnessStale       = querycontract.FreshnessStale

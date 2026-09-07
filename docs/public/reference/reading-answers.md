@@ -109,7 +109,7 @@ contracts are owned by [Truth Label Protocol](truth-label-protocol.md):
 | Field | What it tells you |
 | --- | --- |
 | `level` | `exact` (authoritative graph or durable semantic truth), `derived` (deterministic from indexed entities/content/relational state), or `fallback` (exploratory, not authoritative). |
-| `basis` | Where the answer came from: `authoritative_graph`, `semantic_facts`, `content_index`, or `hybrid`. |
+| `basis` | Where the answer came from: `authoritative_graph`, `semantic_facts`, `content_index`, `hybrid`, `runtime_state`, or `no_backend_read` (nothing was read -- the empty page a scoped caller whose grant admits no repository receives; always `level: fallback`). |
 | `capability` | Capability ID from the [Capability Conformance Spec](capability-conformance-spec.md). |
 | `profile` | Active runtime profile: `local_lightweight`, `local_authoritative`, `local_full_stack`, or `production`. |
 | `freshness.state` | `fresh`, `stale`, `building`, or `unavailable`. |
@@ -145,7 +145,7 @@ prompt-facing `truth_class`. This is the mapping from
 | --- | --- | --- |
 | `deterministic` | `level == exact` and `basis == authoritative_graph` | Authoritative graph truth. Safe to present as fact. |
 | `derived` | `level == derived` (any basis) | Deterministic result computed from indexed entities, content, or relational state. |
-| `fallback` | `level == fallback` | Exploratory result, useful but not authoritative for the capability. |
+| `fallback` | `level == fallback`, or `basis == no_backend_read` | Exploratory result, useful but not authoritative for the capability. |
 | `semantic_observation` | `level == exact` and `basis == semantic_facts` | Durable semantic truth from facts, not graph topology. |
 | `code_hint` | `basis == content_index` (and `level != exact`) | Content-index / search signal. A hint, not a verified relationship. |
 | `unsupported` | No truth envelope (built from an error) | The capability could not answer; there is no truth to classify. |

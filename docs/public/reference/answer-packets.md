@@ -209,15 +209,15 @@ packet `summary` and `truth_class`.
 
 The query layer already produces a `TruthLevel` (`exact`, `derived`,
 `fallback`) and a `TruthBasis` (`authoritative_graph`, `semantic_facts`,
-`content_index`, `hybrid`). The answer packet folds those two axes into a
-single, prompt-facing `truth_class` so a client can pick presentation and
-caution without re-implementing the matrix.
+`content_index`, `hybrid`, `runtime_state`, `no_backend_read`). The answer
+packet folds those two axes into a single, prompt-facing `truth_class` so a
+client can pick presentation and caution without re-implementing the matrix.
 
 | `truth_class` | Derived from | Meaning |
 | --- | --- | --- |
 | `deterministic` | `level == exact` and `basis == authoritative_graph` | Authoritative graph truth. Safe to present as fact. |
 | `derived` | `level == derived` (any basis) | Deterministic result computed from indexed entities, content, or relational state. |
-| `fallback` | `level == fallback` | Exploratory result, useful but not authoritative for the capability. |
+| `fallback` | `level == fallback`, or `basis == no_backend_read` | Exploratory result, useful but not authoritative for the capability. |
 | `semantic_observation` | `level == exact` and `basis == semantic_facts` | Durable semantic truth from facts, not graph topology. |
 | `code_hint` | `basis == content_index` (and `level != exact`) | Content-index / search signal. A hint, not a verified relationship. |
 | `unsupported` | No truth envelope (built from an error) | The capability could not answer; there is no truth to classify. |
@@ -227,9 +227,10 @@ Mapping rules, in order:
 1. No truth envelope → `unsupported`.
 2. `basis == semantic_facts` and `level == exact` → `semantic_observation`.
 3. `basis == authoritative_graph` and `level == exact` → `deterministic`.
-4. `basis == content_index` and `level != exact` → `code_hint`.
-5. `level == fallback` → `fallback`.
-6. Otherwise → `derived`.
+4. `basis == no_backend_read` → `fallback`.
+5. `basis == content_index` and `level != exact` → `code_hint`.
+6. `level == fallback` → `fallback`.
+7. Otherwise → `derived`.
 
 This keeps the distinction the issue requires: deterministic vs derived vs
 fallback truth, plus semantic observations and code hints, all mapped from the

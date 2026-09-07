@@ -13,7 +13,8 @@ import (
 // AnswerTruthClass is the prompt-facing classification of an answer's truth.
 //
 // It folds the two existing truth axes — TruthLevel (exact, derived, fallback)
-// and TruthBasis (authoritative_graph, semantic_facts, content_index, hybrid)
+// and TruthBasis (authoritative_graph, semantic_facts, content_index, hybrid,
+// runtime_state, no_backend_read)
 // — into a single label so prompt surfaces can choose presentation and caution
 // without re-implementing the capability matrix. It does not introduce a new
 // truth source; it is derived entirely from an existing TruthEnvelope. The
@@ -237,6 +238,12 @@ func classifyAnswerTruth(truth *TruthEnvelope) AnswerTruthClass {
 		return AnswerTruthSemanticObservation
 	case truth.Basis == TruthBasisAuthoritativeGraph && truth.Level == TruthLevelExact:
 		return AnswerTruthDeterministic
+	case truth.Basis == TruthBasisNoBackendRead:
+		// Stated ahead of the level rule below rather than left to it. The
+		// level is already fallback (querycontract.basisLevel fixes it there),
+		// so this changes no outcome today -- it pins the outcome so a future
+		// level rule cannot promote a page that read nothing.
+		return AnswerTruthFallback
 	case truth.Basis == TruthBasisContentIndex && truth.Level != TruthLevelExact:
 		return AnswerTruthCodeHint
 	case truth.Level == TruthLevelFallback:

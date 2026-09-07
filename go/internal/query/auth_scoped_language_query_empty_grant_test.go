@@ -71,19 +71,21 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			}
 			// This page reads nothing, so it must not name a backend that
 			// served it. Deriving source_backend from the basis answers
-			// postgres_content_store here, which is why the empty page does not
-			// go through writeLanguageQueryResult. Written out, not read from
-			// noBackendReadSourceBackend: an expectation taken from the value
-			// under test passes whatever that value becomes.
-			if got, want := data["source_backend"], "unavailable"; got != want {
+			// postgres_content_store for a content_index page, which is why the
+			// empty page carries its own no-read basis instead (#6544). Written
+			// out, not read from noBackendReadSourceBackend: an expectation
+			// taken from the value under test passes whatever that value
+			// becomes.
+			if got, want := data["source_backend"], "no_backend_read"; got != want {
 				t.Fatalf("source_backend = %v, want %q; no backend served this page", got, want)
 			}
-			// source_backend is an override on this page, so it no longer
-			// moves when the basis does: without this the basis could regress
-			// to authoritative_graph and every assertion above would still
-			// pass. Same assertion the imports empty-grant test makes.
-			if got, want := envelope.Truth.Basis, "content_index"; got != want {
-				t.Fatalf("truth.basis = %q, want %q; an unread page must not claim the authoritative graph", got, want)
+			// The basis says the same thing as source_backend rather than
+			// borrowing content_index, which claimed a content-store read this
+			// page never issued (#6544). Without this assertion the basis could
+			// regress to authoritative_graph and everything above would still
+			// pass.
+			if got, want := envelope.Truth.Basis, "no_backend_read"; got != want {
+				t.Fatalf("truth.basis = %q, want %q; an unread page must not claim a backend it never read", got, want)
 			}
 		})
 	}

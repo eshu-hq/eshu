@@ -73,22 +73,22 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		// describe itself as an authoritative graph read. It reports the same
 		// basis the language-query empty page reports, and importDependencyResponse's
 		// blanket "graph" source_backend is replaced with the vocabulary
-		// sourceBackendForTruthBasis uses when nothing served a read.
+		// sourceBackendForTruthBasis derives from that basis.
 		//
-		// Neither value is a perfect fit: the TruthBasis enum has no "no read
-		// happened" member, so content_index is the lowest-claim value
-		// available rather than a description of what occurred, and
-		// noBackendReadSourceBackend reuses "unavailable" outside its
-		// documented meaning for the same reason -- see its comment. The
-		// reason string is what actually says it, and it is the field a caller
-		// should read here, which is why it denies every backend rather than
-		// only the graph: "no graph read was issued" beside a content_index
-		// basis would invite the reader to infer a content read that also
-		// never happened. The sentence is reasonEmptyGrantNoBackendRead, the
-		// same constant language-query's empty page uses -- shared rather than
-		// duplicated so the two pages cannot be reworded apart. Each route's
-		// test still pins the text as a literal, which is what catches a
-		// rewording of the constant itself.
+		// Both values name the absence directly since #6544:
+		// TruthBasisNoBackendRead and its wire spelling
+		// noBackendReadSourceBackend. Before it, the pair borrowed
+		// content_index and the "unavailable" sentinel because neither
+		// vocabulary had a member for a page produced without a read, so the
+		// envelope claimed a content-store read that never happened. The
+		// reason string still carries the detail, and it denies every backend
+		// rather than only the graph: "no graph read was issued" would invite
+		// the reader to infer a content read that also never happened. The
+		// sentence is reasonEmptyGrantNoBackendRead, the same constant
+		// language-query's empty page uses -- shared rather than duplicated so
+		// the two pages cannot be reworded apart. Each route's test still pins
+		// the text as a literal, which is what catches a rewording of the
+		// constant itself.
 		emptyPage := importDependencyResponse(req, nil)
 		emptyPage["source_backend"] = noBackendReadSourceBackend
 		WriteSuccess(
@@ -96,7 +96,7 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 			r,
 			http.StatusOK,
 			emptyPage,
-			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisContentIndex, reasonEmptyGrantNoBackendRead),
+			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisNoBackendRead, reasonEmptyGrantNoBackendRead),
 		)
 		return
 	}

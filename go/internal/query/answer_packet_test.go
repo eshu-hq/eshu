@@ -59,6 +59,13 @@ func TestAnswerPacketTruthClassMapping(t *testing.T) {
 		{"hybrid_derived", TruthLevelDerived, TruthBasisHybrid, AnswerTruthDerived},
 		{"content_fallback_is_hint", TruthLevelFallback, TruthBasisContentIndex, AnswerTruthCodeHint},
 		{"fallback", TruthLevelFallback, TruthBasisHybrid, AnswerTruthFallback},
+		{"no_backend_read", TruthLevelFallback, TruthBasisNoBackendRead, AnswerTruthFallback},
+		// The level here cannot occur through BuildTruthEnvelope (basisLevel
+		// fixes a no-read basis at fallback), and that is the point: it proves
+		// classifyAnswerTruth answers from its own no_backend_read case rather
+		// than from the level. Without that case this row reaches the default
+		// arm and a page that read nothing classifies as "derived".
+		{"no_backend_read_never_upgrades", TruthLevelExact, TruthBasisNoBackendRead, AnswerTruthFallback},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
