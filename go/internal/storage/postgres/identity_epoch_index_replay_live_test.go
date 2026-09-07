@@ -17,17 +17,22 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// identityEpochLegacyIndexDDL is migration 069's statement, the one #6543
-// deleted. It is repeated here to reconstruct the state an install of an
-// earlier release actually stands in -- the legacy index NAME present on a
-// populated fact_records -- which is the state migration 105's drop has to
-// converge.
+// identityEpochLegacyIndexDDL is a REDUCED form of migration 069's predicate --
+// the arms this fixture actually exercises (oci_registry and content_entity),
+// not all six 069 shipped. It is not a verbatim copy, and the comment below
+// should not be read as claiming one.
 //
-// 069's narrower predicate is used deliberately, not 077's. Both shipped under
-// the same name, so the field holds installs with either, and the convergence
-// is by NAME and therefore indifferent to which. 069's is the one whose
-// coverage actually changes: it admits no Dockerfile base-image `file` facts,
-// so an install left on it silently drops the epoch probe to a full scan.
+// That reduction is safe for what this test proves. Convergence is by index
+// NAME: migration 105 drops `fact_records_identity_epoch_idx` whatever
+// predicate built it, so the fixture only has to stand where a real install
+// stands -- the legacy NAME present on a populated fact_records -- and a
+// verbatim 069 would build an index indistinguishable from this one here.
+//
+// 069's shape is used deliberately, not 077's. Both shipped under the same
+// name, so the field holds installs with either, and the convergence is by NAME
+// and therefore indifferent to which. 069's is the one whose coverage actually
+// changes: it admits no Dockerfile base-image `file` facts, so an install left
+// on it silently drops the epoch probe to a full scan.
 const identityEpochLegacyIndexDDL = `
 CREATE INDEX CONCURRENTLY IF NOT EXISTS fact_records_identity_epoch_idx
     ON fact_records (observed_at, fact_id)
