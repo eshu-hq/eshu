@@ -1,0 +1,50 @@
+-- Let a language/entity-type page read fail fast when its filter matches
+-- nothing instead of walking content_entities_path_idx to the end (#6540).
+--
+-- SearchEntitiesByLanguageAndTypeForAccess pages with ORDER BY relative_path,
+-- start_line, entity_name LIMIT $n. When the language and entity-type filter
+-- matches nothing -- a realistic request, for example HCL functions, which no
+-- projection emits -- the planner walks content_entities_path_idx in order to
+-- the end, checking the filter on every row, and only then returns zero rows.
+--
+-- Measured in a throwaway PostgreSQL 18.6, content_entities seeded to
+-- 2,000,000 rows across 600 repositories (skewed sizes 1,445 to 109,181 rows,
+-- language mix go 35 / typescript 20 / python 15 / yaml 12 / java 10 / hcl 8
+-- percent, entity_type correlated with language so hcl+Function matches zero
+-- rows), VACUUM (ANALYZE), work_mem=64MB, random_page_cost=4,
+-- plan_cache_mode=auto after five prepared executions. Production-shape
+-- statement, entity_type='Function' AND language='hcl', ORDER BY
+-- relative_path, start_line, entity_name LIMIT 50:
+--
+--   Index Scan using content_entities_path_idx, Filter removes 2,000,000 rows
+--   Execution Time: 557.941 ms, Buffers: shared hit=2,009,402
+--
+-- The composite index alone does not change that plan: the planner estimates
+-- tens of thousands of matches (no statistics on the language/type
+-- correlation) and keeps the ordered walk to avoid a sort, still 557.233 ms.
+-- The fix pairs this index with an existence pre-check in the reader, which
+-- the planner answers as an index-only seek:
+--
+--   SELECT EXISTS(SELECT 1 FROM content_entities
+--     WHERE entity_type='Function' AND language='hcl')
+--   Index Only Scan using content_entities_language_type_idx
+--   Execution Time: 0.068 ms, Buffers: shared read=3
+--
+-- A matching filter (go+Function) answers the same pre-check in 0.011 ms and
+-- keeps its existing ordered-walk plan (0.044 ms), so the hot path pays one
+-- sub-millisecond seek and nothing else changes.
+--
+-- Cost. 14 MB against the 2M-row seed's table. One index either way for the
+-- reducer's write path; no existing index is a prefix of this key and none is
+-- dropped by this change.
+--
+-- Replay. Fresh name, no DROP anywhere in the tree, CREATE ... IF NOT EXISTS:
+-- once built, every later bootstrap is a no-op (pinned by
+-- TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay).
+--
+-- CONCURRENTLY, so building it does not block content writes, and the lone
+-- statement in this file because the runner Execs each file as one
+-- simple-query string and Postgres treats a multi-statement string as an
+-- implicit transaction block, which CONCURRENTLY cannot run inside.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS content_entities_language_type_idx
+    ON content_entities (language, entity_type);

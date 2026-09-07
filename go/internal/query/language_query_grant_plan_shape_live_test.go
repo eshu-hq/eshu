@@ -102,6 +102,108 @@ func TestLivePostgresLanguageQueryGrantPlanShape(t *testing.T) {
 	}
 }
 
+// TestLivePostgresLanguageQueryZeroMatchShortCircuits is the plan-shape half
+// of the #6540 Postgres evidence. The seed correlates entity_type with
+// language exactly like the proofs note, so hcl+K8sResource matches zero rows
+// the way hcl+Function matches zero rows at corpus scale. What it pins is
+// the mechanism the numbers depend on: the shipped statement carries the
+// existence gate, the gate pulls up behind a one-time filter, and the empty
+// case never reaches the ordered walk -- plus the migration that backs the
+// gate existing in the bootstrapped schema. Timings are not pinned; they move
+// with the machine. Same tag, DSN variables, and disposable-database contract
+// as the grant test above.
+func TestLivePostgresLanguageQueryZeroMatchShortCircuits(t *testing.T) {
+	ctx, db := postgresproof.OpenDisposableDatabase(
+		t,
+		os.Getenv("ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN"),
+		os.Getenv("ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE"),
+		5*time.Minute,
+	)
+	if err := storagepostgres.ApplyBootstrap(ctx, storagepostgres.SQLDB{DB: db}); err != nil {
+		t.Fatalf("ApplyBootstrap(): %v", err)
+	}
+	seedGrantPlanCorpus(ctx, t, db)
+
+	statement, args := captureShippedZeroMatchStatement(ctx, t)
+	rows, err := db.QueryContext(ctx, statement, args...)
+	if err != nil {
+		t.Fatalf("run the shipped zero-match statement: %v\nstatement:\n%s", err, statement)
+	}
+	count := 0
+	for rows.Next() {
+		count++
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		t.Fatalf("iterate the shipped zero-match statement: %v", err)
+	}
+	_ = rows.Close()
+	if count != 0 {
+		t.Fatalf("shipped zero-match statement returned %d rows, want 0", count)
+	}
+
+	plan := explainJSON(ctx, t, db, statement, args)
+	t.Logf("zero-match plan:\n%s", plan)
+	if !strings.Contains(plan, "One-Time Filter") {
+		t.Fatalf("zero-match read has no one-time filter, so the empty case reaches the ordered walk instead of short-circuiting:\n%s", plan)
+	}
+	if strings.Contains(plan, `"Node Type": "Seq Scan"`) {
+		t.Fatalf("zero-match read uses a Seq Scan:\n%s", plan)
+	}
+
+	var indexDef string
+	if err := db.QueryRowContext(ctx, `
+		SELECT indexdef FROM pg_indexes
+		WHERE schemaname = current_schema() AND indexname = 'content_entities_language_type_idx'
+	`).Scan(&indexDef); err != nil {
+		t.Fatalf("look up content_entities_language_type_idx (migration 104): %v", err)
+	}
+	if !strings.Contains(indexDef, "(language, entity_type)") {
+		t.Fatalf("content_entities_language_type_idx definition = %q, want the (language, entity_type) key", indexDef)
+	}
+}
+
+// captureShippedZeroMatchStatement runs the production content read for a
+// filter combination the seed matches with zero rows (hcl rows are Functions,
+// K8sResource rows are yaml) and returns the statement it actually sent. Like
+// captureShippedGrantStatement, the statement is captured, not written: a
+// builder change changes what this test measures instead of leaving it
+// measuring a stale copy.
+func captureShippedZeroMatchStatement(ctx context.Context, t *testing.T) (string, []any) {
+	t.Helper()
+
+	recordingDB, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
+		columns: []string{
+			"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+			"start_line", "end_line", "language", "source_cache", "metadata",
+		},
+	}})
+	reader := NewContentReader(recordingDB)
+	if _, err := reader.SearchEntitiesByLanguageAndTypeForAccess(ctx, languageEntitySearch{
+		Language:   "hcl",
+		EntityType: "K8sResource",
+		Limit:      50,
+	}); err != nil {
+		t.Fatalf("SearchEntitiesByLanguageAndTypeForAccess(): %v", err)
+	}
+
+	for i, query := range recorder.queries {
+		if !strings.Contains(query, "FROM content_entities") {
+			continue
+		}
+		if !strings.Contains(query, "EXISTS (SELECT 1 FROM content_entities WHERE") {
+			t.Fatalf("shipped zero-match statement carries no existence gate, so this test is not judging the #6540 fix:\n%s", query)
+		}
+		args := make([]any, 0, len(recorder.args[i]))
+		for _, recorded := range recorder.args[i] {
+			args = append(args, recorded)
+		}
+		return query, args
+	}
+	t.Fatalf("the production read issued no content_entities query: %#v", recorder.queries)
+	return "", nil
+}
+
 // captureShippedGrantStatement runs the production content read against a
 // recording driver and returns the statement it actually sent, with the grant
 // argument re-wrapped through pgarray.Array so a real backend can bind it.
@@ -267,7 +369,10 @@ func seedGrantPlanCorpus(ctx context.Context, t *testing.T, db *sql.DB) {
 	`, grantPlanSeedRows, grantPlanSeedRepos); err != nil {
 		t.Fatalf("seed content_entities: %v", err)
 	}
-	if _, err := db.ExecContext(ctx, "ANALYZE content_entities"); err != nil {
-		t.Fatalf("ANALYZE content_entities: %v", err)
+	// VACUUM, not just ANALYZE: production content_entities is autovacuumed,
+	// and without a visibility map the planner prices index-only scans as
+	// heap-fetching ones -- which is what the #6540 gate's initplan is.
+	if _, err := db.ExecContext(ctx, "VACUUM (ANALYZE) content_entities"); err != nil {
+		t.Fatalf("VACUUM (ANALYZE) content_entities: %v", err)
 	}
 }
