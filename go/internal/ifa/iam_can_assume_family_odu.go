@@ -203,7 +203,8 @@ var iamCanAssumeFamilyPermissions = []iamCanAssumeFamilyPermissionFixture{
 }
 
 // iamCanAssumeFamilyStableFactKey derives one fact's durable dedup key from
-// the identity the collector would key it by, rather than hand-typing a
+// the same identity inputs the collector keys its StableID by, in a readable
+// fixture-local format rather than a hex digest, instead of hand-typing a
 // string the expected-edge fixture cannot independently check.
 func iamCanAssumeFamilyStableFactKey(factKind, identity string) string {
 	return fmt.Sprintf(
