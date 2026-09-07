@@ -208,7 +208,7 @@ func TestRouteServesDataRegistryBITES_PoisonedRegistryGoesRed(t *testing.T) {
 
 	// Dropped disclosure: removing the reviewed codeowners enrichment
 	// disclosure must turn the scan RED, because the handler really does
-	// wire ServiceCatalogCorrelationStore into listOwnership.
+	// wire ServiceCatalogCorrelationStore into ListOwnership.
 	t.Run("dropped_disclosure_contradicts_scan", func(t *testing.T) {
 		poisoned := map[string]routeServesDataSource{}
 		for r, e := range routeServesDataRegistry {

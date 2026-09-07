@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeowners
 
+// codeownersOwnershipGraphQuery is one bounded graph read (Cypher plus its
+// params) behind the ownership list. The Cypher field is exported for the
+// staying queryplan production-binding test, which pins the exact emitted
+// text through this package; everything else about the type stays
+// family-local.
 type codeownersOwnershipGraphQuery struct {
-	cypher string
+	Cypher string
 	params map[string]any
 }
 
@@ -20,8 +25,11 @@ const codeownersOwnershipReturn = `RETURN rel.pattern AS pattern,
 ORDER BY rel.order_index, rel.pattern, team.ref
 LIMIT $limit`
 
-// codeownersOwnershipCyphers builds the bounded graph reads for
+// CodeownersOwnershipCyphers builds the bounded graph reads for
 // GET /api/v0/codeowners/ownership (issue #5419 Phase 4).
+//
+// It is exported for the staying queryplan production-binding test, which
+// pins the exact emitted Cypher; the handler calls it directly.
 //
 // The graph anchors on the Repository.id uniqueness constraint
 // (repository_id, nornicdb_repository_id_lookup index,
@@ -48,7 +56,7 @@ LIMIT $limit`
 // the caller's limit (max 200, codeownersOwnershipMaxLimit). Each cursor branch
 // returns at most limit rows. With the API's limit+1 truncation probe and
 // maximum page size of 200, the merge holds at most 603 rows.
-func codeownersOwnershipCyphers(
+func CodeownersOwnershipCyphers(
 	repoID string,
 	afterOrderIndex int,
 	afterPattern string,
@@ -61,7 +69,7 @@ func codeownersOwnershipCyphers(
 	}
 	if afterOrderIndex == codeownersOwnershipNoCursor {
 		return []codeownersOwnershipGraphQuery{{
-			cypher: codeownersOwnershipMatch + "\n" + codeownersOwnershipReturn,
+			Cypher: codeownersOwnershipMatch + "\n" + codeownersOwnershipReturn,
 			params: baseParams,
 		}}
 	}
@@ -105,24 +113,27 @@ func codeownersOwnershipCursorQuery(
 		params[key] = value
 	}
 	return codeownersOwnershipGraphQuery{
-		cypher: codeownersOwnershipMatch + "\n  AND " + predicate + "\n" + codeownersOwnershipReturn,
+		Cypher: codeownersOwnershipMatch + "\n  AND " + predicate + "\n" + codeownersOwnershipReturn,
 		params: params,
 	}
 }
 
-// codeownersLastMatchOwnerCypher builds the single-row Cypher the precedence
+// CodeownersLastMatchOwnerCypher builds the single-row Cypher the precedence
 // resolver (codeowners_ownership_precedence.go) uses to find a repository's
 // last-match-wins CODEOWNERS owner: CODEOWNERS resolves ownership by the LAST
 // pattern in the file that matches, so the rule with the highest order_index
 // is the repository-wide fallback candidate. This is deliberately a separate,
 // descending-order, LIMIT-1 query rather than reusing the paginated
-// ascending-order codeownersOwnershipCypher list: the highest order_index row
+// ascending-order CodeownersOwnershipCyphers list: the highest order_index row
 // can be arbitrarily far past the first page a caller happens to have
 // fetched, so only a dedicated DESC-ordered read finds it correctly. Same
-// anchors and non-null guards as codeownersOwnershipCyphers; team.ref ASC
+// anchors and non-null guards as CodeownersOwnershipCyphers; team.ref ASC
 // breaks a tie between two owners declared on the same last-matching line
 // deterministically.
-func codeownersLastMatchOwnerCypher(repoID string) (string, map[string]any) {
+//
+// It is exported for the staying queryplan production-binding test, which
+// pins the exact emitted Cypher; the precedence resolver calls it directly.
+func CodeownersLastMatchOwnerCypher(repoID string) (string, map[string]any) {
 	params := map[string]any{"repo_id": repoID}
 	return `MATCH (repo:Repository {id: $repo_id})-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)
 WHERE team.ref IS NOT NULL AND team.ref <> ''

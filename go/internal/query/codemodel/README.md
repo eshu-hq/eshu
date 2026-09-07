@@ -3,8 +3,8 @@
 The code-model query leaf: read-model builders, row decoders, response
 shapers, and Cypher/postgres query constructors behind the find_code,
 code-graph, complexity, dead-code, code-flow, import-dependency,
-relationship-story, and code-search reads. (codeowners-ownership stays in
-root until a later #6060 phase.)
+relationship-story, and code-search reads. (codeowners-ownership lives in
+`internal/query/codeowners` since #6060 lane A L2.)
 
 It moved out of root package `query` (#6060 lane A) so the family can be
 read, tested, and changed without pulling in the rest of the query

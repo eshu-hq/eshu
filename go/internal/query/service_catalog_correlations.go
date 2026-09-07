@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -26,58 +27,21 @@ var errServiceCatalogOutsideGrantNeedsAGrant = errors.New(
 	"outside-grant reads require an allowed repository or scope grant",
 )
 
-// ServiceCatalogCorrelationStore reads reducer-owned service catalog correlations.
-type ServiceCatalogCorrelationStore interface {
-	ListServiceCatalogCorrelations(context.Context, ServiceCatalogCorrelationFilter) ([]ServiceCatalogCorrelationRow, error)
-}
+// ServiceCatalogCorrelationStore reads reducer-owned service catalog
+// correlations. See querycontract.ServiceCatalogCorrelationStore: the port
+// moved there for #6060 lane A L2 because the moved codeowners family needs
+// it without importing root, and this alias keeps every staying caller
+// compiling unchanged.
+type ServiceCatalogCorrelationStore = querycontract.ServiceCatalogCorrelationStore
 
 // ServiceCatalogCorrelationFilter bounds catalog reads to a concrete catalog
-// entity, repository, service, workload, owner, or ingestion scope.
-type ServiceCatalogCorrelationFilter struct {
-	ScopeID              string
-	Provider             string
-	EntityRef            string
-	RepositoryID         string
-	ServiceID            string
-	WorkloadID           string
-	OwnerRef             string
-	Outcome              string
-	DriftStatus          string
-	AfterCorrelationID   string
-	AllowedRepositoryIDs []string
-	AllowedScopeIDs      []string
-	// OutsideGrant inverts the grant clause: the read returns the rows the
-	// caller's grant does NOT admit, rather than the rows it does. It answers
-	// "does anything outside my grant also claim this selector", which is what
-	// a caller needs before it may act on a shared identifier whose downstream
-	// tables carry no scope column of their own. The two grant arrays are
-	// required in this mode -- see errServiceCatalogOutsideGrantNeedsAGrant.
-	OutsideGrant bool
-	Limit        int
-}
+// entity, repository, service, workload, owner, or ingestion scope. See
+// querycontract.ServiceCatalogCorrelationFilter.
+type ServiceCatalogCorrelationFilter = querycontract.ServiceCatalogCorrelationFilter
 
-// ServiceCatalogCorrelationRow is one durable service-catalog correlation fact.
-type ServiceCatalogCorrelationRow struct {
-	CorrelationID          string
-	Provider               string
-	EntityRef              string
-	EntityType             string
-	DisplayName            string
-	RepositoryID           string
-	ServiceID              string
-	WorkloadID             string
-	OwnerRef               string
-	Lifecycle              string
-	Tier                   string
-	Outcome                string
-	Reason                 string
-	ProvenanceOnly         bool
-	DriftKind              string
-	DriftStatus            string
-	CandidateRepositoryIDs []string
-	EvidenceFactIDs        []string
-	RequiredAnchorKeys     []string
-}
+// ServiceCatalogCorrelationRow is one durable service-catalog correlation
+// fact. See querycontract.ServiceCatalogCorrelationRow.
+type ServiceCatalogCorrelationRow = querycontract.ServiceCatalogCorrelationRow
 
 type serviceCatalogCorrelationQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
@@ -106,11 +70,11 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 	if s.DB == nil {
 		return nil, fmt.Errorf("service catalog correlation database is required")
 	}
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		return nil, fmt.Errorf("scope_id, entity_ref, repository_id, service_id, workload_id, or owner_ref is required")
 	}
-	if filter.Limit <= 0 || filter.Limit > serviceCatalogCorrelationMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d", serviceCatalogCorrelationMaxLimit)
+	if filter.Limit <= 0 || filter.Limit > querycontract.ServiceCatalogCorrelationMaxLimit+1 {
+		return nil, fmt.Errorf("limit must be between 1 and %d", querycontract.ServiceCatalogCorrelationMaxLimit)
 	}
 	if filter.OutsideGrant && len(filter.AllowedRepositoryIDs) == 0 && len(filter.AllowedScopeIDs) == 0 {
 		return nil, errServiceCatalogOutsideGrantNeedsAGrant
@@ -342,16 +306,6 @@ WHERE fact.scope_id = $1
 ORDER BY COALESCE(fact.source_uri, ''), fact.fact_kind, fact.fact_id
 LIMIT $3
 `
-
-func (f ServiceCatalogCorrelationFilter) hasScope() bool {
-	return f.ScopeID != "" ||
-		f.EntityRef != "" ||
-		f.RepositoryID != "" ||
-		f.ServiceID != "" ||
-		f.WorkloadID != "" ||
-		f.OwnerRef != "" ||
-		len(f.AllowedRepositoryIDs) > 0
-}
 
 func decodeServiceCatalogCorrelationRow(
 	factID string,

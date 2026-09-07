@@ -827,10 +827,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codeowners_ownership_cypher.go
-      symbol: codeownersOwnershipCyphers
-      source_sha256: 6e37ed945ff3466120bff49dc5a07680861da2254a53b6ce15b84bc08dc5be18
-      line_hint: 49
+      file: go/internal/query/codeowners/codeowners_ownership_cypher.go
+      symbol: CodeownersOwnershipCyphers
+      source_sha256: d8af58250cac5a7f64aba4d38d223eb938459b49c114ce95a114e8b8946c780e
+      line_hint: 59
     required_anchors:
       - label: Repository
         property: id
@@ -860,10 +860,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codeowners_ownership_cypher.go
-      symbol: codeownersOwnershipCyphers
-      source_sha256: 6e37ed945ff3466120bff49dc5a07680861da2254a53b6ce15b84bc08dc5be18
-      line_hint: 49
+      file: go/internal/query/codeowners/codeowners_ownership_cypher.go
+      symbol: CodeownersOwnershipCyphers
+      source_sha256: d8af58250cac5a7f64aba4d38d223eb938459b49c114ce95a114e8b8946c780e
+      line_hint: 59
     required_anchors:
       - label: Repository
         property: id
@@ -881,10 +881,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codeowners_ownership_cypher.go
-      symbol: codeownersOwnershipCyphers
-      source_sha256: 6e37ed945ff3466120bff49dc5a07680861da2254a53b6ce15b84bc08dc5be18
-      line_hint: 49
+      file: go/internal/query/codeowners/codeowners_ownership_cypher.go
+      symbol: CodeownersOwnershipCyphers
+      source_sha256: d8af58250cac5a7f64aba4d38d223eb938459b49c114ce95a114e8b8946c780e
+      line_hint: 59
     required_anchors:
       - label: Repository
         property: id
@@ -902,10 +902,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codeowners_ownership_cypher.go
-      symbol: codeownersOwnershipCyphers
-      source_sha256: 6e37ed945ff3466120bff49dc5a07680861da2254a53b6ce15b84bc08dc5be18
-      line_hint: 49
+      file: go/internal/query/codeowners/codeowners_ownership_cypher.go
+      symbol: CodeownersOwnershipCyphers
+      source_sha256: d8af58250cac5a7f64aba4d38d223eb938459b49c114ce95a114e8b8946c780e
+      line_hint: 59
     required_anchors:
       - label: Repository
         property: id
@@ -923,10 +923,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codeowners_ownership_cypher.go
-      symbol: codeownersLastMatchOwnerCypher
-      source_sha256: 61e65f83b6f0f3ada8a21df306a6150dc29c5ba750e531166fe87bfaba252c34
-      line_hint: 80
+      file: go/internal/query/codeowners/codeowners_ownership_cypher.go
+      symbol: CodeownersLastMatchOwnerCypher
+      source_sha256: 071bb539f1a3fef7e8685d4095d6eb4305e62485119aae7e3018b2b20ca4e1af
+      line_hint: 136
     required_anchors:
       - label: Repository
         property: id
@@ -939,7 +939,7 @@ entries:
       - "1"
     requires_order: true
     caveats:
-      - resolveEffectiveRepositoryOwner's manifest-vs-codeowners precedence resolver (go/internal/query/codeowners_ownership_precedence.go) uses this single-row query to find a repository's last-match-wins CODEOWNERS owner (CODEOWNERS resolves ownership by the LAST pattern in the file that matches, so the highest order_index row is the repository-wide fallback candidate); it is deliberately a separate DESC-ordered, LIMIT-1 read rather than reusing the paginated ascending QP-CODEOWNERS-OWNERSHIP-LIST query, since the highest order_index row can be arbitrarily far past the first page a caller happens to have fetched.
+      - resolveEffectiveRepositoryOwner's manifest-vs-codeowners precedence resolver (go/internal/query/codeowners/codeowners_ownership_precedence.go) uses this single-row query to find a repository's last-match-wins CODEOWNERS owner (CODEOWNERS resolves ownership by the LAST pattern in the file that matches, so the highest order_index row is the repository-wide fallback candidate); it is deliberately a separate DESC-ordered, LIMIT-1 read rather than reusing the paginated ascending QP-CODEOWNERS-OWNERSHIP-LIST query, since the highest order_index row can be arbitrarily far past the first page a caller happens to have fetched.
       - Same anchor and required_schema as QP-CODEOWNERS-OWNERSHIP-LIST -- Repository.id is the only NodeIndexSeek anchor; CodeownerTeam is reached by Expand, not an independent seek, so it is not declared as a required_anchors entry.
     plan:
       operators:

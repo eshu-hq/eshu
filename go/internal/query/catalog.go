@@ -226,9 +226,10 @@ func (h *RepositoryHandler) listCatalogWorkloadIdentitiesFromContent(
 // workloads, issues a single bounded Postgres query filtered to those IDs via
 // AllowedRepositoryIDs, then stamps Tier/Category/Domain/Language on each
 // workload whose repo has a correlated manifest. The lookup is capped at
-// serviceCatalogCorrelationMaxLimit to stay within the few-seconds SLA; extra
-// workloads beyond that cap keep their zero values. Failures are swallowed so
-// the catalog endpoint never errors on a missing or unavailable store.
+// querycontract.ServiceCatalogCorrelationMaxLimit to stay within the
+// few-seconds SLA; extra workloads beyond that cap keep their zero values.
+// Failures are swallowed so the catalog endpoint never errors on a missing
+// or unavailable store.
 func (h *RepositoryHandler) enrichCatalogWorkloadsFromCorrelations(
 	ctx context.Context,
 	workloads []catalogWorkload,
@@ -254,7 +255,7 @@ func (h *RepositoryHandler) enrichCatalogWorkloadsFromCorrelations(
 
 	rows, err := h.ServiceCatalogCorrelations.ListServiceCatalogCorrelations(ctx, ServiceCatalogCorrelationFilter{
 		AllowedRepositoryIDs: repoIDs,
-		Limit:                serviceCatalogCorrelationMaxLimit,
+		Limit:                querycontract.ServiceCatalogCorrelationMaxLimit,
 	})
 	if err != nil {
 		// Non-fatal: catalog still returns graph data; enrichment is best-effort.

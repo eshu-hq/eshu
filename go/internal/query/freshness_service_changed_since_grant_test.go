@@ -78,7 +78,7 @@ func (g *grantMirroringServiceOwnership) ListServiceCatalogCorrelations(
 
 	// service_catalog_correlations.go: the same two guards, in the same order,
 	// with the same messages the shipped store returns.
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		return nil, fmt.Errorf("scope_id, entity_ref, repository_id, service_id, workload_id, or owner_ref is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > serviceCatalogCorrelationMaxLimit+1 {

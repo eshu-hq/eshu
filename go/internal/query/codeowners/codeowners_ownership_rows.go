@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeowners
 
 import (
 	"context"
 	"fmt"
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // loadCodeownersOwnershipRows executes the one initial-page query or the three
@@ -15,14 +17,14 @@ import (
 // limit before the handler applies its limit+1 truncation probe.
 func loadCodeownersOwnershipRows(
 	ctx context.Context,
-	graph GraphQuery,
+	graph querycontract.GraphQuery,
 	repoID string,
 	afterOrderIndex int,
 	afterPattern string,
 	afterRef string,
 	fetchLimit int,
 ) ([]map[string]any, error) {
-	queries := codeownersOwnershipCyphers(
+	queries := CodeownersOwnershipCyphers(
 		repoID,
 		afterOrderIndex,
 		afterPattern,
@@ -31,7 +33,7 @@ func loadCodeownersOwnershipRows(
 	)
 	rows := make([]map[string]any, 0, fetchLimit)
 	for i, query := range queries {
-		branchRows, err := graph.Run(ctx, query.cypher, query.params)
+		branchRows, err := graph.Run(ctx, query.Cypher, query.params)
 		if err != nil {
 			return nil, fmt.Errorf("codeowners ownership graph query %d: %w", i+1, err)
 		}
@@ -39,15 +41,15 @@ func loadCodeownersOwnershipRows(
 	}
 
 	sort.SliceStable(rows, func(i, j int) bool {
-		leftOrder, rightOrder := IntVal(rows[i], "order_index"), IntVal(rows[j], "order_index")
+		leftOrder, rightOrder := querycontract.IntVal(rows[i], "order_index"), querycontract.IntVal(rows[j], "order_index")
 		if leftOrder != rightOrder {
 			return leftOrder < rightOrder
 		}
-		leftPattern, rightPattern := StringVal(rows[i], "pattern"), StringVal(rows[j], "pattern")
+		leftPattern, rightPattern := querycontract.StringVal(rows[i], "pattern"), querycontract.StringVal(rows[j], "pattern")
 		if leftPattern != rightPattern {
 			return leftPattern < rightPattern
 		}
-		return StringVal(rows[i], "owner_ref") < StringVal(rows[j], "owner_ref")
+		return querycontract.StringVal(rows[i], "owner_ref") < querycontract.StringVal(rows[j], "owner_ref")
 	})
 	if len(rows) > fetchLimit {
 		rows = rows[:fetchLimit]

@@ -8,13 +8,19 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const (
 	serviceCatalogCorrelationsCapability = "service_catalog.correlations.list"
-	serviceCatalogCorrelationMaxLimit    = 200
 )
+
+// serviceCatalogCorrelationMaxLimit aliases the shared page bound so the
+// limit checks below keep their pre-move spelling. The canonical value
+// lives in querycontract (hoisted for #6060 lane A L2); new callers name
+// querycontract.ServiceCatalogCorrelationMaxLimit directly.
+const serviceCatalogCorrelationMaxLimit = querycontract.ServiceCatalogCorrelationMaxLimit
 
 // ServiceCatalogHandler exposes reducer-owned service catalog correlation reads.
 type ServiceCatalogHandler struct {
@@ -104,7 +110,7 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 		AfterCorrelationID: QueryParam(r, "after_correlation_id"),
 		Limit:              limit + 1,
 	}
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		WriteError(w, http.StatusBadRequest, "scope_id, entity_ref, repository_id, service_id, workload_id, or owner_ref is required")
 		return
 	}
@@ -214,8 +220,8 @@ func requiredServiceCatalogCorrelationLimit(w http.ResponseWriter, r *http.Reque
 		return 0, false
 	}
 	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > serviceCatalogCorrelationMaxLimit {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", serviceCatalogCorrelationMaxLimit))
+	if err != nil || limit <= 0 || limit > querycontract.ServiceCatalogCorrelationMaxLimit {
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", querycontract.ServiceCatalogCorrelationMaxLimit))
 		return 0, false
 	}
 	return limit, true
