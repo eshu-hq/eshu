@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // CompareHandler provides environment comparison endpoints.
@@ -74,7 +77,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 	}
 
 	ctx := r.Context()
-	limit := normalizeImpactListLimit(req.Limit)
+	limit := impact.NormalizeImpactListLimit(req.Limit)
 
 	// #5167 W3: fetchWorkload resolves by bare workload id with no repo scoping
 	// in the Cypher itself, so the grant check happens here on the resolved
@@ -109,7 +112,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 		missingWorkloadResponse()
 		return
 	}
-	if !impactRepoIDAllowed(compareStringVal(workload, "repo_id"), access) {
+	if !impact.ImpactRepoIDAllowed(compareStringVal(workload, "repo_id"), access) {
 		missingWorkloadResponse()
 		return
 	}
@@ -252,7 +255,7 @@ func (h *CompareHandler) environmentSnapshot(
 		return nil, false, err
 	}
 
-	resourceRows, truncated := trimImpactRows(resourceRows, limit)
+	resourceRows, truncated := impact.TrimImpactRows(resourceRows, limit)
 	cloudResources := make([]map[string]any, 0, len(resourceRows))
 	for _, row := range resourceRows {
 		cloudResources = append(cloudResources, map[string]any{
@@ -394,24 +397,10 @@ func (h *CompareHandler) loadServiceEvidence(ctx context.Context, workload map[s
 	return loadServiceQueryEvidence(ctx, h.Content, repoID, serviceName)
 }
 
-// floatVal safely extracts a float64 from a map value.
+// floatVal safely extracts a float64 from a map value. The implementation
+// moved to querycontract for #6060; this wrapper keeps root callers unchanged.
 func floatVal(row map[string]any, key string) float64 {
-	v, ok := row[key]
-	if !ok || v == nil {
-		return 0.0
-	}
-	switch n := v.(type) {
-	case float64:
-		return n
-	case float32:
-		return float64(n)
-	case int64:
-		return float64(n)
-	case int:
-		return float64(n)
-	default:
-		return 0.0
-	}
+	return querycontract.FloatVal(row, key)
 }
 
 func compareMapSlice(value map[string]any, key string) []map[string]any {

@@ -42,7 +42,7 @@ func (s *searchCallCountingContentStore) callCount() int {
 // that reached loadConsumerRepositoryEnrichmentFromCandidates unclamped.
 // `if limit > 0` there gates two independent protections
 // (deployment_trace_candidate_enrichment.go): the
-// boundedIndirectEvidenceHostnamesForService call, which is the only thing that
+// BoundedIndirectEvidenceHostnamesForService call, which is the only thing that
 // narrows an arbitrarily large hostname list down to that function's fixed
 // indirectEvidenceHostnameLimit (4) before firing concurrent content
 // searches, and the final `consumers[:limit]` truncation. A negative

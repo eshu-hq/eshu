@@ -4,14 +4,12 @@
 package query
 
 import (
-	"fmt"
-	"math"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// finiteGraphFloat reads key from row as a float64 and rejects NaN/Inf. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func finiteGraphFloat(row map[string]any, key, subject string) (float64, error) {
-	value := floatVal(row, key)
-	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return 0, fmt.Errorf("%s %s must be finite", subject, key)
-	}
-	return value, nil
+	return querycontract.FiniteGraphFloat(row, key, subject)
 }

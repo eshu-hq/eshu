@@ -6,6 +6,8 @@ package query
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func buildServiceCodeToRuntimeTrace(workloadContext map[string]any) map[string]any {
@@ -236,7 +238,11 @@ func serviceTraceSegment(name string, basis string, presentStatus string, eviden
 	if evidence == nil {
 		evidence = []map[string]any{}
 	}
-	capped, truncated := capMapRows(evidence, serviceStoryItemLimit)
+	// Direct querycontract call (not the root capMapRows wrapper): this
+	// function sits at the inline budget edge and its 7 call sites depend
+	// on it inlining to hold the service-story alloc SLO under -race.
+	// See #6060.
+	capped, truncated := querycontract.CapMapRows(evidence, serviceStoryItemLimit)
 	status := presentStatus
 	if len(evidence) == 0 {
 		status = "missing_evidence"

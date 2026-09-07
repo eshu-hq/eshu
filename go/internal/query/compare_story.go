@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 )
 
 type environmentResourceComparison struct {
@@ -452,13 +454,13 @@ func maxCompareFloat(left, right float64) float64 {
 }
 
 func nextEnvironmentCompareLimit(requested int) int {
-	current := normalizeImpactListLimit(requested)
-	if current >= impactMaxListLimit {
+	current := impact.NormalizeImpactListLimit(requested)
+	if current >= impact.ImpactMaxListLimit {
 		return 0
 	}
 	next := current * 2
-	if next > impactMaxListLimit {
-		return impactMaxListLimit
+	if next > impact.ImpactMaxListLimit {
+		return impact.ImpactMaxListLimit
 	}
 	return next
 }

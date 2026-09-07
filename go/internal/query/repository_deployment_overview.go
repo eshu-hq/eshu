@@ -6,6 +6,8 @@ package query
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // BuildRepositoryDeploymentOverview assembles the compact deployment summary for
@@ -401,45 +403,17 @@ func buildSharedConfigPaths(deploymentArtifacts map[string]any) []map[string]any
 	return result
 }
 
+// mapValue extracts a nested map from a map value. The implementation moved
+// to querycontract for #6060; this wrapper keeps root callers unchanged.
 func mapValue(value map[string]any, key string) map[string]any {
-	if len(value) == 0 {
-		return nil
-	}
-	raw, ok := value[key]
-	if !ok {
-		return nil
-	}
-	typed, ok := raw.(map[string]any)
-	if !ok || len(typed) == 0 {
-		return nil
-	}
-	return typed
+	return querycontract.MapValue(value, key)
 }
 
+// mapSliceValue extracts a []map[string]any from a map value. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func mapSliceValue(value map[string]any, key string) []map[string]any {
-	if len(value) == 0 {
-		return nil
-	}
-	raw, ok := value[key]
-	if !ok {
-		return nil
-	}
-	items, ok := raw.([]map[string]any)
-	if ok {
-		return items
-	}
-	typed, ok := raw.([]any)
-	if !ok {
-		return nil
-	}
-	result := make([]map[string]any, 0, len(typed))
-	for _, item := range typed {
-		row, ok := item.(map[string]any)
-		if ok {
-			result = append(result, row)
-		}
-	}
-	return result
+	return querycontract.MapSliceValue(value, key)
 }
 
 func stringSliceValue(value map[string]any, key string) []string {

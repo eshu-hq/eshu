@@ -9,6 +9,8 @@ import (
 	"database/sql/driver"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 )
 
 // TestKubernetesPodTemplateDeclaredObjectQueryUsesActiveFactReadModel proves
@@ -18,6 +20,8 @@ import (
 // same optional image-ref intersection.
 func TestKubernetesPodTemplateDeclaredObjectQueryUsesActiveFactReadModel(t *testing.T) {
 	t.Parallel()
+
+	query := impacttrace.HasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery
 
 	for _, want := range []string{
 		"fact.fact_kind = $1",
@@ -29,14 +33,14 @@ func TestKubernetesPodTemplateDeclaredObjectQueryUsesActiveFactReadModel(t *test
 		"fact.payload->'image_refs' ?| $6",
 		"LIMIT 1",
 	} {
-		if !strings.Contains(hasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery, want) {
-			t.Fatalf("hasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery missing %q:\n%s", want, hasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery)
+		if !strings.Contains(query, want) {
+			t.Fatalf("impacttrace.HasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery missing %q:\n%s", want, query)
 		}
 	}
 	// The declared-object query must never anchor on the ArgoCD annotation
 	// predicate -- it is a genuinely different identity signal.
-	if strings.Contains(hasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery, "annotations") {
-		t.Fatal("hasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery must not reference the annotations predicate")
+	if strings.Contains(impacttrace.HasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery, "annotations") {
+		t.Fatal("impacttrace.HasLiveKubernetesPodTemplateDeclaredObjectIdentityQuery must not reference the annotations predicate")
 	}
 }
 
@@ -45,8 +49,8 @@ func TestKubernetesPodTemplateDeclaredObjectQueryUsesActiveFactReadModel(t *test
 func TestKubernetesPodTemplateDeclaredObjectScopedQueryCarriesAccessPredicate(t *testing.T) {
 	t.Parallel()
 
-	if !strings.Contains(hasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery, "fact.scope_id = ANY($7) OR fact.scope_id = ANY($8)") {
-		t.Fatalf("hasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery missing #5167 access-scoping predicate:\n%s", hasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery)
+	if !strings.Contains(impacttrace.HasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery, "fact.scope_id = ANY($7) OR fact.scope_id = ANY($8)") {
+		t.Fatalf("impacttrace.HasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery missing #5167 access-scoping predicate:\n%s", impacttrace.HasLiveKubernetesPodTemplateDeclaredObjectIdentityScopedQuery)
 	}
 }
 
@@ -55,6 +59,8 @@ func TestKubernetesPodTemplateDeclaredObjectScopedQueryCarriesAccessPredicate(t 
 // declared-object variant.
 func TestListLiveDeclaredObjectIdentityMatchesQueryShape(t *testing.T) {
 	t.Parallel()
+
+	query := impacttrace.ListLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery
 
 	for _, want := range []string{
 		"fact.fact_kind = $1",
@@ -71,12 +77,12 @@ func TestListLiveDeclaredObjectIdentityMatchesQueryShape(t *testing.T) {
 		"ORDER BY fact.payload->>'object_id'",
 		"LIMIT $7",
 	} {
-		if !strings.Contains(listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery, want) {
-			t.Fatalf("listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery missing %q:\n%s", want, listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery)
+		if !strings.Contains(query, want) {
+			t.Fatalf("impacttrace.ListLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery missing %q:\n%s", want, query)
 		}
 	}
-	if strings.Contains(listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery, "LIMIT 1") {
-		t.Fatal("listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery must not reuse the existence-check LIMIT 1")
+	if strings.Contains(impacttrace.ListLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery, "LIMIT 1") {
+		t.Fatal("impacttrace.ListLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesQuery must not reuse the existence-check LIMIT 1")
 	}
 }
 
@@ -86,12 +92,14 @@ func TestListLiveDeclaredObjectIdentityMatchesQueryShape(t *testing.T) {
 func TestListLiveDeclaredObjectIdentityMatchesScopedQueryShape(t *testing.T) {
 	t.Parallel()
 
+	query := impacttrace.ListLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesScopedQuery
+
 	for _, want := range []string{
 		"fact.scope_id = ANY($7) OR fact.scope_id = ANY($8)",
 		"LIMIT $9",
 	} {
-		if !strings.Contains(listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesScopedQuery, want) {
-			t.Fatalf("listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesScopedQuery missing %q:\n%s", want, listLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesScopedQuery)
+		if !strings.Contains(query, want) {
+			t.Fatalf("impacttrace.ListLiveKubernetesPodTemplateDeclaredObjectIdentityMatchesScopedQuery missing %q:\n%s", want, query)
 		}
 	}
 }
@@ -105,35 +113,35 @@ func TestKubernetesPodTemplateFilterHasScopeDeclaredObjectRequiresAllThreeFields
 
 	cases := []struct {
 		name   string
-		filter KubernetesPodTemplateFilter
+		filter impacttrace.KubernetesPodTemplateFilter
 		want   bool
 	}{
 		{
 			name: "all three present",
-			filter: KubernetesPodTemplateFilter{
-				AnchorKind: liveIdentityAnchorDeclaredObject, GroupVersionResource: "apps/v1/deployments", Namespace: "ns", Name: "workload-a",
+			filter: impacttrace.KubernetesPodTemplateFilter{
+				AnchorKind: impacttrace.LiveIdentityAnchorDeclaredObject, GroupVersionResource: "apps/v1/deployments", Namespace: "ns", Name: "workload-a",
 			},
 			want: true,
 		},
 		{
 			name:   "missing group_version_resource",
-			filter: KubernetesPodTemplateFilter{AnchorKind: liveIdentityAnchorDeclaredObject, Namespace: "ns", Name: "workload-a"},
+			filter: impacttrace.KubernetesPodTemplateFilter{AnchorKind: impacttrace.LiveIdentityAnchorDeclaredObject, Namespace: "ns", Name: "workload-a"},
 			want:   false,
 		},
 		{
 			name:   "missing namespace",
-			filter: KubernetesPodTemplateFilter{AnchorKind: liveIdentityAnchorDeclaredObject, GroupVersionResource: "apps/v1/deployments", Name: "workload-a"},
+			filter: impacttrace.KubernetesPodTemplateFilter{AnchorKind: impacttrace.LiveIdentityAnchorDeclaredObject, GroupVersionResource: "apps/v1/deployments", Name: "workload-a"},
 			want:   false,
 		},
 		{
 			name:   "missing name",
-			filter: KubernetesPodTemplateFilter{AnchorKind: liveIdentityAnchorDeclaredObject, GroupVersionResource: "apps/v1/deployments", Namespace: "ns"},
+			filter: impacttrace.KubernetesPodTemplateFilter{AnchorKind: impacttrace.LiveIdentityAnchorDeclaredObject, GroupVersionResource: "apps/v1/deployments", Namespace: "ns"},
 			want:   false,
 		},
 	}
 	for _, tc := range cases {
-		if got := tc.filter.hasScope(); got != tc.want {
-			t.Errorf("%s: hasScope() = %v, want %v", tc.name, got, tc.want)
+		if got := tc.filter.HasScope(); got != tc.want {
+			t.Errorf("%s: HasScope() = %v, want %v", tc.name, got, tc.want)
 		}
 	}
 }
@@ -144,9 +152,9 @@ func TestKubernetesPodTemplateFilterHasScopeDeclaredObjectRequiresAllThreeFields
 func TestKubernetesPodTemplateFilterRejectsUnboundedDeclaredObjectScope(t *testing.T) {
 	t.Parallel()
 
-	store := PostgresKubernetesPodTemplateStore{DB: failingKubernetesPodTemplateQueryer{t: t}}
-	_, err := store.HasLiveIdentityMatch(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind: liveIdentityAnchorDeclaredObject,
+	store := impacttrace.PostgresKubernetesPodTemplateStore{DB: failingKubernetesPodTemplateQueryer{t: t}}
+	_, err := store.HasLiveIdentityMatch(context.Background(), impacttrace.KubernetesPodTemplateFilter{
+		AnchorKind: impacttrace.LiveIdentityAnchorDeclaredObject,
 		AllScopes:  true,
 	})
 	if err == nil {
@@ -163,9 +171,9 @@ func TestKubernetesPodTemplateFilterRejectsUnboundedDeclaredObjectScope(t *testi
 func TestKubernetesPodTemplateDeclaredObjectScopedEmptyGrantReturnsNoMatchWithoutQuery(t *testing.T) {
 	t.Parallel()
 
-	store := PostgresKubernetesPodTemplateStore{DB: failingKubernetesPodTemplateQueryer{t: t}}
-	matched, err := store.HasLiveIdentityMatch(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind:           liveIdentityAnchorDeclaredObject,
+	store := impacttrace.PostgresKubernetesPodTemplateStore{DB: failingKubernetesPodTemplateQueryer{t: t}}
+	matched, err := store.HasLiveIdentityMatch(context.Background(), impacttrace.KubernetesPodTemplateFilter{
+		AnchorKind:           impacttrace.LiveIdentityAnchorDeclaredObject,
 		GroupVersionResource: "apps/v1/deployments",
 		Namespace:            "ns",
 		Name:                 "workload-a",
@@ -188,8 +196,8 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectScopedGrantHitsR
 	db, recorder := openScopeQueryerTestDB(t, []string{"?column?"}, [][]driver.Value{{int64(1)}})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
-	matched, err := store.HasLiveIdentityMatch(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind:           liveIdentityAnchorDeclaredObject,
+	matched, err := store.HasLiveIdentityMatch(context.Background(), impacttrace.KubernetesPodTemplateFilter{
+		AnchorKind:           impacttrace.LiveIdentityAnchorDeclaredObject,
 		GroupVersionResource: "apps/v1/deployments",
 		Namespace:            "production",
 		Name:                 "deployable-source",
@@ -223,8 +231,8 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectNoMatch(t *testi
 	db, _ := openScopeQueryerTestDB(t, []string{"?column?"}, nil)
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
-	matched, err := store.HasLiveIdentityMatch(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind:           liveIdentityAnchorDeclaredObject,
+	matched, err := store.HasLiveIdentityMatch(context.Background(), impacttrace.KubernetesPodTemplateFilter{
+		AnchorKind:           impacttrace.LiveIdentityAnchorDeclaredObject,
 		GroupVersionResource: "apps/v1/deployments",
 		Namespace:            "production",
 		Name:                 "deployable-source",
@@ -243,9 +251,9 @@ func TestKubernetesPodTemplateHasLiveIdentityMatchDeclaredObjectNoMatch(t *testi
 func TestListLiveIdentityMatchesDeclaredObjectRejectsUnboundedScope(t *testing.T) {
 	t.Parallel()
 
-	store := PostgresKubernetesPodTemplateStore{DB: failingKubernetesPodTemplateQueryer{t: t}}
-	_, err := store.ListLiveIdentityMatches(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind: liveIdentityAnchorDeclaredObject,
+	store := impacttrace.PostgresKubernetesPodTemplateStore{DB: failingKubernetesPodTemplateQueryer{t: t}}
+	_, err := store.ListLiveIdentityMatches(context.Background(), impacttrace.KubernetesPodTemplateFilter{
+		AnchorKind: impacttrace.LiveIdentityAnchorDeclaredObject,
 		AllScopes:  true,
 	})
 	if err == nil {
@@ -266,8 +274,8 @@ func TestListLiveIdentityMatchesDeclaredObjectReturnsRows(t *testing.T) {
 	})
 	store := NewPostgresKubernetesPodTemplateStore(db)
 
-	matches, err := store.ListLiveIdentityMatches(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind:           liveIdentityAnchorDeclaredObject,
+	matches, err := store.ListLiveIdentityMatches(context.Background(), impacttrace.KubernetesPodTemplateFilter{
+		AnchorKind:           impacttrace.LiveIdentityAnchorDeclaredObject,
 		GroupVersionResource: "apps/v1/deployments",
 		Namespace:            "production",
 		Name:                 "deployable-source",
@@ -310,9 +318,9 @@ func (q declaredObjectQueryerSpy) QueryContext(ctx context.Context, query string
 func TestKubernetesPodTemplateHasLiveIdentityMatchDispatchesOnAnchorKind(t *testing.T) {
 	t.Parallel()
 
-	store := PostgresKubernetesPodTemplateStore{DB: declaredObjectQueryerSpy{t: t, columns: []string{"?column?"}, rows: [][]driver.Value{{int64(1)}}}}
-	matched, err := store.HasLiveIdentityMatch(context.Background(), KubernetesPodTemplateFilter{
-		AnchorKind:           liveIdentityAnchorDeclaredObject,
+	store := impacttrace.PostgresKubernetesPodTemplateStore{DB: declaredObjectQueryerSpy{t: t, columns: []string{"?column?"}, rows: [][]driver.Value{{int64(1)}}}}
+	matched, err := store.HasLiveIdentityMatch(context.Background(), impacttrace.KubernetesPodTemplateFilter{
+		AnchorKind:           impacttrace.LiveIdentityAnchorDeclaredObject,
 		GroupVersionResource: "apps/v1/deployments",
 		Namespace:            "production",
 		Name:                 "deployable-source",

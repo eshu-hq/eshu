@@ -13,6 +13,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
@@ -151,28 +152,22 @@ func RepoRefFromRow(row map[string]any) RepoRef {
 	}
 }
 
-// impactRelProvenance is one relationship's provenance decoded from a
-// relationships(path) element (used by the by-id impact reads, #5286).
-type impactRelProvenance struct {
-	relType    string
-	confidence float64
-	hasConf    bool
-	reason     string
-}
-
 // impactRelProvenanceList decodes a relationships(path) value into per-edge
 // provenance. relationships(path) is serialized as neo4j.Relationship by the
 // Neo4j Go driver but as a map[string]any (with a nested properties map) by
 // NornicDB; both shapes are decoded. A `[rel IN relationships(path) | {…}]`
 // map-valued comprehension corrupts on the pinned NornicDB build, so the raw
 // list is unwound here instead. This decoder lives in neo4j.go because it is the
-// only driver-aware seam in the query package (per the package AGENTS.md).
-func impactRelProvenanceList(raw any) []impactRelProvenance {
+// only driver-aware seam in the query package (per the package AGENTS.md); it
+// returns the impacttrace plain struct so the impact handler family (#6060
+// lane B2) can shape hops without importing the driver, which the depguard
+// query-no-graph-driver rule forbids outside the driver-owning files.
+func impactRelProvenanceList(raw any) []impacttrace.ImpactRelProvenance {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	out := make([]impactRelProvenance, 0, len(items))
+	out := make([]impacttrace.ImpactRelProvenance, 0, len(items))
 	for _, item := range items {
 		switch rel := item.(type) {
 		case neo4jdriver.Relationship:
@@ -187,33 +182,29 @@ func impactRelProvenanceList(raw any) []impactRelProvenance {
 
 // impactRelProvenanceFromProps builds provenance from a relationship type and its
 // property map, tolerating a nil property map.
-func impactRelProvenanceFromProps(relType string, props map[string]any) impactRelProvenance {
-	p := impactRelProvenance{relType: relType}
+func impactRelProvenanceFromProps(relType string, props map[string]any) impacttrace.ImpactRelProvenance {
+	p := impacttrace.ImpactRelProvenance{RelType: relType}
 	if conf, ok := props["confidence"].(float64); ok {
-		p.confidence = conf
-		p.hasConf = true
+		p.Confidence = conf
+		p.HasConf = true
 	}
 	if reason, ok := props["reason"].(string); ok {
-		p.reason = reason
+		p.Reason = reason
 	}
 	return p
 }
 
-// impactNodeIdentity is the id/name of a nodes(path) element.
-type impactNodeIdentity struct {
-	id   string
-	name string
-}
-
 // impactNodeIdentityList decodes a nodes(path) value into per-node identities.
 // nodes(path) is serialized as neo4j.Node by both backends (unlike
-// relationships(path)); a map[string]any fallback is kept for safety.
-func impactNodeIdentityList(raw any) []impactNodeIdentity {
+// relationships(path)); a map[string]any fallback is kept for safety. Same
+// boundary rationale as impactRelProvenanceList: the driver switch stays here,
+// the plain struct crosses into the impact family. See #6060.
+func impactNodeIdentityList(raw any) []impacttrace.ImpactNodeIdentity {
 	items, ok := raw.([]any)
 	if !ok {
 		return nil
 	}
-	out := make([]impactNodeIdentity, 0, len(items))
+	out := make([]impacttrace.ImpactNodeIdentity, 0, len(items))
 	for _, item := range items {
 		switch node := item.(type) {
 		case neo4jdriver.Node:
@@ -230,8 +221,8 @@ func impactNodeIdentityList(raw any) []impactNodeIdentity {
 }
 
 // impactNodeIdentityFromProps reads id/name from a node property map.
-func impactNodeIdentityFromProps(props map[string]any) impactNodeIdentity {
-	return impactNodeIdentity{id: StringVal(props, "id"), name: StringVal(props, "name")}
+func impactNodeIdentityFromProps(props map[string]any) impacttrace.ImpactNodeIdentity {
+	return impacttrace.ImpactNodeIdentity{ID: StringVal(props, "id"), Name: StringVal(props, "name")}
 }
 
 // resourceInvestigationHopList decodes a relationships(path) value into the

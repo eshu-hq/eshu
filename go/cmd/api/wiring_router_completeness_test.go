@@ -188,6 +188,9 @@ var routerFieldsNotWiredByNewRouter = map[string]string{
 	// go/cmd/api/semantic_search_vector_wiring.go and go/cmd/api/wiring.go.
 	"Code.HybridRanker":          "config-gated: newCodeHybridRanker returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go); nil is the documented default, falling back to lexical order",
 	"Content.HybridRanker":       "config-gated: newContentHybridRanker returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go); nil is the documented default, falling back to lexical order",
+	"Impact.CodeSurface":         "injection seam: nil is the documented default, falling back to impact.DefaultCodeSurface (see codeSurface in go/internal/query/impact/impact.go); production always uses the package default",
+	"Impact.TraceContext":        "injection seam: nil is the documented default, falling back to impact.DefaultTraceContext (see traceContext in go/internal/query/impact/impact.go); production always uses the package default",
+	"Impact.PathProbe":           "injection seam: nil is the documented default, falling back to impact.DefaultPathProbe (see pathProbe in go/internal/query/impact/impact.go); production always uses the package default",
 	"SemanticSearch.LocalHybrid": "config-gated: newSemanticSearchHybrid returns nil unless semantic search embedding is enabled (semantic_search_vector_wiring.go)",
 	"LocalIdentity.SignInPolicy": "wired later by wireAPI (router.LocalIdentity.SignInPolicy = router.SignInPolicyReads.Store, built after this constructor returns); LocalIdentityHandler documents nil SignInPolicy as fail-open",
 }

@@ -40,7 +40,7 @@ func TestBuildRepositoryStoryResponsePreservesCICDEvidenceSummary(t *testing.T) 
 func TestBuildServiceStoryResponsePreservesCICDEvidenceSummaryInTrace(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["ci_cd_evidence"] = testCICDEvidenceSummaryMap()
 
 	got := buildServiceStoryResponse("sample-service-api", ctx)

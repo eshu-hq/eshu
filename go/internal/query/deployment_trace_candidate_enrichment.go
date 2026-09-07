@@ -136,7 +136,7 @@ func loadProvisioningSourceChainsFromCandidates(
 //
 // # Not a bound, folded in anyway
 //
-// The hostname affinity narrowing in boundedIndirectEvidenceHostnamesForService
+// The hostname affinity narrowing in BoundedIndirectEvidenceHostnamesForService
 // discards every hostname carrying no distinctive token from the service's own
 // name, so a service answering on a legacy or vanity domain loses that domain
 // and every consumer reachable only through it. That is the same consequence as
@@ -206,11 +206,11 @@ func loadConsumerRepositoryEnrichmentFromCandidates(
 	trimmedHostnames := normalizedIndirectEvidenceHostnames(hostnames)
 	if limit > 0 {
 		var hostnamesTruncated bool
-		trimmedHostnames, hostnamesTruncated = boundedIndirectEvidenceHostnamesForService(trimmedHostnames, serviceName)
+		trimmedHostnames, hostnamesTruncated = BoundedIndirectEvidenceHostnamesForService(trimmedHostnames, serviceName)
 		if hostnamesTruncated {
 			truncated = true
 		}
-		// Source 3. boundedIndirectEvidenceHostnamesForService above has
+		// Source 3. BoundedIndirectEvidenceHostnamesForService above has
 		// already capped trimmedHostnames at indirectEvidenceHostnameLimit (4)
 		// and boundedTraceEnrichmentLimit never returns below 10, so no
 		// production caller can reach this branch -- only limit in {1,2,3}

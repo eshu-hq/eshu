@@ -7,8 +7,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -85,11 +86,18 @@ func (c serviceStoryBuildContext) dossierAPISurface() map[string]any {
 	return c.apiSurface
 }
 
+// canonicalServiceName returns the workload context's canonical name. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func canonicalServiceName(requestedServiceName string, workloadContext map[string]any) string {
-	if canonicalName := safeStr(workloadContext, "name"); canonicalName != "" {
-		return canonicalName
-	}
-	return strings.TrimSpace(requestedServiceName)
+	return querycontract.CanonicalServiceName(requestedServiceName, workloadContext)
+}
+
+// distinctSortedInstanceField returns the sorted distinct values of key
+// across instances. The implementation moved to querycontract for #6060;
+// this wrapper keeps root callers unchanged.
+func distinctSortedInstanceField(instances []map[string]any, key string) []string {
+	return querycontract.DistinctSortedInstanceField(instances, key)
 }
 
 func buildServiceDeploymentOverview(workloadContext map[string]any) map[string]any {
@@ -275,7 +283,7 @@ func buildServiceStorySectionsWithContext(buildCtx serviceStoryBuildContext) []m
 			"summary": fmt.Sprintf(
 				"%d delivery evidence item(s) across tool families %s",
 				deliveryPathCount,
-				joinOrNone(toolFamilies),
+				impact.JoinOrNone(toolFamilies),
 			),
 		})
 	}

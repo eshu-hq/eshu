@@ -29,7 +29,7 @@ var genericServiceHostnameTokens = map[string]struct{}{
 	"web":     {},
 }
 
-// boundedIndirectEvidenceHostnamesForService chooses the hostnames most likely
+// BoundedIndirectEvidenceHostnamesForService chooses the hostnames most likely
 // to identify the service itself before spending cross-repo content searches.
 // When no hostname matches a distinctive service token, it preserves the older
 // first-four fallback so services with vanity or opaque domains still get
@@ -52,7 +52,7 @@ var genericServiceHostnameTokens = map[string]struct{}{
 //     legacy-billing.acme.test) loses that domain here.
 //   - indirectEvidenceHostnameLimit (4), applied by
 //     capAndSortIndirectEvidenceHostnames on whichever list survives.
-func boundedIndirectEvidenceHostnamesForService(hostnames []string, serviceName string) ([]string, bool) {
+func BoundedIndirectEvidenceHostnamesForService(hostnames []string, serviceName string) ([]string, bool) {
 	unique := uniqueTrimmedHostnames(hostnames)
 	if len(unique) == 0 {
 		return nil, false

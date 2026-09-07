@@ -212,6 +212,9 @@ var routerFieldsNotWiredByNewMCPQueryRouter = map[string]string{
 	// which mirror cmd/api's semantic_search_vector_wiring.go behavior.
 	"Code.HybridRanker":                "config-gated: newCodeHybridRanker returns nil unless semantic search embedding is enabled; nil is the documented default, falling back to lexical order",
 	"Content.HybridRanker":             "config-gated: newContentHybridRanker returns nil unless semantic search embedding is enabled; nil is the documented default, falling back to lexical order",
+	"Impact.CodeSurface":               "injection seam: nil is the documented default, falling back to impact.DefaultCodeSurface (see codeSurface in go/internal/query/impact/impact.go); production always uses the package default",
+	"Impact.TraceContext":              "injection seam: nil is the documented default, falling back to impact.DefaultTraceContext (see traceContext in go/internal/query/impact/impact.go); production always uses the package default",
+	"Impact.PathProbe":                 "injection seam: nil is the documented default, falling back to impact.DefaultPathProbe (see pathProbe in go/internal/query/impact/impact.go); production always uses the package default",
 	"SemanticSearch.LocalHybrid":       "config-gated: newSemanticSearchHybrid returns nil unless semantic search embedding is enabled",
 	"SupplyChain.SuppressionMutations": "API-only mutation: the MCP tool surface is read-only and does not expose operator policy writes",
 

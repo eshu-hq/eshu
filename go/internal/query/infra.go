@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -74,52 +75,11 @@ var infraCategoryLabels = map[string][]string{
 	},
 }
 
-var allInfraLabels = []string{
-	"CloudResource",
-	"K8sResource",
-	"KustomizeOverlay",
-	"TerraformResource",
-	"TerraformStateResource",
-	"TerraformModule",
-	"TerraformVariable",
-	"TerraformOutput",
-	"TerraformDataSource",
-	"TerraformProvider",
-	"TerraformLocal",
-	"TerraformBackend",
-	"TerraformImport",
-	"TerraformMovedBlock",
-	"TerraformRemovedBlock",
-	"TerraformCheck",
-	"TerraformLockProvider",
-	"TerraformBlock",
-	"TerragruntConfig",
-	"TerragruntDependency",
-	"CloudFormationResource",
-	"ArgoCDApplication",
-	"ArgoCDApplicationSet",
-	"CrossplaneXRD",
-	"CrossplaneComposition",
-	"HelmChart",
-	"HelmValues",
-}
-
-// infraLabelSet indexes allInfraLabels for O(1) membership tests.
-var infraLabelSet = func() map[string]struct{} {
-	set := make(map[string]struct{}, len(allInfraLabels))
-	for _, label := range allInfraLabels {
-		set[label] = struct{}{}
-	}
-	return set
-}()
-
-// infraLabelAllowed reports whether label is a known infrastructure node label.
-// It gates any label interpolated into a Cypher pattern so the label text is
-// never attacker-influenced.
-func infraLabelAllowed(label string) bool {
-	_, ok := infraLabelSet[label]
-	return ok
-}
+// allInfraLabels aliases the querycontract taxonomy so existing root call
+// sites and tests keep working; the single home moved there for #6060 so the
+// impact/ subpackage can gate interpolated Cypher labels without importing
+// the root package.
+var allInfraLabels = querycontract.AllInfraLabels
 
 // infraSearchReturnColumns is the single source of truth for
 // searchResources's result columns. Both the per-label CALL branch's inner

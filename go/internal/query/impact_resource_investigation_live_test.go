@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -64,16 +66,16 @@ func TestLiveResourceInvestigationReadsAreNornicDBSafe(t *testing.T) {
 	write(`MATCH (r:CloudResource {id:'ri5287:res'}),(repo:Repository {id:'ri5287:repo'}) CREATE (r)-[:BELONGS_TO {reason:'provisioned-by', evidence_type:'iac', confidence:0.77}]->(repo)`, nil)
 
 	handler := &ImpactHandler{Neo4j: NewNeo4jReader(driver, "nornic"), Profile: ProfileLocalAuthoritative}
-	req := resourceInvestigationRequest{Environment: "", MaxDepth: 4, Limit: 25}
+	req := impact.ResourceInvestigationRequest{Environment: "", MaxDepth: 4, Limit: 25}
 	// Labels set so the traversal folds in the resolved `:CloudResource` anchor
 	// (bounded-scan start) rather than the unlabeled fallback (Codex P1, #5302).
-	selected := &resourceInvestigationCandidate{ID: "ri5287:res", Labels: []string{"CloudResource"}}
-	if ref := resourceInvestigationResourceRef(selected); ref != "resource:CloudResource" {
+	selected := &impact.ResourceInvestigationCandidate{ID: "ri5287:res", Labels: []string{"CloudResource"}}
+	if ref := impact.ResourceInvestigationResourceRef(selected); ref != "resource:CloudResource" {
 		t.Fatalf("resource ref = %q, want resource:CloudResource (labeled anchor)", ref)
 	}
 
 	// Workloads read.
-	workloads, _, err := handler.resourceInvestigationWorkloads(ctx, req, selected, repositoryAccessFilter{AllScopes: true})
+	workloads, _, err := handler.ResourceInvestigationWorkloads(ctx, req, selected, querycontract.RepositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("resourceInvestigationWorkloads: %v", err)
 	}
@@ -98,7 +100,7 @@ func TestLiveResourceInvestigationReadsAreNornicDBSafe(t *testing.T) {
 	}
 
 	// Repository-paths read (outgoing) with full hop provenance.
-	paths, _, err := handler.resourceInvestigationRepoPaths(ctx, req, selected, "outgoing", repositoryAccessFilter{AllScopes: true})
+	paths, _, err := handler.ResourceInvestigationRepoPaths(ctx, req, selected, "outgoing", querycontract.RepositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths: %v", err)
 	}

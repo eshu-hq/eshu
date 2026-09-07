@@ -7,6 +7,8 @@ import (
 	"context"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func loadServiceDeploymentEvidence(
@@ -151,13 +153,8 @@ func collectServiceDeploymentToolFamilies(overview map[string]any) []string {
 	return sorted
 }
 
+// cloneAnyMap returns a shallow copy of src. The implementation moved to
+// querycontract for #6060; this wrapper keeps root callers unchanged.
 func cloneAnyMap(src map[string]any) map[string]any {
-	if len(src) == 0 {
-		return map[string]any{}
-	}
-	dst := make(map[string]any, len(src))
-	for key, value := range src {
-		dst[key] = value
-	}
-	return dst
+	return querycontract.CloneAnyMap(src)
 }

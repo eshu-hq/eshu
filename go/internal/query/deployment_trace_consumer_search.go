@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // searchConsumerEvidenceAnyRepo fans out one bounded content search per
@@ -281,23 +283,15 @@ func sortedAccumulatorValues(values map[string]struct{}) []string {
 	return items
 }
 
+// appendUniqueString appends candidate unless blank or already present. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func appendUniqueString(values *[]string, candidate string) {
-	if candidate = strings.TrimSpace(candidate); candidate == "" {
-		return
-	}
-	for _, existing := range *values {
-		if existing == candidate {
-			return
-		}
-	}
-	*values = append(*values, candidate)
+	querycontract.AppendUniqueString(values, candidate)
 }
 
+// containsString reports whether values holds candidate. The implementation
+// moved to querycontract for #6060; this wrapper keeps root callers unchanged.
 func containsString(values []string, candidate string) bool {
-	for _, value := range values {
-		if value == candidate {
-			return true
-		}
-	}
-	return false
+	return querycontract.ContainsString(values, candidate)
 }

@@ -7,7 +7,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // k8s SELECTS relationship building (Service -> Deployment and its incoming
@@ -28,7 +29,7 @@ func buildOutgoingK8sSelectRelationships(
 	// A Service with a known, empty selector is genuinely selectorless
 	// (ExternalName/manual Endpoints): no SELECTS edge is possible and no
 	// fallback applies (see k8sSelectMatch), so skip the query entirely.
-	if serviceInput.selectorPresent && serviceInput.selector == "" {
+	if serviceInput.SelectorPresent && serviceInput.Selector == "" {
 		return nil, true, false, nil
 	}
 
@@ -135,15 +136,11 @@ func buildIncomingK8sSelectRelationships(
 // Debug, not Warn, because this self-heals on re-ingest and is not itself an
 // operator-actionable failure -- it is context for diagnosing an otherwise
 // silent, transient missing edge at 3 AM.
+// logK8sSelectMixedVintageDrop logs a mixed-vintage matcher drop. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func logK8sSelectMixedVintageDrop(ctx context.Context, logger *slog.Logger, serviceEntityID, workloadEntityID string) {
-	if logger == nil {
-		return
-	}
-	logger.DebugContext(
-		ctx, "k8s SELECTS mixed-vintage drop: candidate workload predates pod_template_labels capture",
-		"service_entity_id", serviceEntityID,
-		"workload_entity_id", workloadEntityID,
-	)
+	querycontract.LogK8sSelectMixedVintageDrop(ctx, logger, serviceEntityID, workloadEntityID)
 }
 
 // fetchK8sResourceCandidates lists up to repositorySemanticEntityLimit+1
@@ -166,12 +163,11 @@ func fetchK8sResourceCandidates(ctx context.Context, reader ContentStore, repoID
 	return candidates, false, nil
 }
 
+// isK8sResourceKind reports whether entity is a K8sResource of the given
+// kind. The implementation moved to querycontract for #6060; this wrapper
+// keeps root callers unchanged.
 func isK8sResourceKind(entity EntityContent, kind string) bool {
-	if entity.EntityType != "K8sResource" {
-		return false
-	}
-	value, _ := entity.Metadata["kind"].(string)
-	return strings.EqualFold(strings.TrimSpace(value), kind)
+	return querycontract.IsK8sResourceKind(entity, kind)
 }
 
 // The namespace normalization this file used to declare moved to

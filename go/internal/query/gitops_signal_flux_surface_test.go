@@ -3,7 +3,11 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+)
 
 // TestContainsGitOpsSignalsDoesNotClaimFluxSurface is a no-accidental-surface
 // regression for issue #5342: containsGitOpsSignals used to list
@@ -46,16 +50,16 @@ func TestDeploymentTraceGitOpsToolFamiliesDoesNotClaimFluxSurface(t *testing.T) 
 	t.Parallel()
 
 	for _, kind := range []string{"flux", "flux_kustomization", "flux_helmrelease"} {
-		families := deploymentTraceGitOpsToolFamilies([]string{kind}, nil, nil, nil)
+		families := impacttrace.DeploymentTraceGitOpsToolFamilies([]string{kind}, nil, nil, nil)
 		for _, family := range families {
 			if family == "flux" {
-				t.Fatalf("deploymentTraceGitOpsToolFamilies([%q], ...) = %v, want no \"flux\" family (no emitter backs it)", kind, families)
+				t.Fatalf("impacttrace.DeploymentTraceGitOpsToolFamilies([%q], ...) = %v, want no \"flux\" family (no emitter backs it)", kind, families)
 			}
 		}
 	}
 
 	// argocd must keep classifying correctly.
-	families := deploymentTraceGitOpsToolFamilies([]string{"argocd"}, nil, nil, nil)
+	families := impacttrace.DeploymentTraceGitOpsToolFamilies([]string{"argocd"}, nil, nil, nil)
 	found := false
 	for _, family := range families {
 		if family == "argocd" {
@@ -63,6 +67,6 @@ func TestDeploymentTraceGitOpsToolFamiliesDoesNotClaimFluxSurface(t *testing.T) 
 		}
 	}
 	if !found {
-		t.Fatalf("deploymentTraceGitOpsToolFamilies([argocd], ...) = %v, want to include \"argocd\"", families)
+		t.Fatalf("impacttrace.DeploymentTraceGitOpsToolFamilies([argocd], ...) = %v, want to include \"argocd\"", families)
 	}
 }

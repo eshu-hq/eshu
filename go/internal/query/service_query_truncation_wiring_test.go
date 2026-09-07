@@ -123,7 +123,7 @@ func runProvisioningTruncationTrace(t *testing.T, candidateRowCount int) map[str
 	)
 	w := httptest.NewRecorder()
 
-	handler.traceDeploymentChain(w, req)
+	handler.TraceDeploymentChain(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("traceDeploymentChain status = %d, body = %s", w.Code, w.Body.String())
 	}
@@ -249,7 +249,7 @@ func TestTraceDeploymentChainDistinguishesConsumerTruncationFromCandidateTruncat
 	)
 	w := httptest.NewRecorder()
 
-	handler.traceDeploymentChain(w, req)
+	handler.TraceDeploymentChain(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("traceDeploymentChain status = %d, body = %s", w.Code, w.Body.String())
 	}

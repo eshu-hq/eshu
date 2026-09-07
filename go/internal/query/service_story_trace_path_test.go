@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["deployment_evidence"] = map[string]any{
 		"artifacts": []map[string]any{
 			{
@@ -105,7 +107,7 @@ func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 func TestBuildServiceStoryTraceExplainsUncorrelatedCloudCandidates(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["uncorrelated_cloud_resources"] = []map[string]any{
 		{
 			"id":                   "cloud:ssm:sample-service-client-port",
@@ -185,7 +187,7 @@ func TestServiceTraceImagePackageSegmentPreservesEvidenceWithPartialMissingReaso
 }
 
 func BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier(b *testing.B) {
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["api_surface"] = map[string]any{
 		"endpoints": serviceTraceBenchmarkRows(250),
 	}

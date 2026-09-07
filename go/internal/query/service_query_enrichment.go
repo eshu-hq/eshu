@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 )
 
 type serviceQueryEnrichmentOptions struct {
@@ -148,7 +150,7 @@ func enrichServiceQueryContextWithOptions(
 			// loadProvisioningSourceChainsFromCandidates derive the dependents,
 			// consumer_repositories, and provisioning_source_chains fields from it.
 			// Deny-by-default when scoped; all-scopes/shared/admin unaffected.
-			candidates = filterProvisioningRepositoryCandidatesForAccess(candidates, repositoryAccessFilterFromContext(ctx))
+			candidates = impact.FilterProvisioningRepositoryCandidatesForAccess(candidates, repositoryAccessFilterFromContext(ctx))
 			timer.Done(ctx, slog.Int("row_count", len(candidates)))
 		}
 		if !opts.DirectOnly {

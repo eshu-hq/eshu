@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -109,12 +111,12 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	ORDER BY depth, impacted.id`, map[string]any{"target_id": changedID})
 	dump("OLD legacy (OPTIONAL + UNWIND + WITH + DISTINCT)", oldLegacy)
 
-	target := changeSurfaceTargetCandidate{ID: changedID, Name: "changed", Labels: []string{"Repository"}}
+	target := impact.ChangeSurfaceTargetCandidate{ID: changedID, Name: "changed", Labels: []string{"Repository"}}
 
 	// NEW investigate: distinct impacted nodes at their minimum depth.
-	investigate, _, err := handler.changeSurfaceImpactRows(ctx, changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50}, target)
+	investigate, _, err := handler.ChangeSurfaceImpactRows(ctx, impact.ChangeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50}, target)
 	if err != nil {
-		t.Fatalf("changeSurfaceImpactRows() error = %v", err)
+		t.Fatalf("handler.ChangeSurfaceImpactRows() error = %v", err)
 	}
 	dump("NEW changeSurfaceImpactRows (investigate)", investigate)
 	byID := map[string]map[string]any{}
@@ -135,7 +137,7 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	}
 
 	// NEW legacy: per-edge provenance unwound in Go.
-	legacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "", 4, 50, repositoryAccessFilter{AllScopes: true})
+	legacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "", 4, 50, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("findChangeSurfaceImpactRows() error = %v", err)
 	}
@@ -175,28 +177,28 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	// live alongside the relationships(path) projection (the coalesce/OR form that
 	// dropped every row is avoided) and keep only prod/unset-environment impacted.
 	// Every impacted node is environment=prod, so a staging scope returns nothing.
-	prodInvestigate, _, err := handler.changeSurfaceImpactRows(ctx, changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50, Environment: "prod"}, target)
+	prodInvestigate, _, err := handler.ChangeSurfaceImpactRows(ctx, impact.ChangeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50, Environment: "prod"}, target)
 	if err != nil {
 		t.Fatalf("investigate(env=prod) error = %v", err)
 	}
 	if len(prodInvestigate) != 3 {
 		t.Errorf("investigate(env=prod) = %d rows, want 3", len(prodInvestigate))
 	}
-	stagingInvestigate, _, err := handler.changeSurfaceImpactRows(ctx, changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50, Environment: "staging"}, target)
+	stagingInvestigate, _, err := handler.ChangeSurfaceImpactRows(ctx, impact.ChangeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 50, Environment: "staging"}, target)
 	if err != nil {
 		t.Fatalf("investigate(env=staging) error = %v", err)
 	}
 	if len(stagingInvestigate) != 0 {
 		t.Errorf("investigate(env=staging) = %d rows, want 0 (no staging impacted)", len(stagingInvestigate))
 	}
-	prodLegacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "prod", 4, 50, repositoryAccessFilter{AllScopes: true})
+	prodLegacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "prod", 4, 50, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("legacy(env=prod) error = %v", err)
 	}
 	if len(prodLegacy) == 0 {
 		t.Errorf("legacy(env=prod) returned no rows, want prod provenance (server-side env predicate must not drop all rows)")
 	}
-	stagingLegacy, _, err := handler.findChangeSurfaceImpactRows(ctx, target, "staging", 4, 50, repositoryAccessFilter{AllScopes: true})
+	stagingLegacy, _, err := handler.FindChangeSurfaceImpactRows(ctx, target, "staging", 4, 50, repositoryAccessFilter{AllScopes: true})
 	if err != nil {
 		t.Fatalf("legacy(env=staging) error = %v", err)
 	}
@@ -231,7 +233,7 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	}
 	scopedCtx := ContextWithAuthContext(ctx, scopedAuth)
 	scopedAccess := repositoryAccessFilterFromContext(scopedCtx)
-	scopedOutgoing, err := handler.runChangeSurfaceOutgoing(
+	scopedOutgoing, err := handler.RunChangeSurfaceOutgoing(
 		scopedCtx,
 		"(start:Repository {id: $target_id})",
 		"",
@@ -244,7 +246,7 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 		t.Fatalf("scoped outgoing diagnostic error = %v", err)
 	}
 	dump("SCOPED outgoing raw", scopedOutgoing)
-	scopedConsumers, err := handler.runChangeSurfaceRepositoryConsumers(
+	scopedConsumers, err := handler.RunChangeSurfaceRepositoryConsumers(
 		scopedCtx,
 		"",
 		4,
@@ -256,9 +258,9 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 		t.Fatalf("scoped consumers diagnostic error = %v", err)
 	}
 	dump("SCOPED consumers raw", scopedConsumers)
-	scopedInvestigate, scopedTruncated, err := handler.changeSurfaceImpactRows(
+	scopedInvestigate, scopedTruncated, err := handler.ChangeSurfaceImpactRows(
 		scopedCtx,
-		changeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 10},
+		impact.ChangeSurfaceInvestigationRequest{MaxDepth: 4, Limit: 10},
 		target,
 	)
 	if err != nil {
@@ -267,11 +269,11 @@ RETURN DISTINCT impacted.id as id, type(rel) as rel_type, rel.confidence as conf
 	if scopedTruncated {
 		t.Fatal("scoped investigate truncated = true, want false")
 	}
-	if got, want := changeSurfaceTestIDs(scopedInvestigate), []string{consumerID, workloadID, crID}; !reflect.DeepEqual(got, want) {
+	if got, want := querytestutil.RowIDs(scopedInvestigate), []string{consumerID, workloadID, crID}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("scoped investigate ids = %#v, want %#v", got, want)
 	}
 
-	scopedLegacy, scopedLegacyTruncated, err := handler.findChangeSurfaceImpactRows(
+	scopedLegacy, scopedLegacyTruncated, err := handler.FindChangeSurfaceImpactRows(
 		scopedCtx,
 		target,
 		"",

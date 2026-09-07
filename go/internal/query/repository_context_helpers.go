@@ -3,7 +3,11 @@
 
 package query
 
-import "context"
+import (
+	"context"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
+)
 
 func queryRepoEntryPoints(ctx context.Context, reader GraphQuery, content ContentStore, params map[string]any) []map[string]any {
 	repoID := StringVal(params, "repo_id")
@@ -261,7 +265,7 @@ func filterRepoRelationshipTargetRowsForAccess(rows []map[string]any, idField st
 	}
 	filtered := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		if impactRepoIDAllowed(StringVal(row, idField), access) {
+		if impact.ImpactRepoIDAllowed(StringVal(row, idField), access) {
 			filtered = append(filtered, row)
 		}
 	}
@@ -299,5 +303,5 @@ func repositoryRelationshipEndpointAllowed(repoID, anchorRepoID string, access r
 	if repoID != "" && repoID == anchorRepoID {
 		return true
 	}
-	return impactRepoIDAllowed(repoID, access)
+	return impact.ImpactRepoIDAllowed(repoID, access)
 }

@@ -50,7 +50,7 @@
   gates.
 
 - **Change `ClassifyDeploymentTruthTier`'s precedence** — every
-  tier-emitting consumer (`go/internal/query/impact_trace_deployment_resources.go`,
+  tier-emitting consumer (`go/internal/query/impact/impact_trace_deployment_resources.go`,
   `supply_chain_impact`, service story) reads through this one function, so
   a precedence change is a cross-surface behavior change. Update
   `docs/public/reference/deployment-truth-tiers.md`'s "What qualifies (and

@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"gopkg.in/yaml.v3"
 )
 
@@ -427,17 +428,9 @@ func hostnameFromURL(raw string) string {
 	return strings.ToLower(parsed.Hostname())
 }
 
+// normalizeEvidenceToken folds text into an underscore-wrapped token. The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func normalizeEvidenceToken(text string) string {
-	lower := strings.ToLower(text)
-	replacer := strings.NewReplacer(
-		"/", "_",
-		".", "_",
-		"-", "_",
-		":", "_",
-		"@", "_",
-		"\n", "_",
-		"\t", "_",
-		" ", "_",
-	)
-	return "_" + replacer.Replace(lower) + "_"
+	return querycontract.NormalizeEvidenceToken(text)
 }

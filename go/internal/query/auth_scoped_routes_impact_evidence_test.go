@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // crossTenantEvidenceGraph resolves the orders-api workload (anchored on the
@@ -28,9 +30,9 @@ import (
 // (role configuration_artifact) and read_first_files (a
 // get_file_lines(repo_id, path) suggestion naming repo-b + the file), and
 // trace_deployment_chain's serialized deployment_evidence / artifact_lineage.
-func crossTenantEvidenceGraph() fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+func crossTenantEvidenceGraph() querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -40,7 +42,7 @@ func crossTenantEvidenceGraph() fakeGraphReaderWithSingle {
 				return nil, nil
 			}
 		},
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}
@@ -111,7 +113,7 @@ func TestTraceDeploymentChainScopedFiltersCrossTenantDeploymentEvidence(t *testi
 		t.Fatalf("all-scope caller: expected cross-tenant %q present in unfiltered response, got: %s", crossTenantEvidenceRepo, allScope)
 	}
 
-	scoped := scopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	body2 := postImpactEvidence(t, path, body, &scoped)
 	if strings.Contains(body2, crossTenantEvidenceRepo) || strings.Contains(body2, "other-tenant-infra") {
 		t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b deployment evidence: %s", body2)
@@ -134,7 +136,7 @@ func TestInvestigateDeploymentConfigScopedFiltersCrossTenantEvidence(t *testing.
 		t.Fatalf("all-scope caller: expected cross-tenant %q present in unfiltered response, got: %s", crossTenantEvidenceRepo, allScope)
 	}
 
-	scoped := scopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	bodyStr := postImpactEvidence(t, path, body, &scoped)
 	if strings.Contains(bodyStr, crossTenantEvidenceRepo) || strings.Contains(bodyStr, "other-tenant-infra") {
 		t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b evidence in deployment-config-influence: %s", bodyStr)
@@ -172,7 +174,7 @@ func TestServiceContextScopedFiltersCrossTenantDeploymentEvidence(t *testing.T) 
 		t.Fatalf("all-scope caller: expected cross-tenant %q present in unfiltered service context, got: %s", crossTenantEvidenceRepo, allScope)
 	}
 
-	scoped := scopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	scopedBody := get(&scoped)
 	if strings.Contains(scopedBody, crossTenantEvidenceRepo) || strings.Contains(scopedBody, "other-tenant-infra") {
 		t.Fatalf("scoped caller granted only repo-a saw cross-tenant repo-b deployment evidence via /services/{name}/context: %s", scopedBody)
@@ -185,9 +187,9 @@ func TestServiceContextScopedFiltersCrossTenantDeploymentEvidence(t *testing.T) 
 // loadUncorrelatedCloudResourceCandidates fallback (`MATCH
 // (n:CloudResource)`). This scan has no repo_id, so a scoped caller must skip
 // it entirely (#5167 W3 P2). candidateMatch selects the fallback query.
-func cloudFallbackGraph(candidateMatch, candidateName string) fakeGraphReaderWithSingle {
-	return fakeGraphReaderWithSingle{
-		runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+func cloudFallbackGraph(candidateMatch, candidateName string) querytestutil.FakeGraphReaderWithSingle {
+	return querytestutil.FakeGraphReaderWithSingle{
+		RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 			switch {
 			case strings.Contains(cypher, "MATCH (w:Workload) WHERE"):
 				return map[string]any{"id": "workload:orders-api", "name": "orders-api", "kind": "service", "repo_id": "repo-a"}, nil
@@ -197,7 +199,7 @@ func cloudFallbackGraph(candidateMatch, candidateName string) fakeGraphReaderWit
 				return nil, nil
 			}
 		},
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if rows, ok := impactEvidenceWorkloadRepositoryRows(cypher); ok {
 				return rows, nil
 			}
@@ -257,7 +259,7 @@ func TestTraceDeploymentChainScopedSkipsFreeTextCloudFallbacks(t *testing.T) {
 				t.Fatalf("all-scope caller: expected free-text candidate %q present, got: %s", tc.candidateName, allScope)
 			}
 
-			scoped := scopedTestAuthContext("tenant-a", []string{"repo-a"})
+			scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 			scopedBody := run(&scoped)
 			if strings.Contains(scopedBody, tc.candidateName) {
 				t.Fatalf("scoped caller saw free-text CloudResource fallback candidate %q (no repo_id to bind to a grant): %s", tc.candidateName, scopedBody)
@@ -365,7 +367,7 @@ func TestLoadRepositoryDeploymentEvidenceReadModelBlanksCrossTenantIdentity(t *t
 
 	// Scoped: the recovered source identity is blanked, but the anchored artifact
 	// (target=repo-a) survives -- only the unverifiable endpoint is redacted.
-	scoped := loadArtifact(ptrAuth(scopedTestAuthContext("tenant-a", []string{"repo-a"})))
+	scoped := loadArtifact(ptrAuth(querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})))
 	for _, field := range crossTenantSourceIdentityFields {
 		if got := StringVal(scoped, field); got != "" {
 			t.Fatalf("scoped caller granted only repo-a leaked recovered cross-tenant %s = %q from the read-model path: %#v", field, got, scoped)
@@ -420,7 +422,7 @@ func TestServiceContextReadModelPathScopedBlanksCrossTenantIdentity(t *testing.T
 		t.Fatalf("all-scope caller: expected recovered identity present in service context, got: %s", allScope)
 	}
 
-	scoped := scopedTestAuthContext("tenant-a", []string{"repo-a"})
+	scoped := querytestutil.ScopedTestAuthContext("tenant-a", []string{"repo-a"})
 	scopedBody := get(&scoped)
 	if strings.Contains(scopedBody, "other-tenant-infra") {
 		t.Fatalf("scoped caller leaked recovered cross-tenant source name via /services/{name}/context read-model path: %s", scopedBody)

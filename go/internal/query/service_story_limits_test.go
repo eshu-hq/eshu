@@ -6,12 +6,14 @@ package query
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestServiceStoryDossierUsesAggregateAPICountsAndSpecPaths(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["api_surface"] = map[string]any{
 		"endpoint_count": 73,
 		"method_count":   9,
@@ -41,7 +43,7 @@ func TestServiceStoryDossierUsesAggregateAPICountsAndSpecPaths(t *testing.T) {
 func TestServiceStorySupportOverviewUsesAPISurfaceSpecPathCount(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["api_surface"] = map[string]any{
 		"endpoint_count": 73,
 		"method_count":   9,
@@ -64,7 +66,7 @@ func TestServiceStorySupportOverviewUsesAPISurfaceSpecPathCount(t *testing.T) {
 func TestServiceStoryDossierBoundsRawPayloadsAndNestedAPISurface(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["api_surface"] = map[string]any{
 		"endpoint_count": 60,
 		"method_count":   1,
@@ -100,7 +102,7 @@ func TestServiceStoryDossierBoundsRawPayloadsAndNestedAPISurface(t *testing.T) {
 func TestServiceStoryDossierDedupesRelationshipPreviewsAndIncludesDependents(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["dependents"] = []map[string]any{
 		{"repository": "consumer-a", "repo_id": "repo-consumer-a", "relationship_types": []string{"CALLS"}},
 	}
@@ -129,7 +131,7 @@ func TestServiceStoryDossierDedupesRelationshipPreviewsAndIncludesDependents(t *
 func TestServiceStoryResultLimitsMatchIndependentDownstreamCaps(t *testing.T) {
 	t.Parallel()
 
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["dependents"] = numberedRows("repo_id", 30)
 	ctx["consumer_repositories"] = numberedRows("repo_id", 30)
 
@@ -148,7 +150,7 @@ func TestServiceStoryDossierSurfacesUncorrelatedCloudResourceTruncation(t *testi
 	t.Parallel()
 
 	// over-limit case: truncation flag must appear in dossier response
-	ctx := sampleServiceDossierContext()
+	ctx := querytestutil.SampleServiceDossierContext()
 	ctx["uncorrelated_cloud_resources"] = numberedRows("id", serviceStoryItemLimit+1)
 	ctx["uncorrelated_cloud_resources_truncated"] = true
 
@@ -162,7 +164,7 @@ func TestServiceStoryDossierSurfacesUncorrelatedCloudResourceTruncation(t *testi
 	}
 
 	// under-limit case: flag must be absent
-	ctx2 := sampleServiceDossierContext()
+	ctx2 := querytestutil.SampleServiceDossierContext()
 	ctx2["uncorrelated_cloud_resources"] = numberedRows("id", 3)
 	// do NOT set truncated flag
 

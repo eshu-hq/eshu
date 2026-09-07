@@ -101,7 +101,7 @@ reinvented.
 
 `trace_deployment_chain` decides deployment-evidence origin with a strict
 waterfall in `deploymentOverallConfidence`
-(`go/internal/query/impact_trace_deployment_resources.go:54-102`):
+(`go/internal/query/impact/impact_trace_deployment_resources.go`):
 
 ```
 len(instances)          > 0 → "materialized_runtime_instances"

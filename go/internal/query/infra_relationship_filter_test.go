@@ -175,7 +175,7 @@ func TestInfraRelationshipsScopedFilterCoexistsWithGrantPredicate(t *testing.T) 
 // regression guard: narrowing what_deploys to only DEPLOYS_FROM dropped the
 // runtime deployment topology the pre-#3492 untyped read returned, such as the
 // WorkloadInstance-[:DEPLOYMENT_SOURCE]->Repository edge that
-// fetchDeploymentSourcesFromGraph reads. what_deploys must keep surfacing it.
+// FetchDeploymentSourcesFromGraph reads. what_deploys must keep surfacing it.
 //
 // The fake reader returns the DEPLOYMENT_SOURCE edge only when the Cypher's
 // relationship-type filter admits DEPLOYMENT_SOURCE, so the test proves the edge

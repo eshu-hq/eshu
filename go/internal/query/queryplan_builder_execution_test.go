@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 )
 
 type queryplanCapturedRun struct {
@@ -240,39 +242,39 @@ func TestResourceInvestigationExecutesBuilderBytes(t *testing.T) {
 		return nil, nil
 	}}
 	handler := &ImpactHandler{Neo4j: graph}
-	selected := &resourceInvestigationCandidate{ID: "proof-resource", Labels: []string{"CloudResource"}}
-	req := resourceInvestigationRequest{Environment: "prod", MaxDepth: 3, Limit: 10}
+	selected := &impact.ResourceInvestigationCandidate{ID: "proof-resource", Labels: []string{"CloudResource"}}
+	req := impact.ResourceInvestigationRequest{Environment: "prod", MaxDepth: 3, Limit: 10}
 
-	if _, _, err := handler.resourceInvestigationWorkloads(context.Background(), req, selected, repositoryAccessFilter{AllScopes: true}); err != nil {
+	if _, _, err := handler.ResourceInvestigationWorkloads(context.Background(), req, selected, repositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationWorkloads() error = %v", err)
 	}
-	if _, err := handler.resourceInvestigationInstanceWorkloads(context.Background(), []map[string]any{{"instance_id": "proof-instance"}}); err != nil {
+	if _, err := handler.ResourceInvestigationInstanceWorkloads(context.Background(), []map[string]any{{"instance_id": "proof-instance"}}); err != nil {
 		t.Fatalf("resourceInvestigationInstanceWorkloads() error = %v", err)
 	}
-	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "outgoing", repositoryAccessFilter{AllScopes: true}); err != nil {
+	if _, _, err := handler.ResourceInvestigationRepoPaths(context.Background(), req, selected, "outgoing", repositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths() error = %v", err)
 	}
-	if _, _, err := handler.resourceInvestigationRepoPaths(context.Background(), req, selected, "incoming", repositoryAccessFilter{AllScopes: true}); err != nil {
+	if _, _, err := handler.ResourceInvestigationRepoPaths(context.Background(), req, selected, "incoming", repositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("resourceInvestigationRepoPaths(incoming) error = %v", err)
 	}
 	if len(captured) != 4 {
 		t.Fatalf("graph calls = %d, want 4", len(captured))
 	}
-	if captured[0].cypher != resourceInvestigationWorkloadsCypher(selected) {
+	if captured[0].cypher != impact.ResourceInvestigationWorkloadsCypher(selected) {
 		t.Fatal("resource workload query bytes differ from production builder")
 	}
-	if captured[1].cypher != resourceInvestigationInstanceWorkloadsCypher() {
+	if captured[1].cypher != impact.ResourceInvestigationInstanceWorkloadsCypher() {
 		t.Fatal("instance workload query bytes differ from production builder")
 	}
-	if captured[2].cypher != resourceInvestigationRepoPathsCypher(req, selected, "outgoing") {
+	if captured[2].cypher != impact.ResourceInvestigationRepoPathsCypher(req, selected, "outgoing") {
 		t.Fatal("resource repository-path query bytes differ from production builder")
 	}
-	if captured[3].cypher != resourceInvestigationRepoPathsCypher(req, selected, "incoming") {
+	if captured[3].cypher != impact.ResourceInvestigationRepoPathsCypher(req, selected, "incoming") {
 		t.Fatal("incoming resource repository-path query bytes differ from production builder")
 	}
 	for index, wantSHA256 := range []string{
 		"e100f5b99cf9be76a0bfa62a92c405f069c571cd686a999c596efd0fbc1e3a32",
-		// #5167 W3: resourceInvestigationInstanceWorkloadsCypher gained
+		// #5167 W3: impact.ResourceInvestigationInstanceWorkloadsCypher gained
 		// `workload.repo_id AS workload_repo_id` so resourceInvestigationWorkloads
 		// can bind each dependent workload to the caller's grant
 		// (impact_resource_investigation_reads.go); this baseline is the

@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 )
 
 func loadRepositoryDeploymentEvidenceForOverview(
@@ -83,7 +85,7 @@ func repositoryDeploymentEvidenceStory(deploymentEvidence map[string]any) string
 	return fmt.Sprintf(
 		"Deployment evidence includes %d artifact(s) across tool families %s.",
 		artifactCount,
-		joinOrNone(serviceDeploymentToolFamilies(deploymentEvidence)),
+		impact.JoinOrNone(serviceDeploymentToolFamilies(deploymentEvidence)),
 	)
 }
 

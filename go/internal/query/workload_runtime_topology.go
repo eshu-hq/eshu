@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type workloadRuntimeTopologyResult struct {
@@ -319,16 +321,11 @@ func sortWorkloadInstances(instances []map[string]any) {
 	})
 }
 
+// boundedCollectionMetadata builds the standard bounded-collection metadata
+// block. The implementation moved to querycontract for #6060; this wrapper
+// keeps root callers unchanged.
 func boundedCollectionMetadata(limit, queryLimit, returned, observed int, truncated bool, ordering []string) map[string]any {
-	return map[string]any{
-		"limit":                         limit,
-		"query_sentinel_limit":          queryLimit,
-		"returned_count":                returned,
-		"observed_count":                observed,
-		"observed_count_is_lower_bound": truncated,
-		"truncated":                     truncated,
-		"ordering":                      ordering,
-	}
+	return querycontract.BoundedCollectionMetadata(limit, queryLimit, returned, observed, truncated, ordering)
 }
 
 func emptyBoundedCollectionMetadata(limit int, ordering []string) map[string]any {

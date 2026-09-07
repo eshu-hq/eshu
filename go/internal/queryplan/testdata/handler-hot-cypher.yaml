@@ -141,7 +141,7 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/entity_map_resolver.go, symbol: entityMapNodeResolverQuery, source_sha256: 003a2fb8485039e15b883f4c760d92f79342d6fadd47220b5402665562122dce}
+    source: {file: go/internal/query/impact/entity_map_resolver.go, symbol: EntityMapNodeResolverQuery, source_sha256: 71244cb39299d7b7c8679c96295fa8c2248586d1c488f3c08f5511bc47ee17ab}
     query_fragment: 'MATCH (n:%s {%s: $from})'
     cypher_sha256: 785acf58218cccb6d99b9b783edacdd596930f3a3b627e36645069feed7dee9c
     required_anchors: [{label: Repository, property: id}]
@@ -154,7 +154,7 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/entity_map_traversal.go, symbol: entityMapDirectTraversalCypher, source_sha256: e917e1affe2806fca5fe5cc960290b1d04e4d6bc378eb6723dfb7e675968348b}
+    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapDirectTraversalCypher, source_sha256: 8e0ccbbf9c6bc963c5e93fb452658b741ac75132f705cfb8f7708173d717e638}
     query_fragment: '(start:%s {%s: $from_id})-[rel:%s]->(entity)'
     cypher_sha256: 1c133fed5c939ca0e9f310431ac7d5c6602a476eaa7c125c48d828aa930af2d7
     required_anchors: [{label: Repository, property: id}]
@@ -167,7 +167,7 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/entity_map_traversal.go, symbol: entityMapVariableTraversalCypher, source_sha256: 06941c2283745c8a6d62d85e053bc7dabd7c213d500a3a555974b970531f91f7}
+    source: {file: go/internal/query/impact/entity_map_traversal.go, symbol: EntityMapVariableTraversalCypher, source_sha256: 60c8fccf0780af4b1f509a019883da43e6000402c8a8a293c2d790c43ccf6d30}
     query_fragment: '(start:%s {%s: $from_id})-[%s]->(entity)'
     cypher_sha256: 797d2c60e7de3f2a9539d6ebd078b1731e7193696ef5de84edc9b6f33cf2a573
     required_anchors: [{label: Repository, property: id}]
@@ -299,7 +299,7 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact_resource_investigation_selector.go, symbol: resourceInvestigationSelectorLabelCypher, source_sha256: c25f48586d055f8331814542ae2a6200bf7ccb10b9779f71809d94862478cdfa}
+    source: {file: go/internal/query/impact/impact_resource_investigation_selector.go, symbol: ResourceInvestigationSelectorLabelCypher, source_sha256: 93d8669d297699c79651f681c6a298f46e39f9e9d17d317d0cf20db47950fee4}
     query_fragment: 'MATCH (n:%s)'
     cypher_sha256: 37986e9c5d95e6ed09806952f0f52cf683d660df41a276fea1668d246c517612
     required_anchors: [{label: CloudResource, property: resource_id}]
@@ -315,7 +315,7 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: resourceInvestigationWorkloadsCypher, source_sha256: c0e2d2cc361ff17eb841261f4b482b52644355a2dab972c767877682e0626c35}
+    source: {file: go/internal/query/impact/impact_resource_investigation_reads.go, symbol: ResourceInvestigationWorkloadsCypher, source_sha256: 96898c4d980de51c6e886c12b1cd935348f778e0bcd945e7a5f3c38fd072246e}
     query_fragment: 'MATCH (instance:WorkloadInstance)-[rel:USES]->(%s)'
     cypher_sha256: e100f5b99cf9be76a0bfa62a92c405f069c571cd686a999c596efd0fbc1e3a32
     required_anchors: [{label: CloudResource, property: resource_id}]
@@ -331,7 +331,7 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: resourceInvestigationInstanceWorkloadsCypher, source_sha256: 82e9daa127faf7733d092cb55f5c8109ca4b5cd93ff81c20ecc3fbcb95610776}
+    source: {file: go/internal/query/impact/impact_resource_investigation_reads.go, symbol: ResourceInvestigationInstanceWorkloadsCypher, source_sha256: f897ac780c13f7bff7d730c2885bc52b870c291e10dc3ec67ed72ab00d621070}
     query_fragment: 'MATCH (instance:WorkloadInstance)-[:INSTANCE_OF]->(workload:Workload)'
     cypher_sha256: 2463d998139bb2f60b10bdac64b62cc655d1e67d5ad9862c450ef317f6ae557e
     required_anchors: [{label: WorkloadInstance, property: id}]
@@ -342,7 +342,7 @@ entries:
     domain: impact
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/impact_resource_investigation_reads.go, symbol: resourceInvestigationRepoPathsCypher, source_sha256: bbff09dc1e8ae8a6b64a4a32439f8ca746678ab84c7996d95095358f26133ead}
+    source: {file: go/internal/query/impact/impact_resource_investigation_reads.go, symbol: ResourceInvestigationRepoPathsCypher, source_sha256: 54f2aa82a9a1a2eec57f80eff947d4c6cc3777790c6764c9ee28e40b852d9fab}
     query_fragment: 'MATCH path = %s'
     cypher_sha256: 4868f98cf10731ff8781ed9ba394da16d97c623c5cdd7d74217257bb5b641565
     required_anchors: [{label: CloudResource, property: resource_id}]

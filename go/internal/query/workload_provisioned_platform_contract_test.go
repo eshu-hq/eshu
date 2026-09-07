@@ -12,6 +12,8 @@ import (
 	"math"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 )
 
 func TestFetchProvisionedPlatformsReportsUniqueSentinel(t *testing.T) {
@@ -210,7 +212,7 @@ func provisionedPlatformIDs(rows []map[string]any) []string {
 func TestBuildDeploymentTraceResponseDoesNotCopyProvisioningUnderInstances(t *testing.T) {
 	t.Parallel()
 
-	got := buildDeploymentTraceResponse("orders", map[string]any{
+	got := impacttrace.BuildDeploymentTraceResponse("orders", map[string]any{
 		"id": "workload:orders", "name": "orders",
 		"instances": []map[string]any{{"instance_id": "instance:orders:prod", "platforms": []map[string]any{}}},
 		"provisioned_platforms": []map[string]any{{
@@ -219,7 +221,7 @@ func TestBuildDeploymentTraceResponseDoesNotCopyProvisioningUnderInstances(t *te
 				"relationship_type": "PROVISIONS_PLATFORM", "source_id": "repository:infra", "target_id": "platform:eks:prod",
 			}},
 		}},
-	})
+	}, map[string]any{})
 	instances := mapSliceValue(got, "instances")
 	if gotPlatforms := mapSliceValue(instances[0], "platforms"); len(gotPlatforms) != 0 {
 		t.Fatalf("instances[0].platforms = %#v, want direct RUNS_ON only", gotPlatforms)

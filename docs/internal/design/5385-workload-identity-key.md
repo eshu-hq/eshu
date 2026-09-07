@@ -546,7 +546,7 @@ named one; a generator cannot disagree with itself that way.
 
 **Constructing sites that also parse, and so live in 4.5:**
 `go/internal/query/catalog.go:213` (idempotent re-prefix),
-`go/internal/query/impact_change_surface_resolvers.go:107` (construct guarded by
+`go/internal/query/impact/impact_change_surface_resolvers.go` (construct guarded by
 a prefix test at `:104`), and `go/internal/query/entity_workload_context.go:286`
 (an equality chain whose third arm constructs). Outside `go/`,
 `apps/console/src/pages/VulnerabilitiesReachable.tsx:377` builds
@@ -667,7 +667,7 @@ One representative per anchor kind, because the kinds break differently:
 | Node-pattern property | `go/internal/query/entity_workload_handlers.go:29` | Matches nothing; the endpoint 404s. |
 | Denormalized `i.workload_id` | `go/internal/query/compare.go:189`, `go/internal/query/workload_runtime_topology.go:91` | Covered by migration item 4; the second is under a query-plan pin. |
 | Id/name conflated in one clause | `go/internal/query/entity.go:58` | The same parameter is tested against `w.name` **and** `w.id`, so after a re-key the name half still matches and the id half does not — the selector half-works, which is the worst shape to debug. |
-| Inequality exclusion | `go/internal/query/impact_change_surface_legacy.go:126` | `impacted.id <> $target_id` stops excluding the start node, so it **appears in its own impact set** — a wrong answer with no error. |
+| Inequality exclusion | `go/internal/query/impact/impact_change_surface_legacy.go` | `impacted.id <> $target_id` stops excluding the start node, so it **appears in its own impact set** — a wrong answer with no error. |
 | List membership | `go/internal/query/catalog_workload_environments.go:60,68,86` | Silent empty result. |
 
 `entity.go:58` is in the 27 but is **dead on the production path**:
@@ -685,10 +685,10 @@ count covers them. They are rows because each needs its own decision:
 
 | Shape | Where | Note |
 | --- | --- | --- |
-| Property name from a Go variable | `go/internal/query/impact_change_surface_resolvers.go:113,131,142`, callers at `:29,32,41,42,80,83,88,93` | Builders carry no literal `id`; call sites carry no `$`. Neither end matches. |
-| Label, variable and parameter all dynamic | `go/internal/query/impact_anchor_resolve.go:31,46-48` | **A generator, not a site** — it emits one anchor per label per property, and `Workload`/`WorkloadInstance` are in the label list. There is no count to state. |
-| Label-less `impacted.id <> $target_id`, can bind a Workload | `go/internal/query/impact_change_surface_traversal.go:34`, `impact_change_surface_legacy.go:126` | `:34` matches unlabelled `(impacted)` with the label predicate at `:36`; the legacy statement names both labels inside `any(label IN labels(impacted) …)`. **`:36` is textually present and operationally inert** — see below. |
-| Same `impacted.id <> $target_id` shape, but **`Repository`-anchored** | `go/internal/query/impact_change_surface_traversal.go:18`, `:42` | Both label `impacted` inline on the MATCH as `(impacted:Repository)`, so neither is label-less and neither names `Workload` or `WorkloadInstance`. `:18` is a `(start:Repository)<-[:DEPENDS_ON*]-(impacted:Repository)` traversal and cannot bind a workload at all. Listed only because they share the shape a reader would grep for. |
+| Property name from a Go variable | `go/internal/query/impact/impact_change_surface_resolvers.go`, callers at `:29,32,41,42,80,83,88,93` | Builders carry no literal `id`; call sites carry no `$`. Neither end matches. |
+| Label, variable and parameter all dynamic | `go/internal/query/impacttrace/impact_anchor_resolve.go` | **A generator, not a site** — it emits one anchor per label per property, and `Workload`/`WorkloadInstance` are in the label list. There is no count to state. |
+| Label-less `impacted.id <> $target_id`, can bind a Workload | `go/internal/query/impact/impact_change_surface_traversal.go`, `impact_change_surface_legacy.go:126` | `:34` matches unlabelled `(impacted)` with the label predicate at `:36`; the legacy statement names both labels inside `any(label IN labels(impacted) …)`. **`:36` is textually present and operationally inert** — see below. |
+| Same `impacted.id <> $target_id` shape, but **`Repository`-anchored** | `go/internal/query/impact/impact_change_surface_traversal.go`, `:42` | Both label `impacted` inline on the MATCH as `(impacted:Repository)`, so neither is label-less and neither names `Workload` or `WorkloadInstance`. `:18` is a `(start:Repository)<-[:DEPENDS_ON*]-(impacted:Repository)` traversal and cannot bind a workload at all. Listed only because they share the shape a reader would grep for. |
 | Label-less by-id anchors that can resolve a Workload | `go/internal/query/infra_relationship_filter.go:88`, `go/internal/query/entity.go:283` | `MATCH (n) WHERE n.id = $entity_id` and similar. |
 
 **On `:36` being inert.** `impact_change_surface_traversal.go:150-156` states that the
@@ -726,7 +726,7 @@ cite two lines each), and an earlier revision's
 | --- | --- |
 | `go/internal/query/catalog.go:213` | **Both** a parse and a construct: an idempotent re-prefix, `"workload:" + TrimPrefix(name, "workload:")`. |
 | `go/internal/query/catalog.go:214,332` | Pure parses. |
-| `go/internal/query/impact_change_surface_resolvers.go:102-108` | Construct guarded by a prefix test at `:104`; the construct itself is at `:107`. |
+| `go/internal/query/impact/impact_change_surface_resolvers.go` | Construct guarded by a prefix test at `:104`; the construct itself is at `:107`. |
 | `go/internal/query/entity_workload_context.go:280` | Prefix parse — `strings.TrimPrefix(selector, "workload:")`, the only `TrimPrefix` in the function. |
 | `go/internal/query/entity_workload_context.go:286` | **Both.** `selector == normalized \|\| plainSelector == normalized \|\| selector == "workload:"+normalized` — the third arm constructs. An earlier revision filed this as a pure parse. |
 | `go/internal/query/repository_read_model_summary.go:114` | Prefix parse. |
@@ -735,7 +735,7 @@ cite two lines each), and an earlier revision's
 | `go/internal/query/supply_chain_impact_path.go:145` | Prefix parse. |
 | `go/internal/reducer/supply_chain_impact_match.go:147` | Prefix parse — `supplyChainWorkloadIDsFromPayload`. |
 | `go/internal/query/supply_chain_impact_runtime_context_store.go:193` | The **query-side half of that pair**: `strings.HasPrefix(workloadID, "workload:")`, whose comment at `:184-188` says it mirrors the reducer's extraction. A re-key breaks both halves; an earlier revision listed only the reducer half. |
-| `go/internal/query/entity_map_resolver.go:62`, `:135` | Both call `canonicalWorkloadIDCandidate(from)` (defined at `impact_change_surface_resolvers.go:102`) and append a prefix-constructed resolver when it differs from the input. |
+| `go/internal/query/impact/entity_map_resolver.go`, `:135` | Both call `canonicalWorkloadIDCandidate(from)` (defined at `impact_change_surface_resolvers.go:102`) and append a prefix-constructed resolver when it differs from the input. |
 | `normalizeQualifiedIdentifier` (now `go/internal/mcp/servicecontext/routes.go`) | `normalizeQualifiedIdentifier` cuts at the **first** colon and returns the *tail*, so a three-part id becomes `<repo_id>:<name>` — a different break from a `HasPrefix` test. It **is** applied to workload selectors in production: the service-context selectors in `go/internal/mcp/servicecontext/routes.go` and the `serviceContextRoute` adapter in `dispatch_service_selector.go`, and `go/internal/mcp/README.md` describes it as stripping the `workload:` prefix. |
 | `canonicalWorkloadIdentifier` (now `go/internal/mcp/servicecontext/routes.go`) | `canonicalWorkloadIdentifier` also cuts at the first colon but returns the **whole value** when the head is `workload`, so it survives a re-key intact. Listed because it sits beside the previous row and an earlier revision cited it as the truncating one. |
 | `apps/console/src/api/impactDeploymentGraph.ts:453`, `:455` | `startsWith("workload-instance:")` and `startsWith("workload:")`. Outside `go/`, which the enumeration above does not cover. |
@@ -752,7 +752,7 @@ from 4.1 rather than moved, because a reader auditing parse behaviour needs to s
 them. Only `entity_workload_context.go:261`, a pure construction an earlier
 revision filed here, actually moved.
 
-`go/internal/query/entity_map_resolver.go:188` resolves by `{repo_id, name}` and would keep
+`go/internal/query/impact/entity_map_resolver.go` resolves by `{repo_id, name}` and would keep
 working — **but do not skip that file on the strength of this line.** Its
 `workload_instance` case at `:70-75` emits **three** resolvers, and the file also
 holds the two `canonicalWorkloadIDCandidate` callers in the table above.
@@ -1184,10 +1184,10 @@ retracted and rebuilt rather than rewritten in place.
    `go/internal/query/workload_runtime_topology.go:90-97`
    (`i.workload_id = $workload_id`), `go/internal/query/service_workload_resolution.go:249,284`
    (`w.id = i.workload_id`), `go/internal/query/compare.go:187-194`,
-   `go/internal/query/entity_map_resolver.go:70-75` (the `workload_instance` case emits three
+   `go/internal/query/impact/entity_map_resolver.go` (the `workload_instance` case emits three
    resolvers; the rank-0 `id` and rank-1 `workload_id` ones both anchor on values
    the re-key moves, via `MATCH (n:WorkloadInstance {workload_id: $from})` at
-   `:168`), and `go/internal/query/impact_change_surface_resolvers.go:93` (the phase-2
+   `:168`), and `go/internal/query/impact/impact_change_surface_resolvers.go` (the phase-2
    alternate-identity resolver, `changeSurfaceWorkloadInstanceResolverQuery("workload_id", …)`).
    Re-key the node without these and topology goes blank, environment compare
    degrades to "unsupported", entity-map and change-surface resolution stop
@@ -1199,7 +1199,7 @@ retracted and rebuilt rather than rewritten in place.
    file". That is true of that line and false of the file. Treat a count in this
    document as a floor until re-derived.
 
-   A fourth site, `go/internal/query/impact_resource_investigation_reads.go:78`, only *projects*
+   A fourth site, `go/internal/query/impact/impact_resource_investigation_reads.go`, only *projects*
    the scalar and uses it as the last fallback in
    `firstNonEmpty(resolved.id, workloadIDRaw, instanceID)` (`:151-161`), after a
    live `INSTANCE_OF` traversal that would return the correctly re-keyed id. It
@@ -1229,7 +1229,7 @@ retracted and rebuilt rather than rewritten in place.
 
    The loud breaks are safer and already have error types: name-selector surfaces
    go ambiguous for collision names —
-   `go/internal/query/impact_trace_workload_selection.go:52-54` (`errAmbiguousTraceWorkloadSelector`)
+   `go/internal/query/impacttrace/impact_trace_workload_selection.go` (`errAmbiguousTraceWorkloadSelector`)
    and `go/internal/query/service_workload_resolution.go:93-104` (`serviceWorkloadAmbiguousError`).
    The `repo`/`environment` narrowing arguments those surfaces already accept
    become mandatory for collision names.

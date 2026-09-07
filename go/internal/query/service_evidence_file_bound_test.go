@@ -177,12 +177,12 @@ func TestLoadConsumerRepositoryEnrichmentDisclosesTheHostnameLimitCut(t *testing
 	// narrowing are silent, and only the cut against a limit of 1 can set the
 	// flag.
 	hostnames := []string{"orders-a.example.test", "orders-b.example.test"}
-	kept, hostnamesTruncated := boundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
+	kept, hostnamesTruncated := BoundedIndirectEvidenceHostnamesForService(hostnames, "orders-api")
 	if got, want := len(kept), len(hostnames); got != want {
 		t.Fatalf("len(kept hostnames) = %d, want %d (both carry the service token and sit under the 4-cap)", got, want)
 	}
 	if hostnamesTruncated {
-		t.Fatal("boundedIndirectEvidenceHostnamesForService() truncated = true, want false so neither source 2 nor the affinity narrowing can be the one reporting")
+		t.Fatal("BoundedIndirectEvidenceHostnamesForService() truncated = true, want false so neither source 2 nor the affinity narrowing can be the one reporting")
 	}
 
 	oneCandidate := []provisioningRepositoryCandidate{
@@ -225,7 +225,7 @@ func traceWithServiceEvidenceCorpus(t *testing.T, fileCount int) map[string]any 
 	)
 	w := httptest.NewRecorder()
 
-	handler.traceDeploymentChain(w, req)
+	handler.TraceDeploymentChain(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("traceDeploymentChain status = %d, body = %s", w.Code, w.Body.String())
 	}

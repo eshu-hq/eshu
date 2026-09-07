@@ -5,7 +5,8 @@ package query
 
 import (
 	"maps"
-	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // PythonSemanticSignal identifies a Python-specific semantic that should be
@@ -233,39 +234,18 @@ func pythonSemanticSignalsToStrings(signals []PythonSemanticSignal) []string {
 	return values
 }
 
+// stringSliceFromAny extracts a trimmed []string from a []string or a []any
+// of strings. The implementation moved to querycontract for #6060; this
+// wrapper keeps root callers unchanged.
 func stringSliceFromAny(value any) []string {
-	switch typed := value.(type) {
-	case []string:
-		return filterEmptyStrings(typed)
-	case []any:
-		items := make([]string, 0, len(typed))
-		for _, item := range typed {
-			text, ok := item.(string)
-			if !ok {
-				continue
-			}
-			if trimmed := strings.TrimSpace(text); trimmed != "" {
-				items = append(items, trimmed)
-			}
-		}
-		return items
-	default:
-		return nil
-	}
+	return querycontract.StringSliceFromAny(value)
 }
 
+// filterEmptyStrings drops blank values (trimming the survivors). The
+// implementation moved to querycontract for #6060; this wrapper keeps root
+// callers unchanged.
 func filterEmptyStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-
-	items := make([]string, 0, len(values))
-	for _, value := range values {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			items = append(items, trimmed)
-		}
-	}
-	return items
+	return querycontract.FilterEmptyStrings(values)
 }
 
 func boolValue(value any) bool {

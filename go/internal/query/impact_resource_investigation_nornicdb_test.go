@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -18,7 +19,7 @@ import (
 func TestResourceInvestigationResourceAnchorOmitsEmptyArnGuard(t *testing.T) {
 	t.Parallel()
 
-	noArn := resourceInvestigationResourceAnchor("resource", false)
+	noArn := impact.ResourceInvestigationResourceAnchor("resource", false)
 	if strings.Contains(noArn, "resource.arn") || strings.Contains(noArn, " OR ") {
 		t.Fatalf("no-arn anchor must not reference arn or OR: %q", noArn)
 	}
@@ -26,7 +27,7 @@ func TestResourceInvestigationResourceAnchorOmitsEmptyArnGuard(t *testing.T) {
 		t.Fatalf("no-arn anchor missing coalesce identity predicate: %q", noArn)
 	}
 
-	withArn := resourceInvestigationResourceAnchor("resource", true)
+	withArn := impact.ResourceInvestigationResourceAnchor("resource", true)
 	if !strings.Contains(withArn, "OR resource.arn = $resource_arn") {
 		t.Fatalf("arn anchor missing arn disjunct: %q", withArn)
 	}
@@ -41,7 +42,7 @@ func TestResourceInvestigationResourceAnchorOmitsEmptyArnGuard(t *testing.T) {
 func TestResourceInvestigationAnchorParamsBindArnOnlyWhenPresent(t *testing.T) {
 	t.Parallel()
 
-	without := resourceInvestigationAnchorParams(&resourceInvestigationCandidate{ID: "r1"}, nil)
+	without := impact.ResourceInvestigationAnchorParams(&impact.ResourceInvestigationCandidate{ID: "r1"}, nil)
 	if _, ok := without["resource_arn"]; ok {
 		t.Fatalf("resource_arn must not be bound without an arn: %#v", without)
 	}
@@ -49,7 +50,7 @@ func TestResourceInvestigationAnchorParamsBindArnOnlyWhenPresent(t *testing.T) {
 		t.Fatalf("resource_id = %#v, want r1", without["resource_id"])
 	}
 
-	with := resourceInvestigationAnchorParams(&resourceInvestigationCandidate{ID: "r1", Arn: "arn:aws:x"}, map[string]any{"limit": 5})
+	with := impact.ResourceInvestigationAnchorParams(&impact.ResourceInvestigationCandidate{ID: "r1", Arn: "arn:aws:x"}, map[string]any{"limit": 5})
 	if with["resource_arn"] != "arn:aws:x" {
 		t.Fatalf("resource_arn = %#v, want arn:aws:x", with["resource_arn"])
 	}
@@ -79,7 +80,7 @@ func TestResourceInvestigationResourceRefFoldsResolvedLabel(t *testing.T) {
 		{"empty", nil, "resource"},
 	}
 	for _, tc := range cases {
-		got := resourceInvestigationResourceRef(&resourceInvestigationCandidate{ID: "r1", Labels: tc.labels})
+		got := impact.ResourceInvestigationResourceRef(&impact.ResourceInvestigationCandidate{ID: "r1", Labels: tc.labels})
 		if got != tc.want {
 			t.Errorf("%s: ref = %q, want %q", tc.name, got, tc.want)
 		}
