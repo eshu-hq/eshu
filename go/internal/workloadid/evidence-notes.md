@@ -121,6 +121,12 @@ tree:
   environment (#6580 P2). The blank test was proven non-vacuous by
   temporarily removing the `continue`: it fails with one emitted
   `InstanceRow`, then passes again after the restore.
+  `TestBuildWorkloadDependencyRowsDropsBlankDepName`
+  (`dependency_test.go`) pins the third site's blank-`depName` drop: a blank
+  name mapped to a non-empty repo must emit zero rows (#6580 P2). Proven
+  non-vacuous the same way — guard disabled emits exactly one row and the
+  test fails (`len = 1, want 0`), then passes again after the restore with
+  no remnants.
 - `internal/reducer/workloadid_routing_guard_test.go` scans the package's
   own non-test sources for four hand-built shapes — `Sprintf("workload:%s",`,
   `Sprintf("workload-instance:`, `"workload:" +`, `"workload-instance:" +` —
@@ -137,16 +143,18 @@ tree:
   regression to a string underlying type) fails loudly (#6580 codex P1).
 - Current counts on this base (run from `go/`, path `internal/reducer/`,
   `rg -o '"workload:[^"]*"'` / `'"workload-instance:[^"]*"'`
-  `--glob '*_test.go'`, balanced-quote literal methodology): 131 `"workload:`
+  `--glob '*_test.go'`, balanced-quote literal methodology): 132 `"workload:`
   literals across 32 reducer test files and 92 `"workload-instance:`
   literals across 12 reducer test files, all green unchanged — the
   byte-identity proof on this base. Per-file diff against the bare old base
   (`e55bcef7c`, counted the same way in a detached worktree: 123/30 and
-  89/10): the ONLY changed files are this diff's own two new test files —
-  `projection_workloadid_test.go` (+1 workload, +1 instance) and
-  `workloadid_routing_guard_test.go` (+7 workload, +2 instance). Every
-  upstream file's count is byte-identical, so no upstream test expectation
-  moved under the rebase. (Correction: the pre-rebase note's "90/11"
+  89/10): the ONLY changed files are this diff's own additions —
+  `projection_workloadid_test.go` (+1 workload, +1 instance),
+  `workloadid_routing_guard_test.go` (+7 workload, +2 instance), and the new
+  `TestBuildWorkloadDependencyRowsDropsBlankDepName` in `dependency_test.go`
+  (+1 workload, same already-counted file; #6580 P2). Every other file's
+  count is byte-identical, so no upstream test expectation moved under the
+  rebase. (Correction: the pre-rebase note's "90/11"
   instance predecessor does not reproduce — the bare old base recounts
   89/10 — so it is superseded by this per-file diff, not carried forward.)
   Opening-quote-only methodology (`rg -o '"workload:'` /
