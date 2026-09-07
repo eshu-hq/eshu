@@ -79,3 +79,10 @@ renamed, which changes an index the container-image identity path is measured
 against. It is recorded as the single explicit exception in that test rather
 than silently allowed, so a second offender still fails and removing this one
 fails until the exception goes with it.
+
+Superseded: #6543 removed that exception. Migrations 069/076/077 are gone;
+migration 105 creates the surviving predicate as
+`fact_records_identity_epoch_idx_v2` and migration 106 drops the legacy name,
+so `replayRebuiltIndexNames` is now empty and
+`TestIdentityEpochIndexIsCreatedOnceAndNeverDropped` pins the end state. The
+paragraph above records the state as of #6535.

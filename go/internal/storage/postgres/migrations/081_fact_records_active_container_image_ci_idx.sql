@@ -10,10 +10,10 @@
 -- BuildProvenanceRepositoryIDs at the projection that actually writes the edge.
 --
 -- A dedicated index (mirroring fact_records_active_container_image_slsa_idx,
--- migration 075) was chosen over widening fact_records_identity_epoch_idx
+-- migration 075) was chosen over widening fact_records_identity_epoch_idx_v2
 -- deliberately: ci.run/ci.artifact is the highest-churn fact family in the
 -- system, and coupling it into the identity-epoch cache's drift-locked partial
--- index (069/076/077, identity_epoch_cache_contract_test.go) would move that
+-- index (migration 105, identity_epoch_cache_contract_test.go) would move that
 -- cache's probe fingerprint on every CI run, defeating the cache far more often
 -- than the identity-fact family it exists for.
 --

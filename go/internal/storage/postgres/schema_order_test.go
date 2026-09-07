@@ -90,7 +90,6 @@ var orderedBootstrapDefinitionNames = []string{
 	"create_documentation_findings_filter_idx",
 	"iac_active_inventory_index",
 	"drop_relationship_family_candidate_index_legacy",
-	"fact_records_identity_epoch_idx",
 	"cloud_resource_owner_page_index",
 	"cloud_resource_owner_provider_page_index",
 	"cloud_resource_owner_region_page_index",
@@ -106,19 +105,12 @@ var orderedBootstrapDefinitionNames = []string{
 	// migration 076 (#5476 crossplane SATISFIED_BY cross-scope redrive state);
 	// sorts after the 075_* pair by filename.
 	"crossplane_satisfied_by_redrive_state",
-	// migration 076 (#5460 base-image lineage) DROPs the identity epoch partial
-	// index so 077 can recreate it wider (admitting Dockerfile base-image
-	// evidence). The DROP ships under 076 and the CREATE under 077 so the DROP
-	// deterministically precedes the CREATE by filename; "076_fact_records...drop"
-	// is a duplicate-number merge artifact like the 075_* pair above, sorting
-	// after "076_crossplane" ("c" < "f").
-	"fact_records_identity_epoch_idx_drop",
 	// migration 077 (#5490 K8sResource impact-trace candidate scan partial
-	// covering index); "077_content..." precedes "077_fact_records..." ("c" < "f").
+	// covering index). It is the only 077 left: #6543 removed the identity
+	// epoch pair that used to bracket it (a 076 DROP and a 077 CREATE of the
+	// same index name, which rebuilt the index on every bootstrap) in favour of
+	// migrations 104/105 below.
 	"content_entities_k8s_select_partial_index",
-	// migration 077 (#5460 base-image lineage) recreates the identity epoch
-	// partial index with the wider Dockerfile predicate, after the 076 DROP.
-	"fact_records_identity_epoch_idx_dockerfile",
 	// migration 078 (#5429 CI/CD run cross-cycle watermark gap detection).
 	"cicd_run_watermarks",
 	// migrations 079/080 (#5747 current-runtime workload filtering).
@@ -213,4 +205,14 @@ var orderedBootstrapDefinitionNames = []string{
 	// gate: the uncorrelated EXISTS subquery seeks (language, entity_type)
 	// instead of walking the whole path index on a zero-match filter.
 	"content_entities_language_type_idx",
+	// migration 105 (#6543) is the container-image identity epoch/load partial
+	// index under a NEW name, carrying the predicate #5460 widened it to. It
+	// replaces migrations 069 and 077, which created the same index NAME with
+	// two different predicates around migration 076's drop of it, so every
+	// bootstrap dropped the index and rebuilt it concurrently over fact_records.
+	"fact_records_identity_epoch_idx_v2",
+	// migration 106 (#6543) drops the legacy name that 105 supersedes. Nothing
+	// creates that name any more, so the drop converges an install from an
+	// earlier release once and is a no-op on every boot after it.
+	"drop_fact_records_identity_epoch_idx_legacy",
 }

@@ -961,7 +961,7 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
 - **Epoch semantics (3-tuple)**: The cached epoch is `(fact_count_all,
   fact_max_observed_all, active_fingerprint)`:
   * `fact_count_all` + `fact_max_observed_all` — computed FROM fact_records
-    alone (no JOIN) using the partial index `fact_records_identity_epoch_idx`
+    alone (no JOIN) using the partial index `fact_records_identity_epoch_idx_v2`
     (Index Only Scan, ~51 ms on 500k facts). These detect raw fact insertions/
     deletions that change the identity set.
   * `active_fingerprint` — `COALESCE(md5(string_agg(scope_id::text || ':' ||

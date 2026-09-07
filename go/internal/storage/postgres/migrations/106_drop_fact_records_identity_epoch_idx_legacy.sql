@@ -1,0 +1,32 @@
+-- 106_drop_fact_records_identity_epoch_idx_legacy.sql
+--
+-- Drops the legacy container-image-identity epoch index name,
+-- fact_records_identity_epoch_idx (#6543). Migration 104 creates
+-- fact_records_identity_epoch_idx_v2 with the same key and the same predicate
+-- an up-to-date install already had, and it sorts before this file, so the
+-- replacement is in place before the legacy name goes and no bootstrap leaves
+-- the epoch probe without a covering index.
+--
+-- IF EXISTS, and nothing in this directory creates that name any more, so this
+-- is a one-time convergence for an install that built it from an earlier
+-- release and a no-op on every boot after it -- and on a fresh database, on
+-- every boot including the first. That matters because this directory has no
+-- applied-migration ledger: BootstrapDefinitions enumerates every file under
+-- migrations/ and ApplyDefinitions Execs all of them on EVERY bootstrap
+-- (schema.go, pinned by TestApplyBootstrapExecutesDefinitionsInOrder). The
+-- creates of this name are therefore GONE from the tree rather than left
+-- behind: migrations 069 and 077 both created it, 076 dropped it, and the
+-- surviving pair rebuilt the index concurrently over fact_records on every
+-- single startup of every install. Migrations
+-- 068_drop_relationship_family_candidate_index_legacy.sql and
+-- 102_drop_code_reachability_entity_repository_idx.sql are the same shape and
+-- record the same rule; TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay
+-- and TestIdentityEpochIndexIsCreatedOnceAndNeverDropped enforce it, and
+-- TestIdentityEpochIndexMigrationsReapplyWithoutRebuildLive proves against real
+-- Postgres that this drop is a no-op once the legacy name is gone.
+--
+-- This is a file of its own, holding exactly ONE statement, because the
+-- migration runner Execs each file as a single simple-query string and Postgres
+-- treats a multi-statement string as an implicit transaction block -- which
+-- DROP INDEX CONCURRENTLY cannot run inside.
+DROP INDEX CONCURRENTLY IF EXISTS fact_records_identity_epoch_idx;

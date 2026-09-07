@@ -59,7 +59,7 @@
 --
 -- CONCURRENTLY, so building it does not block writes to a table under
 -- continuous ingest. This follows the same pattern as
--- 069_fact_records_identity_epoch_idx.sql and
+-- 105_fact_records_identity_epoch_idx_v2.sql and
 -- 075_fact_records_active_container_image_slsa_idx.sql on this same table.
 -- The usual objection to CONCURRENTLY -- that a failed build leaves an INVALID
 -- index which `IF NOT EXISTS` then skips forever -- does not apply here: the
