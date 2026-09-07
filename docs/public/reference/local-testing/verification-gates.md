@@ -170,7 +170,12 @@ acceptance evidence.
 ```
 
 > **Advisory known-bad:** `verify-graph-rebuild-from-facts.sh` **does not
-> pass today** — this is the documented known state, not a regression signal.
+> pass today** on the established-cause failures — the `MATCH`-only `CALLS`
+> edge write, the resolver ordering, the `Module` key (the documented known
+> state in `docs/internal/evidence/4594-graph-rebuild-from-facts.md`). The
+> intermittent `HANDLES_ROUTE`/`RUNS_IN` mismatch keeps its standing caveat
+> (evidence item 1b): a regression from #6074/#6085 is not ruled out, so a
+> red result there stays a signal until diffed against that breakdown.
 > Proposed settlement (#6184; owner sign-off pending on the call #6098 left
 > open): the strict bidirectional-identity assertion stays as written, and
 > the engine fix behind it (the `MATCH`-only `CALLS` edge write and the

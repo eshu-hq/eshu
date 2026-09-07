@@ -12,6 +12,8 @@
 #    carries, with the reason.
 #
 # Usage: scripts/test-issue-6184-gate-labelling.sh
+# Wired into CI via the docs-helm-hygiene job in .github/workflows/test.yml
+# (always-on job), so the labels it protects cannot rot silently.
 set -uo pipefail
 
 script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -37,24 +39,36 @@ if [[ -z "${gate_entry_line}" ]]; then
 	record_fail "rebuild gate is listed in the Compose Gates list" "no fence entry found"
 else
 	window="$(sed -n "$((gate_entry_line - 3)),$((gate_entry_line + 3))p" "${gates_doc}")"
-	if printf '%s\n' "${window}" | rg -qi 'advisory|known-bad|known bad|does not pass'; then
+	# Canonical affirmative annotation, case-sensitive: a reversed annotation
+	# ("not advisory", "passes today") must not match.
+	if printf '%s\n' "${window}" | rg -q 'Advisory known-bad'; then
 		record_pass "rebuild gate list entry carries an advisory/known-bad label"
 	else
 		record_fail "rebuild gate list entry carries an advisory/known-bad label" \
-			"entry at line ${gate_entry_line} has no visible label in its window"
+			"entry at line ${gate_entry_line} has no canonical 'Advisory known-bad' label in its window"
 	fi
 fi
 
 # 2. The SLO contract must record the explicit fixture-scale-only decision,
-# with its substance (the scale-lab/single-sample reason), not just the word
-# "decision" somewhere in the file.
+# with its substance (the scale-lab/single-sample reason) and fixture-only
+# direction — all scoped to the decision paragraph's window, so a distant
+# paragraph's wording cannot satisfy them and a rewritten paragraph fails.
 check2_fail=""
-rg -qi 'fixture-scale' "${slo_doc}" || check2_fail="no fixture-scale statement"
-if [[ -z "${check2_fail}" ]]; then
-	rg -qi 'scale-lab|single sample|341' "${slo_doc}" || check2_fail="no scale-lab/single-sample reason"
-fi
-if [[ -z "${check2_fail}" ]]; then
-	rg -qi 'recorded decision|explicit decision|decision.*fixture-scale|fixture-scale.*decision' "${slo_doc}" || check2_fail="no recorded-decision statement"
+decision_line="$(rg -n -i 'recorded decision' "${slo_doc}" | head -n 1 | cut -d: -f1)"
+if [[ -z "${decision_line}" ]]; then
+	check2_fail="no recorded-decision statement"
+else
+	paragraph="$(sed -n "$((decision_line - 2)),$((decision_line + 8))p" "${slo_doc}")"
+	printf '%s\n' "${paragraph}" | rg -qi 'fixture-scale' || check2_fail="no fixture-scale statement near the decision"
+	if [[ -z "${check2_fail}" ]]; then
+		printf '%s\n' "${paragraph}" | rg -qi 'scale-lab|single sample|341' || check2_fail="no scale-lab/single-sample reason near the decision"
+	fi
+	# Direction: the paragraph must read fixture-only/no-bound. A rewrite
+	# declaring the sample a production bound keeps the words above but
+	# must fail here.
+	if [[ -z "${check2_fail}" ]]; then
+		printf '%s\n' "${paragraph}" | rg -qi 'is all .* carries|do not read|not .* bound|fixture-only' || check2_fail="no fixture-only/no-bound direction near the decision"
+	fi
 fi
 if [[ -z "${check2_fail}" ]]; then
 	record_pass "SLO contract records the explicit fixture-scale decision with reason"
