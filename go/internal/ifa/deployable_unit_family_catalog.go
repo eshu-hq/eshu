@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
@@ -36,7 +37,6 @@ import (
 // reducer.ExtractDeployableUnitCorrelationRows -- it never hand-authors a
 // relationships.ResolvedRelationship.
 const (
-	deployableUnitFamilyOduName      = "odu:ifa-deployable-unit-family"
 	deployableUnitFamilyGenerationID = "gen-ifa-deployable-unit-family-1"
 	deployableUnitFamilyScopeID      = "scope-ifa-deployable-unit-family"
 
@@ -89,7 +89,7 @@ const (
 
 // deployableUnitFamilyOdu returns the binary-portable catalog representation
 // of the deployable_unit_edges family fixture.
-func deployableUnitFamilyOdu() CatalogOdu {
+func deployableUnitFamilyOdu() familyodu.CatalogOdu {
 	sourceRunID := "run-ifa-deployable-unit-family-1"
 	// LocalPath values are distinct from every other cataloged family's
 	// (SQLFamilyLocalPath "/repo", code_calls' "/repo-code-calls") so the
@@ -190,8 +190,8 @@ func deployableUnitFamilyOdu() CatalogOdu {
 		deployableUnitCatalogFollowupFact("deployable_unit_correlation", "repo:", deployableUnitFamilyAdmittedNoDeployRepoID, jenkinsLocalPath),
 		deployableUnitCatalogFollowupFact("deployment_mapping", "deployment:", deployableUnitFamilyAdmittedNoDeployRepoID, jenkinsLocalPath),
 	}
-	return CatalogOdu{
-		Odu: Odu{Name: deployableUnitFamilyOduName, Facts: factsForOdu},
+	return familyodu.CatalogOdu{
+		Odu: familyodu.Odu{Name: familyodu.DeployableUnitFamilyOduName, Facts: factsForOdu},
 		Detail: "one Dockerfile-backed app repository plus one ArgoCD-deploying control repository (positive case: admitted with a deployment_repo_id), " +
 			"one Dockerfile-only repository (negative case: rejected), and one Dockerfile+Jenkinsfile repository (negative case: admitted but no deployment_repo_id) -- " +
 			"proving CORRELATES_DEPLOYABLE_UNIT through the real evidence-discovery and resolution seams, and proving both of AdmittedDeployableUnitRows' independent drop conditions",

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"fmt"
@@ -193,7 +193,7 @@ func IAMInstanceProfileRoleFamilyOdu() CatalogOdu {
 		payload, err := factschema.EncodeAWSResource(resource)
 		if err != nil {
 			panic(fmt.Sprintf(
-				"ifa: catalog_seed %s: encode aws_resource payload for %q: %v",
+				"familyodu: catalog_seed %s: encode aws_resource payload for %q: %v",
 				IAMInstanceProfileRoleFamilyOduName, fixture.ResourceID, err,
 			))
 		}

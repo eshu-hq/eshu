@@ -8,11 +8,12 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 func loadCassetteEnvelopes(t *testing.T, path string) []facts.Envelope {
 	t.Helper()
-	out, err := LoadCassetteEnvelopes(path)
+	out, err := familyodu.LoadCassetteEnvelopes(path)
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -30,8 +31,8 @@ func TestIFALiveMatrixGenerationIDsAreUniqueAcrossScopes(t *testing.T) {
 		"testdata/cassettes/gcpcloud/supply-chain-demo.json",
 		"testdata/cassettes/sqlrelationships/ifa-sql-family.json",
 		"testdata/cassettes/sqlrelationships/ifa-sql-family-delta.json",
-		codeCallFamilyCassettePath,
-		documentationFamilyCassettePath,
+		CodeCallFamilyCassettePath,
+		DocumentationFamilyCassettePath,
 		RationaleFamilyCassetteRelPath,
 		RationaleFamilyDeltaCassetteRelPath,
 	}

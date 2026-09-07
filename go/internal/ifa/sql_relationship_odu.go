@@ -5,6 +5,7 @@ package ifa
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 // SQL family Odù constants (#5351): the fixture proving the
@@ -88,8 +89,8 @@ const (
 // (payloadPath(fileData, "path") in the real fileFactEnvelope emitter),
 // which embeddedSQLQuerySources falls back to when the top-level path is
 // blank (sql_relationship_embedded_query.go).
-func sqlFamilyOdu() CatalogOdu {
-	odu := Odu{
+func sqlFamilyOdu() familyodu.CatalogOdu {
+	odu := familyodu.Odu{
 		Name: sqlFamilyOduName,
 		Facts: []facts.Envelope{
 			sqlFamilyRepositoryFact(SQLFamilyGenerationID, false, nil),
@@ -132,7 +133,7 @@ func sqlFamilyOdu() CatalogOdu {
 			sqlFamilyFollowupFact(SQLFamilyGenerationID),
 		},
 	}
-	return CatalogOdu{
+	return familyodu.CatalogOdu{
 		Odu:    odu,
 		Detail: "one repo, two SqlTable, one SqlColumn/SqlView/SqlFunction/SqlTrigger/SqlIndex/SqlMigration each, one embedded-SQL-query file, and the production shared_followup trigger fact, deriving exactly one edge of each of the nine materialized SQL relationship types (QUERIES_TABLE/READS_FROM/REFERENCES_TABLE/WRITES_TO/HAS_COLUMN/TRIGGERS/EXECUTES/INDEXES/MIGRATES)",
 	}
@@ -153,8 +154,8 @@ func sqlFamilyOdu() CatalogOdu {
 // (graphdump), not through this generation's own pure
 // ExtractSQLRelationshipRows output — see materialized_edges_sql.go's doc
 // comment for the generation-local vs. accumulated-graph distinction.
-func sqlFamilyDeltaOdu() CatalogOdu {
-	odu := Odu{
+func sqlFamilyDeltaOdu() familyodu.CatalogOdu {
+	odu := familyodu.Odu{
 		Name: sqlFamilyDeltaOduName,
 		Facts: []facts.Envelope{
 			sqlFamilyRepositoryFact(sqlFamilyDeltaGenID, true, []string{sqlFamilySchemaPath}),
@@ -197,7 +198,7 @@ func sqlFamilyDeltaOdu() CatalogOdu {
 			sqlFamilyFollowupFact(sqlFamilyDeltaGenID),
 		},
 	}
-	return CatalogOdu{
+	return familyodu.CatalogOdu{
 		Odu:    odu,
 		Detail: "gen-2 delta re-collection of db/schema.sql retargeting INDEXES from public.users to public.orders, proving the delta-retract path for the SQL relationship family",
 	}
@@ -217,7 +218,7 @@ func sqlFamilyFollowupFact(generationID string) facts.Envelope {
 	return facts.Envelope{
 		ScopeID:      sqlFamilyScopeID,
 		GenerationID: generationID,
-		FactKind:     sharedFollowupFactKind,
+		FactKind:     familyodu.SharedFollowupFactKind,
 		Payload: map[string]any{
 			"reducer_domain": "sql_relationship_materialization",
 			"entity_key":     "sql:" + sqlFamilyRepoID,
@@ -244,7 +245,7 @@ func sqlFamilyRepositoryFact(generationID string, delta bool, deltaRelativePaths
 	return facts.Envelope{
 		ScopeID:      sqlFamilyScopeID,
 		GenerationID: generationID,
-		FactKind:     repositoryFactKind,
+		FactKind:     familyodu.RepositoryFactKind,
 		Payload:      payload,
 	}
 }
@@ -270,7 +271,7 @@ func sqlFamilySchemaFileFact(generationID string) facts.Envelope {
 	return facts.Envelope{
 		ScopeID:      sqlFamilyScopeID,
 		GenerationID: generationID,
-		FactKind:     fileFactKind,
+		FactKind:     familyodu.FileFactKind,
 		Payload: map[string]any{
 			"repo_id":          sqlFamilyRepoID,
 			"relative_path":    sqlFamilySchemaPath,
@@ -295,7 +296,7 @@ func sqlFamilyGetUserFunctionEntity(generationID string) facts.Envelope {
 	return facts.Envelope{
 		ScopeID:      sqlFamilyScopeID,
 		GenerationID: generationID,
-		FactKind:     contentEntityFactKind,
+		FactKind:     familyodu.ContentEntityFactKind,
 		Payload: map[string]any{
 			"repo_id":       sqlFamilyRepoID,
 			"entity_id":     sqlFamilyGetUserFunctionUID,
@@ -322,7 +323,7 @@ func sqlFamilyContentEntity(generationID, entityID, entityType, entityName strin
 	return facts.Envelope{
 		ScopeID:      sqlFamilyScopeID,
 		GenerationID: generationID,
-		FactKind:     contentEntityFactKind,
+		FactKind:     familyodu.ContentEntityFactKind,
 		Payload:      payload,
 	}
 }
@@ -337,7 +338,7 @@ func sqlFamilyFileWithEmbeddedQuery(generationID string) facts.Envelope {
 	return facts.Envelope{
 		ScopeID:      sqlFamilyScopeID,
 		GenerationID: generationID,
-		FactKind:     fileFactKind,
+		FactKind:     familyodu.FileFactKind,
 		Payload: map[string]any{
 			"repo_id":       sqlFamilyRepoID,
 			"relative_path": sqlFamilyHandlerPath,

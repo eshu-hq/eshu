@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
@@ -50,7 +51,6 @@ import (
 //     query; returning it would certify an input the live adapter cannot
 //     supply.
 const (
-	workloadDependencyFamilyOduName      = "odu:ifa-workload-dependency-family"
 	workloadDependencyFamilyScopeID      = "scope-ifa-workload-dependency-family"
 	workloadDependencyFamilyGenerationID = "gen-ifa-workload-dependency-family-1"
 	workloadDependencyFamilySourceRunID  = "run-ifa-workload-dependency-family-1"
@@ -87,7 +87,6 @@ const (
 
 const (
 	// WorkloadDependencyFamilyOduName identifies the cataloged workload-dependency Odù.
-	WorkloadDependencyFamilyOduName = workloadDependencyFamilyOduName
 	// WorkloadDependencyFamilySourceRepoID identifies the admitted source repository.
 	WorkloadDependencyFamilySourceRepoID = workloadDependencyFamilySourceRepoID
 	// WorkloadDependencyFamilyTargetRepoID identifies the admitted target repository.
@@ -108,13 +107,13 @@ const (
 
 // WorkloadDependencyFamilyOdu returns the compiled workload-dependency fixture
 // used by the materialized-edge vacuity guard after the #6053 package split.
-func WorkloadDependencyFamilyOdu() CatalogOdu {
+func WorkloadDependencyFamilyOdu() familyodu.CatalogOdu {
 	return workloadDependencyFamilyOdu()
 }
 
 // workloadDependencyFamilyOdu returns the binary-portable catalog
 // representation of the workload_dependency family fixture.
-func workloadDependencyFamilyOdu() CatalogOdu {
+func workloadDependencyFamilyOdu() familyodu.CatalogOdu {
 	factsForOdu := []facts.Envelope{
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilySourceRepoID, workloadDependencyFamilySourceName)),
 		workloadDependencyFamilyDependsOnContentFact(workloadDependencyFamilySourceRepoID, "deploy/docker-compose.yml", workloadDependencyFamilyTargetName),
@@ -142,8 +141,8 @@ func workloadDependencyFamilyOdu() CatalogOdu {
 
 		workloadDependencyFamilyRepositoryFact(workloadDependencyFamilyRepository(workloadDependencyFamilyOrphanTargetRepoID, workloadDependencyFamilyOrphanTargetName)),
 	}
-	return CatalogOdu{
-		Odu: Odu{Name: workloadDependencyFamilyOduName, Facts: factsForOdu},
+	return familyodu.CatalogOdu{
+		Odu: familyodu.Odu{Name: familyodu.WorkloadDependencyFamilyOduName, Facts: factsForOdu},
 		Detail: "three repo-to-repo DEPENDS_ON pairs from Docker Compose depends_on evidence: two positive pairs whose repos each own exactly one current-generation Kubernetes-Deployment workload " +
 			"(expected to materialize as two Workload->Workload DEPENDS_ON edges), " +
 			"and one pair with no Kubernetes evidence on either repo, so neither is a current-generation repo while the in-memory lookup's backing data carries a persisted workload for each (the production-shaped query predicates must keep this pair unreachable) -- " +
@@ -191,7 +190,7 @@ func workloadDependencyFamilyRepositoryFact(repository codegraphv1.Repository) f
 // resolves to a DEPENDS_ON relationship
 // (repo_dependency_family_catalog.go's positive DEPENDS_ON case).
 func workloadDependencyFamilyDependsOnContentFact(sourceRepoID, path, targetName string) facts.Envelope {
-	return workloadDependencyFamilyFact(sourceRepoID, contentFactKind, "content:"+sourceRepoID+":"+path, map[string]any{
+	return workloadDependencyFamilyFact(sourceRepoID, familyodu.ContentFactKind, "content:"+sourceRepoID+":"+path, map[string]any{
 		"artifact_type": "docker_compose",
 		"commit_sha":    workloadDependencyFamilyCommitSHA,
 		"content_body":  "services:\n  app:\n    depends_on:\n      - " + targetName + "\n",

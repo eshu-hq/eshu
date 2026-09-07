@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
@@ -29,7 +30,7 @@ const CodeCallFamilyGenerationID = "gen-ifa-code-call-family-1"
 // code_calls cassette. The checked-in cassette remains the live replay source;
 // TestCodeCallFamilyIsCatalogedAndResolvable deeply pins this compiled literal
 // to the same strict projection.
-func codeCallFamilyOdu() CatalogOdu {
+func codeCallFamilyOdu() familyodu.CatalogOdu {
 	sourceRunID := "run-ifa-code-call-family-1"
 	localPath := CodeCallFamilyLocalPath
 	factsForOdu := []facts.Envelope{
@@ -88,8 +89,8 @@ func codeCallFamilyOdu() CatalogOdu {
 			"reason": "repository snapshot emitted code-call materialization follow-up", "repo_id": "repo-ifa-code-call-family",
 		}),
 	)
-	return CatalogOdu{
-		Odu:    Odu{Name: codeCallFamilyOduName, Facts: factsForOdu},
+	return familyodu.CatalogOdu{
+		Odu:    familyodu.Odu{Name: familyodu.CodeCallFamilyOduName, Facts: factsForOdu},
 		Detail: "one code-call repository exercising CALLS, REFERENCES, INSTANTIATES, and USES_METACLASS plus unresolved, invalid-line, ambiguous, and unknown-metaclass exclusions",
 	}
 }

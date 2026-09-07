@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
@@ -55,7 +56,7 @@ const (
 //
 // Total: 5 DECLARES_CODEOWNER edges -- 3 to @org/docs (RULE A, B, C),
 // 1 to @org/backend (RULE C), 1 to @org/infra (RULE E).
-func CodeownersFamilyOdu() CatalogOdu {
+func CodeownersFamilyOdu() familyodu.CatalogOdu {
 	factsForOdu := []facts.Envelope{
 		CodeownersFamilyRepositoryFact(),
 		// RULE A.
@@ -85,8 +86,8 @@ func CodeownersFamilyOdu() CatalogOdu {
 		}, "rule-e"),
 		codeownersFamilySharedFollowupFact(),
 	}
-	return CatalogOdu{
-		Odu: Odu{Name: CodeownersFamilyOduName, Facts: factsForOdu},
+	return familyodu.CatalogOdu{
+		Odu: familyodu.Odu{Name: CodeownersFamilyOduName, Facts: factsForOdu},
 		Detail: "one repository with two CODEOWNERS files: a same-team multi-pattern " +
 			"collision (RULE A/B), a multi-owner rule adding a third edge to that same " +
 			"team (RULE C), a last-match-wins duplicate rule (RULE D), and a " +

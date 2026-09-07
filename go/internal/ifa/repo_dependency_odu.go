@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 const (
 	repoDependencyConcurrencyOduName = "odu:repo-dependency-concurrency"
 	repoDependencySourceCount        = 8
 	repoDependencyContentPath        = "env/ifa-prod-proof/main.tf"
-	sharedFollowupFactKind           = "shared_followup"
 )
 
 type repoDependencyFixtureEdge struct {
@@ -36,7 +36,7 @@ var repoDependencyFixtureEdges = []repoDependencyFixtureEdge{
 // repoDependencyConcurrencyOdu supplies the production relationship extractor
 // with eight independently scoped source repositories. Four sources converge
 // on one replay target, two form a reciprocal pair, and two remain disjoint.
-func repoDependencyConcurrencyOdu() CatalogOdu {
+func repoDependencyConcurrencyOdu() familyodu.CatalogOdu {
 	factsForOdu := make([]facts.Envelope, 0, repoDependencySourceCount*3+3)
 	for _, edge := range repoDependencyFixtureEdges {
 		factsForOdu = append(factsForOdu, repoDependencySourceFacts(edge)...)
@@ -52,8 +52,8 @@ func repoDependencyConcurrencyOdu() CatalogOdu {
 		factsForOdu = append(factsForOdu, repoDependencyRepositoryFact(alias))
 	}
 
-	return CatalogOdu{
-		Odu: Odu{
+	return familyodu.CatalogOdu{
+		Odu: familyodu.Odu{
 			Name:  repoDependencyConcurrencyOduName,
 			Facts: factsForOdu,
 		},
@@ -71,7 +71,7 @@ func repoDependencySourceFacts(edge repoDependencyFixtureEdge) []facts.Envelope 
 		repoDependencyRepositoryFact(edge.sourceAlias),
 		repoDependencyContentFact(edge.sourceAlias, repoDependencyContentPath, edge.targetAlias),
 		repoDependencyFactEnvelope(
-			sharedFollowupFactKind,
+			familyodu.SharedFollowupFactKind,
 			scopeID,
 			generationID,
 			"shared_followup:"+repoID+":deployment_mapping",
@@ -89,7 +89,7 @@ func repoDependencySourceFacts(edge repoDependencyFixtureEdge) []facts.Envelope 
 func repoDependencyContentFact(sourceAlias, path, targetAlias string) facts.Envelope {
 	repoID := repoDependencyRepoID(sourceAlias)
 	return repoDependencyFactEnvelope(
-		contentFactKind,
+		familyodu.ContentFactKind,
 		repoDependencyScopeID(sourceAlias),
 		repoDependencyGenerationID(sourceAlias),
 		"content:"+repoID+":"+path,
@@ -108,7 +108,7 @@ func repoDependencyRepositoryFact(alias string) facts.Envelope {
 	repoID := repoDependencyRepoID(alias)
 	generationID := repoDependencyGenerationID(alias)
 	return repoDependencyFactEnvelope(
-		repositoryFactKind,
+		familyodu.RepositoryFactKind,
 		repoDependencyScopeID(alias),
 		generationID,
 		"repository:"+repoID,

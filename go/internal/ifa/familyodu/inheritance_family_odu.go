@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"fmt"
@@ -58,7 +58,7 @@ const (
 	inheritanceFamilyWorkerPath = "services/worker.py"
 )
 
-// inheritanceFamilyOdu carries nine typed entities across three inheritance
+// InheritanceFamilyOdu carries nine typed entities across three inheritance
 // mechanisms in one repository:
 //
 //   - Dog (Class, entity_metadata.bases=["Animal"]) derives one INHERITS edge
@@ -81,13 +81,13 @@ const (
 // zeroes the whole batch's graph-node writes), and every entity_id is
 // precomputed via content.CanonicalEntityID -- Class, Interface, Trait, and
 // Function are all in projector.canonicalNamePathLineEntityLabels
-// (go/internal/projector/canonical_entity_identity.go:12), so the projector
+// (go/internal/projector/canonical_entity_identity.go), so the projector
 // ignores whatever entity_id a content_entity fact supplies for these labels
 // and re-derives the same canonical hash from (repo_id, relative_path,
 // entity_type, entity_name, start_line) -- Gotcha 2. Using any other value here
 // would make the edge writer's endpoint MATCH silently no-op against a live
 // backend even though this pure fixture's own row derivation still "worked".
-func inheritanceFamilyOdu() CatalogOdu {
+func InheritanceFamilyOdu() CatalogOdu {
 	animalID := inheritanceFamilyEntityID(inheritanceFamilyAnimalPath, "Class", "Animal", 1)
 	dogID := inheritanceFamilyEntityID(inheritanceFamilyDogPath, "Class", "Dog", 1)
 	runnableID := inheritanceFamilyEntityID(inheritanceFamilyIfacePath, "Interface", "Runnable", 1)
@@ -213,7 +213,7 @@ func inheritanceFamilyRepositoryFact() facts.Envelope {
 	}
 	payload, err := factschema.EncodeCodegraphRepository(repository)
 	if err != nil {
-		panic(fmt.Sprintf("ifa: encode inheritance repository %q: %v", repository.RepoID, err))
+		panic(fmt.Sprintf("familyodu: encode inheritance repository %q: %v", repository.RepoID, err))
 	}
 	return inheritanceFamilyFact(factschema.FactKindCodegraphRepository, "repository:"+repository.RepoID, payload)
 }
@@ -229,7 +229,7 @@ func inheritanceFamilyFileFact(relativePath string) facts.Envelope {
 	}
 	payload, err := factschema.EncodeCodegraphFile(file)
 	if err != nil {
-		panic(fmt.Sprintf("ifa: encode inheritance file %q: %v", file.RelativePath, err))
+		panic(fmt.Sprintf("familyodu: encode inheritance file %q: %v", file.RelativePath, err))
 	}
 	return inheritanceFamilyFact(factschema.FactKindCodegraphFile, "file:"+file.RepoID+":"+file.RelativePath, payload)
 }
@@ -288,7 +288,7 @@ var inheritanceFamilyNilParserKeys = []string{
 // functions cover most domains (grep confirms none named for inheritance);
 // production enqueues it exclusively via
 // inheritanceMaterializationFactEnvelope
-// (go/internal/collector/git_followup_facts.go:279-302), whose payload shape
+// (go/internal/collector/gitrepo/git_followup_facts.go), whose payload shape
 // this mirrors exactly (#5992 measured the codeowners/documentation analog of
 // this same omission producing zero reducer intents against a live stack).
 func inheritanceFamilyFollowupFact() facts.Envelope {

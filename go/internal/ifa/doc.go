@@ -60,4 +60,10 @@
 // RepoDependencyBackfillProofOdu is likewise a lazy, uncataloged storage-proof
 // scenario: it preserves the repository-dependency truth fixture while
 // reproducing retained worst-scope relationship-backfill cardinality and skew.
-package ifa //nolint:dirgate // Family Odùs are intentionally one file per cataloged family: every #5991-#6003 and #6228 family adds one beside its siblings so catalog_seed reads as a roster, and consolidating them would trade a growing-but-uniform directory for merged files that mix unrelated families' fixtures. The remaining waived #6228 families will each add one more.
+//
+// Family Odùs live one file per cataloged family in the familyodu
+// subpackage (#6594 P1): every #5991-#6003 and #6228 family adds one beside
+// its siblings so the catalog reads as a roster, keeping this core package
+// under the directory file cap. The remaining waived #6228 families will
+// each add one more beside their siblings in familyodu.
+package ifa

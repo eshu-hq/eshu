@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
@@ -31,7 +32,7 @@ func TestValidateOduPayloadsFailsOnInvalidPayloadNamingKind(t *testing.T) {
 	if !ok {
 		t.Fatal("fixturepack has no invalid aws_resource payload fixture")
 	}
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:bad-aws",
 		Facts: []facts.Envelope{
 			{FactKind: "aws_resource", Payload: invalid},
@@ -53,7 +54,7 @@ func TestValidateOduPayloadsPassesOnValidPayload(t *testing.T) {
 	if !ok {
 		t.Fatal("fixturepack has no valid aws_resource payload fixture")
 	}
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:good-aws",
 		Facts: []facts.Envelope{
 			{FactKind: "aws_resource", Payload: valid},
@@ -67,7 +68,7 @@ func TestValidateOduPayloadsPassesOnValidPayload(t *testing.T) {
 func TestValidateOduPayloadsPassesSchemaLessRegisteredKind(t *testing.T) {
 	t.Parallel()
 
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:tag-only",
 		Facts: []facts.Envelope{
 			{FactKind: "aws_tag_observation", Payload: map[string]any{"key": "env", "value": "prod"}},
@@ -93,10 +94,10 @@ func TestValidateOduPayloadsPassesCatalogedAwsPackOdu(t *testing.T) {
 func TestValidateOduPayloadsPassesUnregisteredKindUntouched(t *testing.T) {
 	t.Parallel()
 
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:content-only",
 		Facts: []facts.Envelope{
-			{FactKind: contentFactKind, Payload: map[string]any{"relative_path": "x.yaml", "content": "whatever: true\n"}},
+			{FactKind: familyodu.ContentFactKind, Payload: map[string]any{"relative_path": "x.yaml", "content": "whatever: true\n"}},
 		},
 	}
 	if err := ValidateOduPayloads(odu, schemaBackedRegistry()); err != nil {

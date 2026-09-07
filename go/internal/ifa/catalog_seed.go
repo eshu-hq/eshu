@@ -7,34 +7,13 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
 )
 
-// repositoryFactKind is the raw fact-kind literal for a repository fact. It
-// has no exported constant in go/internal/facts (the kind is admission-exempt,
-// #4752) so the string is spelled out, matching the registry entry's Kind
-// value and go/internal/storage/postgres's own repository-kind checks.
-const repositoryFactKind = "repository"
-
-// contentFactKind is the raw fact-kind literal the git-content collector
-// emits (go/internal/collector/git_content_fact_envelopes.go). It has no
-// registry entry (#4783 W1): relationships.DiscoverEvidence dispatches
-// artifact-type/content evidence off this unregistered kind, not off a typed
-// registered one, so Ifá seeds it as a plain string literal too.
-const contentFactKind = "content"
-
-// contentEntityFactKind and fileFactKind are the internal wire literals the
-// git collector emits for a parsed entity and a parsed file
-// (go/internal/collector/git_content_fact_envelopes.go, git_fact_builder.go).
-// content_entity has no typed payload contract. file does have the public
-// codegraph/v1.File contract; catalog fixtures that construct file payloads
-// must use that typed struct and factschema.EncodeCodegraphFile before building
-// an envelope. These constants remain for older SQL-family dispatch and
-// filtering sites that only need the wire kind string.
-const (
-	contentEntityFactKind = "content_entity"
-	fileFactKind          = "file"
-)
+// The raw collector wire-kind literals (familyodu.RepositoryFactKind, familyodu.ContentFactKind,
+// familyodu.ContentEntityFactKind, familyodu.FileFactKind) live in familyodu/fixturekinds.go
+// beside the family fixtures that consume them.
 
 // catalogSeed is the P1 seed set of cataloged Odùs. Every entry here is
 // genuinely green: it either satisfies a payload schema (fact_kind:*) or
@@ -42,7 +21,7 @@ const (
 // same-Odù repository fact (narrowed_correlation:*). Adding a fixture here
 // without a matching, honestly-green specs/ifa-coverage-manifest.v1.yaml row
 // would be a false-green coverage claim (see coverage_falsegreen_test.go).
-var catalogSeed = []CatalogOdu{
+var catalogSeed = []familyodu.CatalogOdu{
 	kustomizeDeploysFromOdu(),
 	argocdDeploysFromOdu(),
 	awsPackOdu(),
@@ -52,16 +31,16 @@ var catalogSeed = []CatalogOdu{
 	sqlFamilyOdu(),
 	codeCallFamilyOdu(),
 	documentationFamilyOdu(),
-	rationaleFamilyOdu(),
+	familyodu.RationaleFamilyOdu(),
 	CodeownersFamilyOdu(),
 	SubmodulePinFamilyOdu(),
 	sqlFamilyDeltaOdu(),
 	deployableUnitFamilyOdu(),
 	repoDependencyFamilyOdu(),
-	inheritanceFamilyOdu(),
-	shellExecFamilyOdu(),
+	familyodu.InheritanceFamilyOdu(),
+	familyodu.ShellExecFamilyOdu(),
 	workloadDependencyFamilyOdu(),
-	symbolRuntimeFamilyOdu(),
+	familyodu.SymbolRuntimeFamilyOdu(),
 	// The first four DIRECT-materialization families (#6228). Every entry
 	// above belongs to reducer.MaterializedEdgeFamilies(); these four belong
 	// to reducer.DirectMaterializedEdgeFamilies(). Since #6309 two of the four
@@ -70,10 +49,10 @@ var catalogSeed = []CatalogOdu{
 	// iam_can_assume still carry their waiver rows. Being cataloged is one of
 	// the four conditions a coverage row asserts, not the whole of it, so none
 	// gets a coverage row on the strength of appearing here.
-	KubernetesNamespaceEnvironmentFamilyOdu(),
-	IAMInstanceProfileRoleFamilyOdu(),
-	WorkloadCloudRelationshipFamilyOdu(),
-	IAMCanAssumeFamilyOdu(),
+	familyodu.KubernetesNamespaceEnvironmentFamilyOdu(),
+	familyodu.IAMInstanceProfileRoleFamilyOdu(),
+	familyodu.WorkloadCloudRelationshipFamilyOdu(),
+	familyodu.IAMCanAssumeFamilyOdu(),
 }
 
 // awsFamilySchemaBackedKinds are the representative aws_* fact kinds
@@ -94,7 +73,7 @@ var awsFamilySchemaBackedKinds = []string{
 // It has no repository fact and produces no graph evidence — it exists purely
 // to prove fact_kind:* payload-schema coverage (fact_kind:aws_resource in
 // specs/ifa-coverage-manifest.v1.yaml), not narrowed_correlation coverage.
-func awsPackOdu() CatalogOdu {
+func awsPackOdu() familyodu.CatalogOdu {
 	factsForOdu := make([]facts.Envelope, 0, len(awsFamilySchemaBackedKinds)+1)
 	for _, kind := range awsFamilySchemaBackedKinds {
 		payload, ok := fixturepack.ValidPayload(kind)
@@ -117,8 +96,8 @@ func awsPackOdu() CatalogOdu {
 		},
 	})
 
-	return CatalogOdu{
-		Odu:    Odu{Name: "odu:aws-pack", Facts: factsForOdu},
+	return familyodu.CatalogOdu{
+		Odu:    familyodu.Odu{Name: "odu:aws-pack", Facts: factsForOdu},
 		Detail: "fixturepack-valid payloads for the aws_resource/aws_resource_policy_permission/aws_security_group_rule/aws_warning family, plus the schema-less aws_tag_observation registry-only kind",
 	}
 }
@@ -152,7 +131,7 @@ var vulnFamilySchemaBackedKinds = []string{
 // (specs/ifa-coverage-manifest.v1.yaml), the Ifá backfill this family owns per
 // epic #5462 and the #5474 coverage-backfill plan's ownership carve-out. It
 // does not prove narrowed_correlation coverage.
-func vulnPackOdu() CatalogOdu {
+func vulnPackOdu() familyodu.CatalogOdu {
 	factsForOdu := make([]facts.Envelope, 0, len(vulnFamilySchemaBackedKinds)+2)
 	for _, kind := range vulnFamilySchemaBackedKinds {
 		payload, ok := fixturepack.ValidPayload(kind)
@@ -187,8 +166,8 @@ func vulnPackOdu() CatalogOdu {
 		},
 	})
 
-	return CatalogOdu{
-		Odu:    Odu{Name: "odu:vuln-pack", Facts: factsForOdu},
+	return familyodu.CatalogOdu{
+		Odu:    familyodu.Odu{Name: "odu:vuln-pack", Facts: factsForOdu},
 		Detail: "fixturepack-valid provider vulnerability payloads plus the operator-owned vulnerability.suppression shape and schema-less vulnerability.warning kind",
 	}
 }
@@ -199,14 +178,14 @@ func vulnPackOdu() CatalogOdu {
 // relationships.TestDiscoverKustomizeEvidence. relationships.DiscoverEvidence
 // resolves it to a DEPLOYS_FROM edge carrying KUSTOMIZE_RESOURCE_REFERENCE
 // evidence — the exact evidence_kinds filter B-12's rc-29 requires.
-func kustomizeDeploysFromOdu() CatalogOdu {
-	odu := Odu{
+func kustomizeDeploysFromOdu() familyodu.CatalogOdu {
+	odu := familyodu.Odu{
 		Name: "odu:kustomize-deploys-from",
 		Facts: []facts.Envelope{
 			targetRepositoryFact(),
 			{
 				ScopeID:  "repo-deploy",
-				FactKind: contentFactKind,
+				FactKind: familyodu.ContentFactKind,
 				Payload: map[string]any{
 					"relative_path": "overlays/prod/kustomization.yaml",
 					"content":       "resources:\n  - ../../base\nnamePrefix: payments-service\n",
@@ -214,7 +193,7 @@ func kustomizeDeploysFromOdu() CatalogOdu {
 			},
 		},
 	}
-	return CatalogOdu{
+	return familyodu.CatalogOdu{
 		Odu:    odu,
 		Detail: "Kustomize overlay DEPLOYS_FROM evidence resolving to the cataloged payments-service repository (rc-29's KUSTOMIZE_RESOURCE_REFERENCE filter)",
 	}
@@ -226,14 +205,14 @@ func kustomizeDeploysFromOdu() CatalogOdu {
 // relationship as the Kustomize Odù but with ARGOCD_APPLICATION_SOURCE
 // evidence, not KUSTOMIZE_RESOURCE_REFERENCE — the deliberate false-green
 // break in coverage_falsegreen_test.go.
-func argocdDeploysFromOdu() CatalogOdu {
-	odu := Odu{
+func argocdDeploysFromOdu() familyodu.CatalogOdu {
+	odu := familyodu.Odu{
 		Name: "odu:argocd-deploys-from",
 		Facts: []facts.Envelope{
 			targetRepositoryFact(),
 			{
 				ScopeID:  "repo-gitops",
-				FactKind: contentFactKind,
+				FactKind: familyodu.ContentFactKind,
 				Payload: map[string]any{
 					"artifact_type": "argocd",
 					"relative_path": "apps/payments.yaml",
@@ -247,7 +226,7 @@ func argocdDeploysFromOdu() CatalogOdu {
 			},
 		},
 	}
-	return CatalogOdu{
+	return familyodu.CatalogOdu{
 		Odu:    odu,
 		Detail: "ArgoCD Application DEPLOYS_FROM evidence resolving to the same cataloged repository, carrying ARGOCD_APPLICATION_SOURCE (not KUSTOMIZE_RESOURCE_REFERENCE) evidence",
 	}
@@ -261,7 +240,7 @@ func argocdDeploysFromOdu() CatalogOdu {
 func targetRepositoryFact() facts.Envelope {
 	return facts.Envelope{
 		ScopeID:  "repo-payments",
-		FactKind: repositoryFactKind,
+		FactKind: familyodu.RepositoryFactKind,
 		Payload: map[string]any{
 			"repo_id":   "repo-payments",
 			"name":      "payments-service",

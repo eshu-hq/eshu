@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
@@ -27,8 +28,8 @@ func coverageFixtureExpectations() DerivedExpectations {
 	}
 }
 
-func coverageFixtureCatalog() map[string]Odu {
-	return map[string]Odu{
+func coverageFixtureCatalog() map[string]familyodu.Odu {
+	return map[string]familyodu.Odu{
 		"odu:kustomize-deploys-from": kustomizeDeploysFromOdu().Odu,
 		"odu:argocd-deploys-from":    argocdDeploysFromOdu().Odu,
 	}

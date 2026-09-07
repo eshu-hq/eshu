@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"bytes"
@@ -124,23 +124,23 @@ func CodeownersFamilyCassetteFullPath(repoRoot string) string {
 func LoadCodeownersFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: read codeowners cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: read codeowners cassette %s: %w", cassettePath, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	var parsed codeownersFamilyCassetteFile
 	if err := decoder.Decode(&parsed); err != nil {
-		return Odu{}, fmt.Errorf("ifa: parse codeowners cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: parse codeowners cassette %s: %w", cassettePath, err)
 	}
 	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
-		return Odu{}, fmt.Errorf("ifa: codeowners cassette %s has trailing content after its JSON object", cassettePath)
+		return Odu{}, fmt.Errorf("familyodu: codeowners cassette %s has trailing content after its JSON object", cassettePath)
 	}
 	if len(parsed.Scopes) != 1 {
-		return Odu{}, fmt.Errorf("ifa: codeowners cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
+		return Odu{}, fmt.Errorf("familyodu: codeowners cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
 	}
 	scope := parsed.Scopes[0]
 	if len(scope.Facts) == 0 {
-		return Odu{}, fmt.Errorf("ifa: codeowners cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
+		return Odu{}, fmt.Errorf("familyodu: codeowners cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
 	}
 
 	envelopes := make([]facts.Envelope, 0, len(scope.Facts))

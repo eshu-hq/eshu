@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 // Committed-cassette loaders for the two direct-materialization family Odùs
@@ -89,11 +90,11 @@ type directFamilyCassetteFile struct {
 // projects it onto the fact envelopes the reducer's extractor consumes.
 //
 // It is the lockstep loader for that cassette: production registers the
-// compiled KubernetesNamespaceEnvironmentFamilyOdu in catalogSeed, and
+// compiled familyodu.KubernetesNamespaceEnvironmentFamilyOdu in catalogSeed, and
 // TestKubernetesNamespaceEnvironmentFamilyCassetteMatchesCompiledOdu compares
 // the two. Exported so materializededges' tests can reach it without a second
 // copy of the decoder.
-func LoadKubernetesNamespaceEnvironmentFamilyOdu(cassettePath string) (Odu, error) {
+func LoadKubernetesNamespaceEnvironmentFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, KubernetesNamespaceEnvironmentFamilyOduName)
 }
 
@@ -101,7 +102,7 @@ func LoadKubernetesNamespaceEnvironmentFamilyOdu(cassettePath string) (Odu, erro
 // it onto the fact envelopes the reducer's extractor consumes, the
 // iam_instance_profile_role counterpart to
 // LoadKubernetesNamespaceEnvironmentFamilyOdu.
-func LoadIAMInstanceProfileRoleFamilyOdu(cassettePath string) (Odu, error) {
+func LoadIAMInstanceProfileRoleFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	return loadDirectFamilyOdu(cassettePath, IAMInstanceProfileRoleFamilyOduName)
 }
 
@@ -117,29 +118,29 @@ func LoadIAMInstanceProfileRoleFamilyOdu(cassettePath string) (Odu, error) {
 // cassette whose green gate run would then attest to something it never said.
 // json.Decoder.Decode reads exactly one JSON value and stops, so the second
 // Decode requiring io.EOF closes the trailing-content gap.
-func loadDirectFamilyOdu(cassettePath, oduName string) (Odu, error) {
+func loadDirectFamilyOdu(cassettePath, oduName string) (familyodu.Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: read %s cassette %s: %w", oduName, cassettePath, err)
+		return familyodu.Odu{}, fmt.Errorf("ifa: read %s cassette %s: %w", oduName, cassettePath, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	var parsed directFamilyCassetteFile
 	if err := decoder.Decode(&parsed); err != nil {
-		return Odu{}, fmt.Errorf("ifa: parse %s cassette %s: %w", oduName, cassettePath, err)
+		return familyodu.Odu{}, fmt.Errorf("ifa: parse %s cassette %s: %w", oduName, cassettePath, err)
 	}
 	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
-		return Odu{}, fmt.Errorf("ifa: %s cassette %s has trailing content after its JSON object", oduName, cassettePath)
+		return familyodu.Odu{}, fmt.Errorf("ifa: %s cassette %s has trailing content after its JSON object", oduName, cassettePath)
 	}
 	if len(parsed.Scopes) != 1 {
-		return Odu{}, fmt.Errorf(
+		return familyodu.Odu{}, fmt.Errorf(
 			"ifa: %s cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge",
 			oduName, cassettePath, len(parsed.Scopes),
 		)
 	}
 	scope := parsed.Scopes[0]
 	if len(scope.Facts) == 0 {
-		return Odu{}, fmt.Errorf("ifa: %s cassette %s carries no facts; an empty Odù makes every assertion vacuous", oduName, cassettePath)
+		return familyodu.Odu{}, fmt.Errorf("ifa: %s cassette %s carries no facts; an empty Odù makes every assertion vacuous", oduName, cassettePath)
 	}
 
 	// FencingToken and the scope descriptors are deliberately not projected:
@@ -160,5 +161,5 @@ func loadDirectFamilyOdu(cassettePath, oduName string) (Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return Odu{Name: oduName, Facts: envelopes}, nil
+	return familyodu.Odu{Name: oduName, Facts: envelopes}, nil
 }

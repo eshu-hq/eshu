@@ -2828,8 +2828,8 @@ gates:
       # That over-triggering is deliberate workflow policy (under-triggering
       # ships a dark gate, #6200), not a gap in the registry split; narrowing
       # it needs a per-job condition in the workflow, not a registry change.
-      - "go/internal/ifa/kubernetes_namespace_environment_family_odu.go"
-      - "go/internal/ifa/iam_instance_profile_role_family_odu.go"
+      - "go/internal/ifa/familyodu/kubernetes_namespace_environment_family_odu.go"
+      - "go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go"
       - "go/internal/ifa/direct_family_cassette.go"
       - "go/internal/reducer/kubernetes_namespace_materialization.go"
       - "go/internal/reducer/iam_instance_profile_role_materialization.go"
@@ -2957,9 +2957,9 @@ gates:
       - "go/internal/ifa/catalog_seed.go"
       - "go/internal/ifa/code_call_family_catalog.go"
       - "go/internal/ifa/deployable_unit_family_catalog.go"
-      - "go/internal/ifa/deployable_unit_family_odu.go"
+      - "go/internal/ifa/familyodu/deployable_unit_family_odu.go"
       - "go/internal/ifa/documentation_family_catalog.go"
-      - "go/internal/ifa/documentation_family_odu.go"
+      - "go/internal/ifa/familyodu/documentation_family_odu.go"
       - "go/internal/reducer/code_call*.go"
       - "go/internal/reducer/deployable_unit*.go"
       - "go/internal/reducer/documentation_edge*.go"
@@ -2970,7 +2970,7 @@ gates:
       # to have at least one trigger whose TEXT contains the family stem, so a
       # directory glob that covers the same files does not satisfy it. Keeping
       # these explicit is what ties the coverage row to a gate that re-runs (#6200).
-      - "go/internal/ifa/symbol_runtime_family_odu.go"
+      - "go/internal/ifa/familyodu/symbol_runtime_family_odu.go"
       - "go/internal/reducer/symbol_runtime*.go"
       - "scripts/lib/ifa_symbol_runtime_live.sh"
       - "go/internal/ifa/sql_relationship_odu*.go"
@@ -3503,9 +3503,9 @@ gates:
       - "go/internal/ifa/catalog_seed.go"
       - "go/internal/ifa/code_call_family_catalog.go"
       - "go/internal/ifa/deployable_unit_family_catalog.go"
-      - "go/internal/ifa/deployable_unit_family_odu.go"
+      - "go/internal/ifa/familyodu/deployable_unit_family_odu.go"
       - "go/internal/ifa/documentation_family_catalog.go"
-      - "go/internal/ifa/documentation_family_odu.go"
+      - "go/internal/ifa/familyodu/documentation_family_odu.go"
       - "go/internal/reducer/code_call*.go"
       - "go/internal/reducer/deployable_unit*.go"
       - "go/internal/reducer/documentation_edge*.go"
@@ -3516,7 +3516,7 @@ gates:
       # to have at least one trigger whose TEXT contains the family stem, so a
       # directory glob that covers the same files does not satisfy it. Keeping
       # these explicit is what ties the coverage row to a gate that re-runs (#6200).
-      - "go/internal/ifa/symbol_runtime_family_odu.go"
+      - "go/internal/ifa/familyodu/symbol_runtime_family_odu.go"
       - "go/internal/reducer/symbol_runtime*.go"
       - "scripts/lib/ifa_symbol_runtime_live.sh"
       - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"

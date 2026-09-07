@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
@@ -20,7 +21,7 @@ import (
 func TestRepoDependencyFamilyCassetteSatisfiesProductionContract(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	path := RepoDependencyFamilyCassetteFullPath(repoRoot)
+	path := familyodu.RepoDependencyFamilyCassetteFullPath(repoRoot)
 
 	file, err := cassette.LoadFile(path)
 	if err != nil {
@@ -52,7 +53,7 @@ func TestRepoDependencyFamilyCassetteSatisfiesProductionContract(t *testing.T) {
 		t.Fatalf("last scope repo_id = %q, want evidence-bearing source %q", got, repoDependencyFamilySourceRepoID)
 	}
 
-	odu, err := LoadRepoDependencyFamilyOdu(path)
+	odu, err := familyodu.LoadRepoDependencyFamilyOdu(path)
 	if err != nil {
 		t.Fatalf("loadRepoDependencyFamilyOdu: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestRepoDependencyFamilyCassetteSatisfiesProductionContract(t *testing.T) {
 func TestRepoDependencyFamilyCassetteEmitsProductionGeneration(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	source, err := cassette.NewSource(RepoDependencyFamilyCassetteFullPath(repoRoot))
+	source, err := cassette.NewSource(familyodu.RepoDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
 		t.Fatalf("cassette.NewSource: %v", err)
 	}
@@ -117,14 +118,14 @@ func TestRepoDependencyFamilyCassetteEmitsProductionGeneration(t *testing.T) {
 func TestRepoDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu, err := LoadRepoDependencyFamilyOdu(RepoDependencyFamilyCassetteFullPath(repoRoot))
+	odu, err := familyodu.LoadRepoDependencyFamilyOdu(familyodu.RepoDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
 		t.Fatalf("loadRepoDependencyFamilyOdu: %v", err)
 	}
 
 	var repoIDs []string
 	for _, fact := range odu.Facts {
-		if fact.FactKind != repositoryFactKind {
+		if fact.FactKind != familyodu.RepositoryFactKind {
 			continue
 		}
 		repoID, ok := fact.Payload["repo_id"].(string)
@@ -186,14 +187,14 @@ func TestRepoDependencyFamilyOduPreservesEnvelopeFields(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	odu, err := LoadRepoDependencyFamilyOdu(RepoDependencyFamilyCassetteFullPath(repoRoot))
+	odu, err := familyodu.LoadRepoDependencyFamilyOdu(familyodu.RepoDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
 		t.Fatalf("loadRepoDependencyFamilyOdu: %v", err)
 	}
 
 	// Read the cassette independently so the comparison is against the file,
 	// not against the loader's own view of it.
-	raw, err := os.ReadFile(RepoDependencyFamilyCassetteFullPath(repoRoot))
+	raw, err := os.ReadFile(familyodu.RepoDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
 		t.Fatalf("read cassette: %v", err)
 	}
@@ -256,15 +257,15 @@ func TestRepoDependencyFamilyOduPreservesEnvelopeFields(t *testing.T) {
 func TestRepoDependencyFamilyOduInCatalogSeed(t *testing.T) {
 	t.Parallel()
 	catalog := CatalogByName()
-	odu, ok := catalog[repoDependencyFamilyOduName]
+	odu, ok := catalog[familyodu.RepoDependencyFamilyOduName]
 	if !ok {
-		t.Fatalf("CatalogByName() is missing %q; repoDependencyFamilyOdu() must be added to catalogSeed", repoDependencyFamilyOduName)
+		t.Fatalf("CatalogByName() is missing %q; repoDependencyFamilyOdu() must be added to catalogSeed", familyodu.RepoDependencyFamilyOduName)
 	}
 	if len(odu.Facts) == 0 {
-		t.Fatalf("cataloged %q carries no facts", repoDependencyFamilyOduName)
+		t.Fatalf("cataloged %q carries no facts", familyodu.RepoDependencyFamilyOduName)
 	}
 	detail := repoDependencyFamilyOdu().Detail
 	if !strings.Contains(detail, "seven repository scopes and 18 facts") {
-		t.Fatalf("cataloged %q detail does not pin the multi-scope production shape: %q", repoDependencyFamilyOduName, detail)
+		t.Fatalf("cataloged %q detail does not pin the multi-scope production shape: %q", familyodu.RepoDependencyFamilyOduName, detail)
 	}
 }

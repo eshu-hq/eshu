@@ -49,7 +49,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("go", "internal", "ifa", "code_call_family_odu.go"),
+			path: filepath.Join("go", "internal", "ifa", "familyodu", "code_call_family_odu.go"),
 			required: []string{
 				"Both live gate scripts drive this cassette",
 			},
@@ -186,7 +186,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 				// every test stayed green. The list now reads the same-package
 				// const, so pin the const name -- the drift it guarded against
 				// is unrepresentable rather than merely detected.
-				"\n\t\tdocumentationFamilyCassettePath,",
+				"\n\t\tDocumentationFamilyCassettePath,",
 			},
 		},
 		{

@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -49,8 +50,8 @@ func TestRepositoryCatalogDedupesByRepoID(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		{FactKind: repositoryFactKind, Payload: map[string]any{"repo_id": "repo-a", "name": "first"}},
-		{FactKind: repositoryFactKind, Payload: map[string]any{"repo_id": "repo-a", "name": "second"}},
+		{FactKind: familyodu.RepositoryFactKind, Payload: map[string]any{"repo_id": "repo-a", "name": "first"}},
+		{FactKind: familyodu.RepositoryFactKind, Payload: map[string]any{"repo_id": "repo-a", "name": "second"}},
 	}
 	catalog := RepositoryCatalog(envelopes)
 	if len(catalog) != 1 {
@@ -82,12 +83,12 @@ func TestDiscoveredEvidenceArgoCDOdu(t *testing.T) {
 func TestDiscoveredEvidenceEmptyCatalogProducesNoEvidence(t *testing.T) {
 	t.Parallel()
 
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:no-catalog",
 		Facts: []facts.Envelope{
 			{
 				ScopeID:  "repo-deploy",
-				FactKind: contentFactKind,
+				FactKind: familyodu.ContentFactKind,
 				Payload: map[string]any{
 					"relative_path": "overlays/prod/kustomization.yaml",
 					"content":       "resources:\n  - ../../base\nnamePrefix: payments-service\n",

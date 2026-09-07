@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"fmt"
@@ -165,7 +165,7 @@ func KubernetesNamespaceEnvironmentFamilyOdu() CatalogOdu {
 		})
 		if err != nil {
 			panic(fmt.Sprintf(
-				"ifa: catalog_seed %s: encode kubernetes_live.namespace payload for %q: %v",
+				"familyodu: catalog_seed %s: encode kubernetes_live.namespace payload for %q: %v",
 				KubernetesNamespaceEnvironmentFamilyOduName, fixture.ObjectID, err,
 			))
 		}
