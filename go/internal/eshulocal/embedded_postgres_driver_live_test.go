@@ -82,4 +82,16 @@ func TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive(t *testing.T) {
 	if current != localPostgresDatabase {
 		t.Fatalf("current_database() = %q, want %q", current, localPostgresDatabase)
 	}
+
+	// The #4456 connection budget is only real if the running server actually
+	// applies it. The unit guard checks the derived constant; this checks that
+	// the postmaster booted with it, which is what a developer's concurrent
+	// API + MCP + indexing session depends on.
+	var maxConns int
+	if err := db.QueryRowContext(ctx, "SHOW max_connections").Scan(&maxConns); err != nil {
+		t.Fatalf("SHOW max_connections error = %v, want nil", err)
+	}
+	if maxConns != LocalPostgresMaxConnections {
+		t.Fatalf("SHOW max_connections = %d, want %d (the derived local pool budget)", maxConns, LocalPostgresMaxConnections)
+	}
 }

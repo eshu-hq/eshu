@@ -73,6 +73,25 @@ In local Compose this inequality is enforced by
 pool-holder or raising the per-process pool without lifting the server ceiling
 fails the build.
 
+The same inequality governs the **embedded local Postgres** that `eshulocal`
+starts for the `local_lightweight` and `local_authoritative` profiles. It is not
+Compose and reads no `ESHU_PG_MAX_CONNECTIONS`; its ceiling is derived in
+`internal/eshulocal` from the same three figures and enforced by
+`TestEmbeddedPostgresMaxConnectionsCoversLocalPoolBudget`:
+
+```text
+5 pool-holding services * 30 per-process pool + 20 reserved/admin = 170
+```
+
+Five, and they are enumerated in `localPostgresPoolHolders` rather than counted:
+the local supervisor starts `eshu-reducer`, `eshu-ingester` and
+`eshu-mcp-server` as children, and `eshu vuln-scan repo` attaches to a running
+owner and launches a short-lived `eshu-api` plus `eshu-bootstrap-index` against
+that same Postgres. All five take the shared 30-connection default, so the worst
+case is concurrent rather than hypothetical. The ceiling is `len()` of that list,
+so adding a holder raises it in the same edit; a new local process that opens a
+pool must be added there.
+
 If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because
 one phase is slow.
