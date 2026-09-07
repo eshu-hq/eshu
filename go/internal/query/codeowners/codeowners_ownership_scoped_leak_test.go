@@ -61,11 +61,12 @@ func codeownersScopedTestAuthContext(tenant string, allowedRepositoryIDs []strin
 // #5419 Phase 4b cross-tenant leak proof: a scoped caller granted only repo-a
 // must never see repo-b's CODEOWNERS ownership rows or effective_owner when it
 // requests ?repository_id=repo-b, even though the graph and correlation store
-// both hold real repo-b data. Before the fix, listOwnership ran the
+// both hold real repo-b data. Before the fix, ListOwnership ran the
 // DECLARES_CODEOWNER read and resolveEffectiveRepositoryOwner unconditionally
 // for whatever repository_id the caller supplied, so this case failed
-// (leaked repo-b's row and manifest owner) until repositoryAccessFilterFromContext
-// gated both read paths in listOwnership.
+// (leaked repo-b's row and manifest owner) until
+// querycontract.RepositoryAccessFilterFromContext gated both read paths in
+// ListOwnership.
 func TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository(t *testing.T) {
 	t.Parallel()
 
