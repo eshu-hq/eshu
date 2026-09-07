@@ -33,7 +33,8 @@ const ec2InstanceNodeCostEvidenceSource = "reducer/ec2-instances"
 
 // EC2 fixture source-order keys. The #5007 owner-ledger gate reads each row's
 // source_order_key to resolve ownership, exactly as the production reducer
-// row builder stamps it (go/internal/reducer/ec2_instance_node_rows.go,
+// row builder stamps it
+// (go/internal/reducer/ec2instance/ec2_instance_node_rows.go,
 // sourceOrderKeyField / go/internal/reducer/source_order_key.go).
 const (
 	ec2OrderKeyRowA = "2026-07-01T00:00:00.000000000Z|fact-a"

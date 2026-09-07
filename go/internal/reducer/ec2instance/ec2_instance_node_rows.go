@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2instance
 
 import (
 	"context"
@@ -10,6 +10,11 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
@@ -29,7 +34,7 @@ type ec2InstanceSkipTally map[string]int
 // cloud_resource_uid. It is the public extractor used by tests and callers that
 // do not need the skip tally; see ExtractEC2InstanceNodeRowsWithSkips for the
 // telemetry-bearing variant.
-func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
+func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) ([]map[string]any, []factdecode.QuarantinedFact, error) {
 	rows, _, quarantined, err := ExtractEC2InstanceNodeRowsWithSkips(envelopes)
 	return rows, quarantined, err
 }
@@ -41,14 +46,14 @@ func ExtractEC2InstanceNodeRows(envelopes []facts.Envelope) ([]map[string]any, [
 // and facts that carry neither an instance id nor an arn are skipped rather than
 // fabricating a phantom node. The returned rows are sorted by uid for a
 // byte-stable batch independent of input ordering.
-func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[string]any, ec2InstanceSkipTally, []quarantinedFact, error) {
+func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[string]any, ec2InstanceSkipTally, []factdecode.QuarantinedFact, error) {
 	skipped := ec2InstanceSkipTally{}
 	if len(envelopes) == 0 {
 		return nil, skipped, nil, nil
 	}
 
 	byUID := make(map[string]map[string]any, len(envelopes))
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.EC2InstancePostureFactKind {
 			continue
@@ -62,7 +67,7 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 		}
 		row, uid, ok, err := ec2InstanceNodeRow(env)
 		if err != nil {
-			q, ok, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, skipped, nil, fatal
 			}
@@ -79,7 +84,7 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 		// observation, source_fact_id tie-break), not the last fact by slice
 		// order, so within-scope duplicate-uid resolution uses the identical
 		// rule the owner ledger applies across scopes.
-		if preferMaxSourceOrderKey(byUID[uid], row) {
+		if payloadcore.PreferMaxSourceOrderKey(byUID[uid], row) {
 			byUID[uid] = row
 		}
 	}
@@ -115,12 +120,12 @@ func ExtractEC2InstanceNodeRowsWithSkips(envelopes []facts.Envelope) ([]map[stri
 // topology field the posture fact does not carry — materializing absent data would
 // be fabrication.
 func ec2InstanceNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
-	posture, err := decodeEC2InstancePosture(env)
+	posture, err := schemadecode.DecodeEC2InstancePosture(env)
 	if err != nil {
 		return nil, "", false, err
 	}
-	instanceID := derefString(posture.InstanceID)
-	arn := derefString(posture.ARN)
+	instanceID := payloadcore.DerefString(posture.InstanceID)
+	arn := payloadcore.DerefString(posture.ARN)
 
 	resourceID := instanceID
 	if resourceID == "" {
@@ -130,12 +135,12 @@ func ec2InstanceNodeRow(env facts.Envelope) (map[string]any, string, bool, error
 		return nil, "", false, nil
 	}
 
-	resourceType := derefString(posture.ResourceType)
+	resourceType := payloadcore.DerefString(posture.ResourceType)
 	if resourceType == "" {
 		resourceType = "aws_ec2_instance"
 	}
 
-	uid := cloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID)
+	uid := cloudjoin.CloudResourceUID(posture.AccountID, posture.Region, resourceType, resourceID)
 	row := map[string]any{
 		"uid":           uid,
 		"arn":           arn,
@@ -144,37 +149,37 @@ func ec2InstanceNodeRow(env facts.Envelope) (map[string]any, string, bool, error
 		// The posture fact carries no Name tag; the instance id is the stable name
 		// and no tag value (which could carry secrets) is ever read.
 		"name":         resourceID,
-		"state":        derefString(posture.State),
+		"state":        payloadcore.DerefString(posture.State),
 		"account_id":   posture.AccountID,
 		"region":       posture.Region,
-		"service_kind": derefString(posture.ServiceKind),
-		// uniqueSortedStrings preserves the pre-typing byte-identical output: the
+		"service_kind": payloadcore.DerefString(posture.ServiceKind),
+		// UniqueSortedStrings preserves the pre-typing byte-identical output: the
 		// old payloadStrings(env.Payload, "", "correlation_anchors") trimmed,
 		// deduplicated, and sorted the anchors; the typed decode returns them raw.
-		"correlation_anchors": uniqueSortedStrings(posture.CorrelationAnchors),
+		"correlation_anchors": payloadcore.UniqueSortedStrings(posture.CorrelationAnchors),
 
 		// Derived posture (nullable scalars/booleans preserved as nil when absent
 		// so an unreported field stays distinct from an observed false/zero). Each
 		// boolean is a plain scalar bool or nil — never a *bool pointer — so the
 		// graph backend stores a clean scalar property.
 		"imds_v2_required":            boolPtrToAny(posture.IMDSv2Required),
-		"imds_http_endpoint":          derefString(posture.IMDSHTTPEndpoint),
+		"imds_http_endpoint":          payloadcore.DerefString(posture.IMDSHTTPEndpoint),
 		"imds_http_put_hop_limit":     int32PtrToInt64Any(posture.IMDSHTTPPutHopLimit),
 		"user_data_present":           boolPtrToAny(posture.UserDataPresent),
 		"detailed_monitoring_enabled": boolPtrToAny(posture.DetailedMonitoringEnabled),
 		"ebs_optimized":               boolPtrToAny(posture.EBSOptimized),
 		"public_ip_associated":        boolPtrToAny(posture.PublicIPAssociated),
-		"instance_profile_arn":        derefString(posture.InstanceProfileARN),
-		"tenancy":                     derefString(posture.Tenancy),
+		"instance_profile_arn":        payloadcore.DerefString(posture.InstanceProfileARN),
+		"tenancy":                     payloadcore.DerefString(posture.Tenancy),
 		"nitro_enclave_enabled":       boolPtrToAny(posture.NitroEnclaveEnabled),
 
-		"source_fact_id":    env.FactID,
-		"stable_fact_key":   env.StableFactKey,
-		"source_system":     env.SourceRef.SourceSystem,
-		"source_record_id":  env.SourceRef.SourceRecordID,
-		"source_confidence": string(env.SourceConfidence),
-		"collector_kind":    env.CollectorKind,
-		sourceOrderKeyField: sourceOrderKey(env),
+		"source_fact_id":                env.FactID,
+		"stable_fact_key":               env.StableFactKey,
+		"source_system":                 env.SourceRef.SourceSystem,
+		"source_record_id":              env.SourceRef.SourceRecordID,
+		"source_confidence":             string(env.SourceConfidence),
+		"collector_kind":                env.CollectorKind,
+		payloadcore.SourceOrderKeyField: payloadcore.SourceOrderKey(env),
 	}
 	return row, uid, true, nil
 }
@@ -205,7 +210,7 @@ func int32PtrToInt64Any(value *int32) any {
 // log can identify whether EC2 instance node work is fact loading, extraction, or
 // graph backend time.
 type ec2InstanceNodeMaterializationTiming struct {
-	intent               Intent
+	intent               reducercontract.Intent
 	factCount            int
 	nodeCount            int
 	skipped              ec2InstanceSkipTally

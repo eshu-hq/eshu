@@ -30,8 +30,8 @@
 // fact, adding no AWS API call. The identity fact is deliberately scoped to
 // identity + ami_id only: it never carries any property the posture fact and
 // its CloudResource node materialization already own (see
-// go/internal/reducer/ec2_instance_identity_materialization.go for the
-// dual-writer safety argument).
+// go/internal/reducer/ec2instance/ec2_instance_identity_materialization.go
+// for the dual-writer safety argument).
 //
 // The scanner also emits (#5717) one aws_resource fact for the AMI itself
 // (resource_type=aws_ec2_ami), deduplicated across every instance in the scan

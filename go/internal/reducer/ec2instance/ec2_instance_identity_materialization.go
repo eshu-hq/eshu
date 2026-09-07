@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2instance
 
 import (
 	"context"
@@ -13,21 +13,25 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// ec2InstanceIdentityMaterializationDomainDefinition returns the additive
+// IdentityMaterializationDomainDefinition returns the additive
 // definition for EC2 instance identity node-property projection (#5448). It is
 // additive because the handler requires an explicitly wired
 // EC2InstanceIdentityNodeWriter and FactLoader; registering it without them
 // would silently drop every intent.
-func ec2InstanceIdentityMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainEC2InstanceIdentityMaterialization,
+func IdentityMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainEC2InstanceIdentityMaterialization,
 		Summary: "project aws_ec2_instance aws_resource facts' ami_id onto canonical EC2 instance CloudResource node properties",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -65,14 +69,14 @@ type EC2InstanceIdentityNodeWriter interface {
 // CloudResource node in that generation (enforced by the writer's
 // never-create contract, not by this handler).
 type EC2InstanceIdentityMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter EC2InstanceIdentityNodeWriter
 	// ReadinessLookup reports whether the EC2 instance node canonical-nodes
 	// phase has committed. A nil lookup keeps the gate open for test wiring.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative (always retract before write).
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	// Instruments records the eshu_dp_reducer_input_invalid_facts_total
 	// counter when an aws_resource fact is quarantined as input_invalid.
@@ -84,20 +88,20 @@ type EC2InstanceIdentityMaterializationHandler struct {
 // Handle executes one EC2 instance identity materialization intent.
 func (h EC2InstanceIdentityMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainEC2InstanceIdentityMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainEC2InstanceIdentityMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"ec2 instance identity materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("ec2 instance identity materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("ec2 instance identity materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("ec2 instance identity materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("ec2 instance identity materialization node writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -113,14 +117,14 @@ func (h EC2InstanceIdentityMaterializationHandler) Handle(
 	}
 
 	if !h.instanceNodesReady(intent) {
-		return Result{}, ec2InstanceIdentityNodesNotReadyError{
+		return reducercontract.Result{}, ec2InstanceIdentityNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -128,21 +132,21 @@ func (h EC2InstanceIdentityMaterializationHandler) Handle(
 		[]string{facts.AWSResourceFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for ec2 instance identity materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for ec2 instance identity materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
 	extractStart := time.Now()
 	rows, quarantined, err := ExtractEC2InstanceIdentityNodeRows(envelopes)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainEC2InstanceIdentityMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainEC2InstanceIdentityMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -153,7 +157,7 @@ func (h EC2InstanceIdentityMaterializationHandler) Handle(
 			intent.GenerationID,
 			ec2InstanceIdentityEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical ec2 instance identity properties: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical ec2 instance identity properties: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -168,7 +172,7 @@ func (h EC2InstanceIdentityMaterializationHandler) Handle(
 			intent.GenerationID,
 			ec2InstanceIdentityEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical ec2 instance identity properties: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical ec2 instance identity properties: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -185,10 +189,10 @@ func (h EC2InstanceIdentityMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainEC2InstanceIdentityMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainEC2InstanceIdentityMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d ec2 instance identity node update(s) from %d aws resource fact(s); %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -196,7 +200,7 @@ func (h EC2InstanceIdentityMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
@@ -204,28 +208,28 @@ func (h EC2InstanceIdentityMaterializationHandler) Handle(
 // phase has committed for this intent's scope generation. A nil ReadinessLookup
 // keeps the gate open for test wiring; the durable Postgres claim gate is the
 // load-bearing fence in production.
-func (h EC2InstanceIdentityMaterializationHandler) instanceNodesReady(intent Intent) bool {
+func (h EC2InstanceIdentityMaterializationHandler) instanceNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
+	state, ok := gpphase.StateForIntentValue(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
-// shouldSkipRetract mirrors RDSPostureMaterializationHandler: skip the
+// shouldSkipRetract mirrors the RDS posture handler: skip the
 // prior-property retract on the very first generation for a scope (no prior
 // properties to remove) and only on the first attempt, so a retried attempt
 // still cleans up a partial prior write.
-func (h EC2InstanceIdentityMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h EC2InstanceIdentityMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -279,7 +283,7 @@ func (ec2InstanceIdentityNodesNotReadyError) FailureClass() string {
 }
 
 type ec2InstanceIdentityMaterializationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	factCount       int
 	rowCount        int
 	skipRetract     bool

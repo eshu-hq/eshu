@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2instance
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 type recordingEC2InstanceIdentityNodeWriter struct {
@@ -49,12 +51,12 @@ func (w *recordingEC2InstanceIdentityNodeWriter) RetractEC2InstanceIdentityNodes
 	return nil
 }
 
-func ec2InstanceIdentityIntent() Intent {
-	return Intent{
+func ec2InstanceIdentityIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-ec2-identity-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceIdentityMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceIdentityMaterialization,
 		// Mirrors buildEC2InstanceNodeMaterializationReducerIntent's own entity
 		// key exactly: this domain's readiness gate resolves the phase the EC2
 		// instance node domain published, not the generic aws_resource one.
@@ -83,7 +85,7 @@ func TestEC2InstanceIdentityMaterializationRejectsMismatchedDomain(t *testing.T)
 		ReadinessLookup: readyLookup(true, true),
 	}
 	intent := ec2InstanceIdentityIntent()
-	intent.Domain = DomainS3LogsToMaterialization
+	intent.Domain = reducercontract.DomainS3LogsToMaterialization
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("expected error for mismatched domain")
 	}
@@ -127,7 +129,7 @@ func TestEC2InstanceIdentityMaterializationGatesOnEC2InstanceNodePhase(t *testin
 	if err == nil {
 		t.Fatal("expected a retryable error while the EC2 instance node phase is not ready")
 	}
-	if !IsRetryable(err) {
+	if !reducercontract.IsRetryable(err) {
 		t.Fatalf("error must be retryable, got %v", err)
 	}
 	if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -150,7 +152,7 @@ func TestEC2InstanceIdentityMaterializationProjectsAMIID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.writeCalls != 1 {
@@ -229,11 +231,11 @@ func TestEC2InstanceIdentityMaterializationDoesNotDisturbPostureNode(t *testing.
 		}},
 		NodeWriter: postureWriter,
 	}
-	postureIntent := Intent{
+	postureIntent := reducercontract.Intent{
 		IntentID:     "intent-ec2-posture-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceNodeMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceNodeMaterialization,
 		EntityKeys:   []string{"ec2_instance_node_materialization:scope-1"},
 	}
 	if _, err := postureHandler.Handle(context.Background(), postureIntent); err != nil {
@@ -257,7 +259,7 @@ func TestEC2InstanceIdentityMaterializationDoesNotDisturbPostureNode(t *testing.
 		t.Fatalf("expected one written row per domain, got posture=%d identity=%d",
 			len(postureWriter.rows), len(identityWriter.writtenRows))
 	}
-	wantUID := cloudResourceUID(testEC2IdentityAccount, testEC2IdentityRegion, "aws_ec2_instance", instanceID)
+	wantUID := cloudjoin.CloudResourceUID(testEC2IdentityAccount, testEC2IdentityRegion, "aws_ec2_instance", instanceID)
 	if got := postureWriter.rows[0]["uid"]; got != wantUID {
 		t.Fatalf("posture row uid = %v, want %v (both domains must target the SAME node)", got, wantUID)
 	}

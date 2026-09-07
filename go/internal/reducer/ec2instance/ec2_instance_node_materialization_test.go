@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2instance
 
 import (
 	"context"
@@ -10,6 +10,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestEC2InstanceNodeMaterializationRejectsMismatchedDomain(t *testing.T) {
@@ -20,11 +24,11 @@ func TestEC2InstanceNodeMaterializationRejectsMismatchedDomain(t *testing.T) {
 		NodeWriter: &recordingEC2InstanceNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainSQLRelationshipMaterialization,
+		Domain:       reducercontract.DomainSQLRelationshipMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -40,11 +44,11 @@ func TestEC2InstanceNodeMaterializationRequiresFactLoader(t *testing.T) {
 		NodeWriter: &recordingEC2InstanceNodeWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceNodeMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceNodeMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -60,11 +64,11 @@ func TestEC2InstanceNodeMaterializationRequiresNodeWriter(t *testing.T) {
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceNodeMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceNodeMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
@@ -103,20 +107,20 @@ func TestExtractEC2InstanceNodeRowsBuildsCanonicalUID(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
-	want := cloudResourceUID("111122223333", "us-east-1", "aws_ec2_instance", instanceID)
-	if got := anyToString(rows[0]["uid"]); got != want {
+	want := cloudjoin.CloudResourceUID("111122223333", "us-east-1", "aws_ec2_instance", instanceID)
+	if got := payloadcore.AnyToString(rows[0]["uid"]); got != want {
 		t.Fatalf("uid = %q, want %q (the canonical EC2 instance CloudResource uid)", got, want)
 	}
-	if got := anyToString(rows[0]["resource_type"]); got != "aws_ec2_instance" {
+	if got := payloadcore.AnyToString(rows[0]["resource_type"]); got != "aws_ec2_instance" {
 		t.Fatalf("resource_type = %q, want aws_ec2_instance", got)
 	}
-	if got := anyToString(rows[0]["resource_id"]); got != instanceID {
+	if got := payloadcore.AnyToString(rows[0]["resource_id"]); got != instanceID {
 		t.Fatalf("resource_id = %q, want %q", got, instanceID)
 	}
-	if got := anyToString(rows[0]["name"]); got != instanceID {
+	if got := payloadcore.AnyToString(rows[0]["name"]); got != instanceID {
 		t.Fatalf("name = %q, want the instance id (no tag value is read)", got)
 	}
-	if got := anyToString(rows[0]["instance_profile_arn"]); got != "arn:aws:iam::111122223333:instance-profile/app" {
+	if got := payloadcore.AnyToString(rows[0]["instance_profile_arn"]); got != "arn:aws:iam::111122223333:instance-profile/app" {
 		t.Fatalf("instance_profile_arn = %q, want the profile arn property", got)
 	}
 }
@@ -142,7 +146,7 @@ func TestExtractEC2InstanceNodeRowsCarriesSafePostureOnly(t *testing.T) {
 	if row["public_ip_associated"] != true {
 		t.Fatalf("public_ip_associated = %v, want true", row["public_ip_associated"])
 	}
-	if got := anyToString(row["tenancy"]); got != "default" {
+	if got := payloadcore.AnyToString(row["tenancy"]); got != "default" {
 		t.Fatalf("tenancy = %q, want default", got)
 	}
 
@@ -187,7 +191,7 @@ func TestExtractEC2InstanceNodeRowsMissingOptionalFields(t *testing.T) {
 	if row["imds_http_put_hop_limit"] != nil {
 		t.Fatalf("imds_http_put_hop_limit = %v, want nil for an unreported field", row["imds_http_put_hop_limit"])
 	}
-	if got := anyToString(row["instance_profile_arn"]); got != "" {
+	if got := payloadcore.AnyToString(row["instance_profile_arn"]); got != "" {
 		t.Fatalf("instance_profile_arn = %q, want empty for an instance with no profile", got)
 	}
 }
@@ -212,8 +216,8 @@ func TestExtractEC2InstanceNodeRowsFallsBackToARNIdentity(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(rows))
 	}
-	want := cloudResourceUID("111122223333", "us-east-1", "aws_ec2_instance", arn)
-	if got := anyToString(rows[0]["uid"]); got != want {
+	want := cloudjoin.CloudResourceUID("111122223333", "us-east-1", "aws_ec2_instance", arn)
+	if got := payloadcore.AnyToString(rows[0]["uid"]); got != want {
 		t.Fatalf("uid = %q, want %q (ARN-fallback identity)", got, want)
 	}
 }
@@ -267,8 +271,8 @@ func TestExtractEC2InstanceNodeRowsSkipsTombstone(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (a terminated instance must not materialize)", len(rows))
 	}
-	want := cloudResourceUID("111122223333", "us-east-1", "aws_ec2_instance", "i-0abc123")
-	if got := anyToString(rows[0]["uid"]); got != want {
+	want := cloudjoin.CloudResourceUID("111122223333", "us-east-1", "aws_ec2_instance", "i-0abc123")
+	if got := payloadcore.AnyToString(rows[0]["uid"]); got != want {
 		t.Fatalf("uid = %q, want the live instance uid", got)
 	}
 }
@@ -312,7 +316,7 @@ func TestExtractEC2InstanceNodeRowsDeterministicOrderRegardlessOfInput(t *testin
 		t.Fatalf("len(forward)=%d len(reverse)=%d, want 3 each", len(forward), len(reverse))
 	}
 	for i := range forward {
-		if anyToString(forward[i]["uid"]) != anyToString(reverse[i]["uid"]) {
+		if payloadcore.AnyToString(forward[i]["uid"]) != payloadcore.AnyToString(reverse[i]["uid"]) {
 			t.Fatalf("row %d uid differs by input order: %q vs %q (uid must be deterministic)",
 				i, forward[i]["uid"], reverse[i]["uid"])
 		}
@@ -332,18 +336,18 @@ func TestEC2InstanceNodeMaterializationHandleWritesNodes(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceNodeMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceNodeMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.calls != 1 {
@@ -369,18 +373,18 @@ func TestEC2InstanceNodeMaterializationHandleNoFactsIsNoOp(t *testing.T) {
 		NodeWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceNodeMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceNodeMaterialization,
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
 	})
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if writer.calls != 0 {
@@ -406,11 +410,11 @@ func TestEC2InstanceNodeMaterializationPublishesCloudResourcePhase(t *testing.T)
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceNodeMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceNodeMaterialization,
 		EntityKeys:   []string{"ec2_instance_node_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -422,10 +426,10 @@ func TestEC2InstanceNodeMaterializationPublishesCloudResourcePhase(t *testing.T)
 		t.Fatalf("publisher.calls = %d, want 1 (PR-B gates on this readiness phase)", len(publisher.calls))
 	}
 	row := publisher.calls[0][0]
-	if got, want := row.Key.Keyspace, GraphProjectionKeyspaceCloudResourceUID; got != want {
+	if got, want := row.Key.Keyspace, gpphase.KeyspaceCloudResourceUID; got != want {
 		t.Fatalf("keyspace = %q, want %q (EC2 instances are CloudResource nodes)", got, want)
 	}
-	if got, want := row.Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+	if got, want := row.Phase, gpphase.PhaseCanonicalNodesCommitted; got != want {
 		t.Fatalf("phase = %q, want %q", got, want)
 	}
 	if got, want := row.Key.AcceptanceUnitID, "ec2_instance_node_materialization:scope-1"; got != want {
@@ -444,11 +448,11 @@ func TestEC2InstanceNodeMaterializationPublishesPhaseOnEmptyGeneration(t *testin
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceNodeMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceNodeMaterialization,
 		EntityKeys:   []string{"ec2_instance_node_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),
@@ -478,11 +482,11 @@ func TestEC2InstanceNodeMaterializationDoesNotPublishPhaseOnWriteFailure(t *test
 		PhasePublisher: publisher,
 	}
 
-	if _, err := handler.Handle(context.Background(), Intent{
+	if _, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainEC2InstanceNodeMaterialization,
+		Domain:       reducercontract.DomainEC2InstanceNodeMaterialization,
 		EntityKeys:   []string{"ec2_instance_node_materialization:scope-1"},
 		EnqueuedAt:   time.Now(),
 		AvailableAt:  time.Now(),

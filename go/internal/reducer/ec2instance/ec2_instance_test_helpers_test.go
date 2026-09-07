@@ -1,13 +1,53 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2instance
 
 import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
+
+// Local copies of the reducer-root test helpers this family's tests used
+// before the move (issue #6061). Go test files cannot share unexported
+// symbols across a package boundary, so they are duplicated here verbatim
+// rather than exported from the root for test-only use.
+
+// stubFactLoader replays a fixed envelope batch and counts loads.
+type stubFactLoader struct {
+	envelopes []facts.Envelope
+	calls     int
+}
+
+func (f *stubFactLoader) ListFacts(_ context.Context, _, _ string) ([]facts.Envelope, error) {
+	f.calls++
+	return f.envelopes, nil
+}
+
+// readyLookup returns a ReadinessLookup that always answers (ready, found).
+func readyLookup(ready, found bool) gpphase.ReadinessLookup {
+	return func(_ gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
+		return ready, found
+	}
+}
+
+// recordingGraphProjectionPhasePublisher captures the readiness phases the
+// node handler publishes so tests can assert the canonical-nodes-committed
+// publication without a durable backend.
+type recordingGraphProjectionPhasePublisher struct {
+	calls [][]gpphase.PhaseState
+	err   error
+}
+
+func (r *recordingGraphProjectionPhasePublisher) PublishGraphProjectionPhases(_ context.Context, rows []gpphase.PhaseState) error {
+	cloned := make([]gpphase.PhaseState, len(rows))
+	copy(cloned, rows)
+	r.calls = append(r.calls, cloned)
+	return r.err
+}
 
 // recordingEC2InstanceNodeWriter captures the rows handed to the node writer so
 // tests can assert on the exact materialization request.
@@ -32,7 +72,7 @@ func (w *recordingEC2InstanceNodeWriter) WriteEC2InstanceNodes(
 func ec2InstancePostureEnvelope(payload map[string]any) facts.Envelope {
 	return facts.Envelope{
 		FactKind: facts.EC2InstancePostureFactKind,
-		FactID:   "fact-" + anyToString(payload["instance_id"]),
+		FactID:   "fact-" + payloadcore.AnyToString(payload["instance_id"]),
 		Payload:  payload,
 	}
 }

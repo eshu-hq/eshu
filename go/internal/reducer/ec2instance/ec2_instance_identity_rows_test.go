@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2instance
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -35,7 +36,7 @@ func ec2InstanceIdentityEnvelope(instanceID, arn, amiID string) facts.Envelope {
 }
 
 func ec2InstanceIdentityUID(instanceID string) string {
-	return cloudResourceUID(testEC2IdentityAccount, testEC2IdentityRegion, awsv1.ResourceTypeEC2Instance, instanceID)
+	return cloudjoin.CloudResourceUID(testEC2IdentityAccount, testEC2IdentityRegion, awsv1.ResourceTypeEC2Instance, instanceID)
 }
 
 func TestExtractEC2InstanceIdentityNodeRowsProjectsAMIID(t *testing.T) {

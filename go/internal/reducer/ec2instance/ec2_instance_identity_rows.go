@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2instance
 
 import (
 	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -24,12 +28,12 @@ import (
 // property the EC2 instance posture node materialization already owns. This
 // is what makes the write safe to MERGE onto the same uid the posture path
 // created: the two writers' SET clauses touch no property in common.
-func ExtractEC2InstanceIdentityNodeRows(envelopes []facts.Envelope) ([]map[string]any, []quarantinedFact, error) {
+func ExtractEC2InstanceIdentityNodeRows(envelopes []facts.Envelope) ([]map[string]any, []factdecode.QuarantinedFact, error) {
 	if len(envelopes) == 0 {
 		return nil, nil, nil
 	}
 
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	byUID := make(map[string]map[string]any, len(envelopes))
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
@@ -37,7 +41,7 @@ func ExtractEC2InstanceIdentityNodeRows(envelopes []facts.Envelope) ([]map[strin
 		}
 		row, uid, ok, err := ec2InstanceIdentityNodeRow(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, nil, fatal
 			}
@@ -52,7 +56,7 @@ func ExtractEC2InstanceIdentityNodeRows(envelopes []facts.Envelope) ([]map[strin
 		// #5007 Stage 1 convention: the max-source_order_key contributor wins
 		// within a scope generation, matching every other CloudResource
 		// extractor's duplicate-uid resolution rule.
-		if preferMaxSourceOrderKey(byUID[uid], row) {
+		if payloadcore.PreferMaxSourceOrderKey(byUID[uid], row) {
 			byUID[uid] = row
 		}
 	}
@@ -79,21 +83,21 @@ func ExtractEC2InstanceIdentityNodeRows(envelopes []facts.Envelope) ([]map[strin
 // resource_type other than aws_ec2_instance (this extractor's scope) or for an
 // instance whose identity cannot form a stable uid.
 func ec2InstanceIdentityNodeRow(env facts.Envelope) (map[string]any, string, bool, error) {
-	resource, err := decodeAWSResource(env)
+	resource, err := schemadecode.DecodeAWSResource(env)
 	if err != nil {
 		return nil, "", false, err
 	}
 	if resource.ResourceType != awsv1.ResourceTypeEC2Instance {
 		return nil, "", false, nil
 	}
-	uid, ok := cloudResourceUIDForResource(resource)
+	uid, ok := ec2InstanceIdentityUIDForResource(resource)
 	if !ok {
 		return nil, "", false, nil
 	}
 
 	attrs, err := awsv1.DecodeResourceEC2InstanceAttributes(resource)
 	if err != nil {
-		return nil, "", false, attributeShapeAsFactDecodeError(env.FactKind, err)
+		return nil, "", false, factdecode.AttributeShapeAsFactDecodeError(env.FactKind, err)
 	}
 	// Skip an instance whose identity is incomplete: with no observed ami_id
 	// there is nothing to augment, and stamping ami_id="" onto the
@@ -110,10 +114,29 @@ func ec2InstanceIdentityNodeRow(env facts.Envelope) (map[string]any, string, boo
 	// convention every sibling writer's Cypher reads as row.source_fact_id);
 	// the persisted graph property is the disjoint r.ec2_identity_source_fact_id.
 	row := map[string]any{
-		"uid":               uid,
-		"ami_id":            amiID,
-		"source_fact_id":    env.FactID,
-		sourceOrderKeyField: sourceOrderKey(env),
+		"uid":                           uid,
+		"ami_id":                        amiID,
+		"source_fact_id":                env.FactID,
+		payloadcore.SourceOrderKeyField: payloadcore.SourceOrderKey(env),
 	}
 	return row, uid, true, nil
+}
+
+// ec2InstanceIdentityUIDForResource derives the stable CloudResource node uid
+// from an already-decoded aws_ec2_instance aws_resource struct. It mirrors the
+// reducer root's cloudResourceUIDForResource identity rules (resource_id with
+// arn fallback, empty-identity rejection) inline because this family must never
+// import its parent package, and the helper has only this one family consumer
+// besides the root's workload slice — a hoist to cloudjoin would drag the
+// staying root caller along for no family-substrate reason (issue #6061 hoist
+// rule: hoist only substrate with 2+ family consumers).
+func ec2InstanceIdentityUIDForResource(resource awsv1.Resource) (string, bool) {
+	resourceID := resource.ResourceID
+	if resourceID == "" {
+		resourceID = payloadcore.DerefString(resource.ARN)
+	}
+	if resource.ResourceType == "" || resourceID == "" {
+		return "", false
+	}
+	return cloudjoin.CloudResourceUID(resource.AccountID, resource.Region, resource.ResourceType, resourceID), true
 }

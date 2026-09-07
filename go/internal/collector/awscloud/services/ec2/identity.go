@@ -19,7 +19,7 @@ import (
 //
 // This is deliberately separate from instancePostureEnvelopes
 // (ec2_instance_posture) and from the CloudResource node it materializes
-// (go/internal/reducer/ec2_instance_node_materialization.go): the identity
+// (go/internal/reducer/ec2instance/ec2_instance_node_materialization.go): the identity
 // aws_resource fact resolves to the SAME canonical cloud_resource_uid
 // (identical account/region/resource_type/resource_id inputs), but the
 // reducer's generic AWS resource node materialization explicitly excludes

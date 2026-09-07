@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
@@ -34,7 +35,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.SecretsIAMEndpointNotReadyFailureClass,
 	reducer.KubernetesCorrelationNodesNotReadyFailureClass,
 	reducer.GCPRelationshipNodesNotReadyFailureClass,
-	reducer.EC2InstanceIdentityNodesNotReadyFailureClass,
+	ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass,
 	// #5717: an ec2_instance_uses_ami edge deferred until the EC2 instance node
 	// phase commits. Waiting on an upstream phase, not failing on its own
 	// merits, so it must not erode the retry budget.

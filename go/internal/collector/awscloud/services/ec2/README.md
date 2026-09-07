@@ -29,8 +29,8 @@ uses, but is projected by a SEPARATE, narrow reducer domain
 (`EC2InstanceIdentityMaterialization`) that only ever augments the node with
 the disjoint `ami_id` property — it never creates the node or touches the
 posture domain's base identity/posture properties. See
-`go/internal/reducer/ec2_instance_identity_materialization.go` for the
-dual-writer safety argument.
+`go/internal/reducer/ec2instance/ec2_instance_identity_materialization.go`
+for the dual-writer safety argument.
 
 The scanner ALSO emits (#5717) one `aws_resource` fact for the AMI itself
 (`resource_type=aws_ec2_ami`, `resource_id`=the AMI id), deduplicated across

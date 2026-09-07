@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package ec2instance
 
 import (
 	"context"
@@ -11,22 +11,26 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-// ec2InstanceNodeMaterializationDomainDefinition returns the additive definition
+// NodeMaterializationDomainDefinition returns the additive definition
 // for EC2 instance CloudResource node materialization (#1146 PR-A). It is additive
 // (not part of DefaultDomainDefinitions) because the handler requires an
 // explicitly wired EC2InstanceNodeWriter and FactLoader; registering it without
 // them would silently drop every ec2_instance_posture fact before it reached the
-// graph. The future USES_PROFILE edge slice (#1146 PR-B) joins against the
-// CloudResource nodes this domain commits.
-func ec2InstanceNodeMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainEC2InstanceNodeMaterialization,
+// graph. The USES_PROFILE edge slice (#1146 PR-B, reducer/ec2usesprofile) joins
+// against the CloudResource nodes this domain commits.
+func NodeMaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainEC2InstanceNodeMaterialization,
 		Summary: "materialize ec2_instance_posture facts into canonical EC2 instance CloudResource graph nodes",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -74,12 +78,12 @@ type EC2InstanceNodeWriter interface {
 // own (distinct) entity key. PR-B gates its edge projection on this phase, so the
 // edge never resolves against a generation whose instance nodes have not committed.
 type EC2InstanceNodeMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	NodeWriter EC2InstanceNodeWriter
 	// PhasePublisher records the canonical-nodes-committed readiness phase that
 	// gates the USES_PROFILE edge projection. A nil publisher is a no-op so the
-	// additive domain stays safe to register before PR-B is wired.
-	PhasePublisher GraphProjectionPhasePublisher
+	// additive domain stays safe to register before the edge slice is wired.
+	PhasePublisher gpphase.PhasePublisher
 	// Instruments records the nodes-materialized and nodes-skipped counters.
 	// Nil-safe.
 	Instruments *telemetry.Instruments
@@ -88,24 +92,24 @@ type EC2InstanceNodeMaterializationHandler struct {
 // Handle executes one EC2 instance node materialization intent.
 func (h EC2InstanceNodeMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainEC2InstanceNodeMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainEC2InstanceNodeMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"ec2 instance node materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("ec2 instance node materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("ec2 instance node materialization fact loader is required")
 	}
 	if h.NodeWriter == nil {
-		return Result{}, fmt.Errorf("ec2 instance node materialization node writer is required")
+		return reducercontract.Result{}, fmt.Errorf("ec2 instance node materialization node writer is required")
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -113,7 +117,7 @@ func (h EC2InstanceNodeMaterializationHandler) Handle(
 		[]string{facts.EC2InstancePostureFactKind},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for ec2 instance node materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for ec2 instance node materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -121,41 +125,42 @@ func (h EC2InstanceNodeMaterializationHandler) Handle(
 	rows, skipped, quarantined, err := ExtractEC2InstanceNodeRowsWithSkips(envelopes)
 	if err != nil {
 		// A non-decode error (transient fact-load, unsupported major, or other
-		// fatal condition partitionDecodeFailures did NOT quarantine) fails the
-		// whole intent so the durable queue triages it correctly.
-		return Result{}, err
+		// fatal condition factdecode.PartitionDecodeFailures did NOT quarantine)
+		// fails the whole intent so the durable queue triages it correctly.
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed ec2_instance_posture fact (a missing
 	// required identity field) is quarantined as a visible input_invalid
 	// dead-letter — counter + structured error log — while the batch's valid
 	// facts still materialize below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainEC2InstanceNodeMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainEC2InstanceNodeMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	var writeDuration time.Duration
 	if len(rows) > 0 {
 		writeStart := time.Now()
 		if err := h.NodeWriter.WriteEC2InstanceNodes(ctx, rows, ec2InstanceEvidenceSource); err != nil {
-			return Result{}, fmt.Errorf("write canonical ec2 instance nodes: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical ec2 instance nodes: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
 
 	// Publish the canonical-nodes-committed readiness phase only after the node
-	// write succeeds (or is a legitimate no-op for an empty generation). PR-B gates
-	// its USES_PROFILE edge projection on this phase: publishing before a successful
-	// write would let edges resolve against nodes that never committed, and not
-	// publishing on an empty generation would block PR-B forever.
+	// write succeeds (or is a legitimate no-op for an empty generation). The
+	// USES_PROFILE edge slice (reducer/ec2usesprofile) gates on this phase:
+	// publishing before a successful write would let edges resolve against nodes
+	// that never committed, and not publishing on an empty generation would block
+	// the edge slice forever.
 	phasePublishStart := time.Now()
-	if err := publishIntentGraphPhase(
+	if err := gpphase.PublishIntentGraphPhase(
 		ctx,
 		h.PhasePublisher,
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	); err != nil {
-		return Result{}, fmt.Errorf("publish canonical ec2 instance nodes phase: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("publish canonical ec2 instance nodes phase: %w", err)
 	}
 	phasePublishDuration := time.Since(phasePublishStart)
 
@@ -173,17 +178,17 @@ func (h EC2InstanceNodeMaterializationHandler) Handle(
 		totalDuration:        time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainEC2InstanceNodeMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainEC2InstanceNodeMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d canonical ec2 instance node(s) from %d posture fact(s); %d input_invalid fact(s) quarantined",
 			len(rows),
 			len(envelopes),
 			inputInvalidCount,
 		),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 		CanonicalWrites: len(rows),
 	}, nil
 }
@@ -198,7 +203,7 @@ func (h EC2InstanceNodeMaterializationHandler) recordNodesMaterialized(ctx conte
 		return
 	}
 	h.Instruments.EC2InstanceNodes.Add(ctx, int64(count), metric.WithAttributes(
-		telemetry.AttrDomain(string(DomainEC2InstanceNodeMaterialization)),
+		telemetry.AttrDomain(string(reducercontract.DomainEC2InstanceNodeMaterialization)),
 	))
 }
 

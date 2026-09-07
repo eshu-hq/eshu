@@ -273,7 +273,7 @@ func ExtractCloudResourceNodeRows(envelopes []facts.Envelope) ([]map[string]any,
 // same conservative "not a materializable node" return path as an incomplete
 // identity). DomainEC2InstanceNodeMaterialization already owns creation of the
 // EC2 instance CloudResource node's shared base properties from the
-// ec2_instance_posture fact (go/internal/reducer/ec2_instance_node_materialization.go)
+// ec2_instance_posture fact (go/internal/reducer/ec2instance/ec2_instance_node_materialization.go)
 // — including "name" and "state" values this generic path would compute
 // differently (the posture path deliberately never reads a Name tag). Letting
 // this generic path ALSO write the same uid's base properties would race two

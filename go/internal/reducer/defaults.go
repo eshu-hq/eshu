@@ -12,6 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
@@ -190,7 +191,7 @@ type DefaultHandlers struct {
 	// GraphProjectionPhasePublisher so the later USES_PROFILE edge slice (#1146
 	// PR-B) can gate on it exactly like the AWS relationship edge gates on the
 	// CloudResource node phase (#805).
-	EC2InstanceNodeWriter EC2InstanceNodeWriter
+	EC2InstanceNodeWriter ec2instance.EC2InstanceNodeWriter
 
 	// CloudResourceEdgeWriter projects aws_relationship facts into canonical
 	// AWS relationship edges between CloudResource nodes (issue #805 PR 2). It
@@ -310,7 +311,7 @@ type DefaultHandlers struct {
 	// (not the generic aws_resource phase) so ami_id never writes against an
 	// uncommitted EC2 instance CloudResource node, and it never creates a
 	// node — a missing uid is always a no-op.
-	EC2InstanceIdentityNodeWriter EC2InstanceIdentityNodeWriter
+	EC2InstanceIdentityNodeWriter ec2instance.EC2InstanceIdentityNodeWriter
 	// EC2UsesProfileEdgeWriter projects ec2_instance_posture instance_profile_arn
 	// into canonical USES_PROFILE edges between an EC2 instance CloudResource node
 	// and the IAM instance-profile CloudResource node it uses (issue #1146 PR-B). It
