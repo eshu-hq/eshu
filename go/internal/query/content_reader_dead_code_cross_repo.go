@@ -231,6 +231,61 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 	return result, coverage, nil
 }
 
+// crossRepoDeadCodeUngrantedConsumers runs the ungranted-consumer probe for one
+// candidate page and returns the producer entities that have a consumer the
+// caller may not see. The probe query itself
+// (crossRepoDeadCodeUngrantedConsumerProbeQuery) stays in
+// code_dead_code_cross_repo_filter.go; this method is relocated here (#6060)
+// because its receiver, ContentReader, is declared in content_reader.go,
+// which stays in root when code_dead_code_cross_repo_filter.go's family
+// moves to its own subpackage -- Go requires a type's methods to live in the
+// same package as their declaration.
+//
+// Every entity on the page is probed, so the answer covers all of them: unlike
+// the row-returning read it replaces, the probe has no shared row budget one
+// busy entity can spend, and therefore never leaves a later entity unproven.
+// The result is bounded by the page's own entity count, which the statement
+// binds as its LIMIT.
+//
+// An empty grant returns no entities and runs nothing. The statement would
+// answer "nothing hidden" for a caller who may see nothing, so the guard is
+// here as well as in crossRepoDeadCodeConsumerReadPlan.
+func (cr *ContentReader) crossRepoDeadCodeUngrantedConsumers(
+	ctx context.Context,
+	producerRepoID string,
+	entityIDs []string,
+	grantRepositoryIDs []string,
+) (crossRepoDeadCodeHiddenConsumers, error) {
+	hidden := crossRepoDeadCodeHiddenConsumers{}
+	if len(entityIDs) == 0 || len(grantRepositoryIDs) == 0 {
+		return hidden, nil
+	}
+	rows, err := cr.db.QueryContext(
+		ctx,
+		crossRepoDeadCodeUngrantedConsumerProbeQuery,
+		producerRepoID,
+		pgarray.Array(entityIDs),
+		pgarray.Array(grantRepositoryIDs),
+		len(entityIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cross-repo dead code ungranted consumer probe: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var entityID string
+		if err := rows.Scan(&entityID); err != nil {
+			return nil, fmt.Errorf("scan cross-repo dead code ungranted consumer probe: %w", err)
+		}
+		hidden[entityID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return hidden, nil
+}
+
 // crossRepoDeadCodeGrantFilter appends a consumer-repository array to args and
 // renders the membership test the consumer-evidence statement binds. It renders
 // nothing for an empty list, so an unscoped caller who named no consumers -- the

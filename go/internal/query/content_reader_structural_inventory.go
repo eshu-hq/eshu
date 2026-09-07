@@ -45,7 +45,7 @@ func (cr *ContentReader) InspectStructuralInventory(
 		ORDER BY repo_id, relative_path, start_line, entity_name, entity_id
 		LIMIT $%d OFFSET $%d
 	`, strings.Join(where, " AND "), limitArg, offsetArg)
-	args = append(args, req.queryLimit(), req.Offset)
+	args = append(args, req.QueryLimit(), req.Offset)
 
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -55,7 +55,7 @@ func (cr *ContentReader) InspectStructuralInventory(
 	}
 	defer func() { _ = rows.Close() }()
 
-	results := make([]EntityContent, 0, req.normalizedLimit())
+	results := make([]EntityContent, 0, req.NormalizedLimit())
 	for rows.Next() {
 		var entity EntityContent
 		var rawMetadata []byte
@@ -122,7 +122,7 @@ func (cr *ContentReader) CountStructuralInventoryByFile(
 		ORDER BY function_count DESC, repo_id, relative_path
 		LIMIT $%d OFFSET $%d
 	`, strings.Join(where, " AND "), limitArg, offsetArg)
-	args = append(args, req.queryLimit(), req.Offset)
+	args = append(args, req.QueryLimit(), req.Offset)
 
 	rows, err := cr.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -131,7 +131,7 @@ func (cr *ContentReader) CountStructuralInventoryByFile(
 	}
 	defer func() { _ = rows.Close() }()
 
-	results := make([]StructuralInventoryFileCount, 0, req.queryLimit())
+	results := make([]StructuralInventoryFileCount, 0, req.QueryLimit())
 	for rows.Next() {
 		var row StructuralInventoryFileCount
 		if err := rows.Scan(&row.RepoID, &row.RelativePath, &row.Language, &row.FunctionCount); err != nil {
@@ -167,7 +167,7 @@ func structuralInventoryWhere(req structuralInventoryRequest) ([]string, []any) 
 	} else {
 		where, args, _ = appendRepositoryGrantFilter(where, args, len(args)+1, req.AllowedRepositoryIDs)
 	}
-	if entityType := req.entityType(); entityType != "" {
+	if entityType := req.EntityType(); entityType != "" {
 		where = append(where, "entity_type = "+addArg(entityType))
 	}
 	if filePath := strings.TrimSpace(req.FilePath); filePath != "" {
@@ -184,7 +184,7 @@ func structuralInventoryWhere(req structuralInventoryRequest) ([]string, []any) 
 		}
 		where = append(where, "("+strings.Join(parts, " OR ")+")")
 	}
-	if req.kind() == "super_call" && strings.TrimSpace(req.RepoID) == "" {
+	if req.Kind() == "super_call" && strings.TrimSpace(req.RepoID) == "" {
 		where = append(where, "eshu_require_content_substring_indexes_ready()")
 	}
 	where = append(where, structuralInventoryKindPredicates(req, addArg)...)
@@ -198,7 +198,7 @@ func structuralInventoryKindPredicates(
 	req structuralInventoryRequest,
 	addArg func(any) string,
 ) []string {
-	switch req.kind() {
+	switch req.Kind() {
 	case "dataclass":
 		return []string{"(metadata->'dead_code_root_kinds' ? 'python.dataclass_model' OR " + decoratorMatchPredicate(addArg, "@dataclass") + " OR " + decoratorMatchPredicate(addArg, "@dataclasses.dataclass") + ")"}
 	case "documented", "documented_function":
@@ -229,13 +229,6 @@ func structuralInventoryKindPredicates(
 	default:
 		return nil
 	}
-}
-
-func (req structuralInventoryRequest) queryLimit() int {
-	if req.Limit <= 0 {
-		return structuralInventoryDefaultLimit
-	}
-	return req.Limit
 }
 
 func decoratorPresencePredicate() string {

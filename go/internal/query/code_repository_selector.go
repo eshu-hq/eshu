@@ -16,10 +16,10 @@ import (
 // through to the generic 400 branch, which would tell the client its request
 // was malformed during a purely transient backend condition.
 func (h *CodeHandler) applyRepositorySelectorForCapability(w http.ResponseWriter, r *http.Request, selector *string, capability string) bool {
-	return applyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, selector, capability)
+	return ApplyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, selector, capability)
 }
 
-// applyRepositorySelectorForAccess is the handler-independent half of the
+// ApplyRepositorySelectorForAccess is the handler-independent half of the
 // resolution above, for the code-family routes whose handler type is not
 // CodeHandler.
 //
@@ -31,7 +31,7 @@ func (h *CodeHandler) applyRepositorySelectorForCapability(w http.ResponseWriter
 // onto a second handler keeps one implementation of "resolve the selector, map
 // a transient graph failure to the bounded-read contract, and reject anything
 // else with 400" for every route in the family.
-func applyRepositorySelectorForAccess(
+func ApplyRepositorySelectorForAccess(
 	w http.ResponseWriter,
 	r *http.Request,
 	graph GraphQuery,
@@ -146,18 +146,23 @@ func codeContentGrantScope(ctx context.Context, repoID string) (allowed []string
 // languageQueryGrant is the caller's repository grant, resolved once per
 // request and threaded through every read the four dispatch branches make.
 //
-// The two fields are the same grant expressed for the two backends: access
+// The two fields are the same grant expressed for the two backends: Access
 // renders the Cypher condition and binds $allowed_repository_ids /
-// $allowed_scope_ids, and allowedRepositoryIDs is the id list the SQL builder
+// $allowed_scope_ids, and AllowedRepositoryIDs is the id list the SQL builder
 // binds to `repo_id = ANY($n)`. Both are empty for an unscoped caller, and a
 // grantless scoped caller reaches no ENTITY read -- languageQueryGrantFor
 // reports that case as blocked, ahead of both entity backends. The selector's
 // own repository lookup can still run before that gate, when the request
 // carries a non-canonical repo_id to resolve; it is grant-filtered in
 // queryselector, so it cannot see outside the caller's grant either.
+//
+// Both fields are exported (#6060): language_queries.go and
+// language_query_metadata.go stay in root when this file's family moves to
+// its own subpackage, and Go cannot alias a struct field across that
+// boundary. See code_seam.go.
 type languageQueryGrant struct {
-	access               repositoryAccessFilter
-	allowedRepositoryIDs []string
+	Access               repositoryAccessFilter
+	AllowedRepositoryIDs []string
 }
 
 // languageQueryGrantFor resolves the caller's grant for a read optionally
@@ -170,7 +175,7 @@ func languageQueryGrantFor(ctx context.Context, repoID string) (grant languageQu
 		return languageQueryGrant{}, true
 	}
 	return languageQueryGrant{
-		access:               codeGrantAccessFilter(ctx),
-		allowedRepositoryIDs: allowed,
+		Access:               codeGrantAccessFilter(ctx),
+		AllowedRepositoryIDs: allowed,
 	}, false
 }

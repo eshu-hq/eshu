@@ -194,7 +194,7 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 	// rather than a second copy of the plumbing -- the selector is resolved and
 	// an ungranted one rejected with 400, then the grant the remaining reads
 	// bind is resolved once for all four branches.
-	if !applyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, &req.RepoID, languageQueryCapability) {
+	if !ApplyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, &req.RepoID, languageQueryCapability) {
 		return
 	}
 	grant, blocked := languageQueryGrantFor(r.Context(), req.RepoID)
@@ -394,7 +394,7 @@ func (h *LanguageQueryHandler) queryByLanguageWithSemanticFilter(
 		limit,
 		semanticFilterKey,
 		semanticFilterValue,
-		grant.access,
+		grant.Access,
 	)
 
 	rows, err := h.Neo4j.Run(ctx, cypher, params)

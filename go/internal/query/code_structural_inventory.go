@@ -106,7 +106,7 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	limit := req.normalizedLimit()
+	limit := req.NormalizedLimit()
 	results := data.results
 	WriteSuccess(
 		w,
@@ -115,8 +115,8 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 		map[string]any{
 			"repo_id":        req.RepoID,
 			"language":       strings.TrimSpace(req.Language),
-			"inventory_kind": req.kind(),
-			"entity_kind":    req.entityType(),
+			"inventory_kind": req.Kind(),
+			"entity_kind":    req.EntityType(),
 			"file_path":      strings.TrimSpace(req.FilePath),
 			"symbol":         strings.TrimSpace(req.Symbol),
 			"decorator":      strings.TrimSpace(req.Decorator),
@@ -164,11 +164,11 @@ func (h *CodeHandler) structuralInventoryData(
 	if blocked {
 		return structuralInventoryData{results: []map[string]any{}}, nil
 	}
-	displayLimit := req.normalizedLimit()
+	displayLimit := req.NormalizedLimit()
 	queryReq := req
 	queryReq.Limit = displayLimit + 1
 	queryReq.AllowedRepositoryIDs = allowedRepositoryIDs
-	if req.kind() == "function_count_by_file" {
+	if req.Kind() == "function_count_by_file" {
 		rows, err := reader.CountStructuralInventoryByFile(ctx, queryReq)
 		if err != nil {
 			return structuralInventoryData{}, err
@@ -187,7 +187,7 @@ func (h *CodeHandler) structuralInventoryData(
 	if truncated {
 		rows = rows[:displayLimit]
 	}
-	return structuralInventoryData{results: structuralInventoryResults(rows, req.kind()), truncated: truncated}, nil
+	return structuralInventoryData{results: structuralInventoryResults(rows, req.Kind()), truncated: truncated}, nil
 }
 
 func (r structuralInventoryRequest) validate() error {
@@ -200,13 +200,13 @@ func (r structuralInventoryRequest) validate() error {
 	if r.Offset > structuralInventoryMaxOffset {
 		return fmt.Errorf("offset must be <= 10000")
 	}
-	if _, ok := structuralInventoryKinds()[r.kind()]; !ok {
+	if _, ok := structuralInventoryKinds()[r.Kind()]; !ok {
 		return fmt.Errorf("inventory_kind must be one of: %s", strings.Join(structuralInventoryKindNames(), ", "))
 	}
-	if r.kind() == "class_with_method" && strings.TrimSpace(r.MethodName) == "" {
+	if r.Kind() == "class_with_method" && strings.TrimSpace(r.MethodName) == "" {
 		return fmt.Errorf("method_name is required for class_with_method inventory")
 	}
-	if r.kind() == "function_count_by_file" &&
+	if r.Kind() == "function_count_by_file" &&
 		strings.TrimSpace(r.EntityKind) != "" &&
 		contentEntityTypeForResolve(strings.ToLower(strings.TrimSpace(r.EntityKind))) != "Function" {
 		return fmt.Errorf("entity_kind must be function for function_count_by_file inventory")
@@ -217,7 +217,7 @@ func (r structuralInventoryRequest) validate() error {
 	return nil
 }
 
-func (r structuralInventoryRequest) normalizedLimit() int {
+func (r structuralInventoryRequest) NormalizedLimit() int {
 	switch {
 	case r.Limit <= 0:
 		return structuralInventoryDefaultLimit
@@ -228,7 +228,22 @@ func (r structuralInventoryRequest) normalizedLimit() int {
 	}
 }
 
-func (r structuralInventoryRequest) kind() string {
+// QueryLimit is the LIMIT content_reader_structural_inventory.go's SQL readers
+// bind, distinct from NormalizedLimit's display cap: it defaults an unset
+// Limit but never clamps to structuralInventoryMaxLimit, so the caller's
+// display-limit-plus-one probe (structuralInventoryData) reaches SQL
+// unclamped. Relocated from content_reader_structural_inventory.go (#6060) so
+// structuralInventoryRequest and every one of its methods travel together
+// when this file's family moves to its own subpackage -- Go requires a
+// type's methods to live in the same package as their declaration.
+func (req structuralInventoryRequest) QueryLimit() int {
+	if req.Limit <= 0 {
+		return structuralInventoryDefaultLimit
+	}
+	return req.Limit
+}
+
+func (r structuralInventoryRequest) Kind() string {
 	kind := strings.ToLower(strings.TrimSpace(r.InventoryKind))
 	if kind == "" {
 		return "entity"
@@ -236,9 +251,9 @@ func (r structuralInventoryRequest) kind() string {
 	return kind
 }
 
-func (r structuralInventoryRequest) entityType() string {
+func (r structuralInventoryRequest) EntityType() string {
 	entityKind := strings.TrimSpace(r.EntityKind)
-	switch r.kind() {
+	switch r.Kind() {
 	case "dataclass":
 		return "Class"
 	case "documented_function", "class_with_method", "function_count_by_file":

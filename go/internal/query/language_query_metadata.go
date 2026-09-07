@@ -84,7 +84,7 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 		EntityType:           entityType,
 		Query:                query,
 		Limit:                limit,
-		AllowedRepositoryIDs: grant.allowedRepositoryIDs,
+		AllowedRepositoryIDs: grant.AllowedRepositoryIDs,
 	})
 	if err != nil {
 		return nil, false, fmt.Errorf("enrich language results with content metadata: %w", err)
@@ -246,7 +246,7 @@ func (h *LanguageQueryHandler) queryContentByLanguage(
 		EntityType:           entityType,
 		Query:                query,
 		Limit:                limit,
-		AllowedRepositoryIDs: grant.allowedRepositoryIDs,
+		AllowedRepositoryIDs: grant.AllowedRepositoryIDs,
 	})
 	if err != nil {
 		return nil, err

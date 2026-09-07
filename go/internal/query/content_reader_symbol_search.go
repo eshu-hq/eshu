@@ -13,7 +13,7 @@ import (
 )
 
 // SearchSymbols queries content_entities for entities whose entity_name
-// matches req's symbol (exact match when req.mustMatchMode() is "exact",
+// matches req's symbol (exact match when req.MustMatchMode() is "exact",
 // otherwise an ILIKE substring match), further scoped by req.RepoID and
 // req.Language. It is the symbol-aware fast path symbolContentSearcher
 // exposes to CodeHandler.symbolSearchResults; the fallback that runs
@@ -93,12 +93,12 @@ func symbolSearchFilters(req symbolSearchRequest) ([]string, []any, int) {
 	args := make([]any, 0, 4)
 	nextArg := 2
 
-	if req.mustMatchMode() == "exact" {
+	if req.MustMatchMode() == "exact" {
 		filters = append(filters, "entity_name = $1")
-		args = append(args, req.symbol())
+		args = append(args, req.ResolvedSymbol())
 	} else {
 		filters = append(filters, "entity_name ILIKE '%' || $1 || '%'")
-		args = append(args, req.symbol())
+		args = append(args, req.ResolvedSymbol())
 	}
 
 	if req.RepoID != "" {
@@ -118,7 +118,7 @@ func symbolSearchFilters(req symbolSearchRequest) ([]string, []any, int) {
 		}
 		filters = append(filters, "("+strings.Join(parts, " OR ")+")")
 	}
-	if entityTypes := req.normalizedEntityTypes(); len(entityTypes) > 0 {
+	if entityTypes := req.NormalizedEntityTypes(); len(entityTypes) > 0 {
 		parts := make([]string, 0, len(entityTypes))
 		for _, entityType := range entityTypes {
 			filter, filterArgs, next := contentEntityTypeFilter(entityType, nextArg)
