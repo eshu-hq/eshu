@@ -1,0 +1,21 @@
+# Allowlist for scripts/verify-moved-file-refs.sh (#6525).
+#
+# One entry per line, exactly:
+#
+#   <referencing-file>:<vacated-path>
+#
+# An entry exempts ONE referencing file naming ONE vacated path. It does not
+# exempt the path everywhere, so moving a file still has to repoint every other
+# pointer to it.
+#
+# Add an entry only when repointing would make the document WRONG rather than
+# stale -- a recorded command transcript, or a dated evidence note describing
+# the tree as it stood at the time. A reference that is merely out of date is
+# not an exception: repoint it (without a `:NNN` line suffix, which
+# scripts/verify-doc-citations.sh refuses from a branch).
+#
+# Always say why in a comment above the entry.
+#
+# No entries yet: the #6525 sweep repointed every stale reference it could and
+# left the rest as inherited debt, which this gate does not attribute to a
+# branch and therefore never reports.

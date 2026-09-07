@@ -283,6 +283,46 @@ Expected observability: `webhook_refresh_triggers.status`, existing webhook
 decision/store metrics, bounded listener request logs, and ingester Git sync
 lifecycle logs.
 
+## Moved-File Reference Guard
+
+Any `go/**` change selects `scripts/verify-moved-file-refs.sh`. It fails a
+branch that moves or deletes a Go file and leaves a reference pointing at the
+path it vacated:
+
+```bash
+bash scripts/verify-moved-file-refs.sh              # attribute against origin/main
+bash scripts/verify-moved-file-refs.sh --base <ref> # attribute against <ref>
+bash scripts/test-verify-moved-file-refs.sh         # its mirror test
+```
+
+This is the residue the #6061 reducer subpackage split kept shipping, and
+`verify-doc-citations.sh` cannot see it: that gate only tracks a citation
+carrying a `:NNN` line suffix, so a **bare path reference is never tracked at
+all**. On `main` before #6525, 53 of 517 distinct `go/internal/reducer/*.go`
+paths named in `docs/`, `scripts/`, `specs/` and `go/` resolved to nothing.
+
+The check is scoped to the branch, not the tree: a path is reported only when
+it existed at the diff base and does not exist now. That is what keeps it
+precise. Inherited debt did not change, so it is not reported, and a deliberate
+negative fixture — a path a test asserts is *missing*, such as
+`does_not_exist.go`, `no_such_handler_file.go`, the telemetry-coverage ghost
+rows, or the cigates selector's synthetic `r.go` — never existed at the base and
+so can never trip the gate. Working from the branch's own deleted/renamed set
+also keeps it cheap: a branch that moves nothing greps for nothing.
+
+For a rename, git's rename detection supplies the new path, so the failure names
+the repoint target. Write the repoint **without** a `:NNN` suffix —
+`verify-doc-citations.sh` refuses branch-authored LINE occurrences ("LINE debt
+may only decrease"), so a repoint that keeps a line number is rejected outright,
+while a path-only reference is accepted and survives later line drift.
+
+A genuinely historical reference — a recorded command transcript, or a dated
+evidence note describing the tree as it stood at the time, where repointing
+would falsify the record rather than refresh it — goes in
+`scripts/moved-file-refs-allowlist.txt` as a `<referencing-file>:<vacated-path>`
+line with a comment saying why. An entry exempts one referencing file naming one
+vacated path; it does not exempt that path everywhere.
+
 ## Runtime Tree Hygiene
 
 The deployable runtime tree is Go-only:
