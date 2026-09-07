@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudinventory
 
 import (
 	"context"
@@ -10,11 +10,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 func (h CloudInventoryAdmissionHandler) writeCloudInventoryAdmissionDecisions(
 	ctx context.Context,
-	intent Intent,
+	intent reducercontract.Intent,
 	records []CloudInventoryRecord,
 	writeResult CloudInventoryAdmissionWriteResult,
 ) error {
@@ -34,7 +36,7 @@ func (h CloudInventoryAdmissionHandler) writeCloudInventoryAdmissionDecisions(
 }
 
 func cloudInventoryAdmissionDecision(
-	intent Intent,
+	intent reducercontract.Intent,
 	record CloudInventoryRecord,
 	written map[string]struct{},
 	now time.Time,
@@ -59,7 +61,7 @@ func cloudInventoryAdmissionDecision(
 
 	handleID := cloudInventorySourceHandleID(intent, record)
 	decision := admissiondecision.NewAdmissionDecision(
-		DomainCloudInventoryAdmission,
+		reducercontract.DomainCloudInventoryAdmission,
 		state,
 		string(resolution.Outcome),
 		intent.ScopeID,
@@ -115,7 +117,7 @@ func cloudInventoryAdmissionState(outcome cloudinventory.ResolutionOutcome) admi
 }
 
 func cloudInventoryCandidateID(
-	intent Intent,
+	intent reducercontract.Intent,
 	record CloudInventoryRecord,
 	resolution cloudinventory.Resolution,
 ) string {
@@ -123,7 +125,7 @@ func cloudInventoryCandidateID(
 		return resolution.CloudResourceUID
 	}
 	return admissiondecision.StableAdmissionDecisionID(
-		string(DomainCloudInventoryAdmission),
+		string(reducercontract.DomainCloudInventoryAdmission),
 		intent.ScopeID,
 		intent.GenerationID,
 		record.Provider,
@@ -132,9 +134,9 @@ func cloudInventoryCandidateID(
 	)
 }
 
-func cloudInventorySourceHandleID(intent Intent, record CloudInventoryRecord) string {
+func cloudInventorySourceHandleID(intent reducercontract.Intent, record CloudInventoryRecord) string {
 	return admissiondecision.StableAdmissionDecisionID(
-		string(DomainCloudInventoryAdmission),
+		string(reducercontract.DomainCloudInventoryAdmission),
 		intent.ScopeID,
 		intent.GenerationID,
 		record.Provider,
@@ -173,5 +175,34 @@ func cloudInventoryAdmissionNextAction(state admissiondecision.AdmissionState) a
 		return admissiondecision.AdmissionNextAction{Action: "add_provider_support"}
 	default:
 		return admissiondecision.AdmissionNextAction{Action: "add_provider_identity"}
+	}
+}
+
+// CloudInventoryAdmissionDomainDefinition returns the additive definition for
+// the shared multi-cloud inventory identity admission path. The domain consumes
+// aws_resource, gcp_cloud_resource, and azure_cloud_resource source facts and
+// writes durable reducer-owned canonical CloudResource identity facts, but it
+// deliberately does not declare graph writes: canonical node/edge projection and
+// the multi-cloud drift join are deferred follow-ups (issues #1997, #1998).
+// It lives beside the decision writer (not the handler) so the handler file
+// stays under the repo's 500-line cap.
+func CloudInventoryAdmissionDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainCloudInventoryAdmission,
+		Summary: "admit provider cloud-inventory facts into the shared canonical cloud_resource_uid keyspace",
+		Ownership: reducercontract.OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "cloud_resource_identity",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerAppliedDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
 	}
 }

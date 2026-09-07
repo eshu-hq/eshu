@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/drift/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
@@ -512,8 +513,8 @@ func TestImplementedDefaultDomainDefinitionsIncludesCloudInventoryAdmissionWhenA
 	for _, def := range definitions {
 		if def.Domain == DomainCloudInventoryAdmission {
 			found = true
-			if _, ok := def.Handler.(CloudInventoryAdmissionHandler); !ok {
-				t.Fatalf("cloud_inventory_admission handler type = %T, want CloudInventoryAdmissionHandler", def.Handler)
+			if _, ok := def.Handler.(cloudinventory.CloudInventoryAdmissionHandler); !ok {
+				t.Fatalf("cloud_inventory_admission handler type = %T, want cloudinventory.CloudInventoryAdmissionHandler", def.Handler)
 			}
 		}
 	}

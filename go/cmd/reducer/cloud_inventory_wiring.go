@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
@@ -33,18 +34,18 @@ func cloudInventoryAdmissionWiring(
 	database postgres.ExecQueryer,
 	logger *slog.Logger,
 ) (
-	reducer.CloudInventoryEvidenceLoader,
-	reducer.CloudInventoryAdmissionWriter,
+	cloudinventory.CloudInventoryEvidenceLoader,
+	cloudinventory.CloudInventoryAdmissionWriter,
 	reducer.GenerationFreshnessCheck,
-	reducer.CloudTagEvidenceLoader,
-	reducer.CloudIdentityPolicyEvidenceLoader,
-	reducer.CloudResourceChangeEvidenceLoader,
+	cloudinventory.CloudTagEvidenceLoader,
+	cloudinventory.CloudIdentityPolicyEvidenceLoader,
+	cloudinventory.CloudResourceChangeEvidenceLoader,
 ) {
 	loader := postgres.PostgresCloudInventoryEvidenceLoader{
 		DB:     database,
 		Logger: logger,
 	}
-	writer := reducer.PostgresCloudInventoryAdmissionWriter{DB: database}
+	writer := cloudinventory.PostgresCloudInventoryAdmissionWriter{DB: database}
 	generationCheck := postgres.NewGenerationFreshnessCheck(database)
 	// Tag-evidence loader attaches azure_tag_observation fingerprints onto the
 	// canonical resource sharing their uid (#2192). It is additive: a nil loader

@@ -289,32 +289,10 @@ func awsCloudRuntimeDriftDomainDefinition() DomainDefinition {
 	}
 }
 
-// cloudInventoryAdmissionDomainDefinition returns the additive definition for
-// the shared multi-cloud inventory identity admission path. The domain consumes
-// aws_resource, gcp_cloud_resource, and azure_cloud_resource source facts and
-// writes durable reducer-owned canonical CloudResource identity facts, but it
-// deliberately does not declare graph writes: canonical node/edge projection and
-// the multi-cloud drift join are deferred follow-ups (issues #1997, #1998).
-func cloudInventoryAdmissionDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainCloudInventoryAdmission,
-		Summary: "admit provider cloud-inventory facts into the shared canonical cloud_resource_uid keyspace",
-		Ownership: OwnershipShape{
-			CrossSource:    true,
-			CrossScope:     true,
-			CanonicalWrite: true,
-			CounterEmit:    true,
-		},
-		TruthContract: truth.Contract{
-			CanonicalKind: "cloud_resource_identity",
-			SourceLayers: []truth.Layer{
-				truth.LayerSourceDeclaration,
-				truth.LayerAppliedDeclaration,
-				truth.LayerObservedResource,
-			},
-		},
-	}
-}
+// cloudInventoryAdmissionDomainDefinition moved to
+// [cloudinventory.CloudInventoryAdmissionDomainDefinition] with the family
+// (issue #6061); the registry now calls the family package directly from
+// defaults_additive_domains_secrets_drift.go.
 
 // observabilityCoverageCorrelationDomainDefinition returns the additive
 // definition for observability coverage correlation. It is additive (not part of

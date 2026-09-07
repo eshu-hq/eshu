@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudinventory
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -63,13 +64,13 @@ func newCloudInventoryInstruments(t *testing.T) (*telemetry.Instruments, sdkmetr
 	return inst, reader
 }
 
-func cloudInventoryIntent() Intent {
-	return Intent{
+func cloudInventoryIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:        "intent-cloud-inventory",
 		ScopeID:         "gcp:org:eshu:project:prod",
 		GenerationID:    "generation-1",
 		SourceSystem:    "gcp",
-		Domain:          DomainCloudInventoryAdmission,
+		Domain:          reducercontract.DomainCloudInventoryAdmission,
 		Cause:           "cloud inventory facts observed",
 		RelatedScopeIDs: []string{"gcp:org:eshu:project:prod"},
 	}
@@ -106,8 +107,8 @@ func TestCloudInventoryAdmissionAdmitsGCPAndAzureIdentities(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 	if got, want := result.CanonicalWrites, 2; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
@@ -277,8 +278,8 @@ func TestCloudInventoryAdmissionStaleGenerationSuperseded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if result.Status != ResultStatusSuperseded {
-		t.Fatalf("Status = %q, want %q for a stale generation", result.Status, ResultStatusSuperseded)
+	if result.Status != reducercontract.ResultStatusSuperseded {
+		t.Fatalf("Status = %q, want %q for a stale generation", result.Status, reducercontract.ResultStatusSuperseded)
 	}
 	if len(writer.writes) != 0 {
 		t.Fatalf("stale generation must not write canonical rows, got %d writes", len(writer.writes))
@@ -314,7 +315,7 @@ func TestCloudInventoryAdmissionRejectsWrongDomain(t *testing.T) {
 		Writer:         &stubCloudInventoryAdmissionWriter{},
 	}
 	intent := cloudInventoryIntent()
-	intent.Domain = DomainWorkloadIdentity
+	intent.Domain = reducercontract.DomainWorkloadIdentity
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("Handle() error = nil, want wrong-domain error")
 	}

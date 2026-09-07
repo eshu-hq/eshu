@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -23,7 +23,7 @@ const maxCloudResourceChangeEvidenceString = 256
 // PostgresCloudResourceChangeEvidenceLoader reads azure_resource_change source
 // facts for the resource_changes lane corresponding to one inventory admission
 // generation and maps each payload into the shared
-// reducer.CloudResourceChangeEvidenceRecord shape. The loader is read-only and
+// reducercloudinventory.CloudResourceChangeEvidenceRecord shape. The loader is read-only and
 // graph-neutral; identity attachment and stale-generation supersession remain
 // owned by the cloud-inventory admission handler.
 type PostgresCloudResourceChangeEvidenceLoader struct {
@@ -34,7 +34,7 @@ type PostgresCloudResourceChangeEvidenceLoader struct {
 }
 
 // LoadCloudResourceChangeEvidence implements
-// reducer.CloudResourceChangeEvidenceLoader. It returns sanitized
+// reducercloudinventory.CloudResourceChangeEvidenceLoader. It returns sanitized
 // resource-change records for the supplied inventory scope/generation, resolving
 // Azure inventory lanes to their active sibling resource_changes generation so
 // resource-change facts can attach without fabricating canonical inventory.
@@ -42,7 +42,7 @@ func (l PostgresCloudResourceChangeEvidenceLoader) LoadCloudResourceChangeEviden
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) ([]reducer.CloudResourceChangeEvidenceRecord, error) {
+) ([]reducercloudinventory.CloudResourceChangeEvidenceRecord, error) {
 	if l.DB == nil {
 		return nil, fmt.Errorf("cloud resource change evidence database is required")
 	}
@@ -61,7 +61,7 @@ func (l PostgresCloudResourceChangeEvidenceLoader) LoadCloudResourceChangeEviden
 	}
 	defer func() { _ = rows.Close() }()
 
-	var records []reducer.CloudResourceChangeEvidenceRecord
+	var records []reducercloudinventory.CloudResourceChangeEvidenceRecord
 	for rows.Next() {
 		var factKind, rawIdentity, stableKey string
 		var payload []byte
@@ -86,36 +86,36 @@ func cloudResourceChangeEvidenceRecordFromRow(
 	rawIdentity string,
 	stableKey string,
 	payload []byte,
-) (reducer.CloudResourceChangeEvidenceRecord, bool) {
+) (reducercloudinventory.CloudResourceChangeEvidenceRecord, bool) {
 	if factKind != facts.AzureResourceChangeFactKind {
-		return reducer.CloudResourceChangeEvidenceRecord{}, false
+		return reducercloudinventory.CloudResourceChangeEvidenceRecord{}, false
 	}
 	rawIdentity = strings.TrimSpace(rawIdentity)
 	if rawIdentity == "" {
-		return reducer.CloudResourceChangeEvidenceRecord{}, false
+		return reducercloudinventory.CloudResourceChangeEvidenceRecord{}, false
 	}
 	resolution := cloudinventory.ResolveProviderIdentity(cloudinventory.ProviderAzure, rawIdentity)
 	if resolution.Outcome != cloudinventory.ResolutionOutcomeAdmitted {
-		return reducer.CloudResourceChangeEvidenceRecord{}, false
+		return reducercloudinventory.CloudResourceChangeEvidenceRecord{}, false
 	}
 
 	var decoded map[string]any
 	if len(payload) == 0 {
-		return reducer.CloudResourceChangeEvidenceRecord{}, false
+		return reducercloudinventory.CloudResourceChangeEvidenceRecord{}, false
 	}
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		return reducer.CloudResourceChangeEvidenceRecord{}, false
+		return reducercloudinventory.CloudResourceChangeEvidenceRecord{}, false
 	}
 	changeType, ok := cloudResourceChangeTypeFromPayload(decoded)
 	if !ok {
-		return reducer.CloudResourceChangeEvidenceRecord{}, false
+		return reducercloudinventory.CloudResourceChangeEvidenceRecord{}, false
 	}
 	changeTime, ok := cloudResourceChangeTimeFromPayload(decoded)
 	if !ok {
-		return reducer.CloudResourceChangeEvidenceRecord{}, false
+		return reducercloudinventory.CloudResourceChangeEvidenceRecord{}, false
 	}
 
-	return reducer.CloudResourceChangeEvidenceRecord{
+	return reducercloudinventory.CloudResourceChangeEvidenceRecord{
 		Provider:                 cloudinventory.ProviderAzure,
 		RawIdentity:              rawIdentity,
 		EvidenceKey:              boundedCloudResourceChangeString(stableKey),

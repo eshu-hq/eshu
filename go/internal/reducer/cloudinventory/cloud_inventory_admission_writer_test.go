@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudinventory
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
 )
 
 func cloudInventoryWriteFixture() CloudInventoryAdmissionWrite {
@@ -84,7 +85,7 @@ func TestPostgresCloudInventoryAdmissionWriterPersistsOneFactPerResource(t *test
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
-	db := &fakeWorkloadIdentityExecer{}
+	db := &factwritetest.FakeExecer{}
 	writer := PostgresCloudInventoryAdmissionWriter{DB: db, Now: func() time.Time { return now }}
 
 	result, err := writer.WriteCloudInventoryAdmission(context.Background(), cloudInventoryWriteFixture())
@@ -96,10 +97,10 @@ func TestPostgresCloudInventoryAdmissionWriterPersistsOneFactPerResource(t *test
 	}
 	// Two resources are now written in a single bounded batched insert, so the
 	// writer issues one ExecContext call regardless of resource count.
-	if got, want := len(db.execs), 1; got != want {
+	if got, want := len(db.Execs), 1; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	rows := decodeBatchedFactCalls(t, db.execs)
+	rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs)
 	if got, want := len(rows), 2; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -166,7 +167,7 @@ func TestPostgresCloudInventoryAdmissionWriterIsIdempotentByUID(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
-	db := &fakeWorkloadIdentityExecer{}
+	db := &factwritetest.FakeExecer{}
 	writer := PostgresCloudInventoryAdmissionWriter{DB: db, Now: func() time.Time { return now }}
 	write := cloudInventoryWriteFixture()
 
@@ -184,7 +185,7 @@ func TestPostgresCloudInventoryAdmissionWriterIsIdempotentByUID(t *testing.T) {
 	if len(first.CanonicalIDs) != len(second.CanonicalIDs) {
 		t.Fatalf("canonical id count drift: %d vs %d", len(first.CanonicalIDs), len(second.CanonicalIDs))
 	}
-	rows := decodeBatchedFactCalls(t, db.execs)
+	rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs)
 	half := len(rows) / 2
 	for i := 0; i < half; i++ {
 		if rows[i].FactID != rows[i+half].FactID {

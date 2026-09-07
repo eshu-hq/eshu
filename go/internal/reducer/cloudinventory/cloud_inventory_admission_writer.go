@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudinventory
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
 )
 
 // cloudInventoryAdmissionFactKind is the reducer-owned canonical CloudResource
@@ -24,7 +26,7 @@ const cloudInventoryAdmissionFactKind = "reducer_cloud_resource_identity"
 // the same row through ON CONFLICT instead of duplicating canonical truth.
 type PostgresCloudInventoryAdmissionWriter struct {
 	// DB executes the canonical reducer fact upsert.
-	DB workloadIdentityExecer
+	DB factwrite.Execer
 	// Now supplies the observed/ingested timestamp; defaults to time.Now.
 	Now func() time.Time
 }
@@ -41,15 +43,15 @@ func (w PostgresCloudInventoryAdmissionWriter) WriteCloudInventoryAdmission(
 		return CloudInventoryAdmissionWriteResult{}, fmt.Errorf("cloud inventory admission database is required")
 	}
 
-	now := reducerWriterNow(w.Now)
+	now := factwrite.Now(w.Now)
 	canonicalIDs := make([]string, 0, len(write.Resources))
-	rows := make([]reducerFactRow, 0, len(write.Resources))
+	rows := make([]factwrite.Row, 0, len(write.Resources))
 	for _, resource := range write.Resources {
 		payloadJSON, err := json.Marshal(cloudInventoryAdmissionPayload(write, resource))
 		if err != nil {
 			return CloudInventoryAdmissionWriteResult{}, fmt.Errorf("marshal cloud inventory admission payload: %w", err)
 		}
-		rows = append(rows, reducerFactRow{
+		rows = append(rows, factwrite.Row{
 			FactID:        cloudInventoryAdmissionFactID(write, resource),
 			ScopeID:       write.ScopeID,
 			GenerationID:  write.GenerationID,
@@ -58,7 +60,7 @@ func (w PostgresCloudInventoryAdmissionWriter) WriteCloudInventoryAdmission(
 			// collector_kind varies per resource because each admitted resource
 			// can come from a different provider, so it is set per row rather
 			// than hoisted out of the loop.
-			CollectorKind:    reducerFactCollectorKind(resource.Provider),
+			CollectorKind:    factwrite.CollectorKind(resource.Provider),
 			SourceConfidence: facts.SourceConfidenceInferred,
 			SourceSystem:     write.SourceSystem,
 			SourceFactKey:    write.IntentID,
@@ -70,7 +72,7 @@ func (w PostgresCloudInventoryAdmissionWriter) WriteCloudInventoryAdmission(
 	}
 	// Bounded chunked bulk insert: admitted canonical identities are upserted in
 	// O(N/batchSize) round-trips instead of one ExecContext per resource.
-	if err := reducerBatchInsertFacts(ctx, w.DB, rows); err != nil {
+	if err := factwrite.BatchInsertFacts(ctx, w.DB, rows); err != nil {
 		return CloudInventoryAdmissionWriteResult{}, fmt.Errorf("write cloud inventory admission fact: %w", err)
 	}
 
@@ -187,7 +189,7 @@ func cloudInventoryAdmissionBasePayload(
 	resource AdmittedCloudResource,
 ) map[string]any {
 	return map[string]any{
-		"reducer_domain":     string(DomainCloudInventoryAdmission),
+		"reducer_domain":     string(reducercontract.DomainCloudInventoryAdmission),
 		"intent_id":          write.IntentID,
 		"scope_id":           write.ScopeID,
 		"generation_id":      write.GenerationID,

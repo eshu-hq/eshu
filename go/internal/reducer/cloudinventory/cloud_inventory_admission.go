@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudinventory
 
 import (
 	"context"
@@ -14,6 +14,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -214,7 +216,7 @@ type CloudInventoryAdmissionHandler struct {
 	Writer CloudInventoryAdmissionWriter
 	// GenerationCheck, when set, supersedes stale generations before any load or
 	// write so a superseded scan never publishes canonical rows.
-	GenerationCheck GenerationFreshnessCheck
+	GenerationCheck reducercontract.GenerationFreshnessCheck
 	// TagEvidenceLoader, when set, loads tag-evidence facts (e.g.
 	// azure_tag_observation) whose fingerprints attach to the canonical resource
 	// sharing their cloud_resource_uid. A nil loader leaves the admission path
@@ -240,30 +242,30 @@ type CloudInventoryAdmissionHandler struct {
 }
 
 // Handle executes one cloud-inventory admission intent.
-func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
-	if intent.Domain != DomainCloudInventoryAdmission {
-		return Result{}, fmt.Errorf(
+func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainCloudInventoryAdmission {
+		return reducercontract.Result{}, fmt.Errorf(
 			"cloud_inventory_admission handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.EvidenceLoader == nil {
-		return Result{}, fmt.Errorf("cloud inventory evidence loader is required")
+		return reducercontract.Result{}, fmt.Errorf("cloud inventory evidence loader is required")
 	}
 	if h.Writer == nil {
-		return Result{}, fmt.Errorf("cloud inventory admission writer is required")
+		return reducercontract.Result{}, fmt.Errorf("cloud inventory admission writer is required")
 	}
 
 	if h.GenerationCheck != nil {
 		current, err := h.GenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
 		if err != nil {
-			return Result{}, fmt.Errorf("check cloud inventory generation freshness: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("check cloud inventory generation freshness: %w", err)
 		}
 		if !current {
-			return Result{
+			return reducercontract.Result{
 				IntentID:        intent.IntentID,
 				Domain:          intent.Domain,
-				Status:          ResultStatusSuperseded,
+				Status:          reducercontract.ResultStatusSuperseded,
 				EvidenceSummary: "cloud inventory admission skipped: generation superseded",
 			}, nil
 		}
@@ -271,7 +273,7 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 
 	records, err := h.EvidenceLoader.LoadCloudInventoryEvidence(ctx, intent.ScopeID, intent.GenerationID)
 	if err != nil {
-		return Result{}, fmt.Errorf("load cloud inventory evidence: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load cloud inventory evidence: %w", err)
 	}
 
 	resources, summary := admitCloudInventoryRecords(records)
@@ -279,7 +281,7 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 	if h.TagEvidenceLoader != nil {
 		tagRecords, err := h.TagEvidenceLoader.LoadCloudTagEvidence(ctx, intent.ScopeID, intent.GenerationID)
 		if err != nil {
-			return Result{}, fmt.Errorf("load cloud tag evidence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("load cloud tag evidence: %w", err)
 		}
 		attachCloudTagEvidence(resources, tagRecords)
 	}
@@ -290,7 +292,7 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 			intent.GenerationID,
 		)
 		if err != nil {
-			return Result{}, fmt.Errorf("load cloud resource change evidence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("load cloud resource change evidence: %w", err)
 		}
 		attachCloudResourceChangeEvidence(resources, changeRecords)
 	}
@@ -302,7 +304,7 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 			intent.GenerationID,
 		)
 		if err != nil {
-			return Result{}, fmt.Errorf("load cloud identity policy evidence: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("load cloud identity policy evidence: %w", err)
 		}
 		attachCloudIdentityPolicyEvidence(resources, identityRecords)
 	}
@@ -317,18 +319,18 @@ func (h CloudInventoryAdmissionHandler) Handle(ctx context.Context, intent Inten
 		Summary:      summary,
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("write cloud inventory admission: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write cloud inventory admission: %w", err)
 	}
 	if err := h.writeCloudInventoryAdmissionDecisions(ctx, intent, records, writeResult); err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 
 	h.recordAdmissionCounts(ctx, resources, summary)
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
 		Domain:   intent.Domain,
-		Status:   ResultStatusSucceeded,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"cloud inventory admitted=%d ambiguous=%d unsupported=%d unresolved=%d canonical_writes=%d",
 			summary.Admitted,
@@ -369,7 +371,7 @@ func admitCloudInventoryRecords(
 
 	resources := make([]AdmittedCloudResource, 0, len(byUID))
 	for uid, resource := range byUID {
-		resource.FactKinds = sortedKeys(factKinds[uid])
+		resource.FactKinds = payloadcore.SortedKeys(factKinds[uid])
 		resources = append(resources, *resource)
 	}
 	sort.Slice(resources, func(i, j int) bool {

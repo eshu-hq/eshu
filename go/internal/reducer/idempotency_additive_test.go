@@ -102,7 +102,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainConfigStateDrift:        "additive, gated on TerraformBackendResolver+DriftEvidenceLoader+DriftLogger; drift-replay idempotency proven by config_state_drift handler suites (terraform_config_state_drift_*_test.go)",
 	DomainAWSCloudRuntimeDrift:    "additive, gated on AWSCloudRuntimeDrift evidence loader+writer; idempotency proven by aws_cloud_runtime_drift_test.go",
 	DomainMultiCloudRuntimeDrift:  "additive, gated on MultiCloudRuntimeDrift evidence loader+writer; idempotency proven by multi_cloud_runtime_drift_*_test.go",
-	DomainCloudInventoryAdmission: "additive, gated on CloudInventory evidence loader+admission writer with generation check; idempotency proven by cloud_inventory_admission_*_test.go",
+	DomainCloudInventoryAdmission: "additive, gated on CloudInventory evidence loader+admission writer with generation check; idempotency proven by cloudinventory/cloud_inventory_admission_*_test.go",
 
 	// Search/curation + package/code import correlation: fact-loader + dedicated
 	// writer gated, proven by their own suites.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 )
 
 // cloudInventoryAdmissionIntent returns the canonical admission intent under
@@ -43,14 +44,14 @@ func cloudInventorySourceRows() [][]any {
 // newCloudInventoryAdmissionHandler wires the production loader and writer
 // around the shared admission handler so the test exercises the real
 // load -> resolve -> admit -> upsert path end to end against the fake database.
-func newCloudInventoryAdmissionHandler(db *fakeExecQueryer) reducer.CloudInventoryAdmissionHandler {
-	return reducer.CloudInventoryAdmissionHandler{
+func newCloudInventoryAdmissionHandler(db *fakeExecQueryer) reducercloudinventory.CloudInventoryAdmissionHandler {
+	return reducercloudinventory.CloudInventoryAdmissionHandler{
 		EvidenceLoader: PostgresCloudInventoryEvidenceLoader{DB: db},
-		Writer:         reducer.PostgresCloudInventoryAdmissionWriter{DB: db},
+		Writer:         reducercloudinventory.PostgresCloudInventoryAdmissionWriter{DB: db},
 	}
 }
 
-func newCloudInventoryAdmissionHandlerWithFreshness(db *fakeExecQueryer) reducer.CloudInventoryAdmissionHandler {
+func newCloudInventoryAdmissionHandlerWithFreshness(db *fakeExecQueryer) reducercloudinventory.CloudInventoryAdmissionHandler {
 	handler := newCloudInventoryAdmissionHandler(db)
 	handler.ResourceChangeEvidenceLoader = PostgresCloudResourceChangeEvidenceLoader{DB: db}
 	return handler

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package cloudinventory
 
 import (
 	"context"
@@ -35,7 +35,7 @@ func (s *convergentFactStore) ExecContext(_ context.Context, _ string, args ...a
 	for _, factID := range factIDs {
 		s.rows[factID] = struct{}{}
 	}
-	return fakeWorkloadIdentityResult{}, nil
+	return convergentFactResult{}, nil
 }
 
 func (s *convergentFactStore) rowCount() int {
