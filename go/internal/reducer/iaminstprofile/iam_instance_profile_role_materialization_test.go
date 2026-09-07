@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iaminstprofile
 
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
+
+// iamInstanceProfileRoleIntent and iamInstanceProfileRoleFixture live in
+// iaminstprofile_test_helpers_test.go beside the envelope fixtures.
 
 type recordingIAMInstanceProfileRoleEdgeWriter struct {
 	writeCalls        int
@@ -49,27 +52,6 @@ func (w *recordingIAMInstanceProfileRoleEdgeWriter) RetractIAMInstanceProfileRol
 	return nil
 }
 
-func iamInstanceProfileRoleIntent() Intent {
-	return Intent{
-		IntentID:     "intent-profile-role-1",
-		ScopeID:      "scope-1",
-		GenerationID: "gen-1",
-		Domain:       DomainIAMInstanceProfileRoleMaterialization,
-		EntityKeys:   []string{"aws_resource_materialization:scope-1"},
-		EnqueuedAt:   time.Now(),
-		AvailableAt:  time.Now(),
-	}
-}
-
-func iamInstanceProfileRoleFixture() []facts.Envelope {
-	const acct = "123456789012"
-	roleARN := "arn:aws:iam::" + acct + ":role/app"
-	return []facts.Envelope{
-		iamInstanceProfileResourceEnvelope(acct, "app-profile", roleARN),
-		iamRoleEnvelope(acct, roleARN),
-	}
-}
-
 func TestIAMInstanceProfileRoleMaterializationGatesOnCanonicalNodesPhase(t *testing.T) {
 	t.Parallel()
 
@@ -84,7 +66,7 @@ func TestIAMInstanceProfileRoleMaterializationGatesOnCanonicalNodesPhase(t *test
 	if err == nil {
 		t.Fatal("expected retryable error while canonical CloudResource nodes are not ready")
 	}
-	if !IsRetryable(err) {
+	if !reducercontract.IsRetryable(err) {
 		t.Fatalf("error must be retryable, got %v", err)
 	}
 	if writer.writeCalls != 0 || writer.retractCalls != 0 {
@@ -107,7 +89,7 @@ func TestIAMInstanceProfileRoleMaterializationProjectsEdges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Handle returned error: %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
+	if result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("status = %q, want succeeded", result.Status)
 	}
 	if result.CanonicalWrites != 1 {
@@ -153,30 +135,4 @@ func TestIAMInstanceProfileRoleMaterializationNoRolesRetractsStaleEdges(t *testi
 	if writer.retractCalls != 1 {
 		t.Fatalf("retractCalls = %d, want 1 to clear stale prior-generation edges", writer.retractCalls)
 	}
-}
-
-func TestImplementedDefaultDomainDefinitionsIncludesIAMInstanceProfileRoleWhenWired(t *testing.T) {
-	t.Parallel()
-
-	writer := &recordingIAMInstanceProfileRoleEdgeWriter{}
-	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		FactLoader:                       &stubFactLoader{},
-		IAMInstanceProfileRoleEdgeWriter: writer,
-		ReadinessLookup:                  readyLookup(true, true),
-	})
-
-	for _, def := range definitions {
-		if def.Domain != DomainIAMInstanceProfileRoleMaterialization {
-			continue
-		}
-		handler, ok := def.Handler.(IAMInstanceProfileRoleMaterializationHandler)
-		if !ok {
-			t.Fatalf("handler type = %T, want IAMInstanceProfileRoleMaterializationHandler", def.Handler)
-		}
-		if handler.FactLoader == nil || handler.EdgeWriter == nil || handler.ReadinessLookup == nil {
-			t.Fatal("handler dependencies were not wired")
-		}
-		return
-	}
-	t.Fatal("iam_instance_profile_role_materialization not registered after wiring loader+edge writer")
 }

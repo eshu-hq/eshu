@@ -1,64 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iaminstprofile
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// iamInstanceProfileResourceEnvelope builds an aws_iam_instance_profile
-// aws_resource envelope with the same nested-attributes shape the real
-// awscloud IAM scanner emits (awscloud.NewResourceEnvelope ->
-// awsPayloadAttributes flattens the scanner's service-specific attributes,
-// including role_arns, under one top-level "attributes" key rather than at
-// the payload's top level; see #4633).
-func iamInstanceProfileResourceEnvelope(accountID, profileName string, roleARNs ...string) facts.Envelope {
-	profileARN := "arn:aws:iam::" + accountID + ":instance-profile/" + profileName
-	roles := make([]any, 0, len(roleARNs))
-	for _, arn := range roleARNs {
-		roles = append(roles, arn)
-	}
-	return facts.Envelope{
-		FactKind: facts.AWSResourceFactKind,
-		Payload: map[string]any{
-			"account_id":          accountID,
-			"region":              "aws-global",
-			"resource_type":       "aws_iam_instance_profile",
-			"resource_id":         profileARN,
-			"arn":                 profileARN,
-			"name":                profileName,
-			"correlation_anchors": []any{profileARN, profileName},
-			"attributes": map[string]any{
-				"collector_instance_id": "test-instance",
-				"role_arns":             roles,
-			},
-		},
-	}
-}
-
-func iamInstanceProfileUID(accountID, profileName string) string {
-	arn := "arn:aws:iam::" + accountID + ":instance-profile/" + profileName
-	return cloudResourceUID(accountID, "aws-global", "aws_iam_instance_profile", arn)
-}
-
-func iamRoleUID(accountID, roleName string) string {
-	arn := "arn:aws:iam::" + accountID + ":role/" + roleName
-	return cloudResourceUID(accountID, "aws-global", "aws_iam_role", arn)
-}
-
-// iamRoleEnvelope builds the aws_resource node fact an IAM role resolves
-// through the shared join index. IAM is a global service: region is
-// "aws-global" and resource_id == arn, matching the iam scanner's
-// roleObservation. It used to live beside the CAN_ASSUME edge-row tests, which
-// moved to internal/reducer/iamcan in #6061; Go test files cannot share
-// unexported symbols across a package boundary, so this copy stays here for the
-// USES_PROFILE tests that still need it.
-func iamRoleEnvelope(accountID, arn string) facts.Envelope {
-	return resourceEnvelope(accountID, "aws-global", "aws_iam_role", arn, arn, arn)
-}
+// Envelope and uid fixtures live in iaminstprofile_test_helpers_test.go:
+// Go test files cannot share unexported symbols across the reducer-root
+// package boundary, so they are duplicated there verbatim (issue #6061).
 
 func TestExtractIAMInstanceProfileRoleEdgeRowsResolvesRoles(t *testing.T) {
 	t.Parallel()
@@ -85,18 +39,18 @@ func TestExtractIAMInstanceProfileRoleEdgeRowsResolvesRoles(t *testing.T) {
 		iamRoleUID(acct, "breakglass"): {},
 	}
 	for _, row := range rows {
-		if got := anyToString(row["profile_uid"]); got != wantProfileUID {
+		if got := payloadcore.AnyToString(row["profile_uid"]); got != wantProfileUID {
 			t.Fatalf("profile_uid = %q, want %q", got, wantProfileUID)
 		}
-		roleUID := anyToString(row["role_uid"])
+		roleUID := payloadcore.AnyToString(row["role_uid"])
 		if _, ok := wantRoles[roleUID]; !ok {
 			t.Fatalf("unexpected role_uid %q", roleUID)
 		}
 		delete(wantRoles, roleUID)
-		if got := anyToString(row["relationship_type"]); got != "HAS_ROLE" {
+		if got := payloadcore.AnyToString(row["relationship_type"]); got != "HAS_ROLE" {
 			t.Fatalf("relationship_type = %q, want HAS_ROLE", got)
 		}
-		if got := anyToString(row["resolution_mode"]); got != iamInstanceProfileRoleModeARN {
+		if got := payloadcore.AnyToString(row["resolution_mode"]); got != iamInstanceProfileRoleModeARN {
 			t.Fatalf("resolution_mode = %q, want %q", got, iamInstanceProfileRoleModeARN)
 		}
 	}

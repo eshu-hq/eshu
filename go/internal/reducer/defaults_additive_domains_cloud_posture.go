@@ -8,6 +8,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 )
@@ -36,8 +37,8 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 		definitions = append(definitions, ec2UsesProfile)
 	}
 	if handlers.FactLoader != nil && handlers.IAMInstanceProfileRoleEdgeWriter != nil {
-		profileRole := iamInstanceProfileRoleMaterializationDomainDefinition()
-		profileRole.Handler = IAMInstanceProfileRoleMaterializationHandler{
+		profileRole := iaminstprofile.MaterializationDomainDefinition()
+		profileRole.Handler = iaminstprofile.IAMInstanceProfileRoleMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.IAMInstanceProfileRoleEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

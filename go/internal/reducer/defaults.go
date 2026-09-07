@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
@@ -331,7 +332,7 @@ type DefaultHandlers struct {
 	// missing either one would drop every HAS_ROLE materialization intent before it
 	// reaches graph truth. The handler also gates on ReadinessLookup so edges never
 	// resolve against uncommitted IAM nodes.
-	IAMInstanceProfileRoleEdgeWriter IAMInstanceProfileRoleEdgeWriter
+	IAMInstanceProfileRoleEdgeWriter iaminstprofile.IAMInstanceProfileRoleEdgeWriter
 
 	// EC2BlockDeviceKMSPostureNodeWriter derives EC2 block-device KMS posture
 	// from ec2_instance_posture block devices joined to EBS volume and KMS facts,

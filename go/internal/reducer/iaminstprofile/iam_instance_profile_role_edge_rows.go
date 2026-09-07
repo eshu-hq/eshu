@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iaminstprofile
 
 import (
 	"sort"
@@ -9,7 +9,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/graph/edgetype"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iampolicy"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	awsv1 "github.com/eshu-hq/eshu/sdk/go/factschema/aws/v1"
 )
 
@@ -48,20 +52,20 @@ type iamRoleJoinIndex struct {
 	byARN map[string]string
 }
 
-func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, []quarantinedFact, error) {
+func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, []factdecode.QuarantinedFact, error) {
 	index := iamRoleJoinIndex{byARN: make(map[string]string, len(envelopes))}
-	var quarantined []quarantinedFact
+	var quarantined []factdecode.QuarantinedFact
 	for _, env := range envelopes {
 		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
-		resource, err := decodeAWSResource(env)
+		resource, err := schemadecode.DecodeAWSResource(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return iamRoleJoinIndex{}, nil, fatal
 			}
-			if isQuarantine {
+			if ok {
 				quarantined = append(quarantined, q)
 			}
 			continue
@@ -69,7 +73,7 @@ func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, []quar
 		if resource.ResourceType != iampolicy.ResourceTypeRole {
 			continue
 		}
-		arn := strings.TrimSpace(derefString(resource.ARN))
+		arn := strings.TrimSpace(payloadcore.DerefString(resource.ARN))
 		resourceID := resource.ResourceID
 		if resourceID == "" {
 			resourceID = arn
@@ -77,7 +81,7 @@ func buildIAMRoleJoinIndex(envelopes []facts.Envelope) (iamRoleJoinIndex, []quar
 		if resourceID == "" {
 			continue
 		}
-		uid := cloudResourceUID(resource.AccountID, resource.Region, iampolicy.ResourceTypeRole, resourceID)
+		uid := cloudjoin.CloudResourceUID(resource.AccountID, resource.Region, iampolicy.ResourceTypeRole, resourceID)
 		if arn != "" {
 			if _, exists := index.byARN[arn]; !exists {
 				index.byARN[arn] = uid
@@ -105,7 +109,7 @@ func (i iamRoleJoinIndex) resolve(arn string) (string, bool) {
 // fabricated.
 func ExtractIAMInstanceProfileRoleEdgeRows(
 	envelopes []facts.Envelope,
-) ([]map[string]any, iamInstanceProfileRoleEdgeTally, []quarantinedFact, error) {
+) ([]map[string]any, iamInstanceProfileRoleEdgeTally, []factdecode.QuarantinedFact, error) {
 	tally := newIAMInstanceProfileRoleEdgeTally()
 	if len(envelopes) == 0 {
 		return nil, tally, nil, nil
@@ -127,13 +131,13 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 		if env.FactKind != facts.AWSResourceFactKind || env.IsTombstone {
 			continue
 		}
-		resource, err := decodeAWSResource(env)
+		resource, err := schemadecode.DecodeAWSResource(env)
 		if err != nil {
-			q, isQuarantine, fatal := partitionDecodeFailures(env, err)
+			q, ok, fatal := factdecode.PartitionDecodeFailures(env, err)
 			if fatal != nil {
 				return nil, tally, nil, fatal
 			}
-			if isQuarantine {
+			if ok {
 				quarantined = append(quarantined, q)
 			}
 			continue
@@ -155,7 +159,7 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 		// an ordinary target_unresolved skip.
 		instanceProfileAttrs, attrErr := awsv1.DecodeResourceIAMInstanceProfileAttributes(resource)
 		if attrErr != nil {
-			quarantined = append(quarantined, quarantinedAttributeShapeFact(env, attrErr))
+			quarantined = append(quarantined, factdecode.QuarantinedAttributeShapeFact(env, attrErr))
 			continue
 		}
 		roleARNs := instanceProfileAttrs.RoleARNs
@@ -196,15 +200,15 @@ func ExtractIAMInstanceProfileRoleEdgeRows(
 	}
 
 	sort.Slice(rows, func(a, b int) bool {
-		left := anyToString(rows[a]["profile_uid"]) + "->" + anyToString(rows[a]["role_uid"])
-		right := anyToString(rows[b]["profile_uid"]) + "->" + anyToString(rows[b]["role_uid"])
+		left := payloadcore.AnyToString(rows[a]["profile_uid"]) + "->" + payloadcore.AnyToString(rows[a]["role_uid"])
+		right := payloadcore.AnyToString(rows[b]["profile_uid"]) + "->" + payloadcore.AnyToString(rows[b]["role_uid"])
 		return left < right
 	})
 	return rows, tally, quarantined, nil
 }
 
 func iamInstanceProfileRoleProfileUID(resource awsv1.Resource) (string, bool) {
-	arn := derefString(resource.ARN)
+	arn := payloadcore.DerefString(resource.ARN)
 	resourceID := resource.ResourceID
 	if resourceID == "" {
 		resourceID = arn
@@ -212,5 +216,5 @@ func iamInstanceProfileRoleProfileUID(resource awsv1.Resource) (string, bool) {
 	if resourceID == "" {
 		return "", false
 	}
-	return cloudResourceUID(resource.AccountID, resource.Region, iamInstanceProfileRoleResourceTypeInstanceProfile, resourceID), true
+	return cloudjoin.CloudResourceUID(resource.AccountID, resource.Region, iamInstanceProfileRoleResourceTypeInstanceProfile, resourceID), true
 }

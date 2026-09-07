@@ -163,7 +163,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainIAMCanAssumeMaterialization:              "additive, gated on FactLoader+IAMCanAssumeEdgeWriter with readiness lookup; idempotency proven by iam_can_assume_materialization_*_test.go",
 	DomainIAMCanPerformMaterialization:             "additive, gated on FactLoader+IAMCanPerformEdgeWriter with readiness lookup; idempotency proven by iam_can_perform_materialization_*_test.go",
 	DomainIAMEscalationMaterialization:             "additive, gated on FactLoader+IAMEscalationEdgeWriter with readiness lookup; idempotency proven by iam_escalation_materialization_*_test.go",
-	DomainIAMInstanceProfileRoleMaterialization:    "additive, gated on FactLoader+IAMInstanceProfileRoleEdgeWriter with readiness lookup; idempotency proven by iam_instance_profile_role_materialization_*_test.go",
+	DomainIAMInstanceProfileRoleMaterialization:    "additive, gated on FactLoader+IAMInstanceProfileRoleEdgeWriter with readiness lookup; idempotency proven by iaminstprofile/iam_instance_profile_role_materialization_*_test.go",
 	DomainS3LogsToMaterialization:                  "additive, gated on FactLoader+S3LogsToEdgeWriter with readiness lookup; idempotency proven by s3logsto/s3_logs_to_materialization_*_test.go",
 	DomainS3ExternalPrincipalGrantMaterialization:  "additive, gated on FactLoader+S3ExternalPrincipalGrantWriter with readiness lookup; idempotency proven by s3grant/s3_external_principal_grant_*_test.go (defaults_s3_external_principal_grant_test.go)",
 

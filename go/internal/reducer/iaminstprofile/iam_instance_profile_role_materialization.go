@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package iaminstprofile
 
 import (
 	"context"
@@ -14,16 +14,27 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-func iamInstanceProfileRoleMaterializationDomainDefinition() DomainDefinition {
-	return DomainDefinition{
-		Domain:  DomainIAMInstanceProfileRoleMaterialization,
+// MaterializationDomainDefinition returns the additive definition for IAM
+// instance-profile HAS_ROLE edge projection (#1299). It is additive (not part
+// of DefaultDomainDefinitions) because the handler requires an explicitly
+// wired IAMInstanceProfileRoleEdgeWriter and FactLoader; registering it
+// without them would silently drop every intent. It mirrors
+// ec2usesprofile.MaterializationDomainDefinition (#1146 PR-B).
+func MaterializationDomainDefinition() reducercontract.DomainDefinition {
+	return reducercontract.DomainDefinition{
+		Domain:  reducercontract.DomainIAMInstanceProfileRoleMaterialization,
 		Summary: "project IAM instance-profile role_arns into canonical HAS_ROLE graph edges",
-		Ownership: OwnershipShape{
+		Ownership: reducercontract.OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
 			CanonicalWrite: true,
@@ -64,15 +75,15 @@ type IAMInstanceProfileRoleEdgeWriter interface {
 // same generation. The handler gates on the cloud_resource_uid canonical-nodes
 // phase so edges never resolve against uncommitted CloudResource nodes.
 type IAMInstanceProfileRoleMaterializationHandler struct {
-	FactLoader FactLoader
+	FactLoader factload.FactLoader
 	EdgeWriter IAMInstanceProfileRoleEdgeWriter
 	// ReadinessLookup reports whether the canonical-nodes-committed phase has
 	// been published for the intent's scope generation. A nil lookup keeps the
 	// gate open for tests; production wires the durable Postgres lookup.
-	ReadinessLookup GraphProjectionReadinessLookup
+	ReadinessLookup gpphase.ReadinessLookup
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract behavior conservative.
-	PriorGenerationCheck PriorGenerationCheck
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Tracer               trace.Tracer
 	Instruments          *telemetry.Instruments
 }
@@ -83,20 +94,20 @@ func iamInstanceProfileRoleFactKinds() []string {
 
 func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
 	totalStart := time.Now()
-	if intent.Domain != DomainIAMInstanceProfileRoleMaterialization {
-		return Result{}, fmt.Errorf(
+	if intent.Domain != reducercontract.DomainIAMInstanceProfileRoleMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"iam instance-profile role materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("iam instance-profile role materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("iam instance-profile role materialization fact loader is required")
 	}
 	if h.EdgeWriter == nil {
-		return Result{}, fmt.Errorf("iam instance-profile role materialization edge writer is required")
+		return reducercontract.Result{}, fmt.Errorf("iam instance-profile role materialization edge writer is required")
 	}
 
 	if h.Tracer != nil {
@@ -112,14 +123,14 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 	}
 
 	if !h.canonicalNodesReady(intent) {
-		return Result{}, iamInstanceProfileRoleNodesNotReadyError{
+		return reducercontract.Result{}, iamInstanceProfileRoleNodesNotReadyError{
 			scopeID:      intent.ScopeID,
 			generationID: intent.GenerationID,
 		}
 	}
 
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
@@ -127,7 +138,7 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 		iamInstanceProfileRoleFactKinds(),
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for iam instance-profile role materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for iam instance-profile role materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
@@ -137,18 +148,18 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 		// A non-decode error (transient fact-load or other fatal condition
 		// partitionDecodeFailures did NOT quarantine) fails the whole intent so
 		// the durable queue triages it correctly.
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	// Per-fact isolation: a malformed aws_resource fact (a missing required
 	// identity field) is quarantined as a visible input_invalid dead-letter —
 	// counter + structured error log — while every valid instance-profile still
 	// resolves its HAS_ROLE edge below.
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainIAMInstanceProfileRoleMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainIAMInstanceProfileRoleMaterialization, intent.ScopeID, intent.GenerationID, quarantined)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
-		return Result{}, err
+		return reducercontract.Result{}, err
 	}
 	var retractDuration time.Duration
 	if !skipRetract {
@@ -159,7 +170,7 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 			intent.GenerationID,
 			iamInstanceProfileRoleEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("retract canonical iam instance-profile HAS_ROLE edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("retract canonical iam instance-profile HAS_ROLE edges: %w", err)
 		}
 		retractDuration = time.Since(retractStart)
 	}
@@ -174,7 +185,7 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 			intent.GenerationID,
 			iamInstanceProfileRoleEvidenceSource,
 		); err != nil {
-			return Result{}, fmt.Errorf("write canonical iam instance-profile HAS_ROLE edges: %w", err)
+			return reducercontract.Result{}, fmt.Errorf("write canonical iam instance-profile HAS_ROLE edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
 	}
@@ -195,10 +206,10 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 		totalDuration:   time.Since(totalStart),
 	})
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainIAMInstanceProfileRoleMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainIAMInstanceProfileRoleMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"materialized %d HAS_ROLE edge(s) from %d aws resource fact(s); %d profile role(s) skipped (missing profile identity or unscanned target role); %d input_invalid fact(s) quarantined",
 			len(rows),
@@ -207,28 +218,28 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 			inputInvalidCount,
 		),
 		CanonicalWrites: len(rows),
-		SubSignals:      inputInvalidSubSignals(inputInvalidCount),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
 	}, nil
 }
 
-func (h IAMInstanceProfileRoleMaterializationHandler) canonicalNodesReady(intent Intent) bool {
+func (h IAMInstanceProfileRoleMaterializationHandler) canonicalNodesReady(intent reducercontract.Intent) bool {
 	if h.ReadinessLookup == nil {
 		return true
 	}
-	state, ok := graphProjectionPhaseStateForIntent(
+	state, ok := gpphase.StateForIntentValue(
 		intent,
-		GraphProjectionKeyspaceCloudResourceUID,
-		GraphProjectionPhaseCanonicalNodesCommitted,
+		gpphase.KeyspaceCloudResourceUID,
+		gpphase.PhaseCanonicalNodesCommitted,
 		time.Now().UTC(),
 	)
 	if !ok {
 		return false
 	}
-	ready, found := h.ReadinessLookup(state.Key, GraphProjectionPhaseCanonicalNodesCommitted)
+	ready, found := h.ReadinessLookup(state.Key, gpphase.PhaseCanonicalNodesCommitted)
 	return found && ready
 }
 
-func (h IAMInstanceProfileRoleMaterializationHandler) shouldSkipRetract(ctx context.Context, intent Intent) (bool, error) {
+func (h IAMInstanceProfileRoleMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -248,7 +259,7 @@ func (h IAMInstanceProfileRoleMaterializationHandler) recordEdgeCounter(
 	}
 	counts := make(map[string]int, len(rows))
 	for _, row := range rows {
-		counts[anyToString(row["resolution_mode"])]++
+		counts[payloadcore.AnyToString(row["resolution_mode"])]++
 	}
 	for mode, count := range counts {
 		h.Instruments.IAMInstanceProfileRoleEdges.Add(ctx, int64(count), metric.WithAttributes(
@@ -308,7 +319,7 @@ func (iamInstanceProfileRoleNodesNotReadyError) FailureClass() string {
 }
 
 type iamInstanceProfileRoleMaterializationTiming struct {
-	intent          Intent
+	intent          reducercontract.Intent
 	resourceCount   int
 	edgeCount       int
 	resolvedByMode  map[string]int
@@ -332,8 +343,8 @@ func logIAMInstanceProfileRoleMaterializationCompleted(
 		log.Domain(string(timing.intent.Domain)),
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("edge_count", timing.edgeCount),
-		slog.String("resolved_by_mode", formatTally(timing.resolvedByMode)),
-		slog.String("skipped_by_reason", formatTally(timing.skippedByReason)),
+		slog.String("resolved_by_mode", payloadcore.FormatTally(timing.resolvedByMode)),
+		slog.String("skipped_by_reason", payloadcore.FormatTally(timing.skippedByReason)),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("resolve_duration_seconds", timing.extractDuration.Seconds()),
