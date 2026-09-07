@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 	"gopkg.in/yaml.v3"
 )
 
@@ -109,7 +110,7 @@ func looksLikeDockerfileEntity(entity EntityContent) bool {
 }
 
 func looksLikeDockerComposeEntity(entity EntityContent) bool {
-	return isDockerComposeFilename(strings.ToLower(filepath.Base(entity.RelativePath)))
+	return artifacts.IsDockerComposeFilename(strings.ToLower(filepath.Base(entity.RelativePath)))
 }
 
 func isDockerfileSourceLabel(label string) bool {

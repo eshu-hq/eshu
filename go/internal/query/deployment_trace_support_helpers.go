@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
 )
 
 const (
@@ -141,7 +142,7 @@ func backfillConsumerRepositoryDisplayNames(
 		}
 	}
 
-	namesByID, err := queryRepositoryNamesByID(ctx, graph, repoIDs)
+	namesByID, err := repositoryreadmodel.QueryRepositoryNamesByID(ctx, graph, repoIDs)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ package querytestutil
 import (
 	"context"
 	"strings"
+	"testing"
 )
 
 // FakeRepoGraphReader is a graph-read double for getRepositoryContext tests.
@@ -93,3 +94,50 @@ func (f FakeRepoGraphReader) RunSingle(ctx context.Context, cypher string, param
 	}
 	return bestRow, nil
 }
+
+// StoryEnvelopeGraphRows returns a graph Run function serving the canned
+// story-coverage rows (file count, language, workload, platform, dependency)
+// keyed off Cypher fragments, asserting the repo_id param on every call. It
+// moved here for #6060 lane B B3 because the story-coverage tests moved to the
+// repository family package while the envelope tests stay in root.
+func StoryEnvelopeGraphRows(
+	t *testing.T,
+	wantRepoID string,
+) func(context.Context, string, map[string]any) ([]map[string]any, error) {
+	t.Helper()
+
+	return func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		if got := params["repo_id"]; got != wantRepoID {
+			t.Fatalf("repo_id param = %#v, want %#v", got, wantRepoID)
+		}
+		switch {
+		case strings.Contains(cypher, "RETURN count(DISTINCT f) AS count"):
+			return []map[string]any{{"count": int64(7)}}, nil
+		case strings.Contains(cypher, "RETURN f.language AS language, count(DISTINCT f) AS file_count"):
+			return []map[string]any{{"language": "go", "file_count": int64(7)}}, nil
+		case strings.Contains(cypher, "RETURN w.name AS workload_name"):
+			return []map[string]any{{"workload_name": "story-service"}}, nil
+		case strings.Contains(cypher, "RETURN p.type AS platform_type"):
+			return []map[string]any{{"platform_type": "ecs"}}, nil
+		case strings.Contains(cypher, "RETURN count(DISTINCT dep) AS count"):
+			return []map[string]any{{"count": int64(1)}}, nil
+		default:
+			return nil, nil
+		}
+	}
+}
+
+// StoryWorkloadNamesCypherFragment uniquely identifies
+// queryRepositoryStoryWorkloadNames's Cypher (repository_story_counts.go)
+// among every other graph read issued by getRepositoryStory. It moved here
+// for #6060 lane B B3 because the infrastructure-truncated fold test moved to
+// the repository family package while the rows-truncated test stays in root.
+const StoryWorkloadNamesCypherFragment = "RETURN DISTINCT w.name AS workload_name"
+
+// InfrastructureGraphReadCypherFragment uniquely identifies
+// queryRepoInfrastructureFromGraph's Cypher (repository_infrastructure.go)
+// among every other graph read issued by getRepositoryContext/getRepositoryStory.
+// It moved here for #6060 lane B B3 because the infrastructure-truncated fold
+// test moved to the repository family package while seven sibling tests stay
+// in root.
+const InfrastructureGraphReadCypherFragment = "infra:K8sResource"

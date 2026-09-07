@@ -17,6 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/packagereg"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -191,9 +192,9 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	return map[string]string{
 		"QP-SC-DEPS":                                      forwardDependenciesCypher("proof"),
 		"QP-SC-PKGREG-DEPS":                               packageRegistryDependencies,
-		"QP-DEPLOY-CATALOG-ENV":                           catalogWorkloadEvidenceEnvironmentCypher,
-		"QP-DEPLOY-CATALOG-WORKLOAD-REPO":                 catalogWorkloadRepoCypher,
-		"QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE":             catalogWorkloadInstanceEnvironmentCypher,
+		"QP-DEPLOY-CATALOG-ENV":                           repository.CatalogWorkloadEvidenceEnvironmentCypher,
+		"QP-DEPLOY-CATALOG-WORKLOAD-REPO":                 repository.CatalogWorkloadRepoCypher,
+		"QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE":             repository.CatalogWorkloadInstanceEnvironmentCypher,
 		"QP-SVC-RESOLVE":                                  serviceResolve,
 		"QP-SVC-CONTEXT":                                  serviceContext,
 		"QP-SVC-RUNTIME-TOPOLOGY":                         serviceRuntimeTopology,

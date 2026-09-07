@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestBuildRepositoryStoryResponsePreservesCICDEvidenceSummary(t *testing.T) {
 	t.Parallel()
 
 	ciCDEvidence := testCICDEvidenceSummaryMap()
-	got := buildRepositoryStoryResponse(
+	got := repository.BuildRepositoryStoryResponse(
 		RepoRef{ID: "repo://example/api", Name: "api"},
 		12,
 		[]string{"go", "yaml"},

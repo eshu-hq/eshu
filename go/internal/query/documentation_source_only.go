@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -19,7 +20,7 @@ func (cr *ContentReader) documentationSourceOnlySummary(
 	filter documentationFindingFilter,
 ) (documentationTargetCoverage, error) {
 	if cr == nil || cr.db == nil ||
-		!documentationTargetScopeHasSelector(documentationTargetScopeFromFindingFilter(filter)) {
+		!querycontract.DocumentationTargetScopeHasSelector(querycontract.DocumentationTargetScopeFromFindingFilter(filter)) {
 		return documentationTargetCoverage{}, nil
 	}
 	ctx, span := cr.tracer.Start(

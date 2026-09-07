@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // repositoryInfrastructureFamilyLeadingWordPattern extracts a canonical
@@ -33,7 +35,7 @@ var repositoryInfrastructureFamilyAliases = map[string]string{
 // repositoryInfrastructureTypeFamily derives the family token this test
 // checks against OpenAPI prose from a canonical entity_type name, with no
 // hand-written family-to-type map: the token comes straight out of the type
-// name Go already declares in repositoryInfrastructureEntityTypes.
+// name Go already declares in repository.RepositoryInfrastructureEntityTypes.
 func repositoryInfrastructureTypeFamily(entityType string) string {
 	family := repositoryInfrastructureFamilyLeadingWordPattern.FindString(entityType)
 	if alias, ok := repositoryInfrastructureFamilyAliases[family]; ok {
@@ -88,7 +90,7 @@ func TestRepositoryInfrastructureOpenAPIDescriptionNamesEveryCanonicalFamily(t *
 	}
 	description := match[1]
 
-	for _, entityType := range repositoryInfrastructureEntityTypes {
+	for _, entityType := range repository.RepositoryInfrastructureEntityTypes {
 		family := repositoryInfrastructureTypeFamily(entityType)
 		if family == "" {
 			t.Fatalf("repositoryInfrastructureTypeFamily(%q) = \"\", want a non-empty leading word", entityType)

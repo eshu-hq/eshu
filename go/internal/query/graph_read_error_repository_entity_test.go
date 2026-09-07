@@ -25,7 +25,7 @@ func TestGetRepositoryStoryMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getRepositoryStory(rec, req)
+			handler.GetRepositoryStory(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

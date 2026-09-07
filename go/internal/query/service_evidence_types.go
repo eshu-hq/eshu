@@ -6,8 +6,6 @@ package query
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -44,12 +42,10 @@ func listServiceEvidenceFiles(ctx context.Context, reader serviceEvidenceReader,
 	return files, false, nil
 }
 
-// specFileResolver resolves a relative `$ref` path from a base spec file and
-// returns the raw content of the referenced file. An empty string with a nil
-// error means the reference resolved to nothing the repository holds; a read
-// failure is returned as an error and never collapsed into that same empty
-// string (#5720 round 10).
-type specFileResolver func(baseRelativePath, ref string) (string, error)
+// specFileResolver resolves a relative `$ref` path from a base spec file.
+// Alias onto querycontract so the moved repository handler family can name
+// the resolver type from outside this package (#6060, lane B B3).
+type specFileResolver = querycontract.SpecFileResolver
 
 // buildSpecFileResolver creates a specFileResolver closure that reads
 // referenced files through the serviceEvidenceReader.
@@ -59,7 +55,7 @@ func buildSpecFileResolver(ctx context.Context, reader serviceEvidenceReader, re
 			return "", nil
 		}
 		// Resolve relative path against the base spec file's directory.
-		resolved := openAPIRefFilePath(baseRelativePath, ref)
+		resolved := querycontract.OpenAPIRefFilePath(baseRelativePath, ref)
 		if resolved == "" {
 			// PR #5933 review fix (Copilot): a fragment-only $ref (e.g.
 			// "#/components/schemas/Widget") resolves to no external file.
@@ -78,47 +74,6 @@ func buildSpecFileResolver(ctx context.Context, reader serviceEvidenceReader, re
 		}
 		return fc.Content, nil
 	}
-}
-
-// serviceSliceValue, serviceMapValue, and serviceStringValue read one field out
-// of a loosely-parsed YAML/JSON spec document. A spec file is caller content,
-// so any node can be any type; each accessor returns the zero value rather than
-// panicking on a shape the repository happened to commit.
-func serviceSliceValue(raw any) []any {
-	switch typed := raw.(type) {
-	case []any:
-		return typed
-	default:
-		return nil
-	}
-}
-
-func serviceMapValue(raw any) map[string]any {
-	typed, _ := raw.(map[string]any)
-	return typed
-}
-
-func serviceStringValue(raw any) string {
-	value, _ := raw.(string)
-	return value
-}
-
-// openAPIRefFilePath resolves a `$ref` against the directory of the spec file
-// that carried it, dropping any `#/...` JSON-pointer fragment. It returns a
-// repository-relative path, or an empty string when the ref is only a fragment.
-func openAPIRefFilePath(baseRelativePath, ref string) string {
-	ref = strings.TrimSpace(ref)
-	if ref == "" {
-		return ""
-	}
-	if fragmentIndex := strings.Index(ref, "#"); fragmentIndex >= 0 {
-		ref = ref[:fragmentIndex]
-	}
-	if ref == "" {
-		return ""
-	}
-	baseDir := filepath.Dir(baseRelativePath)
-	return filepath.Clean(filepath.Join(baseDir, ref))
 }
 
 // ServiceQueryEvidence groups content-derived service evidence before it is
@@ -178,27 +133,14 @@ type ServiceEntrypointCandidateEvidence struct {
 }
 
 // ServiceAPISpecEvidence summarizes one API spec file and its parsed routes,
-// server hostnames, and operation IDs when available.
-type ServiceAPISpecEvidence struct {
-	RelativePath     string                       `json:"relative_path"`
-	Format           string                       `json:"format"`
-	Parsed           bool                         `json:"parsed"`
-	SpecVersion      string                       `json:"spec_version,omitempty"`
-	APIVersion       string                       `json:"api_version,omitempty"`
-	EndpointCount    int                          `json:"endpoint_count,omitempty"`
-	MethodCount      int                          `json:"method_count,omitempty"`
-	OperationIDCount int                          `json:"operation_id_count,omitempty"`
-	DocsRoutes       []string                     `json:"docs_routes,omitempty"`
-	Hostnames        []string                     `json:"hostnames,omitempty"`
-	Endpoints        []ServiceAPIEndpointEvidence `json:"endpoints,omitempty"`
-}
+// server hostnames, and operation IDs when available. It is an alias onto
+// querycontract so the moved repository handler family can name it from
+// outside this package (#6060, lane B B3).
+type ServiceAPISpecEvidence = querycontract.ServiceAPISpecEvidence
 
 // ServiceAPIEndpointEvidence captures one API endpoint path from an API spec.
-type ServiceAPIEndpointEvidence struct {
-	Path         string   `json:"path"`
-	Methods      []string `json:"methods,omitempty"`
-	OperationIDs []string `json:"operation_ids,omitempty"`
-}
+// Alias onto querycontract; see ServiceAPISpecEvidence.
+type ServiceAPIEndpointEvidence = querycontract.ServiceAPIEndpointEvidence
 
 // FrameworkRouteEvidence captures one framework route's handler evidence.
 type FrameworkRouteEvidence = querycontract.FrameworkRouteEvidence

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func buildEntitySemanticSummary(entity map[string]any) string {
@@ -281,7 +282,7 @@ func buildEntitySemanticSummary(entity map[string]any) string {
 	}
 
 	fragments := make([]string, 0, 4)
-	pythonProfile := PythonSemanticProfileFromMetadata(label, metadata)
+	pythonProfile := repository.PythonSemanticProfileFromMetadata(label, metadata)
 	if pythonProfile.Lambda {
 		fragments = append(fragments, "is a lambda function")
 	}
@@ -330,7 +331,7 @@ func buildEntitySemanticSummary(entity map[string]any) string {
 	if params := metadataStringSlice(metadata, "type_parameters"); len(params) > 0 {
 		fragments = append(fragments, "declares type parameters "+strings.Join(params, ", "))
 	}
-	jsSemantics := ExtractJavaScriptSemantics(metadata)
+	jsSemantics := repository.ExtractJavaScriptSemantics(metadata)
 	if jsSemantics.MethodKind != "" {
 		if StringVal(entity, "language") == "javascript" {
 			fragments = append(fragments, "has JavaScript method kind "+jsSemantics.MethodKind)
@@ -406,15 +407,15 @@ func attachSemanticSummary(result map[string]any) {
 	if summary := buildEntitySemanticSummary(entity); summary != "" {
 		result["semantic_summary"] = summary
 	}
-	if profile := buildEntitySemanticProfile(entity); len(profile) > 0 {
+	if profile := repository.BuildEntitySemanticProfile(entity); len(profile) > 0 {
 		result["semantic_profile"] = profile
 	}
 	if StringVal(entity, "language") == "python" {
-		if pythonSemantics := PythonSemanticProfileFromMetadata(primaryEntityLabel(entity), metadata); pythonSemantics.Present() {
+		if pythonSemantics := repository.PythonSemanticProfileFromMetadata(primaryEntityLabel(entity), metadata); pythonSemantics.Present() {
 			result["python_semantics"] = pythonSemantics.Fields()
 		}
 	}
-	if jsSemantics := ExtractJavaScriptSemantics(metadata); jsSemantics.Present() {
+	if jsSemantics := repository.ExtractJavaScriptSemantics(metadata); jsSemantics.Present() {
 		result["javascript_semantics"] = jsSemantics.Fields()
 	}
 	if language := StringVal(entity, "language"); language == "typescript" || language == "tsx" {
@@ -428,11 +429,7 @@ func attachSemanticSummary(result map[string]any) {
 }
 
 func primaryEntityLabel(entity map[string]any) string {
-	labels := StringSliceVal(entity, "labels")
-	if len(labels) == 0 {
-		return ""
-	}
-	return labels[0]
+	return querycontract.PrimaryEntityLabel(entity)
 }
 
 // joinSentenceFragments joins parts in English prose style. The implementation

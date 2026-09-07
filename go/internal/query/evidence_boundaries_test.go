@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // evidenceBoundariesFromMap extracts []PostgresOnlyBoundary from a response
@@ -167,7 +168,7 @@ func TestBuildRepositoryStoryResponseOmitsEvidenceBoundaries(t *testing.T) {
 	t.Parallel()
 
 	repo := RepoRef{ID: "repository:test-repo", Name: "test-repo"}
-	got := buildRepositoryStoryResponse(
+	got := repository.BuildRepositoryStoryResponse(
 		repo,
 		42,
 		[]string{"go"},

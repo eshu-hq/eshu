@@ -11,6 +11,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestGetRepositoryStoryReturnsEnvelopeWhenRequested(t *testing.T) {
@@ -33,7 +36,7 @@ func TestGetRepositoryStoryReturnsEnvelopeWhenRequested(t *testing.T) {
 					"has_remote": false,
 				}, nil
 			},
-			run: repositoryStoryEnvelopeGraphRows(t, "repo-story"),
+			run: querytestutil.StoryEnvelopeGraphRows(t, "repo-story"),
 		},
 		Profile: ProfileProduction,
 	}
@@ -63,7 +66,7 @@ func TestGetRepositoryStoryReturnsEnvelopeWhenRequested(t *testing.T) {
 		t.Fatalf("truth.basis = %q, want %q", got, want)
 	}
 	data := repositoryEnvelopeData(t, envelope)
-	repository := repositoryStatsRequireMap(t, data, "repository")
+	repository := querytestutil.MustMapField(t, data, "repository")
 	if got, want := repository["id"], "repo-story"; got != want {
 		t.Fatalf("repository.id = %#v, want %#v", got, want)
 	}
@@ -85,7 +88,7 @@ func TestGetRepositoryStatsReturnsEnvelopeWhenRequested(t *testing.T) {
 				if got, want := params["repo_id"], "repo-1"; got != want {
 					t.Fatalf("repo_id param = %#v, want %#v", got, want)
 				}
-				return repositoryStatsGraphRow(), nil
+				return querytestutil.RepositoryStatsGraphRow(), nil
 			},
 		},
 		Content: fakePortContentStore{
@@ -104,7 +107,7 @@ func TestGetRepositoryStatsReturnsEnvelopeWhenRequested(t *testing.T) {
 					{EntityType: "TerraformResource", Count: 2},
 				},
 			},
-			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 		},
 		Profile: ProfileProduction,
 	}
@@ -134,36 +137,9 @@ func TestGetRepositoryStatsReturnsEnvelopeWhenRequested(t *testing.T) {
 	if got, want := data["file_count"], float64(42); got != want {
 		t.Fatalf("file_count = %#v, want %#v", got, want)
 	}
-	coverage := repositoryStatsRequireMap(t, data, "coverage")
-	if got, want := coverage["query_shape"], repositoryStatsContentCoverageShape; got != want {
+	coverage := querytestutil.MustMapField(t, data, "coverage")
+	if got, want := coverage["query_shape"], repository.RepositoryStatsContentCoverageShape; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
-	}
-}
-
-func repositoryStoryEnvelopeGraphRows(
-	t *testing.T,
-	wantRepoID string,
-) func(context.Context, string, map[string]any) ([]map[string]any, error) {
-	t.Helper()
-
-	return func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-		if got := params["repo_id"]; got != wantRepoID {
-			t.Fatalf("repo_id param = %#v, want %#v", got, wantRepoID)
-		}
-		switch {
-		case strings.Contains(cypher, "RETURN count(DISTINCT f) AS count"):
-			return []map[string]any{{"count": int64(7)}}, nil
-		case strings.Contains(cypher, "RETURN f.language AS language, count(DISTINCT f) AS file_count"):
-			return []map[string]any{{"language": "go", "file_count": int64(7)}}, nil
-		case strings.Contains(cypher, "RETURN w.name AS workload_name"):
-			return []map[string]any{{"workload_name": "story-service"}}, nil
-		case strings.Contains(cypher, "RETURN p.type AS platform_type"):
-			return []map[string]any{{"platform_type": "ecs"}}, nil
-		case strings.Contains(cypher, "RETURN count(DISTINCT dep) AS count"):
-			return []map[string]any{{"count": int64(1)}}, nil
-		default:
-			return nil, nil
-		}
 	}
 }
 

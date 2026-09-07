@@ -9,55 +9,26 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const cicdRunCorrelationFactKind = "reducer_ci_cd_run_correlation"
 
-// CICDRunCorrelationStore reads reducer-owned CI/CD run correlations.
-type CICDRunCorrelationStore interface {
-	ListCICDRunCorrelations(context.Context, CICDRunCorrelationFilter) ([]CICDRunCorrelationRow, error)
-}
+// CICDRunCorrelationStore reads reducer-owned CI/CD run correlations. It is
+// an alias onto querycontract so the moved repository handler family can
+// name it from outside this package (#6060, lane B B3).
+type CICDRunCorrelationStore = querycontract.CICDRunCorrelationStore
 
 // CICDRunCorrelationFilter bounds run-correlation reads to a concrete repo,
-// commit, run, artifact digest, environment, or scope.
-type CICDRunCorrelationFilter struct {
-	ScopeID              string
-	RepositoryID         string
-	CommitSHA            string
-	Provider             string
-	ProviderRunID        string
-	ArtifactDigest       string
-	ImageRef             string
-	Environment          string
-	Outcome              string
-	AfterCorrelationID   string
-	AllowedRepositoryIDs []string
-	AllowedScopeIDs      []string
-	Limit                int
-}
+// commit, run, artifact digest, environment, or scope. Alias onto
+// querycontract; see CICDRunCorrelationStore.
+type CICDRunCorrelationFilter = querycontract.CICDRunCorrelationFilter
 
 // CICDRunCorrelationRow is one durable CI/CD correlation fact decoded from
-// the reducer-owned read model.
-type CICDRunCorrelationRow struct {
-	CorrelationID       string
-	Provider            string
-	RunID               string
-	RunAttempt          string
-	RepositoryID        string
-	CommitSHA           string
-	Environment         string
-	EnvironmentEvidence string
-	ArtifactDigest      string
-	ImageRef            string
-	Outcome             string
-	Reason              string
-	ProvenanceOnly      bool
-	CanonicalWrites     int
-	CanonicalTarget     string
-	CorrelationKind     string
-	EvidenceFactIDs     []string
-}
+// the reducer-owned read model. Alias onto querycontract; see
+// CICDRunCorrelationStore.
+type CICDRunCorrelationRow = querycontract.CICDRunCorrelationRow
 
 type cicdRunCorrelationQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
@@ -84,7 +55,7 @@ func (s PostgresCICDRunCorrelationStore) ListCICDRunCorrelations(
 	if s.DB == nil {
 		return nil, fmt.Errorf("ci/cd run correlation database is required")
 	}
-	if !filter.hasScope() {
+	if !filter.HasScope() {
 		return nil, fmt.Errorf("scope_id, repository_id, commit_sha, provider_run_id, artifact_digest, or environment is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > cicdRunCorrelationMaxLimit+1 {
@@ -163,25 +134,6 @@ WHERE fact.fact_kind = $1
 ORDER BY fact.fact_id ASC
 LIMIT $12
 `
-
-func (f CICDRunCorrelationFilter) hasScope() bool {
-	return f.ScopeID != "" ||
-		f.RepositoryID != "" ||
-		f.CommitSHA != "" ||
-		f.ProviderRunID != "" ||
-		f.ArtifactDigest != "" ||
-		f.ImageRef != "" ||
-		f.Environment != ""
-}
-
-func (f CICDRunCorrelationFilter) hasProviderRunDisambiguator() bool {
-	return f.ScopeID != "" ||
-		f.RepositoryID != "" ||
-		f.CommitSHA != "" ||
-		f.ArtifactDigest != "" ||
-		f.ImageRef != "" ||
-		f.Environment != ""
-}
 
 func decodeCICDRunCorrelationRow(factID string, payloadBytes []byte) (CICDRunCorrelationRow, error) {
 	var payload map[string]any

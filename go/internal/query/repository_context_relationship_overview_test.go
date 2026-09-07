@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetRepositoryContextIncludesTypedRelationshipOverview(t *testing.T) {
@@ -205,7 +207,7 @@ func TestGetRepositoryContextIncludesTypedRelationshipOverview(t *testing.T) {
 	if !ok {
 		t.Fatalf("relationships[0].evidence_kinds type = %T, want []any", firstRelationship["evidence_kinds"])
 	}
-	if !containsStringAny(evidenceKinds, "ARGOCD_APPLICATION_SOURCE") {
+	if !querytestutil.AnySliceContains(evidenceKinds, "ARGOCD_APPLICATION_SOURCE") {
 		t.Fatalf("relationships[0].evidence_kinds = %#v, want ARGOCD_APPLICATION_SOURCE", evidenceKinds)
 	}
 
@@ -310,12 +312,12 @@ func TestGetRepositoryContextIncludesTypedRelationshipOverview(t *testing.T) {
 		t.Fatalf("len(relationship_types) = %d, want 4", len(relationshipTypes))
 	}
 	for _, want := range []string{"DEPENDS_ON", "DEPLOYS_FROM", "DISCOVERS_CONFIG_IN", "PROVISIONS_DEPENDENCY_FOR"} {
-		if !containsStringAny(relationshipTypes, want) {
+		if !querytestutil.AnySliceContains(relationshipTypes, want) {
 			t.Fatalf("relationship_types missing %q", want)
 		}
 	}
 	for _, runtimeEdge := range []string{"PROVISIONS_PLATFORM", "DEFINES", "INSTANCE_OF"} {
-		if containsStringAny(relationshipTypes, runtimeEdge) {
+		if querytestutil.AnySliceContains(relationshipTypes, runtimeEdge) {
 			t.Fatalf("relationship_types unexpectedly includes runtime edge %q", runtimeEdge)
 		}
 	}
@@ -331,14 +333,4 @@ func TestGetRepositoryContextIncludesTypedRelationshipOverview(t *testing.T) {
 	if !strings.Contains(strings.ToLower(story), "iac-driven") {
 		t.Fatalf("story = %q, want IaC-driven relationship narrative", story)
 	}
-}
-
-func containsStringAny(values []any, want string) bool {
-	for _, value := range values {
-		got, ok := value.(string)
-		if ok && got == want {
-			return true
-		}
-	}
-	return false
 }

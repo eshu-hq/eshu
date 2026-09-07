@@ -64,6 +64,15 @@ func ContextWithAuthContext(ctx context.Context, auth AuthContext) context.Conte
 	return context.WithValue(ctx, authContextKey{}, auth)
 }
 
+// ScopedAuthContext reports whether ctx carries a scoped-token AuthContext.
+// It lives here (promoted from root package query for #6060 lane B B3) so
+// the repository freshness read and the status stayers share one check
+// without importing each other.
+func ScopedAuthContext(ctx context.Context) bool {
+	auth, ok := AuthContextFromContext(ctx)
+	return ok && auth.Mode == AuthModeScoped
+}
+
 // NormalizeAuthContext trims auth bounds and defaults an empty mode to scoped.
 // It lives here (hoisted from root package query for #6060 lane A) so a
 // handler-family subpackage can normalize the context it read without

@@ -3,50 +3,54 @@
 
 package query
 
-import "strings"
+import (
+	"strings"
 
-func serviceStorySupportTargetRefs(filter serviceStoryTargetSupportFilter) []documentationTargetRef {
-	scope := documentationTargetScopeFromValues(
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+func serviceStorySupportTargetRefs(filter serviceStoryTargetSupportFilter) []querycontract.DocumentationTargetRef {
+	scope := querycontract.DocumentationTargetScopeFromValues(
 		filter.Repository,
 		filter.TargetKind,
 		filter.TargetID,
 		filter.ServiceID,
 	)
-	baseRefs := documentationTargetRefs(scope)
-	refs := make([]documentationTargetRef, 0, len(baseRefs)*2)
+	baseRefs := querycontract.DocumentationTargetRefs(scope)
+	refs := make([]querycontract.DocumentationTargetRef, 0, len(baseRefs)*2)
 	for _, ref := range baseRefs {
 		refs = append(refs, serviceStorySupportTargetRefAliases(ref)...)
 	}
-	return uniqueDocumentationTargetRefs(refs)
+	return querycontract.UniqueDocumentationTargetRefs(refs)
 }
 
-func serviceStorySupportTargetRefAliases(ref documentationTargetRef) []documentationTargetRef {
-	ref.kind = strings.TrimSpace(ref.kind)
-	ref.id = strings.TrimSpace(ref.id)
-	if ref.id == "" {
+func serviceStorySupportTargetRefAliases(ref querycontract.DocumentationTargetRef) []querycontract.DocumentationTargetRef {
+	ref.Kind = strings.TrimSpace(ref.Kind)
+	ref.ID = strings.TrimSpace(ref.ID)
+	if ref.ID == "" {
 		return nil
 	}
-	switch strings.ToLower(ref.kind) {
+	switch strings.ToLower(ref.Kind) {
 	case "service", "workload":
-		return []documentationTargetRef{
-			{kind: "service", id: ref.id},
-			{kind: "workload", id: ref.id},
-			{kind: "Service", id: ref.id},
-			{kind: "Workload", id: ref.id},
+		return []querycontract.DocumentationTargetRef{
+			{Kind: "service", ID: ref.ID},
+			{Kind: "workload", ID: ref.ID},
+			{Kind: "Service", ID: ref.ID},
+			{Kind: "Workload", ID: ref.ID},
 		}
 	case "repository", "repo":
-		return []documentationTargetRef{
-			{kind: "repository", id: ref.id},
-			{kind: "repo", id: ref.id},
-			{kind: "Repository", id: ref.id},
-			{kind: "Repo", id: ref.id},
+		return []querycontract.DocumentationTargetRef{
+			{Kind: "repository", ID: ref.ID},
+			{Kind: "repo", ID: ref.ID},
+			{Kind: "Repository", ID: ref.ID},
+			{Kind: "Repo", ID: ref.ID},
 		}
 	default:
-		return []documentationTargetRef{ref}
+		return []querycontract.DocumentationTargetRef{ref}
 	}
 }
 
-func serviceStorySupportPayloadMatchesTargetRefs(payload map[string]any, refs []documentationTargetRef) bool {
+func serviceStorySupportPayloadMatchesTargetRefs(payload map[string]any, refs []querycontract.DocumentationTargetRef) bool {
 	for _, ref := range refs {
 		if serviceStorySupportPayloadMatchesTargetRef(payload, ref) {
 			return true
@@ -64,13 +68,13 @@ func serviceStorySupportPayloadMatchesTargetRefs(payload map[string]any, refs []
 	return false
 }
 
-func serviceStorySupportPayloadMatchesTargetRef(payload map[string]any, ref documentationTargetRef) bool {
+func serviceStorySupportPayloadMatchesTargetRef(payload map[string]any, ref querycontract.DocumentationTargetRef) bool {
 	return serviceStorySupportRefListMatchesTarget(payload["candidate_refs"], ref, "kind", "id") ||
 		serviceStorySupportRefListMatchesTarget(payload["evidence_refs"], ref, "kind", "id") ||
 		serviceStorySupportRefListMatchesTarget(payload["linked_entities"], ref, "entity_type", "entity_id")
 }
 
-func serviceStorySupportRefListMatchesTarget(raw any, ref documentationTargetRef, kindKey, idKey string) bool {
+func serviceStorySupportRefListMatchesTarget(raw any, ref querycontract.DocumentationTargetRef, kindKey, idKey string) bool {
 	switch values := raw.(type) {
 	case []any:
 		for _, value := range values {
@@ -94,33 +98,33 @@ func serviceStorySupportRefListMatchesTarget(raw any, ref documentationTargetRef
 	return false
 }
 
-func serviceStorySupportRefObjectMatchesTarget(raw any, ref documentationTargetRef, kindKey, idKey string) bool {
+func serviceStorySupportRefObjectMatchesTarget(raw any, ref querycontract.DocumentationTargetRef, kindKey, idKey string) bool {
 	value, _ := raw.(map[string]any)
 	if len(value) == 0 {
 		return false
 	}
-	id := strings.TrimSpace(documentationStringAny(value[idKey]))
-	if id == "" || id != ref.id {
+	id := strings.TrimSpace(querycontract.DocumentationStringAny(value[idKey]))
+	if id == "" || id != ref.ID {
 		return false
 	}
-	if ref.kind == "" {
+	if ref.Kind == "" {
 		return true
 	}
-	return strings.EqualFold(strings.TrimSpace(documentationStringAny(value[kindKey])), ref.kind)
+	return strings.EqualFold(strings.TrimSpace(querycontract.DocumentationStringAny(value[kindKey])), ref.Kind)
 }
 
 func serviceStorySupportStringRefObjectMatchesTarget(
 	value map[string]string,
-	ref documentationTargetRef,
+	ref querycontract.DocumentationTargetRef,
 	kindKey string,
 	idKey string,
 ) bool {
 	id := strings.TrimSpace(value[idKey])
-	if id == "" || id != ref.id {
+	if id == "" || id != ref.ID {
 		return false
 	}
-	if ref.kind == "" {
+	if ref.Kind == "" {
 		return true
 	}
-	return strings.EqualFold(strings.TrimSpace(value[kindKey]), ref.kind)
+	return strings.EqualFold(strings.TrimSpace(value[kindKey]), ref.Kind)
 }

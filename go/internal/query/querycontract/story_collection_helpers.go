@@ -386,3 +386,32 @@ func MetadataStringSlice(metadata map[string]any, key string) []string {
 		return nil
 	}
 }
+
+// CicdEvidenceStorySummary renders the one-line CI/CD evidence posture for a
+// repository story response. It lives here (not in a handler family) so the
+// repository story read and the CI/CD stayer share one rendering without
+// importing each other (#6060, lane B B3).
+func CicdEvidenceStorySummary(summary map[string]any) string {
+	static := MapValue(summary, "static_workflow_artifacts")
+	live := MapValue(summary, "live_run_correlations")
+	bridge := MapValue(summary, "run_artifact_evidence")
+	return fmt.Sprintf(
+		"CI/CD evidence has static_workflow=%s, provider_runs=%s, run_artifact=%s (%s).",
+		FirstNonEmptyString(StringVal(static, "state"), "unknown"),
+		FirstNonEmptyString(StringVal(live, "state"), "unknown"),
+		FirstNonEmptyString(StringVal(bridge, "state"), "unknown"),
+		FirstNonEmptyString(StringVal(bridge, "reason"), StringVal(summary, "reason"), "no_reason"),
+	)
+}
+
+// ServiceDeploymentToolFamilies names the deployment tool families behind a
+// deployment-evidence payload, preferring explicit tool families over
+// artifact families. It lives here (not in a handler family) so the
+// repository story deployment-evidence read and the service-story stayer
+// share one naming without importing each other (#6060, lane B B3).
+func ServiceDeploymentToolFamilies(deploymentEvidence map[string]any) []string {
+	if toolFamilies := StringSliceValue(deploymentEvidence, "tool_families"); len(toolFamilies) > 0 {
+		return toolFamilies
+	}
+	return StringSliceValue(deploymentEvidence, "artifact_families")
+}

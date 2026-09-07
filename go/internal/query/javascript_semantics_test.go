@@ -11,12 +11,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestExtractJavaScriptSemantics(t *testing.T) {
 	t.Parallel()
 
-	semantics := ExtractJavaScriptSemantics(map[string]any{
+	semantics := repository.ExtractJavaScriptSemantics(map[string]any{
 		"docstring":   "Returns the active tab.",
 		"method_kind": "getter",
 	})
@@ -35,7 +37,7 @@ func TestExtractJavaScriptSemantics(t *testing.T) {
 func TestExtractJavaScriptSemanticsSkipsMissingValues(t *testing.T) {
 	t.Parallel()
 
-	semantics := ExtractJavaScriptSemantics(map[string]any{
+	semantics := repository.ExtractJavaScriptSemantics(map[string]any{
 		"docstring":   "",
 		"method_kind": nil,
 	})
@@ -56,7 +58,7 @@ func TestAttachJavaScriptSemanticsClonesResult(t *testing.T) {
 		"name":      "getTab",
 	}
 
-	got := AttachJavaScriptSemantics(result, map[string]any{
+	got := repository.AttachJavaScriptSemantics(result, map[string]any{
 		"docstring":   "Returns the active tab.",
 		"method_kind": "getter",
 	})
@@ -84,7 +86,7 @@ func TestAttachJavaScriptSemanticsReturnsOriginalWhenEmpty(t *testing.T) {
 		"entity_id": "graph-1",
 	}
 
-	got := AttachJavaScriptSemantics(result, map[string]any{})
+	got := repository.AttachJavaScriptSemantics(result, map[string]any{})
 
 	if _, ok := got["javascript_semantics"]; ok {
 		t.Fatal("javascript_semantics present, want absent")

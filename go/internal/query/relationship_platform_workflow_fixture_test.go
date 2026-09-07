@@ -8,12 +8,15 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func TestRelationshipPlatformWorkerWorkflowSurfacesReadSideDeliveryPath(t *testing.T) {
 	t.Parallel()
 
-	artifacts := buildRepositoryWorkflowArtifacts([]FileContent{
+	artifacts := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy-modern.yml",
 			ArtifactType: "github_actions_workflow",
@@ -27,10 +30,10 @@ func TestRelationshipPlatformWorkerWorkflowSurfacesReadSideDeliveryPath(t *testi
 		},
 	})
 	if artifacts == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
-	overview := BuildRepositoryDeploymentOverview(
+	overview := repository.BuildRepositoryDeploymentOverview(
 		[]string{"service-worker-jobs"},
 		nil,
 		[]string{"github_actions"},
@@ -72,7 +75,7 @@ func TestRelationshipPlatformWorkerWorkflowSurfacesReadSideDeliveryPath(t *testi
 		t.Fatalf("topology_story[0] = %q, want %q", got, want)
 	}
 
-	story := buildRepositoryStoryResponse(
+	story := repository.BuildRepositoryStoryResponse(
 		RepoRef{ID: "repository:service-worker-jobs", Name: "service-worker-jobs"},
 		5,
 		[]string{"yaml"},
@@ -104,7 +107,7 @@ func TestRelationshipPlatformWorkerWorkflowSurfacesReadSideDeliveryPath(t *testi
 func TestRelationshipPlatformLegacyWorkflowSurfacesReusableWorkflowAndRunCommands(t *testing.T) {
 	t.Parallel()
 
-	artifacts := buildRepositoryWorkflowArtifacts([]FileContent{
+	artifacts := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy-legacy.yml",
 			ArtifactType: "github_actions_workflow",
@@ -118,7 +121,7 @@ func TestRelationshipPlatformLegacyWorkflowSurfacesReusableWorkflowAndRunCommand
 		},
 	})
 	if artifacts == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows, ok := artifacts["workflow_artifacts"].([]map[string]any)
@@ -147,7 +150,7 @@ func TestRelationshipPlatformLegacyWorkflowSurfacesReusableWorkflowAndRunCommand
 func TestRelationshipPlatformWorkerWorkflowSurfacesGatingAndNeeds(t *testing.T) {
 	t.Parallel()
 
-	artifacts := buildRepositoryWorkflowArtifacts([]FileContent{
+	artifacts := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy-gated.yml",
 			ArtifactType: "github_actions_workflow",
@@ -161,7 +164,7 @@ func TestRelationshipPlatformWorkerWorkflowSurfacesGatingAndNeeds(t *testing.T) 
 		},
 	})
 	if artifacts == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows, ok := artifacts["workflow_artifacts"].([]map[string]any)
@@ -200,7 +203,7 @@ func TestRelationshipPlatformWorkerWorkflowSurfacesGatingAndNeeds(t *testing.T) 
 		t.Fatalf("workflow_artifacts[0].needs_dependencies = %#v, want deploy<-verify", needsDependencies)
 	}
 
-	overview := BuildRepositoryDeploymentOverview(
+	overview := repository.BuildRepositoryDeploymentOverview(
 		[]string{"service-worker-jobs"},
 		nil,
 		[]string{"github_actions"},
@@ -229,7 +232,7 @@ func TestRelationshipPlatformWorkerWorkflowSurfacesGatingAndNeeds(t *testing.T) 
 		t.Fatalf("topology_story[0] = %q, want %q", got, want)
 	}
 
-	story := buildRepositoryStoryResponse(
+	story := repository.BuildRepositoryStoryResponse(
 		RepoRef{ID: "repository:service-worker-jobs", Name: "service-worker-jobs"},
 		6,
 		[]string{"yaml"},
@@ -261,7 +264,7 @@ func TestRelationshipPlatformWorkerWorkflowSurfacesGatingAndNeeds(t *testing.T) 
 func TestRelationshipPlatformWorkerDockerfileSurfacesRuntimeStory(t *testing.T) {
 	t.Parallel()
 
-	artifacts := buildRepositoryRuntimeArtifacts([]FileContent{
+	artifacts := artifacts.BuildRepositoryRuntimeArtifacts([]FileContent{
 		{
 			RelativePath: "Dockerfile",
 			ArtifactType: "dockerfile",
@@ -273,10 +276,10 @@ func TestRelationshipPlatformWorkerDockerfileSurfacesRuntimeStory(t *testing.T) 
 		},
 	})
 	if artifacts == nil {
-		t.Fatal("buildRepositoryRuntimeArtifacts() = nil, want deployment artifacts")
+		t.Fatal("artifacts.BuildRepositoryRuntimeArtifacts() = nil, want deployment artifacts")
 	}
 
-	overview := BuildRepositoryDeploymentOverview(
+	overview := repository.BuildRepositoryDeploymentOverview(
 		[]string{"service-worker-jobs"},
 		nil,
 		[]string{"docker"},
@@ -308,7 +311,7 @@ func TestRelationshipPlatformWorkerDockerfileSurfacesRuntimeStory(t *testing.T) 
 		t.Fatalf("topology_story[0] = %q, want %q", got, want)
 	}
 
-	story := buildRepositoryStoryResponse(
+	story := repository.BuildRepositoryStoryResponse(
 		RepoRef{ID: "repository:service-worker-jobs", Name: "service-worker-jobs"},
 		4,
 		[]string{"dockerfile"},
@@ -340,14 +343,14 @@ func TestRelationshipPlatformWorkerDockerfileSurfacesRuntimeStory(t *testing.T) 
 func TestRelationshipPlatformServiceEdgeSynthesizesMixedDeliveryFamilies(t *testing.T) {
 	t.Parallel()
 
-	controllerArtifacts := buildRepositoryControllerArtifacts("service-edge-api", []FileContent{
+	controllerArtifacts := artifacts.BuildRepositoryControllerArtifacts("service-edge-api", []FileContent{
 		{
 			RelativePath: "Jenkinsfile",
 			ArtifactType: "groovy",
 			Content:      readRelationshipPlatformFixture(t, "service-edge-api", "Jenkinsfile"),
 		},
 	})
-	runtimeArtifacts := buildRepositoryRuntimeArtifacts([]FileContent{
+	runtimeArtifacts := artifacts.BuildRepositoryRuntimeArtifacts([]FileContent{
 		{
 			RelativePath: "docker-compose.yaml",
 			ArtifactType: "docker_compose",
@@ -363,13 +366,13 @@ func TestRelationshipPlatformServiceEdgeSynthesizesMixedDeliveryFamilies(t *test
 			},
 		},
 	}
-	deploymentArtifacts := mergeDeploymentArtifactMaps(controllerArtifacts, runtimeArtifacts)
-	deploymentArtifacts = mergeDeploymentArtifactMaps(deploymentArtifacts, cloudFormationArtifacts)
+	deploymentArtifacts := artifacts.MergeDeploymentArtifactMaps(controllerArtifacts, runtimeArtifacts)
+	deploymentArtifacts = artifacts.MergeDeploymentArtifactMaps(deploymentArtifacts, cloudFormationArtifacts)
 	if deploymentArtifacts == nil {
 		t.Fatal("deploymentArtifacts = nil, want mixed delivery artifacts")
 	}
 
-	overview := BuildRepositoryDeploymentOverview(
+	overview := repository.BuildRepositoryDeploymentOverview(
 		[]string{"service-edge-api"},
 		[]string{"ecs", "kubernetes"},
 		[]string{"argocd", "cloudformation", "docker_compose", "jenkins", "terraform"},

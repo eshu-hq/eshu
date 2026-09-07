@@ -5,6 +5,7 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
 )
 
@@ -253,13 +254,9 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
-	"platform_impact.context_overview": {
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
-	},
+	// Declared by the repository family (repository/capability.go, #6060),
+	// not copied here. See the semanticsearch entry above for why.
+	repository.ContextOverviewCapability: repository.ContextOverviewSupport(),
 	"platform_impact.infra_resource_aggregate": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
@@ -288,12 +285,9 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
-	"platform_impact.catalog": {
-		LocalLightweightMax:   &truthDerived,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-	},
+	// Declared by the repository family (repository/capability.go, #6060),
+	// not copied here. See the semanticsearch entry above for why.
+	repository.CatalogCapability: repository.CatalogSupport(),
 	"platform_impact.environment_compare": {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

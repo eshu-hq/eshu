@@ -83,7 +83,7 @@ func TestGetRepositoryStory_LocalLightweightReturnsStructuredUnsupportedCapabili
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 
-	handler.getRepositoryStory(w, req)
+	handler.GetRepositoryStory(w, req)
 
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)

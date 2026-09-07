@@ -277,6 +277,25 @@ Adding a helper: confirm it is used by at least two packages' tests, OR that it
 is blocking a specific family move the way `MustMapField` was. A helper that is
 neither belongs in its consumer's own `_test.go`.
 
+### Re-measuring the mutation proof
+
+The README's delegation evidence cites failure counts with two different units
+and two different stabilities — reproduce them exactly or the numbers will look
+drifted:
+
+- Every failure count is TOP-LEVEL test functions (`rg -c '^--- FAIL'`),
+  while the run totals are `=== RUN` lines, which include subtests. The gap
+  is not small: the workload mutation is 40 top-level failures and 50 once
+  failing subtests are counted. Re-derive with the anchored pattern.
+- Failure counts are stable across rebases (they measure the set of tests
+  that depend on the fake, which does not change); run totals are volatile
+  and move on almost every rebase. Totals stay pinned to a named
+  `origin/main` commit, never to a moving ref.
+- Measure the dependent set with a full `go test ./internal/query/`, never
+  with `-run` naming the tests you expect: `-run` measures your own filter
+  (the first attempt here named four tests, saw four failures, and reported
+  four as though it were the dependent set).
+
 ## Anti-patterns
 
 - Moving a helper here "for tidiness" when only one package uses it and no

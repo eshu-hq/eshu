@@ -60,9 +60,10 @@ func TestDocumentationFindingSQLProjectedFieldsAreSchemaDeclared(t *testing.T) {
 		// documentation_packet_read_model.go — the packet lookup keys.
 		"finding_id",
 		"packet_id",
-		// documentation_target_read_model.go's documentationPayloadMatchesTargetRef
-		// reads linked_entities generically off any documentation payload map
-		// for target matching; doctruth's evidencePacketPayload is the only
+		// querycontract's DocumentationPayloadMatchesTargetRef (called from
+		// documentation_target_read_model.go via DocumentationPayloadMatchesTargetRefs)
+		// reads linked_entities generically off any documentation payload
+		// map for target matching; doctruth's evidencePacketPayload is the only
 		// writer that sets this key (always documentation_evidence_packet).
 		"linked_entities",
 	}
@@ -70,7 +71,8 @@ func TestDocumentationFindingSQLProjectedFieldsAreSchemaDeclared(t *testing.T) {
 	sqlText := readGoSourceText(t, "documentation_read_model.go") +
 		readGoSourceText(t, "documentation_finding_aggregates.go") +
 		readGoSourceText(t, "documentation_packet_read_model.go") +
-		readGoSourceText(t, "documentation_target_read_model.go")
+		readGoSourceText(t, "documentation_target_read_model.go") +
+		readGoSourceText(t, "querycontract/documentation_story.go")
 	referenced := documentationSQLReferencedFields(sqlText)
 
 	for _, field := range sourceFields {

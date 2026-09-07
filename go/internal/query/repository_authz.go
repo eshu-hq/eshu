@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // B3 authz seam shim for #6060: the unexported alias and forwarder names are used across root call sites while the type lives in querycontract; the names must stay in package query.
 
 import (
 	"context"

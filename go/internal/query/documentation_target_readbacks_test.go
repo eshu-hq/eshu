@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestDocumentationHandlerExplainsRepoScopedTargetFactsWithoutFindings(t *testing.T) {
@@ -245,7 +246,7 @@ func TestBuildDocumentationTargetFactsSQLIncludesSemanticObservationProvenance(t
 func TestBuildStoryTargetDocumentationKeepsSemanticObservationProvenanceOnly(t *testing.T) {
 	t.Parallel()
 
-	got := buildStoryTargetDocumentation(documentationFindingFilter{
+	got := querycontract.BuildStoryTargetDocumentation(documentationFindingFilter{
 		Repository: "repo:payments",
 		TargetKind: "service",
 		TargetID:   "service:payments-api",
@@ -293,7 +294,7 @@ func TestBuildStoryTargetDocumentationKeepsSemanticObservationProvenanceOnly(t *
 	if gotCount := kinds[facts.SemanticDocumentationObservationFactKind]; gotCount != 1 {
 		t.Fatalf("semantic observation target_fact_kinds count = %d, want 1", gotCount)
 	}
-	if gotSummary, want := storyTargetDocumentationSummary(got), "External documentation has 1 target-related fact(s) but no admitted finding for this target."; gotSummary != want {
+	if gotSummary, want := querycontract.StoryTargetDocumentationSummary(got), "External documentation has 1 target-related fact(s) but no admitted finding for this target."; gotSummary != want {
 		t.Fatalf("story summary = %q, want %q", gotSummary, want)
 	}
 }
@@ -301,7 +302,7 @@ func TestBuildStoryTargetDocumentationKeepsSemanticObservationProvenanceOnly(t *
 func TestDocumentationTargetRefsDoNotCrossPairRepoOrServiceIDs(t *testing.T) {
 	t.Parallel()
 
-	refs := documentationTargetRefsFromFindingFilter(documentationFindingFilter{
+	refs := querycontract.DocumentationTargetRefsFromFindingFilter(documentationFindingFilter{
 		Repository: "repo:platform-api",
 		TargetKind: "service",
 	})
@@ -309,11 +310,11 @@ func TestDocumentationTargetRefsDoNotCrossPairRepoOrServiceIDs(t *testing.T) {
 	if got, want := len(refs), 1; got != want {
 		t.Fatalf("len(refs) = %d, want %d: %#v", got, want, refs)
 	}
-	if got, want := refs[0], (documentationTargetRef{kind: "repository", id: "repo:platform-api"}); got != want {
+	if got, want := refs[0], (querycontract.DocumentationTargetRef{Kind: "repository", ID: "repo:platform-api"}); got != want {
 		t.Fatalf("refs[0] = %#v, want %#v", got, want)
 	}
 
-	scope := documentationTargetScopeFromFindingFilter(documentationFindingFilter{
+	scope := querycontract.DocumentationTargetScopeFromFindingFilter(documentationFindingFilter{
 		TargetKind: "workload",
 		ServiceID:  "service:payment-api",
 	})
@@ -377,7 +378,7 @@ func TestDocumentationTargetScopeDropsKindWithoutCanonicalTargetID(t *testing.T)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			scope := documentationTargetScopeFromFindingFilter(tt.filter)
+			scope := querycontract.DocumentationTargetScopeFromFindingFilter(tt.filter)
 			if got := scope.TargetKind; got != tt.targetKind {
 				t.Fatalf("TargetKind = %q, want %q", got, tt.targetKind)
 			}
@@ -391,12 +392,12 @@ func TestDocumentationTargetScopeDropsKindWithoutCanonicalTargetID(t *testing.T)
 func TestDocumentationTargetRefsPreferExplicitServiceOverRepoFallback(t *testing.T) {
 	t.Parallel()
 
-	refs := documentationTargetRefsFromFindingFilter(documentationFindingFilter{
+	refs := querycontract.DocumentationTargetRefsFromFindingFilter(documentationFindingFilter{
 		Repository: "repo:platform-api",
 		ServiceID:  "service:payment-api",
 	})
 
-	if got, want := refs, []documentationTargetRef{{kind: "service", id: "service:payment-api"}}; !equalDocumentationTargetRefs(got, want) {
+	if got, want := refs, []querycontract.DocumentationTargetRef{{Kind: "service", ID: "service:payment-api"}}; !equalDocumentationTargetRefs(got, want) {
 		t.Fatalf("refs = %#v, want %#v", got, want)
 	}
 }
@@ -423,7 +424,7 @@ func TestDocumentationCoverageReportsMissingWhenRepoFindingDoesNotMatchTarget(t 
 	}}
 
 	coverage := documentationTargetCoverageFromFacts(filter, findings, relatedFacts, false)
-	missing := documentationMissingEvidenceForTarget(coverage)
+	missing := querycontract.DocumentationMissingEvidenceForTarget(coverage)
 
 	if got, want := coverage.FindingsReturned, 0; got != want {
 		t.Fatalf("coverage.FindingsReturned = %d, want %d", got, want)
@@ -475,7 +476,7 @@ func documentationArgsString(args []any) string {
 	return strings.Join(parts, " ")
 }
 
-func equalDocumentationTargetRefs(got, want []documentationTargetRef) bool {
+func equalDocumentationTargetRefs(got, want []querycontract.DocumentationTargetRef) bool {
 	if len(got) != len(want) {
 		return false
 	}

@@ -10,7 +10,6 @@ const grandfatheredNonHotBaseline = "220989280718f206e53fade8670c3b240d44a9b0"
 // non_hot_reason, and any source change forces the owning callsite through a
 // typed non-hot audit or hot-path registration.
 var grandfatheredNonHotSourceDigests = map[string]string{
-	"catalog_workload_environments.go:(*RepositoryHandler).assembleCatalogWorkloadsFromGraph":  "81c076a9eb1a86acbd223ac25a9773a9ad2f1c776ba730023a80f6a6072e0108",
 	"code.go:(*CodeHandler).runComplexityQuery":                                                "53fef37f7217c6b4e6aa26423fd1be4540f9e50cf8d0c0f0b5ce6f815635eaab",
 	"code_call_chain_nornicdb.go:(*CodeHandler).nornicDBCallChainOneHopRows":                   "072603251b05d2e63cb29ed1deea87714e3b523d8e00f3e039a4b4143027c2a0",
 	"code_call_chain_resolution.go:(*CodeHandler).callChainCandidateOneHopRows":                "99714e60377715f1dd262e87d498648e808a367669fb4918c6048774e2ff7096",
@@ -37,18 +36,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"infra_resource_aggregates.go:(GraphInfraResourceAggregateStore).InfraResourceInventory":   "7e1258c40386cdd5205151bb85a028927ff5c99a1b1628a9ebbab1769440d082",
 	"neo4j.go:(*Neo4jReader).RelationshipTypes":                                                "0a1d2ac1a82d38e0bd8766758df6b1f894f95c94a169c2419666ab521f8bcce4",
 	"neo4j.go:(*Neo4jReader).RunSingle":                                                        "b77731433ac905d12ca935b11decf557c81280901ef22fcdfb0a3bf2dedf1227",
-	"repository_api_surface.go:queryRepoAPISurface":                                            "0cf56ba43a52fad022d03be7959ce494527fa2372bbbbf9f0415688a94c76f46",
-	"repository_config_artifacts_loader.go:queryRelatedRepositoryArtifactSources":              "5659c0f65fa8b74c50a2a9cb78eeb2883a7c4425fae9e9301dca95ee21d32aad",
-	"repository_context_helpers.go:queryRepoConsumers":                                         "1946e86be8b6d8e3edfbbc7359f2c3f9ad2680244de3648af1d8f50881faade7",
-	"repository_context_helpers.go:queryRepoDependencies":                                      "2279f752d0617f96c8eb23bb0f695b8d1c42a91f67a16204342e43fc50fb79c2",
-	"repository_context_helpers.go:queryRepoEntryPoints":                                       "d9f87beb154372c842b4797f6c5079bf8749a5ba44c25b77b4f7c14949a31cd6",
-	"repository_context_helpers.go:queryRepoLanguageDistribution":                              "aa81cdffed72870bf2964bdb832e161355504a862423c94837c8f7a2d819a003",
-	"repository_context_helpers.go:queryRepoRelationshipOverviewDirection":                     "2f9448843d403c0c9fc77b02f980b789d9f5ed5f185d97bba8c7fe2579ac6d00",
-	"repository_context_helpers.go:queryRepoSourceToolBreakdown":                               "3918e78a83ba8142c1859b588f5c6aeb940f23fd7b5aa5bdb3e19544c87f6a1d",
-	"repository_coverage.go:(*RepositoryHandler).queryRepositoryGraphCoverageStats":            "03a1169e19cecd151db58a7b04bd73951442ea968ec6adb7fa4167441dd92282",
-	"repository_name_lookup.go:queryRepositoryNamesByID":                                       "bc5bc4ba6a121331df4503d2fcc3e6dce99dbcd9f6577be390cfed2836b7ff42",
-	"queryselector/selector.go:ResolveExactForAccess":                                          "32ca35a98c2720a5017f32627c28d7d3a9d3e474ec482afedf840d1bb90472b6",
-	"repository_stats.go:(*RepositoryHandler).repositoryStatsRepositoryRef":                    "d77ea6fafc6b643991204c6aef8cff77b0a6c3a96b07293d1da2e46f5435340d",
 	"service_ingress_posture.go:ingressPostureEdgeSet":                                         "b59356535aed2f95d7a9f96644dbba8c39ee267e8f0f78442d363432eb548a07",
 	"service_story_overview.go:buildServiceDocumentationOverview":                              "8c1253751e3215f2b7646751cc76fb9995a8d1600a2d39c4a7690bfad59f6c82",
 	"service_workload_resolution.go:(*EntityHandler).hydrateServiceWorkloadCandidateRepoNames": "c486e52bf047578ac97b8cbf015fc1e93dc51275356b981ca93d125c53f0a423",

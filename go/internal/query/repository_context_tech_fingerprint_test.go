@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // TestGetRepositoryContextIncludesLanguageBreakdown asserts that language_breakdown
@@ -146,7 +148,7 @@ func TestGetRepositoryContextOmitsBreakdownsWhenEmpty(t *testing.T) {
 }
 
 // TestQueryRepoSourceToolBreakdownCypherIsAnchored asserts that the Cypher
-// emitted by queryRepoSourceToolBreakdown is anchored on the repository node
+// emitted by repository.QueryRepoSourceToolBreakdown is anchored on the repository node
 // (i.e. contains `{id: $repo_id}`) and does not use an all-node scan.
 func TestQueryRepoSourceToolBreakdownCypherIsAnchored(t *testing.T) {
 	t.Parallel()
@@ -161,10 +163,10 @@ func TestQueryRepoSourceToolBreakdownCypherIsAnchored(t *testing.T) {
 		},
 	}
 
-	queryRepoSourceToolBreakdown(context.Background(), reader, map[string]any{"repo_id": "repo-test"})
+	repository.QueryRepoSourceToolBreakdown(context.Background(), reader, map[string]any{"repo_id": "repo-test"})
 
 	if capturedCypher == "" {
-		t.Fatal("queryRepoSourceToolBreakdown did not issue a source_tool query")
+		t.Fatal("repository.QueryRepoSourceToolBreakdown did not issue a source_tool query")
 	}
 	if !strings.Contains(capturedCypher, "Repository {id: $repo_id}") {
 		t.Errorf("source_tool breakdown query is not anchored on repo id:\n%s", capturedCypher)
@@ -191,7 +193,7 @@ func TestBuildLanguageBreakdownFromRows(t *testing.T) {
 		{"language": "yaml", "file_count": 3},
 		{"language": "", "file_count": 1}, // should be skipped
 	}
-	got := buildLanguageBreakdownFromRows(rows)
+	got := repository.BuildLanguageBreakdownFromRows(rows)
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2; got = %#v", len(got), got)
 	}
@@ -216,7 +218,7 @@ func TestBuildSourceToolBreakdownFromRows(t *testing.T) {
 		{"source_tool": "ansible", "edge_count": 2},
 		{"source_tool": "", "edge_count": 5}, // should be skipped
 	}
-	got := buildSourceToolBreakdownFromRows(rows)
+	got := repository.BuildSourceToolBreakdownFromRows(rows)
 	if len(got) != 2 {
 		t.Fatalf("len = %d, want 2; got = %#v", len(got), got)
 	}

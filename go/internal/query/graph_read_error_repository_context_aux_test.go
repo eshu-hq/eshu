@@ -59,7 +59,7 @@ func TestGetRepositoryContextSummaryCountsMapsGraphReadAvailabilityErrors(t *tes
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getRepositoryContext(rec, req)
+			handler.GetRepositoryContext(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -100,7 +100,7 @@ func TestGetRepositoryStoryGraphSummaryMapsGraphReadAvailabilityErrors(t *testin
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getRepositoryStory(rec, req)
+			handler.GetRepositoryStory(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -138,7 +138,7 @@ func TestGetRepositoryStoryStringRowsMapsGraphReadAvailabilityErrors(t *testing.
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getRepositoryStory(rec, req)
+			handler.GetRepositoryStory(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -174,7 +174,7 @@ func TestGetRepositoryContextDeploymentEvidenceMapsGraphReadAvailabilityErrors(t
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getRepositoryContext(rec, req)
+			handler.GetRepositoryContext(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -207,7 +207,7 @@ func TestGetRepositoryStoryDeploymentEvidenceMapsGraphReadAvailabilityErrors(t *
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getRepositoryStory(rec, req)
+			handler.GetRepositoryStory(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

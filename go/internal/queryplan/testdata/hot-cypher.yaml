@@ -94,10 +94,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/catalog_workload_environments.go
-      symbol: catalogWorkloadEvidenceEnvironmentCypher
-      source_sha256: 8f497a0cddd14b3e16382d6a2fbddeb4e2ba4ef270c4b327581e4b494aabdf2d
-      line_hint: 59
+      file: go/internal/query/repository/catalog_workload_environments.go
+      symbol: CatalogWorkloadEvidenceEnvironmentCypher
+      source_sha256: a94b3ee8a901a706e3be9504e7b507a3e6ae625e9ea8a8ac0ca8654914e01a95
+      line_hint: 94
     required_anchors:
       - label: Repository
         property: id
@@ -126,10 +126,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/catalog_workload_environments.go
-      symbol: catalogWorkloadRepoCypher
-      source_sha256: 48bc0c3a4025281cb07ee66365a66c52529de8c21f7f6026950946d41ce19ef4
-      line_hint: 41
+      file: go/internal/query/repository/catalog_workload_environments.go
+      symbol: CatalogWorkloadRepoCypher
+      source_sha256: 5f89958b8005025bde58e3b4f0dbde1c59fe2d833d7cf480e30c2597fda41a4e
+      line_hint: 64
     required_anchors:
       - label: Workload
         property: id
@@ -154,10 +154,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/catalog_workload_environments.go
-      symbol: catalogWorkloadInstanceEnvironmentCypher
-      source_sha256: e608ddf0d30f39c34b1b542bda1adb03e707283d45066088932caf9282229f20
-      line_hint: 51
+      file: go/internal/query/repository/catalog_workload_environments.go
+      symbol: CatalogWorkloadInstanceEnvironmentCypher
+      source_sha256: 60382201e0e307a03b2e848bb151d41480517968a4d8fd72c690017a477a5b71
+      line_hint: 75
     required_anchors:
       - label: Workload
         property: id
@@ -211,8 +211,8 @@ entries:
     source:
       file: go/internal/query/entity_workload_context.go
       symbol: (*EntityHandler).fetchWorkloadContextForOperation
-      source_sha256: 0e45cef68f95f3149b4873087b2c599dd08245328c6c7d806adf59c97cf31f6a
-      line_hint: 50
+      source_sha256: 99c8fdbb075110598cb5115c89992e9d2bcdf21f171a5e49396c496c64da790d
+      line_hint: 53
     required_anchors:
       - label: Workload
         property: id

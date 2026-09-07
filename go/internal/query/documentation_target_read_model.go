@@ -26,11 +26,6 @@ type (
 	documentationMissingEvidence = querycontract.DocumentationMissingEvidence
 )
 
-type documentationTargetRef struct {
-	kind string
-	id   string
-}
-
 func documentationFindingsResponse(readModel documentationFindingListReadModel) map[string]any {
 	findings := readModel.Findings
 	if findings == nil {
@@ -63,106 +58,19 @@ func documentationFindingsResponse(readModel documentationFindingListReadModel) 
 // querycontract, and Go only allows methods in the package that declares the
 // type.
 func documentationFindingListHasTargetReadback(m documentationFindingListReadModel) bool {
-	return documentationTargetScopeHasSelector(m.Coverage.Target) ||
+	return querycontract.DocumentationTargetScopeHasSelector(m.Coverage.Target) ||
 		m.Coverage.TargetFactCount > 0 ||
 		m.Coverage.SourceOnlyCount > 0 ||
 		len(m.RelatedFacts) > 0 ||
 		len(m.MissingEvidence) > 0
 }
 
-// documentationTargetScopeHasSelector reports whether the scope names anything
+// querycontract.DocumentationTargetScopeHasSelector reports whether the scope names anything
 // to anchor a readback to. TargetKind alone does not count: a kind with no id
 // selects every target of that kind, which is not an anchor. It is a function
 // for the same aliasing reason as the readback check above.
-func documentationTargetScopeHasSelector(s documentationTargetScope) bool {
-	return strings.TrimSpace(s.Repository) != "" ||
-		strings.TrimSpace(s.TargetID) != "" ||
-		strings.TrimSpace(s.ServiceID) != ""
-}
 
-func documentationTargetScopeFromFindingFilter(filter documentationFindingFilter) documentationTargetScope {
-	return documentationTargetScopeFromValues(
-		filter.Repository,
-		filter.TargetKind,
-		filter.TargetID,
-		filter.ServiceID,
-	)
-}
-
-func documentationTargetScopeFromFactFilter(filter documentationFactFilter) documentationTargetScope {
-	return documentationTargetScopeFromValues(
-		filter.Repository,
-		filter.TargetKind,
-		filter.TargetID,
-		filter.ServiceID,
-	)
-}
-
-func documentationTargetScopeFromValues(repository, targetKind, targetID, serviceID string) documentationTargetScope {
-	scope := documentationTargetScope{
-		Repository: strings.TrimSpace(repository),
-		ServiceID:  strings.TrimSpace(serviceID),
-	}
-	targetKind = strings.TrimSpace(targetKind)
-	targetID = strings.TrimSpace(targetID)
-	if scope.ServiceID != "" {
-		scope.TargetKind = "service"
-		scope.TargetID = scope.ServiceID
-	}
-	if scope.TargetID == "" && targetID != "" {
-		scope.TargetKind = targetKind
-		scope.TargetID = targetID
-	}
-	if scope.TargetID == "" && scope.Repository != "" &&
-		(targetKind == "" || targetKind == "repository") {
-		scope.TargetKind = "repository"
-		scope.TargetID = scope.Repository
-	}
-	return scope
-}
-
-func documentationTargetRefsFromFindingFilter(filter documentationFindingFilter) []documentationTargetRef {
-	return documentationTargetRefs(documentationTargetScopeFromFindingFilter(filter))
-}
-
-func documentationTargetRefsFromFactFilter(filter documentationFactFilter) []documentationTargetRef {
-	return documentationTargetRefs(documentationTargetScopeFromFactFilter(filter))
-}
-
-func documentationTargetRefs(scope documentationTargetScope) []documentationTargetRef {
-	refs := []documentationTargetRef{}
-	if scope.ServiceID != "" {
-		refs = append(refs, documentationTargetRef{kind: "service", id: scope.ServiceID})
-	}
-	if scope.TargetID != "" {
-		refs = append(refs, documentationTargetRef{kind: scope.TargetKind, id: scope.TargetID})
-	}
-	if len(refs) == 0 && scope.Repository != "" {
-		refs = append(refs, documentationTargetRef{kind: "repository", id: scope.Repository})
-	}
-	return uniqueDocumentationTargetRefs(refs)
-}
-
-func uniqueDocumentationTargetRefs(refs []documentationTargetRef) []documentationTargetRef {
-	seen := map[string]struct{}{}
-	out := make([]documentationTargetRef, 0, len(refs))
-	for _, ref := range refs {
-		ref.kind = strings.TrimSpace(ref.kind)
-		ref.id = strings.TrimSpace(ref.id)
-		if ref.id == "" {
-			continue
-		}
-		key := ref.kind + "\x00" + ref.id
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, ref)
-	}
-	return out
-}
-
-func documentationTargetPredicate(args []any, payloadExpr string, refs []documentationTargetRef) (string, []any) {
+func documentationTargetPredicate(args []any, payloadExpr string, refs []querycontract.DocumentationTargetRef) (string, []any) {
 	predicates := []string{}
 	for _, ref := range refs {
 		for _, contains := range documentationTargetContainsPayloads(ref) {
@@ -180,7 +88,7 @@ func appendDocumentationTargetClause(
 	clauses []string,
 	args []any,
 	payloadExpr string,
-	refs []documentationTargetRef,
+	refs []querycontract.DocumentationTargetRef,
 ) ([]string, []any) {
 	predicate, args := documentationTargetPredicate(args, payloadExpr, refs)
 	if predicate == "" {
@@ -189,7 +97,7 @@ func appendDocumentationTargetClause(
 	return append(clauses, predicate), args
 }
 
-func documentationTargetContainsPayloads(ref documentationTargetRef) []string {
+func documentationTargetContainsPayloads(ref querycontract.DocumentationTargetRef) []string {
 	contains := []map[string]any{
 		{"candidate_refs": []map[string]string{documentationTargetRefObject(ref, "kind", "id")}},
 		{"evidence_refs": []map[string]string{documentationTargetRefObject(ref, "kind", "id")}},
@@ -206,10 +114,10 @@ func documentationTargetContainsPayloads(ref documentationTargetRef) []string {
 	return out
 }
 
-func documentationTargetRefObject(ref documentationTargetRef, kindKey, idKey string) map[string]string {
-	out := map[string]string{idKey: ref.id}
-	if ref.kind != "" {
-		out[kindKey] = ref.kind
+func documentationTargetRefObject(ref querycontract.DocumentationTargetRef, kindKey, idKey string) map[string]string {
+	out := map[string]string{idKey: ref.ID}
+	if ref.Kind != "" {
+		out[kindKey] = ref.Kind
 	}
 	return out
 }
@@ -229,7 +137,7 @@ func documentationTargetCoverageFromFacts(
 		kinds[kind]++
 	}
 	return documentationTargetCoverage{
-		Target:           documentationTargetScopeFromFindingFilter(filter),
+		Target:           querycontract.DocumentationTargetScopeFromFindingFilter(filter),
 		FindingsReturned: documentationTargetFindingsReturned(filter, findings),
 		TargetFactCount:  len(relatedFacts),
 		TargetFactKinds:  kinds,
@@ -238,133 +146,20 @@ func documentationTargetCoverageFromFacts(
 }
 
 func documentationTargetFindingsReturned(filter documentationFindingFilter, findings []map[string]any) int {
-	if !documentationFindingFilterHasExplicitTarget(filter) {
+	if !querycontract.DocumentationFindingFilterHasExplicitTarget(filter) {
 		return len(findings)
 	}
-	refs := documentationTargetRefsFromFindingFilter(filter)
+	refs := querycontract.DocumentationTargetRefsFromFindingFilter(filter)
 	if len(refs) == 0 {
 		return len(findings)
 	}
 	count := 0
 	for _, finding := range findings {
-		if documentationPayloadMatchesTargetRefs(finding, refs) {
+		if querycontract.DocumentationPayloadMatchesTargetRefs(finding, refs) {
 			count++
 		}
 	}
 	return count
-}
-
-func documentationFindingFilterHasExplicitTarget(filter documentationFindingFilter) bool {
-	return strings.TrimSpace(filter.TargetID) != "" || strings.TrimSpace(filter.ServiceID) != ""
-}
-
-func documentationPayloadMatchesTargetRefs(payload map[string]any, refs []documentationTargetRef) bool {
-	for _, ref := range refs {
-		if documentationPayloadMatchesTargetRef(payload, ref) {
-			return true
-		}
-	}
-	nested, _ := payload["payload"].(map[string]any)
-	if len(nested) == 0 {
-		return false
-	}
-	for _, ref := range refs {
-		if documentationPayloadMatchesTargetRef(nested, ref) {
-			return true
-		}
-	}
-	return false
-}
-
-func documentationPayloadMatchesTargetRef(payload map[string]any, ref documentationTargetRef) bool {
-	return documentationRefListMatchesTarget(payload["candidate_refs"], ref, "kind", "id") ||
-		documentationRefListMatchesTarget(payload["evidence_refs"], ref, "kind", "id") ||
-		documentationRefListMatchesTarget(payload["linked_entities"], ref, "entity_type", "entity_id")
-}
-
-func documentationRefListMatchesTarget(raw any, ref documentationTargetRef, kindKey, idKey string) bool {
-	switch values := raw.(type) {
-	case []any:
-		for _, value := range values {
-			if documentationRefObjectMatchesTarget(value, ref, kindKey, idKey) {
-				return true
-			}
-		}
-	case []map[string]any:
-		for _, value := range values {
-			if documentationRefObjectMatchesTarget(value, ref, kindKey, idKey) {
-				return true
-			}
-		}
-	case []map[string]string:
-		for _, value := range values {
-			if documentationStringRefObjectMatchesTarget(value, ref, kindKey, idKey) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func documentationRefObjectMatchesTarget(raw any, ref documentationTargetRef, kindKey, idKey string) bool {
-	value, _ := raw.(map[string]any)
-	if len(value) == 0 {
-		return false
-	}
-	id := strings.TrimSpace(documentationStringAny(value[idKey]))
-	if id == "" || id != ref.id {
-		return false
-	}
-	if ref.kind == "" {
-		return true
-	}
-	return strings.TrimSpace(documentationStringAny(value[kindKey])) == ref.kind
-}
-
-func documentationStringRefObjectMatchesTarget(
-	value map[string]string,
-	ref documentationTargetRef,
-	kindKey string,
-	idKey string,
-) bool {
-	id := strings.TrimSpace(value[idKey])
-	if id == "" || id != ref.id {
-		return false
-	}
-	if ref.kind == "" {
-		return true
-	}
-	return strings.TrimSpace(value[kindKey]) == ref.kind
-}
-
-func documentationStringAny(raw any) string {
-	value, _ := raw.(string)
-	return value
-}
-
-func documentationMissingEvidenceForTarget(coverage documentationTargetCoverage) []documentationMissingEvidence {
-	if !documentationTargetScopeHasSelector(coverage.Target) {
-		return nil
-	}
-	if coverage.FindingsReturned > 0 {
-		return nil
-	}
-	if coverage.TargetFactCount > 0 {
-		return []documentationMissingEvidence{{
-			Reason: "documentation_findings_absent",
-			Detail: "target documentation facts exist but no admissible documentation findings matched the target scope",
-		}}
-	}
-	if coverage.SourceOnlyCount > 0 {
-		return []documentationMissingEvidence{{
-			Reason: "target_link_not_modeled",
-			Detail: "external documentation facts exist, but none carry structured refs for the selected target scope",
-		}}
-	}
-	return []documentationMissingEvidence{{
-		Reason: "documentation_target_facts_absent",
-		Detail: "no collected documentation facts referenced the selected target scope",
-	}}
 }
 
 func (cr *ContentReader) documentationTargetFacts(
@@ -372,7 +167,7 @@ func (cr *ContentReader) documentationTargetFacts(
 	filter documentationFindingFilter,
 ) ([]map[string]any, bool, error) {
 	if cr == nil || cr.db == nil ||
-		!documentationTargetScopeHasSelector(documentationTargetScopeFromFindingFilter(filter)) {
+		!querycontract.DocumentationTargetScopeHasSelector(querycontract.DocumentationTargetScopeFromFindingFilter(filter)) {
 		return nil, false, nil
 	}
 	ctx, span := cr.tracer.Start(
@@ -444,7 +239,7 @@ func buildDocumentationTargetFactsSQL(filter documentationFindingFilter) (string
 		clauses,
 		args,
 		"fact_records.payload",
-		documentationTargetRefsFromFindingFilter(filter),
+		querycontract.DocumentationTargetRefsFromFindingFilter(filter),
 	)
 	clauses, args = appendDocumentationAuthorizationClause(
 		clauses,

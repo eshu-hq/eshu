@@ -13,12 +13,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-)
 
-// infrastructureGraphReadCypherFragment uniquely identifies
-// queryRepoInfrastructureFromGraph's Cypher (repository_infrastructure.go)
-// among every other graph read issued by getRepositoryContext/getRepositoryStory.
-const infrastructureGraphReadCypherFragment = "infra:K8sResource"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
+)
 
 // TestGetRepositoryContextInfrastructureDegradeAttributesFailure covers
 // repository_infrastructure.go's queryRepoInfrastructureFromGraph
@@ -40,7 +38,7 @@ func TestGetRepositoryContextInfrastructureDegradeAttributesFailure(t *testing.T
 				return map[string]any{"id": "repo-infra-degrade-1", "name": "repo-infra-degrade-one"}, nil
 			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, infrastructureGraphReadCypherFragment) {
+				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphReadDeadline)
 				}
 				return nil, nil
@@ -52,7 +50,7 @@ func TestGetRepositoryContextInfrastructureDegradeAttributesFailure(t *testing.T
 	req.SetPathValue("repo_id", "repo-infra-degrade-1")
 	rec := httptest.NewRecorder()
 
-	handler.getRepositoryContext(rec, req)
+	handler.GetRepositoryContext(rec, req)
 
 	// (1) 200 with the rest of the response intact.
 	if rec.Code != http.StatusOK {
@@ -75,8 +73,8 @@ func TestGetRepositoryContextInfrastructureDegradeAttributesFailure(t *testing.T
 	if !ok {
 		t.Fatalf("body[partial_reasons] missing or wrong type: %#v", body["partial_reasons"])
 	}
-	if !jsonStringSliceContains(partialReasons, infrastructureReadDegradedReason) {
-		t.Fatalf("partial_reasons = %#v, want to contain %q", partialReasons, infrastructureReadDegradedReason)
+	if !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("partial_reasons = %#v, want to contain %q", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 
 	// (3) the stage log carries the bounded failure_class.
@@ -84,15 +82,15 @@ func TestGetRepositoryContextInfrastructureDegradeAttributesFailure(t *testing.T
 	if !strings.Contains(logText, `"stage":"infrastructure"`) {
 		t.Fatalf("logs missing infrastructure stage; logs = %s", logText)
 	}
-	if !strings.Contains(logText, `"failure_class":"`+infrastructureReadDegradedReason+`"`) {
-		t.Fatalf("logs missing failure_class=%s; logs = %s", infrastructureReadDegradedReason, logText)
+	if !strings.Contains(logText, `"failure_class":"`+repository.InfrastructureReadDegradedReason+`"`) {
+		t.Fatalf("logs missing failure_class=%s; logs = %s", repository.InfrastructureReadDegradedReason, logText)
 	}
 }
 
 // TestGetRepositoryContextInfrastructureHealthyEmptyDoesNotDegrade is the
 // negative companion to the degrade test above: a healthy graph read that
 // genuinely returns zero infrastructure rows (no error) must NOT add
-// infrastructureReadDegradedReason to partial_reasons or emit a
+// repository.InfrastructureReadDegradedReason to partial_reasons or emit a
 // failure_class log. This is what separates "no infrastructure" from
 // "couldn't read infrastructure" (#5764).
 func TestGetRepositoryContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing.T) {
@@ -114,7 +112,7 @@ func TestGetRepositoryContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing
 	req.SetPathValue("repo_id", "repo-infra-healthy-1")
 	rec := httptest.NewRecorder()
 
-	handler.getRepositoryContext(rec, req)
+	handler.GetRepositoryContext(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -127,8 +125,8 @@ func TestGetRepositoryContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing
 	if !ok {
 		t.Fatalf("body[partial_reasons] missing or wrong type: %#v", body["partial_reasons"])
 	}
-	if jsonStringSliceContains(partialReasons, infrastructureReadDegradedReason) {
-		t.Fatalf("partial_reasons = %#v, want no %q for a healthy empty read", partialReasons, infrastructureReadDegradedReason)
+	if querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("partial_reasons = %#v, want no %q for a healthy empty read", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 	if strings.Contains(logs.String(), "failure_class") {
 		t.Fatalf("logs unexpectedly carry failure_class for a healthy empty read; logs = %s", logs.String())
@@ -155,7 +153,7 @@ func TestGetRepositoryStoryInfrastructureDegradeAttributesFailure(t *testing.T) 
 				return map[string]any{"id": "repo-story-infra-degrade-1", "name": "repo-story-infra-degrade-one"}, nil
 			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, infrastructureGraphReadCypherFragment) {
+				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphReadDeadline)
 				}
 				return nil, nil
@@ -168,7 +166,7 @@ func TestGetRepositoryStoryInfrastructureDegradeAttributesFailure(t *testing.T) 
 	req.SetPathValue("repo_id", "repo-story-infra-degrade-1")
 	rec := httptest.NewRecorder()
 
-	handler.getRepositoryStory(rec, req)
+	handler.GetRepositoryStory(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -184,8 +182,8 @@ func TestGetRepositoryStoryInfrastructureDegradeAttributesFailure(t *testing.T) 
 	if !ok {
 		t.Fatalf("body[limitations] missing or wrong type: %#v", body["limitations"])
 	}
-	if !jsonStringSliceContains(limitations, infrastructureReadDegradedReason) {
-		t.Fatalf("limitations = %#v, want to contain %q", limitations, infrastructureReadDegradedReason)
+	if !querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("limitations = %#v, want to contain %q", limitations, repository.InfrastructureReadDegradedReason)
 	}
 	answerMetadata, ok := body["answer_metadata"].(map[string]any)
 	if !ok {
@@ -195,25 +193,15 @@ func TestGetRepositoryStoryInfrastructureDegradeAttributesFailure(t *testing.T) 
 	if !ok {
 		t.Fatalf("answer_metadata[partial_reasons] missing or wrong type: %#v", answerMetadata["partial_reasons"])
 	}
-	if !jsonStringSliceContains(partialReasons, infrastructureReadDegradedReason) {
-		t.Fatalf("answer_metadata.partial_reasons = %#v, want to contain %q", partialReasons, infrastructureReadDegradedReason)
+	if !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("answer_metadata.partial_reasons = %#v, want to contain %q", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 
 	logText := logs.String()
 	if !strings.Contains(logText, `"operation":"repository_story"`) || !strings.Contains(logText, `"stage":"infrastructure"`) {
 		t.Fatalf("logs missing repository_story infrastructure stage; logs = %s", logText)
 	}
-	if !strings.Contains(logText, `"failure_class":"`+infrastructureReadDegradedReason+`"`) {
-		t.Fatalf("logs missing failure_class=%s; logs = %s", infrastructureReadDegradedReason, logText)
+	if !strings.Contains(logText, `"failure_class":"`+repository.InfrastructureReadDegradedReason+`"`) {
+		t.Fatalf("logs missing failure_class=%s; logs = %s", repository.InfrastructureReadDegradedReason, logText)
 	}
-}
-
-// containsString reports whether a JSON-decoded []any of strings contains want.
-func jsonStringSliceContains(values []any, want string) bool {
-	for _, value := range values {
-		if str, ok := value.(string); ok && str == want {
-			return true
-		}
-	}
-	return false
 }

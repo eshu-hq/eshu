@@ -1,19 +1,19 @@
 version: 1
 grandfathered_non_hot_baseline: 220989280718f206e53fade8670c3b240d44a9b0
 source_coverage:
-  - file: catalog.go
+  - file: repository/catalog.go
     calls:
       - symbol: "(*RepositoryHandler).listCatalogRepositoriesFromGraph"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: d87a4fa2b37ebe12cf091119232acd88499ea05869d054a3b05ecaf2a1c3b399
+          source_sha256: 70ad4c18fff578eb6f77a9cfe1757b54675a9cb055b35c8d382ebaf263f2b536
           label: "Repository"
           max_results: 5001
-  - file: catalog_workload_environments.go
+  - file: repository/catalog_workload_environments.go
     calls:
-      - {symbol: "(*RepositoryHandler).assembleCatalogWorkloadsFromGraph", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*RepositoryHandler).catalogWorkloadEnrichments", count: 3, source_sha256: 9b229875007dea30e912d535d547932e1b03da048d1dae61fe98a855ea3b5419, entry_ids: [QP-DEPLOY-CATALOG-ENV, QP-DEPLOY-CATALOG-WORKLOAD-REPO, QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE]}
+      - {symbol: "(*RepositoryHandler).assembleCatalogWorkloadsFromGraph", count: 1, non_hot: {class: label_inventory, source_sha256: 6c68b1662b6621ef30ef6dfa418c1a81f3154ea5d3d2f2d0f86f6e5e453d8988, label: "Workload", max_results: 5001}}
+      - {symbol: "(*RepositoryHandler).catalogWorkloadEnrichments", count: 3, source_sha256: f92bab736810d153186b8616bfe157f250bc92968d56c7daa3c6abdb5f5ae518, entry_ids: [QP-DEPLOY-CATALOG-ENV, QP-DEPLOY-CATALOG-WORKLOAD-REPO, QP-DEPLOY-CATALOG-WORKLOAD-INSTANCE]}
   - file: impacttrace/cloud_resource_candidates.go
     calls:
       - {symbol: "LoadUncorrelatedCloudResourceCandidatesBounded", count: 1, non_hot: {class: keyed_support, source_sha256: 4e68e222f8f3a30f8a9eecdde969a0d9c7548928f6427b43085356917659d0ed, key_bound: single_key, max_results: 51}}
@@ -194,7 +194,7 @@ source_coverage:
           max_results: 101
   - file: entity_workload_context.go
     calls:
-      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 0e45cef68f95f3149b4873087b2c599dd08245328c6c7d806adf59c97cf31f6a, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 99c8fdbb075110598cb5115c89992e9d2bcdf21f171a5e49396c496c64da790d, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: b727a2e3ca187c470117f68a5c94406885091aed66223a0c289458062f17a114, key_bound: single_key, max_results: 51}}
   - file: entity_workload_platform.go
     calls:
@@ -452,73 +452,73 @@ source_coverage:
       - {symbol: "(*InfraHandler).relationshipEdges", count: 1, source_sha256: 838dc8de7f8eebd8a948744a8d07464a9af36e5cf927074e09145071f2625279, entry_ids: [QP-RELATIONSHIPS-EDGES]}
       - {symbol: "(*InfraHandler).relationshipSourceToolBreakdown", count: 1, source_sha256: d854d833cdc75c1e250b0d049ca0733a5429bb3580360bcbf958cf46aee39441, entry_ids: [QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-REPOSITORY, QP-RELATIONSHIPS-CATALOG-SOURCE-TOOL-INSTANCE]}
       - {symbol: "(*InfraHandler).relationshipVerbTiles", count: 1, source_sha256: 594369a3bf0dfd685853cec025547e41cf1b7929f913b208021bba627a3e3376, entry_ids: [QP-RELATIONSHIPS-CATALOG-COUNT]}
-  - file: repository.go
+  - file: repository/repository.go
     calls:
-      - {symbol: "(*RepositoryHandler).getRepositoryStory", count: 1, non_hot: {class: keyed_support, source_sha256: 016f604738fe3f3278788296aa502273afab765e72f63272b815a7c37d224b11, key_bound: single_key, max_results: 1}}
+      - {symbol: "(*RepositoryHandler).getRepositoryStory", count: 1, non_hot: {class: keyed_support, source_sha256: c68554f106d8cd47499e28c5c583b7fb41d8258c8b6235e1dc6ce2f56ce19cc6, key_bound: single_key, max_results: 1}}
       - symbol: "(*RepositoryHandler).listRepositories"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 70bfb0350e02e428357fc6e006d47f78e8a000a3c3e469b4f5d2285503e62abb
+          source_sha256: e7aa1c58096b58b7025678e1e59da2776f64d0b446f57b85f512e6481f561a95
           label: "Repository"
           max_results: 501
       - symbol: "queryRepositoryTotal"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 28524716b98d78e7a512f118b784e5b324b03638c379760ff965bd8f6fe2f3ac
+          source_sha256: 295e84094eb3810f73b17cd8e8d8146e0fb40e2eb489147644ecb203bc96958c
           label: "Repository"
           max_results: 1
-  - file: repository_api_surface.go
+  - file: repository/repository_api_surface.go
     calls:
-      - {symbol: "queryRepoAPISurface", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: repository_config_artifacts_loader.go
+      - {symbol: "QueryRepoAPISurface", count: 2, non_hot: {class: keyed_support, source_sha256: 9b32c0c74905ac0d2538202da0c80870621bc005e8b4ba0199cf9e4947ba2a2e, key_bound: single_key, max_results: 50}}
+  - file: repositoryartifacts/repository_config_artifacts_loader.go
     calls:
-      - {symbol: "queryRelatedRepositoryArtifactSources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: repository_context.go
+      - {symbol: "QueryRelatedRepositoryArtifactSources", count: 1, non_hot: {class: keyed_support, source_sha256: 6ed7eb6b51b0d9e22b953f9e386f78567b92689747c156a5fee47d9de05e0ea0, key_bound: single_key, max_results: 501}}
+  - file: repository/repository_context.go
     calls:
-      - {symbol: "(*RepositoryHandler).getRepositoryContext", count: 1, non_hot: {class: keyed_support, source_sha256: 5ee8aac4078e9516049a39518080c663275772d6330a7198e9cb1816f41f3523, key_bound: single_key, max_results: 1}}
-  - file: repository_context_counts.go
+      - {symbol: "(*RepositoryHandler).getRepositoryContext", count: 1, non_hot: {class: keyed_support, source_sha256: 92b09cc221a558a8375a2fe3c585595944a63446a5ddb458d86327fa4c321027, key_bound: single_key, max_results: 1}}
+  - file: repository/repository_context_counts.go
     calls:
-      - {symbol: "queryRepositoryContextCount", count: 1, non_hot: {class: keyed_support, source_sha256: 8914d8992fad6141db213774a66edf34d99c9987f27e4c0661a878739915fd26, key_bound: single_key, max_results: 1}}
-  - file: repository_context_helpers.go
+      - {symbol: "queryRepositoryContextCount", count: 1, non_hot: {class: keyed_support, source_sha256: 1c7253963fb117fd9c61496a3404aa36e87703c67ead1d7a91fb4d83f0554df9, key_bound: single_key, max_results: 1}}
+  - file: repository/repository_context_helpers.go
     calls:
-      - {symbol: "queryRepoConsumers", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "queryRepoDependencies", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "queryRepoEntryPoints", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "queryRepoLanguageDistribution", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "queryRepoRelationshipOverviewDirection", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "queryRepoSourceToolBreakdown", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: repository_coverage.go
+      - {symbol: "queryRepoConsumers", count: 1, non_hot: {class: keyed_support, source_sha256: 49311a64bc9ef3853f3a5805bc456e9f06a9130091bf2b7aa65ebc1050746f02, key_bound: single_key, max_results: 501}}
+      - {symbol: "QueryRepoDependencies", count: 1, non_hot: {class: keyed_support, source_sha256: 92ed93344045cb643d3b08891c4fc6bd14baa007e8efa1247430fe096626d85b, key_bound: single_key, max_results: 501}}
+      - {symbol: "QueryRepoEntryPoints", count: 1, non_hot: {class: keyed_support, source_sha256: 0e5d05e5213f67e8436c53123f057680c411852185f922b5d70dfae168d237a0, key_bound: single_key, max_results: 501}}
+      - {symbol: "queryRepoLanguageDistribution", count: 1, non_hot: {class: keyed_support, source_sha256: db5421a30fa8b764425be4bb701c09e608d22d355013b8fa1ed9a5b5843c62e1, key_bound: single_key, max_results: 51}}
+      - {symbol: "queryRepoRelationshipOverviewDirection", count: 1, non_hot: {class: keyed_support, source_sha256: de8fd5e883b0c1ea7c4a2a5170a8014d116f5ccff449b0be8c7ed4e7e5e0be79, key_bound: single_key, max_results: 501}}
+      - {symbol: "QueryRepoSourceToolBreakdown", count: 1, non_hot: {class: keyed_support, source_sha256: 121358bc44b448f7b077f0f7c295537fa7132155b929a2c0ed208e69ca79df12, key_bound: single_key, max_results: 51}}
+  - file: repository/repository_coverage.go
     calls:
-      - {symbol: "(*RepositoryHandler).queryRepositoryGraphCoverageStats", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: repository_dependency_cluster.go
+      - {symbol: "(*RepositoryHandler).queryRepositoryGraphCoverageStats", count: 1, non_hot: {class: keyed_support, source_sha256: ecddb2bf27cd1a8374dc5b1f571b89a3077ce4bff4e02154a5ddf583ad27a7d0, key_bound: single_key, max_results: 1}}
+  - file: repository/repository_dependency_cluster.go
     calls:
       - symbol: "loadRepositoryDependencyClusters"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 839946059f96eee74de2fb919c1b163a472fae56fbc68d50f378a209409f4952
+          source_sha256: 884fdc3cd8518133984e5c4bbeb70cd9954f5b4e57a8a9873cc7156c4f3dffce
           label: "Repository"
           max_results: 50000
-  - file: repository_deployment_evidence.go
+  - file: repository/repository_deployment_evidence.go
     calls:
-      - {symbol: "queryRepoDeploymentEvidenceDirection", count: 1, non_hot: {class: keyed_support, source_sha256: 7f3031cb8f9b7ea826e939ead0ed7cfe246f87352ce51a3b9b04c06fa7e3cc6f, key_bound: single_key, max_results: 51}}
-  - file: repository_infrastructure.go
+      - {symbol: "queryRepoDeploymentEvidenceDirection", count: 1, non_hot: {class: keyed_support, source_sha256: a3723e428abd166e2478e65451bcba67f5364b03b57424b836dd028fd317c116, key_bound: single_key, max_results: 51}}
+  - file: repository/repository_infrastructure.go
     calls:
-      - {symbol: "queryRepoInfrastructureFromGraph", count: 1, non_hot: {class: keyed_support, source_sha256: 69eee5b78c493bd198463253a47591de3d6b845b2cf381c1739772df1d4575e7, key_bound: single_key, max_results: 5001}}
-  - file: repository_name_lookup.go
+      - {symbol: "QueryRepoInfrastructureFromGraph", count: 1, non_hot: {class: keyed_support, source_sha256: d09e7f1eb124f415ad6abd42905a3e7e48abb2c57702c1012aaf7385377e09c6, key_bound: single_key, max_results: 5001}}
+  - file: repositoryreadmodel/repository_name_lookup.go
     calls:
-      - {symbol: "queryRepositoryNamesByID", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "QueryRepositoryNamesByID", count: 1, non_hot: {class: keyed_support, source_sha256: 96b1fc38b8307772a7b6b848451158dcef14131d5f3838472fb4a845e002686c, key_bound: bounded_key_batch, max_keys: 100, max_results: 100}}
   - file: queryselector/selector.go
     calls:
-      - {symbol: "ResolveExactForAccess", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: repository_stats.go
+      - {symbol: "ResolveExactForAccess", count: 2, non_hot: {class: keyed_support, source_sha256: 32ca35a98c2720a5017f32627c28d7d3a9d3e474ec482afedf840d1bb90472b6, key_bound: single_key, max_results: 51}}
+  - file: repository/repository_stats.go
     calls:
-      - {symbol: "(*RepositoryHandler).repositoryStatsRepositoryRef", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: repository_story_counts.go
+      - {symbol: "(*RepositoryHandler).repositoryStatsRepositoryRef", count: 1, non_hot: {class: keyed_support, source_sha256: 86f8a618420989f4cf02d3ac3fb67ac2d9cb4f8444696324908f141e4d3176e1, key_bound: single_key, max_results: 1}}
+  - file: repository/repository_story_counts.go
     calls:
-      - {symbol: "queryRepositoryStoryStringRows", count: 1, non_hot: {class: keyed_support, source_sha256: ce89b117fb7a42ac3776b9b301366ccb5166a81bf454df8e3e46bbc8ea627ecf, key_bound: single_key, max_results: 501}}
+      - {symbol: "queryRepositoryStoryStringRows", count: 1, non_hot: {class: keyed_support, source_sha256: 1513d937539af2b9890f86d0444e5578249d5fa80820566037a436b496b49ffe, key_bound: single_key, max_results: 501}}
   - file: secrets_iam_grant_posture.go
     calls:
       - {symbol: "(GraphSecretsIAMGrantPostureStore).grantFlagCount", count: 1, non_hot: {class: keyed_support, source_sha256: 3179505b903a57581ee6114a7b20f2cb2befdf6ba245901aab6752fc2db1091d, key_bound: single_key, max_results: 1}}

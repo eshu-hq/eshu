@@ -297,10 +297,7 @@ func buildServiceStorySectionsWithContext(buildCtx serviceStoryBuildContext) []m
 }
 
 func serviceDeploymentToolFamilies(deploymentEvidence map[string]any) []string {
-	if toolFamilies := stringSliceValue(deploymentEvidence, "tool_families"); len(toolFamilies) > 0 {
-		return toolFamilies
-	}
-	return stringSliceValue(deploymentEvidence, "artifact_families")
+	return querycontract.ServiceDeploymentToolFamilies(deploymentEvidence)
 }
 
 func buildServiceDocumentationOverview(

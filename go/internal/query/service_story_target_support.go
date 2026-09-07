@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const serviceStoryTargetSupportLimit = 10
+const serviceStoryTargetSupportLimit = querycontract.ServiceStoryTargetSupportLimit
 
 type serviceStoryTargetSupportStore interface {
 	ServiceStoryTargetSupportEvidence(
@@ -70,31 +70,6 @@ func loadServiceStoryTargetSupport(
 		filter.TargetID = repoID
 	}
 	readModel, err := store.ServiceStoryTargetSupportEvidence(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	return readModel.Support, nil
-}
-
-func loadRepositoryStoryTargetSupport(
-	ctx context.Context,
-	content ContentStore,
-	repoID string,
-) (map[string]any, error) {
-	store, ok := content.(serviceStoryTargetSupportStore)
-	if !ok || store == nil {
-		return nil, nil
-	}
-	repoID = strings.TrimSpace(repoID)
-	if repoID == "" {
-		return nil, nil
-	}
-	readModel, err := store.ServiceStoryTargetSupportEvidence(ctx, serviceStoryTargetSupportFilter{
-		Repository: repoID,
-		TargetKind: "repository",
-		TargetID:   repoID,
-		Limit:      serviceStoryTargetSupportLimit,
-	})
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +133,7 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 		facts = facts[:limit]
 	}
 	var sourceOnlySummary serviceStoryTargetSupportSourceOnlySummary
-	if len(facts) == 0 && documentationTargetScopeHasSelector(documentationTargetScopeFromValues(
+	if len(facts) == 0 && querycontract.DocumentationTargetScopeHasSelector(querycontract.DocumentationTargetScopeFromValues(
 		filter.Repository,
 		filter.TargetKind,
 		filter.TargetID,
@@ -334,7 +309,7 @@ func serviceStorySupportEvidencePayload(payload map[string]any) map[string]any {
 	return out
 }
 
-func serviceStorySupportFactAmbiguousForTarget(fact map[string]any, refs []documentationTargetRef) bool {
+func serviceStorySupportFactAmbiguousForTarget(fact map[string]any, refs []querycontract.DocumentationTargetRef) bool {
 	payloads := []map[string]any{fact}
 	if payload := mapValue(fact, "payload"); len(payload) > 0 {
 		payloads = append(payloads, payload)
@@ -349,7 +324,7 @@ func serviceStorySupportFactAmbiguousForTarget(fact map[string]any, refs []docum
 	return false
 }
 
-func supportRefListAmbiguousForTarget(raw any, refs []documentationTargetRef, kindKey, idKey string) bool {
+func supportRefListAmbiguousForTarget(raw any, refs []querycontract.DocumentationTargetRef, kindKey, idKey string) bool {
 	matched := false
 	other := false
 	switch values := raw.(type) {
@@ -367,7 +342,7 @@ func supportRefListAmbiguousForTarget(raw any, refs []documentationTargetRef, ki
 
 func supportRefObjectMatchState(
 	raw any,
-	refs []documentationTargetRef,
+	refs []querycontract.DocumentationTargetRef,
 	kindKey string,
 	idKey string,
 	matched bool,
@@ -377,13 +352,13 @@ func supportRefObjectMatchState(
 	if len(value) == 0 {
 		return matched, other
 	}
-	id := strings.TrimSpace(documentationStringAny(value[idKey]))
+	id := strings.TrimSpace(querycontract.DocumentationStringAny(value[idKey]))
 	if id == "" {
 		return matched, other
 	}
-	kind := strings.TrimSpace(documentationStringAny(value[kindKey]))
+	kind := strings.TrimSpace(querycontract.DocumentationStringAny(value[kindKey]))
 	for _, ref := range refs {
-		if id == ref.id && (ref.kind == "" || strings.EqualFold(kind, ref.kind)) {
+		if id == ref.ID && (ref.Kind == "" || strings.EqualFold(kind, ref.Kind)) {
 			return true, other
 		}
 	}
@@ -423,8 +398,8 @@ func serviceStorySupportMissingEvidence(
 			"detail": "support collector facts reference the selected target and another target, so ownership is ambiguous",
 		}}
 	}
-	if !documentationTargetScopeHasSelector(
-		documentationTargetScopeFromValues(filter.Repository, filter.TargetKind, filter.TargetID, filter.ServiceID),
+	if !querycontract.DocumentationTargetScopeHasSelector(
+		querycontract.DocumentationTargetScopeFromValues(filter.Repository, filter.TargetKind, filter.TargetID, filter.ServiceID),
 	) {
 		return []map[string]any{}
 	}

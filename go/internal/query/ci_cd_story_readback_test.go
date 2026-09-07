@@ -9,13 +9,14 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func TestLoadRepositoryScopedCICDEvidenceUsesBoundedRepositoryScope(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]CICDRunCorrelationRow, 0, cicdStoryRunCorrelationLimit+1)
-	for i := range cicdStoryRunCorrelationLimit + 1 {
+	rows := make([]CICDRunCorrelationRow, 0, artifacts.CICDStoryRunCorrelationLimit+1)
+	for i := range artifacts.CICDStoryRunCorrelationLimit + 1 {
 		rows = append(rows, CICDRunCorrelationRow{
 			CorrelationID: fmt.Sprintf("correlation-%02d", i),
 			RepositoryID:  "repo://example/api",
@@ -26,23 +27,23 @@ func TestLoadRepositoryScopedCICDEvidenceUsesBoundedRepositoryScope(t *testing.T
 	}
 	store := &recordingCICDRunCorrelationStore{rows: rows}
 
-	summary, err := loadRepositoryScopedCICDEvidence(
+	summary, err := artifacts.LoadRepositoryScopedCICDEvidence(
 		context.Background(),
 		fakePortContentStore{},
 		store,
 		"repo://example/api",
 	)
 	if err != nil {
-		t.Fatalf("loadRepositoryScopedCICDEvidence() error = %v, want nil", err)
+		t.Fatalf("artifacts.LoadRepositoryScopedCICDEvidence() error = %v, want nil", err)
 	}
 	if got, want := store.lastFilter.RepositoryID, "repo://example/api"; got != want {
 		t.Fatalf("RepositoryID = %q, want %q", got, want)
 	}
-	if got, want := store.lastFilter.Limit, cicdStoryRunCorrelationLimit+1; got != want {
+	if got, want := store.lastFilter.Limit, artifacts.CICDStoryRunCorrelationLimit+1; got != want {
 		t.Fatalf("Limit = %d, want %d", got, want)
 	}
 	live := querytestutil.MustMapField(t, summary, "live_run_correlations")
-	if got, want := live["count"], cicdStoryRunCorrelationLimit; got != want {
+	if got, want := live["count"], artifacts.CICDStoryRunCorrelationLimit; got != want {
 		t.Fatalf("live_run_correlations.count = %#v, want %#v", got, want)
 	}
 	if got, want := live["truncated"], true; got != want {
@@ -69,14 +70,14 @@ func TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID(t *test
 	store := &recordingCICDRunCorrelationStore{rows: rows}
 
 	// Positive case: querying by the canonical id returns the row.
-	summary, err := loadRepositoryScopedCICDEvidence(
+	summary, err := artifacts.LoadRepositoryScopedCICDEvidence(
 		context.Background(),
 		fakePortContentStore{},
 		store,
 		canonicalRepoID,
 	)
 	if err != nil {
-		t.Fatalf("loadRepositoryScopedCICDEvidence(canonical) error = %v, want nil", err)
+		t.Fatalf("artifacts.LoadRepositoryScopedCICDEvidence(canonical) error = %v, want nil", err)
 	}
 	live := querytestutil.MustMapField(t, summary, "live_run_correlations")
 	if got, want := live["count"], 1; got != want {
@@ -85,14 +86,14 @@ func TestLoadRepositoryScopedCICDEvidenceResolvesByCanonicalRepositoryID(t *test
 
 	// Negative case: querying by the old raw provider namespace must NOT
 	// cross-join into the canonical repo's story.
-	summaryRaw, err := loadRepositoryScopedCICDEvidence(
+	summaryRaw, err := artifacts.LoadRepositoryScopedCICDEvidence(
 		context.Background(),
 		fakePortContentStore{},
 		store,
 		rawRepoID,
 	)
 	if err != nil {
-		t.Fatalf("loadRepositoryScopedCICDEvidence(raw) error = %v, want nil", err)
+		t.Fatalf("artifacts.LoadRepositoryScopedCICDEvidence(raw) error = %v, want nil", err)
 	}
 	liveRaw := querytestutil.MustMapField(t, summaryRaw, "live_run_correlations")
 	if got, want := liveRaw["count"], 0; got != want {

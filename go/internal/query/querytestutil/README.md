@@ -171,22 +171,9 @@ the branch to `return nil, nil` is the SAME edit as the second, not the first,
 and reports 5 rather than 10 -- two mutations that are secretly one mutation
 read as corroboration and are not.
 
-Every failure count in this file counts TOP-LEVEL test functions
-(`rg -c '^--- FAIL'`), while the 8324 baseline counts `=== RUN` lines, which
-include subtests. The two units differ and the gap is not small: the workload
-mutation below is 40 top-level failures and 50 once failing subtests are
-counted. Re-derive a failure count with the anchored pattern or it will look
-like the number drifted.
-
-The two kinds of number age differently, which is worth knowing before you
-re-measure anything here. The failure counts are stable: all seven survived a
-rebase that added roughly 569 tests to the root suite, because they measure the
-set of tests that depend on the fake, and that set did not change. The TOTAL is
-volatile and moves on almost every rebase. So the totals here are pinned to a
-named `origin/main` commit rather than to "this branch's HEAD" -- a sentence
-anchored to a moving ref is only true at the moment it is written, and it
-falsifies itself on the next rebase, which is how three different totals ended
-up in this file at once.
+Failure counts below are top-level test functions; run totals are `=== RUN`
+lines pinned to a named `origin/main` commit. The re-measurement protocol is
+in AGENTS.md under Common changes.
 
 `FakePortContentStore` was proven the same way. Zeroing `RepositoryCoverage`
 fails **12** root tests, and zeroing `DocumentationFindings` fails **4**.
@@ -244,10 +231,8 @@ agreeing. Only a panic-style mutation hides this, which is why the mutation
 proof used sentinel returns: a panic aborts at the first failure and reports one
 either way.
 
-Measure that set with a full `go test ./internal/query/`, never with `-run`
-naming the tests you expect. `-run` measures your own filter: the first attempt
-here named four tests, saw four failures, and reported four as though it were
-the dependent set.
+Measure that set with a full `go test ./internal/query/` per the AGENTS.md
+re-measurement protocol, never with `-run` naming the tests you expect.
 
 Prefer this shape for the remaining shared fakes. Renaming fields across every
 consumer is the alternative, and it buys nothing the adapter does not.
@@ -473,7 +458,8 @@ The promotion is a move: the append and resolve bodies came across from
 delegates rather than reimplements, so the work per call is identical to before
 and every consumer call site is untouched.
 
-No-Regression Evidence: the flagged hot file is `go/internal/query/catalog.go`,
+No-Regression Evidence: the flagged hot file is `go/internal/query/repository/catalog.go`
+(moved from `go/internal/query/catalog.go` for #6060 lane-B B3),
 which does issue a real Cypher `MATCH` against the graph. This change does not
 touch that query. The only edit there turns `CatalogWorkloadIdentityEntry` from
 a struct declaration into a type ALIAS onto `querycontract`, so the shared

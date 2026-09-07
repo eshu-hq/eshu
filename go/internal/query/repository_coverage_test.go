@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestQueryContentStoreCoverageIncludesCompletenessAndGapFields(t *testing.T) {
@@ -52,7 +54,7 @@ func TestQueryContentStoreCoverageIncludesCompletenessAndGapFields(t *testing.T)
 		Content: NewContentReader(db),
 	}
 
-	got, err := handler.queryContentStoreCoverage(t.Context(), "repo-coverage")
+	got, err := handler.QueryContentStoreCoverage(t.Context(), "repo-coverage")
 	if err != nil {
 		t.Fatalf("queryContentStoreCoverage() error = %v, want nil", err)
 	}
@@ -109,34 +111,34 @@ func TestQueryContentStoreCoverageIncludesCompletenessAndGapFields(t *testing.T)
 func TestQueryMaxIndexedAtRejectsUnknownTableBeforeQuery(t *testing.T) {
 	t.Parallel()
 
-	_, err := queryMaxIndexedAt(
+	_, err := repository.QueryMaxIndexedAt(
 		t.Context(),
 		nil,
 		"content_files; DROP TABLE content_entities",
 		"repo-coverage",
 	)
 	if err == nil {
-		t.Fatal("queryMaxIndexedAt() error = nil, want unsupported table error")
+		t.Fatal("repository.QueryMaxIndexedAt() error = nil, want unsupported table error")
 	}
 	if !strings.Contains(err.Error(), "unsupported repository coverage indexed_at table") {
-		t.Fatalf("queryMaxIndexedAt() error = %v, want unsupported table validation error", err)
+		t.Fatalf("repository.QueryMaxIndexedAt() error = %v, want unsupported table validation error", err)
 	}
 }
 
 func TestRepositoryCoverageIndexedAtTableAllowsCoverageTables(t *testing.T) {
 	t.Parallel()
 
-	for _, table := range []string{repositoryCoverageContentFilesTable, repositoryCoverageContentEntitiesTable} {
+	for _, table := range []string{repository.RepositoryCoverageContentFilesTable, repository.RepositoryCoverageContentEntitiesTable} {
 		table := table
 		t.Run(table, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := repositoryCoverageIndexedAtTable(table)
+			got, err := repository.RepositoryCoverageIndexedAtTable(table)
 			if err != nil {
-				t.Fatalf("repositoryCoverageIndexedAtTable(%q) error = %v, want nil", table, err)
+				t.Fatalf("repository.RepositoryCoverageIndexedAtTable(%q) error = %v, want nil", table, err)
 			}
 			if got != table {
-				t.Fatalf("repositoryCoverageIndexedAtTable(%q) = %q, want same table", table, got)
+				t.Fatalf("repository.RepositoryCoverageIndexedAtTable(%q) = %q, want same table", table, got)
 			}
 		})
 	}
@@ -171,7 +173,7 @@ func TestQueryContentStoreCoverageSkipsGraphWhenContentCoverageAvailable(t *test
 		},
 	}
 
-	got, err := handler.queryContentStoreCoverage(t.Context(), "repo-large")
+	got, err := handler.QueryContentStoreCoverage(t.Context(), "repo-large")
 	if err != nil {
 		t.Fatalf("queryContentStoreCoverage() error = %v, want nil", err)
 	}
@@ -209,7 +211,7 @@ func TestQueryContentStoreCoverageUsesGraphWhenContentCoverageUnavailable(t *tes
 		},
 	}
 
-	got, err := handler.queryContentStoreCoverage(t.Context(), "repo-coverage")
+	got, err := handler.QueryContentStoreCoverage(t.Context(), "repo-coverage")
 	if err != nil {
 		t.Fatalf("queryContentStoreCoverage() error = %v, want nil", err)
 	}

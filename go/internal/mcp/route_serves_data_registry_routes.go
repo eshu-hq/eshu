@@ -117,23 +117,24 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	},
 
 	// RepositoryHandler.listRepositories is a graph read over the Repository
-	// label (go/internal/query/repository.go:66,164-171), the canonical
-	// code-graph projection's output. The struct's CICDRunCorrelations and
-	// ServiceCatalogCorrelations fields back sibling repository routes and
-	// are NOT referenced by listRepositories.
+	// label (go/internal/query/repository/repository.go, listRepositories),
+	// the canonical code-graph projection's output. The struct's
+	// CICDRunCorrelations and ServiceCatalogCorrelations fields back sibling
+	// repository routes and are NOT referenced by listRepositories.
+	// (Moved from go/internal/query/repository.go for #6060 lane-B B3.)
 	"GET /api/v0/repositories": {
-		RegistrationFile: "go/internal/query/repository.go",
+		RegistrationFile: "go/internal/query/repository/repository.go",
 		HandlerStruct:    "RepositoryHandler",
-		StructFile:       "go/internal/query/repository.go",
+		StructFile:       "go/internal/query/repository/repository.go",
 		Method:           "listRepositories",
-		MethodFile:       "go/internal/query/repository.go",
+		MethodFile:       "go/internal/query/repository/repository.go",
 		ScanFiles: []string{
-			"go/internal/query/repository.go",
+			"go/internal/query/repository/repository.go",
 		},
 		Served: []routeServedDomain{{
 			Domain: "code_graph_projection",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/repository.go", Marker: "MATCH (r:Repository)"},
+				{File: "go/internal/query/repository/repository.go", Marker: "MATCH (r:Repository)"},
 			},
 		}},
 	},

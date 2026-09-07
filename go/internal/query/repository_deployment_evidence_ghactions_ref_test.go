@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql/driver"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // TestGraphDeploymentEvidenceReturnsGHARefFields proves the GRAPH path
@@ -45,9 +47,9 @@ func TestGraphDeploymentEvidenceReturnsGHARefFields(t *testing.T) {
 		},
 	}
 
-	result, err := queryRepoDeploymentEvidence(context.Background(), reader, nil, map[string]any{"repo_id": "repo-service"})
+	result, err := repository.QueryRepoDeploymentEvidence(context.Background(), reader, nil, map[string]any{"repo_id": "repo-service"})
 	if err != nil {
-		t.Fatalf("queryRepoDeploymentEvidence() error = %v", err)
+		t.Fatalf("repository.QueryRepoDeploymentEvidence() error = %v", err)
 	}
 	artifacts, _ := result["artifacts"].([]map[string]any)
 	if len(artifacts) != 1 {
@@ -92,9 +94,9 @@ func TestGraphDeploymentEvidenceOmitsGHARefFieldsWhenAbsent(t *testing.T) {
 		},
 	}
 
-	result, err := queryRepoDeploymentEvidence(context.Background(), reader, nil, map[string]any{"repo_id": "repo-platform"})
+	result, err := repository.QueryRepoDeploymentEvidence(context.Background(), reader, nil, map[string]any{"repo_id": "repo-platform"})
 	if err != nil {
-		t.Fatalf("queryRepoDeploymentEvidence() error = %v", err)
+		t.Fatalf("repository.QueryRepoDeploymentEvidence() error = %v", err)
 	}
 	artifacts, _ := result["artifacts"].([]map[string]any)
 	if len(artifacts) != 1 {

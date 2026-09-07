@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"testing"
+
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func TestBuildContentRelationshipSetGitHubActionsWorkflowPromotesExplicitRefsFromSource(t *testing.T) {
@@ -307,8 +309,8 @@ func TestGitHubActionsActionRepositoryRef(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := githubActionsActionRepositoryRef(tc.in); got != tc.want {
-				t.Fatalf("githubActionsActionRepositoryRef(%q) = %q, want %q", tc.in, got, tc.want)
+			if got := artifacts.GithubActionsActionRepositoryRef(tc.in); got != tc.want {
+				t.Fatalf("artifacts.GithubActionsActionRepositoryRef(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
 	}

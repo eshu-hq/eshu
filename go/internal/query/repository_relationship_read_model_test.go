@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -53,7 +54,7 @@ func TestContentReaderRepositoryRelationshipReadModelHydratesEvidence(t *testing
 	if got, want := StringVal(got.Relationships[0], "confidence_basis"), "evidence_aggregate"; got != want {
 		t.Fatalf("Relationships[0].confidence_basis = %q, want %q", got, want)
 	}
-	if got, want := StringSliceVal(got.Relationships[0], "evidence_kinds"), []string{"TERRAFORM_APP_REPO"}; !stringSlicesEqual(got, want) {
+	if got, want := StringSliceVal(got.Relationships[0], "evidence_kinds"), []string{"TERRAFORM_APP_REPO"}; !slices.Equal(got, want) {
 		t.Fatalf("Relationships[0].evidence_kinds = %#v, want %#v", got, want)
 	}
 	if got, want := StringVal(got.Relationships[1], "evidence_type"), "argocd_application_source"; got != want {

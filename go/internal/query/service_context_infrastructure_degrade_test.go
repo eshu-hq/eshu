@@ -13,6 +13,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // TestGetServiceContextInfrastructureDegradeAttributesFailure covers a fourth
@@ -46,7 +49,7 @@ func TestGetServiceContextInfrastructureDegradeAttributesFailure(t *testing.T) {
 				switch {
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-infra-degrade", "repo_name": "svc-infra-degrade"}}, nil
-				case strings.Contains(cypher, infrastructureGraphReadCypherFragment):
+				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphReadDeadline)
 				default:
 					return nil, nil
@@ -83,22 +86,22 @@ func TestGetServiceContextInfrastructureDegradeAttributesFailure(t *testing.T) {
 	if !ok {
 		t.Fatalf("body[limitations] missing or wrong type: %#v", body["limitations"])
 	}
-	if !jsonStringSliceContains(limitations, infrastructureReadDegradedReason) {
-		t.Fatalf("limitations = %#v, want to contain %q", limitations, infrastructureReadDegradedReason)
+	if !querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("limitations = %#v, want to contain %q", limitations, repository.InfrastructureReadDegradedReason)
 	}
 
 	logText := logs.String()
 	if !strings.Contains(logText, `"stage":"repo_infrastructure"`) {
 		t.Fatalf("logs missing repo_infrastructure stage; logs = %s", logText)
 	}
-	if !strings.Contains(logText, `"failure_class":"`+infrastructureReadDegradedReason+`"`) {
-		t.Fatalf("logs missing failure_class=%s; logs = %s", infrastructureReadDegradedReason, logText)
+	if !strings.Contains(logText, `"failure_class":"`+repository.InfrastructureReadDegradedReason+`"`) {
+		t.Fatalf("logs missing failure_class=%s; logs = %s", repository.InfrastructureReadDegradedReason, logText)
 	}
 }
 
 // TestGetServiceContextInfrastructureHealthyEmptyDoesNotDegrade is the negative
 // companion: a healthy graph read that genuinely returns zero infrastructure
-// rows (no error) must NOT add infrastructureReadDegradedReason to
+// rows (no error) must NOT add repository.InfrastructureReadDegradedReason to
 // limitations or emit a failure_class log. This is what separates "no
 // infrastructure" from "couldn't read infrastructure" (#5764).
 func TestGetServiceContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing.T) {
@@ -142,8 +145,8 @@ func TestGetServiceContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing.T)
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if limitations, ok := body["limitations"].([]any); ok && jsonStringSliceContains(limitations, infrastructureReadDegradedReason) {
-		t.Fatalf("limitations = %#v, want no %q for a healthy empty read", limitations, infrastructureReadDegradedReason)
+	if limitations, ok := body["limitations"].([]any); ok && querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("limitations = %#v, want no %q for a healthy empty read", limitations, repository.InfrastructureReadDegradedReason)
 	}
 	if strings.Contains(logs.String(), "failure_class") {
 		t.Fatalf("logs unexpectedly carry failure_class for a healthy empty read; logs = %s", logs.String())

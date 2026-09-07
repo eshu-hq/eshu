@@ -87,7 +87,7 @@ func TestListCatalogMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.listCatalog(rec, req)
+			handler.ListCatalog(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

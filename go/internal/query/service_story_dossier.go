@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // serviceStoryItemLimit bounds relationship and instance fan-out attached to
@@ -297,7 +298,7 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	// "truncated" field (round-11 review follow-up to #5764, PR #5936,
 	// mirroring the P3 fix already applied to getRepositoryStory in
 	// repository.go): fetchWorkloadContextForOperation
-	// (entity_workload_context.go) appends infrastructureTruncatedReason to
+	// (entity_workload_context.go) appends repository.InfrastructureTruncatedReason to
 	// workloadContext["limitations"] when the infrastructure read lands past
 	// repositoryInfrastructureEntityLimit, but that reason previously reached
 	// only answer_metadata.partial_reasons -- never this "truncated" field,
@@ -306,7 +307,7 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	// serviceStoryAnswerData (which reads result_limits.truncated directly)
 	// both reported answer_metadata.truncated/answer_packet.truncated as
 	// false for a service whose infrastructure evidence was clipped.
-	infrastructureTruncated := containsString(StringSliceVal(workloadContext, "limitations"), infrastructureTruncatedReason)
+	infrastructureTruncated := containsString(StringSliceVal(workloadContext, "limitations"), repository.InfrastructureTruncatedReason)
 	// #5720 round-2 P1-1: same disclosure gap as buildServiceDownstreamConsumers
 	// above -- the count-vs-serviceStoryItemLimit comparisons below can never
 	// fire on the default (25-row) indirect-evidence search limit, so the

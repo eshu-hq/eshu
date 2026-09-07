@@ -781,7 +781,6 @@ LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/docu
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/images.go:30
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/kubernetes_correlations.go:15
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/observability_coverage_correlations.go:15
-LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/repository.go:66
 LINE go/internal/mcp/route_serves_data_registry_routes_2.go go/internal/query/packagereg/package_registry_cypher.go:6
 LINE go/internal/mcp/route_serves_data_registry_routes_2.go go/internal/query/security_alert_reconciliation.go:18
 LINE go/internal/mcp/route_serves_data_registry_routes_2.go go/internal/query/service_catalog_correlations.go:16

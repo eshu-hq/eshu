@@ -211,7 +211,8 @@ the parent package instructions.
 ## Performance and observability
 
 No-Regression Evidence: the hot file this change touches is
-`go/internal/query/catalog.go`, which does issue a real Cypher `MATCH`. The query
+`go/internal/query/repository/catalog.go` (moved from `go/internal/query/catalog.go`
+for #6060 lane-B B3), which does issue a real Cypher `MATCH`. The query
 text, its parameters and its decode loop are byte-identical; the only edit turns
 `CatalogWorkloadIdentityEntry` from a struct declaration into a type ALIAS onto
 this package, so `querytestutil.FakePortContentStore` can name it from outside

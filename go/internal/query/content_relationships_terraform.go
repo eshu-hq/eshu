@@ -3,6 +3,10 @@
 
 package query
 
+import (
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+)
+
 type contentRelationshipSpec struct {
 	relationshipType string
 	targetName       string
@@ -13,7 +17,7 @@ func buildOutgoingTerraformRelationships(entity EntityContent) ([]map[string]any
 	switch entity.EntityType {
 	case "TerraformModule":
 		if source, ok := metadataNonEmptyString(entity.Metadata, "source"); ok {
-			if normalized := normalizeConfigArtifactExpression(source, nil); normalized != "" {
+			if normalized := artifacts.NormalizeConfigArtifactExpression(source, nil); normalized != "" {
 				source = normalized
 			}
 			return []map[string]any{
@@ -44,7 +48,7 @@ func buildOutgoingTerraformRelationships(entity EntityContent) ([]map[string]any
 			})
 		}
 		if source, ok := metadataNonEmptyString(entity.Metadata, "terraform_source"); ok {
-			if normalized := normalizeConfigArtifactExpression(source, nil); normalized != "" {
+			if normalized := artifacts.NormalizeConfigArtifactExpression(source, nil); normalized != "" {
 				source = normalized
 			}
 			add(contentRelationshipSpec{
@@ -54,7 +58,7 @@ func buildOutgoingTerraformRelationships(entity EntityContent) ([]map[string]any
 			})
 		}
 		for _, includePath := range metadataStringSlice(entity.Metadata, "include_paths") {
-			includePath = normalizeConfigArtifactExpression(includePath, nil)
+			includePath = artifacts.NormalizeConfigArtifactExpression(includePath, nil)
 			if includePath == "" {
 				continue
 			}
@@ -65,7 +69,7 @@ func buildOutgoingTerraformRelationships(entity EntityContent) ([]map[string]any
 			})
 		}
 		for _, configPath := range metadataStringSlice(entity.Metadata, "read_config_paths") {
-			configPath = normalizeConfigArtifactExpression(configPath, nil)
+			configPath = artifacts.NormalizeConfigArtifactExpression(configPath, nil)
 			if configPath == "" {
 				continue
 			}
@@ -76,7 +80,7 @@ func buildOutgoingTerraformRelationships(entity EntityContent) ([]map[string]any
 			})
 		}
 		for _, configPath := range metadataStringSlice(entity.Metadata, "find_in_parent_folders_paths") {
-			configPath = normalizeConfigArtifactExpression(configPath, nil)
+			configPath = artifacts.NormalizeConfigArtifactExpression(configPath, nil)
 			if configPath == "" {
 				continue
 			}
@@ -87,7 +91,7 @@ func buildOutgoingTerraformRelationships(entity EntityContent) ([]map[string]any
 			})
 		}
 		for _, configPath := range metadataStringSlice(entity.Metadata, "local_config_asset_paths") {
-			configPath = normalizeConfigArtifactExpression(configPath, nil)
+			configPath = artifacts.NormalizeConfigArtifactExpression(configPath, nil)
 			if configPath == "" {
 				continue
 			}
@@ -100,7 +104,7 @@ func buildOutgoingTerraformRelationships(entity EntityContent) ([]map[string]any
 		return relationships, true, nil
 	case "TerragruntDependency":
 		if configPath, ok := metadataNonEmptyString(entity.Metadata, "config_path"); ok {
-			configPath = normalizeConfigArtifactExpression(configPath, nil)
+			configPath = artifacts.NormalizeConfigArtifactExpression(configPath, nil)
 			if configPath == "" {
 				return nil, true, nil
 			}

@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestQueryRepoDependenciesReadsDeployableUnitCorrelationEdges(t *testing.T) {
@@ -37,7 +39,7 @@ func TestQueryRepoDependenciesReadsDeployableUnitCorrelationEdges(t *testing.T) 
 		},
 	}
 
-	got := queryRepoDependencies(context.Background(), reader, map[string]any{"repo_id": "repo-edge-api"})
+	got := repository.QueryRepoDependencies(context.Background(), reader, map[string]any{"repo_id": "repo-edge-api"})
 	if !strings.Contains(observedCypher, "CORRELATES_DEPLOYABLE_UNIT") {
 		t.Fatalf("query cypher missing CORRELATES_DEPLOYABLE_UNIT: %s", observedCypher)
 	}

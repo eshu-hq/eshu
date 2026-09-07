@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func TestCICDListRunCorrelationsExplainsWorkflowArtifactDigestEvidence(t *testing.T) {
@@ -154,7 +155,7 @@ jobs:
 func TestBuildCICDEvidenceSummaryNamesUnavailableLiveProviderEvidence(t *testing.T) {
 	t.Parallel()
 
-	summary := buildCICDRunCorrelationEvidenceSummary(
+	summary := artifacts.BuildCICDRunCorrelationEvidenceSummary(
 		cicdStaticWorkflowArtifactEvidence{State: "present", Count: 1},
 		nil,
 		false,

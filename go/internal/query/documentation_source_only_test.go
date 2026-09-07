@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestDocumentationHandlerExplainsSourceOnlyDocumentationFacts(t *testing.T) {
@@ -127,7 +129,7 @@ func TestContentReaderDocumentationFindingsReportsSourceOnlyDocumentationFacts(t
 func TestBuildStoryTargetDocumentationExplainsSourceOnlyDocumentationFacts(t *testing.T) {
 	t.Parallel()
 
-	got := buildStoryTargetDocumentation(documentationFindingFilter{
+	got := querycontract.BuildStoryTargetDocumentation(documentationFindingFilter{
 		Repository: "repo-payments-api",
 		TargetKind: "repository",
 		TargetID:   "repo-payments-api",

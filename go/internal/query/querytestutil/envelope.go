@@ -95,3 +95,18 @@ func DecodeImpactEnvelopeData(t *testing.T, rec *httptest.ResponseRecorder) map[
 	}
 	return data
 }
+
+// DecodeResponseBody unmarshals a recorder body into a map without asserting
+// status or envelope shape. It moved here for #6060 lane B B3 alongside the
+// stats fixtures: the story-coverage tests moved to the repository family
+// package while the stats, envelope, freshness, and limits tests stay in
+// root.
+func DecodeResponseBody(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	return resp
+}

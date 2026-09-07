@@ -3,7 +3,11 @@
 
 package querycontract
 
-import "time"
+import (
+	"path/filepath"
+	"strings"
+	"time"
+)
 
 // FileContent is one file from the content store.
 type FileContent struct {
@@ -125,4 +129,62 @@ type RepositoryCatalogEntry struct {
 	RemoteURL string
 	RepoSlug  string
 	HasRemote bool
+}
+
+// IsServiceEvidenceCandidate reports whether file looks like service
+// evidence (an API spec, route/server/ingress definition, or deployment
+// values file) for the normalized service name. It lives here (not in a
+// handler family) so the repository framework-signal read and the service
+// evidence stayer share one predicate without importing each other (#6060,
+// lane B B3).
+func IsServiceEvidenceCandidate(file FileContent, normalizedServiceName string) bool {
+	path := strings.ToLower(file.RelativePath)
+	if path == "" {
+		return false
+	}
+	if normalizedServiceName != "" && strings.Contains(NormalizeEvidenceToken(path), normalizedServiceName) {
+		return true
+	}
+
+	switch filepath.Ext(path) {
+	case ".yaml", ".yml", ".json", ".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".md":
+	default:
+		return false
+	}
+
+	for _, keyword := range []string{
+		"openapi", "swagger", "spec", "docs", "route", "server", "ingress",
+		"gateway", "deploy", "values", "config", "application",
+	} {
+		if strings.Contains(path, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+// ServiceAPIEndpointEvidence captures one API endpoint path from an API spec.
+type ServiceAPIEndpointEvidence struct {
+	Path         string   `json:"path"`
+	Methods      []string `json:"methods,omitempty"`
+	OperationIDs []string `json:"operation_ids,omitempty"`
+}
+
+// ServiceAPISpecEvidence summarizes one API spec file and its parsed routes,
+// server hostnames, and operation IDs when available. The structs live here
+// (not in a handler family) so the repository narrative enrichment and the
+// service evidence stayer share one shape without importing each other
+// (#6060, lane B B3).
+type ServiceAPISpecEvidence struct {
+	RelativePath     string                       `json:"relative_path"`
+	Format           string                       `json:"format"`
+	Parsed           bool                         `json:"parsed"`
+	SpecVersion      string                       `json:"spec_version,omitempty"`
+	APIVersion       string                       `json:"api_version,omitempty"`
+	EndpointCount    int                          `json:"endpoint_count,omitempty"`
+	MethodCount      int                          `json:"method_count,omitempty"`
+	OperationIDCount int                          `json:"operation_id_count,omitempty"`
+	DocsRoutes       []string                     `json:"docs_routes,omitempty"`
+	Hostnames        []string                     `json:"hostnames,omitempty"`
+	Endpoints        []ServiceAPIEndpointEvidence `json:"endpoints,omitempty"`
 }
