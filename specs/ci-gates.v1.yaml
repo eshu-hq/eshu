@@ -1496,6 +1496,16 @@ gates:
     ci:
       workflow: static-contract-gates.yml
       job: "Verify doc-citations gate"
+    requirements: []
+    ci_only_reason: ""
+    # Wired into CI (static-contract-gates.yml, the same lane as docs-refs)
+    # because this is a blocking recurrence-prevention gate: a PR that edits a
+    # cited doc, renames a Go test, or moves a fixture MUST run this gate in CI,
+    # or a phantom citation could merge with all required checks green (CLAUDE.md:
+    # CI is the non-bypassable source of truth). The broad go/**, docs/**, and
+    # tests/fixtures/** triggers are deliberate: a source edit, hidden tracked doc,
+    # test-file split, or fixture move must re-run this gate in the SAME PR that
+    # causes the drift, not wait for someone to notice a stale citation later.
   - id: moved-file-refs
     name: Moved-file reference guard
     category: exactness
@@ -1524,14 +1534,6 @@ gates:
       job: "Verify moved-file-refs gate"
     requirements: []
     ci_only_reason: ""
-    # Wired into CI (static-contract-gates.yml, the same lane as docs-refs)
-    # because this is a blocking recurrence-prevention gate: a PR that edits a
-    # cited doc, renames a Go test, or moves a fixture MUST run this gate in CI,
-    # or a phantom citation could merge with all required checks green (CLAUDE.md:
-    # CI is the non-bypassable source of truth). The broad go/**, docs/**, and
-    # tests/fixtures/** triggers are deliberate: a source edit, hidden tracked doc,
-    # test-file split, or fixture move must re-run this gate in the SAME PR that
-    # causes the drift, not wait for someone to notice a stale citation later.
 
   - id: measurement-citations
     name: Measurement ledger citation gate
