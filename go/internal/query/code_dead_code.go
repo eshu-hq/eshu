@@ -19,14 +19,12 @@ type deadCodeRequest struct {
 	ExcludeDecoratedWith []string `json:"exclude_decorated_with"`
 }
 
+// deadCodeDefaultLimit and the deadCodeCandidateQuery* scan bounds moved to
+// codeshaping/code_dead_code_candidate_schedule.go with the schedule
+// (#6060 lane A L3); family_code_shim_shaping.go aliases them back so this
+// orchestrator keeps its names.
 const (
-	deadCodeDefaultLimit = 100
-	deadCodeMaxLimit     = 500
-
-	deadCodeCandidateQueryMultiplier = 10
-	deadCodeCandidateQueryMin        = 100
-	deadCodeCandidateQueryMax        = 250
-	deadCodeCandidateScanMaxPages    = 10
+	deadCodeMaxLimit = 500
 )
 
 // handleDeadCode finds graph-backed dead-code candidates and then applies the

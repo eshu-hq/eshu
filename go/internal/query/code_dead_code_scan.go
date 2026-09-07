@@ -61,7 +61,7 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 	schedule := newDeadCodeCandidateSchedule(candidateLabels, pageLimit, totalLimit)
 
 	for {
-		page, ok := schedule.nextPage()
+		page, ok := schedule.NextPage()
 		if !ok {
 			break
 		}
@@ -72,7 +72,7 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 		scan.CandidateScanPages++
 		candidateRowCount := len(rows)
 		scan.CandidateScanRows += candidateRowCount
-		schedule.record(page, candidateRowCount)
+		schedule.Record(page, candidateRowCount)
 		rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
 		results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
 		if err != nil {
@@ -95,7 +95,7 @@ func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadCodeRe
 			return scan, nil
 		}
 	}
-	scan.CandidateScanTruncated = schedule.candidateScanTruncated()
+	scan.CandidateScanTruncated = schedule.CandidateScanTruncated()
 
 	return scan, nil
 }

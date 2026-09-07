@@ -211,7 +211,7 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 	)
 
 	for {
-		page, ok := schedule.nextPage()
+		page, ok := schedule.NextPage()
 		if !ok {
 			break
 		}
@@ -222,7 +222,7 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 		scan.CandidateScanPages++
 		rowCount := len(rows)
 		scan.CandidateScanRows += rowCount
-		schedule.record(page, rowCount)
+		schedule.Record(page, rowCount)
 		rows = filterDuplicateDeadCodeRows(rows, seenEntityIDs)
 		results, contentByID, err := h.buildDeadCodeResults(ctx, rows)
 		if err != nil {
@@ -248,7 +248,7 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 			return scan, nil
 		}
 	}
-	scan.CandidateScanTruncated = schedule.candidateScanTruncated()
+	scan.CandidateScanTruncated = schedule.CandidateScanTruncated()
 	return scan, nil
 }
 

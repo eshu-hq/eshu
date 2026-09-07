@@ -1021,7 +1021,7 @@ storage schema changes.
 
 [Issue #2233](https://github.com/eshu-hq/eshu/issues/2233) ranks relationship
 story rows by bounded centrality
-(`go/internal/query/code_relationship_story_centrality.go`,
+(`go/internal/query/codeshaping/code_relationship_story_centrality.go`,
 `relationshipStoryRankByCentrality`) before the count limit and token budget, so
 the most-connected neighbors survive a small budget.
 

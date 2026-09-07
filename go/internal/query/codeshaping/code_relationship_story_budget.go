@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package codeshaping
 
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 )
 
 // relationshipStorySupportedType, normalizedRelationshipTypes, and
 // normalizedTokenBudget moved to
 // codemodel/code_relationship_story_evidence_state.go with the request type
 // (#6060 lane A L1); the budget applier below calls them through the leaf.
+// This file followed the request to codeshaping in L3; the staying story
+// handler calls the exported applier through root's
+// family_code_shim_shaping.go forwarder.
 
-// relationshipStoryApplyTokenBudget trims rows in place so their estimated
+// RelationshipStoryApplyTokenBudget trims rows in place so their estimated
 // serialized token cost stays within req.token_budget. It returns nil when no
 // budget is set, otherwise an accounting map describing the budget, the
 // estimated tokens kept, whether the budget forced a cut, how many rows were
@@ -22,7 +27,7 @@ import (
 //
 // Rows are kept in their incoming order: callers that want the most useful rows
 // to survive a small budget must order rows by relevance before calling this.
-func relationshipStoryApplyTokenBudget(req relationshipStoryRequest, rows *[]map[string]any) map[string]any {
+func RelationshipStoryApplyTokenBudget(req codemodel.RelationshipStoryRequest, rows *[]map[string]any) map[string]any {
 	budget := req.NormalizedTokenBudget()
 	if budget <= 0 {
 		return nil
@@ -67,7 +72,8 @@ func estimateRowTokens(row map[string]any) int {
 
 // relationshipStoryBudgetGuidance returns a deterministic instruction teaching
 // the agent how to narrow a relationship query that exceeded its token_budget.
-func relationshipStoryBudgetGuidance(req relationshipStoryRequest) string {
+// It stays leaf-private: only the budget applier above calls it.
+func relationshipStoryBudgetGuidance(req codemodel.RelationshipStoryRequest) string {
 	parts := []string{"request a single relationship_type"}
 	if direction, _ := req.NormalizedDirection(); direction == "both" {
 		parts = append(parts, "set direction to incoming or outgoing")
