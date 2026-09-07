@@ -59,8 +59,11 @@
 --   grant = 500, MATCHING              0.45 ms     0.058 ms
 --   multi-variant (typescript OR tsx)  0.54 ms     0.537 ms
 --
--- It is a strict improvement and a regression on none. The matching case gets
--- faster too, because removing the sort helps a page that does have rows.
+-- Across the six arms timed above it is a strict improvement and a regression
+-- on none; the matching case gets faster too, because removing the sort helps a
+-- page that does have rows. Two production shapes were NOT timed and the claim
+-- does not cover them: `entity_name ILIKE $n` (the DSL's canonical payload,
+-- which competes with migration 062's trigram index) and grant=1 MATCHING.
 --
 -- WHAT IT DOES NOT FIX. normalizedLanguageVariants returns two spellings for
 -- javascript, typescript and csharp, and the builder emits those as

@@ -10,8 +10,11 @@
 // Why this file exists beside language_query_grant_plan_shape_live_test.go:
 // that test seeds every non-yaml language as `Function`, so its
 // (language, entity_type) pairs all match something. The empty pair is the
-// case #6540 measured at 2,590 ms and 2,013,451 buffers for an empty answer,
-// and no test covered it.
+// case this change re-measured at 2,590 ms and 2,013,451 buffers for an empty
+// answer, and no test covered it. (Issue #6540 reported 504 ms / 239,920
+// buffers on a seed whose relative_path was correlated with physical order;
+// this seed md5-scatters it, so the same ordered walk pays one random heap
+// fetch per row. Same defect, more pessimistic seed.)
 //
 // What this pins is the SHAPE the measurement depends on, not the numbers,
 // which move with the machine:
@@ -23,8 +26,9 @@
 //     above the scan.
 //
 // The second assertion is the one that would catch a truncated index.
-// #6540 measured a plain (language, entity_type) index and the planner did NOT
-// take it -- the plan stayed an ordered walk -- because a two-column index
+// This change measured a plain (language, entity_type) index -- #6540 listed it
+// as a theory to test, it did not test it -- and the planner did NOT take it:
+// the plan stayed an ordered walk, because a two-column index
 // does not serve ORDER BY relative_path, start_line, entity_name. An index
 // that keeps the name but loses the trailing sort columns therefore
 // reintroduces the defect while still satisfying an Index-Cond-only check.
@@ -58,8 +62,9 @@ import (
 
 const (
 	// Enough rows that an ordered walk is expensive enough for the planner to
-	// have a real choice, and small enough to seed in seconds. #6540 measured
-	// the defect at 2,000,000; the shapes asserted here hold from this size up.
+	// have a real choice, and small enough to seed in seconds. The defect was
+	// measured at 2,000,000 rows by this change; the shapes asserted here are
+	// what that plan reduces to at this size, not a claim measured above it.
 	zeroMatchSeedRows  = 300000
 	zeroMatchSeedRepos = 600
 )

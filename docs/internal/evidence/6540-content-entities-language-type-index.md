@@ -29,10 +29,22 @@ code changed.
   measurements gating an index-adoption decision, not a reference-profile
   wall-clock target.
 
-Planner-relevant settings were left at Postgres defaults so plan choice matches
-production: `random_page_cost = 4.0`, `seq_page_cost = 1.0`,
+Planner-relevant settings were left at Postgres defaults:
+`random_page_cost = 4.0`, `seq_page_cost = 1.0`,
 `effective_cache_size = 4GB`, `work_mem = 4MB`,
-`default_statistics_target = 100`. Set deliberately and **not** planner-relevant:
+`default_statistics_target = 100`.
+
+**These are Postgres defaults, not this repo's production setting**, and the
+distinction matters here. `docs/public/reference/postgres-tuning.md` recommends
+`random_page_cost = 1.1` on SSD and records that the B-7 golden-corpus gate runs
+Compose Postgres at 1.1 — and it documents a 4.0 → 1.1 index-adoption flip on
+this very table for an ordered-`LIMIT` read (#5490). The direction of risk is
+favourable: a lower `random_page_cost` makes ordered index scans *more*
+attractive, so A2's adoption is not at risk at 1.1 and the fix decision stands.
+But the baseline numbers, and the **A1 rejection** in particular, are 4.0-specific,
+and #5490 is the in-tree proof that an A1-style rejection can invert at 1.1.
+
+Set deliberately and **not** planner-relevant:
 `shared_buffers = 2GB`, `maintenance_work_mem = 1GB`, and `fsync`,
 `synchronous_commit`, `full_page_writes` off (load speed only; they do not
 change read plans or warm read timings). Per session: `SET jit = off` and
@@ -155,8 +167,12 @@ Limit (cost=0.55..180.68 rows=50 width=149) (actual time=0.009..0.009 rows=0 loo
 
 The filter becomes an `Index Cond` and the `Sort` node disappears — the index's
 trailing columns are exactly the `ORDER BY` key. **2,013,451 buffers → 4.**
-Strict improvement on every arm, regression on none; the matching case gets ~10x
-faster too, because removing the sort helps a page that does have rows.
+Strict improvement on **every arm timed here**, regression on none; the matching
+case gets ~10x faster too, because removing the sort helps a page that does have
+rows. Two production shapes were not timed, so the claim is scoped rather than
+universal: `entity_name ILIKE $n` — the canonical payload in
+`language-query-dsl.md`, and the one shape with a real plan-flip mechanism
+against migration 062's trigram index — and grant=1 MATCHING.
 
 **What it does not fix.** `normalizedLanguageVariants` returns two spellings for
 `javascript`, `typescript` and `csharp`, which the builder emits as

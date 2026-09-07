@@ -255,8 +255,9 @@ func TestContentEntitiesLanguageTypeIndexIsCreatedOnceAndNeverDropped(t *testing
 // TestContentEntitiesLanguageTypeIndexCarriesTheOrderByKey pins WHY the index
 // works, which the create/drop guard above cannot see.
 //
-// #6540 measured a plain (language, entity_type) index and the planner did not
-// take it: with it present the plan was byte-identical to the baseline, still
+// This change measured a plain (language, entity_type) index -- #6540 named it
+// as a candidate to try, it did not measure it -- and the planner did not take
+// it: with it present the plan was byte-identical to the baseline, still
 // an ordered walk of content_entities_path_idx with `Rows Removed by Filter:
 // 2000000`. What makes the shipped index usable is that its trailing columns
 // are exactly the statement's ORDER BY key, so one ordered index scan serves
