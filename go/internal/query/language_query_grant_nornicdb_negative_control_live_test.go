@@ -97,7 +97,15 @@ func TestLiveNornicDBLanguageQueryImpossibleLanguageReturnsNoRows(t *testing.T) 
 // "(alias.prop IN $allowed_repository_ids OR alias.prop IN $allowed_scope_ids)",
 // and every scoped graph read in the product funnels through it. A caller whose
 // grant names only repositories that do not exist must receive zero rows from
-// every shape. Any other answer is cross-tenant exposure, not an accuracy bug.
+// every shape. Any other answer is cross-tenant exposure on whatever backend is
+// under test, not an accuracy bug.
+//
+// Which backend matters. The 1.2.x line the gates and Compose run
+// (verify-replay-tier.sh pins v1.2.3; docker-compose defaults to the pr290
+// image, 1.2.1) filters this correctly when measured. The embedded 1.0.0
+// library -- linked only under the nolocalllm build tag -- does not. So a
+// failure here on a local profile is expected against 1.0.0 and would be a
+// genuine regression against 1.2.x.
 //
 // The existing grant tests cannot catch this: they assert that a GRANTED caller
 // sees the granted rows, which stays true whether or not the predicate is

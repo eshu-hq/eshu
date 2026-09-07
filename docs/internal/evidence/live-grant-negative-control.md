@@ -2,12 +2,29 @@
 
 ## Why this exists
 
-A confirmed defect on the **shipped** NornicDB build reached production because
-every live assertion guarding these statements is positive.
+Every live assertion guarding these statements is positive, so an entire class
+of predicate failure is invisible to the suite. That gap is worth closing on its
+own merits, and a real defect on one NornicDB build is what exposed it.
 
-On `github.com/orneryd/nornicdb v1.0.45` (which reports product version
-**1.0.0**, and is what `eshu` links via the `nolocalllm` tag), `IN` is ignored
-the moment a second node joins the MATCH. `=` filters correctly, and a
+**Which build, stated precisely, because an earlier version of this note got it
+wrong.** The defect is on the **embedded** library
+(`go.mod: github.com/orneryd/nornicdb v1.0.45`, which reports product version
+**1.0.0**). That library is linked ONLY under the `nolocalllm` build tag --
+`internal/cli/localsupervisor/graph.go:93` errors with "embedded NornicDB is not
+available in this Eshu build" otherwise -- so it is reachable in local developer
+profiles, **not** in the deployed topology.
+
+What the deployed topology actually runs is the 1.2.x line:
+`scripts/verify-replay-tier.sh:24` pins
+`timothyswt/nornicdb-cpu-bge:v1.2.3`, and `docker-compose.yaml` defaults to
+`eshu-nornicdb-pr290:3722b483c02c` (1.2.1). **Both filter correctly** -- measured,
+see below.
+
+So this is a local-profile correctness bug, **not a production tenancy
+exposure**. An earlier draft called 1.0.0 "the shipped build" and implied the
+latter; that was wrong.
+
+On 1.0.0, `IN` is ignored the moment a second node joins the MATCH. `=` filters correctly, and a
 single-node MATCH filters correctly, so the failure is invisible to any test
 that asks a question with more than one acceptable answer.
 
@@ -21,6 +38,11 @@ and `GraphCondition`, `GraphPredicate`, `GraphWhereClause`,
 it. Measured against a fresh 21-node store with both grant lists naming ids that
 exist nowhere: the single-node form returned 0 rows, the two-node form returned
 **every row**.
+
+**The 1.2.x control, measured on this box.** The same impossible-grant probe
+against the 1.2.1 container (`dbms.components()` -> `["NornicDB",["1.2.1"]]`)
+returned **0 rows at one, two and three nodes**, with an `=` control and the
+`any(...)` form all clean. That is the version the gates and Compose run.
 
 ## Why the existing suite could not fail
 
