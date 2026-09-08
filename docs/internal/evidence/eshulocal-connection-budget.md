@@ -48,8 +48,13 @@ rather than a hand-entered count:
 5 pool-holding services * 30 per-process pool + 20 reserved/admin = 170
 ```
 
-The five are `localPostgresPoolHolders`, and the ceiling is a compile-time
-`len()` of it, so the number cannot drift from the list.
+The five are `localPostgresPoolHolders`, and the number is a compile-time
+`len()` of it, so it cannot drift from the list.
+
+**Read 170 as a FLOOR, not as the ceiling.** The section "The ceiling follows
+the configured pool" below supersedes this: `ResolveLocalPostgresMaxConnections`
+returns `max(170, holders * configured_pool + reserved)`, so 170 is what the
+default configuration yields, not a fixed cap.
 
 **An earlier revision of this change said three, and that was wrong in
 composition as well as size.** It assumed API + MCP + an indexer. Verified from
@@ -87,6 +92,133 @@ moves the local server from "guaranteed exhaustion at shipped defaults" to
 "covers every capped holder", which is an improvement rather than a proof, and
 the #4456 gap remains open in the supervisor. Stating it here rather than
 letting the list read as exhaustive.
+
+## The ceiling follows the configured pool, not just the default
+
+Found in review of this change (#6603), and it invalidated the first version of
+the fix.
+
+`localsupervisor.ChildEnv` ends in
+`procexec.MergeEnvironment(procexec.Environ(), values)` and does **not** set
+`ESHU_POSTGRES_MAX_OPEN_CONNS`, so every supervised child inherits the
+operator's value verbatim and sizes its own pool from it through
+`runtime.LoadPostgresConfig`. The knob is documented and explicitly tunable
+upward: `docs/public/reference/postgres-tuning.md:42` tells operators to raise
+it "when workers are blocked waiting for DB connections", and line 64 states the
+invariant as `sum(pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS)`.
+
+A ceiling that hard-codes the default 30 therefore **contradicts the repo's own
+documented invariant** the moment the knob is raised. Five holders at 60 want
+320 connections against a fixed 170 — the same exhaustion this budget exists to
+prevent, reachable through a supported configuration.
+
+`ResolveLocalPostgresMaxConnections` now reads the resolved value:
+
+```text
+max(LocalPostgresMaxConnections, holders * resolved_pool + reserved)
+```
+
+Configuration can raise the ceiling and can never lower it, which keeps the
+scope note above true: the budget cannot be reduced below the invariant by
+environment. Parse rules mirror `runtime.LoadPostgresConfig` — unset means the
+default; non-positive and unparseable values are not honoured. This function
+does not report a bad value because it sits on a config-construction path with
+no error return, and the child reading the same variable through
+`runtime.LoadPostgresConfig` still fails loudly on it, so the error surfaces
+there rather than being swallowed.
+
+Mutation-proved, worktree `pgconns`:
+
+```text
+$ (resolver mutated to ignore the env knob)
+  go test ./internal/eshulocal/ -run 'ResolveLocalPostgres' -count=1
+--- FAIL: TestResolveLocalPostgresMaxConnectionsCoversTheConfiguredPoolBudget
+    ESHU_POSTGRES_MAX_OPEN_CONNS=45: ceiling 170 is below the pool budget 245
+    (5 holders * 45 + 20 reserved)
+MUTANT-A-EXIT=1
+
+$ (call site reverted to the fixed constant)
+  go test ./internal/eshulocal/ -run 'DerivedMaxConnections' -count=1
+--- FAIL: TestEmbeddedPostgresConfigCarriesDerivedMaxConnections
+    start parameters do not carry
+    strconv.Itoa(ResolveLocalPostgresMaxConnections(os.Getenv))
+MUTANT-B-EXIT=1
+
+$ (both restored) go test ./internal/eshulocal/ -count=1
+ok  	github.com/eshu-hq/eshu/go/internal/eshulocal	1.513s
+RESTORED-EXIT=0
+```
+
+Both mutants fail on the **value**, not on a missing symbol, so the guards
+reject the real defect rather than passing vacuously.
+
+### Proven against a live postmaster at a non-default pool
+
+The unit tests prove the arithmetic. This proves the server honours it:
+
+```text
+$ ESHU_EMBEDDED_POSTGRES_LIVE=1 ESHU_POSTGRES_MAX_OPEN_CONNS=60 \
+    go test ./internal/eshulocal -run 'Live' -count=1
+--- PASS: TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive (5.55s)
+LIVE60-EXIT=0
+```
+
+A real postmaster booted with `max_connections = 320` (5 x 60 + 20) and
+reported it back through `SHOW max_connections`.
+
+Negative control, the same environment with the assertion pinned back to the
+floor constant:
+
+```text
+embedded_postgres_driver_live_test.go:107:
+  SHOW max_connections = 320, want 170 (the resolved local pool budget)
+CONTROL-EXIT=1
+```
+
+That failure is the point: the previous assertion compared against
+`LocalPostgresMaxConnections`, so it was environment-dependent the moment the
+server started following the configured pool. Comparing against the resolved
+value is what makes this test correct rather than incidentally passing.
+
+## Known limit: the list counts ROLES, not process instances
+
+Found in review of this change, and it is the sharper of the two limits.
+
+`localPostgresPoolHolders` budgets **one** `eshu-mcp-server`. That is wrong for
+attached MCP: `RunAttachedMCPStdio` ends in
+
+    StartChildProcess("eshu-mcp-server", []string{"eshu-mcp-server"}, ChildEnv(dsn, ...))
+
+— the final statement of `RunAttachedMCPStdio` in
+`go/internal/cli/localsupervisor/host.go` — with no deduplication, no
+admission control and no cap on concurrent instances. The guards above it check
+the owner record, workspace match, process liveness and socket health — none of
+them limits how many MCP children exist. So **N concurrent `eshu mcp start`
+attachments open N pools of up to 30**, and the derived 170 under-counts by
+`30 x (N-1)`. Two attached sessions already exceed the budget's assumption.
+
+The same shape applies to any other role a user can start more than once
+concurrently. Review named a second instance: concurrent `eshu vuln-scan repo`
+invocations each start their own `eshu-api` child
+(`startLocalAPI` -> `localsupervisor.StartChildProcess("eshu-api", ...)`,
+`go/internal/cli/vulnscan/localruntime.go:318`) plus a bootstrap-index pass, so
+two concurrent scans double those two holders the same way two attachments
+double the MCP one.
+
+Deriving the ceiling from the configured pool (previous section) raises the
+number but does **not** close this: the multiplier is the count of concurrent
+*instances*, which nothing here observes. Bounding it properly still means
+capping concurrent children or sizing from an observed child count.
+
+This is not fixed here, and the number is deliberately not inflated to guess at
+N — an arbitrary multiplier would be a worse claim than a stated limit. The
+honest reading of `LocalPostgresMaxConnections` is: *the budget for one instance
+of each capped role, plus reserve*. It is a floor for the single-session case,
+not a ceiling for every concurrent workflow.
+
+Bounding this properly means either capping concurrent attached MCP children or
+sizing the server from the observed child count; both are larger than this
+change and belong to the open #4456 work.
 
 ## Proof
 
@@ -198,24 +330,31 @@ The reducer runs against the embedded server under `local_authoritative`. So:
 | max_connections | advisory-lock slots (64 x n) | vs the 6,400 the chunker assumes |
 |---|---|---|
 | **35** (shipped) | **2,240** | **35%** |
-| 110 (this change) | 7,040 | 110% |
+| 170 (this change, **floor**) | 10,880 | 170% |
+| 320 (same change, pool knob at 60) | 20,480 | 320% |
 
 At 35 the embedded server offered barely a third of the slots the reducer's own
 chunker is sized against. That is a concrete mechanism by which the old value
 could break a component of this system, and it is a much better argument for the
-raise than "110 is near PostgreSQL's default of 100" — which is a headroom
-observation, not a mechanism. Credit to the reviewer for finding it.
+raise than "the new value is near PostgreSQL's default of 100" — which is a
+headroom observation, not a mechanism. Credit to the reviewer for finding it.
 
 Performance Evidence: raising a Postgres server's `max_connections` increases
-allocated shared memory, which is why the change is bounded to 110 rather than
-matching Compose's 640. 110 sits just above PostgreSQL's own default of 100 --
-the same scale this repo already reasons about elsewhere (`gated_writer.go`
-works from `max_connections=100` defaults) -- so the added shared memory is the
-increment from 35 to 110 on a server that a stock PostgreSQL install would have
-provisioned for 100 anyway. The embedded server keeps the library's default
-`shared_buffers`. The touched path is process startup, not a
-query path: no hot-path Cypher, SQL, reducer projection, or queue behaviour
-changes, and no statement plan is affected.
+allocated shared memory, which is why the ceiling is derived from the pool budget
+(`5 x 30 + 20 = 170`) rather than matching Compose's 640. The added shared memory
+is the increment from 35 to 170. For scale, a stock PostgreSQL install defaults
+to 100 -- the same order this repo already reasons about elsewhere
+(`gated_writer.go` works from `max_connections=100` defaults) -- so 170 is
+roughly 1.7x a default install rather than a different class of allocation. The
+embedded server keeps the library's default `shared_buffers`. The touched path is
+process startup, not a query path: no hot-path Cypher, SQL, reducer projection,
+or queue behaviour changes, and no statement plan is affected.
+
+An earlier revision of this note said 110 here and in the table above. That was
+the round-1 figure, superseded when review found the holder count wrong in
+composition as well as size; the shipped constant has always been 170 in code.
+The table row now reads 64 x 170 = 10,880 slots, 170% of the 6,400 the chunker
+assumes.
 
 No-Regression Evidence: the change alters one Postgres start parameter and adds
 three test assertions. No production code path other than

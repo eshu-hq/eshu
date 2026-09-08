@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -152,8 +153,81 @@ func TestEmbeddedPostgresConfigCarriesDerivedMaxConnections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(postgres_unix.go) error = %v, want nil", err)
 	}
-	want := `"max_connections":         strconv.Itoa(LocalPostgresMaxConnections),`
+	want := `"max_connections":         strconv.Itoa(ResolveLocalPostgresMaxConnections(os.Getenv)),`
 	if !strings.Contains(string(source), want) {
 		t.Fatalf("postgres_unix.go start parameters do not carry %s; max_connections must stay derived from the budget, not a literal", want)
+	}
+}
+
+// TestResolveLocalPostgresMaxConnectionsFollowsConfiguredPool covers the gap a
+// compile-time ceiling cannot: localsupervisor.ChildEnv passes
+// ESHU_POSTGRES_MAX_OPEN_CONNS through to every child untouched, so an operator
+// who raises the documented knob raises each child's pool while a fixed ceiling
+// stays put. postgres-tuning.md states the invariant as
+// sum(pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS); this asserts the
+// embedded server actually satisfies it for a configured pool rather than only
+// for the default (#6603 review).
+func TestResolveLocalPostgresMaxConnectionsFollowsConfiguredPool(t *testing.T) {
+	t.Parallel()
+
+	holders := len(localPostgresPoolHolders)
+	for _, tc := range []struct {
+		name string
+		set  string
+		want int
+	}{
+		{name: "unset uses the derived floor", set: "", want: LocalPostgresMaxConnections},
+		{name: "default restates the floor", set: "30", want: LocalPostgresMaxConnections},
+		{name: "raised pool raises the ceiling", set: "60", want: holders*60 + localPostgresReservedConns},
+		{name: "large pool raises the ceiling", set: "100", want: holders*100 + localPostgresReservedConns},
+		{name: "lowered pool cannot lower the floor", set: "5", want: LocalPostgresMaxConnections},
+		{name: "zero is not honoured", set: "0", want: LocalPostgresMaxConnections},
+		{name: "negative is not honoured", set: "-8", want: LocalPostgresMaxConnections},
+		{name: "unparseable is not honoured", set: "sixty", want: LocalPostgresMaxConnections},
+		{name: "whitespace is not a value", set: "   ", want: LocalPostgresMaxConnections},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			getenv := func(key string) string {
+				if key != localPostgresMaxOpenConnsEnv {
+					t.Fatalf("read unexpected env key %q, want only %q", key, localPostgresMaxOpenConnsEnv)
+				}
+				return tc.set
+			}
+			if got := ResolveLocalPostgresMaxConnections(getenv); got != tc.want {
+				t.Fatalf("ResolveLocalPostgresMaxConnections(%q) = %d, want %d", tc.set, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestResolveLocalPostgresMaxConnectionsCoversTheConfiguredPoolBudget states the
+// invariant itself rather than the arithmetic, so it still fails if the formula
+// is changed to something that happens to match the cases above.
+func TestResolveLocalPostgresMaxConnectionsCoversTheConfiguredPoolBudget(t *testing.T) {
+	t.Parallel()
+
+	for _, perProcess := range []int{1, 30, 45, 60, 100, 250} {
+		getenv := func(string) string { return strconv.Itoa(perProcess) }
+		got := ResolveLocalPostgresMaxConnections(getenv)
+		demand := len(localPostgresPoolHolders)*perProcess + localPostgresReservedConns
+		if got < demand {
+			t.Fatalf("ESHU_POSTGRES_MAX_OPEN_CONNS=%d: ceiling %d is below the pool budget %d (%d holders * %d + %d reserved)",
+				perProcess, got, demand, len(localPostgresPoolHolders), perProcess, localPostgresReservedConns)
+		}
+		if got < LocalPostgresMaxConnections {
+			t.Fatalf("ESHU_POSTGRES_MAX_OPEN_CONNS=%d: ceiling %d fell below the documented floor %d",
+				perProcess, got, LocalPostgresMaxConnections)
+		}
+	}
+}
+
+// TestResolveLocalPostgresMaxConnectionsNilGetenvUsesFloor pins the nil case,
+// which the config path does not take but a caller could.
+func TestResolveLocalPostgresMaxConnectionsNilGetenvUsesFloor(t *testing.T) {
+	t.Parallel()
+
+	if got := ResolveLocalPostgresMaxConnections(nil); got != LocalPostgresMaxConnections {
+		t.Fatalf("ResolveLocalPostgresMaxConnections(nil) = %d, want %d", got, LocalPostgresMaxConnections)
 	}
 }

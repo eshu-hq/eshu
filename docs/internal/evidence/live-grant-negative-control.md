@@ -70,9 +70,16 @@ Each isolates one predicate. The language control runs unscoped so no grant
 clause can mask the result; the grant control uses the real language so every
 seeded row satisfies it and only the grant can exclude them.
 
-The bound is `limit: 50`, larger than the whole fixture on purpose — a limit
-that could truncate would let a leaking query return zero rows for the wrong
-reason.
+The bound is `limit: 50`, and it is **not load-bearing**. An earlier version of
+this note, and of the constant's own comment, claimed it was: "a limit that could
+truncate would let a leaking query return zero rows for the wrong reason". That
+reasoning is backwards. With any limit >= 1, a leaking query matching k >= 1 rows
+returns min(limit, k) >= 1, so `len(rows) != 0` still fails as intended —
+truncation cannot manufacture the zero-row pass it warned about.
+
+The limit exists to satisfy the call contract's required-bound rule. The real
+vacuous-pass risk is an empty or unreachable fixture, which no choice of limit
+affects.
 
 ## Status of the underlying defect
 
@@ -89,6 +96,29 @@ the four sibling grant tests in this package. CI **compiles** that tag but does
 not **run** it. An earlier version of this note said no CI job built the tag at
 all; that was wrong, and the distinction matters to anyone judging what this file
 actually protects.
+
+### Which backend these tests can actually reach
+
+Raised in review of this change, and it bounds every test in this suite, not just
+the two controls added here.
+
+The shared helper `openLiveGrantDriver`
+(`language_query_grant_nornicdb_live_test.go:102`) connects with
+`neo4jdriver.NoAuth()`. The **embedded** NornicDB runtime does not accept that:
+`internal/cli/localsupervisor/graph_embedded_nornicdb.go` loads or generates
+credentials (`:57`) and starts Bolt with `boltConfig.RequireAuth = true`
+(`:179`).
+
+So `ESHU_NEO4J_URI` must point at a backend that accepts unauthenticated Bolt —
+in practice the pinned NornicDB container — and these tests **cannot** exercise
+the embedded runtime as configured. This is pre-existing: the helper predates
+this branch (last touched 2026-09-05) and is shared by all five tagged files in
+this package; the new controls simply inherit it. It is recorded here rather than
+fixed, because changing the helper's auth would alter what every sibling test
+connects to.
+
+It also reinforces the version point below: the embedded 1.0.0 path is not what
+this suite runs against.
 
 `scripts/verify-tagged-builds.sh` sweeps this file automatically: it "reads the
 constraints out of the files rather than from a hand-maintained list", and its
