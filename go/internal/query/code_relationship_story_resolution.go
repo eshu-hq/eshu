@@ -209,11 +209,28 @@ func relationshipStoryGrantedCandidates(
 // shape read at most `limit` rows in total, and answered wrongly. In practice
 // an exact name resolves in the first repository that holds it.
 //
-// exactEntityNameMatches still runs on each page. The read makes it a no-op
-// for a store that answers the question it was asked, and it is what keeps the
-// per-repository budget honest for one that does not -- resolveRelationship-
-// StoryTarget's own filter would catch the rows, but only after they had
-// already spent the budget.
+// exactEntityNameMatches still runs on each page, and it is what keeps the
+// per-repository budget honest for a store that does not answer the question it
+// was asked -- resolveRelationshipStoryTarget's own filter would catch those
+// rows, but only after they had already spent the budget.
+//
+// PRECONDITION, not a guarantee: the filter compares
+// `strings.TrimSpace(EntityName)`, while the read now compares
+// `entity_name = $1` with no trim. Those agree only while stored names carry no
+// surrounding whitespace, and the write path does NOT enforce that --
+// `content/shape/materialize.go:219` stores `EntityName: indexed.item.Name`
+// verbatim, though its sibling fields on the same struct (RepoID:87,
+// SourceSystem:94, path:121, Digest:129) are all TrimSpace'd. So a parser
+// emitting " Foo " persists it, the old ILIKE read plus TrimSpace filter matched
+// it, and this exact-equality read does not return it at all -- no post-filter
+// can rescue a row SQL never yields.
+//
+// An earlier version of this comment said the read makes the filter "a no-op",
+// which asserted that precondition as a fact. Raised in review of #6605 and
+// confirmed by tracing the write path. Resolving it means either trimming at
+// write (matching those four siblings), or a functional index on
+// btrim(entity_name); a btrim predicate alone would defeat the plain-equality
+// index seek this change exists to get, so it is not done here.
 //
 // searchEntitiesForGrant's legacy-store fallback below spends a shared budget
 // on substring rows and deliberately keeps them unfiltered -- see the note on
