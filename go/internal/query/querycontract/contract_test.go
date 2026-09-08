@@ -229,3 +229,28 @@ func TestNoBackendReadBasisIsFallbackAndSurvivesNormalization(t *testing.T) {
 			"(docs/public/reference/truth-label-protocol.md)", got, want)
 	}
 }
+
+// TestClassifyAnswerTruthPinsNoBackendReadToFallback pins the
+// TruthBasisNoBackendRead arm of ClassifyAnswerTruth directly, with a Level
+// that the other arms would otherwise classify as a real answer.
+//
+// BuildTruthEnvelope cannot reach this state: basisLevel already forces a
+// no-read page to TruthLevelFallback, so the arm changes no outcome today and
+// TestNoBackendReadBasisIsFallbackAndSurvivesNormalization passes with it
+// deleted (verified by deleting it). That is exactly why it needs its own
+// test: the arm exists to pin the outcome so a future level rule cannot
+// promote a page that read nothing, and a guard nothing exercises is not a
+// guard. Constructing the envelope literally is deliberate -- it is the only
+// way to exercise the arm the constructor prevents.
+func TestClassifyAnswerTruthPinsNoBackendReadToFallback(t *testing.T) {
+	for _, level := range []TruthLevel{TruthLevelExact, TruthLevelDerived} {
+		got := ClassifyAnswerTruth(&TruthEnvelope{
+			Basis: TruthBasisNoBackendRead,
+			Level: level,
+		})
+		if got != AnswerTruthFallback {
+			t.Errorf("ClassifyAnswerTruth(basis=%s, level=%s) = %s, want %s; a page produced without reading any backend must never classify as a real answer",
+				TruthBasisNoBackendRead, level, got, AnswerTruthFallback)
+		}
+	}
+}
