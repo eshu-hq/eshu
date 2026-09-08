@@ -125,3 +125,71 @@ func TestLanguageQueryCanonicalRepoIDIsTakenAsGiven(t *testing.T) {
 		t.Fatalf("results = %#v, want no rows for a repository that is not indexed", rows)
 	}
 }
+
+// TestLanguageQueryEmptyGrantWithRepoIDIsRejectedNotAnsweredEmpty pins the one
+// boundary the `no_backend_read` truth basis rests on: an empty grant carrying a
+// non-empty repo_id must be REJECTED in the selector, and must never reach the
+// empty page.
+//
+// Without this the label can quietly become a lie. `no_backend_read` asserts
+// that nothing was read, and the empty-grant page is only reachable with an
+// empty repo_id, where queryselector.ResolveExactForAccess short-circuits with
+// zero reads. Selector resolution itself DOES read (content.MatchRepositories
+// plus two Cypher lookups), so if anyone later relaxes the fail-closed
+// behaviour and lets an unresolvable selector fall through to the empty page
+// instead of erroring, the page would be answered AFTER a read while still
+// claiming no backend was touched.
+//
+// The existing coverage does not reach this: the 400 test uses a NON-empty
+// grant (codeGrantOtherRepo), and the empty-grant tests send NO repo_id. This
+// covers the intersection, on both code routes, for a canonical and a
+// non-canonical id — they take different paths in, and both must end at 400.
+// Raised as a P2 in review of PR #6602.
+func TestLanguageQueryEmptyGrantWithRepoIDIsRejectedNotAnsweredEmpty(t *testing.T) {
+	t.Parallel()
+
+	repoIDs := map[string]string{
+		// Canonical: LooksCanonicalRepositoryID is true, so it is checked
+		// against the grant rather than resolved.
+		"canonical": "repo://live-alpha/service",
+		// Non-canonical: runs the grant-filtered lookup, which yields nothing
+		// under an empty grant and must still end in NotFoundError.
+		"non_canonical": "some-service",
+	}
+
+	for _, branch := range languageQueryGrantBranches() {
+		for idKind, repoID := range repoIDs {
+			t.Run(branch.name+"/"+idKind, func(t *testing.T) {
+				t.Parallel()
+
+				handler, _ := newLanguageQueryGrantHandler(branch, &languageQueryPlainContentStore{})
+				auth := codeGrantScopedAuthContext(nil)
+				body := languageQueryGrantBody(branch.entityType)
+				body["repo_id"] = repoID
+				rec := runLanguageQueryGrantRequest(t, handler, body, &auth)
+
+				if got := rec.Code; got != http.StatusBadRequest {
+					t.Fatalf("status = %d, want %d; an empty grant naming %s repo_id %q must be rejected "+
+						"in the selector, never answered as the empty no_backend_read page (a page answered "+
+						"after a selector read would make that basis a lie); body = %s",
+						got, http.StatusBadRequest, idKind, repoID, rec.Body.String())
+				}
+
+				// Belt and braces: a 400 body must not carry the empty-page
+				// shape, so a future refactor cannot satisfy the status check
+				// while still serving the page.
+				var envelope map[string]any
+				if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+					return // a non-JSON error body is fine; only the page shape is forbidden
+				}
+				data, ok := envelope["data"].(map[string]any)
+				if !ok {
+					return
+				}
+				if _, hasResults := data["results"]; hasResults {
+					t.Fatalf("rejected request still returned a results page: %s", rec.Body.String())
+				}
+			})
+		}
+	}
+}
