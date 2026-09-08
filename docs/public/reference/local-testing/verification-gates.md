@@ -286,8 +286,8 @@ lifecycle logs.
 ## Moved-File Reference Guard
 
 Any `go/**` change selects `scripts/verify-moved-file-refs.sh`. It fails a
-branch that moves or deletes a Go file and leaves a reference pointing at the
-path it vacated:
+branch that moves or deletes a Go file and leaves a reference **written as the
+full `go/...` path** pointing at the path it vacated:
 
 ```bash
 bash scripts/verify-moved-file-refs.sh              # attribute against origin/main
@@ -300,6 +300,13 @@ This is the residue the #6061 reducer subpackage split kept shipping, and
 carrying a `:NNN` line suffix, so a **bare path reference is never tracked at
 all**. On `main` before #6525, 53 of 517 distinct `go/internal/reducer/*.go`
 paths named in `docs/`, `scripts/`, `specs/` and `go/` resolved to nothing.
+
+The path form is load-bearing and is the gate's main blind spot: it searches for
+the vacated path as a fixed string, and every vacated path is `go/`-prefixed, so
+a reference written module-root-relative (`internal/reducer/widget.go`) or as a
+package-relative shorthand (`reducer/widget.go`) is invisible to it. Both forms
+occur in the tree today. Widening the match is tracked separately, because it
+widens a blocking gate and needs a repo-scale false-positive measurement first.
 
 The check is scoped to the branch, not the tree: a path is reported only when
 it existed at the diff base and does not exist now. That is what keeps it

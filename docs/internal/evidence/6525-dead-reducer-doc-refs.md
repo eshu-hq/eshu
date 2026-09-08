@@ -9,7 +9,7 @@ references in an allowlist.
 
 ## Residual debt, disclosed rather than implied away
 
-Commit `1df47cf03` says "Repoint 40 of them across 50 files" and "Thirteen dead
+Commit `1ec7c4305` says "Repoint 40 of them across 50 files" and "Thirteen dead
 paths are deliberate negative fixtures", which sums to 53 and reads as a
 complete sweep. **It is not complete, and the arithmetic should not be read as
 claiming it is.**
@@ -88,6 +88,13 @@ the size of the move set. Measured on this host:
 | 19 (`--base 392351ffd^`, the RDS/S3/EC2 move) | 15.4 s | 2.95 s | 754% |
 | 294 (`--base 85f7458e1`, a 52-commit window) | 132 s | 45 s | 1051% |
 
+`85f7458e1` is a pre-rebase object that exists only in the authoring clone —
+`git branch -r --contains` finds no remote ref for it — so the 294-path row
+and the 43-reference proof below are **not reproducible from a fresh clone as
+written**. They are recorded as measured rather than restated against a base
+that was never measured. The `392351ffd^` rows are on `main` and are the ones
+a reader can re-run.
+
 15 s for a realistic extraction PR is acceptable for a blocking gate. The
 header's cheapness claim is correctly scoped to the no-move case; this table is
 the number that was missing.
@@ -97,10 +104,14 @@ the number that was missing.
 - fires correctly at repo scale: `--base 85f7458e1` -> exit 1, **43 dangling
   references**, each naming the correct repoint target
 - clean on a slice already fixed: `--base 392351ffd^` -> 19 vacated, no findings
-- **fails closed**: `--base 85f7458e1^` (unreachable in a shallow clone) ->
-  exit 2, "the scan did not run" — never a silent pass
-- the self-test's three negative controls (move-and-forget, outright deletion,
-  allowlist leak) assert exit 1, so it proves failure and not merely success
+- **fails closed**: `--base 0000000000000000000000000000000000000000` ->
+  exit 2, "the scan did not run" — never a silent pass. The all-zero ref is
+  used deliberately so any clone reproduces it; the gate fails at the `git
+  diff` before any sweep, so the control is one git call
+- the self-test's five negative controls assert exit 1, so it proves failure
+  and not merely success: move-and-forget, outright deletion, a move+rewrite
+  git leaves unpaired, an allowlist entry leaking to another referencing file,
+  and the widened-base control that makes the attribution case non-vacuous
 
 Known scope limit, tracked separately: the gate matches only fully-qualified
 `go/internal/...` paths, so any other spelling is invisible to it. The live
