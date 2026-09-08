@@ -124,8 +124,8 @@ func TestFetchWorkloadContextEmitsOnlyDeclaredKeys(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeWorkloadGraphReader{
-			runSingle: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeWorkloadGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				if !strings.Contains(cypher, "MATCH (w:Workload) WHERE") {
 					return nil, nil
 				}
@@ -139,7 +139,7 @@ func TestFetchWorkloadContextEmitsOnlyDeclaredKeys(t *testing.T) {
 					},
 				}, nil
 			},
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphUnavailable)
@@ -151,7 +151,7 @@ func TestFetchWorkloadContextEmitsOnlyDeclaredKeys(t *testing.T) {
 		},
 	}
 
-	result, err := handler.fetchWorkloadContextForOperation(
+	result, err := handler.FetchWorkloadContextForOperation(
 		t.Context(),
 		"w.id = $workload_id",
 		map[string]any{"workload_id": "workload:api"},
@@ -187,7 +187,7 @@ func TestFetchServiceReadModelWorkloadContextEmitsOnlyDeclaredKeys(t *testing.T)
 		},
 	}
 
-	result, err := handler.fetchServiceReadModelWorkloadContext(t.Context(), "readmodel-job")
+	result, err := handler.FetchServiceReadModelWorkloadContext(t.Context(), "readmodel-job")
 	if err != nil {
 		t.Fatalf("fetchServiceReadModelWorkloadContext() error = %v, want nil", err)
 	}

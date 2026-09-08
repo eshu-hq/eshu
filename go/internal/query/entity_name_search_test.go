@@ -13,6 +13,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestSearchEntityNamesPushesFiltersBeforeLimit(t *testing.T) {
@@ -294,7 +296,7 @@ func TestGlobalEntityResolveFailsClosedOrUsesExactContent(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/entities/resolve", bytes.NewBufferString(tc.body))
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
-			handler.resolveEntity(rec, req)
+			handler.ResolveEntity(rec, req)
 			if rec.Code != tc.status {
 				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tc.status, rec.Body.String())
 			}
@@ -360,15 +362,15 @@ func TestCanonicalContentEntityTruthReflectsActualReadPath(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			content := resolvingEntityContentStore{
-				entitiesByID: map[string]EntityContent{tc.entity.EntityID: tc.entity},
-				repositories: []RepositoryCatalogEntry{{ID: "repo-a", Name: "Repository A"}},
+			content := querytestutil.ResolvingEntityContentStore{
+				EntitiesByID: map[string]EntityContent{tc.entity.EntityID: tc.entity},
+				Repositories: []RepositoryCatalogEntry{{ID: "repo-a", Name: "Repository A"}},
 			}
 			handler := &EntityHandler{Neo4j: tc.graph, Content: content, Profile: ProfileLocalAuthoritative}
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/entities/resolve", bytes.NewBufferString(`{"name":"`+tc.entity.EntityID+`"}`))
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
-			handler.resolveEntity(rec, req)
+			handler.ResolveEntity(rec, req)
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
 			}

@@ -84,8 +84,8 @@ func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 	seenBroadServiceLookup := false
 	ctx, err := fetchServiceTraceContext(
 		t.Context(),
-		fakeWorkloadGraphReader{
-			runSingle: func(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		querytestutil.FakeWorkloadGraphReader{
+			RunSingleFn: func(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, " OR ") {
 					seenBroadServiceLookup = true
 					return nil, errors.New("broad service lookup should not run")
@@ -112,7 +112,7 @@ func TestFetchServiceTraceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 				}
 				return nil, nil
 			},
-			runByMatch: map[string][]map[string]any{
+			RunByMatch: map[string][]map[string]any{
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 				"K8sResource OR":                      {},
 				"fn.name IN":                          {},
@@ -142,8 +142,8 @@ func TestFetchServiceTraceContextPreservesResolvedWorkloadIDWhenAnotherWorkloadN
 
 	ctx, err := fetchServiceTraceContext(
 		t.Context(),
-		fakeWorkloadGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		querytestutil.FakeWorkloadGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "w.id = $service_name"):
 					return map[string]any{
@@ -188,8 +188,8 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 
 	ctx, err := fetchServiceTraceContext(
 		t.Context(),
-		fakeWorkloadGraphReader{
-			runSingleByMatch: map[string]map[string]any{
+		querytestutil.FakeWorkloadGraphReader{
+			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
 					"id":        "workload:checkout-service",
 					"name":      "checkout-service",
@@ -207,7 +207,7 @@ func TestFetchServiceTraceContextIncludesGraphDeploymentEvidenceWithoutContent(t
 					"instances": []any{},
 				},
 			},
-			runByMatch: map[string][]map[string]any{
+			RunByMatch: map[string][]map[string]any{
 				"MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)": {
 					{"repo_id": "repo-service", "repo_name": "checkout-service"},
 				},
@@ -277,8 +277,8 @@ func TestTraceDeploymentChainKeepsConfigDerivedCloudResourcesAsUncorrelatedCandi
 
 	db := openContentReaderTestDB(t, emptyServiceQueryContentResults())
 	handler := &ImpactHandler{
-		Neo4j: fakeWorkloadGraphReader{
-			runSingleByMatch: map[string]map[string]any{
+		Neo4j: querytestutil.FakeWorkloadGraphReader{
+			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
 					"id":        "workload:orders-api",
 					"name":      "orders-api",
@@ -312,7 +312,7 @@ func TestTraceDeploymentChainKeepsConfigDerivedCloudResourcesAsUncorrelatedCandi
 					},
 				},
 			},
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "INSTANCE_OF]-(i:WorkloadInstance)-[rel:USES]->(c:CloudResource)"):
 					return nil, nil

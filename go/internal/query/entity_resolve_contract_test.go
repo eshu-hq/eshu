@@ -11,14 +11,18 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityHonorsLimitAndReturnsEnvelope(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "LIMIT $limit") {
 					t.Fatalf("cypher = %q, want parameterized bounded LIMIT", cypher)
 				}
@@ -32,23 +36,23 @@ func TestResolveEntityHonorsLimitAndReturnsEnvelope(t *testing.T) {
 				}, nil
 			},
 		},
-		Content: fakePortContentStore{repositories: []RepositoryCatalogEntry{{ID: "repository:r_proof", Name: "proof"}}},
-		Profile: ProfileLocalAuthoritative,
+		Content: querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repository:r_proof", Name: "proof"}}},
+		Profile: querycontract.ProfileLocalAuthoritative,
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
 		bytes.NewBufferString(`{"name":"handler","repo_id":"repository:r_proof","limit":2}`),
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
 	}
@@ -73,8 +77,8 @@ func TestResolveEntityWorkloadTypeFiltersBeforeLimit(t *testing.T) {
 
 	resolveQuerySeen := false
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)") {
 					return []map[string]any{}, nil
 				}
@@ -90,17 +94,17 @@ func TestResolveEntityWorkloadTypeFiltersBeforeLimit(t *testing.T) {
 				}, nil
 			},
 		},
-		Profile: ProfileLocalAuthoritative,
+		Profile: querycontract.ProfileLocalAuthoritative,
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
 		bytes.NewBufferString(`{"name":"api-node-boats","type":"workload","limit":10}`),
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
@@ -108,7 +112,7 @@ func TestResolveEntityWorkloadTypeFiltersBeforeLimit(t *testing.T) {
 	if !resolveQuerySeen {
 		t.Fatal("workload resolve query was not executed")
 	}
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
 	}
@@ -118,7 +122,7 @@ func TestResolveEntityWorkloadTypeFiltersBeforeLimit(t *testing.T) {
 	if got, want := envelope.Truth.Capability, "code_search.exact_symbol"; got != want {
 		t.Fatalf("truth capability = %q, want %q", got, want)
 	}
-	if got, want := envelope.Truth.Basis, TruthBasisAuthoritativeGraph; got != want {
+	if got, want := envelope.Truth.Basis, querycontract.TruthBasisAuthoritativeGraph; got != want {
 		t.Fatalf("truth basis = %q, want %q", got, want)
 	}
 }
@@ -127,16 +131,16 @@ func TestResolveEntityWorkloadTypeDoesNotFallbackToContent(t *testing.T) {
 	t.Parallel()
 
 	content := &recordingEntityResolveContentStore{
-		anyRepo: []EntityContent{{EntityID: "content-entity:not-a-workload", EntityType: "Workload"}},
+		anyRepo: []querycontract.EntityContent{{EntityID: "content-entity:not-a-workload", EntityType: "Workload"}},
 	}
 	handler := &EntityHandler{
 		Content: content,
-		Neo4j: fakeGraphReader{
-			run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 				return []map[string]any{}, nil
 			},
 		},
-		Profile: ProfileLocalAuthoritative,
+		Profile: querycontract.ProfileLocalAuthoritative,
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
@@ -145,7 +149,7 @@ func TestResolveEntityWorkloadTypeDoesNotFallbackToContent(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
@@ -159,29 +163,29 @@ func TestResolveEntityWorkloadEmptyGrantUsesAuthoritativeGraphTruth(t *testing.T
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 			t.Fatal("empty scoped access must not query the graph")
 			return nil, nil
 		}},
-		Profile: ProfileLocalAuthoritative,
+		Profile: querycontract.ProfileLocalAuthoritative,
 	}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
 		bytes.NewBufferString(`{"name":"restricted-service","type":"workload","limit":10}`),
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode: AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a",
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a",
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
 	}
@@ -191,7 +195,7 @@ func TestResolveEntityWorkloadEmptyGrantUsesAuthoritativeGraphTruth(t *testing.T
 	if got, want := envelope.Truth.Capability, "code_search.exact_symbol"; got != want {
 		t.Fatalf("truth capability = %q, want %q", got, want)
 	}
-	if got, want := envelope.Truth.Basis, TruthBasisAuthoritativeGraph; got != want {
+	if got, want := envelope.Truth.Basis, querycontract.TruthBasisAuthoritativeGraph; got != want {
 		t.Fatalf("truth basis = %q, want %q", got, want)
 	}
 }
@@ -199,7 +203,7 @@ func TestResolveEntityWorkloadEmptyGrantUsesAuthoritativeGraphTruth(t *testing.T
 func TestResolveEntityWorkloadWithoutGraphReportsUnavailable(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{Profile: ProfileLocalAuthoritative}
+	handler := &EntityHandler{Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(
 		http.MethodPost,
 		"/api/v0/entities/resolve",
@@ -207,7 +211,7 @@ func TestResolveEntityWorkloadWithoutGraphReportsUnavailable(t *testing.T) {
 	)
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if got, want := rec.Code, http.StatusServiceUnavailable; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())

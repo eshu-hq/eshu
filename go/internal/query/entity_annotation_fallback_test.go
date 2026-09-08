@@ -10,18 +10,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"annotation-1", "repo-1", "src/Logged.java", "Annotation", "Logged",
 					int64(2), int64(2), "java", "@Logged", []byte(`{"kind":"applied","target_kind":"method_declaration"}`),
@@ -30,7 +32,7 @@ func TestResolveEntityFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -80,13 +82,13 @@ func TestResolveEntityFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"annotation-1", "repo-1", "src/Logged.java", "Annotation", "Logged",
 					int64(2), int64(2), "java", "@Logged", []byte(`{"kind":"applied","target_kind":"method_declaration"}`),
@@ -94,11 +96,11 @@ func TestGetEntityContextFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"method-1", "repo-1", "src/Logged.java", "Function", "handle",
 					int64(4), int64(8), "java", "@Logged\nvoid handle() {}", []byte(`{"method_kind":"instance"}`),
@@ -107,7 +109,7 @@ func TestGetEntityContextFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -143,13 +145,13 @@ func TestGetEntityContextFallsBackToJavaAnnotationContentEntity(t *testing.T) {
 func TestResolveEntityFallsBackToPythonAssignmentTypeAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"annotation-1", "repo-1", "src/settings.py", "TypeAnnotation", "timeout",
 					int64(3), int64(3), "python", "timeout: int = 30", []byte(`{"type":"int","annotation_kind":"assignment"}`),
@@ -158,7 +160,7 @@ func TestResolveEntityFallsBackToPythonAssignmentTypeAnnotationContentEntity(t *
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -220,13 +222,13 @@ func TestResolveEntityFallsBackToPythonAssignmentTypeAnnotationContentEntity(t *
 func TestResolveEntityFallsBackToPythonParameterTypeAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"annotation-1", "repo-1", "src/app.py", "TypeAnnotation", "name",
 					int64(3), int64(3), "python", "def greet(name: str) -> str:", []byte(`{"type":"str","annotation_kind":"parameter","context":"greet"}`),
@@ -235,7 +237,7 @@ func TestResolveEntityFallsBackToPythonParameterTypeAnnotationContentEntity(t *t
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -297,13 +299,13 @@ func TestResolveEntityFallsBackToPythonParameterTypeAnnotationContentEntity(t *t
 func TestGetEntityContextFallsBackToPythonAssignmentTypeAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"annotation-1", "repo-1", "src/settings.py", "TypeAnnotation", "timeout",
 					int64(3), int64(3), "python", "timeout: int = 30", []byte(`{"type":"int","annotation_kind":"assignment"}`),
@@ -311,15 +313,15 @@ func TestGetEntityContextFallsBackToPythonAssignmentTypeAnnotationContentEntity(
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{},
+			Rows: [][]driver.Value{},
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -368,13 +370,13 @@ func TestGetEntityContextFallsBackToPythonAssignmentTypeAnnotationContentEntity(
 func TestGetEntityContextFallsBackToPythonParameterTypeAnnotationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"annotation-1", "repo-1", "src/app.py", "TypeAnnotation", "name",
 					int64(3), int64(3), "python", "def greet(name: str) -> str:", []byte(`{"type":"str","annotation_kind":"parameter","context":"greet"}`),
@@ -382,15 +384,15 @@ func TestGetEntityContextFallsBackToPythonParameterTypeAnnotationContentEntity(t
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{},
+			Rows: [][]driver.Value{},
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

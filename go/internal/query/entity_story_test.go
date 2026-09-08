@@ -11,6 +11,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestAttachSemanticSummaryAddsStoryForSemanticEntities(t *testing.T) {
@@ -181,7 +184,7 @@ func TestAttachSemanticSummaryAddsStoryForSemanticEntities(t *testing.T) {
 			t.Parallel()
 
 			attachSemanticSummary(tt.entity)
-			if got := StringVal(tt.entity, "story"); got != tt.want {
+			if got := querycontract.StringVal(tt.entity, "story"); got != tt.want {
 				t.Fatalf("story = %q, want %q", got, tt.want)
 			}
 		})
@@ -191,13 +194,13 @@ func TestAttachSemanticSummaryAddsStoryForSemanticEntities(t *testing.T) {
 func TestGetEntityContextFallsBackToContentEntitiesIncludesStory(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"component-1", "repo-1", "src/Button.tsx", "Component", "Button",
 					int64(1), int64(12), "tsx", "export function Button() {}", []byte(`{"framework":"react"}`),
@@ -205,11 +208,11 @@ func TestGetEntityContextFallsBackToContentEntitiesIncludesStory(t *testing.T) {
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-1", "src/App.tsx", "Function", "renderApp",
 					int64(5), int64(20), "tsx", "return <Button />", []byte(`{"jsx_component_usage":["Button"]}`),
@@ -218,7 +221,7 @@ func TestGetEntityContextFallsBackToContentEntitiesIncludesStory(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -245,8 +248,8 @@ func TestGetEntityContextUsesGraphJavaScriptMetadataWithoutContent(t *testing.T)
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "function-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}
@@ -319,13 +322,13 @@ func TestGetEntityContextUsesGraphJavaScriptMetadataWithoutContent(t *testing.T)
 func TestGetEntityContextUsesGraphPythonMetadataWithoutContent(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-1", "repo-1", "src/app.py", "Function", "handler",
 					int64(10), int64(24), "python", "async def handler(): ...", []byte(`{"decorators":["@content"],"async":false}`),
@@ -335,8 +338,8 @@ func TestGetEntityContextUsesGraphPythonMetadataWithoutContent(t *testing.T) {
 	})
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "function-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}
@@ -422,8 +425,8 @@ func TestGetEntityContextUsesGraphPythonTypeAnnotationWithoutContent(t *testing.
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "type-ann-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}
@@ -488,8 +491,8 @@ func TestGetEntityContextUsesGraphPythonClassDocstringWithoutContent(t *testing.
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "class-docstring-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}
@@ -552,8 +555,8 @@ func TestGetEntityContextUsesGraphPythonModuleDocstringWithoutContent(t *testing
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "module-docstring-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}
@@ -630,8 +633,8 @@ func TestGetEntityContextUsesGraphPythonDecoratedClassWithoutContent(t *testing.
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "class-decorators-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}
@@ -709,8 +712,8 @@ func TestGetEntityContextUsesGraphPythonLambdaWithoutContent(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "lambda-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}
@@ -776,13 +779,13 @@ func TestGetEntityContextUsesGraphPythonLambdaWithoutContent(t *testing.T) {
 func TestGetEntityContextFallsBackToContentBackedPythonDecoratedAsyncFunction(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-1", "src/handler.py", "Function", "handler",
 					int64(12), int64(20), "python", "async def handler(): ...", []byte(`{"decorators":["@route"],"async":true}`),
@@ -790,15 +793,15 @@ func TestGetEntityContextFallsBackToContentBackedPythonDecoratedAsyncFunction(t 
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{},
+			Rows: [][]driver.Value{},
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -851,13 +854,13 @@ func TestGetEntityContextFallsBackToContentBackedPythonDecoratedAsyncFunction(t 
 func TestGetEntityContextFallsBackToContentBackedPythonAsyncFunction(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-1", "src/worker.py", "Function", "run",
 					int64(7), int64(15), "python", "async def run(): ...", []byte(`{"async":true}`),
@@ -865,15 +868,15 @@ func TestGetEntityContextFallsBackToContentBackedPythonAsyncFunction(t *testing.
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{},
+			Rows: [][]driver.Value{},
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -919,13 +922,13 @@ func TestGetEntityContextFallsBackToContentBackedPythonAsyncFunction(t *testing.
 func TestGetEntityContextFallsBackToContentBackedPythonDecoratedFunction(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-1", "src/handler.py", "Function", "handler",
 					int64(12), int64(20), "python", "def handler(): ...", []byte(`{"decorators":["@route"]}`),
@@ -933,15 +936,15 @@ func TestGetEntityContextFallsBackToContentBackedPythonDecoratedFunction(t *test
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{},
+			Rows: [][]driver.Value{},
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -992,8 +995,8 @@ func TestGetEntityContextUsesGraphPythonTypeAnnotationsWithoutContent(t *testing
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "function-annotations-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}

@@ -5,7 +5,6 @@ package query
 
 import (
 	"errors"
-	"net/http"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -24,8 +23,4 @@ func contentSubstringIndexReadError(err error) error {
 		return ErrContentSubstringIndexesNotReady
 	}
 	return err
-}
-
-func writeContentSubstringIndexUnavailable(w http.ResponseWriter, err error) bool {
-	return querycontract.WriteContentSubstringIndexUnavailable(w, err)
 }

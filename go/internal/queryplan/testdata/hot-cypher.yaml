@@ -183,10 +183,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/service_workload_resolution.go
-      symbol: (*EntityHandler).queryServiceWorkloadCandidates
-      source_sha256: 32654031f0afbab7196764f28269c3a73602fe8081d5b0500f4e5dfda792ad2f
-      line_hint: 219
+      file: go/internal/query/entity/service_workload_resolution.go
+      symbol: (*EntityHandler).QueryServiceWorkloadCandidates
+      source_sha256: fdc6b119fc1e7d034e42541687d6637b34639ede0651cc9bf22681d1a6659640
+      line_hint: 228
     required_anchors:
       - label: Workload
         property: id
@@ -209,10 +209,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/entity_workload_context.go
-      symbol: (*EntityHandler).fetchWorkloadContextForOperation
-      source_sha256: a749e36f983d8ca5a9967cf193461de3824f3211623bc1a933b011d5fbae0cdf
-      line_hint: 53
+      file: go/internal/query/entity/entity_workload_context.go
+      symbol: (*EntityHandler).FetchWorkloadContextForOperation
+      source_sha256: c377c08c0b8fb6fe5326ddc087ae49e3c063e987127fac19f2e0d13ea5f0e051
+      line_hint: 54
     required_anchors:
       - label: Workload
         property: id
@@ -233,10 +233,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/workload_runtime_topology.go
-      symbol: fetchWorkloadRuntimeTopology
-      source_sha256: b007aed51527b9713d3f379bb08980d5ac376ccd2e2d76af4c079d679c67daa2
-      line_hint: 66
+      file: go/internal/query/entity/workload_runtime_topology.go
+      symbol: FetchWorkloadRuntimeTopology
+      source_sha256: fba1d35021a684db7c0a543bd189b33ffe9b77f9d82d79119242cb1ca0f08619
+      line_hint: 82
     required_anchors:
       - label: WorkloadInstance
         property: workload_id
@@ -269,10 +269,10 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/entity_workload_platform.go
-      symbol: (*EntityHandler).fetchWorkloadPlatformResult
-      source_sha256: fe46e6ce37f6b6628197fd3694f0f008904b234bd9eaefc2b7a284b3b73178b1
-      line_hint: 68
+      file: go/internal/query/entity/entity_workload_platform.go
+      symbol: (*EntityHandler).FetchWorkloadPlatformResult
+      source_sha256: 79d0494f17862c6feda2f43275b91be64751820d84442b119ab658ec4f94f963
+      line_hint: 54
     required_anchors:
       - label: Repository
         property: id

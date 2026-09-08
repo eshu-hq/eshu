@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql/driver"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestEnrichEntityResultsWithContentMetadataFluxGitRepository is the #5360 PR A
@@ -20,13 +22,13 @@ import (
 func TestEnrichEntityResultsWithContentMetadataFluxGitRepository(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-flux-git", "repo-1", "clusters/production/flux-system.yaml", "FluxGitRepository", "flux-system",
 					int64(1), int64(9), "yaml", "", []byte(`{"url":"https://github.com/acme/flux-system","ref_branch":"main"}`),
@@ -49,7 +51,7 @@ func TestEnrichEntityResultsWithContentMetadataFluxGitRepository(t *testing.T) {
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "flux-system", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "flux-system", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -71,13 +73,13 @@ func TestEnrichEntityResultsWithContentMetadataFluxGitRepository(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataFluxBucket(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-flux-bucket", "repo-1", "clusters/production/bucket.yaml", "FluxBucket", "flux-artifacts",
 					int64(1), int64(9), "yaml", "", []byte(`{"bucket_name":"flux-artifacts","endpoint":"minio.acme.internal","provider":"generic"}`),
@@ -100,7 +102,7 @@ func TestEnrichEntityResultsWithContentMetadataFluxBucket(t *testing.T) {
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "flux-artifacts", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "flux-artifacts", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -125,13 +127,13 @@ func TestEnrichEntityResultsWithContentMetadataFluxBucket(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataFluxHelmRelease(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-flux-helmrelease", "repo-1", "clusters/production/helmrelease.yaml", "FluxHelmRelease", "podinfo",
 					int64(1), int64(9), "yaml", "", []byte(`{"chart":"podinfo","chart_version":"6.x","source_ref_kind":"HelmRepository"}`),
@@ -154,7 +156,7 @@ func TestEnrichEntityResultsWithContentMetadataFluxHelmRelease(t *testing.T) {
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "podinfo", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "podinfo", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -177,13 +179,13 @@ func TestEnrichEntityResultsWithContentMetadataFluxHelmRelease(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataFluxHelmRepository(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-flux-helmrepo", "repo-1", "clusters/production/helmrepository.yaml", "FluxHelmRepository", "podinfo",
 					int64(1), int64(9), "yaml", "", []byte(`{"url":"https://stefanprodan.github.io/podinfo","repo_type":"default"}`),
@@ -206,7 +208,7 @@ func TestEnrichEntityResultsWithContentMetadataFluxHelmRepository(t *testing.T) 
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "podinfo", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "podinfo", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}

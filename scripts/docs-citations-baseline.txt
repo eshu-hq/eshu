@@ -604,7 +604,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/capabilit
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/cloud_resources.go:58
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/code.go:25
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/component_extensions.go:149
-LINE docs/public/observability/telemetry-coverage.md go/internal/query/entity_context_content.go:54
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/images.go:89
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/local_identity_sign_in_policy_gate.go:102
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/queryspan/handlerspan.go:48

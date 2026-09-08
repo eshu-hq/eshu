@@ -14,6 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/codeowners"
+	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/packagereg"
@@ -47,12 +48,12 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	packageRegistryDependencies, _ := packagereg.PackageRegistryDependenciesCypher("", "proof-version", "", "", 51)
 	serviceResolve := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &EntityHandler{Neo4j: graphQuery}
-		_, err := handler.queryServiceWorkloadCandidates(
+		_, err := handler.QueryServiceWorkloadCandidates(
 			context.Background(),
 			"w.id = $service_id",
 			"service_id",
 			"workload:proof",
-			serviceWorkloadSelector{ServiceID: "workload:proof"},
+			ServiceWorkloadSelector{ServiceID: "workload:proof"},
 			"",
 			serviceWorkloadCandidateLimit+1,
 			"workload_id",
@@ -61,7 +62,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	})
 	serviceContext := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &EntityHandler{Neo4j: graphQuery}
-		_, err := handler.fetchWorkloadContextForOperation(
+		_, err := handler.FetchWorkloadContextForOperation(
 			context.Background(),
 			"w.id = $workload_id",
 			map[string]any{"workload_id": "workload:proof"},
@@ -70,7 +71,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		return err
 	})
 	serviceRuntimeTopology := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
-		_, err := fetchWorkloadRuntimeTopology(
+		_, err := entity.FetchWorkloadRuntimeTopology(
 			context.Background(),
 			graphQuery,
 			"w.id = $workload_id",
@@ -81,7 +82,7 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	})
 	serviceRunsOn := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &EntityHandler{Neo4j: graphQuery}
-		_, err := handler.fetchWorkloadPlatformRows(
+		_, err := handler.FetchWorkloadPlatformRows(
 			context.Background(),
 			"repository:proof",
 			"workload:proof",

@@ -10,18 +10,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityFallsBackToArgoCDApplicationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"argocd-app-1", "repo-1", "argocd/payments.yaml", "ArgoCDApplication", "payments-app",
 					int64(1), int64(20), "yaml", "kind: Application", []byte(`{"source_repo":"https://github.com/myorg/payments-service.git","source_path":"deploy/overlays/prod","dest_server":"https://kubernetes.default.svc","dest_namespace":"payments","sync_policy":"automated(prune=true,selfHeal=true)"}`),
@@ -30,7 +32,7 @@ func TestResolveEntityFallsBackToArgoCDApplicationContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -66,13 +68,13 @@ func TestResolveEntityFallsBackToArgoCDApplicationContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToArgoCDApplicationSetContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"argocd-appset-1", "repo-1", "argocd/applicationset.yaml", "ArgoCDApplicationSet", "platform-appset",
 					int64(1), int64(24), "yaml", "kind: ApplicationSet", []byte(`{"generator_source_repos":"https://github.com/myorg/platform-config.git","generator_source_paths":"argocd/platform/*/config.yaml","template_source_repos":"https://github.com/myorg/platform-runtime.git","template_source_paths":"deploy/overlays/prod","dest_server":"https://kubernetes.default.svc","dest_namespace":"platform"}`),
@@ -81,7 +83,7 @@ func TestGetEntityContextFallsBackToArgoCDApplicationSetContentEntity(t *testing
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

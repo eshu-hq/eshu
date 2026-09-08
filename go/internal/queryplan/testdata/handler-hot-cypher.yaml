@@ -29,7 +29,7 @@ entries:
     domain: entity
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/entity.go, symbol: buildResolveEntityGraphQuery, source_sha256: fd04939430af3c978eb7bc4ff7a545523038433b87e033312288e0051c5ec498}
+    source: {file: go/internal/query/entity/entity.go, symbol: BuildResolveEntityGraphQuery, source_sha256: 0ef65e86ecb87d082f2981ed8d90b155bf519d477acadd2d81ef61be61d4173e}
     query_fragment: 'MATCH (r:Repository {id: $repo_id})'
     cypher_sha256: ee51f2a612461a5e5bba6d28fc1e11e0259f44cd653819ca41380cee8985afc2
     required_anchors: [{label: Repository, property: id}]
@@ -273,7 +273,7 @@ entries:
     domain: entity
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/entity_resolve_workload_query.go, symbol: buildResolveWorkloadQueries, source_sha256: ad646d19c54d8bdb424282737afad81545f542f79d4156f387894858c4e5bf06}
+    source: {file: go/internal/query/entity/entity_resolve_workload_query.go, symbol: BuildResolveWorkloadQueries, source_sha256: d025e8273788913f727b24ca865acc365d2e1b88d29b5cd2a7ab809c0df6ca82}
     query_fragment: 'MATCH (w:Workload)'
     cypher_sha256: 72a03ec3f654f82a76641fc7126a30be39b2b6d36c4ac3a74bd55c4726a92ae1
     required_anchors: [{label: Workload, property: name}]
@@ -286,7 +286,7 @@ entries:
     domain: entity
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/entity_resolve_workload_query.go, symbol: buildResolveWorkloadQueries, source_sha256: ad646d19c54d8bdb424282737afad81545f542f79d4156f387894858c4e5bf06}
+    source: {file: go/internal/query/entity/entity_resolve_workload_query.go, symbol: BuildResolveWorkloadQueries, source_sha256: d025e8273788913f727b24ca865acc365d2e1b88d29b5cd2a7ab809c0df6ca82}
     query_fragment: 'MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)'
     cypher_sha256: 230a12016a8d10d5063cd2c38a4205378b900ec6952d97ccfe7ebba6ccbcde10
     required_anchors: [{label: Workload, property: name}]

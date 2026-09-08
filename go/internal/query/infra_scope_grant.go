@@ -43,6 +43,13 @@ func bindScopeGrantInlineScalars(params map[string]any, scalars []string) {
 	querycontract.BindScopeGrantInlineScalars(params, scalars)
 }
 
+// workloadScopePredicate bounds a Workload-anchored alias to the caller's
+// granted repositories. The implementation moved to querycontract for #6060;
+// this wrapper keeps root callers unchanged.
+func workloadScopePredicate(alias string, access repositoryAccessFilter) string {
+	return querycontract.WorkloadScopePredicate(alias, access)
+}
+
 // infraResourceScopePredicate bounds a whole-graph infra node `alias` to the
 // resources a scoped token's granted repositories authorize. It is a fail-closed
 // disjunction: a node matches only when it resolves to a granted repository

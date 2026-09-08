@@ -10,18 +10,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityFallsBackToTerraformBlockContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"terraform-block-1", "repo-1", "infra/main.tf", "TerraformBlock", "terraform",
 					int64(1), int64(8), "hcl", "terraform {}", []byte(`{"required_providers":"aws","required_provider_sources":"aws=hashicorp/aws","required_provider_count":1}`),
@@ -30,7 +32,7 @@ func TestResolveEntityFallsBackToTerraformBlockContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -73,13 +75,13 @@ func TestResolveEntityFallsBackToTerraformBlockContentEntity(t *testing.T) {
 func TestResolveEntityFallsBackToKustomizeOverlayContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"kustomize-overlay-1", "repo-1", "deploy/kustomization.yaml", "KustomizeOverlay", "kustomization",
 					int64(1), int64(12), "yaml", "resources:\n- ../base", []byte(`{"bases":["../app","../base"],"patch_targets":["Deployment/comprehensive-app"]}`),
@@ -88,7 +90,7 @@ func TestResolveEntityFallsBackToKustomizeOverlayContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -124,13 +126,13 @@ func TestResolveEntityFallsBackToKustomizeOverlayContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToKustomizeOverlayContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"kustomize-overlay-1", "repo-1", "deploy/kustomization.yaml", "KustomizeOverlay", "kustomization",
 					int64(1), int64(12), "yaml", "resources:\n- ../base", []byte(`{"bases":["../app","../base"],"patch_targets":["Deployment/comprehensive-app"]}`),
@@ -138,11 +140,11 @@ func TestGetEntityContextFallsBackToKustomizeOverlayContentEntity(t *testing.T) 
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"k8s-resource-1", "repo-1", "deploy/deployment.yaml", "K8sResource", "comprehensive-app",
 					int64(1), int64(18), "yaml", "kind: Deployment", []byte(`{"kind":"Deployment","namespace":"prod","qualified_name":"prod/Deployment/comprehensive-app"}`),
@@ -151,7 +153,7 @@ func TestGetEntityContextFallsBackToKustomizeOverlayContentEntity(t *testing.T) 
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -196,13 +198,13 @@ func TestGetEntityContextFallsBackToKustomizeOverlayContentEntity(t *testing.T) 
 func TestGetEntityContextFallsBackToKubernetesResourceContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"k8s-resource-1", "repo-1", "deploy/deployment.yaml", "K8sResource", "demo",
 					int64(1), int64(18), "yaml", "kind: Deployment", []byte(`{"kind":"Deployment","namespace":"prod","qualified_name":"prod/Deployment/demo","labels":"app=demo,tier=backend"}`),
@@ -210,11 +212,11 @@ func TestGetEntityContextFallsBackToKubernetesResourceContentEntity(t *testing.T
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"service-1", "repo-1", "deploy/service.yaml", "K8sResource", "demo",
 					int64(1), int64(12), "yaml", "kind: Service", []byte(`{"kind":"Service","namespace":"prod","qualified_name":"prod/Service/demo"}`),
@@ -227,7 +229,7 @@ func TestGetEntityContextFallsBackToKubernetesResourceContentEntity(t *testing.T
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

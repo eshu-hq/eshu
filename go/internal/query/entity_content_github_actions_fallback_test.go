@@ -9,18 +9,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetEntityContextFallsBackToGitHubActionsWorkflowLocalReusablePath(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"gha-workflow-1", "repo-1", ".github/workflows/deploy.yaml", "File", "deploy",
 					int64(1), int64(20), "yaml", "jobs:\n  deploy:\n    uses: myorg/deployment-helm/.github/workflows/deploy.yaml@main\n  local:\n    uses: ./.github/workflows/release.yaml\n", []byte(`{}`),
@@ -29,7 +31,7 @@ func TestGetEntityContextFallsBackToGitHubActionsWorkflowLocalReusablePath(t *te
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -87,13 +89,13 @@ func TestGetEntityContextFallsBackToGitHubActionsWorkflowLocalReusablePath(t *te
 func TestGetEntityContextFallsBackToGitHubActionsWorkflowActions(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"gha-workflow-actions", "repo-1", ".github/workflows/ci.yml", "File", "ci",
 					int64(1), int64(12), "yaml", "jobs:\n  terraform:\n    steps:\n      - uses: hashicorp/setup-terraform@v3\n      - run: |\n          echo octocat/example-action@v1\n", []byte(`{}`),
@@ -102,7 +104,7 @@ func TestGetEntityContextFallsBackToGitHubActionsWorkflowActions(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

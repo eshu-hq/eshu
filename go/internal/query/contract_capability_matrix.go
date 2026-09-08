@@ -4,6 +4,7 @@
 package query
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
@@ -39,25 +40,15 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 	// here. Two copies of a support row drift silently: nothing fails when one
 	// side changes, and the route then serves a profile the matrix no longer
 	// describes.
-	semanticSearchCapability: semanticsearch.Support(),
-	"code_search.exact_symbol": {
-		LocalLightweightMax:   &truthExact,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-	},
+	semanticSearchCapability:   semanticsearch.Support(),
+	"code_search.exact_symbol": entity.ExactSymbolSupport(),
 	"operator.reducer_input_invalid_facts.list": {
 		LocalLightweightMax:   &truthExact,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 	},
-	"code_search.fuzzy_symbol": {
-		LocalLightweightMax:   &truthDerived,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
-	},
+	"code_search.fuzzy_symbol": entity.FuzzySymbolSupport(),
 	"code_search.symbol_lookup": {
 		LocalLightweightMax:   &truthExact,
 		LocalAuthoritativeMax: &truthExact,

@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type mockEntityGraphReader struct {
@@ -31,13 +33,13 @@ func (m *mockEntityGraphReader) RunSingle(context.Context, string, map[string]an
 func TestResolveEntityFallsBackToElixirProtocolContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"protocol-1", "repo-1", "lib/demo/serializable.ex", "Protocol", "Demo.Serializable",
 					int64(1), int64(3), "elixir", "defprotocol Demo.Serializable do\n  def serialize(data)\nend", []byte(`{"module_kind":"protocol"}`),
@@ -46,7 +48,7 @@ func TestResolveEntityFallsBackToElixirProtocolContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -89,13 +91,13 @@ func TestResolveEntityFallsBackToElixirProtocolContentEntity(t *testing.T) {
 func TestResolveEntityFallsBackToElixirProtocolImplementationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"impl-1", "repo-1", "lib/demo/serializable.ex", "ProtocolImplementation", "Demo.Serializable",
 					int64(1), int64(4), "elixir", "defimpl Demo.Serializable, for: Demo.Worker do\nend", []byte(`{"module_kind":"protocol_implementation","protocol":"Demo.Serializable","implemented_for":"Demo.Worker"}`),
@@ -104,7 +106,7 @@ func TestResolveEntityFallsBackToElixirProtocolImplementationContentEntity(t *te
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -157,13 +159,13 @@ func TestResolveEntityFallsBackToElixirProtocolImplementationContentEntity(t *te
 func TestResolveEntityFallsBackToElixirGuardContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"guard-1", "repo-1", "lib/demo/macros.ex", "Function", "is_even",
 					int64(10), int64(10), "elixir", "defguard is_even(value) when rem(value, 2) == 0", []byte(`{"semantic_kind":"guard"}`),
@@ -172,7 +174,7 @@ func TestResolveEntityFallsBackToElixirGuardContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -273,13 +275,13 @@ func TestResolveEntityUsesElixirGuardGraphEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToElixirProtocolContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"protocol-1", "repo-1", "lib/demo/serializable.ex", "Protocol", "Demo.Serializable",
 					int64(1), int64(3), "elixir", "defprotocol Demo.Serializable do\n  def serialize(data)\nend", []byte(`{"module_kind":"protocol"}`),
@@ -288,7 +290,7 @@ func TestGetEntityContextFallsBackToElixirProtocolContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -323,13 +325,13 @@ func TestGetEntityContextFallsBackToElixirProtocolContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToElixirModuleAttributeContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"attr-1", "repo-1", "lib/demo/worker.ex", "Variable", "@timeout",
 					int64(2), int64(2), "elixir", "@timeout 5_000", []byte(`{"attribute_kind":"module_attribute","value":"5_000"}`),
@@ -338,7 +340,7 @@ func TestGetEntityContextFallsBackToElixirModuleAttributeContentEntity(t *testin
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -377,13 +379,13 @@ func TestGetEntityContextFallsBackToElixirModuleAttributeContentEntity(t *testin
 func TestGetEntityContextFallsBackToElixirProtocolImplementationContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"impl-1", "repo-1", "lib/demo/serializable.ex", "ProtocolImplementation", "Demo.Serializable",
 					int64(1), int64(4), "elixir", "defimpl Demo.Serializable, for: Demo.Worker do\nend", []byte(`{"module_kind":"protocol_implementation","protocol":"Demo.Serializable","implemented_for":"Demo.Worker"}`),
@@ -392,7 +394,7 @@ func TestGetEntityContextFallsBackToElixirProtocolImplementationContentEntity(t 
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

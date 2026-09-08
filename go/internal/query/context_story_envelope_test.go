@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetWorkloadContextReturnsEnvelopeWhenRequested(t *testing.T) {
@@ -127,9 +129,9 @@ func TestGetEntityContextReturnsEnvelopeWhenRequested(t *testing.T) {
 	}
 }
 
-func workloadEnvelopeGraphReader(workloadID, workloadName string) fakeWorkloadGraphReader {
-	return fakeWorkloadGraphReader{
-		runSingleByMatch: map[string]map[string]any{
+func workloadEnvelopeGraphReader(workloadID, workloadName string) querytestutil.FakeWorkloadGraphReader {
+	return querytestutil.FakeWorkloadGraphReader{
+		RunSingleByMatch: map[string]map[string]any{
 			"MATCH (w:Workload)": {
 				"id":        workloadID,
 				"name":      workloadName,
@@ -139,7 +141,7 @@ func workloadEnvelopeGraphReader(workloadID, workloadName string) fakeWorkloadGr
 				"instances": []any{},
 			},
 		},
-		runByMatch: map[string][]map[string]any{
+		RunByMatch: map[string][]map[string]any{
 			"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 			"K8sResource OR":                      {},
 			"fn.name IN":                          {},

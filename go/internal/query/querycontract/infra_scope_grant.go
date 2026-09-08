@@ -198,3 +198,35 @@ func (f RepositoryAccessFilter) GrantInlineCapExceeded() bool {
 	_, capped := f.ScopeGrantInlineScalars()
 	return capped
 }
+
+// WorkloadScopePredicate bounds a Workload node `alias` to a scoped token's
+// granted repositories. It is a fail-closed disjunction of:
+//
+//  1. direct ownership: the workload's materialized `repo_id` is granted
+//     (flat O(1) array compare), and
+//  2. SHAPE-A DEFINES admission: a granted Repository DEFINES the workload
+//     (inline-map, O(grant)). This is required in addition to (1) because a
+//     name-collision workload defined by two repositories materializes only
+//     ONE `repo_id`, so a grant for its OTHER defining repository is missed
+//     by the flat compare but caught here.
+//
+// The previously shipped form used an n-last `EXISTS { (scopeRepo)-[:DEFINES]->
+// (alias) ... }` subquery, which is dead code on the pinned NornicDB build
+// (it evaluated unconditionally false), silently under-authorizing
+// collision-defined workloads. Callers MUST bind the scope_grant_* scalars
+// with BindScopeGrantInlineScalars.
+//
+// The implementation moved from the entity handler family's service workload
+// resolution for #6060 so a handler-family subpackage and staying
+// authorization tests can pin the same predicate without importing root.
+func WorkloadScopePredicate(alias string, access RepositoryAccessFilter) string {
+	scalars, _ := access.ScopeGrantInlineScalars()
+	disjuncts := []string{
+		alias + ".repo_id IN $allowed_repository_ids",
+		alias + ".repo_id IN $allowed_scope_ids",
+	}
+	if defines := ScopeGrantInlineMapDisjunction(alias, ScopeHopInbound, "DEFINES", "Repository", "id", scalars); defines != "" {
+		disjuncts = append(disjuncts, defines)
+	}
+	return "(" + strings.Join(disjuncts, " OR ") + ")"
+}

@@ -201,6 +201,26 @@ func ActionRepo(value string) string {
 // isGitHubActionsArtifactPath) both delegate here, so the "identical path
 // contract" the content/shape README documents is literally the same code
 // and cannot silently drift between the two packages again.
+// IsArtifactPath reports whether a content-entity relative path is a GitHub
+// Actions artifact path: a workflow file (see IsWorkflowPath) or a composite
+// action definition (action.yml/action.yaml). This is the single gate the
+// query content-relationship classifier
+// (content_relationships_github_actions.go's isGitHubActionsArtifactPath)
+// and the entity-context fallback share, so the two call sites cannot
+// silently drift apart.
+func IsArtifactPath(value string) bool {
+	if IsWorkflowPath(value) {
+		return true
+	}
+	lowerPath := strings.ToLower(strings.TrimSpace(value))
+	switch lowerPath[strings.LastIndex(lowerPath, "/")+1:] {
+	case "action.yml", "action.yaml":
+		return true
+	default:
+		return false
+	}
+}
+
 func IsWorkflowPath(value string) bool {
 	parts := strings.Split(strings.TrimSpace(value), "/")
 	if len(parts) != 3 || parts[0] != ".github" || parts[1] != "workflows" {

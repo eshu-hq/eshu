@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // boundedK8sFakeContentStore models ListRepoEntitiesByType exactly like the
@@ -43,29 +45,17 @@ func (f boundedK8sFakeContentStore) ListRepoEntitiesByType(_ context.Context, _,
 	return filtered, nil
 }
 
-// k8sResourceFillerEntities returns `count` K8sResource Deployment rows in
-// namespace "other-ns" -- distinct from the "prod" namespace the truncation
-// tests below use for the real Service/Deployment pair -- so they occupy the
-// typed candidate scan without ever matching SELECTS themselves.
+// k8sResourceFillerEntities returns `count` K8sResource Deployment rows for
+// the truncation tests. The implementation moved to querytestutil for #6060;
+// this wrapper keeps root callers unchanged.
 func k8sResourceFillerEntities(count int) []EntityContent {
-	filler := make([]EntityContent, 0, count)
-	for i := 0; i < count; i++ {
-		name := fmt.Sprintf("filler-deploy-%05d", i)
-		filler = append(filler, EntityContent{
-			EntityID:     name,
-			RepoID:       "repo-1",
-			RelativePath: "deploy/" + name + ".yaml",
-			EntityType:   "K8sResource",
-			EntityName:   name,
-			Metadata: map[string]any{
-				"kind":                "Deployment",
-				"namespace":           "other-ns",
-				"qualified_name":      "other-ns/Deployment/" + name,
-				"pod_template_labels": "app=" + name,
-			},
-		})
+	filler := querytestutil.K8sResourceFillerEntities(count)
+	out := make([]EntityContent, 0, len(filler))
+	for _, entity := range filler {
+		entity := entity
+		out = append(out, EntityContent(entity))
 	}
-	return filler
+	return out
 }
 
 // truncationFakeContentStore proves the P2-1 remediation for #5343: it models

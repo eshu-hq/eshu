@@ -12,14 +12,16 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetEntityContextUsesSharedSemanticProjectionSeparatorContract(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "entity-1"; got != want {
 					t.Fatalf("params[entity_id] = %#v, want %#v", got, want)
 				}
@@ -58,13 +60,13 @@ func TestGetEntityContextUsesSharedSemanticProjectionSeparatorContract(t *testin
 func TestResolveEntityFallsBackToContentEntitiesWithSemanticSummary(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"impl-1", "repo-1", "src/point.rs", "ImplBlock", "Point",
 					int64(1), int64(18), "rust", "impl Display for Point {}", []byte(`{"kind":"trait_impl","trait":"Display","target":"Point"}`),
@@ -73,7 +75,7 @@ func TestResolveEntityFallsBackToContentEntitiesWithSemanticSummary(t *testing.T
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -109,13 +111,13 @@ func TestResolveEntityFallsBackToContentEntitiesWithSemanticSummary(t *testing.T
 func TestGetEntityContextFallsBackToContentEntities(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"component-1", "repo-1", "src/Button.tsx", "Component", "Button",
 					int64(1), int64(12), "tsx", "export function Button() {}", []byte(`{"framework":"react"}`),
@@ -123,11 +125,11 @@ func TestGetEntityContextFallsBackToContentEntities(t *testing.T) {
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-1", "src/App.tsx", "Function", "renderApp",
 					int64(5), int64(20), "tsx", "return <Button />", []byte(`{"jsx_component_usage":["Button"]}`),
@@ -136,7 +138,7 @@ func TestGetEntityContextFallsBackToContentEntities(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -194,13 +196,13 @@ func TestGetEntityContextFallsBackToContentEntities(t *testing.T) {
 func TestGetEntityContextFallsBackToContentRustImplBlockContext(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"impl-1", "repo-1", "src/point.rs", "ImplBlock", "Point",
 					int64(1), int64(18), "rust", "impl Point { fn new() -> Self { Self {} } }", []byte(`{"kind":"trait_impl","trait":"Display","target":"Point"}`),
@@ -208,11 +210,11 @@ func TestGetEntityContextFallsBackToContentRustImplBlockContext(t *testing.T) {
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"fn-new", "repo-1", "src/point.rs", "Function", "new",
 					int64(3), int64(7), "rust", "fn new() -> Self { Self {} }", []byte(`{"impl_context":"Point"}`),
@@ -221,7 +223,7 @@ func TestGetEntityContextFallsBackToContentRustImplBlockContext(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

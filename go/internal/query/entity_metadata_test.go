@@ -7,18 +7,20 @@ import (
 	"context"
 	"database/sql/driver"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestEnrichEntityResultsWithContentMetadata(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-1", "repo-1", "src/decorators.ts", "Class", "Demo",
 					int64(5), int64(20), "typescript", "class Demo<T> {}", []byte(`{"decorators":["@sealed"],"type_parameters":["T"]}`),
@@ -41,7 +43,7 @@ func TestEnrichEntityResultsWithContentMetadata(t *testing.T) {
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Demo", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Demo", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -90,13 +92,13 @@ func TestEnrichEntityResultsWithContentMetadata(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataPrefersExistingPythonGraphMetadata(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-1", "repo-1", "src/handler.py", "Function", "handler",
 					int64(12), int64(20), "python", "async def handler(): ...", []byte(`{"decorators":["@content"],"async":false}`),
@@ -123,7 +125,7 @@ func TestEnrichEntityResultsWithContentMetadataPrefersExistingPythonGraphMetadat
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "handler", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "handler", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -160,13 +162,13 @@ func TestEnrichEntityResultsWithContentMetadataPrefersExistingPythonGraphMetadat
 func TestEnrichEntityResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-1", "repo-1", "src/other.ts", "Class", "Other",
 					int64(1), int64(5), "typescript", "class Other {}", []byte(`{"decorators":["@other"]}`),
@@ -189,7 +191,7 @@ func TestEnrichEntityResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T) 
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Demo", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Demo", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -204,13 +206,13 @@ func TestEnrichEntityResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T) 
 func TestEnrichEntityResultsWithContentMetadataRustImplBlock(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"impl-1", "repo-1", "src/point.rs", "ImplBlock", "Point",
 					int64(1), int64(18), "rust", "impl Display for Point {}", []byte(`{"kind":"trait_impl","trait":"Display","target":"Point"}`),
@@ -233,7 +235,7 @@ func TestEnrichEntityResultsWithContentMetadataRustImplBlock(t *testing.T) {
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Point", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Point", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}

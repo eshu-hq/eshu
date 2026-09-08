@@ -102,7 +102,7 @@ func TestGetWorkloadContext_LocalLightweightReturnsStructuredUnsupportedCapabili
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 
-	handler.getWorkloadContext(w, req)
+	handler.GetWorkloadContext(w, req)
 
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)
@@ -121,7 +121,7 @@ func TestGetWorkloadStory_LocalLightweightReturnsStructuredUnsupportedCapability
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 
-	handler.getWorkloadStory(w, req)
+	handler.GetWorkloadStory(w, req)
 
 	if w.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusNotImplemented)

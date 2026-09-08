@@ -78,7 +78,7 @@ func TestGlobalEntityNameAPIDifferentialAndPerformanceLive(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/v0/entities/resolve", bytes.NewBufferString(`{"name":"is_valid","type":"guard","limit":50}`))
 	recorder := httptest.NewRecorder()
 	started := time.Now()
-	entityHandler.resolveEntity(recorder, request)
+	entityHandler.ResolveEntity(recorder, request)
 	if duration := time.Since(started); duration > 500*time.Millisecond {
 		t.Fatalf("typed entity API duration = %s, want <=500ms", duration)
 	}
