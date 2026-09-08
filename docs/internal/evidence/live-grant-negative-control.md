@@ -103,7 +103,7 @@ Raised in review of this change, and it bounds every test in this suite, not jus
 the two controls added here.
 
 The shared helper `openLiveGrantDriver`
-(`language_query_grant_nornicdb_live_test.go:102`) connects with
+(`go/internal/query/language_query_grant_nornicdb_live_test.go`) connects with
 `neo4jdriver.NoAuth()`. The **embedded** NornicDB runtime does not accept that:
 `internal/cli/localsupervisor/graph_embedded_nornicdb.go` loads or generates
 credentials (`:57`) and starts Bolt with `boltConfig.RequireAuth = true`
