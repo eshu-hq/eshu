@@ -377,14 +377,24 @@ composition as well as size; the shipped constant has always been 170 in code.
 The table row now reads 64 x 170 = 10,880 slots, 170% of the 6,400 the chunker
 assumes.
 
-No-Regression Evidence: the change alters one Postgres start parameter and adds
-three test assertions. No production code path other than
-`embeddedPostgresConfig` is touched, and the value it produces is resolved once
-at process start from `ESHU_POSTGRES_MAX_OPEN_CONNS` rather than per request or
-per item, so there is no added per-request or per-item work to measure.
+No-Regression Evidence: relative to `origin/main` this branch adds
+`ResolveLocalPostgresMaxConnections` plus its single call site in
+`embeddedPostgresConfig`, which turns the `max_connections` start parameter from
+a compile-time constant into one `os.Getenv` read performed once at process
+start. No other production path changes. The value is never consulted per
+request or per work item, so there is no added steady-state work to measure.
+The arithmetic itself is bound by the table in
+`TestResolveLocalPostgresMaxConnectionsFollowsConfiguredPool`, and the carried
+live test asserts the resolved value actually reaches the postmaster via
+`SHOW max_connections`. That live assertion was executed on the branch this fix
+was carried from, at `ESHU_POSTGRES_MAX_OPEN_CONNS=60`, reporting
+`max_connections = 320` (5 holders x 60 + 20 reserved) with exit 0, and a
+negative control pinned back to the old constant failed with
+`SHOW max_connections = 320, want 170`. It has not been re-executed at this
+head, which carries the identical test file.
 
-No-Observability-Change: this change adds no runtime signal and removes none.
-The ceiling is a start parameter visible through `SHOW max_connections` on the
-local server and through the workspace `postgres.log` the package already routes
+No-Observability-Change: this branch adds no runtime signal and removes none.
+The resolved ceiling is a start parameter visible through `SHOW max_connections`
+on the local server and through the workspace `postgres.log` the package already routes
 startup output to; connection exhaustion continues to surface as the Postgres
 "too many clients already" error on the existing pool paths.
