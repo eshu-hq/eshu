@@ -98,7 +98,7 @@ package and file in the repo, per [Naming](../../../../docs/internal/naming.md):
   not `correlation/correlation_writer.go`. The path already carries that
   information.
 - Never glue two full names into one compound package or directory:
-  `package/correlation`, not `packagecorrelation`. Nest directories so each
+  `billing/correlation`, not `billingcorrelation`. Nest directories so each
   path level reads as plain English.
 - Do not repeat the directory name or catalog the package in the file name:
   `writer.go`, not `correlation_writer.go`. Short single-word names are
