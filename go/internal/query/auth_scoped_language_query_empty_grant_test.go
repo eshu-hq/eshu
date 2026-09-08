@@ -165,7 +165,7 @@ func TestLanguageQueryEmptyGrantWithRepoIDIsRejectedNotAnsweredEmpty(t *testing.
 				t.Parallel()
 
 				handler, _ := newLanguageQueryGrantHandler(branch, &languageQueryPlainContentStore{})
-				auth := codeGrantScopedAuthContext(nil)
+				auth := querytestutil.CodeGrantScopedAuthContext(nil)
 				body := languageQueryGrantBody(branch.entityType)
 				body["repo_id"] = repoID
 				rec := runLanguageQueryGrantRequest(t, handler, body, &auth)
