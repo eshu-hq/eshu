@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // The consumer-side half of POST /api/v0/code/dead-code/cross-repo's grant
@@ -112,7 +114,7 @@ func TestCrossRepoDeadCodeConsumerEvidenceIsGrantBound(t *testing.T) {
 	t.Parallel()
 
 	store := &crossRepoDeadCodeGrantStore{}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantConsumerRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantConsumerRepo})
 	rec := runCrossRepoDeadCodeGrantRequest(t, store, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -145,7 +147,7 @@ func TestCrossRepoDeadCodeKeepsTheHiddenConsumerSignal(t *testing.T) {
 	t.Parallel()
 
 	store := &crossRepoDeadCodeGrantStore{}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runCrossRepoDeadCodeGrantRequest(t, store, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {

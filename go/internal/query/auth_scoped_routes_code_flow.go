@@ -100,7 +100,7 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     anchors both CALLS endpoints on {repo_id: $repo_id} and nothing else, so
 //     every caller runs the one query text the plan manifest pins for
 //     QP-CALL-GRAPH-HUBS and QP-CALL-GRAPH-RECURSIVE. The empty-grant refusal in
-//     callGraphMetricsData is what bites when the read is reached without the
+//     CallGraphMetricsData is what bites when the read is reached without the
 //     selector: a grantless scoped caller gets the empty response without
 //     touching the graph.
 //   - POST /api/v0/code/quality/inspect -- buildCodeQualityCypher

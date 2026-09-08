@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -110,18 +111,6 @@ func codeTopicGrantRows() []codeTopicEvidenceRow {
 	}
 }
 
-// codeGrantScopedAuthContext builds the scoped-token AuthContext the whole
-// #5167 code-family batch-1 proof set shares: tenant-a, granted exactly the
-// repository ids passed in (nil for the empty-grant fail-closed case).
-func codeGrantScopedAuthContext(allowedRepositoryIDs []string) AuthContext {
-	return AuthContext{
-		Mode:                 AuthModeScoped,
-		TenantID:             "tenant-a",
-		WorkspaceID:          "workspace-a",
-		AllowedRepositoryIDs: allowedRepositoryIDs,
-	}
-}
-
 // newCodeGrantRouteRequest builds an envelope-accepting POST request for one
 // code route, carrying auth as the request's AuthContext when non-nil (nil
 // means an unscoped shared-key caller).
@@ -147,7 +136,7 @@ func TestCodeTopicInvestigationFiltersByRepositoryGrant(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/topics/investigate", map[string]any{"topic": "session refresh"}, &auth)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -178,7 +167,7 @@ func TestCodeTopicInvestigationEmptyGrantSkipsTheContentRead(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := codeGrantScopedAuthContext(nil)
+	auth := querytestutil.CodeGrantScopedAuthContext(nil)
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/topics/investigate", map[string]any{"topic": "session refresh"}, &auth)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

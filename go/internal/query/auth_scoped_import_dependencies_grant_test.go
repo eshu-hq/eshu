@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 2a: two-tenant proof for
@@ -259,7 +260,7 @@ func TestImportDependenciesFilterByRepositoryGrant(t *testing.T) {
 			t.Parallel()
 
 			graph := newImportGrantGraph(tc.seeds)
-			auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			rec := runImportGrantRequest(t, graph, tc.requestBody(), &auth)
 
 			if got, want := rec.Code, http.StatusOK; got != want {
@@ -286,7 +287,7 @@ func TestImportDependenciesEmptyGrantReachesNoBackend(t *testing.T) {
 			t.Parallel()
 
 			graph := newImportGrantGraph(tc.seeds)
-			auth := codeGrantScopedAuthContext(nil)
+			auth := querytestutil.CodeGrantScopedAuthContext(nil)
 			rec := runImportGrantRequest(t, graph, tc.requestBody(), &auth)
 
 			if got, want := rec.Code, http.StatusOK; got != want {
@@ -424,7 +425,7 @@ func TestCrossModuleCallsBindTargetRepositoryIndependently(t *testing.T) {
 		importGrantCrossModuleCall(codeGrantGrantedRepo, codeGrantGrantedRepo, importGrantGrantedModule),
 		importGrantCrossModuleCall(codeGrantGrantedRepo, codeGrantOtherRepo, importGrantUngrantedModule),
 	})
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runImportGrantRequest(t, graph, map[string]any{
 		"query_type":  "cross_module_calls",
 		"source_file": "src/api.py",
@@ -466,7 +467,7 @@ func TestImportDependencyScanBoundIsSpentOnGrantedRowsOnly(t *testing.T) {
 	}
 
 	graph := newImportGrantGraph(seeds)
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runImportGrantRequest(t, graph, map[string]any{
 		"query_type":  "file_import_cycles",
 		"language":    "python",

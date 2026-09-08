@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 2b: two-tenant grant proofs for
@@ -164,7 +166,7 @@ func TestRelationshipStoryFiltersByRepositoryGrant(t *testing.T) {
 		t.Run(string(backend), func(t *testing.T) {
 			t.Parallel()
 			graph := storyGrantGraphFor(backend)
-			auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			rec := runStoryRequest(t, storyGrantHandler(backend, graph, storyGrantContent()), storyDirectRequestBody(), &auth)
 			if got, want := rec.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -215,7 +217,7 @@ func TestRelationshipStoryEmptyGrantReachesNoBackend(t *testing.T) {
 
 	graph := storyGrantGraphFor(GraphBackendNornicDB)
 	content := storyGrantContent()
-	auth := codeGrantScopedAuthContext(nil)
+	auth := querytestutil.CodeGrantScopedAuthContext(nil)
 	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, graph, content), storyDirectRequestBody(), &auth)
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -248,7 +250,7 @@ func TestRelationshipStoryEmptyGrantNamingARepositoryReachesNoBackend(t *testing
 
 	graph := storyGrantGraphFor(GraphBackendNornicDB)
 	content := storyGrantContent()
-	auth := codeGrantScopedAuthContext(nil)
+	auth := querytestutil.CodeGrantScopedAuthContext(nil)
 	body := storyDirectRequestBody()
 	body["repo_id"] = codeGrantGrantedRepo
 	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, graph, content), body, &auth)
@@ -309,7 +311,7 @@ func TestRelationshipStoryAmbiguousCandidatesStayInGrant(t *testing.T) {
 		},
 	}
 	graph := storyGrantGraphFor(GraphBackendNornicDB)
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, graph, content), map[string]any{
 		"target":            storyAmbiguousName,
 		"relationship_type": "CALLS",

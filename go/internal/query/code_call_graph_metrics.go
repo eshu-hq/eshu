@@ -65,7 +65,7 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := h.callGraphMetricsData(r.Context(), req)
+	data, err := h.CallGraphMetricsData(r.Context(), req)
 	if err != nil {
 		span.RecordError(err)
 		if errors.Is(err, errCallGraphMetricsUnavailable) {
@@ -95,7 +95,12 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 // moved to codemodel/code_call_graph_metrics_aggregation.go (#6060 lane A
 // L1); the request validation and accessors run there now.
 
-func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMetricsRequest) (map[string]any, error) {
+// CallGraphMetricsData resolves the bounded call-graph hub/recursive metrics
+// read for req against the graph, applying the repository access filter from
+// ctx before any Cypher runs. It is exported so route-level tests can prove
+// the auth-grant short-circuit (an empty-grant caller reaching this without
+// AuthContext bounds) that the registered HTTP route hides.
+func (h *CodeHandler) CallGraphMetricsData(ctx context.Context, req callGraphMetricsRequest) (map[string]any, error) {
 	if h == nil || h.Neo4j == nil {
 		return nil, errCallGraphMetricsUnavailable
 	}

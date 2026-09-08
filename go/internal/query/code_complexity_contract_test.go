@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestHandleComplexityListReturnsTruncationInEnvelope(t *testing.T) {
@@ -305,7 +307,7 @@ func TestHandleComplexityRepoAnchoredEntityIDDoesNotFallBackToName(t *testing.T)
 func TestHandleComplexityScopedEntityIDDoesNotFallBackToName(t *testing.T) {
 	t.Parallel()
 
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	captured, status := captureCodeQualityCypher(
 		t,
 		"/api/v0/code/complexity",

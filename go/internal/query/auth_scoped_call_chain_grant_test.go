@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 2b: two-tenant grant proofs for
@@ -83,7 +85,7 @@ func TestCallChainFiltersByRepositoryGrant(t *testing.T) {
 	t.Parallel()
 
 	graph := &callChainGrantGraph{entities: callChainGrantEntities()}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runCallChainRequest(t, graph, callChainRequestBody(), &auth)
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -113,7 +115,7 @@ func TestCallChainBoundsEveryFrontierHop(t *testing.T) {
 		},
 		{uid: callChainGrantedEnd, name: callChainGrantedName, repoID: codeGrantGrantedRepo},
 	}}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runCallChainRequest(t, graph, map[string]any{
 		"start_entity_id": callChainGrantedStart,
 		"end_entity_id":   callChainGrantedEnd,
@@ -134,7 +136,7 @@ func TestCallChainEmptyGrantReachesNoBackend(t *testing.T) {
 	t.Parallel()
 
 	graph := &callChainGrantGraph{entities: callChainGrantEntities()}
-	auth := codeGrantScopedAuthContext(nil)
+	auth := querytestutil.CodeGrantScopedAuthContext(nil)
 	rec := runCallChainRequest(t, graph, callChainRequestBody(), &auth)
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -156,7 +158,7 @@ func TestCallChainEmptyGrantNamingARepositoryReachesNoBackend(t *testing.T) {
 	t.Parallel()
 
 	graph := &callChainGrantGraph{entities: callChainGrantEntities()}
-	auth := codeGrantScopedAuthContext(nil)
+	auth := querytestutil.CodeGrantScopedAuthContext(nil)
 	body := callChainRequestBody()
 	body["repo_id"] = codeGrantGrantedRepo
 	rec := runCallChainRequest(t, graph, body, &auth)
@@ -214,36 +216,8 @@ func TestCallChainResolvesAScopeOnlyGrantToItsRepository(t *testing.T) {
 	}
 }
 
-// TestCallChainOneHopBindsTheGrantInTheAnchoringMatch is the shipped-text pin.
-func TestCallChainOneHopBindsTheGrantInTheAnchoringMatch(t *testing.T) {
-	t.Parallel()
-
-	graph := &callChainGrantGraph{entities: callChainGrantEntities()}
-	handler := &CodeHandler{GraphBackend: GraphBackendNornicDB, Neo4j: graph}
-	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}}
-	ctx := ContextWithAuthContext(t.Context(), codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
-	if _, err := handler.nornicDBCallChainOneHopRows(
-		ctx, callChainGrantedStart, "Function", []string{codeGrantGrantedRepo},
-	); err != nil {
-		t.Fatalf("nornicDBCallChainOneHopRows() error = %v", err)
-	}
-	if len(graph.statements) != 1 {
-		t.Fatalf("statements = %d, want 1", len(graph.statements))
-	}
-	anchoring, stranded := storyClausePredicates(graph.statements[0])
-	for _, want := range []string{
-		"coalesce(target.repo_id, '') IN $traversal_repo_ids",
-		access.GraphConditionOnProperty("target", "repo_id"),
-	} {
-		if !containsPredicate(anchoring, want) {
-			t.Fatalf("the anchoring MATCH does not carry %q:\n%s", want, graph.statements[0])
-		}
-		if containsPredicate(stranded, want) {
-			t.Fatalf("%q sits after an OPTIONAL MATCH, where it filters nothing:\n%s", want, graph.statements[0])
-		}
-	}
-}
-
+// containsPredicate stays here: TestExactGraphEntityCandidatesRefuseAnUngrantedRepository
+// below and auth_scoped_call_chain_grant_builders_test.go both still call it.
 func containsPredicate(predicates []string, want string) bool {
 	for _, predicate := range predicates {
 		if strings.Contains(predicate, want) {
@@ -267,7 +241,7 @@ func TestExactGraphEntityCandidatesRefuseAnUngrantedRepository(t *testing.T) {
 			EntityType: "Function", RepoID: codeGrantOtherRepo,
 		},
 	}}
-	ctx := ContextWithAuthContext(t.Context(), codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+	ctx := ContextWithAuthContext(t.Context(), querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
 	rows, err := resolveExactGraphEntityCandidates(ctx, content, codeGrantOtherRepo, callChainUngrantedNam)
 	if err != nil {
 		t.Fatalf("resolveExactGraphEntityCandidates() error = %v", err)
@@ -372,7 +346,7 @@ func TestCallChainNeo4jLaneBoundsInteriorHops(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			graph := &callChainGrantGraph{entities: callChainBridgedEntities()}
-			auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			rec := runCallChainRequestOn(t, GraphBackendNeo4j, graph, tc.body, &auth)
 			if got, want := rec.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -405,7 +379,7 @@ func TestCallChainNeo4jLaneKeepsAnInGrantChain(t *testing.T) {
 		},
 		{uid: callChainGrantedEnd, name: callChainGrantedName, repoID: codeGrantGrantedRepo},
 	}}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runCallChainRequestOn(t, GraphBackendNeo4j, graph, map[string]any{
 		"start_entity_id": callChainGrantedStart,
 		"end_entity_id":   callChainGrantedEnd,

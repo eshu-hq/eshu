@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 1, step 4: POST /api/v0/code/call-graph/metrics.
@@ -62,7 +64,7 @@ func callGraphMetricsGrantBody() map[string]any {
 func TestCallGraphMetricsCypherIsTheSameForEveryCaller(t *testing.T) {
 	t.Parallel()
 
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	scoped, scopedParams, scopedStatus := captureCallGraphMetricsCypher(t, &auth, callGraphMetricsGrantBody())
 	shared, sharedParams, sharedStatus := captureCallGraphMetricsCypher(t, nil, callGraphMetricsGrantBody())
 
@@ -93,7 +95,7 @@ func TestCallGraphMetricsCypherIsTheSameForEveryCaller(t *testing.T) {
 func TestCallGraphMetricsRejectsAnUngrantedRepository(t *testing.T) {
 	t.Parallel()
 
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	captured, _, status := captureCallGraphMetricsCypher(t, &auth, map[string]any{
 		"repo_id":     codeGrantOtherRepo,
 		"metric_type": "hub_functions",
@@ -109,7 +111,7 @@ func TestCallGraphMetricsRejectsAnUngrantedRepository(t *testing.T) {
 // TestCallGraphMetricsEmptyGrantSkipsTheEdgeScan covers both refusals, because
 // they are independent. Over HTTP the mandatory repo_id is refused by the
 // selector before the handler body runs; that is today's protection and the
-// first sub-test pins it. The second calls callGraphMetricsData directly with
+// first sub-test pins it. The second calls CallGraphMetricsData directly with
 // an empty-grant context -- the selector bypassed -- so the access.Empty()
 // short-circuit inside the read is exercised on its own and fails if it is
 // removed.
@@ -118,7 +120,7 @@ func TestCallGraphMetricsEmptyGrantSkipsTheEdgeScan(t *testing.T) {
 
 	t.Run("route", func(t *testing.T) {
 		t.Parallel()
-		auth := codeGrantScopedAuthContext(nil)
+		auth := querytestutil.CodeGrantScopedAuthContext(nil)
 		captured, _, _ := captureCallGraphMetricsCypher(t, &auth, callGraphMetricsGrantBody())
 		if captured != "" {
 			t.Fatalf("an empty scoped grant reached the edge scan; want no graph read at all:\n%s", captured)
@@ -137,13 +139,13 @@ func TestCallGraphMetricsEmptyGrantSkipsTheEdgeScan(t *testing.T) {
 				},
 			},
 		}
-		ctx := ContextWithAuthContext(context.Background(), codeGrantScopedAuthContext(nil))
-		data, err := handler.callGraphMetricsData(ctx, callGraphMetricsRequest{
+		ctx := ContextWithAuthContext(context.Background(), querytestutil.CodeGrantScopedAuthContext(nil))
+		data, err := handler.CallGraphMetricsData(ctx, callGraphMetricsRequest{
 			RepoID:     codeGrantGrantedRepo,
 			MetricType: "hub_functions",
 		})
 		if err != nil {
-			t.Fatalf("callGraphMetricsData() error = %v, want nil", err)
+			t.Fatalf("CallGraphMetricsData() error = %v, want nil", err)
 		}
 		if queried {
 			t.Fatal("queried = true, want false -- an empty scoped grant must skip the edge scan, not scan then filter to empty")
@@ -212,7 +214,7 @@ func TestGraphSummaryHotEntitiesEdgePassIsUnchanged(t *testing.T) {
 		return edgePass, rec.Code
 	}
 
-	scopedAuth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	scopedAuth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	scoped, scopedStatus := captureEdgePass(t, &scopedAuth, codeGrantGrantedRepo)
 	shared, sharedStatus := captureEdgePass(t, nil, codeGrantGrantedRepo)
 

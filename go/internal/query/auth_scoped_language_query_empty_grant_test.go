@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 2a: what POST /api/v0/code/language-query answers
@@ -28,7 +30,7 @@ func TestLanguageQueryEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			t.Parallel()
 
 			handler, _ := newLanguageQueryGrantHandler(branch, &languageQueryPlainContentStore{})
-			auth := codeGrantScopedAuthContext(nil)
+			auth := querytestutil.CodeGrantScopedAuthContext(nil)
 			rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody(branch.entityType), &auth)
 
 			data := decodeEnvelopeData(t, rec.Body.Bytes())

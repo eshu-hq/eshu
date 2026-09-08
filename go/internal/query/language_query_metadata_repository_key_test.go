@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 2a review round 2, finding 2.
@@ -107,7 +109,7 @@ func runLanguageMetadataCollisionQuery(t *testing.T, omitRepoID bool) []any {
 		Content: &languageMetadataCollisionStore{omitRepoID: omitRepoID},
 		Profile: ProfileLocalAuthoritative,
 	}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantOtherRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantOtherRepo})
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("function"), &auth)
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())

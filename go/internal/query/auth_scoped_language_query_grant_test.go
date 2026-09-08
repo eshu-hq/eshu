@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 2a: two-tenant proof for
@@ -168,7 +170,7 @@ func TestLanguageQueryFiltersByRepositoryGrant(t *testing.T) {
 			t.Parallel()
 
 			handler, _ := newLanguageQueryGrantHandler(branch, &languageQueryPlainContentStore{})
-			auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody(branch.entityType), &auth)
 
 			if got, want := rec.Code, http.StatusOK; got != want {
@@ -196,7 +198,7 @@ func TestLanguageQueryEmptyGrantReachesNoBackend(t *testing.T) {
 
 			store := &languageQueryPlainContentStore{}
 			handler, graph := newLanguageQueryGrantHandler(branch, store)
-			auth := codeGrantScopedAuthContext(nil)
+			auth := querytestutil.CodeGrantScopedAuthContext(nil)
 			rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody(branch.entityType), &auth)
 
 			if got, want := rec.Code, http.StatusOK; got != want {
@@ -275,7 +277,7 @@ func TestLanguageQueryGraphlessProfileBindsTheContentFallback(t *testing.T) {
 
 	store := &languageQueryPlainContentStore{}
 	handler := &LanguageQueryHandler{Content: store, Profile: ProfileLocalAuthoritative}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("function"), &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -302,7 +304,7 @@ func TestLanguageQueryMetadataEnrichmentCannotWidenTheAnswer(t *testing.T) {
 		languageQueryGrantBranch{name: "graph_backed", entityType: "function", graphLabel: "Function"},
 		store,
 	)
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("function"), &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -334,7 +336,7 @@ func TestLanguageQueryUngrantedRepositorySelectorIsRejected(t *testing.T) {
 		languageQueryGrantBranch{name: "graph_backed", entityType: "function", graphLabel: "Function"},
 		store,
 	)
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	body := languageQueryGrantBody("function")
 	body["repo_id"] = codeGrantOtherRepo
 	rec := runLanguageQueryGrantRequest(t, handler, body, &auth)

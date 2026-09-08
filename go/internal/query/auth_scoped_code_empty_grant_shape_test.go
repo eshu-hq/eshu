@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code family: an empty scoped grant is answered without touching a
@@ -125,7 +127,7 @@ func TestCodeRoutesEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := codeGrantScopedAuthContext(nil)
+			auth := querytestutil.CodeGrantScopedAuthContext(nil)
 			req := newCodeGrantRouteRequest(t, route.path, route.body, &auth)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)

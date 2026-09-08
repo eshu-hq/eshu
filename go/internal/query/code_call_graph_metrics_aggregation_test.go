@@ -290,12 +290,12 @@ func TestCallGraphMetricsDataRecordsExpansionAndResultTelemetry(t *testing.T) {
 			callGraphMetricEdgeRow("fn-b", "b.go", "go", "b", 2, "fn-a", "a.go", "go", "a", 1),
 		}, nil
 	}}}
-	data, err := handler.callGraphMetricsData(ctx, callGraphMetricsRequest{
+	data, err := handler.CallGraphMetricsData(ctx, callGraphMetricsRequest{
 		RepoID: "repo-1",
 		Limit:  intPtr(1),
 	})
 	if err != nil {
-		t.Fatalf("callGraphMetricsData() error = %v, want nil", err)
+		t.Fatalf("CallGraphMetricsData() error = %v, want nil", err)
 	}
 	span.End()
 	if got, want := IntVal(data, "count"), 1; got != want {
@@ -334,16 +334,16 @@ func TestCallGraphMetricsDataFailsClosedAndRecordsScanOverflow(t *testing.T) {
 	) ([]map[string]any, error) {
 		return make([]map[string]any, 50001), nil
 	}}}
-	data, err := handler.callGraphMetricsData(ctx, callGraphMetricsRequest{
+	data, err := handler.CallGraphMetricsData(ctx, callGraphMetricsRequest{
 		RepoID: "repo-1",
 		Limit:  intPtr(1),
 	})
 	span.End()
 	if !errors.Is(err, errCallGraphMetricsScopeTooBroad) {
-		t.Fatalf("callGraphMetricsData() error = %v, want errCallGraphMetricsScopeTooBroad", err)
+		t.Fatalf("CallGraphMetricsData() error = %v, want errCallGraphMetricsScopeTooBroad", err)
 	}
 	if data != nil {
-		t.Fatalf("callGraphMetricsData() data = %#v, want nil on overflow", data)
+		t.Fatalf("CallGraphMetricsData() data = %#v, want nil on overflow", data)
 	}
 	attributes := make(map[string]any)
 	for _, spanAttribute := range recorder.Ended()[0].Attributes() {
@@ -371,15 +371,15 @@ func TestCallGraphMetricsDataAcceptsExactEdgeScanLimit(t *testing.T) {
 	) ([]map[string]any, error) {
 		return make([]map[string]any, callGraphMetricsEdgeScanLimit), nil
 	}}}
-	data, err := handler.callGraphMetricsData(context.Background(), callGraphMetricsRequest{
+	data, err := handler.CallGraphMetricsData(context.Background(), callGraphMetricsRequest{
 		RepoID: "repo-1",
 		Limit:  intPtr(1),
 	})
 	if err != nil {
-		t.Fatalf("callGraphMetricsData() error = %v, want nil at exact edge scan limit", err)
+		t.Fatalf("CallGraphMetricsData() error = %v, want nil at exact edge scan limit", err)
 	}
 	if got := IntVal(data, "count"); got != 0 {
-		t.Fatalf("callGraphMetricsData() count = %d, want 0 for empty sentinel rows", got)
+		t.Fatalf("CallGraphMetricsData() count = %d, want 0 for empty sentinel rows", got)
 	}
 }
 
