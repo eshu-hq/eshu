@@ -10,7 +10,9 @@ the task needs them; this guide is not a startup reading list for every edit.
 ## Operating Standard
 
 Talk to the repo owner like a peer: direct, plain, and specific. Lead with the
-result, numbers, and caveats. Define jargon the first time it matters.
+result, numbers, and caveats. Define jargon the first time it matters. Name
+everything per [Naming](naming.md): plain English, no directory stutter, no
+glued compounds — for all agent output, not just code.
 
 For runtime work, the order is fixed:
 

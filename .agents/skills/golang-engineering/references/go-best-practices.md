@@ -89,6 +89,23 @@ type CacheStore struct{}
 func (cacheStore *CacheStore) GetCacheEntry(cacheKey string) (Entry, bool) { /* ... */ }
 ```
 
+## Package And File Names
+
+The no-stutter rule extends to the filesystem. These apply to every Go
+package and file in the repo, per [Naming](../../../../docs/internal/naming.md):
+
+- Never repeat the directory name in the file name: `correlation/writer.go`,
+  not `correlation/correlation_writer.go`. The path already carries that
+  information.
+- Never glue two full names into one compound package or directory:
+  `package/correlation`, not `packagecorrelation`. Nest directories so each
+  path level reads as plain English.
+- Keep file names to one short plain-English word naming what the file holds
+  (`writer.go`, `edges.go`, `source.go`), not a prefixed catalog of its
+  contents.
+- When moving code, rename touched paths to these rules — do not carry a
+  glued or stuttering name into its new home.
+
 ## Interfaces
 
 - Do not add interfaces only to make tests easier.
