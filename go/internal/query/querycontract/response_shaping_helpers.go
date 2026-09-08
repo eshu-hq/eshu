@@ -22,8 +22,6 @@ func AppendReason(reasons []string, reason string) []string {
 	return append(reasons, reason)
 }
 
-
-
 // FilterNullRelationships removes entries where "type" is nil, which OPTIONAL
 // MATCH leaves behind when a relationship pattern found no match. It accepts
 // both a decoded []map[string]any and the []any shape a Cypher list

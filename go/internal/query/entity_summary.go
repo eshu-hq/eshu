@@ -5,7 +5,6 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // attachSemanticSummary forwards to entitysemantics.AttachSemanticSummary.
@@ -13,11 +12,4 @@ import (
 // for #6060 lane A L3; this wrapper keeps root callers unchanged.
 func attachSemanticSummary(result map[string]any) {
 	entitysemantics.AttachSemanticSummary(result)
-}
-
-// joinSentenceFragments forwards to querycontract.JoinSentenceFragments. The
-// implementation moved to querycontract for #6060; this wrapper keeps root
-// callers unchanged.
-func joinSentenceFragments(parts []string) string {
-	return querycontract.JoinSentenceFragments(parts)
 }
