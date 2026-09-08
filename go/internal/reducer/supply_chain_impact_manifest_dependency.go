@@ -5,11 +5,11 @@ package reducer
 
 import (
 	"context"
-	"net/url"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -110,38 +110,12 @@ func supplyChainAffectedPackageNameCandidates(pkg supplychainmodel.AffectedPacka
 	return uniqueSortedStrings(candidates)
 }
 
+// packageNameFromPURL forwards to [payloadcore.PackageNameFromPURL].
 func packageNameFromPURL(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	beforeQuery, _, _ := strings.Cut(raw, "?")
-	_, path, ok := strings.Cut(beforeQuery, "/")
-	if !ok {
-		return ""
-	}
-	if versionAt := strings.LastIndex(path, "@"); versionAt > 0 {
-		path = path[:versionAt]
-	}
-	decoded, err := url.PathUnescape(path)
-	if err != nil {
-		return strings.TrimSpace(path)
-	}
-	return strings.TrimSpace(decoded)
+	return payloadcore.PackageNameFromPURL(raw)
 }
 
+// packageNameFromPackageID forwards to [payloadcore.PackageNameFromPackageID].
 func packageNameFromPackageID(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	_, afterScheme, ok := strings.Cut(raw, "://")
-	if !ok {
-		return ""
-	}
-	_, path, ok := strings.Cut(afterScheme, "/")
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(path)
+	return payloadcore.PackageNameFromPackageID(raw)
 }

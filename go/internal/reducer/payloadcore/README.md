@@ -32,7 +32,9 @@ do not belong here even when more than one family reads them.
 - String normalization: `UniqueSortedStrings`, `AppendUniqueString`,
   `CompactStringSlice`, `CleanFactFilterValues`, `NonNilStrings`,
   `FirstNonBlank`, `DerefString`, `DerefBool`, `SortedKeys`, `FormatTally`,
-  `MissingStrings`.
+  `MissingStrings`, `StringSet`, `CloneBoolPointer`, `OrderedStrings`,
+  `NonVersionDependencyPrefix`, `ExactManifestDependencyVersion`,
+  `PackageNameFromPURL`, `PackageNameFromPackageID`.
 - Identity derivation: `RepositoryIDFromReducerScope`,
   `SupplyChainWorkloadIDsFromPayload`, `OCIRepositoryID`.
 - Source ordering: `SourceOrderKey`, `PreferMaxSourceOrderKey`,

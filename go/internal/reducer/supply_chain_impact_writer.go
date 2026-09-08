@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
@@ -472,15 +473,7 @@ func orderedUniqueStrings(values []string) []string {
 	return out
 }
 
+// orderedStrings forwards to [payloadcore.OrderedStrings].
 func orderedStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			out = append(out, value)
-		}
-	}
-	return out
+	return payloadcore.OrderedStrings(values)
 }

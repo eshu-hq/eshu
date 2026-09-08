@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -116,20 +117,12 @@ func supplyChainConsumptionFromManifestDependency(
 	}
 }
 
+// stringSet forwards to [payloadcore.StringSet].
 func stringSet(values []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			out[value] = struct{}{}
-		}
-	}
-	return out
+	return payloadcore.StringSet(values)
 }
 
+// cloneBoolPointer forwards to [payloadcore.CloneBoolPointer].
 func cloneBoolPointer(value *bool) *bool {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
+	return payloadcore.CloneBoolPointer(value)
 }
