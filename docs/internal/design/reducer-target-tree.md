@@ -104,9 +104,12 @@ Notes with alternatives considered:
 
 ## The spine (stays in root, <=40)
 
-`registry*.go` (2), `defaults*.go` (17), `intent.go` + `intent_value.go`
+`registry.go` + `registry_additive_domains.go` (2; `defaults_registry.go`
+counts under `defaults*`), `defaults*.go` (17), `intent.go` + `intent_value.go`
 (2; `intent_emission.go` and `intent_domain_platform.go` are triage below),
-`domain.go` (1), `cross_scope*.go` (2), `doc.go` (1), flat singles
+`domain.go` (1), `cross_scope*.go` (2, incl. `cross_scope_readiness_compat.go`,
+which burns down with the 20 — spine re-derives to 38 after the
+crossscope move), `doc.go` (1), flat singles
 `dependency.go`, `observability.go`, `partitioning.go`, `platforms.go`,
 `projection.go` (5), service/runtime core (8, listed above),
 `candidate_loader.go` (1): **39 files**. The 20 `*_compat.go`
@@ -114,10 +117,13 @@ forwarders burn down to zero as families move (no new forwarders, ever).
 `shared_projection*` (11) is NOT spine. Hoist trigger (exact): the first
 domain move whose `go/types` census references a `shared_projection*`
 symbol carries the hoist in the same PR; direction is family -> shared
-tier, never root <- family; the SHA256 intent-ID derivation
-(`shared_projection.go:62-74`) is byte-preserved and proven by B-7/B-12
+tier, never root <- family; the shared-projection intent identity
+(`shared_projection.go`) is byte-preserved and proven by B-7/B-12
 like any other move. No earlier hoist (nothing needs it yet), no later
-one (the first needy family cannot import root).
+one (the first needy family cannot import root). (No line-anchored hash
+cite: no SHA256 derivation lives in `shared_projection*.go` — the
+`shared_projection.go:62-74` anchor from `go/internal/reducer/AGENTS.md`
+points at the domain registry block, and that AGENTS.md cite is stale.)
 
 ## Triage roll (prefix-proposed, symbol-confirmed at move time)
 
@@ -135,7 +141,7 @@ when it disagrees. Never a new top-level package for any of them.
 | `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `decode/` children by census (`intent_emission.go` defaults to `decode/facts`) |
 | `platform_infra_materialization.go` (`platform_compat.go` burns down) | `repodependency/platform` |
 | `repo_workload.go` | `workload/repo` |
-| `package_publication.go`, `package_provenance.go` (singletons beyond the 11) | `packagecorrelation/core` |
+| `package_publication_correlation.go`, `package_provenance_edges.go` (already inside the counted 11; no additional singletons) | `packagecorrelation/core` |
 | `code_function*` (2) | `code/` child by census |
 | `value_flow.go` | `code/value` |
 | `workload_*` singletons (signal, identity, deployment, dependency, cloud, instance) | `workload/` children by census |
@@ -144,25 +150,43 @@ when it disagrees. Never a new top-level package for any of them.
 
 ## Sequencing (largest first, one family per PR)
 
-1. `packagecorrelation` (12 files; needs 5 generic-func evictions to
-   `payloadcore` first — `cloneBoolPointer`, `stringSet`,
+1. `packagecorrelation` (12 files: the 11 `package_*` — 13 glob hits
+   minus the two `supply_chain_impact_os_package_*` files — plus
+   `security_alert_manifest_dependency_match.go`; needs 6 generic-func
+   evictions to `payloadcore` first — `cloneBoolPointer`, `stringSet`,
    `exactManifestDependencyVersion`, `orderedStrings`,
-   `securityAlertPackageNameMatches` — measured 2026-09-08 on #6061, no
-   cycles after eviction).
+   `packageNameFromPURL`, `packageNameFromPackageID` — measured 2026-09-08
+   on #6061, no cycles after eviction). `securityAlertPackageNameMatches`
+   does NOT evict to `payloadcore`: it takes
+   `securityalert.ProviderSecurityAlert`, which would violate payloadcore's
+   no-family-dependencies boundary (`payloadcore/README.md:17-24`). It
+   travels WITH the leaf into `packagecorrelation/core`, importing the
+   already-extracted `securityalert/` subpackage one-way.
 2. `supplychain` core + suppression together (67 files, explicitly
    including `supply_chain_impact_finding.go`: suppression signatures take
    `SupplyChainImpactFinding`, so moving the unit while `finding.go` stays
    is a root<->package cycle — the unit is finding+core+suppression or
    nothing; `model` leaf #6568 already merged as the stated prerequisite).
-3. `code/` (52+2, plus `repodependency/import` separately; the
-   `code_call_projection` runner stays root per #6609, which is OPEN and
-   orders before this step; `sharedintent/doc.go` pins that machinery).
-   The stay set is #6609's list verbatim at move time — copied, never
-   guessed by the executor.
+3. `code/` (45 = 52 `code_call*` minus the 7 `code_call_projection*`
+   runner-stays, plus 2 `code_value*` = 47; `code_import*` travels
+   separately in `repodependency/import`; the runner stay set is #6609's
+   list verbatim at move time — copied, never guessed; `sharedintent/doc.go`
+   pins that machinery, and #6609 is OPEN and orders before this step).
 4. `cloud/`, `workload/`, `repodependency/`, `intents/`, `edges/` in
    measured order; re-derive each family with `go/types` first — filename
    prefixes lie (per Lane A's query census: 4 of 46 `code*.go` files
    belonged to a different handler).
+5. `iam/` (relocate the four existing subpackages under `iam/`: 11+3+6+3
+   files, no root strays to adjudicate).
+6. `kubernetes/` (relocate `kubernetescorrelation` + `crossplane`, absorb
+   `kubernetes_*` 3).
+7. `security/` (relocate `securityalert`, `secgroup`, `secretsiam`,
+   `incident`; absorb `secrets_iam.go`).
+8. `search/` (relocate `eshusearch`, `searchvector`, `semanticentity`;
+   absorb `semantic_entity.go`).
+9. `decode/` (relocate `schemadecode`, `factdecode`, `factload`,
+   `factwrite`, `payloadcore`, `admissiondecision`; absorb
+   `intent_emission.go` by default; `candidate_loader.go` stays spine).
 
 Preconditions per move PR: all-lanes-quiet window (re-check open PRs every
 preflight); `internal/query` untouched (lanes A/B, #5167); one-way imports
@@ -175,11 +199,15 @@ root); gate/spec lockstep in the same PR.
   with logic changes.
 - `go build ./...` + `go vet ./...`; `go test ./internal/reducer/...`
   `-count=1` recursive (never a bare package); repoint proof via
-  `go test -list` (a stale `-run` selects 0 tests yet exits 0).
+  `go test ./internal/reducer/<newpkg>/... -list '.*' -count=1`
+  (`-list` takes a regexp — the bare form exits 2; a stale `-run`
+  selects 0 tests yet exits 0).
 - Golden corpus (B-7) and e2e snapshot (B-12) byte-identical or STOP.
 - Every new directory carries `doc.go`, `README.md`, `AGENTS.md` with real
   content.
-- `ci-gates validate --drift` passes; telemetry-coverage row check passes.
+- `ci-gates validate --registry specs/ci-gates.v1.yaml --repo-root . --drift`
+  passes (`--registry` is required — the bare `--drift` form exits
+  non-zero); telemetry-coverage row check passes.
 - Dirgate row re-pinned DOWN in the same PR (see restack rule below).
 - `eshu-code-review` P0=P1=P2-blocking=0 on both sides of the promotion
   preflight; only the coordinator runs `make pre-pr`, once per push.
@@ -191,7 +219,10 @@ The ledger (`scripts/lib/dirgate-grandfather.tsv`, row 88:
 (`scripts/test-generate-dirgate-grandfather-go.sh`) conflict on every
 sibling merge, and a clean merge is the dangerous case. Every move PR:
 take `origin/main`'s copy of both, re-derive count and digest for the real
-tree, regenerate the mirror, check the sums. Never carry a ledger resolution
+tree, regenerate the mirror with `scripts/generate-dirgate-grandfather-go.sh`
+(committed output: `tools/golangci-lint-dirgate/grandfather.go` — never
+hand-edit it; `scripts/test-generate-dirgate-grandfather-go.sh` only
+asserts), check the sums. Never carry a ledger resolution
 forward across a rebase without re-deriving.
 
 ## Prior art disposition
