@@ -235,6 +235,21 @@ rc=$?
 set -e
 check "an unknown flag exits 2" 2 "$rc"
 
+# 9. FAILS CLOSED. An unresolvable --base must abort with exit 2, never exit 0.
+#    The evidence note cites this as the reason the gate can never pass
+#    silently, so the claim needs a case rather than a one-off manual run. The
+#    all-zero ref is used deliberately: it resolves in no clone, and the gate
+#    aborts at the `git diff` before any sweep, so this case costs one git call.
+repo="$(new_repo)"
+set +e
+out="$(cd "$repo" && ./scripts/verify-moved-file-refs.sh \
+  --base 0000000000000000000000000000000000000000 2>&1)"
+rc=$?
+set -e
+check "an unresolvable base exits 2, not 0" 2 "$rc"
+check_output "says the scan did not run" "the scan did not run" "$out"
+rm -rf "$repo"
+
 if [ "$failures" -gt 0 ]; then
   printf '\ntest-verify-moved-file-refs: %s failure(s)\n' "$failures" >&2
   exit 1
