@@ -8,7 +8,7 @@
 3. `../intent/AGENTS.md` for the neutral builder contract.
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs first.
-5. `go/internal/reducer/package_source_correlation_handler.go` for what the
+5. `go/internal/reducer/packagecorrelation/source_handler.go` for what the
    reducer does with the intent this package enqueues.
 
 ## Invariants

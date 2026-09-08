@@ -328,7 +328,7 @@ of these:
    `if envelope.FactKind != facts.<Kind>FactKind { continue }`, is extremely
    common — ~50 occurrences in `go/internal/reducer` alone — and was missing
    from round 1's `token.EQL`-only match; it is what
-   `go/internal/reducer/package_source_correlation.go:98` uses to consume
+   `go/internal/reducer/packagecorrelation/source.go:83` uses to consume
    `package_registry.source_hint`) dispatch on the raw envelope kind, scoped
    to `go/internal/reducer` only (never the projector — see
    `factsDispatchedKinds`'s doc comment for why

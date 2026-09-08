@@ -32,6 +32,6 @@
 // SecurityAlertPackageNameMatches), the correlation builders and writers,
 // the durable fact-kind consts, and the narrow loader interfaces the
 // supply-chain handler shares. Test seams for the reducer root's own test
-// files live in package_provenance_root_compat_exports.go, following the
+// files live in provenance_root_compat_exports.go, following the
 // containerimage precedent.
 package packagecorrelation

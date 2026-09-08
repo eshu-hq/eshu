@@ -30,7 +30,7 @@ const packageSourceCorrelationCostIntentID = "intent-package-source-correlation-
 // packageSourceCorrelationFixtureDecisions is the deterministic input for
 // this scenario: two exact-outcome package OWNERSHIP decisions for distinct
 // packages in one scope. WritePackageCorrelations
-// (go/internal/reducer/package_correlation_writer.go) now combines the
+// (go/internal/reducer/packagecorrelation/writer.go) now combines the
 // ownership, consumption, and publication decision lists into ONE
 // reducerBatchInsertVersionedFacts bulk-insert call (issue #5317) instead of
 // one ExecContext per decision spread across three separate loops; this

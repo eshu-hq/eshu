@@ -13,7 +13,7 @@ import (
 // the regression test for the codex #4724 P2 accuracy finding: the
 // pre-migration reducer read every ci.* payload field through payloadcore.PayloadString,
 // which did strings.TrimSpace(fmt.Sprint(value)) on every read
-// (go/internal/reducer/package_correlation_writer.go:payloadcore.PayloadString). The typed
+// (go/internal/reducer/payloadcore/payload.go:41:payloadcore.PayloadString). The typed
 // decode seam preserves the raw, untrimmed collector string, so without an
 // explicit trim at the point of use the correlation key and the anchor
 // emptiness checks drift for padded/whitespace inputs:
