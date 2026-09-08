@@ -252,8 +252,13 @@ func contentEntityTypeForResolve(typeName string) string {
 
 // ResolveGraphEntityType maps a user-facing entity type to its graph label
 // plus semantic key/value. Exported for the staying root live comparison
-// test; the canonical home stays here beside the other content-type maps.
+// test via the root forwarder; the canonical implementation stays
+// unexported beside the other content-type maps.
 func ResolveGraphEntityType(typeName string) (string, string, string, bool) {
+	return resolveGraphEntityType(typeName)
+}
+
+func resolveGraphEntityType(typeName string) (string, string, string, bool) {
 	if graphLabel, semanticKey, semanticValue, ok := querycontract.ElixirGraphSemanticEntityType(typeName); ok {
 		return graphLabel, semanticKey, semanticValue, true
 	}
