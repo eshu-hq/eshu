@@ -206,3 +206,36 @@ resolvable callers it has on main. The guard is byte-identical to `origin/main`.
 Widening it to tolerate an uncalled forwarder was considered and rejected: it
 would have made the sweep fail open for every zero-caller function in the tree,
 permanently, which is a strictly worse outcome than the failure it silences.
+
+## Performance and observability
+
+No-Regression Evidence: this change relocates declarations and rewrites call
+sites; it adds no query, no loop, no allocation in a hot path, and no I/O. The
+proof that nothing executable changed shape is the tree-wide query-literal
+multiset above: 889 literals, 760 distinct, digest
+`2865463fa1884fec07075cc7b3c34a113cfa94835c7992883530c271335be1e3`, identical
+at the base commit and at head, with an empty sorted-multiset diff. Every
+statement therefore plans against the same anchors with the same bounds and the
+same `LIMIT`s as before. No index, DDL, batch size, worker count, lease or queue
+setting appears in the diff. Timing figures are deliberately not quoted: with
+identical statements against an unchanged schema, a measured delta would be
+sampling noise presented as a result.
+
+The three queryplan dispositions this PR converts from legacy prose to typed
+`non_hot` entries are classifications of existing behavior, not changes to it.
+`handleCypherQuery` and `handleVisualizeQuery` become
+`operator_query`/`validated_query_endpoint`, which is what they already were:
+operator-facing endpoints that run caller-supplied Cypher behind
+`validateReadOnlyCypher`. `routeToCallerDirectionRows` becomes
+`keyed_support`/`single_key` with `max_results: 101`, which matches its
+`$handler_id` anchor and the request `Limit` clamp of 100 in
+`code_route_to_caller.go`.
+
+No-Observability-Change: no span, metric, log line or status field is added,
+removed or renamed. The one telemetry-adjacent change is that the code family
+now starts its handler spans through its own `codeQueryHandlerTracer` in
+`code_handler_tracing.go` rather than root's `queryHandlerTracer`. Both are
+seeded from `queryspan.HandlerTracer()`, so the tracer name, span names, and
+route/capability attributes an operator sees are unchanged. The split exists
+because root's span tests swap that package-level var, and a shared var would
+make the two suites interfere once the code family has its own tests.
