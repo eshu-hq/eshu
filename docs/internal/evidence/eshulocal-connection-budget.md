@@ -180,6 +180,17 @@ That failure is the point: the previous assertion compared against
 server started following the configured pool. Comparing against the resolved
 value is what makes this test correct rather than incidentally passing.
 
+## Known limit: the derived ceiling has no upper bound
+
+`ResolveLocalPostgresMaxConnections` multiplies the configured per-process pool
+by the holder count with no cap, so a large `ESHU_POSTGRES_MAX_OPEN_CONNS` sizes
+the embedded postmaster past what it can allocate and `eshu local` fails to
+start. The failure is loud -- the postmaster refuses to start and reports the
+shared-memory request -- rather than silent, and it takes an operator value well
+outside the documented range to reach it. Recorded as a known limit rather than
+capped here: choosing the cap is a product decision about the supported range of
+that knob, not a correction to this budget.
+
 ## Known limit: the list counts ROLES, not process instances
 
 Found in review of this change, and it is the sharper of the two limits.
@@ -340,8 +351,11 @@ raise than "the new value is near PostgreSQL's default of 100" — which is a
 headroom observation, not a mechanism. Credit to the reviewer for finding it.
 
 Performance Evidence: raising a Postgres server's `max_connections` increases
-allocated shared memory, which is why the ceiling is derived from the pool budget
-(`5 x 30 + 20 = 170`) rather than matching Compose's 640. The added shared memory
+allocated shared memory, which is why the floor is derived from the pool budget
+(`5 x 30 + 20 = 170`) rather than matching Compose's 640. Read 170 as the FLOOR for the
+default per-process pool rather than a fixed ceiling: `ResolveLocalPostgresMaxConnections`
+raises it whenever the configured pool is larger, and the allocation rises with
+it (a pool of 60 gives 320). The added shared memory
 is the increment from 35 to 170. For scale, a stock PostgreSQL install defaults
 to 100 -- the same order this repo already reasons about elsewhere
 (`gated_writer.go` works from `max_connections=100` defaults) -- so 170 is
