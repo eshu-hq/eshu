@@ -39,7 +39,12 @@
 // EXPLAINed, so a builder change changes what this test measures instead of
 // leaving it measuring a stale copy.
 //
-// No CI job builds this tag. Run it against a disposable PostgreSQL 16:
+// CI compiles this tag but never executes it. `verify-tagged-builds.sh --all`
+// discovers every directory under `go/` holding a `//go:build` file and runs
+// one `go vet` per distinct constraint, and the static-contract workflow runs
+// that sweep on any `go/**` change -- so a compile break here is caught, and a
+// behavioral break is not. Nothing in CI has a PostgreSQL to point this at.
+// Run it yourself against a disposable PostgreSQL 16:
 //
 //	ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN=... \
 //	ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=yes \
