@@ -54,7 +54,7 @@ problem. `contract/` stays top-level (shared vocabulary, never a domain).
 | `kubernetes/` | `correlation` (`kubernetescorrelation` 8 + `kubernetes_*` 3), `crossplane` (`crossplane`, 5) | `kubernetes_*` 3 |
 | `security/` | `alert` (`securityalert`, 12), `group` (`secgroup`, 6), `secrets` (`secretsiam` 14 + `secrets_iam.go`), `incident` (`incident`, 8) | `secrets_iam.go` (1; the rest already subpackages) |
 | `search/` | `eshu` (`eshusearch`, 9), `vector` (`searchvector`, 4), `semantic` (`semanticentity` 5 + `semantic_entity.go`) | `semantic_entity.go` |
-| `decode/` | `schema` (`schemadecode`, 22), `facts` (`factdecode`, 4 + `intent_emission.go` by default, census confirms), `load` (`factload`, 3), `write` (`factwrite`, 6), `payload` (`payloadcore`, 8), `admission` (`admissiondecision`, 2), `join` (`cloudjoin`, 4) | — (`candidate_loader.go` is sole-claimed by the spine) |
+| `decode/` | `schema` (`schemadecode`, 22), `facts` (`factdecode`, 4 + `intent_emission.go` by default, census confirms), `load` (`factload`, 3), `write` (`factwrite`, 6), `payload` (`payloadcore`, 8), `admission` (`admissiondecision`, 2) | — (`candidate_loader.go` is sole-claimed by the spine; `cloudjoin/` stays top-level, see note) |
 | `intents/` | `shared` (`sharedintent`, 4), `phases` (`gpphase`, 9), `maintenance` (`maintenance`, 7), `crossscope` (`crossscope`, 4) | — (all four already subpackages) |
 | `edges/` | `inheritance` (`inheritance`, 7), `sql` (`sqlrelationship`, 9), `dsl` (`dsl`, 3), `tags` (`tags`, 3), `rationale` (new: `rationale*` 3), `graph` (new: `graph_*` 4) | `rationale*` 3, `graph_*` 4 |
 
@@ -82,10 +82,13 @@ Notes with alternatives considered:
 - `crossscope` lands in `intents/crossscope`: it is read by more than one
   family (generic by the classification rule), gating cross-scope consumers
   on producer readiness.
-- `cloudjoin` lands in `decode/join`: an in-memory identity-join mechanism
-  called from `awscloud`, `iaminstprofile`, `iamescalation`, and root
-  `aws_relationship_join.go` — shared-core by the same rule, alongside the
-  other mechanism tiers in `decode/`.
+- `cloudjoin/` stays top-level as an extracted shared-core leaf (owner
+  decision on #6614): its README declares it shared-core, not a domain
+  family — an identity join consumed by cloud-family packages — so nesting
+  it under one family would cross the one-way-import tiers, and moving it
+  under `decode/` would buy a churn PR with no navigability gain. Like the
+  shared-projection tier, it is accounted for exactly where it stands; no
+  move PR owns it.
 - `cicdrun` lands in `supplychain/cicd`: CI-run-to-image provenance, in the
   measured cycle with `supply_chain` and `containerimage`.
 - `incident` lands in `security/incident`: closest of the thirteen; it is
@@ -150,7 +153,7 @@ when it disagrees. Never a new top-level package for any of them.
 | `value_flow.go` | `code/value` |
 | `workload_*` singletons (signal, identity, deployment, dependency, cloud, instance) | `workload/` children by census |
 | `runs*`, `handles*`, `invokes*`, `endpoint*`, `selection*`, `shell*`, `scoped*`, `projected*`, `documentation*`, `codeowners*`, `environment*`, `symbol*`, `source*`, `materializ*`, `infrastructure*`, `cross*`, `go*`, `python*`, `parsed*` | census at move time; no placement asserted here |
-| `servicecatalog/` (17, stays top-level interim) | destination by census at domain-move time; service-catalog correlation has no domain home yet — this is the one existing subpackage without one |
+| `servicecatalog/` (17, stays top-level interim) | destination by census at domain-move time — the one package still awaiting a home (`cloudjoin/` is decided top-level shared, above) |
 
 ## Sequencing (largest first, one family per PR)
 
