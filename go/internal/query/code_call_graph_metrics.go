@@ -123,7 +123,15 @@ func (h *CodeHandler) CallGraphMetricsData(ctx context.Context, req callGraphMet
 	// repository its grant does not include. Both answer as the empty read
 	// does, so an ungranted repository is indistinguishable from one with no
 	// metrics -- the caller learns nothing about a repository it cannot see.
-	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	//
+	// It binds codeGrantAccessFilter, the grant the selector resolution above
+	// already used, rather than the raw context filter. A token granted only a
+	// git ingestion scope carries no canonical repository id, so the raw filter
+	// refuses the very repo_id the selector just resolved for it and the caller
+	// reads an empty page from a repository it holds -- the scope-versus-
+	// canonical mismatch #5052 fixed and codeGrantAccessFilter exists to keep
+	// fixed. TestCallGraphMetricsResolvesAScopeOnlyGrantToItsRepository pins it.
+	access := codeGrantAccessFilter(ctx)
 	if access.Empty() {
 		return callGraphMetricsResponse(req, nil), nil
 	}

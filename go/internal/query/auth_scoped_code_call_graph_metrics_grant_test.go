@@ -238,3 +238,39 @@ func TestGraphSummaryHotEntitiesEdgePassIsUnchanged(t *testing.T) {
 		t.Fatalf("an out-of-grant repo_id reached the edge pass:\n%s", ungranted)
 	}
 }
+
+// TestCallGraphMetricsResolvesAScopeOnlyGrantToItsRepository is the regression
+// for the #6060 export re-checking the grant with the raw context filter.
+//
+// A token granted only the git ingestion scope carries no canonical repository
+// id. applyRepositorySelectorForCapability resolves repo_id through
+// codeGrantAccessFilter, which reads the scope back as the repository it owns,
+// so the selector step admits the request. A second check built on
+// querycontract.RepositoryAccessFilterFromContext does not canonicalize, so it
+// refuses the id the selector just resolved and the caller reads an empty page
+// from a repository it holds -- the scope-versus-canonical mismatch #5052
+// fixed in keyword search.
+//
+// The empty-grant and ungranted-repository regressions cannot catch this: both
+// assert that the read does NOT reach the graph, and this asserts that it does.
+func TestCallGraphMetricsResolvesAScopeOnlyGrantToItsRepository(t *testing.T) {
+	t.Parallel()
+
+	auth := AuthContext{
+		Mode:            AuthModeScoped,
+		TenantID:        "tenant-a",
+		WorkspaceID:     "workspace-a",
+		AllowedScopeIDs: []string{"git-repository-scope:" + codeGrantGrantedRepo},
+	}
+	captured, params, status := captureCallGraphMetricsCypher(t, &auth, callGraphMetricsGrantBody())
+
+	if status != http.StatusOK {
+		t.Fatalf("scope-only grant status = %d, want %d", status, http.StatusOK)
+	}
+	if captured == "" {
+		t.Fatal("a scope-only grant did not reach the graph for the repository its scope owns")
+	}
+	if got := params["repo_id"]; got != codeGrantGrantedRepo {
+		t.Fatalf("scope-only grant ran the edge scan for repo_id %v, want %q", got, codeGrantGrantedRepo)
+	}
+}

@@ -23,6 +23,21 @@ repository is indistinguishable from one with no metrics and the caller learns
 nothing about a repository it cannot see. This adds a guard ahead of the graph
 read; it removes no result any authorized caller could previously obtain.
 
+That last clause is load-bearing and the first version of this guard broke it.
+The guard binds `codeGrantAccessFilter`, the same grant the selector resolution
+immediately above it already used, and not the raw
+`querycontract.RepositoryAccessFilterFromContext`. A token granted only a git
+ingestion scope ("git-repository-scope:repo://tenant-a/granted-service") carries
+no canonical repository id, so the raw filter refuses the very `repo_id` the
+selector had just resolved for that caller and answers the empty stub. That is
+reachable through the normal HTTP route, not only through the newly exported
+method, and it is the scope-versus-canonical mismatch #5052 fixed in keyword
+search. `TestCallGraphMetricsResolvesAScopeOnlyGrantToItsRepository` pins it:
+it asserts the read *does* reach the graph, which is the assertion the two
+refusal regressions structurally cannot make. It failed with the raw filter
+("a scope-only grant did not reach the graph for the repository its scope
+owns") and passes with `codeGrantAccessFilter`.
+
 That guard is mutation-proved rather than merely covered:
 `TestCallGraphMetricsDataRefusesARepositoryOutsideTheGrant` fails with the guard
 removed ("CallGraphMetricsData ran the graph query for a repository outside the
