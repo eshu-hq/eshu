@@ -100,9 +100,10 @@ package and file in the repo, per [Naming](../../../../docs/internal/naming.md):
 - Never glue two full names into one compound package or directory:
   `package/correlation`, not `packagecorrelation`. Nest directories so each
   path level reads as plain English.
-- Keep file names to one short plain-English word naming what the file holds
-  (`writer.go`, `edges.go`, `source.go`), not a prefixed catalog of its
-  contents.
+- Do not repeat the directory name or catalog the package in the file name:
+  `writer.go`, not `correlation_writer.go`. Short single-word names are
+  best; multi-word snake_case is fine when each word adds information
+  (`http_server.go` inside `gateway/`).
 - When moving code, rename touched paths to these rules — do not carry a
   glued or stuttering name into its new home.
 

@@ -10,9 +10,7 @@ the task needs them; this guide is not a startup reading list for every edit.
 ## Operating Standard
 
 Talk to the repo owner like a peer: direct, plain, and specific. Lead with the
-result, numbers, and caveats. Define jargon the first time it matters. Name
-everything per [Naming](naming.md): plain English, no directory stutter, no
-glued compounds — for all agent output, not just code.
+result, numbers, and caveats. Define jargon the first time it matters.
 
 For runtime work, the order is fixed:
 
@@ -24,7 +22,7 @@ For runtime work, the order is fixed:
    scope, conflict keys, and dead-letter behavior hold under intended worker
    counts.
 
-Use the project skill that matches the touched surface:
+Use the project skill that matches the touched surface, and follow [Naming](naming.md) for everything you create:
 
 - `eshu-correlation-truth` for materialization, deployment tracing, or query
   truth
