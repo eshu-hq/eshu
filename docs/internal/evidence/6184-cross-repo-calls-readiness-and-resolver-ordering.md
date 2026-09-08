@@ -86,13 +86,15 @@ the runner check (lease claimed, `BlockedReadiness == 0`).
   (67 scopes, 3,866 facts), `CALLS` 115/116, `EvidenceArtifact` settling at
   pass 2.
 - After (unit level, this change): no hot-path Cypher change, no batch-size
-  change, no worker-count change. Steady-state cost of the fix is one
-  index-served `EXISTS` per code-call poll cycle:
+  change, no worker-count change. Steady-state cost of the fix is at most
+  two index-served `EXISTS` probes per code-call poll cycle per partition
+  (active-work plus quiescence):
   `fact_records_scope_generation_idx(scope_id, generation_id, fact_kind)`
-  covers the repository-fact probe and the phase probe hits the
-  `graph_projection_phase_state` primary-key prefix, over a scope-count row
-  set with short-circuit on first match. No new index: a per-cycle,
-  scope-count EXISTS does not meet the index doctrine's hot-and-wide bar.
+  covers the repository-fact probe and the phase probe rides the
+  `graph_projection_phase_state` primary-key's `scope_id` prefix with
+  generation/keyspace/phase as filters, over a scope-count row set with
+  short-circuit on first match. No new index: per-cycle, scope-count
+  EXISTS probes do not meet the index doctrine's hot-and-wide bar.
 - After (live rebuild level): PENDING — the local Docker daemon is wedged
   (buildkit EOF mid-build; container APIs EOF), so
   `scripts/verify-graph-rebuild-from-facts.sh` could not run here. It moves

@@ -78,6 +78,49 @@ func TestAggregateCandidateEvidencePreviewIsOrderIndependent(t *testing.T) {
 	}
 }
 
+// TestAggregateCandidateRationaleAndRepoOrderIndependent closes the F1 gap
+// from the #6184 review: rationale join order and first-non-empty repo IDs
+// are order-sensitive accumulations that live outside Details, so two facts
+// identical on every preview-relevant field but differing in rationale or
+// repo IDs must still aggregate identically in both input orders.
+func TestAggregateCandidateRationaleAndRepoOrderIndependent(t *testing.T) {
+	t.Parallel()
+
+	key := entityTriple{
+		SourceEntityID:   "repo:source",
+		TargetEntityID:   "repo:target",
+		RelationshipType: RelationshipType("DEPENDS_ON"),
+	}
+	twin := func(rationale, srcRepo, tgtRepo string) EvidenceFact {
+		return EvidenceFact{
+			EvidenceKind:     EvidenceKind("PACKAGE_MANIFEST"),
+			RelationshipType: RelationshipType("DEPENDS_ON"),
+			SourceRepoID:     srcRepo,
+			TargetRepoID:     tgtRepo,
+			SourceEntityID:   "repo:source",
+			TargetEntityID:   "repo:target",
+			Confidence:       0.65,
+			Rationale:        rationale,
+			Details: map[string]any{
+				"path":          "package.json",
+				"matched_value": "d",
+			},
+		}
+	}
+	forward := []EvidenceFact{
+		twin("first rationale", "repo:a", "repo:x"),
+		twin("second rationale", "repo:b", "repo:y"),
+	}
+	reversed := []EvidenceFact{forward[1], forward[0]}
+
+	gotForward := aggregateCandidate(key, forward)
+	gotReversed := aggregateCandidate(key, reversed)
+	if !reflect.DeepEqual(gotForward, gotReversed) {
+		t.Fatalf("aggregateCandidate depends on input order for rationale/repo twins:\nforward:  %+v\nreversed: %+v",
+			gotForward, gotReversed)
+	}
+}
+
 // newOrderProbeFact builds one evidence fact for the order-independence probe.
 func newOrderProbeFact(kind, path, matched string, confidence float64) EvidenceFact {
 	return EvidenceFact{
