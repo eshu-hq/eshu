@@ -378,20 +378,25 @@ The table row now reads 64 x 170 = 10,880 slots, 170% of the 6,400 the chunker
 assumes.
 
 No-Regression Evidence: relative to `origin/main` this branch adds
-`ResolveLocalPostgresMaxConnections` plus its single call site in
-`embeddedPostgresConfig`, which turns the `max_connections` start parameter from
+`ResolveLocalPostgresMaxConnections` plus its single production call site in
+`embeddedPostgresConfig` (the unit and live tests call it too), which turns the `max_connections` start parameter from
 a compile-time constant into one `os.Getenv` read performed once at process
 start. No other production path changes. The value is never consulted per
 request or per work item, so there is no added steady-state work to measure.
 The arithmetic itself is bound by the table in
 `TestResolveLocalPostgresMaxConnectionsFollowsConfiguredPool`, and the carried
 live test asserts the resolved value actually reaches the postmaster via
-`SHOW max_connections`. That live assertion was executed on the branch this fix
-was carried from, at `ESHU_POSTGRES_MAX_OPEN_CONNS=60`, reporting
-`max_connections = 320` (5 holders x 60 + 20 reserved) with exit 0, and a
-negative control pinned back to the old constant failed with
-`SHOW max_connections = 320, want 170`. It has not been re-executed at this
-head, which carries the identical test file.
+`SHOW max_connections`. That live assertion was executed at
+`ESHU_POSTGRES_MAX_OPEN_CONNS=60`, reporting `max_connections = 320`
+(5 holders x 60 + 20 reserved) with exit 0, and a negative control pinned back
+to the old constant failed with
+`SHOW max_connections = 320, want 170 (the resolved local pool budget)`.
+PROVENANCE, stated rather than implied: that run happened on a pre-merge commit
+of the branch this fix was carried from, which is not reachable from any remote
+ref, so it is not independently reproducible from the repository. The work it
+belonged to merged as `a7d22aa7f` (#6603), but main's copy of the test differs
+from the reviewed one -- carrying that difference forward is why this branch
+exists. The assertion has NOT been re-executed at this head.
 
 No-Observability-Change: this branch adds no runtime signal and removes none.
 The resolved ceiling is a start parameter visible through `SHOW max_connections`
