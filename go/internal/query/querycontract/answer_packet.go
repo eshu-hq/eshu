@@ -282,7 +282,7 @@ func surfaceAnswerPacketFreshnessNextCheck(packet *AnswerPacket, freshness Truth
 	if !ValidFreshnessCause(freshness.Cause) || freshness.NextCheck == nil {
 		return
 	}
-	call := freshnessNextCheckAsRecommendedCall(*freshness.NextCheck)
+	call := FreshnessNextCheckAsRecommendedCall(*freshness.NextCheck)
 	if len(call) == 0 {
 		return
 	}
@@ -310,7 +310,7 @@ func answerPacketRecommendedCallsEqual(a, b map[string]any) bool {
 // call as a recommended-next-call map. The implementation moved from root's
 // freshness_causality.go for #6060 so a handler-family subpackage can build
 // the same call without importing root.
-func freshnessNextCheckAsRecommendedCall(next FreshnessNextCheck) map[string]any {
+func FreshnessNextCheckAsRecommendedCall(next FreshnessNextCheck) map[string]any {
 	call := map[string]any{}
 	if tool := strings.TrimSpace(next.Tool); tool != "" {
 		call["tool"] = tool

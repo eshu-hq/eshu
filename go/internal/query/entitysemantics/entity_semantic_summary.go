@@ -192,7 +192,7 @@ func buildEntitySemanticSummary(entity map[string]any) string {
 		if wrapperKind != "" {
 			fragments = append(fragments, "is wrapped by "+wrapperKind)
 		}
-		if boolValue(metadata["jsx_fragment_shorthand"]) {
+		if querycontract.BoolValue(metadata["jsx_fragment_shorthand"]) {
 			fragments = append(fragments, "uses JSX fragment shorthand")
 		}
 		if len(fragments) > 0 {
@@ -345,7 +345,7 @@ func buildEntitySemanticSummary(entity map[string]any) string {
 	if jsSemantics.Docstring != "" {
 		fragments = append(fragments, fmt.Sprintf("is documented as %q", jsSemantics.Docstring))
 	}
-	if boolValue(metadata["jsx_fragment_shorthand"]) {
+	if querycontract.BoolValue(metadata["jsx_fragment_shorthand"]) {
 		fragments = append(fragments, "uses JSX fragment shorthand")
 	}
 	if constructorKind, _ := metadata["constructor_kind"].(string); constructorKind != "" {

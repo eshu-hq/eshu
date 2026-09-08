@@ -90,7 +90,7 @@ func BuildEntitySemanticProfile(entity map[string]any) map[string]any {
 		signals = append(signals, "decorators")
 	}
 
-	if async := boolValue(metadata["async"]); async {
+	if async := querycontract.BoolValue(metadata["async"]); async {
 		profile["async"] = true
 		signals = append(signals, "async")
 	}
@@ -103,7 +103,7 @@ func BuildEntitySemanticProfile(entity map[string]any) map[string]any {
 		profile["type_alias_kind"] = typeAliasKind
 		signals = append(signals, typeAliasKind)
 	}
-	if jsxFragment := boolValue(metadata["jsx_fragment_shorthand"]); jsxFragment {
+	if jsxFragment := querycontract.BoolValue(metadata["jsx_fragment_shorthand"]); jsxFragment {
 		profile["jsx_fragment_shorthand"] = true
 		signals = append(signals, "jsx_fragment")
 	}

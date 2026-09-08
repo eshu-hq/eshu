@@ -4,8 +4,6 @@
 package query
 
 import (
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -44,22 +42,5 @@ func WithFreshnessCause(truth *TruthEnvelope, cause FreshnessCause) {
 
 // freshnessNextCheckAsRecommendedCall keeps prompt rendering in the root query package.
 func freshnessNextCheckAsRecommendedCall(next FreshnessNextCheck) map[string]any {
-	call := map[string]any{}
-	if tool := strings.TrimSpace(next.Tool); tool != "" {
-		call["tool"] = tool
-	}
-	if route := strings.TrimSpace(next.Route); route != "" {
-		call["route"] = route
-	}
-	if reason := strings.TrimSpace(next.Reason); reason != "" {
-		call["reason"] = reason
-	}
-	if len(next.Params) > 0 {
-		params := make(map[string]any, len(next.Params))
-		for key, value := range next.Params {
-			params[key] = value
-		}
-		call["params"] = params
-	}
-	return call
+	return querycontract.FreshnessNextCheckAsRecommendedCall(next)
 }
