@@ -245,6 +245,28 @@ func TestCodeCallProjectionRunnerWaitsForCanonicalCodeQuiescence(t *testing.T) {
 	}
 }
 
+func TestCodeCallProjectionRunnerQuiescenceCheckErrorFailsCycle(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeCodeCallIntentStore{leaseGranted: true}
+	runner := CodeCallProjectionRunner{
+		IntentReader:      reader,
+		LeaseManager:      reader,
+		EdgeWriter:        &recordingCodeCallProjectionEdgeWriter{},
+		AcceptedGen:       func(SharedProjectionAcceptanceKey) (string, bool) { return "", false },
+		ReducerGraphDrain: staticReducerGraphDrain{uncommittedErr: errors.New("test quiescence check failure")},
+		Config:            CodeCallProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	_, err := runner.processOnce(context.Background(), time.Now().UTC())
+	if err == nil {
+		t.Fatal("processOnce() error = nil, want quiescence check failure")
+	}
+	if got := reader.claimsCount(); got != 0 {
+		t.Fatalf("lease claims = %d, want 0 when the quiescence check fails", got)
+	}
+}
+
 func TestCodeCallProjectionRunnerProcessOnceReportsReadinessBlockedWait(t *testing.T) {
 	t.Parallel()
 
