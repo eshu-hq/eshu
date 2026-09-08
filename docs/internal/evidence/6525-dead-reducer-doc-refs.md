@@ -25,7 +25,7 @@ Re-derived over the commit's own scope (`docs/ scripts/ specs/ go/`, distinct
 The 53 decompose as 28 distinct paths repointed, 13 declared fixtures, 1
 undeclared fixture (`container_image_identity.go`, referenced only from
 `scripts/test-verify-performance-evidence-inherited-marker.sh`), 1 allowlisted
-transcript, 2 self-test artifacts — and **10 ordinary repointable dead paths
+transcript, 2 self-test artifacts — and **11 ordinary repointable dead paths
 that remain**:
 
     ci_cd_run_correlation_writer.go              -> reducer/cicdrun/
@@ -38,17 +38,44 @@ that remain**:
     sbom_attestation_attachment_writer.go        -> reducer/sbomattest/
     secrets_iam_graph_projection_extract_test.go -> reducer/secretsiam/
     secrets_iam_trust_chain_writer.go            -> reducer/secretsiam/
+    factschema_decode.go                         -> reducer/schemadecode/
 
-They were missed because they are cited from
+The first ten were missed because they are cited from
 `docs/internal/design/4784-reducer-derived-fact-governance.md` and
 `4786-contract-integration-matrix.md`, which this branch never opened.
+
+**The eleventh is different, and it is this branch's own doing.** Commit
+`1ec7c4305` repointed the three `factschema_decode.go` references in the Go
+comments of `go/internal/relationships/gcp_evidence.go`, and `bc1589019`
+REVERTED that file. The reason is recorded in that commit: the
+parser-relationship kit reasons over file PATHS rather than diffs, so any
+change under `go/internal/relationships/**.go` — a comment edit included —
+demands relationship `*_test.go` coverage and a relationship-mapping docs
+update, neither of which is meaningful for a comment. Teaching the kit to
+recognise a comment-only change is the principled fix and is a larger change
+than this branch should carry.
+
+So at head `95962ae4a` that file still carries three references (lines 28, 39
+and 62) to `go/internal/reducer/factschema_decode.go`, a path that does not
+exist — the live file is `go/internal/reducer/schemadecode/factschema_decode.go`.
+Unlike the other ten, this one is NOT reachable from 4784 or 4786, so that
+explanation does not cover it.
+
+**The head row above predates this revert.** The table was measured in
+`ed93049f5`, which is an ancestor of `bc1589019` (`git merge-base
+--is-ancestor` confirms it), so its `27` counts the state before the three
+references came back. Read the head dead-path count as one higher than the
+table shows. The table is left as measured rather than silently re-stated,
+because the number it reports is what that run actually produced.
 
 **Why disclosing them matters more than the count being wrong.** The new gate is
 branch-scoped: it only inspects paths the branch itself vacates. These 10 were
 already dead at the base, so the gate will never report them, and there is no
 decreasing baseline ledger (the sibling `verify-doc-citations.sh` has one) to
 keep them visible. Without this note the sweep, the guard, and the commit
-message would each independently hide the same 10 paths.
+message would each independently hide the same 11 paths — and the eleventh is
+the one a reader is most likely to be surprised by, because the branch touched
+it and then put it back.
 
 ## Gate cost, measured
 
