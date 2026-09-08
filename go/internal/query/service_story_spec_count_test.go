@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -20,7 +21,7 @@ func TestGetServiceStorySpecCountsAgreeAcrossAPISurfaceAndSupportOverview(t *tes
 	handler := &EntityHandler{
 		Neo4j:   serviceStorySpecCountGraphReader{t: t},
 		Content: fakePortContentStore{},
-		Profile: ProfileProduction,
+		Profile: querycontract.ProfileProduction,
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -43,12 +44,12 @@ func TestGetServiceStorySpecCountsAgreeAcrossAPISurfaceAndSupportOverview(t *tes
 	if !ok {
 		t.Fatalf("envelope data type = %T, want map[string]any", envelope.Data)
 	}
-	apiSurface := mapValue(data, "api_surface")
-	supportOverview := mapValue(data, "support_overview")
-	if got, want := IntVal(apiSurface, "spec_count"), 2; got != want {
+	apiSurface := querycontract.MapValue(data, "api_surface")
+	supportOverview := querycontract.MapValue(data, "support_overview")
+	if got, want := querycontract.IntVal(apiSurface, "spec_count"), 2; got != want {
 		t.Fatalf("api_surface.spec_count = %d, want %d", got, want)
 	}
-	if got, want := IntVal(supportOverview, "spec_count"), 2; got != want {
+	if got, want := querycontract.IntVal(supportOverview, "spec_count"), 2; got != want {
 		t.Fatalf("support_overview.spec_count = %d, want api_surface.spec_count %d", got, want)
 	}
 }

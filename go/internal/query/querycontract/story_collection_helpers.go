@@ -42,6 +42,28 @@ const DefaultIndirectEvidenceSearchLimit = 25
 // DefaultIndirectEvidenceSearchLimit.
 const MaxIndirectEvidenceSearchLimit = 100
 
+// BoundedTraceEnrichmentLimit converts a caller-supplied max_depth into a
+// bounded indirect-evidence search limit. It lives here (not in a handler
+// family) because the service-story enrichment, the service investigation
+// stayer, and the deployment-trace readers share it, and no one of them may
+// own a bound the others silently inherit (#6060, lane B B4). An unvalidated
+// max_depth large enough that maxDepth*10 overflows int64 used to return a
+// negative value, which every downstream caller treats identically to "no
+// bound" (limit > 0 gates). Clamping both directions makes the return value
+// a real, structurally guaranteed member of (0,
+// MaxIndirectEvidenceSearchLimit] regardless of caller input, so no
+// downstream caller can observe an unbounded limit.
+func BoundedTraceEnrichmentLimit(maxDepth int) int {
+	if maxDepth <= 0 {
+		return DefaultIndirectEvidenceSearchLimit
+	}
+	limit := maxDepth * 10
+	if limit <= 0 || limit > MaxIndirectEvidenceSearchLimit {
+		return MaxIndirectEvidenceSearchLimit
+	}
+	return limit
+}
+
 // CanonicalServiceName returns the workload context's canonical name,
 // falling back to the requested service name.
 func CanonicalServiceName(requestedServiceName string, workloadContext map[string]any) string {

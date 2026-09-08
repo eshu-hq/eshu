@@ -7,6 +7,8 @@ import (
 	"database/sql/driver"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestBuildStoryTargetSupportExplainsSourceOnlySupportFacts(t *testing.T) {
@@ -29,27 +31,27 @@ func TestBuildStoryTargetSupportExplainsSourceOnlySupportFacts(t *testing.T) {
 		},
 	)
 
-	if gotCount := IntVal(got, "evidence_count"); gotCount != 0 {
+	if gotCount := querycontract.IntVal(got, "evidence_count"); gotCount != 0 {
 		t.Fatalf("evidence_count = %d, want 0 for source-only support facts", gotCount)
 	}
-	if gotCount := IntVal(got, "work_item_count"); gotCount != 0 {
+	if gotCount := querycontract.IntVal(got, "work_item_count"); gotCount != 0 {
 		t.Fatalf("work_item_count = %d, want 0 for source-only Jira facts", gotCount)
 	}
-	if gotCount := IntVal(got, "incident_routing_count"); gotCount != 0 {
+	if gotCount := querycontract.IntVal(got, "incident_routing_count"); gotCount != 0 {
 		t.Fatalf("incident_routing_count = %d, want 0 for source-only PagerDuty facts", gotCount)
 	}
-	coverage := mapValue(got, "coverage")
-	if gotCount, want := IntVal(coverage, "source_only_count"), 2; gotCount != want {
+	coverage := querycontract.MapValue(got, "coverage")
+	if gotCount, want := querycontract.IntVal(coverage, "source_only_count"), 2; gotCount != want {
 		t.Fatalf("coverage.source_only_count = %d, want %d", gotCount, want)
 	}
-	if gotCount, want := IntVal(coverage, "work_item_source_only_count"), 1; gotCount != want {
+	if gotCount, want := querycontract.IntVal(coverage, "work_item_source_only_count"), 1; gotCount != want {
 		t.Fatalf("coverage.work_item_source_only_count = %d, want %d", gotCount, want)
 	}
-	if gotCount, want := IntVal(coverage, "incident_routing_source_only_count"), 1; gotCount != want {
+	if gotCount, want := querycontract.IntVal(coverage, "incident_routing_source_only_count"), 1; gotCount != want {
 		t.Fatalf("coverage.incident_routing_source_only_count = %d, want %d", gotCount, want)
 	}
-	missing := mapSliceValue(got, "missing_evidence")
-	if gotReason := StringVal(missing[0], "reason"); gotReason != "support_source_only_not_target_linked" {
+	missing := querycontract.MapSliceValue(got, "missing_evidence")
+	if gotReason := querycontract.StringVal(missing[0], "reason"); gotReason != "support_source_only_not_target_linked" {
 		t.Fatalf("missing_evidence[0].reason = %q, want support_source_only_not_target_linked", gotReason)
 	}
 }
@@ -84,15 +86,15 @@ func TestContentReaderServiceStoryTargetSupportReportsSourceOnlySupportFacts(t *
 		t.Fatalf("ServiceStoryTargetSupportEvidence() error = %v, want nil", err)
 	}
 	support := got.Support
-	if gotCount := IntVal(support, "evidence_count"); gotCount != 0 {
+	if gotCount := querycontract.IntVal(support, "evidence_count"); gotCount != 0 {
 		t.Fatalf("evidence_count = %d, want 0", gotCount)
 	}
-	missing := mapSliceValue(support, "missing_evidence")
-	if gotReason := StringVal(missing[0], "reason"); gotReason != "support_source_only_not_target_linked" {
+	missing := querycontract.MapSliceValue(support, "missing_evidence")
+	if gotReason := querycontract.StringVal(missing[0], "reason"); gotReason != "support_source_only_not_target_linked" {
 		t.Fatalf("missing_evidence[0].reason = %q, want support_source_only_not_target_linked", gotReason)
 	}
-	coverage := mapValue(support, "coverage")
-	if gotCount, want := IntVal(coverage, "source_only_count"), 2; gotCount != want {
+	coverage := querycontract.MapValue(support, "coverage")
+	if gotCount, want := querycontract.IntVal(coverage, "source_only_count"), 2; gotCount != want {
 		t.Fatalf("coverage.source_only_count = %d, want %d", gotCount, want)
 	}
 }

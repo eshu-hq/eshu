@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // B4 EntityHandler/ContentReader seam stayer for #6060: methods on those types must stay in package query, so this file cannot move to service/
 
 import (
 	"context"
@@ -11,21 +11,8 @@ import (
 	"net/http"
 
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
-
-// ServiceWorkloadSelector is the exported selector for callers outside the query
-// package that need the service-story dossier directly (for example the service
-// intelligence report composer) rather than via the HTTP handler.
-type ServiceWorkloadSelector struct {
-	// ServiceName is the canonical service name. Required.
-	ServiceName string
-	// ServiceID narrows resolution to a specific service identifier.
-	ServiceID string
-	// Repository narrows resolution to a specific repository.
-	Repository string
-	// Environment narrows resolution to a specific environment.
-	Environment string
-}
 
 // BuildServiceStoryEnvelope builds the service-story dossier and its truth
 // envelope without writing HTTP. It is the reusable seam behind getServiceStory:
@@ -85,7 +72,7 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 		return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("enrich service story", err)
 	}
 
-	timer := startServiceQueryStage(ctx, h.Logger, operation, safeStr(workloadCtx, "name"), safeStr(workloadCtx, "repo_id"), "ci_cd_evidence")
+	timer := service.StartServiceQueryStage(ctx, h.Logger, operation, safeStr(workloadCtx, "name"), safeStr(workloadCtx, "repo_id"), "ci_cd_evidence")
 	ciCDEvidence, err := artifacts.LoadRepositoryScopedCICDEvidence(ctx, h.Content, h.CICDRunCorrelations, safeStr(workloadCtx, "repo_id"))
 	timer.Done(ctx, slog.Bool("has_result", len(ciCDEvidence) > 0), slog.Bool("error", err != nil))
 	if err != nil {
@@ -96,12 +83,12 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 	}
 
 	if h.ContainerImageIdentities != nil && h.SBOMAttachments != nil {
-		timer := startServiceQueryStage(ctx, h.Logger, operation, safeStr(workloadCtx, "name"), safeStr(workloadCtx, "repo_id"), "supply_chain_evidence")
+		timer := service.StartServiceQueryStage(ctx, h.Logger, operation, safeStr(workloadCtx, "name"), safeStr(workloadCtx, "repo_id"), "supply_chain_evidence")
 		if err := h.enrichServiceStorySupplyChainEvidence(ctx, workloadCtx); err != nil {
 			timer.Done(ctx, slog.Bool("error", true))
 			return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("enrich service story supply chain evidence", err)
 		}
-		imagePackage := serviceStorySupplyChainImagePackage(workloadCtx)
+		imagePackage := service.ServiceStorySupplyChainImagePackage(workloadCtx)
 		timer.Done(
 			ctx,
 			slog.Int("image_ref_count", len(StringSliceVal(imagePackage, "candidate_image_refs"))),

@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestGetServiceStorySurfacesTargetLinkedSupportEvidence(t *testing.T) {
@@ -22,7 +24,7 @@ func TestGetServiceStorySurfacesTargetLinkedSupportEvidence(t *testing.T) {
 		Content: fakePortContentStore{
 			targetSupportModel: targetLinkedSupportReadModel(),
 		},
-		Profile: ProfileProduction,
+		Profile: querycontract.ProfileProduction,
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -41,17 +43,17 @@ func TestGetServiceStorySurfacesTargetLinkedSupportEvidence(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	data := serviceStoryEnvelopeData(t, w.Body.Bytes())
-	targetSupport := mapValue(mapValue(data, "support_overview"), "target_support")
-	if got, want := IntVal(targetSupport, "evidence_count"), 2; got != want {
+	targetSupport := querycontract.MapValue(querycontract.MapValue(data, "support_overview"), "target_support")
+	if got, want := querycontract.IntVal(targetSupport, "evidence_count"), 2; got != want {
 		t.Fatalf("target_support.evidence_count = %d, want %d: %#v", got, want, targetSupport)
 	}
-	if got, want := IntVal(targetSupport, "work_item_count"), 1; got != want {
+	if got, want := querycontract.IntVal(targetSupport, "work_item_count"), 1; got != want {
 		t.Fatalf("target_support.work_item_count = %d, want %d", got, want)
 	}
-	if got, want := IntVal(targetSupport, "incident_routing_count"), 1; got != want {
+	if got, want := querycontract.IntVal(targetSupport, "incident_routing_count"), 1; got != want {
 		t.Fatalf("target_support.incident_routing_count = %d, want %d", got, want)
 	}
-	if got := mapSliceValue(targetSupport, "missing_evidence"); len(got) != 0 {
+	if got := querycontract.MapSliceValue(targetSupport, "missing_evidence"); len(got) != 0 {
 		t.Fatalf("target_support.missing_evidence = %#v, want empty for proven support evidence", got)
 	}
 }
@@ -67,7 +69,7 @@ func TestGetServiceStoryPreservesMissingSupportCorrelation(t *testing.T) {
 		Content: fakePortContentStore{
 			targetSupportModel: missingSupportReadModel(),
 		},
-		Profile: ProfileProduction,
+		Profile: querycontract.ProfileProduction,
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -86,15 +88,15 @@ func TestGetServiceStoryPreservesMissingSupportCorrelation(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	data := serviceStoryEnvelopeData(t, w.Body.Bytes())
-	targetSupport := mapValue(mapValue(data, "support_overview"), "target_support")
-	if got := len(mapSliceValue(targetSupport, "evidence")); got != 0 {
+	targetSupport := querycontract.MapValue(querycontract.MapValue(data, "support_overview"), "target_support")
+	if got := len(querycontract.MapSliceValue(targetSupport, "evidence")); got != 0 {
 		t.Fatalf("len(target_support.evidence) = %d, want 0", got)
 	}
-	missing := mapSliceValue(targetSupport, "missing_evidence")
+	missing := querycontract.MapSliceValue(targetSupport, "missing_evidence")
 	if got, want := len(missing), 1; got != want {
 		t.Fatalf("len(target_support.missing_evidence) = %d, want %d", got, want)
 	}
-	if got, want := StringVal(missing[0], "reason"), "support_target_facts_absent"; got != want {
+	if got, want := querycontract.StringVal(missing[0], "reason"), "support_target_facts_absent"; got != want {
 		t.Fatalf("missing_evidence[0].reason = %q, want %q", got, want)
 	}
 }
@@ -107,7 +109,7 @@ func TestGetRepositoryStorySurfacesTargetLinkedSupportEvidence(t *testing.T) {
 		Content: fakePortContentStore{
 			targetSupportModel: targetLinkedSupportReadModel(),
 		},
-		Profile: ProfileProduction,
+		Profile: querycontract.ProfileProduction,
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -122,8 +124,8 @@ func TestGetRepositoryStorySurfacesTargetLinkedSupportEvidence(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	data := serviceStoryEnvelopeData(t, w.Body.Bytes())
-	targetSupport := mapValue(mapValue(data, "support_overview"), "target_support")
-	if got, want := IntVal(targetSupport, "evidence_count"), 2; got != want {
+	targetSupport := querycontract.MapValue(querycontract.MapValue(data, "support_overview"), "target_support")
+	if got, want := querycontract.IntVal(targetSupport, "evidence_count"), 2; got != want {
 		t.Fatalf("target_support.evidence_count = %d, want %d: %#v", got, want, targetSupport)
 	}
 }
@@ -148,14 +150,14 @@ func TestBuildStoryTargetSupportKeepsAmbiguousCandidateRefsSeparate(t *testing.T
 		},
 	}}, false)
 
-	if gotCount := IntVal(got, "evidence_count"); gotCount != 0 {
+	if gotCount := querycontract.IntVal(got, "evidence_count"); gotCount != 0 {
 		t.Fatalf("evidence_count = %d, want 0 for ambiguous support fact", gotCount)
 	}
-	if gotCount := IntVal(got, "ambiguous_count"); gotCount != 1 {
+	if gotCount := querycontract.IntVal(got, "ambiguous_count"); gotCount != 1 {
 		t.Fatalf("ambiguous_count = %d, want 1", gotCount)
 	}
-	missing := mapSliceValue(got, "missing_evidence")
-	if gotReason := StringVal(missing[0], "reason"); gotReason != "support_correlation_ambiguous" {
+	missing := querycontract.MapSliceValue(got, "missing_evidence")
+	if gotReason := querycontract.StringVal(missing[0], "reason"); gotReason != "support_correlation_ambiguous" {
 		t.Fatalf("missing_evidence[0].reason = %q, want support_correlation_ambiguous", gotReason)
 	}
 }
@@ -191,16 +193,16 @@ func TestBuildStoryTargetSupportMatchesExplicitSupportTargetAliases(t *testing.T
 		},
 	}}, false)
 
-	if gotCount, want := IntVal(got, "evidence_count"), 2; gotCount != want {
+	if gotCount, want := querycontract.IntVal(got, "evidence_count"), 2; gotCount != want {
 		t.Fatalf("evidence_count = %d, want %d: %#v", gotCount, want, got)
 	}
-	if gotCount, want := IntVal(got, "work_item_count"), 1; gotCount != want {
+	if gotCount, want := querycontract.IntVal(got, "work_item_count"), 1; gotCount != want {
 		t.Fatalf("work_item_count = %d, want %d", gotCount, want)
 	}
-	if gotCount, want := IntVal(got, "incident_routing_count"), 1; gotCount != want {
+	if gotCount, want := querycontract.IntVal(got, "incident_routing_count"), 1; gotCount != want {
 		t.Fatalf("incident_routing_count = %d, want %d", gotCount, want)
 	}
-	if gotMissing := mapSliceValue(got, "missing_evidence"); len(gotMissing) != 0 {
+	if gotMissing := querycontract.MapSliceValue(got, "missing_evidence"); len(gotMissing) != 0 {
 		t.Fatalf("missing_evidence = %#v, want empty", gotMissing)
 	}
 }
@@ -225,10 +227,10 @@ func TestBuildStoryTargetSupportMatchesExplicitRepositoryAlias(t *testing.T) {
 		},
 	}}, false)
 
-	if gotCount, want := IntVal(got, "evidence_count"), 1; gotCount != want {
+	if gotCount, want := querycontract.IntVal(got, "evidence_count"), 1; gotCount != want {
 		t.Fatalf("evidence_count = %d, want %d: %#v", gotCount, want, got)
 	}
-	if gotMissing := mapSliceValue(got, "missing_evidence"); len(gotMissing) != 0 {
+	if gotMissing := querycontract.MapSliceValue(got, "missing_evidence"); len(gotMissing) != 0 {
 		t.Fatalf("missing_evidence = %#v, want empty", gotMissing)
 	}
 }
@@ -251,13 +253,13 @@ func TestBuildStoryTargetSupportDoesNotMatchGenericServiceName(t *testing.T) {
 		},
 	}}, false)
 
-	if gotCount := IntVal(got, "evidence_count"); gotCount != 0 {
+	if gotCount := querycontract.IntVal(got, "evidence_count"); gotCount != 0 {
 		t.Fatalf("evidence_count = %d, want 0 for generic name-only support fact", gotCount)
 	}
-	if gotCount := IntVal(got, "ambiguous_count"); gotCount != 0 {
+	if gotCount := querycontract.IntVal(got, "ambiguous_count"); gotCount != 0 {
 		t.Fatalf("ambiguous_count = %d, want 0 for generic name-only support fact", gotCount)
 	}
-	if gotReason := StringVal(mapSliceValue(got, "missing_evidence")[0], "reason"); gotReason != "support_target_facts_absent" {
+	if gotReason := querycontract.StringVal(querycontract.MapSliceValue(got, "missing_evidence")[0], "reason"); gotReason != "support_target_facts_absent" {
 		t.Fatalf("missing reason = %q, want support_target_facts_absent", gotReason)
 	}
 }
@@ -284,8 +286,8 @@ func TestBuildStoryTargetSupportPayloadKeepsSensitiveFieldsOut(t *testing.T) {
 		},
 	}}, false)
 
-	payload := mapValue(mapSliceValue(got, "evidence")[0], "payload")
-	if got, want := StringVal(payload, "work_item_key"), "PAY-123"; got != want {
+	payload := querycontract.MapValue(querycontract.MapSliceValue(got, "evidence")[0], "payload")
+	if got, want := querycontract.StringVal(payload, "work_item_key"), "PAY-123"; got != want {
 		t.Fatalf("payload.work_item_key = %q, want %q", got, want)
 	}
 	for _, blocked := range []string{"summary", "assignee", "raw_url", "candidate_refs"} {

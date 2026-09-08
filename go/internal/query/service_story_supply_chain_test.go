@@ -11,6 +11,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 )
 
 const (
@@ -20,30 +24,30 @@ const (
 )
 
 type serviceStoryImageIdentityStore struct {
-	rowsByImageRef map[string][]ContainerImageIdentityRow
-	filters        []ContainerImageIdentityFilter
+	rowsByImageRef map[string][]supplychain.ContainerImageIdentityRow
+	filters        []supplychain.ContainerImageIdentityFilter
 }
 
 func (s *serviceStoryImageIdentityStore) ListContainerImageIdentities(
 	_ context.Context,
-	filter ContainerImageIdentityFilter,
-) ([]ContainerImageIdentityRow, error) {
+	filter supplychain.ContainerImageIdentityFilter,
+) ([]supplychain.ContainerImageIdentityRow, error) {
 	s.filters = append(s.filters, filter)
-	return append([]ContainerImageIdentityRow(nil), s.rowsByImageRef[filter.ImageRef]...), nil
+	return append([]supplychain.ContainerImageIdentityRow(nil), s.rowsByImageRef[filter.ImageRef]...), nil
 }
 
 type serviceStorySBOMAttachmentStore struct {
-	rowsBySubjectDigest map[string][]SBOMAttestationAttachmentRow
-	filters             []SBOMAttestationAttachmentFilter
+	rowsBySubjectDigest map[string][]supplychain.SBOMAttestationAttachmentRow
+	filters             []supplychain.SBOMAttestationAttachmentFilter
 }
 
 func (s *serviceStorySBOMAttachmentStore) ListSBOMAttestationAttachments(
 	_ context.Context,
-	filter SBOMAttestationAttachmentFilter,
+	filter supplychain.SBOMAttestationAttachmentFilter,
 ) (SBOMAttestationAttachmentPage, error) {
 	s.filters = append(s.filters, filter)
 	return SBOMAttestationAttachmentPage{
-		Attachments: append([]SBOMAttestationAttachmentRow(nil), s.rowsBySubjectDigest[filter.SubjectDigest]...),
+		Attachments: append([]supplychain.SBOMAttestationAttachmentRow(nil), s.rowsBySubjectDigest[filter.SubjectDigest]...),
 	}, nil
 }
 
@@ -51,12 +55,12 @@ func TestServiceStorySupplyChainEvidenceAttachesExactImageAndSBOM(t *testing.T) 
 	t.Parallel()
 
 	imageStore := &serviceStoryImageIdentityStore{
-		rowsByImageRef: map[string][]ContainerImageIdentityRow{
+		rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{
 			serviceStoryTestImageRef: {serviceStoryExactImageIdentity(serviceStoryTestDigest)},
 		},
 	}
 	sbomStore := &serviceStorySBOMAttachmentStore{
-		rowsBySubjectDigest: map[string][]SBOMAttestationAttachmentRow{
+		rowsBySubjectDigest: map[string][]supplychain.SBOMAttestationAttachmentRow{
 			serviceStoryTestDigest: {serviceStoryAttachedSBOM(serviceStoryTestDigest)},
 		},
 	}
@@ -89,27 +93,27 @@ func TestServiceStorySupplyChainEvidenceAttachesExactImageAndSBOM(t *testing.T) 
 	}
 
 	segment := serviceTraceImagePackageSegment(ctx)
-	if got, want := StringVal(segment, "status"), "exact"; got != want {
+	if got, want := querycontract.StringVal(segment, "status"), "exact"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
-	if got, want := StringVal(segment, "basis"), "container_image_identity_and_sbom_attachment"; got != want {
+	if got, want := querycontract.StringVal(segment, "basis"), "container_image_identity_and_sbom_attachment"; got != want {
 		t.Fatalf("image_package basis = %q, want %q", got, want)
 	}
-	evidence := mapSliceValue(segment, "evidence")
+	evidence := querycontract.MapSliceValue(segment, "evidence")
 	if got, want := len(evidence), 1; got != want {
 		t.Fatalf("image_package evidence count = %d, want %d; segment=%#v", got, want, segment)
 	}
 	row := evidence[0]
-	if got, want := StringVal(row, "image_ref"), serviceStoryTestImageRef; got != want {
+	if got, want := querycontract.StringVal(row, "image_ref"), serviceStoryTestImageRef; got != want {
 		t.Fatalf("evidence image_ref = %q, want %q", got, want)
 	}
-	if got, want := StringVal(row, "digest"), serviceStoryTestDigest; got != want {
+	if got, want := querycontract.StringVal(row, "digest"), serviceStoryTestDigest; got != want {
 		t.Fatalf("evidence digest = %q, want %q", got, want)
 	}
-	if got, want := StringVal(row, "sbom_attachment_status"), "attached_verified"; got != want {
+	if got, want := querycontract.StringVal(row, "sbom_attachment_status"), "attached_verified"; got != want {
 		t.Fatalf("evidence sbom_attachment_status = %q, want %q", got, want)
 	}
-	if missing := StringSliceVal(segment, "missing_evidence"); len(missing) != 0 {
+	if missing := querycontract.StringSliceVal(segment, "missing_evidence"); len(missing) != 0 {
 		t.Fatalf("missing_evidence = %#v, want none", missing)
 	}
 	if _, ok := segment["missing_evidence_details"]; ok {
@@ -121,12 +125,12 @@ func TestGetServiceStoryEnvelopeIncludesSupplyChainEvidence(t *testing.T) {
 	t.Parallel()
 
 	imageStore := &serviceStoryImageIdentityStore{
-		rowsByImageRef: map[string][]ContainerImageIdentityRow{
+		rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{
 			serviceStoryTestImageRef: {serviceStoryExactImageIdentity(serviceStoryTestDigest)},
 		},
 	}
 	sbomStore := &serviceStorySBOMAttachmentStore{
-		rowsBySubjectDigest: map[string][]SBOMAttestationAttachmentRow{
+		rowsBySubjectDigest: map[string][]supplychain.SBOMAttestationAttachmentRow{
 			serviceStoryTestDigest: {serviceStoryAttachedSBOM(serviceStoryTestDigest)},
 		},
 	}
@@ -152,7 +156,7 @@ func TestGetServiceStoryEnvelopeIncludesSupplyChainEvidence(t *testing.T) {
 		},
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          sbomStore,
-		Profile:                  ProfileProduction,
+		Profile:                  querycontract.ProfileProduction,
 	}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -174,16 +178,16 @@ func TestGetServiceStoryEnvelopeIncludesSupplyChainEvidence(t *testing.T) {
 	if !ok {
 		t.Fatalf("envelope data type = %T, want object", envelope.Data)
 	}
-	trace := mapValue(data, "code_to_runtime_trace")
-	segment := segmentByName(mapSliceValue(trace, "segments"), "image_package")
-	if got, want := StringVal(segment, "status"), "exact"; got != want {
+	trace := querycontract.MapValue(data, "code_to_runtime_trace")
+	segment := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "image_package")
+	if got, want := querycontract.StringVal(segment, "status"), "exact"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
-	evidence := mapSliceValue(segment, "evidence")
+	evidence := querycontract.MapSliceValue(segment, "evidence")
 	if got, want := len(evidence), 1; got != want {
 		t.Fatalf("image_package evidence count = %d, want %d; segment=%#v", got, want, segment)
 	}
-	if got, want := StringVal(evidence[0], "sbom_attachment_id"), "sbom-attachment-1"; got != want {
+	if got, want := querycontract.StringVal(evidence[0], "sbom_attachment_id"), "sbom-attachment-1"; got != want {
 		t.Fatalf("sbom_attachment_id = %q, want %q", got, want)
 	}
 }
@@ -192,7 +196,7 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForAmbiguousTags(t *testing.T
 	t.Parallel()
 
 	imageStore := &serviceStoryImageIdentityStore{
-		rowsByImageRef: map[string][]ContainerImageIdentityRow{
+		rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{
 			serviceStoryTestImageRef: {
 				serviceStoryExactImageIdentity("sha256:1111111111111111111111111111111111111111111111111111111111111111"),
 				serviceStoryExactImageIdentity("sha256:2222222222222222222222222222222222222222222222222222222222222222"),
@@ -213,13 +217,13 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForAmbiguousTags(t *testing.T
 		t.Fatalf("SBOM attachment store calls = %d, want none for ambiguous image tag", got)
 	}
 	segment := serviceTraceImagePackageSegment(ctx)
-	if got, want := StringVal(segment, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
-	if missing := StringSliceVal(segment, "missing_evidence"); !stringSliceContains(missing, "container_image_identity_ambiguous") {
+	if missing := querycontract.StringSliceVal(segment, "missing_evidence"); !stringSliceContains(missing, "container_image_identity_ambiguous") {
 		t.Fatalf("missing_evidence = %#v, want container_image_identity_ambiguous", missing)
 	}
-	if got := IntVal(segment, "evidence_count"); got != 0 {
+	if got := querycontract.IntVal(segment, "evidence_count"); got != 0 {
 		t.Fatalf("evidence_count = %d, want 0 for ambiguous image tag", got)
 	}
 }
@@ -230,7 +234,7 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForStaleIdentity(t *testing.T
 	staleIdentity := serviceStoryExactImageIdentity(serviceStoryTestDigest)
 	staleIdentity.SourceFreshness = "stale"
 	imageStore := &serviceStoryImageIdentityStore{
-		rowsByImageRef: map[string][]ContainerImageIdentityRow{
+		rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{
 			serviceStoryTestImageRef: {staleIdentity},
 		},
 	}
@@ -248,10 +252,10 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForStaleIdentity(t *testing.T
 		t.Fatalf("SBOM attachment store calls = %d, want none for stale image identity", got)
 	}
 	segment := serviceTraceImagePackageSegment(ctx)
-	if got, want := StringVal(segment, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
-	if missing := StringSliceVal(segment, "missing_evidence"); !stringSliceContains(missing, "container_image_identity_stale") {
+	if missing := querycontract.StringSliceVal(segment, "missing_evidence"); !stringSliceContains(missing, "container_image_identity_stale") {
 		t.Fatalf("missing_evidence = %#v, want container_image_identity_stale", missing)
 	}
 }
@@ -260,12 +264,12 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForUnattachedSBOM(t *testing.
 	t.Parallel()
 
 	imageStore := &serviceStoryImageIdentityStore{
-		rowsByImageRef: map[string][]ContainerImageIdentityRow{
+		rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{
 			serviceStoryTestImageRef: {serviceStoryExactImageIdentity(serviceStoryTestDigest)},
 		},
 	}
 	sbomStore := &serviceStorySBOMAttachmentStore{
-		rowsBySubjectDigest: map[string][]SBOMAttestationAttachmentRow{
+		rowsBySubjectDigest: map[string][]supplychain.SBOMAttestationAttachmentRow{
 			serviceStoryTestDigest: {{
 				AttachmentID:     "sbom-attachment-mismatch",
 				SubjectDigest:    serviceStoryTestDigest,
@@ -287,13 +291,13 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForUnattachedSBOM(t *testing.
 		t.Fatalf("enrichServiceStorySupplyChainEvidence() error = %v, want nil", err)
 	}
 	segment := serviceTraceImagePackageSegment(ctx)
-	if got, want := StringVal(segment, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
-	if missing := StringSliceVal(segment, "missing_evidence"); !stringSliceContains(missing, "sbom_attachment_not_admissible") {
+	if missing := querycontract.StringSliceVal(segment, "missing_evidence"); !stringSliceContains(missing, "sbom_attachment_not_admissible") {
 		t.Fatalf("missing_evidence = %#v, want sbom_attachment_not_admissible", missing)
 	}
-	if got := IntVal(segment, "evidence_count"); got != 0 {
+	if got := querycontract.IntVal(segment, "evidence_count"); got != 0 {
 		t.Fatalf("evidence_count = %d, want 0 for unattached SBOM", got)
 	}
 }
@@ -343,7 +347,7 @@ func TestServiceStoryDeploymentImageRefsPromotesHelmValuesImageMatchedValue(t *t
 func TestServiceStorySupplyChainEvidenceReportsRepoOnlyHelmValuesImageRef(t *testing.T) {
 	t.Parallel()
 
-	imageStore := &serviceStoryImageIdentityStore{rowsByImageRef: map[string][]ContainerImageIdentityRow{}}
+	imageStore := &serviceStoryImageIdentityStore{rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{}}
 	handler := &EntityHandler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          &serviceStorySBOMAttachmentStore{},
@@ -363,17 +367,17 @@ func TestServiceStorySupplyChainEvidenceReportsRepoOnlyHelmValuesImageRef(t *tes
 		t.Fatalf("image identity store calls = %d, want none for repo-only candidate", got)
 	}
 	segment := serviceTraceImagePackageSegment(ctx)
-	if got, want := StringVal(segment, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
-	missing := StringSliceVal(segment, "missing_evidence")
+	missing := querycontract.StringSliceVal(segment, "missing_evidence")
 	if stringSliceContains(missing, "deployment_image_reference_missing") {
 		t.Fatalf("missing_evidence = %#v, want repo-only candidate reason", missing)
 	}
 	if !stringSliceContains(missing, "deployment_image_reference_repo_only") {
 		t.Fatalf("missing_evidence = %#v, want deployment_image_reference_repo_only", missing)
 	}
-	if got, want := IntVal(segment, "candidate_image_ref_count"), 1; got != want {
+	if got, want := querycontract.IntVal(segment, "candidate_image_ref_count"), 1; got != want {
 		t.Fatalf("candidate_image_ref_count = %d, want %d", got, want)
 	}
 }
@@ -389,7 +393,7 @@ func TestServiceStorySupplyChainEvidenceBoundsImageRefLookups(t *testing.T) {
 	for i := range serviceStoryItemLimit + 2 {
 		refs = append(refs, fmt.Sprintf("registry.example.com/team/api:%03d", i))
 	}
-	imageStore := &serviceStoryImageIdentityStore{rowsByImageRef: map[string][]ContainerImageIdentityRow{}}
+	imageStore := &serviceStoryImageIdentityStore{rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{}}
 	handler := &EntityHandler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          &serviceStorySBOMAttachmentStore{},
@@ -403,10 +407,10 @@ func TestServiceStorySupplyChainEvidenceBoundsImageRefLookups(t *testing.T) {
 		t.Fatalf("image identity store calls = %d, want capped %d", got, want)
 	}
 	segment := serviceTraceImagePackageSegment(ctx)
-	if got, want := IntVal(segment, "candidate_image_ref_count"), len(refs); got != want {
+	if got, want := querycontract.IntVal(segment, "candidate_image_ref_count"), len(refs); got != want {
 		t.Fatalf("candidate_image_ref_count = %d, want %d", got, want)
 	}
-	if !BoolVal(segment, "image_refs_truncated") {
+	if !querycontract.BoolVal(segment, "image_refs_truncated") {
 		t.Fatalf("image_refs_truncated = false, want true; segment=%#v", segment)
 	}
 }
@@ -454,8 +458,8 @@ func serviceStoryDeploymentImageArtifact(imageRef string) map[string]any {
 	}
 }
 
-func serviceStoryExactImageIdentity(digest string) ContainerImageIdentityRow {
-	return ContainerImageIdentityRow{
+func serviceStoryExactImageIdentity(digest string) supplychain.ContainerImageIdentityRow {
+	return supplychain.ContainerImageIdentityRow{
 		IdentityID:       "image-identity-" + digest,
 		Digest:           digest,
 		ImageRef:         serviceStoryTestImageRef,
@@ -471,8 +475,8 @@ func serviceStoryExactImageIdentity(digest string) ContainerImageIdentityRow {
 	}
 }
 
-func serviceStoryAttachedSBOM(subjectDigest string) SBOMAttestationAttachmentRow {
-	return SBOMAttestationAttachmentRow{
+func serviceStoryAttachedSBOM(subjectDigest string) supplychain.SBOMAttestationAttachmentRow {
+	return supplychain.SBOMAttestationAttachmentRow{
 		AttachmentID:       "sbom-attachment-1",
 		SubjectDigest:      subjectDigest,
 		DocumentID:         "sbom-doc-1",

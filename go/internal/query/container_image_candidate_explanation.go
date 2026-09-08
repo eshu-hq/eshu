@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 type containerImageCandidateExplanationState struct {
@@ -30,12 +32,12 @@ func (s PostgresContainerImageIdentityStore) ExplainContainerImageCandidate(
 	if s.DB == nil {
 		return nil, fmt.Errorf("container image identity database is required")
 	}
-	parts, ok := serviceStoryParseImageCandidate(imageRef)
+	parts, ok := service.ServiceStoryParseImageCandidate(imageRef)
 	if !ok {
-		return serviceStoryGenericImageCandidateMissingDetail(imageRef, "container_image_identity_missing"), nil
+		return service.ServiceStoryGenericImageCandidateMissingDetail(imageRef, "container_image_identity_missing"), nil
 	}
 	if parts.Tag == "" && parts.Digest == "" {
-		detail, _ := serviceStoryRepoOnlyImageCandidateDetail(imageRef)
+		detail, _ := service.ServiceStoryRepoOnlyImageCandidateDetail(imageRef)
 		return detail, nil
 	}
 
@@ -125,7 +127,7 @@ func serviceStoryContainerImageCandidateExplanation(
 	state containerImageCandidateExplanationState,
 ) map[string]any {
 	reason, collectorScope, action := serviceStoryContainerImageCandidateReason(parts.RepositoryID, state)
-	detail := serviceStoryBaseImageCandidateDetail(parts, reason, map[string]any{
+	detail := service.ServiceStoryBaseImageCandidateDetail(parts, reason, map[string]any{
 		"collector_scope": collectorScope,
 		"operator_action": action,
 	})

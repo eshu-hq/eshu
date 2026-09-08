@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // B4 EntityHandler/ContentReader seam stayer for #6060: methods on those types must stay in package query, so this file cannot move to service/
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -30,51 +31,6 @@ type (
 	serviceStoryTargetSupportFilter    = querycontract.ServiceStoryTargetSupportFilter
 	serviceStoryTargetSupportReadModel = querycontract.ServiceStoryTargetSupportReadModel
 )
-
-func loadServiceStoryTargetSupportForOperation(
-	ctx context.Context,
-	content ContentStore,
-	workloadContext map[string]any,
-	operation string,
-) (map[string]any, error) {
-	if strings.TrimSpace(operation) != "service_story" {
-		return nil, nil
-	}
-	return loadServiceStoryTargetSupport(ctx, content, workloadContext)
-}
-
-func loadServiceStoryTargetSupport(
-	ctx context.Context,
-	content ContentStore,
-	workloadContext map[string]any,
-) (map[string]any, error) {
-	store, ok := content.(serviceStoryTargetSupportStore)
-	if !ok || store == nil {
-		return nil, nil
-	}
-	repoID := safeStr(workloadContext, "repo_id")
-	serviceID := safeStr(workloadContext, "id")
-	if repoID == "" && serviceID == "" {
-		return nil, nil
-	}
-	filter := serviceStoryTargetSupportFilter{
-		Repository: repoID,
-		Limit:      serviceStoryTargetSupportLimit,
-	}
-	if serviceID != "" {
-		filter.TargetKind = "service"
-		filter.TargetID = serviceID
-		filter.ServiceID = serviceID
-	} else {
-		filter.TargetKind = "repository"
-		filter.TargetID = repoID
-	}
-	readModel, err := store.ServiceStoryTargetSupportEvidence(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-	return readModel.Support, nil
-}
 
 // ServiceStoryTargetSupportEvidence reads support-evidence rows for
 // filter.TargetKind/filter.TargetID (service or repository) from
@@ -151,7 +107,7 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 }
 
 func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (string, []any) {
-	refs := serviceStorySupportTargetRefs(filter)
+	refs := service.ServiceStorySupportTargetRefs(filter)
 	if len(refs) == 0 {
 		return "", nil
 	}
@@ -211,7 +167,7 @@ func buildStoryTargetSupport(
 	facts []map[string]any,
 	truncated bool,
 ) map[string]any {
-	refs := serviceStorySupportTargetRefs(filter)
+	refs := service.ServiceStorySupportTargetRefs(filter)
 	evidence := make([]map[string]any, 0, len(facts))
 	ambiguous := make([]map[string]any, 0)
 	for _, fact := range facts {
@@ -219,7 +175,7 @@ func buildStoryTargetSupport(
 			ambiguous = append(ambiguous, serviceStorySupportEvidenceRow(fact))
 			continue
 		}
-		if !serviceStorySupportPayloadMatchesTargetRefs(fact, refs) {
+		if !service.ServiceStorySupportPayloadMatchesTargetRefs(fact, refs) {
 			continue
 		}
 		evidence = append(evidence, serviceStorySupportEvidenceRow(fact))

@@ -95,3 +95,15 @@ type ServiceCatalogCorrelationRow struct {
 	EvidenceFactIDs        []string
 	RequiredAnchorKeys     []string
 }
+
+// ServiceCatalogLocalDescriptorEvidenceRow is one active source fact that
+// proves a repository contains service-catalog descriptor evidence. It lives
+// here with its Filter/Row siblings so handler families and their test
+// doubles share one row shape (#6060, lane B B4).
+type ServiceCatalogLocalDescriptorEvidenceRow struct {
+	FactID    string
+	FactKind  string
+	Provider  string
+	EntityRef string
+	SourceURI string
+}

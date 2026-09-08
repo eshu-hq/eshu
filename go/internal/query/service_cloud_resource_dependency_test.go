@@ -8,6 +8,9 @@ import (
 	"database/sql/driver"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t *testing.T) {
@@ -19,8 +22,8 @@ func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				call := recordServiceCloudResourceGraphCall(params)
 				graphCalls = append(graphCalls, call)
 				if strings.Contains(cypher, "rel:USES") {
@@ -56,34 +59,34 @@ func TestEnrichServiceQueryContextKeepsStrongAWSCloudResourceAnchorAsCandidate(t
 		t.Fatalf("uncorrelated cloud resource candidate graph calls = %d, want %d", got, want)
 	}
 
-	resources := mapSliceValue(workloadContext, "cloud_resources")
+	resources := querycontract.MapSliceValue(workloadContext, "cloud_resources")
 	if got, want := len(resources), 0; got != want {
 		t.Fatalf("len(cloud_resources) = %d, want %d", got, want)
 	}
-	candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
+	candidates := querycontract.MapSliceValue(workloadContext, "uncorrelated_cloud_resources")
 	if got, want := len(candidates), 1; got != want {
 		t.Fatalf("len(uncorrelated_cloud_resources) = %d, want %d", got, want)
 	}
-	if got, want := StringVal(candidates[0], "candidate_status"), "uncorrelated"; got != want {
+	if got, want := querycontract.StringVal(candidates[0], "candidate_status"), "uncorrelated"; got != want {
 		t.Fatalf("candidate_status = %q, want %q", got, want)
 	}
-	if got, want := StringVal(candidates[0], "service_anchor_status"), "strong"; got != want {
+	if got, want := querycontract.StringVal(candidates[0], "service_anchor_status"), "strong"; got != want {
 		t.Fatalf("service_anchor_status = %q, want %q", got, want)
 	}
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
-	trace := mapValue(story, "code_to_runtime_trace")
-	cloud := segmentByName(mapSliceValue(trace, "segments"), "cloud_dependencies")
+	trace := querycontract.MapValue(story, "code_to_runtime_trace")
+	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
-	if got, want := StringVal(cloud, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(cloud, "status"), "missing_evidence"; got != want {
 		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
 	}
-	if got, want := StringVal(cloud, "missing_relationship"), "workload_cloud_relationship"; got != want {
+	if got, want := querycontract.StringVal(cloud, "missing_relationship"), "workload_cloud_relationship"; got != want {
 		t.Fatalf("missing_relationship = %q, want %q", got, want)
 	}
-	if got, want := IntVal(mapValue(story, "deployment_overview"), "cloud_resource_count"), 0; got != want {
+	if got, want := querycontract.IntVal(querycontract.MapValue(story, "deployment_overview"), "cloud_resource_count"), 0; got != want {
 		t.Fatalf("deployment_overview.cloud_resource_count = %d, want %d", got, want)
 	}
 }
@@ -98,8 +101,8 @@ func TestEnrichServiceQueryContextPrefersMaterializedWorkloadCloudRelationship(t
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		fakeGraphReader{
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "rel:USES") {
 					materializedCalls++
 					return []map[string]any{
@@ -139,27 +142,27 @@ func TestEnrichServiceQueryContextPrefersMaterializedWorkloadCloudRelationship(t
 	if fallbackCalls != 0 {
 		t.Fatalf("fallback cloud dependency calls = %d, want 0 when materialized edge exists", fallbackCalls)
 	}
-	resources := mapSliceValue(workloadContext, "cloud_resources")
+	resources := querycontract.MapSliceValue(workloadContext, "cloud_resources")
 	if got, want := len(resources), 1; got != want {
 		t.Fatalf("len(cloud_resources) = %d, want %d", got, want)
 	}
-	if got, want := StringVal(resources[0], "relationship_basis"), "aws_resource_service_anchor"; got != want {
+	if got, want := querycontract.StringVal(resources[0], "relationship_basis"), "aws_resource_service_anchor"; got != want {
 		t.Fatalf("relationship_basis = %q, want %q", got, want)
 	}
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
-	trace := mapValue(story, "code_to_runtime_trace")
-	cloud := segmentByName(mapSliceValue(trace, "segments"), "cloud_dependencies")
+	trace := querycontract.MapValue(story, "code_to_runtime_trace")
+	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
-	if got, want := StringVal(cloud, "status"), "derived"; got != want {
+	if got, want := querycontract.StringVal(cloud, "status"), "derived"; got != want {
 		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
 	}
-	if got, want := IntVal(cloud, "promoted_count"), 1; got != want {
+	if got, want := querycontract.IntVal(cloud, "promoted_count"), 1; got != want {
 		t.Fatalf("cloud_dependencies promoted_count = %d, want %d", got, want)
 	}
-	if missing := StringSliceVal(cloud, "missing_evidence"); len(missing) != 0 {
+	if missing := querycontract.StringSliceVal(cloud, "missing_evidence"); len(missing) != 0 {
 		t.Fatalf("cloud_dependencies missing_evidence = %#v, want empty", missing)
 	}
 }
@@ -172,8 +175,8 @@ func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidat
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		fakeGraphReader{
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "rel:USES") {
 					return nil, nil
 				}
@@ -203,27 +206,27 @@ func TestEnrichServiceQueryContextKeepsAmbiguousAWSCloudResourceAnchorAsCandidat
 		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
 	}
 
-	if resources := mapSliceValue(workloadContext, "cloud_resources"); len(resources) != 0 {
+	if resources := querycontract.MapSliceValue(workloadContext, "cloud_resources"); len(resources) != 0 {
 		t.Fatalf("cloud_resources = %#v, want no promoted resource for ambiguous anchor", resources)
 	}
-	candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
+	candidates := querycontract.MapSliceValue(workloadContext, "uncorrelated_cloud_resources")
 	if got, want := len(candidates), 1; got != want {
 		t.Fatalf("len(uncorrelated_cloud_resources) = %d, want %d", got, want)
 	}
-	if got, want := StringVal(candidates[0], "candidate_status"), "ambiguous_anchor"; got != want {
+	if got, want := querycontract.StringVal(candidates[0], "candidate_status"), "ambiguous_anchor"; got != want {
 		t.Fatalf("candidate_status = %q, want %q", got, want)
 	}
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
-	trace := mapValue(story, "code_to_runtime_trace")
-	cloud := segmentByName(mapSliceValue(trace, "segments"), "cloud_dependencies")
+	trace := querycontract.MapValue(story, "code_to_runtime_trace")
+	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
-	if got, want := StringVal(cloud, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(cloud, "status"), "missing_evidence"; got != want {
 		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
 	}
-	if got, want := StringVal(cloud, "missing_relationship"), "workload_cloud_relationship"; got != want {
+	if got, want := querycontract.StringVal(cloud, "missing_relationship"), "workload_cloud_relationship"; got != want {
 		t.Fatalf("missing_relationship = %q, want %q", got, want)
 	}
 }
@@ -236,8 +239,8 @@ func TestEnrichServiceQueryContextKeepsStaleAWSCloudResourceAnchorAsCandidate(t 
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		fakeGraphReader{
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "rel:USES") {
 					return nil, nil
 				}
@@ -267,35 +270,35 @@ func TestEnrichServiceQueryContextKeepsStaleAWSCloudResourceAnchorAsCandidate(t 
 		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
 	}
 
-	if resources := mapSliceValue(workloadContext, "cloud_resources"); len(resources) != 0 {
+	if resources := querycontract.MapSliceValue(workloadContext, "cloud_resources"); len(resources) != 0 {
 		t.Fatalf("cloud_resources = %#v, want no promoted resource for stale anchor", resources)
 	}
-	candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources")
+	candidates := querycontract.MapSliceValue(workloadContext, "uncorrelated_cloud_resources")
 	if got, want := len(candidates), 1; got != want {
 		t.Fatalf("len(uncorrelated_cloud_resources) = %d, want %d", got, want)
 	}
-	if got, want := StringVal(candidates[0], "candidate_status"), "stale_anchor"; got != want {
+	if got, want := querycontract.StringVal(candidates[0], "candidate_status"), "stale_anchor"; got != want {
 		t.Fatalf("candidate_status = %q, want %q", got, want)
 	}
-	if got, want := StringVal(candidates[0], "service_anchor_reason"), "stale_deployment_evidence"; got != want {
+	if got, want := querycontract.StringVal(candidates[0], "service_anchor_reason"), "stale_deployment_evidence"; got != want {
 		t.Fatalf("service_anchor_reason = %q, want %q", got, want)
 	}
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
-	trace := mapValue(story, "code_to_runtime_trace")
-	cloud := segmentByName(mapSliceValue(trace, "segments"), "cloud_dependencies")
+	trace := querycontract.MapValue(story, "code_to_runtime_trace")
+	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
 	if cloud == nil {
 		t.Fatalf("cloud_dependencies segment missing from trace: %#v", trace)
 	}
-	if got, want := StringVal(cloud, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(cloud, "status"), "missing_evidence"; got != want {
 		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
 	}
-	missing := StringSliceVal(cloud, "missing_evidence")
+	missing := querycontract.StringSliceVal(cloud, "missing_evidence")
 	if len(missing) != 1 || missing[0] != "stale_deployment_evidence" {
 		t.Fatalf("cloud_dependencies missing_evidence = %#v, want stale_deployment_evidence", missing)
 	}
-	evidence := mapSliceValue(cloud, "evidence")
-	if got, want := StringVal(evidence[0], "candidate_status"), "stale_anchor"; got != want {
+	evidence := querycontract.MapSliceValue(cloud, "evidence")
+	if got, want := querycontract.StringVal(evidence[0], "candidate_status"), "stale_anchor"; got != want {
 		t.Fatalf("cloud candidate status = %q, want %q", got, want)
 	}
 }
@@ -308,8 +311,8 @@ func TestEnrichServiceQueryContextDoesNotPromoteWrongTargetAWSCloudResourceAncho
 
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
-		fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "rel:USES") {
 					if params["workload_id"] != "workload:orders-api" {
 						t.Fatalf("workload_id param = %#v, want selected workload", params["workload_id"])
@@ -333,20 +336,20 @@ func TestEnrichServiceQueryContextDoesNotPromoteWrongTargetAWSCloudResourceAncho
 		t.Fatalf("enrichServiceQueryContextWithOptions() error = %v, want nil", err)
 	}
 
-	if resources := mapSliceValue(workloadContext, "cloud_resources"); len(resources) != 0 {
+	if resources := querycontract.MapSliceValue(workloadContext, "cloud_resources"); len(resources) != 0 {
 		t.Fatalf("cloud_resources = %#v, want no promoted resource for wrong target", resources)
 	}
-	if candidates := mapSliceValue(workloadContext, "uncorrelated_cloud_resources"); len(candidates) != 0 {
+	if candidates := querycontract.MapSliceValue(workloadContext, "uncorrelated_cloud_resources"); len(candidates) != 0 {
 		t.Fatalf("uncorrelated_cloud_resources = %#v, want empty for wrong target without candidate match", candidates)
 	}
 
 	story := buildServiceStoryResponse("orders-api", workloadContext)
-	trace := mapValue(story, "code_to_runtime_trace")
-	cloud := segmentByName(mapSliceValue(trace, "segments"), "cloud_dependencies")
-	if got, want := StringVal(cloud, "status"), "missing_evidence"; got != want {
+	trace := querycontract.MapValue(story, "code_to_runtime_trace")
+	cloud := querytestutil.SegmentByName(querycontract.MapSliceValue(trace, "segments"), "cloud_dependencies")
+	if got, want := querycontract.StringVal(cloud, "status"), "missing_evidence"; got != want {
 		t.Fatalf("cloud_dependencies status = %q, want %q", got, want)
 	}
-	if got, want := len(mapSliceValue(cloud, "evidence")), 0; got != want {
+	if got, want := len(querycontract.MapSliceValue(cloud, "evidence")), 0; got != want {
 		t.Fatalf("cloud_dependencies evidence len = %d, want %d", got, want)
 	}
 }
@@ -357,8 +360,8 @@ func TestConfigDerivedCloudResourceDependenciesRequireConfigReadEvidence(t *test
 	calls := 0
 	got, err := loadConfigDerivedCloudResourceDependencies(
 		t.Context(),
-		fakeGraphReader{
-			run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
+		querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				calls++
 				return nil, nil
 			},

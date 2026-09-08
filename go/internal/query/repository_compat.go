@@ -32,10 +32,6 @@ func stringSliceValue(value map[string]any, key string) []string {
 	return querycontract.StringSliceValue(value, key)
 }
 
-func stringSliceMapValue(value map[string]any, key string) []string {
-	return querycontract.StringSliceMapValue(value, key)
-}
-
 func relationshipFloatVal(row map[string]any, key string) float64 {
 	return querycontract.FloatVal(row, key)
 }

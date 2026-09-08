@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 // fetchWorkloadContext queries graph-backed workload context with a custom
@@ -62,7 +63,7 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 	if operation == "" {
 		operation = "workload_context"
 	}
-	timer := startServiceQueryStage(ctx, h.Logger, operation, serviceName, "", "workload_lookup")
+	timer := service.StartServiceQueryStage(ctx, h.Logger, operation, serviceName, "", "workload_lookup")
 	params = access.GraphParams(params)
 	whereClause = scopedWorkloadWhereClause(whereClause, access)
 	baseCypher := fmt.Sprintf(`
@@ -93,7 +94,7 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 	if !access.AllowsRepositoryID(preferredRepoID) {
 		preferredRepoID = ""
 	}
-	timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), preferredRepoID, "repository_lookup")
+	timer = service.StartServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), preferredRepoID, "repository_lookup")
 	repoID, repoName, err := h.fetchWorkloadRepositoryForAccess(
 		ctx, workloadID, access, preferredRepoID,
 	)
@@ -105,7 +106,7 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 		repoName = StringVal(row, "repo_name")
 	}
 
-	timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "instance_lookup")
+	timer = service.StartServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "instance_lookup")
 	topology, err := h.fetchWorkloadDeploymentTopology(
 		ctx, followupWhereClause, followupParams, repoID, operation == "deployment_trace",
 	)
@@ -139,10 +140,10 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 
 	if repoID != "" {
 		repoParams := map[string]any{"repo_id": repoID}
-		timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repo_dependencies")
+		timer = service.StartServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repo_dependencies")
 		result["dependencies"] = repository.QueryRepoDependencies(ctx, h.Neo4j, repoParams)
 		timer.Done(ctx, slog.Int("row_count", len(mapSliceValue(result, "dependencies"))))
-		timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repo_infrastructure")
+		timer = service.StartServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repo_infrastructure")
 		infrastructure, infrastructureDegraded, infrastructureTruncated := repository.QueryRepoInfrastructure(ctx, h.Neo4j, h.Content, repoParams)
 		result["infrastructure"] = infrastructure
 		if infrastructureDegraded {

@@ -210,23 +210,24 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// ServiceCatalogHandler.listCorrelations -> h.Correlations
 	// (PostgresServiceCatalogCorrelationStore): fact_kind = $1 bound to
 	// "reducer_service_catalog_correlation"
-	// (go/internal/query/service_catalog_correlations.go:16,199).
+	// (ServiceCatalogCorrelationFactKind and ListServiceCatalogCorrelationsQuery in
+	// go/internal/query/service/service_catalog_correlations.go).
 	"GET /api/v0/service-catalog/correlations": {
-		RegistrationFile: "go/internal/query/service_catalog.go",
+		RegistrationFile: "go/internal/query/service/service_catalog.go",
 		HandlerStruct:    "ServiceCatalogHandler",
-		StructFile:       "go/internal/query/service_catalog.go",
+		StructFile:       "go/internal/query/service/service_catalog.go",
 		Method:           "listCorrelations",
-		MethodFile:       "go/internal/query/service_catalog.go",
+		MethodFile:       "go/internal/query/service/service_catalog.go",
 		ScanFiles: []string{
-			"go/internal/query/service_catalog.go",
-			"go/internal/query/service_catalog_correlations.go",
+			"go/internal/query/service/service_catalog.go",
+			"go/internal/query/service/service_catalog_correlations.go",
 		},
 		Served: []routeServedDomain{{
 			Domain:     "service_catalog_correlation",
 			StoreField: "Correlations",
 			StoreType:  "ServiceCatalogCorrelationStore",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/service_catalog_correlations.go", Marker: "reducer_service_catalog_correlation"},
+				{File: "go/internal/query/service/service_catalog_correlations.go", Marker: "reducer_service_catalog_correlation"},
 			},
 		}},
 	},

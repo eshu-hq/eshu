@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 // CompareHandler provides environment comparison endpoints.
@@ -394,7 +395,7 @@ func (h *CompareHandler) loadServiceEvidence(ctx context.Context, workload map[s
 	if repoID == "" || serviceName == "" {
 		return ServiceQueryEvidence{}, nil
 	}
-	return loadServiceQueryEvidence(ctx, h.Content, repoID, serviceName)
+	return service.LoadServiceQueryEvidence(ctx, h.Content, repoID, serviceName)
 }
 
 // floatVal safely extracts a float64 from a map value. The implementation

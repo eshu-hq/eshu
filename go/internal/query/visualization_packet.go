@@ -94,8 +94,3 @@ func unsupportedVisualizationPacket(
 func visualizationNodeID(kind string, parts ...string) string {
 	return querycontract.VisualizationNodeID(kind, parts...)
 }
-
-// visualizationEdgeID derives a stable edge ID from its endpoints and label.
-func visualizationEdgeID(source, target, relationship string) string {
-	return querycontract.VisualizationEdgeID(source, target, relationship)
-}

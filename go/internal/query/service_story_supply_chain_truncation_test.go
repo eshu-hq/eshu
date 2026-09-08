@@ -3,12 +3,16 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
+)
 
 func TestServiceStoryAdmissibleImageIdentityFailsClosedWhenListTruncated(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]ContainerImageIdentityRow, 0, serviceStorySupplyChainReadLimit+1)
+	rows := make([]supplychain.ContainerImageIdentityRow, 0, serviceStorySupplyChainReadLimit+1)
 	for range serviceStorySupplyChainReadLimit + 1 {
 		rows = append(rows, serviceStoryExactImageIdentity(serviceStoryTestDigest))
 	}
@@ -22,7 +26,7 @@ func TestServiceStoryAdmissibleImageIdentityFailsClosedWhenListTruncated(t *test
 func TestServiceStoryAdmissibleSBOMAttachmentsFailsClosedWhenListTruncated(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]SBOMAttestationAttachmentRow, 0, serviceStorySupplyChainReadLimit+1)
+	rows := make([]supplychain.SBOMAttestationAttachmentRow, 0, serviceStorySupplyChainReadLimit+1)
 	for i := range serviceStorySupplyChainReadLimit + 1 {
 		row := serviceStoryAttachedSBOM(serviceStoryTestDigest)
 		row.AttachmentID = "sbom-attachment-truncated-" + string(rune('a'+i))
