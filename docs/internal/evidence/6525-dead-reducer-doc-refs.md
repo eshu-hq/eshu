@@ -22,11 +22,11 @@ Re-derived over the commit's own scope (`docs/ scripts/ specs/ go/`, distinct
 | base `c74d5b6c5` | 517 | 53 |
 | head | 506 | 27 |
 
-The 53 decompose as 28 distinct paths repointed, 13 declared fixtures, 1
+Of the 53: 28 distinct paths were repointed, 13 are declared fixtures, 1 is an
 undeclared fixture (`container_image_identity.go`, referenced only from
-`scripts/test-verify-performance-evidence-inherited-marker.sh`), 1 allowlisted
-transcript, 2 self-test artifacts — and **11 ordinary repointable dead paths
-that remain**:
+`scripts/test-verify-performance-evidence-inherited-marker.sh`), 1 is an
+allowlisted transcript, 2 are self-test artifacts, and **11 ordinary repointable
+dead paths remain**:
 
     ci_cd_run_correlation_writer.go              -> reducer/cicdrun/
     container_image_identity_provenance.go       -> reducer/containerimage/
@@ -40,11 +40,26 @@ that remain**:
     secrets_iam_trust_chain_writer.go            -> reducer/secretsiam/
     factschema_decode.go                         -> reducer/schemadecode/
 
+Those categories were tallied across separate measurements and **do not
+reconcile**: they sum to 56 against a base count of 53, an excess of 3. At least
+one path is counted twice — a repointed path that is also a fixture, or a listed
+remainder already inside the 28 — and splitting them correctly needs a full
+re-run of the sweep, which is not done here. The LIST is the checkable part:
+every entry can be confirmed with `git cat-file -e <base>:<path>`. Read the
+category tally as approximate and the list as exact.
+
 The first ten were missed because they are cited from
 `docs/internal/design/4784-reducer-derived-fact-governance.md` and
 `4786-contract-integration-matrix.md`, which this branch never opened.
 
-**The eleventh is different, and it is this branch's own doing.** Commit
+**The eleventh was dead at the base too; what differs is why it is still here.**
+An earlier revision of this note called it "this branch's own doing". That was
+wrong, and `git cat-file -e c74d5b6c5:go/internal/reducer/factschema_decode.go`
+fails while the subpackage form resolves at that same base — so the reference
+was already dead before this branch started, exactly like the other ten. What is
+actually different is that it is NOT reachable from 4784 or 4786 (it lives in Go
+comments), so their explanation does not cover it, and it is the one path this
+branch tried to clear and had to put back. Commit
 `1ec7c4305` repointed the three `factschema_decode.go` references in the Go
 comments of `go/internal/relationships/gcp_evidence.go`, and `bc1589019`
 REVERTED that file. The reason is recorded in that commit: the
@@ -55,7 +70,7 @@ update, neither of which is meaningful for a comment. Teaching the kit to
 recognise a comment-only change is the principled fix and is a larger change
 than this branch should carry.
 
-So at head `95962ae4a` that file still carries three references (lines 28, 39
+At this branch's head that file still carries three references (lines 28, 39
 and 62) to `go/internal/reducer/factschema_decode.go`, a path that does not
 exist — the live file is `go/internal/reducer/schemadecode/factschema_decode.go`.
 Unlike the other ten, this one is NOT reachable from 4784 or 4786, so that
@@ -69,7 +84,7 @@ table shows. The table is left as measured rather than silently re-stated,
 because the number it reports is what that run actually produced.
 
 **Why disclosing them matters more than the count being wrong.** The new gate is
-branch-scoped: it only inspects paths the branch itself vacates. These 10 were
+branch-scoped: it only inspects paths the branch itself vacates. All eleven were
 already dead at the base, so the gate will never report them, and there is no
 decreasing baseline ledger (the sibling `verify-doc-citations.sh` has one) to
 keep them visible. Without this note the sweep, the guard, and the commit
@@ -125,7 +140,9 @@ subpackages —
     reducer/sql_relationship_materialization.go -> reducer/sqlrelationship/
     reducer/security_group_reachability.go      -> reducer/secgroup/
 
-the other four already name their subpackage and resolve. Stating the shorthand
+three of the other four name their subpackage and resolve; the fourth,
+`reducer/shell_exec_materialization.go`, is flat and resolves because that file
+was never moved. Stating the shorthand
 rather than "repo-relative" matters, because a reader looking for
 `internal/exposure/...`-style paths in that file finds NONE — the blind spot is
 wider than one alternate spelling.
