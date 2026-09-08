@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
@@ -45,6 +46,12 @@ func TestCodeSeamExportsForward(t *testing.T) {
 	}
 	if StructuralInventoryDefaultLimit != 25 {
 		t.Fatalf("StructuralInventoryDefaultLimit = %d, want 25", StructuralInventoryDefaultLimit)
+	}
+	if CrossRepoDeadCodeUngrantedConsumerProbeQuery != crossRepoDeadCodeUngrantedConsumerProbeQuery {
+		t.Fatal("CrossRepoDeadCodeUngrantedConsumerProbeQuery != crossRepoDeadCodeUngrantedConsumerProbeQuery")
+	}
+	if !strings.Contains(CrossRepoDeadCodeUngrantedConsumerProbeQuery, "code_reachability_rows") {
+		t.Fatalf("CrossRepoDeadCodeUngrantedConsumerProbeQuery = %q, want it to reference code_reachability_rows", CrossRepoDeadCodeUngrantedConsumerProbeQuery)
 	}
 
 	if !errors.Is(ErrCodeTopicBackendUnavailable, errCodeTopicBackendUnavailable) {
@@ -215,6 +222,18 @@ func TestCodeSeamExportsForward(t *testing.T) {
 	}
 	if inv.NormalizedLimit() != StructuralInventoryDefaultLimit {
 		t.Fatalf("StructuralInventoryRequest.NormalizedLimit() = %d, want default %d", inv.NormalizedLimit(), StructuralInventoryDefaultLimit)
+	}
+	// QueryLimit and NormalizedLimit diverge above the display cap: QueryLimit
+	// (the SQL LIMIT content_reader_structural_inventory.go binds) does not
+	// clamp, while NormalizedLimit (the display cap reported to the caller)
+	// does. An over-cap Limit distinguishes them; a value at or below the cap
+	// would not.
+	overCap := StructuralInventoryRequest{Limit: 9000}
+	if got, want := overCap.QueryLimit(), 9000; got != want {
+		t.Fatalf("StructuralInventoryRequest.QueryLimit() = %d, want unclamped %d", got, want)
+	}
+	if got := overCap.NormalizedLimit(); got == 9000 {
+		t.Fatalf("StructuralInventoryRequest.NormalizedLimit() = %d, want it to clamp below QueryLimit", got)
 	}
 	sym := SymbolSearchRequest{Symbol: " Foo ", MatchMode: "exact", EntityType: "function"}
 	if sym.ResolvedSymbol() != "Foo" {

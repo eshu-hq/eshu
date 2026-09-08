@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (h *CodeHandler) nornicDBRelationshipsGraphRow(
@@ -54,7 +56,7 @@ func (h *CodeHandler) nornicDBRelationshipsGraphRow(
 
 func nornicDBPrimaryEntityLabel(row map[string]any) string {
 	for _, label := range StringSliceVal(row, "labels") {
-		if graphLabelToContentEntityType(label) != "" {
+		if querycontract.GraphLabelToContentEntityType(label) != "" {
 			return label
 		}
 	}
@@ -111,7 +113,7 @@ func (h *CodeHandler) nornicDBRelationshipMetadataRow(
 
 func nornicDBGraphLabelForContentEntityType(entityType string) string {
 	label := strings.TrimSpace(entityType)
-	if graphLabelToContentEntityType(label) == "" {
+	if querycontract.GraphLabelToContentEntityType(label) == "" {
 		return ""
 	}
 	return label

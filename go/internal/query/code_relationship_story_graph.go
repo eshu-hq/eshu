@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // relationshipStoryRelationships resolves the relationship rows for a request,
@@ -215,7 +217,7 @@ func relationshipStoryGraphCypher(
 	entity *EntityContent,
 	direction string,
 	predicate func(string, string) string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	relationshipType, _ := req.NormalizedRelationshipType()
 	params := map[string]any{
@@ -303,7 +305,7 @@ func relationshipStoryGraphCypher(
 // querycontract.RepositoryAccessFilter renders its condition against.
 func relationshipStoryAccessParams(
 	req relationshipStoryRequest,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	params map[string]any,
 ) map[string]any {
 	if strings.TrimSpace(req.RepoID) != "" {
@@ -343,7 +345,7 @@ func relationshipStoryAccessParams(
 // out-of-grant neighbour's identity even on a cross-repository question.
 func relationshipStoryRepoPredicates(
 	req relationshipStoryRequest,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	sourceAlias string,
 	targetAlias string,
 	anchorAlias string,
@@ -367,7 +369,7 @@ func relationshipStoryRepoPredicates(
 // relationshipStoryRepoPredicates above: they never carried a repo_id predicate,
 // so adding one would change what a shared-key caller reads, while the grant is
 // what those reads are missing.
-func relationshipStoryGrantPredicates(access repositoryAccessFilter, aliases ...string) []string {
+func relationshipStoryGrantPredicates(access querycontract.RepositoryAccessFilter, aliases ...string) []string {
 	if !access.Scoped() {
 		return nil
 	}

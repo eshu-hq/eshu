@@ -63,7 +63,10 @@ const (
 	// its own grant, which it already knows. What stays unprobeable is the
 	// INDEX: neither answer says whether any repository, entity or row exists,
 	// because no backend was read to find out.
-	reasonEmptyGrantNoBackendRead = "the caller's grant admits no repository, so no backend was read"
+	// reasonEmptyGrantNoBackendRead forwards to
+	// querycontract.ReasonEmptyGrantNoBackendRead. The implementation moved to
+	// querycontract for #6060; this alias keeps root callers unchanged.
+	reasonEmptyGrantNoBackendRead = querycontract.ReasonEmptyGrantNoBackendRead
 )
 
 // languageQueryMaxLimit bounds the caller-supplied limit before it reaches

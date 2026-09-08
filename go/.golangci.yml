@@ -107,6 +107,7 @@ linters:
             - "!**/internal/query/visualization_packet_graph_query.go"
             - "!**/internal/query/code_call_chain.go"
             - "!**/internal/query/impact/exposure_path_mapping.go"
+            - "!**/internal/query/querygraphrows/graph_row_shape.go"
           deny:
             - pkg: github.com/neo4j/neo4j-go-driver
               desc: query owns handlers and read surfaces; reach the graph through a port or an existing driver-owning file, not a new direct driver import
@@ -428,6 +429,22 @@ linters:
         linters:
           - funlen
       - path: 'internal/query/entity_summary\.go'
+        linters:
+          - funlen
+      # buildEntitySemanticSummary and BuildEntitySemanticProfile moved out of
+      # internal/query/entity_summary.go and semantic_profile.go into the
+      # entitysemantics leaf for #6060. Same pre-existing functions, same
+      # grandfathered status, new path -- as codemodel and impact already are
+      # above after their own family moves.
+      - path: 'internal/query/entitysemantics/entity_semantic_summary\.go'
+        linters:
+          - funlen
+      - path: 'internal/query/entitysemantics/entity_semantic_profile\.go'
+        linters:
+          - funlen
+      # GraphResultMetadata moved out of internal/query/language_query_entities.go
+      # into querycontract for #6060, same pre-existing function, new path.
+      - path: 'internal/query/querycontract/language_query_entities\.go'
         linters:
           - funlen
       - path: 'internal/query/handler\.go'

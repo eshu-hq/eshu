@@ -42,7 +42,7 @@ func TestHandleRelationshipsFallsBackToContentEntityReferences(t *testing.T) {
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db)}
+	handler := &CodeHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -114,7 +114,7 @@ func TestHandleRelationshipsFallsBackToContentComponentInboundReferences(t *test
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db)}
+	handler := &CodeHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -186,7 +186,7 @@ func TestHandleRelationshipsFiltersContentFallbackByDirectionAndType(t *testing.
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db)}
+	handler := &CodeHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -279,7 +279,7 @@ func TestHandleRelationshipsFallsBackToContentNameLookup(t *testing.T) {
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db)}
+	handler := &CodeHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -348,7 +348,7 @@ func TestHandleRelationshipsFallsBackToContentRustImplBlockOwnership(t *testing.
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db)}
+	handler := &CodeHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -387,5 +387,57 @@ func TestHandleRelationshipsFallsBackToContentRustImplBlockOwnership(t *testing.
 	}
 	if got, want := relationship["reason"], "rust_impl_context"; got != want {
 		t.Fatalf("relationship[reason] = %#v, want %#v", got, want)
+	}
+}
+
+// TestHandleRelationshipsWithoutContentRelationshipBuilderReturns503 is the
+// #6060 regression for a nil CodeHandler.ContentRelationships: the entity
+// resolves (so this is not the unknown-entity 404 path,
+// code_relationships_nornicdb_test.go covers that one), but nothing can
+// build its content-derived relationships, so the route must fail closed
+// with 503 rather than silently returning empty outgoing/incoming lists.
+func TestHandleRelationshipsWithoutContentRelationshipBuilderReturns503(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{
+				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+				"start_line", "end_line", "language", "source_cache", "metadata",
+			},
+			rows: [][]driver.Value{
+				{
+					"function-unconfigured", "repo-1", "src/App.tsx", "Function", "renderApp",
+					int64(5), int64(20), "tsx", "return <Button />", []byte(`{}`),
+				},
+			},
+		},
+	})
+
+	handler := &CodeHandler{Content: NewContentReader(db)}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/relationships",
+		bytes.NewBufferString(`{"entity_id":"function-unconfigured"}`),
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want %d; body = %s", w.Code, http.StatusServiceUnavailable, w.Body.String())
+	}
+	if !bytes.Contains(w.Body.Bytes(), []byte("content relationship builder not configured")) {
+		t.Fatalf("body = %s, want it to contain %q", w.Body.String(), "content relationship builder not configured")
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if _, ok := resp["outgoing"]; ok {
+		t.Fatalf("resp = %#v, want no outgoing key on an unconfigured-builder error", resp)
 	}
 }

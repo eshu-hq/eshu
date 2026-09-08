@@ -56,6 +56,21 @@ subpackage cannot import root without a cycle through `type CodeHandler =
 after the move. The 29 unhomed symbols are hoisted into leaf packages here, with
 root keeping lowercase forwarders so no staying caller changes.
 
+## What this seam does not remove
+
+The moving files still call 103 symbols declared in the six
+`family_code_shim*.go` files. Those are compatibility forwarders into
+`codemodel`, `codeshaping` and `codeowners`, which earlier lanes already
+created, and the issue's sequence deletes the shims with the move rather than
+here.
+
+This is worth stating because the obvious summary of this PR -- "the code family
+no longer depends on root" -- would be wrong. It depends on root in exactly one
+remaining way, through forwarders that are scheduled for deletion and that
+already name the package each call site will resolve to after the move. The
+move PR therefore carries a 103-site name substitution in addition to the file
+move itself.
+
 ## No-regression: the query text is byte-identical
 
 Every backquoted Go literal containing a Cypher or SQL keyword was collected

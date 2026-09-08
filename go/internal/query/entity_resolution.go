@@ -36,17 +36,3 @@ func resolveExactGraphEntityCandidates(
 ) ([]EntityContent, error) {
 	return querycontract.ResolveExactGraphEntityCandidates(ctx, reader, repoID, name)
 }
-
-// selectExactGraphEntityCandidate picks the single candidate. The
-// implementation moved to querycontract for #6060; this wrapper keeps root
-// callers unchanged.
-func selectExactGraphEntityCandidate(repoID string, name string, exact []EntityContent) (*EntityContent, error) {
-	return querycontract.SelectExactGraphEntityCandidate(repoID, name, exact)
-}
-
-// exactEntityNameMatches keeps only whitespace-exact name matches. The
-// implementation moved to querycontract for #6060; this wrapper keeps root
-// callers unchanged.
-func exactEntityNameMatches(matches []EntityContent, name string) []EntityContent {
-	return querycontract.ExactEntityNameMatches(matches, name)
-}

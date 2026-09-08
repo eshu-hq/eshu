@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -66,7 +68,7 @@ func (h *CodeHandler) handleCodeFlow(
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), capability) {
+	if querycontract.CapabilityUnsupported(h.profile(), capability) {
 		WriteContractError(
 			w,
 			r,
@@ -75,7 +77,7 @@ func (h *CodeHandler) handleCodeFlow(
 			ErrorCodeUnsupportedCapability,
 			capability,
 			h.profile(),
-			requiredProfile(capability),
+			querycontract.RequiredProfile(capability),
 		)
 		return
 	}

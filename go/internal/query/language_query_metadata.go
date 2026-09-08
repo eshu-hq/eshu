@@ -6,33 +6,22 @@ package query
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// languageEntitySearch is one content-store entity lookup for
-// POST /api/v0/code/language-query, carrying the caller's repository grant
-// alongside the filters.
-//
-// AllowedRepositoryIDs is never populated from the request body: the handler
-// fills it from the caller's AuthContext through codeContentGrantScope
-// (code_repository_selector.go). It restricts a corpus-wide read (empty RepoID)
-// at the SQL WHERE, before the LIMIT page boundary. Empty leaves the read
-// unrestricted, which is what an unscoped shared, admin, or local caller wants.
-type languageEntitySearch struct {
-	RepoID               string
-	Language             string
-	EntityType           string
-	Query                string
-	Limit                int
-	AllowedRepositoryIDs []string
-}
+// languageEntitySearch aliases querycontract.LanguageEntitySearch. The
+// implementation moved to querycontract for #6060; this alias keeps root
+// callers unchanged.
+type languageEntitySearch = querycontract.LanguageEntitySearch
 
-// languageEntityContentSearcher is the grant-bound content read this route
-// prefers. *ContentReader implements it; a store that does not gets the
-// per-repository fallback in searchLanguageEntities below, which is bound but
-// issues one statement per granted repository.
-type languageEntityContentSearcher interface {
-	SearchEntitiesByLanguageAndTypeForAccess(context.Context, languageEntitySearch) ([]EntityContent, error)
-}
+// languageEntityContentSearcher aliases
+// querycontract.LanguageEntityContentSearcher. *ContentReader implements it;
+// a store that does not gets the per-repository fallback in
+// searchLanguageEntities below, which is bound but issues one statement per
+// granted repository. The implementation moved to querycontract for #6060;
+// this alias keeps root callers unchanged.
+type languageEntityContentSearcher = querycontract.LanguageEntityContentSearcher
 
 // enrichLanguageResultsWithContentMetadata merges Postgres content-index
 // metadata into graph-sourced results, keyed by repository plus file
@@ -130,8 +119,11 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 // code_search_metadata.go), which anchor their own reads differently, so this
 // route adds the repository through the wrapper below rather than changing the
 // shared shape.
+// languageResultMatchKey forwards to querycontract.LanguageResultMatchKey.
+// The implementation moved to querycontract for #6060; this wrapper keeps
+// root callers unchanged.
 func languageResultMatchKey(filePath string, entityType string, name string, startLine int) string {
-	return fmt.Sprintf("%s|%s|%s|%d", filePath, entityType, name, startLine)
+	return querycontract.LanguageResultMatchKey(filePath, entityType, name, startLine)
 }
 
 // languageResultRepositoryMatchKey is the merge key

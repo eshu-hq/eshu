@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -47,7 +49,7 @@ type deadCodeInvestigationScan struct {
 // by MCP clients that need coverage, paging, candidate buckets, and drill-down
 // handles without interpreting the lower-level analysis payload themselves.
 func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(
+	r, span := startCodeQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryDeadCodeInvestigation,
 		"POST /api/v0/code/dead-code/investigate",
@@ -55,7 +57,7 @@ func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), deadCodeInvestigationCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), deadCodeInvestigationCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -64,7 +66,7 @@ func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http
 			ErrorCodeUnsupportedCapability,
 			deadCodeInvestigationCapability,
 			h.profile(),
-			requiredProfile(deadCodeInvestigationCapability),
+			querycontract.RequiredProfile(deadCodeInvestigationCapability),
 		)
 		return
 	}
@@ -408,7 +410,7 @@ func (h *CodeHandler) deadCodeInvestigationCoverage(
 	}
 	coverage["file_count"] = contentCoverage.FileCount
 	coverage["entity_count"] = contentCoverage.EntityCount
-	coverage["languages"] = coverageLanguageMaps(contentCoverage.Languages)
+	coverage["languages"] = querycontract.CoverageLanguageMaps(contentCoverage.Languages)
 	if latest := latestDeadCodeCoverageTimestamp(contentCoverage); !latest.IsZero() {
 		coverage["content_last_indexed_at"] = latest.Format(time.RFC3339Nano)
 		coverage["freshness_state"] = "content_index_available"

@@ -11,6 +11,10 @@
 // ResolveForRequestWithAccess wraps that for HTTP handlers, writing the stable
 // error contract and reporting whether the caller should continue.
 //
+// HydrateResolvedEntityRepoIdentity hydrates an already-resolved entity's own
+// canonical repository identity (repo_id, repo_name) under the same access
+// filter, rather than resolving a selector into one.
+//
 // It is its own package, rather than part of querycontract, because the
 // request-level entry point writes to a ResponseWriter. Request-time
 // orchestration does not belong in the dependency-neutral contract package.

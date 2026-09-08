@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 // codeEntityLabelSet indexes the code-entity labels a route handler may carry
@@ -157,7 +160,7 @@ func joinRouteToCallerRouteRows(endpointRows, handlerRows []map[string]any, limi
 		for _, hr := range handlers {
 			row := newBase()
 			row["http_method"] = StringVal(hr, "http_method")
-			row["framework"] = firstNonEmpty(StringVal(hr, "route_framework"), epFramework)
+			row["framework"] = querycontract.FirstNonEmpty(StringVal(hr, "route_framework"), epFramework)
 			row["handler_id"] = StringVal(hr, "handler_id")
 			row["handler_name"] = StringVal(hr, "handler_name")
 			row["handler_file_path"] = StringVal(hr, "handler_file_path")
@@ -264,7 +267,7 @@ func (h *CodeHandler) routeToCallerDirectionRows(
 	}
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		entity := routeToCallerEntityFromChain(row["chain"])
+		entity := querygraphrows.RouteToCallerEntityFromChain(row["chain"])
 		if entity == nil || StringVal(entity, "entity_id") == "" {
 			continue
 		}
@@ -369,7 +372,7 @@ func splitRouteToCallerRelationships(rows []map[string]any, limit int) ([]map[st
 }
 
 func routeToCallerAccessParams(r *http.Request, params map[string]any) map[string]any {
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if !access.Scoped() {
 		return params
 	}
@@ -379,21 +382,21 @@ func routeToCallerAccessParams(r *http.Request, params map[string]any) map[strin
 }
 
 func routeToCallerEndpointAccessPredicate(r *http.Request) string {
-	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
+	if !querycontract.RepositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return "(endpoint.repo_id IN $allowed_repository_ids OR endpoint.scope_id IN $allowed_scope_ids)"
 }
 
 func routeToCallerEntityAccessPredicate(r *http.Request, alias string) string {
-	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
+	if !querycontract.RepositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return " AND (" + alias + ".repo_id IN $allowed_repository_ids OR " + alias + ".scope_id IN $allowed_scope_ids)"
 }
 
 func routeToCallerPathAccessPredicate(r *http.Request, pathAlias string) string {
-	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
+	if !querycontract.RepositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return " AND all(pathNode IN nodes(" + pathAlias + ") WHERE " +
@@ -406,7 +409,7 @@ func routeToCallerPathAccessPredicate(r *http.Request, pathAlias string) string 
 // excluded (fail-closed), which is the correct scoped behavior for the split
 // impact set reads.
 func routeToCallerRequiredNodeAccessClause(r *http.Request, alias string) string {
-	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
+	if !querycontract.RepositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return " AND (" + alias + ".repo_id IN $allowed_repository_ids OR " + alias + ".scope_id IN $allowed_scope_ids)"
@@ -415,7 +418,7 @@ func routeToCallerRequiredNodeAccessClause(r *http.Request, alias string) string
 // routeToCallerRequiredRepositoryAccessClause is the required-match access
 // predicate for a Repository node, whose grant identity is its own id.
 func routeToCallerRequiredRepositoryAccessClause(r *http.Request, alias string) string {
-	if !repositoryAccessFilterFromContext(r.Context()).Scoped() {
+	if !querycontract.RepositoryAccessFilterFromContext(r.Context()).Scoped() {
 		return ""
 	}
 	return " AND (" + alias + ".id IN $allowed_repository_ids OR " + alias + ".scope_id IN $allowed_scope_ids)"

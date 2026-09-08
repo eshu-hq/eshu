@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -75,7 +77,7 @@ type hardcodedSecretInvestigator interface {
 }
 
 func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(r, telemetry.SpanQueryHardcodedSecretInvestigation, "POST /api/v0/code/security/secrets/investigate", hardcodedSecretCapability)
+	r, span := startCodeQueryHandlerSpan(r, telemetry.SpanQueryHardcodedSecretInvestigation, "POST /api/v0/code/security/secrets/investigate", hardcodedSecretCapability)
 	defer span.End()
 
 	var req hardcodedSecretInvestigationRequest
@@ -83,7 +85,7 @@ func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, 
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), hardcodedSecretCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), hardcodedSecretCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -92,7 +94,7 @@ func (h *CodeHandler) handleHardcodedSecretInvestigation(w http.ResponseWriter, 
 			ErrorCodeUnsupportedCapability,
 			hardcodedSecretCapability,
 			h.profile(),
-			requiredProfile(hardcodedSecretCapability),
+			querycontract.RequiredProfile(hardcodedSecretCapability),
 		)
 		return
 	}

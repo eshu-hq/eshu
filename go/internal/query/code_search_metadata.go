@@ -6,6 +6,9 @@ package query
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (h *CodeHandler) enrichGraphSearchResultsWithContentMetadata(
@@ -26,7 +29,7 @@ func (h *CodeHandler) enrichGraphSearchResultsWithContentMetadata(
 			allHaveMetadata = false
 			continue
 		}
-		attachSemanticSummary(results[i])
+		entitysemantics.AttachSemanticSummary(results[i])
 	}
 
 	if allHaveMetadata || h == nil || h.Content == nil {
@@ -43,7 +46,7 @@ func (h *CodeHandler) enrichGraphSearchResultsWithContentMetadata(
 
 	metadataByKey := make(map[string]map[string]any, len(rows))
 	for _, row := range rows {
-		metadataByKey[languageResultMatchKey(
+		metadataByKey[querycontract.LanguageResultMatchKey(
 			row.RelativePath,
 			row.EntityType,
 			row.EntityName,
@@ -59,7 +62,7 @@ func (h *CodeHandler) enrichGraphSearchResultsWithContentMetadata(
 		if entityType == "" {
 			continue
 		}
-		key := languageResultMatchKey(
+		key := querycontract.LanguageResultMatchKey(
 			StringVal(results[i], "file_path"),
 			entityType,
 			StringVal(results[i], "name"),
@@ -70,7 +73,7 @@ func (h *CodeHandler) enrichGraphSearchResultsWithContentMetadata(
 			continue
 		}
 		results[i]["metadata"] = metadata
-		attachSemanticSummary(results[i])
+		entitysemantics.AttachSemanticSummary(results[i])
 	}
 
 	return results, nil
@@ -83,7 +86,7 @@ func (h *CodeHandler) enrichGraphResultsWithContentMetadataByEntityID(
 	if h == nil || h.Content == nil || len(results) == 0 {
 		for i := range results {
 			if metadata, ok := results[i]["metadata"].(map[string]any); ok && len(metadata) > 0 {
-				attachSemanticSummary(results[i])
+				entitysemantics.AttachSemanticSummary(results[i])
 			}
 		}
 		return results, nil
@@ -95,7 +98,7 @@ func (h *CodeHandler) enrichGraphResultsWithContentMetadataByEntityID(
 			continue
 		}
 		if metadata, ok := results[i]["metadata"].(map[string]any); ok && len(metadata) > 0 {
-			attachSemanticSummary(results[i])
+			entitysemantics.AttachSemanticSummary(results[i])
 		}
 		entity, err := h.Content.GetEntityContent(ctx, entityID)
 		if err != nil {
@@ -105,7 +108,7 @@ func (h *CodeHandler) enrichGraphResultsWithContentMetadataByEntityID(
 			continue
 		}
 		results[i]["metadata"] = mergeGraphAndContentMetadata(results[i]["metadata"], entity.Metadata)
-		attachSemanticSummary(results[i])
+		entitysemantics.AttachSemanticSummary(results[i])
 	}
 
 	return results, nil
@@ -114,7 +117,7 @@ func (h *CodeHandler) enrichGraphResultsWithContentMetadataByEntityID(
 func resultContentEntityType(result map[string]any) string {
 	labels := StringSliceVal(result, "labels")
 	for _, label := range labels {
-		if entityType := graphLabelToContentEntityType(label); entityType != "" {
+		if entityType := querycontract.GraphLabelToContentEntityType(label); entityType != "" {
 			return entityType
 		}
 	}

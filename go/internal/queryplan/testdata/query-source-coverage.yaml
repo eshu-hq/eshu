@@ -36,7 +36,7 @@ source_coverage:
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 3f6b99bc936e7e553df972f419b7610907c5ecb400f492286db0d30eb74e848d, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 7adafdc54fc591d37ec8cbb47ea81e9a1a7307f34174ae05825621bf8b2c811a, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: code_call_chain.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: 68ccf0ec867d38a9de25ab22c87e3eb687c6e98297c0d4ca1c367b4d4fe0d37e, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
@@ -55,7 +55,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 0a90a6552013582b1140efc56e8564822ca4ce5576f7456ed2a0b1e65fe356ce
+          source_sha256: 7b3bb16df20b0102b405ffc9e9f4c71777f66e9ca2d8aced0bb727cfc6fb494a
           label: Function
           max_results: 101
       - symbol: "(*CodeHandler).lookupComplexityRowByName"
@@ -67,8 +67,18 @@ source_coverage:
           max_results: 3
   - file: code_cypher.go
     calls:
-      - {symbol: "(*CodeHandler).handleCypherQuery", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*CodeHandler).handleVisualizeQuery", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*CodeHandler).handleCypherQuery"
+        count: 1
+        non_hot:
+          class: operator_query
+          policy: validated_query_endpoint
+          source_sha256: 1db8c4b6a5c272f3d13e7740e4d5b53ed52cf912e944533695eb9023892786bc
+      - symbol: "(*CodeHandler).handleVisualizeQuery"
+        count: 1
+        non_hot:
+          class: operator_query
+          policy: validated_query_endpoint
+          source_sha256: ac02d26fa2f4dcd71d684a820a7be7b3ed2c7f4fd3f4086a630f703b4721527d
   - file: code_dead_code_candidate_entity.go
     calls:
       - symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges"
@@ -137,7 +147,13 @@ source_coverage:
       - {symbol: "(*CodeHandler).nornicDBRelationshipEntityLabel", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_route_to_caller_graph.go
     calls:
-      - {symbol: "(*CodeHandler).routeToCallerDirectionRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*CodeHandler).routeToCallerDirectionRows"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 348a165bf43a6f8255681a8dcebaa34c7ffe1fd307e934b97f654e58684fa4f5
+          key_bound: single_key
+          max_results: 101
       - {symbol: "(*CodeHandler).routeToCallerEndpointRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).routeToCallerHandlerLabel", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).routeToCallerHandlerRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -182,13 +198,13 @@ source_coverage:
   - file: impact/entity_map_traversal.go
     calls:
       - {symbol: "(*ImpactHandler).entityMapNeighborhoodRows", count: 1, source_sha256: 4e06552660640a60368827c6f3cfc55b7eb82f171e0ee733cb71f5786c05fb51, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
-  - file: entity_resolve_identity.go
+  - file: queryselector/entity_repo_identity.go
     calls:
-      - symbol: "hydrateResolvedEntityRepoIdentity"
+      - symbol: "HydrateResolvedEntityRepoIdentity"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 3a77ce572e6302f8b43675f102de60e7342a7dd722730f477a2f6e3b4f1314b4
+          source_sha256: 030ac937dc75f991ea1dea50a75d5b4ed8d6761448692fb6465298dcaea2374a
           key_bound: bounded_key_batch
           max_keys: 101
           max_results: 101

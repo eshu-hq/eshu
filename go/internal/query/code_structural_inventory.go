@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -61,7 +64,7 @@ type StructuralInventoryFileCount struct {
 }
 
 func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(
+	r, span := startCodeQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryCodeStructuralInventory,
 		"POST /api/v0/code/structure/inventory",
@@ -74,7 +77,7 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), structuralInventoryCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), structuralInventoryCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -83,7 +86,7 @@ func (h *CodeHandler) handleStructuralInventory(w http.ResponseWriter, r *http.R
 			ErrorCodeUnsupportedCapability,
 			structuralInventoryCapability,
 			h.profile(),
-			requiredProfile(structuralInventoryCapability),
+			querycontract.RequiredProfile(structuralInventoryCapability),
 		)
 		return
 	}
@@ -208,7 +211,7 @@ func (r structuralInventoryRequest) validate() error {
 	}
 	if r.Kind() == "function_count_by_file" &&
 		strings.TrimSpace(r.EntityKind) != "" &&
-		contentEntityTypeForResolve(strings.ToLower(strings.TrimSpace(r.EntityKind))) != "Function" {
+		querycontract.ContentEntityTypeForResolve(strings.ToLower(strings.TrimSpace(r.EntityKind))) != "Function" {
 		return fmt.Errorf("entity_kind must be function for function_count_by_file inventory")
 	}
 	if !r.hasScopeFilter() {
@@ -262,7 +265,7 @@ func (r structuralInventoryRequest) EntityType() string {
 	if entityKind == "" {
 		return ""
 	}
-	return contentEntityTypeForResolve(strings.ToLower(entityKind))
+	return querycontract.ContentEntityTypeForResolve(strings.ToLower(entityKind))
 }
 
 func (r structuralInventoryRequest) hasScopeFilter() bool {
@@ -316,13 +319,13 @@ func structuralInventoryResults(entities []EntityContent, matchKind string) []ma
 		if className := structuralInventoryClassName(entity.Metadata); className != "" {
 			result["class_name"] = className
 		}
-		if decorators := stringSliceFromAny(entity.Metadata["decorators"]); len(decorators) > 0 {
+		if decorators := querycontract.StringSliceFromAny(entity.Metadata["decorators"]); len(decorators) > 0 {
 			result["decorators"] = decorators
 		}
-		if docstring := metadataString(entity.Metadata, "docstring"); docstring != "" {
+		if docstring := querycontract.MetadataString(entity.Metadata, "docstring"); docstring != "" {
 			result["docstring_present"] = true
 		}
-		attachSemanticSummary(result)
+		entitysemantics.AttachSemanticSummary(result)
 		results = append(results, result)
 	}
 	return results
@@ -349,7 +352,7 @@ func structuralInventoryFileCountResults(rows []StructuralInventoryFileCount) []
 
 func structuralInventoryClassName(metadata map[string]any) string {
 	for _, key := range []string{"class_context", "context", "impl_context"} {
-		if value := metadataString(metadata, key); value != "" {
+		if value := querycontract.MetadataString(metadata, key); value != "" {
 			return value
 		}
 	}

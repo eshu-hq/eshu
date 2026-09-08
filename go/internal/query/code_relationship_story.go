@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -26,7 +28,7 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), relationshipStoryCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), relationshipStoryCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -35,7 +37,7 @@ func (h *CodeHandler) handleRelationshipStory(w http.ResponseWriter, r *http.Req
 			ErrorCodeUnsupportedCapability,
 			relationshipStoryCapability,
 			h.profile(),
-			requiredProfile(relationshipStoryCapability),
+			querycontract.RequiredProfile(relationshipStoryCapability),
 		)
 		return
 	}
@@ -301,7 +303,7 @@ func relationshipStoryRowsWithHandles(rows []map[string]any) []map[string]any {
 	out := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
 		item := cloneQueryAnyMap(row)
-		addRelationshipConfidenceBasis(item)
+		querycontract.AddRelationshipConfidenceBasis(item)
 		item["provenance"] = relationshipStoryProvenance(item)
 		if sourceID := StringVal(item, "source_id"); sourceID != "" {
 			item["source_handle"] = "entity:" + sourceID

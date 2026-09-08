@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -29,7 +31,7 @@ var (
 // handler and data reader keep their signatures; see family_code_shim.go.
 
 func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(
+	r, span := startCodeQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryCallGraphMetrics,
 		"POST /api/v0/code/call-graph/metrics",
@@ -42,7 +44,7 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), callGraphMetricsCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), callGraphMetricsCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -51,7 +53,7 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 			ErrorCodeUnsupportedCapability,
 			callGraphMetricsCapability,
 			h.profile(),
-			requiredProfile(callGraphMetricsCapability),
+			querycontract.RequiredProfile(callGraphMetricsCapability),
 		)
 		return
 	}
@@ -108,7 +110,7 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 	// body runs, so the edge Cypher needs no predicate of its own. The one case
 	// the selector cannot answer is a caller that reaches this read without it:
 	// a grantless scoped caller must never touch the graph.
-	if repositoryAccessFilterFromContext(ctx).Empty() {
+	if querycontract.RepositoryAccessFilterFromContext(ctx).Empty() {
 		return callGraphMetricsResponse(req, nil), nil
 	}
 	cypher, params := callGraphMetricsEdgesCypher(req.RepoID)

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
@@ -53,33 +55,33 @@ func (h *CodeHandler) filterCrossRepoDeadCodeResultsWithoutProducerLocalIncoming
 // SignalGrant empty is what keeps that structural: the probe cannot report a
 // consumer the caller did not ask about because it never runs.
 func crossRepoDeadCodeConsumerReadPlan(
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	consumerRepoIDs []string,
-) (crossRepoDeadCodeConsumerReads, bool) {
+) (querycontract.CrossRepoDeadCodeConsumerReads, bool) {
 	if len(consumerRepoIDs) > 0 {
 		page := consumerRepoIDs
 		if access.Scoped() {
 			page = grantedCrossRepoDeadCodeConsumerIDs(access, consumerRepoIDs)
 			if len(page) == 0 {
-				return crossRepoDeadCodeConsumerReads{}, false
+				return querycontract.CrossRepoDeadCodeConsumerReads{}, false
 			}
 		}
-		return crossRepoDeadCodeConsumerReads{PageRepositoryIDs: page}, true
+		return querycontract.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: page}, true
 	}
 	if !access.Scoped() {
-		return crossRepoDeadCodeConsumerReads{}, true
+		return querycontract.CrossRepoDeadCodeConsumerReads{}, true
 	}
 	grant := access.RepositorySearchIDs()
 	if len(grant) == 0 {
-		return crossRepoDeadCodeConsumerReads{}, false
+		return querycontract.CrossRepoDeadCodeConsumerReads{}, false
 	}
-	return crossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant}, true
+	return querycontract.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant}, true
 }
 
 // grantedCrossRepoDeadCodeConsumerIDs keeps the requested consumers the grant
 // admits, preserving the request's order so the bound array stays deterministic.
 func grantedCrossRepoDeadCodeConsumerIDs(
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	consumerRepoIDs []string,
 ) []string {
 	granted := make([]string, 0, len(consumerRepoIDs))
@@ -94,7 +96,7 @@ func grantedCrossRepoDeadCodeConsumerIDs(
 func filterCrossRepoDeadCodeEvidence(
 	evidence []crossRepoDeadCodeEvidence,
 	allowedConsumers map[string]struct{},
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) ([]crossRepoDeadCodeEvidence, []crossRepoDeadCodeEvidence) {
 	visible := make([]crossRepoDeadCodeEvidence, 0, len(evidence))
 	hidden := make([]crossRepoDeadCodeEvidence, 0)

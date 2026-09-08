@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -65,7 +68,7 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), capability) {
+	if querycontract.CapabilityUnsupported(h.profile(), capability) {
 		WriteContractError(
 			w,
 			r,
@@ -74,7 +77,7 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 			ErrorCodeUnsupportedCapability,
 			capability,
 			h.profile(),
-			requiredProfile(capability),
+			querycontract.RequiredProfile(capability),
 		)
 		return
 	}
@@ -294,7 +297,7 @@ func (r symbolSearchRequest) NormalizedEntityTypes() []string {
 		if value == "" {
 			return
 		}
-		value = contentEntityTypeForResolve(value)
+		value = querycontract.ContentEntityTypeForResolve(value)
 		if _, ok := seen[value]; ok {
 			return
 		}
@@ -344,7 +347,7 @@ func symbolEntityResults(entities []EntityContent, matchMode string, sourceBacke
 			"source_handle":   symbolSourceHandle(entity.RepoID, entity.RelativePath, entity.StartLine, entity.EndLine),
 			"definition_kind": entity.EntityType,
 		}
-		attachSemanticSummary(result)
+		entitysemantics.AttachSemanticSummary(result)
 		results = append(results, result)
 	}
 	return results

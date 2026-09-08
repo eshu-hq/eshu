@@ -192,10 +192,10 @@ func TestCrossRepoDeadCodeProbeLeavesNoEntityUnproven(t *testing.T) {
 	if got, want := len(evidence["producer-late"]), 1; got != want {
 		t.Fatalf("len(evidence[producer-late]) = %d, want %d (the granted page row, nothing added)", got, want)
 	}
-	if !hidden.has("producer-early") {
+	if !hidden.Has("producer-early") {
 		t.Fatalf("hidden = %#v, want producer-early flagged", hidden)
 	}
-	if hidden.has("producer-late") {
+	if hidden.Has("producer-late") {
 		t.Fatalf("hidden = %#v, want producer-late unflagged; the probe reported only producer-early", hidden)
 	}
 }

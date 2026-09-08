@@ -6,13 +6,15 @@ package query
 import (
 	"context"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (h *CodeHandler) crossRepoDeadCodeRepositoryBoundaryEvidence(
 	ctx context.Context,
 	producerRepoID string,
 ) []crossRepoDeadCodeEvidence {
-	readModel := loadRepositoryRelationshipReadModel(ctx, h.Content, producerRepoID)
+	readModel := querycontract.LoadRepositoryRelationshipReadModel(ctx, h.Content, producerRepoID)
 	if readModel == nil {
 		return nil
 	}
@@ -25,7 +27,7 @@ func (h *CodeHandler) crossRepoDeadCodeRepositoryBoundaryEvidence(
 		if consumerRepoID == "" {
 			continue
 		}
-		confidence := relationshipFloatVal(relationship, "confidence")
+		confidence := querycontract.FloatVal(relationship, "confidence")
 		evidence = append(evidence, crossRepoDeadCodeEvidence{
 			ConsumerRepoID:   consumerRepoID,
 			ConsumerRepoName: StringVal(relationship, "source_name"),
@@ -34,7 +36,7 @@ func (h *CodeHandler) crossRepoDeadCodeRepositoryBoundaryEvidence(
 			Citation:         crossRepoDeadCodeRelationshipCitation(relationship),
 			Confidence:       confidence,
 			ConfidenceLabel:  crossRepoDeadCodeConfidenceLabel(confidence),
-			ResolutionMethod: firstNonEmptyString(
+			ResolutionMethod: querycontract.FirstNonEmptyString(
 				StringVal(relationship, "resolution_source"),
 				StringVal(relationship, "confidence_basis"),
 			),

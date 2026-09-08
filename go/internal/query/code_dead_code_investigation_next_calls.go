@@ -3,7 +3,11 @@
 
 package query
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 func deadCodeInvestigationNextCalls(scan deadCodeInvestigationScan) []map[string]any {
 	candidates := append([]map[string]any{}, scan.CleanupReady...)
@@ -25,7 +29,7 @@ func deadCodeInvestigationNextCalls(scan deadCodeInvestigationScan) []map[string
 		for _, relationshipType := range deadCodeInvestigationRelationshipTypes(candidate) {
 			next = append(next, deadCodeInvestigationRelationshipCall(entityID, relationshipType))
 		}
-		if primaryEntityLabel(candidate) == "SqlFunction" {
+		if querycontract.PrimaryEntityLabel(candidate) == "SqlFunction" {
 			next = append(next, deadCodeInvestigationSQLExecuteCall(candidate))
 		}
 	}
@@ -33,7 +37,7 @@ func deadCodeInvestigationNextCalls(scan deadCodeInvestigationScan) []map[string
 }
 
 func deadCodeInvestigationRelationshipTypes(candidate map[string]any) []string {
-	switch primaryEntityLabel(candidate) {
+	switch querycontract.PrimaryEntityLabel(candidate) {
 	case "Function":
 		return []string{"CALLS", "REFERENCES", "IMPORTS"}
 	case "Class", "Struct":

@@ -7,6 +7,9 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 )
 
 // applyRepositorySelectorForCapability resolves *selector, and on failure
@@ -42,7 +45,7 @@ func ApplyRepositorySelectorForAccess(
 	if selector == nil {
 		return true
 	}
-	resolved, err := resolveRepositorySelectorExactForAccess(
+	resolved, err := queryselector.ResolveExactForAccess(
 		r.Context(),
 		graph,
 		content,
@@ -61,7 +64,7 @@ func ApplyRepositorySelectorForAccess(
 }
 
 func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
-	return resolveRepositorySelectorExactForAccess(
+	return queryselector.ResolveExactForAccess(
 		ctx,
 		h.Neo4j,
 		h.Content,
@@ -87,8 +90,8 @@ func (h *CodeHandler) resolveRepositorySelector(ctx context.Context, selector st
 // The resolution is additive, so the fail-closed cases are untouched: a grant
 // that resolves to no repository still reads nothing, and a caller with no
 // grants at all is still Empty.
-func codeGrantAccessFilter(ctx context.Context) repositoryAccessFilter {
-	return repositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories()
+func codeGrantAccessFilter(ctx context.Context) querycontract.RepositoryAccessFilter {
+	return querycontract.RepositoryAccessFilterFromContext(ctx).WithCanonicalScopeRepositories()
 }
 
 // codeContentGrantScope resolves the caller's repository grant for a code read
@@ -161,7 +164,7 @@ func codeContentGrantScope(ctx context.Context, repoID string) (allowed []string
 // its own subpackage, and Go cannot alias a struct field across that
 // boundary. See code_seam.go.
 type languageQueryGrant struct {
-	Access               repositoryAccessFilter
+	Access               querycontract.RepositoryAccessFilter
 	AllowedRepositoryIDs []string
 }
 

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const routeToCallerCapability = "call_graph.route_to_caller"
@@ -36,7 +38,7 @@ type routeToCallerRoute struct {
 }
 
 func (h *CodeHandler) handleRouteToCaller(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), routeToCallerCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), routeToCallerCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -45,7 +47,7 @@ func (h *CodeHandler) handleRouteToCaller(w http.ResponseWriter, r *http.Request
 			ErrorCodeUnsupportedCapability,
 			routeToCallerCapability,
 			h.profile(),
-			requiredProfile(routeToCallerCapability),
+			querycontract.RequiredProfile(routeToCallerCapability),
 		)
 		return
 	}
@@ -189,7 +191,7 @@ func (r routeToCallerRequest) validate() error {
 }
 
 func routeToCallerAllowedByScope(r *http.Request, req routeToCallerRequest) bool {
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
 		return false
 	}
