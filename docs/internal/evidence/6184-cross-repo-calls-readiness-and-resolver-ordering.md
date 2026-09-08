@@ -56,14 +56,23 @@ poll/backoff path) while `HasUncommittedCanonicalCodeScopes` is true — any
 code scope whose active generation holds git `repository` facts but lacks
 its `code_entities_uid` / `canonical_nodes_committed` phase. Non-code scopes
 never emit repository facts, so they never block; tombstoned repository
-facts do not count. No recovery-handler change was needed: refinalize
-already clears `graph_projection_phase_state` for covered generations
-(`storage/postgres/rebuildreset/reset.go`) and the projector republishes
-phases unconditionally on re-run (`projector/runtime_stages.go:
-writeCanonicalProjection` publishes on both the empty and written paths),
-so during a rebuild code calls drain last and land cross-repo edges in a
-single pass. The gate helper lives in `code_call_projection_work.go`
-(`projectionLaneBlocked`) to keep the runner under the file cap.
+facts do not count. The check is wired UNCONDITIONALLY via a narrow
+`CanonicalCodeQuiescenceChecker` dependency (`cmd/reducer/main.go`), not
+behind the `ReducerGraphDrain` flag: the first remote gate run proved the
+flag version a no-op where it matters — the DR compose stack sets no
+`ESHU_QUERY_PROFILE`, so the profile parses to `""`, the drain stays nil,
+and the cross-repo edge was lost exactly as before (115/116). The loss
+happens on every backend/profile (MATCH-only write plus caller-only key)
+while the contention half of the drain is NornicDB-local-authoritative
+only. Exactly one checker runs per cycle, never both. No recovery-handler
+change was needed: refinalize already clears `graph_projection_phase_state`
+for covered generations (`storage/postgres/rebuildreset/reset.go`) and the
+projector republishes phases unconditionally on re-run
+(`projector/runtime_stages.go: writeCanonicalProjection` publishes on both
+the empty and written paths), so during a rebuild code calls drain last and
+land cross-repo edges in a single pass. The gate helper lives in
+`code_call_projection_work.go` (`projectionLaneBlocked`) to keep the runner
+under the file cap.
 
 Regression:
 
@@ -95,13 +104,20 @@ the runner check (lease claimed, `BlockedReadiness == 0`).
   generation/keyspace/phase as filters, over a scope-count row set with
   short-circuit on first match. No new index: per-cycle, scope-count
   EXISTS probes do not meet the index doctrine's hot-and-wide bar.
-- After (live rebuild level): PENDING — the local Docker daemon is wedged
-  (buildkit EOF mid-build; container APIs EOF), so
-  `scripts/verify-graph-rebuild-from-facts.sh` could not run here. It moves
-  to the remote instance next; the rebuild-seconds before/after and the
-  identity-diff verdict land there. Expected direction: code calls shift
-  after canonical commits fleet-wide while the second full drain the
-  runbook documents goes away, so net rebuild time should fall, not rise.
+- After (live rebuild level), first remote run (flag-gated quiescence only):
+  rebuild 16 s, 67 scopes, pre-wipe 2530 nodes / 3302 rels — but `CALLS`
+  115/116 with the same orders-api → lib-common edge lost. Diagnosis: the
+  DR compose stack sets no `ESHU_QUERY_PROFILE`, the profile parses to
+  `""`, the drain stays nil, and the check never engaged. The check is now
+  wired unconditionally (`CanonicalQuiescence`); re-run pending. Residual
+  diff in that run (6 missing / 6 extra edges around `EvidenceArtifact`
+  `application.yaml`, `CORRELATES_DEPLOYABLE_UNIT`, workload-instance
+  deployment edges; 1 missing / 2 extra nodes) is triaged after the rewired
+  run — those families sit outside the code-call lane. (Local Docker daemon
+  was wedged — buildkit EOF mid-build — so the proof moved to the remote
+  instance.) Expected direction: code calls shift after canonical commits
+  fleet-wide while the second full drain the runbook documents goes away,
+  so net rebuild time should fall, not rise.
 - Backend/version for the pending run: NornicDB pinned commit
   `3722b483c02c` (compose default), Linux amd64 remote.
 - Input shape: the gate's own fixture corpus (same corpus as the 341 s

@@ -194,6 +194,7 @@ type Runner struct {
 	ReadinessLookup     gpphase.ReadinessLookup
 	ReadinessPrefetch   gpphase.ReadinessPrefetch
 	ReducerGraphDrain   ReducerGraphDrain
+	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 	Config              RunnerConfig
 	Wait                func(context.Context, time.Duration) error
 
