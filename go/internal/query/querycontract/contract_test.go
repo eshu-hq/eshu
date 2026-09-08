@@ -234,14 +234,13 @@ func TestNoBackendReadBasisIsFallbackAndSurvivesNormalization(t *testing.T) {
 // TruthBasisNoBackendRead arm of ClassifyAnswerTruth directly, with a Level
 // that the other arms would otherwise classify as a real answer.
 //
-// BuildTruthEnvelope cannot reach this state: basisLevel already forces a
-// no-read page to TruthLevelFallback, so the arm changes no outcome today and
-// TestNoBackendReadBasisIsFallbackAndSurvivesNormalization passes with it
-// deleted (verified by deleting it). That is exactly why it needs its own
-// test: the arm exists to pin the outcome so a future level rule cannot
-// promote a page that read nothing, and a guard nothing exercises is not a
-// guard. Constructing the envelope literally is deliberate -- it is the only
-// way to exercise the arm the constructor prevents.
+// #6544 already covers the arm from root, through the forwarder:
+// TestAnswerPacketTruthClassMapping/no_backend_read_never_upgrades fails
+// without it (verified by deleting the arm). This test covers the same rule at
+// the querycontract entry point directly, so the arm stays pinned even if root
+// stops forwarding to it. Constructing the envelope literally is deliberate:
+// BuildTruthEnvelope cannot reach this state, because basisLevel already forces
+// a no-read page to TruthLevelFallback.
 func TestClassifyAnswerTruthPinsNoBackendReadToFallback(t *testing.T) {
 	for _, level := range []TruthLevel{TruthLevelExact, TruthLevelDerived} {
 		got := ClassifyAnswerTruth(&TruthEnvelope{
