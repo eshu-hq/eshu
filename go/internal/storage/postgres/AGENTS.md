@@ -961,7 +961,7 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
 - **Epoch semantics (3-tuple)**: The cached epoch is `(fact_count_all,
   fact_max_observed_all, active_fingerprint)`:
   * `fact_count_all` + `fact_max_observed_all` — computed FROM fact_records
-    alone (no JOIN) using the partial index `fact_records_identity_epoch_idx`
+    alone (no JOIN) using the partial index `fact_records_identity_epoch_idx_v2`
     (Index Only Scan, ~51 ms on 500k facts). These detect raw fact insertions/
     deletions that change the identity set.
   * `active_fingerprint` — `COALESCE(md5(string_agg(scope_id::text || ':' ||
@@ -1024,9 +1024,9 @@ container-image identity facts, reloaded under singleflight on epoch mismatch.
 
 Performance Evidence: #5438 adds an epoch-cached identity fact set to
 `ListActiveContainerImageIdentityFacts`, replacing ~2,000 O(corpus) paginated
-loads per worst-case reducer drain with 1 reload + ~2,000 cheap index-only
-epoch probes. The probe is backed by the new partial index
-`fact_records_identity_epoch_idx ON fact_records (observed_at, fact_id)
+loads per worst-case reducer drain with 1 reload + ~2,000 index-only epoch
+probes. The probe is backed by the partial index (#6543 renamed it `_v2`)
+`fact_records_identity_epoch_idx_v2 ON fact_records (observed_at, fact_id)
 WHERE <6-arm identity filter> AND is_tombstone = FALSE` and runs FROM
 fact_records alone (no ingestion_scopes/scope_generations JOIN), so it
 leverages an Index Only Scan. Proved locally with the identity-epoch test
@@ -1050,7 +1050,7 @@ across 2,000 calls); end-to-end per-drain wall time, including probes, is
 29× faster (2,952 s → 101.5 s).
 
 Probe EXPLAIN: `Index Only Scan using fact_records_identity_epoch_idx`
-(50 ms, 0 heap fetches, 3,016 buffers). Partial index size: 24 MB for
+(pre-#6543 name; 50 ms, 0 heap fetches, 3,016 buffers). Index size 24 MB for
 500k matching rows. Write tax: 0% for non-identity facts (partial index
 excludes them); ~1 index entry per identity fact insert.
 Byte-identical row-set: cached load (JOIN-filtered) == direct load for

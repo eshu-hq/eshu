@@ -79,3 +79,45 @@ renamed, which changes an index the container-image identity path is measured
 against. It is recorded as the single explicit exception in that test rather
 than silently allowed, so a second offender still fails and removing this one
 fails until the exception goes with it.
+
+Superseded: #6543 removed that exception. Migrations 069/076/077 are gone;
+migration 105 creates the surviving predicate as
+`fact_records_identity_epoch_idx_v2` and migration 106 drops the legacy name,
+so `replayRebuiltIndexNames` is now empty and
+`TestIdentityEpochIndexIsCreatedOnceAndNeverDropped` pins the end state. The
+paragraph above records the state as of #6535.
+
+## Live replay proof, executed (not just compiled)
+
+Raised as a P1 and a P2 in review of PR #6606: the integration-tagged suite had
+only been compiled, and `TestIdentityEpochIndexMigrationsReapplyWithoutRebuildLive`
+skips itself without `ESHU_POSTGRES_TEST_DSN`, so nothing had exercised the real
+`CONCURRENTLY` / `IF NOT EXISTS` / relfilenode semantics against a live server.
+
+Run against a throwaway PostgreSQL container, exit captured directly:
+
+```
+PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on aarch64-unknown-linux-gnu
+ESHU_POSTGRES_TEST_DSN=postgres://eshu:***@127.0.0.1:15599/eshu?sslmode=disable
+
+go test -tags integration ./internal/storage/postgres \
+  -run TestIdentityEpochIndexMigrationsReapplyWithoutRebuildLive -count=1
+
+--- PASS: TestIdentityEpochIndexMigrationsReapplyWithoutRebuildLive (141.55s)
+ok      github.com/eshu-hq/eshu/go/internal/storage/postgres     144.378s
+LIVE-EXIT=0
+```
+
+The run was NOT skipped -- the DSN was set, and the output carries no skip line.
+That is worth recording explicitly: a skipped integration test and a passing one
+are indistinguishable in a summary that only reports `ok`.
+
+What this closes, and what it does not. It exercises the replay contract on a
+real server: the second bootstrap pass must build nothing and drop nothing, and
+the relfilenode must not change. That is a correctness proof, which is the right
+shape for the claim "#6543 creates the index once instead of every bootstrap" --
+the defect was a rebuild-every-boot, not a slow query. It is NOT a before/after
+latency measurement, and this document does not claim one.
+
+The container was created for this run only, on a distinct name and port so it
+could not collide with a peer session Postgres, and destroyed afterwards.

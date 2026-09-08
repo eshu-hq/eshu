@@ -214,7 +214,7 @@ LIMIT $4
 // never durably materialize outside a same-scope unit test (#5810).
 //
 // A dedicated loader was chosen over widening identityFactFilterSQL/
-// fact_records_identity_epoch_idx deliberately: ci.run/ci.artifact is the
+// fact_records_identity_epoch_idx_v2 deliberately: ci.run/ci.artifact is the
 // highest-churn fact family in the system (one row per CI run and per build
 // artifact), and identityFactFilterSQL backs the drift-locked identity-epoch
 // cache contract (identity_epoch_cache.go, identity_epoch_cache_contract_test.go)

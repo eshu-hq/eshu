@@ -38,20 +38,23 @@ var (
 )
 
 // replayRebuiltIndexNames are the index names a bootstrap both drops and
-// recreates today, and therefore rebuilds on every single startup. It is a
-// record of a known defect, not a licence to add another: the assertion below
-// requires the violating set to equal this list exactly, so a new offender
-// fails the test and fixing this one fails it too until the entry goes.
+// recreates, and therefore rebuilds on every single startup. It is empty, and
+// an entry is a record of a known defect rather than a licence to add another:
+// the assertion below requires the violating set to equal this list exactly, so
+// a new offender fails the test and cannot be waved through without adding a
+// name here and inviting the review that costs.
 //
-// fact_records_identity_epoch_idx is created by migration 069, dropped by 076
-// and created again under the SAME name with a wider predicate by 077, so every
-// bootstrap drops it and rebuilds it concurrently over fact_records. Deleting a
-// file cannot fix it the way it fixed code_reachability_entity_repository_idx,
-// because the replacement reuses the name: an install still holding 069's
-// definition has nothing to distinguish it from 077's, so converging those
-// installs needs the replacement renamed, which changes an index the
-// container-image identity path is measured against and needs its own proof.
-var replayRebuiltIndexNames = []string{"fact_records_identity_epoch_idx"}
+// It listed fact_records_identity_epoch_idx until #6543. Migration 069 created
+// that name, 076 dropped it, and 077 created it again under the SAME name with
+// a wider predicate, so every bootstrap dropped the index and rebuilt it
+// concurrently over fact_records with no covering index in between. Deleting a
+// file could not fix that the way it fixed code_reachability_entity_repository_idx,
+// because the replacement reused the name: an install still holding 069's
+// definition was indistinguishable from one holding 077's. #6543 applied the
+// 059/068 and 101/102 shape instead -- the surviving predicate is created under
+// a new name and the legacy name only ever dropped, which
+// TestIdentityEpochIndexIsCreatedOnceAndNeverDropped pins.
+var replayRebuiltIndexNames []string
 
 // TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay fails when a
 // bootstrap definition creates an index name another definition drops, because
@@ -104,6 +107,54 @@ func TestBootstrapDefinitionsDoNotRebuildIndexesOnEveryReplay(t *testing.T) {
 	}
 }
 
+// TestIdentityEpochIndexIsCreatedOnceAndNeverDropped pins the end state #6543
+// needs for the container-image identity epoch probe. The surviving predicate
+// -- the one admitting Dockerfile base-image `file` facts, which
+// identityFactFilterSQL requires and TestIdentityEpochIndexPredicateMatchesIdentityFactFilter
+// drift-locks -- has exactly one create under a NEW name and no drop, and the
+// legacy name has a drop and no create at all. A steady-state bootstrap
+// therefore issues neither an index build nor a drop for either name, where
+// before #6543 it issued one of each on every single startup.
+func TestIdentityEpochIndexIsCreatedOnceAndNeverDropped(t *testing.T) {
+	t.Parallel()
+
+	const (
+		liveIndex   = "fact_records_identity_epoch_idx_v2"
+		legacyIndex = "fact_records_identity_epoch_idx"
+	)
+	creates, drops := migrationIndexCreateDropCounts()
+	for _, want := range []struct {
+		name    string
+		creates int
+		drops   int
+	}{
+		{name: liveIndex, creates: 1, drops: 0},
+		{name: legacyIndex, creates: 0, drops: 1},
+	} {
+		if creates[want.name] != want.creates || drops[want.name] != want.drops {
+			t.Errorf("%s has %d creates and %d drops, want %d and %d",
+				want.name, creates[want.name], drops[want.name], want.creates, want.drops)
+		}
+	}
+}
+
+// migrationIndexCreateDropCounts counts, per index name, how many bootstrap
+// definitions create it and how many drop it. Comment prose is stripped first
+// so a migration header describing a statement is not counted as one.
+func migrationIndexCreateDropCounts() (creates, drops map[string]int) {
+	creates, drops = map[string]int{}, map[string]int{}
+	for _, definition := range BootstrapDefinitions() {
+		statements := stripSQLLineComments(definition.SQL)
+		for _, match := range migrationIndexCreatePattern.FindAllStringSubmatch(statements, -1) {
+			creates[match[1]]++
+		}
+		for _, match := range migrationIndexDropPattern.FindAllStringSubmatch(statements, -1) {
+			drops[match[1]]++
+		}
+	}
+	return creates, drops
+}
+
 // TestCodeReachabilityWalkIndexIsCreatedOnceAndNeverDropped pins the specific
 // end state #5167 needs: the four-column walk index has exactly one create and
 // no drop, and the two-column index it supersedes has a drop and no create at
@@ -116,16 +167,7 @@ func TestCodeReachabilityWalkIndexIsCreatedOnceAndNeverDropped(t *testing.T) {
 		walkIndex       = "code_reachability_entity_repository_scope_generation_idx"
 		supersededIndex = "code_reachability_entity_repository_idx"
 	)
-	creates, drops := map[string]int{}, map[string]int{}
-	for _, definition := range BootstrapDefinitions() {
-		statements := stripSQLLineComments(definition.SQL)
-		for _, match := range migrationIndexCreatePattern.FindAllStringSubmatch(statements, -1) {
-			creates[match[1]]++
-		}
-		for _, match := range migrationIndexDropPattern.FindAllStringSubmatch(statements, -1) {
-			drops[match[1]]++
-		}
-	}
+	creates, drops := migrationIndexCreateDropCounts()
 	for _, want := range []struct {
 		name    string
 		creates int
@@ -163,28 +205,15 @@ func stripSQLLineComments(sql string) string {
 // That statement orders a producer entity's consumers by confidence ahead of
 // its LIMIT, so without an index in that order Postgres has to read the whole
 // fan-in group before it can emit the group's first row. The index carrying the
-// order is a create with no drop, like the walk index above and unlike
-// fact_records_identity_epoch_idx: an install that already has it does no index
-// work on bootstrap.
+// order is a create with no drop, like every other index in this directory: an
+// install that already has it does no index work on bootstrap.
 func TestCodeReachabilityPageRankIndexIsCreatedOnceAndNeverDropped(t *testing.T) {
 	t.Parallel()
 
 	const pageRankIndex = "code_reachability_entity_confidence_rank_idx"
-	creates, drops := 0, 0
-	for _, definition := range BootstrapDefinitions() {
-		statements := stripSQLLineComments(definition.SQL)
-		for _, match := range migrationIndexCreatePattern.FindAllStringSubmatch(statements, -1) {
-			if match[1] == pageRankIndex {
-				creates++
-			}
-		}
-		for _, match := range migrationIndexDropPattern.FindAllStringSubmatch(statements, -1) {
-			if match[1] == pageRankIndex {
-				drops++
-			}
-		}
-	}
-	if creates != 1 || drops != 0 {
-		t.Errorf("%s has %d creates and %d drops, want 1 and 0", pageRankIndex, creates, drops)
+	creates, drops := migrationIndexCreateDropCounts()
+	if creates[pageRankIndex] != 1 || drops[pageRankIndex] != 0 {
+		t.Errorf("%s has %d creates and %d drops, want 1 and 0",
+			pageRankIndex, creates[pageRankIndex], drops[pageRankIndex])
 	}
 }

@@ -98,7 +98,7 @@ LIMIT $3
 // digest has no collision mode where two different active mappings (a 32-bit
 // hashtext collision, or offsetting deltas that cancel in a sum) produce the
 // same fingerprint.
-// Backed by the partial B-tree index fact_records_identity_epoch_idx
+// Backed by the partial B-tree index fact_records_identity_epoch_idx_v2
 // ON (observed_at, fact_id) WHERE <filter> AND is_tombstone = FALSE.
 const probeIdentityEpochQuery = `
 SELECT
