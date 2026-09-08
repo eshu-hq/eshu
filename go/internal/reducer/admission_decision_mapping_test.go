@@ -12,6 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -240,13 +242,81 @@ func TestCloudInventoryAdmissionWritesSharedAdmittedAndNonAdmittedDecisions(t *t
 	}
 }
 
+// stubPackageSourceFactLoader is a minimal staying-root fake satisfying
+// factload.FactLoader plus packagecorrelation's narrow active-fact
+// interfaces. The family's own fake moved with it to packagecorrelation
+// (package_source_correlation_test.go); Go test files cannot share
+// unexported symbols across a package boundary, so the staying admission
+// test keeps this local copy (issue #6061).
+type stubPackageSourceFactLoader struct {
+	scopeFacts           []facts.Envelope
+	repositoryFacts      []facts.Envelope
+	manifestDependencies []facts.Envelope
+}
+
+func (s *stubPackageSourceFactLoader) ListFacts(
+	context.Context,
+	string,
+	string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), s.scopeFacts...), nil
+}
+
+func (s *stubPackageSourceFactLoader) ListFactsByKind(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ []string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), s.scopeFacts...), nil
+}
+
+func (s *stubPackageSourceFactLoader) ListActiveRepositoryFacts(
+	context.Context,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), s.repositoryFacts...), nil
+}
+
+func (s *stubPackageSourceFactLoader) ListActivePackageManifestDependencyFacts(
+	_ context.Context,
+	_ []string,
+	_ []string,
+) ([]facts.Envelope, error) {
+	return append([]facts.Envelope(nil), s.manifestDependencies...), nil
+}
+
+// recordingPackageCorrelationWriter is a minimal staying-root fake
+// satisfying packagecorrelation.PackageCorrelationWriter. Same history as
+// stubPackageSourceFactLoader above: the family's own fake moved with it,
+// so this local copy reports the consumption canonical-write sum inline.
+type recordingPackageCorrelationWriter struct {
+	calls int
+}
+
+func (w *recordingPackageCorrelationWriter) WritePackageCorrelations(
+	_ context.Context,
+	write packagecorrelation.PackageCorrelationWrite,
+) (packagecorrelation.PackageCorrelationWriteResult, error) {
+	w.calls++
+	canonicalWrites := 0
+	for _, decision := range write.ConsumptionDecisions {
+		canonicalWrites += decision.CanonicalWrites
+	}
+	return packagecorrelation.PackageCorrelationWriteResult{
+		CanonicalWrites: canonicalWrites,
+		FactsWritten: len(write.OwnershipDecisions) +
+			len(write.ConsumptionDecisions) +
+			len(write.PublicationDecisions),
+	}, nil
+}
+
 func TestPackageSourceCorrelationWritesSharedOwnershipAndConsumptionDecisions(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
 	admissionWriter := &recordingAdmissionDecisionWriter{}
 	correlationWriter := &recordingPackageCorrelationWriter{}
-	handler := PackageSourceCorrelationHandler{
+	handler := packagecorrelation.PackageSourceCorrelationHandler{
 		FactLoader: &stubPackageSourceFactLoader{
 			scopeFacts: []facts.Envelope{
 				packageRegistryPackageFact("pkg:npm://registry.example/team-api", "npm", "team-api", "", observedAt),
@@ -291,12 +361,12 @@ func TestPackageSourceCorrelationWritesSharedOwnershipAndConsumptionDecisions(t 
 		AdmissionDecisionNow:    fixedAdmissionDecisionNow,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-package-source",
 		ScopeID:      "package-registry:npm:team-api",
 		GenerationID: "generation-1",
 		SourceSystem: "package_registry",
-		Domain:       DomainPackageSourceCorrelation,
+		Domain:       reducercontract.DomainPackageSourceCorrelation,
 		Cause:        "package registry source hints observed",
 	})
 	if err != nil {
@@ -317,8 +387,8 @@ func TestPackageSourceCorrelationWritesSharedOwnershipAndConsumptionDecisions(t 
 		t.Fatalf("missing evidence decisions = %d, want 2 provenance-only package decisions", got)
 	}
 	for _, write := range decisions {
-		if write.Decision.Domain != string(DomainPackageSourceCorrelation) {
-			t.Fatalf("Domain = %q, want %q", write.Decision.Domain, DomainPackageSourceCorrelation)
+		if write.Decision.Domain != string(reducercontract.DomainPackageSourceCorrelation) {
+			t.Fatalf("Domain = %q, want %q", write.Decision.Domain, reducercontract.DomainPackageSourceCorrelation)
 		}
 		if write.Decision.DomainState == "manifest_declared" && !write.Decision.CanonicalWrite.Written {
 			t.Fatalf("manifest consumption decision did not record canonical write: %+v", write.Decision)

@@ -31,26 +31,28 @@ This package owns:
   canonicalization (issue #6061).
 
 It does not own hint extraction, correlation-outcome classification, or the
-decision types the reducer root's package-source correlation handler
-produces. Those stay in `internal/reducer` because hoisting them would drag the
+decision types the package correlation family's handler produces. Those live
+in `packagecorrelation` because hoisting them would drag the
 `PackageSourceCorrelationDecision` type and the classification logic that reads
 it into a leaf whose budget is the shared shapes and matching helpers.
-`package_publication_correlation.go` calls `extractPackageSourceHints` and
-`classifyPackageSourceHint` directly today, so they are not handler-exclusive.
+`packagecorrelation/package_publication_correlation.go` calls
+`extractPackageSourceHints` and `classifyPackageSourceHint` directly today, so
+they are not handler-exclusive.
 
 ## Why a leaf and not a family move
 
 `BuildPackageSourceCorrelationDecisions` and the handler that classifies a
 hint into a correlation outcome are called only from
-`package_source_correlation.go` and `package_source_correlation_handler.go`
-themselves (649 lines together). Seven other reducer-root files read these
-symbols directly and never call that handler, each needing a different subset
-(verified against actual call sites, not inferred):
+`packagecorrelation/package_source_correlation.go` and
+`packagecorrelation/package_source_correlation_handler.go` themselves (649
+lines together). Seven other files read these symbols directly and never call
+that handler, each needing a different subset (verified against actual call
+sites, not inferred):
 
 | file | symbols it reads |
 | --- | --- |
-| `package_consumption_correlation.go` | `Repository`, `ExtractRepositories` |
-| `package_publication_correlation.go` | `Hint`, `ExtractRepositories` |
+| `packagecorrelation/package_consumption_correlation.go` | `Repository`, `ExtractRepositories` |
+| `packagecorrelation/package_publication_correlation.go` | `Hint`, `ExtractRepositories` |
 | `container_image_identity_provenance.go` | `Hint`, `Repository`, `ExtractRepositories`, `MatchRepositories`, `CanonicalURLKey` |
 | `container_image_identity_slsa.go` | `ExtractRepositories` |
 | `internal/reducer/servicecatalog/service_catalog_correlation_classify.go` | `CanonicalURLKey`, `ExactURLMatch` |
@@ -69,18 +71,19 @@ forwarder; `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL`
 
 ## Compatibility
 
-The reducer root keeps `type packageSourceHint = packagesourcecore.Hint` and
+The family keeps `type packageSourceHint = packagesourcecore.Hint` and
 `type packageSourceRepository = packagesourcecore.Repository` plus forwarders
-at the end of `package_source_correlation.go` (not a separate compat file:
-that file was already at 199 lines pre-extraction, well under the 500-line
-cap, and adding a new root `.go` file would have grown
+at the end of `packagecorrelation/package_source_correlation.go` (not a
+separate compat file: that file was already at 199 lines pre-extraction, well
+under the 500-line cap, and adding a new root `.go` file would have grown
 `internal/reducer`'s dirgate-pinned non-test file count past the
 `internal/reducer` row's current grandfathered ceiling in
 `scripts/lib/dirgate-grandfather.tsv` -- the ratchet only allows that row to
 move down or be removed, never up (see `bash scripts/verify-dirgate.sh
---digest internal/reducer` for the live count/digest)), so the root call
-sites across `package_consumption_correlation.go`,
-`package_publication_correlation.go`, `container_image_identity_provenance.go`,
+--digest internal/reducer` for the live count/digest)), so the call sites
+across `packagecorrelation/package_consumption_correlation.go`,
+`packagecorrelation/package_publication_correlation.go`,
+`container_image_identity_provenance.go`,
 `container_image_identity_slsa.go`, and `supply_chain_impact_python_reachability.go`
 are unchanged. Those forwarders are transitional and are deleted as their
 callers move into family subpackages.

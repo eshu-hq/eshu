@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
@@ -60,7 +61,7 @@ func TestBuildSecurityAlertReconciliationsUsesScopedNpmLockfileEvidence(t *testi
 	}
 
 	decisions := securityAlertDecisionsByFactID(
-		securityalert.BuildSecurityAlertReconciliations(envelopes, extractSecurityAlertManifestConsumptions),
+		securityalert.BuildSecurityAlertReconciliations(envelopes, packagecorrelation.ExtractSecurityAlertManifestConsumptions),
 	)
 	decision := decisions["alert-scoped-lockfile"]
 	if got, want := decision.Status, securityalert.SecurityAlertReconciliationMatched; got != want {
@@ -96,7 +97,7 @@ func TestBuildSecurityAlertReconciliationsKeepsScopedNpmProviderOnlyWithoutOwned
 			"vulnerable_range":      "<2.4.2",
 			"patched_version":       "2.4.2",
 		}),
-	}, extractSecurityAlertManifestConsumptions))
+	}, packagecorrelation.ExtractSecurityAlertManifestConsumptions))
 
 	decision := decisions["alert-scoped-provider-only"]
 	if got, want := decision.Status, securityalert.SecurityAlertReconciliationProviderOnly; got != want {

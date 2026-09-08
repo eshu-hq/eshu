@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -27,7 +28,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplychainmod
 	}
 	return supplychainmodel.PackageConsumption{
 		FactID:                    envelope.FactID,
-		EvidenceKind:              packageConsumptionCorrelationFactKind,
+		EvidenceKind:              packagecorrelation.PackageConsumptionCorrelationFactKind,
 		PackageID:                 strings.TrimSpace(correlation.PackageID),
 		RepositoryID:              strings.TrimSpace(derefString(correlation.RepositoryID)),
 		DependencyRange:           strings.TrimSpace(derefString(correlation.DependencyRange)),
@@ -121,7 +122,7 @@ func supplyChainWorkloadRepositoryID(envelope facts.Envelope) string {
 	if repositoryID := repositoryIDFromReducerScope(scoped); repositoryID != "" {
 		return repositoryID
 	}
-	for _, scopeID := range payloadOrderedStrings(envelope.Payload, "related_scope_ids") {
+	for _, scopeID := range payloadcore.PayloadOrderedStrings(envelope.Payload, "related_scope_ids") {
 		if repositoryID := repositoryIDFromReducerScope(scopeID); repositoryID != "" {
 			return repositoryID
 		}

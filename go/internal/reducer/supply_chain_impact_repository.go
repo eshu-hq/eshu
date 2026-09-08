@@ -7,17 +7,18 @@ import (
 	"context"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 )
 
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactRepositoryFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
 ) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(activeRepositoryFactLoader)
-	if !ok || hasPackageSourceRepositoryFact(envelopes) {
+	loader, ok := h.FactLoader.(packagecorrelation.ActiveRepositoryFactLoader)
+	if !ok || packagecorrelation.HasPackageSourceRepositoryFact(envelopes) {
 		return nil, nil
 	}
-	if _, ok := h.FactLoader.(activePackageManifestDependencyFactLoader); !ok {
+	if _, ok := h.FactLoader.(packagecorrelation.ActivePackageManifestDependencyFactLoader); !ok {
 		return nil, nil
 	}
 	filter := supplyChainImpactManifestDependencyFilter(envelopes)

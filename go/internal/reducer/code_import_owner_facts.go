@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 )
 
 // The cross-scope fact kinds the code-import projection consumes
@@ -23,11 +24,11 @@ import (
 // kinds are ignored.
 func decodePackageOwnershipCorrelationDecisions(
 	envelopes []facts.Envelope,
-) ([]PackageSourceCorrelationDecision, []quarantinedFact, error) {
-	decisions := make([]PackageSourceCorrelationDecision, 0)
+) ([]packagecorrelation.PackageSourceCorrelationDecision, []quarantinedFact, error) {
+	decisions := make([]packagecorrelation.PackageSourceCorrelationDecision, 0)
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != packageOwnershipCorrelationFactKind || envelope.IsTombstone {
+		if envelope.FactKind != packagecorrelation.PackageOwnershipCorrelationFactKind || envelope.IsTombstone {
 			continue
 		}
 		correlation, err := decodeReducerPackageOwnershipCorrelation(envelope)
@@ -43,11 +44,11 @@ func decodePackageOwnershipCorrelationDecisions(
 		}
 		packageID := strings.TrimSpace(correlation.PackageID)
 		repositoryID := strings.TrimSpace(derefString(correlation.RepositoryID))
-		outcome := PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(correlation.Outcome)))
+		outcome := packagecorrelation.PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(correlation.Outcome)))
 		if packageID == "" {
 			continue
 		}
-		decisions = append(decisions, PackageSourceCorrelationDecision{
+		decisions = append(decisions, packagecorrelation.PackageSourceCorrelationDecision{
 			PackageID:    packageID,
 			RepositoryID: repositoryID,
 			Outcome:      outcome,
@@ -62,11 +63,11 @@ func decodePackageOwnershipCorrelationDecisions(
 // participate in owner resolution. Non-publication fact kinds are ignored.
 func decodePackagePublicationCorrelationDecisions(
 	envelopes []facts.Envelope,
-) ([]PackagePublicationDecision, []quarantinedFact, error) {
-	decisions := make([]PackagePublicationDecision, 0)
+) ([]packagecorrelation.PackagePublicationDecision, []quarantinedFact, error) {
+	decisions := make([]packagecorrelation.PackagePublicationDecision, 0)
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != packagePublicationCorrelationFactKind || envelope.IsTombstone {
+		if envelope.FactKind != packagecorrelation.PackagePublicationCorrelationFactKind || envelope.IsTombstone {
 			continue
 		}
 		correlation, err := decodeReducerPackagePublicationCorrelation(envelope)
@@ -82,11 +83,11 @@ func decodePackagePublicationCorrelationDecisions(
 		}
 		packageID := strings.TrimSpace(correlation.PackageID)
 		repositoryID := strings.TrimSpace(derefString(correlation.RepositoryID))
-		outcome := PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(correlation.Outcome)))
+		outcome := packagecorrelation.PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(correlation.Outcome)))
 		if packageID == "" {
 			continue
 		}
-		decisions = append(decisions, PackagePublicationDecision{
+		decisions = append(decisions, packagecorrelation.PackagePublicationDecision{
 			PackageID:    packageID,
 			RepositoryID: repositoryID,
 			Outcome:      outcome,

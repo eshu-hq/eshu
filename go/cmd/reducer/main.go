@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -344,7 +345,7 @@ func buildReducerService(
 		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
 			DB: database,
 		},
-		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
+		PackageCorrelationWriter: packagecorrelation.PostgresPackageCorrelationWriter{
 			DB: database,
 		},
 		DriftHandlers:               buildReducerDriftHandlers(database, tracer, instruments, logger, getenv),

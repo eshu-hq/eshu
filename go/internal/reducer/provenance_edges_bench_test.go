@@ -6,31 +6,33 @@ package reducer
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 )
 
 // benchPackageOwnershipDecisions builds n exact-outcome package-ownership
 // decisions with distinct package/repository ids, for B-9 (#3802)
 // credential-free micro-benchmarking of the row-building path.
-func benchPackageOwnershipDecisions(n int) []PackageSourceCorrelationDecision {
-	decisions := make([]PackageSourceCorrelationDecision, 0, n)
+func benchPackageOwnershipDecisions(n int) []packagecorrelation.PackageSourceCorrelationDecision {
+	decisions := make([]packagecorrelation.PackageSourceCorrelationDecision, 0, n)
 	for i := 0; i < n; i++ {
-		decisions = append(decisions, PackageSourceCorrelationDecision{
+		decisions = append(decisions, packagecorrelation.PackageSourceCorrelationDecision{
 			PackageID:    fmt.Sprintf("pkg-%d", i),
 			RepositoryID: fmt.Sprintf("repo-%d", i),
-			Outcome:      PackageSourceCorrelationExact,
+			Outcome:      packagecorrelation.PackageSourceCorrelationExact,
 		})
 	}
 	return decisions
 }
 
-func benchPackagePublicationDecisions(n int) []PackagePublicationDecision {
-	decisions := make([]PackagePublicationDecision, 0, n)
+func benchPackagePublicationDecisions(n int) []packagecorrelation.PackagePublicationDecision {
+	decisions := make([]packagecorrelation.PackagePublicationDecision, 0, n)
 	for i := 0; i < n; i++ {
-		decisions = append(decisions, PackagePublicationDecision{
+		decisions = append(decisions, packagecorrelation.PackagePublicationDecision{
 			PackageID:    fmt.Sprintf("pkg-%d", i),
 			VersionID:    fmt.Sprintf("pkg-%d@1.0.0", i),
 			RepositoryID: fmt.Sprintf("repo-%d", i),
-			Outcome:      PackageSourceCorrelationExact,
+			Outcome:      packagecorrelation.PackageSourceCorrelationExact,
 		})
 	}
 	return decisions
@@ -63,7 +65,7 @@ func BenchmarkPackageOwnershipPublishesRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows := packageOwnershipPublishesRows(decisions)
+		rows := packagecorrelation.PackageOwnershipPublishesRows(decisions)
 		if len(rows) != 5000 {
 			b.Fatalf("rows = %d, want 5000", len(rows))
 		}
@@ -78,7 +80,7 @@ func BenchmarkPackagePublicationPublishesRows(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		rows := packagePublicationPublishesRows(decisions)
+		rows := packagecorrelation.PackagePublicationPublishesRows(decisions)
 		if len(rows) != 5000 {
 			b.Fatalf("rows = %d, want 5000", len(rows))
 		}

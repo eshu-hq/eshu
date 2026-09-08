@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
@@ -67,7 +68,7 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 			FactLoader:                  handlers.FactLoader,
 			Writer:                      handlers.SecurityAlertReconciliationWriter,
 			Instruments:                 handlers.Instruments,
-			ExtractManifestConsumptions: extractSecurityAlertManifestConsumptions,
+			ExtractManifestConsumptions: packagecorrelation.ExtractSecurityAlertManifestConsumptions,
 		}
 		definitions = append(definitions, securityAlerts)
 	}

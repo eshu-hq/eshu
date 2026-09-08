@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 )
 
@@ -44,7 +45,7 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 	}
 	if handlers.FactLoader != nil && handlers.PackageCorrelationWriter != nil {
 		packageSource := packageSourceCorrelationDomainDefinition()
-		packageSource.Handler = PackageSourceCorrelationHandler{
+		packageSource.Handler = packagecorrelation.PackageSourceCorrelationHandler{
 			FactLoader:                 handlers.FactLoader,
 			Writer:                     handlers.PackageCorrelationWriter,
 			Instruments:                handlers.Instruments,

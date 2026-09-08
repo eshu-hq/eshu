@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -113,7 +114,7 @@ func addSupplyChainImpactIndexEntry(
 		if product.CVEID != "" && product.Criteria != "" && product.Vulnerable {
 			index.affectedProducts[product.CVEID] = append(index.affectedProducts[product.CVEID], product)
 		}
-	case packageConsumptionCorrelationFactKind:
+	case packagecorrelation.PackageConsumptionCorrelationFactKind:
 		consumption, err := supplyChainConsumptionFromEnvelope(envelope)
 		if err != nil {
 			return partitionDecodeFailures(envelope, err)

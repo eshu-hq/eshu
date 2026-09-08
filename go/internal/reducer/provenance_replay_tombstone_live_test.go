@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -64,17 +65,17 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		t.Fatal("generation 2 must derive previous-generation existence from cassette order")
 	}
 
-	packageGen1 := reducer.BuildPackageSourceCorrelationDecisions(gen1.facts)
+	packageGen1 := packagecorrelation.BuildPackageSourceCorrelationDecisions(gen1.facts)
 	if got, want := len(packageGen1), 1; got != want {
 		t.Fatalf("generation 1 package decisions = %d, want %d", got, want)
 	}
-	if got := reducer.PackageOwnershipPublishesRowsForReplayTest(packageGen1); len(got) != 1 ||
+	if got := packagecorrelation.PackageOwnershipPublishesRows(packageGen1); len(got) != 1 ||
 		got[0]["repository_id"] != provenanceReplayPackageRepoID ||
 		got[0]["package_id"] != provenanceReplayPackageID {
 		t.Fatalf("generation 1 ownership PUBLISHES rows = %#v, want one package row", got)
 	}
-	publicationGen1 := reducer.BuildPackagePublicationDecisions(gen1.facts)
-	if got := reducer.PackagePublicationPublishesRowsForReplayTest(publicationGen1); len(got) != 1 ||
+	publicationGen1 := packagecorrelation.BuildPackagePublicationDecisions(gen1.facts)
+	if got := packagecorrelation.PackagePublicationPublishesRows(publicationGen1); len(got) != 1 ||
 		got[0]["repository_id"] != provenanceReplayPackageRepoID ||
 		got[0]["version_id"] != provenanceReplayVersionID {
 		t.Fatalf("generation 1 publication PUBLISHES rows = %#v, want one package-version row", got)
@@ -97,10 +98,10 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		t.Fatalf("generation 1 DERIVED_FROM rows = %#v, want child-to-base lineage row", derivedFromRows)
 	}
 
-	if got := reducer.BuildPackageSourceCorrelationDecisions(gen2.facts); len(got) != 0 {
+	if got := packagecorrelation.BuildPackageSourceCorrelationDecisions(gen2.facts); len(got) != 0 {
 		t.Fatalf("generation 2 package decisions = %#v, want none", got)
 	}
-	if got := reducer.BuildPackagePublicationDecisions(gen2.facts); len(got) != 0 {
+	if got := packagecorrelation.BuildPackagePublicationDecisions(gen2.facts); len(got) != 0 {
 		t.Fatalf("generation 2 publication decisions = %#v, want none", got)
 	}
 	containerGen2 := reducer.BuildContainerImageIdentityDecisions(gen2.facts)
@@ -297,9 +298,9 @@ func projectProvenanceReplayGeneration(
 	generation provenanceReplayGeneration,
 ) {
 	t.Helper()
-	packageDecisions := reducer.BuildPackageSourceCorrelationDecisions(generation.facts)
-	publicationDecisions := reducer.BuildPackagePublicationDecisions(generation.facts)
-	if err := reducer.ProjectPackageProvenanceEdgesForReplayTest(
+	packageDecisions := packagecorrelation.BuildPackageSourceCorrelationDecisions(generation.facts)
+	publicationDecisions := packagecorrelation.BuildPackagePublicationDecisions(generation.facts)
+	if err := packagecorrelation.ProjectPackageProvenanceEdgesForReplayTest(
 		ctx, writer, generation.scope.ScopeID, generation.generation.GenerationID,
 		packageDecisions, publicationDecisions,
 	); err != nil {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -134,11 +135,11 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 		case facts.PackageRegistryPackageFactKind:
 			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
-		case packageConsumptionCorrelationFactKind:
+		case packagecorrelation.PackageConsumptionCorrelationFactKind:
 			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 		case factKindContentEntity:
-			dependencies := extractPackageManifestDependencies([]facts.Envelope{envelope})
+			dependencies := packagecorrelation.ExtractPackageManifestDependencies([]facts.Envelope{envelope})
 			for _, dependency := range dependencies {
 				repositoryIDs = append(repositoryIDs, dependency.RepositoryID)
 			}
@@ -239,7 +240,7 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 
 	var repositoryIDs []string
 	for _, envelope := range envelopes {
-		if envelope.FactKind != packageConsumptionCorrelationFactKind {
+		if envelope.FactKind != packagecorrelation.PackageConsumptionCorrelationFactKind {
 			continue
 		}
 		consumption, err := supplyChainConsumptionFromEnvelope(envelope)
@@ -254,11 +255,11 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 		}
 	}
 
-	for _, dependency := range extractPackageManifestDependencies(envelopes) {
+	for _, dependency := range packagecorrelation.ExtractPackageManifestDependencies(envelopes) {
 		if dependency.RepositoryID == "" {
 			continue
 		}
-		dependencyKeys := stringSet(packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
+		dependencyKeys := stringSet(packagecorrelation.PackageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
 		if len(dependencyKeys) == 0 {
 			continue
 		}
