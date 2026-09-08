@@ -54,7 +54,7 @@ problem. `contract/` stays top-level (shared vocabulary, never a domain).
 | `kubernetes/` | `correlation` (`kubernetescorrelation` 8 + `kubernetes_*` 3), `crossplane` (`crossplane`, 5) | `kubernetes_*` 3 |
 | `security/` | `alert` (`securityalert`, 12), `group` (`secgroup`, 6), `secrets` (`secretsiam` 14 + `secrets_iam.go`), `incident` (`incident`, 8) | `secrets_iam.go` (1; the rest already subpackages) |
 | `search/` | `eshu` (`eshusearch`, 9), `vector` (`searchvector`, 4), `semantic` (`semanticentity` 5 + `semantic_entity.go`) | `semantic_entity.go` |
-| `decode/` | `schema` (`schemadecode`, 22), `facts` (`factdecode`, 4 + `intent_emission.go` by default, census confirms), `load` (`factload`, 3), `write` (`factwrite`, 6), `payload` (`payloadcore`, 8), `admission` (`admissiondecision`, 2) | — (`candidate_loader.go` is sole-claimed by the spine) |
+| `decode/` | `schema` (`schemadecode`, 22), `facts` (`factdecode`, 4 + `intent_emission.go` by default, census confirms), `load` (`factload`, 3), `write` (`factwrite`, 6), `payload` (`payloadcore`, 8), `admission` (`admissiondecision`, 2), `join` (`cloudjoin`, 4) | — (`candidate_loader.go` is sole-claimed by the spine) |
 | `intents/` | `shared` (`sharedintent`, 4), `phases` (`gpphase`, 9), `maintenance` (`maintenance`, 7), `crossscope` (`crossscope`, 4) | — (all four already subpackages) |
 | `edges/` | `inheritance` (`inheritance`, 7), `sql` (`sqlrelationship`, 9), `dsl` (`dsl`, 3), `tags` (`tags`, 3), `rationale` (new: `rationale*` 3), `graph` (new: `graph_*` 4) | `rationale*` 3, `graph_*` 4 |
 
@@ -82,6 +82,10 @@ Notes with alternatives considered:
 - `crossscope` lands in `intents/crossscope`: it is read by more than one
   family (generic by the classification rule), gating cross-scope consumers
   on producer readiness.
+- `cloudjoin` lands in `decode/join`: an in-memory identity-join mechanism
+  called from `awscloud`, `iaminstprofile`, `iamescalation`, and root
+  `aws_relationship_join.go` — shared-core by the same rule, alongside the
+  other mechanism tiers in `decode/`.
 - `cicdrun` lands in `supplychain/cicd`: CI-run-to-image provenance, in the
   measured cycle with `supply_chain` and `containerimage`.
 - `incident` lands in `security/incident`: closest of the thirteen; it is
@@ -196,18 +200,25 @@ root); gate/spec lockstep in the same PR.
 ## Proof bar (every move PR, no exceptions)
 
 - Moves are `git mv` so history follows; behavior-preserving, never mixed
-  with logic changes.
-- `go build ./...` + `go vet ./...`; `go test ./internal/reducer/...`
-  `-count=1` recursive (never a bare package); repoint proof via
-  `go test ./internal/reducer/<newpkg>/... -list '.*' -count=1`
-  (`-list` takes a regexp — the bare form exits 2; a stale `-run`
-  selects 0 tests yet exits 0).
+  with logic changes. All Go commands run from the module directory
+  (`cd go` — the module lives under `go/`, so the bare forms fail from
+  the repo root).
+- `(cd go && go build ./... && go vet ./...)`;
+  `(cd go && go test ./internal/reducer/... -count=1)` recursive (never a
+  bare package); repoint proof via
+  `(cd go && go test ./internal/reducer/<newpkg>/... -list 'TestMovedFamily' -count=1 | rg -q TestMovedFamily)`
+  with a real moved test name substituted: `-list` only prints matches
+  and exits 0 on empty, so the `rg -q` assertion (not the exit code) is
+  what proves the repoint carried tests. A stale `-run` selects 0 tests
+  yet exits 0.
 - Golden corpus (B-7) and e2e snapshot (B-12) byte-identical or STOP.
 - Every new directory carries `doc.go`, `README.md`, `AGENTS.md` with real
   content.
-- `ci-gates validate --registry specs/ci-gates.v1.yaml --repo-root . --drift`
-  passes (`--registry` is required — the bare `--drift` form exits
-  non-zero); telemetry-coverage row check passes.
+- `(cd go && go run ./cmd/ci-gates validate --registry ../specs/ci-gates.v1.yaml --repo-root .. --drift)`
+  passes (no `ci-gates` binary exists on `PATH` — the canonical form is
+  `go run ./cmd/ci-gates` from `go/`, per
+  `scripts/verify-ci-gates-registry.sh`; `--registry` is required);
+  telemetry-coverage row check passes.
 - Dirgate row re-pinned DOWN in the same PR (see restack rule below).
 - `eshu-code-review` P0=P1=P2-blocking=0 on both sides of the promotion
   preflight; only the coordinator runs `make pre-pr`, once per push.
