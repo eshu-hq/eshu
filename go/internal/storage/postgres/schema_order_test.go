@@ -109,7 +109,7 @@ var orderedBootstrapDefinitionNames = []string{
 	// covering index). It is the only 077 left: #6543 removed the identity
 	// epoch pair that used to bracket it (a 076 DROP and a 077 CREATE of the
 	// same index name, which rebuilt the index on every bootstrap) in favour of
-	// migrations 104/105 below.
+	// migrations 105/106 below.
 	"content_entities_k8s_select_partial_index",
 	// migration 078 (#5429 CI/CD run cross-cycle watermark gap detection).
 	"cicd_run_watermarks",

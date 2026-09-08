@@ -210,7 +210,7 @@ func TestIdentityEpochIndexMigrationsReapplyWithoutRebuildLive(t *testing.T) {
 		}
 	}
 	// The legacy name must still be absent, not merely un-rebuilt: migration
-	// 105's drop is the statement that has to be a no-op here, and a drop of an
+	// 106's drop is the statement that has to be a no-op here, and a drop of an
 	// absent name leaves no trace in the relfilenode comparison above.
 	if _, ok := after[legacyIndex]; ok {
 		t.Errorf("%s exists after the second bootstrap; some definition creates the legacy name again", legacyIndex)
