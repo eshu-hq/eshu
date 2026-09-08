@@ -167,7 +167,8 @@ func isServiceEvidenceCandidate(file FileContent, normalizedServiceName string) 
 
 // extractAPISpecEvidence summarizes one candidate API spec file, resolving
 // external `$ref` path entries through resolver first. The implementation
-// moved to querycontract for #6060; this wrapper keeps root callers unchanged.
+// moved to the serviceevidence leaf for #6060; this wrapper keeps root
+// callers unchanged.
 func extractAPISpecEvidence(file FileContent, resolver specFileResolver) (ServiceAPISpecEvidence, bool, error) {
 	return serviceevidence.ExtractAPISpecEvidence(file, resolver)
 }
