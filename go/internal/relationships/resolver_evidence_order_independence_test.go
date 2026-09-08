@@ -31,14 +31,10 @@ import (
 // content-addressed. That touches projected graph truth and the golden snapshot,
 // so it is deliberately a separate change from #4594.
 //
-// It is skipped rather than left red. A permanently failing test turns every
-// future run of this package red, which trains people to ignore it and blocks
-// unrelated work — the opposite of a useful pin. Delete the t.Skip line to run
-// it: it fails today with a diff of the two previews, and it passes when the
-// ordering fix lands. That one-line edit is the proof step.
+// It runs un-skipped since #6184: aggregateCandidate sorts its facts by a
+// content key before accumulating, so forward and reversed inputs must agree.
 func TestAggregateCandidateEvidencePreviewIsOrderIndependent(t *testing.T) {
 	t.Parallel()
-	t.Skip("known-failing pin for cross-run resolver nondeterminism; delete this line to verify the fix")
 
 	key := entityTriple{
 		SourceEntityID:   "repo:source",

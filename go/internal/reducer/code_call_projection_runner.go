@@ -102,8 +102,14 @@ type CodeCallProjectionRefreshFenceLookup interface {
 
 // ReducerGraphDrain reports whether reducer graph-writing domains are still
 // active, letting local single-backend runners avoid graph write contention.
+// It also reports whether any code scope's active generation is still missing
+// its canonical-nodes phase, which is the cross-repository half of the
+// code-call readiness gate (#6184): the per-intent gate only covers the
+// caller's acceptance unit, so without the fleet-wide check an edge drained
+// before the callee repository commits MATCHes nothing and is lost silently.
 type ReducerGraphDrain interface {
 	HasActiveReducerGraphWork(ctx context.Context) (bool, error)
+	HasUncommittedCanonicalCodeScopes(ctx context.Context) (bool, error)
 }
 
 // CodeCallProjectionRunnerConfig configures the controlled code-calls lane.
@@ -314,16 +320,14 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
 	}
-	if r.ReducerGraphDrain != nil {
-		active, err := r.ReducerGraphDrain.HasActiveReducerGraphWork(ctx)
-		if err != nil {
-			return PartitionProcessResult{}, fmt.Errorf("check reducer graph drain: %w", err)
-		}
-		if active {
-			result := PartitionProcessResult{BlockedReadiness: 1}
-			r.recordCodeCallTiming(ctx, result)
-			return result, nil
-		}
+	blocked, err := r.projectionLaneBlocked(ctx)
+	if err != nil {
+		return PartitionProcessResult{}, err
+	}
+	if blocked {
+		result := PartitionProcessResult{BlockedReadiness: 1}
+		r.recordCodeCallTiming(ctx, result)
+		return result, nil
 	}
 
 	claimStart := time.Now()

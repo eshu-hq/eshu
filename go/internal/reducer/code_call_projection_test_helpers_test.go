@@ -39,12 +39,18 @@ type fenceAwareCodeCallIntentStore struct {
 }
 
 type staticReducerGraphDrain struct {
-	active bool
-	err    error
+	active               bool
+	err                  error
+	uncommittedCanonical bool
+	uncommittedErr       error
 }
 
 func (s staticReducerGraphDrain) HasActiveReducerGraphWork(context.Context) (bool, error) {
 	return s.active, s.err
+}
+
+func (s staticReducerGraphDrain) HasUncommittedCanonicalCodeScopes(context.Context) (bool, error) {
+	return s.uncommittedCanonical, s.uncommittedErr
 }
 
 func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitDomainIntents(

@@ -214,6 +214,37 @@ func TestCodeCallProjectionRunnerWaitsForReducerGraphDrainBeforeLease(t *testing
 	}
 }
 
+// TestCodeCallProjectionRunnerWaitsForCanonicalCodeQuiescence is the #6184
+// regression: the per-intent readiness gate only covers the caller's
+// acceptance unit, so a cross-repository edge drained before the callee
+// repository's canonical nodes commit MATCHes nothing and is lost silently.
+// The lane must report BlockedReadiness (and claim no lease) while any code
+// scope's active generation still lacks its canonical-nodes phase.
+func TestCodeCallProjectionRunnerWaitsForCanonicalCodeQuiescence(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeCodeCallIntentStore{leaseGranted: true}
+	runner := CodeCallProjectionRunner{
+		IntentReader:      reader,
+		LeaseManager:      reader,
+		EdgeWriter:        &recordingCodeCallProjectionEdgeWriter{},
+		AcceptedGen:       func(SharedProjectionAcceptanceKey) (string, bool) { return "", false },
+		ReducerGraphDrain: staticReducerGraphDrain{uncommittedCanonical: true},
+		Config:            CodeCallProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	result, err := runner.processOnce(context.Background(), time.Now().UTC())
+	if err != nil {
+		t.Fatalf("processOnce() error = %v, want nil", err)
+	}
+	if result.BlockedReadiness != 1 {
+		t.Fatalf("BlockedReadiness = %d, want 1", result.BlockedReadiness)
+	}
+	if got := reader.claimsCount(); got != 0 {
+		t.Fatalf("lease claims = %d, want 0 while canonical code scopes are uncommitted", got)
+	}
+}
+
 func TestCodeCallProjectionRunnerProcessOnceReportsReadinessBlockedWait(t *testing.T) {
 	t.Parallel()
 

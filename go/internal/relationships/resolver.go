@@ -151,7 +151,16 @@ func buildCandidates(facts []EvidenceFact) []Candidate {
 }
 
 // aggregateCandidate builds a single candidate from a group of evidence facts.
+//
+// facts arrive in Postgres row order (observed_at, evidence_id), which is wall
+// clock, not content: two indexing runs of the same facts hand them over in a
+// different order. Every accumulation below is order-sensitive (the five-item
+// preview cap, first-seen rationale dedup, first-non-empty repo, first-wins
+// field ties), so the facts are sorted by a content key first. The order is a
+// pure function of the fact set, which makes the candidate — and therefore the
+// projected graph — identical across runs. (#6184)
 func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
+	facts = sortEvidenceFactsForAggregation(facts)
 	maxConf := 0.0
 	confidenceMissProbability := 1.0
 	evidenceKinds := make(map[string]struct{})
@@ -222,6 +231,42 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 		SourceRevision:       sourceRevision.value,
 		FirstPartyRefVersion: firstPartyRefVersion.value,
 	}
+}
+
+// sortEvidenceFactsForAggregation returns the facts ordered by a content key:
+// clamped confidence descending, then evidence kind, path, and matched value
+// ascending. The trailing comparisons exist so the order is total: two facts
+// that tie on every content field relevant to the preview can still differ in
+// raw confidence (the preview records the unclamped value) or in unrelated
+// Details keys, and without a tie-break their relative order — and therefore
+// the candidate — would still depend on arrival order. fmt prints maps with
+// sorted keys, so the Details comparison is deterministic. The input slice is
+// never mutated: callers retain their arrival-ordered buckets.
+func sortEvidenceFactsForAggregation(facts []EvidenceFact) []EvidenceFact {
+	ordered := make([]EvidenceFact, len(facts))
+	copy(ordered, facts)
+	sort.Slice(ordered, func(i, j int) bool {
+		ci, cj := clampConfidence(ordered[i].Confidence), clampConfidence(ordered[j].Confidence)
+		if ci != cj {
+			return ci > cj
+		}
+		if ordered[i].EvidenceKind != ordered[j].EvidenceKind {
+			return ordered[i].EvidenceKind < ordered[j].EvidenceKind
+		}
+		pi, pj := toDetailsString(ordered[i].Details["path"]), toDetailsString(ordered[j].Details["path"])
+		if pi != pj {
+			return pi < pj
+		}
+		mi, mj := toDetailsString(ordered[i].Details["matched_value"]), toDetailsString(ordered[j].Details["matched_value"])
+		if mi != mj {
+			return mi < mj
+		}
+		if ordered[i].Confidence != ordered[j].Confidence {
+			return ordered[i].Confidence > ordered[j].Confidence
+		}
+		return fmt.Sprintf("%v", ordered[i].Details) < fmt.Sprintf("%v", ordered[j].Details)
+	})
+	return ordered
 }
 
 func aggregateEvidenceConfidence(maxConfidence float64, evidenceCount int, missProbability float64) float64 {

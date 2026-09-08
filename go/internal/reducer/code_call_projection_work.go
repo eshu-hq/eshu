@@ -15,6 +15,33 @@ func (r *CodeCallProjectionRunner) loadAllAcceptanceUnitIntents(ctx context.Cont
 	return r.loadAcceptanceUnitRows(ctx, key)
 }
 
+// projectionLaneBlocked reports whether code-call projection must stay parked
+// before claiming a partition lease. It combines the reducer graph-drain
+// check (active graph-writing domains) with the canonical-code quiescence
+// check (#6184): the per-intent readiness gate only covers the caller's
+// acceptance unit, so a cross-repository edge drained before the callee
+// repository's canonical nodes commit MATCHes nothing and is marked completed
+// anyway. The whole lane therefore waits until every code scope's active
+// generation has committed canonical nodes. Scopes without git repository
+// facts never block (the drain query excludes them).
+func (r *CodeCallProjectionRunner) projectionLaneBlocked(ctx context.Context) (bool, error) {
+	if r.ReducerGraphDrain == nil {
+		return false, nil
+	}
+	active, err := r.ReducerGraphDrain.HasActiveReducerGraphWork(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check reducer graph drain: %w", err)
+	}
+	if active {
+		return true, nil
+	}
+	uncommitted, err := r.ReducerGraphDrain.HasUncommittedCanonicalCodeScopes(ctx)
+	if err != nil {
+		return false, fmt.Errorf("check canonical code quiescence: %w", err)
+	}
+	return uncommitted, nil
+}
+
 func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionIntents(
 	ctx context.Context,
 	key SharedProjectionAcceptanceKey,

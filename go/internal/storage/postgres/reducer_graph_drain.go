@@ -6,6 +6,8 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
 const activeReducerGraphWorkQuery = `
@@ -31,6 +33,49 @@ SELECT EXISTS (
 type ReducerGraphDrain struct {
 	queryer Queryer
 }
+
+// uncommittedCanonicalCodeScopesQuery reports whether any code scope's active
+// generation is still missing its canonical-nodes phase. The projector
+// publishes that phase per (scope, repository, source run, generation) from
+// the generation's repository facts (projector/runtime_phase.go), so a code
+// scope whose active generation holds git repository facts but no matching
+// phase row has canonical nodes that are not committed yet — on a first
+// ingest, a bulk load, or a rebuild whose refinalize cleared the phases.
+//
+// The repository-fact gate keeps non-code scopes from blocking: a cloud-only
+// scope never emits repository facts and never publishes this phase, so
+// without the gate it would hold code-call projection back forever.
+// Tombstoned repository facts do not count: a scope whose repositories are
+// all retracted has nothing left to commit.
+//
+// Both subqueries are index-served: fact_records_scope_generation_idx covers
+// (scope_id, generation_id, fact_kind), and the phase lookup hits the
+// graph_projection_phase_state primary key prefix. No new index: this runs
+// once per code-call poll cycle over a scope-count row set, not per edge.
+const uncommittedCanonicalCodeScopesQuery = `
+SELECT EXISTS (
+    SELECT 1
+    FROM ingestion_scopes AS scope
+    WHERE scope.active_generation_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM fact_records AS fact
+        WHERE fact.scope_id = scope.scope_id
+          AND fact.generation_id = scope.active_generation_id
+          AND fact.fact_kind = 'repository'
+          AND fact.source_system = 'git'
+          AND fact.is_tombstone = FALSE
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM graph_projection_phase_state AS phase
+        WHERE phase.scope_id = scope.scope_id
+          AND phase.generation_id = scope.active_generation_id
+          AND phase.keyspace = $1
+          AND phase.phase = $2
+      )
+)
+`
 
 // NewReducerGraphDrain constructs a reducer graph-drain checker.
 func NewReducerGraphDrain(queryer Queryer) ReducerGraphDrain {
@@ -63,4 +108,46 @@ func (d ReducerGraphDrain) HasActiveReducerGraphWork(ctx context.Context) (bool,
 	}
 
 	return active, nil
+}
+
+// HasUncommittedCanonicalCodeScopes reports whether any code scope's active
+// generation still lacks its canonical-nodes phase (#6184). Code-call
+// projection drains cross-repository edges with a MATCH-only write: an edge
+// drained before the callee repository's canonical nodes commit matches
+// nothing, writes nothing, raises nothing, and is then marked completed — a
+// silent permanent loss (115 of 116 CALLS on the DR fixture corpus). The
+// per-intent readiness gate only covers the caller's acceptance unit, so the
+// runner holds the whole lane until every code scope's canonical nodes are
+// committed. A wedged scope stalls code calls visibly (pending intents +
+// BlockedReadiness) instead of losing edges silently; that is the intended
+// trade — the same one the active-work check above already makes.
+func (d ReducerGraphDrain) HasUncommittedCanonicalCodeScopes(ctx context.Context) (bool, error) {
+	if d.queryer == nil {
+		return false, fmt.Errorf("reducer graph drain queryer is required")
+	}
+
+	rows, err := d.queryer.QueryContext(
+		ctx,
+		uncommittedCanonicalCodeScopesQuery,
+		string(reducer.GraphProjectionKeyspaceCodeEntitiesUID),
+		string(reducer.GraphProjectionPhaseCanonicalNodesCommitted),
+	)
+	if err != nil {
+		return false, fmt.Errorf("check uncommitted canonical code scopes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	if !rows.Next() {
+		return false, rows.Err()
+	}
+
+	var uncommitted bool
+	if err := rows.Scan(&uncommitted); err != nil {
+		return false, fmt.Errorf("scan uncommitted canonical code scopes: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return false, fmt.Errorf("check uncommitted canonical code scopes: %w", err)
+	}
+
+	return uncommitted, nil
 }
