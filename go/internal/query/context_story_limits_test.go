@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
@@ -299,17 +301,17 @@ func (s infrastructureOverflowContentStore) ListRepoEntitiesByTypes(_ context.Co
 	return s.infrastructureEntities, nil
 }
 
+// overflowingInfrastructureEntities returns `n` K8sResource rows for the
+// infrastructure-truncation tests. The implementation moved to querytestutil
+// for #6060; this wrapper keeps root callers unchanged.
 func overflowingInfrastructureEntities(n int) []EntityContent {
-	entities := make([]EntityContent, 0, n)
-	for i := 0; i < n; i++ {
-		entities = append(entities, EntityContent{
-			RepoID:       "repo-1",
-			EntityType:   "K8sResource",
-			EntityName:   fmt.Sprintf("resource-%05d", i),
-			RelativePath: fmt.Sprintf("deploy/resource-%05d.yaml", i),
-		})
+	entities := querytestutil.OverflowingInfrastructureEntities(n)
+	out := make([]EntityContent, 0, len(entities))
+	for _, entity := range entities {
+		entity := entity
+		out = append(out, EntityContent(entity))
 	}
-	return entities
+	return out
 }
 
 // TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated is
@@ -340,14 +342,14 @@ func TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated(t 
 	// query -- topology, dependencies, provisioning candidates, the graph
 	// infrastructure fallback -- returning empty, so infrastructure_truncated
 	// stays the only bound this test can fire.
-	graphReader := fakeWorkloadGraphReader{
-		runSingleByMatch: map[string]map[string]any{
+	graphReader := querytestutil.FakeWorkloadGraphReader{
+		RunSingleByMatch: map[string]map[string]any{
 			"MATCH (w:Workload)": {
 				"id": "workload-1", "name": "order-service", "kind": "Deployment",
 				"repo_id": "repo-1", "repo_name": "order-service", "instances": []any{},
 			},
 		},
-		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if strings.Contains(cypher, "RETURN DISTINCT r.id as repo_id, r.name as repo_name") {
 				return []map[string]any{{"repo_id": "repo-1", "repo_name": "order-service"}}, nil
 			}

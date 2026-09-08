@@ -177,18 +177,24 @@ source_coverage:
   - file: dependencies.go
     calls:
       - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: 33e1e662b30f6fce9d4ed8f4bee0daa6ad24d7724fc7bb24f5fe8ef08be81df0, entry_ids: [QP-SC-DEPS]}
-  - file: entity.go
+  - file: entity/entity.go
     calls:
-      - {symbol: "(*EntityHandler).getEntityContext", count: 1, non_hot_reason: "unlabeled entity-context lookup is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*EntityHandler).resolveEntity", count: 1, source_sha256: 13f2f82855bde3084522d78952dd1801d7dc78365ac0d8ed5dca5d22c68414f1, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
-  - file: entity_resolve_workload.go
-    calls:
-      - {symbol: "(*EntityHandler).resolveWorkloadEntities", count: 2, source_sha256: 83874ee2f3b3671a59477114863d85aeb37e477b8421a3d60c79c4336b179be1, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
-      - symbol: "(*EntityHandler).hydrateResolvedWorkloadRepoNames"
+      - symbol: "(*EntityHandler).GetEntityContext"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 8ad608e32e0a41e763aa45f182b8b9db8ec57b3de959d920207c130abb196687
+          source_sha256: 1dc025f607bdae447c2452301e4050f0d294c48875b5794c0c0b13702caefd82
+          key_bound: single_key
+          max_results: 1
+      - {symbol: "(*EntityHandler).ResolveEntity", count: 1, source_sha256: 1ebb1f04ec960700aaf7649acfaa3f7dd8d2ccf547615bd318e79aa04bc5d53c, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}
+  - file: entity/entity_resolve_workload.go
+    calls:
+      - {symbol: "(*EntityHandler).ResolveWorkloadEntities", count: 2, source_sha256: c434d5a9bc4f5e8272a8f56ad66907f1d472e6ea112a4f935dc6f9033e10ee60, entry_ids: [QP-WORKLOAD-RESOLVE-PROPERTY, QP-WORKLOAD-RESOLVE-RELATIONSHIP]}
+      - symbol: "(*EntityHandler).HydrateResolvedWorkloadRepoNames"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 2018c40e76bf3a3c84a0dd8f7aaef94e96341aee7af3c2edb9c8a0c54600056a
           key_bound: bounded_key_batch
           max_keys: 101
           max_results: 101
@@ -208,13 +214,13 @@ source_coverage:
           key_bound: bounded_key_batch
           max_keys: 101
           max_results: 101
-  - file: entity_workload_context.go
+  - file: entity/entity_workload_context.go
     calls:
-      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: a749e36f983d8ca5a9967cf193461de3824f3211623bc1a933b011d5fbae0cdf, entry_ids: [QP-SVC-CONTEXT]}
-      - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: b727a2e3ca187c470117f68a5c94406885091aed66223a0c289458062f17a114, key_bound: single_key, max_results: 51}}
-  - file: entity_workload_platform.go
+      - {symbol: "(*EntityHandler).FetchWorkloadContextForOperation", count: 1, source_sha256: c377c08c0b8fb6fe5326ddc087ae49e3c063e987127fac19f2e0d13ea5f0e051, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).FetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: 87a9da1664717e9f9cd828f4f746f2b80420b778e5a5dbf1a920b338adf3b6bf, key_bound: single_key, max_results: 51}}
+  - file: entity/entity_workload_platform.go
     calls:
-      - {symbol: "(*EntityHandler).fetchWorkloadPlatformResult", count: 1, source_sha256: fe46e6ce37f6b6628197fd3694f0f008904b234bd9eaefc2b7a284b3b73178b1, entry_ids: [QP-SVC-RUNS-ON]}
+      - {symbol: "(*EntityHandler).FetchWorkloadPlatformResult", count: 1, source_sha256: 79d0494f17862c6feda2f43275b91be64751820d84442b119ab658ec4f94f963, entry_ids: [QP-SVC-RUNS-ON]}
   - file: evidence_bundle_live.go
     calls:
       - symbol: "repositoryCountForEvidenceBundle"
@@ -323,12 +329,12 @@ source_coverage:
   - file: impacttrace/impact_trace_workload_selection.go
     calls:
       - {symbol: "ResolveTraceWorkloadSelector", count: 1, non_hot: {class: keyed_support, source_sha256: ee9afd150e614dec4e7479c1866062e0ebfd05b07b8fccd59cbc8647298c15d9, key_bound: single_key, max_results: 1}}
-  - file: workload_provisioned_platforms.go
+  - file: entity/workload_provisioned_platforms.go
     calls:
-      - {symbol: "(*EntityHandler).fetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 1edfe1d48cc68839ed75890d8e0adc5c35da6c8d6a112eef60237ec14802354e, key_bound: single_key, max_results: 51}}
-  - file: workload_runtime_topology.go
+      - {symbol: "(*EntityHandler).FetchProvisionedPlatformResult", count: 1, non_hot: {class: keyed_support, source_sha256: 7cf2c7a054d3f853ce7b11393893d630ba45e4601d3cf65349833486ade14238, key_bound: single_key, max_results: 51}}
+  - file: entity/workload_runtime_topology.go
     calls:
-      - {symbol: "fetchWorkloadRuntimeTopology", count: 1, source_sha256: b007aed51527b9713d3f379bb08980d5ac376ccd2e2d76af4c079d679c67daa2, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
+      - {symbol: "FetchWorkloadRuntimeTopology", count: 1, source_sha256: fba1d35021a684db7c0a543bd189b33ffe9b77f9d82d79119242cb1ca0f08619, entry_ids: [QP-SVC-RUNTIME-TOPOLOGY]}
   - file: infra.go
     calls:
       - {symbol: "(*InfraHandler).searchResources", count: 1, source_sha256: 6ad1a46d55d28077a13778b029dbcafdff419725ee58190f93d65737f3d3cb70, entry_ids: [QP-INFRA-RESOURCE-SEARCH]}
@@ -545,10 +551,17 @@ source_coverage:
   - file: service/service_story_overview.go
     calls:
       - {symbol: "buildServiceDocumentationOverview", count: 1, non_hot: {class: keyed_support, source_sha256: 9fb48f96e392b7fcc0852fd80db9276460680b53f23a840f245bd804675dc3aa, key_bound: single_key, max_results: 1}}
-  - file: service_workload_resolution.go
+  - file: entity/service_workload_resolution.go
     calls:
-      - {symbol: "(*EntityHandler).hydrateServiceWorkloadCandidateRepoNames", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*EntityHandler).serviceWorkloadCandidatesFromQuery", count: 1, source_sha256: dee5ee4d2e0c647e66879714b8dc981fc999a38d53b225cb065f50794e07aab6, entry_ids: [QP-SVC-RESOLVE]}
+      - symbol: "(*EntityHandler).hydrateServiceWorkloadCandidateRepoNames"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: c5608becea39856cd557618293df195c3e524bd09f2e33f5c76470caded6d786
+          key_bound: bounded_key_batch
+          max_keys: 101
+          max_results: 101
+      - {symbol: "(*EntityHandler).serviceWorkloadCandidatesFromQuery", count: 1, source_sha256: 21fe0cbd90e123b80ee8974c7ea2af04768489a4bd5dc470573f43b01c4f754a, entry_ids: [QP-SVC-RESOLVE]}
   - file: status.go
     calls:
       - {symbol: "(*StatusHandler).getIndexStatus", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

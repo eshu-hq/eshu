@@ -4,8 +4,6 @@
 package query
 
 import (
-	"strings"
-
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
@@ -31,23 +29,17 @@ type githubActionsRelationship struct {
 // that returns any edge, that false positive would also prevent later
 // classifiers from handling the entity (issue #5337, codex P1 on PR #5379).
 //
-// The workflow-path branch delegates to ghactionsref.IsWorkflowPath, the
-// single exact-path gate this package shares with
+// The path gate delegates to ghactionsref.IsArtifactPath: the workflow-path
+// branch is the single exact-path gate this package shares with
 // go/internal/content/shape's isDirectGitHubActionsWorkflowPath (issue
-// #5568's content-entity identity gate), so the two packages' workflow-path
-// contracts cannot silently drift apart.
+// #5568's content-entity identity gate), and the action-file branch is
+// shared with the entity-context fallback, so the contracts cannot silently
+// drift apart.
+// isGitHubActionsArtifactPath reports whether an entity is a GitHub Actions
+// artifact path. The implementation moved to ghactionsref for #6060; this
+// wrapper keeps root callers unchanged.
 func isGitHubActionsArtifactPath(entity EntityContent) bool {
-	path := strings.TrimSpace(entity.RelativePath)
-	if ghactionsref.IsWorkflowPath(path) {
-		return true
-	}
-	lowerPath := strings.ToLower(path)
-	switch lowerPath[strings.LastIndex(lowerPath, "/")+1:] {
-	case "action.yml", "action.yaml":
-		return true
-	default:
-		return false
-	}
+	return ghactionsref.IsArtifactPath(entity.RelativePath)
 }
 
 // githubActionsSourceRelationships derives content-relationship edges from a

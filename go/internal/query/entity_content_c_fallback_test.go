@@ -10,18 +10,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityFallsBackToContentTypedefEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"typedef-1", "repo-1", "src/types.h", "Typedef", "my_int",
 					int64(3), int64(3), "c", "typedef int my_int;", []byte(`{"type":"int"}`),
@@ -30,7 +32,7 @@ func TestResolveEntityFallsBackToContentTypedefEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -74,13 +76,13 @@ func TestResolveEntityFallsBackToContentTypedefEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToContentTypedefEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"typedef-1", "repo-1", "src/types.h", "Typedef", "my_int",
 					int64(3), int64(3), "c", "typedef int my_int;", []byte(`{"type":"int"}`),
@@ -89,7 +91,7 @@ func TestGetEntityContextFallsBackToContentTypedefEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

@@ -105,3 +105,20 @@ func CodeTopicEvidenceHandles(data map[string]any) []EvidenceCitationHandle {
 	}
 	return handles
 }
+
+// ServiceStoryAnswerData attaches the service.story answer packet companion
+// to a service-story response body. The implementation moved from root's
+// answer_packet_routes.go for #6060 so a handler-family subpackage can
+// build the same companion without importing root.
+func ServiceStoryAnswerData(serviceName string, data map[string]any, truth *TruthEnvelope) map[string]any {
+	return WithAnswerPacketCompanion(data, truth, AnswerPacketCompanionInput{
+		PromptFamily: "service.story",
+		Question:     fmt.Sprintf("Tell the story for service %s.", serviceName),
+		PrimaryTool:  "get_service_story",
+		PrimaryRoute: "/api/v0/services/{service_name}/story",
+		Summary:      StringVal(data, "story"),
+		ResultRef:    "eshu://api-result/services/" + serviceName + "/story",
+		Limitations:  StringSliceValue(data, "limitations"),
+		Truncated:    BoolVal(MapValue(data, "result_limits"), "truncated"),
+	})
+}

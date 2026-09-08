@@ -21,32 +21,10 @@ var graphBackedEntityTypes = querycontract.GraphBackedEntityTypes
 // root callers unchanged.
 var contentBackedEntityTypes = querycontract.ContentBackedEntityTypes
 
-var graphFirstContentBackedEntityTypes = map[string]string{
-	"annotation":              "Annotation",
-	"component":               "Component",
-	"impl_block":              "ImplBlock",
-	"protocol":                "Protocol",
-	"protocol_implementation": "ProtocolImplementation",
-	"module_attribute":        "Variable",
-	"terraform_backend":       "TerraformBackend",
-	"terraform_check":         "TerraformCheck",
-	"terraform_import":        "TerraformImport",
-	"terraform_lock_provider": "TerraformLockProvider",
-	"terraform_module":        "TerraformModule",
-	"terraform_moved_block":   "TerraformMovedBlock",
-	"terraform_removed_block": "TerraformRemovedBlock",
-	"terragrunt_config":       "TerragruntConfig",
-	"terragrunt_dependency":   "TerragruntDependency",
-	"sql_column":              "SqlColumn",
-	"sql_function":            "SqlFunction",
-	"sql_index":               "SqlIndex",
-	"sql_migration":           "SqlMigration",
-	"sql_table":               "SqlTable",
-	"sql_trigger":             "SqlTrigger",
-	"sql_view":                "SqlView",
-	"type_alias":              "TypeAlias",
-	"typedef":                 "Typedef",
-}
+// graphFirstContentBackedEntityTypes forwards to
+// querycontract.GraphFirstContentBackedEntityTypes. The implementation moved
+// to querycontract for #6060; this alias keeps root callers unchanged.
+var graphFirstContentBackedEntityTypes = querycontract.GraphFirstContentBackedEntityTypes
 
 // buildLanguageResult converts a Neo4j result row into the response shape.
 func buildLanguageResult(row map[string]any, label string) map[string]any {

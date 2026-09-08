@@ -34,8 +34,8 @@ func TestGetServiceContextInfrastructureDegradeAttributesFailure(t *testing.T) {
 
 	var logs bytes.Buffer
 	handler := &EntityHandler{
-		Neo4j: fakeWorkloadGraphReader{
-			runSingleByMatch: map[string]map[string]any{
+		Neo4j: querytestutil.FakeWorkloadGraphReader{
+			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
 					"id":        "workload:svc-infra-degrade",
 					"name":      "svc-infra-degrade",
@@ -45,7 +45,7 @@ func TestGetServiceContextInfrastructureDegradeAttributesFailure(t *testing.T) {
 					"instances": []any{},
 				},
 			},
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-infra-degrade", "repo_name": "svc-infra-degrade"}}, nil
@@ -109,8 +109,8 @@ func TestGetServiceContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing.T)
 
 	var logs bytes.Buffer
 	handler := &EntityHandler{
-		Neo4j: fakeWorkloadGraphReader{
-			runSingleByMatch: map[string]map[string]any{
+		Neo4j: querytestutil.FakeWorkloadGraphReader{
+			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
 					"id":        "workload:svc-infra-healthy",
 					"name":      "svc-infra-healthy",
@@ -120,7 +120,7 @@ func TestGetServiceContextInfrastructureHealthyEmptyDoesNotDegrade(t *testing.T)
 					"instances": []any{},
 				},
 			},
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)") {
 					return []map[string]any{{"repo_id": "repo-svc-infra-healthy", "repo_name": "svc-infra-healthy"}}, nil
 				}

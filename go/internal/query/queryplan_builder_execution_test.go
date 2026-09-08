@@ -55,7 +55,7 @@ func TestResolveEntityExecutesBuilderBytes(t *testing.T) {
 			}
 			response := httptest.NewRecorder()
 
-			handler.resolveEntity(response, request)
+			handler.ResolveEntity(response, request)
 
 			if response.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d body=%s", response.Code, http.StatusOK, response.Body.String())
@@ -161,7 +161,7 @@ func TestResolveWorkloadEntitiesExecutesBuilderBytes(t *testing.T) {
 				ctx = ContextWithAuthContext(ctx, *tt.auth)
 			}
 
-			if _, err := handler.resolveWorkloadEntities(ctx, "proof", tt.repoID, 10); err != nil {
+			if _, err := handler.ResolveWorkloadEntities(ctx, "proof", tt.repoID, 10); err != nil {
 				t.Fatalf("resolveWorkloadEntities() error = %v", err)
 			}
 			if len(captured) != 2 {
@@ -217,7 +217,7 @@ func TestHydrateResolvedWorkloadRepoNamesExecutesBuilderBytes(t *testing.T) {
 			}
 			entities := []map[string]any{{"id": "workload:proof", "repo_id": "repository:r_proof"}}
 
-			if err := handler.hydrateResolvedWorkloadRepoNames(ctx, entities); err != nil {
+			if err := handler.HydrateResolvedWorkloadRepoNames(ctx, entities); err != nil {
 				t.Fatalf("hydrateResolvedWorkloadRepoNames() error = %v", err)
 			}
 			access := repositoryAccessFilterFromContext(ctx)

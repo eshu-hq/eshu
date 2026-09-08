@@ -30,7 +30,6 @@ const (
 // the leaf package root already imports and a family package will be able to,
 // so this stays a plain alias rather than a forwarder.
 var (
-	errEntityNameSearchUnavailable        = querycontract.ErrEntityNameSearchUnavailable
 	errGlobalGraphEntitySearchUnsupported = querycontract.ErrGlobalGraphEntitySearchUnsupported
 )
 

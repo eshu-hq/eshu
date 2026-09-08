@@ -13,18 +13,20 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityFallsBackToContentEntities(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"alias-1", "repo-1", "src/types.ts", "TypeAlias", "UserID",
 					int64(3), int64(3), "typescript", "type UserID = string", []byte(`{"type":"string"}`),
@@ -79,13 +81,13 @@ func TestResolveEntityFallsBackToContentEntities(t *testing.T) {
 func TestResolveEntityFallsBackToAnyRepoContentMatchesAndAliases(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata", "repo_name",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-2", "src/handler.py", "Function", "handler",
 					int64(12), int64(20), "python", "async def handler(): ...", []byte(`{"decorators":["@route"],"async":true}`), "Repository 2",
@@ -141,8 +143,8 @@ func TestResolveEntityReturnsGraphBackedTypeScriptClassWithTypeScriptSemantics(t
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["name"], "Service"; got != want {
 					t.Fatalf("params[name] = %#v, want %#v", got, want)
 				}
@@ -225,8 +227,8 @@ func TestResolveEntityReturnsGraphBackedJavaScriptFunctionWithJavaScriptSemantic
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["name"], "getTab"; got != want {
 					t.Fatalf("params[name] = %#v, want %#v", got, want)
 				}

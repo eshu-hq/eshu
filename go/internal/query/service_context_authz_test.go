@@ -47,7 +47,7 @@ func TestGetWorkloadContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.getWorkloadContext(rec, req)
+	handler.GetWorkloadContext(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -133,7 +133,7 @@ func TestFetchWorkloadContextOmitsRepositoryUnownedRuntimeForScopedCaller(t *tes
 		AllowedRepositoryIDs: []string{"repo-team-a", "repo-team-b"},
 	})
 
-	got, err := (&EntityHandler{Neo4j: reader}).fetchWorkloadContextForOperation(
+	got, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadContextForOperation(
 		ctx,
 		"w.id = $workload_id",
 		map[string]any{"workload_id": "workload:payments"},
@@ -179,7 +179,7 @@ func TestGetWorkloadContextEmptyGrantReturnsNotFoundWithoutBackendCalls(t *testi
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.getWorkloadContext(rec, req)
+	handler.GetWorkloadContext(rec, req)
 
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -234,7 +234,7 @@ func TestGetServiceStoryCandidateQueryAppliesScopedAuthBeforeAmbiguity(t *testin
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.getServiceStory(rec, req)
+	handler.GetServiceStory(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -266,7 +266,7 @@ func TestGetServiceContextReadModelFallbackFiltersOutOfScopeRepository(t *testin
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.getServiceContext(rec, req)
+	handler.GetServiceContext(rec, req)
 
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -323,7 +323,7 @@ func TestInvestigateServiceCandidateQueryAppliesScopedAuthBeforeAmbiguity(t *tes
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.investigateService(rec, req)
+	handler.InvestigateService(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -348,7 +348,7 @@ func TestInvestigateServiceEmptyGrantReturnsNotFoundWithoutBackendCalls(t *testi
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.investigateService(rec, req)
+	handler.InvestigateService(rec, req)
 
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())

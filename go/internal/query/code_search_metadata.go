@@ -114,14 +114,11 @@ func (h *CodeHandler) enrichGraphResultsWithContentMetadataByEntityID(
 	return results, nil
 }
 
+// resultContentEntityType resolves a result row's content-entity type from
+// its graph labels. The implementation moved to querycontract for #6060;
+// this wrapper keeps root callers unchanged.
 func resultContentEntityType(result map[string]any) string {
-	labels := StringSliceVal(result, "labels")
-	for _, label := range labels {
-		if entityType := querycontract.GraphLabelToContentEntityType(label); entityType != "" {
-			return entityType
-		}
-	}
-	return ""
+	return querycontract.ResultContentEntityType(result)
 }
 
 func mergeGraphAndContentMetadata(existing any, content map[string]any) map[string]any {

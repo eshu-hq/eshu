@@ -9,18 +9,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetEntityContextFallsBackToKustomizeOverlayTypedDeploySources(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"kustomize-overlay-typed-1", "repo-1", "deploy/kustomization.yaml", "KustomizeOverlay", "kustomization",
 					int64(1), int64(20), "yaml", "kind: Kustomization", []byte(`{"resource_refs":"https://github.com/myorg/shared-manifests.git//payments?ref=main,shared/component","helm_refs":"https://charts.bitnami.com/bitnami,ingress-nginx,nginx","image_refs":"ghcr.io/example/nginx,nginx"}`),
@@ -29,7 +31,7 @@ func TestGetEntityContextFallsBackToKustomizeOverlayTypedDeploySources(t *testin
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

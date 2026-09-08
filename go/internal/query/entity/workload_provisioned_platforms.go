@@ -1,0 +1,189 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package entity
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+// ProvisionedPlatformResult is the bounded provisioned-platform read for one
+// repository. Exported for the staying root tests that pin platform
+// behavior; see #6060.
+type ProvisionedPlatformResult struct {
+	rows   []map[string]any
+	limits map[string]any
+}
+
+type orderedProvisionedPlatform struct {
+	platform map[string]any
+	sourceID string
+	targetID string
+}
+
+// FetchProvisionedPlatformResult reads the provisioned-platform rows for one
+// repository. Exported for the staying root tests that pin platform
+// behavior; see #6060.
+func (h *EntityHandler) FetchProvisionedPlatformResult(ctx context.Context, repoID string) (ProvisionedPlatformResult, error) {
+	if h == nil || h.Neo4j == nil || strings.TrimSpace(repoID) == "" {
+		return EmptyProvisionedPlatformResult(), nil
+	}
+	queryLimit := querycontract.ContextStoryItemLimit + 1
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	if access.Empty() || !access.AllowsRepositoryID(repoID) {
+		return EmptyProvisionedPlatformResult(), nil
+	}
+	scopeClause := ""
+	if access.Scoped() {
+		scopeClause = "WHERE " + access.GraphCondition("target") + " AND " + access.GraphCondition("repo")
+	}
+	params := access.GraphParams(map[string]any{"repo_id": repoID, "provisioned_platform_limit": queryLimit})
+	rows, err := h.Neo4j.Run(ctx, fmt.Sprintf(`
+		MATCH (target:Repository {id: $repo_id})<-[dependency:PROVISIONS_DEPENDENCY_FOR]-(repo:Repository)-[platformEdge:PROVISIONS_PLATFORM]->(p:Platform)
+		%s
+		WITH repo.id as platform_source_id, repo.name as platform_source_name,
+		     target.id as platform_dependency_target_id,
+		     p.id as platform_id, p.name as platform_name, p.kind as platform_kind,
+		     p.provider as platform_provider, p.region as platform_region, p.locator as platform_locator,
+		     collect(DISTINCT properties(dependency)) as dependency_edges,
+		     collect(DISTINCT properties(platformEdge)) as platform_edges
+		RETURN platform_source_id, platform_source_name, platform_dependency_target_id,
+		       platform_id, platform_name, platform_kind, platform_provider, platform_region, platform_locator,
+		       dependency_edges, platform_edges
+		ORDER BY platform_name, platform_id, platform_source_id, platform_dependency_target_id
+		LIMIT $provisioned_platform_limit
+	`, scopeClause), params)
+	if err != nil {
+		return ProvisionedPlatformResult{}, err
+	}
+	// Collect every distinct (platform_id, source_id, target_id) tuple from
+	// the bounded row set FIRST, with no length cap. Only after the full
+	// distinct set is sorted into a deterministic order do we truncate to
+	// contextStoryItemLimit. Capping `ordered` mid-walk (the #5644 bug) let
+	// the 50 survivors depend on backend row order instead of stable
+	// provisionedPlatformOrderKey identity.
+	ordered := make([]orderedProvisionedPlatform, 0, len(rows))
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		platform, err := normalizeProvisionedPlatform(row)
+		if err != nil {
+			return ProvisionedPlatformResult{}, err
+		}
+		sourceID := querycontract.StringVal(row, "platform_source_id")
+		targetID := querycontract.StringVal(row, "platform_dependency_target_id")
+		key := querycontract.StringVal(platform, "platform_id") + "\x00" + sourceID + "\x00" + targetID
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+		ordered = append(ordered, orderedProvisionedPlatform{
+			platform: platform,
+			sourceID: sourceID,
+			targetID: targetID,
+		})
+	}
+	sort.Slice(ordered, func(i, j int) bool {
+		return provisionedPlatformOrderKey(ordered[i]) < provisionedPlatformOrderKey(ordered[j])
+	})
+	distinctCount := len(ordered)
+	truncatedByCap := distinctCount > querycontract.ContextStoryItemLimit
+	if truncatedByCap {
+		ordered = ordered[:querycontract.ContextStoryItemLimit]
+	}
+	normalized := make([]map[string]any, 0, len(ordered))
+	for _, entry := range ordered {
+		normalized = append(normalized, entry.platform)
+	}
+	truncated := len(rows) >= queryLimit || truncatedByCap
+	return ProvisionedPlatformResult{
+		rows: normalized,
+		limits: boundedCollectionMetadata(
+			querycontract.ContextStoryItemLimit, queryLimit, len(normalized), len(rows), truncated,
+			[]string{"platform_name", "platform_id", "source_repository_id", "target_repository_id"},
+		),
+	}, nil
+}
+
+// EmptyProvisionedPlatformResult returns the zero provisioned-platform read.
+func EmptyProvisionedPlatformResult() ProvisionedPlatformResult {
+	return ProvisionedPlatformResult{
+		rows: []map[string]any{},
+		limits: emptyBoundedCollectionMetadata(
+			querycontract.ContextStoryItemLimit,
+			[]string{"platform_name", "platform_id", "source_repository_id", "target_repository_id"},
+		),
+	}
+}
+
+func provisionedPlatformOrderKey(entry orderedProvisionedPlatform) string {
+	return strings.Join([]string{
+		querycontract.StringVal(entry.platform, "platform_name"),
+		querycontract.StringVal(entry.platform, "platform_id"),
+		entry.sourceID,
+		entry.targetID,
+	}, "\x00")
+}
+
+func normalizeProvisionedPlatform(row map[string]any) (map[string]any, error) {
+	row = copyStringAnyMap(row)
+	if len(querycontract.MapValue(row, "dependency_edge")) == 0 {
+		properties, err := deterministicEvidenceProperties(row, "dependency_edges")
+		if err != nil {
+			return nil, fmt.Errorf("select dependency edge evidence: %w", err)
+		}
+		row["dependency_edge"] = properties
+	}
+	if len(querycontract.MapValue(row, "platform_edge")) == 0 {
+		properties, err := deterministicEvidenceProperties(row, "platform_edges")
+		if err != nil {
+			return nil, fmt.Errorf("select platform edge evidence: %w", err)
+		}
+		row["platform_edge"] = properties
+	}
+	dependencyEdge := querycontract.MapValue(row, "dependency_edge")
+	platformEdge := querycontract.MapValue(row, "platform_edge")
+	row["dependency_confidence"] = querycontract.FloatVal(dependencyEdge, "confidence")
+	row["dependency_reason"] = querycontract.StringVal(dependencyEdge, "reason")
+	row["platform_edge_confidence"] = querycontract.FloatVal(platformEdge, "confidence")
+	row["platform_edge_reason"] = querycontract.StringVal(platformEdge, "reason")
+	return map[string]any{
+		"platform_id":         querycontract.StringVal(row, "platform_id"),
+		"platform_name":       querycontract.StringVal(row, "platform_name"),
+		"platform_kind":       querycontract.StringVal(row, "platform_kind"),
+		"platform_provider":   querycontract.StringVal(row, "platform_provider"),
+		"platform_region":     querycontract.StringVal(row, "platform_region"),
+		"platform_locator":    querycontract.StringVal(row, "platform_locator"),
+		"platform_confidence": querycontract.FirstPositiveFloat(querycontract.FloatVal(row, "platform_edge_confidence"), querycontract.FloatVal(row, "dependency_confidence")),
+		"platform_reason":     querycontract.FirstNonEmptyString(querycontract.StringVal(row, "platform_edge_reason"), querycontract.StringVal(row, "dependency_reason")),
+		"topology_basis":      "provisioning_fallback",
+		"topology_edges":      ProvisionedPlatformTopologyEdges(row),
+	}, nil
+}
+
+func deterministicEvidenceProperties(row map[string]any, field string) (map[string]any, error) {
+	candidates := querycontract.MapSliceValue(row, field)
+	if len(candidates) == 0 {
+		return nil, nil
+	}
+	best := candidates[0]
+	bestKey, err := stablePropertiesKey(best)
+	if err != nil {
+		return nil, err
+	}
+	for _, candidate := range candidates[1:] {
+		key, err := stablePropertiesKey(candidate)
+		if err != nil {
+			return nil, err
+		}
+		if key < bestKey {
+			best = candidate
+			bestKey = key
+		}
+	}
+	return copyStringAnyMap(best), nil
+}

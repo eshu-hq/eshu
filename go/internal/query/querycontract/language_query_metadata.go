@@ -47,3 +47,17 @@ type LanguageEntitySearch struct {
 type LanguageEntityContentSearcher interface {
 	SearchEntitiesByLanguageAndTypeForAccess(context.Context, LanguageEntitySearch) ([]EntityContent, error)
 }
+
+// ResultContentEntityType resolves a result row's content-entity type from
+// its graph labels. The implementation moved from root's
+// code_search_metadata.go for #6060 so a handler-family subpackage can
+// resolve a row's content type without importing root.
+func ResultContentEntityType(result map[string]any) string {
+	labels := StringSliceVal(result, "labels")
+	for _, label := range labels {
+		if entityType := GraphLabelToContentEntityType(label); entityType != "" {
+			return entityType
+		}
+	}
+	return ""
+}

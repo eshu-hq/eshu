@@ -7,18 +7,20 @@ import (
 	"context"
 	"database/sql/driver"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestEnrichEntityResultsWithContentMetadataTSXFragmentComponent(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"component-1", "repo-1", "src/Screen.tsx", "Component", "Screen",
 					int64(7), int64(14), "tsx", "export function Screen() { return <>...</> }",
@@ -42,7 +44,7 @@ func TestEnrichEntityResultsWithContentMetadataTSXFragmentComponent(t *testing.T
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Screen", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Screen", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -63,13 +65,13 @@ func TestEnrichEntityResultsWithContentMetadataTSXFragmentComponent(t *testing.T
 func TestEnrichEntityResultsWithContentMetadataTSXComponentTypeAssertion(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"variable-1", "repo-1", "src/Screen.tsx", "Variable", "Dynamic",
 					int64(6), int64(6), "tsx", "const Dynamic = component as ComponentType<Props>",
@@ -93,7 +95,7 @@ func TestEnrichEntityResultsWithContentMetadataTSXComponentTypeAssertion(t *test
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Dynamic", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Dynamic", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -114,13 +116,13 @@ func TestEnrichEntityResultsWithContentMetadataTSXComponentTypeAssertion(t *test
 func TestEnrichEntityResultsWithContentMetadataTSXComponentWrapper(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"component-1", "repo-1", "src/Screen.tsx", "Component", "MemoButton",
 					int64(3), int64(3), "tsx", "const MemoButton = memo(() => <button />)",
@@ -144,7 +146,7 @@ func TestEnrichEntityResultsWithContentMetadataTSXComponentWrapper(t *testing.T)
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "MemoButton", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "MemoButton", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}

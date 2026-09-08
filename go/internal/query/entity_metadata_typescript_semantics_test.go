@@ -8,6 +8,8 @@ import (
 	"database/sql/driver"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestAttachTypeScriptSemanticsClonesResult(t *testing.T) {
@@ -88,13 +90,13 @@ func TestAttachTypeScriptSemanticsReturnsOriginalWhenEmpty(t *testing.T) {
 func TestEnrichEntityResultsWithContentMetadataTypeScriptMappedTypeAlias(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-1", "repo-1", "src/types.ts", "TypeAlias", "ReadonlyMap",
 					int64(2), int64(4), "typescript", "type ReadonlyMap<T> = { readonly [K in keyof T]: T[K] }",
@@ -118,7 +120,7 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptMappedTypeAlias(t *test
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "ReadonlyMap", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "ReadonlyMap", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -142,13 +144,13 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptMappedTypeAlias(t *test
 func TestEnrichEntityResultsWithContentMetadataTypeScriptGenericInterface(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-1", "repo-1", "src/interfaces.ts", "Interface", "Box",
 					int64(2), int64(4), "typescript", "interface Box<T> { value: T }",
@@ -172,7 +174,7 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptGenericInterface(t *tes
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Box", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Box", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -196,13 +198,13 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptGenericInterface(t *tes
 func TestEnrichEntityResultsWithContentMetadataTypeScriptNamespaceModule(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-1", "repo-1", "src/types.ts", "Module", "API",
 					int64(1), int64(8), "typescript", "namespace API { }",
@@ -226,7 +228,7 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptNamespaceModule(t *test
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "API", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "API", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}
@@ -247,13 +249,13 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptNamespaceModule(t *test
 func TestEnrichEntityResultsWithContentMetadataTypeScriptDeclarationMerging(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"content-1", "repo-1", "src/merge.ts", "Class", "Service",
 					int64(1), int64(6), "typescript", "class Service {}", []byte(`{"declaration_merge_group":"Service","declaration_merge_count":2,"declaration_merge_kinds":["class","namespace"]}`),
@@ -276,7 +278,7 @@ func TestEnrichEntityResultsWithContentMetadataTypeScriptDeclarationMerging(t *t
 		},
 	}
 
-	got, err := handler.enrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Service", 20)
+	got, err := handler.EnrichEntityResultsWithContentMetadata(context.Background(), results, "repo-1", "Service", 20)
 	if err != nil {
 		t.Fatalf("enrichEntityResultsWithContentMetadata() error = %v, want nil", err)
 	}

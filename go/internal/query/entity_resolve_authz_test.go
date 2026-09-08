@@ -35,7 +35,7 @@ func TestResolveEntityGraphAppliesScopedAuthBeforeLimit(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -81,7 +81,7 @@ func TestResolveEntityContentAppliesScopedAuthWithoutAnyRepoFallback(t *testing.
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -115,7 +115,7 @@ func TestResolveEntityEmptyGrantReturnsEmptyWithoutBroadScan(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -163,7 +163,7 @@ func TestResolveEntityAllScopeAdminKeepsAnyRepoFallback(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
@@ -192,7 +192,7 @@ func TestResolveEntityScopedSelectorFiltersDuplicateRepositoryNames(t *testing.T
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 after scoped duplicate filtering; body = %s", rec.Code, rec.Body.String())
@@ -218,7 +218,7 @@ func TestResolveEntityScopedSelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d for out-of-scope repo; body = %s", got, want, rec.Body.String())
@@ -243,7 +243,7 @@ func TestResolveEntityEmptyGrantDeniesExplicitRepositorySelector(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.resolveEntity(rec, req)
+	handler.ResolveEntity(rec, req)
 
 	if got, want := rec.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d for explicit selector with empty grant; body = %s", got, want, rec.Body.String())

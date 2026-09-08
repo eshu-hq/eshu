@@ -133,7 +133,7 @@ func TestResolveEntitySelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.resolveEntity(rec, req)
+			handler.ResolveEntity(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

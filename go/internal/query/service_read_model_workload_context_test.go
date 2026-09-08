@@ -20,8 +20,8 @@ func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeWorkloadGraphReader{
-			runByMatch: map[string][]map[string]any{
+		Neo4j: querytestutil.FakeWorkloadGraphReader{
+			RunByMatch: map[string][]map[string]any{
 				"DEPENDS_ON|USES_MODULE|DEPLOYS_FROM": {},
 			},
 		},
@@ -134,8 +134,8 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 	}
 
 	handler := &EntityHandler{
-		Neo4j: fakeWorkloadGraphReader{
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeWorkloadGraphReader{
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphUnavailable)
 				}
@@ -213,8 +213,8 @@ func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *te
 	}
 
 	handler := &EntityHandler{
-		Neo4j: fakeWorkloadGraphReader{
-			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeWorkloadGraphReader{
+			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
 					return graphRows, nil
 				}

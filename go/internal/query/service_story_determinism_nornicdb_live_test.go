@@ -12,6 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entity"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -42,7 +46,7 @@ const serviceStoryDeterminismLiveEnv = "ESHU_SERVICE_STORY_DETERMINISM_NORNICDB_
 // `MATCH ... ORDER BY ... LIMIT` runtime-instance read via
 // fetchWorkloadRuntimeTopology (sentinel 51), and the aggregating
 // `WITH ... collect() ... ORDER BY ... LIMIT` attached-platform read via
-// fetchWorkloadPlatformResult (sentinel 2501).
+// FetchWorkloadPlatformResult (sentinel 2501).
 //
 // Run against an isolated NornicDB:
 //
@@ -71,7 +75,7 @@ func TestServiceStoryTruncationSelectionIsDeterministicLiveNornicDB(t *testing.T
 
 	t.Run("runtime_instance_plain_order_by_limit", func(t *testing.T) {
 		// 120 distinct instances against the 51-row sentinel, one platform each.
-		seed := newLiveDeterminismSeed(t, ctx, driver, "runtime", contextStoryItemLimit*2+20, 1)
+		seed := newLiveDeterminismSeed(t, ctx, driver, "runtime", querycontract.ContextStoryItemLimit*2+20, 1)
 		defer seed.cleanup()
 		seed.write()
 		seed.assertRuntimeInstanceSelectionDeterministic(ctx, t, reader)
@@ -80,10 +84,10 @@ func TestServiceStoryTruncationSelectionIsDeterministicLiveNornicDB(t *testing.T
 	t.Run("attached_platform_aggregating_order_by_limit", func(t *testing.T) {
 		// contextStoryItemLimit instances x (contextStoryItemLimit+1) platforms
 		// = 2,550 distinct RUNS_ON edges against the 2,501-row sentinel. This is
-		// the real production ceiling: fetchWorkloadPlatformResult restricts
+		// the real production ceiling: FetchWorkloadPlatformResult restricts
 		// i.id IN $instance_ids to the already-truncated topology, so at most
 		// contextStoryItemLimit distinct instances can ever appear.
-		seed := newLiveDeterminismSeed(t, ctx, driver, "platform", contextStoryItemLimit, contextStoryItemLimit+1)
+		seed := newLiveDeterminismSeed(t, ctx, driver, "platform", querycontract.ContextStoryItemLimit, querycontract.ContextStoryItemLimit+1)
 		defer seed.cleanup()
 		seed.write()
 		seed.assertAttachedPlatformSelectionDeterministic(ctx, t, reader)
@@ -96,14 +100,14 @@ func TestServiceStoryTruncationSelectionIsDeterministicLiveNornicDB(t *testing.T
 // pollute the reads and expose retained evidence to this test's cleanup.
 // Repository is included because a partially-failed cleanup can leave one
 // behind, and an unchecked label would let that orphan go unnoticed forever.
-func requireIsolatedDeterminismGraph(ctx context.Context, t *testing.T, reader GraphQuery) {
+func requireIsolatedDeterminismGraph(ctx context.Context, t *testing.T, reader querycontract.GraphQuery) {
 	t.Helper()
 	for _, label := range []string{"Repository", "Workload", "WorkloadInstance", "Platform"} {
 		countRow, err := reader.RunSingle(ctx, fmt.Sprintf("MATCH (n:%s) RETURN count(n) AS count", label), nil)
 		if err != nil {
 			t.Fatalf("count existing %s nodes: %v", label, err)
 		}
-		if got := IntVal(countRow, "count"); got != 0 {
+		if got := querycontract.IntVal(countRow, "count"); got != 0 {
 			t.Fatalf("live proof requires an isolated graph with zero %s nodes, got %d", label, got)
 		}
 	}
@@ -282,8 +286,8 @@ func (s *liveDeterminismSeed) expectedRuntimeTop() []string {
 		}
 		return ids[i] < ids[j]
 	})
-	if len(ids) > contextStoryItemLimit {
-		ids = ids[:contextStoryItemLimit]
+	if len(ids) > querycontract.ContextStoryItemLimit {
+		ids = ids[:querycontract.ContextStoryItemLimit]
 	}
 	return ids
 }
@@ -303,25 +307,25 @@ func (s *liveDeterminismSeed) expectedAttachedPlatformTop() []string {
 	return keys
 }
 
-func (s *liveDeterminismSeed) assertRuntimeInstanceSelectionDeterministic(ctx context.Context, t *testing.T, reader GraphQuery) {
+func (s *liveDeterminismSeed) assertRuntimeInstanceSelectionDeterministic(ctx context.Context, t *testing.T, reader querycontract.GraphQuery) {
 	t.Helper()
 	want := s.expectedRuntimeTop()
 	const repeats = 25
 	var first []string
 	for call := 0; call < repeats; call++ {
-		result, err := fetchWorkloadRuntimeTopology(
+		result, err := entity.FetchWorkloadRuntimeTopology(
 			ctx, reader, "w.id = $workload_id", map[string]any{"workload_id": s.workloadID}, s.repoID,
 		)
 		if err != nil {
-			t.Fatalf("fetchWorkloadRuntimeTopology() call %d error = %v", call, err)
+			t.Fatalf("entity.FetchWorkloadRuntimeTopology() call %d error = %v", call, err)
 		}
-		got := instanceIDs(result.instances)
-		if len(got) != contextStoryItemLimit {
-			t.Fatalf("call %d survivor count = %d, want %d", call, len(got), contextStoryItemLimit)
+		got := querytestutil.InstanceIDs(result.Instances())
+		if len(got) != querycontract.ContextStoryItemLimit {
+			t.Fatalf("call %d survivor count = %d, want %d", call, len(got), querycontract.ContextStoryItemLimit)
 		}
 		if strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Fatalf("call %d survivor set != independent lexicographic top-%d\n got  = %v\n want = %v\nbackend ORDER BY ... LIMIT did not select the correct candidate subset",
-				call, contextStoryItemLimit, got, want)
+				call, querycontract.ContextStoryItemLimit, got, want)
 		}
 		if first == nil {
 			first = got
@@ -334,11 +338,11 @@ func (s *liveDeterminismSeed) assertRuntimeInstanceSelectionDeterministic(ctx co
 }
 
 // assertAttachedPlatformSelectionDeterministic drives the real
-// fetchWorkloadPlatformResult at its real 2,501-row sentinel over 2,550 seeded
+// FetchWorkloadPlatformResult at its real 2,501-row sentinel over 2,550 seeded
 // edges, so the aggregating plan shape is proven at production cardinality
 // through production query text rather than by extrapolation from a scratch
 // query.
-func (s *liveDeterminismSeed) assertAttachedPlatformSelectionDeterministic(ctx context.Context, t *testing.T, reader GraphQuery) {
+func (s *liveDeterminismSeed) assertAttachedPlatformSelectionDeterministic(ctx context.Context, t *testing.T, reader querycontract.GraphQuery) {
 	t.Helper()
 	handler := &EntityHandler{Neo4j: reader}
 	instances := make([]map[string]any, 0, len(s.instanceIDs))
@@ -350,13 +354,13 @@ func (s *liveDeterminismSeed) assertAttachedPlatformSelectionDeterministic(ctx c
 	const repeats = 5
 	var first []string
 	for call := 0; call < repeats; call++ {
-		result, err := handler.fetchWorkloadPlatformResult(ctx, s.repoID, s.workloadID, instances)
+		result, err := handler.FetchWorkloadPlatformResult(ctx, s.repoID, s.workloadID, instances)
 		if err != nil {
-			t.Fatalf("fetchWorkloadPlatformResult() call %d error = %v", call, err)
+			t.Fatalf("FetchWorkloadPlatformResult() call %d error = %v", call, err)
 		}
-		got := make([]string, 0, len(result.rows))
-		for _, row := range result.rows {
-			got = append(got, StringVal(row, "instance_id")+"\x00"+StringVal(row, "platform_name")+"\x00"+StringVal(row, "platform_id"))
+		got := make([]string, 0, len(result.Rows()))
+		for _, row := range result.Rows() {
+			got = append(got, querycontract.StringVal(row, "instance_id")+"\x00"+querycontract.StringVal(row, "platform_name")+"\x00"+querycontract.StringVal(row, "platform_id"))
 		}
 		if len(got) != workloadPlatformEdgeLimit {
 			t.Fatalf("call %d survivor count = %d, want %d", call, len(got), workloadPlatformEdgeLimit)

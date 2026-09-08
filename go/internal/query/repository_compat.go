@@ -24,10 +24,6 @@ func mapSliceValue(value map[string]any, key string) []map[string]any {
 	return querycontract.MapSliceValue(value, key)
 }
 
-func sortedUniqueStrings(values []string) []string {
-	return querycontract.UniqueSortedStrings(values)
-}
-
 func stringSliceValue(value map[string]any, key string) []string {
 	return querycontract.StringSliceValue(value, key)
 }

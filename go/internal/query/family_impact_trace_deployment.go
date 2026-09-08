@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -16,12 +17,12 @@ import (
 
 // deploymentTraceContextBackend is the production
 // impact.DeploymentTraceContextProvider: it enriches a deployment-trace
-// request with service workload context. It stays in root because it builds a
-// B5-entity handler (EntityHandler), which cannot be named from the impact
-// subpackage, and because the overview shaping reuses the service-story build
-// context for the same reason. ImpactHandler.TraceContext carries the
-// production adapter; tests inject fakes through the same interface. See
-// #6060.
+// request with service workload context. It stays in root because it builds
+// an entity.EntityHandler (entity/, #6060 lane B B5), which cannot be named
+// from the impact subpackage, and because the overview shaping reuses the
+// service-story build context for the same reason. ImpactHandler.TraceContext
+// carries the production adapter; tests inject fakes through the same
+// interface. See #6060.
 type deploymentTraceContextBackend struct{}
 
 // NewDeploymentTraceContext returns the production trace-context backend for
@@ -60,21 +61,21 @@ func fetchServiceTraceContext(
 	serviceName string,
 	traceOptions impact.TraceEnrichmentConfig,
 ) (map[string]any, error) {
-	entityHandler := &EntityHandler{Neo4j: graph, Content: content, Logger: logger}
+	entityHandler := &entity.EntityHandler{Neo4j: graph, Content: content, Logger: logger}
 	workloadID, err := impacttrace.ResolveTraceWorkloadSelector(ctx, graph, serviceName)
 	if err != nil {
 		return nil, err
 	}
 	var workloadContext map[string]any
 	if workloadID != "" {
-		workloadContext, err = entityHandler.fetchWorkloadContextForOperation(
+		workloadContext, err = entityHandler.FetchWorkloadContextForOperation(
 			ctx,
 			"w.id = $workload_id",
 			map[string]any{"workload_id": workloadID},
 			"deployment_trace",
 		)
 	} else {
-		workloadContext, err = entityHandler.fetchServiceReadModelWorkloadContext(ctx, serviceName)
+		workloadContext, err = entityHandler.FetchServiceReadModelWorkloadContext(ctx, serviceName)
 	}
 	if err != nil || workloadContext == nil {
 		return workloadContext, err

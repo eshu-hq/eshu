@@ -108,11 +108,6 @@ type ServiceAPIEndpointEvidence = service.ServiceAPIEndpointEvidence
 // deployment-trace wrapper spelling the package-local name unchanged.
 type serviceQueryEnrichmentOptions = service.ServiceQueryEnrichmentOptions
 
-// serviceInvestigationOptions tunes the service investigation packet. Its
-// home is service/; this alias keeps the staying investigation route
-// spelling the package-local name unchanged.
-type serviceInvestigationOptions = service.ServiceInvestigationOptions
-
 // serviceStoryImageCandidateParts is one parsed image-candidate shape. Its
 // home is service/; this alias keeps the staying container-image
 // explanation spelling the package-local name unchanged.
@@ -160,27 +155,6 @@ func enrichServiceQueryContext(
 // unchanged. See #6060.
 const serviceCatalogCorrelationFactKind = service.ServiceCatalogCorrelationFactKind
 
-// serviceTraceImagePackageSegment renders the image-package segment of the
-// code-to-runtime trace. Its home is service/; this forwarder keeps the
-// staying supply-chain tests calling the package-local name.
-func serviceTraceImagePackageSegment(workloadContext map[string]any) map[string]any {
-	return service.ServiceTraceImagePackageSegment(workloadContext)
-}
-
-// buildServiceDeploymentOverview renders the deployment overview section.
-// Its home is service/; this forwarder keeps the staying workload-context
-// tests calling the package-local name.
-func buildServiceDeploymentOverview(workloadContext map[string]any) map[string]any {
-	return service.BuildServiceDeploymentOverview(workloadContext)
-}
-
-// capMapRows caps a row slice at limit, reporting whether it trimmed. Its
-// home is service/; this forwarder keeps the staying entity-workload and
-// story-limit callers spelling the package-local name unchanged.
-func capMapRows(rows []map[string]any, limit int) ([]map[string]any, bool) {
-	return service.CapMapRows(rows, limit)
-}
-
 // buildServiceStoryResponse assembles the service-story wire response. Its
 // home is service/; this forwarder keeps the staying service seam and the
 // staying answer-metadata and evidence-boundary tests calling the
@@ -220,13 +194,6 @@ func containsString(values []string, candidate string) bool {
 // impact seam test calling the package-local name.
 func appendUniqueString(values *[]string, value string) {
 	querycontract.AppendUniqueString(values, value)
-}
-
-// uniqueSortedStrings drops blank and duplicate values and returns the set
-// sorted. The implementation lives in querycontract; this wrapper keeps the
-// staying supply-chain stayer calling the package-local name.
-func uniqueSortedStrings(values []string) []string {
-	return querycontract.UniqueSortedStrings(values)
 }
 
 // ServiceCatalogLocalDescriptorEvidenceRow is one local-descriptor evidence

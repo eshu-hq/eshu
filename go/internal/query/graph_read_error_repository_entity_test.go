@@ -46,7 +46,7 @@ func TestResolveEntityMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.resolveEntity(rec, req)
+			handler.ResolveEntity(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -78,7 +78,7 @@ func TestResolveEntityHydrateMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.resolveEntity(rec, req)
+			handler.ResolveEntity(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -99,7 +99,7 @@ func TestGetEntityContextMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getEntityContext(rec, req)
+			handler.GetEntityContext(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -131,7 +131,7 @@ func TestGetEntityContextHydrateMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getEntityContext(rec, req)
+			handler.GetEntityContext(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -152,7 +152,7 @@ func TestGetServiceContextMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.getServiceContext(rec, req)
+			handler.GetServiceContext(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

@@ -18,10 +18,6 @@ import (
 // contract package is exactly what review rejected on the collector-readiness
 // seam.
 
-// repositorySelectorAmbiguousError reports a selector that matched more than
-// one repository.
-type repositorySelectorAmbiguousError = queryselector.AmbiguousError
-
 func resolveRepositorySelectorExactForAccess(
 	ctx context.Context,
 	graph GraphQuery,

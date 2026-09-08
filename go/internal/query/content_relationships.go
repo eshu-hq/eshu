@@ -24,7 +24,10 @@ const contentRelationshipLimit = 20
 // byte-identical responses. Pagination past the limit is deferred to #5367;
 // this is disclosure-only so a truncated response is never silently
 // presented as complete.
-const k8sSelectCandidateScanTruncationReason = "k8s_resource_candidate_scan_truncated_at_5000"
+// k8sSelectCandidateScanTruncationReason forwards to
+// querycontract.K8sSelectCandidateScanTruncationReason. The implementation
+// moved to querycontract for #6060; this alias keeps root callers unchanged.
+const k8sSelectCandidateScanTruncationReason = querycontract.K8sSelectCandidateScanTruncationReason
 
 type contentRelationshipSet struct {
 	incoming []map[string]any

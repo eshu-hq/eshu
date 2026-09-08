@@ -13,14 +13,16 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityReturnsGraphBackedPythonDecoratedClassWithPythonSemantics(t *testing.T) {
 	t.Parallel()
 
 	handler := &EntityHandler{
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if got, want := params["name"], "Logged"; got != want {
 					t.Fatalf("params[name] = %#v, want %#v", got, want)
 				}
@@ -106,13 +108,13 @@ func TestResolveEntityReturnsGraphBackedPythonDecoratedClassWithPythonSemantics(
 func TestResolveEntityFallsBackToContentBackedPythonDecoratedAsyncFunction(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-1", "src/handler.py", "Function", "handler",
 					int64(12), int64(20), "python", "async def handler(): ...", []byte(`{"decorators":["@route"],"async":true}`),
@@ -181,13 +183,13 @@ func TestResolveEntityFallsBackToContentBackedPythonDecoratedAsyncFunction(t *te
 func TestResolveEntityFallsBackToContentBackedPythonAsyncFunction(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-1", "src/worker.py", "Function", "run",
 					int64(7), int64(15), "python", "async def run(): ...", []byte(`{"async":true}`),
@@ -249,13 +251,13 @@ func TestResolveEntityFallsBackToContentBackedPythonAsyncFunction(t *testing.T) 
 func TestResolveEntityFallsBackToContentBackedPythonDecoratedFunction(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"function-1", "repo-1", "src/handler.py", "Function", "handler",
 					int64(12), int64(20), "python", "def handler(): ...", []byte(`{"decorators":["@route"]}`),

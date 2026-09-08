@@ -70,14 +70,6 @@ func capabilityUnsupported(profile QueryProfile, capability string) bool {
 	return querycontract.CapabilityUnsupported(profile, capability)
 }
 
-// requireContextOverview writes the structured unsupported-capability envelope
-// and returns false when the profile cannot serve
-// platform_impact.context_overview. The implementation moved to querycontract
-// for #6060; this wrapper keeps root callers unchanged.
-func requireContextOverview(w http.ResponseWriter, r *http.Request, profile QueryProfile, message string) bool {
-	return querycontract.RequireContextOverview(w, r, profile, message)
-}
-
 // APIRouter builds the top-level /api/v0 mux for all query endpoints.
 type APIRouter struct {
 	Repositories                 *RepositoryHandler

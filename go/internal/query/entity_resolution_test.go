@@ -11,11 +11,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type resolvingContentStore struct {
-	fakePortContentStore
-	matches []EntityContent
+	querytestutil.FakePortContentStore
+	matches []querycontract.EntityContent
 }
 
 func (s resolvingContentStore) SearchEntitiesByName(
@@ -24,13 +27,13 @@ func (s resolvingContentStore) SearchEntitiesByName(
 	entityType string,
 	name string,
 	limit int,
-) ([]EntityContent, error) {
-	return append([]EntityContent(nil), s.matches...), nil
+) ([]querycontract.EntityContent, error) {
+	return append([]querycontract.EntityContent(nil), s.matches...), nil
 }
 
 type resolvingContentStoreByName struct {
-	fakePortContentStore
-	matches map[string][]EntityContent
+	querytestutil.FakePortContentStore
+	matches map[string][]querycontract.EntityContent
 }
 
 func (s resolvingContentStoreByName) SearchEntitiesByName(
@@ -39,15 +42,15 @@ func (s resolvingContentStoreByName) SearchEntitiesByName(
 	entityType string,
 	name string,
 	limit int,
-) ([]EntityContent, error) {
-	return append([]EntityContent(nil), s.matches[name]...), nil
+) ([]querycontract.EntityContent, error) {
+	return append([]querycontract.EntityContent(nil), s.matches[name]...), nil
 }
 
 func TestResolveExactGraphEntityCandidatePrefersUniqueNonTestMatch(t *testing.T) {
 	t.Parallel()
 
 	reader := resolvingContentStore{
-		matches: []EntityContent{
+		matches: []querycontract.EntityContent{
 			{
 				EntityID:     "content-entity:test",
 				RepoID:       "repo-1",
@@ -83,7 +86,7 @@ func TestResolveExactGraphEntityCandidateRejectsAmbiguousNonTestMatches(t *testi
 	t.Parallel()
 
 	reader := resolvingContentStore{
-		matches: []EntityContent{
+		matches: []querycontract.EntityContent{
 			{
 				EntityID:     "content-entity:one",
 				RepoID:       "repo-1",
@@ -116,8 +119,8 @@ func TestHandleRelationshipsResolvesRepoScopedNameToNonTestEntityID(t *testing.T
 	t.Parallel()
 
 	handler := &CodeHandler{
-		Neo4j: fakeGraphReader{
-			runSingle: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if !strings.Contains(cypher, graphEntityIDPredicate("e", "$entity_id")) {
 					t.Fatalf("cypher = %q, want bridged entity-id predicate", cypher)
 				}
@@ -147,7 +150,7 @@ func TestHandleRelationshipsResolvesRepoScopedNameToNonTestEntityID(t *testing.T
 			},
 		},
 		Content: resolvingContentStore{
-			matches: []EntityContent{
+			matches: []querycontract.EntityContent{
 				{
 					EntityID:     "content-entity:test",
 					RepoID:       "repo-1",
@@ -195,8 +198,8 @@ func TestHandleCallChainResolvesRepoScopedNamesToNonTestEntityIDs(t *testing.T) 
 	t.Parallel()
 
 	handler := &CodeHandler{
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, graphEntityIDPredicate("start", "$start_entity_id")) {
 					t.Fatalf("cypher = %q, want bridged start entity-id predicate", cypher)
 				}
@@ -221,7 +224,7 @@ func TestHandleCallChainResolvesRepoScopedNamesToNonTestEntityIDs(t *testing.T) 
 			},
 		},
 		Content: resolvingContentStore{
-			matches: []EntityContent{
+			matches: []querycontract.EntityContent{
 				{EntityID: "content-entity:test", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships_test.go", EntityType: "Function", EntityName: "handleRelationships", StartLine: 40},
 				{EntityID: "content-entity:start-impl", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships.go", EntityType: "Function", EntityName: "handleRelationships", StartLine: 22},
 				{EntityID: "content-entity:end-test", RepoID: "repo-1", RelativePath: "go/internal/query/code_call_graph_contract_test.go", EntityType: "Function", EntityName: "transitiveRelationshipsGraphResponse", StartLine: 10},
@@ -250,8 +253,8 @@ func TestHandleCallChainDisambiguatesRepoScopedNamesByReachability(t *testing.T)
 
 	handler := &CodeHandler{
 		GraphBackend: GraphBackendNornicDB,
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (source:Function {uid: $source_id})-[:CALLS]->(target)") {
 					switch params["source_id"] {
 					case "content-entity:start":
@@ -275,7 +278,7 @@ func TestHandleCallChainDisambiguatesRepoScopedNamesByReachability(t *testing.T)
 			},
 		},
 		Content: resolvingContentStoreByName{
-			matches: map[string][]EntityContent{
+			matches: map[string][]querycontract.EntityContent{
 				"handleRelationships": {
 					{EntityID: "content-entity:start", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships.go", EntityType: "Function", EntityName: "handleRelationships", StartLine: 22},
 				},
@@ -322,8 +325,8 @@ func TestHandleCallChainRejectsMultipleReachableRepoScopedNamePairs(t *testing.T
 
 	handler := &CodeHandler{
 		GraphBackend: GraphBackendNornicDB,
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (source:Function {uid: $source_id})-[:CALLS]->(target)") {
 					switch params["source_id"] {
 					case "content-entity:start-one":
@@ -339,7 +342,7 @@ func TestHandleCallChainRejectsMultipleReachableRepoScopedNamePairs(t *testing.T
 			},
 		},
 		Content: resolvingContentStoreByName{
-			matches: map[string][]EntityContent{
+			matches: map[string][]querycontract.EntityContent{
 				"source": {
 					{EntityID: "content-entity:start-one", RepoID: "repo-1", RelativePath: "src/one.go", EntityType: "Function", EntityName: "source", StartLine: 10},
 					{EntityID: "content-entity:start-two", RepoID: "repo-1", RelativePath: "src/two.go", EntityType: "Function", EntityName: "source", StartLine: 20},
@@ -373,10 +376,10 @@ func TestHandleCallChainRejectsMultipleReachableRepoScopedNamePairs(t *testing.T
 func TestHandleCallChainRejectsTooManyAmbiguousNamePairsBeforeReachabilityProbe(t *testing.T) {
 	t.Parallel()
 
-	startMatches := make([]EntityContent, 0, 11)
-	endMatches := make([]EntityContent, 0, 10)
+	startMatches := make([]querycontract.EntityContent, 0, 11)
+	endMatches := make([]querycontract.EntityContent, 0, 10)
 	for i := 0; i < 11; i++ {
-		startMatches = append(startMatches, EntityContent{
+		startMatches = append(startMatches, querycontract.EntityContent{
 			EntityID:     "content-entity:start-" + string(rune('a'+i)),
 			RepoID:       "repo-1",
 			RelativePath: "src/start.go",
@@ -386,7 +389,7 @@ func TestHandleCallChainRejectsTooManyAmbiguousNamePairsBeforeReachabilityProbe(
 		})
 	}
 	for i := 0; i < 10; i++ {
-		endMatches = append(endMatches, EntityContent{
+		endMatches = append(endMatches, querycontract.EntityContent{
 			EntityID:     "content-entity:end-" + string(rune('a'+i)),
 			RepoID:       "repo-1",
 			RelativePath: "src/end.go",
@@ -398,8 +401,8 @@ func TestHandleCallChainRejectsTooManyAmbiguousNamePairsBeforeReachabilityProbe(
 
 	handler := &CodeHandler{
 		GraphBackend: GraphBackendNornicDB,
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (source:Function {uid: $source_id})-[:CALLS]->(target)") {
 					t.Fatalf("unexpected reachability probe for oversized candidate set: params=%#v", params)
 				}
@@ -407,7 +410,7 @@ func TestHandleCallChainRejectsTooManyAmbiguousNamePairsBeforeReachabilityProbe(
 			},
 		},
 		Content: resolvingContentStoreByName{
-			matches: map[string][]EntityContent{
+			matches: map[string][]querycontract.EntityContent{
 				"source": startMatches,
 				"target": endMatches,
 			},
@@ -437,8 +440,8 @@ func TestHandleCallChainRejectsAmbiguousNamesWhenNoCandidateRouteExists(t *testi
 
 	handler := &CodeHandler{
 		GraphBackend: GraphBackendNornicDB,
-		Neo4j: fakeGraphReader{
-			run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+		Neo4j: querytestutil.FakeGraphReader{
+			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (source:Function {uid: $source_id})-[:CALLS]->(target)") {
 					return []map[string]any{}, nil
 				}
@@ -447,7 +450,7 @@ func TestHandleCallChainRejectsAmbiguousNamesWhenNoCandidateRouteExists(t *testi
 			},
 		},
 		Content: resolvingContentStoreByName{
-			matches: map[string][]EntityContent{
+			matches: map[string][]querycontract.EntityContent{
 				"source": {
 					{EntityID: "content-entity:start-one", RepoID: "repo-1", RelativePath: "src/one.go", EntityType: "Function", EntityName: "source", StartLine: 10},
 					{EntityID: "content-entity:start-two", RepoID: "repo-1", RelativePath: "src/two.go", EntityType: "Function", EntityName: "source", StartLine: 20},

@@ -10,18 +10,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityFallsBackToAnalyticsModelContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"analytics-model-1", "repo-1", "target/compiled/models/order_metrics.sql", "AnalyticsModel", "order_metrics",
 					int64(1), int64(24), "json", "", []byte(`{"asset_name":"analytics.public.order_metrics","materialization":"view","parse_state":"complete","projection_count":5}`),
@@ -30,7 +32,7 @@ func TestResolveEntityFallsBackToAnalyticsModelContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -66,13 +68,13 @@ func TestResolveEntityFallsBackToAnalyticsModelContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToDataAssetContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"data-asset-1", "repo-1", "target/manifest.json", "DataAsset", "analytics.public.order_metrics",
 					int64(1), int64(1), "json", "", []byte(`{"kind":"model","database":"analytics","schema":"public"}`),
@@ -81,7 +83,7 @@ func TestGetEntityContextFallsBackToDataAssetContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

@@ -115,6 +115,85 @@ func ContentEntityTypeForResolve(typeName string) string {
 	return typeName
 }
 
+// GraphFirstContentBackedEntityTypes maps user-facing entity types that
+// resolve through the graph first and fall back to content entities. The
+// implementation moved from root's language_query_entities.go for #6060 so
+// a handler-family subpackage can resolve an entity type's graph label
+// without importing root.
+var GraphFirstContentBackedEntityTypes = map[string]string{
+	"annotation":              "Annotation",
+	"component":               "Component",
+	"impl_block":              "ImplBlock",
+	"protocol":                "Protocol",
+	"protocol_implementation": "ProtocolImplementation",
+	"module_attribute":        "Variable",
+	"terraform_backend":       "TerraformBackend",
+	"terraform_check":         "TerraformCheck",
+	"terraform_import":        "TerraformImport",
+	"terraform_lock_provider": "TerraformLockProvider",
+	"terraform_module":        "TerraformModule",
+	"terraform_moved_block":   "TerraformMovedBlock",
+	"terraform_removed_block": "TerraformRemovedBlock",
+	"terragrunt_config":       "TerragruntConfig",
+	"terragrunt_dependency":   "TerragruntDependency",
+	"sql_column":              "SqlColumn",
+	"sql_function":            "SqlFunction",
+	"sql_index":               "SqlIndex",
+	"sql_migration":           "SqlMigration",
+	"sql_table":               "SqlTable",
+	"sql_trigger":             "SqlTrigger",
+	"sql_view":                "SqlView",
+	"type_alias":              "TypeAlias",
+	"typedef":                 "Typedef",
+}
+
+// ElixirSemanticEntityType maps an Elixir semantic entity type to the graph
+// label and metadata predicate the entity resolve path filters by. The
+// implementation moved from root's elixir_semantic_types.go for #6060 so a
+// handler-family subpackage can resolve an Elixir entity type without
+// importing root.
+type ElixirSemanticEntityType struct {
+	BaseType      string
+	GraphLabel    string
+	MetadataKey   string
+	MetadataValue string
+}
+
+// ElixirSemanticEntityTypes maps Elixir semantic entity types to their
+// graph/metadata resolution. The implementation moved from root's
+// elixir_semantic_types.go for #6060; see ElixirSemanticEntityType.
+var ElixirSemanticEntityTypes = map[string]ElixirSemanticEntityType{
+	"guard": {
+		BaseType:      "Function",
+		GraphLabel:    "Function",
+		MetadataKey:   "semantic_kind",
+		MetadataValue: "guard",
+	},
+	"protocol_implementation": {
+		BaseType:      "Module",
+		GraphLabel:    "Module",
+		MetadataKey:   "module_kind",
+		MetadataValue: "protocol_implementation",
+	},
+	"module_attribute": {
+		BaseType:      "Variable",
+		GraphLabel:    "Variable",
+		MetadataKey:   "attribute_kind",
+		MetadataValue: "module_attribute",
+	},
+}
+
+// ElixirGraphSemanticEntityType resolves an Elixir semantic entity type to
+// its graph label and metadata predicate. The implementation moved from
+// root's elixir_semantic_types.go for #6060; see ElixirSemanticEntityType.
+func ElixirGraphSemanticEntityType(entityType string) (string, string, string, bool) {
+	semanticType, ok := ElixirSemanticEntityTypes[entityType]
+	if !ok || semanticType.GraphLabel == "" {
+		return "", "", "", false
+	}
+	return semanticType.GraphLabel, semanticType.MetadataKey, semanticType.MetadataValue, true
+}
+
 // GraphResultMetadata projects the optional semantic-metadata columns
 // GraphSemanticMetadataProjection (querygraphrows) selects into the
 // "metadata" field of a language-query or entity result row, omitting keys

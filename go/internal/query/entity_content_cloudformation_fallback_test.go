@@ -9,18 +9,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetEntityContextFallsBackToCloudFormationNestedStackResource(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"cloudformation-resource-1", "repo-1", "infra/stack.yaml", "CloudFormationResource", "NestedStack",
 					int64(1), int64(20), "yaml", "Type: AWS::CloudFormation::Stack", []byte(`{"resource_type":"AWS::CloudFormation::Stack","template_url":"https://example.com/nested-stack.yaml","condition":"EnableNested"}`),
@@ -28,14 +30,14 @@ func TestGetEntityContextFallsBackToCloudFormationNestedStackResource(t *testing
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content", "content_hash", "line_count", "language", "artifact_type",
 			},
-			rows: [][]driver.Value{},
+			Rows: [][]driver.Value{},
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -80,13 +82,13 @@ func TestGetEntityContextFallsBackToCloudFormationNestedStackResource(t *testing
 func TestGetEntityContextLinksNestedStackTemplateURLToRepoLocalTemplate(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"cloudformation-resource-1", "repo-1", "infra/root/stack.yaml", "CloudFormationResource", "NestedStack",
 					int64(1), int64(20), "yaml", "Type: AWS::CloudFormation::Stack", []byte(`{"resource_type":"AWS::CloudFormation::Stack","template_url":"https://example.com/templates/nested/network.yaml"}`),
@@ -94,10 +96,10 @@ func TestGetEntityContextLinksNestedStackTemplateURLToRepoLocalTemplate(t *testi
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content", "content_hash", "line_count", "language", "artifact_type",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"repo-1", "infra/templates/nested/network.yaml", "", "", "hash-1", int64(25), "yaml", "cloudformation_template",
 				},
@@ -108,7 +110,7 @@ func TestGetEntityContextLinksNestedStackTemplateURLToRepoLocalTemplate(t *testi
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -144,13 +146,13 @@ func TestGetEntityContextLinksNestedStackTemplateURLToRepoLocalTemplate(t *testi
 func TestGetEntityContextLeavesRemoteNestedStackTemplateURLUnlinked(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"cloudformation-resource-1", "repo-1", "infra/root/stack.yaml", "CloudFormationResource", "NestedStack",
 					int64(1), int64(20), "yaml", "Type: AWS::CloudFormation::Stack", []byte(`{"resource_type":"AWS::CloudFormation::Stack","template_url":"https://example.com/templates/nested/network.yaml"}`),
@@ -158,10 +160,10 @@ func TestGetEntityContextLeavesRemoteNestedStackTemplateURLUnlinked(t *testing.T
 			},
 		},
 		{
-			columns: []string{
+			Columns: []string{
 				"repo_id", "relative_path", "commit_sha", "content", "content_hash", "line_count", "language", "artifact_type",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"repo-1", "infra/templates/other.yaml", "", "", "hash-1", int64(25), "yaml", "cloudformation_template",
 				},
@@ -169,7 +171,7 @@ func TestGetEntityContextLeavesRemoteNestedStackTemplateURLUnlinked(t *testing.T
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

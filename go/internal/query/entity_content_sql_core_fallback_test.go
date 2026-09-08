@@ -10,18 +10,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestResolveEntityFallsBackToSQLFunctionContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"sql-function-1", "repo-1", "schema.sql", "SqlFunction", "public.archive_audit",
 					int64(9), int64(18), "sql", "", []byte(`{"routine_kind":"procedure","function_language":"plpgsql"}`),
@@ -30,7 +32,7 @@ func TestResolveEntityFallsBackToSQLFunctionContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -73,13 +75,13 @@ func TestResolveEntityFallsBackToSQLFunctionContentEntity(t *testing.T) {
 func TestGetEntityContextFallsBackToSQLTableContentEntity(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db := querytestutil.OpenContentReaderTestDB(t, []querytestutil.ContentReaderQueryResult{
 		{
-			columns: []string{
+			Columns: []string{
 				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
 				"start_line", "end_line", "language", "source_cache", "metadata",
 			},
-			rows: [][]driver.Value{
+			Rows: [][]driver.Value{
 				{
 					"sql-table-1", "repo-1", "schema.sql", "SqlTable", "public.audit_logs",
 					int64(1), int64(4), "sql", "", []byte(`{"schema":"public","qualified_name":"public.audit_logs"}`),
@@ -88,7 +90,7 @@ func TestGetEntityContextFallsBackToSQLTableContentEntity(t *testing.T) {
 		},
 	})
 
-	handler := &EntityHandler{Content: NewContentReader(db)}
+	handler := &EntityHandler{Content: NewContentReader(db), ContentRelationships: ContentIndexRelationshipBuilder{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

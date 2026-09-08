@@ -125,6 +125,7 @@ func newRouterWithSemanticEmbedding(
 			Profile:                  queryProfile,
 			Logger:                   logger,
 			Instruments:              instruments,
+			ContentRelationships:     query.ContentIndexRelationshipBuilder{},
 		},
 		Code: &query.CodeHandler{
 			GraphBackend:         graphBackend,

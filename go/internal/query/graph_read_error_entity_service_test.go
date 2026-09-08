@@ -98,7 +98,7 @@ func TestResolveEntityWorkloadTypeMapsGraphReadAvailabilityErrors(t *testing.T) 
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.resolveEntity(rec, req)
+			handler.ResolveEntity(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -143,7 +143,7 @@ func TestResolveEntityCanonicalContentHydrationMapsGraphReadAvailabilityErrors(t
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.resolveEntity(rec, req)
+			handler.ResolveEntity(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -162,7 +162,7 @@ func TestGetWorkloadContextMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.SetPathValue("workload_id", "workload-1")
 			rec := httptest.NewRecorder()
 
-			handler.getWorkloadContext(rec, req)
+			handler.GetWorkloadContext(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -181,7 +181,7 @@ func TestGetWorkloadStoryMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.SetPathValue("workload_id", "workload-1")
 			rec := httptest.NewRecorder()
 
-			handler.getWorkloadStory(rec, req)
+			handler.GetWorkloadStory(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -200,7 +200,7 @@ func TestInvestigateServiceMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.SetPathValue("service_name", "my-service")
 			rec := httptest.NewRecorder()
 
-			handler.investigateService(rec, req)
+			handler.InvestigateService(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

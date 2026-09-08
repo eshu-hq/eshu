@@ -19,6 +19,16 @@ import (
 // nothing depends on that split landing.
 var ErrContentSubstringIndexesNotReady = errors.New("content substring indexes are not ready")
 
+// K8sSelectCandidateScanTruncationReason is the machine-readable disclosure
+// reason emitted on the entity-context API/MCP response when a k8s SELECTS
+// relationship build's K8sResource candidate scan hits
+// RepositorySemanticEntityLimit and had to be truncated. It is emitted only
+// when truncation actually occurs so every repo under the limit gets
+// byte-identical responses. The implementation moved from root's
+// content_relationships.go for #6060 so the entity-handler family subpackage
+// can disclose it without importing root.
+const K8sSelectCandidateScanTruncationReason = "k8s_resource_candidate_scan_truncated_at_5000"
+
 // WriteContentSubstringIndexUnavailable writes the stable 503 contract for
 // ErrContentSubstringIndexesNotReady and reports whether it did. It returns
 // false without touching the response when err is not that error.
