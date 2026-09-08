@@ -44,17 +44,17 @@ problem. `contract/` stays top-level (shared vocabulary, never a domain).
 
 | Domain | Children (existing subpackage -> child) | Root buckets landing here (non-test counts) |
 |---|---|---|
-| `supplychain/` | `core` (new: `supply_chain_impact*` + `supply_chain_suppression*`, 67), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 |
+| `supplychain/` | `core` (new: `supply_chain_impact*` INCLUDING `supply_chain_impact_finding.go` + `supply_chain_suppression*`, 67), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 |
 | `packagecorrelation/` | `core` (new: `package_*` 11 + `security_alert_manifest_dependency_match.go`), `source` (`packagesourcecore`, 2) | `package_*` 11, `security_alert_manifest_dependency_match.go` |
-| `code/` | `call` (new: `code_call*` 52 minus the #6609 runner-stays set), `import` (new: `code_import*` 6), `intel` (`codeintel`, 5), `taint` (`codetaint`, 11), `value` (`valueflow`, 8 + `code_value*` 2) | `code_call*` 52, `code_import*` 6, `code_value*` 2 |
+| `code/` | `call` (new: `code_call*` 52 minus the #6609 runner-stays set), `intel` (`codeintel`, 5), `taint` (`codetaint`, 11), `value` (`valueflow`, 8 + `code_value*` 2) | `code_call*` 52, `code_value*` 2 (`code_import*` 6 lives in `repodependency/import`, not here) |
 | `cloud/` | `aws/s3/logging` (`s3logsto`, 3), `aws/s3/grants` (`s3grant`, 3), `aws/ec2/instance` (`ec2instance`, 5), `aws/ec2/blockkms` (`ec2blockkms`, 4), `aws/ec2/usesprofile` (`ec2usesprofile`, 3), `aws/rds/posture` (`rdsposture`, 3), `aws/runtime` (`awscloud`, 8), `aws/core` (new: `aws_*` 7), `gcp/core` (new: `gcp_*` 6), `azure/core` (new: `azure*` 3), `inventory` (`cloudinventory` 7, `cloudasset` 3), `exposure` (`internetexposure`, 5), `multicloud` (`multicloudruntimedrift`, 3), `observability` (`obscoverage`, 11) | `aws_*` 7, `gcp_*` 6, `azure*` 3 |
 | `iam/` | `can` (`iamcan`, 11), `policy` (`iampolicy`, 3), `escalation` (`iamescalation`, 6), `instanceprofile` (`iaminstprofile`, 3) | — (all four already subpackages) |
 | `workload/` | `materialization` (new: `workload_materialization*` 3 + handler), `deployable` (new: `deployable_unit*` 5), `repo` (new: `repo_workload.go`) | `workload_*` ~12, `deployable_unit*` 5 |
-| `repodependency/` | `repo` (new: `repo_dependency*` 8), `import` — see note, `terraform` (`tfconfigstate` 5, `tfstate` 2), `crossrepo` (`crossrepo`, 6), `platform` (`platformfam`, 4) | `repo_dependency*` 8 |
+| `repodependency/` | `repo` (new: `repo_dependency*` 8), `import` (new: `code_import*` 6, AFTER `packagecorrelation` — see note), `terraform` (`tfconfigstate` 5, `tfstate` 2), `crossrepo` (`crossrepo`, 6), `platform` (`platformfam`, 4 + `platform_infra_materialization.go` + `intent_domain_platform.go`) | `repo_dependency*` 8, `code_import*` 6 |
 | `kubernetes/` | `correlation` (`kubernetescorrelation` 8 + `kubernetes_*` 3), `crossplane` (`crossplane`, 5) | `kubernetes_*` 3 |
 | `security/` | `alert` (`securityalert`, 12), `group` (`secgroup`, 6), `secrets` (`secretsiam` 14 + `secrets_iam.go`), `incident` (`incident`, 8) | `secrets_iam.go` (1; the rest already subpackages) |
 | `search/` | `eshu` (`eshusearch`, 9), `vector` (`searchvector`, 4), `semantic` (`semanticentity` 5 + `semantic_entity.go`) | `semantic_entity.go` |
-| `decode/` | `schema` (`schemadecode`, 22), `facts` (`factdecode`, 4), `load` (`factload` 3 + `candidate_loader.go`), `write` (`factwrite`, 6), `payload` (`payloadcore`, 8), `admission` (`admissiondecision`, 2) | `candidate_loader.go` |
+| `decode/` | `schema` (`schemadecode`, 22), `facts` (`factdecode`, 4 + `intent_emission.go` by default, census confirms), `load` (`factload`, 3), `write` (`factwrite`, 6), `payload` (`payloadcore`, 8), `admission` (`admissiondecision`, 2) | — (`candidate_loader.go` is sole-claimed by the spine) |
 | `intents/` | `shared` (`sharedintent`, 4), `phases` (`gpphase`, 9), `maintenance` (`maintenance`, 7), `crossscope` (`crossscope`, 4) | — (all four already subpackages) |
 | `edges/` | `inheritance` (`inheritance`, 7), `sql` (`sqlrelationship`, 9), `dsl` (`dsl`, 3), `tags` (`tags`, 3), `rationale` (new: `rationale*` 3), `graph` (new: `graph_*` 4) | `rationale*` 3, `graph_*` 4 |
 
@@ -74,7 +74,9 @@ Notes with alternatives considered:
 - `platformfam` lands in `repodependency/platform`: Terraform runtime
   vocabulary plus the `deployment_mapping` reduction (which consumes
   `resolved_relationships` — the post-Phase-3 reopen invariant in
-  `go/internal/reducer/AGENTS.md` travels with it).
+  `go/internal/reducer/AGENTS.md` travels with it: the move PR carries the
+  existing `bootstrap-index/main.go` reopen wiring and proves it still
+  fires, or the stuck-`deployment_mapping` failure mode recurs).
 - `admissiondecision` lands in `decode/admission`: shared decision
   vocabulary used by correlation handlers, not one family's product.
 - `crossscope` lands in `intents/crossscope`: it is read by more than one
@@ -94,8 +96,11 @@ Notes with alternatives considered:
   claim/execute/ack loop, not a domain.
   `service_catalog_correlation_compat.go` is a compat forwarder for the
   already-moved family: it burns down with the 20, it does not move.
-  The existing `servicecatalog/` subpackage stays top-level until a domain
-  PR relocates it whole.
+  The existing `servicecatalog/` subpackage is grandfathered interim: no
+  NEW top-level package is ever created (that is what the no-55th-sibling
+  rule bans), and a domain PR relocates `servicecatalog/` whole with a
+  census-derived destination — see the triage roll, which names it as the
+  one subpackage still awaiting a home.
 
 ## The spine (stays in root, <=40)
 
@@ -106,8 +111,13 @@ Notes with alternatives considered:
 `projection.go` (5), service/runtime core (8, listed above),
 `candidate_loader.go` (1): **39 files**. The 20 `*_compat.go`
 forwarders burn down to zero as families move (no new forwarders, ever).
-`shared_projection*` (11) is NOT spine: it hoists to a shared tier when its
-second family consumer lands, per the seam ruling on #6061.
+`shared_projection*` (11) is NOT spine. Hoist trigger (exact): the first
+domain move whose `go/types` census references a `shared_projection*`
+symbol carries the hoist in the same PR; direction is family -> shared
+tier, never root <- family; the SHA256 intent-ID derivation
+(`shared_projection.go:62-74`) is byte-preserved and proven by B-7/B-12
+like any other move. No earlier hoist (nothing needs it yet), no later
+one (the first needy family cannot import root).
 
 ## Triage roll (prefix-proposed, symbol-confirmed at move time)
 
@@ -122,7 +132,7 @@ when it disagrees. Never a new top-level package for any of them.
 | `container_image.go` (singleton) | `supplychain/image` |
 | `sbom*` singleton, `secrets*` singleton, `security*` singleton | `supplychain/sbom`, `security/secrets`, `security/alert` |
 | `semantic*` singleton | `search/semantic` |
-| `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go`, `intent_domain_platform.go` | `decode/` children by census (`intent_domain_platform.go` may adjudicate to `repodependency/platform`) |
+| `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `decode/` children by census (`intent_emission.go` defaults to `decode/facts`) |
 | `platform_infra_materialization.go` (`platform_compat.go` burns down) | `repodependency/platform` |
 | `repo_workload.go` | `workload/repo` |
 | `package_publication.go`, `package_provenance.go` (singletons beyond the 11) | `packagecorrelation/core` |
@@ -139,11 +149,16 @@ when it disagrees. Never a new top-level package for any of them.
    `exactManifestDependencyVersion`, `orderedStrings`,
    `securityAlertPackageNameMatches` — measured 2026-09-08 on #6061, no
    cycles after eviction).
-2. `supplychain` core + suppression together (67 files; `model` leaf
-   #6568 already merged as the stated prerequisite).
-3. `code/` (52+6+2; the `code_call_projection` runner stays root per #6609,
-   which is OPEN and orders before this step; `sharedintent/doc.go` pins
-   that machinery).
+2. `supplychain` core + suppression together (67 files, explicitly
+   including `supply_chain_impact_finding.go`: suppression signatures take
+   `SupplyChainImpactFinding`, so moving the unit while `finding.go` stays
+   is a root<->package cycle — the unit is finding+core+suppression or
+   nothing; `model` leaf #6568 already merged as the stated prerequisite).
+3. `code/` (52+2, plus `repodependency/import` separately; the
+   `code_call_projection` runner stays root per #6609, which is OPEN and
+   orders before this step; `sharedintent/doc.go` pins that machinery).
+   The stay set is #6609's list verbatim at move time — copied, never
+   guessed by the executor.
 4. `cloud/`, `workload/`, `repodependency/`, `intents/`, `edges/` in
    measured order; re-derive each family with `go/types` first — filename
    prefixes lie (per Lane A's query census: 4 of 46 `code*.go` files
