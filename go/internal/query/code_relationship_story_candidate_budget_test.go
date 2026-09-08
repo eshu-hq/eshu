@@ -192,7 +192,7 @@ func TestRelationshipStoryFindsAnExactMatchBehindNearMissesInOneRepository(t *te
 	t.Parallel()
 
 	store := storyBudgetSingleRepoStore()
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, &storyClauseGraph{}, store), map[string]any{
 		"target":            storyBudgetTarget,
 		"relationship_type": "CALLS",
