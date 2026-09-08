@@ -196,21 +196,28 @@ while IFS="${tab}" read -r old new; do
 done <"${tmp_dir}/vacated.txt"
 
 if [ "${violations}" -gt 0 ]; then
+  # One printf per fragment, NOT a heredoc. This body is 713 bytes, and
+  # references/shell-portability.md records that bash >= 5.1 writes an entire
+  # heredoc body to its reader before that reader runs, so a body strictly
+  # between the 512-byte pipe buffer and 64 KB DEADLOCKS. macOS bash 3.2 never
+  # had that writer change, which is why this survived local runs. A hang here
+  # would strike exactly when the gate found a violation and tried to explain
+  # it. printf is a builtin: no pipe, no fork, no deadlock. cmd/heredoc-budget
+  # is the blocking gate that enforces this. Wording below is split, not
+  # trimmed.
   printf '\n' >&2
-  cat >&2 <<'EOF'
-Each reference above names a file this branch moved or deleted, so it now
-resolves to nothing. Repoint it to the path shown, or drop it.
-
-Write the repoint WITHOUT a `:NNN` line suffix. scripts/verify-doc-citations.sh
-refuses branch-authored LINE occurrences ("LINE debt may only decrease"), so a
-repoint that keeps a line number is rejected outright; a path-only reference is
-accepted and survives later line drift.
-
-If a reference is deliberately historical -- a command transcript or a dated
-evidence note recording the path as it stood at the time, where repointing would
-falsify the record -- add a "<referencing-file>:<vacated-path>" line to
-scripts/moved-file-refs-allowlist.txt with a comment saying why.
-EOF
+  printf 'Each reference above names a file this branch moved or deleted, so it now\n' >&2
+  printf 'resolves to nothing. Repoint it to the path shown, or drop it.\n' >&2
+  printf '\n' >&2
+  printf 'Write the repoint WITHOUT a `:NNN` line suffix. scripts/verify-doc-citations.sh\n' >&2
+  printf 'refuses branch-authored LINE occurrences ("LINE debt may only decrease"), so a\n' >&2
+  printf 'repoint that keeps a line number is rejected outright; a path-only reference is\n' >&2
+  printf 'accepted and survives later line drift.\n' >&2
+  printf '\n' >&2
+  printf 'If a reference is deliberately historical -- a command transcript or a dated\n' >&2
+  printf 'evidence note recording the path as it stood at the time, where repointing would\n' >&2
+  printf 'falsify the record -- add a "<referencing-file>:<vacated-path>" line to\n' >&2
+  printf 'scripts/moved-file-refs-allowlist.txt with a comment saying why.\n' >&2
   exit 1
 fi
 
