@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -95,7 +96,7 @@ func TestLiveNornicDBInheritanceWalkDropsAnOutOfGrantInteriorClass(t *testing.T)
 		GraphBackend: GraphBackendNornicDB,
 		Neo4j:        reader,
 	}
-	scoped := ContextWithAuthContext(ctx, codeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
+	scoped := ContextWithAuthContext(ctx, querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo}))
 	rows, _, err := handler.nornicDBRelationshipStoryInheritanceDepthRows(scoped, req, liveInteriorAnchorUID, "outgoing")
 	if err != nil {
 		t.Fatalf("shipped inheritance read: %v", err)

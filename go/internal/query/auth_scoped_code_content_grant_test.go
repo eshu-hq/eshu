@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 1, step 2: two-tenant grant proof for the three
@@ -206,7 +208,7 @@ func TestCodeContentRoutesFilterByRepositoryGrant(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+			auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 			req := newCodeGrantRouteRequest(t, route.path, route.body, &auth)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -240,7 +242,7 @@ func TestCodeContentRoutesEmptyGrantSkipsTheContentRead(t *testing.T) {
 			mux := http.NewServeMux()
 			handler.Mount(mux)
 
-			auth := codeGrantScopedAuthContext(nil)
+			auth := querytestutil.CodeGrantScopedAuthContext(nil)
 			req := newCodeGrantRouteRequest(t, route.path, route.body, &auth)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -405,7 +407,7 @@ func TestSymbolNameFallbackIteratesOnlyGrantedRepositories(t *testing.T) {
 	t.Parallel()
 
 	store := &symbolNameFallbackGrantStore{}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runSymbolNameFallbackSearch(t, store, &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -427,7 +429,7 @@ func TestSymbolNameFallbackEmptyGrantSkipsTheLookup(t *testing.T) {
 	t.Parallel()
 
 	store := &symbolNameFallbackGrantStore{}
-	auth := codeGrantScopedAuthContext(nil)
+	auth := querytestutil.CodeGrantScopedAuthContext(nil)
 	rec := runSymbolNameFallbackSearch(t, store, &auth)
 
 	if len(store.askedRepoIDs) != 0 {

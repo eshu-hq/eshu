@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // The ungranted-consumer probe's behavioural guards: the one input that would
@@ -113,7 +114,7 @@ func TestCrossRepoDeadCodeHiddenCountHonoursTheConsumerSelector(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantConsumerRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantConsumerRepo})
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/dead-code/cross-repo", map[string]any{
 		"repo_id":           codeGrantGrantedRepo,
 		"language":          "go",

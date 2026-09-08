@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code family: /dead-code and /dead-code/investigate answer "is anything
@@ -122,7 +123,7 @@ func TestDeadCodeKeepsACandidateWhoseOnlyConsumerIsOutsideTheGrant(t *testing.T)
 	t.Parallel()
 
 	store := newDeadCodeHiddenConsumerStore()
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runDeadCodeHiddenConsumerRoute(t, store, "/api/v0/code/dead-code", &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -152,7 +153,7 @@ func TestDeadCodeInvestigateReportsThePermissionHiddenConsumerReason(t *testing.
 	t.Parallel()
 
 	store := newDeadCodeHiddenConsumerStore()
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runDeadCodeHiddenConsumerRoute(t, store, "/api/v0/code/dead-code/investigate", &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
@@ -295,155 +296,9 @@ func TestDeadCodeGraphIncomingProbeIsGrantBound(t *testing.T) {
 	}
 }
 
-// TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown runs the probe against
-// a graph that answers it as the backend would: the candidate's one incoming
-// edge comes from a repository outside the grant, so its row projects
-// in_grant=false and becomes the hidden-consumer marker rather than evidence.
-func TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown(t *testing.T) {
-	t.Parallel()
-
-	var statements []string
-	// The probe traverses incoming edges, which the shared fake routes to
-	// runIncoming; run is set to the same answer so a probe that stopped
-	// traversing incoming edges would still be seen here.
-	probe := func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-		statements = append(statements, cypher)
-		return []map[string]any{{
-			"incoming_entity_id": deadCodeHiddenConsumerEntityID,
-			"resolution_method":  codeprovenance.MethodImportBinding,
-			"in_grant":           false,
-			"edge_count":         1,
-		}}, nil
-	}
-	handler := &CodeHandler{
-		Profile: ProfileLocalAuthoritative,
-		Neo4j:   fakeGraphReader{run: probe, runIncoming: probe},
-	}
-	results := []map[string]any{{
-		"entity_id": deadCodeHiddenConsumerEntityID,
-		"repo_id":   codeGrantGrantedRepo,
-		"language":  "go",
-		"name":      "unusedHelper",
-		"labels":    []any{"Function"},
-	}}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	ctx := ContextWithAuthContext(context.Background(), auth)
-	incoming, err := handler.deadCodeResultsWithGraphIncomingEdges(ctx, results, "Function")
-	if err != nil {
-		t.Fatalf("deadCodeResultsWithGraphIncomingEdges() error = %v, want nil", err)
-	}
-	if len(statements) != 1 {
-		t.Fatalf("statement count = %d, want 1 (one expansion with the grant projected per row)", len(statements))
-	}
-	edge := incoming[deadCodeHiddenConsumerEntityID]
-	if !edge.HiddenConsumer {
-		t.Fatalf("edge = %#v, want the ungranted source reported as hidden", edge)
-	}
-	if edge.MaxConfidence != 0 {
-		t.Fatalf("MaxConfidence = %v, want 0 for an edge the caller cannot see", edge.MaxConfidence)
-	}
-}
-
+// TestDeadCodeGraphProbeTreatsAnUngrantedSourceAsUnknown and
 // TestDeadCodeWeakGrantedEdgeBesideAnUngrantedOneReadsHiddenOnBothBackends
-// covers the candidate the caller can see one weak edge into and cannot see
-// another. The SQL half reports permission_hidden_consumer for it, because the
-// grant is decided per row. The graph half diffs two probes, so it has to diff
-// them per edge as well: diffing whole entities lets the granted edge hide the
-// ungranted one, and the same candidate then reads as a weak-evidence review
-// item on one backend and a permission question on the other.
-func TestDeadCodeWeakGrantedEdgeBesideAnUngrantedOneReadsHiddenOnBothBackends(t *testing.T) {
-	t.Parallel()
-
-	for _, backend := range []struct {
-		name     string
-		incoming func(*testing.T) (content, graph map[string]deadCodeIncomingEdge)
-	}{
-		{name: "sql", incoming: deadCodeWeakGrantedPlusUngrantedFromSQL},
-		{name: "graph", incoming: deadCodeWeakGrantedPlusUngrantedFromGraph},
-	} {
-		t.Run(backend.name, func(t *testing.T) {
-			t.Parallel()
-
-			content, graph := backend.incoming(t)
-			results := []map[string]any{{
-				"entity_id": deadCodeHiddenConsumerEntityID,
-				"repo_id":   codeGrantGrantedRepo,
-				"language":  "go",
-				"name":      "unusedHelper",
-			}}
-			kept := applyDeadCodeIncomingEdges(results, content, graph)
-			if len(kept) != 1 {
-				t.Fatalf("kept = %#v, want the candidate kept: a weak edge is not proof it is reachable", kept)
-			}
-			if got, want := kept[0]["classification"], deadCodeClassificationAmbiguous; got != want {
-				t.Fatalf("classification = %v, want %q", got, want)
-			}
-			reasons := deadCodeInvestigationAmbiguityReasons(kept[0])
-			if !slices.Contains(reasons, deadCodeHiddenConsumerReason) {
-				t.Fatalf("ambiguity_reasons = %#v, want %q: an edge the caller cannot see decides the answer even when a weak one beside it can be seen", reasons, deadCodeHiddenConsumerReason)
-			}
-		})
-	}
-}
-
-// deadCodeWeakGrantedPlusUngrantedFromSQL runs the shipped reachability read
-// over two materialized rows for one entity: a weak consumer inside the grant
-// and a stronger one outside it.
-func deadCodeWeakGrantedPlusUngrantedFromSQL(t *testing.T) (map[string]deadCodeIncomingEdge, map[string]deadCodeIncomingEdge) {
-	t.Helper()
-
-	db, _ := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{{
-		columns: []string{"entity_id", "min_resolution_method", "consumer_in_grant"},
-		rows: [][]driver.Value{
-			{deadCodeHiddenConsumerEntityID, codeprovenance.MethodRepoUniqueName, true},
-			{deadCodeHiddenConsumerEntityID, codeprovenance.MethodImportBinding, false},
-		},
-	}})
-	incoming, err := NewContentReader(db).CodeReachabilityIncomingEntityIDs(
-		context.Background(),
-		codeGrantGrantedRepo,
-		[]string{deadCodeHiddenConsumerEntityID},
-		[]string{codeGrantGrantedRepo},
-	)
-	if err != nil {
-		t.Fatalf("CodeReachabilityIncomingEntityIDs() error = %v, want nil", err)
-	}
-	return incoming, nil
-}
-
-// deadCodeWeakGrantedPlusUngrantedFromGraph runs the shipped graph probe over
-// the same shape: one weak edge from inside the grant and one stronger edge
-// from outside it, each its own row with its own in_grant answer.
-func deadCodeWeakGrantedPlusUngrantedFromGraph(t *testing.T) (map[string]deadCodeIncomingEdge, map[string]deadCodeIncomingEdge) {
-	t.Helper()
-
-	probe := func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
-		return []map[string]any{{
-			"incoming_entity_id": deadCodeHiddenConsumerEntityID,
-			"resolution_method":  codeprovenance.MethodRepoUniqueName,
-			"in_grant":           true,
-			"edge_count":         1,
-		}, {
-			"incoming_entity_id": deadCodeHiddenConsumerEntityID,
-			"resolution_method":  codeprovenance.MethodImportBinding,
-			"in_grant":           false,
-			"edge_count":         1,
-		}}, nil
-	}
-	handler := &CodeHandler{
-		Profile: ProfileLocalAuthoritative,
-		Neo4j:   fakeGraphReader{run: probe, runIncoming: probe},
-	}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
-	ctx := ContextWithAuthContext(context.Background(), auth)
-	graph, err := handler.deadCodeResultsWithGraphIncomingEdges(ctx, []map[string]any{{
-		"entity_id": deadCodeHiddenConsumerEntityID,
-		"repo_id":   codeGrantGrantedRepo,
-		"language":  "go",
-		"labels":    []any{"Function"},
-	}}, "Function")
-	if err != nil {
-		t.Fatalf("deadCodeResultsWithGraphIncomingEdges() error = %v, want nil", err)
-	}
-	return nil, graph
-}
+// moved to code_dead_code_incoming_probe_test.go (#6060 lane A code L3 PR2):
+// both call deadCodeResultsWithGraphIncomingEdges directly to pin the graph
+// probe's shape, so they stay white-box tests in package query beside that
+// file's other pins of the same method instead of exporting it.

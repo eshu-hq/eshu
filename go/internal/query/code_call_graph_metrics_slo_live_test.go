@@ -49,10 +49,10 @@ func TestCallGraphMetricsInteractiveSLO(t *testing.T) {
 			durations := make([]time.Duration, 4)
 			for index := range durations {
 				started := time.Now()
-				data, err := handler.callGraphMetricsData(ctx, req)
+				data, err := handler.CallGraphMetricsData(ctx, req)
 				durations[index] = time.Since(started)
 				if err != nil {
-					t.Fatalf("callGraphMetricsData(%s): %v", metricType, err)
+					t.Fatalf("CallGraphMetricsData(%s): %v", metricType, err)
 				}
 				assertCallGraphMetricsSLOResult(t, metricType, data)
 				if durations[index] > callGraphMetricsSLOLimit {

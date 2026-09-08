@@ -65,7 +65,7 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data, err := h.callGraphMetricsData(r.Context(), req)
+	data, err := h.CallGraphMetricsData(r.Context(), req)
 	if err != nil {
 		span.RecordError(err)
 		if errors.Is(err, errCallGraphMetricsUnavailable) {
@@ -95,7 +95,16 @@ func (h *CodeHandler) handleCallGraphMetrics(w http.ResponseWriter, r *http.Requ
 // moved to codemodel/code_call_graph_metrics_aggregation.go (#6060 lane A
 // L1); the request validation and accessors run there now.
 
-func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMetricsRequest) (map[string]any, error) {
+// CallGraphMetricsData resolves the bounded call-graph hub/recursive metrics
+// read for req against the graph, applying the repository access filter from
+// ctx before any Cypher runs. It is exported so route-level tests can prove
+// the auth-grant short-circuit that the registered HTTP route hides.
+//
+// It enforces the grant itself rather than relying on its caller. The HTTP
+// route rejects an ungranted repo_id before reaching here, but an exported
+// method is callable without that route, so both the grantless case and the
+// granted-but-not-this-repository case are refused below.
+func (h *CodeHandler) CallGraphMetricsData(ctx context.Context, req callGraphMetricsRequest) (map[string]any, error) {
 	if h == nil || h.Neo4j == nil {
 		return nil, errCallGraphMetricsUnavailable
 	}
@@ -107,10 +116,26 @@ func (h *CodeHandler) callGraphMetricsData(ctx context.Context, req callGraphMet
 	// #5167 code family: this route is grant-bound by its mandatory repo_id.
 	// applyRepositorySelectorForCapability resolves that selector against the
 	// caller's grant and rejects an ungranted one with 400 before the handler
-	// body runs, so the edge Cypher needs no predicate of its own. The one case
-	// the selector cannot answer is a caller that reaches this read without it:
-	// a grantless scoped caller must never touch the graph.
-	if querycontract.RepositoryAccessFilterFromContext(ctx).Empty() {
+	// body runs. That guard is the HTTP route's, though, and exporting this
+	// method (#6060) put callers on the other side of it, so the bounds are
+	// re-checked here rather than assumed. Two cases must never reach the
+	// graph: a grantless scoped caller, and a scoped caller asking for a
+	// repository its grant does not include. Both answer as the empty read
+	// does, so an ungranted repository is indistinguishable from one with no
+	// metrics -- the caller learns nothing about a repository it cannot see.
+	//
+	// It binds codeGrantAccessFilter, the grant the selector resolution above
+	// already used, rather than the raw context filter. A token granted only a
+	// git ingestion scope carries no canonical repository id, so the raw filter
+	// refuses the very repo_id the selector just resolved for it and the caller
+	// reads an empty page from a repository it holds -- the scope-versus-
+	// canonical mismatch #5052 fixed and codeGrantAccessFilter exists to keep
+	// fixed. TestCallGraphMetricsResolvesAScopeOnlyGrantToItsRepository pins it.
+	access := codeGrantAccessFilter(ctx)
+	if access.Empty() {
+		return callGraphMetricsResponse(req, nil), nil
+	}
+	if access.Scoped() && !access.AllowsRepositoryID(req.RepoID) {
 		return callGraphMetricsResponse(req, nil), nil
 	}
 	cypher, params := callGraphMetricsEdgesCypher(req.RepoID)

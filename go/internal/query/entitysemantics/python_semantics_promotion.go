@@ -58,7 +58,7 @@ func PythonSemanticProfileFromMetadata(entityType string, metadata map[string]an
 	}
 
 	profile.Decorators = querycontract.StringSliceFromAny(metadata["decorators"])
-	profile.Async = boolValue(metadata["async"])
+	profile.Async = querycontract.BoolValue(metadata["async"])
 	profile.Generator = querycontract.MetadataString(metadata, "semantic_kind") == "generator"
 	profile.Lambda = querycontract.MetadataString(metadata, "semantic_kind") == "lambda"
 	profile.Metaclass = querycontract.MetadataString(metadata, "metaclass")
@@ -88,7 +88,7 @@ func (p PythonSemanticProfile) Present() bool {
 func (p PythonSemanticProfile) Fields() map[string]any {
 	fields := make(map[string]any, 8)
 	if len(p.Decorators) > 0 {
-		fields["decorators"] = cloneStrings(p.Decorators)
+		fields["decorators"] = querycontract.CloneStrings(p.Decorators)
 	}
 	if p.Async {
 		fields["async"] = true
@@ -109,7 +109,7 @@ func (p PythonSemanticProfile) Fields() map[string]any {
 		fields["type_annotation_count"] = p.TypeAnnotationCount
 	}
 	if len(p.TypeAnnotationKinds) > 0 {
-		fields["type_annotation_kinds"] = cloneStrings(p.TypeAnnotationKinds)
+		fields["type_annotation_kinds"] = querycontract.CloneStrings(p.TypeAnnotationKinds)
 	}
 	if p.AnnotationKind != "" {
 		fields["annotation_kind"] = p.AnnotationKind
@@ -236,11 +236,6 @@ func pythonSemanticSignalsToStrings(signals []PythonSemanticSignal) []string {
 	return values
 }
 
-func boolValue(value any) bool {
-	typed, ok := value.(bool)
-	return ok && typed
-}
-
 func hasValues(value any) bool {
 	switch typed := value.(type) {
 	case []string:
@@ -250,13 +245,4 @@ func hasValues(value any) bool {
 	default:
 		return false
 	}
-}
-
-func cloneStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	cloned := make([]string, len(values))
-	copy(cloned, values)
-	return cloned
 }

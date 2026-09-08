@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // #5167 code-family batch 2a: the shipped-text guards for
@@ -53,7 +55,7 @@ func TestLanguageQueryGrantBoundStoreTakesOneRead(t *testing.T) {
 
 	store := &languageQueryGrantContentStore{}
 	handler := &LanguageQueryHandler{Content: store, Profile: ProfileLocalAuthoritative}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runLanguageQueryGrantRequest(t, handler, languageQueryGrantBody("variable"), &auth)
 
 	if got, want := rec.Code, http.StatusOK; got != want {

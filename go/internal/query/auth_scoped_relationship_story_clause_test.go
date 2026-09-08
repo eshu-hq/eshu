@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // Shipped-text pins for #5167 batch 2b. Each asserts WHERE the grant sits, not
@@ -183,7 +185,7 @@ func TestRelationshipStoryClassHierarchyStaysInGrant(t *testing.T) {
 			},
 		},
 	}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, graph, content), map[string]any{
 		"entity_id":  "entity:story-granted-class",
 		"query_type": "class_hierarchy",
@@ -226,7 +228,7 @@ func TestRelationshipStoryOverrideRowsStayInGrant(t *testing.T) {
 			},
 		},
 	}
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo})
 	rec := runStoryRequest(t, storyGrantHandler(GraphBackendNornicDB, graph, storyGrantContent()), map[string]any{
 		"query_type": "overrides",
 		"repo_id":    codeGrantGrantedRepo,

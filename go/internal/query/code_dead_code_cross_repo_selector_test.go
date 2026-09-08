@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // consumerSelectorProducerEntity is the single dead-code candidate
@@ -52,7 +53,7 @@ func TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository(t *test
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := codeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantConsumerRepo, codeGrantOtherRepo})
+	auth := querytestutil.CodeGrantScopedAuthContext([]string{codeGrantGrantedRepo, codeGrantConsumerRepo, codeGrantOtherRepo})
 	req := newCodeGrantRouteRequest(t, "/api/v0/code/dead-code/cross-repo", map[string]any{
 		"repo_id":           codeGrantGrantedRepo,
 		"language":          "go",
