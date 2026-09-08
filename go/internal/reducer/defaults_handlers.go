@@ -6,6 +6,7 @@ package reducer
 import (
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
@@ -82,24 +83,24 @@ type CloudInventoryHandlers struct {
 	// admission or admit canonical identities with no durable truth surface.
 	// CloudInventoryGenerationCheck is optional and supersedes stale generations
 	// before any load or write.
-	CloudInventoryEvidenceLoader  CloudInventoryEvidenceLoader
-	CloudInventoryAdmissionWriter CloudInventoryAdmissionWriter
+	CloudInventoryEvidenceLoader  cloudinventory.CloudInventoryEvidenceLoader
+	CloudInventoryAdmissionWriter cloudinventory.CloudInventoryAdmissionWriter
 	CloudInventoryGenerationCheck GenerationFreshnessCheck
 	// CloudInventoryTagEvidenceLoader is optional; when set, tag-evidence
 	// fingerprints (e.g. azure_tag_observation) attach to the canonical resource
 	// sharing their cloud_resource_uid. A nil loader leaves the AWS/GCP resource
 	// admission path unchanged.
-	CloudInventoryTagEvidenceLoader CloudTagEvidenceLoader
+	CloudInventoryTagEvidenceLoader cloudinventory.CloudTagEvidenceLoader
 	// CloudInventoryIdentityPolicyEvidenceLoader is optional; when set,
 	// identity-policy evidence (e.g. azure_identity_observation) attaches to the
 	// canonical resource sharing its cloud_resource_uid. A nil loader leaves the
 	// resource admission path unchanged.
-	CloudInventoryIdentityPolicyEvidenceLoader CloudIdentityPolicyEvidenceLoader
+	CloudInventoryIdentityPolicyEvidenceLoader cloudinventory.CloudIdentityPolicyEvidenceLoader
 	// CloudInventoryResourceChangeEvidenceLoader is optional; when set,
 	// provider resource-change facts attach sanitized freshness evidence onto
 	// admitted canonical resources. Change evidence never admits resources or
 	// finalizes tombstones on its own.
-	CloudInventoryResourceChangeEvidenceLoader CloudResourceChangeEvidenceLoader
+	CloudInventoryResourceChangeEvidenceLoader cloudinventory.CloudResourceChangeEvidenceLoader
 }
 
 // SearchDocumentHandlers groups the curated search-document projection adapters

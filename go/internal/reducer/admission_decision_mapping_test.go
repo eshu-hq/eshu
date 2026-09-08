@@ -11,8 +11,68 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
+
+// stubCloudInventoryEvidenceLoader is a minimal staying-root fake satisfying
+// reducercloudinventory.CloudInventoryEvidenceLoader. The family's own
+// functional fake moved with it to reducer/cloudinventory
+// (cloud_inventory_admission_test.go); Go test files cannot share unexported
+// symbols across a package boundary, so staying tests that exercise the moved
+// handler keep this local copy (issue #6061).
+type stubCloudInventoryEvidenceLoader struct {
+	records []reducercloudinventory.CloudInventoryRecord
+	err     error
+}
+
+func (s *stubCloudInventoryEvidenceLoader) LoadCloudInventoryEvidence(
+	context.Context,
+	string,
+	string,
+) ([]reducercloudinventory.CloudInventoryRecord, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return append([]reducercloudinventory.CloudInventoryRecord(nil), s.records...), nil
+}
+
+// stubCloudInventoryAdmissionWriter is a minimal staying-root fake satisfying
+// reducercloudinventory.CloudInventoryAdmissionWriter, kept for the same
+// package-boundary reason as the loader stub above.
+type stubCloudInventoryAdmissionWriter struct {
+	writes []reducercloudinventory.CloudInventoryAdmissionWrite
+	err    error
+}
+
+func (s *stubCloudInventoryAdmissionWriter) WriteCloudInventoryAdmission(
+	_ context.Context,
+	write reducercloudinventory.CloudInventoryAdmissionWrite,
+) (reducercloudinventory.CloudInventoryAdmissionWriteResult, error) {
+	if s.err != nil {
+		return reducercloudinventory.CloudInventoryAdmissionWriteResult{}, s.err
+	}
+	s.writes = append(s.writes, write)
+	return reducercloudinventory.CloudInventoryAdmissionWriteResult{
+		CanonicalWrites: len(write.Resources),
+		EvidenceSummary: "stub admission write",
+	}, nil
+}
+
+// cloudInventoryIntent builds a staying-root admission intent for the moved
+// handler. The family's own helper moved with it; this local copy keeps the
+// same field values so staying assertions observe identical behavior.
+func cloudInventoryIntent() Intent {
+	return Intent{
+		IntentID:        "intent-cloud-inventory",
+		ScopeID:         "gcp:org:eshu:project:prod",
+		GenerationID:    "generation-1",
+		SourceSystem:    "gcp",
+		Domain:          DomainCloudInventoryAdmission,
+		Cause:           "cloud inventory facts observed",
+		RelatedScopeIDs: []string{"gcp:org:eshu:project:prod"},
+	}
+}
 
 type recordingAdmissionDecisionWriter struct {
 	calls []admissionDecisionWriterCall
@@ -112,32 +172,32 @@ func TestCloudInventoryAdmissionWritesSharedAdmittedAndNonAdmittedDecisions(t *t
 
 	writer := &recordingAdmissionDecisionWriter{}
 	canonicalWriter := &stubCloudInventoryAdmissionWriter{}
-	handler := CloudInventoryAdmissionHandler{
-		EvidenceLoader: &stubCloudInventoryEvidenceLoader{records: []CloudInventoryRecord{
+	handler := reducercloudinventory.CloudInventoryAdmissionHandler{
+		EvidenceLoader: &stubCloudInventoryEvidenceLoader{records: []reducercloudinventory.CloudInventoryRecord{
 			{
 				Provider:     cloudinventory.ProviderGCP,
 				FactKind:     "gcp_cloud_resource",
 				RawIdentity:  "//compute.googleapis.com/projects/eshu-prod/zones/us-central1-a/instances/api-1",
 				ResourceType: "compute.googleapis.com/Instance",
-				SourceLayer:  SourceLayerObserved,
+				SourceLayer:  reducercloudinventory.SourceLayerObserved,
 			},
 			{
 				Provider:    cloudinventory.ProviderAzure,
 				FactKind:    "azure_cloud_resource",
 				RawIdentity: "resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/api",
-				SourceLayer: SourceLayerObserved,
+				SourceLayer: reducercloudinventory.SourceLayerObserved,
 			},
 			{
 				Provider:    "oraclecloud",
 				FactKind:    "oci_cloud_resource",
 				RawIdentity: "ocid1.instance.oc1..abc",
-				SourceLayer: SourceLayerObserved,
+				SourceLayer: reducercloudinventory.SourceLayerObserved,
 			},
 			{
 				Provider:    cloudinventory.ProviderGCP,
 				FactKind:    "gcp_cloud_resource",
 				RawIdentity: " ",
-				SourceLayer: SourceLayerObserved,
+				SourceLayer: reducercloudinventory.SourceLayerObserved,
 			},
 		}},
 		Writer:                  canonicalWriter,

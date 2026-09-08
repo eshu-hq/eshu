@@ -4,6 +4,7 @@
 package reducer
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
@@ -119,8 +120,8 @@ func appendCloudRelationshipAdditiveDomains(definitions []DomainDefinition, hand
 		definitions = append(definitions, rdsPosture)
 	}
 	if handlers.FactLoader != nil && handlers.EC2InstanceIdentityNodeWriter != nil {
-		ec2Identity := ec2InstanceIdentityMaterializationDomainDefinition()
-		ec2Identity.Handler = EC2InstanceIdentityMaterializationHandler{
+		ec2Identity := ec2instance.IdentityMaterializationDomainDefinition()
+		ec2Identity.Handler = ec2instance.EC2InstanceIdentityMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			NodeWriter:           handlers.EC2InstanceIdentityNodeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,

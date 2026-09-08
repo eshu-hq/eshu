@@ -3,6 +3,10 @@
 
 package reducer
 
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
+)
+
 // appendCloudResourceNodeAdditiveDomains registers the cloud-resource node
 // materialization domains and delegates to the per-provider node/relationship
 // and security-group helpers, preserving the exact registration order of the
@@ -30,8 +34,8 @@ func appendCloudResourceNodeAdditiveDomains(definitions []DomainDefinition, hand
 	definitions = appendAzureResourceMaterializationDomain(definitions, handlers)
 	definitions = appendAzureRelationshipMaterializationDomain(definitions, handlers)
 	if handlers.FactLoader != nil && handlers.EC2InstanceNodeWriter != nil {
-		ec2Instances := ec2InstanceNodeMaterializationDomainDefinition()
-		ec2Instances.Handler = EC2InstanceNodeMaterializationHandler{
+		ec2Instances := ec2instance.NodeMaterializationDomainDefinition()
+		ec2Instances.Handler = ec2instance.EC2InstanceNodeMaterializationHandler{
 			FactLoader:     handlers.FactLoader,
 			NodeWriter:     handlers.EC2InstanceNodeWriter,
 			PhasePublisher: handlers.GraphProjectionPhasePublisher,

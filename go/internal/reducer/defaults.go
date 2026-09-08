@@ -12,8 +12,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -190,7 +193,7 @@ type DefaultHandlers struct {
 	// GraphProjectionPhasePublisher so the later USES_PROFILE edge slice (#1146
 	// PR-B) can gate on it exactly like the AWS relationship edge gates on the
 	// CloudResource node phase (#805).
-	EC2InstanceNodeWriter EC2InstanceNodeWriter
+	EC2InstanceNodeWriter ec2instance.EC2InstanceNodeWriter
 
 	// CloudResourceEdgeWriter projects aws_relationship facts into canonical
 	// AWS relationship edges between CloudResource nodes (issue #805 PR 2). It
@@ -310,7 +313,7 @@ type DefaultHandlers struct {
 	// (not the generic aws_resource phase) so ami_id never writes against an
 	// uncommitted EC2 instance CloudResource node, and it never creates a
 	// node — a missing uid is always a no-op.
-	EC2InstanceIdentityNodeWriter EC2InstanceIdentityNodeWriter
+	EC2InstanceIdentityNodeWriter ec2instance.EC2InstanceIdentityNodeWriter
 	// EC2UsesProfileEdgeWriter projects ec2_instance_posture instance_profile_arn
 	// into canonical USES_PROFILE edges between an EC2 instance CloudResource node
 	// and the IAM instance-profile CloudResource node it uses (issue #1146 PR-B). It
@@ -329,7 +332,7 @@ type DefaultHandlers struct {
 	// missing either one would drop every HAS_ROLE materialization intent before it
 	// reaches graph truth. The handler also gates on ReadinessLookup so edges never
 	// resolve against uncommitted IAM nodes.
-	IAMInstanceProfileRoleEdgeWriter IAMInstanceProfileRoleEdgeWriter
+	IAMInstanceProfileRoleEdgeWriter iaminstprofile.IAMInstanceProfileRoleEdgeWriter
 
 	// EC2BlockDeviceKMSPostureNodeWriter derives EC2 block-device KMS posture
 	// from ec2_instance_posture block devices joined to EBS volume and KMS facts,
@@ -349,7 +352,7 @@ type DefaultHandlers struct {
 	// one would drop every exposure materialization intent before it reaches the
 	// graph. The handler also gates on ReadinessLookup so node properties never
 	// resolve against uncommitted S3 nodes.
-	S3InternetExposureNodeWriter S3InternetExposureNodeWriter
+	S3InternetExposureNodeWriter internetexposure.S3InternetExposureNodeWriter
 
 	// EC2InternetExposureNodeWriter derives ec2_instance_posture internet
 	// exposure state and writes reducer-owned properties onto existing EC2
@@ -358,7 +361,7 @@ type DefaultHandlers struct {
 	// missing either one would drop every exposure materialization intent before
 	// it reaches the graph. The handler gates on ReadinessLookup so node
 	// properties never resolve against uncommitted EC2 nodes.
-	EC2InternetExposureNodeWriter EC2InternetExposureNodeWriter
+	EC2InternetExposureNodeWriter internetexposure.EC2InternetExposureNodeWriter
 
 	// ContainerImageIdentityWriter persists image-reference-keyed identity
 	// decisions for Git, OCI registry, and runtime image evidence.

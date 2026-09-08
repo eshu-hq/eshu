@@ -3,7 +3,35 @@
 
 package reducer
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
+)
+
+// stubEC2InstanceIdentityNodeWriter is a minimal root-side fake satisfying
+// ec2instance.EC2InstanceIdentityNodeWriter. This wiring test only proves the
+// writer identity was threaded through to the handler, never exercising its
+// methods, so it does not need the family's recording behavior -- and Go
+// test files cannot share an unexported test type
+// (recordingEC2InstanceIdentityNodeWriter) across the reducer/ec2instance
+// package boundary (issue #6061).
+// The id field is load-bearing: a zero-size struct compares equal to every
+// other instance of itself, so an identity assertion over a struct{} value
+// passes even when a DIFFERENT writer reaches the handler. A pointer to an
+// empty struct is not sufficient either -- Go permits distinct zero-size
+// allocations to share an address -- so the field is what makes the
+// comparison sound rather than lucky.
+type stubEC2InstanceIdentityNodeWriter struct{ id int }
+
+func (stubEC2InstanceIdentityNodeWriter) WriteEC2InstanceIdentityNodes(context.Context, []map[string]any, string, string, string) error {
+	return nil
+}
+
+func (stubEC2InstanceIdentityNodeWriter) RetractEC2InstanceIdentityNodes(context.Context, []string, string, string) error {
+	return nil
+}
 
 func TestImplementedDefaultDomainDefinitionsOmitsEC2InstanceIdentityWithoutNodeWriter(t *testing.T) {
 	t.Parallel()
@@ -22,7 +50,7 @@ func TestImplementedDefaultDomainDefinitionsIncludesEC2InstanceIdentityWhenWired
 	t.Parallel()
 
 	loader := &stubFactLoader{}
-	writer := &recordingEC2InstanceIdentityNodeWriter{}
+	writer := &stubEC2InstanceIdentityNodeWriter{id: 1}
 	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
 		FactLoader:                    loader,
 		EC2InstanceIdentityNodeWriter: writer,
@@ -34,9 +62,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesEC2InstanceIdentityWhenWired
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(EC2InstanceIdentityMaterializationHandler)
+		handler, ok := def.Handler.(ec2instance.EC2InstanceIdentityMaterializationHandler)
 		if !ok {
-			t.Fatalf("ec2_instance_identity_materialization handler type = %T, want EC2InstanceIdentityMaterializationHandler", def.Handler)
+			t.Fatalf("ec2_instance_identity_materialization handler type = %T, want ec2instance.EC2InstanceIdentityMaterializationHandler", def.Handler)
 		}
 		if handler.FactLoader != loader {
 			t.Fatal("ec2_instance_identity_materialization handler FactLoader was not wired")

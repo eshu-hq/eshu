@@ -12,13 +12,13 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // PostgresCloudIdentityPolicyEvidenceLoader reads Azure identity-policy source
 // facts for one scope generation and maps each payload into the shared
-// reducer.CloudIdentityPolicyEvidenceRecord shape the admission path attaches
+// reducercloudinventory.CloudIdentityPolicyEvidenceRecord shape the admission path attaches
 // by cloud_resource_uid. It returns only bounded enum/text fields plus keyed
 // fingerprints; raw principal GUIDs and raw assignment scopes never leave the
 // source payload.
@@ -32,12 +32,12 @@ type PostgresCloudIdentityPolicyEvidenceLoader struct {
 const maxCloudIdentityPolicyEvidenceFieldLength = 256
 
 // LoadCloudIdentityPolicyEvidence implements
-// reducer.CloudIdentityPolicyEvidenceLoader.
+// reducercloudinventory.CloudIdentityPolicyEvidenceLoader.
 func (l PostgresCloudIdentityPolicyEvidenceLoader) LoadCloudIdentityPolicyEvidence(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) ([]reducer.CloudIdentityPolicyEvidenceRecord, error) {
+) ([]reducercloudinventory.CloudIdentityPolicyEvidenceRecord, error) {
 	if l.DB == nil {
 		return nil, fmt.Errorf("cloud identity policy evidence database is required")
 	}
@@ -56,7 +56,7 @@ func (l PostgresCloudIdentityPolicyEvidenceLoader) LoadCloudIdentityPolicyEviden
 	}
 	defer func() { _ = rows.Close() }()
 
-	var records []reducer.CloudIdentityPolicyEvidenceRecord
+	var records []reducercloudinventory.CloudIdentityPolicyEvidenceRecord
 	for rows.Next() {
 		var factKind, rawIdentity, stableFactKey string
 		var payload []byte
@@ -81,22 +81,22 @@ func cloudIdentityPolicyEvidenceRecordFromRow(
 	rawIdentity string,
 	stableFactKey string,
 	payload []byte,
-) (reducer.CloudIdentityPolicyEvidenceRecord, bool) {
+) (reducercloudinventory.CloudIdentityPolicyEvidenceRecord, bool) {
 	if factKind != facts.AzureIdentityObservationFactKind {
-		return reducer.CloudIdentityPolicyEvidenceRecord{}, false
+		return reducercloudinventory.CloudIdentityPolicyEvidenceRecord{}, false
 	}
 	rawIdentity = strings.TrimSpace(rawIdentity)
 	if cloudinventory.ResolveProviderIdentity(cloudinventory.ProviderAzure, rawIdentity).Outcome != cloudinventory.ResolutionOutcomeAdmitted {
-		return reducer.CloudIdentityPolicyEvidenceRecord{}, false
+		return reducercloudinventory.CloudIdentityPolicyEvidenceRecord{}, false
 	}
 
 	var decoded map[string]any
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return reducer.CloudIdentityPolicyEvidenceRecord{}, false
+			return reducercloudinventory.CloudIdentityPolicyEvidenceRecord{}, false
 		}
 	}
-	record := reducer.CloudIdentityPolicyEvidenceRecord{
+	record := reducercloudinventory.CloudIdentityPolicyEvidenceRecord{
 		Provider:             cloudinventory.ProviderAzure,
 		RawIdentity:          rawIdentity,
 		EvidenceKey:          boundedIdentityPolicyString(stableFactKey),
@@ -108,7 +108,7 @@ func cloudIdentityPolicyEvidenceRecordFromRow(
 		TenantFingerprint:    boundedIdentityPolicyString(decoded["tenant_fingerprint"]),
 	}
 	if record.IdentityType == "" || !identityPolicyRecordHasFingerprint(record) {
-		return reducer.CloudIdentityPolicyEvidenceRecord{}, false
+		return reducercloudinventory.CloudIdentityPolicyEvidenceRecord{}, false
 	}
 	return record, true
 }
@@ -121,7 +121,7 @@ func boundedIdentityPolicyString(value any) string {
 	return text[:maxCloudIdentityPolicyEvidenceFieldLength]
 }
 
-func identityPolicyRecordHasFingerprint(record reducer.CloudIdentityPolicyEvidenceRecord) bool {
+func identityPolicyRecordHasFingerprint(record reducercloudinventory.CloudIdentityPolicyEvidenceRecord) bool {
 	return record.PrincipalFingerprint != "" ||
 		record.ClientFingerprint != "" ||
 		record.ObjectFingerprint != "" ||

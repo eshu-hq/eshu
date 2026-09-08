@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 )
 
 // TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts proves the
@@ -61,10 +61,10 @@ func TestPostgresCloudInventoryEvidenceLoaderMapsProviderSourceFacts(t *testing.
 		t.Fatalf("len(records) = %d, want %d", got, want)
 	}
 
-	byProvider := make(map[string]reducer.CloudInventoryRecord, len(records))
+	byProvider := make(map[string]reducercloudinventory.CloudInventoryRecord, len(records))
 	for _, record := range records {
 		byProvider[record.Provider] = record
-		if record.SourceLayer != reducer.SourceLayerObserved {
+		if record.SourceLayer != reducercloudinventory.SourceLayerObserved {
 			t.Fatalf("provider %q source layer = %q, want observed", record.Provider, record.SourceLayer)
 		}
 	}

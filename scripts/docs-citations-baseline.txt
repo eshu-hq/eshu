@@ -103,10 +103,8 @@ LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/q
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/contract.go:97
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/evidence_citation.go:33
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/openapi_paths_evidence.go:120
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/mcp/cloud/inventory_tools.go:8
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/auth_scoped_routes.go:364
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/ci_cd_run_correlations.go:15
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/cloud_inventory_readback.go:18
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/container_image_identities.go:15
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/content_reader_repository_catalog.go:80
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/incident_context_authz_store.go:16
@@ -125,7 +123,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/qu
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/supply_chain_impact_explain_runtime_test.go:298
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/supply_chain_impact_findings_queries.go:6
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/ci_cd_run_correlation_writer.go:17
-LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/cloud_inventory_admission_writer.go:18
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/code_import_owner_facts.go:13
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/code_import_owner_facts.go:46
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/reducer/container_image_identity_writer.go:17
@@ -161,7 +158,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/resource_policy_permission_envelope.go:76
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_external_principal_grant_envelope.go:103
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_external_principal_grant_envelope.go:103
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/s3_posture_envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/envelope.go:28
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/envelope.go:28
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/azurecloud/relationship.go:103
@@ -224,7 +220,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/facts/
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/inventory_tools.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/inventory_tools.go:8
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/inventory_tools.go:8
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/inventory_tools.go:8
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/runtime_drift_tools.go:9
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/canonical_builder.go:96
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/code_function_summary_intents.go:48
@@ -244,7 +239,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/stage_workloads.go:37
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/tfstate_canonical.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/ci_cd_run_correlation_aggregates.go:115
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/cloud_inventory_readback.go:58
@@ -294,7 +288,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/cloud_inventory_admission_writer.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_call_projection_work.go:376
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_import_repo_edge_identity.go:56
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_import_repo_edge_identity.go:56
@@ -311,7 +304,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:20
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/platform_materialization_writer.go:16
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/python_metaclass_materialization.go:50
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/s3_internet_exposure_materialization.go:50
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/sbom_attestation_attachment_index.go:297
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/sbom_attestation_attachment_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/schemadecode/factschema_decode.go:65
@@ -394,7 +386,6 @@ LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/aws_resource_service_anchor.go:33
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/azure_resource_materialization.go:203
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/ci_cd_run_correlation_writer.go:123
-LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/ec2_instance_node_rows.go:167
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/gcp_resource_materialization.go:305
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/incident/incident_repository_correlation_writer.go:150
 LINE docs/internal/design/5007-cross-scope-node-ownership.md go/internal/reducer/kubernetes_workload_materialization.go:312
@@ -622,7 +613,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/query/request_m
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/setup_handler.go:1
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/sign_in_policy_mutations.go:159
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/tag_history.go:102
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/ec2_instance_node_materialization.go:184
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/factdecode/quarantine_record.go:64
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/gcp_materialization_observability.go:22
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/incident/incident_repository_correlation.go:278

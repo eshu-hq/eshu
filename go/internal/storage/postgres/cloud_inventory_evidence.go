@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -24,8 +24,8 @@ const maxCloudInventoryAttributeKeys = 64
 
 // PostgresCloudInventoryEvidenceLoader reads the provider cloud-inventory source
 // facts for one scope generation and maps each provider payload into the shared
-// reducer.CloudInventoryRecord shape the admission path consumes. It is the
-// concrete implementation of reducer.CloudInventoryEvidenceLoader for the
+// reducercloudinventory.CloudInventoryRecord shape the admission path consumes. It is the
+// concrete implementation of reducercloudinventory.CloudInventoryEvidenceLoader for the
 // multi-cloud admission domain (issues #1997, #1998).
 //
 // The loader is read-only and side-effect free: it does not resolve canonical
@@ -181,7 +181,7 @@ var cloudInventorySourceFactMappings = map[string]cloudInventorySourceFactMappin
 	},
 }
 
-// LoadCloudInventoryEvidence implements reducer.CloudInventoryEvidenceLoader. It
+// LoadCloudInventoryEvidence implements reducercloudinventory.CloudInventoryEvidenceLoader. It
 // returns the provider cloud-inventory records in scope for the given
 // generation, bound to scope_id and generation_id so a stale generation cannot
 // leak rows into a newer admission.
@@ -189,7 +189,7 @@ func (l PostgresCloudInventoryEvidenceLoader) LoadCloudInventoryEvidence(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) ([]reducer.CloudInventoryRecord, error) {
+) ([]reducercloudinventory.CloudInventoryRecord, error) {
 	if l.DB == nil {
 		return nil, fmt.Errorf("cloud inventory evidence database is required")
 	}
@@ -208,7 +208,7 @@ func (l PostgresCloudInventoryEvidenceLoader) LoadCloudInventoryEvidence(
 	}
 	defer func() { _ = rows.Close() }()
 
-	var records []reducer.CloudInventoryRecord
+	var records []reducercloudinventory.CloudInventoryRecord
 	for rows.Next() {
 		var factKind, rawIdentity string
 		var payload []byte
@@ -238,14 +238,14 @@ func cloudInventoryRecordFromRow(
 	factKind string,
 	rawIdentity string,
 	payload []byte,
-) (reducer.CloudInventoryRecord, bool) {
+) (reducercloudinventory.CloudInventoryRecord, bool) {
 	mapping, ok := cloudInventorySourceFactMappings[factKind]
 	if !ok {
-		return reducer.CloudInventoryRecord{}, false
+		return reducercloudinventory.CloudInventoryRecord{}, false
 	}
 	rawIdentity = strings.TrimSpace(rawIdentity)
 	if rawIdentity == "" {
-		return reducer.CloudInventoryRecord{}, false
+		return reducercloudinventory.CloudInventoryRecord{}, false
 	}
 
 	// Decoded as an untyped map for resourceTypeKey and the attribute
@@ -254,19 +254,19 @@ func cloudInventoryRecordFromRow(
 	var decoded map[string]any
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return reducer.CloudInventoryRecord{}, false
+			return reducercloudinventory.CloudInventoryRecord{}, false
 		}
 	}
 
 	accountID, ok := cloudInventoryResolveAccountID(factKind, mapping, decoded)
 	if !ok {
-		return reducer.CloudInventoryRecord{}, false
+		return reducercloudinventory.CloudInventoryRecord{}, false
 	}
 	if accountID == "" && mapping.accountIDFallback != nil {
 		accountID = mapping.accountIDFallback(rawIdentity)
 	}
 
-	return reducer.CloudInventoryRecord{
+	return reducercloudinventory.CloudInventoryRecord{
 		Provider:     mapping.provider,
 		FactKind:     factKind,
 		RawIdentity:  rawIdentity,
@@ -277,7 +277,7 @@ func cloudInventoryRecordFromRow(
 		// Declared and applied layers arrive from IaC/state source fact kinds in
 		// a follow-up slice; the admission handler already keeps declared and
 		// applied strictly above observed when those layers are wired.
-		SourceLayer: reducer.SourceLayerObserved,
+		SourceLayer: reducercloudinventory.SourceLayerObserved,
 		Attributes:  cloudInventoryRecordAttributes(mapping, decoded),
 	}, true
 }

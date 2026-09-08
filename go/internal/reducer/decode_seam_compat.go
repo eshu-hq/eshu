@@ -19,7 +19,6 @@ var (
 	codegraphDecodeQuarantine        = schemadecode.CodegraphDecodeQuarantine
 	decodeAWSRelationship            = schemadecode.DecodeAWSRelationship
 	decodeAWSResource                = schemadecode.DecodeAWSResource
-	decodeAWSSecurityGroupRule       = schemadecode.DecodeAWSSecurityGroupRule
 	decodeAzureCloudRelationship     = schemadecode.DecodeAzureCloudRelationship
 	decodeAzureCloudResource         = schemadecode.DecodeAzureCloudResource
 	decodeCodeFunctionSource         = schemadecode.DecodeCodeFunctionSource
@@ -31,7 +30,6 @@ var (
 	decodeCodeownersOwnership        = schemadecode.DecodeCodeownersOwnership
 	decodeDocumentationDocument      = schemadecode.DecodeDocumentationDocument
 	decodeDocumentationEntityMention = schemadecode.DecodeDocumentationEntityMention
-	decodeEC2InstancePosture         = schemadecode.DecodeEC2InstancePosture
 	decodeGCPCloudRelationship       = schemadecode.DecodeGCPCloudRelationship
 	decodeGCPCloudResource           = schemadecode.DecodeGCPCloudResource
 	decodeKubernetesLiveNamespace    = schemadecode.DecodeKubernetesLiveNamespace

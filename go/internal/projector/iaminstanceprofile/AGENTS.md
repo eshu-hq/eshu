@@ -11,7 +11,7 @@
 5. `docs/internal/design/1299-iam-instance-profile-role-edge.md` for the
    HAS_ROLE edge design, the no-role retraction rationale, and the readiness
    contract this intent encodes.
-6. `go/internal/reducer/iam_instance_profile_role_materialization.go` for what
+6. `go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go` for what
    the reducer does with the intent this package enqueues: the profile/role
    join over aws_resource facts, the retract-first edge lifecycle, the
    canonical-nodes readiness gate, and the
@@ -78,7 +78,7 @@
   cites this family (verified with a positive control against the registry's
   projector citations), and `sdk/go/factschema` has none either.
 - **The reducer keeps its own constant of the same name.**
-  `go/internal/reducer/iam_instance_profile_role_edge_rows.go` defines its own
+  `go/internal/reducer/iaminstprofile/iam_instance_profile_role_edge_rows.go` defines its own
   `iamInstanceProfileRoleResourceTypeInstanceProfile`; the two are separate
   per-package copies of the wire literal, not a shared symbol. Changing the
   literal means changing both, plus the collector emitting it.

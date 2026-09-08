@@ -102,7 +102,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainConfigStateDrift:        "additive, gated on TerraformBackendResolver+DriftEvidenceLoader+DriftLogger; drift-replay idempotency proven by config_state_drift handler suites (terraform_config_state_drift_*_test.go)",
 	DomainAWSCloudRuntimeDrift:    "additive, gated on AWSCloudRuntimeDrift evidence loader+writer; idempotency proven by aws_cloud_runtime_drift_test.go",
 	DomainMultiCloudRuntimeDrift:  "additive, gated on MultiCloudRuntimeDrift evidence loader+writer; idempotency proven by multi_cloud_runtime_drift_*_test.go",
-	DomainCloudInventoryAdmission: "additive, gated on CloudInventory evidence loader+admission writer with generation check; idempotency proven by cloud_inventory_admission_*_test.go",
+	DomainCloudInventoryAdmission: "additive, gated on CloudInventory evidence loader+admission writer with generation check; idempotency proven by cloudinventory/cloud_inventory_admission_*_test.go",
 
 	// Search/curation + package/code import correlation: fact-loader + dedicated
 	// writer gated, proven by their own suites.
@@ -134,14 +134,14 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainAWSResourceMaterialization:              "additive, gated on FactLoader+CloudResourceNodeWriter with phase publication; idempotency proven by aws_resource_materialization_*_test.go",
 	DomainGCPResourceMaterialization:              "additive, gated on FactLoader+GCP node writer; idempotency proven by gcp_resource_materialization_*_test.go",
 	DomainAzureResourceMaterialization:            "additive, gated on FactLoader+Azure node writer; idempotency proven by azure_resource_materialization_test.go",
-	DomainEC2InstanceNodeMaterialization:          "additive, gated on FactLoader+EC2InstanceNodeWriter with phase publication; idempotency proven by ec2_instance_node_materialization_*_test.go",
+	DomainEC2InstanceNodeMaterialization:          "additive, gated on FactLoader+EC2InstanceNodeWriter with phase publication; idempotency proven by ec2instance/ec2_instance_node_materialization_*_test.go",
 	DomainKubernetesWorkloadMaterialization:       "additive, gated on FactLoader+KubernetesWorkloadNodeWriter with phase publication+presence writer; idempotency proven by kubernetes_workload_materialization_*_test.go",
 	DomainKubernetesNamespaceMaterialization:      "additive, gated on FactLoader+KubernetesNamespaceNodeWriter; MERGE on the collector-emitted object_id uid, and the writer routes a row to the no-environment or with-environment Cypher variant purely by that row's own environment value, so replay converges without a phase/readiness dependency; idempotency proven by kubernetes_namespace_materialization_test.go",
 	DomainRDSPostureMaterialization:               "additive, gated on FactLoader+RDSPostureNodeWriter with readiness lookup; graph read-back, idempotency proven by rdsposture/rds_posture_materialization_*_test.go (defaults_rds_posture_test.go)",
-	DomainEC2InstanceIdentityMaterialization:      "additive, gated on FactLoader+EC2InstanceIdentityNodeWriter with readiness lookup on the EC2 instance node phase; augment-only MERGE+SET of the disjoint ami_id property, never creates a node; idempotency proven by ec2_instance_identity_materialization_*_test.go and ec2_instance_identity_node_writer_test.go",
+	DomainEC2InstanceIdentityMaterialization:      "additive, gated on FactLoader+EC2InstanceIdentityNodeWriter with readiness lookup on the EC2 instance node phase; augment-only MERGE+SET of the disjoint ami_id property, never creates a node; idempotency proven by ec2instance/ec2_instance_identity_materialization_*_test.go and ec2_instance_identity_node_writer_test.go",
 	DomainEC2BlockDeviceKMSPostureMaterialization: "additive, gated on FactLoader+EC2BlockDeviceKMSPostureNodeWriter with readiness lookup; graph read-back, idempotency proven by ec2_block_device_kms_posture_materialization_*_test.go",
-	DomainS3InternetExposureMaterialization:       "additive, gated on FactLoader+S3InternetExposureNodeWriter with readiness lookup; graph read-back, idempotency proven by s3_internet_exposure_materialization_*_test.go (defaults_s3_internet_exposure_test.go)",
-	DomainEC2InternetExposureMaterialization:      "additive, gated on FactLoader+EC2InternetExposureNodeWriter with readiness lookup; graph read-back, idempotency proven by ec2_internet_exposure_materialization_*_test.go",
+	DomainS3InternetExposureMaterialization:       "additive, gated on FactLoader+S3InternetExposureNodeWriter with readiness lookup; graph read-back, idempotency proven by internetexposure/s3_internet_exposure_materialization_*_test.go (defaults_s3_internet_exposure_test.go)",
+	DomainEC2InternetExposureMaterialization:      "additive, gated on FactLoader+EC2InternetExposureNodeWriter with readiness lookup; graph read-back, idempotency proven by internetexposure/ec2_internet_exposure_materialization_*_test.go",
 
 	// Cloud relationship/edge materializers: readiness-gated edge writes against
 	// committed nodes, proven by their own suites.
@@ -163,7 +163,7 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	DomainIAMCanAssumeMaterialization:              "additive, gated on FactLoader+IAMCanAssumeEdgeWriter with readiness lookup; idempotency proven by iam_can_assume_materialization_*_test.go",
 	DomainIAMCanPerformMaterialization:             "additive, gated on FactLoader+IAMCanPerformEdgeWriter with readiness lookup; idempotency proven by iam_can_perform_materialization_*_test.go",
 	DomainIAMEscalationMaterialization:             "additive, gated on FactLoader+IAMEscalationEdgeWriter with readiness lookup; idempotency proven by iam_escalation_materialization_*_test.go",
-	DomainIAMInstanceProfileRoleMaterialization:    "additive, gated on FactLoader+IAMInstanceProfileRoleEdgeWriter with readiness lookup; idempotency proven by iam_instance_profile_role_materialization_*_test.go",
+	DomainIAMInstanceProfileRoleMaterialization:    "additive, gated on FactLoader+IAMInstanceProfileRoleEdgeWriter with readiness lookup; idempotency proven by iaminstprofile/iam_instance_profile_role_materialization_*_test.go",
 	DomainS3LogsToMaterialization:                  "additive, gated on FactLoader+S3LogsToEdgeWriter with readiness lookup; idempotency proven by s3logsto/s3_logs_to_materialization_*_test.go",
 	DomainS3ExternalPrincipalGrantMaterialization:  "additive, gated on FactLoader+S3ExternalPrincipalGrantWriter with readiness lookup; idempotency proven by s3grant/s3_external_principal_grant_*_test.go (defaults_s3_external_principal_grant_test.go)",
 

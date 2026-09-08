@@ -33,7 +33,7 @@ current-state descriptions.
    with chronological order and ties break on the stable fact id. (Open
    Question 1 → recommended option.)
 2. **Scope = all resource families in Stage 1.** CloudResource (AWS/GCP/Azure),
-   the EC2-instance node writer (`ec2_instance_node_rows.go:167`), and the
+   the EC2-instance node writer (`go/internal/reducer/ec2instance/ec2_instance_node_rows.go`), and the
    Kubernetes-workload node writer (`kubernetes_workload_materialization.go:312`)
    all adopt the same rule. (Open Question 3 → all families.)
 3. **Stage 2 (per-scope provenance satellites) trails this change.** It is a
@@ -78,7 +78,7 @@ scope-derived single-value properties are last-writer-wins by commit order:
 - Azure, EC2-instance, and Kubernetes-workload materializers repeat the
   pattern (`go/internal/reducer/azure_resource_materialization.go:203-224`,
   `source_fact_id` at `:218`;
-  `go/internal/reducer/ec2_instance_node_rows.go:167`;
+  `go/internal/reducer/ec2instance/ec2_instance_node_rows.go`;
   `go/internal/reducer/kubernetes_workload_materialization.go:312`).
 
 Cross-scope concurrency is by design, not an accident. The reducer's claim
@@ -859,7 +859,7 @@ shape returns. B-7/B-12 gates still run as proof (expected no-diff), and
    pair, whose constant-concat structure must survive,
    `cloud_resource_node_writer.go:48-56`), order-key stamping in
    `go/internal/reducer/{aws,gcp,azure}_resource_materialization.go`;
-   decide (Open Question 3) whether `ec2_instance_node_rows.go` and
+   decide (Open Question 3) whether `go/internal/reducer/ec2instance/ec2_instance_node_rows.go` and
    `kubernetes_workload_materialization.go` join the same change.
    Extractor tie-break fix in the two `Extract*NodeRows` functions. Docs:
    `go/internal/storage/cypher/README.md`, `go/internal/reducer/domain-catalog.md`
@@ -903,7 +903,7 @@ shape returns. B-7/B-12 gates still run as proof (expected no-diff), and
    before P6, or may it trail? (Recommendation: trail.)
 3. **Enforcement scope:** CloudResource family only (AWS/GCP/Azure share
    `WriteCloudResourceNodes`), or also the pattern siblings
-   (`ec2_instance_node_rows.go:167`,
+   (`go/internal/reducer/ec2instance/ec2_instance_node_rows.go`,
    `kubernetes_workload_materialization.go:312`) in the same change.
    (Recommendation: CloudResource first; siblings as a follow-up issue with
    the same recipe.)

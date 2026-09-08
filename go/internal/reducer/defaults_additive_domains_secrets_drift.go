@@ -3,7 +3,10 @@
 
 package reducer
 
-import "github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
+	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
+)
 
 // appendSecretsAndDriftAdditiveDomains registers the secrets/IAM trust and
 // cloud-runtime drift domains: secrets-IAM trust chain, secrets-IAM graph
@@ -67,8 +70,8 @@ func appendSecretsAndDriftAdditiveDomains(definitions []DomainDefinition, handle
 		definitions = append(definitions, multiCloudDrift)
 	}
 	if handlers.CloudInventoryEvidenceLoader != nil && handlers.CloudInventoryAdmissionWriter != nil {
-		cloudInventory := cloudInventoryAdmissionDomainDefinition()
-		cloudInventory.Handler = CloudInventoryAdmissionHandler{
+		cloudInventory := cloudinventory.CloudInventoryAdmissionDomainDefinition()
+		cloudInventory.Handler = cloudinventory.CloudInventoryAdmissionHandler{
 			EvidenceLoader:               handlers.CloudInventoryEvidenceLoader,
 			Writer:                       handlers.CloudInventoryAdmissionWriter,
 			GenerationCheck:              handlers.CloudInventoryGenerationCheck,

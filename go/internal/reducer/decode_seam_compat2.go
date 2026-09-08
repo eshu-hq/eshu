@@ -20,7 +20,6 @@ var (
 	decodeReducerPackageConsumptionCorrelation = schemadecode.DecodeReducerPackageConsumptionCorrelation
 	decodeReducerPackageOwnershipCorrelation   = schemadecode.DecodeReducerPackageOwnershipCorrelation
 	decodeReducerPackagePublicationCorrelation = schemadecode.DecodeReducerPackagePublicationCorrelation
-	decodeS3BucketPosture                      = schemadecode.DecodeS3BucketPosture
 	decodeScannerWorkerAnalysis                = schemadecode.DecodeScannerWorkerAnalysis
 	decodeSubmodulePin                         = schemadecode.DecodeSubmodulePin
 	decodeVulnerabilityAffectedPackage         = schemadecode.DecodeVulnerabilityAffectedPackage

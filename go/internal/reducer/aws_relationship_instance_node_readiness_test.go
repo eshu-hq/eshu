@@ -38,7 +38,7 @@ import (
 // forever in any scope with no EC2 instances, because that phase never
 // publishes there. The check therefore has to be conditional on the batch, which
 // only the Go handler can see -- the same defense-in-depth position
-// EC2InstanceIdentityNodesNotReadyFailureClass documents.
+// ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass documents.
 
 // ec2AMIRelationshipEnvelope builds the relationship fact whose source endpoint
 // is an EC2 instance node.

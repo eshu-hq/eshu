@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 )
 
 // ec2InstanceIdentityReadinessQueueDB proves the durable reducer queue gate
@@ -164,7 +165,7 @@ func TestReducerConflictBlockageReportsEC2InstanceIdentityReadiness(t *testing.T
 
 // ec2InstanceIdentityNodesNotReadyTestError stands in for the handler's
 // ec2InstanceIdentityNodesNotReadyError: a retryable readiness-gate miss that
-// self-classifies with reducer.EC2InstanceIdentityNodesNotReadyFailureClass.
+// self-classifies with ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass.
 // The queue must defer it without consuming the retry budget, mirroring the
 // GCP-relationship / kubernetes-correlation / secrets-IAM non-counting
 // contracts, so an in-handler readiness miss can never dead-letter a
@@ -179,14 +180,14 @@ func (ec2InstanceIdentityNodesNotReadyTestError) Error() string {
 func (ec2InstanceIdentityNodesNotReadyTestError) Retryable() bool { return true }
 
 func (ec2InstanceIdentityNodesNotReadyTestError) FailureClass() string {
-	return reducer.EC2InstanceIdentityNodesNotReadyFailureClass
+	return ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass
 }
 
 // TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget
 // proves the Go retry classifier treats an EC2 instance identity readiness
 // miss as non-counting: even at an attempt count far past MaxAttempts, Fail
 // re-queues the row as retrying rather than dead-lettering it. This fails red
-// without reducer.EC2InstanceIdentityNodesNotReadyFailureClass registered in
+// without ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass registered in
 // nonCountingReducerRetryFailureClasses, in which case Fail would dead-letter
 // instead of deferring.
 func TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget(t *testing.T) {
@@ -228,7 +229,7 @@ func TestReducerQueueFailDefersEC2InstanceIdentityReadinessPastAttemptBudget(t *
 			t.Fatalf("deferred retry query missing %q:\n%s", want, query)
 		}
 	}
-	if got, want := db.execs[0].args[1], reducer.EC2InstanceIdentityNodesNotReadyFailureClass; got != want {
+	if got, want := db.execs[0].args[1], ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass; got != want {
 		t.Fatalf("failure class = %v, want %v", got, want)
 	}
 	// Exponential backoff (#4450): AttemptCount=42 (a non-counting readiness

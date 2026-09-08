@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 )
 
 // TestPostgresCloudInventoryEvidenceLoaderExtractsPerProviderAccountID is the
@@ -70,7 +70,7 @@ func TestPostgresCloudInventoryEvidenceLoaderExtractsPerProviderAccountID(t *tes
 		t.Fatalf("len(records) = %d, want %d", got, want)
 	}
 
-	byProvider := make(map[string]reducer.CloudInventoryRecord, len(records))
+	byProvider := make(map[string]reducercloudinventory.CloudInventoryRecord, len(records))
 	for _, record := range records {
 		byProvider[record.Provider] = record
 	}

@@ -8,7 +8,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
+	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -34,7 +37,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.SecretsIAMEndpointNotReadyFailureClass,
 	reducer.KubernetesCorrelationNodesNotReadyFailureClass,
 	reducer.GCPRelationshipNodesNotReadyFailureClass,
-	reducer.EC2InstanceIdentityNodesNotReadyFailureClass,
+	ec2instance.EC2InstanceIdentityNodesNotReadyFailureClass,
 	// #5717: an ec2_instance_uses_ami edge deferred until the EC2 instance node
 	// phase commits. Waiting on an upstream phase, not failing on its own
 	// merits, so it must not erode the retry budget.
@@ -82,16 +85,16 @@ var nonCountingReducerRetryFailureClasses = []string{
 	reducer.IAMCanAssumeNodesNotReadyFailureClass,
 	reducer.IAMCanPerformNodesNotReadyFailureClass,
 	reducer.IAMEscalationNodesNotReadyFailureClass,
-	reducer.IAMInstanceProfileRoleNodesNotReadyFailureClass,
+	iaminstprofile.IAMInstanceProfileRoleNodesNotReadyFailureClass,
 	reducer.ObservabilityCoverageNodesNotReadyFailureClass,
 	rdsposture.RDSPostureNodesNotReadyFailureClass,
 	secgroup.SecurityGroupReachabilityNodesNotReadyFailureClass,
 	reducer.WorkloadCloudRelationshipNodesNotReadyFailureClass,
 	ec2blockkms.EC2BlockDeviceKMSPostureNodesNotReadyFailureClass,
-	reducer.EC2InternetExposureNodesNotReadyFailureClass,
+	internetexposure.EC2InternetExposureNodesNotReadyFailureClass,
 	ec2usesprofile.EC2UsesProfileNodesNotReadyFailureClass,
 	s3grant.S3ExternalPrincipalGrantNodesNotReadyFailureClass,
-	reducer.S3InternetExposureNodesNotReadyFailureClass,
+	internetexposure.S3InternetExposureNodesNotReadyFailureClass,
 	s3logsto.S3LogsToNodesNotReadyFailureClass,
 }
 

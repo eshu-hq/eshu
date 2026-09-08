@@ -12,16 +12,16 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // PostgresCloudTagEvidenceLoader reads tag-evidence source facts
 // (azure_tag_observation and gcp_tag_observation) for one scope generation and
-// maps each payload into the shared reducer.CloudTagEvidenceRecord shape the
+// maps each payload into the shared reducercloudinventory.CloudTagEvidenceRecord shape the
 // admission path attaches by cloud_resource_uid. It is the concrete
-// reducer.CloudTagEvidenceLoader for the multi-cloud admission domain (#2192,
+// reducercloudinventory.CloudTagEvidenceLoader for the multi-cloud admission domain (#2192,
 // #2334).
 //
 // The loader is read-only and side-effect free: it resolves no identity and
@@ -44,14 +44,14 @@ var cloudTagEvidenceFactMappings = map[string]string{
 	facts.GCPTagObservationFactKind:   cloudinventory.ProviderGCP,
 }
 
-// LoadCloudTagEvidence implements reducer.CloudTagEvidenceLoader. It returns the
+// LoadCloudTagEvidence implements reducercloudinventory.CloudTagEvidenceLoader. It returns the
 // tag-evidence records in scope for the generation, bound to scope_id and
 // generation_id so a stale generation cannot leak rows into a newer admission.
 func (l PostgresCloudTagEvidenceLoader) LoadCloudTagEvidence(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) ([]reducer.CloudTagEvidenceRecord, error) {
+) ([]reducercloudinventory.CloudTagEvidenceRecord, error) {
 	if l.DB == nil {
 		return nil, fmt.Errorf("cloud tag evidence database is required")
 	}
@@ -70,7 +70,7 @@ func (l PostgresCloudTagEvidenceLoader) LoadCloudTagEvidence(
 	}
 	defer func() { _ = rows.Close() }()
 
-	var records []reducer.CloudTagEvidenceRecord
+	var records []reducercloudinventory.CloudTagEvidenceRecord
 	for rows.Next() {
 		var factKind, rawIdentity string
 		var payload []byte
@@ -98,29 +98,29 @@ func cloudTagEvidenceRecordFromRow(
 	factKind string,
 	rawIdentity string,
 	payload []byte,
-) (reducer.CloudTagEvidenceRecord, bool) {
+) (reducercloudinventory.CloudTagEvidenceRecord, bool) {
 	provider, ok := cloudTagEvidenceFactMappings[factKind]
 	if !ok {
-		return reducer.CloudTagEvidenceRecord{}, false
+		return reducercloudinventory.CloudTagEvidenceRecord{}, false
 	}
 	rawIdentity = strings.TrimSpace(rawIdentity)
 	if rawIdentity == "" {
-		return reducer.CloudTagEvidenceRecord{}, false
+		return reducercloudinventory.CloudTagEvidenceRecord{}, false
 	}
 
 	var decoded map[string]any
 	if len(payload) > 0 {
 		if err := json.Unmarshal(payload, &decoded); err != nil {
-			return reducer.CloudTagEvidenceRecord{}, false
+			return reducercloudinventory.CloudTagEvidenceRecord{}, false
 		}
 	}
 
 	fingerprints, ok := tagValueFingerprintsForFactKind(factKind, decoded)
 	if !ok {
-		return reducer.CloudTagEvidenceRecord{}, false
+		return reducercloudinventory.CloudTagEvidenceRecord{}, false
 	}
 
-	return reducer.CloudTagEvidenceRecord{
+	return reducercloudinventory.CloudTagEvidenceRecord{
 		Provider:             provider,
 		RawIdentity:          rawIdentity,
 		TagValueFingerprints: fingerprints,

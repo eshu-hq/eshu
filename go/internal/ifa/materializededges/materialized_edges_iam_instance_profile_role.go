@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
-	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 )
 
 // iamInstanceProfileRoleFamily is the materialized-edge family key this guard
@@ -70,7 +70,7 @@ func resolveIAMInstanceProfileRoleMaterializedEdges(odu ifa.Odu, expectedEdgesPa
 	if len(odu.Facts) == 0 {
 		return false, fmt.Sprintf("odù %q: carries no facts", odu.Name)
 	}
-	rows, _, quarantined, err := reducer.ExtractIAMInstanceProfileRoleEdgeRows(odu.Facts)
+	rows, _, quarantined, err := iaminstprofile.ExtractIAMInstanceProfileRoleEdgeRows(odu.Facts)
 	if err != nil {
 		return false, fmt.Sprintf("odù %q: ExtractIAMInstanceProfileRoleEdgeRows failed: %v", odu.Name, err)
 	}
@@ -123,7 +123,7 @@ func resolveIAMInstanceProfileRoleMaterializedEdges(odu ifa.Odu, expectedEdgesPa
 // asserting the annotated row contents instead.
 //
 // evidence_source is stamped by the writer too, but from a compile-time
-// constant (reducer.IAMInstanceProfileRoleEvidenceSource), so it IS knowable
+// constant (iaminstprofile.IAMInstanceProfileRoleEvidenceSource), so it IS knowable
 // offline and is stamped here: the live `assert-edges` half asserts it from
 // the fixture, and both halves now prove the same key. A writer that stopped
 // stamping it fails both, instead of passing the offline half on extractor
@@ -136,7 +136,7 @@ func iamInstanceProfileRoleRowsToExpectedEdges(rows []map[string]any) []Expected
 			SourceEntityID:   anyToStringValue(row["profile_uid"]),
 			TargetEntityID:   anyToStringValue(row["role_uid"]),
 			Properties: map[string]string{
-				"evidence_source": reducer.IAMInstanceProfileRoleEvidenceSource,
+				"evidence_source": iaminstprofile.IAMInstanceProfileRoleEvidenceSource,
 			},
 		}
 		if mode := anyToStringValue(row["resolution_mode"]); mode != "" {

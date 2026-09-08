@@ -32,7 +32,7 @@ const (
 	// canonical cloud_resource_uid; the posture fact remains the sole owner of
 	// the CloudResource node's base identity/posture properties, and the
 	// identity fact only ever augments the node with the disjoint ami_id
-	// property (go/internal/reducer/ec2_instance_identity_materialization.go).
+	// property (go/internal/reducer/ec2instance/ec2_instance_identity_materialization.go).
 	ResourceTypeEC2Instance = awsv1.ResourceTypeEC2Instance
 	// ResourceTypeEC2AMI identifies an EC2 AMI (machine image), both as a
 	// relationship target (#5448) and, since #5717, as the resource_type of

@@ -8,6 +8,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
+	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 )
 
@@ -35,8 +37,8 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 		definitions = append(definitions, ec2UsesProfile)
 	}
 	if handlers.FactLoader != nil && handlers.IAMInstanceProfileRoleEdgeWriter != nil {
-		profileRole := iamInstanceProfileRoleMaterializationDomainDefinition()
-		profileRole.Handler = IAMInstanceProfileRoleMaterializationHandler{
+		profileRole := iaminstprofile.MaterializationDomainDefinition()
+		profileRole.Handler = iaminstprofile.IAMInstanceProfileRoleMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			EdgeWriter:           handlers.IAMInstanceProfileRoleEdgeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
@@ -59,8 +61,8 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 		definitions = append(definitions, ec2BlockDeviceKMS)
 	}
 	if handlers.FactLoader != nil && handlers.S3InternetExposureNodeWriter != nil {
-		s3Exposure := s3InternetExposureMaterializationDomainDefinition()
-		s3Exposure.Handler = S3InternetExposureMaterializationHandler{
+		s3Exposure := internetexposure.S3InternetExposureMaterializationDomainDefinition()
+		s3Exposure.Handler = internetexposure.S3InternetExposureMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			NodeWriter:           handlers.S3InternetExposureNodeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
@@ -71,8 +73,8 @@ func appendCloudPostureEdgeAdditiveDomains(definitions []DomainDefinition, handl
 		definitions = append(definitions, s3Exposure)
 	}
 	if handlers.FactLoader != nil && handlers.EC2InternetExposureNodeWriter != nil {
-		ec2Exposure := ec2InternetExposureMaterializationDomainDefinition()
-		ec2Exposure.Handler = EC2InternetExposureMaterializationHandler{
+		ec2Exposure := internetexposure.EC2InternetExposureMaterializationDomainDefinition()
+		ec2Exposure.Handler = internetexposure.EC2InternetExposureMaterializationHandler{
 			FactLoader:           handlers.FactLoader,
 			NodeWriter:           handlers.EC2InternetExposureNodeWriter,
 			ReadinessLookup:      handlers.ReadinessLookup,
