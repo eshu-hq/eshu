@@ -21,6 +21,9 @@ source_coverage:
     calls:
       - {symbol: "loadConfigDerivedCloudResourceDependenciesWithLimit", count: 1, non_hot: {class: keyed_support, source_sha256: 7d33975ea4d3dbd2e2e57236a8b6d0cf52b6a65ea297bfaea95a8d89eb70f552, key_bound: bounded_key_batch, max_keys: 50, max_results: 51}}
       - {symbol: "LoadMaterializedServiceCloudResourceDependencies", count: 1, source_sha256: b5727b664fcdf7fd3c717b4a0d65e62783d90c92465ffb2cfed1e3118152a83e, entry_ids: [QP-SVC-CLOUD-DEPS]}
+  - file: impacttrace/deployment_trace_enrichment.go
+    calls:
+      - {symbol: "QueryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 04fe31e5ded3fa10bf241df57165eb744896a77da3d5c8a6215c099560c0b76c, key_bound: single_key, max_results: 101}}
   - file: cloud_resource_owner_backfill.go
     calls:
       - symbol: "(CloudResourceOwnerBackfiller).Backfill"
@@ -174,9 +177,6 @@ source_coverage:
   - file: dependencies.go
     calls:
       - {symbol: "(*DependenciesHandler).listDependencies", count: 1, source_sha256: 33e1e662b30f6fce9d4ed8f4bee0daa6ad24d7724fc7bb24f5fe8ef08be81df0, entry_ids: [QP-SC-DEPS]}
-  - file: deployment_trace_support_helpers.go
-    calls:
-      - {symbol: "queryProvisioningRepositoryCandidates", count: 1, non_hot: {class: keyed_support, source_sha256: 98c266f8741cdcd4674ba394f93bb713f7907ab005fbca7635d7600e72625273, key_bound: single_key, max_results: 101}}
   - file: entity.go
     calls:
       - {symbol: "(*EntityHandler).getEntityContext", count: 1, non_hot_reason: "unlabeled entity-context lookup is inventoried but cannot be admitted until its production anchor is typed"}
@@ -210,7 +210,7 @@ source_coverage:
           max_results: 101
   - file: entity_workload_context.go
     calls:
-      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: 99c8fdbb075110598cb5115c89992e9d2bcdf21f171a5e49396c496c64da790d, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).fetchWorkloadContextForOperation", count: 1, source_sha256: a749e36f983d8ca5a9967cf193461de3824f3211623bc1a933b011d5fbae0cdf, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*EntityHandler).fetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: b727a2e3ca187c470117f68a5c94406885091aed66223a0c289458062f17a114, key_bound: single_key, max_results: 51}}
   - file: entity_workload_platform.go
     calls:
@@ -539,12 +539,12 @@ source_coverage:
     calls:
       - {symbol: "(GraphSecretsIAMGrantPostureStore).grantFlagCount", count: 1, non_hot: {class: keyed_support, source_sha256: 3179505b903a57581ee6114a7b20f2cb2befdf6ba245901aab6752fc2db1091d, key_bound: single_key, max_results: 1}}
       - {symbol: "(GraphSecretsIAMGrantPostureStore).groupedGrantCounts", count: 1, non_hot: {class: keyed_support, source_sha256: 530eb02376389b2188d35fffb65926c1fa8d62305c7e69d14d4241a0c62f3bbb, key_bound: single_key, max_results: 32}}
-  - file: service_ingress_posture.go
+  - file: service/service_ingress_posture.go
     calls:
-      - {symbol: "ingressPostureEdgeSet", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-  - file: service_story_overview.go
+      - {symbol: "ingressPostureEdgeSet", count: 1, non_hot: {class: keyed_support, source_sha256: d10f641a0405f691b7f4235796b2f644cf0c12730314390fd7805c0fe87f1554, key_bound: bounded_key_batch, max_keys: 50, max_results: 50}}
+  - file: service/service_story_overview.go
     calls:
-      - {symbol: "buildServiceDocumentationOverview", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "buildServiceDocumentationOverview", count: 1, non_hot: {class: keyed_support, source_sha256: 9fb48f96e392b7fcc0852fd80db9276460680b53f23a840f245bd804675dc3aa, key_bound: single_key, max_results: 1}}
   - file: service_workload_resolution.go
     calls:
       - {symbol: "(*EntityHandler).hydrateServiceWorkloadCandidateRepoNames", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

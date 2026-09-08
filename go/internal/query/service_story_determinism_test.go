@@ -11,6 +11,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // Issue #5644: repeated authorized service-story calls over unchanged
@@ -136,12 +139,12 @@ func assertRuntimeTopologyEdgeShape(t *testing.T, name string, edges []map[strin
 	definesCount, instanceOfCount := 0, 0
 	droppedInstanceID := fmt.Sprintf("workload-instance:orders:inst-%02d", instanceCount)
 	for _, edge := range edges {
-		switch StringVal(edge, "relationship_type") {
+		switch querycontract.StringVal(edge, "relationship_type") {
 		case "DEFINES":
 			definesCount++
 		case "INSTANCE_OF":
 			instanceOfCount++
-			if StringVal(edge, "source_id") == droppedInstanceID {
+			if querycontract.StringVal(edge, "source_id") == droppedInstanceID {
 				t.Fatalf("%s topology edges retained a dangling INSTANCE_OF edge for dropped instance %s", name, droppedInstanceID)
 			}
 		}
@@ -257,7 +260,7 @@ func TestSortWorkloadPlatformRowsBreaksTiesByPlatformKindWhenPlatformIDEmpty(t *
 			sortWorkloadPlatformRows(rows)
 			got := make([]string, 0, len(rows))
 			for _, row := range rows {
-				got = append(got, StringVal(row, "platform_kind"))
+				got = append(got, querycontract.StringVal(row, "platform_kind"))
 			}
 			if strings.Join(got, ",") != strings.Join(wantOrder, ",") {
 				t.Fatalf("platform_kind order (%s) = %v, want %v", name, got, wantOrder)
@@ -272,27 +275,27 @@ func TestLoadConsumerRepositoryEnrichmentFromCandidatesBreaksTiesByRepoID(t *tes
 	// Both candidates share the same relationship types (so the same
 	// consumer_kinds and sort score) and the same repository display name,
 	// leaving repo_id as the only remaining stable tiebreaker.
-	candidateA := provisioningRepositoryCandidate{RepoID: "repository:consumer-a", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}}
-	candidateB := provisioningRepositoryCandidate{RepoID: "repository:consumer-b", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}}
+	candidateA := impacttrace.ProvisioningRepositoryCandidate{RepoID: "repository:consumer-a", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}}
+	candidateB := impacttrace.ProvisioningRepositoryCandidate{RepoID: "repository:consumer-b", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}}
 
-	ascending := []provisioningRepositoryCandidate{candidateA, candidateB}
-	shuffled := []provisioningRepositoryCandidate{candidateB, candidateA}
+	ascending := []impacttrace.ProvisioningRepositoryCandidate{candidateA, candidateB}
+	shuffled := []impacttrace.ProvisioningRepositoryCandidate{candidateB, candidateA}
 
 	wantOrder := []string{"repository:consumer-a", "repository:consumer-b"}
 
-	for name, candidates := range map[string][]provisioningRepositoryCandidate{"ascending": ascending, "shuffled": shuffled} {
+	for name, candidates := range map[string][]impacttrace.ProvisioningRepositoryCandidate{"ascending": ascending, "shuffled": shuffled} {
 		candidates := candidates
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			consumers, _, err := loadConsumerRepositoryEnrichmentFromCandidates(
+			consumers, _, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
 				t.Context(), nil, nil, "repository:orders", "orders-api", nil, 0, candidates, false, false,
 			)
 			if err != nil {
-				t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
+				t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
 			}
 			got := make([]string, 0, len(consumers))
 			for _, consumer := range consumers {
-				got = append(got, StringVal(consumer, "repo_id"))
+				got = append(got, querycontract.StringVal(consumer, "repo_id"))
 			}
 			if strings.Join(got, ",") != strings.Join(wantOrder, ",") {
 				t.Fatalf("consumer order (%s) = %v, want %v", name, got, wantOrder)
@@ -336,7 +339,7 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 		{"instance_id": "workload-instance:orders:prod-a", "platform_id": "platform:eks-prod", "platform_name": "eks-prod", "platform_kind": "argocd_applicationset"},
 		{"instance_id": "workload-instance:orders:prod-b", "platform_id": "platform:eks-prod-2", "platform_name": "eks-prod-2", "platform_kind": "argocd_applicationset"},
 	}
-	candidates := []provisioningRepositoryCandidate{
+	candidates := []impacttrace.ProvisioningRepositoryCandidate{
 		{RepoID: "repository:consumer-a", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}},
 		{RepoID: "repository:consumer-b", RepoName: "orders-consumer", RelationshipTypes: []string{"DEPLOYS_FROM"}},
 	}
@@ -344,7 +347,7 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 	if shuffle {
 		runtimeRows = []map[string]any{runtimeRows[2], runtimeRows[0], runtimeRows[1]}
 		platformRows = []map[string]any{platformRows[2], platformRows[1], platformRows[0]}
-		candidates = []provisioningRepositoryCandidate{candidates[1], candidates[0]}
+		candidates = []impacttrace.ProvisioningRepositoryCandidate{candidates[1], candidates[0]}
 	}
 
 	reader := fakeGraphReader{run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
@@ -367,11 +370,11 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 	}
 	attachDirectPlatforms(topology.instances, platformResult.rows)
 
-	consumers, _, err := loadConsumerRepositoryEnrichmentFromCandidates(
+	consumers, _, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(
 		t.Context(), nil, nil, repoID, "orders-api", nil, 0, candidates, false, false,
 	)
 	if err != nil {
-		t.Fatalf("loadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
+		t.Fatalf("impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates() error = %v", err)
 	}
 
 	workloadContext := map[string]any{
@@ -407,7 +410,7 @@ func workloadRuntimeTopologyTestRow(environment, instanceID string) map[string]a
 func instanceIDs(instances []map[string]any) []string {
 	ids := make([]string, 0, len(instances))
 	for _, instance := range instances {
-		ids = append(ids, StringVal(instance, "instance_id"))
+		ids = append(ids, querycontract.StringVal(instance, "instance_id"))
 	}
 	return ids
 }
@@ -415,7 +418,7 @@ func instanceIDs(instances []map[string]any) []string {
 func platformIDs(platforms []map[string]any) []string {
 	ids := make([]string, 0, len(platforms))
 	for _, platform := range platforms {
-		ids = append(ids, StringVal(platform, "platform_id"))
+		ids = append(ids, querycontract.StringVal(platform, "platform_id"))
 	}
 	return ids
 }

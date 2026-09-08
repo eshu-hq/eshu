@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // B4 EntityHandler/ContentReader seam stayer for #6060: methods on those types must stay in package query, so this file cannot move to service/
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/doctruth"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 const (
@@ -40,7 +40,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 	}
 
 	for _, imageRef := range imageRefs {
-		if detail, ok := serviceStoryRepoOnlyImageCandidateDetail(imageRef); ok {
+		if detail, ok := service.ServiceStoryRepoOnlyImageCandidateDetail(imageRef); ok {
 			missing = append(missing, StringVal(detail, "reason"))
 			missingDetails = append(missingDetails, detail)
 			continue
@@ -54,7 +54,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 		}
 		identity, reason := serviceStoryAdmissibleImageIdentity(identities)
 		if reason != "" {
-			detail, replacementReason, err := serviceStoryImageCandidateMissingExplanation(
+			detail, replacementReason, err := service.ServiceStoryImageCandidateMissingExplanation(
 				ctx,
 				h.ContainerImageIdentities,
 				imageRef,
@@ -82,12 +82,12 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 		}
 		missing = append(missing, attachments.MissingEvidence...)
 		for _, reason := range attachments.MissingEvidence {
-			missingDetails = append(missingDetails, serviceStorySBOMMissingExplanation(imageRef, identity, reason))
+			missingDetails = append(missingDetails, service.ServiceStorySBOMMissingExplanation(imageRef, identity, reason))
 		}
 		sboms, reason := serviceStoryAdmissibleSBOMAttachments(identity.Digest, attachments.Attachments)
 		if reason != "" {
 			missing = append(missing, reason)
-			missingDetails = append(missingDetails, serviceStorySBOMMissingExplanation(imageRef, identity, reason))
+			missingDetails = append(missingDetails, service.ServiceStorySBOMMissingExplanation(imageRef, identity, reason))
 			continue
 		}
 		for _, sbom := range sboms {
@@ -104,7 +104,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 	serviceStorySetSupplyChainImagePackage(workloadContext, map[string]any{
 		"evidence":                  evidence,
 		"missing_evidence":          uniqueSortedStrings(missing),
-		"missing_evidence_details":  serviceStoryUniqueMissingDetails(missingDetails),
+		"missing_evidence_details":  service.ServiceStoryUniqueMissingDetails(missingDetails),
 		"candidate_image_ref_count": len(allImageRefs),
 		"candidate_image_refs":      imageRefs,
 		"image_refs_truncated":      truncated,
@@ -137,78 +137,10 @@ func serviceStoryImageRefsFromDeploymentRow(row map[string]any) []string {
 			}
 		}
 	}
-	if value := serviceStoryMatchedImageRef(row); value != "" {
+	if value := service.ServiceStoryMatchedImageRef(row); value != "" {
 		refs = append(refs, value)
 	}
 	return refs
-}
-
-func serviceStoryMatchedImageRef(row map[string]any) string {
-	value := strings.TrimSpace(StringVal(row, "matched_value"))
-	if value == "" {
-		return ""
-	}
-	kind := strings.ToLower(strings.Join([]string{
-		StringVal(row, "evidence_kind"),
-		StringVal(row, "artifact_family"),
-		StringVal(row, "extractor"),
-	}, " "))
-	if strings.Contains(kind, "image") || strings.Contains(kind, "oci") {
-		return value
-	}
-	if ref := serviceStoryExplicitImageRef(value); ref != "" {
-		return ref
-	}
-	if strings.Contains(kind, "helm") {
-		return serviceStoryRegistryImageRepository(value)
-	}
-	return ""
-}
-
-func serviceStoryExplicitImageRef(raw string) string {
-	ref := doctruth.NormalizeContainerImageRefClaim(raw)
-	if ref == "" {
-		return ""
-	}
-	repository := ref
-	if digestIndex := strings.Index(repository, "@sha256:"); digestIndex >= 0 {
-		repository = repository[:digestIndex]
-	} else if tagIndex := strings.LastIndex(repository, ":"); tagIndex >= 0 {
-		repository = repository[:tagIndex]
-	}
-	if !strings.Contains(repository, "/") && !strings.Contains(repository, ".") {
-		return ""
-	}
-	return ref
-}
-
-func serviceStoryRegistryImageRepository(raw string) string {
-	repository := strings.Trim(strings.TrimSpace(raw), `"'`)
-	if repository == "" ||
-		strings.ContainsAny(repository, " \t\n\r${}") ||
-		strings.Contains(repository, "://") ||
-		strings.Contains(repository, "@") {
-		return ""
-	}
-	if tagIndex := strings.LastIndex(repository, ":"); tagIndex >= 0 {
-		if tagIndex > strings.LastIndex(repository, "/") {
-			return ""
-		}
-	}
-	parts := strings.Split(repository, "/")
-	if len(parts) < 2 {
-		return ""
-	}
-	registry := parts[0]
-	if !strings.Contains(registry, ".") && !strings.Contains(registry, ":") && !strings.EqualFold(registry, "localhost") {
-		return ""
-	}
-	for _, part := range parts {
-		if part == "" || part == "." || part == ".." || strings.HasSuffix(part, ".yaml") || strings.HasSuffix(part, ".yml") {
-			return ""
-		}
-	}
-	return repository
 }
 
 func serviceStoryAdmissibleImageIdentity(rows []ContainerImageIdentityRow) (ContainerImageIdentityRow, string) {
@@ -345,8 +277,4 @@ func serviceStorySetSupplyChainImagePackage(workloadContext map[string]any, imag
 	}
 	supplyChain["image_package"] = imagePackage
 	workloadContext["supply_chain_evidence"] = supplyChain
-}
-
-func serviceStorySupplyChainImagePackage(workloadContext map[string]any) map[string]any {
-	return mapValue(mapValue(workloadContext, "supply_chain_evidence"), "image_package")
 }

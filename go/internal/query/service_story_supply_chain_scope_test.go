@@ -7,6 +7,9 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 )
 
 type serviceStoryExplainingImageIdentityStore struct {
@@ -18,14 +21,14 @@ func (s *serviceStoryExplainingImageIdentityStore) ExplainContainerImageCandidat
 	_ context.Context,
 	imageRef string,
 ) (map[string]any, error) {
-	return copyMap(s.explanations[imageRef]), nil
+	return querycontract.CopyMap(s.explanations[imageRef]), nil
 }
 
 func TestServiceStorySupplyChainEvidenceExplainsRepoOnlyImageCandidate(t *testing.T) {
 	t.Parallel()
 
 	imageStore := &serviceStoryExplainingImageIdentityStore{
-		serviceStoryImageIdentityStore: serviceStoryImageIdentityStore{rowsByImageRef: map[string][]ContainerImageIdentityRow{}},
+		serviceStoryImageIdentityStore: serviceStoryImageIdentityStore{rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{}},
 	}
 	handler := &EntityHandler{
 		ContainerImageIdentities: imageStore,
@@ -46,31 +49,31 @@ func TestServiceStorySupplyChainEvidenceExplainsRepoOnlyImageCandidate(t *testin
 		t.Fatalf("image identity store calls = %d, want no lookup for repo-only image candidate", got)
 	}
 	segment := serviceTraceImagePackageSegment(ctx)
-	if got, want := StringVal(segment, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
-	if got, want := IntVal(segment, "candidate_image_ref_count"), 1; got != want {
+	if got, want := querycontract.IntVal(segment, "candidate_image_ref_count"), 1; got != want {
 		t.Fatalf("candidate_image_ref_count = %d, want %d", got, want)
 	}
-	if refs := StringSliceVal(segment, "candidate_image_refs"); len(refs) != 1 || refs[0] != serviceStoryTestImageRepository {
+	if refs := querycontract.StringSliceVal(segment, "candidate_image_refs"); len(refs) != 1 || refs[0] != serviceStoryTestImageRepository {
 		t.Fatalf("candidate_image_refs = %#v, want %q", refs, serviceStoryTestImageRepository)
 	}
-	missing := StringSliceVal(segment, "missing_evidence")
+	missing := querycontract.StringSliceVal(segment, "missing_evidence")
 	if !stringSliceContains(missing, "deployment_image_reference_repo_only") {
 		t.Fatalf("missing_evidence = %#v, want deployment_image_reference_repo_only", missing)
 	}
-	details := mapSliceValue(segment, "missing_evidence_details")
+	details := querycontract.MapSliceValue(segment, "missing_evidence_details")
 	if got, want := len(details), 1; got != want {
 		t.Fatalf("missing_evidence_details count = %d, want %d; segment=%#v", got, want, segment)
 	}
 	detail := details[0]
-	if got, want := StringVal(detail, "candidate_image_ref"), serviceStoryTestImageRepository; got != want {
+	if got, want := querycontract.StringVal(detail, "candidate_image_ref"), serviceStoryTestImageRepository; got != want {
 		t.Fatalf("candidate_image_ref = %q, want %q", got, want)
 	}
-	if got, want := StringVal(detail, "reason"), "deployment_image_reference_repo_only"; got != want {
+	if got, want := querycontract.StringVal(detail, "reason"), "deployment_image_reference_repo_only"; got != want {
 		t.Fatalf("reason = %q, want %q", got, want)
 	}
-	if action := StringVal(detail, "operator_action"); !strings.Contains(action, "tag or digest") {
+	if action := querycontract.StringVal(detail, "operator_action"); !strings.Contains(action, "tag or digest") {
 		t.Fatalf("operator_action = %q, want tag or digest guidance", action)
 	}
 }
@@ -81,7 +84,7 @@ func TestServiceStorySupplyChainEvidenceExplainsOCIRegistryTargetOutsideScope(t 
 	imageRef := "444455556666.dkr.ecr.us-east-1.amazonaws.com/team/api:prod"
 	repositoryID := "oci-registry://444455556666.dkr.ecr.us-east-1.amazonaws.com/team/api"
 	imageStore := &serviceStoryExplainingImageIdentityStore{
-		serviceStoryImageIdentityStore: serviceStoryImageIdentityStore{rowsByImageRef: map[string][]ContainerImageIdentityRow{}},
+		serviceStoryImageIdentityStore: serviceStoryImageIdentityStore{rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{}},
 		explanations: map[string]map[string]any{
 			imageRef: {
 				"candidate_image_ref":     imageRef,
@@ -112,31 +115,31 @@ func TestServiceStorySupplyChainEvidenceExplainsOCIRegistryTargetOutsideScope(t 
 		t.Fatalf("SBOM attachment store calls = %d, want none without image identity", got)
 	}
 	segment := serviceTraceImagePackageSegment(ctx)
-	if got, want := StringVal(segment, "status"), "missing_evidence"; got != want {
+	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
-	if got := IntVal(segment, "evidence_count"); got != 0 {
+	if got := querycontract.IntVal(segment, "evidence_count"); got != 0 {
 		t.Fatalf("evidence_count = %d, want 0 for out-of-scope OCI target", got)
 	}
-	missing := StringSliceVal(segment, "missing_evidence")
+	missing := querycontract.StringSliceVal(segment, "missing_evidence")
 	if !stringSliceContains(missing, "oci_registry_target_outside_scope") {
 		t.Fatalf("missing_evidence = %#v, want oci_registry_target_outside_scope", missing)
 	}
 	if stringSliceContains(missing, "container_image_identity_missing") {
 		t.Fatalf("missing_evidence = %#v, want specific OCI scope reason instead of generic identity missing", missing)
 	}
-	details := mapSliceValue(segment, "missing_evidence_details")
+	details := querycontract.MapSliceValue(segment, "missing_evidence_details")
 	if got, want := len(details), 1; got != want {
 		t.Fatalf("missing_evidence_details count = %d, want %d; segment=%#v", got, want, segment)
 	}
 	detail := details[0]
-	if got, want := StringVal(detail, "candidate_repository_id"), repositoryID; got != want {
+	if got, want := querycontract.StringVal(detail, "candidate_repository_id"), repositoryID; got != want {
 		t.Fatalf("candidate_repository_id = %q, want %q", got, want)
 	}
-	if got, want := StringVal(detail, "collector_scope"), "outside_configured_targets"; got != want {
+	if got, want := querycontract.StringVal(detail, "collector_scope"), "outside_configured_targets"; got != want {
 		t.Fatalf("collector_scope = %q, want %q", got, want)
 	}
-	if action := StringVal(detail, "operator_action"); !strings.Contains(action, repositoryID) {
+	if action := querycontract.StringVal(detail, "operator_action"); !strings.Contains(action, repositoryID) {
 		t.Fatalf("operator_action = %q, want repository-specific target guidance", action)
 	}
 }

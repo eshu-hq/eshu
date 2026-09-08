@@ -3,7 +3,7 @@
 
 package query
 
-const openAPIPathsServiceIntelligenceReport = `
+const OpenAPIPathsServiceIntelligenceReport = `
     "/api/v0/services/{service_name}/intelligence-report": {
       "get": {
         "tags": ["entities"],

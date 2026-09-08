@@ -140,3 +140,17 @@ func RequireStringSlice(t *testing.T, parent map[string]any, key string, want []
 		}
 	}
 }
+
+// SegmentByName returns the first segment whose "name" decodes to name, or
+// nil. It moved here for #6060 lane B B4 because the service trace-path
+// tests moved to the service family package while the ci_cd story parity
+// test stays in root; a _test.go declaration in either package is
+// unreachable from the other.
+func SegmentByName(segments []map[string]any, name string) map[string]any {
+	for _, segment := range segments {
+		if querycontract.StringVal(segment, "name") == name {
+			return segment
+		}
+	}
+	return nil
+}

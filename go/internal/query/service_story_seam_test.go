@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestBuildServiceStoryEnvelopeRequiresServiceName(t *testing.T) {
 	t.Parallel()
-	handler := &EntityHandler{Profile: ProfileProduction}
+	handler := &EntityHandler{Profile: querycontract.ProfileProduction}
 	data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), ServiceWorkloadSelector{}, "service_story")
 	if data != nil || truth != nil {
 		t.Fatalf("missing service name should yield no data/truth, got data=%v truth=%v", data, truth)
@@ -33,7 +35,7 @@ func TestBuildServiceStoryEnvelopeMissingServiceReturnsNotFound(t *testing.T) {
 			runSingleByMatch: map[string]map[string]any{},
 			runByMatch:       map[string][]map[string]any{},
 		},
-		Profile: ProfileProduction,
+		Profile: querycontract.ProfileProduction,
 	}
 	data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), ServiceWorkloadSelector{ServiceName: "missing"}, "service_story")
 	if data != nil || truth != nil {
@@ -55,7 +57,7 @@ func TestBuildServiceStoryEnvelopeUnsupportedCapability(t *testing.T) {
 	if status != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want 501; errEnv=%#v", status, errEnv)
 	}
-	if errEnv == nil || errEnv.Code != ErrorCodeUnsupportedCapability || errEnv.Profiles == nil {
+	if errEnv == nil || errEnv.Code != querycontract.ErrorCodeUnsupportedCapability || errEnv.Profiles == nil {
 		t.Fatalf("errEnv = %#v, want unsupported_capability with profiles", errEnv)
 	}
 }
@@ -75,7 +77,7 @@ func TestBuildServiceStoryEnvelopeMapsGraphReadAvailabilityErrors(t *testing.T) 
 		wantStatus int
 		wantCode   ErrorCode
 	}{
-		{name: "unavailable", err: fmt.Errorf("private address: %w", ErrGraphUnavailable), wantStatus: http.StatusServiceUnavailable, wantCode: ErrorCodeBackendUnavailable},
+		{name: "unavailable", err: fmt.Errorf("private address: %w", ErrGraphUnavailable), wantStatus: http.StatusServiceUnavailable, wantCode: querycontract.ErrorCodeBackendUnavailable},
 		{name: "deadline", err: fmt.Errorf("private query: %w", ErrGraphReadDeadline), wantStatus: http.StatusGatewayTimeout, wantCode: ErrorCodeBackendTimeout},
 	}
 
@@ -91,7 +93,7 @@ func TestBuildServiceStoryEnvelopeMapsGraphReadAvailabilityErrors(t *testing.T) 
 						return nil, test.err
 					},
 				},
-				Profile: ProfileProduction,
+				Profile: querycontract.ProfileProduction,
 			}
 
 			data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(

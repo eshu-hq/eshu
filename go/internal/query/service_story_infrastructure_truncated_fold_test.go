@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
@@ -68,7 +69,7 @@ func TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated(t *test
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-story-infra-trunc", "repo_name": "svc-story-infra-trunc"}}, nil
 				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
-					limit := IntVal(params, "limit")
+					limit := querycontract.IntVal(params, "limit")
 					rows := make([]map[string]any, limit)
 					for i := range rows {
 						rows[i] = map[string]any{"type": "K8sResource", "name": fmt.Sprintf("res-%d", i)}
@@ -79,7 +80,7 @@ func TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated(t *test
 				}
 			},
 		},
-		Profile: ProfileProduction,
+		Profile: querycontract.ProfileProduction,
 	}
 
 	mux := http.NewServeMux()

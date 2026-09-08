@@ -79,13 +79,6 @@ func buildWorkloadStory(ctx map[string]any) string {
 	return querycontract.BuildWorkloadStory(ctx)
 }
 
-// buildWorkloadStoryWithAPISurface keeps narrative counts aligned with the
-// normalized service-story API surface. The implementation moved to
-// querycontract for #6060; this wrapper keeps root callers unchanged.
-func buildWorkloadStoryWithAPISurface(ctx map[string]any, apiSurface map[string]any, hasAPISurface bool) string {
-	return querycontract.BuildWorkloadStoryWithAPISurface(ctx, apiSurface, hasAPISurface)
-}
-
 // safeStr extracts a string from a map while filtering empty and nil values.
 // The implementation moved to querycontract for #6060; this wrapper keeps
 // root callers unchanged.

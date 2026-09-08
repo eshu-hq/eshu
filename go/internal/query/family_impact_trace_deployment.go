@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 // deploymentTraceContextBackend is the production
@@ -44,7 +45,7 @@ func (deploymentTraceContextBackend) FetchServiceTraceContext(
 // BuildServiceDeploymentOverview implements
 // impact.DeploymentTraceContextProvider.
 func (deploymentTraceContextBackend) BuildServiceDeploymentOverview(workloadContext map[string]any) map[string]any {
-	return buildServiceDeploymentOverview(workloadContext)
+	return service.BuildServiceDeploymentOverview(workloadContext)
 }
 
 // fetchServiceTraceContext stays in root: it builds a B5-entity handler

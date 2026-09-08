@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestPackageRegistryCorrelationsResolveRepositorySelectors(t *testing.T) {
@@ -134,8 +137,8 @@ func TestCICDRunCorrelationAggregatesResolveRepositorySelectors(t *testing.T) {
 func TestServiceCatalogCorrelationsResolveRepositorySelectors(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingServiceCatalogCorrelationStore{
-		rows: []ServiceCatalogCorrelationRow{{
+	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
+		Rows: []querycontract.ServiceCatalogCorrelationRow{{
 			CorrelationID: "correlation-1",
 			RepositoryID:  "repo://example/api",
 			Outcome:       "exact",
@@ -159,7 +162,7 @@ func TestServiceCatalogCorrelationsResolveRepositorySelectors(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := store.lastFilter.RepositoryID, "repo://example/api"; got != want {
+	if got, want := store.LastFilter.RepositoryID, "repo://example/api"; got != want {
 		t.Fatalf("RepositoryID = %q, want %q", got, want)
 	}
 }

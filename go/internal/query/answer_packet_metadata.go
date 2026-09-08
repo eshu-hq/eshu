@@ -114,7 +114,7 @@ func missingCitationHandlesFromMetadata(rows []map[string]any) []evidenceCitatio
 			RepoID:         StringVal(row, "repo_id"),
 			RelativePath:   StringVal(row, "relative_path"),
 			EntityID:       StringVal(row, "entity_id"),
-			EvidenceFamily: firstNonEmptyString(StringVal(row, "evidence_family"), StringVal(row, "slot")),
+			EvidenceFamily: querycontract.FirstNonEmptyString(StringVal(row, "evidence_family"), StringVal(row, "slot")),
 			Reason:         StringVal(row, "reason"),
 			StartLine:      IntVal(row, "start_line"),
 			EndLine:        IntVal(row, "end_line"),

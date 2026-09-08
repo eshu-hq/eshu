@@ -16,7 +16,7 @@ import (
 
 // crossTenantProvisioningGraph resolves the orders-api workload anchored on the
 // grant-checked repo-a and returns ONE cross-tenant provisioning candidate from
-// queryProvisioningRepositoryCandidates: repo-b, a DIFFERENT tenant's repository
+// impacttrace.QueryProvisioningRepositoryCandidates: repo-b, a DIFFERENT tenant's repository
 // that provisions/deploys/consumes repo-a. The candidate cypher anchors on
 // (target:Repository {id:$repo_id}) -- the service's own repo -- and traverses
 // to the FAR repo with NO grant predicate, so repo.id/repo.name name a

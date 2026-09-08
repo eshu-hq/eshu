@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
@@ -32,7 +34,7 @@ func TestEnrichServiceQueryContextQueriesProvisioningCandidatesOnce(t *testing.T
 	err := enrichServiceQueryContextWithOptions(
 		context.Background(),
 		graph,
-		fakePortContentStore{},
+		querytestutil.FakePortContentStore{},
 		workloadContext,
 		serviceQueryEnrichmentOptions{IncludeRelatedModuleUsage: true},
 	)
@@ -78,10 +80,10 @@ func TestQueryRepoAPISurfaceBoundsEndpointRowsAndKeepsAggregateCount(t *testing.
 	if got == nil {
 		t.Fatal("repository.QueryRepoAPISurface() = nil, want API surface")
 	}
-	if count := IntVal(got, "endpoint_count"); count != 73 {
+	if count := querycontract.IntVal(got, "endpoint_count"); count != 73 {
 		t.Fatalf("endpoint_count = %d, want aggregate count 73", count)
 	}
-	if endpoints := mapSliceValue(got, "endpoints"); len(endpoints) != 1 {
+	if endpoints := querycontract.MapSliceValue(got, "endpoints"); len(endpoints) != 1 {
 		t.Fatalf("len(endpoints) = %d, want bounded detail rows", len(endpoints))
 	}
 	if graph.countCalls != 1 {
@@ -90,7 +92,7 @@ func TestQueryRepoAPISurfaceBoundsEndpointRowsAndKeepsAggregateCount(t *testing.
 	if graph.detailCalls != 1 {
 		t.Fatalf("detailCalls = %d, want 1", graph.detailCalls)
 	}
-	if limit := IntVal(graph.detailParams, "limit"); limit != repository.RepositoryAPISurfaceEndpointLimit {
+	if limit := querycontract.IntVal(graph.detailParams, "limit"); limit != repository.RepositoryAPISurfaceEndpointLimit {
 		t.Fatalf("detail limit = %d, want %d", limit, repository.RepositoryAPISurfaceEndpointLimit)
 	}
 }
@@ -168,7 +170,7 @@ func TestQueryRepoDeploymentEvidenceBoundsGraphDirections(t *testing.T) {
 		if !strings.Contains(cypher, "LIMIT $limit") {
 			t.Fatalf("cypher call %d = %q, want LIMIT $limit", i, cypher)
 		}
-		if got, want := IntVal(reader.params[i], "limit"), repository.RepositoryDeploymentEvidenceArtifactLimit+1; got != want {
+		if got, want := querycontract.IntVal(reader.params[i], "limit"), repository.RepositoryDeploymentEvidenceArtifactLimit+1; got != want {
 			t.Fatalf("params[%d].limit = %d, want %d", i, got, want)
 		}
 	}
@@ -214,7 +216,7 @@ func TestHydrateRepositoryCandidateFilesStartsExactReadsConcurrently(t *testing.
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := artifacts.HydrateRepositoryCandidateFiles(ctx, store, "repo-service", []FileContent{
+		_, err := artifacts.HydrateRepositoryCandidateFiles(ctx, store, "repo-service", []querycontract.FileContent{
 			{RepoID: "repo-service", RelativePath: "compose-a.yaml", ArtifactType: "docker_compose"},
 			{RepoID: "repo-service", RelativePath: "compose-b.yaml", ArtifactType: "docker_compose"},
 		}, artifacts.IsDockerComposeArtifact)
@@ -240,9 +242,9 @@ func TestHydrateRepositoryCandidateFilesCapsExactReads(t *testing.T) {
 	t.Parallel()
 
 	store := &countingArtifactHydrationStore{}
-	files := make([]FileContent, 0, artifacts.RepositoryArtifactHydrationLimit+5)
+	files := make([]querycontract.FileContent, 0, artifacts.RepositoryArtifactHydrationLimit+5)
 	for i := 0; i < artifacts.RepositoryArtifactHydrationLimit+5; i++ {
-		files = append(files, FileContent{
+		files = append(files, querycontract.FileContent{
 			RepoID:       "repo-service",
 			RelativePath: fmt.Sprintf(".github/workflows/deploy-%02d.yaml", i),
 			ArtifactType: "github_actions_workflow",
@@ -259,12 +261,12 @@ func TestHydrateRepositoryCandidateFilesCapsExactReads(t *testing.T) {
 }
 
 type blockingArtifactHydrationStore struct {
-	fakePortContentStore
+	querycontract.ContentStore
 	started chan string
 	release chan struct{}
 }
 
-func (s *blockingArtifactHydrationStore) GetFileContent(ctx context.Context, repoID, relativePath string) (*FileContent, error) {
+func (s *blockingArtifactHydrationStore) GetFileContent(ctx context.Context, repoID, relativePath string) (*querycontract.FileContent, error) {
 	select {
 	case s.started <- relativePath:
 	case <-ctx.Done():
@@ -272,18 +274,18 @@ func (s *blockingArtifactHydrationStore) GetFileContent(ctx context.Context, rep
 	}
 	select {
 	case <-s.release:
-		return &FileContent{RepoID: repoID, RelativePath: relativePath, Content: "services: {}"}, nil
+		return &querycontract.FileContent{RepoID: repoID, RelativePath: relativePath, Content: "services: {}"}, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 }
 
 type countingArtifactHydrationStore struct {
-	fakePortContentStore
+	querycontract.ContentStore
 	calls atomic.Int64
 }
 
-func (s *countingArtifactHydrationStore) GetFileContent(_ context.Context, repoID, relativePath string) (*FileContent, error) {
+func (s *countingArtifactHydrationStore) GetFileContent(_ context.Context, repoID, relativePath string) (*querycontract.FileContent, error) {
 	s.calls.Add(1)
-	return &FileContent{RepoID: repoID, RelativePath: relativePath, Content: "name: deploy"}, nil
+	return &querycontract.FileContent{RepoID: repoID, RelativePath: relativePath, Content: "name: deploy"}, nil
 }

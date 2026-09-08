@@ -3,13 +3,17 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 func TestServiceStoryAnswerDataAddsAnswerPacketCompanion(t *testing.T) {
 	t.Parallel()
 
-	truth := BuildTruthEnvelope(
-		ProfileProduction,
+	truth := querycontract.BuildTruthEnvelope(
+		querycontract.ProfileProduction,
 		"platform_impact.context_overview",
 		TruthBasisHybrid,
 		"resolved from service dossier and platform evidence",

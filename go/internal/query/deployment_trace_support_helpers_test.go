@@ -9,6 +9,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestLoadProvisioningSourceChainsBuildsCompactTerraformEvidence(t *testing.T) {
@@ -115,13 +117,13 @@ func TestLoadProvisioningSourceChainsBuildsCompactTerraformEvidence(t *testing.T
 func TestLoadConsumerRepositoryEnrichmentPreservesDualViews(t *testing.T) {
 	t.Parallel()
 
-	content := patternConsumerSearchContentStore{
-		fileRows: map[string][]FileContent{
+	content := querytestutil.PatternConsumerSearchContentStore{
+		FileRows: map[string][]FileContent{
 			"sample-service-api": {
 				{RepoID: "repo-consumer-1", RelativePath: "config/service.json"},
 			},
 		},
-		exactRows: map[string][]FileContent{
+		ExactRows: map[string][]FileContent{
 			"sample-service-api.qa.example.test": {
 				{RepoID: "repo-consumer-1", RelativePath: "deploy/values.yaml"},
 			},
@@ -210,13 +212,13 @@ func TestLoadConsumerRepositoryEnrichmentPreservesDualViews(t *testing.T) {
 func TestLoadConsumerRepositoryEnrichmentFindsCrossRepoConsumersOutsideGraphCandidates(t *testing.T) {
 	t.Parallel()
 
-	content := patternConsumerSearchContentStore{
-		fileRows: map[string][]FileContent{
+	content := querytestutil.PatternConsumerSearchContentStore{
+		FileRows: map[string][]FileContent{
 			"sample-service-api": {
 				{RepoID: "repo-consumer-9", RelativePath: "configs/service.json"},
 			},
 		},
-		exactRows: map[string][]FileContent{
+		ExactRows: map[string][]FileContent{
 			"sample-service-api.qa.example.test": {
 				{RepoID: "repo-consumer-9", RelativePath: "deploy/values.yaml"},
 			},
@@ -274,14 +276,14 @@ func TestLoadConsumerRepositoryEnrichmentFindsCrossRepoConsumersOutsideGraphCand
 func TestLoadConsumerRepositoryEnrichmentWithLimitCapsMergedConsumersByEvidenceStrength(t *testing.T) {
 	t.Parallel()
 
-	content := patternConsumerSearchContentStore{
-		fileRows: map[string][]FileContent{
+	content := querytestutil.PatternConsumerSearchContentStore{
+		FileRows: map[string][]FileContent{
 			"sample-service-api": {
 				{RepoID: "repo-consumer-1", RelativePath: "config/service.json"},
 				{RepoID: "repo-consumer-3", RelativePath: "config/service.json"},
 			},
 		},
-		exactRows: map[string][]FileContent{
+		ExactRows: map[string][]FileContent{
 			"sample-service-api.qa.example.test": {
 				{RepoID: "repo-consumer-1", RelativePath: "deploy/values.yaml"},
 				{RepoID: "repo-consumer-4", RelativePath: "deploy/values.yaml"},
@@ -352,13 +354,13 @@ func TestLoadConsumerRepositoryEnrichmentWithLimitCapsMergedConsumersByEvidenceS
 func TestLoadConsumerRepositoryEnrichmentBackfillsRepositoryNamesForContentOnlyConsumers(t *testing.T) {
 	t.Parallel()
 
-	content := patternConsumerSearchContentStore{
-		fileRows: map[string][]FileContent{
+	content := querytestutil.PatternConsumerSearchContentStore{
+		FileRows: map[string][]FileContent{
 			"sample-service-api": {
 				{RepoID: "repo-consumer-9", RelativePath: "configs/service.json"},
 			},
 		},
-		exactRows: map[string][]FileContent{
+		ExactRows: map[string][]FileContent{
 			"sample-service-api.qa.example.test": {
 				{RepoID: "repo-consumer-9", RelativePath: "deploy/values.yaml"},
 			},

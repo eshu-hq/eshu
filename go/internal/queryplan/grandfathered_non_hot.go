@@ -33,8 +33,6 @@ var grandfatheredNonHotSourceDigests = map[string]string{
 	"infra_resource_aggregates.go:(GraphInfraResourceAggregateStore).InfraResourceInventory":   "7e1258c40386cdd5205151bb85a028927ff5c99a1b1628a9ebbab1769440d082",
 	"neo4j.go:(*Neo4jReader).RelationshipTypes":                                                "0a1d2ac1a82d38e0bd8766758df6b1f894f95c94a169c2419666ab521f8bcce4",
 	"neo4j.go:(*Neo4jReader).RunSingle":                                                        "b77731433ac905d12ca935b11decf557c81280901ef22fcdfb0a3bf2dedf1227",
-	"service_ingress_posture.go:ingressPostureEdgeSet":                                         "b59356535aed2f95d7a9f96644dbba8c39ee267e8f0f78442d363432eb548a07",
-	"service_story_overview.go:buildServiceDocumentationOverview":                              "8c1253751e3215f2b7646751cc76fb9995a8d1600a2d39c4a7690bfad59f6c82",
 	"service_workload_resolution.go:(*EntityHandler).hydrateServiceWorkloadCandidateRepoNames": "c486e52bf047578ac97b8cbf015fc1e93dc51275356b981ca93d125c53f0a423",
 	"status.go:(*StatusHandler).getIndexStatus":                                                "573b83514e91247fca70bd919a4f22eb7491f2f600fb984c152d1906bd04b3f8",
 }

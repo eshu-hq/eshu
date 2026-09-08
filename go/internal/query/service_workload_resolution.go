@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // B4 EntityHandler/ContentReader seam stayer for #6060: methods on those types must stay in package query, so this file cannot move to service/
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 const serviceWorkloadCandidateLimit = 10
@@ -84,7 +86,7 @@ func (h *EntityHandler) resolveServiceWorkloadCandidate(
 		return nil, err
 	}
 
-	timer := startServiceQueryStage(ctx, h.Logger, operation, traceServiceSelectorDisplay(selector), repoID, "service_candidate_lookup")
+	timer := service.StartServiceQueryStage(ctx, h.Logger, operation, traceServiceSelectorDisplay(selector), repoID, "service_candidate_lookup")
 	candidates, truncated, err := h.collectServiceWorkloadCandidates(ctx, selector, repoID)
 	timer.Done(ctx, slog.Int("row_count", len(candidates)), slog.Bool("truncated", truncated))
 	if err != nil {

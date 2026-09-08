@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestGetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface(t *testing.T) {
@@ -84,7 +86,7 @@ func TestGetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface(t *
 			},
 		},
 		Content: fakePortContentStore{},
-		Profile: ProfileProduction,
+		Profile: querycontract.ProfileProduction,
 	}
 
 	mux := http.NewServeMux()
@@ -107,15 +109,15 @@ func TestGetServiceStoryReadbackAlignsSupportOverviewSpecCountWithAPISurface(t *
 	if !ok {
 		t.Fatalf("envelope data type = %T, want object", envelope.Data)
 	}
-	apiSurface := mapValue(data, "api_surface")
-	supportOverview := mapValue(data, "support_overview")
-	if got, want := IntVal(apiSurface, "spec_count"), 2; got != want {
+	apiSurface := querycontract.MapValue(data, "api_surface")
+	supportOverview := querycontract.MapValue(data, "support_overview")
+	if got, want := querycontract.IntVal(apiSurface, "spec_count"), 2; got != want {
 		t.Fatalf("api_surface.spec_count = %d, want %d", got, want)
 	}
-	if got, want := IntVal(supportOverview, "spec_count"), IntVal(apiSurface, "spec_count"); got != want {
+	if got, want := querycontract.IntVal(supportOverview, "spec_count"), querycontract.IntVal(apiSurface, "spec_count"); got != want {
 		t.Fatalf("support_overview.spec_count = %d, want api_surface.spec_count %d", got, want)
 	}
-	if story := StringVal(data, "story"); !strings.Contains(story, "2 spec file(s)") {
+	if story := querycontract.StringVal(data, "story"); !strings.Contains(story, "2 spec file(s)") {
 		t.Fatalf("story = %q, want normalized spec count", story)
 	}
 }

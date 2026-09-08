@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -69,7 +70,7 @@ func buildOutgoingContentRelationships(
 	if relationships, ok, err := buildOutgoingArgoCDRelationships(entity); ok || err != nil {
 		return relationships, false, err
 	}
-	if relationships, ok, err := buildOutgoingTerraformRelationships(entity); ok || err != nil {
+	if relationships, ok, err := impacttrace.BuildOutgoingTerraformRelationships(entity); ok || err != nil {
 		return relationships, false, err
 	}
 	if relationships, ok, err := buildOutgoingGitHubActionsRelationships(entity); ok || err != nil {

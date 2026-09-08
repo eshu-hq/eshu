@@ -3,7 +3,7 @@
 
 package query
 
-const openAPIPathsServiceCatalog = `
+const OpenAPIPathsServiceCatalog = `
     "/api/v0/service-catalog/correlations": {
       "get": {
         "tags": ["service-catalog"],

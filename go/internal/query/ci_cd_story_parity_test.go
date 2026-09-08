@@ -52,7 +52,7 @@ func TestBuildServiceStoryResponsePreservesCICDEvidenceSummaryInTrace(t *testing
 	}
 
 	trace := querytestutil.MustMapField(t, got, "code_to_runtime_trace")
-	segment := segmentByName(mapSliceValue(trace, "segments"), "ci_cd")
+	segment := querytestutil.SegmentByName(mapSliceValue(trace, "segments"), "ci_cd")
 	if segment == nil {
 		t.Fatalf("code_to_runtime_trace missing ci_cd segment: %#v", trace)
 	}
