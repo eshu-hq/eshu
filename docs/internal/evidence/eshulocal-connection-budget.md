@@ -183,13 +183,20 @@ value is what makes this test correct rather than incidentally passing.
 ## Known limit: the derived ceiling has no upper bound
 
 `ResolveLocalPostgresMaxConnections` multiplies the configured per-process pool
-by the holder count with no cap, so a large `ESHU_POSTGRES_MAX_OPEN_CONNS` sizes
-the embedded postmaster past what it can allocate and `eshu local` fails to
-start. The failure is loud -- the postmaster refuses to start and reports the
-shared-memory request -- rather than silent, and it takes an operator value well
-outside the documented range to reach it. Recorded as a known limit rather than
-capped here: choosing the cap is a product decision about the supported range of
-that knob, not a correction to this budget.
+by the holder count and applies no upper bound, so the `max_connections` the
+embedded postmaster starts with scales without limit as
+`ESHU_POSTGRES_MAX_OPEN_CONNS` grows. That much is read from the resolver.
+
+What happens at the top of that range is NOT measured here. The largest value
+this note boots is 60, giving `max_connections = 320` above; nothing on this
+branch establishes where a larger value stops working, or how it fails when it
+does. `postgres-tuning.md` documents a default of 30 and the direction "do not
+raise `ESHU_POSTGRES_MAX_OPEN_CONNS` beyond Postgres server headroom", and names
+no maximum, so there is no documented envelope to place a given value outside of.
+
+Recorded as a known limit rather than capped here: choosing the cap is a product
+decision about the supported range of that knob, not a correction to this
+budget.
 
 ## Known limit: the list counts ROLES, not process instances
 
@@ -372,8 +379,9 @@ assumes.
 
 No-Regression Evidence: the change alters one Postgres start parameter and adds
 three test assertions. No production code path other than
-`embeddedPostgresConfig` is touched, and the value it produces is a compile-time
-constant, so there is no added per-request or per-item work to measure.
+`embeddedPostgresConfig` is touched, and the value it produces is resolved once
+at process start from `ESHU_POSTGRES_MAX_OPEN_CONNS` rather than per request or
+per item, so there is no added per-request or per-item work to measure.
 
 No-Observability-Change: this change adds no runtime signal and removes none.
 The ceiling is a start parameter visible through `SHOW max_connections` on the
