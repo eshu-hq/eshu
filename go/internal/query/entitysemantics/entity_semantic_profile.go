@@ -67,11 +67,19 @@ func AttachSemanticSummary(result map[string]any) {
 	}
 }
 
-// buildEntitySemanticProfile promotes the highest-signal structured
+// BuildEntitySemanticProfile promotes the highest-signal structured
 // semantics already present in parser metadata into a stable query-surface
-// bundle. The implementation moved from root's semantic_profile.go for
-// #6060 so a handler-family subpackage can build the same profile without
-// importing root.
+// bundle, so a handler-family subpackage can build the profile without
+// importing root (#6060).
+//
+// It is logic-identical to repository.BuildEntitySemanticProfile
+// (repository/semantic_profile.go), which lane B's B3 move (#6611) created
+// from the same root original; root's semantic_profile.go no longer exists.
+// Both copies are live -- repository's serves repository_semantics.go, this
+// one serves root's attachSemanticSummary -- so they can drift silently.
+// Keep them in lockstep, or hoist the shared core to querycontract with both
+// leaves forwarding, which is the pattern the rest of this lane uses. Tracked
+// on #6060; not done here because it changes a package lane B owns.
 func BuildEntitySemanticProfile(entity map[string]any) map[string]any {
 	metadata, _ := entity["metadata"].(map[string]any)
 	if len(metadata) == 0 {
