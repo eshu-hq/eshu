@@ -188,6 +188,7 @@ type CodeCallProjectionRunner struct {
 	ReadinessLookup     GraphProjectionReadinessLookup
 	ReadinessPrefetch   GraphProjectionReadinessPrefetch
 	ReducerGraphDrain   ReducerGraphDrain
+	CanonicalQuiescence CanonicalCodeQuiescenceChecker
 	Config              CodeCallProjectionRunnerConfig
 	Wait                func(context.Context, time.Duration) error
 

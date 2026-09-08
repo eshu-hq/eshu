@@ -439,6 +439,10 @@ func buildReducerService(
 			ReadinessLookup:     graphProjectionReadinessLookup,
 			ReadinessPrefetch:   graphProjectionReadinessPrefetch,
 			ReducerGraphDrain:   reducerGraphDrain,
+			// #6184: cross-repo CALLS loss happens on every backend/profile,
+			// so quiescence is wired unconditionally while the contention
+			// half of the drain stays behind the projector drain gate.
+			CanonicalQuiescence: postgres.NewReducerGraphDrain(database),
 			Config:              codeCallCfg,
 			Tracer:              tracer,
 			Instruments:         instruments,

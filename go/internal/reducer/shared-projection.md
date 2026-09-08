@@ -33,8 +33,11 @@ waits before claiming a code-call partition. It waits the same way while any
 code scope's active generation still lacks its `canonical_nodes_committed`
 phase (#6184): the per-intent readiness gate only covers the caller's
 acceptance unit, so a cross-repository edge drained before the callee
-repository commits MATCHes nothing and is marked completed anyway. The gate
-only schedules work. It does not change which rows become `CALLS`,
+repository commits MATCHes nothing and is marked completed anyway. That
+quiescence half is wired unconditionally (`CanonicalQuiescence`), not behind
+the drain flag, because the loss happens on every backend and query profile —
+the DR gate stack itself runs a non-authoritative profile with the drain off.
+The gate only schedules work. It does not change which rows become `CALLS`,
 `REFERENCES`, or `USES_METACLASS`.
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/storage/postgres
