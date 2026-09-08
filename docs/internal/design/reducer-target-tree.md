@@ -1,7 +1,10 @@
 # Reducer target tree (#6061)
 
 Owner-approved destination for the `go/internal/reducer` restructure.
-All counts measured at `origin/main` `73ed3ad73` unless noted.
+All counts measured at `origin/main` `8d0c6cec` unless noted (re-derived
+identical after the #6607/#6608/#6613 base move; that move touched only
+`internal/query` plus the query ledger row — the reducer tree and its
+ledger row are byte-identical).
 
 ## Why this exists
 
