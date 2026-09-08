@@ -80,7 +80,7 @@ go build ./...  # clean; go vet clean on touched packages
 `TestCodeCallProjectionRunnerWaitsForCanonicalCodeQuiescence` fails without
 the runner check (lease claimed, `BlockedReadiness == 0`).
 
-## No-Regression Evidence
+## No-Regression Evidence:
 
 - Baseline: #4594 evidence — 341 s rebuild on the Compose fixture corpus
   (67 scopes, 3,866 facts), `CALLS` 115/116, `EvidenceArtifact` settling at
@@ -110,7 +110,7 @@ the runner check (lease claimed, `BlockedReadiness == 0`).
   + `BlockedReadiness`) instead of losing edges silently — the same trade
   the existing active-work drain check already makes.
 
-## Observability Evidence
+## Observability Evidence:
 
 No new instruments. A stall surfaces through existing signals: shared-intent
 queue depth/age gauges hold pending code-call intents, and blocked cycles
