@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 func TestLoadRepoDependencyFamilyOduRejectsInvalidMultiScopeShapes(t *testing.T) {
 	t.Parallel()
-	raw, err := os.ReadFile(RepoDependencyFamilyCassetteFullPath(repoRootDir(t)))
+	raw, err := os.ReadFile(familyodu.RepoDependencyFamilyCassetteFullPath(repoRootDir(t)))
 	if err != nil {
 		t.Fatalf("read cassette: %v", err)
 	}
@@ -110,7 +112,7 @@ func TestLoadRepoDependencyFamilyOduRejectsInvalidMultiScopeShapes(t *testing.T)
 			if err := os.WriteFile(path, mutated, 0o600); err != nil {
 				t.Fatalf("write mutation: %v", err)
 			}
-			_, err = LoadRepoDependencyFamilyOdu(path)
+			_, err = familyodu.LoadRepoDependencyFamilyOdu(path)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("loadRepoDependencyFamilyOdu() error = %v, want substring %q", err, test.want)
 			}

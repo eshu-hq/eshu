@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"fmt"
@@ -80,13 +80,13 @@ const (
 	RationaleFamilyInvoiceLine = 2
 )
 
-// rationaleFamilyOdu carries five parser-reachable Python functions. Two
+// RationaleFamilyOdu carries five parser-reachable Python functions. Two
 // functions derive exactly three EXPLAINS edges; the other three pin the
 // parser's case, supported-marker, adjacency, and no-comment exclusions. The
 // charge function repeats WHY and carries an empty TODO so exact-set comparison
 // also pins deduplication and empty-text rejection. Synthetic malformed-envelope
 // and precedence guards live in reducer unit tests rather than this live Odù.
-func rationaleFamilyOdu() CatalogOdu {
+func RationaleFamilyOdu() CatalogOdu {
 	const (
 		chargeText  = "Retries are capped at three to bound tail latency."
 		invoiceText = "Invoices are immutable once issued."
@@ -201,7 +201,7 @@ func rationaleFamilyContentEntity(entityID, name, relativePath string, startLine
 func RationaleFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphRepository(repository)
 	if err != nil {
-		panic(fmt.Sprintf("ifa: encode rationale repository %q: %v", repository.RepoID, err))
+		panic(fmt.Sprintf("familyodu: encode rationale repository %q: %v", repository.RepoID, err))
 	}
 	payload["imports_map"] = map[string]any{
 		"charge":        []any{RationaleFamilyLocalPath + "/" + RationaleFamilyChargePath},
@@ -219,7 +219,7 @@ func RationaleFamilyRepositoryFact(repository codegraphv1.Repository) facts.Enve
 func RationaleFamilyFileFact(file codegraphv1.File) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphFile(file)
 	if err != nil {
-		panic(fmt.Sprintf("ifa: encode rationale file %q: %v", file.RelativePath, err))
+		panic(fmt.Sprintf("familyodu: encode rationale file %q: %v", file.RelativePath, err))
 	}
 	return rationaleFamilyFact(factschema.FactKindCodegraphFile, "file:"+file.RepoID+":"+file.RelativePath, payload, false)
 }

@@ -49,7 +49,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 			},
 		},
 		{
-			path: filepath.Join("go", "internal", "ifa", "code_call_family_odu.go"),
+			path: filepath.Join("go", "internal", "ifa", "familyodu", "code_call_family_odu.go"),
 			required: []string{
 				"Both live gate scripts drive this cassette",
 			},
@@ -118,7 +118,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 		{
 			path: filepath.Join("go", "internal", "ifa", "materializededges", "materialized_edges.go"),
 			required: []string{
-				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, and workload_cloud_relationship.",
+				"Current guards cover SQL relationships, documentation edges, code calls, rationale edges, codeowners ownership edges, deployable-unit edges, repository dependencies, submodule pins, inheritance edges, shell-exec edges, workload dependencies, handles_route, runs_in, invokes_cloud_action, and the direct-materialization guards kubernetes_namespace_environment, iam_instance_profile_role, workload_cloud_relationship, and iam_can_assume.",
 			},
 			prohibited: []string{
 				"for \"sql_relationships\" today",
@@ -186,7 +186,7 @@ func TestMaterializedEdgeLiveProofDocumentationMatchesWiring(t *testing.T) {
 				// every test stayed green. The list now reads the same-package
 				// const, so pin the const name -- the drift it guarded against
 				// is unrepresentable rather than merely detected.
-				"\n\t\tdocumentationFamilyCassettePath,",
+				"\n\t\tDocumentationFamilyCassettePath,",
 			},
 		},
 		{

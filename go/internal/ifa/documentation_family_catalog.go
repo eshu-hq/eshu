@@ -5,6 +5,7 @@ package ifa
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 // The documentation_edges family Odù (#5994, under the #5543 umbrella).
@@ -12,7 +13,7 @@ import (
 // documentationFamilyOdu is the binary-portable compiled catalog
 // representation. This file projects the committed cassette
 // (testdata/cassettes/documentation/ifa-documentation-family.json) through
-// the same strict envelope boundary LoadDocumentationFamilyOdu
+// the same strict envelope boundary familyodu.LoadDocumentationFamilyOdu
 // (documentation_family_odu.go) does, so TestDocumentationFamilyIsCatalogedAndResolvable
 // can deeply compare the two representations and fail closed the moment a
 // one-sided edit lets them drift.
@@ -27,8 +28,6 @@ import (
 // "sqltable:public.payments") that never matched a real graph uid, so the
 // offline guard proved nothing about what the live gate actually persists.
 const (
-	documentationFamilyOduName      = "odu:ifa-documentation-family"
-	documentationFamilyCassettePath = "testdata/cassettes/documentation/ifa-documentation-family.json"
 	// DocumentationFamilyScopeID is the documentation family's ingestion scope.
 	// Exported (#6053) so the moved guard reads one value: it is passed to
 	// ExtractDocumentationEdgeRowsWithQuarantine, which STAMPS the scope onto
@@ -57,9 +56,9 @@ const (
 //   - target_kind == "service"            (services are deliberately excluded)
 //   - blank section_id after trimming     (whitespace-only is not an identity)
 //   - duplicate section->target pair      (the seen[] dedup)
-func documentationFamilyOdu() CatalogOdu {
-	odu := Odu{
-		Name: documentationFamilyOduName,
+func documentationFamilyOdu() familyodu.CatalogOdu {
+	odu := familyodu.Odu{
+		Name: familyodu.DocumentationFamilyOduName,
 		Facts: []facts.Envelope{
 			documentationCatalogFact("repository", "repository:"+documentationFamilyRepoID, map[string]any{
 				"repo_id":       documentationFamilyRepoID,
@@ -199,7 +198,7 @@ func documentationFamilyOdu() CatalogOdu {
 			}),
 		},
 	}
-	return CatalogOdu{
+	return familyodu.CatalogOdu{
 		Odu: odu,
 		Detail: "one documentation section with three resolvable entity mentions " +
 			"(function, class, and table) deriving exactly three DOCUMENTS edges, " +

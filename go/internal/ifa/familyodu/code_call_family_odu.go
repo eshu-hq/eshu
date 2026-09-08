@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"bytes"
@@ -27,8 +27,8 @@ import (
 // the determinism/fault-injection matrices therefore assert the same committed
 // bytes rather than maintaining parallel fixtures that can drift.
 const (
-	codeCallFamilyOduName      = "odu:ifa-code-call-family"
-	codeCallFamilyCassettePath = "testdata/cassettes/codecalls/ifa-code-call-family.json"
+	CodeCallFamilyOduName      = "odu:ifa-code-call-family"
+	CodeCallFamilyCassettePath = "testdata/cassettes/codecalls/ifa-code-call-family.json"
 	// codeCallExpectedEdgesPath moved to materializededges alongside the guard
 	// that was its only consumer (#6053); the fixture itself stays under
 	// go/internal/ifa/testdata/ because the offline cassette validator globs
@@ -89,7 +89,7 @@ type codeCallFamilyCassetteFile struct {
 // Exported (#6053) so materializededges' moved code-call-family tests can
 // locate the same committed cassette LoadCodeCallFamilyOdu reads.
 func CodeCallFamilyCassetteFullPath(repoRoot string) string {
-	return filepath.Join(repoRoot, codeCallFamilyCassettePath)
+	return filepath.Join(repoRoot, CodeCallFamilyCassettePath)
 }
 
 // LoadCodeCallFamilyOdu reads the committed cassette and projects it onto the
@@ -120,23 +120,23 @@ func CodeCallFamilyCassetteFullPath(repoRoot string) string {
 func LoadCodeCallFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: read code-call cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: read code-call cassette %s: %w", cassettePath, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	var parsed codeCallFamilyCassetteFile
 	if err := decoder.Decode(&parsed); err != nil {
-		return Odu{}, fmt.Errorf("ifa: parse code-call cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: parse code-call cassette %s: %w", cassettePath, err)
 	}
 	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
-		return Odu{}, fmt.Errorf("ifa: code-call cassette %s has trailing content after its JSON object", cassettePath)
+		return Odu{}, fmt.Errorf("familyodu: code-call cassette %s has trailing content after its JSON object", cassettePath)
 	}
 	if len(parsed.Scopes) != 1 {
-		return Odu{}, fmt.Errorf("ifa: code-call cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
+		return Odu{}, fmt.Errorf("familyodu: code-call cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
 	}
 	scope := parsed.Scopes[0]
 	if len(scope.Facts) == 0 {
-		return Odu{}, fmt.Errorf("ifa: code-call cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
+		return Odu{}, fmt.Errorf("familyodu: code-call cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
 	}
 
 	envelopes := make([]facts.Envelope, 0, len(scope.Facts))
@@ -153,5 +153,5 @@ func LoadCodeCallFamilyOdu(cassettePath string) (Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return Odu{Name: codeCallFamilyOduName, Facts: envelopes}, nil
+	return Odu{Name: CodeCallFamilyOduName, Facts: envelopes}, nil
 }

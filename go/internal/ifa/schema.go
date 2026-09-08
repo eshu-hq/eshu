@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	sdkcollector "github.com/eshu-hq/eshu/sdk/go/collector"
 	"github.com/eshu-hq/eshu/sdk/go/collector/conformance"
 	"github.com/eshu-hq/eshu/sdk/go/factschema/fixturepack"
@@ -23,7 +24,7 @@ import (
 // absent from byKind entirely (e.g. the unregistered "content" kind, #4783 W1)
 // passes untouched — Ifá validates only what the registry declares a schema
 // for, exactly like conformance.ValidatePayloadSchemas' own PayloadSchemas map.
-func ValidateOduPayloads(odu Odu, byKind map[string]facts.FactKindRegistryEntry) error {
+func ValidateOduPayloads(odu familyodu.Odu, byKind map[string]facts.FactKindRegistryEntry) error {
 	rawSchemas, err := oduPayloadSchemas(odu, byKind)
 	if err != nil {
 		return err
@@ -54,7 +55,7 @@ func ValidateOduPayloads(odu Odu, byKind map[string]facts.FactKindRegistryEntry)
 // registry declares a PayloadSchema fixturepack does not ship — a registry/pack
 // drift, not a runtime input condition — rather than silently skipping
 // validation for that kind.
-func oduPayloadSchemas(odu Odu, byKind map[string]facts.FactKindRegistryEntry) (map[string]json.RawMessage, error) {
+func oduPayloadSchemas(odu familyodu.Odu, byKind map[string]facts.FactKindRegistryEntry) (map[string]json.RawMessage, error) {
 	present := map[string]struct{}{}
 	for _, envelope := range odu.Facts {
 		present[envelope.FactKind] = struct{}{}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -25,7 +26,7 @@ func RepositoryCatalog(envelopes []facts.Envelope) []relationships.CatalogEntry 
 	seen := map[string]struct{}{}
 	var catalog []relationships.CatalogEntry
 	for _, envelope := range envelopes {
-		if envelope.FactKind != repositoryFactKind {
+		if envelope.FactKind != familyodu.RepositoryFactKind {
 			continue
 		}
 		entry, ok := relationships.RepositoryCatalogEntry(envelope.Payload)
@@ -47,7 +48,7 @@ func RepositoryCatalog(envelopes []facts.Envelope) []relationships.CatalogEntry 
 // the graph axis of the P1 derivation join (design §1b): it proves an Odù's
 // graph truth by running the real extractor, never by asserting a hand-built
 // evidence-kind table.
-func DiscoveredEvidence(odu Odu) []relationships.EvidenceFact {
+func DiscoveredEvidence(odu familyodu.Odu) []relationships.EvidenceFact {
 	catalog := RepositoryCatalog(odu.Facts)
 	return relationships.DiscoverEvidence(odu.Facts, catalog)
 }

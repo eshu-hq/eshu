@@ -243,12 +243,12 @@ waivers:
     proof_gate: ifa-determinism
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIAMCanAssumeEdges -> cypher/iam_can_assume_edge_writer.go merges CAN_ASSUME; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteIAMCanAssumeEdges -> cypher/iam_can_assume_edge_writer.go merges CAN_ASSUME; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the #6228 cleanup (family stays waived: live determinism/fault-injection matrices do not drive it)"
   - surface: "materialized_edges:iam_can_assume"
     proof_gate: ifa-fault-injection
     issue: "#6228"
     waived: "2026-08-23"
-    reason: "WriteIAMCanAssumeEdges -> cypher/iam_can_assume_edge_writer.go merges CAN_ASSUME; direct materialization, no Odu, expected-edge-set fixture, or registered edge types yet"
+    reason: "WriteIAMCanAssumeEdges -> cypher/iam_can_assume_edge_writer.go merges CAN_ASSUME; direct materialization; offline Odu + expected-edge-set fixture + registered edge types landed in the #6228 cleanup (family stays waived: live determinism/fault-injection matrices do not drive it)"
   - surface: "materialized_edges:iam_can_perform"
     proof_gate: ifa-determinism
     issue: "#6228"

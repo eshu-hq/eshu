@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 // symbolRuntimeFamilyCassetteFile mirrors the cassette envelope fields that
@@ -36,26 +37,26 @@ type symbolRuntimeFamilyCassetteFile struct {
 // the fact envelopes the reducer's extraction seams consume. It is the
 // test-side lockstep loader for the committed cassette: a lockstep test in
 // materializededges compares this strict cassette projection with the
-// compiled symbolRuntimeFamilyOdu() so a one-sided edit fails the focused
+// compiled familyodu.SymbolRuntimeFamilyOdu() so a one-sided edit fails the focused
 // suite.
 //
 // It fails closed on an empty scope or fact list: an Odù carrying no facts
 // would make every downstream assertion vacuous.
-func LoadSymbolRuntimeFamilyOdu(cassettePath string) (Odu, error) {
+func LoadSymbolRuntimeFamilyOdu(cassettePath string) (familyodu.Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: read symbol-runtime cassette %s: %w", cassettePath, err)
+		return familyodu.Odu{}, fmt.Errorf("ifa: read symbol-runtime cassette %s: %w", cassettePath, err)
 	}
 	var parsed symbolRuntimeFamilyCassetteFile
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return Odu{}, fmt.Errorf("ifa: parse symbol-runtime cassette %s: %w", cassettePath, err)
+		return familyodu.Odu{}, fmt.Errorf("ifa: parse symbol-runtime cassette %s: %w", cassettePath, err)
 	}
 	if len(parsed.Scopes) != 1 {
-		return Odu{}, fmt.Errorf("ifa: symbol-runtime cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
+		return familyodu.Odu{}, fmt.Errorf("ifa: symbol-runtime cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
 	}
 	scope := parsed.Scopes[0]
 	if len(scope.Facts) == 0 {
-		return Odu{}, fmt.Errorf("ifa: symbol-runtime cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
+		return familyodu.Odu{}, fmt.Errorf("ifa: symbol-runtime cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
 	}
 
 	envelopes := make([]facts.Envelope, 0, len(scope.Facts))
@@ -72,5 +73,5 @@ func LoadSymbolRuntimeFamilyOdu(cassettePath string) (Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return Odu{Name: SymbolRuntimeFamilyOduName, Facts: envelopes}, nil
+	return familyodu.Odu{Name: SymbolRuntimeFamilyOduName, Facts: envelopes}, nil
 }

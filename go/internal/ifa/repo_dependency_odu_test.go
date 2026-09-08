@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -48,14 +49,14 @@ func TestRepoDependencyConcurrencyOduProductionEvidence(t *testing.T) {
 	assertRepoDependencyEvidence(t, DiscoveredEvidence(odu))
 }
 
-func assertRepoDependencyHostileAliases(t *testing.T, odu Odu) {
+func assertRepoDependencyHostileAliases(t *testing.T, odu familyodu.Odu) {
 	t.Helper()
 	want := map[string]string{
 		"env/ifa-prod-proof/self.tf":   `app_repo = "source-01"` + "\n",
 		"env/ifa-prod-proof/prefix.tf": `app_repo = "target-07-extra"` + "\n",
 	}
 	for _, fact := range odu.Facts {
-		if fact.FactKind != contentFactKind {
+		if fact.FactKind != familyodu.ContentFactKind {
 			continue
 		}
 		path := strings.TrimSpace(fmt.Sprint(fact.Payload["content_path"]))
@@ -72,7 +73,7 @@ func assertRepoDependencyHostileAliases(t *testing.T, odu Odu) {
 	}
 }
 
-func assertRepoDependencySourceFacts(t *testing.T, odu Odu) {
+func assertRepoDependencySourceFacts(t *testing.T, odu familyodu.Odu) {
 	t.Helper()
 
 	coordinates := make(map[string]string, testRepoDependencySourceCount)
@@ -105,9 +106,9 @@ func assertRepoDependencySourceFacts(t *testing.T, odu Odu) {
 
 		kinds := kindsBySource[source]
 		sort.Strings(kinds)
-		wantKinds := []string{contentFactKind, repositoryFactKind, "shared_followup"}
+		wantKinds := []string{familyodu.ContentFactKind, familyodu.RepositoryFactKind, "shared_followup"}
 		if source == "repository:source-01" || source == "repository:source-07" {
-			wantKinds = []string{contentFactKind, contentFactKind, repositoryFactKind, "shared_followup"}
+			wantKinds = []string{familyodu.ContentFactKind, familyodu.ContentFactKind, familyodu.RepositoryFactKind, "shared_followup"}
 		}
 		if !reflect.DeepEqual(kinds, wantKinds) {
 			t.Fatalf("source %q fact kinds = %v, want %v", source, kinds, wantKinds)

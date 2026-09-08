@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"fmt"
@@ -44,13 +44,18 @@ func WorkloadDependencyFamilyCassetteFullPath(repoRoot string) string {
 // removes replay-generated transport fields: the compiled catalog owns the
 // semantic fixture, while projector admission tests separately pin the exact
 // generated IDs, provenance, and scope projection behavior.
+// WorkloadDependencyFamilyOduName is this Odù's catalog name. Exported:
+// the family catalog and coverage tests read it; it lives here beside the
+// fixture so the name cannot drift from it.
+const WorkloadDependencyFamilyOduName = "odu:ifa-workload-dependency-family"
+
 func loadWorkloadDependencyFamilyOdu(cassettePath string) (Odu, error) {
 	emitted, err := LoadCassetteEnvelopes(cassettePath)
 	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: load workload-dependency cassette %s through production source: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: load workload-dependency cassette %s through production source: %w", cassettePath, err)
 	}
 	if len(emitted) == 0 {
-		return Odu{}, fmt.Errorf("ifa: workload-dependency cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
+		return Odu{}, fmt.Errorf("familyodu: workload-dependency cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
 	}
 
 	envelopes := make([]facts.Envelope, 0, len(emitted))
@@ -67,7 +72,7 @@ func loadWorkloadDependencyFamilyOdu(cassettePath string) (Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return Odu{Name: workloadDependencyFamilyOduName, Facts: envelopes}, nil
+	return Odu{Name: WorkloadDependencyFamilyOduName, Facts: envelopes}, nil
 }
 
 // LoadWorkloadDependencyFamilyOdu strictly projects the committed cassette

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
@@ -20,8 +21,8 @@ import (
 // These assignments are the compile-time tooth: shell-exec catalog builders
 // must accept public typed codegraph payloads before converting them to maps.
 var (
-	shellExecFamilyTypedRepositoryBuilder func(codegraphv1.Repository) facts.Envelope = shellExecFamilyRepositoryFact
-	shellExecFamilyTypedFileBuilder       func(codegraphv1.File) facts.Envelope       = shellExecFamilyFileFact
+	shellExecFamilyTypedRepositoryBuilder func(codegraphv1.Repository) facts.Envelope = familyodu.ShellExecFamilyRepositoryFact
+	shellExecFamilyTypedFileBuilder       func(codegraphv1.File) facts.Envelope       = familyodu.ShellExecFamilyFileFact
 )
 
 func TestShellExecFamilyCodegraphBuildersPreserveTypedPayloads(t *testing.T) {
@@ -67,7 +68,7 @@ func TestShellExecFamilyCodegraphBuildersPreserveTypedPayloads(t *testing.T) {
 func TestShellExecFamilyUsesTypedCodegraphLiteralsAndEncoders(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(repoRootDir(t), "go", "internal", "ifa", "shell_exec_family_odu.go")
+	path := filepath.Join(repoRootDir(t), "go", "internal", "ifa", "familyodu", "shell_exec_family_odu.go")
 	parsed, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
 		t.Fatalf("parse %s: %v", path, err)
@@ -77,8 +78,8 @@ func TestShellExecFamilyUsesTypedCodegraphLiteralsAndEncoders(t *testing.T) {
 		typeName string
 		count    int
 	}{
-		"shellExecFamilyRepositoryFact": {typeName: "Repository", count: 1},
-		"shellExecFamilyFileFact":       {typeName: "File", count: 4},
+		"ShellExecFamilyRepositoryFact": {typeName: "Repository", count: 1},
+		"ShellExecFamilyFileFact":       {typeName: "File", count: 4},
 	}
 	gotTypedBuilders := map[string]int{}
 	wantEncoders := map[string]int{
@@ -133,7 +134,7 @@ func TestShellExecFamilyCodegraphPayloadsDecodeAndReencodeExactly(t *testing.T) 
 	t.Parallel()
 
 	counts := map[string]int{}
-	for _, fact := range shellExecFamilyOdu().Odu.Facts {
+	for _, fact := range familyodu.ShellExecFamilyOdu().Odu.Facts {
 		var (
 			reencoded map[string]any
 			err       error

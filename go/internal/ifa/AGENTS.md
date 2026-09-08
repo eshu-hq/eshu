@@ -20,9 +20,10 @@
     the `materialized_edges:<domain>` exhaustiveness gate: binds an Odù
     expectation to a reducer-materialized graph edge family so a
     materialization silently ceasing to produce an edge family is caught.
-    `*_family_odu.go`/`*_family_catalog.go` in this package still seed each
-    family's fixture (`sql_relationship_odu.go` was the first); the guards
-    and dispatch that consume them moved to that sibling package.
+    `*_family_odu.go` in `go/internal/ifa/familyodu/` (#6594 P1 split) and
+    `*_family_catalog.go` in this package seed each family's fixture
+    (`sql_relationship_odu.go` was the first); the guards and dispatch that
+    consume them moved to that sibling package.
 
 ## Invariants
 

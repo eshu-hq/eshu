@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ import (
 //     candidate through the SAME correlation/admission engine
 //     deployable_unit_edges uses
 //     (CorrelatedWorkloadProjectionInputLoader.LoadWorkloadProjectionInputs,
-//     go/internal/reducer/correlated_workload_projection_input_loader.go:71,
+//     go/internal/reducer/correlated_workload_projection_input_loader.go,
 //     -> admittedCorrelatedWorkloadCandidates ->
 //     deployableUnitRulePack), which the pure offline guards never run at
 //     all. A Dockerfile-only candidate selects DockerfileRulePack
@@ -215,7 +215,7 @@ func InvokesCloudActionFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, invokesCloudActionExpectedEdgesRelPath)
 }
 
-// symbolRuntimeFamilyOdu carries one repository, one Dockerfile file plus one
+// SymbolRuntimeFamilyOdu carries one repository, one Dockerfile file plus one
 // Jenkinsfile file (the live-admission-passing workload signal pair), one
 // server file (route entries + function calls + functions), three
 // content_entity Function facts, and two shared_followup facts -- wired so
@@ -233,7 +233,7 @@ func InvokesCloudActionFamilyExpectedEdgesPath(repoRoot string) string {
 // http_method carries no identity in the HANDLES_ROUTE graph MERGE: a
 // regression that added it to the MERGE identity would split this pair into
 // two graph edges, and the exact-set live assertion would catch it by name.
-func symbolRuntimeFamilyOdu() CatalogOdu {
+func SymbolRuntimeFamilyOdu() CatalogOdu {
 	sourceRunID := symbolRuntimeFamilySourceRunID
 	localPath := SymbolRuntimeFamilyLocalPath
 	repoName := symbolRuntimeFamilyRepoName
@@ -272,12 +272,6 @@ func symbolRuntimeFamilyOdu() CatalogOdu {
 	}
 }
 
-// SymbolRuntimeFamilyOdu returns the compiled family fixture used by the
-// catalog and by the materializededges package's guard tests.
-func SymbolRuntimeFamilyOdu() CatalogOdu {
-	return symbolRuntimeFamilyOdu()
-}
-
 // symbolRuntimeFamilyRepositoryFact encodes the public repository contract.
 // It carries BOTH graph_id/name (ExtractWorkloadCandidates' read) and
 // repo_id/source_run_id (buildCodeCallProjectionContexts' read) in the SAME
@@ -286,7 +280,7 @@ func SymbolRuntimeFamilyOdu() CatalogOdu {
 func symbolRuntimeFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphRepository(repository)
 	if err != nil {
-		panic(fmt.Sprintf("ifa: encode symbol-runtime catalog repository %q: %v", repository.RepoID, err))
+		panic(fmt.Sprintf("familyodu: encode symbol-runtime catalog repository %q: %v", repository.RepoID, err))
 	}
 	return symbolRuntimeFamilyEnvelope(
 		factschema.FactKindCodegraphRepository,
@@ -325,10 +319,13 @@ func symbolRuntimeFamilyDockerfileFileFact(language string) facts.Envelope {
 // the relative_path itself), included solely for live-gate admission
 // fidelity.
 func symbolRuntimeFamilyJenkinsfileFileFact() facts.Envelope {
+	// groovyLanguage is addressable for the Language pointer; strPtr
+	// stayed in package ifa with its catalog callers.
+	groovyLanguage := "groovy"
 	return symbolRuntimeFamilyFileFact(codegraphv1.File{
 		RepoID:       SymbolRuntimeFamilyRepoID,
 		RelativePath: SymbolRuntimeFamilyJenkinsfilePath,
-		Language:     strPtr("groovy"),
+		Language:     &groovyLanguage,
 		ParsedFileData: map[string]any{
 			"path":                   SymbolRuntimeFamilyLocalPath + "/" + SymbolRuntimeFamilyJenkinsfilePath,
 			"jenkins_pipeline_calls": []any{"deployShared"},
@@ -411,7 +408,7 @@ func symbolRuntimeFamilyFunctionEntry(name, uid string, line, endLine int) map[s
 // ready.
 func symbolRuntimeFamilyFunctionEntity(entityName, entityUID string, line int) facts.Envelope {
 	return symbolRuntimeFamilyEnvelope(
-		contentEntityFactKind,
+		ContentEntityFactKind,
 		"content_entity:"+entityUID,
 		map[string]any{
 			"repo_id":       SymbolRuntimeFamilyRepoID,
@@ -430,7 +427,7 @@ func symbolRuntimeFamilyFunctionEntity(entityName, entityUID string, line int) f
 func symbolRuntimeFamilyFileFact(file codegraphv1.File) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphFile(file)
 	if err != nil {
-		panic(fmt.Sprintf("ifa: encode symbol-runtime catalog file %q: %v", file.RelativePath, err))
+		panic(fmt.Sprintf("familyodu: encode symbol-runtime catalog file %q: %v", file.RelativePath, err))
 	}
 	return symbolRuntimeFamilyEnvelope(
 		factschema.FactKindCodegraphFile,
@@ -453,7 +450,7 @@ func symbolRuntimeFamilyFileFact(file codegraphv1.File) facts.Envelope {
 // handler that builds all three domains' intents never runs at all.
 func symbolRuntimeFamilyFollowupFact(domain, entityKey string) facts.Envelope {
 	return symbolRuntimeFamilyEnvelope(
-		sharedFollowupFactKind,
+		SharedFollowupFactKind,
 		"shared_followup:"+SymbolRuntimeFamilyRepoID+":"+domain,
 		map[string]any{
 			"reducer_domain": domain,

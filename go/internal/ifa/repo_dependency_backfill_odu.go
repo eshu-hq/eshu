@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 const (
@@ -57,7 +58,7 @@ var repoDependencyBackfillScopeShapes = []repoDependencyBackfillScopeShape{
 // This large scenario is intentionally not registered in CatalogByName: it
 // proves no new semantic coverage and should not add roughly 61,000 facts to
 // every ordinary Ifá coverage derivation.
-func RepoDependencyBackfillProofOdu() Odu {
+func RepoDependencyBackfillProofOdu() familyodu.Odu {
 	odu := repoDependencyConcurrencyOdu().Odu
 	odu.Name = repoDependencyBackfillOduName
 	markRepoDependencyDualArmFact(odu.Facts)
@@ -93,7 +94,7 @@ func repoDependencySourceRowCount(input []facts.Envelope, alias string) int {
 	repoID := repoDependencyRepoID(alias)
 	count := 0
 	for _, fact := range input {
-		if fact.FactKind != contentFactKind && fact.FactKind != "file" && fact.FactKind != facts.GCPCloudRelationshipFactKind {
+		if fact.FactKind != familyodu.ContentFactKind && fact.FactKind != "file" && fact.FactKind != facts.GCPCloudRelationshipFactKind {
 			continue
 		}
 		if fact.Payload["repo_id"] == repoID {
@@ -118,7 +119,7 @@ func repoDependencyBackfillCandidateFact(alias string, index int) facts.Envelope
 	path := fmt.Sprintf("env/ifa-backfill-proof/candidate-%05d.tf", index)
 	stableKey := fmt.Sprintf("%s%s:%05d", repoDependencyBackfillCandidateStableKeyPrefix, repoID, index)
 	return repoDependencyFactEnvelope(
-		contentFactKind,
+		familyodu.ContentFactKind,
 		repoDependencyScopeID(alias),
 		repoDependencyGenerationID(alias),
 		stableKey,
@@ -140,7 +141,7 @@ func repoDependencyBackfillGenericFact(alias, targetAlias string, index int) fac
 	content := "// documentation mentions " + targetAlias + " but is not relationship configuration\n" +
 		repoDependencyBackfillNoise(stableKey, repoDependencyBackfillGenericPayloadBytes)
 	return repoDependencyFactEnvelope(
-		contentFactKind,
+		familyodu.ContentFactKind,
 		repoDependencyScopeID(alias),
 		repoDependencyGenerationID(alias),
 		stableKey,

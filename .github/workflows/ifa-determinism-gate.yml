@@ -95,6 +95,15 @@ on:
       # this glob exists to end. Accepted: over-triggering costs CI minutes,
       # under-triggering ships a dark gate (#6200).
       - 'go/internal/ifa/*.go'
+      # The family fixtures moved to go/internal/ifa/familyodu/ (#6594 P1), which
+      # the glob above does not cross into. These literals mirror the registry's
+      # stem-pin rows string-exactly (the lockstep compares trigger STRINGS), so a
+      # family edit keeps arming this workflow's gates.
+      - 'go/internal/ifa/familyodu/kubernetes_namespace_environment_family_odu.go'
+      - 'go/internal/ifa/familyodu/iam_instance_profile_role_family_odu.go'
+      - 'go/internal/ifa/familyodu/deployable_unit_family_odu.go'
+      - 'go/internal/ifa/familyodu/documentation_family_odu.go'
+      - 'go/internal/ifa/familyodu/symbol_runtime_family_odu.go'
       # ifa-dead-letter-matrix's own two registry triggers, kept as literals
       # beside the glob that already covers them: that gate shares this
       # workflow's single paths: filter, and the registry-subset-of-workflow

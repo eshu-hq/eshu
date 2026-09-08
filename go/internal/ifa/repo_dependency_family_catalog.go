@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
@@ -63,7 +64,6 @@ import (
 //     -- proves the fuzzy tokenizer does not treat a prefix collision as a
 //     match.
 const (
-	repoDependencyFamilyOduName      = "odu:ifa-repo-dependency-family"
 	repoDependencyFamilyScopeID      = "scope-ifa-repo-dependency-repo-dependency-family-source"
 	repoDependencyFamilyGenerationID = "gen-ifa-repo-dependency-repo-dependency-family-source-1"
 	repoDependencyFamilySourceRunID  = "run-ifa-repo-dependency-family-1"
@@ -109,7 +109,6 @@ const (
 // package exercise the compiled catalog through the production resolver
 // without duplicating reference-side values that could drift open.
 const (
-	RepoDependencyFamilyOduName                     = repoDependencyFamilyOduName
 	RepoDependencyFamilySourceRepoID                = repoDependencyFamilySourceRepoID
 	RepoDependencyFamilySourceName                  = repoDependencyFamilySourceName
 	RepoDependencyFamilyTargetUsesModuleRepoID      = repoDependencyFamilyTargetUsesModuleRepoID
@@ -123,7 +122,7 @@ const (
 
 // repoDependencyFamilyOdu returns the binary-portable catalog representation
 // of the repo_dependency family fixture.
-func repoDependencyFamilyOdu() CatalogOdu {
+func repoDependencyFamilyOdu() familyodu.CatalogOdu {
 	factsForOdu := []facts.Envelope{
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilyTargetProvisionsRepoID, repoDependencyFamilyTargetProvisionsName, "ifa-org/"+repoDependencyFamilyTargetProvisionsName)),
 		repoDependencyFamilyRepositoryFact(repoDependencyFamilyRepository(repoDependencyFamilyTargetUsesModuleRepoID, repoDependencyFamilyTargetUsesModuleName, "ifa-org/"+repoDependencyFamilyTargetUsesModuleName)),
@@ -196,8 +195,8 @@ func repoDependencyFamilyOdu() CatalogOdu {
 		repoDependencyFamilyFollowupFact("workload_materialization", "workload:"+repoDependencyFamilySourceName),
 		repoDependencyFamilyFollowupFact("deployment_mapping", "deployment:"+repoDependencyFamilySourceName),
 	}
-	return CatalogOdu{
-		Odu: Odu{Name: repoDependencyFamilyOduName, Facts: factsForOdu},
+	return familyodu.CatalogOdu{
+		Odu: familyodu.Odu{Name: familyodu.RepoDependencyFamilyOduName, Facts: factsForOdu},
 		Detail: "seven repository scopes and 18 facts, with six target-only scopes first and one evidence-bearing source scope last; the source has six content facts each producing exactly one repo-to-repo dependency type against a distinct target repository " +
 			"(PROVISIONS_DEPENDENCY_FOR, USES_MODULE, DISCOVERS_CONFIG_IN, DEPENDS_ON, DEPLOYS_FROM, READS_CONFIG_FROM), " +
 			"plus one ArgoCD/Kubernetes file fact producing a RUNS_ON relationship from the source repository's prod WorkloadInstance to the prod-cluster Platform, " +
@@ -208,7 +207,7 @@ func repoDependencyFamilyOdu() CatalogOdu {
 
 // RepoDependencyFamilyOdu returns the compiled family fixture used by the
 // catalog and by the materializededges package's moved vacuity-guard tests.
-func RepoDependencyFamilyOdu() CatalogOdu {
+func RepoDependencyFamilyOdu() familyodu.CatalogOdu {
 	return repoDependencyFamilyOdu()
 }
 
@@ -267,7 +266,7 @@ func repoDependencyFamilyFileFact(file codegraphv1.File, artifactType, content s
 // documented fallback pair) and odu:repo-dependency-concurrency's
 // repoDependencyContentFact already proves satisfies fact-kind validation.
 func repoDependencyFamilyContentFact(path, artifactType, body string) facts.Envelope {
-	return repoDependencyFamilyFact(contentFactKind, "content:"+repoDependencyFamilySourceRepoID+":"+path, map[string]any{
+	return repoDependencyFamilyFact(familyodu.ContentFactKind, "content:"+repoDependencyFamilySourceRepoID+":"+path, map[string]any{
 		"artifact_type": artifactType,
 		"commit_sha":    repoDependencyFamilyCommitSHA,
 		"content_body":  body,

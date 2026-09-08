@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"encoding/json"
@@ -18,6 +18,12 @@ import (
 // assert the same committed bytes rather than maintaining parallel fixtures
 // that can drift.
 const deployableUnitFamilyCassettePath = "testdata/cassettes/deployableunit/ifa-deployable-unit-family.json"
+
+// DeployableUnitFamilyOduName is this Odù's catalog name, the ref a
+// materialized_edges:deployable_unit coverage row names to resolve
+// through it. Exported: the family catalog and coverage tests read it;
+// it lives here beside the fixture so the name cannot drift from it.
+const DeployableUnitFamilyOduName = "odu:ifa-deployable-unit-family"
 
 // deployableUnitFamilyCassetteFile mirrors the cassette envelope fields that
 // decide whether a fact is accepted at all, the same subset
@@ -65,18 +71,18 @@ func DeployableUnitFamilyCassetteFullPath(repoRoot string) string {
 func LoadDeployableUnitFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: read deployable-unit cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: read deployable-unit cassette %s: %w", cassettePath, err)
 	}
 	var parsed deployableUnitFamilyCassetteFile
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return Odu{}, fmt.Errorf("ifa: parse deployable-unit cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: parse deployable-unit cassette %s: %w", cassettePath, err)
 	}
 	if len(parsed.Scopes) != 1 {
-		return Odu{}, fmt.Errorf("ifa: deployable-unit cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
+		return Odu{}, fmt.Errorf("familyodu: deployable-unit cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
 	}
 	scope := parsed.Scopes[0]
 	if len(scope.Facts) == 0 {
-		return Odu{}, fmt.Errorf("ifa: deployable-unit cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
+		return Odu{}, fmt.Errorf("familyodu: deployable-unit cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
 	}
 
 	envelopes := make([]facts.Envelope, 0, len(scope.Facts))
@@ -93,5 +99,5 @@ func LoadDeployableUnitFamilyOdu(cassettePath string) (Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return Odu{Name: deployableUnitFamilyOduName, Facts: envelopes}, nil
+	return Odu{Name: DeployableUnitFamilyOduName, Facts: envelopes}, nil
 }

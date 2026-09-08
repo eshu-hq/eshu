@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"fmt"
@@ -128,17 +128,17 @@ func ShellExecFamilyExpectedEdgesPath(repoRoot string) string {
 	return filepath.Join(repoRoot, shellExecExpectedEdgesRelPath)
 }
 
-// shellExecFamilyOdu carries one repository fact and four file facts wired so
+// ShellExecFamilyOdu carries one repository fact and four file facts wired so
 // reducer.ExtractShellExecRows derives exactly two EXECUTES_SHELL edges, both
 // from services/deploy/deploy.py's deploy_service function, while the other
 // three files pin every exclusion clause to no edges.
-func shellExecFamilyOdu() CatalogOdu {
+func ShellExecFamilyOdu() CatalogOdu {
 	sourceRunID := shellExecFamilySourceRunID
 	localPath := ShellExecFamilyLocalPath
 	odu := Odu{
 		Name: ShellExecFamilyOduName,
 		Facts: []facts.Envelope{
-			shellExecFamilyRepositoryFact(codegraphv1.Repository{
+			ShellExecFamilyRepositoryFact(codegraphv1.Repository{
 				RepoID:      ShellExecFamilyRepoID,
 				SourceRunID: &sourceRunID,
 				LocalPath:   &localPath,
@@ -162,15 +162,15 @@ func shellExecFamilyOdu() CatalogOdu {
 	}
 }
 
-// shellExecFamilyRepositoryFact encodes the public repository contract.
+// ShellExecFamilyRepositoryFact encodes the public repository contract.
 // source_run_id is required for buildCodeCallProjectionContexts to yield a
 // projection context for this repository at Handle() time; local_path
 // qualifies every entity node's path property the same way it does for the
 // SQL family (sqlFamilyLocalPath's doc comment, #5549 P1a).
-func shellExecFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
+func ShellExecFamilyRepositoryFact(repository codegraphv1.Repository) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphRepository(repository)
 	if err != nil {
-		panic(fmt.Sprintf("ifa: encode shell-exec catalog repository %q: %v", repository.RepoID, err))
+		panic(fmt.Sprintf("familyodu: encode shell-exec catalog repository %q: %v", repository.RepoID, err))
 	}
 	return shellExecFamilyEnvelope(
 		factschema.FactKindCodegraphRepository,
@@ -189,7 +189,7 @@ func shellExecFamilyRepositoryFact(repository codegraphv1.Repository) facts.Enve
 // keeps the fixture live-gate-ready.
 func shellExecFamilyFunctionEntity(relativePath, entityName, entityUID string, line int) facts.Envelope {
 	return shellExecFamilyEnvelope(
-		contentEntityFactKind,
+		ContentEntityFactKind,
 		"content_entity:"+entityUID,
 		map[string]any{
 			"repo_id":       ShellExecFamilyRepoID,
@@ -209,7 +209,7 @@ func shellExecFamilyFunctionEntity(relativePath, entityName, entityUID string, l
 // api) that must dedup to one row, the third is a distinct command on the
 // same function.
 func shellExecFamilyDeployFileFact() facts.Envelope {
-	return shellExecFamilyFileFact(codegraphv1.File{
+	return ShellExecFamilyFileFact(codegraphv1.File{
 		RepoID:       ShellExecFamilyRepoID,
 		RelativePath: ShellExecFamilyDeployPath,
 		ParsedFileData: shellExecFamilyParsedFile(ShellExecFamilyDeployPath, []any{
@@ -226,7 +226,7 @@ func shellExecFamilyDeployFileFact() facts.Envelope {
 // that each fail exactly one of ExtractShellExecRows's four field checks: a
 // non-positive line_number, and a blank api.
 func shellExecFamilyCleanupFileFact() facts.Envelope {
-	return shellExecFamilyFileFact(codegraphv1.File{
+	return ShellExecFamilyFileFact(codegraphv1.File{
 		RepoID:       ShellExecFamilyRepoID,
 		RelativePath: ShellExecFamilyCleanupPath,
 		ParsedFileData: shellExecFamilyParsedFile(ShellExecFamilyCleanupPath, []any{
@@ -244,7 +244,7 @@ func shellExecFamilyCleanupFileFact() facts.Envelope {
 // once the four field checks pass), a blank function_name, and a
 // non-positive function_line_number for the function that DOES exist.
 func shellExecFamilyOrphanFileFact() facts.Envelope {
-	return shellExecFamilyFileFact(codegraphv1.File{
+	return ShellExecFamilyFileFact(codegraphv1.File{
 		RepoID:       ShellExecFamilyRepoID,
 		RelativePath: ShellExecFamilyOrphanPath,
 		ParsedFileData: shellExecFamilyParsedFile(ShellExecFamilyOrphanPath, []any{
@@ -261,7 +261,7 @@ func shellExecFamilyOrphanFileFact() facts.Envelope {
 // embedded_shell_commands: the baseline "function exists, nothing to derive"
 // case.
 func shellExecFamilySilentFileFact() facts.Envelope {
-	return shellExecFamilyFileFact(codegraphv1.File{
+	return ShellExecFamilyFileFact(codegraphv1.File{
 		RepoID:       ShellExecFamilyRepoID,
 		RelativePath: ShellExecFamilySilentPath,
 		ParsedFileData: shellExecFamilyParsedFile(ShellExecFamilySilentPath, []any{
@@ -270,12 +270,12 @@ func shellExecFamilySilentFileFact() facts.Envelope {
 	})
 }
 
-// shellExecFamilyFileFact encodes the public file contract before wrapping it
+// ShellExecFamilyFileFact encodes the public file contract before wrapping it
 // in the fixture envelope.
-func shellExecFamilyFileFact(file codegraphv1.File) facts.Envelope {
+func ShellExecFamilyFileFact(file codegraphv1.File) facts.Envelope {
 	payload, err := factschema.EncodeCodegraphFile(file)
 	if err != nil {
-		panic(fmt.Sprintf("ifa: encode shell-exec catalog file %q: %v", file.RelativePath, err))
+		panic(fmt.Sprintf("familyodu: encode shell-exec catalog file %q: %v", file.RelativePath, err))
 	}
 	return shellExecFamilyEnvelope(
 		factschema.FactKindCodegraphFile,
@@ -334,7 +334,7 @@ func shellExecFamilyCommand(functionName string, functionLine, lineNumber int, a
 // emission shape.
 func shellExecFamilyFollowupFact() facts.Envelope {
 	return shellExecFamilyEnvelope(
-		sharedFollowupFactKind,
+		SharedFollowupFactKind,
 		"shared_followup:"+ShellExecFamilyRepoID+":shell_exec_materialization",
 		map[string]any{
 			"reducer_domain": "shell_exec_materialization",

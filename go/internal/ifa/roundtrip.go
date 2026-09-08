@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/factenvelope"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/replay"
 	"github.com/eshu-hq/eshu/go/internal/synth/gcp"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
@@ -87,7 +88,7 @@ var gcpRoundTripByKind = map[string]gcpRoundTripFunc{
 // (ttl_seconds at 2^53) and the demo corpus by the baseline case; a fact family
 // that could carry an int64 above 2^53 would need its own boundary proof before
 // reusing this comparator unchanged (see README's number-representation note).
-func RoundTripTypedPayloads(odu Odu) error {
+func RoundTripTypedPayloads(odu familyodu.Odu) error {
 	for _, env := range odu.Facts {
 		roundTrip, ok := gcpRoundTripByKind[env.FactKind]
 		if !ok {
@@ -131,14 +132,14 @@ func RoundTripTypedPayloads(odu Odu) error {
 // (not a runtime input condition Ifá needs to handle gracefully at catalog
 // construction time), so this panics rather than returning an error,
 // mirroring awsPackOdu's panic-on-gen-failure contract.
-func demoOrgRoundtripOdu() CatalogOdu {
+func demoOrgRoundtripOdu() familyodu.CatalogOdu {
 	envelopes, err := gcp.DemoOrgFactEnvelopes(gcp.DefaultDemoOrgProfile())
 	if err != nil {
 		panic(fmt.Sprintf("ifa: catalog_seed odu:demo-org-roundtrip: generate demo-org GCP envelopes: %v", err))
 	}
 
-	return CatalogOdu{
-		Odu:    Odu{Name: "odu:demo-org-roundtrip", Facts: envelopes},
+	return familyodu.CatalogOdu{
+		Odu:    familyodu.Odu{Name: "odu:demo-org-roundtrip", Facts: envelopes},
 		Detail: "every fact the demo-org synthetic GCP cassette generates (gcp_cloud_resource/gcp_cloud_relationship/gcp_collection_warning/gcp_dns_record/gcp_iam_policy_observation), replayed through the production cassette.Source seam and proven byte-identical under Encode->Decode->re-Encode",
 	}
 }

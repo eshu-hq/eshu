@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 	submodulev1 "github.com/eshu-hq/eshu/sdk/go/factschema/submodule/v1"
@@ -60,7 +61,7 @@ const (
 // Total: 3 PINS_SUBMODULE edges -- 2 from repo-ifa-submodule-pin-family to
 // repo-ifa-submodule-pin-target-foo (PIN A, PIN B), 1 to
 // repo-ifa-submodule-pin-target-baz (PIN E).
-func SubmodulePinFamilyOdu() CatalogOdu {
+func SubmodulePinFamilyOdu() familyodu.CatalogOdu {
 	factsForOdu := []facts.Envelope{
 		SubmodulePinFamilyRepositoryFact(SubmodulePinFamilyRepoID, "/repo-submodule-pin-parent"),
 		// PIN A.
@@ -91,8 +92,8 @@ func SubmodulePinFamilyOdu() CatalogOdu {
 		}),
 		submodulePinFamilySharedFollowupFact(),
 	}
-	return CatalogOdu{
-		Odu: Odu{Name: SubmodulePinFamilyOduName, Facts: factsForOdu},
+	return familyodu.CatalogOdu{
+		Odu: familyodu.Odu{Name: SubmodulePinFamilyOduName, Facts: factsForOdu},
 		Detail: "one parent repository pinning two distinct target repositories across three " +
 			"live paths (a same-target two-path collision PIN A/B and a second-target " +
 			"PIN E), plus an unresolved " +

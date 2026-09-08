@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 // TestLoadSubmodulePinFamilyOduRejectsUnknownJSONField proves the cassette
@@ -57,8 +59,8 @@ func TestLoadSubmodulePinFamilyOduRejectsUnknownJSONField(t *testing.T) {
 	if err := os.WriteFile(goodPath, []byte(goodRaw), 0o600); err != nil {
 		t.Fatalf("write temp cassette: %v", err)
 	}
-	if _, err := LoadSubmodulePinFamilyOdu(goodPath); err != nil {
-		t.Fatalf("LoadSubmodulePinFamilyOdu rejected a well-formed cassette carrying every real envelope field: %v", err)
+	if _, err := familyodu.LoadSubmodulePinFamilyOdu(goodPath); err != nil {
+		t.Fatalf("familyodu.LoadSubmodulePinFamilyOdu rejected a well-formed cassette carrying every real envelope field: %v", err)
 	}
 
 	// Each case is a field the narrow struct never declared, so a permissive
@@ -85,8 +87,8 @@ func TestLoadSubmodulePinFamilyOduRejectsUnknownJSONField(t *testing.T) {
 			if err := os.WriteFile(badPath, []byte(badRaw), 0o600); err != nil {
 				t.Fatalf("write temp cassette: %v", err)
 			}
-			if _, err := LoadSubmodulePinFamilyOdu(badPath); err == nil {
-				t.Fatalf("LoadSubmodulePinFamilyOdu accepted a cassette with an unknown field (%s typo)", tc.name)
+			if _, err := familyodu.LoadSubmodulePinFamilyOdu(badPath); err == nil {
+				t.Fatalf("familyodu.LoadSubmodulePinFamilyOdu accepted a cassette with an unknown field (%s typo)", tc.name)
 			}
 		})
 	}
@@ -117,14 +119,14 @@ func TestLoadSubmodulePinFamilyOduRejectsTrailingContent(t *testing.T) {
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatalf("write temp cassette: %v", err)
 	}
-	if _, err := LoadSubmodulePinFamilyOdu(path); err == nil {
-		t.Fatal("LoadSubmodulePinFamilyOdu accepted a cassette with a second concatenated JSON document")
+	if _, err := familyodu.LoadSubmodulePinFamilyOdu(path); err == nil {
+		t.Fatal("familyodu.LoadSubmodulePinFamilyOdu accepted a cassette with a second concatenated JSON document")
 	}
 }
 
 // TestLoadSubmodulePinFamilyOduRejectsWrongScopeCount and
 // TestLoadSubmodulePinFamilyOduRejectsEmptyFacts prove the two fail-closed
-// checks LoadSubmodulePinFamilyOdu performs beyond strict decoding: a
+// checks familyodu.LoadSubmodulePinFamilyOdu performs beyond strict decoding: a
 // multi-scope (or zero-scope) cassette would make the expected-edge set
 // ambiguous about which scope produced an edge, and a scope with no facts
 // would make every downstream assertion vacuous.
@@ -136,8 +138,8 @@ func TestLoadSubmodulePinFamilyOduRejectsWrongScopeCount(t *testing.T) {
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatalf("write temp cassette: %v", err)
 	}
-	if _, err := LoadSubmodulePinFamilyOdu(path); err == nil {
-		t.Fatal("LoadSubmodulePinFamilyOdu accepted a cassette with zero scopes")
+	if _, err := familyodu.LoadSubmodulePinFamilyOdu(path); err == nil {
+		t.Fatal("familyodu.LoadSubmodulePinFamilyOdu accepted a cassette with zero scopes")
 	}
 }
 
@@ -149,7 +151,7 @@ func TestLoadSubmodulePinFamilyOduRejectsEmptyFacts(t *testing.T) {
 	if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
 		t.Fatalf("write temp cassette: %v", err)
 	}
-	if _, err := LoadSubmodulePinFamilyOdu(path); err == nil {
-		t.Fatal("LoadSubmodulePinFamilyOdu accepted a cassette whose only scope carries no facts")
+	if _, err := familyodu.LoadSubmodulePinFamilyOdu(path); err == nil {
+		t.Fatal("familyodu.LoadSubmodulePinFamilyOdu accepted a cassette whose only scope carries no facts")
 	}
 }

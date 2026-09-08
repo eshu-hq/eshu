@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 )
 
 type backfillScopeShape struct {
@@ -171,7 +172,7 @@ func TestRepoDependencyBackfillProofOduCanonicalBytesAreDeterministic(t *testing
 
 func isRelationshipBackfillSourceFact(fact facts.Envelope) bool {
 	switch fact.FactKind {
-	case contentFactKind, "file", facts.GCPCloudRelationshipFactKind:
+	case familyodu.ContentFactKind, "file", facts.GCPCloudRelationshipFactKind:
 		return true
 	default:
 		return false

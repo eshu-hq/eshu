@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -39,7 +40,7 @@ func TestRoundTripTypedPayloadsDemoOrgOduIsBaselineGreen(t *testing.T) {
 func TestRoundTripTypedPayloadsDetectsMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:scratch-missing-required-field",
 		Facts: []facts.Envelope{
 			{
@@ -82,7 +83,7 @@ func TestRoundTripTypedPayloadsDetectsSilentlyDroppedUnknownField(t *testing.T) 
 	t.Parallel()
 
 	const stableKey = "scratch:dns-record-with-unmodeled-field"
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:scratch-silently-dropped-field",
 		Facts: []facts.Envelope{
 			{
@@ -133,7 +134,7 @@ func TestRoundTripTypedPayloadsNumberBoundary(t *testing.T) {
 	t.Parallel()
 
 	const boundary = int64(1) << 53 // 9007199254740992, float64's exact-integer limit
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:scratch-number-boundary",
 		Facts: []facts.Envelope{
 			{
@@ -164,7 +165,7 @@ func TestRoundTripTypedPayloadsNumberBoundary(t *testing.T) {
 func TestRoundTripTypedPayloadsUnregisteredKindFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	odu := Odu{
+	odu := familyodu.Odu{
 		Name: "odu:scratch-unregistered-kind",
 		Facts: []facts.Envelope{
 			{FactKind: "not_a_registered_gcp_kind", StableFactKey: "scratch:unregistered", Payload: map[string]any{}},

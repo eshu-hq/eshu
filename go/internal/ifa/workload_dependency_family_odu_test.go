@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/replay/cassette"
 )
 
@@ -21,14 +22,14 @@ import (
 func TestWorkloadDependencyFamilyRepositoryIdentityDoesNotCollideWithSiblings(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
-	odu, err := loadWorkloadDependencyFamilyOdu(workloadDependencyFamilyCassetteFullPath(repoRoot))
+	odu, err := familyodu.LoadWorkloadDependencyFamilyOdu(familyodu.WorkloadDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
-		t.Fatalf("loadWorkloadDependencyFamilyOdu: %v", err)
+		t.Fatalf("familyodu.LoadWorkloadDependencyFamilyOdu: %v", err)
 	}
 
 	var repoIDs []string
 	for _, fact := range odu.Facts {
-		if fact.FactKind != repositoryFactKind {
+		if fact.FactKind != familyodu.RepositoryFactKind {
 			continue
 		}
 		repoID, ok := fact.Payload["repo_id"].(string)
@@ -88,12 +89,12 @@ func TestWorkloadDependencyFamilyOduPreservesEnvelopeFields(t *testing.T) {
 	t.Parallel()
 	repoRoot := repoRootDir(t)
 
-	odu, err := loadWorkloadDependencyFamilyOdu(workloadDependencyFamilyCassetteFullPath(repoRoot))
+	odu, err := familyodu.LoadWorkloadDependencyFamilyOdu(familyodu.WorkloadDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
-		t.Fatalf("loadWorkloadDependencyFamilyOdu: %v", err)
+		t.Fatalf("familyodu.LoadWorkloadDependencyFamilyOdu: %v", err)
 	}
 
-	onDisk, err := cassette.LoadFile(workloadDependencyFamilyCassetteFullPath(repoRoot))
+	onDisk, err := cassette.LoadFile(familyodu.WorkloadDependencyFamilyCassetteFullPath(repoRoot))
 	if err != nil {
 		t.Fatalf("cassette.LoadFile: %v", err)
 	}
@@ -136,12 +137,12 @@ func TestWorkloadDependencyFamilyOduPreservesEnvelopeFields(t *testing.T) {
 func TestWorkloadDependencyFamilyOduInCatalogSeed(t *testing.T) {
 	t.Parallel()
 	catalog := CatalogByName()
-	odu, ok := catalog[workloadDependencyFamilyOduName]
+	odu, ok := catalog[familyodu.WorkloadDependencyFamilyOduName]
 	if !ok {
-		t.Fatalf("CatalogByName() is missing %q; workloadDependencyFamilyOdu() must be added to catalogSeed", workloadDependencyFamilyOduName)
+		t.Fatalf("CatalogByName() is missing %q; workloadDependencyFamilyOdu() must be added to catalogSeed", familyodu.WorkloadDependencyFamilyOduName)
 	}
 	if len(odu.Facts) == 0 {
-		t.Fatalf("cataloged %q carries no facts", workloadDependencyFamilyOduName)
+		t.Fatalf("cataloged %q carries no facts", familyodu.WorkloadDependencyFamilyOduName)
 	}
 }
 

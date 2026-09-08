@@ -11,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/cigates"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/goldengate"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/replaycoverage"
 )
 
@@ -69,7 +70,7 @@ func EnumerateSurfaces(exp DerivedExpectations) []replaycoverage.SupportedSurfac
 // RunCoverage guard rejects any other scenario before reconciliation runs.
 type OduResolver struct {
 	// Catalog indexes every cataloged Odù by name (Catalog()/CatalogByName()).
-	Catalog map[string]Odu
+	Catalog map[string]familyodu.Odu
 	// Expectations is the derived expectation set a narrowed_correlation ref
 	// resolves against.
 	Expectations DerivedExpectations
@@ -105,7 +106,7 @@ func (r OduResolver) Resolve(entry replaycoverage.CoverageEntry) (bool, string) 
 
 // resolveFactKind implements the fact_kind:K rule (design §3): true iff odu
 // carries at least one fact of kind K and ValidateOduPayloads passes for it.
-func (r OduResolver) resolveFactKind(kind string, odu Odu) (bool, string) {
+func (r OduResolver) resolveFactKind(kind string, odu familyodu.Odu) (bool, string) {
 	present := false
 	for _, envelope := range odu.Facts {
 		if envelope.FactKind == kind {
@@ -129,7 +130,7 @@ func (r OduResolver) resolveFactKind(kind string, odu Odu) (bool, string) {
 // (design §3): true iff odu names a cataloged fixture and EvidenceSatisfies
 // reports the correlation's evidence-kind filter is met by odu's own
 // production-extractor evidence.
-func (r OduResolver) resolveNarrowedCorrelation(rcID string, odu Odu) (bool, string) {
+func (r OduResolver) resolveNarrowedCorrelation(rcID string, odu familyodu.Odu) (bool, string) {
 	var rc *goldengate.RequiredCorrelation
 	for i := range r.Expectations.NarrowedCorrelations {
 		if r.Expectations.NarrowedCorrelations[i].ID == rcID {
@@ -152,7 +153,7 @@ type CoverageInputs struct {
 	// Manifest is Ifá's own loaded coverage manifest.
 	Manifest replaycoverage.Manifest
 	// Catalog indexes every cataloged Odù by name.
-	Catalog map[string]Odu
+	Catalog map[string]familyodu.Odu
 	// Registry is the fact-kind registry, keyed by Kind.
 	Registry map[string]facts.FactKindRegistryEntry
 	// ProofGates is the CI-gate registry used to validate proof_gate names. Nil

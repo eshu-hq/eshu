@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package ifa
+package familyodu
 
 import (
 	"bytes"
@@ -14,6 +14,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
+
+// DocumentationFamilyOduName is this Odù's catalog name. Exported: the
+// family catalog and coverage tests read it; it lives here beside the
+// fixture so the name cannot drift from it.
+const DocumentationFamilyOduName = "odu:ifa-documentation-family"
+
+// DocumentationFamilyCassettePath is the committed cassette this Odù loads.
+// Exported for the same readers.
+const DocumentationFamilyCassettePath = "testdata/cassettes/documentation/ifa-documentation-family.json"
 
 // documentationFamilyCassetteFile declares the cassette's COMPLETE envelope
 // schema, mirroring codeCallFamilyCassetteFile's shape and reasoning
@@ -56,7 +65,7 @@ type documentationFamilyCassetteFile struct {
 // Exported (#6053) so materializededges' moved documentation-family tests can
 // locate the same committed cassette LoadDocumentationFamilyOdu reads.
 func DocumentationFamilyCassetteFullPath(repoRoot string) string {
-	return filepath.Join(repoRoot, documentationFamilyCassettePath)
+	return filepath.Join(repoRoot, DocumentationFamilyCassettePath)
 }
 
 // LoadDocumentationFamilyOdu reads the committed cassette and projects it onto
@@ -87,23 +96,23 @@ func DocumentationFamilyCassetteFullPath(repoRoot string) string {
 func LoadDocumentationFamilyOdu(cassettePath string) (Odu, error) {
 	raw, err := os.ReadFile(cassettePath) // #nosec G304 -- checked-in repo fixture under testdata/, not external input
 	if err != nil {
-		return Odu{}, fmt.Errorf("ifa: read documentation cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: read documentation cassette %s: %w", cassettePath, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
 	var parsed documentationFamilyCassetteFile
 	if err := decoder.Decode(&parsed); err != nil {
-		return Odu{}, fmt.Errorf("ifa: parse documentation cassette %s: %w", cassettePath, err)
+		return Odu{}, fmt.Errorf("familyodu: parse documentation cassette %s: %w", cassettePath, err)
 	}
 	if err := decoder.Decode(new(json.RawMessage)); !errors.Is(err, io.EOF) {
-		return Odu{}, fmt.Errorf("ifa: documentation cassette %s has trailing content after its JSON object", cassettePath)
+		return Odu{}, fmt.Errorf("familyodu: documentation cassette %s has trailing content after its JSON object", cassettePath)
 	}
 	if len(parsed.Scopes) != 1 {
-		return Odu{}, fmt.Errorf("ifa: documentation cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
+		return Odu{}, fmt.Errorf("familyodu: documentation cassette %s declares %d scopes, want exactly 1; a multi-scope fixture would make the expected-edge set ambiguous about which scope produced an edge", cassettePath, len(parsed.Scopes))
 	}
 	scope := parsed.Scopes[0]
 	if len(scope.Facts) == 0 {
-		return Odu{}, fmt.Errorf("ifa: documentation cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
+		return Odu{}, fmt.Errorf("familyodu: documentation cassette %s carries no facts; an empty Odù makes every assertion vacuous", cassettePath)
 	}
 
 	envelopes := make([]facts.Envelope, 0, len(scope.Facts))
@@ -120,5 +129,5 @@ func LoadDocumentationFamilyOdu(cassettePath string) (Odu, error) {
 			Payload:          fact.Payload,
 		})
 	}
-	return Odu{Name: documentationFamilyOduName, Facts: envelopes}, nil
+	return Odu{Name: DocumentationFamilyOduName, Facts: envelopes}, nil
 }

@@ -85,8 +85,9 @@ authoring; it does not build a second coverage framework.
   the live-gate proof history this section used to carry.
   `cmd/ifa`'s `assert-edges` verb, the `ifa-determinism`/`ifa-fault-injection`
   gates, and every family's Odù catalog entry (still seeded from this
-  package's own `catalog_seed.go` and `*_family_catalog.go`/`*_family_odu.go`
-  files) are unaffected by the move.
+  package's own `catalog_seed.go` and `*_family_catalog.go` files, with the
+  per-family `*_family_odu.go` fixtures in the `familyodu` subpackage since
+  the #6594 P1 split) are unaffected by the move.
 
 ## Dependencies
 

@@ -751,8 +751,6 @@ LINE go/internal/doctruth/verifier_container_image_test.go go/internal/storage/p
 LINE go/internal/environment/AGENTS.md go/internal/storage/cypher/workload_cloud_relationship_writer.go:22
 LINE go/internal/goldengate/snapshot.go go/internal/mcp/dispatch.go:65
 LINE go/internal/ifa/deployable_unit_family_catalog.go go/internal/collector/git_fact_builder.go:417
-LINE go/internal/ifa/inheritance_family_odu.go go/internal/collector/git_followup_facts.go:279
-LINE go/internal/ifa/inheritance_family_odu.go go/internal/projector/canonical_entity_identity.go:12
 LINE go/internal/ifa/materializededges/README.md go/internal/reducer/shared_projection_runner.go:31
 LINE go/internal/ifa/materializededges/materialized_edges_handles_route.go go/internal/reducer/correlated_workload_projection_input_loader.go:71
 LINE go/internal/ifa/materializededges/materialized_edges_handles_route_test.go go/internal/reducer/handles_route_intents.go:80
@@ -764,7 +762,6 @@ LINE go/internal/ifa/materializededges/materialized_edges_runs_in.go go/internal
 LINE go/internal/ifa/materializededges/materialized_edges_runs_in_test.go go/internal/reducer/projection.go:259
 LINE go/internal/ifa/materializededges/materialized_edges_runs_in_test.go go/internal/storage/cypher/canonical_runs_in_edges.go:26
 LINE go/internal/ifa/materializededges/materialized_edges_symbol_runtime_shared.go go/internal/reducer/shared_projection_readiness.go:245
-LINE go/internal/ifa/symbol_runtime_family_odu.go go/internal/reducer/correlated_workload_projection_input_loader.go:71
 LINE go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json go/internal/content/writer.go:196
 LINE go/internal/ifa/testdata/codecalls/ifa-code-call-family-expected-edges.json go/internal/projector/canonical_entity_identity.go:12
 LINE go/internal/mcp/kind_consumer_existence_test.go go/internal/projector/tfstate_canonical.go:113

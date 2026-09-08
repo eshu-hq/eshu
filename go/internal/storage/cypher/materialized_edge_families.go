@@ -123,7 +123,7 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		RetractCypher:  retractRationaleEdgesCypher,
 		IdentityCypher: batchCanonicalRationaleExplainsEdgeCypher,
 	},
-	// The first three DIRECT-materialization families registered here (#6228).
+	// The first four DIRECT-materialization families registered here (#6228).
 	// Unlike every entry above them, these reach the graph straight from their
 	// own reducer port with no shared-projection intent row in between, so
 	// reducer.DirectMaterializedEdgeFamilies() enumerates them rather than
@@ -145,12 +145,12 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 	//     which is NOT a graph relationship type; the type its template MERGEs
 	//     is USES.
 	//
-	// Since #6309 two of the three carry coverage rows. Registering a family
+	// Since #6309 two of the four carry coverage rows. Registering a family
 	// here makes `eshu-ifa assert-edges -domain <family>` addressable and lets
 	// its vacuity guard resolve; it does not assert that any live matrix
-	// drives it. workload_cloud_relationship alone still carries its two
-	// waiver rows in specs/ifa-materialized-edge-coverage-direct.v1.yaml for
-	// that reason.
+	// drives it. workload_cloud_relationship and iam_can_assume still carry
+	// their waiver rows in
+	// specs/ifa-materialized-edge-coverage-direct.v1.yaml for that reason.
 	//
 	// kubernetes_namespace_environment's write template MERGEs the Environment
 	// node with a property map and the relationship without one, so the
@@ -190,6 +190,22 @@ var singleTypeMaterializedEdgeFamilies = map[string]materializedEdgeFamily{
 		EdgeTypes:      map[string]string{"USES": "workload-instance to cloud-resource attachment (workloadCloudRelationshipUpsertCypherFormat)"},
 		RetractCypher:  retractWorkloadCloudRelationshipEdgesCypher,
 		IdentityCypher: workloadCloudRelationshipUpsertCypherFormat,
+	},
+	// iam_can_assume follows the same single-vocabulary shape as the two
+	// entries above it: IdentityCypher holds the %s FORMAT const unformatted,
+	// and the token substituted into it comes from
+	// iamCanAssumeRelationshipVocabulary, a closed single-member set screened
+	// per row by validateIAMCanAssumeRelationshipType, so CAN_ASSUME is the
+	// only type this writer can emit. The template MERGEs on its two endpoint
+	// nodes alone (both are MATCHed, never merged), so the identity scan
+	// yields nothing whether or not the %s has been substituted.
+	// iamCanAssumeEdgeLabel ("IAM_CAN_ASSUME") is statement metadata carried
+	// beside the query, not a graph relationship type -- the same #6181-shaped
+	// trap both entries above document at one level below the port name.
+	"iam_can_assume": {
+		EdgeTypes:      map[string]string{"CAN_ASSUME": "assuming-principal to role trust attachment (canonicalIAMCanAssumeEdgeUpsertCypherFormat)"},
+		RetractCypher:  retractIAMCanAssumeEdgesCypher,
+		IdentityCypher: canonicalIAMCanAssumeEdgeUpsertCypherFormat,
 	},
 }
 

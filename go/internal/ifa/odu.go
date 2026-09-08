@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/ifa/familyodu"
 	"github.com/eshu-hq/eshu/go/internal/projector"
 	"github.com/eshu-hq/eshu/go/internal/replay"
 	"github.com/eshu-hq/eshu/go/internal/scope"
@@ -22,15 +23,9 @@ type FactLoader interface {
 	LoadFacts(context.Context, projector.ScopeGenerationWork) ([]facts.Envelope, error)
 }
 
-// Odu is one scenario-level Ifá conformance case at the fact-envelope seam.
-type Odu struct {
-	Name  string
-	Work  *projector.ScopeGenerationWork
-	Facts []facts.Envelope
-}
-
+// familyodu.Odu and familyodu.CatalogOdu live in familyodu/types.go beside the family fixtures.
 // CanonicalizeOdu renders odu into replay's deterministic canonical JSON form.
-func CanonicalizeOdu(ctx context.Context, odu Odu, loader FactLoader) ([]byte, error) {
+func CanonicalizeOdu(ctx context.Context, odu familyodu.Odu, loader FactLoader) ([]byte, error) {
 	factsForOdu, err := factsFromOdu(ctx, odu, loader)
 	if err != nil {
 		return nil, err
@@ -47,7 +42,7 @@ func CanonicalizeOdu(ctx context.Context, odu Odu, loader FactLoader) ([]byte, e
 	return canonical, nil
 }
 
-func factsFromOdu(ctx context.Context, odu Odu, loader FactLoader) ([]facts.Envelope, error) {
+func factsFromOdu(ctx context.Context, odu familyodu.Odu, loader FactLoader) ([]facts.Envelope, error) {
 	if odu.Work == nil {
 		return cloneFacts(odu.Facts), nil
 	}
@@ -69,7 +64,7 @@ func cloneFacts(input []facts.Envelope) []facts.Envelope {
 	return out
 }
 
-func renderScopes(odu Odu, input []facts.Envelope) []any {
+func renderScopes(odu familyodu.Odu, input []facts.Envelope) []any {
 	byScope := make(map[string][]facts.Envelope)
 	for _, fact := range input {
 		byScope[fact.ScopeGenerationKey()] = append(byScope[fact.ScopeGenerationKey()], fact)
@@ -91,7 +86,7 @@ func renderScopes(odu Odu, input []facts.Envelope) []any {
 	return scopes
 }
 
-func renderScope(odu Odu, scopeFacts []facts.Envelope) map[string]any {
+func renderScope(odu familyodu.Odu, scopeFacts []facts.Envelope) map[string]any {
 	first := scopeFacts[0]
 	scopeValue := scope.IngestionScope{}
 	generationValue := scope.ScopeGeneration{}
