@@ -9,6 +9,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j/dbtype"
 )
 
@@ -36,7 +39,7 @@ type callChainRequest struct {
 const codeCallChainAnchorLabelDisjunction = "Function|Class|Struct|Interface|TypeAlias|File"
 
 func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), "call_graph.call_chain_path") {
+	if querycontract.CapabilityUnsupported(h.profile(), "call_graph.call_chain_path") {
 		WriteContractError(
 			w,
 			r,
@@ -45,7 +48,7 @@ func (h *CodeHandler) handleCallChain(w http.ResponseWriter, r *http.Request) {
 			"unsupported_capability",
 			"call_graph.call_chain_path",
 			h.profile(),
-			requiredProfile("call_graph.call_chain_path"),
+			querycontract.RequiredProfile("call_graph.call_chain_path"),
 		)
 		return
 	}
@@ -140,7 +143,7 @@ func (r callChainRequest) validate() error {
 func buildCallChainCypher(
 	req callChainRequest,
 	backend GraphBackend,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{}
 	predicates := make([]string, 0, 6)
@@ -233,7 +236,7 @@ func buildCallChainCypher(
 // lane bounds each hop as its Go-side traversal expands instead
 // (nornicDBCallChainOneHopRows), and its shortestPath builder is unreachable
 // from handleCallChain.
-func callChainPathHopPredicates(req callChainRequest, access repositoryAccessFilter) []string {
+func callChainPathHopPredicates(req callChainRequest, access querycontract.RepositoryAccessFilter) []string {
 	predicates := make([]string, 0, 2)
 	switch {
 	case req.CrossRepo:
@@ -317,11 +320,11 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 	if strings.TrimSpace(req.StartEntityID) == "" && strings.TrimSpace(req.Start) != "" {
 		var err error
 		startRepoID := callChainStartRepoID(req)
-		startCandidates, err = resolveExactGraphEntityCandidates(ctx, h.Content, startRepoID, req.Start)
+		startCandidates, err = querycontract.ResolveExactGraphEntityCandidates(ctx, h.Content, startRepoID, req.Start)
 		if err != nil {
 			return err
 		}
-		resolved, err := selectExactGraphEntityCandidate(startRepoID, req.Start, startCandidates)
+		resolved, err := querycontract.SelectExactGraphEntityCandidate(startRepoID, req.Start, startCandidates)
 		startErr = err
 		if resolved != nil {
 			req.StartEntityID = resolved.EntityID
@@ -330,11 +333,11 @@ func (h *CodeHandler) resolveCallChainEntityIDs(ctx context.Context, req *callCh
 	if strings.TrimSpace(req.EndEntityID) == "" && strings.TrimSpace(req.End) != "" {
 		var err error
 		endRepoID := callChainEndRepoID(req)
-		endCandidates, err = resolveExactGraphEntityCandidates(ctx, h.Content, endRepoID, req.End)
+		endCandidates, err = querycontract.ResolveExactGraphEntityCandidates(ctx, h.Content, endRepoID, req.End)
 		if err != nil {
 			return err
 		}
-		resolved, err := selectExactGraphEntityCandidate(endRepoID, req.End, endCandidates)
+		resolved, err := querycontract.SelectExactGraphEntityCandidate(endRepoID, req.End, endCandidates)
 		endErr = err
 		if resolved != nil {
 			req.EndEntityID = resolved.EntityID
@@ -442,9 +445,9 @@ func attachCallChainNodeSemantics(nodes []any) []any {
 		}
 
 		normalized := cloneQueryAnyMap(nodeMap)
-		if metadata := graphResultMetadata(normalized); len(metadata) > 0 {
+		if metadata := querycontract.GraphResultMetadata(normalized); len(metadata) > 0 {
 			normalized["metadata"] = metadata
-			attachSemanticSummary(normalized)
+			entitysemantics.AttachSemanticSummary(normalized)
 		}
 		attached = append(attached, normalized)
 	}

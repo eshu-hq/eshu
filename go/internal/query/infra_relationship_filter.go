@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -136,35 +137,11 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	}, BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from infrastructure relationship graph"))
 }
 
-// filterNullRelationships removes entries where type is nil (from OPTIONAL MATCH with no matches).
+// filterNullRelationships forwards to querycontract.FilterNullRelationships.
+// The implementation moved to querycontract for #6060; this wrapper keeps
+// root callers unchanged.
 func filterNullRelationships(v any) []map[string]any {
-	switch slice := v.(type) {
-	case []map[string]any:
-		result := make([]map[string]any, 0, len(slice))
-		for _, item := range slice {
-			if item["type"] == nil {
-				continue
-			}
-			result = append(result, item)
-		}
-		return result
-	case []any:
-		result := make([]map[string]any, 0, len(slice))
-		for _, item := range slice {
-			m, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			// Skip entries where type is nil (no relationship matched)
-			if m["type"] == nil {
-				continue
-			}
-			result = append(result, m)
-		}
-		return result
-	default:
-		return nil
-	}
+	return querycontract.FilterNullRelationships(v)
 }
 
 // infraRelationshipTypeAliases maps each semantic analyze_infra_relationships

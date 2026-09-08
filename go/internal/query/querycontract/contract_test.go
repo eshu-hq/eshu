@@ -229,3 +229,27 @@ func TestNoBackendReadBasisIsFallbackAndSurvivesNormalization(t *testing.T) {
 			"(docs/public/reference/truth-label-protocol.md)", got, want)
 	}
 }
+
+// TestClassifyAnswerTruthPinsNoBackendReadToFallback pins the
+// TruthBasisNoBackendRead arm of ClassifyAnswerTruth directly, with a Level
+// that the other arms would otherwise classify as a real answer.
+//
+// #6544 already covers the arm from root, through the forwarder:
+// TestAnswerPacketTruthClassMapping/no_backend_read_never_upgrades fails
+// without it (verified by deleting the arm). This test covers the same rule at
+// the querycontract entry point directly, so the arm stays pinned even if root
+// stops forwarding to it. Constructing the envelope literally is deliberate:
+// BuildTruthEnvelope cannot reach this state, because basisLevel already forces
+// a no-read page to TruthLevelFallback.
+func TestClassifyAnswerTruthPinsNoBackendReadToFallback(t *testing.T) {
+	for _, level := range []TruthLevel{TruthLevelExact, TruthLevelDerived} {
+		got := ClassifyAnswerTruth(&TruthEnvelope{
+			Basis: TruthBasisNoBackendRead,
+			Level: level,
+		})
+		if got != AnswerTruthFallback {
+			t.Errorf("ClassifyAnswerTruth(basis=%s, level=%s) = %s, want %s; a page produced without reading any backend must never classify as a real answer",
+				TruthBasisNoBackendRead, level, got, AnswerTruthFallback)
+		}
+	}
+}

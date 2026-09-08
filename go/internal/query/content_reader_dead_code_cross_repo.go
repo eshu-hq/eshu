@@ -13,51 +13,25 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 const maxCrossRepoDeadCodeConsumerEvidenceRows = 1000
 
-// crossRepoDeadCodeConsumerReads says how one cross-repo consumer-evidence
-// lookup is bounded. The handler builds it; the reader does what it says.
-//
-// PageRepositoryIDs is the consumer-repository list the evidence page binds in
-// SQL ahead of its LIMIT: the request's own consumer selector when it named
-// one, otherwise the caller's grant, and empty only for an unscoped caller who
-// named neither -- the single case where an unbounded page is the right answer.
-// Which list goes here decides where the row cap falls. Binding the grant while
-// the request named one consumer let a thousand rows from another granted
-// repository fill the page and push the requested consumer off it.
-//
-// SignalGrant is the caller's grant the ungranted-consumer probe tests each
-// consumer repository against, and empty means no probe runs. The probe
-// answers, per producer entity, whether a consumer outside that grant exists; it is the half of the
-// question the grant-bound page cannot see, and losing it would mark a live
-// symbol dead. A request that named a consumer selector leaves this empty,
-// because the only consumers the probe could report are ones that request
-// excluded.
-type crossRepoDeadCodeConsumerReads struct {
-	PageRepositoryIDs []string
-	SignalGrant       []string
-}
+// crossRepoDeadCodeConsumerReads aliases
+// querycontract.CrossRepoDeadCodeConsumerReads. The implementation moved to
+// querycontract for #6060; this alias keeps root callers unchanged.
+type crossRepoDeadCodeConsumerReads = querycontract.CrossRepoDeadCodeConsumerReads
 
-// crossRepoDeadCodeHiddenConsumers is the set of producer entity ids the
-// ungranted-consumer probe proved have at least one active-generation consumer
-// in a repository outside the caller's grant.
-//
-// It is a set of PRODUCER entity ids -- every one of which the caller is
-// already reading -- and carries nothing about the consumer: not its
-// repository, not its entity, not a count. The route only ever needed the
-// yes/no, and answering only the yes/no is what lets the probe stop at the
-// first HIDDEN row -- ungranted and live -- instead of enumerating the group.
-type crossRepoDeadCodeHiddenConsumers map[string]struct{}
-
-// has reports whether the probe found an out-of-grant consumer for this
-// producer entity.
-func (h crossRepoDeadCodeHiddenConsumers) has(entityID string) bool {
-	_, ok := h[entityID]
-	return ok
-}
+// crossRepoDeadCodeHiddenConsumers aliases
+// querycontract.CrossRepoDeadCodeHiddenConsumers. The implementation moved to
+// querycontract for #6060; this alias keeps root callers unchanged. Its
+// former unexported `has` method has no Go equivalent for an aliased type
+// (methods cannot be added to a type declared in another package), so
+// callers use the exported querycontract.CrossRepoDeadCodeHiddenConsumers.Has
+// method the alias already carries.
+type crossRepoDeadCodeHiddenConsumers = querycontract.CrossRepoDeadCodeHiddenConsumers
 
 // CrossRepoDeadCodeConsumerEvidence returns active-generation consumer evidence
 // for producer candidates using a bounded entity-id lookup. It never performs a
@@ -229,6 +203,61 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 		}
 	}
 	return result, coverage, nil
+}
+
+// crossRepoDeadCodeUngrantedConsumers runs the ungranted-consumer probe for one
+// candidate page and returns the producer entities that have a consumer the
+// caller may not see. The probe query itself
+// (crossRepoDeadCodeUngrantedConsumerProbeQuery) stays in
+// code_dead_code_cross_repo_filter.go; this method is relocated here (#6060)
+// because its receiver, ContentReader, is declared in content_reader.go,
+// which stays in root when code_dead_code_cross_repo_filter.go's family
+// moves to its own subpackage -- Go requires a type's methods to live in the
+// same package as their declaration.
+//
+// Every entity on the page is probed, so the answer covers all of them: unlike
+// the row-returning read it replaces, the probe has no shared row budget one
+// busy entity can spend, and therefore never leaves a later entity unproven.
+// The result is bounded by the page's own entity count, which the statement
+// binds as its LIMIT.
+//
+// An empty grant returns no entities and runs nothing. The statement would
+// answer "nothing hidden" for a caller who may see nothing, so the guard is
+// here as well as in crossRepoDeadCodeConsumerReadPlan.
+func (cr *ContentReader) crossRepoDeadCodeUngrantedConsumers(
+	ctx context.Context,
+	producerRepoID string,
+	entityIDs []string,
+	grantRepositoryIDs []string,
+) (crossRepoDeadCodeHiddenConsumers, error) {
+	hidden := crossRepoDeadCodeHiddenConsumers{}
+	if len(entityIDs) == 0 || len(grantRepositoryIDs) == 0 {
+		return hidden, nil
+	}
+	rows, err := cr.db.QueryContext(
+		ctx,
+		crossRepoDeadCodeUngrantedConsumerProbeQuery,
+		producerRepoID,
+		pgarray.Array(entityIDs),
+		pgarray.Array(grantRepositoryIDs),
+		len(entityIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cross-repo dead code ungranted consumer probe: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var entityID string
+		if err := rows.Scan(&entityID); err != nil {
+			return nil, fmt.Errorf("scan cross-repo dead code ungranted consumer probe: %w", err)
+		}
+		hidden[entityID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return hidden, nil
 }
 
 // crossRepoDeadCodeGrantFilter appends a consumer-repository array to args and

@@ -6,17 +6,25 @@ Turns whatever a client typed into one canonical repository id, or a typed
 error saying it matched nothing or matched several. Six properties are accepted
 as selectors: id, name, path, local path, remote URL, and slug.
 
+`HydrateResolvedEntityRepoIdentity` answers a related but different question:
+given an entity the caller already resolved, fill in ITS OWN canonical
+repository identity (repo_id, repo_name) under the same access filter, from
+graph projection, the content catalog, or a bounded workload-backfill graph
+read, in that order.
+
 ## Ownership boundary
 
-This package owns selector resolution and the two selector error types. It does
-not own the graph or content adapters, the auth context, or any route. It
-receives ports and an access filter and answers one question.
+This package owns selector resolution, the two selector error types, and
+resolved-entity repository-identity hydration. It does not own the graph or
+content adapters, the auth context, or any route. It receives ports and an
+access filter and answers its questions from those.
 
 ## Exported surface
 
 `ResolveExact`, `ResolveExactForAccess`, `ResolveForRequestWithAccess`,
-`IsNotFound`, `LooksCanonicalRepositoryID`, `CatalogMatches`, and the
-`NotFoundError` / `AmbiguousError` types. See [doc.go](doc.go).
+`IsNotFound`, `LooksCanonicalRepositoryID`, `CatalogMatches`, the
+`NotFoundError` / `AmbiguousError` types, `HydrateResolvedEntityRepoIdentity`,
+`EntityString`, and `EntityLabelStrings`. See [doc.go](doc.go).
 
 ## Dependencies
 
@@ -61,6 +69,14 @@ was re-pinned. Extracting every string literal per function with `go/parser`
 before and after gives identical multisets — `ResolveExactForAccess` 25 literals,
 hash unchanged; `CatalogMatches` 2, unchanged; `LooksCanonicalRepositoryID` 3,
 unchanged. Only identifiers changed.
+
+**`HydrateResolvedEntityRepoIdentity` scrubs a leaked backend projection
+placeholder before doing anything else (#6408).** A backend bug can return its
+own unresolved expression text (e.g. `"coalesce(repo.id, repoViaInstance.id)"`)
+as if it were a real `repo_id`/`repo_name` value; the scrub
+(`querycontract.ClearResolvedEntityRepoProjectionPlaceholders`) clears exactly
+those four known shapes before any other hydration path runs, so a still-open
+backend bug never gets treated as resolved identity.
 
 ## Related docs
 

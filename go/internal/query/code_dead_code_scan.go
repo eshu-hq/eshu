@@ -338,7 +338,7 @@ func deadCodeResultNeedsGraphIncomingProbe(result map[string]any, label string) 
 	if label == "SqlFunction" {
 		return true
 	}
-	return primaryEntityLabel(result) == "SqlFunction"
+	return querycontract.PrimaryEntityLabel(result) == "SqlFunction"
 }
 
 func addDeadCodePolicyStats(total *deadCodePolicyStats, next deadCodePolicyStats) {

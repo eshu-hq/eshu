@@ -9,6 +9,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // CodeHandler provides HTTP routes for code-level queries: search, relationships,
@@ -28,6 +31,15 @@ type CodeHandler struct {
 	// records its unmodified cause to the operator log while the response
 	// body stays static. Nil is tolerated; logging is skipped.
 	Logger *slog.Logger
+	// ContentRelationships builds an entity's content-derived relationships
+	// for the POST /api/v0/code/relationships content fallback
+	// (relationshipsFromEntity, code_relationships.go). It is
+	// interface-typed rather than a concrete type or func value because
+	// assertRouterFieldsWired (cmd/api, cmd/mcp-server wiring completeness
+	// tests) only inspects reflect.Interface-kind fields; a nil value here
+	// is refused with a 503 rather than silently returning empty
+	// relationship lists (#6060).
+	ContentRelationships querycontract.ContentRelationshipBuilder
 }
 
 // Mount registers all /api/v0/code/* routes on the given mux.
@@ -110,8 +122,8 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if req.Limit <= 0 {
 		req.Limit = 50
 	}
-	if req.Limit > entityNameSearchMaxLimit {
-		req.Limit = entityNameSearchMaxLimit
+	if req.Limit > querycontract.EntityNameSearchMaxLimit {
+		req.Limit = querycontract.EntityNameSearchMaxLimit
 	}
 	probeLimit := codeSearchProbeLimit(req.Limit)
 	if req.RepoID == "" && !req.Exact && len([]rune(req.Query)) < 3 {
@@ -130,11 +142,11 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	if req.RepoID == "" {
 		results, err := h.searchGlobalEntityNames(r.Context(), req.Query, req.Language, probeLimit, req.Exact)
 		if err != nil {
-			if errors.Is(err, errEntityNameSearchUnavailable) {
+			if errors.Is(err, querycontract.ErrEntityNameSearchUnavailable) {
 				WriteError(w, http.StatusServiceUnavailable, err.Error())
 				return
 			}
-			if writeContentSubstringIndexUnavailable(w, err) {
+			if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
 				return
 			}
 			WriteError(w, http.StatusInternalServerError, err.Error())
@@ -149,7 +161,7 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Repository-selected search retains the indexed graph query path.
 	graphResults, err := h.searchGraphEntitiesWithExact(ctx, req.RepoID, req.Query, req.Language, probeLimit, req.Exact)
 	if err != nil {
-		if writeContentSubstringIndexUnavailable(w, err) {
+		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
 			return
 		}
 		if WriteGraphReadError(w, r, err, capability) {
@@ -170,7 +182,7 @@ func (h *CodeHandler) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// Fall back to content-based search if no graph results
 	contentResults, err := h.searchEntityContentWithExact(ctx, req.RepoID, req.Query, req.Language, probeLimit, req.Exact)
 	if err != nil {
-		if writeContentSubstringIndexUnavailable(w, err) {
+		if querycontract.WriteContentSubstringIndexUnavailable(w, err) {
 			return
 		}
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -203,7 +215,7 @@ func (h *CodeHandler) searchGraphEntities(ctx context.Context, repoID, query, la
 
 func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, query, language string, limit int, exact bool) ([]map[string]any, error) {
 	if strings.TrimSpace(repoID) == "" {
-		return nil, errGlobalGraphEntitySearchUnsupported
+		return nil, querycontract.ErrGlobalGraphEntitySearchUnsupported
 	}
 	if h == nil || h.Neo4j == nil {
 		return h.searchEntityContentWithExact(ctx, repoID, query, language, limit, exact)
@@ -233,9 +245,9 @@ func (h *CodeHandler) searchGraphEntitiesWithExact(ctx context.Context, repoID, 
 			"start_line": IntVal(row, "start_line"),
 			"end_line":   IntVal(row, "end_line"),
 		}
-		if metadata := graphResultMetadata(row); len(metadata) > 0 {
+		if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
 			result["metadata"] = metadata
-			attachSemanticSummary(result)
+			entitysemantics.AttachSemanticSummary(result)
 		}
 		results = append(results, result)
 	}
@@ -300,7 +312,7 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 
 	allowedLanguages := make(map[string]struct{})
 	if strings.TrimSpace(language) != "" {
-		for _, variant := range normalizedLanguageVariants(language) {
+		for _, variant := range querycontract.NormalizedLanguageVariants(language) {
 			allowedLanguages[variant] = struct{}{}
 		}
 	}
@@ -332,7 +344,7 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 			"metadata":     entity.Metadata,
 			"repo_id":      entity.RepoID,
 		})
-		attachSemanticSummary(results[len(results)-1])
+		entitysemantics.AttachSemanticSummary(results[len(results)-1])
 	}
 
 	for _, entity := range nameMatches {
@@ -349,145 +361,6 @@ func (h *CodeHandler) searchEntityContentWithExact(ctx context.Context, repoID, 
 	}
 
 	return results, nil
-}
-
-// handleComplexity returns relationship-based complexity metrics for an entity.
-func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		RepoID       string `json:"repo_id"`
-		EntityID     string `json:"entity_id"`
-		FunctionName string `json:"function_name"`
-		Limit        int    `json:"limit"`
-	}
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	ctx := r.Context()
-	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, "code_quality.complexity") {
-		return
-	}
-	// #5167 code family: the list branch's Repository anchor is optional and
-	// the entity_id branch had no repository predicate at all, so the caller's
-	// grant is resolved once here and pushed into every complexity builder.
-	access := codeGrantAccessFilter(ctx)
-	if access.Empty() {
-		writeEmptyComplexityAnswer(w, r, h.profile(), req.RepoID, req.EntityID == "" && req.FunctionName == "", req.Limit)
-		return
-	}
-	if req.EntityID == "" && req.FunctionName == "" {
-		results, limit, truncated, err := h.listMostComplexFunctions(ctx, req.RepoID, req.Limit, access)
-		if err != nil {
-			if WriteGraphReadError(w, r, err, "code_quality.complexity") {
-				return
-			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		WriteSuccess(w, r, http.StatusOK, map[string]any{
-			"repo_id":    req.RepoID,
-			"results":    results,
-			"limit":      limit,
-			"truncated":  truncated,
-			"result_key": "entity_id",
-		}, BuildTruthEnvelope(h.profile(), "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
-		return
-	}
-
-	row, err := h.lookupComplexityRow(ctx, req.EntityID, req.FunctionName, req.RepoID, access)
-	if err != nil {
-		var ambiguous complexityAmbiguousError
-		if errors.As(err, &ambiguous) {
-			writeComplexityAmbiguousError(w, r, ambiguous, h.profile())
-			return
-		}
-		if WriteGraphReadError(w, r, err, "code_quality.complexity") {
-			return
-		}
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if row == nil {
-		WriteError(w, http.StatusNotFound, "entity not found")
-		return
-	}
-
-	response := map[string]any{
-		"entity_id":           StringVal(row, "id"),
-		"name":                StringVal(row, "name"),
-		"labels":              StringSliceVal(row, "labels"),
-		"file_path":           StringVal(row, "file_path"),
-		"repo_id":             StringVal(row, "repo_id"),
-		"repo_name":           StringVal(row, "repo_name"),
-		"language":            StringVal(row, "language"),
-		"start_line":          IntVal(row, "start_line"),
-		"end_line":            IntVal(row, "end_line"),
-		"complexity":          IntVal(row, "complexity"),
-		"outgoing_count":      IntVal(row, "outgoing_count"),
-		"incoming_count":      IntVal(row, "incoming_count"),
-		"total_relationships": IntVal(row, "total_relationships"),
-	}
-	if metadata := graphResultMetadata(row); len(metadata) > 0 {
-		response["metadata"] = metadata
-	}
-	enriched, err := h.enrichGraphSearchResultsWithContentMetadata(
-		ctx,
-		[]map[string]any{response},
-		StringVal(row, "repo_id"),
-		StringVal(row, "name"),
-		1,
-	)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	WriteSuccess(w, r, http.StatusOK, enriched[0], BuildTruthEnvelope(h.profile(), "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
-}
-
-func (h *CodeHandler) lookupComplexityRow(
-	ctx context.Context,
-	entityID, functionName, repoID string,
-	access repositoryAccessFilter,
-) (map[string]any, error) {
-	if strings.TrimSpace(entityID) == "" {
-		return h.lookupComplexityRowByName(ctx, functionName, repoID, access)
-	}
-	row, err := h.lookupComplexityRowByID(ctx, entityID, repoID, access)
-	if err != nil {
-		return nil, err
-	}
-	// The name fallback answers a stale id, and only a lookup that searched
-	// every repository can prove the id is stale. See
-	// complexityIDLookupIsRepositoryBound.
-	if row == nil && strings.TrimSpace(functionName) != "" && !complexityIDLookupIsRepositoryBound(repoID, access) {
-		return h.lookupComplexityRowByName(ctx, functionName, repoID, access)
-	}
-	return row, nil
-}
-
-// writeEmptyComplexityAnswer is the fail-closed response for a scoped caller
-// with no grants: the same shape each branch returns when nothing matched, so
-// an ungranted caller cannot tell an empty grant from an empty index.
-func writeEmptyComplexityAnswer(
-	w http.ResponseWriter,
-	r *http.Request,
-	profile QueryProfile,
-	repoID string,
-	listBranch bool,
-	limit int,
-) {
-	if !listBranch {
-		WriteError(w, http.StatusNotFound, "entity not found")
-		return
-	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_id":    repoID,
-		"results":    []map[string]any{},
-		"limit":      normalizeComplexityListLimit(limit),
-		"truncated":  false,
-		"result_key": "entity_id",
-	}, BuildTruthEnvelope(profile, "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
 }
 
 func (h *CodeHandler) runComplexityQuery(ctx context.Context, cypher string, params map[string]any) (map[string]any, error) {

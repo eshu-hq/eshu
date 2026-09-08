@@ -5,7 +5,13 @@ package query
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 // lookupComplexityRowByName resolves a complexity row by function name. access
@@ -16,7 +22,7 @@ import (
 func (h *CodeHandler) lookupComplexityRowByName(
 	ctx context.Context,
 	functionName, repoID string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (map[string]any, error) {
 	params := map[string]any{"entity_name": functionName, "limit": complexityNameCandidateLimit + 1}
 	cypher := "\n\t\tMATCH (repo:Repository)-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)\n\t\tWHERE e.name = $entity_name"
@@ -62,7 +68,7 @@ func (h *CodeHandler) lookupComplexityRowByName(
 func (h *CodeHandler) lookupComplexityRowByID(
 	ctx context.Context,
 	entityID, repoID string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (map[string]any, error) {
 	params := map[string]any{"entity_id": entityID}
 	where := ""
@@ -100,7 +106,7 @@ func (h *CodeHandler) lookupComplexityRowByID(
 // [HTTP API — Code] promise for an entity id held by another repository.
 //
 // [HTTP API — Code]: https://github.com/eshu-hq/eshu/blob/main/docs/public/reference/http-api/code.md
-func complexityIDLookupIsRepositoryBound(repoID string, access repositoryAccessFilter) bool {
+func complexityIDLookupIsRepositoryBound(repoID string, access querycontract.RepositoryAccessFilter) bool {
 	return strings.TrimSpace(repoID) != "" || access.Scoped()
 }
 
@@ -118,7 +124,7 @@ func complexityCandidateProjection() string {
 		       count(DISTINCT outgoingRel) as outgoing_count,
 		       count(DISTINCT incomingRel) as incoming_count,
 		       count(DISTINCT outgoingRel) + count(DISTINCT incomingRel) as total_relationships,
-` + graphSemanticMetadataProjection()
+` + querygraphrows.GraphSemanticMetadataProjection()
 }
 
 // complexityListAnchor picks the clause that binds the Repository side of the
@@ -144,7 +150,7 @@ func complexityCandidateProjection() string {
 // shape: a bare MATCH (e:Function) with the hops in an OPTIONAL MATCH, so a
 // function the graph has not attributed to a repository still ranks in a
 // corpus-wide list. That text is unchanged by #5167.
-func complexityListAnchor(access repositoryAccessFilter, repoID string) string {
+func complexityListAnchor(access querycontract.RepositoryAccessFilter, repoID string) string {
 	if access.Scoped() || repoID != "" {
 		return `
 		MATCH (e:Function)<-[:CONTAINS]-(f:File)<-[:REPO_CONTAINS]-(repo:Repository)
@@ -166,7 +172,7 @@ func (h *CodeHandler) listMostComplexFunctions(
 	ctx context.Context,
 	repoID string,
 	limit int,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) ([]map[string]any, int, bool, error) {
 	limit = normalizeComplexityListLimit(limit)
 	cypher := complexityListAnchor(access, repoID)
@@ -184,7 +190,7 @@ func (h *CodeHandler) listMostComplexFunctions(
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + graphSemanticMetadataProjection() + `,
+` + querygraphrows.GraphSemanticMetadataProjection() + `,
 		       coalesce(e.cyclomatic_complexity, 0) as complexity
 		ORDER BY complexity DESC, e.name, e.id
 		LIMIT $limit
@@ -207,12 +213,151 @@ func (h *CodeHandler) listMostComplexFunctions(
 			"end_line":   IntVal(row, "end_line"),
 			"complexity": IntVal(row, "complexity"),
 		}
-		if metadata := graphResultMetadata(row); len(metadata) > 0 {
+		if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
 			result["metadata"] = metadata
-			attachSemanticSummary(result)
+			entitysemantics.AttachSemanticSummary(result)
 		}
 		results = append(results, result)
 	}
 	results, truncated := trimComplexityResults(results, limit)
 	return results, limit, truncated, nil
+}
+
+// handleComplexity returns relationship-based complexity metrics for an entity.
+func (h *CodeHandler) handleComplexity(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		RepoID       string `json:"repo_id"`
+		EntityID     string `json:"entity_id"`
+		FunctionName string `json:"function_name"`
+		Limit        int    `json:"limit"`
+	}
+	if err := ReadJSON(r, &req); err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	ctx := r.Context()
+	if !h.applyRepositorySelectorForCapability(w, r, &req.RepoID, "code_quality.complexity") {
+		return
+	}
+	// #5167 code family: the list branch's Repository anchor is optional and
+	// the entity_id branch had no repository predicate at all, so the caller's
+	// grant is resolved once here and pushed into every complexity builder.
+	access := codeGrantAccessFilter(ctx)
+	if access.Empty() {
+		writeEmptyComplexityAnswer(w, r, h.profile(), req.RepoID, req.EntityID == "" && req.FunctionName == "", req.Limit)
+		return
+	}
+	if req.EntityID == "" && req.FunctionName == "" {
+		results, limit, truncated, err := h.listMostComplexFunctions(ctx, req.RepoID, req.Limit, access)
+		if err != nil {
+			if WriteGraphReadError(w, r, err, "code_quality.complexity") {
+				return
+			}
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		WriteSuccess(w, r, http.StatusOK, map[string]any{
+			"repo_id":    req.RepoID,
+			"results":    results,
+			"limit":      limit,
+			"truncated":  truncated,
+			"result_key": "entity_id",
+		}, BuildTruthEnvelope(h.profile(), "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
+		return
+	}
+
+	row, err := h.lookupComplexityRow(ctx, req.EntityID, req.FunctionName, req.RepoID, access)
+	if err != nil {
+		var ambiguous complexityAmbiguousError
+		if errors.As(err, &ambiguous) {
+			writeComplexityAmbiguousError(w, r, ambiguous, h.profile())
+			return
+		}
+		if WriteGraphReadError(w, r, err, "code_quality.complexity") {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if row == nil {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
+
+	response := map[string]any{
+		"entity_id":           StringVal(row, "id"),
+		"name":                StringVal(row, "name"),
+		"labels":              StringSliceVal(row, "labels"),
+		"file_path":           StringVal(row, "file_path"),
+		"repo_id":             StringVal(row, "repo_id"),
+		"repo_name":           StringVal(row, "repo_name"),
+		"language":            StringVal(row, "language"),
+		"start_line":          IntVal(row, "start_line"),
+		"end_line":            IntVal(row, "end_line"),
+		"complexity":          IntVal(row, "complexity"),
+		"outgoing_count":      IntVal(row, "outgoing_count"),
+		"incoming_count":      IntVal(row, "incoming_count"),
+		"total_relationships": IntVal(row, "total_relationships"),
+	}
+	if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
+		response["metadata"] = metadata
+	}
+	enriched, err := h.enrichGraphSearchResultsWithContentMetadata(
+		ctx,
+		[]map[string]any{response},
+		StringVal(row, "repo_id"),
+		StringVal(row, "name"),
+		1,
+	)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	WriteSuccess(w, r, http.StatusOK, enriched[0], BuildTruthEnvelope(h.profile(), "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
+}
+
+func (h *CodeHandler) lookupComplexityRow(
+	ctx context.Context,
+	entityID, functionName, repoID string,
+	access querycontract.RepositoryAccessFilter,
+) (map[string]any, error) {
+	if strings.TrimSpace(entityID) == "" {
+		return h.lookupComplexityRowByName(ctx, functionName, repoID, access)
+	}
+	row, err := h.lookupComplexityRowByID(ctx, entityID, repoID, access)
+	if err != nil {
+		return nil, err
+	}
+	// The name fallback answers a stale id, and only a lookup that searched
+	// every repository can prove the id is stale. See
+	// complexityIDLookupIsRepositoryBound.
+	if row == nil && strings.TrimSpace(functionName) != "" && !complexityIDLookupIsRepositoryBound(repoID, access) {
+		return h.lookupComplexityRowByName(ctx, functionName, repoID, access)
+	}
+	return row, nil
+}
+
+// writeEmptyComplexityAnswer is the fail-closed response for a scoped caller
+// with no grants: the same shape each branch returns when nothing matched, so
+// an ungranted caller cannot tell an empty grant from an empty index.
+func writeEmptyComplexityAnswer(
+	w http.ResponseWriter,
+	r *http.Request,
+	profile QueryProfile,
+	repoID string,
+	listBranch bool,
+	limit int,
+) {
+	if !listBranch {
+		WriteError(w, http.StatusNotFound, "entity not found")
+		return
+	}
+	WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"repo_id":    repoID,
+		"results":    []map[string]any{},
+		"limit":      normalizeComplexityListLimit(limit),
+		"truncated":  false,
+		"result_key": "entity_id",
+	}, BuildTruthEnvelope(profile, "code_quality.complexity", TruthBasisHybrid, "resolved from graph-derived complexity metrics"))
 }

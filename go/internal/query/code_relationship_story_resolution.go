@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (h *CodeHandler) resolveRelationshipStoryTarget(
@@ -57,7 +59,7 @@ func (h *CodeHandler) resolveRelationshipStoryTarget(
 	if len(candidates) == 0 {
 		return relationshipStoryResolution{Status: "not_found", Target: target}, nil, nil
 	}
-	candidates = exactEntityNameMatches(candidates, target)
+	candidates = querycontract.ExactEntityNameMatches(candidates, target)
 	if req.NormalizedQueryType() == "class_hierarchy" {
 		candidates = relationshipStoryClassHierarchyCandidates(candidates)
 	}
@@ -188,7 +190,7 @@ func relationshipStoryGrantedCandidates(
 	// follow-up rather than an oversight. Raised independently by two reviewers
 	// on PR #6605, both scoring it non-blocking.
 	if language := strings.TrimSpace(req.Language); language != "" {
-		return searchEntitiesForGrant(ctx, content, languageEntitySearch{
+		return searchEntitiesForGrant(ctx, content, querycontract.LanguageEntitySearch{
 			RepoID:               repoID,
 			Language:             language,
 			Query:                target,
@@ -267,7 +269,7 @@ func relationshipStoryExactCandidatesPerRepository(
 		if err != nil {
 			return nil, err
 		}
-		candidates = append(candidates, exactEntityNameMatches(rows, target)...)
+		candidates = append(candidates, querycontract.ExactEntityNameMatches(rows, target)...)
 	}
 	if len(candidates) > limit {
 		candidates = candidates[:limit]
@@ -298,7 +300,7 @@ func relationshipStoryExactCandidatesPerRepository(
 // .go files, and a 788th fails that gate with no //nolint escape.
 //
 // The three branches are the store's, not this route's. A store that satisfies
-// languageEntityContentSearcher takes the grant into its own statement, so one
+// querycontract.LanguageEntityContentSearcher takes the grant into its own statement, so one
 // read serves the whole granted set and the LIMIT page is taken from it. A
 // store that does not -- a test fake, or an older implementation -- can only be
 // asked about one repository at a time, so a corpus-wide scoped search iterates
@@ -307,12 +309,12 @@ func relationshipStoryExactCandidatesPerRepository(
 func searchEntitiesForGrant(
 	ctx context.Context,
 	content ContentStore,
-	search languageEntitySearch,
+	search querycontract.LanguageEntitySearch,
 ) ([]EntityContent, error) {
 	if content == nil {
 		return nil, fmt.Errorf("content reader is required for %s queries", search.EntityType)
 	}
-	if searcher, ok := content.(languageEntityContentSearcher); ok {
+	if searcher, ok := content.(querycontract.LanguageEntityContentSearcher); ok {
 		return searcher.SearchEntitiesByLanguageAndTypeForAccess(ctx, search)
 	}
 	if search.RepoID != "" || len(search.AllowedRepositoryIDs) == 0 {
@@ -343,7 +345,7 @@ func searchEntitiesForGrant(
 	// that fix for the two no-language branches, which have a read of their own
 	// to change; this loop keeps the substring rows its twin's callers need.
 	// Its reach today is nil -- *ContentReader satisfies
-	// languageEntityContentSearcher and takes the branch above, so this loop
+	// querycontract.LanguageEntityContentSearcher and takes the branch above, so this loop
 	// runs only for a fake or an older store.
 	entities := make([]EntityContent, 0, search.Limit)
 	for _, repoID := range search.AllowedRepositoryIDs {

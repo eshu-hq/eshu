@@ -9,12 +9,22 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 )
 
 // The relationshipsRequest type split to
 // codemodel/code_relationships_resolution.go (#6060 lane A L1) with the
 // name-target resolver that reads it. Root's family_code_shim.go aliases
 // it back so the staying relationships handler keeps its literal.
+
+// errContentRelationshipBuilderNotConfigured is relationshipsFromEntity's
+// sentinel for a nil CodeHandler.ContentRelationships. It is returned only
+// after the entity is already resolved (relationshipsFromContent calls
+// resolveRelationshipEntity first), so an unknown entity still gets its
+// existing 404 instead of this 503 (#6060).
+var errContentRelationshipBuilderNotConfigured = errors.New("content relationship builder not configured")
 
 // handleRelationships returns incoming and outgoing relationships for an entity.
 func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +84,7 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 			req.MaxDepth = 10
 		}
 		capability := transitiveRelationshipCapability(direction)
-		if capabilityUnsupported(h.profile(), capability) {
+		if querycontract.CapabilityUnsupported(h.profile(), capability) {
 			WriteContractError(
 				w,
 				r,
@@ -83,7 +93,7 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 				ErrorCodeUnsupportedCapability,
 				capability,
 				h.profile(),
-				requiredProfile(capability),
+				querycontract.RequiredProfile(capability),
 			)
 			return
 		}
@@ -114,7 +124,7 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 			"outgoing":   mapRelationships(row["outgoing"]),
 			"incoming":   mapRelationships(row["incoming"]),
 		}
-		if metadata := graphResultMetadata(row); len(metadata) > 0 {
+		if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
 			response["metadata"] = metadata
 		}
 		if err := h.hydrateRelationshipResponseRepoIdentity(ctx, response); err != nil {
@@ -154,6 +164,10 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 	if row == nil {
 		response, fallbackErr := h.relationshipsFromContent(ctx, req.EntityID, req.Name, req.RepoID)
 		if fallbackErr != nil {
+			if errors.Is(fallbackErr, errContentRelationshipBuilderNotConfigured) {
+				WriteError(w, http.StatusServiceUnavailable, fallbackErr.Error())
+				return
+			}
 			WriteError(w, http.StatusInternalServerError, fallbackErr.Error())
 			return
 		}
@@ -175,10 +189,10 @@ func (h *CodeHandler) handleRelationships(w http.ResponseWriter, r *http.Request
 		"language":   StringVal(row, "language"),
 		"start_line": IntVal(row, "start_line"),
 		"end_line":   IntVal(row, "end_line"),
-		"outgoing":   filterNullRelationships(row["outgoing"]),
-		"incoming":   filterNullRelationships(row["incoming"]),
+		"outgoing":   querycontract.FilterNullRelationships(row["outgoing"]),
+		"incoming":   querycontract.FilterNullRelationships(row["incoming"]),
 	}
-	if metadata := graphResultMetadata(row); len(metadata) > 0 {
+	if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
 		response["metadata"] = metadata
 	}
 	if err := h.hydrateRelationshipResponseRepoIdentity(ctx, response); err != nil {
@@ -219,11 +233,11 @@ func (h *CodeHandler) hydrateRelationshipResponseRepoIdentity(ctx context.Contex
 		"repo_name": StringVal(response, "repo_name"),
 		"labels":    response["labels"],
 	}
-	clearResolvedEntityRepoProjectionPlaceholders(entity)
+	querycontract.ClearResolvedEntityRepoProjectionPlaceholders(entity)
 	if h == nil {
 		return nil
 	}
-	if _, err := hydrateResolvedEntityRepoIdentity(ctx, h.Neo4j, h.Content, []map[string]any{entity}); err != nil {
+	if _, err := queryselector.HydrateResolvedEntityRepoIdentity(ctx, h.Neo4j, h.Content, []map[string]any{entity}); err != nil {
 		return fmt.Errorf("hydrate relationship repo identity: %w", err)
 	}
 	response["repo_id"] = StringVal(entity, "repo_id")
@@ -400,11 +414,15 @@ func (h *CodeHandler) relationshipsFromEntity(
 	ctx context.Context,
 	entity EntityContent,
 ) (map[string]any, error) {
-	// CodeHandler has no Logger field (unlike EntityHandler), so the
-	// mixed-vintage k8s SELECTS Debug diagnostic (see
-	// logK8sSelectMixedVintageDrop, content_relationships.go) is skipped for
-	// this call path -- it is a no-op when logger is nil, not an error.
-	relationshipSet, err := buildContentRelationshipSet(ctx, h.Content, entity, nil)
+	if h.ContentRelationships == nil {
+		return nil, errContentRelationshipBuilderNotConfigured
+	}
+	// CodeHandler.Logger (code.go) is not passed here: no file in the code
+	// family calls the logger directly, and the sole sink -- the
+	// mixed-vintage k8s SELECTS Debug diagnostic
+	// (logK8sSelectMixedVintageDrop, content_relationships.go) -- nil-checks
+	// it, so passing nil is a no-op rather than a behavior change (#6060).
+	relationshipSet, err := h.ContentRelationships.BuildContentRelationships(ctx, h.Content, entity, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -419,65 +437,7 @@ func (h *CodeHandler) relationshipsFromEntity(
 		"start_line": entity.StartLine,
 		"end_line":   entity.EndLine,
 		"metadata":   entity.Metadata,
-		"outgoing":   relationshipSet.outgoing,
-		"incoming":   relationshipSet.incoming,
+		"outgoing":   relationshipSet.Outgoing,
+		"incoming":   relationshipSet.Incoming,
 	}, nil
-}
-
-func normalizeRelationshipDirection(direction string) (string, error) {
-	switch normalized := strings.ToLower(strings.TrimSpace(direction)); normalized {
-	case "", "incoming", "outgoing":
-		return normalized, nil
-	default:
-		return "", errors.New("direction must be incoming or outgoing")
-	}
-}
-
-func filterRelationshipResponse(
-	response map[string]any,
-	direction string,
-	relationshipType string,
-) map[string]any {
-	filtered := make(map[string]any, len(response))
-	for key, value := range response {
-		filtered[key] = value
-	}
-
-	outgoing := filterRelationships(mapRelationships(response["outgoing"]), relationshipType)
-	incoming := filterRelationships(mapRelationships(response["incoming"]), relationshipType)
-	if direction == "incoming" {
-		outgoing = []map[string]any{}
-	}
-	if direction == "outgoing" {
-		incoming = []map[string]any{}
-	}
-
-	filtered["outgoing"] = outgoing
-	filtered["incoming"] = incoming
-	return filtered
-}
-
-func filterRelationships(relationships []map[string]any, relationshipType string) []map[string]any {
-	if len(relationships) == 0 {
-		return []map[string]any{}
-	}
-	if relationshipType == "" {
-		return relationships
-	}
-
-	filtered := make([]map[string]any, 0, len(relationships))
-	for _, relationship := range relationships {
-		if strings.EqualFold(StringVal(relationship, "type"), relationshipType) {
-			filtered = append(filtered, relationship)
-		}
-	}
-	return filtered
-}
-
-func mapRelationships(value any) []map[string]any {
-	relationships, ok := value.([]map[string]any)
-	if ok {
-		return relationships
-	}
-	return filterNullRelationships(value)
 }

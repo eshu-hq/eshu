@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (h *CodeHandler) nornicDBRelationshipStoryGraphRows(
@@ -139,7 +141,7 @@ func nornicDBRelationshipStoryGraphCypher(
 	entityLabel string,
 	property string,
 	direction string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	relationshipType, _ := req.NormalizedRelationshipType()
 	params := map[string]any{
@@ -352,7 +354,7 @@ func nornicDBRelationshipStoryClassMethodsCypher(
 	req relationshipStoryRequest,
 	entityID string,
 	property string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
@@ -428,7 +430,7 @@ func nornicDBRelationshipStoryInheritanceDepthCypher(
 	entityID string,
 	direction string,
 	property string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
 	params := map[string]any{

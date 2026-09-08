@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -66,7 +68,7 @@ type codeTopicContentInvestigator interface {
 }
 
 func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(r, telemetry.SpanQueryCodeTopicInvestigation, "POST /api/v0/code/topics/investigate", codeTopicCapability)
+	r, span := startCodeQueryHandlerSpan(r, telemetry.SpanQueryCodeTopicInvestigation, "POST /api/v0/code/topics/investigate", codeTopicCapability)
 	defer span.End()
 
 	var req codeTopicInvestigationRequest
@@ -74,7 +76,7 @@ func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Re
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), codeTopicCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), codeTopicCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -83,7 +85,7 @@ func (h *CodeHandler) handleTopicInvestigation(w http.ResponseWriter, r *http.Re
 			ErrorCodeUnsupportedCapability,
 			codeTopicCapability,
 			h.profile(),
-			requiredProfile(codeTopicCapability),
+			querycontract.RequiredProfile(codeTopicCapability),
 		)
 		return
 	}
@@ -216,7 +218,7 @@ func codeTopicResponse(req codeTopicInvestigationRequest, rows []codeTopicEviden
 			"empty":               len(rows) == 0,
 		},
 	}
-	return attachAnswerMetadata(data)
+	return querycontract.AttachAnswerMetadata(data)
 }
 
 func codeTopicEvidenceGroup(row codeTopicEvidenceRow, rank int) map[string]any {
@@ -421,4 +423,27 @@ var codeTopicStopWords = map[string]bool{
 	"how": true, "in": true, "into": true, "is": true, "of": true,
 	"or": true, "responsible": true, "show": true, "the": true,
 	"this": true, "to": true, "where": true, "who": true,
+}
+
+// codeTopicAnswerData attaches the answer_packet companion onto a code-topic
+// investigation response. Moved from answer_packet_routes.go for #6060: it
+// takes codeTopicInvestigationRequest, a code-family type, so hoisting it to
+// querycontract (as its withAnswerPacketCompanion/codeTopicAnswerSummary/
+// codeTopicAnswerLimitations/codeTopicEvidenceHandles callees were) would
+// make querycontract import the code family -- the cycle in reverse. It
+// moves here instead, once those callees are in place.
+func codeTopicAnswerData(req codeTopicInvestigationRequest, data map[string]any, truth *TruthEnvelope) map[string]any {
+	return querycontract.WithAnswerPacketCompanion(data, truth, querycontract.AnswerPacketCompanionInput{
+		PromptFamily:         "code.topic",
+		Question:             req.Topic,
+		PrimaryTool:          "investigate_code_topic",
+		PrimaryRoute:         "/api/v0/code/topics/investigate",
+		Summary:              querycontract.CodeTopicAnswerSummary(data),
+		ResultRef:            "eshu://api-result/code/topics/investigate",
+		Limitations:          querycontract.CodeTopicAnswerLimitations(data),
+		Truncated:            BoolVal(data, "truncated"),
+		NoEvidence:           IntVal(data, "count") == 0,
+		EvidenceHandles:      querycontract.CodeTopicEvidenceHandles(data),
+		RecommendedNextCalls: querycontract.MapSliceValue(data, "recommended_next_calls"),
+	})
 }

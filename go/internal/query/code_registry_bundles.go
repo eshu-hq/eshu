@@ -7,6 +7,8 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -26,7 +28,7 @@ const searchBundlesCapability = "platform_impact.context_overview"
 // 400 there becomes a transport error instead of a structured IsError tool
 // result, so bundle validation failures must ride the envelope.
 func writeSearchBundlesError(w http.ResponseWriter, r *http.Request, status int, code ErrorCode, message string) {
-	if acceptsEnvelope(r) {
+	if querycontract.AcceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{
 			Data: nil,
 			Error: &ErrorEnvelope{

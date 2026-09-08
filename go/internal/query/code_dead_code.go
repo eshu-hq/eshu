@@ -9,6 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 	"unicode"
+
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 type deadCodeRequest struct {
@@ -30,7 +34,7 @@ const (
 // handleDeadCode finds graph-backed dead-code candidates and then applies the
 // current default reachability policy before returning a derived result.
 func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), "code_quality.dead_code") {
+	if querycontract.CapabilityUnsupported(h.profile(), "code_quality.dead_code") {
 		WriteContractError(
 			w,
 			r,
@@ -39,7 +43,7 @@ func (h *CodeHandler) handleDeadCode(w http.ResponseWriter, r *http.Request) {
 			ErrorCodeUnsupportedCapability,
 			"code_quality.dead_code",
 			h.profile(),
-			requiredProfile("code_quality.dead_code"),
+			querycontract.RequiredProfile("code_quality.dead_code"),
 		)
 		return
 	}
@@ -104,7 +108,7 @@ func buildDeadCodeGraphCypherForLabel(
 	hasRepoID bool,
 	label string,
 	language string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) string {
 	if !isDeadCodeCandidateLabel(label) {
 		label = "Function"
@@ -136,7 +140,7 @@ func buildDeadCodeGraphCypherForLabel(
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + graphSemanticMetadataProjection() + `
+` + querygraphrows.GraphSemanticMetadataProjection() + `
 		ORDER BY f.relative_path, e.name, coalesce(e.uid, e.id)
 		SKIP $skip
 		LIMIT $limit
@@ -149,7 +153,7 @@ func deadCodeGraphParams(
 	language string,
 	limit int,
 	skip int,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) map[string]any {
 	params := access.GraphParams(map[string]any{"limit": limit, "skip": skip})
 	if strings.TrimSpace(repoID) != "" {
@@ -178,7 +182,7 @@ func (h *CodeHandler) buildDeadCodeResults(
 			"start_line": IntVal(row, "start_line"),
 			"end_line":   IntVal(row, "end_line"),
 		}
-		if metadata := graphResultMetadata(row); len(metadata) > 0 {
+		if metadata := querycontract.GraphResultMetadata(row); len(metadata) > 0 {
 			result["metadata"] = metadata
 		}
 		results = append(results, result)
@@ -198,7 +202,7 @@ func (h *CodeHandler) enrichDeadCodeResultsWithContent(
 
 	for i := range results {
 		if metadata, ok := results[i]["metadata"].(map[string]any); ok && len(metadata) > 0 {
-			attachSemanticSummary(results[i])
+			entitysemantics.AttachSemanticSummary(results[i])
 		}
 	}
 	if h == nil || h.Content == nil {
@@ -226,7 +230,7 @@ func (h *CodeHandler) enrichDeadCodeResultsWithContent(
 			continue
 		}
 		results[i]["metadata"] = mergeGraphAndContentMetadata(results[i]["metadata"], entity.Metadata)
-		attachSemanticSummary(results[i])
+		entitysemantics.AttachSemanticSummary(results[i])
 	}
 
 	return results, contentByID, nil
@@ -266,7 +270,7 @@ func (h *CodeHandler) enrichDeadCodeResultsWithContentBatch(
 			continue
 		}
 		results[i]["metadata"] = mergeGraphAndContentMetadata(results[i]["metadata"], entity.Metadata)
-		attachSemanticSummary(results[i])
+		entitysemantics.AttachSemanticSummary(results[i])
 	}
 	return results, contentByID, nil
 }
@@ -388,7 +392,7 @@ func deadCodeResultExcludedByDefault(result map[string]any, entity *EntityConten
 }
 
 func deadCodeIsLanguageEntrypoint(result map[string]any, entity *EntityContent) bool {
-	if primaryEntityLabel(result) != "Function" {
+	if querycontract.PrimaryEntityLabel(result) != "Function" {
 		return false
 	}
 
@@ -410,7 +414,7 @@ func deadCodeIsNestedJavaScriptFunction(result map[string]any, entity *EntityCon
 	default:
 		return false
 	}
-	if primaryEntityLabel(result) != "Function" {
+	if querycontract.PrimaryEntityLabel(result) != "Function" {
 		return false
 	}
 	metadata, _ := result["metadata"].(map[string]any)

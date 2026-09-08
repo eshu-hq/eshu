@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -38,7 +40,7 @@ type codeQualityInspectionRequest struct {
 }
 
 func (h *CodeHandler) handleCodeQualityInspection(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), codeQualityCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), codeQualityCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -47,7 +49,7 @@ func (h *CodeHandler) handleCodeQualityInspection(w http.ResponseWriter, r *http
 			ErrorCodeUnsupportedCapability,
 			codeQualityCapability,
 			h.profile(),
-			requiredProfile(codeQualityCapability),
+			querycontract.RequiredProfile(codeQualityCapability),
 		)
 		return
 	}
@@ -163,7 +165,7 @@ func (h *CodeHandler) inspectCodeQuality(ctx context.Context, req codeQualityIns
 // SKIP/LIMIT and the page is taken from the granted set.
 func buildCodeQualityCypher(
 	req codeQualityInspectionRequest,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
 		"limit":          req.Limit + 1,

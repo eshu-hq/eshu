@@ -48,22 +48,6 @@ func maxTime(left, right time.Time) time.Time {
 	return querycontract.MaxTime(left, right)
 }
 
-func boolValue(value any) bool {
-	return querycontract.BoolValue(value)
-}
-
-func metadataString(metadata map[string]any, key string) string {
-	return querycontract.MetadataString(metadata, key)
-}
-
-func stringSliceFromAny(value any) []string {
-	return querycontract.StringSliceFromAny(value)
-}
-
-func coverageLanguageMaps(languages []RepositoryLanguageCount) []map[string]any {
-	return querycontract.CoverageLanguageMaps(languages)
-}
-
 // repositorySemanticEntityLimit bounds semantic entity extraction per
 // repository. The value lives in querycontract; this declaration keeps the
 // staying root stayers compiling unchanged.

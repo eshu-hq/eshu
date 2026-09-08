@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (h *CodeHandler) handleRepoScopedOverrideStory(
@@ -158,7 +160,7 @@ func relationshipStoryClassMethodsCypher(
 	req relationshipStoryRequest,
 	entityID string,
 	predicate func(string, string) string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
 		"entity_id": strings.TrimSpace(entityID),
@@ -214,7 +216,7 @@ func relationshipStoryInheritanceDepthCypher(
 	entityID string,
 	direction string,
 	predicate func(string, string) string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
 	params := map[string]any{
@@ -377,7 +379,7 @@ func (h *CodeHandler) relationshipStoryOverrideRows(
 
 func relationshipStoryOverrideRowsCypher(
 	req relationshipStoryRequest,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{
 		"repo_id":         strings.TrimSpace(req.RepoID),

@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -260,84 +261,12 @@ func resourceInvestigationHopReason(props map[string]any) string {
 }
 
 // routeToCallerEntityFromChain extracts the far-endpoint (caller/callee) entity
-// fields from a nodes(path) value, reading the LAST node in the chain. The
-// route-to-caller relationship reads anchor the known handler as the path start
-// and project raw nodes(path) because NornicDB corrupts a CALL-subquery computed
-// projection over path nodes (#5287); the far endpoint is the discovered
-// caller/callee. nodes(path) is a neo4j.Node on both backends, with a
-// map[string]any fallback. Returns nil when the chain is empty or its last
-// element is not a node. This decoder lives in neo4j.go because it is the only
-// driver-aware seam in the query package (per the package AGENTS.md).
+// fields from a nodes(path) value. The implementation moved to
+// querygraphrows for #6060 so a handler-family subpackage can decode a
+// route-to-caller chain without importing this package; see that package's
+// doc.go for why it, rather than querycontract, is the new home.
 func routeToCallerEntityFromChain(chain any) map[string]any {
-	props := lastChainNodeProps(chain)
-	if props == nil {
-		return nil
-	}
-	entityID := StringVal(props, "id")
-	if entityID == "" {
-		entityID = StringVal(props, "uid")
-	}
-	filePath := StringVal(props, "file_path")
-	if filePath == "" {
-		filePath = StringVal(props, "relative_path")
-	}
-	return map[string]any{
-		"entity_id":  entityID,
-		"name":       StringVal(props, "name"),
-		"file_path":  filePath,
-		"repo_id":    StringVal(props, "repo_id"),
-		"language":   StringVal(props, "language"),
-		"start_line": IntVal(props, "start_line"),
-		"end_line":   IntVal(props, "end_line"),
-	}
-}
-
-// lastChainNodeProps returns the property map of the last node in a nodes(path)
-// value, decoding both the neo4j.Node driver shape and a map[string]any
-// fallback.
-// graphPathNodeProps returns one projected path node's property map.
-//
-// It lives in this file because internal/query's depguard rule
-// `query-no-graph-driver` keeps the Bolt driver's types in the handful of
-// driver-owning files, and its own message names the remedy: reach the graph
-// through a port or an existing driver-owning file. Callers that only need a
-// property off a node in a `nodes(path)` projection -- the NornicDB inheritance
-// walk's interior grant filter, for one -- take this instead of importing the
-// driver themselves.
-//
-// The second result reports whether the value was a node shape at all, so a
-// caller can fail closed on something it does not understand rather than treat
-// it as a node with no properties.
-func graphPathNodeProps(node any) (map[string]any, bool) {
-	switch value := node.(type) {
-	case neo4jdriver.Node:
-		return value.Props, true
-	case map[string]any:
-		if props, ok := value["properties"].(map[string]any); ok {
-			return props, true
-		}
-		return value, true
-	default:
-		return nil, false
-	}
-}
-
-func lastChainNodeProps(chain any) map[string]any {
-	items, ok := chain.([]any)
-	if !ok || len(items) == 0 {
-		return nil
-	}
-	switch node := items[len(items)-1].(type) {
-	case neo4jdriver.Node:
-		return node.Props
-	case map[string]any:
-		if props, ok := node["properties"].(map[string]any); ok {
-			return props
-		}
-		return node
-	default:
-		return nil
-	}
+	return querygraphrows.RouteToCallerEntityFromChain(chain)
 }
 
 // RepoProjection returns the standard Cypher RETURN clause for repository nodes.

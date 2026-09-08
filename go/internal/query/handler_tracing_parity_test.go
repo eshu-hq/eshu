@@ -18,9 +18,17 @@ import (
 // TestHandlerTracingCopiesStayBehaviorIdentical is the copy-drift guard for
 // the three family-local startQueryHandlerSpan helpers (root's
 // handler_tracing.go, supplychain/handler_tracing.go, and
-// codeowners/handler_tracing.go): L3 adds no fourth copy, so a one-sided
-// edit to any of the three must fail loudly here instead of silently
-// forking emitted spans. It parses each file and compares the printed AST
+// codeowners/handler_tracing.go): a one-sided edit to any of the three must
+// fail loudly here instead of silently forking emitted spans.
+//
+// A fourth copy now exists outside this list, in code_handler_tracing.go. It
+// is deliberately spelled differently -- codeQueryHandlerTracer and
+// startCodeQueryHandlerSpan -- because the code family still shares package
+// query and cannot reuse the canonical names while root declares them. It is
+// therefore not comparable to the three below and is not in the map: this
+// test requires the declaration name sets to match exactly, so adding it
+// would fail rather than guard. When the code family becomes its own package
+// (#6060) it takes the canonical names and joins this list. It parses each file and compares the printed AST
 // of the queryHandlerTracer var and the startQueryHandlerSpan func,
 // ignoring the package clause, imports, and comments (each copy carries
 // family-specific prose), and it requires the top-level declaration name

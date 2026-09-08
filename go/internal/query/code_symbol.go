@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -23,7 +26,7 @@ const (
 	// name-lookup fallback (SearchEntitiesByName) that runs when h.Content does
 	// not satisfy symbolContentSearcher. It is a distinct label from
 	// symbolSourceBackendContentStore on purpose: the fallback answers a
-	// different query (name match, not symbolContentSearcher's mustMatchMode()
+	// different query (name match, not symbolContentSearcher's MustMatchMode()
 	// semantics), so a caller reading source_backend can tell which query
 	// actually answered instead of seeing an identical label for both.
 	symbolSourceBackendNameFallback = "postgres_content_store_name_fallback"
@@ -65,7 +68,7 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), capability) {
+	if querycontract.CapabilityUnsupported(h.profile(), capability) {
 		WriteContractError(
 			w,
 			r,
@@ -74,11 +77,11 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 			ErrorCodeUnsupportedCapability,
 			capability,
 			h.profile(),
-			requiredProfile(capability),
+			querycontract.RequiredProfile(capability),
 		)
 		return
 	}
-	if strings.TrimSpace(req.symbol()) == "" {
+	if strings.TrimSpace(req.ResolvedSymbol()) == "" {
 		WriteError(w, http.StatusBadRequest, "symbol is required")
 		return
 	}
@@ -121,12 +124,12 @@ func (h *CodeHandler) handleSymbolSearch(w http.ResponseWriter, r *http.Request)
 		results = results[:limit]
 	}
 	data := map[string]any{
-		"symbol":         req.symbol(),
-		"query":          req.symbol(),
-		"match_mode":     req.mustMatchMode(),
+		"symbol":         req.ResolvedSymbol(),
+		"query":          req.ResolvedSymbol(),
+		"match_mode":     req.MustMatchMode(),
 		"repo_id":        req.RepoID,
 		"language":       strings.TrimSpace(req.Language),
-		"entity_types":   req.normalizedEntityTypes(),
+		"entity_types":   req.NormalizedEntityTypes(),
 		"limit":          limit,
 		"offset":         req.Offset,
 		"results":        results,
@@ -153,7 +156,7 @@ func (h *CodeHandler) symbolSearchResults(
 	ctx context.Context,
 	req symbolSearchRequest,
 ) ([]map[string]any, string, TruthBasis, error) {
-	matchMode := req.mustMatchMode()
+	matchMode := req.MustMatchMode()
 	// #5167 code family: symbolSearchFilters only anchored an explicit repo_id,
 	// so a scoped caller who omitted one searched every tenant's symbols. Both
 	// content paths below are bound from the same resolved grant; the graph path
@@ -178,7 +181,7 @@ func (h *CodeHandler) symbolSearchResults(
 			// h.Content does not satisfy symbolContentSearcher, so this falls back
 			// to a plain name lookup (SearchEntitiesByName) rather than the
 			// symbol-aware SearchSymbols query -- different match semantics (name
-			// match vs. mustMatchMode()-aware symbol search), so the response must
+			// match vs. MustMatchMode()-aware symbol search), so the response must
 			// say so rather than claim the batched path's source_backend (#6060
 			// interface-export audit: a caller reading the truth envelope had no
 			// way to tell which query actually answered).
@@ -199,7 +202,7 @@ func (h *CodeHandler) symbolSearchResults(
 	graphResults, err := h.searchGraphEntitiesWithExact(
 		ctx,
 		req.RepoID,
-		req.symbol(),
+		req.ResolvedSymbol(),
 		req.Language,
 		probeReq.Limit,
 		matchMode == "exact",
@@ -223,7 +226,7 @@ func (h *CodeHandler) symbolNameFallbackEntities(
 	limit int,
 ) ([]EntityContent, error) {
 	if req.RepoID != "" || len(allowedRepositoryIDs) == 0 {
-		entities, err := h.Content.SearchEntitiesByName(ctx, req.RepoID, firstEntityType(req), req.symbol(), limit)
+		entities, err := h.Content.SearchEntitiesByName(ctx, req.RepoID, firstEntityType(req), req.ResolvedSymbol(), limit)
 		if err != nil {
 			return nil, fmt.Errorf("search symbols: %w", err)
 		}
@@ -234,7 +237,7 @@ func (h *CodeHandler) symbolNameFallbackEntities(
 		if len(entities) >= limit {
 			break
 		}
-		rows, err := h.Content.SearchEntitiesByName(ctx, repoID, firstEntityType(req), req.symbol(), limit-len(entities))
+		rows, err := h.Content.SearchEntitiesByName(ctx, repoID, firstEntityType(req), req.ResolvedSymbol(), limit-len(entities))
 		if err != nil {
 			return nil, fmt.Errorf("search symbols: %w", err)
 		}
@@ -243,7 +246,11 @@ func (h *CodeHandler) symbolNameFallbackEntities(
 	return entities, nil
 }
 
-func (r symbolSearchRequest) symbol() string {
+// ResolvedSymbol is named for what it returns rather than the obvious
+// exported spelling of symbol: the struct already declares a Symbol field
+// (json:"symbol"), and a method cannot share a name with a field on the same
+// type. See #6060.
+func (r symbolSearchRequest) ResolvedSymbol() string {
 	if symbol := strings.TrimSpace(r.Symbol); symbol != "" {
 		return symbol
 	}
@@ -274,7 +281,7 @@ func (r symbolSearchRequest) normalizedMatchMode() (string, error) {
 	}
 }
 
-func (r symbolSearchRequest) mustMatchMode() string {
+func (r symbolSearchRequest) MustMatchMode() string {
 	matchMode, _ := r.normalizedMatchMode()
 	if matchMode == "" {
 		return "exact"
@@ -282,7 +289,7 @@ func (r symbolSearchRequest) mustMatchMode() string {
 	return matchMode
 }
 
-func (r symbolSearchRequest) normalizedEntityTypes() []string {
+func (r symbolSearchRequest) NormalizedEntityTypes() []string {
 	values := make([]string, 0, len(r.EntityTypes)+1)
 	seen := map[string]struct{}{}
 	add := func(value string) {
@@ -290,7 +297,7 @@ func (r symbolSearchRequest) normalizedEntityTypes() []string {
 		if value == "" {
 			return
 		}
-		value = contentEntityTypeForResolve(value)
+		value = querycontract.ContentEntityTypeForResolve(value)
 		if _, ok := seen[value]; ok {
 			return
 		}
@@ -305,7 +312,7 @@ func (r symbolSearchRequest) normalizedEntityTypes() []string {
 }
 
 func firstEntityType(req symbolSearchRequest) string {
-	entityTypes := req.normalizedEntityTypes()
+	entityTypes := req.NormalizedEntityTypes()
 	if len(entityTypes) == 0 {
 		return ""
 	}
@@ -340,7 +347,7 @@ func symbolEntityResults(entities []EntityContent, matchMode string, sourceBacke
 			"source_handle":   symbolSourceHandle(entity.RepoID, entity.RelativePath, entity.StartLine, entity.EndLine),
 			"definition_kind": entity.EntityType,
 		}
-		attachSemanticSummary(result)
+		entitysemantics.AttachSemanticSummary(result)
 		results = append(results, result)
 	}
 	return results

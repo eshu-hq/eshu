@@ -14,6 +14,15 @@ against the graph under authorization bounds, so treat changes as security work.
 - Both reads MUST stay parameterised (`$repo_selector`). The selector is
   client-supplied; interpolating it into the Cypher is an injection.
 - The ordered-then-fallback pair is deliberate. Do not collapse it.
+- `HydrateResolvedEntityRepoIdentity` MUST call
+  `querycontract.ClearResolvedEntityRepoProjectionPlaceholders` on every
+  entity before any other hydration path runs (#6408). Skipping it lets a
+  leaked backend projection expression stand in as a real repository id.
+- The workload-backfill query's two access splices
+  (`access.GraphPredicate("repo")` on the direct-DEFINES branch,
+  `access.GraphWhereClause("repoViaInstance")` on the via-instance branch)
+  MUST both stay. Dropping either lets a scoped caller's workload backfill
+  read another tenant's repository identity.
 
 ## When you change the query text
 

@@ -7,6 +7,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 var nornicDBRelationshipEntityLabels = []string{
@@ -105,7 +108,7 @@ func nornicDBRelationshipEntityLabelCypher(property string, repositoryScoped boo
 func nornicDBRelationshipMetadataPredicate(
 	name string,
 	repoID string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := make(map[string]any)
 	var predicates []string
@@ -148,7 +151,7 @@ func nornicDBRelationshipMetadataCypher(predicate string, entityLabel string, en
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + graphSemanticMetadataProjection() + `
+` + querygraphrows.GraphSemanticMetadataProjection() + `
 		LIMIT 2
 	`
 }
@@ -176,7 +179,7 @@ func nornicDBRelationshipMetadataCypher(predicate string, entityLabel string, en
 // not a node shape this function understands all drop the row. An unscoped
 // caller renders no projection, so it takes the early return and its rows are
 // untouched.
-func nornicDBInheritanceRowsInGrant(rows []map[string]any, access repositoryAccessFilter) []map[string]any {
+func nornicDBInheritanceRowsInGrant(rows []map[string]any, access querycontract.RepositoryAccessFilter) []map[string]any {
 	if !access.Scoped() {
 		return rows
 	}
@@ -198,7 +201,7 @@ func nornicDBInheritanceRowsInGrant(rows []map[string]any, access repositoryAcce
 
 // nornicDBInheritancePathInGrant reports whether every node on the projected
 // path carries a repository id the caller may read.
-func nornicDBInheritancePathInGrant(raw any, access repositoryAccessFilter) bool {
+func nornicDBInheritancePathInGrant(raw any, access querycontract.RepositoryAccessFilter) bool {
 	nodes, ok := raw.([]any)
 	if !ok || len(nodes) == 0 {
 		return false
@@ -218,7 +221,7 @@ func nornicDBInheritancePathInGrant(raw any, access repositoryAccessFilter) bool
 // for a scoped caller, so an unreadable element fails closed rather than being
 // skipped.
 func nornicDBPathNodeRepoID(node any) string {
-	props, ok := graphPathNodeProps(node)
+	props, ok := querygraphrows.GraphPathNodeProps(node)
 	if !ok {
 		return ""
 	}

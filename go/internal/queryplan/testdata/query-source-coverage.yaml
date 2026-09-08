@@ -36,10 +36,10 @@ source_coverage:
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 0a12ee3ebe25198e00eb38f37b151e0ef1863d576e0a6ef90ea61d6de5f67bbf, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: cc958c7c0b0d8f0dc159243fa251f761c2bec3ba689ea3da0c9fc20aa7c36a06, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: code_call_chain.go
     calls:
-      - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: 369170799ac10f27ad4c359c51e7c3454d28eed8c95fe067f580a0fb3a5d4d1c, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
+      - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: 68ccf0ec867d38a9de25ab22c87e3eb687c6e98297c0d4ca1c367b4d4fe0d37e, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
   - file: code_call_chain_nornicdb.go
     calls:
       - {symbol: "(*CodeHandler).nornicDBCallChainOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -48,27 +48,37 @@ source_coverage:
       - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_call_graph_metrics.go
     calls:
-      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: 3ca3b110336237f92261ef63a6c219263ed1ac99a489016a9b50727f7521d681, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
+      - {symbol: "(*CodeHandler).callGraphMetricsData", count: 1, source_sha256: 2f819db80494730a322caad42637be73428c7c7c1341c99f8348915882fddc5d, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
   - file: code_complexity_queries.go
     calls:
       - symbol: "(*CodeHandler).listMostComplexFunctions"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 101fa27eb251b754ef54539e8ff93b3f43745389f17fcbccf07cedbd604d2eb5
+          source_sha256: 097dd242ce5a02b1b4136e8e9daf776afaa5a1a53ab5b080973024619478a9ee
           label: Function
           max_results: 101
       - symbol: "(*CodeHandler).lookupComplexityRowByName"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 195dcc16a13cab61180d41591938cef0a43fbf6802556cf6b9b97ef217d6eea5
+          source_sha256: 284cab7a9eefe7ea0696e80464c5c0aa6ad05ece801a4e1ef9d93271cba4f777
           key_bound: single_key
           max_results: 3
   - file: code_cypher.go
     calls:
-      - {symbol: "(*CodeHandler).handleCypherQuery", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*CodeHandler).handleVisualizeQuery", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*CodeHandler).handleCypherQuery"
+        count: 1
+        non_hot:
+          class: operator_query
+          policy: validated_query_endpoint
+          source_sha256: 1db8c4b6a5c272f3d13e7740e4d5b53ed52cf912e944533695eb9023892786bc
+      - symbol: "(*CodeHandler).handleVisualizeQuery"
+        count: 1
+        non_hot:
+          class: operator_query
+          policy: validated_query_endpoint
+          source_sha256: ac02d26fa2f4dcd71d684a820a7be7b3ed2c7f4fd3f4086a630f703b4721527d
   - file: code_dead_code_candidate_entity.go
     calls:
       - symbol: "(*CodeHandler).deadCodeResultsWithGraphIncomingEdges"
@@ -137,7 +147,13 @@ source_coverage:
       - {symbol: "(*CodeHandler).nornicDBRelationshipEntityLabel", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_route_to_caller_graph.go
     calls:
-      - {symbol: "(*CodeHandler).routeToCallerDirectionRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - symbol: "(*CodeHandler).routeToCallerDirectionRows"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: 348a165bf43a6f8255681a8dcebaa34c7ffe1fd307e934b97f654e58684fa4f5
+          key_bound: single_key
+          max_results: 101
       - {symbol: "(*CodeHandler).routeToCallerEndpointRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).routeToCallerHandlerLabel", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(*CodeHandler).routeToCallerHandlerRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
@@ -182,13 +198,13 @@ source_coverage:
   - file: impact/entity_map_traversal.go
     calls:
       - {symbol: "(*ImpactHandler).entityMapNeighborhoodRows", count: 1, source_sha256: 4e06552660640a60368827c6f3cfc55b7eb82f171e0ee733cb71f5786c05fb51, entry_ids: [QP-ENTITY-MAP-DIRECT-REPOSITORY, QP-ENTITY-MAP-BOUNDED-REPOSITORY]}
-  - file: entity_resolve_identity.go
+  - file: queryselector/entity_repo_identity.go
     calls:
-      - symbol: "hydrateResolvedEntityRepoIdentity"
+      - symbol: "HydrateResolvedEntityRepoIdentity"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 3a77ce572e6302f8b43675f102de60e7342a7dd722730f477a2f6e3b4f1314b4
+          source_sha256: 030ac937dc75f991ea1dea50a75d5b4ed8d6761448692fb6465298dcaea2374a
           key_bound: bounded_key_batch
           max_keys: 101
           max_results: 101
@@ -360,7 +376,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: f63ac4f6ec3580bf0dbafb66151aef4d66c54351683b492cf6173997215f639c
+          source_sha256: e936532fc65ad638321e2de438896e1f0f007fa6ac4e11c6ae08316bff1f1c3c
           label: "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Annotation|Component|ImplBlock|Protocol|ProtocolImplementation|Variable|TerraformBackend|TerraformCheck|TerraformImport|TerraformLockProvider|TerraformModule|TerraformMovedBlock|TerraformRemovedBlock|TerragruntConfig|TerragruntDependency|SqlColumn|SqlFunction|SqlIndex|SqlMigration|SqlTable|SqlTrigger|SqlView|TypeAlias|Typedef"
           max_results: 200
   - file: neo4j.go

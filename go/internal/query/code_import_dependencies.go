@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -28,7 +30,7 @@ var errImportDependencyUnavailable = errors.New("import dependency graph is unav
 // their names.
 
 func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(
+	r, span := startCodeQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryImportDependencyInvestigation,
 		"POST /api/v0/code/imports/investigate",
@@ -41,7 +43,7 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if capabilityUnsupported(h.profile(), importDependencyCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), importDependencyCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -50,7 +52,7 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 			ErrorCodeUnsupportedCapability,
 			importDependencyCapability,
 			h.profile(),
-			requiredProfile(importDependencyCapability),
+			querycontract.RequiredProfile(importDependencyCapability),
 		)
 		return
 	}
@@ -90,13 +92,13 @@ func (h *CodeHandler) handleImportDependencyInvestigation(w http.ResponseWriter,
 		// the text as a literal, which is what catches a rewording of the
 		// constant itself.
 		emptyPage := importDependencyResponse(req, nil)
-		emptyPage["source_backend"] = noBackendReadSourceBackend
+		emptyPage["source_backend"] = querycontract.NoBackendReadSourceBackend
 		WriteSuccess(
 			w,
 			r,
 			http.StatusOK,
 			emptyPage,
-			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisNoBackendRead, reasonEmptyGrantNoBackendRead),
+			BuildTruthEnvelope(h.profile(), importDependencyCapability, TruthBasisNoBackendRead, querycontract.ReasonEmptyGrantNoBackendRead),
 		)
 		return
 	}

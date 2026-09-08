@@ -26,7 +26,7 @@ import (
 // LanguageQueryHandler is not CodeHandler, so none of the batch-1 selector
 // plumbing was reachable as a method: req.RepoID was used raw and an ungranted
 // one was never rejected. The fix reuses the free functions rather than
-// duplicating them -- applyRepositorySelectorForAccess and codeContentGrantScope
+// duplicating them -- ApplyRepositorySelectorForAccess and codeContentGrantScope
 // (code_repository_selector.go) -- so both handlers resolve a selector and a
 // grant through one implementation.
 
@@ -358,7 +358,7 @@ func TestLanguageQueryUngrantedRepositorySelectorIsRejected(t *testing.T) {
 // pre-existing language-query tests pass, so their assertions keep describing
 // the unscoped read.
 func unscopedLanguageQueryGrant() languageQueryGrant {
-	return languageQueryGrant{access: repositoryAccessFilter{AllScopes: true}}
+	return languageQueryGrant{Access: repositoryAccessFilter{AllScopes: true}}
 }
 
 // TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector covers the half of the
@@ -366,7 +366,7 @@ func unscopedLanguageQueryGrant() languageQueryGrant {
 //
 // The sibling tests above pass no repo_id at all, which is exactly the case the
 // selector never touches, so on their own they prove nothing about it. Routing
-// req.RepoID through applyRepositorySelectorForAccess changes what an unscoped
+// req.RepoID through ApplyRepositorySelectorForAccess changes what an unscoped
 // shared-key, admin or local caller gets for a repo_id that is not a canonical
 // id: the OpenAPI operation has always advertised the field as "canonical ID,
 // name, slug, or path", and until now this route ignored every form but the

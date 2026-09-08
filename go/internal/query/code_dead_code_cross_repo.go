@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -57,8 +59,8 @@ type crossRepoDeadCodeEvidenceStore interface {
 		ctx context.Context,
 		producerRepoID string,
 		entityIDs []string,
-		reads crossRepoDeadCodeConsumerReads,
-	) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error)
+		reads querycontract.CrossRepoDeadCodeConsumerReads,
+	) (map[string][]crossRepoDeadCodeEvidence, querycontract.CrossRepoDeadCodeHiddenConsumers, error)
 }
 
 type crossRepoDeadCodeScan struct {
@@ -74,7 +76,7 @@ type crossRepoDeadCodeScan struct {
 }
 
 func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(
+	r, span := startCodeQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryDeadCodeInvestigation,
 		"POST /api/v0/code/dead-code/cross-repo",
@@ -82,7 +84,7 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), crossRepoDeadCodeCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), crossRepoDeadCodeCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -91,7 +93,7 @@ func (h *CodeHandler) handleCrossRepoDeadCode(w http.ResponseWriter, r *http.Req
 			ErrorCodeUnsupportedCapability,
 			crossRepoDeadCodeCapability,
 			h.profile(),
-			requiredProfile(crossRepoDeadCodeCapability),
+			querycontract.RequiredProfile(crossRepoDeadCodeCapability),
 		)
 		return
 	}
@@ -270,7 +272,7 @@ func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(
 // it did, and the probe cannot report one if it never runs.
 type crossRepoDeadCodeConsumerEvidenceSet struct {
 	Evidence        map[string][]crossRepoDeadCodeEvidence
-	HiddenConsumers crossRepoDeadCodeHiddenConsumers
+	HiddenConsumers querycontract.CrossRepoDeadCodeHiddenConsumers
 	Boundary        []crossRepoDeadCodeEvidence
 	Available       bool
 }
@@ -280,10 +282,10 @@ func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 	producerRepoID string,
 	entityIDs []string,
 	consumerRepoIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, bool, error) {
+) (map[string][]crossRepoDeadCodeEvidence, querycontract.CrossRepoDeadCodeHiddenConsumers, bool, error) {
 	store, ok := h.Content.(crossRepoDeadCodeEvidenceStore)
 	if !ok {
-		return map[string][]crossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, false, nil
+		return map[string][]crossRepoDeadCodeEvidence{}, querycontract.CrossRepoDeadCodeHiddenConsumers{}, false, nil
 	}
 	// The consumer side takes the caller's own grant, not the producer anchor:
 	// producerRepoID is already grant-resolved by the selector, but the
@@ -294,7 +296,7 @@ func (h *CodeHandler) crossRepoDeadCodeConsumerEvidence(
 		// an unbounded read is not the fallback. Reporting the evidence as
 		// unavailable keeps every candidate at unknown_needs_evidence instead
 		// of letting an unread consumer become "dead".
-		return map[string][]crossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, false, nil
+		return map[string][]crossRepoDeadCodeEvidence{}, querycontract.CrossRepoDeadCodeHiddenConsumers{}, false, nil
 	}
 	evidence, hidden, err := store.CrossRepoDeadCodeConsumerEvidence(
 		ctx,
@@ -333,7 +335,7 @@ func (h *CodeHandler) bucketCrossRepoDeadCodeResults(
 		// and turn a symbol a requested consumer proves live into
 		// unknown_needs_evidence.
 		hiddenCount := len(hidden)
-		if consumers.HiddenConsumers.has(entityID) {
+		if consumers.HiddenConsumers.Has(entityID) {
 			hiddenCount++
 		}
 		if len(visible) == 0 && hiddenCount == 0 {

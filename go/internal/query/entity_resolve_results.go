@@ -6,6 +6,8 @@ package query
 import (
 	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 )
 
 func normalizeResolvedEntities(entities []map[string]any, limit int) []map[string]any {
@@ -116,30 +118,16 @@ func resolvedEntityDedupeKey(entity map[string]any) string {
 	}, "|")
 }
 
+// entityString forwards to queryselector.EntityString. The implementation
+// moved to queryselector for #6060; this wrapper keeps root callers
+// unchanged.
 func entityString(entity map[string]any, key string) string {
-	value, _ := entity[key].(string)
-	return strings.TrimSpace(value)
+	return queryselector.EntityString(entity, key)
 }
 
+// entityLabelStrings forwards to queryselector.EntityLabelStrings. The
+// implementation moved to queryselector for #6060; this wrapper keeps root
+// callers unchanged.
 func entityLabelStrings(raw any) []string {
-	switch labels := raw.(type) {
-	case []string:
-		return labels
-	case []any:
-		result := make([]string, 0, len(labels))
-		for _, label := range labels {
-			value, ok := label.(string)
-			if !ok {
-				continue
-			}
-			value = strings.TrimSpace(value)
-			if value == "" {
-				continue
-			}
-			result = append(result, value)
-		}
-		return result
-	default:
-		return nil
-	}
+	return queryselector.EntityLabelStrings(raw)
 }

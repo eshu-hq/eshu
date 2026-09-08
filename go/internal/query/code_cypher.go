@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -50,7 +52,7 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if capabilityUnsupported(h.profile(), readOnlyCypherCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), readOnlyCypherCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -59,7 +61,7 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 			ErrorCodeUnsupportedCapability,
 			readOnlyCypherCapability,
 			h.profile(),
-			requiredProfile(readOnlyCypherCapability),
+			querycontract.RequiredProfile(readOnlyCypherCapability),
 		)
 		return
 	}
@@ -100,7 +102,7 @@ func (h *CodeHandler) handleCypherQuery(w http.ResponseWriter, r *http.Request) 
 // visualization tools each report failures under their own capability rather
 // than a shared hardcoded one.
 func writeCypherQueryError(w http.ResponseWriter, r *http.Request, capability string, status int, code ErrorCode, message string) {
-	if acceptsEnvelope(r) {
+	if querycontract.AcceptsEnvelope(r) {
 		WriteJSON(w, status, ResponseEnvelope{
 			Data: nil,
 			Error: &ErrorEnvelope{
@@ -372,7 +374,7 @@ func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	if capabilityUnsupported(h.profile(), visualizationGraphQueryCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), visualizationGraphQueryCapability) {
 		WriteContractError(
 			w,
 			r,
@@ -381,7 +383,7 @@ func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Reques
 			ErrorCodeUnsupportedCapability,
 			visualizationGraphQueryCapability,
 			h.profile(),
-			requiredProfile(visualizationGraphQueryCapability),
+			querycontract.RequiredProfile(visualizationGraphQueryCapability),
 		)
 		return
 	}
@@ -413,7 +415,7 @@ func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Reques
 	packet := BuildGraphQueryVisualizationPacket(rows, truth)
 	if truncatedRows {
 		packet.Truncation.Truncated = true
-		packet.Limitations = appendReason(packet.Limitations,
+		packet.Limitations = querycontract.AppendReason(packet.Limitations,
 			"result row window was truncated to the row limit before projection; the subgraph is a bounded subset")
 	}
 

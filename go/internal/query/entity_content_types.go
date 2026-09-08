@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const contentEntityIDPrefix = "content-entity:"
@@ -239,20 +241,11 @@ func (h *EntityHandler) resolveEntityFromContent(
 	return results, nil
 }
 
+// contentEntityTypeForResolve forwards to
+// querycontract.ContentEntityTypeForResolve. The implementation moved to
+// querycontract for #6060; this wrapper keeps root callers unchanged.
 func contentEntityTypeForResolve(typeName string) string {
-	if typeName == "" {
-		return ""
-	}
-	if entityType, ok := resolveContentBackedEntityTypes[typeName]; ok {
-		return entityType
-	}
-	if entityType, ok := contentBackedEntityTypes[typeName]; ok {
-		return entityType
-	}
-	if entityType, ok := graphBackedEntityTypes[typeName]; ok {
-		return entityType
-	}
-	return typeName
+	return querycontract.ContentEntityTypeForResolve(typeName)
 }
 
 func resolveGraphEntityType(typeName string) (string, string, string, bool) {
@@ -274,43 +267,10 @@ func resolveGraphEntityType(typeName string) (string, string, string, bool) {
 	return "", "", "", false
 }
 
-var resolveContentBackedEntityTypes = map[string]string{
-	"analytics_model":          "AnalyticsModel",
-	"annotation":               "Annotation",
-	"argocd_application":       "ArgoCDApplication",
-	"argocd_applicationset":    "ArgoCDApplicationSet",
-	"atlantis_project":         "AtlantisProject",
-	"atlantis_workflow":        "AtlantisWorkflow",
-	"component":                "Component",
-	"cloudformation_condition": "CloudFormationCondition",
-	"cloudformation_export":    "CloudFormationExport",
-	"cloudformation_import":    "CloudFormationImport",
-	"cloudformation_output":    "CloudFormationOutput",
-	"cloudformation_parameter": "CloudFormationParameter",
-	"cloudformation_resource":  "CloudFormationResource",
-	"data_asset":               "DataAsset",
-	"impl_block":               "ImplBlock",
-	"k8s_resource":             "K8sResource",
-	"kustomize_overlay":        "KustomizeOverlay",
-	"protocol":                 "Protocol",
-	"terraform_backend":        "TerraformBackend",
-	"terraform_block":          "TerraformBlock",
-	"terraform_check":          "TerraformCheck",
-	"terraform_import":         "TerraformImport",
-	"terraform_lock_provider":  "TerraformLockProvider",
-	"terraform_moved_block":    "TerraformMovedBlock",
-	"terraform_removed_block":  "TerraformRemovedBlock",
-	"terragrunt_dependency":    "TerragruntDependency",
-	"terragrunt_input":         "TerragruntInput",
-	"terragrunt_local":         "TerragruntLocal",
-	"type_alias":               "TypeAlias",
-	"type_annotation":          "TypeAnnotation",
-	"typedef":                  "Typedef",
-	"variable":                 "Variable",
-	"guard":                    "guard",
-	"protocol_implementation":  "ProtocolImplementation",
-	"module_attribute":         "module_attribute",
-}
+// resolveContentBackedEntityTypes forwards to
+// querycontract.ResolveContentBackedEntityTypes. The implementation moved to
+// querycontract for #6060; this alias keeps root callers unchanged.
+var resolveContentBackedEntityTypes = querycontract.ResolveContentBackedEntityTypes
 
 func contentEntityToMap(entity EntityContent) map[string]any {
 	result := map[string]any{

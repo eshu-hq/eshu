@@ -5,12 +5,12 @@ package query
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
-	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
 func (h *CodeHandler) filterCrossRepoDeadCodeResultsWithoutProducerLocalIncomingEdges(
@@ -55,33 +55,33 @@ func (h *CodeHandler) filterCrossRepoDeadCodeResultsWithoutProducerLocalIncoming
 // SignalGrant empty is what keeps that structural: the probe cannot report a
 // consumer the caller did not ask about because it never runs.
 func crossRepoDeadCodeConsumerReadPlan(
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	consumerRepoIDs []string,
-) (crossRepoDeadCodeConsumerReads, bool) {
+) (querycontract.CrossRepoDeadCodeConsumerReads, bool) {
 	if len(consumerRepoIDs) > 0 {
 		page := consumerRepoIDs
 		if access.Scoped() {
 			page = grantedCrossRepoDeadCodeConsumerIDs(access, consumerRepoIDs)
 			if len(page) == 0 {
-				return crossRepoDeadCodeConsumerReads{}, false
+				return querycontract.CrossRepoDeadCodeConsumerReads{}, false
 			}
 		}
-		return crossRepoDeadCodeConsumerReads{PageRepositoryIDs: page}, true
+		return querycontract.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: page}, true
 	}
 	if !access.Scoped() {
-		return crossRepoDeadCodeConsumerReads{}, true
+		return querycontract.CrossRepoDeadCodeConsumerReads{}, true
 	}
 	grant := access.RepositorySearchIDs()
 	if len(grant) == 0 {
-		return crossRepoDeadCodeConsumerReads{}, false
+		return querycontract.CrossRepoDeadCodeConsumerReads{}, false
 	}
-	return crossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant}, true
+	return querycontract.CrossRepoDeadCodeConsumerReads{PageRepositoryIDs: grant, SignalGrant: grant}, true
 }
 
 // grantedCrossRepoDeadCodeConsumerIDs keeps the requested consumers the grant
 // admits, preserving the request's order so the bound array stays deterministic.
 func grantedCrossRepoDeadCodeConsumerIDs(
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 	consumerRepoIDs []string,
 ) []string {
 	granted := make([]string, 0, len(consumerRepoIDs))
@@ -96,7 +96,7 @@ func grantedCrossRepoDeadCodeConsumerIDs(
 func filterCrossRepoDeadCodeEvidence(
 	evidence []crossRepoDeadCodeEvidence,
 	allowedConsumers map[string]struct{},
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) ([]crossRepoDeadCodeEvidence, []crossRepoDeadCodeEvidence) {
 	visible := make([]crossRepoDeadCodeEvidence, 0, len(evidence))
 	hidden := make([]crossRepoDeadCodeEvidence, 0)
@@ -339,51 +339,10 @@ WHERE walk.hidden
 LIMIT $4
 `
 
-// crossRepoDeadCodeUngrantedConsumers runs the ungranted-consumer probe for one
-// candidate page and returns the producer entities that have a consumer the
-// caller may not see.
-//
-// Every entity on the page is probed, so the answer covers all of them: unlike
-// the row-returning read it replaces, the probe has no shared row budget one
-// busy entity can spend, and therefore never leaves a later entity unproven.
-// The result is bounded by the page's own entity count, which the statement
-// binds as its LIMIT.
-//
-// An empty grant returns no entities and runs nothing. The statement would
-// answer "nothing hidden" for a caller who may see nothing, so the guard is
-// here as well as in crossRepoDeadCodeConsumerReadPlan.
-func (cr *ContentReader) crossRepoDeadCodeUngrantedConsumers(
-	ctx context.Context,
-	producerRepoID string,
-	entityIDs []string,
-	grantRepositoryIDs []string,
-) (crossRepoDeadCodeHiddenConsumers, error) {
-	hidden := crossRepoDeadCodeHiddenConsumers{}
-	if len(entityIDs) == 0 || len(grantRepositoryIDs) == 0 {
-		return hidden, nil
-	}
-	rows, err := cr.db.QueryContext(
-		ctx,
-		crossRepoDeadCodeUngrantedConsumerProbeQuery,
-		producerRepoID,
-		pgarray.Array(entityIDs),
-		pgarray.Array(grantRepositoryIDs),
-		len(entityIDs),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("cross-repo dead code ungranted consumer probe: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	for rows.Next() {
-		var entityID string
-		if err := rows.Scan(&entityID); err != nil {
-			return nil, fmt.Errorf("scan cross-repo dead code ungranted consumer probe: %w", err)
-		}
-		hidden[entityID] = struct{}{}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return hidden, nil
-}
+// crossRepoDeadCodeUngrantedConsumers moved to
+// content_reader_dead_code_cross_repo.go (#6060): its receiver, ContentReader,
+// is declared in content_reader.go, which stays in root when this file's
+// family moves to its own subpackage, and Go requires a type's methods to
+// live in the same package as their declaration. The query text above stays
+// here; both the method and this file are in package query, so the reference
+// is unaffected.

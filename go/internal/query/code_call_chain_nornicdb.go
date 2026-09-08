@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type nornicDBCallChainPath struct {
@@ -174,7 +176,7 @@ func cloneCallChainNodeSlice(nodes []map[string]any) []map[string]any {
 // interior has to be bounded in Go from the raw nodes(path) projection.
 func buildNornicDBCallChainCypher(
 	req callChainRequest,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params := map[string]any{}
 	predicates := make([]string, 0, 4)

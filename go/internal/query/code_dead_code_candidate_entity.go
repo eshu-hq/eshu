@@ -7,6 +7,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
@@ -334,7 +336,7 @@ func deadCodeResultEntityIDs(results []map[string]any) []string {
 //     answer is unknown rather than a symbol wrongly reported unused.
 //
 // An unscoped caller gets the unrestricted probe text unchanged.
-func buildDeadCodeScopedIncomingBatchProbeCypher(label string, access repositoryAccessFilter) string {
+func buildDeadCodeScopedIncomingBatchProbeCypher(label string, access querycontract.RepositoryAccessFilter) string {
 	if !access.Scoped() {
 		return buildDeadCodeIncomingBatchProbeCypher(label)
 	}

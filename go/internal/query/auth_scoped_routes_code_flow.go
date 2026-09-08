@@ -120,7 +120,7 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     fallbacks, and the metadata enrichment pass. This route is owned by
 //     LanguageQueryHandler rather than CodeHandler, so it reaches the family's
 //     selector and grant helpers through the free functions
-//     applyRepositorySelectorForAccess and codeContentGrantScope
+//     ApplyRepositorySelectorForAccess and codeContentGrantScope
 //     (code_repository_selector.go) instead of CodeHandler methods.
 //   - POST /api/v0/code/imports/investigate -- all seven builders in
 //     code_import_dependencies_queries.go, through

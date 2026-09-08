@@ -7,17 +7,18 @@ import (
 	"context"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, language string, limit int, exact bool) ([]map[string]any, error) {
-	access := repositoryAccessFilterFromContext(ctx)
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
 		return []map[string]any{}, nil
 	}
 	searcher, ok := h.Content.(EntityNameSearcher)
 	if !ok {
-		return nil, errEntityNameSearchUnavailable
+		return nil, querycontract.ErrEntityNameSearchUnavailable
 	}
 	search := EntityNameSearch{Name: name, Match: EntityNameMatchSubstring, Scope: EntityNameScopeAll, Limit: limit}
 	if exact {
@@ -42,7 +43,7 @@ func (h *CodeHandler) searchGlobalEntityNames(ctx context.Context, name, languag
 			"file_path": entity.RelativePath, "start_line": entity.StartLine, "end_line": entity.EndLine,
 			"language": entity.Language, "metadata": entity.Metadata, "repo_id": entity.RepoID,
 		}
-		attachSemanticSummary(result)
+		entitysemantics.AttachSemanticSummary(result)
 		results = append(results, result)
 	}
 	return results, nil

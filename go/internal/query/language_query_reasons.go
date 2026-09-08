@@ -3,7 +3,11 @@
 
 package query
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // languageQueryGraphBackedReason describes what queryByLanguage (the
 // graphBackedEntityTypes dispatch branch) actually observed serving the
@@ -88,7 +92,11 @@ func sourceBackendForTruthBasis(basis TruthBasis) string {
 // defensive fallback for a basis this route does not recognize. The public
 // source_backend table in docs/public/reference/language-query-dsl.md carries
 // both values as separate rows.
-const noBackendReadSourceBackend = "no_backend_read"
+//
+// noBackendReadSourceBackend forwards to
+// querycontract.NoBackendReadSourceBackend. The implementation moved to
+// querycontract for #6060; this alias keeps root callers unchanged.
+const noBackendReadSourceBackend = querycontract.NoBackendReadSourceBackend
 
 // writeLanguageQueryEmptyGrantResult writes the page a scoped caller with no
 // repository grants gets: the same body every other branch returns, but with

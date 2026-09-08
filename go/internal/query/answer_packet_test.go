@@ -69,13 +69,13 @@ func TestAnswerPacketTruthClassMapping(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := classifyAnswerTruth(&TruthEnvelope{Level: tc.level, Basis: tc.basis})
+			got := ClassifyAnswerTruth(&TruthEnvelope{Level: tc.level, Basis: tc.basis})
 			if got != tc.want {
-				t.Fatalf("classifyAnswerTruth(%s/%s)=%q want %q", tc.level, tc.basis, got, tc.want)
+				t.Fatalf("ClassifyAnswerTruth(%s/%s)=%q want %q", tc.level, tc.basis, got, tc.want)
 			}
 		})
 	}
-	if got := classifyAnswerTruth(nil); got != AnswerTruthUnsupported {
+	if got := ClassifyAnswerTruth(nil); got != AnswerTruthUnsupported {
 		t.Fatalf("nil truth must classify as unsupported, got %q", got)
 	}
 }
