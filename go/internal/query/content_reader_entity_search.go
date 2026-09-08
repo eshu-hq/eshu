@@ -60,16 +60,25 @@ func (cr *ContentReader) SearchEntitiesByLanguageAndTypeForAccess(
 
 	languageVariants := normalizedLanguageVariants(language)
 	filters, args, nextArg := buildLanguageTypeEntityFilters(repoID, search.AllowedRepositoryIDs, languageVariants, entityType, query)
+	// #6540: gate the ordered page read on the same filters. A filter
+	// combination matching nothing (a language/entity-type pair with no rows)
+	// would otherwise walk content_entities_path_idx to the end checking
+	// every row before returning zero rows. The uncorrelated EXISTS pulls up
+	// into an initplan behind a one-time filter, so the empty case
+	// short-circuits before the ordered scan executes, while a matching
+	// filter keeps its existing plan plus one cheap seek. The subquery
+	// reuses the same $N placeholders, so the bind args are unchanged.
+	where := strings.Join(filters, " AND ")
 	// #nosec G201 -- interpolates only $N placeholder strings from buildLanguageTypeEntityFilters and an integer arg index; no user data concatenated into SQL
 	sqlQuery := fmt.Sprintf(`
 		SELECT entity_id, repo_id, relative_path, entity_type, entity_name,
 		       start_line, end_line, coalesce(language, ''), coalesce(source_cache, ''),
 		       metadata
 		FROM content_entities
-		WHERE %s
+		WHERE EXISTS (SELECT 1 FROM content_entities WHERE %s) AND %s
 		ORDER BY relative_path, start_line, entity_name
 		LIMIT $%d
-	`, strings.Join(filters, " AND "), nextArg)
+	`, where, where, nextArg)
 	args = append(args, limit)
 
 	rows, err := cr.db.QueryContext(ctx, sqlQuery, args...)
