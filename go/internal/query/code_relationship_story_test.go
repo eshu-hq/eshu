@@ -46,6 +46,25 @@ func (s relationshipStoryContentStore) SearchEntitiesByNameAnyRepo(
 	return append([]EntityContent(nil), s.matches...), nil
 }
 
+func (s relationshipStoryContentStore) SearchEntitiesByExactName(
+	context.Context,
+	string,
+	string,
+	string,
+	int,
+) ([]EntityContent, error) {
+	return append([]EntityContent(nil), s.matches...), nil
+}
+
+func (s relationshipStoryContentStore) SearchEntitiesByExactNameAnyRepo(
+	context.Context,
+	string,
+	string,
+	int,
+) ([]EntityContent, error) {
+	return append([]EntityContent(nil), s.matches...), nil
+}
+
 func (s relationshipStoryContentStore) SearchEntitiesByLanguageAndType(
 	context.Context,
 	string,

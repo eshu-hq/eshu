@@ -193,6 +193,9 @@ answer `ambiguous` may now resolve. An ungranted `repo_id` returns `400`, and a
 token with no repository grants gets `"status": "not_found"` without either
 backend being read.
 
+Target-name resolution reads the name exactly: a symbol behind more than `limit` near-misses
+now resolves rather than answering `not_found`, and a second same-named entity a truncated page hid now reports `ambiguous`.
+
 Two optional, additive parameters help agents stay within a prompt budget:
 
 - `relationship_types` (array): a multi-type filter that supersedes the singular

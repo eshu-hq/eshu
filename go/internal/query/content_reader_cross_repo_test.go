@@ -442,3 +442,128 @@ func numericDriverValue(t *testing.T, value driver.Value) int64 {
 		return 0
 	}
 }
+
+// The #6555 pair. The story route's target resolution moved off the substring
+// read, and what makes that fix real is the SQL: a read that still said ILIKE
+// would keep filling its LIMIT page with near-misses no matter which Go
+// function called it. These assert the statement rather than the rows.
+
+func TestContentReaderSearchEntitiesByExactNameAsksForEquality(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{
+			columns: []string{
+				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+				"start_line", "end_line", "language", "source_cache", "metadata",
+			},
+			rows: [][]driver.Value{
+				{
+					"entity:payment-gateway", "repo://tenant-a/payments", "billing/gateway.go",
+					"Class", "PaymentGateway", int64(10), int64(90), "go", "", []byte(`{}`),
+				},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	results, err := reader.SearchEntitiesByExactName(
+		context.Background(), "repo://tenant-a/payments", "", "PaymentGateway", 3,
+	)
+	if err != nil {
+		t.Fatalf("SearchEntitiesByExactName() error = %v, want nil", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("len(results) = %d, want 1", len(results))
+	}
+	if got, want := results[0].EntityName, "PaymentGateway"; got != want {
+		t.Fatalf("results[0].EntityName = %#v, want %#v", got, want)
+	}
+
+	if len(recorder.queries) != 1 {
+		t.Fatalf("len(recorder.queries) = %d, want 1", len(recorder.queries))
+	}
+	query := recorder.queries[0]
+	if strings.Contains(query, "ILIKE") || strings.Contains(query, "LIKE") {
+		t.Fatalf("the exact-name read is still a substring read: %q", query)
+	}
+	for _, want := range []string{"entity_name = $1", "repo_id = $2", "LIMIT $3"} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query %q is missing %q", query, want)
+		}
+	}
+	if got, want := len(recorder.args[0]), 3; got != want {
+		t.Fatalf("len(query args) = %d, want %d", got, want)
+	}
+	if got, want := recorder.args[0][0], "PaymentGateway"; got != want {
+		t.Fatalf("query arg name = %#v, want %#v", got, want)
+	}
+	if got, want := recorder.args[0][1], "repo://tenant-a/payments"; got != want {
+		t.Fatalf("query arg repo = %#v, want %#v", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][2]), int64(3); got != want {
+		t.Fatalf("query arg limit = %d, want %d", got, want)
+	}
+}
+
+func TestContentReaderSearchEntitiesByExactNameAnyRepoLeavesTheRepositoryUnbound(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{
+			columns: []string{
+				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
+				"start_line", "end_line", "language", "source_cache", "metadata",
+			},
+			rows: [][]driver.Value{
+				{
+					"entity:payment-gateway", "repo://tenant-a/payments", "billing/gateway.go",
+					"Class", "PaymentGateway", int64(10), int64(90), "go", "", []byte(`{}`),
+				},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	if _, err := reader.SearchEntitiesByExactNameAnyRepo(
+		context.Background(), "", "PaymentGateway", 5,
+	); err != nil {
+		t.Fatalf("SearchEntitiesByExactNameAnyRepo() error = %v, want nil", err)
+	}
+
+	query := recorder.queries[0]
+	if strings.Contains(query, "repo_id =") {
+		t.Fatalf("the corpus-wide read bound a repository: %q", query)
+	}
+	if strings.Contains(query, "ILIKE") || strings.Contains(query, "LIKE") {
+		t.Fatalf("the exact-name read is still a substring read: %q", query)
+	}
+	for _, want := range []string{"entity_name = $1", "LIMIT $2"} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query %q is missing %q", query, want)
+		}
+	}
+	// The exact-name reads need no trigram index, so they must not carry the
+	// readiness gate that RAISES while a deferred bootstrap is unfinished
+	// (migration 057). Adding it would make an equality read fail on a
+	// deployment where it would otherwise work.
+	if strings.Contains(query, "eshu_require_content_substring_indexes_ready()") {
+		t.Fatalf("an equality read took the substring-index readiness gate: %q", query)
+	}
+
+	// Assert the BOUND ARGS, not just the query shape. The recording fake
+	// ignores args, so without this a swapped or misbound placeholder passes
+	// every check above: the text still reads `entity_name = $1` and `LIMIT $2`
+	// while $1 and $2 carry the wrong values. The repo-bound twin above already
+	// asserts all three of its args; this one asserted none until #6605 review
+	// pointed out the asymmetry.
+	if got, want := len(recorder.args[0]), 2; got != want {
+		t.Fatalf("query bound %d args, want %d (name, limit) — the corpus-wide read binds no repo", got, want)
+	}
+	if got, want := recorder.args[0][0], "PaymentGateway"; got != want {
+		t.Fatalf("query arg name = %#v, want %#v", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(5); got != want {
+		t.Fatalf("query arg limit = %d, want %d", got, want)
+	}
+}

@@ -174,6 +174,22 @@ func (f fakePortContentStore) SearchEntitiesByNameAnyRepo(
 	return f.promoted().SearchEntitiesByNameAnyRepo(ctx, entityType, name, limit)
 }
 
+func (f fakePortContentStore) SearchEntitiesByExactName(
+	ctx context.Context,
+	repoID, entityType, name string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().SearchEntitiesByExactName(ctx, repoID, entityType, name, limit)
+}
+
+func (f fakePortContentStore) SearchEntitiesByExactNameAnyRepo(
+	ctx context.Context,
+	entityType, name string,
+	limit int,
+) ([]EntityContent, error) {
+	return f.promoted().SearchEntitiesByExactNameAnyRepo(ctx, entityType, name, limit)
+}
+
 func (f fakePortContentStore) SearchEntitiesReferencingComponent(
 	ctx context.Context,
 	repoID, componentName string,

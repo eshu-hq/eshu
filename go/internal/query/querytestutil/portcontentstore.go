@@ -201,6 +201,27 @@ func (f FakePortContentStore) SearchEntitiesByNameAnyRepo(
 	return nil, nil
 }
 
+// SearchEntitiesByExactName reports no matches.
+func (f FakePortContentStore) SearchEntitiesByExactName(
+	context.Context,
+	string,
+	string,
+	string,
+	int,
+) ([]querycontract.EntityContent, error) {
+	return nil, nil
+}
+
+// SearchEntitiesByExactNameAnyRepo reports no matches.
+func (f FakePortContentStore) SearchEntitiesByExactNameAnyRepo(
+	context.Context,
+	string,
+	string,
+	int,
+) ([]querycontract.EntityContent, error) {
+	return nil, nil
+}
+
 // SearchEntitiesReferencingComponent reports no matches.
 func (f FakePortContentStore) SearchEntitiesReferencingComponent(
 	context.Context,

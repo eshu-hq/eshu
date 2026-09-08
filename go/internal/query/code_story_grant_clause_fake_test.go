@@ -246,6 +246,30 @@ func (s *storyGrantContentStore) SearchEntitiesByName(
 	return s.matches(repoID, name, limit), nil
 }
 
+// SearchEntitiesByExactName records the repository the same way the substring
+// read does, so the grant assertions in
+// auth_scoped_relationship_story_grant_test.go keep watching the read the route
+// actually issues. matches() already compares names for equality, so the two
+// answer identically for this fixture -- what changes is only which read the
+// route chose.
+func (s *storyGrantContentStore) SearchEntitiesByExactName(
+	_ context.Context,
+	repoID, _, name string,
+	limit int,
+) ([]EntityContent, error) {
+	s.askedRepo = append(s.askedRepo, repoID)
+	return s.matches(repoID, name, limit), nil
+}
+
+func (s *storyGrantContentStore) SearchEntitiesByExactNameAnyRepo(
+	_ context.Context,
+	_, name string,
+	limit int,
+) ([]EntityContent, error) {
+	s.anyRepo = true
+	return s.matches("", name, limit), nil
+}
+
 func (s *storyGrantContentStore) SearchEntitiesByNameAnyRepo(
 	_ context.Context,
 	_, name string,
