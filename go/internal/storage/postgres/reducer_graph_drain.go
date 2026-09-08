@@ -49,9 +49,12 @@ type ReducerGraphDrain struct {
 // all retracted has nothing left to commit.
 //
 // Both subqueries are index-served: fact_records_scope_generation_idx covers
-// (scope_id, generation_id, fact_kind), and the phase lookup hits the
-// graph_projection_phase_state primary key prefix. No new index: this runs
-// once per code-call poll cycle over a scope-count row set, not per edge.
+// (scope_id, generation_id, fact_kind), and the phase probe rides the
+// graph_projection_phase_state primary key's scope_id prefix with
+// generation/keyspace/phase as filters. No new index: this runs at most
+// twice per code-call poll cycle per partition (active-work plus this
+// check), over a scope-count row set with short-circuit on first match,
+// not per edge. (#6184 review F3)
 const uncommittedCanonicalCodeScopesQuery = `
 SELECT EXISTS (
     SELECT 1

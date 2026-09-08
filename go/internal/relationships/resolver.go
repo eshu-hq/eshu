@@ -234,14 +234,17 @@ func aggregateCandidate(key entityTriple, facts []EvidenceFact) Candidate {
 }
 
 // sortEvidenceFactsForAggregation returns the facts ordered by a content key:
-// clamped confidence descending, then evidence kind, path, and matched value
-// ascending. The trailing comparisons exist so the order is total: two facts
-// that tie on every content field relevant to the preview can still differ in
-// raw confidence (the preview records the unclamped value) or in unrelated
-// Details keys, and without a tie-break their relative order — and therefore
-// the candidate — would still depend on arrival order. fmt prints maps with
-// sorted keys, so the Details comparison is deterministic. The input slice is
-// never mutated: callers retain their arrival-ordered buckets.
+// clamped confidence descending, then evidence kind, path, matched value,
+// raw confidence, Details serialization, rationale, and repo IDs, all
+// ascending except the confidences. The trailing comparisons exist so the
+// order is total over everything aggregateCandidate accumulates: two facts
+// that tie on every preview-relevant field can still differ in raw
+// confidence (the preview records the unclamped value), unrelated Details
+// keys, rationale (join order), or repo IDs (first-non-empty wins), and
+// without a tie-break their relative order — and therefore the candidate —
+// would still depend on arrival order. fmt prints maps with sorted keys, so
+// the Details comparison is deterministic. The input slice is never mutated:
+// callers retain their arrival-ordered buckets.
 func sortEvidenceFactsForAggregation(facts []EvidenceFact) []EvidenceFact {
 	ordered := make([]EvidenceFact, len(facts))
 	copy(ordered, facts)
@@ -264,7 +267,19 @@ func sortEvidenceFactsForAggregation(facts []EvidenceFact) []EvidenceFact {
 		if ordered[i].Confidence != ordered[j].Confidence {
 			return ordered[i].Confidence > ordered[j].Confidence
 		}
-		return fmt.Sprintf("%v", ordered[i].Details) < fmt.Sprintf("%v", ordered[j].Details)
+		if di, dj := fmt.Sprintf("%v", ordered[i].Details), fmt.Sprintf("%v", ordered[j].Details); di != dj {
+			return di < dj
+		}
+		// Rationale and repo IDs are struct fields, not Details entries, but
+		// they feed order-sensitive accumulations too (rationale join order,
+		// first-non-empty repo), so they close the key. (#6184 review F1)
+		if ordered[i].Rationale != ordered[j].Rationale {
+			return ordered[i].Rationale < ordered[j].Rationale
+		}
+		if ordered[i].SourceRepoID != ordered[j].SourceRepoID {
+			return ordered[i].SourceRepoID < ordered[j].SourceRepoID
+		}
+		return ordered[i].TargetRepoID < ordered[j].TargetRepoID
 	})
 	return ordered
 }
