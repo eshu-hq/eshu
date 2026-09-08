@@ -312,3 +312,22 @@ Guardrails:
 - [MCP Guide](../guides/mcp-guide.md)
 - [Capability Conformance Spec](capability-conformance-spec.md)
 - [Truth Label Protocol](truth-label-protocol.md)
+
+## Where the implementation lives
+
+The DSL described above is unchanged by the #6060 handler-family split, but the
+code behind it has moved, and the note is here so a reader tracing a field back
+to its producer does not start in the wrong package.
+
+The graph-row metadata projection that fills a language-query result's
+`metadata` object, and the entity-type mapping that decides which label a row
+resolves to, now live in `internal/query/querycontract`. The Cypher projection
+fragment those reads splice into their statements lives in
+`internal/query/querygraphrows`, which is separate because it also decodes
+graph-driver row types that the dependency-neutral contract package may not
+import. The one-sentence `semantic_summary` and the `semantic_profile` block
+are rendered in `internal/query/entitysemantics`.
+
+No request field, response field, filter, ordering or bound changed. The query
+text is byte-identical across the move: a tree-wide comparison of every Cypher
+literal under `internal/query` matches the pre-move tree exactly.
