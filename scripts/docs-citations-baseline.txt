@@ -615,7 +615,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/factdec
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/gcp_materialization_observability.go:22
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/incident/incident_repository_correlation.go:278
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/incident/incident_routing_materialization.go:203
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/package_provenance_edges.go:128
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/repo_dependency_projection_runner.go:149
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:189
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:358
@@ -769,7 +768,6 @@ LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/reducer/package_sourc
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/storage/postgres/cloud_identity_policy_evidence.go:85
 LINE go/internal/mcp/kind_disclosure_ledger.go go/internal/storage/postgres/cloud_resource_change_evidence.go:90
 LINE go/internal/mcp/kind_real_consumer.go go/internal/projector/tfstate_canonical.go:113
-LINE go/internal/mcp/kind_real_consumer_dispatch.go go/internal/reducer/package_source_correlation.go:98
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/ci_cd_run_correlations.go:15
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/cloud_inventory_read_model.go:22
 LINE go/internal/mcp/route_serves_data_registry_routes.go go/internal/query/documentation_read_model.go:359

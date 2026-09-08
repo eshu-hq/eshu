@@ -14,7 +14,7 @@ import (
 )
 
 // This file holds typed reducer-derived payload construction for package
-// correlations. It is split from package_correlation_writer.go so the writer
+// correlations. It is split from writer.go so the writer
 // stays below the repo's 500-line cap while the contract mapping stays close to
 // the domain-specific decisions it serializes.
 

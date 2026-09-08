@@ -183,7 +183,7 @@ when it disagrees. Never a new top-level package for any of them.
 | `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `decode/` children by census (`intent_emission.go` defaults to `decode/facts`) |
 | `platform_infra_materialization.go` (the `platform` stanza in `compat_projection.go` burns down) | `repodependency/platform` |
 | `repo_workload.go` | `workload/repo` |
-| `package_publication_correlation.go`, `package_provenance_edges.go` (already inside the counted 11; no additional singletons) | `packagecorrelation/core` |
+| `publication.go`, `provenance_edges.go` (already inside the counted 11; no additional singletons) | `packagecorrelation/core` |
 | `code_function*` (2) | `code/` child by census |
 | `value_flow.go` | `code/value` |
 | `workload_*` singletons (signal, identity, deployment, dependency, cloud, instance) | `workload/` children by census |

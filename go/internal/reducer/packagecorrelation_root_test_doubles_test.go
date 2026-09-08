@@ -143,7 +143,7 @@ func packageManifestDependencyFact(
 // dependency fact envelope for supply-chain and security-alert tests that
 // stayed in the reducer root when package correlation moved to
 // internal/reducer/packagecorrelation (#6061). Its twin of the same name
-// lives in packagecorrelation/package_source_correlation_test.go for the
+// lives in packagecorrelation/source_test.go for the
 // moved family tests; the two bodies are byte-identical by construction and
 // must stay that way — a fixture that drifts from the moved copy silently
 // changes what the staying tests cover. It uses only facts and the

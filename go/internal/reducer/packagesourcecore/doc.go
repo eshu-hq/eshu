@@ -12,8 +12,8 @@
 // the handler that classifies a hint into a correlation outcome live in the
 // packagecorrelation family; seven other files read these symbols directly
 // without ever calling that handler --
-// packagecorrelation/package_consumption_correlation.go and
-// packagecorrelation/package_publication_correlation.go read Repository/Hint
+// packagecorrelation/consumption.go and
+// packagecorrelation/publication.go read Repository/Hint
 // and ExtractRepositories; container_image_identity_provenance.go reads Hint,
 // Repository, ExtractRepositories, MatchRepositories, and CanonicalURLKey;
 // container_image_identity_slsa.go reads only ExtractRepositories;

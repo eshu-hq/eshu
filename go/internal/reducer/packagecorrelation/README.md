@@ -19,19 +19,19 @@ read the durable facts; they never import this package.
 
 | File | Covers |
 | --- | --- |
-| `package_source_correlation.go` | Source-hint classification, repository-ID narrowing, outcome derivation |
-| `package_source_correlation_handler.go` | `PackageSourceCorrelationHandler`, fact loading, refresh/retract edges, narrow loader interfaces |
-| `package_source_admission_decisions.go` | Ownership/consumption/publication admission writers |
-| `package_consumption_correlation.go` | Manifest-dependency extraction, consumption keys, consumption builder |
-| `package_consumption_manifest_metadata.go` | Manifest metadata join and payload shaping |
-| `package_consumption_repo_edge.go` | Owner resolution, consumer-edge intents, repo-edge writer |
-| `package_consumption_rubygems.go` | RubyGems composite-version join |
-| `package_correlation_payloads.go` | Typed payload construction for the three builders |
-| `package_correlation_writer.go` | Batched versioned Postgres writer for correlation facts |
-| `package_provenance_edges.go` | PUBLISHES provenance projection |
-| `package_publication_correlation.go` | Publication builder |
+| `source.go` | Source-hint classification, repository-ID narrowing, outcome derivation |
+| `source_handler.go` | `PackageSourceCorrelationHandler`, fact loading, refresh/retract edges, narrow loader interfaces |
+| `source_admission_decisions.go` | Ownership/consumption/publication admission writers |
+| `consumption.go` | Manifest-dependency extraction, consumption keys, consumption builder |
+| `consumption_manifest_metadata.go` | Manifest metadata join and payload shaping |
+| `consumption_repo_edge.go` | Owner resolution, consumer-edge intents, repo-edge writer |
+| `consumption_rubygems.go` | RubyGems composite-version join |
+| `payloads.go` | Typed payload construction for the three builders |
+| `writer.go` | Batched versioned Postgres writer for correlation facts |
+| `provenance_edges.go` | PUBLISHES provenance projection |
+| `publication.go` | Publication builder |
 | `security_alert_manifest_dependency_match.go` | Manifest bridge the securityalert family matches alerts through |
-| `package_provenance_root_compat_exports.go` | Test seam for the reducer root's own test files (containerimage precedent) |
+| `provenance_root_compat_exports.go` | Test seam for the reducer root's own test files (containerimage precedent) |
 
 ## Seams other families use
 
