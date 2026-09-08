@@ -31,7 +31,7 @@ import (
 func TestIdentityEpochIndexPredicateMatchesIdentityFactFilter(t *testing.T) {
 	t.Parallel()
 
-	// Migration 104 owns the live definition. It carries the Dockerfile
+	// Migration 105 owns the live definition. It carries the Dockerfile
 	// base-image arm #5460 added, under the _v2 name #6543 moved it to: the
 	// predicate used to be widened in place, by a 076 DROP of the index name
 	// paired with a 077 CREATE of the same name, which rebuilt the index on

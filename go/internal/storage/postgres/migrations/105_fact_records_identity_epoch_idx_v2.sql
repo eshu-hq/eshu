@@ -33,7 +33,7 @@
 -- concurrently over fact_records, with no covering index between the two. A new
 -- name forces the create-with-the-new-predicate exactly once on an existing
 -- deployment (and once on a fresh one), then IF NOT EXISTS makes it a no-op on
--- every boot after that. Migration 105 drops the legacy name, and nothing in
+-- every boot after that. Migration 106 drops the legacy name, and nothing in
 -- this directory creates that name any more, so steady state issues neither an
 -- index build nor a drop. 059_relationship_family_candidate_index.sql with
 -- 068_drop_relationship_family_candidate_index_legacy.sql is the same shape, and
@@ -43,7 +43,7 @@
 -- TestIdentityEpochIndexMigrationsReapplyWithoutRebuildLive proves on a
 -- populated store that a second bootstrap builds nothing and drops nothing.
 --
--- This create sorts BEFORE migration 105's drop of the legacy name, so an
+-- This create sorts BEFORE migration 106's drop of the legacy name, so an
 -- install upgrading into this release builds the replacement while the legacy
 -- index is still serving reads and is never left without a covering index --
 -- the same ordering 059/068 and 101/102 use.

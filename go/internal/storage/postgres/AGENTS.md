@@ -1026,7 +1026,7 @@ Performance Evidence: #5438 adds an epoch-cached identity fact set to
 `ListActiveContainerImageIdentityFacts`, replacing ~2,000 O(corpus) paginated
 loads per worst-case reducer drain with 1 reload + ~2,000 index-only epoch
 probes. The probe is backed by the partial index (#6543 renamed it `_v2`)
-`fact_records_identity_epoch_idx ON fact_records (observed_at, fact_id)
+`fact_records_identity_epoch_idx_v2 ON fact_records (observed_at, fact_id)
 WHERE <6-arm identity filter> AND is_tombstone = FALSE` and runs FROM
 fact_records alone (no ingestion_scopes/scope_generations JOIN), so it
 leverages an Index Only Scan. Proved locally with the identity-epoch test

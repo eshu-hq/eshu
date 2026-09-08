@@ -1,7 +1,7 @@
 -- 106_drop_fact_records_identity_epoch_idx_legacy.sql
 --
 -- Drops the legacy container-image-identity epoch index name,
--- fact_records_identity_epoch_idx (#6543). Migration 104 creates
+-- fact_records_identity_epoch_idx (#6543). Migration 105 creates
 -- fact_records_identity_epoch_idx_v2 with the same key and the same predicate
 -- an up-to-date install already had, and it sorts before this file, so the
 -- replacement is in place before the legacy name goes and no bootstrap leaves

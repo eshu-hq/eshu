@@ -23,7 +23,7 @@ import (
 // should not be read as claiming one.
 //
 // That reduction is safe for what this test proves. Convergence is by index
-// NAME: migration 105 drops `fact_records_identity_epoch_idx` whatever
+// NAME: migration 106 drops `fact_records_identity_epoch_idx` whatever
 // predicate built it, so the fixture only has to stand where a real install
 // stands -- the legacy NAME present on a populated fact_records -- and a
 // verbatim 069 would build an index indistinguishable from this one here.
