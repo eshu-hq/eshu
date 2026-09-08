@@ -200,8 +200,8 @@ attachments open N pools of up to 30**, and the derived 170 under-counts by
 The same shape applies to any other role a user can start more than once
 concurrently. Review named a second instance: concurrent `eshu vuln-scan repo`
 invocations each start their own `eshu-api` child
-(`startLocalAPI` -> `localsupervisor.StartChildProcess("eshu-api", ...)`,
-`go/internal/cli/vulnscan/localruntime.go:318`) plus a bootstrap-index pass, so
+(`startLocalAPI` -> `localsupervisor.StartChildProcess("eshu-api", ...)` in
+`go/internal/cli/vulnscan/localruntime.go`) plus a bootstrap-index pass, so
 two concurrent scans double those two holders the same way two attachments
 double the MCP one.
 
