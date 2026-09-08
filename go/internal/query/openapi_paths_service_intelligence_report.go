@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package service
+package query
 
 const OpenAPIPathsServiceIntelligenceReport = `
     "/api/v0/services/{service_name}/intelligence-report": {

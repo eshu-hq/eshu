@@ -58,7 +58,7 @@ func OpenAPISpec() string {
 			openAPIPathsRepositoriesFreshness+
 			openAPIPathsEntities+
 			openAPIPathsInvestigations+
-			openAPIPathsServiceIntelligenceReport+
+			OpenAPIPathsServiceIntelligenceReport+
 			openAPIPathsCode+
 			openAPIPathsCodeRouteToCaller+
 			openAPIPathsCodeGraph+
@@ -101,7 +101,7 @@ func OpenAPISpec() string {
 			openAPIPathsCodeowners+
 			openAPIPathsCICD+
 			openAPIPathsCICDRunCorrelationAggregate+
-			openAPIPathsServiceCatalog+
+			OpenAPIPathsServiceCatalog+
 			openAPIPathsKubernetes+
 			openAPIPathsSecretsIAM+
 			openAPIPathsObservabilityCoverage+

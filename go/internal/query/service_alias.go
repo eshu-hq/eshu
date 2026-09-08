@@ -259,16 +259,6 @@ func buildGraphDependents(candidates []impacttrace.ProvisioningRepositoryCandida
 	return service.BuildGraphDependents(candidates)
 }
 
-// openAPIPathsServiceCatalog is the OpenAPI fragment for the service-catalog
-// routes. Its home is service/; this constant keeps the root spec assembly
-// spelling unchanged. See #6060.
-const openAPIPathsServiceCatalog = service.OpenAPIPathsServiceCatalog
-
-// openAPIPathsServiceIntelligenceReport is the OpenAPI fragment for the
-// service intelligence report route. Its home is service/; this constant
-// keeps the root spec assembly spelling unchanged. See #6060.
-const openAPIPathsServiceIntelligenceReport = service.OpenAPIPathsServiceIntelligenceReport
-
 // documentationStoryReadLimit bounds documentation story reads. The canonical
 // value lives in querycontract; this declaration keeps the staying
 // documentation stayers compiling unchanged.
