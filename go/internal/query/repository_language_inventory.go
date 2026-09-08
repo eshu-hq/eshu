@@ -135,7 +135,10 @@ func (h *RepositoryHandler) getRepositoryLanguageInventory(w http.ResponseWriter
 
 // writeEmptyRepositoryLanguagePage returns the bounded empty by-language page
 // for a scoped caller with no granted repository or ingestion scope, without
-// querying Postgres (#5167 Group B, #5137 LiveActivityStore precedent).
+// querying Postgres (#5167 Group B, #5137 LiveActivityStore precedent). The
+// page reads nothing, so it reports TruthBasisNoBackendRead rather than the
+// content_index it claimed before #6544; no content store was consulted to
+// produce it.
 func (h *RepositoryHandler) writeEmptyRepositoryLanguagePage(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -156,7 +159,7 @@ func (h *RepositoryHandler) writeEmptyRepositoryLanguagePage(
 	}, BuildTruthEnvelope(
 		h.profile(),
 		"platform_impact.catalog",
-		TruthBasisContentIndex,
+		TruthBasisNoBackendRead,
 		"scoped token grants authorize no repositories; repository language coverage is empty",
 	))
 }
@@ -176,7 +179,7 @@ func (h *RepositoryHandler) writeEmptyRepositoryLanguageInventoryPage(
 	}, BuildTruthEnvelope(
 		h.profile(),
 		"platform_impact.catalog",
-		TruthBasisContentIndex,
+		TruthBasisNoBackendRead,
 		"scoped token grants authorize no repositories; repository language inventory is empty",
 	))
 }

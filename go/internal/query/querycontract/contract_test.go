@@ -180,3 +180,52 @@ func isolateCapabilityRegistry(t *testing.T) {
 	requestedCapabilityOrder = nil
 	duplicateRegistrationKeys = nil
 }
+
+// TestNoBackendReadBasisIsFallbackAndSurvivesNormalization pins the two
+// querycontract-side contracts #6544 introduced with TruthBasisNoBackendRead.
+//
+// basisLevel must answer TruthLevelFallback for it, and must do so from its own
+// case rather than the unrecognized-value default arm: a page produced without
+// reading anything holds no evidence, so it is neither exact nor derived FROM
+// content. normalizeTruthBasis must leave it alone on every profile -- its one
+// rewrite (authoritative_graph -> hybrid under local_lightweight) exists because
+// that profile cannot serve authoritative graph truth, and silently rewriting a
+// no-read page's basis would put back exactly the false claim the member was
+// added to remove.
+func TestNoBackendReadBasisIsFallbackAndSurvivesNormalization(t *testing.T) {
+	isolateCapabilityRegistry(t)
+
+	exact := TruthLevelExact
+	RegisterCapabilities(CapabilityRegistration{
+		Capability: "test.no_backend_read",
+		Support: CapabilitySupport{
+			LocalLightweightMax:   &exact,
+			LocalAuthoritativeMax: &exact,
+			LocalFullStackMax:     &exact,
+			ProductionMax:         &exact,
+			RequiredProfile:       ProfileLocalLightweight,
+		},
+	})
+
+	for _, profile := range []QueryProfile{
+		ProfileLocalLightweight,
+		ProfileLocalAuthoritative,
+		ProfileLocalFullStack,
+		ProfileProduction,
+	} {
+		truth := BuildTruthEnvelope(profile, "test.no_backend_read", TruthBasisNoBackendRead, "test")
+		// The capability ceiling above is exact on every profile, so the
+		// fallback below is basisLevel's answer and not a ceiling clamp.
+		if got, want := truth.Level, TruthLevelFallback; got != want {
+			t.Fatalf("profile %q: truth level = %q, want %q; a page produced without a read is not exact or derived", profile, got, want)
+		}
+		if got, want := truth.Basis, TruthBasisNoBackendRead; got != want {
+			t.Fatalf("profile %q: truth basis = %q, want %q; normalizeTruthBasis must not rewrite a no-read basis", profile, got, want)
+		}
+	}
+
+	if got, want := string(TruthBasisNoBackendRead), "no_backend_read"; got != want {
+		t.Fatalf("TruthBasisNoBackendRead = %q, want %q; the wire spelling is a published contract "+
+			"(docs/public/reference/truth-label-protocol.md)", got, want)
+	}
+}

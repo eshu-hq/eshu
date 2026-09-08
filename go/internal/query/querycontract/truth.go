@@ -27,6 +27,15 @@ const (
 	TruthBasisContentIndex       TruthBasis = "content_index"
 	TruthBasisHybrid             TruthBasis = "hybrid"
 	TruthBasisRuntimeState       TruthBasis = "runtime_state"
+	// TruthBasisNoBackendRead identifies a page produced without reading any
+	// backend at all -- the empty page a scoped caller whose grant admits no
+	// repository receives, answered from the grant alone. It is the one basis
+	// that names an absence rather than an evidence source, and it exists so
+	// such a page does not have to borrow a source it never touched:
+	// content_index was previously reported, which claimed a content-store read
+	// that never happened. Its truth level is fixed at TruthLevelFallback by
+	// basisLevel: nothing was read, so nothing can be exact or derived.
+	TruthBasisNoBackendRead TruthBasis = "no_backend_read"
 )
 
 // FreshnessState reports whether the evidence is current and available.
@@ -120,7 +129,8 @@ type ResponseEnvelope struct {
 // AnswerTruthClass is the prompt-facing classification of an answer's truth.
 //
 // It folds the two existing truth axes — TruthLevel (exact, derived, fallback)
-// and TruthBasis (authoritative_graph, semantic_facts, content_index, hybrid)
+// and TruthBasis (authoritative_graph, semantic_facts, content_index, hybrid,
+// runtime_state, no_backend_read)
 // — into a single label so prompt surfaces can choose presentation and caution
 // without re-implementing the capability matrix. It does not introduce a new
 // truth source; it is derived entirely from an existing TruthEnvelope. The
@@ -177,6 +187,14 @@ func basisLevel(basis TruthBasis) TruthLevel {
 		return TruthLevelExact
 	case TruthBasisContentIndex, TruthBasisHybrid:
 		return TruthLevelDerived
+	case TruthBasisNoBackendRead:
+		// Stated rather than left to the default arm below. A page produced
+		// without a read holds no evidence: it is not exact, and there is no
+		// content or relational state it was derived FROM. Fallback is the
+		// floor of the scale and the only honest level, and writing the case
+		// out makes that a declared contract instead of a by-product of the
+		// unrecognized-value catch-all.
+		return TruthLevelFallback
 	default:
 		return TruthLevelFallback
 	}

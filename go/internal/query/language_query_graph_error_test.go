@@ -295,6 +295,7 @@ func TestOpenAPILanguageQueryResponseDocumentsSourceBackend(t *testing.T) {
 		sourceBackendForTruthBasis(TruthBasisAuthoritativeGraph),
 		sourceBackendForTruthBasis(TruthBasisHybrid),
 		sourceBackendForTruthBasis(TruthBasisContentIndex),
+		sourceBackendForTruthBasis(TruthBasisNoBackendRead),
 		sourceBackendForTruthBasis(TruthBasis("unrecognized_basis_for_test")),
 	}
 	wantEnum := make(map[string]bool, len(wantValues))

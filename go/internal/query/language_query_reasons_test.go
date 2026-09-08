@@ -5,6 +5,24 @@ package query
 
 import "testing"
 
+// TestSourceBackendForTruthBasisNoBackendReadIsItsOwnValue is the #6544
+// regression. The empty-grant page's source_backend used to be the
+// "unavailable" sentinel, reused outside the meaning the public table in
+// docs/public/reference/language-query-dsl.md gives it, because
+// sourceBackendForTruthBasis had no case for a page produced without a read and
+// "unavailable" was the default arm it fell into. It now has one, and the value
+// is written out here rather than compared to noBackendReadSourceBackend: an
+// expectation read from the constant under test passes whatever that constant
+// becomes, including a silent return to "unavailable".
+func TestSourceBackendForTruthBasisNoBackendReadIsItsOwnValue(t *testing.T) {
+	t.Parallel()
+
+	if got, want := sourceBackendForTruthBasis(TruthBasisNoBackendRead), "no_backend_read"; got != want {
+		t.Fatalf("sourceBackendForTruthBasis(%q) = %q, want %q; a no-read page must not reuse the "+
+			"unrecognized-basis sentinel", TruthBasisNoBackendRead, got, want)
+	}
+}
+
 // TestSourceBackendForTruthBasisDefaultReturnsUnavailableSentinel is the
 // #5761 P3-1 review-fix regression. sourceBackendForTruthBasis
 // (language_query_reasons.go) only has explicit cases for the three

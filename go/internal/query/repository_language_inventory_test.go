@@ -113,6 +113,17 @@ func TestListRepositoriesByLanguageScopedEmptyGrantReturnsEmptyWithoutQuery(t *t
 	if got, want := data["repository_count"], float64(0); got != want {
 		t.Fatalf("repository_count = %#v, want %#v", got, want)
 	}
+	// The zero-query assertion above is what makes this basis provable: nothing
+	// was read, so the envelope must not report content_index, which claims the
+	// content store served the page (#6544). The sibling granted test
+	// TestListRepositoriesByLanguageReturnsCountAndBoundedRows still asserts
+	// content_index, so the two cannot collapse onto one value.
+	if envelope.Truth == nil || envelope.Truth.Basis != TruthBasisNoBackendRead {
+		t.Fatalf("truth = %#v, want no-backend-read truth for a page that queried nothing", envelope.Truth)
+	}
+	if envelope.Truth.Level != TruthLevelFallback {
+		t.Fatalf("truth level = %q, want %q; a page produced without a read is not derived", envelope.Truth.Level, TruthLevelFallback)
+	}
 }
 
 // TestListRepositoriesByLanguageScopedGrantHitsRealStoreAndReturnsRowData
@@ -247,6 +258,18 @@ func TestGetRepositoryLanguageInventoryScopedEmptyGrantReturnsEmptyWithoutQuery(
 	}
 	if len(recorder.queries) != 0 {
 		t.Fatalf("Postgres received %d queries, want 0 for an empty-grant scoped caller", len(recorder.queries))
+	}
+	// Same claim as the by-language empty page: zero queries above, so the
+	// basis must name the absence rather than the content store (#6544).
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	if envelope.Truth == nil || envelope.Truth.Basis != TruthBasisNoBackendRead {
+		t.Fatalf("truth = %#v, want no-backend-read truth for a page that queried nothing", envelope.Truth)
+	}
+	if envelope.Truth.Level != TruthLevelFallback {
+		t.Fatalf("truth level = %q, want %q; a page produced without a read is not derived", envelope.Truth.Level, TruthLevelFallback)
 	}
 }
 
