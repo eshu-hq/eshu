@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/sbomruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -26,7 +27,7 @@ func TestRuntimeSBOMFactsAttachToOCIReferrerSubjectTruth(t *testing.T) {
 
 	runtimeFacts := runtimeSBOMFacts(t)
 	doc := firstFactKind(t, runtimeFacts, facts.SBOMDocumentFactKind)
-	documentDigest := payloadString(doc.Payload, "document_digest")
+	documentDigest := payloadcore.PayloadString(doc.Payload, "document_digest")
 
 	decisions := sbomattest.BuildSBOMAttestationAttachmentDecisions(append(
 		runtimeFacts,
@@ -49,7 +50,7 @@ func TestRuntimeSBOMFactsPreserveSubjectMismatchEvidence(t *testing.T) {
 
 	runtimeFacts := runtimeSBOMFacts(t)
 	doc := firstFactKind(t, runtimeFacts, facts.SBOMDocumentFactKind)
-	documentDigest := payloadString(doc.Payload, "document_digest")
+	documentDigest := payloadcore.PayloadString(doc.Payload, "document_digest")
 
 	decisions := sbomattest.BuildSBOMAttestationAttachmentDecisions(append(
 		runtimeFacts,
@@ -155,15 +156,6 @@ func ociImageReferrerFact(
 			"artifact_type":       artifactType,
 		},
 	}
-}
-
-func payloadString(payload map[string]any, key string) string {
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return ""
-	}
-	text, _ := value.(string)
-	return text
 }
 
 type runtimeAttachmentProvider struct {

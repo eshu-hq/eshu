@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/ifa"
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -139,7 +140,7 @@ func assertRepoDependencyOduIntentTruth(
 	}
 
 	if got, want := len(sources), 8; got != want {
-		t.Fatalf("source acceptance units = %d, want %d; sources=%v", got, want, sortedKeys(sources))
+		t.Fatalf("source acceptance units = %d, want %d; sources=%v", got, want, payloadcore.SortedKeys(sources))
 	}
 	if got, want := writeRows, 8; got != want {
 		t.Fatalf("write intents = %d, want %d", got, want)
@@ -212,15 +213,6 @@ func hasSharedProvisionTarget(targets map[string]map[string]struct{}, sourceCoun
 		}
 	}
 	return false
-}
-
-func sortedKeys(values map[string]struct{}) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func sortedEvidenceSources(values map[string][]relationships.EvidenceFact) []string {
