@@ -132,6 +132,30 @@ rc=$?
 set -e
 check "fails when a branch deletes a referenced file" 1 "$rc"
 check_output "says the path was deleted" "was deleted by this branch" "$out"
+check_output "points a delete at the branch's added files" "among the files this branch ADDED" "$out"
+rm -rf "$repo"
+
+# 5b. A move PLUS a rewrite too heavy for git to pair. This is the shape the
+# deletion wording exists for: -M is left at its default similarity on purpose,
+# so this arrives as D+A rather than R, `new` is empty, and the gate cannot name
+# a target. Lowering the threshold would not fix it -- it would make git pair the
+# delete with whatever add happened to be closest, so a CONFIDENTLY WRONG target
+# would replace honest "drop or rewrite" guidance. The message points at the
+# branch's added files instead, which is true without guessing which one.
+repo="$(new_repo)"
+git -C "$repo" rm -q go/internal/reducer/widget.go
+mkdir -p "$repo/go/internal/reducer/widgetfam"
+printf 'package widgetfam\n\n// Rewritten in the move: nothing here resembles the old file.\nfunc New() int { return 0 }\n' \
+  >"$repo/go/internal/reducer/widgetfam/widget.go"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "move widget and rewrite it"
+set +e
+out="$(run_gate "$repo")"
+rc=$?
+set -e
+check "fails when a move+rewrite is unpaired by git" 1 "$rc"
+check_output "unpaired move still names the vacated path" "was deleted by this branch" "$out"
+check_output "unpaired move points at the added files" "among the files this branch ADDED" "$out"
 rm -rf "$repo"
 
 # 6. The allowlist exempts a deliberately historical reference.

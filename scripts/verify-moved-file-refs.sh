@@ -190,6 +190,9 @@ while IFS="${tab}" read -r old new; do
       printf '      -> repoint to %s\n' "${new}" >&2
     else
       printf '      -> %s was deleted by this branch; drop or rewrite the reference\n' "${old}" >&2
+      printf '         (no rename was paired for it at git'"'"'s default -M similarity,\n' >&2
+      printf '          so if this was a move plus a heavy rewrite, the repoint target\n' >&2
+      printf '          is among the files this branch ADDED -- check those first)\n' >&2
     fi
     violations=$((violations + 1))
   done <"${tmp_dir}/hits.txt"
