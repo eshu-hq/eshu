@@ -267,7 +267,10 @@ func sortEvidenceFactsForAggregation(facts []EvidenceFact) []EvidenceFact {
 		if ordered[i].Confidence != ordered[j].Confidence {
 			return ordered[i].Confidence > ordered[j].Confidence
 		}
-		if di, dj := fmt.Sprintf("%v", ordered[i].Details), fmt.Sprintf("%v", ordered[j].Details); di != dj {
+		// %#v, not %v: %v collides across types (1 vs "1"), which would
+		// leave a type-divergent tie to arrival order. Both verbs print
+		// maps with sorted keys, so determinism is preserved. (#6184 P3)
+		if di, dj := fmt.Sprintf("%#v", ordered[i].Details), fmt.Sprintf("%#v", ordered[j].Details); di != dj {
 			return di < dj
 		}
 		// Rationale and repo IDs are struct fields, not Details entries, but
