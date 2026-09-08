@@ -91,22 +91,51 @@ set -e
 check "passes when the branch repoints its own reference" 0 "$rc"
 rm -rf "$repo"
 
-# 3. ATTRIBUTION: a reference that was ALREADY dead at the base is inherited
-#    debt or a deliberate negative fixture. The branch did not break it, so the
-#    gate must stay silent -- this is what keeps does_not_exist.go green.
+# 3. ATTRIBUTION: a path deleted BEFORE the base is inherited debt. The branch
+#    did not break that reference, so the gate must stay silent about it --
+#    the header's "inherited debt did not change, so it cannot either", and
+#    what keeps the disclosed residual debt from failing unrelated PRs.
+#    The branch must ALSO vacate something real, or the case exits through the
+#    same "vacates no go path" early return as case 4 and proves nothing about
+#    attribution. That is precisely how the first version of this case was
+#    vacuous: its fixture only appended doc lines, so vacated_n was 0 and the
+#    gate never reached the scan. The "1 vacated go path" assertion below is
+#    what makes the silence meaningful, and 3b is what proves it is
+#    attribution rather than an inability to see the reference at all.
 repo="$(new_repo)"
-printf 'Ghost row: go/internal/reducer/does_not_exist.go is deliberately absent.\n' \
-  >>"$repo/docs/design.md"
+root="$(git -C "$repo" rev-parse HEAD)"
+printf 'package reducer\n' >"$repo/go/internal/reducer/gadget.go"
+{
+  printf 'See go/internal/reducer/widget.go for the widget family.\n'
+  printf 'See go/internal/reducer/gadget.go for the gadget family.\n'
+} >"$repo/docs/design.md"
+git -C "$repo" rm -q go/internal/reducer/widget.go
 git -C "$repo" add -A
 git -C "$repo" commit -qm base-debt
-printf 'unrelated change\n' >>"$repo/docs/design.md"
+mkdir -p "$repo/go/internal/reducer/gadgetfam"
+git -C "$repo" mv go/internal/reducer/gadget.go go/internal/reducer/gadgetfam/gadget.go
+{
+  printf 'See go/internal/reducer/widget.go for the widget family.\n'
+  printf 'See go/internal/reducer/gadgetfam/gadget.go for the gadget family.\n'
+} >"$repo/docs/design.md"
 git -C "$repo" add -A
-git -C "$repo" commit -qm "unrelated"
+git -C "$repo" commit -qm "move gadget family and repoint"
 set +e
 out="$(run_gate "$repo")"
 rc=$?
 set -e
 check "ignores a reference that was already dead at the base" 0 "$rc"
+check_output "reached the scan instead of the early exit" "1 vacated go path" "$out"
+
+# 3b. CONTROL for case 3. Same tree, base widened past the deletion: the
+#     inherited reference IS reported. Without this, case 3 passing could mean
+#     the gate simply cannot see that reference.
+set +e
+out="$(cd "$repo" && ./scripts/verify-moved-file-refs.sh --base "$root" 2>&1)"
+rc=$?
+set -e
+check "widening the base past the deletion reports the inherited reference" 1 "$rc"
+check_output "names the inherited dead path" "go/internal/reducer/widget.go" "$out"
 rm -rf "$repo"
 
 # 4. A branch that vacates nothing exits early and cheaply.
