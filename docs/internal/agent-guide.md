@@ -22,7 +22,7 @@ For runtime work, the order is fixed:
    scope, conflict keys, and dead-letter behavior hold under intended worker
    counts.
 
-Use the project skill that matches the touched surface:
+Use the project skill that matches the touched surface, and follow [Naming](naming.md) for everything you create:
 
 - `eshu-correlation-truth` for materialization, deployment tracing, or query
   truth
