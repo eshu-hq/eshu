@@ -103,8 +103,21 @@ the number that was missing.
   allowlist leak) assert exit 1, so it proves failure and not merely success
 
 Known scope limit, tracked separately: the gate matches only fully-qualified
-`go/internal/...` paths, so repo-relative forms are invisible to it. Three live
-examples sit in `internal/exposure/sink_catalog.go`.
+`go/internal/...` paths, so any other spelling is invisible to it. The live
+examples sit in `go/internal/exposure/sink_catalog.go`, and the spelling there is
+neither repo-relative nor `go/`-prefixed — it is a `reducer/<file>.go` shorthand
+inside the `Provenance:` strings. Measured at this head: seven such shorthands,
+of which THREE no longer resolve because #6061 moved their targets into
+subpackages —
+
+    reducer/iam_escalation_materialization.go   -> reducer/iamescalation/
+    reducer/sql_relationship_materialization.go -> reducer/sqlrelationship/
+    reducer/security_group_reachability.go      -> reducer/secgroup/
+
+the other four already name their subpackage and resolve. Stating the shorthand
+rather than "repo-relative" matters, because a reader looking for
+`internal/exposure/...`-style paths in that file finds NONE — the blind spot is
+wider than one alternate spelling.
 
 ## Why the perf-evidence gate fired on this branch
 
