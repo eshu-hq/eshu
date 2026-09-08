@@ -48,7 +48,7 @@ source_coverage:
       - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
   - file: code_call_graph_metrics.go
     calls:
-      - {symbol: "(*CodeHandler).CallGraphMetricsData", count: 1, source_sha256: 338d81e2381326520715bc516e2569a67727607b4ecce7f3f6fda56e30174b75, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
+      - {symbol: "(*CodeHandler).CallGraphMetricsData", count: 1, source_sha256: af9fb63ac8b81b7dd326793744eeb37df5df78fecdd7d0b838de78b6c9d987f3, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
   - file: code_complexity_queries.go
     calls:
       - symbol: "(*CodeHandler).listMostComplexFunctions"
