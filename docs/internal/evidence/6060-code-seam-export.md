@@ -129,6 +129,18 @@ relocates code changes the boundary the closure measures.
 Every command below postdates the last edit in this branch. Exit codes are
 captured directly rather than read after a pipe.
 
+One correction to an earlier version of this record, kept rather than quietly
+rewritten. This section previously claimed `go test ./internal/queryplan` exit 0
+against a commit where it did not hold: two typed pins
+(`searchGraphEntitiesWithExact`, `listMostComplexFunctions`) had been taken
+before the last edits that changed those functions' source text, and the fix
+existed only in the working tree. The commit was red on its own. An independent
+review caught it by extracting the commit with `git archive HEAD` and running
+the gate on that tree rather than on the working directory, which is the check
+that actually proves a claim about a commit. The pins are corrected in a
+follow-up commit and the gate now passes on the committed tree, verified the
+same way.
+
 ```
 go build ./internal/query/...                                  exit 0
 go vet   ./internal/query/...                                  exit 0
