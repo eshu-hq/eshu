@@ -78,3 +78,15 @@ code, never Cypher text or queue/projection behavior. The
 `query-source-coverage.yaml` file keys move with the functions; digests
 change only when a function source actually changes, proven by the queryplan
 test.
+
+No-Regression Evidence (#6060 lane-B B5): this package is a pure move of
+the entity family from the query root (base a66064728) with no handler
+logic changes — function bodies are identical modulo package qualifiers and
+the documented export renames. Emitted Cypher text is byte-identical, pinned
+by the queryplan production-binding tests (green) and the per-symbol
+source_sha256 audits in `query-source-coverage.yaml`.
+
+No-Observability-Change (#6060 lane-B B5): no new runtime behavior, so no
+new spans, metrics, or logs. The existing entity telemetry events
+(instruments, k8s-scan truncation disclosure) moved with their handlers
+unchanged; operator signals are identical to base.

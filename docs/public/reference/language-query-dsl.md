@@ -321,7 +321,10 @@ to its producer does not start in the wrong package.
 
 The graph-row metadata projection that fills a language-query result's
 `metadata` object, and the entity-type mapping that decides which label a row
-resolves to, now live in `internal/query/querycontract`. The Cypher projection
+resolves to, now live in `internal/query/querycontract`. The graph-first
+content-backed map (`GraphFirstContentBackedEntityTypes`, with the root
+`language_query_entities.go` keeping a same-value alias) is canonical there
+too since the #6060 entity move; no mapping entry changed. The Cypher projection
 fragment those reads splice into their statements lives in
 `internal/query/querygraphrows`, which is separate because it also decodes
 graph-driver row types that the dependency-neutral contract package may not

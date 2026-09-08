@@ -100,7 +100,7 @@ func BuildResolveEntityGraphQuery(
 	}
 
 	if req.Type != "" {
-		graphLabel, semanticKey, semanticValue, ok := resolveGraphEntityType(req.Type)
+		graphLabel, semanticKey, semanticValue, ok := ResolveGraphEntityType(req.Type)
 		if ok {
 			cypher += " AND $type IN labels(e)"
 			params["type"] = graphLabel

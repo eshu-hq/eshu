@@ -35,12 +35,12 @@ func TestAtlantisEntityTypesResolveConsistentlyAcrossGraphAndContent(t *testing.
 	}
 
 	for _, tt := range tests {
-		graphLabel, _, _, ok := resolveGraphEntityType(tt.typeName)
+		graphLabel, _, _, ok := ResolveGraphEntityType(tt.typeName)
 		if !ok {
-			t.Fatalf("resolveGraphEntityType(%q) not found, want ok=true", tt.typeName)
+			t.Fatalf("ResolveGraphEntityType(%q) not found, want ok=true", tt.typeName)
 		}
 		if graphLabel != tt.want {
-			t.Fatalf("resolveGraphEntityType(%q) = %q, want %q", tt.typeName, graphLabel, tt.want)
+			t.Fatalf("ResolveGraphEntityType(%q) = %q, want %q", tt.typeName, graphLabel, tt.want)
 		}
 
 		if got := contentEntityTypeForResolve(tt.typeName); got != tt.want {
@@ -59,9 +59,9 @@ func TestAtlantisEntityTypesResolveConsistentlyAcrossGraphAndContent(t *testing.
 func TestTerragruntConfigDemonstratesTheGraphFirstOnlyTrap(t *testing.T) {
 	t.Parallel()
 
-	graphLabel, _, _, ok := resolveGraphEntityType("terragrunt_config")
+	graphLabel, _, _, ok := ResolveGraphEntityType("terragrunt_config")
 	if !ok || graphLabel != "TerragruntConfig" {
-		t.Fatalf("resolveGraphEntityType(%q) = (%q, %v), want (%q, true)", "terragrunt_config", graphLabel, ok, "TerragruntConfig")
+		t.Fatalf("ResolveGraphEntityType(%q) = (%q, %v), want (%q, true)", "terragrunt_config", graphLabel, ok, "TerragruntConfig")
 	}
 	if got := contentEntityTypeForResolve("terragrunt_config"); got != "terragrunt_config" {
 		t.Fatalf("contentEntityTypeForResolve(%q) = %q, want raw fallthrough %q (documents the asymmetry, not a claim it is correct)", "terragrunt_config", got, "terragrunt_config")
