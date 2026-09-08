@@ -57,9 +57,9 @@ An earlier revision of this note called it "this branch's own doing". That was
 wrong, and `git cat-file -e c74d5b6c5:go/internal/reducer/factschema_decode.go`
 fails while the subpackage form resolves at that same base — so the reference
 was already dead before this branch started, exactly like the other ten. What is
-actually different is that it is NOT reachable from 4784 or 4786 (it lives in Go
-comments), so their explanation does not cover it, and it is the one path this
-branch tried to clear and had to put back. Commit
+actually different is that it is the one path this branch tried to clear and had
+to put back; why the 4784/4786 explanation does not cover it is stated further
+down this section. Commit
 `1ec7c4305` repointed the three `factschema_decode.go` references in the Go
 comments of `go/internal/relationships/gcp_evidence.go`, and `bc1589019`
 REVERTED that file. The reason is recorded in that commit: the
