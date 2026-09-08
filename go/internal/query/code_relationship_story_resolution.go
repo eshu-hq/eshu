@@ -171,6 +171,22 @@ func relationshipStoryGrantedCandidates(
 	limit := req.NormalizedLimit() + 1
 	target := req.EffectiveTarget()
 	repoID := strings.TrimSpace(req.RepoID)
+	// SCOPE LIMIT, stated because this branch is NOT fixed by #6555.
+	//
+	// When the request names a language, resolution still goes through
+	// SearchEntitiesByLanguageAndTypeForAccess, whose statement is
+	// `entity_name ILIKE $n` (content_reader_entity_search.go:159) under one
+	// shared LIMIT. That is the original #6555 defect shape: a page of
+	// near-misses can fill the budget before the exact symbol is reached, and
+	// exactEntityNameMatches then discards them all, so the caller is told the
+	// target does not exist when it does.
+	//
+	// The exact-name reads below cover the other three routes (repo-bound,
+	// any-repo, and per-granted-repository). Extending them here needs an
+	// exact-name variant of the language+type read that keeps the language and
+	// entity-type filters, which is a wider change than this one; it is a known
+	// follow-up rather than an oversight. Raised independently by two reviewers
+	// on PR #6605, both scoring it non-blocking.
 	if language := strings.TrimSpace(req.Language); language != "" {
 		return searchEntitiesForGrant(ctx, content, languageEntitySearch{
 			RepoID:               repoID,
