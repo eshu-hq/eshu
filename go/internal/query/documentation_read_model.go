@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -81,7 +82,7 @@ func (cr *ContentReader) DocumentationFindings(
 		nextCursor = strconv.Itoa(filter.Offset + limit)
 	}
 	readModel := documentationFindingListReadModel{Findings: findings, NextCursor: nextCursor}
-	if documentationTargetScopeHasSelector(documentationTargetScopeFromFindingFilter(filter)) {
+	if querycontract.DocumentationTargetScopeHasSelector(querycontract.DocumentationTargetScopeFromFindingFilter(filter)) {
 		relatedFacts, truncated, err := cr.documentationTargetFacts(ctx, filter)
 		if err != nil {
 			span.RecordError(err)
@@ -98,7 +99,7 @@ func (cr *ContentReader) DocumentationFindings(
 			readModel.Coverage.SourceOnlyCount = sourceOnlyCoverage.SourceOnlyCount
 			readModel.Coverage.SourceOnlyFactKinds = sourceOnlyCoverage.SourceOnlyFactKinds
 		}
-		readModel.MissingEvidence = documentationMissingEvidenceForTarget(readModel.Coverage)
+		readModel.MissingEvidence = querycontract.DocumentationMissingEvidenceForTarget(readModel.Coverage)
 	}
 	return readModel, nil
 }
@@ -213,7 +214,7 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 		targetPredicate, nextArgs := documentationTargetPredicate(
 			args,
 			"fact_records.payload",
-			documentationTargetRefsFromFindingFilter(filter),
+			querycontract.DocumentationTargetRefsFromFindingFilter(filter),
 		)
 		args = nextArgs
 		if targetPredicate == "" {
@@ -226,7 +227,7 @@ func buildDocumentationFindingsSQL(filter documentationFindingFilter) (string, [
 			clauses,
 			args,
 			"fact_records.payload",
-			documentationTargetRefsFromFindingFilter(filter),
+			querycontract.DocumentationTargetRefsFromFindingFilter(filter),
 		)
 	}
 	addPayloadFilter("finding_type", filter.FindingType)
@@ -300,7 +301,7 @@ func buildDocumentationFactsSQL(filter documentationFactFilter) (string, []any) 
 		clauses,
 		args,
 		"fact_records.payload",
-		documentationTargetRefsFromFactFilter(filter),
+		querycontract.DocumentationTargetRefsFromFactFilter(filter),
 	)
 	addPayloadFilter("source_id", filter.SourceID)
 	addPayloadFilter("document_id", filter.DocumentID)

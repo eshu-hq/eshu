@@ -10,12 +10,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func repositoryContentHandler(files []FileContent) *RepositoryHandler {
 	return &RepositoryHandler{
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			repoFiles:    files,
 		},
 	}
@@ -83,7 +86,7 @@ func TestGetRepositoryContentServesSelectedIndexedBranch(t *testing.T) {
 	content := "# Title\nhello\n"
 	handler := &RepositoryHandler{
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			repoFiles: []FileContent{
 				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: content},
 			},
@@ -108,7 +111,7 @@ func TestGetRepositoryContentRejectsUnindexedSelectedBranch(t *testing.T) {
 
 	handler := &RepositoryHandler{
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			repoFiles: []FileContent{
 				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: "# Title\n"},
 			},
@@ -130,7 +133,7 @@ func TestGetRepositoryContentRejectsUnknownSourceBackedRef(t *testing.T) {
 
 	handler := &RepositoryHandler{
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			repoFiles: []FileContent{
 				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", Content: "# Title\n"},
 			},
@@ -183,7 +186,7 @@ func TestGetRepositoryContentUnknownRepoReturns404(t *testing.T) {
 func TestGetRepositoryContentTruncatesLargeFile(t *testing.T) {
 	t.Parallel()
 
-	content := strings.Repeat("a", repositoryContentMaxBytes+100)
+	content := strings.Repeat("a", repository.RepositoryContentMaxBytes+100)
 	handler := repositoryContentHandler([]FileContent{
 		{RepoID: "repo-1", RelativePath: "big.txt", Content: content},
 	})
@@ -201,8 +204,8 @@ func TestGetRepositoryContentTruncatesLargeFile(t *testing.T) {
 	if !ok {
 		t.Fatalf("content type = %T, want string", resp["content"])
 	}
-	if len(returned) > repositoryContentMaxBytes {
-		t.Fatalf("returned content = %d bytes, want <= cap %d", len(returned), repositoryContentMaxBytes)
+	if len(returned) > repository.RepositoryContentMaxBytes {
+		t.Fatalf("returned content = %d bytes, want <= cap %d", len(returned), repository.RepositoryContentMaxBytes)
 	}
 }
 
@@ -213,7 +216,7 @@ func TestGetRepositoryContent_LocalLightweightReturnsContent(t *testing.T) {
 	handler := &RepositoryHandler{
 		Profile: ProfileLocalLightweight,
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			repoFiles: []FileContent{
 				{RepoID: "repo-1", RelativePath: "README.md", CommitSHA: "abc123", LineCount: 2, Language: "markdown", Content: content},
 			},

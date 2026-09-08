@@ -3,6 +3,10 @@
 
 package query
 
+import (
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+)
+
 import "testing"
 
 // TestGithubActionsReusableWorkflowRepoRefMatchesPreConsolidationBehavior is
@@ -48,8 +52,8 @@ func TestGithubActionsReusableWorkflowRepoRefMatchesPreConsolidationBehavior(t *
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := githubActionsReusableWorkflowRepoRef(tc.value); got != tc.want {
-				t.Errorf("githubActionsReusableWorkflowRepoRef(%q) = %q, want %q", tc.value, got, tc.want)
+			if got := artifacts.GithubActionsReusableWorkflowRepoRef(tc.value); got != tc.want {
+				t.Errorf("artifacts.GithubActionsReusableWorkflowRepoRef(%q) = %q, want %q", tc.value, got, tc.want)
 			}
 		})
 	}
@@ -108,8 +112,8 @@ func TestGithubActionsActionRepositoryRefMatchesPreConsolidationBehavior(t *test
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := githubActionsActionRepositoryRef(tc.value); got != tc.want {
-				t.Errorf("githubActionsActionRepositoryRef(%q) = %q, want %q", tc.value, got, tc.want)
+			if got := artifacts.GithubActionsActionRepositoryRef(tc.value); got != tc.want {
+				t.Errorf("artifacts.GithubActionsActionRepositoryRef(%q) = %q, want %q", tc.value, got, tc.want)
 			}
 		})
 	}
@@ -149,8 +153,8 @@ func TestGithubActionsLocalReusableWorkflowPathMatchesPreConsolidationBehavior(t
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := githubActionsLocalReusableWorkflowPath(tc.value); got != tc.want {
-				t.Errorf("githubActionsLocalReusableWorkflowPath(%q) = %q, want %q", tc.value, got, tc.want)
+			if got := artifacts.GithubActionsLocalReusableWorkflowPath(tc.value); got != tc.want {
+				t.Errorf("artifacts.GithubActionsLocalReusableWorkflowPath(%q) = %q, want %q", tc.value, got, tc.want)
 			}
 		})
 	}

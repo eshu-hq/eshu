@@ -8,6 +8,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestScopedTokenReachesFreshnessDeltaPairOnly pins which freshness delta
@@ -400,4 +404,82 @@ func TestServiceChangedSincePendingRouteAdmitsOnlyTheAllScopeConsoleSession(t *t
 			}
 		})
 	}
+}
+
+// TestAuthMiddlewareWithScopedTokensAllowsRepositoryFreshnessRoute is the PR
+// #5150 review regression (codex + carried-forward P1): the two scoped tests
+// above mount the handler on a bare http.NewServeMux(), which bypasses
+// AuthMiddlewareWithScopedTokens entirely and encoded a false green --
+// GET /api/v0/repositories/{repo_id}/freshness was never added to
+// scopedHTTPRouteSupportsTenantFilter (auth_scoped_routes.go), so a real
+// scoped-token or browser-session caller got 403 from the middleware before
+// getRepositoryFreshness's grant filtering (and the promised 404 parity)
+// could ever run. This test routes through the real middleware, matching the
+// #5137 pattern in auth_ingester_status_test.go
+// (TestAuthMiddlewareWithScopedTokensAllowsIngesterStatusRoutes).
+func TestAuthMiddlewareWithScopedTokensAllowsRepositoryFreshnessRoute(t *testing.T) {
+	t.Parallel()
+
+	newMiddlewareWrappedHandler := func(allowedRepositoryIDs []string) http.Handler {
+		reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
+		// Mirrors repositoryFreshnessTestHandler in internal/query/repository:
+		// that helper is unexported to its package, so this root middleware
+		// test inlines the same handler shape with root's fakeRepoGraphReader.
+		handler := &RepositoryHandler{
+			Neo4j: fakeRepoGraphReader{
+				runSingleByMatch: map[string]map[string]any{
+					"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
+				},
+			},
+			Content:   querytestutil.FakePortContentStore{Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()}},
+			Freshness: reader,
+		}
+		mux := http.NewServeMux()
+		handler.Mount(mux)
+		resolver := &querytestutil.FakeScopedTokenResolver{
+			Context: queryauth.AuthContext{
+				Mode:                 queryauth.AuthModeScoped,
+				TenantID:             "tenant-a",
+				WorkspaceID:          "workspace-a",
+				SubjectClass:         "team",
+				SubjectIDHash:        "sha256:team-a",
+				PolicyRevisionHash:   "sha256:policy",
+				AllowedRepositoryIDs: allowedRepositoryIDs,
+			},
+			OK: true,
+		}
+		return AuthMiddlewareWithScopedTokens("", resolver, mux)
+	}
+
+	t.Run("grant reaches the handler", func(t *testing.T) {
+		t.Parallel()
+
+		middleware := newMiddlewareWrappedHandler([]string{"repo-1"})
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/freshness", nil)
+		req.Header.Set("Authorization", "Bearer [REDACTED]")
+		w := httptest.NewRecorder()
+		middleware.ServeHTTP(w, req)
+
+		if got, want := w.Code, http.StatusOK; got != want {
+			t.Fatalf("status = %d, want %d (middleware must not 403 a granted scoped caller); body = %s", got, want, w.Body.String())
+		}
+		resp := querytestutil.DecodeResponseBody(t, w)
+		if got, want := resp["scoped"], true; got != want {
+			t.Fatalf("scoped = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("no grant is a 404, not a 403", func(t *testing.T) {
+		t.Parallel()
+
+		middleware := newMiddlewareWrappedHandler([]string{"repo-other"})
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/repo-1/freshness", nil)
+		req.Header.Set("Authorization", "Bearer [REDACTED]")
+		w := httptest.NewRecorder()
+		middleware.ServeHTTP(w, req)
+
+		if got, want := w.Code, http.StatusNotFound; got != want {
+			t.Fatalf("status = %d, want %d (grant filtering, not middleware 403); body = %s", got, want, w.Body.String())
+		}
+	})
 }

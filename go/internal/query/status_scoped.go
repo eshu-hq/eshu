@@ -6,12 +6,12 @@ package query
 import (
 	"context"
 
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
 func scopedAuthContext(ctx context.Context) bool {
-	auth, ok := AuthContextFromContext(ctx)
-	return ok && auth.Mode == AuthModeScoped
+	return queryauth.ScopedAuthContext(ctx)
 }
 
 func scopedCoordinatorToMap(snapshot *status.CoordinatorSnapshot) map[string]any {

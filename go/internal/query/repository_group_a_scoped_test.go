@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // groupARepositoryRoutes is the #5167 Group A inventory: five already-filtered
@@ -38,11 +40,11 @@ func groupARepositoryTestHandler() *RepositoryHandler {
 	return &RepositoryHandler{
 		Neo4j: fakeRepoGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})": repositoryStatsGraphRow(),
+				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
 			},
 		},
 		Content: fakePortContentStore{
-			repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+			repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			coverage: RepositoryContentCoverage{
 				Available:   true,
 				FileCount:   1,
@@ -206,7 +208,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsGroupARepositoryRoutes(t *testing.T
 func TestAuthMiddlewareWithScopedTokensAllowsGroupARepositoryOrgRepoSlug(t *testing.T) {
 	t.Parallel()
 
-	const orgRepoSelector = "org/order-service" // repositoryStatsCatalogEntry().RepoSlug; resolves to repo-1
+	const orgRepoSelector = "org/order-service" // querytestutil.RepositoryStatsCatalogEntry().RepoSlug; resolves to repo-1
 
 	newMiddlewareWrappedHandler := func(allowedRepositoryIDs []string) http.Handler {
 		handler := groupARepositoryTestHandler()

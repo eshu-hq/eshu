@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func buildSemanticEvidenceSQL(filter semanticEvidenceFilter) (string, []any) {
@@ -168,8 +169,8 @@ func uniqueSemanticEvidenceAccessIDs(groups ...[]string) []string {
 	return out
 }
 
-func documentationTargetRefsFromSemanticEvidenceFilter(filter semanticEvidenceFilter) []documentationTargetRef {
-	return documentationTargetRefs(documentationTargetScopeFromValues(
+func documentationTargetRefsFromSemanticEvidenceFilter(filter semanticEvidenceFilter) []querycontract.DocumentationTargetRef {
+	return querycontract.DocumentationTargetRefs(querycontract.DocumentationTargetScopeFromValues(
 		filter.Repository,
 		filter.TargetKind,
 		filter.TargetID,

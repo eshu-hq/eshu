@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // TestContainsGitOpsSignalsDoesNotClaimFluxSurface is a no-accidental-surface
@@ -27,17 +28,17 @@ func TestContainsGitOpsSignalsDoesNotClaimFluxSurface(t *testing.T) {
 		{"flux"},
 	}
 	for _, platforms := range cases {
-		if containsGitOpsSignals(platforms, nil) {
-			t.Fatalf("containsGitOpsSignals(%v, nil) = true, want false (no Flux emitter backs this label)", platforms)
+		if repository.ContainsGitOpsSignals(platforms, nil) {
+			t.Fatalf("repository.ContainsGitOpsSignals(%v, nil) = true, want false (no Flux emitter backs this label)", platforms)
 		}
-		if containsGitOpsSignals(nil, platforms) {
-			t.Fatalf("containsGitOpsSignals(nil, %v) = true, want false (no Flux emitter backs this label)", platforms)
+		if repository.ContainsGitOpsSignals(nil, platforms) {
+			t.Fatalf("repository.ContainsGitOpsSignals(nil, %v) = true, want false (no Flux emitter backs this label)", platforms)
 		}
 	}
 
 	// The still-live GitOps literals must keep matching.
-	if !containsGitOpsSignals([]string{"argocd"}, nil) {
-		t.Fatal("containsGitOpsSignals([argocd], nil) = false, want true")
+	if !repository.ContainsGitOpsSignals([]string{"argocd"}, nil) {
+		t.Fatal("repository.ContainsGitOpsSignals([argocd], nil) = false, want true")
 	}
 }
 

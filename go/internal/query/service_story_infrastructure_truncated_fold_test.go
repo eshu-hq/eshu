@@ -11,6 +11,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated is a
@@ -18,7 +21,7 @@ import (
 // finding 2): when a service's resolved repository has more than
 // repositoryInfrastructureEntityLimit infrastructure rows,
 // fetchWorkloadContextForOperation (entity_workload_context.go) appends
-// infrastructureTruncatedReason to the workload context's "limitations", and
+// repository.InfrastructureTruncatedReason to the workload context's "limitations", and
 // buildServiceIdentity/the dossier whitelist loop
 // (service_story_dossier.go's enrichServiceStoryDossierResponseWithContext)
 // copy that reason into answer_metadata.partial_reasons -- but before this
@@ -64,7 +67,7 @@ func TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated(t *test
 					}}, nil
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-story-infra-trunc", "repo_name": "svc-story-infra-trunc"}}, nil
-				case strings.Contains(cypher, infrastructureGraphReadCypherFragment):
+				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
 					limit := IntVal(params, "limit")
 					rows := make([]map[string]any, limit)
 					for i := range rows {
@@ -102,8 +105,8 @@ func TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated(t *test
 		t.Fatalf("body[answer_metadata] missing or wrong type: %#v", body["answer_metadata"])
 	}
 	partialReasons, ok := answerMetadata["partial_reasons"].([]any)
-	if !ok || !jsonStringSliceContains(partialReasons, infrastructureTruncatedReason) {
-		t.Fatalf("answer_metadata[partial_reasons] = %#v, want to contain %q", answerMetadata["partial_reasons"], infrastructureTruncatedReason)
+	if !ok || !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureTruncatedReason) {
+		t.Fatalf("answer_metadata[partial_reasons] = %#v, want to contain %q", answerMetadata["partial_reasons"], repository.InfrastructureTruncatedReason)
 	}
 
 	// result_limits.truncated must fold in the infrastructure cap.

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type serviceQueryEnrichmentOptions struct {
@@ -102,7 +103,7 @@ func enrichServiceQueryContextWithOptions(
 	}
 
 	instanceEnvironments, _ := workloadContext["instances"].([]map[string]any)
-	observedEnvironments := mergeStringSets(
+	observedEnvironments := querycontract.MergeStringSets(
 		distinctSortedInstanceField(instanceEnvironments, "environment"),
 		serviceEvidenceEnvironmentNames(evidence.Environments),
 	)
@@ -312,7 +313,7 @@ func enrichServiceQueryContextWithOptions(
 	if err != nil {
 		return fmt.Errorf("load service story target documentation: %w", err)
 	}
-	documentationOverview = attachStoryTargetDocumentation(documentationOverview, targetDocumentation)
+	documentationOverview = querycontract.AttachStoryTargetDocumentation(documentationOverview, targetDocumentation)
 	if len(documentationOverview) > 0 {
 		workloadContext["documentation_overview"] = documentationOverview
 	}

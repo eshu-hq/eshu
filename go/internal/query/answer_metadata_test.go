@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
@@ -16,7 +17,7 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 	serviceStory := buildServiceStoryResponse("workload:sample-service-api", querytestutil.SampleServiceDossierContext())
 	querytestutil.AssertAnswerMetadata(t, "service story", serviceStory)
 
-	repositoryStory := buildRepositoryStoryResponseWithCoverage(
+	repositoryStory := repository.BuildRepositoryStoryResponseWithCoverage(
 		RepoRef{ID: "repo-payments", Name: "payments", HasRemote: true},
 		12,
 		[]string{"go"},

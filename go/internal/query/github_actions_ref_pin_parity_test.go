@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 // ghaRefPinParityFixtureYAML is the both-paths-agree regression tripwire
@@ -67,24 +68,24 @@ func sortedGHARefPins(pins []ghaRefPin) []ghaRefPin {
 func TestGitHubActionsRefPinParity_QueryPath(t *testing.T) {
 	t.Parallel()
 
-	refs := extractGitHubActionsDependencyRefs(ghaRefPinParityFixtureYAML)
+	refs := artifacts.ExtractGitHubActionsDependencyRefs(ghaRefPinParityFixtureYAML)
 	if refs == nil {
-		t.Fatal("extractGitHubActionsDependencyRefs() = nil, want non-nil")
+		t.Fatal("artifacts.ExtractGitHubActionsDependencyRefs() = nil, want non-nil")
 	}
-	if len(refs.actionRepositories) != len(refs.actionRefs) {
-		t.Fatalf("actionRepositories/actionRefs length mismatch: %d vs %d", len(refs.actionRepositories), len(refs.actionRefs))
+	if len(refs.ActionRepositories) != len(refs.ActionRefs) {
+		t.Fatalf("actionRepositories/actionRefs length mismatch: %d vs %d", len(refs.ActionRepositories), len(refs.ActionRefs))
 	}
 
 	var got []ghaRefPin
-	for i, slug := range refs.actionRepositories {
-		_, _, refValue := ghactionsref.Parse(refs.actionRefs[i])
+	for i, slug := range refs.ActionRepositories {
+		_, _, refValue := ghactionsref.Parse(refs.ActionRefs[i])
 		if refValue == "" {
 			continue
 		}
 		got = append(got, ghaRefPin{slug: slug, refValue: refValue, pinned: ghactionsref.Pinned(refValue)})
 	}
-	for i, slug := range refs.reusableWorkflowRepos {
-		_, _, refValue := ghactionsref.Parse(refs.reusableWorkflowRefs[i])
+	for i, slug := range refs.ReusableWorkflowRepos {
+		_, _, refValue := ghactionsref.Parse(refs.ReusableWorkflowRefs[i])
 		if refValue == "" {
 			continue
 		}

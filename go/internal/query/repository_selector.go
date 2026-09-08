@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // B3 selector forwarder shim for #6060: the request-orchestration forwarders are excluded from querycontract by review, so they must stay in package query for root callers.
 
 import (
 	"context"
@@ -17,11 +17,6 @@ import (
 // a ResponseWriter, and request-time orchestration in the dependency-neutral
 // contract package is exactly what review rejected on the collector-readiness
 // seam.
-
-// repositorySelectorNotFoundError reports a selector that matched no
-// repository. Aliased, so the errors.As in isRepositorySelectorNotFound and
-// every existing construction keep working.
-type repositorySelectorNotFoundError = queryselector.NotFoundError
 
 // repositorySelectorAmbiguousError reports a selector that matched more than
 // one repository.

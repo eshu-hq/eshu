@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract.
 
 import (
 	"context"
@@ -27,15 +27,7 @@ type repositoryReadModelSummaryStore interface {
 }
 
 func loadRepositoryReadModelSummary(ctx context.Context, content ContentStore, repoID string) *RepositoryReadModelSummary {
-	store, ok := content.(repositoryReadModelSummaryStore)
-	if !ok || repoID == "" {
-		return nil
-	}
-	summary, err := store.RepositoryReadModelSummary(ctx, repoID)
-	if err != nil || !summary.Available {
-		return nil
-	}
-	return &summary
+	return querycontract.LoadRepositoryReadModelSummary(ctx, content, repoID)
 }
 
 // RepositoryReadModelSummary resolves repoID's scope ID, workload names,

@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func loadServiceDeploymentEvidence(
@@ -38,11 +40,11 @@ func loadServiceDeploymentEvidence(
 		files = []FileContent{}
 	}
 
-	overview := buildRepositoryInfrastructureOverview(
+	overview := repository.BuildRepositoryInfrastructureOverview(
 		mapSliceValue(workloadContext, "infrastructure"),
 		files,
 	)
-	overview, err = loadDeploymentArtifactOverview(
+	overview, err = artifacts.LoadDeploymentArtifactOverview(
 		ctx,
 		graph,
 		content,
@@ -55,7 +57,7 @@ func loadServiceDeploymentEvidence(
 	if err != nil {
 		return nil, err
 	}
-	if relationshipOverview := buildRepositoryRelationshipOverview(mapSliceValue(workloadContext, "dependencies")); relationshipOverview != nil {
+	if relationshipOverview := repository.BuildRepositoryRelationshipOverview(mapSliceValue(workloadContext, "dependencies")); relationshipOverview != nil {
 		if overview == nil {
 			overview = map[string]any{}
 		}
@@ -68,14 +70,14 @@ func queryServiceGraphDeploymentEvidence(ctx context.Context, graph GraphQuery, 
 	if graph == nil || strings.TrimSpace(repoID) == "" {
 		return nil, nil
 	}
-	return queryRepoDeploymentEvidence(ctx, graph, content, map[string]any{"repo_id": repoID})
+	return repository.QueryRepoDeploymentEvidence(ctx, graph, content, map[string]any{"repo_id": repoID})
 }
 
 func queryServiceGraphAPISurface(ctx context.Context, graph GraphQuery, repoID string) map[string]any {
 	if graph == nil || strings.TrimSpace(repoID) == "" {
 		return nil
 	}
-	return queryRepoAPISurface(ctx, graph, map[string]any{"repo_id": repoID})
+	return repository.QueryRepoAPISurface(ctx, graph, map[string]any{"repo_id": repoID})
 }
 
 func mergeServiceDeploymentEvidence(contentEvidence map[string]any, graphEvidence map[string]any) map[string]any {
@@ -98,7 +100,7 @@ func buildServiceDeploymentEvidenceFromOverview(overview map[string]any) map[str
 	}
 
 	evidence := map[string]any{}
-	repositoryOverview := BuildRepositoryDeploymentOverview(
+	repositoryOverview := repository.BuildRepositoryDeploymentOverview(
 		nil,
 		nil,
 		collectServiceDeploymentToolFamilies(overview),

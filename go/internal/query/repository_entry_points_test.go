@@ -8,6 +8,8 @@ import (
 	"database/sql/driver"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestContentReaderRepositoryEntryPointsQueriesKnownFunctionNames(t *testing.T) {
@@ -59,7 +61,7 @@ func TestQueryRepoEntryPointsUsesContentRowsBeforeGraph(t *testing.T) {
 		},
 	}
 
-	got := queryRepoEntryPoints(
+	got := repository.QueryRepoEntryPoints(
 		t.Context(),
 		reader,
 		content,
@@ -88,7 +90,7 @@ func TestQueryRepoEntryPointsFiltersNonEntrypointGraphRows(t *testing.T) {
 		},
 	}
 
-	got := queryRepoEntryPoints(t.Context(), reader, nil, map[string]any{"repo_id": "repo-1"})
+	got := repository.QueryRepoEntryPoints(t.Context(), reader, nil, map[string]any{"repo_id": "repo-1"})
 	if len(got) != 1 {
 		t.Fatalf("len(queryRepoEntryPoints) = %d, want 1 graph entry-point row: %#v", len(got), got)
 	}

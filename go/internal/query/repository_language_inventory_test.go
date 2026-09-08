@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestListRepositoriesByLanguageReturnsCountAndBoundedRows(t *testing.T) {
@@ -45,7 +47,7 @@ func TestListRepositoriesByLanguageReturnsCountAndBoundedRows(t *testing.T) {
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.listRepositoriesByLanguage(rec, req)
+	handler.ListRepositoriesByLanguage(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
@@ -97,7 +99,7 @@ func TestListRepositoriesByLanguageScopedEmptyGrantReturnsEmptyWithoutQuery(t *t
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a"}))
 	rec := httptest.NewRecorder()
 
-	handler.listRepositoriesByLanguage(rec, req)
+	handler.ListRepositoriesByLanguage(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -161,7 +163,7 @@ func TestListRepositoriesByLanguageScopedGrantHitsRealStoreAndReturnsRowData(t *
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.listRepositoriesByLanguage(rec, req)
+	handler.ListRepositoriesByLanguage(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -227,7 +229,7 @@ func TestListRepositoriesByLanguageUnscopedQueriesStayUnfiltered(t *testing.T) {
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.listRepositoriesByLanguage(rec, req)
+	handler.ListRepositoriesByLanguage(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -251,7 +253,7 @@ func TestGetRepositoryLanguageInventoryScopedEmptyGrantReturnsEmptyWithoutQuery(
 	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a"}))
 	rec := httptest.NewRecorder()
 
-	handler.getRepositoryLanguageInventory(rec, req)
+	handler.GetRepositoryLanguageInventory(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -299,7 +301,7 @@ func TestGetRepositoryLanguageInventoryScopedGrantHitsRealStoreAndReturnsRowData
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.getRepositoryLanguageInventory(rec, req)
+	handler.GetRepositoryLanguageInventory(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
@@ -369,7 +371,7 @@ func TestRepositoryLanguageInventoryReturnsAggregates(t *testing.T) {
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.getRepositoryLanguageInventory(rec, req)
+	handler.GetRepositoryLanguageInventory(rec, req)
 
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
@@ -405,9 +407,9 @@ func TestRepositoryLanguageFamilyAliases(t *testing.T) {
 		{input: "terraform", want: []string{"terraform", "hcl", "tfvars"}},
 		{input: "go", want: []string{"go"}},
 	} {
-		got := repositoryLanguageFamily(tt.input)
+		got := repository.RepositoryLanguageFamily(tt.input)
 		if !sameStringSet(got, tt.want) {
-			t.Fatalf("repositoryLanguageFamily(%q) = %#v, want %#v", tt.input, got, tt.want)
+			t.Fatalf("repository.RepositoryLanguageFamily(%q) = %#v, want %#v", tt.input, got, tt.want)
 		}
 	}
 }

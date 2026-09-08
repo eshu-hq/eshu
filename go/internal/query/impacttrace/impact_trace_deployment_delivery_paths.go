@@ -11,16 +11,17 @@ import (
 
 // DeploymentEvidenceDeliveryPaths shapes deployment evidence into delivery
 // path rows, and NormalizedDeliveryPathKey keys a delivery path row for
-// dedupe; both stay exported because package query forwards to them for the
-// repository-story deployment-evidence reader. See #6060.
+// dedupe; both stay exported because the repository-story
+// deployment-evidence reader in package repository calls them directly.
+// See #6060.
 //
 // This file holds the deployment delivery-path builders for the
 // trace_deployment_chain response surface. They moved here from the query
 // root (deployment_trace_delivery_paths.go) with lane B2 of #6060: the trace
 // response shaper in this package is their primary reader, and an
-// impacttrace file cannot name root-defined helpers. deploymentEvidence-
-// DeliveryPaths and normalizedDeliveryPathKey keep forwarding wrappers in
-// package query for the repository-story deployment-evidence reader. None of
+// impacttrace file cannot name root-defined helpers. Lane B3 of #6060
+// deleted package query's forwarding wrappers, so the repository-story
+// deployment-evidence reader names these builders directly. None of
 // these builders issue a graph Run or RunSingle call, so none are tracked by
 // the query-source-coverage gate.
 

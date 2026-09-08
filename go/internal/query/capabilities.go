@@ -4,12 +4,12 @@
 package query
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/capabilitycatalog"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -125,18 +125,10 @@ func pageEntries(entries []capabilitycatalog.Entry, offset, limit int) ([]capabi
 }
 
 // parseBoundedLimit reads the limit query param, applying the default when blank
-// and rejecting values outside [1, max].
+// and rejecting values outside [1, max]. The implementation moved to
+// querycontract for #6060; this wrapper keeps root callers unchanged.
 func parseBoundedLimit(w http.ResponseWriter, r *http.Request, def, max int) (int, bool) {
-	raw := QueryParam(r, "limit")
-	if raw == "" {
-		return def, true
-	}
-	limit, err := strconv.Atoi(raw)
-	if err != nil || limit < 1 || limit > max {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be an integer in [1, %d]", max))
-		return 0, false
-	}
-	return limit, true
+	return querycontract.ParseBoundedLimit(w, r, def, max)
 }
 
 // parseOffset reads the offset query param, defaulting to 0 and rejecting

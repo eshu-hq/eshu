@@ -7,6 +7,8 @@ import (
 	"context"
 	"database/sql/driver"
 	"testing"
+
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func TestLoadRepositoryWorkflowArtifactsFallsBackToGetFileContent(t *testing.T) {
@@ -59,17 +61,17 @@ jobs:
 	})
 
 	reader := NewContentReader(db)
-	got, err := loadRepositoryWorkflowArtifacts(
+	got, err := artifacts.LoadRepositoryWorkflowArtifacts(
 		context.Background(),
 		reader,
 		"repo-1",
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("loadRepositoryWorkflowArtifacts() error = %v, want nil", err)
+		t.Fatalf("artifacts.LoadRepositoryWorkflowArtifacts() error = %v, want nil", err)
 	}
 	if got == nil {
-		t.Fatal("loadRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.LoadRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows := mapSliceValue(got, "workflow_artifacts")
@@ -100,7 +102,7 @@ jobs:
 func TestBuildRepositoryWorkflowArtifactsIncludesWorkflowInputRepositories(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryWorkflowArtifacts([]FileContent{
+	got := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/dispatch.yaml",
 			ArtifactType: "github_actions_workflow",
@@ -115,7 +117,7 @@ jobs:
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows := mapSliceValue(got, "workflow_artifacts")
@@ -135,7 +137,7 @@ jobs:
 func TestBuildRepositoryWorkflowArtifactsIncludesWorkflowInputRepositoriesListForm(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryWorkflowArtifacts([]FileContent{
+	got := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/dispatch.yaml",
 			ArtifactType: "github_actions_workflow",
@@ -151,7 +153,7 @@ jobs:
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows := mapSliceValue(got, "workflow_artifacts")
@@ -168,7 +170,7 @@ jobs:
 func TestBuildRepositoryWorkflowArtifactsIncludesCheckoutRepositories(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryWorkflowArtifacts([]FileContent{
+	got := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy.yaml",
 			ArtifactType: "github_actions_workflow",
@@ -187,7 +189,7 @@ jobs:
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows := mapSliceValue(got, "workflow_artifacts")
@@ -204,7 +206,7 @@ jobs:
 func TestBuildRepositoryWorkflowArtifactsIncludesActionRepositories(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryWorkflowArtifacts([]FileContent{
+	got := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/update-providers.yml",
 			ArtifactType: "github_actions_workflow",
@@ -221,7 +223,7 @@ jobs:
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows := mapSliceValue(got, "workflow_artifacts")
@@ -249,7 +251,7 @@ jobs:
 func TestBuildRepositoryWorkflowArtifactsIncludesWorkflowTriggerAndMatrixMetadata(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryWorkflowArtifacts([]FileContent{
+	got := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy-matrix.yaml",
 			ArtifactType: "github_actions_workflow",
@@ -275,7 +277,7 @@ jobs:
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows := mapSliceValue(got, "workflow_artifacts")
@@ -301,7 +303,7 @@ jobs:
 func TestBuildRepositoryWorkflowArtifactsIncludesWorkflowGovernanceMetadata(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryWorkflowArtifacts([]FileContent{
+	got := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy-governed.yaml",
 			ArtifactType: "github_actions_workflow",
@@ -330,7 +332,7 @@ jobs:
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows := mapSliceValue(got, "workflow_artifacts")
@@ -374,7 +376,7 @@ jobs:
 func TestBuildRepositoryWorkflowArtifactsIncludesLocalReusableWorkflowPaths(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryWorkflowArtifacts([]FileContent{
+	got := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy-local.yaml",
 			ArtifactType: "github_actions_workflow",
@@ -388,7 +390,7 @@ jobs:
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
 	rows := mapSliceValue(got, "workflow_artifacts")

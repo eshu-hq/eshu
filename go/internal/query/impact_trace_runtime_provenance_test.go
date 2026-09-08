@@ -4,6 +4,7 @@
 package query
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -30,10 +31,10 @@ func TestDeploymentTraceProvenanceIncludesRuntimeArtifactFamilies(t *testing.T) 
 
 	got := impacttrace.BuildDeploymentTraceProvenanceOverview(nil, nil, deploymentEvidence, nil)
 	families := StringSliceVal(got, "families")
-	if !containsStringValue(families, "cloudformation") {
+	if !slices.Contains(families, "cloudformation") {
 		t.Fatalf("families = %#v, want cloudformation", families)
 	}
-	if !containsStringValue(families, "jenkins") {
+	if !slices.Contains(families, "jenkins") {
 		t.Fatalf("families = %#v, want jenkins", families)
 	}
 	if got, want := IntVal(got, "runtime_artifact_count"), 1; got != want {

@@ -141,7 +141,7 @@ func TestFetchWorkloadContextEmitsOnlyDeclaredKeys(t *testing.T) {
 			},
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				switch {
-				case strings.Contains(cypher, infrastructureGraphReadCypherFragment):
+				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphUnavailable)
 				case strings.Contains(cypher, "<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-1", "repo_name": "api"}}, nil

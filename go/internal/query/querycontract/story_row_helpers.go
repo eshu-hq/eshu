@@ -8,6 +8,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Story row helpers shared by the query root and the handler-family
@@ -262,4 +263,177 @@ func SortStringFields(row map[string]any, keys ...string) {
 		sort.Strings(values)
 		row[key] = values
 	}
+}
+
+// StringSliceValue extracts a []string from a map value, accepting a
+// []string (blank entries dropped) or a []any of non-empty strings; anything
+// else yields nil. It lives here (not in a handler family) so the repository
+// API-surface read and the service-story stayer share one decoding without
+// importing each other (#6060, lane B B3).
+func StringSliceValue(value map[string]any, key string) []string {
+	if len(value) == 0 {
+		return nil
+	}
+	raw, ok := value[key]
+	if !ok {
+		return nil
+	}
+	switch typed := raw.(type) {
+	case []string:
+		return NonEmptyStrings(typed)
+	case []any:
+		result := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, ok := item.(string)
+			if ok && strings.TrimSpace(text) != "" {
+				result = append(result, strings.TrimSpace(text))
+			}
+		}
+		return result
+	default:
+		return nil
+	}
+}
+
+// FirstPositiveInt returns the first positive IntVal decoding of keys, or
+// zero when none is positive. It lives here (not in a handler family) so
+// the repository deployment-evidence read and the service-story stayers
+// share one decoding without importing each other (#6060, lane B B3).
+func FirstPositiveInt(row map[string]any, keys ...string) int {
+	for _, key := range keys {
+		if value := IntVal(row, key); value > 0 {
+			return value
+		}
+	}
+	return 0
+}
+
+// MaxInt returns the larger of left and right.
+func MaxInt(left, right int) int {
+	if left > right {
+		return left
+	}
+	return right
+}
+
+// MaxTime returns the later of left and right.
+func MaxTime(left, right time.Time) time.Time {
+	if right.After(left) {
+		return right
+	}
+	return left
+}
+
+// PrimaryEntityLabel returns the entity's first label, or "" when it carries
+// none. It lives here (not in a handler family) so the repository semantic
+// reads and the lane-A dead-code stayers share one decoding without
+// importing each other (#6060, lane B B3).
+func PrimaryEntityLabel(entity map[string]any) string {
+	labels := StringSliceVal(entity, "labels")
+	if len(labels) == 0 {
+		return ""
+	}
+	return labels[0]
+}
+
+// BoolValue reports whether value is the boolean true. It lives here (not
+// in a handler family) so the repository semantic reads and the
+// lane-A-adjacent semantics stayers share one decoding without importing
+// each other (#6060, lane B B3).
+func BoolValue(value any) bool {
+	typed, ok := value.(bool)
+	return ok && typed
+}
+
+// TrimGitHubActionsScalar strips one layer of surrounding single or double
+// quotes from a workflow scalar. It lives here (not in a handler family) so
+// the repository workflow-artifact readers and the content-relationship
+// GitHub Actions stayer share one trimming without importing each other
+// (#6060, lane B B3).
+func TrimGitHubActionsScalar(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if len(trimmed) < 2 {
+		return trimmed
+	}
+	if (strings.HasPrefix(trimmed, "\"") && strings.HasSuffix(trimmed, "\"")) ||
+		(strings.HasPrefix(trimmed, "'") && strings.HasSuffix(trimmed, "'")) {
+		return trimmed[1 : len(trimmed)-1]
+	}
+	return trimmed
+}
+
+// CopyStringSliceField copies src's string-slice field into dst when it is
+// non-empty. It lives here (not in a handler family) so the repository
+// deployment-overview and controller-artifact reads share one copy without
+// importing each other (#6060, lane B B3).
+func CopyStringSliceField(dst map[string]any, src map[string]any, key string) {
+	if values := StringSliceValue(src, key); len(values) > 0 {
+		dst[key] = values
+	}
+}
+
+// SortedSetKeys returns the non-blank keys of a set, sorted. It lives here
+// (not in a handler family) so the repository deployment-overview and
+// controller-artifact reads share one ordering without importing each other
+// (#6060, lane B B3).
+func SortedSetKeys(values map[string]struct{}) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// MetadataString returns metadata's string value for key, or "" when the
+// key is missing or not a string. Unlike StringVal it never formats
+// non-strings. It lives here (not in a handler family) so the repository
+// semantic reads and the structural-inventory stayers share one decoding
+// without importing each other (#6060, lane B B3).
+func MetadataString(metadata map[string]any, key string) string {
+	value, ok := metadata[key]
+	if !ok {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return typed
+	default:
+		return ""
+	}
+}
+
+// CloneStrings returns a copy of values, or nil when empty. It lives here
+// (not in a handler family) so the repository semantic reads and the
+// TypeScript-semantics stayer share one copy without importing each other
+// (#6060, lane B B3).
+func CloneStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]string, len(values))
+	copy(cloned, values)
+	return cloned
+}
+
+// MergeStringSets merges two string sets in order, dropping empties and
+// duplicates. The implementation moved here for #6060 so the repository story
+// and root service enrichment share one spelling.
+func MergeStringSets(left []string, right []string) []string {
+	seen := map[string]struct{}{}
+	merged := make([]string, 0, len(left)+len(right))
+	for _, item := range append(append([]string{}, left...), right...) {
+		if item == "" {
+			continue
+		}
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		merged = append(merged, item)
+	}
+	return merged
 }

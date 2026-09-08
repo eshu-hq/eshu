@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/buildinfo"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -288,8 +289,5 @@ func namedCountsToSlice(rows []status.NamedCount) []map[string]any {
 }
 
 func nullableRFC3339(value time.Time) any {
-	if value.IsZero() {
-		return nil
-	}
-	return value.Format(time.RFC3339)
+	return querycontract.NullableRFC3339(value)
 }

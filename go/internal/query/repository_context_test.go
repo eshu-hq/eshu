@@ -620,7 +620,7 @@ func TestGetRepositoryContextReturnsEnrichedResponse(t *testing.T) {
 func TestGetRepositoryContextIncludesTerraformAndTerragruntInfrastructureFromContent(t *testing.T) {
 	t.Parallel()
 
-	fixtureContent := readAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
+	fixtureContent := querytestutil.ReadAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
 			columns: []string{

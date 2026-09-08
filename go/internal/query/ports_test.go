@@ -322,7 +322,7 @@ func TestQueryContentStoreCoverageUsesContentStorePort(t *testing.T) {
 		},
 	}
 
-	got, err := handler.queryContentStoreCoverage(t.Context(), "repo-coverage")
+	got, err := handler.QueryContentStoreCoverage(t.Context(), "repo-coverage")
 	if err != nil {
 		t.Fatalf("queryContentStoreCoverage() error = %v, want nil", err)
 	}

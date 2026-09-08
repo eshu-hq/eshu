@@ -8,8 +8,6 @@ package query
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
@@ -122,34 +120,14 @@ func StringSliceVal(row map[string]any, key string) []string {
 }
 
 // RepoRef is the canonical repository reference returned by query endpoints.
-type RepoRef struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	LocalPath string `json:"local_path"`
-	RemoteURL string `json:"remote_url,omitempty"`
-	RepoSlug  string `json:"repo_slug,omitempty"`
-	HasRemote bool   `json:"has_remote"`
-}
+// It is an alias onto querycontract so the moved repository handler family
+// can name it from outside this package (#6060, lane B B3).
+type RepoRef = querycontract.RepoRef
 
-// RepoRefFromRow converts a Neo4j result row to a RepoRef.
-func RepoRefFromRow(row map[string]any) RepoRef {
-	localPath := StringVal(row, "local_path")
-	if localPath == "" {
-		localPath = StringVal(row, "path")
-	}
-	name := StringVal(row, "name")
-	if name == "" && localPath != "" {
-		parts := strings.Split(localPath, "/")
-		name = parts[len(parts)-1]
-	}
-	return RepoRef{
-		ID:        StringVal(row, "id"),
-		Name:      name,
-		LocalPath: localPath,
-		RemoteURL: StringVal(row, "remote_url"),
-		RepoSlug:  StringVal(row, "repo_slug"),
-		HasRemote: BoolVal(row, "has_remote"),
-	}
+// RepoRefFromRow converts a graph result row to a RepoRef. The implementation
+// moved to querycontract for #6060; this wrapper keeps root callers unchanged.
+func RepoRefFromRow(row map[string]any) querycontract.RepoRef {
+	return querycontract.RepoRefFromRow(row)
 }
 
 // impactRelProvenanceList decodes a relationships(path) value into per-edge
@@ -363,41 +341,8 @@ func lastChainNodeProps(chain any) map[string]any {
 }
 
 // RepoProjection returns the standard Cypher RETURN clause for repository nodes.
+// The implementation moved to querycontract for #6060; this wrapper keeps
+// root callers unchanged.
 func RepoProjection(alias string) string {
-	return fmt.Sprintf(
-		"%s.id as id, %s.name as name, %s.path as path, "+
-			"coalesce(%s.local_path, %s.path) as local_path, "+
-			"%s.remote_url as remote_url, "+
-			"%s.repo_slug as repo_slug, "+
-			"coalesce(%s.has_remote, false) as has_remote",
-		alias, alias, alias, alias, alias, alias, alias, alias,
-	)
-}
-
-// repositoryDependencyMarkerProjection returns a Cypher projection that marks a
-// repository as a dependency repo when at least one other repository that the
-// caller is authorized to see depends on it, i.e. it is the target of an
-// admitted (:Repository)-[:DEPENDS_ON]->(:Repository) edge where the depending
-// repository is also within the caller's access grant.
-//
-// For scoped callers the inner Repository node is filtered by the same tenant
-// predicate as the outer MATCH, using the $allowed_repository_ids and
-// $allowed_scope_ids params already bound by access.graphParams. This prevents
-// a scoped caller from learning dependency-marker truth about repositories
-// outside their grant via an in-scope depending node.
-//
-// For shared/admin/local callers (allScopes) no predicate is added and all
-// depending-repository nodes are eligible, which is the unscoped-safe path.
-//
-// This replaces the earlier coalesce(r.is_dependency, false) read, which probed
-// a Repository node property that no writer populates (is_dependency is a
-// file/entity parser flag, never set on Repository nodes), so the marker was
-// always false.
-func repositoryDependencyMarkerProjection(alias string, access repositoryAccessFilter) string {
-	const depAlias = "dep"
-	predicate := access.GraphPredicate(depAlias)
-	return fmt.Sprintf(
-		"EXISTS { MATCH (%s)<-[:DEPENDS_ON]-(%s:Repository)%s } as is_dependency",
-		alias, depAlias, predicate,
-	)
+	return querycontract.RepoProjection(alias)
 }

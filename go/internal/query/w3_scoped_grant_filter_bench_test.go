@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // benchScopedGrantAccess grants half of the benchmark repositories so the
@@ -102,7 +103,7 @@ func BenchmarkFilterRepoRelationshipOverviewRowsForAccess(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = filterRepoRelationshipOverviewRowsForAccess(rows, "repo-0", access)
+		_ = repository.FilterRepoRelationshipOverviewRowsForAccess(rows, "repo-0", access)
 	}
 }
 

@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetRepositoryContextIncludesJenkinsControllerArtifacts(t *testing.T) {
 	t.Parallel()
 
-	fixtureContent := readAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
+	fixtureContent := querytestutil.ReadAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
 			columns: []string{

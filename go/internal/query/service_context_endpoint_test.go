@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestGetServiceContextOmitsRepoEntryPoints(t *testing.T) {
@@ -231,7 +233,7 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 		t.Fatalf("deployment_evidence.artifact_count = %#v, want %#v", got, want)
 	}
 	for _, want := range []string{"github_actions", "helm"} {
-		if !containsStringAny(evidence["artifact_families"].([]any), want) {
+		if !querytestutil.AnySliceContains(evidence["artifact_families"].([]any), want) {
 			t.Fatalf("artifact_families missing %q: %#v", want, evidence["artifact_families"])
 		}
 	}

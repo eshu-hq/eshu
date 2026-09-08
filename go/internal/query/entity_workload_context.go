@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // fetchWorkloadContext queries graph-backed workload context with a custom
@@ -139,10 +140,10 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 	if repoID != "" {
 		repoParams := map[string]any{"repo_id": repoID}
 		timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repo_dependencies")
-		result["dependencies"] = queryRepoDependencies(ctx, h.Neo4j, repoParams)
+		result["dependencies"] = repository.QueryRepoDependencies(ctx, h.Neo4j, repoParams)
 		timer.Done(ctx, slog.Int("row_count", len(mapSliceValue(result, "dependencies"))))
 		timer = startServiceQueryStage(ctx, h.Logger, operation, StringVal(row, "name"), repoID, "repo_infrastructure")
-		infrastructure, infrastructureDegraded, infrastructureTruncated := queryRepoInfrastructure(ctx, h.Neo4j, h.Content, repoParams)
+		infrastructure, infrastructureDegraded, infrastructureTruncated := repository.QueryRepoInfrastructure(ctx, h.Neo4j, h.Content, repoParams)
 		result["infrastructure"] = infrastructure
 		if infrastructureDegraded {
 			// Surface the degradation on the result map itself (#5764 follow-up):
@@ -169,15 +170,15 @@ func (h *EntityHandler) fetchWorkloadContextForOperation(ctx context.Context, wh
 			// read was distinguishable only via the stage log, so
 			// "infrastructure": [] looked identical to "no infrastructure" to
 			// every caller of this function.
-			result["limitations"] = append(StringSliceVal(result, "limitations"), infrastructureReadDegradedReason)
+			result["limitations"] = append(StringSliceVal(result, "limitations"), repository.InfrastructureReadDegradedReason)
 		}
 		if infrastructureTruncated {
 			// Same visibility mechanism, for a healthy read that landed past
 			// its LIMIT bound -- more rows exist beyond it (P2-2 follow-up to
 			// #5764) -- instead of failing.
-			result["limitations"] = append(StringSliceVal(result, "limitations"), infrastructureTruncatedReason)
+			result["limitations"] = append(StringSliceVal(result, "limitations"), repository.InfrastructureTruncatedReason)
 		}
-		timer.Done(ctx, infrastructureDegradeLogAttrs(len(infrastructure), infrastructureDegraded, infrastructureTruncated)...)
+		timer.Done(ctx, repository.InfrastructureDegradeLogAttrs(len(infrastructure), infrastructureDegraded, infrastructureTruncated)...)
 	}
 
 	return result, nil
@@ -212,7 +213,7 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 
 	repoParams := map[string]any{"repo_id": repo.ID}
 	limitations := []string{"workload_identity_not_materialized"}
-	infrastructure, infrastructureTruncated := queryRepoInfrastructureFromContent(ctx, h.Content, repo.ID)
+	infrastructure, infrastructureTruncated := repository.QueryRepoInfrastructureFromContent(ctx, h.Content, repo.ID)
 	if len(infrastructure) == 0 && h.Neo4j != nil {
 		// A graph-read failure here degrades to an empty infrastructure list
 		// rather than propagating: this is a read-model-only path serving
@@ -220,9 +221,9 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 		// 503/504 would fail a request Postgres can fully answer (#5764).
 		// The degradation still stays visible via the existing limitations
 		// slot rather than being silent.
-		graphInfrastructure, graphTruncated, err := queryRepoInfrastructureFromGraph(ctx, h.Neo4j, repoParams)
+		graphInfrastructure, graphTruncated, err := repository.QueryRepoInfrastructureFromGraph(ctx, h.Neo4j, repoParams)
 		if err != nil {
-			limitations = append(limitations, infrastructureReadDegradedReason)
+			limitations = append(limitations, repository.InfrastructureReadDegradedReason)
 		} else {
 			infrastructure = graphInfrastructure
 			infrastructureTruncated = graphTruncated
@@ -233,7 +234,7 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 		// follow-up, widened by the round-7 P3 finding). infrastructureTruncated
 		// describes rows that were clipped by a LIMIT bound, so it is
 		// meaningless about a panel with no rows in it, and pairing it with
-		// infrastructureReadDegradedReason would put two limitations that
+		// repository.InfrastructureReadDegradedReason would put two limitations that
 		// assert mutually exclusive facts about the same read
 		// (repository_infrastructure_degrade.go) on one response: "more rows
 		// may exist" attached to an EMPTY infrastructure panel.
@@ -253,11 +254,11 @@ func (h *EntityHandler) fetchServiceReadModelWorkloadContext(ctx context.Context
 		infrastructureTruncated = false
 	}
 	if infrastructureTruncated {
-		limitations = append(limitations, infrastructureTruncatedReason)
+		limitations = append(limitations, repository.InfrastructureTruncatedReason)
 	}
 	dependencies := []map[string]any{}
 	if h.Neo4j != nil {
-		dependencies = queryRepoDependencies(ctx, h.Neo4j, repoParams)
+		dependencies = repository.QueryRepoDependencies(ctx, h.Neo4j, repoParams)
 	}
 	return map[string]any{
 		"id":                     "workload:" + workloadName,

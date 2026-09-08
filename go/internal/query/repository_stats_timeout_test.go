@@ -12,6 +12,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestGetRepositoryStatsReturnsPartialMetadataWhenContentCoverageTimesOut(t *testing.T) {
@@ -20,12 +23,12 @@ func TestGetRepositoryStatsReturnsPartialMetadataWhenContentCoverageTimesOut(t *
 	handler := &RepositoryHandler{
 		Neo4j: fakeRepoGraphReader{
 			runSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})": repositoryStatsGraphRow(),
+				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
 			},
 		},
 		Content: repositoryStatsDeadlineContentStore{
 			fakePortContentStore: fakePortContentStore{
-				repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+				repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			},
 			err: context.DeadlineExceeded,
 		},
@@ -41,7 +44,7 @@ func TestGetRepositoryStatsReturnsPartialMetadataWhenContentCoverageTimesOut(t *
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	resp := decodeRepositoryStatsResponse(t, w)
+	resp := querytestutil.DecodeResponseBody(t, w)
 	if got := resp["file_count"]; got != nil {
 		t.Fatalf("file_count = %#v, want nil for timed-out coverage", got)
 	}
@@ -49,7 +52,7 @@ func TestGetRepositoryStatsReturnsPartialMetadataWhenContentCoverageTimesOut(t *
 		t.Fatalf("entity_count = %#v, want nil for timed-out coverage", got)
 	}
 
-	coverage := repositoryStatsRequireMap(t, resp, "coverage")
+	coverage := querytestutil.MustMapField(t, resp, "coverage")
 	if got, want := coverage["partial_results"], true; got != want {
 		t.Fatalf("coverage.partial_results = %#v, want %#v", got, want)
 	}
@@ -62,7 +65,7 @@ func TestGetRepositoryStatsReturnsPartialMetadataWhenContentCoverageTimesOut(t *
 	if got, want := coverage["timeout_budget"], "2s"; got != want {
 		t.Fatalf("coverage.timeout_budget = %#v, want %#v", got, want)
 	}
-	repositoryStatsRequireStringSlice(t, coverage, "missing_evidence", []string{"content_store_coverage_timeout"})
+	querytestutil.RequireStringSlice(t, coverage, "missing_evidence", []string{"content_store_coverage_timeout"})
 	if got, want := coverage["last_error"], "content store coverage exceeded 2s route timeout"; got != want {
 		t.Fatalf("coverage.last_error = %#v, want %#v", got, want)
 	}
@@ -109,12 +112,12 @@ func TestGetRepositoryStatsReturnsLargeContentCoverageInsideBoundedShape(t *test
 				return nil, nil
 			},
 			runSingleByMatch: map[string]map[string]any{
-				"MATCH (r:Repository {id: $repo_id})": repositoryStatsGraphRow(),
+				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
 			},
 		},
 		Content: repositoryStatsDeadlineContentStore{
 			fakePortContentStore: fakePortContentStore{
-				repositories: []RepositoryCatalogEntry{repositoryStatsCatalogEntry()},
+				repositories: []RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			},
 			coverage: RepositoryContentCoverage{
 				Available:       true,
@@ -148,7 +151,7 @@ func TestGetRepositoryStatsReturnsLargeContentCoverageInsideBoundedShape(t *test
 		t.Fatalf("Run calls = %d, want 0; first query:\n%s", len(runCyphers), runCyphers[0])
 	}
 
-	resp := decodeRepositoryStatsResponse(t, w)
+	resp := querytestutil.DecodeResponseBody(t, w)
 	if got, want := resp["file_count"], float64(5_000_000); got != want {
 		t.Fatalf("file_count = %#v, want %#v", got, want)
 	}
@@ -156,8 +159,8 @@ func TestGetRepositoryStatsReturnsLargeContentCoverageInsideBoundedShape(t *test
 		t.Fatalf("entity_count = %#v, want %#v", got, want)
 	}
 
-	coverage := repositoryStatsRequireMap(t, resp, "coverage")
-	if got, want := coverage["query_shape"], repositoryStatsContentCoverageShape; got != want {
+	coverage := querytestutil.MustMapField(t, resp, "coverage")
+	if got, want := coverage["query_shape"], repository.RepositoryStatsContentCoverageShape; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
 	}
 	if got, want := coverage["partial_results"], false; got != want {

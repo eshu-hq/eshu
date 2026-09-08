@@ -11,6 +11,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // TestGetServiceContextAddsPartialReasons is a round-11 review follow-up to
@@ -48,7 +51,7 @@ func TestGetServiceContextAddsPartialReasons(t *testing.T) {
 				switch {
 				case strings.Contains(cypher, "MATCH (w:Workload {id: $workload_id})<-[:DEFINES]-(r:Repository)"):
 					return []map[string]any{{"repo_id": "repo-svc-partial-reasons", "repo_name": "svc-partial-reasons"}}, nil
-				case strings.Contains(cypher, infrastructureGraphReadCypherFragment):
+				case strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment):
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphReadDeadline)
 				default:
 					return nil, nil
@@ -76,8 +79,8 @@ func TestGetServiceContextAddsPartialReasons(t *testing.T) {
 	// The degraded infrastructure read must still be visible under
 	// "limitations" (the raw field this handler already wrote).
 	limitations, ok := body["limitations"].([]any)
-	if !ok || !jsonStringSliceContains(limitations, infrastructureReadDegradedReason) {
-		t.Fatalf("body[limitations] = %#v, want to contain %q", body["limitations"], infrastructureReadDegradedReason)
+	if !ok || !querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("body[limitations] = %#v, want to contain %q", body["limitations"], repository.InfrastructureReadDegradedReason)
 	}
 
 	// The OpenAPI-promised "partial_reasons" field must promote that same
@@ -86,7 +89,7 @@ func TestGetServiceContextAddsPartialReasons(t *testing.T) {
 	if !ok {
 		t.Fatalf("body[partial_reasons] missing or wrong type: %#v", body["partial_reasons"])
 	}
-	if !jsonStringSliceContains(partialReasons, infrastructureReadDegradedReason) {
-		t.Fatalf("partial_reasons = %#v, want to contain %q", partialReasons, infrastructureReadDegradedReason)
+	if !querytestutil.AnySliceContains(partialReasons, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("partial_reasons = %#v, want to contain %q", partialReasons, repository.InfrastructureReadDegradedReason)
 	}
 }

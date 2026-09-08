@@ -3,12 +3,18 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+)
 
 func TestBuildRepositoryCloudFormationRuntimeArtifactsSurfacesServerlessFunction(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryCloudFormationRuntimeArtifacts([]map[string]any{
+	got := artifacts.BuildRepositoryCloudFormationRuntimeArtifacts([]map[string]any{
 		{
 			"type":          "CloudFormationResource",
 			"name":          "ProcessRecords",
@@ -23,7 +29,7 @@ func TestBuildRepositoryCloudFormationRuntimeArtifactsSurfacesServerlessFunction
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryCloudFormationRuntimeArtifacts() = nil, want deployment artifacts")
+		t.Fatal("artifacts.BuildRepositoryCloudFormationRuntimeArtifacts() = nil, want deployment artifacts")
 	}
 
 	artifacts, ok := got["deployment_artifacts"].([]map[string]any)
@@ -47,7 +53,7 @@ func TestBuildRepositoryCloudFormationRuntimeArtifactsSurfacesServerlessFunction
 	if got, want := row["resource_type"], "AWS::Serverless::Function"; got != want {
 		t.Fatalf("resource_type = %#v, want %#v", got, want)
 	}
-	if got, want := row["signals"], []string{"template_file", "serverless_transform"}; !stringSliceEqual(got, want) {
+	if got, want := row["signals"], []string{"template_file", "serverless_transform"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("signals = %#v, want %#v", got, want)
 	}
 }
@@ -55,7 +61,7 @@ func TestBuildRepositoryCloudFormationRuntimeArtifactsSurfacesServerlessFunction
 func TestLoadDeploymentArtifactOverviewAddsCloudFormationDeliveryPath(t *testing.T) {
 	t.Parallel()
 
-	overview, err := loadDeploymentArtifactOverview(
+	overview, err := artifacts.LoadDeploymentArtifactOverview(
 		t.Context(),
 		nil,
 		nil,
@@ -73,10 +79,10 @@ func TestLoadDeploymentArtifactOverviewAddsCloudFormationDeliveryPath(t *testing
 		map[string]any{"families": []string{"cloudformation"}},
 	)
 	if err != nil {
-		t.Fatalf("loadDeploymentArtifactOverview() error = %v, want nil", err)
+		t.Fatalf("artifacts.LoadDeploymentArtifactOverview() error = %v, want nil", err)
 	}
 
-	deployment := BuildRepositoryDeploymentOverview(
+	deployment := repository.BuildRepositoryDeploymentOverview(
 		[]string{"serverless-job"},
 		nil,
 		[]string{"cloudformation"},
@@ -86,7 +92,7 @@ func TestLoadDeploymentArtifactOverviewAddsCloudFormationDeliveryPath(t *testing
 	if !ok {
 		t.Fatalf("delivery_family_paths type = %T, want []map[string]any", deployment["delivery_family_paths"])
 	}
-	row := requireRepositoryStoryDeliveryFamily(families, "cloudformation")
+	row := querytestutil.RequireRepositoryStoryDeliveryFamily(families, "cloudformation")
 	if row == nil {
 		t.Fatalf("delivery_family_paths = %#v, want cloudformation family", families)
 	}

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -433,7 +434,7 @@ func (h *EntityHandler) getServiceContext(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if langBreakdown, toolBreakdown := queryServiceTechFingerprint(r.Context(), h.Neo4j, ctx); len(langBreakdown) > 0 || len(toolBreakdown) > 0 {
+	if langBreakdown, toolBreakdown := repository.QueryServiceTechFingerprint(r.Context(), h.Neo4j, ctx); len(langBreakdown) > 0 || len(toolBreakdown) > 0 {
 		if len(langBreakdown) > 0 {
 			ctx["language_breakdown"] = langBreakdown
 		}

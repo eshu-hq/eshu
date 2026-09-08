@@ -445,16 +445,16 @@ linters:
       - path: 'internal/query/language_query_entities\.go'
         linters:
           - funlen
-      - path: 'internal/query/repository\.go'
+      - path: 'internal/query/repository/repository\.go'
         linters:
           - funlen
-      - path: 'internal/query/repository_context\.go'
+      - path: 'internal/query/repository/repository_context\.go'
         linters:
           - funlen
-      - path: 'internal/query/repository_deployment_overview_story\.go'
+      - path: 'internal/query/repository/repository_deployment_overview_story\.go'
         linters:
           - funlen
-      - path: 'internal/query/semantic_profile\.go'
+      - path: 'internal/query/repository/semantic_profile\.go'
         linters:
           - funlen
       - path: 'internal/query/service_query_enrichment\.go'

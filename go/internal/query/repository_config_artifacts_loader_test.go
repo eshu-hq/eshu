@@ -6,16 +6,16 @@ package query
 import (
 	"context"
 	"database/sql/driver"
-	"os"
-	"path/filepath"
-	"runtime"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func TestLoadRepositoryControllerArtifactsFallsBackToGetFileContentForJenkinsfile(t *testing.T) {
 	t.Parallel()
 
-	fixtureContent := readAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
+	fixtureContent := querytestutil.ReadAnsibleJenkinsAutomationFixture(t, "Jenkinsfile")
 	db := openContentReaderTestDB(t, []contentReaderQueryResult{
 		{
 			columns: []string{
@@ -32,7 +32,7 @@ func TestLoadRepositoryControllerArtifactsFallsBackToGetFileContentForJenkinsfil
 	})
 
 	reader := NewContentReader(db)
-	got, err := loadRepositoryControllerArtifacts(
+	got, err := artifacts.LoadRepositoryControllerArtifacts(
 		context.Background(),
 		reader,
 		"repo-1",
@@ -46,10 +46,10 @@ func TestLoadRepositoryControllerArtifactsFallsBackToGetFileContentForJenkinsfil
 		},
 	)
 	if err != nil {
-		t.Fatalf("loadRepositoryControllerArtifacts() error = %v, want nil", err)
+		t.Fatalf("artifacts.LoadRepositoryControllerArtifacts() error = %v, want nil", err)
 	}
 	if got == nil {
-		t.Fatal("loadRepositoryControllerArtifacts() = nil, want controller_artifacts")
+		t.Fatal("artifacts.LoadRepositoryControllerArtifacts() = nil, want controller_artifacts")
 	}
 
 	artifacts := mapSliceValue(got, "controller_artifacts")
@@ -89,26 +89,4 @@ func TestLoadRepositoryControllerArtifactsFallsBackToGetFileContentForJenkinsfil
 	if len(taskEntrypoints) != 1 || taskEntrypoints[0] != "roles/website_import/tasks/main.yml" {
 		t.Fatalf("controller_artifacts[0].ansible_task_entrypoints = %#v, want [roles/website_import/tasks/main.yml]", row["ansible_task_entrypoints"])
 	}
-}
-
-func readAnsibleJenkinsAutomationFixture(t *testing.T, parts ...string) string {
-	t.Helper()
-
-	path := ansibleJenkinsAutomationFixturePath(parts...)
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("os.ReadFile(%q) error = %v, want nil", path, err)
-	}
-	return string(body)
-}
-
-func ansibleJenkinsAutomationFixturePath(parts ...string) string {
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		return ""
-	}
-
-	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "..", "tests", "fixtures", "ecosystems", "ansible_jenkins_automation"))
-	elems := append([]string{root}, parts...)
-	return filepath.Join(elems...)
 }

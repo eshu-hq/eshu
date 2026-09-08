@@ -111,6 +111,23 @@ func PathParam(r *http.Request, name string) string {
 	return strings.TrimSpace(r.PathValue(name))
 }
 
+// ParseBoundedLimit reads the limit query param, applying the default when
+// blank and rejecting values outside [1, max]. It lives here (not in a
+// handler family) so the repository routes and the surface-inventory stayer
+// share one bound without importing each other (#6060, lane B B3).
+func ParseBoundedLimit(w http.ResponseWriter, r *http.Request, def, max int) (int, bool) {
+	raw := QueryParam(r, "limit")
+	if raw == "" {
+		return def, true
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit < 1 || limit > max {
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be an integer in [1, %d]", max))
+		return 0, false
+	}
+	return limit, true
+}
+
 // CapabilityUnsupported reports whether profile has no truth ceiling for capability.
 func CapabilityUnsupported(profile QueryProfile, capability string) bool {
 	return maxTruthLevel(capability, profile) == nil

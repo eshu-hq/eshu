@@ -8,12 +8,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func TestCorrelationDSLFixtureComposeRepoSurfacesRuntimeArtifacts(t *testing.T) {
 	t.Parallel()
 
-	got := buildRepositoryRuntimeArtifacts([]FileContent{
+	got := artifacts.BuildRepositoryRuntimeArtifacts([]FileContent{
 		{
 			RelativePath: "docker-compose.yaml",
 			ArtifactType: "docker_compose",
@@ -21,7 +25,7 @@ func TestCorrelationDSLFixtureComposeRepoSurfacesRuntimeArtifacts(t *testing.T) 
 		},
 	})
 	if got == nil {
-		t.Fatal("buildRepositoryRuntimeArtifacts() = nil, want deployment artifacts")
+		t.Fatal("artifacts.BuildRepositoryRuntimeArtifacts() = nil, want deployment artifacts")
 	}
 
 	artifacts, ok := got["deployment_artifacts"].([]map[string]any)
@@ -39,26 +43,26 @@ func TestCorrelationDSLFixtureComposeRepoSurfacesRuntimeArtifacts(t *testing.T) 
 	if got, want := api["service_name"], "api"; got != want {
 		t.Fatalf("api.service_name = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(api, "signals"), []string{"build", "ports", "environment"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(api, "signals"), []string{"build", "ports", "environment"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.signals = %#v, want %#v", got, want)
 	}
 	if got, want := api["build_context"], "."; got != want {
 		t.Fatalf("api.build_context = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(api, "ports"), []string{"8080:8080"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(api, "ports"), []string{"8080:8080"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.ports = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(api, "environment"), []string{"APP_ENV", "PORT"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(api, "environment"), []string{"APP_ENV", "PORT"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("api.environment = %#v, want %#v", got, want)
 	}
 	database := artifacts[1]
 	if got, want := database["service_name"], "database"; got != want {
 		t.Fatalf("database.service_name = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(database, "signals"), []string{"ports"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(database, "signals"), []string{"ports"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("database.signals = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(database, "ports"), []string{"5432:5432"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(database, "ports"), []string{"5432:5432"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("database.ports = %#v, want %#v", got, want)
 	}
 }
@@ -77,9 +81,9 @@ func TestCorrelationDSLFixtureJenkinsAnsibleRepoSurfacesControllerAndAnsibleSign
 		{RelativePath: "roles/service_deploy/tasks/main.yml"},
 	}
 
-	got := buildRepositoryControllerArtifacts("service-jenkins-ansible", files)
+	got := artifacts.BuildRepositoryControllerArtifacts("service-jenkins-ansible", files)
 	if got == nil {
-		t.Fatal("buildRepositoryControllerArtifacts() = nil, want controller_artifacts")
+		t.Fatal("artifacts.BuildRepositoryControllerArtifacts() = nil, want controller_artifacts")
 	}
 
 	artifacts := mapSliceValue(got, "controller_artifacts")
@@ -94,16 +98,16 @@ func TestCorrelationDSLFixtureJenkinsAnsibleRepoSurfacesControllerAndAnsibleSign
 	if got, want := row["path"], "Jenkinsfile"; got != want {
 		t.Fatalf("controller_artifacts[0].path = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "pipeline_calls"), []string{"pipelineDeploy"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(row, "pipeline_calls"), []string{"pipelineDeploy"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("controller_artifacts[0].pipeline_calls = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "ansible_inventories"), []string{"inventory/prod.ini"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(row, "ansible_inventories"), []string{"inventory/prod.ini"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("controller_artifacts[0].ansible_inventories = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "ansible_var_files"), []string{"group_vars/all.yml", "host_vars/web-prod.yml"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(row, "ansible_var_files"), []string{"group_vars/all.yml", "host_vars/web-prod.yml"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("controller_artifacts[0].ansible_var_files = %#v, want %#v", got, want)
 	}
-	if got, want := StringSliceVal(row, "ansible_task_entrypoints"), []string{"roles/service_deploy/tasks/main.yml"}; !stringSliceEqual(got, want) {
+	if got, want := StringSliceVal(row, "ansible_task_entrypoints"), []string{"roles/service_deploy/tasks/main.yml"}; !querytestutil.StringSliceEqual(got, want) {
 		t.Fatalf("controller_artifacts[0].ansible_task_entrypoints = %#v, want %#v", got, want)
 	}
 
@@ -115,7 +119,7 @@ func TestCorrelationDSLFixtureJenkinsAnsibleRepoSurfacesControllerAndAnsibleSign
 		t.Fatalf("ansible_playbook_hints[0].playbook = %#v, want %#v", got, want)
 	}
 
-	overview := buildRepositoryInfrastructureOverview(nil, []FileContent{
+	overview := repository.BuildRepositoryInfrastructureOverview(nil, []FileContent{
 		{ArtifactType: "ansible_playbook"},
 		{ArtifactType: "ansible_inventory"},
 		{ArtifactType: "ansible_vars"},
@@ -124,7 +128,7 @@ func TestCorrelationDSLFixtureJenkinsAnsibleRepoSurfacesControllerAndAnsibleSign
 		{ArtifactType: "ansible_task_entrypoint"},
 	})
 	if overview == nil {
-		t.Fatal("buildRepositoryInfrastructureOverview() = nil, want artifact counts")
+		t.Fatal("repository.BuildRepositoryInfrastructureOverview() = nil, want artifact counts")
 	}
 
 	artifactCounts, ok := overview["artifact_family_counts"].(map[string]int)

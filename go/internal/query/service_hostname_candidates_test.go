@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/contentrefs"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestExactHostnameCandidateReasonPrefersURLReference(t *testing.T) {
@@ -168,7 +169,7 @@ func TestBuildServiceStoryResponseExposesNonEntrypointCandidates(t *testing.T) {
 func TestRepositoryStoryReadbackKeepsDocsRoutesWithoutHostnameEntrypoints(t *testing.T) {
 	t.Parallel()
 
-	response := buildRepositoryStoryResponse(
+	response := repository.BuildRepositoryStoryResponse(
 		RepoRef{ID: "repo-sample-service-api", Name: "sample-service-api"},
 		1,
 		[]string{"yaml"},
@@ -178,7 +179,7 @@ func TestRepositoryStoryReadbackKeepsDocsRoutesWithoutHostnameEntrypoints(t *tes
 		nil,
 		nil,
 	)
-	enrichRepositoryStoryResponseWithEvidence(response, nil, []FileContent{
+	repository.EnrichRepositoryStoryResponseWithEvidence(response, nil, []FileContent{
 		{
 			RepoID:       "repo-sample-service-api",
 			RelativePath: "docs/routes.md",

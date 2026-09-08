@@ -11,6 +11,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
@@ -71,7 +74,7 @@ func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
 	}
 	deploymentEvidence := mapValue(resp, "deployment_evidence")
 	familyPaths := mapSliceValue(deploymentEvidence, "delivery_family_paths")
-	cloudFormation := requireRepositoryStoryDeliveryFamily(familyPaths, "cloudformation")
+	cloudFormation := querytestutil.RequireRepositoryStoryDeliveryFamily(familyPaths, "cloudformation")
 	if cloudFormation == nil {
 		t.Fatalf("delivery_family_paths = %#v, want cloudformation family", familyPaths)
 	}
@@ -108,19 +111,19 @@ func (s nonFilteringInfrastructureContentStore) ListRepoEntitiesByTypes(_ contex
 // TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError is the
 // regression test for the #5764 P2 review finding: a stale
 // infrastructureTruncated=true from the content read must not survive into
-// limitations alongside infrastructureReadDegradedReason when the graph
+// limitations alongside repository.InfrastructureReadDegradedReason when the graph
 // fallback ALSO fails. The two reasons assert mutually exclusive facts about
 // the SAME read (repository_infrastructure_degrade.go,
-// infrastructureTruncatedReason's doc comment): a failed read has no rows to
+// repository.InfrastructureTruncatedReason's doc comment): a failed read has no rows to
 // bound, and a bounded read did not fail. Before this fix, the graph-read
-// error branch appended infrastructureReadDegradedReason but never reset
+// error branch appended repository.InfrastructureReadDegradedReason but never reset
 // infrastructureTruncated, so a stale truncated=true from the content read
 // survived into limitations alongside it -- "more rows may exist" attached to
 // an EMPTY infrastructure panel.
 func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testing.T) {
 	t.Parallel()
 
-	rawEntities := make([]EntityContent, repositoryInfrastructureEntityLimit+1)
+	rawEntities := make([]EntityContent, repository.RepositoryInfrastructureEntityLimit+1)
 	for i := range rawEntities {
 		rawEntities[i] = EntityContent{
 			RepoID:       "repo-serverless-degrade",
@@ -133,7 +136,7 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, infrastructureGraphReadCypherFragment) {
+				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
 					return nil, fmt.Errorf("private graph detail: %w", ErrGraphUnavailable)
 				}
 				return nil, nil
@@ -180,12 +183,12 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 	if !ok {
 		t.Fatalf("limitations missing or wrong type: %#v", resp["limitations"])
 	}
-	if !jsonStringSliceContains(limitations, infrastructureReadDegradedReason) {
-		t.Fatalf("limitations = %#v, want to contain %q", limitations, infrastructureReadDegradedReason)
+	if !querytestutil.AnySliceContains(limitations, repository.InfrastructureReadDegradedReason) {
+		t.Fatalf("limitations = %#v, want to contain %q", limitations, repository.InfrastructureReadDegradedReason)
 	}
-	if jsonStringSliceContains(limitations, infrastructureTruncatedReason) {
+	if querytestutil.AnySliceContains(limitations, repository.InfrastructureTruncatedReason) {
 		t.Fatalf("limitations = %#v, want NOT to contain %q alongside %q (degraded and truncated are mutually exclusive per read)",
-			limitations, infrastructureTruncatedReason, infrastructureReadDegradedReason)
+			limitations, repository.InfrastructureTruncatedReason, repository.InfrastructureReadDegradedReason)
 	}
 }
 
@@ -200,7 +203,7 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *testing.T) {
 	t.Parallel()
 
-	graphRows := make([]map[string]any, repositoryInfrastructureEntityLimit+1)
+	graphRows := make([]map[string]any, repository.RepositoryInfrastructureEntityLimit+1)
 	for i := range graphRows {
 		graphRows[i] = map[string]any{
 			"type":      "Function",
@@ -212,7 +215,7 @@ func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *te
 	handler := &EntityHandler{
 		Neo4j: fakeWorkloadGraphReader{
 			run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
-				if strings.Contains(cypher, infrastructureGraphReadCypherFragment) {
+				if strings.Contains(cypher, querytestutil.InfrastructureGraphReadCypherFragment) {
 					return graphRows, nil
 				}
 				return nil, nil
@@ -256,7 +259,7 @@ func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *te
 	if !ok {
 		t.Fatalf("limitations missing or wrong type: %#v", resp["limitations"])
 	}
-	if jsonStringSliceContains(limitations, infrastructureTruncatedReason) {
-		t.Fatalf("limitations = %#v, want NOT to contain %q on an EMPTY infrastructure panel", limitations, infrastructureTruncatedReason)
+	if querytestutil.AnySliceContains(limitations, repository.InfrastructureTruncatedReason) {
+		t.Fatalf("limitations = %#v, want NOT to contain %q on an EMPTY infrastructure panel", limitations, repository.InfrastructureTruncatedReason)
 	}
 }

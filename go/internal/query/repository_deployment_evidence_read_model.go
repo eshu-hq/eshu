@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package query //nolint:dirgate // B3 stayer for #6060: methods on the root ContentReader must live in package query; the shared read model moved to querycontract.
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/environment"
 	"github.com/eshu-hq/eshu/go/internal/ghactionsref"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // repositoryDeploymentEvidenceReadModel is the shared read model, aliased so
@@ -27,32 +28,7 @@ type repositoryDeploymentEvidenceReadModelStore interface {
 }
 
 func loadRepositoryDeploymentEvidence(ctx context.Context, content ContentStore, repoID string) (map[string]any, error) {
-	store, ok := content.(repositoryDeploymentEvidenceReadModelStore)
-	if !ok || repoID == "" {
-		return nil, nil
-	}
-	readModel, err := store.RepositoryDeploymentEvidence(ctx, repoID)
-	if err != nil {
-		return nil, err
-	}
-	if !readModel.Available || len(readModel.Rows) == 0 {
-		return nil, nil
-	}
-	// #5167 W3 P0: bind each cross-repo evidence artifact to the caller's grant
-	// before building the evidence map (same shared filter the graph-traversal
-	// path in queryRepoDeploymentEvidence applies) so a scoped caller never sees
-	// a cross-tenant repository on the non-anchor endpoint. Dropping cross-tenant
-	// rows never makes the set MORE truncated -- an untruncated read-model stays
-	// the complete in-grant set -- so readModel.Truncated is carried through
-	// unchanged.
-	filteredRows := filterDeploymentEvidenceRowsForAccess(readModel.Rows, repoID, repositoryAccessFilterFromContext(ctx))
-	if len(filteredRows) == 0 {
-		return nil, nil
-	}
-	result := buildGraphDeploymentEvidence(filteredRows)
-	result["artifact_limit"] = readModel.Limit
-	result["artifacts_truncated"] = readModel.Truncated
-	return result, nil
+	return repository.LoadRepositoryDeploymentEvidence(ctx, content, repoID)
 }
 
 // RepositoryDeploymentEvidence builds the deployment-evidence response rows
@@ -61,7 +37,7 @@ func (cr *ContentReader) RepositoryDeploymentEvidence(ctx context.Context, repoI
 	if cr == nil || cr.db == nil || repoID == "" {
 		return repositoryDeploymentEvidenceReadModel{}, nil
 	}
-	artifactLimit := repositoryDeploymentEvidenceArtifactLimit
+	artifactLimit := repository.RepositoryDeploymentEvidenceArtifactLimit
 	rows, err := cr.db.QueryContext(ctx, repositoryDeploymentEvidenceReadModelSQL, repoID, artifactLimit+1)
 	if err != nil {
 		return repositoryDeploymentEvidenceReadModel{}, fmt.Errorf("query repository deployment evidence: %w", err)
@@ -203,8 +179,8 @@ func scanRepositoryDeploymentEvidenceRows(rows *sql.Rows, repoID string) ([]map[
 			"target_repo_remote_url": targetRemoteURL,
 			"target_repo_scope_id":   targetScopeID,
 		}
-		attachRepositoryObservationIdentity(artifact, identityRow, "source")
-		attachRepositoryObservationIdentity(artifact, identityRow, "target")
+		repository.AttachRepositoryObservationIdentity(artifact, identityRow, "source")
+		repository.AttachRepositoryObservationIdentity(artifact, identityRow, "target")
 		artifacts = append(artifacts, artifact)
 	}
 	return artifacts, nil

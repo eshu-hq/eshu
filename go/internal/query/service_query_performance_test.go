@@ -11,6 +11,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 func TestEnrichServiceQueryContextQueriesProvisioningCandidatesOnce(t *testing.T) {
@@ -71,9 +74,9 @@ func TestQueryRepoAPISurfaceBoundsEndpointRowsAndKeepsAggregateCount(t *testing.
 	t.Parallel()
 
 	graph := &recordingAPISurfaceGraph{t: t}
-	got := queryRepoAPISurface(context.Background(), graph, map[string]any{"repo_id": "repo-service"})
+	got := repository.QueryRepoAPISurface(context.Background(), graph, map[string]any{"repo_id": "repo-service"})
 	if got == nil {
-		t.Fatal("queryRepoAPISurface() = nil, want API surface")
+		t.Fatal("repository.QueryRepoAPISurface() = nil, want API surface")
 	}
 	if count := IntVal(got, "endpoint_count"); count != 73 {
 		t.Fatalf("endpoint_count = %d, want aggregate count 73", count)
@@ -87,8 +90,8 @@ func TestQueryRepoAPISurfaceBoundsEndpointRowsAndKeepsAggregateCount(t *testing.
 	if graph.detailCalls != 1 {
 		t.Fatalf("detailCalls = %d, want 1", graph.detailCalls)
 	}
-	if limit := IntVal(graph.detailParams, "limit"); limit != repositoryAPISurfaceEndpointLimit {
-		t.Fatalf("detail limit = %d, want %d", limit, repositoryAPISurfaceEndpointLimit)
+	if limit := IntVal(graph.detailParams, "limit"); limit != repository.RepositoryAPISurfaceEndpointLimit {
+		t.Fatalf("detail limit = %d, want %d", limit, repository.RepositoryAPISurfaceEndpointLimit)
 	}
 }
 
@@ -152,8 +155,8 @@ func TestQueryRepoDeploymentEvidenceBoundsGraphDirections(t *testing.T) {
 	t.Parallel()
 
 	reader := &recordingDeploymentEvidenceGraphReader{}
-	if _, err := queryRepoDeploymentEvidence(context.Background(), reader, nil, map[string]any{"repo_id": "repo-service"}); err != nil {
-		t.Fatalf("queryRepoDeploymentEvidence() error = %v, want nil", err)
+	if _, err := repository.QueryRepoDeploymentEvidence(context.Background(), reader, nil, map[string]any{"repo_id": "repo-service"}); err != nil {
+		t.Fatalf("repository.QueryRepoDeploymentEvidence() error = %v, want nil", err)
 	}
 	if len(reader.cypherCalls) != 2 {
 		t.Fatalf("len(cypherCalls) = %d, want 2", len(reader.cypherCalls))
@@ -165,7 +168,7 @@ func TestQueryRepoDeploymentEvidenceBoundsGraphDirections(t *testing.T) {
 		if !strings.Contains(cypher, "LIMIT $limit") {
 			t.Fatalf("cypher call %d = %q, want LIMIT $limit", i, cypher)
 		}
-		if got, want := IntVal(reader.params[i], "limit"), repositoryDeploymentEvidenceArtifactLimit+1; got != want {
+		if got, want := IntVal(reader.params[i], "limit"), repository.RepositoryDeploymentEvidenceArtifactLimit+1; got != want {
 			t.Fatalf("params[%d].limit = %d, want %d", i, got, want)
 		}
 	}
@@ -195,7 +198,7 @@ func TestContentReaderRepositoryDeploymentEvidenceIsBoundedAtSQL(t *testing.T) {
 	if !strings.Contains(recorder.queries[0], "LIMIT $2") {
 		t.Fatalf("query = %q, want SQL row limit", recorder.queries[0])
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(repositoryDeploymentEvidenceArtifactLimit+1); got != want {
+	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(repository.RepositoryDeploymentEvidenceArtifactLimit+1); got != want {
 		t.Fatalf("deployment evidence limit = %d, want %d", got, want)
 	}
 }
@@ -211,10 +214,10 @@ func TestHydrateRepositoryCandidateFilesStartsExactReadsConcurrently(t *testing.
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
-		_, err := hydrateRepositoryCandidateFiles(ctx, store, "repo-service", []FileContent{
+		_, err := artifacts.HydrateRepositoryCandidateFiles(ctx, store, "repo-service", []FileContent{
 			{RepoID: "repo-service", RelativePath: "compose-a.yaml", ArtifactType: "docker_compose"},
 			{RepoID: "repo-service", RelativePath: "compose-b.yaml", ArtifactType: "docker_compose"},
-		}, isDockerComposeArtifact)
+		}, artifacts.IsDockerComposeArtifact)
 		done <- err
 	}()
 
@@ -229,7 +232,7 @@ func TestHydrateRepositoryCandidateFilesStartsExactReadsConcurrently(t *testing.
 	}
 	close(store.release)
 	if err := <-done; err != nil {
-		t.Fatalf("hydrateRepositoryCandidateFiles() error = %v, want nil", err)
+		t.Fatalf("artifacts.HydrateRepositoryCandidateFiles() error = %v, want nil", err)
 	}
 }
 
@@ -237,8 +240,8 @@ func TestHydrateRepositoryCandidateFilesCapsExactReads(t *testing.T) {
 	t.Parallel()
 
 	store := &countingArtifactHydrationStore{}
-	files := make([]FileContent, 0, repositoryArtifactHydrationLimit+5)
-	for i := 0; i < repositoryArtifactHydrationLimit+5; i++ {
+	files := make([]FileContent, 0, artifacts.RepositoryArtifactHydrationLimit+5)
+	for i := 0; i < artifacts.RepositoryArtifactHydrationLimit+5; i++ {
 		files = append(files, FileContent{
 			RepoID:       "repo-service",
 			RelativePath: fmt.Sprintf(".github/workflows/deploy-%02d.yaml", i),
@@ -246,12 +249,12 @@ func TestHydrateRepositoryCandidateFilesCapsExactReads(t *testing.T) {
 		})
 	}
 
-	_, err := hydrateRepositoryCandidateFiles(context.Background(), store, "repo-service", files, isGitHubActionsWorkflowFile)
+	_, err := artifacts.HydrateRepositoryCandidateFiles(context.Background(), store, "repo-service", files, artifacts.IsGitHubActionsWorkflowFile)
 	if err != nil {
-		t.Fatalf("hydrateRepositoryCandidateFiles() error = %v, want nil", err)
+		t.Fatalf("artifacts.HydrateRepositoryCandidateFiles() error = %v, want nil", err)
 	}
-	if got := int(store.calls.Load()); got != repositoryArtifactHydrationLimit {
-		t.Fatalf("GetFileContent calls = %d, want cap %d", got, repositoryArtifactHydrationLimit)
+	if got := int(store.calls.Load()); got != artifacts.RepositoryArtifactHydrationLimit {
+		t.Fatalf("GetFileContent calls = %d, want cap %d", got, artifacts.RepositoryArtifactHydrationLimit)
 	}
 }
 

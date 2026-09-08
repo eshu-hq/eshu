@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // TestGetServiceContextIncludesTechFingerprint asserts that language_breakdown
@@ -108,7 +110,7 @@ func TestQueryServiceTechFingerprintOmitsBreakdownsWhenNoRepoID(t *testing.T) {
 	}
 
 	workloadCtx := map[string]any{"name": "empty-repo-svc"} // no repo_id key
-	langBreakdown, toolBreakdown := queryServiceTechFingerprint(context.Background(), reader, workloadCtx)
+	langBreakdown, toolBreakdown := repository.QueryServiceTechFingerprint(context.Background(), reader, workloadCtx)
 
 	if langBreakdown != nil {
 		t.Errorf("language_breakdown = %v, want nil when repo_id missing", langBreakdown)
@@ -136,7 +138,7 @@ func TestQueryServiceTechFingerprintSourceToolQueryIsAnchored(t *testing.T) {
 	}
 
 	workloadCtx := map[string]any{"repo_id": "repo-anchor-test"}
-	queryServiceTechFingerprint(context.Background(), reader, workloadCtx)
+	repository.QueryServiceTechFingerprint(context.Background(), reader, workloadCtx)
 
 	var sourceToolCypher string
 	for _, c := range capturedCyphers {

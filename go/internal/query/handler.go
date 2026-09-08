@@ -72,20 +72,10 @@ func capabilityUnsupported(profile QueryProfile, capability string) bool {
 
 // requireContextOverview writes the structured unsupported-capability envelope
 // and returns false when the profile cannot serve
-// platform_impact.context_overview, the shared capability behind the repository,
-// service, and workload context, story, summary, dossier, and investigation
-// readbacks. message names the specific surface so the operator sees which call
-// needs an authoritative platform profile. Keeping these surfaces behind one
-// gate keeps the capability catalog's "unsupported in local_lightweight" claim
-// truthful instead of letting a graph-less profile fall through to a panic.
+// platform_impact.context_overview. The implementation moved to querycontract
+// for #6060; this wrapper keeps root callers unchanged.
 func requireContextOverview(w http.ResponseWriter, r *http.Request, profile QueryProfile, message string) bool {
-	const capability = "platform_impact.context_overview"
-	if capabilityUnsupported(profile, capability) {
-		WriteContractError(w, r, http.StatusNotImplemented, message,
-			"unsupported_capability", capability, profile, requiredProfile(capability))
-		return false
-	}
-	return true
+	return querycontract.RequireContextOverview(w, r, profile, message)
 }
 
 // APIRouter builds the top-level /api/v0 mux for all query endpoints.

@@ -3,7 +3,10 @@
 
 package querycontract
 
-import "slices"
+import (
+	"net/http"
+	"slices"
+)
 
 // CapabilitySupport records the truth ceiling and minimum profile for one capability.
 type CapabilitySupport struct {
@@ -169,4 +172,23 @@ func maxTruthLevel(capability string, profile QueryProfile) *TruthLevel {
 	default:
 		return support.ProductionMax
 	}
+}
+
+// RequireContextOverview writes the structured unsupported-capability
+// envelope and returns false when the profile cannot serve
+// platform_impact.context_overview, the shared capability behind the
+// repository, service, and workload context, story, summary, dossier, and
+// investigation readbacks. message names the specific surface so the
+// operator sees which call needs an authoritative platform profile. It
+// lives here (not in a handler family) so the repository routes and the
+// entity-workload stayer share one gate without importing each other
+// (#6060, lane B B3).
+func RequireContextOverview(w http.ResponseWriter, r *http.Request, profile QueryProfile, message string) bool {
+	const capability = "platform_impact.context_overview"
+	if CapabilityUnsupported(profile, capability) {
+		WriteContractError(w, r, http.StatusNotImplemented, message,
+			"unsupported_capability", capability, profile, RequiredProfile(capability))
+		return false
+	}
+	return true
 }

@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestGetServiceStorySurfacesTargetLinkedExternalDocumentation(t *testing.T) {
@@ -168,7 +170,7 @@ func TestDocumentationPayloadDoesNotMatchGenericMentionWithoutTargetRef(t *testi
 		"mention_text": "payments-api runbook",
 		"mention_kind": "service_like_text",
 	}
-	if documentationPayloadMatchesTargetRef(payload, documentationTargetRef{kind: "service", id: "workload:payments-api"}) {
+	if querycontract.DocumentationPayloadMatchesTargetRef(payload, querycontract.DocumentationTargetRef{Kind: "service", ID: "workload:payments-api"}) {
 		t.Fatalf("generic documentation mention matched target without candidate_refs, evidence_refs, or linked_entities")
 	}
 }

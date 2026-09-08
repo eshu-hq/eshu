@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 // TestGetWorkloadContextReturnsResultLimitsAndPartialReasons proves the
@@ -286,7 +288,7 @@ func requireContextResultLimits(t *testing.T, data map[string]any, wantTool, wan
 // ListRepoEntitiesByTypes (which self-clamps to the caller's limit, mirroring
 // a real SQL LIMIT), this override ignores the type list and limit arguments
 // and returns every seeded row unconditionally, so the production code's own
-// `len(entities) > repositoryInfrastructureEntityLimit` check -- not a
+// `len(entities) > repository.RepositoryInfrastructureEntityLimit` check -- not a
 // client-side fake clamp -- is what decides truncation.
 type infrastructureOverflowContentStore struct {
 	fakePortContentStore
@@ -316,8 +318,8 @@ func overflowingInfrastructureEntities(n int) []EntityContent {
 // provisioning_source_chains_truncated, but did not read ctx["limitations"]
 // for infrastructure_truncated, even though fetchWorkloadContextForOperation
 // (entity_workload_context.go) appends that reason when the repository's
-// infrastructure-entity read hits repositoryInfrastructureEntityLimit. This
-// drives a genuine repositoryInfrastructureEntityLimit+1-row overflow through
+// infrastructure-entity read hits repository.RepositoryInfrastructureEntityLimit. This
+// drives a genuine repository.RepositoryInfrastructureEntityLimit+1-row overflow through
 // the real mounted /api/v0/workloads/{id}/context and /story routes -- with no
 // dependents, consumer, or provisioning-source-chain overflow at all, so
 // infrastructure_truncated is the ONLY bound that fires -- through
@@ -327,7 +329,7 @@ func TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated(t 
 	t.Parallel()
 
 	content := infrastructureOverflowContentStore{
-		infrastructureEntities: overflowingInfrastructureEntities(repositoryInfrastructureEntityLimit + 1),
+		infrastructureEntities: overflowingInfrastructureEntities(repository.RepositoryInfrastructureEntityLimit + 1),
 	}
 	// fetchWorkloadRepositoryForAccess (entity_workload_context.go) re-resolves
 	// repo_id through its own DEFINES-anchored candidate query before the
@@ -379,7 +381,7 @@ func TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated(t 
 			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 				t.Fatalf("unmarshal error = %v", err)
 			}
-			// The route legitimately returns up to repositoryInfrastructureEntityLimit
+			// The route legitimately returns up to repository.RepositoryInfrastructureEntityLimit
 			// raw infrastructure rows; the response body is large by design and left
 			// out of failure messages below so a failing run stays readable.
 			limits := mapValue(body, "result_limits")
@@ -393,7 +395,7 @@ func TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated(t 
 			if truncated, _ := limits["truncated"].(bool); !truncated {
 				t.Fatalf(
 					"result_limits.truncated = %#v, want true (a genuine %d-row infrastructure overflow with no other bound firing, and partial_reasons already contains infrastructure_truncated: %v)",
-					limits["truncated"], repositoryInfrastructureEntityLimit+1, partialReasons,
+					limits["truncated"], repository.RepositoryInfrastructureEntityLimit+1, partialReasons,
 				)
 			}
 		})

@@ -12,6 +12,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
 )
 
 func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
@@ -130,8 +133,8 @@ func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
 	if got, want := deploysFrom["artifact_count"], float64(2); got != want {
 		t.Fatalf("DEPLOYS_FROM.artifact_count = %#v, want %#v", got, want)
 	}
-	if !containsStringAny(deploysFrom["resolved_ids"].([]any), "resolved-1") ||
-		!containsStringAny(deploysFrom["resolved_ids"].([]any), "resolved-2") {
+	if !querytestutil.AnySliceContains(deploysFrom["resolved_ids"].([]any), "resolved-1") ||
+		!querytestutil.AnySliceContains(deploysFrom["resolved_ids"].([]any), "resolved-2") {
 		t.Fatalf("DEPLOYS_FROM.resolved_ids = %#v, want both resolved ids", deploysFrom["resolved_ids"])
 	}
 	artifactFamilies := evidenceIndex["artifact_families"].(map[string]any)
@@ -139,21 +142,21 @@ func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
 	if got, want := helm["artifact_count"], float64(1); got != want {
 		t.Fatalf("helm.artifact_count = %#v, want %#v", got, want)
 	}
-	if !containsStringAny(helm["resolved_ids"].([]any), "resolved-1") {
+	if !querytestutil.AnySliceContains(helm["resolved_ids"].([]any), "resolved-1") {
 		t.Fatalf("helm.resolved_ids = %#v, want resolved-1", helm["resolved_ids"])
 	}
 
 	for _, want := range []string{"helm", "github_actions"} {
-		if !containsStringAny(surface["artifact_families"].([]any), want) {
+		if !querytestutil.AnySliceContains(surface["artifact_families"].([]any), want) {
 			t.Fatalf("artifact_families missing %q: %#v", want, surface["artifact_families"])
 		}
 	}
 	for _, want := range []string{"HELM_VALUES_REFERENCE", "GITHUB_ACTIONS_REUSABLE_WORKFLOW_REF"} {
-		if !containsStringAny(surface["evidence_kinds"].([]any), want) {
+		if !querytestutil.AnySliceContains(surface["evidence_kinds"].([]any), want) {
 			t.Fatalf("evidence_kinds missing %q: %#v", want, surface["evidence_kinds"])
 		}
 	}
-	if !containsStringAny(surface["environments"].([]any), "prod") {
+	if !querytestutil.AnySliceContains(surface["environments"].([]any), "prod") {
 		t.Fatalf("environments missing prod: %#v", surface["environments"])
 	}
 
@@ -196,7 +199,7 @@ func TestGetRepositoryContextIncludesGraphDeploymentEvidence(t *testing.T) {
 
 func TestBuildGraphDeploymentEvidenceCarriesPrivacySafeRepositoryIdentity(t *testing.T) {
 	remoteURL := "git@github.com:acme/iac-eks-argocd.git"
-	result := buildGraphDeploymentEvidence([]map[string]any{
+	result := repository.BuildGraphDeploymentEvidence([]map[string]any{
 		{
 			"artifact_id":            "artifact-1",
 			"relationship_type":      "DEPLOYS_FROM",
@@ -228,7 +231,7 @@ func TestBuildGraphDeploymentEvidenceCarriesPrivacySafeRepositoryIdentity(t *tes
 }
 
 func TestBuildGraphDeploymentEvidencePreservesReadModelRepositoryIdentity(t *testing.T) {
-	result := buildGraphDeploymentEvidence([]map[string]any{
+	result := repository.BuildGraphDeploymentEvidence([]map[string]any{
 		{
 			"artifact_id":              "artifact-1",
 			"relationship_type":        "DEPLOYS_FROM",
@@ -442,8 +445,8 @@ func TestQueryRepoDeploymentEvidenceIncomingUsesArtifactFirstBoundary(t *testing
 	t.Parallel()
 
 	reader := &recordingDeploymentEvidenceGraphReader{}
-	if _, err := queryRepoDeploymentEvidence(context.Background(), reader, nil, map[string]any{"repo_id": "repo-service"}); err != nil {
-		t.Fatalf("queryRepoDeploymentEvidence() error = %v, want nil", err)
+	if _, err := repository.QueryRepoDeploymentEvidence(context.Background(), reader, nil, map[string]any{"repo_id": "repo-service"}); err != nil {
+		t.Fatalf("repository.QueryRepoDeploymentEvidence() error = %v, want nil", err)
 	}
 
 	if len(reader.cypherCalls) != 2 {

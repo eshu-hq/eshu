@@ -6,6 +6,8 @@ package query
 import (
 	"fmt"
 	"maps"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TypeScriptSemanticProfile captures TypeScript and TSX metadata that the query
@@ -59,10 +61,10 @@ func (p TypeScriptSemanticProfile) Present() bool {
 func (p TypeScriptSemanticProfile) Fields() map[string]any {
 	fields := make(map[string]any, 8)
 	if len(p.Decorators) > 0 {
-		fields["decorators"] = cloneStrings(p.Decorators)
+		fields["decorators"] = querycontract.CloneStrings(p.Decorators)
 	}
 	if len(p.TypeParameters) > 0 {
-		fields["type_parameters"] = cloneStrings(p.TypeParameters)
+		fields["type_parameters"] = querycontract.CloneStrings(p.TypeParameters)
 	}
 	if p.TypeAliasKind != "" {
 		fields["type_alias_kind"] = p.TypeAliasKind
@@ -74,7 +76,7 @@ func (p TypeScriptSemanticProfile) Fields() map[string]any {
 		fields["declaration_merge_count"] = p.DeclarationMergeCount
 	}
 	if len(p.DeclarationMergeKinds) > 0 {
-		fields["declaration_merge_kinds"] = cloneStrings(p.DeclarationMergeKinds)
+		fields["declaration_merge_kinds"] = querycontract.CloneStrings(p.DeclarationMergeKinds)
 	}
 	if p.ComponentTypeAssertion != "" {
 		fields["component_type_assertion"] = p.ComponentTypeAssertion

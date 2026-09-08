@@ -19,9 +19,9 @@ import (
 // traversals fall to the default nil case), so queryServiceGraphDeploymentEvidence
 // leaves workloadContext["deployment_evidence"] fully empty -- the exact
 // production state ("the redacted evidence set is FULLY EMPTY") that makes
-// loadServiceDeploymentEvidence fall through to loadDeploymentArtifactOverview.
+// loadServiceDeploymentEvidence fall through to LoadDeploymentArtifactOverview.
 // It resolves ONE related-repository artifact source via the
-// DEPENDS_ON|USES_MODULE|... traversal in queryRelatedRepositoryArtifactSources:
+// DEPENDS_ON|USES_MODULE|... traversal in QueryRelatedRepositoryArtifactSources:
 // repo-b, a DIFFERENT tenant's repository. Every other enrichment query returns
 // no rows.
 func fallbackArtifactOverviewGraph() querytestutil.FakeGraphReaderWithSingle {
@@ -51,16 +51,16 @@ func fallbackArtifactOverviewGraph() querytestutil.FakeGraphReaderWithSingle {
 // TestServiceContextFallbackArtifactOverviewScopedFiltersCrossTenantRepo is the
 // #5167 W3 P0 (third round) mutation-check for the deployment-artifact-overview
 // FALLBACK: loadServiceDeploymentEvidence (service_deployment_evidence.go) falls
-// through to loadDeploymentArtifactOverview -> loadSharedRepositoryConfigArtifacts
-// -> queryRelatedRepositoryArtifactSources exactly when the redacted graph
+// through to LoadDeploymentArtifactOverview -> LoadSharedRepositoryConfigArtifacts
+// -> QueryRelatedRepositoryArtifactSources exactly when the redacted graph
 // deployment_evidence set is fully empty -- which happens whenever every
 // artifact named an out-of-grant endpoint (or, as here, there simply is no
-// EvidenceArtifact). queryRelatedRepositoryArtifactSources had NO access
+// EvidenceArtifact). QueryRelatedRepositoryArtifactSources had NO access
 // filter, so a scoped caller granted only repo-a still saw repo-b's config
 // artifact (config_paths[].source_repo / shared_config_paths[].source_repo)
 // merged into deployment_evidence, deployment_artifacts, and
 // infrastructure_overview. Removing filterRepositoryArtifactSourcesForAccess (or
-// its repositoryAccessFilterFromContext call) in queryRelatedRepositoryArtifactSources
+// its repositoryAccessFilterFromContext call) in QueryRelatedRepositoryArtifactSources
 // turns the scoped assertion red.
 func TestServiceContextFallbackArtifactOverviewScopedFiltersCrossTenantRepo(t *testing.T) {
 	t.Parallel()

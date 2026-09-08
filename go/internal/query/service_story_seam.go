@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
 
 // ServiceWorkloadSelector is the exported selector for callers outside the query
@@ -84,7 +86,7 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 	}
 
 	timer := startServiceQueryStage(ctx, h.Logger, operation, safeStr(workloadCtx, "name"), safeStr(workloadCtx, "repo_id"), "ci_cd_evidence")
-	ciCDEvidence, err := loadRepositoryScopedCICDEvidence(ctx, h.Content, h.CICDRunCorrelations, safeStr(workloadCtx, "repo_id"))
+	ciCDEvidence, err := artifacts.LoadRepositoryScopedCICDEvidence(ctx, h.Content, h.CICDRunCorrelations, safeStr(workloadCtx, "repo_id"))
 	timer.Done(ctx, slog.Bool("has_result", len(ciCDEvidence) > 0), slog.Bool("error", err != nil))
 	if err != nil {
 		return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("load service story ci/cd evidence", err)

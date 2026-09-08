@@ -3,6 +3,8 @@
 
 package querycontract
 
+import "time"
+
 // FreshnessCause is the closed, prompt-facing reason a TruthFreshness state is
 // not fresh. It explains WHY an answer is stale, building, or unavailable so a
 // consumer can choose a bounded next check instead of treating the answer as
@@ -154,4 +156,27 @@ func WithFreshnessCause(truth *TruthEnvelope, cause FreshnessCause) {
 		next := check
 		truth.Freshness.NextCheck = &next
 	}
+}
+
+// NullableRFC3339 formats value for status payloads, returning nil for the
+// zero time so absent timestamps read as missing rather than as the epoch.
+// It lives here (not in a handler family) so the repository freshness read
+// and the status stayers share one rendering without importing each other
+// (#6060, lane B B3).
+func NullableRFC3339(value time.Time) any {
+	if value.IsZero() {
+		return nil
+	}
+	return value.Format(time.RFC3339)
+}
+
+// FormatCoverageTimestamp renders ts for coverage payloads, returning "" for
+// the zero time. It lives here (not in a handler family) so the repository
+// ref reads and the repository coverage/stats/branches reads share one
+// rendering without importing each other (#6060, lane B B3).
+func FormatCoverageTimestamp(ts time.Time) string {
+	if ts.IsZero() {
+		return ""
+	}
+	return ts.UTC().Format(time.RFC3339Nano)
 }

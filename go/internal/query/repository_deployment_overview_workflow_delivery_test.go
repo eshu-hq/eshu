@@ -3,12 +3,17 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/repository"
+	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
+)
 
 func TestBuildRepositoryDeploymentOverviewIncludesWorkflowDeliveryCommandFamilies(t *testing.T) {
 	t.Parallel()
 
-	artifacts := buildRepositoryWorkflowArtifacts([]FileContent{
+	artifacts := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy-platform.yml",
 			ArtifactType: "github_actions_workflow",
@@ -27,10 +32,10 @@ jobs:
 		},
 	})
 	if artifacts == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
-	got := BuildRepositoryDeploymentOverview(
+	got := repository.BuildRepositoryDeploymentOverview(
 		[]string{"edge-api"},
 		nil,
 		[]string{"github_actions"},
@@ -74,7 +79,7 @@ jobs:
 func TestBuildRepositoryDeploymentOverviewIncludesWorkflowLocalDeliveryPaths(t *testing.T) {
 	t.Parallel()
 
-	artifacts := buildRepositoryWorkflowArtifacts([]FileContent{
+	artifacts := artifacts.BuildRepositoryWorkflowArtifacts([]FileContent{
 		{
 			RelativePath: ".github/workflows/deploy-platform.yml",
 			ArtifactType: "github_actions_workflow",
@@ -94,10 +99,10 @@ jobs:
 		},
 	})
 	if artifacts == nil {
-		t.Fatal("buildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
+		t.Fatal("artifacts.BuildRepositoryWorkflowArtifacts() = nil, want workflow_artifacts")
 	}
 
-	got := BuildRepositoryDeploymentOverview(
+	got := repository.BuildRepositoryDeploymentOverview(
 		[]string{"edge-api"},
 		nil,
 		[]string{"github_actions"},
