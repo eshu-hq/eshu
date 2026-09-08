@@ -37,5 +37,6 @@ Run focused `service` tests, then root `query`, `queryplan`, `mcp`,
 ## Common changes
 
 - Add a handler method with its route in `Mount`, gate on the family's
-  capability, and update the matching `openapi_paths_*.go` fragment in this
-  package in the same change (the fragments live here beside the handlers).
+  capability, and update the matching `openapi_paths_*.go` fragment in the
+  query root in the same change (scripts/verify-openapi.sh only scans the
+  root `openapi_paths_*.go` files; fragments must stay there).
