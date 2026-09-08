@@ -162,9 +162,11 @@ changes no behaviour.
 
 No-Regression Evidence: comment-only across the changed Go runtime files,
 verified by parsing each with `go/parser` WITHOUT `ParseComments` and reprinting
-via `go/printer` — 16 of 17 changed `.go` files are byte-identical after that
-reprint. The seventeenth is a path inside a `t.Fatalf` string in a `_test.go`,
-which the gate excludes. No production behaviour changes, so there is no runtime
+via `go/printer` — 15 of 17 changed `.go` files are byte-identical after that
+reprint. The two exceptions are both test/tooling-only: a path inside a
+`t.Fatalf` string in a `_test.go`, which the gate excludes, and the
+`scriptWorkflowSoundSubsetCount` 41 -> 42 test-expectation bump for this gate
+itself. No production behaviour changes, so there is no runtime
 path to measure. The new gate is a pre-PR shell script, not a runtime path; its
 cost is the table above.
 
