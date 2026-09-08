@@ -550,4 +550,20 @@ func TestContentReaderSearchEntitiesByExactNameAnyRepoLeavesTheRepositoryUnbound
 	if strings.Contains(query, "eshu_require_content_substring_indexes_ready()") {
 		t.Fatalf("an equality read took the substring-index readiness gate: %q", query)
 	}
+
+	// Assert the BOUND ARGS, not just the query shape. The recording fake
+	// ignores args, so without this a swapped or misbound placeholder passes
+	// every check above: the text still reads `entity_name = $1` and `LIMIT $2`
+	// while $1 and $2 carry the wrong values. The repo-bound twin above already
+	// asserts all three of its args; this one asserted none until #6605 review
+	// pointed out the asymmetry.
+	if got, want := len(recorder.args[0]), 2; got != want {
+		t.Fatalf("query bound %d args, want %d (name, limit) — the corpus-wide read binds no repo", got, want)
+	}
+	if got, want := recorder.args[0][0], "PaymentGateway"; got != want {
+		t.Fatalf("query arg name = %#v, want %#v", got, want)
+	}
+	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(5); got != want {
+		t.Fatalf("query arg limit = %d, want %d", got, want)
+	}
 }
