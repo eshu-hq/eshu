@@ -36,7 +36,7 @@ source_coverage:
   - file: code.go
     calls:
       - {symbol: "(*CodeHandler).runComplexityQuery", count: 1, non_hot_reason: "unlabeled complexity-by-id branch is inventoried but cannot be admitted until its production anchor is typed"}
-      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: 7adafdc54fc591d37ec8cbb47ea81e9a1a7307f34174ae05825621bf8b2c811a, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
+      - {symbol: "(*CodeHandler).searchGraphEntitiesWithExact", count: 1, source_sha256: cc958c7c0b0d8f0dc159243fa251f761c2bec3ba689ea3da0c9fc20aa7c36a06, entry_ids: [QP-CODE-SEARCH-REPOSITORY]}
   - file: code_call_chain.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: 68ccf0ec867d38a9de25ab22c87e3eb687c6e98297c0d4ca1c367b4d4fe0d37e, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
@@ -55,7 +55,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 7b3bb16df20b0102b405ffc9e9f4c71777f66e9ca2d8aced0bb727cfc6fb494a
+          source_sha256: 097dd242ce5a02b1b4136e8e9daf776afaa5a1a53ab5b080973024619478a9ee
           label: Function
           max_results: 101
       - symbol: "(*CodeHandler).lookupComplexityRowByName"
