@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/serviceevidence"
 )
 
 // serviceEvidenceReader is the content-store surface service evidence
@@ -55,7 +56,7 @@ func buildSpecFileResolver(ctx context.Context, reader serviceEvidenceReader, re
 			return "", nil
 		}
 		// Resolve relative path against the base spec file's directory.
-		resolved := querycontract.OpenAPIRefFilePath(baseRelativePath, ref)
+		resolved := serviceevidence.OpenAPIRefFilePath(baseRelativePath, ref)
 		if resolved == "" {
 			// PR #5933 review fix (Copilot): a fragment-only $ref (e.g.
 			// "#/components/schemas/Widget") resolves to no external file.

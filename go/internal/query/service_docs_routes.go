@@ -4,12 +4,12 @@
 package query
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/serviceevidence"
 )
 
 // extractDocsRoutes returns the sorted, de-duplicated docs-like route
-// references quoted in content. The implementation moved to querycontract for
-// #6060; this wrapper keeps root callers unchanged.
+// references quoted in content. The implementation moved to the
+// serviceevidence leaf for #6060; this wrapper keeps root callers unchanged.
 func extractDocsRoutes(content string) []string {
-	return querycontract.ExtractDocsRoutes(content)
+	return serviceevidence.ExtractDocsRoutes(content)
 }

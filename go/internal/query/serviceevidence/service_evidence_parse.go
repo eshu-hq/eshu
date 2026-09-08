@@ -2,15 +2,17 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Service evidence parsing holds the pure content extractors shared by the
-// service evidence loader in package query and the repository narrative
+// service evidence stayer in package query and the repository narrative
 // overviews in package repository: docs-route references, OpenAPI spec
 // summaries (including `$ref` resolution through a caller-supplied resolver),
 // and the loose YAML/JSON document accessors they are built from.
 //
-// The implementations moved here for #6060 lane-B B3; package query keeps
-// thin wrappers so existing callers are unchanged.
+// The implementation moved here from querycontract for #6060 lane-B B3
+// review: querycontract stays dependency-neutral (Go standard library only),
+// so the `gopkg.in/yaml.v3` runtime lives in this leaf instead. Package
+// query keeps thin wrappers so existing callers are unchanged.
 
-package querycontract
+package serviceevidence
 
 import (
 	"net/url"
@@ -20,14 +22,9 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
-)
 
-// SpecFileResolver resolves a relative `$ref` path from a base spec file and
-// returns the raw content of the referenced file. An empty string with a nil
-// error means the reference resolved to nothing the repository holds; a read
-// failure is returned as an error and never collapsed into that same empty
-// string (#5720 round 10).
-type SpecFileResolver func(baseRelativePath, ref string) (string, error)
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // ServiceSliceValue, ServiceMapValue, and ServiceStringValue read one field
 // out of a loosely-parsed YAML/JSON spec document. A spec file is caller
@@ -150,23 +147,23 @@ var openAPIMethodNames = map[string]struct{}{
 // referenced spec is a property of the repository's own content, which every
 // other extractor here also reads on a best-effort basis, not a failure of
 // the read.
-func ExtractAPISpecEvidence(file FileContent, resolver SpecFileResolver) (ServiceAPISpecEvidence, bool, error) {
+func ExtractAPISpecEvidence(file querycontract.FileContent, resolver querycontract.SpecFileResolver) (querycontract.ServiceAPISpecEvidence, bool, error) {
 	format := serviceEvidenceFormat(file.RelativePath)
 	if !isPotentialAPISpecPath(file.RelativePath) {
-		return ServiceAPISpecEvidence{}, false, nil
+		return querycontract.ServiceAPISpecEvidence{}, false, nil
 	}
 
 	doc, err := parseLooseYAMLDocument(file.Content)
 	if err == nil {
 		if resolveErr := resolveOpenAPIPathRefs(doc, file.RelativePath, resolver); resolveErr != nil {
-			return ServiceAPISpecEvidence{}, false, resolveErr
+			return querycontract.ServiceAPISpecEvidence{}, false, resolveErr
 		}
 		if spec, ok := buildOpenAPISpecEvidence(file.RelativePath, format, doc); ok {
 			return spec, true, nil
 		}
 	}
 
-	return ServiceAPISpecEvidence{
+	return querycontract.ServiceAPISpecEvidence{
 		RelativePath: file.RelativePath,
 		Format:       format,
 		Parsed:       false,
@@ -177,7 +174,7 @@ func ExtractAPISpecEvidence(file FileContent, resolver SpecFileResolver) (Servic
 // hold no reader and therefore pass no resolver. resolveOpenAPIPathRefs
 // returns nil on a nil resolver before it can read anything, so the dropped
 // error is structurally always nil rather than a swallowed failure.
-func ExtractAPISpecEvidenceWithoutRefs(file FileContent) (ServiceAPISpecEvidence, bool) {
+func ExtractAPISpecEvidenceWithoutRefs(file querycontract.FileContent) (querycontract.ServiceAPISpecEvidence, bool) {
 	spec, ok, _ := ExtractAPISpecEvidence(file, nil)
 	return spec, ok
 }
@@ -190,7 +187,7 @@ func ExtractAPISpecEvidenceWithoutRefs(file FileContent) (ServiceAPISpecEvidence
 //
 // A nil resolver means the caller holds no reader; it returns nil before any
 // read, which is what makes ExtractAPISpecEvidenceWithoutRefs error-free.
-func resolveOpenAPIPathRefs(doc map[string]any, baseRelativePath string, resolver SpecFileResolver) error {
+func resolveOpenAPIPathRefs(doc map[string]any, baseRelativePath string, resolver querycontract.SpecFileResolver) error {
 	if resolver == nil {
 		return nil
 	}
@@ -220,7 +217,7 @@ func resolveOpenAPIPathRefs(doc map[string]any, baseRelativePath string, resolve
 	return resolveOpenAPIPathItemRefs(paths, baseRelativePath, resolver)
 }
 
-func resolveOpenAPIPathItemRefs(paths map[string]any, baseRelativePath string, resolver SpecFileResolver) error {
+func resolveOpenAPIPathItemRefs(paths map[string]any, baseRelativePath string, resolver querycontract.SpecFileResolver) error {
 	for route, rawPathItem := range paths {
 		pathItemMap := ServiceMapValue(rawPathItem)
 		if pathItemMap == nil {
@@ -246,7 +243,7 @@ func resolveOpenAPIPathItemRefs(paths map[string]any, baseRelativePath string, r
 	return nil
 }
 
-func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string]any) (ServiceAPISpecEvidence, bool) {
+func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string]any) (querycontract.ServiceAPISpecEvidence, bool) {
 	specVersion := ServiceStringValue(doc["openapi"])
 	if specVersion == "" {
 		specVersion = ServiceStringValue(doc["swagger"])
@@ -254,13 +251,13 @@ func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string
 
 	paths := ServiceMapValue(doc["paths"])
 	if specVersion == "" && len(paths) == 0 {
-		return ServiceAPISpecEvidence{}, false
+		return querycontract.ServiceAPISpecEvidence{}, false
 	}
 
 	operationIDCount := 0
 	methodCount := 0
 	docsRoutes := make([]string, 0)
-	endpoints := make([]ServiceAPIEndpointEvidence, 0, len(paths))
+	endpoints := make([]querycontract.ServiceAPIEndpointEvidence, 0, len(paths))
 	for route, rawOperation := range paths {
 		routeMap := ServiceMapValue(rawOperation)
 		methods := make([]string, 0, len(routeMap))
@@ -279,7 +276,7 @@ func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string
 		}
 		sort.Strings(methods)
 		sort.Strings(operationIDs)
-		endpoints = append(endpoints, ServiceAPIEndpointEvidence{
+		endpoints = append(endpoints, querycontract.ServiceAPIEndpointEvidence{
 			Path:         route,
 			Methods:      methods,
 			OperationIDs: operationIDs,
@@ -314,7 +311,7 @@ func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string
 	sort.Strings(hostnames)
 
 	info := ServiceMapValue(doc["info"])
-	return ServiceAPISpecEvidence{
+	return querycontract.ServiceAPISpecEvidence{
 		RelativePath:     relativePath,
 		Format:           format,
 		Parsed:           true,

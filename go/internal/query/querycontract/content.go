@@ -170,6 +170,15 @@ type ServiceAPIEndpointEvidence struct {
 	OperationIDs []string `json:"operation_ids,omitempty"`
 }
 
+// SpecFileResolver resolves a relative `$ref` path from a base spec file and
+// returns the raw content of the referenced file. An empty string with a nil
+// error means the reference resolved to nothing the repository holds; a read
+// failure is returned as an error and never collapsed into that same empty
+// string (#5720 round 10). The port lives here so both the serviceevidence
+// leaf (which implements the parsing) and root callers share one type
+// without importing each other (#6060, lane B B3).
+type SpecFileResolver func(baseRelativePath, ref string) (string, error)
+
 // ServiceAPISpecEvidence summarizes one API spec file and its parsed routes,
 // server hostnames, and operation IDs when available. The structs live here
 // (not in a handler family) so the repository narrative enrichment and the

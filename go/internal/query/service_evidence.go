@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/serviceevidence"
 )
 
 func loadServiceQueryEvidence(
@@ -168,5 +169,5 @@ func isServiceEvidenceCandidate(file FileContent, normalizedServiceName string) 
 // external `$ref` path entries through resolver first. The implementation
 // moved to querycontract for #6060; this wrapper keeps root callers unchanged.
 func extractAPISpecEvidence(file FileContent, resolver specFileResolver) (ServiceAPISpecEvidence, bool, error) {
-	return querycontract.ExtractAPISpecEvidence(file, resolver)
+	return serviceevidence.ExtractAPISpecEvidence(file, resolver)
 }

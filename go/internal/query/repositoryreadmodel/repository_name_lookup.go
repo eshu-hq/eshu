@@ -10,6 +10,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// QueryRepositoryNamesByID returns the display name for each repository id
+// visible to the caller, keyed by repository id. A nil graph or empty id
+// set returns nil without a query; rows missing an id or name are skipped.
 func QueryRepositoryNamesByID(ctx context.Context, graph querycontract.GraphQuery, repoIDs []string) (map[string]string, error) {
 	if graph == nil || len(repoIDs) == 0 {
 		return nil, nil
