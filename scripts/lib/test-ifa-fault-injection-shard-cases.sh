@@ -348,7 +348,7 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 		|| test_ifa_fault_shard_cases_fail "ifa-fault-injection declares ${check_names_count:-0} ci.check_names entries but IFA_FAULT_SHARD_DEFAULT_N=${n} -- a shard whose check name is unlisted belongs to no gate, so a red shard is invisible to required-gates-complete"
 	printf '%s\n' "${registry_gate_block}" \
 		| rg --count --only-matching -- "^        - \"fault-injection \(shard [0-9]+/${n}\)\"\$" \
-		| rg --quiet --line-regexp -- "${n}" \
+		| rg --line-regexp -- "${n}" > /dev/null \
 		|| test_ifa_fault_shard_cases_fail "ifa-fault-injection's ci.check_names do not all carry the /${n} denominator -- stale names can keep the right COUNT while naming checks the matrix no longer emits"
 
 	# Invalid --shard input must fail loudly with exit 2 (never a silent

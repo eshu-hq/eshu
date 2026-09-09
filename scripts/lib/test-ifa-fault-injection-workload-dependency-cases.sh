@@ -110,8 +110,8 @@ run_ifa_fault_injection_workload_dependency_cases() {
 			production_clause="${lifecycle_entry%%|*}"
 			fixture_clause="${lifecycle_entry#*|}"
 			[[ -n "${production_clause}" ]] || continue
-			printf '%s\n' "${production_reopen_body}" | rg --fixed-strings --quiet -- "${production_clause}" \
-				&& printf '%s\n' "${candidate}" | rg --fixed-strings --quiet -- "${fixture_clause}" \
+			printf '%s\n' "${production_reopen_body}" | rg --fixed-strings -- "${production_clause}" > /dev/null \
+				&& printf '%s\n' "${candidate}" | rg --fixed-strings -- "${fixture_clause}" > /dev/null \
 				|| return 1
 		done
 	}
@@ -138,7 +138,7 @@ run_ifa_fault_injection_workload_dependency_cases() {
 		fi
 	done
 	workload_dependency_reopen_has_exact_replay_key() {
-		printf '%s\n' "$1" | rg --quiet -- "^[[:space:]]+AND payload->>'entity_key' = 'repo:repo-ifa-workload-dependency-source'$"
+		printf '%s\n' "$1" | rg -- "^[[:space:]]+AND payload->>'entity_key' = 'repo:repo-ifa-workload-dependency-source'$"
 	}
 	workload_dependency_reopen_has_exact_replay_key "${reopen_body}" \
 		|| fail "workload_dependency reopen must target the production repo_dependency replay entity key"
@@ -154,10 +154,10 @@ run_ifa_fault_injection_workload_dependency_cases() {
 	kill_body="$(awk '/^cell_killworker_workload_dependency\(\)/,/^}/' "${cells_lib}")"
 	failgraph_body="$(awk '/^cell_failgraphwrite_workload_dependency\(\)/,/^}/' "${cells_lib}")"
 	workload_dependency_kill_has_exact_attempt_proof() {
-		printf '%s\n' "$1" | rg -U --pcre2 --quiet -- 'ifa_workload_dependency_fault_reopen "\$\{cell\}" work_item_id reopen_attempt[\s\S]*ifa_workload_dependency_live_wait_for_claimed_attempt[\s\S]*"\$\{work_item_id\}" "\$\(\(reopen_attempt \+ 1\)\)"[\s\S]*ifa_workload_dependency_live_assert_work_item_state[\s\S]*"\$\{work_item_id\}" succeeded "\$\(\(reopen_attempt \+ 2\)\)"'
+		printf '%s\n' "$1" | rg -U --pcre2 -- 'ifa_workload_dependency_fault_reopen "\$\{cell\}" work_item_id reopen_attempt[\s\S]*ifa_workload_dependency_live_wait_for_claimed_attempt[\s\S]*"\$\{work_item_id\}" "\$\(\(reopen_attempt \+ 1\)\)"[\s\S]*ifa_workload_dependency_live_assert_work_item_state[\s\S]*"\$\{work_item_id\}" succeeded "\$\(\(reopen_attempt \+ 2\)\)"'
 	}
 	workload_dependency_failgraph_has_exact_attempt_proof() {
-		printf '%s\n' "$1" | rg -U --pcre2 --quiet -- 'ifa_workload_dependency_fault_reopen "\$\{cell\}" work_item_id reopen_attempt[\s\S]*ifa_workload_dependency_live_assert_work_item_state[\s\S]*"\$\{work_item_id\}" succeeded "\$\(\(reopen_attempt \+ 2\)\)"'
+		printf '%s\n' "$1" | rg -U --pcre2 -- 'ifa_workload_dependency_fault_reopen "\$\{cell\}" work_item_id reopen_attempt[\s\S]*ifa_workload_dependency_live_assert_work_item_state[\s\S]*"\$\{work_item_id\}" succeeded "\$\(\(reopen_attempt \+ 2\)\)"'
 	}
 	workload_dependency_kill_has_exact_attempt_proof "${kill_body}" \
 		|| fail "workload_dependency killworker must prove exact-row victim and reclaim attempt deltas"

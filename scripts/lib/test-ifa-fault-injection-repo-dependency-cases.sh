@@ -289,7 +289,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 	production_go_files="$(rg --files "${root}" -g '*.go' -g '!*_test.go')" || return 1
 	production_go_count="$(printf '%s\n' "${production_go_files}" | wc -l | tr -d '[:space:]')"
 	[[ "${production_go_count}" =~ ^[0-9]+$ && "${production_go_count}" -gt 100 ]] || return 1
-	! printf '%s\n' "${production_go_files}" | rg --quiet -- '_test\.go$' || return 1
+	! printf '%s\n' "${production_go_files}" | rg -- '_test\.go$' > /dev/null || return 1
 	[[ "${production_go_files}" == *'/go/internal/storage/cypher/canonical.go'* ]] || return 1
 	[[ "${production_go_files}" == *'/go/internal/reducer/workload_materializer.go'* ]] || return 1
 	anchor_count="$(rg -U -g '*.go' -g '!*_test.go' --fixed-strings --json -- "${repo_batch_anchor}" "${root}" \
