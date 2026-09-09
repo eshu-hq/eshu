@@ -14,7 +14,7 @@
    parent's root and must keep naming the same six fields this builder
    selects.
 7. `../routecontract/README.md` for the dependency-neutral request contract.
-8. `go/internal/query/code_flow.go` for the handler behind all four paths:
+8. `go/internal/query/codequery/flow.go` for the handler behind all four paths:
    `normalize()` substitutes 25 for a nonpositive `limit`, clamps above 100,
    floors a negative `line` to 0, and rejects only a blank `repo_id`.
 

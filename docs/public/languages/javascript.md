@@ -33,14 +33,14 @@ Detailed parser mechanics live in `go/internal/parser/README.md` and
 | Source entities | `source-entities` | supported | parser buckets | `name, line_number` where applicable | `execute_language_query` | `go/internal/parser/javascript/engine_javascript_semantics_test.go` | Compose-backed fixture verification | Tree-sitter-backed JavaScript entity extraction. |
 | Graph-backed queries | `graph-backed-queries` | supported | graph/content query rows | JavaScript entity metadata when graph rows carry it | `code/language-query`, `get_code_relationship_story`, `find_dead_code` | `go/internal/query/language_query_graph_first_test.go`, `go/internal/query/javascript_semantics_test.go` | Compose-backed fixture verification | Query paths preserve JavaScript metadata from graph and content rows. |
 | Semantic metadata | `semantic-metadata` | supported | parser metadata buckets | JSDoc, method kind, semantic profile, and JavaScript semantics | `execute_language_query` | `go/internal/parser/javascript/engine_javascript_semantics_test.go`, `go/internal/query/javascript_semantics_test.go` | Compose-backed fixture verification | Deterministic JavaScript metadata is emitted without provider keys. |
-| Framework/package roots | `framework-package-roots` | supported | `dead_code_root_kinds`, package metadata, framework metadata | source-proven root kind and location | `find_dead_code` | `go/internal/query/code_dead_code_javascript_roots_test.go` | Compose-backed fixture verification | Derived root evidence protects live framework/package surfaces without claiming cleanup-safe exactness. |
+| Framework/package roots | `framework-package-roots` | supported | `dead_code_root_kinds`, package metadata, framework metadata | source-proven root kind and location | `find_dead_code` | `go/internal/query/codequery/dead_code_javascript_roots_test.go` | Compose-backed fixture verification | Derived root evidence protects live framework/package surfaces without claiming cleanup-safe exactness. |
 | Express/Hapi route truth | `express-hapi-route-truth` | supported | `framework_semantics.route_entries` | `method, path`; `handler` only for exact named handlers | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/javascript/engine_javascript_route_handler_test.go`, `go/internal/parser/javascript/engine_javascript_handler_test.go`, `go/internal/parser/javascript/engine_javascript_ast_conversion_test.go::TestDefaultEngineParsePathExpressESMRoutesFromAST`, `go/internal/parser/javascript/engine_javascript_ast_conversion_test.go::TestDefaultEngineParsePathHapiRoutesNestedConfigFromAST`, `go/internal/reducer/handles_route_intents_test.go` | Shared reducer route projection proof | Express/Hapi are the JavaScript route frameworks with exact `route_entries` and exact-only handler binding today. |
 | Next.js route-handler truth | `nextjs-route-handler-truth` | supported | `framework_semantics.nextjs.route_entries` | `method, path, handler` for app-router exported HTTP method handlers; `ANY, path, handler` for named `pages/api` default exports | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/javascript/engine_javascript_nextjs_route_entries_test.go`, `go/internal/reducer/handles_route_intents_test.go` | Shared reducer route projection proof | Exact Next.js route handlers emit route entries; page/layout roots, anonymous defaults, rewrites, middleware matchers, generated manifests, and plugin conventions do not fabricate handler edges. |
 | Koa/Fastify/NestJS route truth | `koa-fastify-nestjs-route-truth` | supported | `framework_semantics.{koa,fastify,nestjs}.route_entries` | `method, path`; `handler` only for exact named handlers or methods | `HANDLES_ROUTE` when reducer can resolve the exact handler | `go/internal/parser/javascript/engine_javascript_koa_router_require_route_entries_test.go`, `go/internal/parser/javascript/engine_javascript_koa_fastify_nestjs_route_entries_test.go`, `go/internal/reducer/handles_route_javascript_frameworks_test.go`, `go/internal/query/content_reader_framework_routes_test.go` | Parser-to-reducer-to-query route-entry proof | Literal Koa router calls (including the immediately-invoked `require('@koa/router')()` base), Fastify verb/route-object registrations (including typed-parameter and autoload/plugin patterns such as `const plugin: FastifyPluginAsyncTypebox = async (fastify) => { fastify.get(...) }`), and NestJS literal controller/method decorators emit exact route entries. Middleware chains, plugin loading, computed paths/methods, generated routes, and DI/container-only behavior stay unclaimed. |
 | Outbound contracts | `outbound-contracts` | partial | - | - | - | `go/internal/parser/javascript/engine_javascript_semantics_test.go` | Explicit unsupported-contract wording on this page | SDK/client evidence does not create deterministic cross-repo outbound contract edges today. |
 | Generated clients | `generated-clients` | partial | - | - | - | Support-maturity guardrails | Explicit generated-client wording on this page | Generated clients and runtime route/client manifests are not parser-owned route or contract truth. |
 | Runtime dynamic routes | `runtime-dynamic-routes` | partial | - | - | - | Support-maturity guardrails | Explicit dynamic-route wording on this page | Dynamic imports, plugin loading, computed dispatch, and runtime route registration remain outside exact truth. |
-| Dead-code roots | `dead-code-roots` | derived | `dead_code_root_kinds` | modeled root kind and source location | `find_dead_code` | `go/internal/query/code_dead_code_javascript_roots_test.go` | Compose-backed fixture verification | Derived liveness roots are not cleanup-safe exact truth. |
+| Dead-code roots | `dead-code-roots` | derived | `dead_code_root_kinds` | modeled root kind and source location | `find_dead_code` | `go/internal/query/codequery/dead_code_javascript_roots_test.go` | Compose-backed fixture verification | Derived liveness roots are not cleanup-safe exact truth. |
 
 Primary proof:
 
@@ -50,7 +50,7 @@ Primary proof:
 - `go/internal/parser/javascript/engine_javascript_koa_fastify_nestjs_route_entries_test.go`
 - `go/internal/query/javascript_semantics_test.go`
 - `go/internal/query/language_query_graph_first_test.go`
-- `go/internal/query/code_dead_code_javascript_roots_test.go`
+- `go/internal/query/codequery/dead_code_javascript_roots_test.go`
 
 ## Dead-Code Support
 
@@ -73,8 +73,8 @@ Focused coverage lives in
 `go/internal/parser/javascript/javascript_dead_code_node_roots_test.go`,
 `go/internal/parser/javascript/javascript_dead_code_hapi_alias_test.go`,
 `go/internal/parser/javascript/javascript_dead_code_commonjs_class_test.go`,
-`go/internal/query/code_dead_code_javascript_roots_test.go`, and
-`go/internal/query/code_dead_code_node_typescript_matrix_test.go`.
+`go/internal/query/codequery/dead_code_javascript_roots_test.go`, and
+`go/internal/query/codequery/dead_code_node_typescript_matrix_test.go`.
 
 ## Support Maturity
 

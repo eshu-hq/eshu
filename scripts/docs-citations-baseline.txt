@@ -601,7 +601,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/projector/servi
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/ask_handler.go:159
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/capabilities.go:47
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/cloud_resources.go:58
-LINE docs/public/observability/telemetry-coverage.md go/internal/query/code.go:25
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/component_extensions.go:149
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/images.go:89
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/local_identity_sign_in_policy_gate.go:102

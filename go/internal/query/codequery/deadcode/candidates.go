@@ -13,6 +13,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// deadCodeWeakIncomingResultKey marks a kept candidate whose only incoming
+// edges were weak (repo_unique_name tier). It drives the ambiguous
+// classification instead of silently treating the candidate as reachable.
 const (
 	deadCodeWeakIncomingResultKey   = "weak_incoming_only"
 	deadCodeWeakIncomingMethodKey   = "weak_incoming_method"

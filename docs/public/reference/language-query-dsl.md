@@ -39,8 +39,10 @@ returns the data object itself.
 ## Repository scope
 
 `repo_id` is a selector, not a raw id. It is resolved through the same
-repository-selector path the rest of the code family uses, before either backend
-is read, so a repository name resolves as readily as a canonical id -- and a
+repository-selector path the rest of the code family uses
+(`ApplyRepositorySelectorForAccess` in `go/internal/query/codequery`),
+before either backend is read, so a repository name resolves as readily as a
+canonical id -- and a
 NON-CANONICAL selector that resolves to no repository is rejected with `400`
 rather than quietly matching nothing, whoever sends it
 (`TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector`'s

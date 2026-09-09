@@ -33,9 +33,6 @@ type deadCodeCandidateQuery = codeshaping.DeadCodeCandidateQuery
 // digest-pinned body.
 type deadCodeCandidateContentStore = codeshaping.DeadCodeCandidateContentStore
 
-// deadCodeWeakIncomingResultKey marks a kept candidate whose only incoming
-// edges were weak (repo_unique_name tier). It drives the ambiguous
-// classification instead of silently treating the candidate as reachable.
 func (h *CodeHandler) deadCodeCandidateRows(
 	ctx context.Context,
 	repoID string,

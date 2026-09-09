@@ -51,9 +51,9 @@ The source of truth is split by owner:
 
 | Evidence | Location |
 | --- | --- |
-| Language maturity map | `go/internal/query/code_dead_code_language_maturity.go` |
-| Response contract | `go/internal/query/code_dead_code_analysis.go` |
-| Candidate scan and incoming-edge policy | `go/internal/query/code_dead_code.go`, `go/internal/query/code_dead_code_scan.go` |
+| Language maturity map | `go/internal/query/codemodel/code_dead_code_language_maturity.go` |
+| Response contract | `go/internal/query/codemodel/code_dead_code_analysis.go` |
+| Candidate scan and incoming-edge policy | `go/internal/query/codequery/deadcode/results.go`, `go/internal/query/codequery/deadcode/candidates.go` |
 | Fixture contract | `tests/fixtures/deadcode/README.md` |
 | Parser support summary | [Parser Support Matrix](../languages/support-maturity.md) |
 
