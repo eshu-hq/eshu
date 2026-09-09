@@ -62,7 +62,7 @@ run_ifa_fault_injection_deployable_unit_lock_cases() {
 	' "${deployable_unit_cells_lib}")"
 	while read -r du_baseline_fn_ln du_baseline_fn_name; do
 		du_baseline_fn_at_line["${du_baseline_fn_ln}"]="${du_baseline_fn_name}"
-	done <<<"${du_baseline_fn_at_line_raw}"
+	done < <(printf '%s\n' "${du_baseline_fn_at_line_raw}")  # no <<<: deadlocks on bash >= 5.3
 	local du_precondition_line du_maintenance_drain_line
 	du_precondition_line="$(rg -n --fixed-strings -- 'ifa_deployable_unit_require_admission_decisions_written \' "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"
 	du_maintenance_drain_line="$(rg -n --fixed-strings -- 'ifa_deployable_unit_live_run_maintenance_pass "baseline_deployable_unit"' "${deployable_unit_cells_lib}" | cut -d: -f1 || true)"

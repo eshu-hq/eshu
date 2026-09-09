@@ -339,7 +339,7 @@ run_ifa_fault_injection_repo_dependency_cases() {
 		! ifa_repo_dependency_failgraphwrite_has_required_order "${omitted_graph_body}" || return 1
 		misordered_graph_body="${lifecycle_line}"$'\n'"${omitted_graph_body}"
 		! ifa_repo_dependency_failgraphwrite_has_required_order "${misordered_graph_body}" || return 1
-	done <<<"${graph_lifecycle_lines}"
+	done < <(printf '%s\n' "${graph_lifecycle_lines}")  # no <<<: deadlocks on bash >= 5.3
 	rg --fixed-strings --line-regexp --quiet -- $'\tifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}"' "${cells}" || return 1
 	rg --fixed-strings --line-regexp --quiet -- $'\tifa_repo_dependency_fault_assert_terminal "${cell}" "reducer-${cell}-after"' "${cells}" || return 1
 	ifa_repo_dependency_graph_terminal_owner_is_exact "${graph_body}" || return 1

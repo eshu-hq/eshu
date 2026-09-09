@@ -386,7 +386,7 @@ $(comm -13 <(printf '%s\n' "${dispatched_cells}") <(printf '%s\n' "${listed_cell
 		local line
 		while IFS= read -r line; do
 			[[ -n "${line}" ]] && concatenated_actual+=("${line}")
-		done <<<"${shard_out}"
+		done < <(printf '%s\n' "${shard_out}")  # no <<<: deadlocks on bash >= 5.3
 	done
 
 	local -a expected_multiset=("${ifa_full_cell_list_literal[@]}")
@@ -464,7 +464,7 @@ run_ifa_fault_injection_atomic_group_ordering_cases() {
 	local -a IFA_FAULT_ATOMIC_GROUPS=()
 	while IFS= read -r group; do
 		[[ -n "${group}" ]] && IFA_FAULT_ATOMIC_GROUPS+=("${group}")
-	done <<<"${groups_raw}"
+	done < <(printf '%s\n' "${groups_raw}")  # no <<<: deadlocks on bash >= 5.3
 
 	# And prove the data actually arrived. A rename or a failed source would
 	# otherwise restore the vacuum this comment exists to describe.

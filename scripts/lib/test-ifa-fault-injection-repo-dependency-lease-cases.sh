@@ -79,7 +79,7 @@ run_ifa_repo_dependency_partition_lease_controls() (
 		fi
 		while IFS='|' read -r domain partition_id partition_count owner; do
 			[[ "${sql}" == *"('${domain}',${partition_id},${partition_count},'${owner}')"* ]] || return 1
-		done <<<"${expected_post}"
+		done < <(printf '%s\n' "${expected_post}")  # no <<<: deadlocks on bash >= 5.3
 		if [[ "${mode}" == "partial" ]]; then
 			printf '3\n%s\n%s\n%s' "${first}" "${second}" "${third}"
 		else
