@@ -822,7 +822,7 @@ catalog; per-route variants share the same `route` label dimension.
 | Repository freshness verdict (#5143) | go/internal/storage/postgres/repository_freshness.go | `eshu_dp_repository_freshness_query_duration_seconds`, `eshu_dp_repository_freshness_query_errors_total`, `eshu_dp_api_request_duration_seconds` | query status |
 | Documentation findings/facts | go/internal/query/documentation_*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query docs |
 | Evidence citations | go/internal/query/evidence_citation.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query evidence |
-| Status and admin | go/internal/query/admin/handler.go:184 | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query admin |
+| Status and admin | go/internal/query/admin/handler.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query admin |
 | Auth (sessions, OIDC, SAML) | go/internal/query/browser_session*.go | `eshu_dp_api_request_duration_seconds`, `eshu_dp_api_request_errors_total` | query auth |
 | OIDC login rate-limit | go/internal/query/oidc_rate_limiter.go | `eshu_dp_oidc_login_throttled_total` | query auth |
 | IdP bearer-token resolver (#5162) | go/internal/oidcbearer/resolver.go | `eshu_dp_oidc_bearer_validation_total` | query auth |
