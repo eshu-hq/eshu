@@ -34,16 +34,13 @@ type activeSecurityAlertReconciliationFactLoader interface {
 	) ([]facts.Envelope, error)
 }
 
-// activeRepositoryFactLoader is declared locally rather than imported from the
-// reducer root: the root's own activeRepositoryFactLoader
-// (package_source_correlation_handler.go) is genuine root-owned logic shared
-// by several families that have not moved out of root yet (package source
-// correlation, supply chain impact), so importing it would violate the rule
-// that a family subpackage never imports the reducer root (issue #6061). See
+// activeRepositoryFactLoader is declared locally rather than imported: the
+// concrete loader root wires into every family's handler is the one shared
+// factload.FactLoader, and Go interfaces are satisfied structurally, so it
+// also satisfies this local declaration without any code duplication.
+// Importing a sibling family's copy instead would couple families, and a
+// family subpackage may never import the reducer root (issue #6061). See
 // internal/reducer/codetaint/graph_ports.go for the established precedent.
-// Go interfaces are satisfied structurally, so the same concrete FactLoader
-// implementation root wires into other families' handlers also satisfies this
-// local declaration without any code duplication.
 type activeRepositoryFactLoader interface {
 	ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error)
 }

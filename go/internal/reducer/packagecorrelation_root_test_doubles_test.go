@@ -11,15 +11,16 @@ import (
 )
 
 // The builders below are the staying-root twins of the same-named fixtures
-// in packagecorrelation's package_source_correlation_test.go and
-// package_publication_correlation_test.go, kept for the supply-chain,
+// in packagecorrelation's source_test.go (hint, repository, package, and
+// manifest builders plus boolPtr) and publication_test.go
+// (packageRegistryPackageVersionFact), kept for the supply-chain,
 // security-alert, code-import, and admission tests that stayed in the reducer
 // root when package correlation moved (#6061). Go test files cannot share
 // unexported symbols across a package boundary, so each side keeps its own
 // copy; the bodies are byte-identical by construction and must stay that way.
 
 // boolPtr is the staying-root twin of the same-named helper in
-// packagecorrelation's package_source_correlation_test.go, kept for the
+// packagecorrelation's source_test.go, kept for the
 // staying supply-chain tests that build *bool fields without importing the
 // family package.
 

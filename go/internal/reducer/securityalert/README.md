@@ -30,10 +30,10 @@ moved out of the flat `internal/reducer` root under issue #6061 and owns the
 
 **Does not own:** matching a provider alert against repository
 manifest/lockfile dependency evidence. That decode and
-package-identity-normalization logic belongs to the still-in-root
-package-consumption-correlation family, and a family subpackage may never
-import the reducer root — see "The manifest-consumption seam" under
-Gotchas / invariants below.
+package-identity-normalization logic belongs to the packagecorrelation
+family, and a family subpackage may never import the reducer root (nor does
+this package import a sibling family directly) — see "The
+manifest-consumption seam" under Gotchas / invariants below.
 
 ## Exported surface
 
@@ -103,12 +103,16 @@ This package registers no instrument of its own.
 ### The manifest-consumption seam
 
 Matching a provider alert against repository manifest/lockfile dependency
-evidence depends on `extractPackageManifestDependencies` and
-`packageConsumptionKeys` -- package-identity decode and normalization logic
-owned by the reducer root's still-in-root package-consumption-correlation
-family. A family subpackage may never import the reducer root, so that one
-piece of behavior stayed in the reducer root
-(`security_alert_manifest_dependency_match.go`) instead of moving here.
+evidence depends on `ExtractPackageManifestDependencies` and
+`PackageConsumptionKeys` -- package-identity decode and normalization logic
+owned by the packagecorrelation family
+(`packagecorrelation/security_alert_manifest_dependency_match.go`, moved out
+of the reducer root with the family in #6061 and exported). A family
+subpackage may never import the reducer root, and this package never imports
+a sibling family directly, so the bridge stays behind the injected
+`ManifestConsumptionExtractor` seam: the reducer root wires
+`packagecorrelation.ExtractSecurityAlertManifestConsumptions` at the one
+construction site instead of this package calling the family.
 
 This package exposes `ManifestConsumptionExtractor`, a
 `func(alerts []ProviderSecurityAlert, envelopes []facts.Envelope) []SecurityAlertConsumption`
@@ -226,12 +230,13 @@ body
 (root's one-line `normalizedSupplyChainVersionEcosystem` inlined). The one real signature change is
 `BuildSecurityAlertReconciliations`/`WithQuarantine` and
 `SecurityAlertReconciliationHandler` gaining the injected
-`ManifestConsumptionExtractor` (see above) in place of a direct call to the
-root's `extractSecurityAlertManifestConsumptions`/
-`securityAlertManifestConsumptionMatches`, which stayed in root with their
-logic unchanged and only their alert/consumption types requalified to this
-package's exported ones — the reducer root wires that same function as the
-extractor at the handler's one construction site, so the composed behavior for every
+`ManifestConsumptionExtractor` (see above) in place of a direct call to
+`packagecorrelation.ExtractSecurityAlertManifestConsumptions`/
+`securityAlertManifestConsumptionMatches`, which moved to the packagecorrelation
+family with their logic unchanged and only their alert/consumption types
+requalified to this package's exported ones — the reducer root wires that
+same function as the extractor at the handler's one construction site, so the
+composed behavior for every
 caller (the reducer handler, `supply_chain_impact`'s finding seeding, and
 every existing test) is unchanged; only the seam between "decide" and
 "look up manifest evidence" became an explicit parameter instead of an

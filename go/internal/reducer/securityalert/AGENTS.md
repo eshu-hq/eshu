@@ -22,21 +22,23 @@ a signal about where the symbol belongs, not a reason to reach upward — see
 tree. The one addition specific to this package:
 
 - **manifest-dependency matching is a genuine injected seam, not a
-  forwarder.** `extractSecurityAlertManifestConsumptions` needs
-  `extractPackageManifestDependencies`/`packageConsumptionKeys` — real decode
-  and package-identity-normalization logic owned by the still-in-root
-  package-consumption-correlation family, not a thin wrapper. It could not
-  move here without either duplicating that decode subsystem (rejected: it is
-  not a thin helper, and duplicating it risks security_alert's matching
-  silently drifting from supply_chain_impact's identical matching) or taking
-  over an unrelated, unscoped family. `ManifestConsumptionExtractor`
+  forwarder.** `ExtractSecurityAlertManifestConsumptions` needs
+  `ExtractPackageManifestDependencies`/`PackageConsumptionKeys` — real decode
+  and package-identity-normalization logic owned by the packagecorrelation
+  family, not a thin wrapper. It could not move here without either
+  duplicating that decode subsystem (rejected: it is not a thin helper, and
+  duplicating it risks security_alert's matching silently drifting from
+  supply_chain_impact's identical matching) or taking over an unrelated,
+  unscoped family. `ManifestConsumptionExtractor`
   (`security_alert_reconciliation.go`) is the resulting seam: this package
-  defines the function type and calls it if non-nil; the reducer root keeps
-  the real implementation and wires it at the handler's one construction
-  site, `defaults_additive_domains_supply_chain.go`. Do not
-  "simplify" this by trying to inline the manifest logic here — read
-  `security_alert_manifest_dependency_match.go`'s file-level comment in root
-  first if you think you've found a way.
+  defines the function type and calls it if non-nil, and never imports the
+  packagecorrelation family directly; the reducer root wires
+  `packagecorrelation.ExtractSecurityAlertManifestConsumptions` at the
+  handler's one construction site, `defaults_additive_domains_supply_chain.go`.
+  Do not "simplify" this by trying to inline the manifest logic here, by
+  importing packagecorrelation, or by duplicating the matcher — read
+  `packagecorrelation/security_alert_manifest_dependency_match.go`'s
+  file-level comment first if you think you've found a way.
 
 ## `_test.go` exports do not cross package boundaries
 
@@ -49,8 +51,9 @@ of that boundary, not because anyone chose to duplicate them for style:
   `security_alert_scoped_npm_test.go` (root) exercise real manifest-dependency
   matching end to end, which this package cannot do on its own (see above) —
   they call `securityalert.BuildSecurityAlertReconciliations`/
-  `WithQuarantine`/`SecurityAlertReconciliationHandler` with the root's own
-  `extractSecurityAlertManifestConsumptions` wired in, and keep their own
+  `WithQuarantine`/`SecurityAlertReconciliationHandler` with
+  `packagecorrelation.ExtractSecurityAlertManifestConsumptions` wired in,
+  and keep their own
   copies of `recordingSecurityAlertReconciliationFactLoader`/`Writer`.
   `securityAlertDecisionsByFactID` is root's alone -- it never moved and this
   package has no copy.
