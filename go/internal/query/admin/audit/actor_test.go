@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package admin
+package audit
 
 import (
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
-	"github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
@@ -18,8 +17,8 @@ import (
 // browser_session on a route denial.
 //
 // Moved from the query root's audit actor-class proof (#6060, lane B S1)
-// with only the package repoints (audit.RecoveryActor,
-// audit.SharedActorIDHash, queryauth); the cases and assertions are unchanged.
+// into this package beside the actor mapping it pins; the cases and
+// assertions are unchanged.
 func TestRecoveryActorMapsEveryAuthMode(t *testing.T) {
 	t.Parallel()
 
@@ -62,7 +61,7 @@ func TestRecoveryActorMapsEveryAuthMode(t *testing.T) {
 			name:      "shared Bearer [REDACTED] no subject hash keeps the synthetic identity",
 			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeShared},
 			wantClass: governanceaudit.ActorClassSharedToken,
-			wantHash:  audit.SharedActorIDHash,
+			wantHash:  SharedActorIDHash,
 		},
 		{
 			name:      "no auth context is anonymous",
@@ -73,7 +72,7 @@ func TestRecoveryActorMapsEveryAuthMode(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			gotClass, gotHash := audit.RecoveryActor(tc.auth)
+			gotClass, gotHash := RecoveryActor(tc.auth)
 			if gotClass != tc.wantClass {
 				t.Errorf("RecoveryActor class = %q, want %q", gotClass, tc.wantClass)
 			}
