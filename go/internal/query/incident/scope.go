@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package incident
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // Scoped-token authorization for the single-incident context read. A scoped
 // token may read an incident's context only when the incident correlates to a
@@ -31,7 +36,7 @@ func (h *IncidentHandler) authorizeScopedIncidentContext(
 	providerIncidentID string,
 	scopeID string,
 ) bool {
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if !access.Scoped() {
 		return true
 	}
@@ -52,7 +57,7 @@ func (h *IncidentHandler) authorizeScopedIncidentContext(
 		scopeID,
 	)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, "incident context authorization failed")
+		querycontract.WriteError(w, http.StatusInternalServerError, "incident context authorization failed")
 		return false
 	}
 	for _, repositoryID := range repositories {
@@ -77,8 +82,8 @@ func (h *IncidentHandler) writeScopedIncidentContextNotFound(
 		w,
 		r,
 		http.StatusNotFound,
-		ErrorCodeNotFound,
-		ErrIncidentContextNotFound.Error(),
+		querycontract.ErrorCodeNotFound,
+		model.ErrIncidentContextNotFound.Error(),
 		nil,
 	)
 }

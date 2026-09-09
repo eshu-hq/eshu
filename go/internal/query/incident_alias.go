@@ -6,6 +6,7 @@ package query //nolint:dirgate // S2 root alias shim for #6060: type aliases and
 import (
 	"database/sql"
 
+	"github.com/eshu-hq/eshu/go/internal/query/incident"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
@@ -23,20 +24,6 @@ import (
 // One home per symbol: nothing here implements behavior, it only aliases or
 // forwards to the canonical home. New code must import the incident leaves
 // directly.
-
-// incidentContextCapability is the query capability gating incident-context
-// reads. Its home is incident/model/; this alias keeps the staying contract
-// matrix, handler, store, and tests spelling the package-local name
-// unchanged. See #6060.
-const incidentContextCapability = model.Capability
-
-// incidentContextDefaultLimit bounds an incident-context read when the caller
-// passes no limit. Its home is incident/model/; see incidentContextCapability.
-const incidentContextDefaultLimit = model.DefaultLimit
-
-// incidentContextMaxLimit is the largest incident-context limit a caller may
-// request. Its home is incident/model/; see incidentContextCapability.
-const incidentContextMaxLimit = model.MaxLimit
 
 // IncidentContextStore reads bounded incident context evidence. Its home is
 // incident/model/; this alias keeps staying callers spelling
@@ -159,13 +146,10 @@ var ErrIncidentContextNotFound = model.ErrIncidentContextNotFound
 // query.IncidentContextAmbiguousError unchanged. See #6060.
 type IncidentContextAmbiguousError = model.IncidentContextAmbiguousError
 
-// normalizeIncidentContextFilter trims and defaults one incident-context
-// filter. Its home is incident/model/ (NormalizeFilter); this wrapper keeps
-// the staying handler spelling the package-local name until that file moves
-// to incident/ in the same lane. See #6060.
-func normalizeIncidentContextFilter(filter IncidentContextFilter) IncidentContextFilter {
-	return model.NormalizeFilter(filter)
-}
+// IncidentHandler exposes incident-context read-model routes. Its home is
+// incident/; this alias keeps the cmd/api and cmd/mcp-server wiring
+// spelling query.IncidentHandler unchanged. See #6060.
+type IncidentHandler = incident.IncidentHandler
 
 // PostgresIncidentContextStore reads active PagerDuty incident source facts.
 // Its home is incident/store/; this alias keeps the cmd/api and

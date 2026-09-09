@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package incident
 
 import (
 	"context"
@@ -11,6 +11,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // failingIncidentContextStore fails if its read is reached, proving a scoped
@@ -21,10 +25,10 @@ type failingIncidentContextStore struct {
 
 func (s *failingIncidentContextStore) ReadIncidentContext(
 	context.Context,
-	IncidentContextFilter,
-) (IncidentContextSnapshot, error) {
+	model.IncidentContextFilter,
+) (model.IncidentContextSnapshot, error) {
 	s.called = true
-	return IncidentContextSnapshot{}, errors.New("incident context read reached under fail-closed scoped token")
+	return model.IncidentContextSnapshot{}, errors.New("incident context read reached under fail-closed scoped token")
 }
 
 // recordingIncidentRepositoryAuthorizer returns a fixed durable repository set
@@ -56,14 +60,14 @@ func TestIncidentContextScopedEmptyGrantReturnsNotFoundWithoutReads(t *testing.T
 
 	store := &failingIncidentContextStore{}
 	authorizer := &recordingIncidentRepositoryAuthorizer{repositories: []string{"repo-team-a"}}
-	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: ProfileProduction}
+	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=10", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:        AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:        queryauth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))
@@ -87,14 +91,14 @@ func TestIncidentContextScopedOutOfGrantReturnsNotFoundWithoutStoreRead(t *testi
 
 	store := &failingIncidentContextStore{}
 	authorizer := &recordingIncidentRepositoryAuthorizer{repositories: []string{"repo-owner-x"}}
-	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: ProfileProduction}
+	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?provider=pagerduty&scope_id=pd-prod&limit=10", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -130,14 +134,14 @@ func TestIncidentContextScopedNoDurableEdgeReturnsNotFound(t *testing.T) {
 
 	store := &failingIncidentContextStore{}
 	authorizer := &recordingIncidentRepositoryAuthorizer{repositories: nil}
-	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: ProfileProduction}
+	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=10", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -161,31 +165,31 @@ func TestIncidentContextScopedInGrantServesContext(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingIncidentContextStore{
-		snapshot: IncidentContextSnapshot{
-			Query: IncidentContextQuery{
+		snapshot: model.IncidentContextSnapshot{
+			Query: model.IncidentContextQuery{
 				Provider:           "pagerduty",
 				ProviderIncidentID: "PABC123",
 				ServiceID:          "P-SVC",
 				Limit:              6,
 			},
-			Incident: IncidentContextIncident{
+			Incident: model.IncidentContextIncident{
 				Provider:           "pagerduty",
 				ProviderIncidentID: "PABC123",
 				Title:              "checkout-api elevated errors",
-				Service:            IncidentContextReference{ID: "P-SVC", Summary: "checkout-api"},
+				Service:            model.IncidentContextReference{ID: "P-SVC", Summary: "checkout-api"},
 				EvidenceFactID:     "incident-fact",
 			},
 		},
 	}
 	authorizer := &recordingIncidentRepositoryAuthorizer{repositories: []string{"repo-team-a"}}
-	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: ProfileProduction}
+	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=5", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-team-a"},
@@ -208,19 +212,19 @@ func TestIncidentContextSharedTokenSkipsAuthorizer(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingIncidentContextStore{
-		snapshot: IncidentContextSnapshot{
-			Query:    IncidentContextQuery{Provider: "pagerduty", ProviderIncidentID: "PABC123", Limit: 6},
-			Incident: IncidentContextIncident{Provider: "pagerduty", ProviderIncidentID: "PABC123", EvidenceFactID: "incident-fact"},
+		snapshot: model.IncidentContextSnapshot{
+			Query:    model.IncidentContextQuery{Provider: "pagerduty", ProviderIncidentID: "PABC123", Limit: 6},
+			Incident: model.IncidentContextIncident{Provider: "pagerduty", ProviderIncidentID: "PABC123", EvidenceFactID: "incident-fact"},
 		},
 	}
 	authorizer := &recordingIncidentRepositoryAuthorizer{err: errors.New("authorizer must not run for shared tokens")}
-	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: ProfileProduction}
+	handler := &IncidentHandler{Context: store, Authorizer: authorizer, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=5", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), sharedAuthContext()))
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeShared, SubjectClass: "shared_token", AllScopes: true}))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -235,14 +239,14 @@ func TestIncidentContextSharedTokenSkipsAuthorizer(t *testing.T) {
 func assertNoIncidentIdentifierLeak(t *testing.T, body []byte) {
 	t.Helper()
 
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatalf("decode not-found envelope: %v; body = %s", err, string(body))
 	}
 	if envelope.Error == nil {
 		t.Fatalf("not-found envelope missing error: %s", string(body))
 	}
-	if got, want := envelope.Error.Code, ErrorCodeNotFound; got != want {
+	if got, want := envelope.Error.Code, querycontract.ErrorCodeNotFound; got != want {
 		t.Fatalf("error code = %q, want %q", got, want)
 	}
 	if envelope.Error.Details != nil {

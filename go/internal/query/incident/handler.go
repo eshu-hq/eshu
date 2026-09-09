@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package incident
 
 import (
 	"errors"
@@ -10,17 +10,20 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/queryspan"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // IncidentHandler exposes incident-context read-model routes.
 type IncidentHandler struct {
-	Context IncidentContextStore
+	Context model.IncidentContextStore
 	// Authorizer resolves the durable incident→repository correlation edge that
 	// bounds scoped-token reads. It is required in production so scoped tokens
 	// fail closed; shared, admin, and local callers never consult it.
-	Authorizer IncidentRepositoryAuthorizer
-	Profile    QueryProfile
+	Authorizer model.IncidentRepositoryAuthorizer
+	Profile    querycontract.QueryProfile
 }
 
 // Mount registers incident-context query routes.
@@ -28,70 +31,77 @@ func (h *IncidentHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/incidents/{incident_id}/context", h.getIncidentContext)
 }
 
-func (h *IncidentHandler) profile() QueryProfile {
+func (h *IncidentHandler) profile() querycontract.QueryProfile {
 	if h == nil || h.Profile == "" {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
 	return h.Profile
 }
 
+// incidentHandlerTracer is this package's tracer AND the seam its span
+// tests swap. Seeding it from queryspan.HandlerTracer keeps the swap
+// private to this package rather than mutating what every other importer
+// reads.
+var incidentHandlerTracer = queryspan.HandlerTracer()
+
 func (h *IncidentHandler) getIncidentContext(w http.ResponseWriter, r *http.Request) {
-	r, span := startQueryHandlerSpan(
+	r, span := queryspan.StartHandlerSpanWith(
+		incidentHandlerTracer,
 		r,
 		telemetry.SpanQueryIncidentContext,
 		"GET /api/v0/incidents/{incident_id}/context",
-		incidentContextCapability,
+		model.Capability,
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), incidentContextCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), model.Capability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"incident context requires the Postgres incident source fact read model",
-			ErrorCodeUnsupportedCapability,
-			incidentContextCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			model.Capability,
 			h.profile(),
-			requiredProfile(incidentContextCapability),
+			querycontract.RequiredProfile(model.Capability),
 		)
 		return
 	}
 
-	incidentID := PathParam(r, "incident_id")
+	incidentID := querycontract.PathParam(r, "incident_id")
 	if incidentID == "" {
-		WriteError(w, http.StatusBadRequest, "incident_id is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "incident_id is required")
 		return
 	}
 	limit, ok := incidentContextLimit(w, r)
 	if !ok {
 		return
 	}
-	if !validateIncidentContextTime(w, QueryParam(r, "since"), "since") ||
-		!validateIncidentContextTime(w, QueryParam(r, "until"), "until") {
+	if !validateIncidentContextTime(w, querycontract.QueryParam(r, "since"), "since") ||
+		!validateIncidentContextTime(w, querycontract.QueryParam(r, "until"), "until") {
 		return
 	}
 	if h.Context == nil {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			"incident context requires the Postgres incident source fact read model",
-			ErrorCodeBackendUnavailable,
-			incidentContextCapability,
+			querycontract.ErrorCodeBackendUnavailable,
+			model.Capability,
 			h.profile(),
-			requiredProfile(incidentContextCapability),
+			querycontract.RequiredProfile(model.Capability),
 		)
 		return
 	}
 
-	filter := normalizeIncidentContextFilter(IncidentContextFilter{
-		Provider:           QueryParam(r, "provider"),
+	filter := model.NormalizeFilter(model.IncidentContextFilter{
+		Provider:           querycontract.QueryParam(r, "provider"),
 		ProviderIncidentID: incidentID,
-		ScopeID:            QueryParam(r, "scope_id"),
-		ServiceID:          QueryParam(r, "service_id"),
-		Since:              QueryParam(r, "since"),
-		Until:              QueryParam(r, "until"),
+		ScopeID:            querycontract.QueryParam(r, "scope_id"),
+		ServiceID:          querycontract.QueryParam(r, "service_id"),
+		Since:              querycontract.QueryParam(r, "since"),
+		Until:              querycontract.QueryParam(r, "until"),
 		Limit:              limit + 1,
 	})
 	if !h.authorizeScopedIncidentContext(w, r, filter.Provider, filter.ProviderIncidentID, filter.ScopeID) {
@@ -104,14 +114,14 @@ func (h *IncidentHandler) getIncidentContext(w http.ResponseWriter, r *http.Requ
 	}
 	snapshot = trimIncidentContextSnapshot(snapshot, limit)
 	snapshot.Query.Limit = limit
-	response := BuildIncidentContextResponse(snapshot)
-	truth := BuildTruthEnvelope(
+	response := model.BuildIncidentContextResponse(snapshot)
+	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
-		incidentContextCapability,
-		TruthBasisSemanticFacts,
+		model.Capability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from active incident source facts and explicit missing evidence slots; provider APIs are not called from the query path",
 	)
-	WriteSuccess(w, r, http.StatusOK, incidentContextAnswerData(incidentID, response, truth), truth)
+	querycontract.WriteSuccess(w, r, http.StatusOK, incidentContextAnswerData(incidentID, response, truth), truth)
 }
 
 func (h *IncidentHandler) writeIncidentContextError(
@@ -119,28 +129,28 @@ func (h *IncidentHandler) writeIncidentContextError(
 	r *http.Request,
 	err error,
 ) {
-	var ambiguous IncidentContextAmbiguousError
+	var ambiguous model.IncidentContextAmbiguousError
 	switch {
 	case errors.As(err, &ambiguous):
 		writeIncidentContextEnvelopeError(
 			w,
 			r,
 			http.StatusConflict,
-			ErrorCodeAmbiguous,
+			querycontract.ErrorCodeAmbiguous,
 			ambiguous.Error(),
 			map[string]any{"candidates": ambiguous.Candidates},
 		)
-	case errors.Is(err, ErrIncidentContextNotFound):
+	case errors.Is(err, model.ErrIncidentContextNotFound):
 		writeIncidentContextEnvelopeError(
 			w,
 			r,
 			http.StatusNotFound,
-			ErrorCodeNotFound,
+			querycontract.ErrorCodeNotFound,
 			err.Error(),
 			nil,
 		)
 	default:
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 	}
 }
 
@@ -148,34 +158,34 @@ func writeIncidentContextEnvelopeError(
 	w http.ResponseWriter,
 	r *http.Request,
 	status int,
-	code ErrorCode,
+	code querycontract.ErrorCode,
 	message string,
 	details map[string]any,
 ) {
-	if acceptsEnvelope(r) {
-		WriteJSON(w, status, ResponseEnvelope{
+	if querycontract.AcceptsEnvelope(r) {
+		querycontract.WriteJSON(w, status, querycontract.ResponseEnvelope{
 			Data:  nil,
 			Truth: nil,
-			Error: &ErrorEnvelope{
+			Error: &querycontract.ErrorEnvelope{
 				Code:       code,
 				Message:    message,
-				Capability: incidentContextCapability,
+				Capability: model.Capability,
 				Details:    details,
 			},
 		})
 		return
 	}
-	WriteError(w, status, message)
+	querycontract.WriteError(w, status, message)
 }
 
 func incidentContextLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
-	raw := QueryParam(r, "limit")
+	raw := querycontract.QueryParam(r, "limit")
 	if raw == "" {
-		return incidentContextDefaultLimit, true
+		return model.DefaultLimit, true
 	}
 	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > incidentContextMaxLimit {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", incidentContextMaxLimit))
+	if err != nil || limit <= 0 || limit > model.MaxLimit {
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", model.MaxLimit))
 		return 0, false
 	}
 	return limit, true
@@ -186,7 +196,7 @@ func validateIncidentContextTime(w http.ResponseWriter, value string, field stri
 		return true
 	}
 	if _, err := time.Parse(time.RFC3339, value); err != nil {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("%s must be RFC3339", field))
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("%s must be RFC3339", field))
 		return false
 	}
 	return true
@@ -203,9 +213,9 @@ func validateIncidentContextTime(w http.ResponseWriter, value string, field stri
 // so the response can never exceed the requested limit if the store contract
 // ever changes.
 func trimIncidentContextSnapshot(
-	snapshot IncidentContextSnapshot,
+	snapshot model.IncidentContextSnapshot,
 	limit int,
-) IncidentContextSnapshot {
+) model.IncidentContextSnapshot {
 	if len(snapshot.Timeline) > limit {
 		snapshot.Timeline = snapshot.Timeline[:limit]
 	}

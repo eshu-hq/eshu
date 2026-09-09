@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package incident
 
 import (
 	"context"
@@ -13,21 +13,23 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type recordingIncidentContextStore struct {
-	snapshot   IncidentContextSnapshot
+	snapshot   model.IncidentContextSnapshot
 	err        error
-	lastFilter IncidentContextFilter
+	lastFilter model.IncidentContextFilter
 }
 
 func (s *recordingIncidentContextStore) ReadIncidentContext(
 	_ context.Context,
-	filter IncidentContextFilter,
-) (IncidentContextSnapshot, error) {
+	filter model.IncidentContextFilter,
+) (model.IncidentContextSnapshot, error) {
 	s.lastFilter = filter
 	return s.snapshot, s.err
 }
@@ -46,19 +48,19 @@ func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingIncidentContextStore{
-		snapshot: IncidentContextSnapshot{
-			Query: IncidentContextQuery{
+		snapshot: model.IncidentContextSnapshot{
+			Query: model.IncidentContextQuery{
 				Provider:           "pagerduty",
 				ProviderIncidentID: "PABC123",
 				ScopeID:            "pagerduty-prod",
 				ServiceID:          "P-SVC",
 				Limit:              6,
 			},
-			Incident: IncidentContextIncident{
+			Incident: model.IncidentContextIncident{
 				Provider:           "pagerduty",
 				ProviderIncidentID: "PABC123",
 				Title:              "Checkout elevated error rate",
-				Service: IncidentContextReference{
+				Service: model.IncidentContextReference{
 					ID:      "P-SVC",
 					Summary: "checkout-api",
 				},
@@ -66,7 +68,7 @@ func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
 			},
 		},
 	}
-	handler := &IncidentHandler{Context: store, Profile: ProfileProduction}
+	handler := &IncidentHandler{Context: store, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -75,7 +77,7 @@ func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
 		"/api/v0/incidents/PABC123/context?provider=pagerduty&scope_id=pagerduty-prod&service_id=P-SVC&limit=5",
 		nil,
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if got, want := w.Code, http.StatusOK; got != want {
@@ -97,18 +99,18 @@ func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
 		t.Fatalf("limit = %d, want limit+1 %d", got, want)
 	}
 
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal envelope: %v", err)
 	}
-	if envelope.Truth == nil || envelope.Truth.Capability != incidentContextCapability {
+	if envelope.Truth == nil || envelope.Truth.Capability != model.Capability {
 		t.Fatalf("truth = %#v, want incident context capability", envelope.Truth)
 	}
 	dataBytes, err := json.Marshal(envelope.Data)
 	if err != nil {
 		t.Fatalf("json.Marshal data: %v", err)
 	}
-	var body IncidentContextResponse
+	var body model.IncidentContextResponse
 	if err := json.Unmarshal(dataBytes, &body); err != nil {
 		t.Fatalf("json.Unmarshal data: %v", err)
 	}
@@ -116,11 +118,11 @@ func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
 	if !ok {
 		t.Fatalf("envelope data type = %T, want map", envelope.Data)
 	}
-	packet := requireAnswerPacketCompanion(t, data, "incident.context")
+	packet := querytestutil.RequireAnswerPacketCompanion(t, data, "incident.context")
 	if got, want := packet["primary_tool"], "get_incident_context"; got != want {
 		t.Fatalf("answer_packet.primary_tool = %#v, want %#v", got, want)
 	}
-	querytestutil.AssertIncidentEdge(t, body.EvidencePath, IncidentSlotWorkItem, IncidentTruthMissing)
+	querytestutil.AssertIncidentEdge(t, body.EvidencePath, model.IncidentSlotWorkItem, model.IncidentTruthMissing)
 }
 
 func TestIncidentContextHandlerRequiresIncidentIDAndLimit(t *testing.T) {
@@ -153,9 +155,9 @@ func TestIncidentContextHandlerReturnsAmbiguousCandidates(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingIncidentContextStore{
-		err: IncidentContextAmbiguousError{
+		err: model.IncidentContextAmbiguousError{
 			ProviderIncidentID: "PABC123",
-			Candidates: []IncidentContextIncidentCandidate{
+			Candidates: []model.IncidentContextIncidentCandidate{
 				{Provider: "pagerduty", ProviderIncidentID: "PABC123", ScopeID: "pd-prod"},
 				{Provider: "pagerduty", ProviderIncidentID: "PABC123", ScopeID: "pd-stage"},
 			},
@@ -166,7 +168,7 @@ func TestIncidentContextHandlerReturnsAmbiguousCandidates(t *testing.T) {
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=5", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if got, want := w.Code, http.StatusConflict; got != want {
@@ -184,7 +186,7 @@ func TestPostgresIncidentContextStoreRejectsUnboundedFilter(t *testing.T) {
 	t.Parallel()
 
 	store := store.NewStore(unusedIncidentContextQueryer{})
-	_, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{Limit: 5})
+	_, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{Limit: 5})
 	if err == nil {
 		t.Fatal("ReadIncidentContext() error = nil, want required incident id error")
 	}

@@ -110,3 +110,28 @@ func DecodeResponseBody(t *testing.T, rec *httptest.ResponseRecorder) map[string
 	}
 	return resp
 }
+
+// RequireAnswerPacketCompanion asserts the normalized answer-packet
+// companion on a decoded response body and returns it for further checks.
+// It moved here from the query root's answer-packet route test with lane B
+// S2 of #6060 because the incident handler test moved to incident/ with its
+// subject while the code-topic and answer-packet tests stay at the root,
+// and test files cannot share helpers across packages.
+func RequireAnswerPacketCompanion(t *testing.T, data map[string]any, promptFamily string) map[string]any {
+	t.Helper()
+
+	packet, ok := data["answer_packet"].(map[string]any)
+	if !ok {
+		t.Fatalf("answer_packet = %#v, want object", data["answer_packet"])
+	}
+	if got, want := packet["prompt_family"], promptFamily; got != want {
+		t.Fatalf("answer_packet.prompt_family = %#v, want %#v", got, want)
+	}
+	if got, want := packet["supported"], true; got != want {
+		t.Fatalf("answer_packet.supported = %#v, want %#v", got, want)
+	}
+	if packet["truth_class"] == "" {
+		t.Fatalf("answer_packet.truth_class = %#v, want non-empty", packet["truth_class"])
+	}
+	return packet
+}

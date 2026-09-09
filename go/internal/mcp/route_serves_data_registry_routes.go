@@ -232,13 +232,13 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// incident_routing_materialization. The runtime-enrichment branch also
 	// reads kubernetes and CI/CD correlation kinds — disclosed, not served.
 	"GET /api/v0/incidents/{incident_id}/context": {
-		RegistrationFile: "go/internal/query/incident_context_handler.go",
+		RegistrationFile: "go/internal/query/incident/handler.go",
 		HandlerStruct:    "IncidentHandler",
-		StructFile:       "go/internal/query/incident_context_handler.go",
+		StructFile:       "go/internal/query/incident/handler.go",
 		Method:           "getIncidentContext",
-		MethodFile:       "go/internal/query/incident_context_handler.go",
+		MethodFile:       "go/internal/query/incident/handler.go",
 		ScanFiles: []string{
-			"go/internal/query/incident_context_handler.go",
+			"go/internal/query/incident/handler.go",
 			"go/internal/query/incident/store/context.go",
 			"go/internal/query/incident/sql/context.go",
 			"go/internal/query/incident/sql/routing.go",
