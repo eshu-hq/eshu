@@ -216,6 +216,37 @@ func TestRepoDependencyProjectionRunnerRejectsMismatchedSourceRepositoryIdentity
 	}
 }
 
+// TestRepoDependencyProjectionRunnerWaitsForCanonicalCodeQuiescence is the
+// #6184 regression for the repo_dependency lane: its artifact and edge
+// writes MATCH Repository nodes from both the source and target repos, so an
+// intent drained before either side commits is lost silently — the same
+// cross-repository class as CALLS. The lane must report BlockedReadiness
+// (and claim no lease) while any code scope's active generation still lacks
+// its canonical-nodes phase.
+func TestRepoDependencyProjectionRunnerWaitsForCanonicalCodeQuiescence(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeRepoDependencyIntentStore{leaseGranted: true}
+	runner := RepoDependencyProjectionRunner{
+		IntentReader:        reader,
+		LeaseManager:        reader,
+		AcceptanceUnitGate:  reader,
+		CanonicalQuiescence: staticReducerGraphDrain{uncommittedCanonical: true},
+		Config:              RepoDependencyProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	result, err := runner.processOnce(context.Background(), time.Now().UTC())
+	if err != nil {
+		t.Fatalf("processOnce() error = %v, want nil", err)
+	}
+	if result.BlockedReadiness != 1 {
+		t.Fatalf("BlockedReadiness = %d, want 1", result.BlockedReadiness)
+	}
+	if got := reader.claimCount(); got != 0 {
+		t.Fatalf("lease claims = %d, want 0 while canonical code scopes are uncommitted", got)
+	}
+}
+
 func TestRepoDependencyProjectionRunnerLoadAllAcceptanceUnitIntentsRejectsOversizedSlice(t *testing.T) {
 	t.Parallel()
 
