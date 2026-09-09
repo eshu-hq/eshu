@@ -5693,6 +5693,13 @@ const (
 	// BootstrapPhaseRelationshipBackfill is the deferred relationship
 	// evidence backfill phase (BackfillAllRelationshipEvidence).
 	BootstrapPhaseRelationshipBackfill = "relationship_backfill"
+	// BootstrapPhaseRelationshipBackfillPostDrain is the covering deferred
+	// relationship backfill that re-runs after the source-local projector
+	// drains. Projector Ack activates each scope's new generation while the
+	// first backfill's snapshot may already have passed, so without this
+	// pass a generation activated mid-run keeps no backward-evidence phase
+	// for the rest of the run (#6184).
+	BootstrapPhaseRelationshipBackfillPostDrain = "relationship_backfill_post_drain"
 	// BootstrapPhaseIaCReachability is the IaC reachability materialization
 	// phase (MaterializeIaCReachability).
 	BootstrapPhaseIaCReachability = "iac_reachability"

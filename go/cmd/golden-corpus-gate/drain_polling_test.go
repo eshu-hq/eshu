@@ -52,7 +52,7 @@ func TestPollUntilDrainedConvergesAfterRetries(t *testing.T) {
 		{FactWorkItemsResidual: 1, SharedIntentsNonterminal: 1},
 		{}, // drained
 	}}
-	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0)
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0, false)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -70,7 +70,7 @@ func TestPollUntilDrainedWaitsForPopulation(t *testing.T) {
 		{PopulatedDomainsPresent: 0},
 		{PopulatedDomainsPresent: 1}, // reducer emitted; empty + populated — converge
 	}}
-	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, time.Second, time.Millisecond, nil, 0)
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, time.Second, time.Millisecond, nil, 0, false)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -87,7 +87,7 @@ func TestPollUntilDrainedWaitsForCrossScopeCompletionEvents(t *testing.T) {
 		{CrossScopeCompletionEventsNonterminal: 1},
 		{},
 	}}
-	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0)
+	counts, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0, false)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -103,7 +103,7 @@ func TestPollUntilDrainedTimesOutWhenNeverPopulated(t *testing.T) {
 	// Queues are empty but the reducer never emits the required domain, so the
 	// gate must not report drained on an unreduced pipeline.
 	q := &fakeDrainQuerier{seq: []DrainCounts{{PopulatedDomainsPresent: 0}}}
-	_, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, 5*time.Millisecond, time.Millisecond, nil, 0)
+	_, ok, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 1, 5*time.Millisecond, time.Millisecond, nil, 0, false)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -114,7 +114,7 @@ func TestPollUntilDrainedTimesOutWhenNeverPopulated(t *testing.T) {
 
 func TestPollUntilDrainedTimeoutReturnsLastCounts(t *testing.T) {
 	q := &fakeDrainQuerier{seq: []DrainCounts{{FactWorkItemsResidual: 9}}}
-	counts, drained, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, 5*time.Millisecond, time.Millisecond, nil, 0)
+	counts, drained, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, 5*time.Millisecond, time.Millisecond, nil, 0, false)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -128,7 +128,7 @@ func TestPollUntilDrainedTimeoutReturnsLastCounts(t *testing.T) {
 
 func TestPollUntilDrainedPropagatesQueryError(t *testing.T) {
 	q := &fakeDrainQuerier{seq: []DrainCounts{{}}, errOn: 1}
-	if _, _, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0); err == nil {
+	if _, _, err := pollUntilDrained(context.Background(), q, strictDrainAssertions(), 0, time.Second, time.Millisecond, nil, 0, false); err == nil {
 		t.Fatal("expected query error to propagate")
 	}
 }
@@ -149,6 +149,7 @@ func TestPollUntilDrainedEmitsPeriodicProgress(t *testing.T) {
 		context.Background(), q, strictDrainAssertions(), 0,
 		40*time.Millisecond, time.Millisecond, // timeout, poll
 		&out, 5*time.Millisecond, // progress, progressEvery
+		false,
 	)
 	if err != nil {
 		t.Fatalf("err = %v", err)
@@ -178,6 +179,7 @@ func TestPollUntilDrainedProgressDisabledByZeroInterval(t *testing.T) {
 		context.Background(), q, strictDrainAssertions(), 0,
 		20*time.Millisecond, time.Millisecond,
 		&out, 0,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("err = %v", err)

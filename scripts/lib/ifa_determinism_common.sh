@@ -199,3 +199,15 @@ ifa_det_wait_for_backends() {
 	echo "ifa_det_wait_for_backends: Postgres + NornicDB did not become ready within budget" >&2
 	return 1
 }
+
+# ifa_det_run_n_loop_maintenance_pass runs the corpus-wide bootstrap-index
+# maintenance pass for one shared N-loop cell: the symbol-runtime trio's
+# deployment_mapping followup needs backward evidence before its cross-repo
+# resolution activates, and the workload write gates on that activation
+# (#6184), so the strict N-loop drain stalls without it. Same pass the
+# dedicated family cells run; the memo gate keeps repeat passes cheap.
+ifa_det_run_n_loop_maintenance_pass() {
+	local n="$1" bin_dir="$2" log_dir="$3"
+	ifa_repo_dependency_live_run_maintenance_pass "determinism-n${n}" "${bin_dir}" "${log_dir}" \
+		|| die "N=${n}: bootstrap-index maintenance pass failed"
+}
