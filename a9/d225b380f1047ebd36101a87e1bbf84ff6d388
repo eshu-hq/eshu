@@ -1,0 +1,32 @@
+go/internal/storage/cypher/canonical_node_writer.go
+  s_072c5984f68e14::t_b26d60c70903ae 224,226-232,236,260
+  s_072c5984f68e14::t_8d4e9a97a97d86 278
+  s_072c5984f68e14::t_a2a7929c5297fe 9-12,27,49-57,159-160,166-167,188-195,198,254-259,261-277,279-305
+go/cmd/ingester/wiring.go
+  s_072c5984f68e14::t_63f434f0d28f76 471
+go/cmd/bootstrap-index/wiring.go
+  s_072c5984f68e14::t_efc08c43eb36ac 199
+go/cmd/projector/runtime_wiring.go
+  s_072c5984f68e14::t_a77d97b639ebdc 102
+go/internal/storage/cypher/README.md
+  s_072c5984f68e14::t_d6f91640d2477f 81-85,87-92
+go/internal/storage/cypher/canonical_node_writer_telemetry_test.go
+  s_072c5984f68e14::t_622742202b13ca 1-3,5,9-12,14-47,89,96-99,101-103,105-113
+  s_072c5984f68e14::t_1026af94ab99d7 4,6-8,13,48-88,90-95,100,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "a9d225b380f1047ebd36101a87e1bbf84ff6d388",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

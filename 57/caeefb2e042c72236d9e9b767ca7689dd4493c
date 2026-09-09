@@ -1,0 +1,58 @@
+go/cmd/ingester/README.md
+  s_f2f7fbb6f30866::t_6bba73e653e5dd 63-71,167-168
+go/internal/collector/webhook_trigger_selector.go
+  s_f2f7fbb6f30866::t_1b3cd90fe4884f 7,40,88-90
+go/cmd/collector-git/doc.go
+  s_f2f7fbb6f30866::t_525b1909788743 11-14
+go/cmd/ingester/wiring.go
+  s_f2f7fbb6f30866::t_0d870964a98384 147,156
+go/internal/collector/git_selection_git.go
+  s_f2f7fbb6f30866::t_98f3882dfc0326 90-91,93,99,124,278-279,282,289,293-297
+  s_f2f7fbb6f30866::t_bf009635b9c5b9 8,15,19,30,39,41,47,63-64,66-67,70-72,75,82,95-97,100,109-110,123,125-126,131,136,140,154,157,218-219,228
+  s_f2f7fbb6f30866::t_95f58d501e57f7 7,221,226,257-266,276-277,280,283-287
+  s_f2f7fbb6f30866::t_65ba5f2a250585 112,115,119
+go/internal/collector/git_selection_progress.go
+  s_f2f7fbb6f30866::t_5bade826b50f90 38,70-71,73-102,179,186-195,197,206-209
+  s_f2f7fbb6f30866::t_3a535d25425a88 43-44,121-122,130-131,140-141,212-213
+  s_f2f7fbb6f30866::t_1aa2e3248e985d 1-37,39-42,45-69,72,103-116,118-120,123-129,132-139,142-178,180-185,196,198-205,210-211,214-222,229-231,235
+  s_f2f7fbb6f30866::t_7a91840244ecb3 117
+  s_f2f7fbb6f30866::t_fbc529cca22aa7 223-228,232-234
+go/internal/collector/git_selection_progress_test.go
+  s_f2f7fbb6f30866::t_6a225c6dfe0128 55-147,199-247
+  s_f2f7fbb6f30866::t_f0beff58ad399f 1-6,9-51,248-249
+  s_f2f7fbb6f30866::t_1b55301d6a8a2f 7-8,52-54,148-198
+go/internal/collector/git_selection_native.go
+  s_f2f7fbb6f30866::t_4297161724b94f 6,20,62-64
+.gitignore
+  s_f2f7fbb6f30866::t_3834c71e3653cf 99
+go/cmd/ingester/doc.go
+  s_f2f7fbb6f30866::t_83f03a8d541f86 27-32
+go/internal/collector/README.md
+  s_f2f7fbb6f30866::t_1a17e8de195878 213-216,254-265
+go/cmd/collector-git/service_test.go
+  s_f2f7fbb6f30866::t_597fdb8fceb865 178-181
+go/cmd/collector-git/service.go
+  s_f2f7fbb6f30866::t_80967c04e8c6a7 34,43
+go/cmd/ingester/wiring_logger_test.go
+  s_f2f7fbb6f30866::t_f6e68a48810a82 1-35
+go/internal/collector/doc.go
+  s_f2f7fbb6f30866::t_717b3fd6d4af2f 20-24
+go/cmd/collector-git/README.md
+  s_f2f7fbb6f30866::t_1252817fb64545 52-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "57caeefb2e042c72236d9e9b767ca7689dd4493c",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

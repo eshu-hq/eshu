@@ -1,0 +1,79 @@
+go/internal/storage/postgres/schema_fact_records.go
+  s_072c5984f68e14::t_4d1dbd21419404 188-223
+go/internal/projector/service_catalog_correlation_intents.go
+  s_072c5984f68e14::t_7cf2594d220386 1-66
+go/internal/projector/README.md
+  s_072c5984f68e14::t_1cd21cb78ac0ac 166-172
+go/internal/storage/postgres/README.md
+  s_072c5984f68e14::t_1cd21cb78ac0ac 119-124
+go/internal/reducer/service_catalog_correlation_test.go
+  s_072c5984f68e14::t_1762849862ab24 282,303,321,353
+  s_072c5984f68e14::t_97e112e5d45b9d 1-66,68-95,147-155,157-184,188-248,259-274,279-281,283-284,286-295,300-302,304-305,307-313,318-320,322-323,325-326,341-345,350-352,354-355,357-387
+  s_072c5984f68e14::t_e8e789665edd91 96-146,249-258,275-278,285,296-299,306,314-317,324,327-340,346-349,356
+  s_072c5984f68e14::t_cdd30ff418921f 67,156
+  s_072c5984f68e14::t_0066095eff2f5c 185-187
+go/internal/reducer/service_catalog_correlation_index.go
+  s_072c5984f68e14::t_44559c7d8297e1 21-25,27-30,35,54-56,63,67-68,73
+  s_072c5984f68e14::t_db5fec578da890 1-20,26,31-34,36-53,57-62,64-66,69-72,74-98,109-110,122-127,129-134,142-158,162-241,243-288,290-314,316-318,320-325,327-334,336-337,340-341,346-394
+  s_072c5984f68e14::t_737dab32e16bc0 242,289,315,319,326,335,338-339,342-345
+  s_072c5984f68e14::t_19c28b483653ec 102-108,111-121,128,135-141,159-161
+go/cmd/reducer/README.md
+  s_072c5984f68e14::t_1cd21cb78ac0ac 62-65
+go/internal/telemetry/instruments_test.go
+  s_072c5984f68e14::t_07372a8cc050dd 50
+go/internal/projector/service_catalog_correlation_intents_test.go
+  s_072c5984f68e14::t_97e112e5d45b9d 1-23,29-33,39-56,85-86
+  s_072c5984f68e14::t_95994ecbabfd1e 24-27,34-37,57-84
+  s_072c5984f68e14::t_1762849862ab24 28,38
+go/internal/reducer/service_catalog_correlation.go
+  s_072c5984f68e14::t_44559c7d8297e1 236-238
+  s_072c5984f68e14::t_7cf2594d220386 1-133,135-235,239-240
+  s_072c5984f68e14::t_af450e304f728c 134
+go/internal/telemetry/instruments.go
+  s_072c5984f68e14::t_07372a8cc050dd 80,574-579
+schema/data-plane/postgres/003_fact_records.sql
+  s_072c5984f68e14::t_b4bcaebf415cff 185-220
+go/cmd/reducer/main.go
+  s_072c5984f68e14::t_fce87b4a66675a 323-325
+go/internal/reducer/defaults_cicd_test.go
+  s_072c5984f68e14::t_95994ecbabfd1e 45-85
+go/internal/projector/runtime.go
+  s_072c5984f68e14::t_fce87b4a66675a 376-378,402
+go/internal/reducer/README.md
+  s_072c5984f68e14::t_1cd21cb78ac0ac 72,400-405,454-460
+go/internal/reducer/service_catalog_correlation_writer.go
+  s_072c5984f68e14::t_7cf2594d220386 1-142
+go/internal/storage/postgres/schema_test.go
+  s_072c5984f68e14::t_95994ecbabfd1e 341-374
+go/internal/reducer/domain.go
+  s_072c5984f68e14::t_fce87b4a66675a 25
+go/internal/telemetry/README.md
+  s_072c5984f68e14::t_07372a8cc050dd 118
+go/internal/reducer/intent.go
+  s_072c5984f68e14::t_fce87b4a66675a 61-64
+docs/docs/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_1cd21cb78ac0ac 69,232-261
+go/internal/reducer/defaults.go
+  s_072c5984f68e14::t_fce87b4a66675a 109-112,275-282
+go/internal/reducer/registry.go
+  s_072c5984f68e14::t_fce87b4a66675a 390-412
+docs/docs/adrs/2026-05-15-service-catalog-collector.md
+  s_072c5984f68e14::t_f66b338f728334 309-336
+  s_072c5984f68e14::t_71706c43a3b69c 337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "090bee654e1971dc0497b99b267318dba72ce41f",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

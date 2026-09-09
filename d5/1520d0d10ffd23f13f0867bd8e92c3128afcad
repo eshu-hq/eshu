@@ -1,0 +1,27 @@
+go/internal/storage/cypher/canonical_node_writer_group_metadata_test.go
+  s_072c5984f68e14::t_4e769ef89d498b 51
+go/internal/storage/cypher/README.md
+  s_072c5984f68e14::t_714f66b2a5c77a 75-78,88-89
+go/internal/storage/cypher/canonical_node_cypher.go
+  s_072c5984f68e14::t_0feb1e75cbd64c 8,12
+go/internal/storage/cypher/canonical_node_writer_metadata_test.go
+  s_072c5984f68e14::t_f2921807c09597 441
+go/internal/storage/cypher/canonical_node_writer_retract_shape_test.go
+  s_072c5984f68e14::t_326cae7ba0b2c4 132-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "d51520d0d10ffd23f13f0867bd8e92c3128afcad",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

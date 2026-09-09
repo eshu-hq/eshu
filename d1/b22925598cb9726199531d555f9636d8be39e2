@@ -1,0 +1,25 @@
+go/internal/reducer/supply_chain_impact_version_match_test.go
+  s_f2f7fbb6f30866::t_5adcbb1fe4c33c 138-166,196-219,251-262,346-364
+go/internal/reducer/supply_chain_impact_version_match.go
+  s_f2f7fbb6f30866::t_1d734295b73c0f 17,23,85,155,231-237,244-245,318-319,326
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_37a4a4f2606f71 150
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_ffc58d188501f2 510-512,537-543
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "d1b22925598cb9726199531d555f9636d8be39e2",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

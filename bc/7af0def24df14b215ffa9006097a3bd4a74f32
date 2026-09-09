@@ -1,0 +1,54 @@
+docs/public/reference/telemetry/metrics-ingestion-collectors.md
+  s_f2f7fbb6f30866::t_03be9f64ce1dd5 143-150
+go/cmd/scanner-worker/service.go
+  s_f2f7fbb6f30866::t_c68bdbb5e1a07f 6,74-78,80
+  s_f2f7fbb6f30866::t_90cc9d32b31354 16,73,79
+go/cmd/scanner-worker/README.md
+  s_f2f7fbb6f30866::t_37789bfba77108 30-33,44-68,114-117
+go/internal/collector/scannerworker/sbomgenerator/analyzer.go
+  s_f2f7fbb6f30866::t_6f3941e9f948d5 75-77,166
+go/cmd/scanner-worker/config_test.go
+  s_f2f7fbb6f30866::t_f2b0220fd15af4 94-126
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_19b8ee901937c0 34-35,73,113
+go/internal/collector/scannerworker/sbomgenerator/README.md
+  s_f2f7fbb6f30866::t_8bca7d6d535eed 50-51,86-88,107-108,118-123
+go/internal/collector/scannerworker/sbomgenerator/resource_usage_test.go
+  s_f2f7fbb6f30866::t_6fb6f493880a59 1-13,15-38
+  s_f2f7fbb6f30866::t_3ba41ad5ede8c5 14
+go/cmd/scanner-worker/config.go
+  s_f2f7fbb6f30866::t_7e26e54dbf18f4 40,47,112
+go/cmd/scanner-worker/sbom_source_test.go
+  s_f2f7fbb6f30866::t_e45817cd1e1f73 1-4,6-7,9-51,53-90,92-169
+  s_f2f7fbb6f30866::t_4332d10b069469 5,8,91,170-177
+  s_f2f7fbb6f30866::t_5410d282bc2b11 52
+go/internal/collector/scannerworker/README.md
+  s_f2f7fbb6f30866::t_a03b0bb2e1b1c2 53-58,96,98-102
+go/cmd/scanner-worker/sbom_source.go
+  s_f2f7fbb6f30866::t_3ed2923618068a 46
+  s_f2f7fbb6f30866::t_c92de9e8c121dd 1-45,47-398
+go/cmd/scanner-worker/doc.go
+  s_f2f7fbb6f30866::t_da1d565cf90322 7-9
+docs/public/run-locally/docker-compose.md
+  s_f2f7fbb6f30866::t_83d2319b19f991 167-172
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_fc3c711977e8d4 306-318,344,347-350
+docs/public/deploy/kubernetes/helm-runtime-values.md
+  s_f2f7fbb6f30866::t_8098b43c0941e5 111-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bc7af0def24df14b215ffa9006097a3bd4a74f32",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

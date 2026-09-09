@@ -1,0 +1,75 @@
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_12aa2953a575b0 83-85
+  s_bdaf44668b73dc::t_701f3496dd2831 75-76,243-245
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_701f3496dd2831 19-23
+  s_bdaf44668b73dc::t_12aa2953a575b0 28-30
+go/internal/query/code_dead_code_analysis.go
+  s_bdaf44668b73dc::t_1a7c95fed5c096 72-75,118
+go/internal/reducer/code_call_materialization_family_test.go
+  s_bdaf44668b73dc::t_671038b341e3bf 59-121
+go/internal/parser/java_dead_code_roots.go
+  s_bdaf44668b73dc::t_f0f199f815b233 1-188
+go/internal/storage/postgres/status_queries.go
+  s_bdaf44668b73dc::t_f444293d85a9ae 75-81,83,97-102,104-105,107,122
+go/internal/status/README.md
+  s_bdaf44668b73dc::t_12aa2953a575b0 159,162-164
+go/internal/storage/postgres/status_test.go
+  s_bdaf44668b73dc::t_0845fb1a596001 244-246,248-252
+  s_bdaf44668b73dc::t_ab76aac11f8d46 247
+go/internal/status/status_health.go
+  s_bdaf44668b73dc::t_f444293d85a9ae 60,112,116-117
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_1bf1b906bd9698 10-13
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_0eb3206f382854 23-25
+  s_bdaf44668b73dc::t_701f3496dd2831 20-22
+go/internal/query/content_reader_dead_code.go
+  s_bdaf44668b73dc::t_f444293d85a9ae 59-65
+go/internal/parser/java_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_df51cf4e3c5937 110-112,158-170,196-200
+  s_bdaf44668b73dc::t_37be8089980ae7 204-246
+  s_bdaf44668b73dc::t_9ee9f86ef16164 99-109,113-157,171-195,201-203
+go/internal/status/status_health_test.go
+  s_bdaf44668b73dc::t_0845fb1a596001 229-263
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_0cda2b8589116f 80,265-267,274-275,282,286-289,296,300-306
+  s_bdaf44668b73dc::t_b46573a2fd2911 368-408
+go/internal/query/code_dead_code_java_roots_test.go
+  s_bdaf44668b73dc::t_1a7c95fed5c096 41-59
+go/internal/query/content_reader_dead_code_test.go
+  s_bdaf44668b73dc::t_0845fb1a596001 49,53
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_12aa2953a575b0 211-215
+go/internal/status/doc.go
+  s_bdaf44668b73dc::t_12aa2953a575b0 10-12
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_12aa2953a575b0 16-18
+go/internal/query/code_dead_code_go_roots_test.go
+  s_bdaf44668b73dc::t_1a7c95fed5c096 240-243
+go/internal/query/code_dead_code_java_roots.go
+  s_bdaf44668b73dc::t_1a7c95fed5c096 19-23
+go/internal/reducer/code_call_materialization_relationship.go
+  s_bdaf44668b73dc::t_671038b341e3bf 15-16
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_1bf1b906bd9698 70-74
+  s_bdaf44668b73dc::t_701f3496dd2831 66-69,287-289
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_1bf1b906bd9698 166-169,184-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "005702c8d72f35157999e9758403da853de5959c",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_1f486324f05091 15,86-89,93-104,116-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "fb506099bfc00c8c818ea6143595cd24558fb167",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

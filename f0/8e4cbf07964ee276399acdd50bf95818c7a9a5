@@ -1,0 +1,63 @@
+go/internal/graph/schema_labels.go
+  s_f2f7fbb6f30866::t_6a5f1de3144c5c 1-19
+go/internal/graph/schema.go
+  s_f2f7fbb6f30866::t_a721bc77bfdaea 336,338
+  s_f2f7fbb6f30866::t_25213963b12b64 331-335,337,339,347-350,357-360,366-369,374-377,389-392,399-402,407-410
+go/internal/graph/README.md
+  s_f2f7fbb6f30866::t_d6d86bc6c07764 35
+  s_f2f7fbb6f30866::t_788735b2da9432 36-38
+  s_f2f7fbb6f30866::t_f658080ae54bd8 147-162
+go/internal/graph/schema_statements.go
+  s_f2f7fbb6f30866::t_f407b52ed83272 1-54
+docs/docs/reference/environment-variables.md
+  s_f2f7fbb6f30866::t_404bfd7fa10155 88
+docs/docs/deployment/service-runtimes.md
+  s_f2f7fbb6f30866::t_84c754f505b143 638,646-648
+go/cmd/bootstrap-data-plane/doc.go
+  s_f2f7fbb6f30866::t_c74e924a2c5eb7 9-13
+docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md
+  s_f2f7fbb6f30866::t_1c9caa1e46755b 245-254
+go/internal/graph/schema_execution.go
+  s_f2f7fbb6f30866::t_7249cec11e6167 1-97
+go/internal/graph/schema_execution_test.go
+  s_f2f7fbb6f30866::t_493a121106908b 1-54
+docs/docs/reference/nornicdb-tuning.md
+  s_f2f7fbb6f30866::t_c75b3c8393a2de 421-426
+go/cmd/bootstrap-data-plane/AGENTS.md
+  s_f2f7fbb6f30866::t_4d4629adaf6032 30
+  s_f2f7fbb6f30866::t_2db81a15770e03 24,27
+go/internal/graph/doc.go
+  s_f2f7fbb6f30866::t_9e8f75ad9a1ad3 14-17
+go/internal/graph/AGENTS.md
+  s_f2f7fbb6f30866::t_ef201d18b86504 13-16
+go/cmd/bootstrap-data-plane/README.md
+  s_f2f7fbb6f30866::t_d4c5e4c8d466ee 32-33,38-39,44-45,47-52,59-61,68-72,75-76
+  s_f2f7fbb6f30866::t_84c455f8ed9539 73-74
+go/cmd/bootstrap-data-plane/main_test.go
+  s_f2f7fbb6f30866::t_6296159e4db054 11
+  s_f2f7fbb6f30866::t_bf59430d4e7a40 13,294-366,429-441
+deploy/helm/eshu/README.md
+  s_f2f7fbb6f30866::t_e2605e1d7f2203 141
+go/cmd/bootstrap-data-plane/main.go
+  s_f2f7fbb6f30866::t_39736a44ef5a28 93-101
+  s_f2f7fbb6f30866::t_31c63d017f9cf8 41-45,129-133,141-155,196-215
+go/internal/graph/schema_test.go
+  s_f2f7fbb6f30866::t_ba022c014b825f 403,405
+  s_f2f7fbb6f30866::t_bd719b47c6dd44 404,411-413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f08e4cbf07964ee276399acdd50bf95818c7a9a5",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

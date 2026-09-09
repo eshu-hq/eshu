@@ -1,0 +1,41 @@
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_e88b8cf57ea8e7 299-319
+docs/docs/reference/http-api.md
+  s_f2f7fbb6f30866::t_bc5f9fddc96574 678-684
+go/internal/query/openapi_service_story_test.go
+  s_f2f7fbb6f30866::t_3f5656d4b8a41e 25
+docs/docs/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_64c56d2565bcdc 224
+go/internal/query/service_story_trace_path_test.go
+  s_f2f7fbb6f30866::t_a87fbaa23a6d33 1-92
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_ab3a14e4c84c4d 78-81
+go/cmd/eshu/trace.go
+  s_f2f7fbb6f30866::t_f141b1c3e6dead 241-243
+go/internal/query/openapi_paths_entities.go
+  s_f2f7fbb6f30866::t_1cf14296250ba5 196
+go/cmd/eshu/trace_test.go
+  s_f2f7fbb6f30866::t_caf39e9db7ab70 96-100,281-289
+go/internal/query/service_story_trace_path.go
+  s_f2f7fbb6f30866::t_4d7b0d0672c9da 1-167
+go/cmd/eshu/trace_render.go
+  s_f2f7fbb6f30866::t_a7889aa08be8d6 1-54
+go/internal/query/service_story_overview.go
+  s_f2f7fbb6f30866::t_de47c01c3998d4 13-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "4e2344764946fbef31f46123eddea30865962cb8",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

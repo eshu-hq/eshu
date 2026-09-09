@@ -1,0 +1,58 @@
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_9a1eced65ad349 288
+  s_f2f7fbb6f30866::t_78467402ed3f52 278-287,289
+go/internal/storage/postgres/package_registry_identity_locker_test.go
+  s_f2f7fbb6f30866::t_64950ec8bd6ac0 1-128
+go/internal/storage/postgres/package_registry_identity_locker.go
+  s_f2f7fbb6f30866::t_9a1eced65ad349 58,62,72
+  s_f2f7fbb6f30866::t_df98d5e9b69199 1-57,59-61,63-71,73-112
+go/cmd/bootstrap-index/wiring.go
+  s_f2f7fbb6f30866::t_eb408a0dca87b1 108-114
+go/cmd/projector/main_test.go
+  s_f2f7fbb6f30866::t_fb424a8a57799b 26-28
+go/internal/projector/runtime.go
+  s_f2f7fbb6f30866::t_df98d5e9b69199 37
+  s_f2f7fbb6f30866::t_78467402ed3f52 35-36
+go/cmd/bootstrap-index/main_test.go
+  s_f2f7fbb6f30866::t_fb424a8a57799b 249-251
+go/cmd/ingester/wiring.go
+  s_f2f7fbb6f30866::t_eb408a0dca87b1 353-363,367-371
+go/cmd/ingester/wiring_test.go
+  s_f2f7fbb6f30866::t_fb424a8a57799b 247-249
+docs/public/reference/nornicdb-pitfalls.md
+  s_f2f7fbb6f30866::t_78467402ed3f52 98-103
+go/internal/projector/package_registry_identity_lock.go
+  s_f2f7fbb6f30866::t_df98d5e9b69199 1-66
+go/internal/projector/doc.go
+  s_f2f7fbb6f30866::t_78467402ed3f52 34-38
+go/internal/projector/runtime_stages.go
+  s_f2f7fbb6f30866::t_df98d5e9b69199 71-73
+go/cmd/projector/runtime_wiring.go
+  s_f2f7fbb6f30866::t_eb408a0dca87b1 117-126
+go/internal/projector/README.md
+  s_f2f7fbb6f30866::t_78467402ed3f52 307-325,327-328
+  s_f2f7fbb6f30866::t_9a1eced65ad349 326
+go/internal/storage/postgres/doc.go
+  s_f2f7fbb6f30866::t_78467402ed3f52 33-36
+go/internal/projector/runtime_package_registry_lock_test.go
+  s_f2f7fbb6f30866::t_5b79d968f59501 21
+  s_f2f7fbb6f30866::t_2ef03f9c23d661 8-10
+  s_f2f7fbb6f30866::t_64950ec8bd6ac0 1-6,11-18,22-49,52-67,70-77,79-117
+  s_f2f7fbb6f30866::t_36759e2e85df79 7,19-20,50-51,68-69,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b6f095ae1e85c5244f73e9688b12d119a2b01cf7",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

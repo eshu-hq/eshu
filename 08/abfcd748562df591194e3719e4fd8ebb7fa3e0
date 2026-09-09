@@ -1,0 +1,33 @@
+docs/docs/reference/remote-e2e-runtime-state.md
+  s_072c5984f68e14::t_d2d844dc3fd688 107
+schema/data-plane/postgres/002_scope_generations.sql
+  s_072c5984f68e14::t_216cc853bda2b5 17-20
+go/internal/storage/postgres/schema_test.go
+  s_072c5984f68e14::t_f206bdc3b141a1 85-108
+go/internal/storage/postgres/status_producer_activity_test.go
+  s_072c5984f68e14::t_1f9f3e4e7221f5 1-6,8-38,44-53
+  s_072c5984f68e14::t_3c1df0d84f6d09 7,39-43
+go/internal/storage/postgres/status_queries.go
+  s_072c5984f68e14::t_4a4fd19789692b 17-25,27-33
+go/internal/storage/postgres/status_producer_activity.go
+  s_072c5984f68e14::t_ef25a6a083816b 39,41-45
+go/internal/storage/postgres/schema.go
+  s_072c5984f68e14::t_0902d362c2af0b 111,113-114
+  s_072c5984f68e14::t_89b26b9391e43b 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "08abfcd748562df591194e3719e4fd8ebb7fa3e0",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

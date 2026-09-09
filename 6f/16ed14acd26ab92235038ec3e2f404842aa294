@@ -1,0 +1,92 @@
+go/internal/collector/ociregistry/ecr/AGENTS.md
+  s_00a320afddcac7::t_234e8ff6a81300 1-5,10-15,20-22,24-29
+  s_00a320afddcac7::t_602c9dc8eaa3d9 6-9,16-19,23
+docs/docs/adrs/2026-05-10-oci-container-registry-collector.md
+  s_00a320afddcac7::t_cfc23b865c8672 13,16,50-53
+  s_00a320afddcac7::t_2eed09e987af7f 241,56,59,66,70
+  s_00a320afddcac7::t_5fc578cd491d89 55,57-58,60-64,67-69
+  s_00a320afddcac7::t_0c456145f59378 330-335
+go/internal/collector/ociregistry/distribution/README.md
+  s_00a320afddcac7::t_d7cc485522febb 1-6,9-50,55-62
+  s_00a320afddcac7::t_b2cfc7a053253f 51-52
+  s_00a320afddcac7::t_09c31c1559d2ec 53-54
+go/internal/collector/ociregistry/distribution/client.go
+  s_00a320afddcac7::t_d7cc485522febb 1-82,84-100,102-127,129-150,152-203,205-207,212-219,224-228
+  s_00a320afddcac7::t_8faaf995348e02 83,101,128,151,220-223
+  s_00a320afddcac7::t_4de6e760a025c9 204,211
+  s_00a320afddcac7::t_5a376d7ecd8dd0 208-210
+go/internal/collector/ociregistry/ecr/adapter.go
+  s_00a320afddcac7::t_234e8ff6a81300 1-5,8-10,12-37,78-92
+  s_00a320afddcac7::t_bbdff479260c36 6-7,11,38-77
+go/internal/collector/ociregistry/jfrog/adapter_test.go
+  s_00a320afddcac7::t_1f35cd3fc38b54 1-48
+go/internal/collector/ociregistry/distribution/doc.go
+  s_00a320afddcac7::t_d7cc485522febb 1-4,10
+go/internal/collector/ociregistry/README.md
+  s_00a320afddcac7::t_3cc688a27f9de7 1-17,22-61,68-72,81,85-88,91-96,99-105,74,80
+  s_00a320afddcac7::t_f2c352ae811678 62-64,67,97-98
+  s_00a320afddcac7::t_df4dd25994e869 82,20-21
+  s_00a320afddcac7::t_e8381bf3c67593 65-66,89-90
+  s_00a320afddcac7::t_c481ef2a669036 73,75-79
+go/internal/collector/ociregistry/jfrog/doc.go
+  s_00a320afddcac7::t_1f35cd3fc38b54 1-8
+docs/docs/reference/local-testing.md
+  s_00a320afddcac7::t_c012d1b87fe76f 91-110,113-120,126-141,146
+  s_00a320afddcac7::t_8d9738e888c0df 111,121-125
+  s_00a320afddcac7::t_de16003f364ba5 112
+  s_00a320afddcac7::t_0347eeae37dfb7 142-145
+go/internal/collector/ociregistry/jfrog/README.md
+  s_00a320afddcac7::t_1f35cd3fc38b54 1-42,48-52
+  s_00a320afddcac7::t_d03cc4550588cb 43,46-47
+  s_00a320afddcac7::t_7929c187972b7d 44-45
+go/internal/collector/ociregistry/distribution/AGENTS.md
+  s_00a320afddcac7::t_d7cc485522febb 1-31
+go/internal/collector/ociregistry/ecr/adapter_test.go
+  s_00a320afddcac7::t_234e8ff6a81300 1-32,53-75
+  s_00a320afddcac7::t_4b6b468d61ed9a 33-52
+go/internal/collector/ociregistry/ecr/auth.go
+  s_00a320afddcac7::t_80c77b00bd2a6a 1-6,8-41,43-74
+  s_00a320afddcac7::t_4d13301d0ae261 7
+  s_00a320afddcac7::t_690c9485e694c2 42
+go/internal/collector/ociregistry/ecr/auth_test.go
+  s_00a320afddcac7::t_e96b17fb0f5608 1-28,31-39,41-48,50-69,71-109
+  s_00a320afddcac7::t_79332da654b9ec 29-30,40,49,70
+go/internal/collector/ociregistry/distribution/client_test.go
+  s_00a320afddcac7::t_9b6c37cfed20e4 1-115
+go/internal/collector/ociregistry/ecr/live_test.go
+  s_00a320afddcac7::t_9623001e40492c 1-44,46,48-76,87-96
+  s_00a320afddcac7::t_fee63654d6022d 45,47,77-86
+go/internal/collector/ociregistry/jfrog/adapter.go
+  s_00a320afddcac7::t_1f35cd3fc38b54 1-74
+go/internal/collector/ociregistry/ecr/README.md
+  s_00a320afddcac7::t_234e8ff6a81300 1-6,9-11,16-21,29-34,37-45,48-49,52-55
+  s_00a320afddcac7::t_f1d19bb5ec1285 7-8,12-15,22-25,35-36,46-47,51
+  s_00a320afddcac7::t_9e1f2ae57cb5d3 26-28
+  s_00a320afddcac7::t_a1735b3d96691a 50
+go/internal/collector/ociregistry/jfrog/live_test.go
+  s_00a320afddcac7::t_1f35cd3fc38b54 1-13,15-16,18-21,23,25-26,28-31,33-34,40,42,44-51,105
+  s_00a320afddcac7::t_32adb582ca93dd 14,17,22,24,27,32,35-37,41,57-70,80-82,84-104
+  s_00a320afddcac7::t_59dfba257e5283 38-39,43,52-56,71-79
+  s_00a320afddcac7::t_0692be367f4da8 83
+go/internal/collector/ociregistry/ecr/doc.go
+  s_00a320afddcac7::t_234e8ff6a81300 1-5,8
+  s_00a320afddcac7::t_e14f89384d1a59 6-7
+go/internal/collector/ociregistry/jfrog/AGENTS.md
+  s_00a320afddcac7::t_1f35cd3fc38b54 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "6f16ed14acd26ab92235038ec3e2f404842aa294",
+  "prompts": {},
+  "sessions": {
+    "s_00a320afddcac7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c52-fa77-7391-8873-a102dce078ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+deploy/helm/eshu/values.yaml
+  s_b8c22ab4b54a82::t_5b110b9c3750d0 398
+  s_b8c22ab4b54a82::t_44e35c7a25b14f 446
+  s_b8c22ab4b54a82::t_81fdc7c1d2fd40 123
+  s_b8c22ab4b54a82::t_322a3cca8988da 397
+deploy/helm/eshu/Chart.yaml
+  s_b8c22ab4b54a82::t_02ab6a74696502 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "73c83efc901eb11b2cccfe5f0b2327d42ce14e53",
+  "prompts": {},
+  "sessions": {
+    "s_b8c22ab4b54a82": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b33b7d2c-c4e1-417c-a2ef-e19c093359a9",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,145 @@
+go/internal/parser/javascript_tsconfig_paths.go
+  s_7a77555230f90c::t_41f4441a45b235 1-47,50-163
+  s_7a77555230f90c::t_8eae42e51dd4ee 48-49
+docs/superpowers/plans/2026-05-08-javascript-typescript-dead-code-maturity.md
+  s_bdaf44668b73dc::t_945aaec81660d9 32,48,193,379
+  s_bdaf44668b73dc::t_fbaab18e425e19 299,301-302
+  s_bdaf44668b73dc::t_3897dc3a08ad68 52
+  s_bdaf44668b73dc::t_6c73c26a18315c 293-298
+  s_bdaf44668b73dc::t_399bf95ba6d3a2 5,7,9,25-27,119,126,152,197,224,261,271,300,311-329,362,380,382
+go/internal/parser/javascript_dead_code_node_roots_test.go
+  s_bdaf44668b73dc::t_492533fda0cd47 19-22
+  s_bdaf44668b73dc::t_ebdd5f49db1d46 16-18,24,31,146,151
+go/internal/reducer/code_call_materialization.go
+  s_2aa5b136dba59b::t_e303df33b66be4 144,146,165-166,174,204
+go/internal/parser/engine_javascript_reexports_test.go
+  s_2aa5b136dba59b::t_749b3d4d769f51 1-62
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_b1fbbdd73405be 13-15
+go/internal/reducer/code_call_materialization_js_reexports_test.go
+  s_bdaf44668b73dc::t_e042d92a5674f9 79
+  s_bdaf44668b73dc::t_19cab73d5d7e2a 83-84
+  s_bdaf44668b73dc::t_9a23bb8d002543 72-73,75-76,78,81-82,86,96-99,213-216
+  s_2aa5b136dba59b::t_749b3d4d769f51 1-36,38-48,53,55-67,102-107,109-115,117-131,136-137,139-169,248-251,278
+  s_2aa5b136dba59b::t_813963e86f9aef 37,49-52,54,108,116,132-135,138,170-177
+  s_bdaf44668b73dc::t_a316074514de71 68-71,74,77,80,85,87-95,100-101,178-212,217-247,252-277
+go/internal/parser/javascript_language.go
+  s_bdaf44668b73dc::t_525ec118046f38 46-48
+  s_2aa5b136dba59b::t_d3b6015678014c 180-182
+  s_7a77555230f90c::t_10afb3136dda2d 49,153,177
+  s_bdaf44668b73dc::t_d2100cb11a6707 330
+  s_bdaf44668b73dc::t_7af08b67e8678b 50,191,197-210
+go/internal/reducer/code_call_materialization_imports.go
+  s_2aa5b136dba59b::t_98d74bca4a951e 185,340
+  s_2aa5b136dba59b::t_bec602d03daac6 117,154
+  s_7a77555230f90c::t_727034bfc3308b 245-247,253-255,263-279
+  s_2aa5b136dba59b::t_e303df33b66be4 84,116,153,167-184,189-191
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_8bc47c7df7435c 7-13
+  s_bdaf44668b73dc::t_e43dd6241024f1 6,14-15
+go/internal/reducer/python_metaclass_materialization.go
+  s_2aa5b136dba59b::t_bec602d03daac6 163-164
+go/internal/parser/javascript_dead_code_hapi.go
+  s_bdaf44668b73dc::t_e3d51b2fd5a3cf 13,45,58-62
+go/internal/query/code_dead_code_classification.go
+  s_bdaf44668b73dc::t_76e570e03d8d63 23,26,36-39
+go/internal/query/code_dead_code_javascript_roots_test.go
+  s_bdaf44668b73dc::t_786d1b31c3df36 120,124,128,132,136,140,148
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_6c73c26a18315c 130-132
+  s_bdaf44668b73dc::t_9984b7ad4ef5ef 135-142,291-294
+  s_bdaf44668b73dc::t_e43dd6241024f1 133-134
+go/internal/query/code_dead_code.go
+  s_bdaf44668b73dc::t_a256d02ff3e7dd 233-235
+  s_bdaf44668b73dc::t_9fdd34f944ebc4 346-349
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_7d265682d2f191 65-69,220-222
+go/internal/parser/javascript_typescript_semantics.go
+  s_bdaf44668b73dc::t_d2100cb11a6707 28,30,42,47
+  s_bdaf44668b73dc::t_24a4021a15ea54 29,31-36,39-41,43-46,48,50
+go/internal/parser/engine_javascript_tsconfig_baseurl_test.go
+  s_7a77555230f90c::t_f47c6b2c4b57f2 1-67
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_fbaab18e425e19 5
+  s_bdaf44668b73dc::t_9f2624dde09b63 6-14
+go/internal/parser/javascript_constructor_calls.go
+  s_bdaf44668b73dc::t_7af08b67e8678b 1-90
+go/internal/reducer/code_call_materialization_typescript_baseurl_test.go
+  s_7a77555230f90c::t_69854ee9206279 1-94
+go/internal/storage/cypher/canonical_test.go
+  s_bdaf44668b73dc::t_8be5f8c2c53e9d 349
+  s_bdaf44668b73dc::t_06f5f1eb6947b5 342-348,350-354
+go/internal/storage/cypher/canonical_node_cypher.go
+  s_bdaf44668b73dc::t_737c0209b36aad 121-148
+  s_bdaf44668b73dc::t_b76380e742b79b 87,109
+go/internal/reducer/code_call_materialization_python_imports_test.go
+  s_2aa5b136dba59b::t_bec602d03daac6 140
+go/internal/reducer/code_call_materialization_index.go
+  s_2aa5b136dba59b::t_e303df33b66be4 275,297
+  s_bdaf44668b73dc::t_89ec6aad2791ed 289,367-372,379-382,384-385,392
+  s_bdaf44668b73dc::t_41563505dcead9 307-309,311-313,315-363,365-366
+  s_bdaf44668b73dc::t_1aa6e6ba80204b 18,35,288,373,386-389
+  s_bdaf44668b73dc::t_2f9b3e904017b8 76-84
+  s_bdaf44668b73dc::t_32e2e55bd078f7 374-378
+  s_bdaf44668b73dc::t_65400a5a31f9e7 383
+go/internal/parser/engine_javascript_call_metadata_test.go
+  s_bdaf44668b73dc::t_a316074514de71 40-75
+go/internal/storage/cypher/canonical_node_writer_phases.go
+  s_bdaf44668b73dc::t_2ec6883499af5d 7,113-116,127-131,139-155,168
+  s_bdaf44668b73dc::t_c157745f489a33 117
+go/internal/reducer/code_call_materialization_reexports.go
+  s_bdaf44668b73dc::t_88aa4ac25f5d2b 1-129
+go/internal/storage/cypher/canonical_node_file_uid_test.go
+  s_bdaf44668b73dc::t_a7432a8dc9b659 18-20,22,33
+  s_bdaf44668b73dc::t_5a235d4b214572 4,35-63
+  s_bdaf44668b73dc::t_4eeb10d7e47c4d 1-3,5-17,21,23-32,34,64-65
+go/internal/parser/javascript_dead_code_package.go
+  s_bdaf44668b73dc::t_c6739d6121f67e 16,43-47,91-113
+go/internal/query/code_dead_code_classification_test.go
+  s_bdaf44668b73dc::t_ab3e02b6abb27d 208-266
+  s_bdaf44668b73dc::t_ede63badbf7ad2 146-207
+go/internal/storage/cypher/doc.go
+  s_bdaf44668b73dc::t_5c00a828367725 23-27
+go/internal/storage/cypher/README.md
+  s_bdaf44668b73dc::t_6d8998fd02070c 57-63,239-242
+go/internal/parser/javascript_exports.go
+  s_2aa5b136dba59b::t_d925fe0a61046b 1-18,20-48,68-69,72-192
+  s_bdaf44668b73dc::t_4e66336933ee72 19,49-67
+  s_2aa5b136dba59b::t_f2032ee871582b 70-71
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_fbaab18e425e19 6-7,61-62
+  s_bdaf44668b73dc::t_7cacc88a249641 235-236
+  s_bdaf44668b73dc::t_6c73c26a18315c 60,63,237-241
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "ee4e2209f85b29956943e8be9b0e4a9d324c0e6e",
+  "prompts": {},
+  "sessions": {
+    "s_2aa5b136dba59b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e05a7-842b-7a41-8c7a-d6b0096d8e6d",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_7a77555230f90c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e05a7-845d-75a2-96aa-1c1ea2b2f7a5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

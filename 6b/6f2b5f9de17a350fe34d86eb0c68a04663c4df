@@ -1,0 +1,23 @@
+docs/docs/releases/v0.0.2.md
+  s_bdaf44668b73dc::t_b4043b7c80080c 1-74
+docs/mkdocs.yml
+  s_bdaf44668b73dc::t_a5b7cbd8e36dd1 179-181
+docs/docs/releases/index.md
+  s_bdaf44668b73dc::t_b4043b7c80080c 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "6b6f2b5f9de17a350fe34d86eb0c68a04663c4df",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

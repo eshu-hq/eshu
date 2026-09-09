@@ -1,0 +1,24 @@
+docs/superpowers/plans/2026-05-13-eshu-console-pr1.md
+  s_a259424f603ccc::t_fd760064be2bb2 232-318
+docs/superpowers/specs/2026-05-14-eshu-console-storytelling-contract-field-map-design.md
+  s_a259424f603ccc::t_8ff5536884b623 221-237,250-255
+  s_a259424f603ccc::t_dc54db941090c1 124-154
+  s_a259424f603ccc::t_d520b2cb7819cd 13,21,39-67
+  s_a259424f603ccc::t_715e58524bc9a2 88,101-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f445f730e80aca041d0cc3bd1b0ecf7c8a90765a",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

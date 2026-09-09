@@ -1,0 +1,27 @@
+go/internal/parser/maven/parser_test.go
+  s_f2f7fbb6f30866::t_c43089018a6ca0 233-271
+go/internal/parser/gradle/parser_test.go
+  s_f2f7fbb6f30866::t_5e64d81b9ecdc1 216-237
+docs/public/reference/dependency-coverage.md
+  s_f2f7fbb6f30866::t_c0fef24bc7757c 243-262
+go/internal/reducer/supply_chain_impact_ranges.go
+  s_f2f7fbb6f30866::t_5c96fc848299d5 178
+go/internal/reducer/supply_chain_impact_jvm_parity_test.go
+  s_f2f7fbb6f30866::t_916306efa99488 1-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "90e12a7cb41373a4bd7af350134840de96a50d08",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

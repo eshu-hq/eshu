@@ -1,0 +1,119 @@
+go/cmd/eshu/local_host_authoritative_test.go
+  s_0fdb6fbe5bc880::t_5c5c5ada752416 288,296-297,315,324
+go/cmd/eshu/graph_test.go
+  s_0fdb6fbe5bc880::t_1a5cd971c2a366 308
+  s_0fdb6fbe5bc880::t_c8d4adc97ce80c 254,276-278,302-307,309
+go/cmd/eshu/local_host_reset.go
+  s_0fdb6fbe5bc880::t_e30a58dfc7035c 18
+go/internal/eshulocal/README.md
+  s_0fdb6fbe5bc880::t_9cd18916d764e7 129-131,172-174
+go/internal/eshulocal/doc.go
+  s_0fdb6fbe5bc880::t_9cd18916d764e7 9-10
+go/internal/collector/AGENTS.md
+  s_0fdb6fbe5bc880::t_107f3d5f2a9e7c 41-45,106-109
+go/cmd/eshu/local_graph_embedded_nornicdb_test.go
+  s_0fdb6fbe5bc880::t_097eab064a451d 6,10,12,19-44,66-67
+  s_0fdb6fbe5bc880::t_5c5c5ada752416 11,45-65
+  s_0fdb6fbe5bc880::t_a96f57cc65b9d6 153,157-168
+go/cmd/eshu/local_host_children_test.go
+  s_0fdb6fbe5bc880::t_c8d4adc97ce80c 1-68
+docs/docs/reference/cli-reference.md
+  s_0fdb6fbe5bc880::t_54025ab55aa110 147
+  s_0fdb6fbe5bc880::t_1aa992a7a1db71 145
+  s_0fdb6fbe5bc880::t_30ce4186be3973 293
+go/cmd/eshu/README.md
+  s_0fdb6fbe5bc880::t_54025ab55aa110 77-79,87-89
+  s_0fdb6fbe5bc880::t_fe809a65775f1e 76
+  s_0fdb6fbe5bc880::t_c5bd03b41edd4e 64-68
+  s_0fdb6fbe5bc880::t_0e672e47c37d42 75
+  s_0fdb6fbe5bc880::t_9cd18916d764e7 80
+  s_0fdb6fbe5bc880::t_ded3647476085d 81-83
+  s_0fdb6fbe5bc880::t_dbc07dbd31ead2 84-86
+go/cmd/eshu/doc.go
+  s_0fdb6fbe5bc880::t_4309024b876520 22-23
+  s_0fdb6fbe5bc880::t_d92a206dca3be4 18-21
+  s_0fdb6fbe5bc880::t_dffca3209e487c 27-31
+  s_0fdb6fbe5bc880::t_b0ddb38a2cf1a4 25-26
+  s_0fdb6fbe5bc880::t_9cd18916d764e7 24
+go/internal/eshulocal/postgres_unix_test.go
+  s_0fdb6fbe5bc880::t_41d1031d304b36 6,10-11,39-61
+go/internal/collector/doc.go
+  s_0fdb6fbe5bc880::t_65dbd326176ce3 11-14
+go/internal/eshulocal/postgres_unix.go
+  s_0fdb6fbe5bc880::t_eff1f88b3f36f9 10,155-185,187,189-190,192-195,197
+  s_0fdb6fbe5bc880::t_adcb4a0c637f6e 106-110,186,188,191,196,198
+go/cmd/eshu/local_host.go
+  s_0fdb6fbe5bc880::t_15afaacdd3adf2 12,27-35,265,278,289,316,329-364,422
+go/cmd/eshu/local_graph_embedded_nornicdb.go
+  s_0fdb6fbe5bc880::t_c15f1297f70ea3 13,62-66,69,89,93-96,196-201,203-234
+  s_0fdb6fbe5bc880::t_f5c92ac0fa28df 118,132
+  s_0fdb6fbe5bc880::t_8a0f8f3ffd206e 10,101-104,122,130,137-142,188-195,202,267-268
+go/cmd/eshu/local_host_progress_renderer.go
+  s_0fdb6fbe5bc880::t_467eaa211d0663 1-53,55-92
+  s_0fdb6fbe5bc880::t_67efdfbc407ab2 54
+go/internal/collector/git_selection_filesystem.go
+  s_0fdb6fbe5bc880::t_c6d1889d1d9959 110,119-144,219,238,302,310-311,316-317,324-327,339-350,366-382,389
+go/internal/collector/README.md
+  s_0fdb6fbe5bc880::t_ca95af02b7cede 71-77,178-180,213-216
+go/internal/collector/git_selection_native_test.go
+  s_0fdb6fbe5bc880::t_4883ecbf8ff221 181-260
+  s_0fdb6fbe5bc880::t_334bfe5111725a 261-300
+go/cmd/eshu/local_host_progress_test.go
+  s_0fdb6fbe5bc880::t_f19814058ded4e 65-66
+  s_0fdb6fbe5bc880::t_caa89d05d05884 15,29-38,67,180-208
+  s_0fdb6fbe5bc880::t_c06d79e27dc6de 63
+  s_0fdb6fbe5bc880::t_4405f0e05c0b69 64
+  s_0fdb6fbe5bc880::t_5c5c5ada752416 78-108
+go/cmd/eshu/AGENTS.md
+  s_0fdb6fbe5bc880::t_54025ab55aa110 76-77
+  s_0fdb6fbe5bc880::t_e67f889b984bc9 78-83
+  s_0fdb6fbe5bc880::t_19e4d6fa14b346 75
+  s_0fdb6fbe5bc880::t_8aaf05447e5274 72-74,84
+  s_0fdb6fbe5bc880::t_c5bd03b41edd4e 85-90
+go/cmd/eshu/local_host_progress_tui_test.go
+  s_0fdb6fbe5bc880::t_d1b3b6701dbee8 51,60-62,114-123,125-143
+  s_0fdb6fbe5bc880::t_8f6a716c264d5c 52
+  s_0fdb6fbe5bc880::t_88d77e523d27d3 63-65,94-113,258-264,274
+  s_0fdb6fbe5bc880::t_52de1dbba97b65 90
+  s_0fdb6fbe5bc880::t_eea684c06e352d 1-3,5-9,11-39,42-49,54-59,239-257
+  s_0fdb6fbe5bc880::t_f19814058ded4e 53,157
+  s_0fdb6fbe5bc880::t_2088a28aa4ff6a 4
+  s_0fdb6fbe5bc880::t_33129e1e0768bc 124,144-156,158-176
+  s_0fdb6fbe5bc880::t_dd4206e11e6963 180-215
+  s_0fdb6fbe5bc880::t_5210f61cc70f4b 66-89,91-93,265-273
+  s_0fdb6fbe5bc880::t_3d6cdfb82b83c1 40-41,50,177-179,216-238
+  s_0fdb6fbe5bc880::t_68ed3177e19950 10
+go/cmd/eshu/local_host_progress.go
+  s_0fdb6fbe5bc880::t_a89f0e2262f19f 6
+  s_0fdb6fbe5bc880::t_09e65283f9edc6 33,163-165,167,169,171-177,208,210-214,216
+  s_0fdb6fbe5bc880::t_c9a188ffacb7cd 52-58,74,90
+  s_0fdb6fbe5bc880::t_cdbeb4600505e3 150-161
+  s_0fdb6fbe5bc880::t_c30c5db4228233 113,138-149,162,178-179,181,183-192,215,217-229,232-233,236-284
+  s_0fdb6fbe5bc880::t_272d459d4a57be 287-299
+  s_0fdb6fbe5bc880::t_506edb9f8bf8c9 230-231,234-235
+  s_0fdb6fbe5bc880::t_d6ae340c0a204d 166,168,170,180,182,193-207,209
+go/cmd/eshu/local_host_progress_tui.go
+  s_0fdb6fbe5bc880::t_786b46ab1a50d8 97-106,165,170-172,176,181-183,186-216
+  s_0fdb6fbe5bc880::t_03fa43590f81e0 4,7,9,14-39,49,67-69,77-79,81-83,85-86,88-94,96,107-164,166,168-169,173-175,177,179-180,184-185,217-242,334
+  s_0fdb6fbe5bc880::t_280cb385cd98dd 167,178
+  s_0fdb6fbe5bc880::t_015e1c20b82a73 291
+  s_0fdb6fbe5bc880::t_db81c3e842b849 52-57,80,84,87,95,243-254,262-287,292-331,333
+  s_0fdb6fbe5bc880::t_e02b0c458ea77c 255-261,288-290
+  s_0fdb6fbe5bc880::t_6e3089d57f864f 1-3,5-6,8,10-13,40-48,50-51,58-66,70-76,332
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "4a516c30ecae065f595b67e56ca948604d565276",
+  "prompts": {},
+  "sessions": {
+    "s_0fdb6fbe5bc880": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfda7-b67d-7d01-abd4-1370d870116b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+go/cmd/eshu/local_host_progress_tui_test.go
+  s_bdaf44668b73dc::t_89c91dc9009c3c 147-191
+go/cmd/eshu/local_host_progress.go
+  s_bdaf44668b73dc::t_705de55d136945 125-127,313-341,375,378
+go/cmd/eshu/doc.go
+  s_bdaf44668b73dc::t_3d9e0156b061e2 24-28,31-36
+  s_bdaf44668b73dc::t_893973241d7e42 29-30
+go/cmd/eshu/README.md
+  s_bdaf44668b73dc::t_36493cbb149d41 120-125
+  s_bdaf44668b73dc::t_7caa9330029cba 90-98
+go/cmd/eshu/AGENTS.md
+  s_bdaf44668b73dc::t_f84d6efd401b62 79-86
+go/cmd/eshu/local_host_progress_test.go
+  s_bdaf44668b73dc::t_eac840658b67f1 109-152
+  s_bdaf44668b73dc::t_d3d5f8bd2c4e69 222-229
+go/cmd/eshu/local_host_progress_tui.go
+  s_bdaf44668b73dc::t_8c02b2640162ee 130-137,284-287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "2eb9ecf80bc5811441927c7750f01baf403f96f1",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  s_072c5984f68e14::t_64d9ca36fb4df7 171
+go/internal/storage/postgres/exported-surface-guide.md
+  s_072c5984f68e14::t_15745a6d18c52e 18
+go/internal/storage/postgres/projector_queue_sql.go
+  s_072c5984f68e14::t_64d9ca36fb4df7 261,266
+go/internal/storage/postgres/projector_queue_supersession_test.go
+  s_072c5984f68e14::t_a970b26ad7c0fb 41,43
+go/internal/storage/postgres/README.md
+  s_072c5984f68e14::t_64d9ca36fb4df7 152-153
+  s_072c5984f68e14::t_15745a6d18c52e 109,113,123,126
+go/internal/storage/postgres/AGENTS.md
+  s_072c5984f68e14::t_64d9ca36fb4df7 50-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "129600ca5780f2aaac9c56233f09efb68f1205d4",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

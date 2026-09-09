@@ -1,0 +1,21 @@
+docs/docs/reference/remote-e2e-runtime-state.md
+  s_072c5984f68e14::t_f7c32df19d55c6 72-80,87-92
+go/internal/storage/postgres/workflow_status_test.go
+  s_072c5984f68e14::t_f7c32df19d55c6 77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "a8eabaf4126c2b4cce845524d3424abbfa6fc628",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

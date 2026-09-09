@@ -1,0 +1,49 @@
+go/internal/reducer/code_call_materialization_arity.go
+  s_bdaf44668b73dc::t_26a216e8006d4c 1-60
+go/internal/reducer/code_call_materialization_endpoint_types_test.go
+  s_bdaf44668b73dc::t_0433577b1329b8 1-100
+go/internal/storage/cypher/edge_writer_code_call_labels.go
+  s_bdaf44668b73dc::t_2e88c7f3547cc6 6-11
+  s_bdaf44668b73dc::t_b826ed73781bb1 1-5,12-105
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_6bfa20d442e158 110-115,288-291,302-320
+  s_bdaf44668b73dc::t_783f054a7f73d3 296-298
+go/internal/storage/cypher/edge_writer_code_call_labels_test.go
+  s_bdaf44668b73dc::t_0433577b1329b8 1-47,85-149
+  s_bdaf44668b73dc::t_a6f1873f6c3b6c 48-84
+go/internal/reducer/code_call_materialization_index.go
+  s_bdaf44668b73dc::t_5808fa6415f46c 450-458
+  s_bdaf44668b73dc::t_877f57226519f0 21,41,74,124,288-292,294-299,360,362,434
+go/internal/reducer/code_call_materialization_java_test.go
+  s_bdaf44668b73dc::t_444d1313f2be99 1-70
+  s_bdaf44668b73dc::t_cf1a36eec12407 95-98,127-133,163-165
+  s_bdaf44668b73dc::t_b849eb692d09d0 71-94,99-126,134-162,166
+go/internal/reducer/code_call_materialization_endpoint_types.go
+  s_bdaf44668b73dc::t_075712cffef5f7 1-32
+go/internal/reducer/code_call_materialization_helpers.go
+  s_bdaf44668b73dc::t_44c3caac1926ca 89-91,153-155,219-221
+go/internal/storage/cypher/edge_writer.go
+  s_bdaf44668b73dc::t_db84eccaf29581 331
+go/internal/parser/java_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_5d87f3f74764cd 87-88,90-91
+  s_bdaf44668b73dc::t_f07f14239b580e 89,92-93
+  s_bdaf44668b73dc::t_b849eb692d09d0 50-86,94
+go/internal/parser/java_call_inference.go
+  s_bdaf44668b73dc::t_783f054a7f73d3 1-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "39278727a8df4236f5f0e5a3a63a8ede00647e6e",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

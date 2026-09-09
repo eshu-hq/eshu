@@ -1,0 +1,71 @@
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_fda8f9492a2427 78,118,120
+go/internal/collector/scannerworker/imageanalyzer/rootfs_snapshot.go
+  s_f2f7fbb6f30866::t_5e789004985790 1-160
+go/internal/collector/scannerworker/imageanalyzer/warning.go
+  s_f2f7fbb6f30866::t_d9a49ce9551a5c 1-6,8-15,17-33,35-36,40-60,65-68,87
+  s_f2f7fbb6f30866::t_89a8c53e158f3d 7
+  s_f2f7fbb6f30866::t_cfe378e437a237 16,34,37-39,61-64,69-86
+go/internal/collector/scannerworker/imageanalyzer/README.md
+  s_f2f7fbb6f30866::t_da297ec9703c48 1-10,12-17,59-73
+  s_f2f7fbb6f30866::t_a7385ed664f734 11,18-58,74-80
+go/cmd/scanner-worker/README.md
+  s_f2f7fbb6f30866::t_d584b107ee08ae 30-34,53-80,148,160-164
+docs/public/deployment/service-runtimes-collectors.md
+  s_f2f7fbb6f30866::t_fda8f9492a2427 65
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_fda8f9492a2427 228,245-249,257
+docs/public/reference/telemetry/metrics-ingestion-collectors.md
+  s_f2f7fbb6f30866::t_fda8f9492a2427 157-170
+go/cmd/scanner-worker/config.go
+  s_f2f7fbb6f30866::t_a739ec4dd7489f 43,47-51,117
+go/cmd/scanner-worker/service.go
+  s_f2f7fbb6f30866::t_7400f64926b8bb 16,66-71
+go/internal/collector/scannerworker/README.md
+  s_f2f7fbb6f30866::t_d584b107ee08ae 49-54,99,101-103
+go/internal/collector/scannerworker/imageanalyzer/analyzer_test.go
+  s_f2f7fbb6f30866::t_c5a712b9d04ebf 1-6,8-116,152-185,195-219,244-289,291-455
+  s_f2f7fbb6f30866::t_bb5ca91ccf0d33 7
+  s_f2f7fbb6f30866::t_a1e1154872f3a9 117-151
+  s_f2f7fbb6f30866::t_cc567495314b12 186-194
+  s_f2f7fbb6f30866::t_087a8f30a873e5 220-243
+  s_f2f7fbb6f30866::t_15d3ce9b1bacba 290
+go/internal/collector/scannerworker/imageanalyzer/doc.go
+  s_f2f7fbb6f30866::t_da297ec9703c48 1-5,10
+  s_f2f7fbb6f30866::t_a7385ed664f734 6-9
+go/internal/collector/scannerworker/doc.go
+  s_f2f7fbb6f30866::t_d584b107ee08ae 7-13
+go/internal/collector/scannerworker/imageanalyzer/layer_snapshot.go
+  s_f2f7fbb6f30866::t_d9a49ce9551a5c 1-62,64,66-72,74-75,83-92,102-114,116-174,176-177,182-335
+  s_f2f7fbb6f30866::t_cfe378e437a237 63,65,73,76-82,93-101
+  s_f2f7fbb6f30866::t_6387f24b206bca 115,175
+  s_f2f7fbb6f30866::t_d148c93eff260b 178-181
+go/internal/collector/scannerworker/imageanalyzer/analyzer.go
+  s_f2f7fbb6f30866::t_d9a49ce9551a5c 1-86,88-93,95-133,141-159,170-224,226-227,229-291
+  s_f2f7fbb6f30866::t_cfe378e437a237 87,94,225,228
+  s_f2f7fbb6f30866::t_5e789004985790 134-140,160-169
+go/cmd/scanner-worker/config_test.go
+  s_f2f7fbb6f30866::t_ec94b5f40a5ada 216-257
+go/cmd/scanner-worker/doc.go
+  s_f2f7fbb6f30866::t_d584b107ee08ae 7-9
+go/internal/collector/scannerworker/imageanalyzer/types.go
+  s_f2f7fbb6f30866::t_da297ec9703c48 1-146
+go/internal/collector/scannerworker/imageanalyzer/AGENTS.md
+  s_f2f7fbb6f30866::t_da297ec9703c48 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6fa1bd3a627258f48e38b18c73124e11a88e45fb",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

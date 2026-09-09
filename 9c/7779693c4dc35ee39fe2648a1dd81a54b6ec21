@@ -1,0 +1,78 @@
+docs/docs/reference/mcp-reference.md
+  s_f2f7fbb6f30866::t_b241894e7b703b 192-194
+go/internal/query/ports.go
+  s_f2f7fbb6f30866::t_c32cbad5a15c6a 33-35,57-77
+go/internal/mcp/server_test.go
+  s_f2f7fbb6f30866::t_9be7512c227e00 91
+go/internal/mcp/dispatch.go
+  s_f2f7fbb6f30866::t_53f8b7930b1560 88-90
+go/internal/mcp/dispatch_values.go
+  s_f2f7fbb6f30866::t_53f8b7930b1560 26-29
+go/internal/storage/postgres/schema_test.go
+  s_f2f7fbb6f30866::t_4932cb9e48972e 143-148
+go/internal/query/repository.go
+  s_f2f7fbb6f30866::t_f686caded9fb78 33-34
+go/internal/mcp/dispatch_repositories.go
+  s_f2f7fbb6f30866::t_53f8b7930b1560 1-64
+go/internal/mcp/types.go
+  s_f2f7fbb6f30866::t_53f8b7930b1560 14
+docs/docs/reference/http-api.md
+  s_f2f7fbb6f30866::t_94c8922017c28d 492-522
+go/internal/query/content_reader_language_inventory.go
+  s_f2f7fbb6f30866::t_bf7b0bf5029856 10-11,23-30,44,69-76,129,153,170,189-196,209,220,232
+  s_f2f7fbb6f30866::t_cdb0a726778502 1-9,12-22,31-43,45-68,77-128,130-152,154-169,171-188,197-208,210-219,221-231,233-236
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_c0ba1df1fc54e7 125-127
+go/internal/mcp/tools_repository_language.go
+  s_f2f7fbb6f30866::t_53f8b7930b1560 1-72
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_b149745409c85a 663-667
+go/internal/mcp/README.md
+  s_f2f7fbb6f30866::t_92f97bf0aba714 4,62,67,108-110,145-149,214,223-224
+go/internal/query/repository_language_inventory.go
+  s_f2f7fbb6f30866::t_e283a7f221d0fa 1-158
+go/internal/mcp/tools_test.go
+  s_f2f7fbb6f30866::t_53f8b7930b1560 154-157
+  s_f2f7fbb6f30866::t_14114c2c653bf2 10,70-72,201,203,205,210-216
+go/internal/query/content_reader_test.go
+  s_f2f7fbb6f30866::t_8ac9bc0fb17652 128-233
+  s_f2f7fbb6f30866::t_cd4ca45389e541 12
+go/internal/storage/postgres/schema.go
+  s_f2f7fbb6f30866::t_c1a3de498325d7 192-193
+schema/data-plane/postgres/004_content_store.sql
+  s_f2f7fbb6f30866::t_bbe9e6763a1038 68-69
+go/internal/mcp/dispatch_test.go
+  s_f2f7fbb6f30866::t_1a78e32824cee9 73-123
+go/internal/query/openapi_paths_repositories.go
+  s_f2f7fbb6f30866::t_e1c353013e596d 62-144
+go/internal/query/repository_language_inventory_test.go
+  s_f2f7fbb6f30866::t_cd2d098766e7a9 1-6,8-79,96-154
+  s_f2f7fbb6f30866::t_b7bca80be5974f 7,80-95
+go/internal/query/ports_test.go
+  s_f2f7fbb6f30866::t_ccbddbf8494895 5
+  s_f2f7fbb6f30866::t_0a36a764eb63d8 40-42,139-177
+go/internal/query/openapi_test.go
+  s_f2f7fbb6f30866::t_e1c353013e596d 60-61
+specs/capability-matrix.v1.yaml
+  s_f2f7fbb6f30866::t_e1c353013e596d 247
+docs/docs/guides/mcp-guide.md
+  s_f2f7fbb6f30866::t_91780ce49d00d0 178-179
+docs/docs/reference/mcp-tool-contract-matrix.md
+  s_f2f7fbb6f30866::t_9f23557bea7ad8 35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "9c7779693c4dc35ee39fe2648a1dd81a54b6ec21",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+docs/docs/deploy/kubernetes/index.md
+  s_f2f7fbb6f30866::t_ffeaea50cfdb5a 7-8,11-13,34
+docs/docs/deploy/kubernetes/manifests.md
+  s_f2f7fbb6f30866::t_ffeaea50cfdb5a 21-22
+deploy/helm/eshu/templates/_helpers.tpl
+  s_f2f7fbb6f30866::t_1656d7b7735ea6 59-62,355-364
+docs/docs/deploy/kubernetes/helm-values.md
+  s_f2f7fbb6f30866::t_b8cf96721cc4ef 17-20,66-67,72-76,92-102
+  s_f2f7fbb6f30866::t_2ed12e3bf7e4c6 68-71,77-91
+docs/docs/deployment/service-runtimes.md
+  s_f2f7fbb6f30866::t_c7c01c17c689b6 520,537,539,569,571-576,579-581,583-587,591-593,598,602,604,611-613,628-630,633-634,636
+  s_f2f7fbb6f30866::t_b8cf96721cc4ef 61
+deploy/helm/eshu/values.yaml
+  s_f2f7fbb6f30866::t_1656d7b7735ea6 39-55
+go/cmd/bootstrap-data-plane/README.md
+  s_f2f7fbb6f30866::t_90ddcaf6b99597 51,60
+go/cmd/bootstrap-data-plane/doc.go
+  s_f2f7fbb6f30866::t_90ddcaf6b99597 11-12
+deploy/helm/eshu/templates/job-schema-bootstrap.yaml
+  s_f2f7fbb6f30866::t_1656d7b7735ea6 1-8,10-18,20-34,36-70
+  s_f2f7fbb6f30866::t_60f3f1d0d544d3 9,19,35
+go/cmd/bootstrap-data-plane/AGENTS.md
+  s_f2f7fbb6f30866::t_90ddcaf6b99597 19-20,70
+deploy/helm/eshu/values.schema.json
+  s_f2f7fbb6f30866::t_ffeaea50cfdb5a 128-141
+deploy/helm/eshu/README.md
+  s_f2f7fbb6f30866::t_ffeaea50cfdb5a 12-13,55-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c0db22166549dddd78e515ff8d67e5ce977ed559",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

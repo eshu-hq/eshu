@@ -1,0 +1,21 @@
+go/internal/query/supply_chain_impact_result.go
+  s_f2f7fbb6f30866::t_1472e9617c72ce 7
+go/internal/query/supply_chain_impact_findings_test.go
+  s_f2f7fbb6f30866::t_c69438aafd65d3 248-249
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "82b7d61aebed674684f6a1f8b6c6d85ab908a1fb",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

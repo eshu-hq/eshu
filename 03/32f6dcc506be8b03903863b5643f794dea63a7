@@ -1,0 +1,62 @@
+go/cmd/collector-terraform-state/doc.go
+  s_d3259c8df205fa::t_43c9acce05da6e 2-9
+docs/docs/adrs/2026-05-12-webhook-triggered-repository-refresh.md
+  s_d3259c8df205fa::t_816cb52a261680 442-444
+go/internal/telemetry/doc.go
+  s_d3259c8df205fa::t_eeb3fb7741c2c9 11-12
+  s_d3259c8df205fa::t_c47336e899a3a9 13-14
+  s_d3259c8df205fa::t_43c9acce05da6e 32-34
+go/internal/telemetry/README.md
+  s_d3259c8df205fa::t_c47336e899a3a9 227-229
+  s_d3259c8df205fa::t_816cb52a261680 114-116,126-127,190-191
+go/cmd/webhook-listener/README.md
+  s_d3259c8df205fa::t_77214e041c2139 51-64
+docs/docs/reference/telemetry/traces.md
+  s_d3259c8df205fa::t_77214e041c2139 47-48,126-140,160-168,208-219
+go/cmd/webhook-listener/main.go
+  s_d3259c8df205fa::t_6a908abc5e50e4 80-85
+  s_d3259c8df205fa::t_386c544b37aaa0 86
+go/internal/telemetry/contract.go
+  s_d3259c8df205fa::t_514095cdd61ead 49-52,160-161,286-289,329-330
+go/cmd/webhook-listener/handler_observability_test.go
+  s_d3259c8df205fa::t_76dffaa2ae74c9 1-185
+docs/docs/deployment/service-runtimes.md
+  s_d3259c8df205fa::t_816cb52a261680 65,185-186
+go/cmd/webhook-listener/doc.go
+  s_d3259c8df205fa::t_c47336e899a3a9 15-17
+  s_d3259c8df205fa::t_eeb3fb7741c2c9 13-14
+go/cmd/webhook-listener/handler.go
+  s_d3259c8df205fa::t_96f7f714d4eb80 14,16-18,26-31,34-39,41-58,77-84,86,90,97,107,111-118,120,124,137,147,151-158,160,164,175,185,188,192,201,204,208,210,213-224,227,229-230,232-234,245,247-251,258,268-276,278-279,281-289,293-295,299-307,309-319,323-325,327-335,339-349,351-360,366,368-374,376-381,383-388,390-395,397-402,404-409,411-416,418
+  s_d3259c8df205fa::t_386c544b37aaa0 40,280,308,326,350,367,375,382,389,396,403,410,417
+  s_d3259c8df205fa::t_58225217d8b65e 277,290-292,296-298,320-322,336-338,361-365
+docs/docs/reference/telemetry/metrics.md
+  s_d3259c8df205fa::t_77214e041c2139 179-237,518-524
+go/cmd/webhook-listener/AGENTS.md
+  s_d3259c8df205fa::t_eeb3fb7741c2c9 8-10,27-28
+go/internal/telemetry/instruments_test.go
+  s_d3259c8df205fa::t_013fd48ed6b7ee 44-46,76-77
+  s_d3259c8df205fa::t_8088ff72b39b1c 170-188
+go/internal/telemetry/contract_test.go
+  s_d3259c8df205fa::t_013fd48ed6b7ee 32-35,89-90
+go/internal/telemetry/instruments.go
+  s_d3259c8df205fa::t_38fbdb72f43f80 126-136,180-181,475-498,544-562
+  s_d3259c8df205fa::t_8088ff72b39b1c 1328-1347
+docs/docs/reference/telemetry/index.md
+  s_d3259c8df205fa::t_816cb52a261680 26,140-153,373-375,388-389,441-444,464-465
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "0332f6dcc506be8b03903863b5643f794dea63a7",
+  "prompts": {},
+  "sessions": {
+    "s_d3259c8df205fa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c35-27db-7f23-a973-f62b0105d8b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

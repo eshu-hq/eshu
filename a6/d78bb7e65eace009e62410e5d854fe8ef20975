@@ -1,0 +1,32 @@
+go/internal/reducer/supply_chain_impact.go
+  s_072c5984f68e14::t_470c235aff606a 46,57-58,191,194-195,197,200-202,204-205,212-215,294,303-304,312,318-322,327-328
+  s_072c5984f68e14::t_0255cbb768dc31 305-307
+  s_072c5984f68e14::t_861d073d453606 196,203,220-233
+go/internal/reducer/supply_chain_impact_test.go
+  s_072c5984f68e14::t_19304c83391bdb 85,87-88,102-110
+go/internal/reducer/supply_chain_impact_index.go
+  s_072c5984f68e14::t_a3ef40abf3180e 29-36,54,83,95,114-118,131,225-252,256-268,182
+  s_072c5984f68e14::t_344ce42c5cc12e 171,178-181,201
+go/internal/reducer/supply_chain_impact_product_test.go
+  s_072c5984f68e14::t_d37e19b52936fb 1-15,17-29,33-83,127-208,234-265,108,110-111,113-114,116,118,121,124-126
+  s_072c5984f68e14::t_d47cda535c1e41 84-98
+  s_072c5984f68e14::t_d5499d12b2cc2c 99-100,103-105,106,109,112,115,119-120,122-123
+  s_072c5984f68e14::t_6532849f37ef3e 209-233,107,117
+  s_072c5984f68e14::t_5b22cf1ab0957f 16,30-31,101-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "a6d78bb7e65eace009e62410e5d854fe8ef20975",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

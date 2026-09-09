@@ -1,0 +1,33 @@
+apps/console/src/serviceTrafficPath.css
+  s_a259424f603ccc::t_0056b97b198c2a 55-60
+apps/console/src/pages/ServiceSpotlightPanel.test.tsx
+  s_a259424f603ccc::t_1683246ce9a077 36
+  s_a259424f603ccc::t_84ed3b5e8346e4 37
+  s_a259424f603ccc::t_030eca32f75b15 300,304,307
+docs/superpowers/specs/2026-05-14-eshu-console-storytelling-contract-field-map-design.md
+  s_a259424f603ccc::t_ec35480a10fd0d 238-251
+apps/console/src/api/serviceTrafficPath.ts
+  s_a259424f603ccc::t_7f82281dc356b5 5,9,12,18-19,39-50,52-60,71-79,84-111,118,126,129,143-146,151-162
+apps/console/src/api/serviceTrafficPath.test.ts
+  s_a259424f603ccc::t_3b0b9203bd6009 9-11,16,30-38,48-50,52-89,91,118,122,125
+apps/console/src/pages/ServiceTrafficPathPanel.tsx
+  s_a259424f603ccc::t_0056b97b198c2a 69-75,81
+docs/superpowers/plans/2026-05-13-eshu-console-pr1.md
+  s_a259424f603ccc::t_ec35480a10fd0d 234-258,310,319-321,323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "521ecb1cdd783971f2136ef626e436dd48ffa0b3",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

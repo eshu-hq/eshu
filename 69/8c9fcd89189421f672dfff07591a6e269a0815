@@ -1,0 +1,57 @@
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_fc95b7586ddfec 8-10
+  s_bdaf44668b73dc::t_9884eef8ec6172 17-18
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 32-38
+  s_bdaf44668b73dc::t_e08a27ae199e4d 14-16
+  s_bdaf44668b73dc::t_17cc75fc55a462 40
+go/internal/parser/golang/embedded_sql.go
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 1-220
+go/internal/parser/golang/AGENTS.md
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 1-4,9-12,18-20,25-27,32-34,38-40
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 12-13,137
+  s_bdaf44668b73dc::t_9884eef8ec6172 14-15
+  s_bdaf44668b73dc::t_e08a27ae199e4d 16-17
+  s_bdaf44668b73dc::t_17cc75fc55a462 18-19
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_9884eef8ec6172 113-116
+  s_bdaf44668b73dc::t_f37cadbf385c29 122-124
+  s_bdaf44668b73dc::t_91e8cda920576c 143
+  s_bdaf44668b73dc::t_082b9d2f054448 157
+  s_bdaf44668b73dc::t_0f5e9c4529a70c 264-265
+  s_bdaf44668b73dc::t_8c4a5d3b1ed5da 266-267
+  s_bdaf44668b73dc::t_e08a27ae199e4d 153-156,268-269
+  s_bdaf44668b73dc::t_17cc75fc55a462 132-134,270-271
+go/internal/parser/golang/doc.go
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 3,8
+go/internal/parser/golang/embedded_sql_test.go
+  s_bdaf44668b73dc::t_b8755e620a95bf 1-54,56-66
+  s_bdaf44668b73dc::t_0b61f0d70b2e0a 55
+go/internal/parser/golang/README.md
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 2-4,8-10,16-17,21,25-27,30-31,36,40-42
+  s_435757cfb7acea::t_37ae0c4c6e1e79 15,20,22,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "698c9fcd89189421f672dfff07591a6e269a0815",
+  "prompts": {},
+  "sessions": {
+    "s_435757cfb7acea": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e9a-af46-7223-a04f-ad2e76a7a0ff",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

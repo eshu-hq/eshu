@@ -1,0 +1,44 @@
+go/internal/vulnerabilityparityproof/proof.go
+  s_f2f7fbb6f30866::t_e6938c3088b494 36-41,65-66,70-72,224-269
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_d66a97b13fe307 150-161
+docs/public/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_0614050b1b9586 277-279
+go/internal/vulnerabilityparityproof/doc.go
+  s_f2f7fbb6f30866::t_89d5f6c4b4bf8d 7-9,11
+docs/public/reference/vulnerability-parity-gate.md
+  s_f2f7fbb6f30866::t_bde1fbe36c205a 215-232
+go/internal/vulnerabilityparityproof/proof_test.go
+  s_f2f7fbb6f30866::t_0f7b12ca371594 118-241,354-385,398-412
+go/internal/vulnerabilityparityproof/README.md
+  s_f2f7fbb6f30866::t_c0b95ae180d563 80-82
+  s_f2f7fbb6f30866::t_cf8594443317f2 34-40,60-62,68-70,84-88
+go/cmd/eshu/vuln_scan_provider_parity.go
+  s_f2f7fbb6f30866::t_54dcd9d57ae36e 258-262,336-343
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_c41f6f12a759a5 442-450
+go/cmd/eshu/doc.go
+  s_f2f7fbb6f30866::t_ef75ecb1411896 7-8
+go/cmd/eshu/vuln_scan_provider_parity_test.go
+  s_f2f7fbb6f30866::t_e4c6a35745c32b 70,110,113-128
+go/internal/vulnerabilityparityproof/types.go
+  s_f2f7fbb6f30866::t_23a5344f809cf4 36-40,70-74,82-140
+go/internal/vulnerabilityparityproof/report.go
+  s_f2f7fbb6f30866::t_fbbec83012f1ba 7,36-41,59-63,70,73,84-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "25eb81a2404a72df11a36c0b64f51d43400f41f6",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

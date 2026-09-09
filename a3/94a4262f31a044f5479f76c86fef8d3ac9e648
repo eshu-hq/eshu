@@ -1,0 +1,47 @@
+go/internal/reducer/sbom_attestation_attachment_index.go
+  s_f2f7fbb6f30866::t_4d9b786ffe4413 145,149-152,156,159,162,166,168,170,179,185,198-199,204-252,254
+go/internal/reducer/sbom_attestation_attachment_test.go
+  s_f2f7fbb6f30866::t_218563efa477ef 6
+  s_f2f7fbb6f30866::t_b4bb1fced2637c 193,206-207,234-239,303-314
+  s_f2f7fbb6f30866::t_7ef39395608318 100-104
+  s_f2f7fbb6f30866::t_fc80b279231692 92-96,271-285
+go/internal/query/sbom_attestation_attachments.go
+  s_f2f7fbb6f30866::t_f6ce561c28282d 56,62,186,192
+go/internal/query/supply_chain.go
+  s_f2f7fbb6f30866::t_1094a7238b49ec 67,73
+go/internal/mcp/tools_supply_chain.go
+  s_f2f7fbb6f30866::t_ebd4758134f8c1 284
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_a08c41e44babc2 665-681
+  s_f2f7fbb6f30866::t_a4979c68c9735f 658-664
+go/internal/reducer/sbom_attestation_attachment_writer.go
+  s_f2f7fbb6f30866::t_7d9db27b84b2e8 125
+  s_f2f7fbb6f30866::t_874c096f3bd110 131,137-142
+go/internal/query/sbom_attestation_attachments_test.go
+  s_f2f7fbb6f30866::t_49a3f464928332 67-69,73-74,118-125
+  s_f2f7fbb6f30866::t_cdf6182a1d14b2 152-184
+go/internal/reducer/sbom_attestation_attachment.go
+  s_f2f7fbb6f30866::t_232fd607aff80c 56,62
+go/internal/reducer/sbom_generator_attachment_test.go
+  s_f2f7fbb6f30866::t_5ad0e42ae7f31a 22-24,46-53
+go/internal/query/openapi_paths_supply_chain_sbom.go
+  s_f2f7fbb6f30866::t_2b6a76aa6320d9 38-41
+go/internal/query/openapi_supply_chain_test.go
+  s_f2f7fbb6f30866::t_be8bfffeb364d1 22-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a394a4262f31a044f5479f76c86fef8d3ac9e648",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

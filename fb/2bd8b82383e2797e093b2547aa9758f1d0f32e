@@ -1,0 +1,102 @@
+go/internal/query/code_dead_code_java_roots.go
+  s_bdaf44668b73dc::t_706d5a548f4458 8-36,45-49
+go/internal/query/code_dead_code_java_roots_test.go
+  s_bdaf44668b73dc::t_f0a006a8178ef8 76-105,111-125,131-140
+  s_bdaf44668b73dc::t_4673f0063381e6 106-110
+  s_bdaf44668b73dc::t_0494648c3ed8d4 126-130
+  s_bdaf44668b73dc::t_da38e312acb376 141-149
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_902b12c77cc92f 21-25
+go/internal/parser/java_call_context_test.go
+  s_bdaf44668b73dc::t_96af1df4d11a26 110-144
+  s_bdaf44668b73dc::t_c1139d82e7442d 1-78
+  s_bdaf44668b73dc::t_46c1e0b6a564df 79-109
+go/internal/parser/java_call_context.go
+  s_bdaf44668b73dc::t_ff12c1283d3acf 53-68
+  s_bdaf44668b73dc::t_40d2a9a09f47df 1-8,11-27,30-52,69-79
+  s_bdaf44668b73dc::t_686dcf298bfa21 9-10,28-29
+go/internal/parser/java_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_6217fdfe9a1e93 280,288-305
+  s_bdaf44668b73dc::t_fffd7e810d928b 247-279,281-287,306-307
+  s_bdaf44668b73dc::t_357ef7fda354f6 353-388
+go/internal/reducer/code_call_materialization_java_test.go
+  s_bdaf44668b73dc::t_797e5523cb80ad 167-215
+  s_bdaf44668b73dc::t_de650a601347d4 216-273
+  s_bdaf44668b73dc::t_6894e2bae547fd 274-376
+go/internal/parser/java_type_inference_helpers.go
+  s_bdaf44668b73dc::t_6f30cb4cce8f3c 1-180
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_e9fa074a16e490 8
+  s_bdaf44668b73dc::t_c895bef4cc9785 77,82-83
+  s_bdaf44668b73dc::t_18843336b487ca 304-308
+  s_bdaf44668b73dc::t_8eaaf9c93c7d57 84,86-87
+  s_bdaf44668b73dc::t_76a1fe31a4f6ae 85
+  s_bdaf44668b73dc::t_7698686390e0bd 309-312
+  s_bdaf44668b73dc::t_3565479dfb819e 78-81
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_11c51864c4433a 78-81
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_eebd125c49ae96 11-13
+go/internal/reducer/code_call_materialization_java_receiver_test.go
+  s_bdaf44668b73dc::t_e4d10f02a99c55 1-125
+go/internal/query/code_dead_code_analysis_roots_test.go
+  s_bdaf44668b73dc::t_8c3a881216f621 1-186
+go/internal/reducer/code_call_materialization_helpers.go
+  s_bdaf44668b73dc::t_6cc1344b3adbc5 70,279-307,360
+  s_bdaf44668b73dc::t_c774a73495e70e 277-278
+go/internal/parser/java_metadata.go
+  s_bdaf44668b73dc::t_68540ff8c87b8f 13-17,33
+  s_bdaf44668b73dc::t_faba8f849cb597 23-24,27,32,35-36
+  s_bdaf44668b73dc::t_94ed02d728e34e 34,37
+  s_bdaf44668b73dc::t_2eff00fd4ff89b 134-139
+go/internal/parser/java_dead_code_framework_roots_test.go
+  s_bdaf44668b73dc::t_ceb32db35b7108 22,44-47,81
+  s_bdaf44668b73dc::t_fd984bbaa64a61 1-21,23-43,48-80,82-155,157-158,160-169,178-193,195-196,199-202
+  s_bdaf44668b73dc::t_d5ac88c564edd5 156,170-177,197-198
+  s_bdaf44668b73dc::t_57a3e0497f6d49 159,194
+go/internal/parser/java_dead_code_roots.go
+  s_bdaf44668b73dc::t_4d0ad3bcdbc8db 53-58,61,63-75,77-78,80,84-139
+  s_bdaf44668b73dc::t_08de1254903e87 59-60,62,76,79,81-83,331-343
+  s_bdaf44668b73dc::t_673ffbc1d2fe6b 328-330,344-349
+go/internal/query/code_dead_code_analysis.go
+  s_bdaf44668b73dc::t_ac5eba79b26955 89
+  s_bdaf44668b73dc::t_d858cad00ea0ed 79-88,90-93
+  s_bdaf44668b73dc::t_ecebb45ad4773b 75-76,78
+go/internal/parser/java_call_inference.go
+  s_bdaf44668b73dc::t_d2bc024a7c55ce 60-69
+  s_bdaf44668b73dc::t_e64d93a755e92b 24,31,35-42,113-118,210-224
+  s_bdaf44668b73dc::t_85b96e7fb0e86e 162-167,270-279
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_291550e773e8f3 176-178
+  s_bdaf44668b73dc::t_720972037f2c79 166,168
+  s_bdaf44668b73dc::t_c0053d9b996ac4 162-165,169-172
+  s_bdaf44668b73dc::t_5e626df5916730 167
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_a3b845897716fb 32-33
+  s_bdaf44668b73dc::t_c12a6ded80529c 38
+  s_bdaf44668b73dc::t_06580165cf889a 24-28,34-37
+  s_bdaf44668b73dc::t_11712c4deb02e5 29-30
+  s_bdaf44668b73dc::t_fbd5245d04fb13 31
+go/internal/parser/java_language.go
+  s_bdaf44668b73dc::t_84e4d533d436b8 46,48,101-125
+  s_bdaf44668b73dc::t_1e02fedde97c80 41
+  s_bdaf44668b73dc::t_37ff8029f69ad3 333,339-340,356-357
+  s_bdaf44668b73dc::t_094b1c12f92bb2 288,297-300,345-348,404,418
+  s_bdaf44668b73dc::t_154efe8932aabd 334-338
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "fb2bd8b82383e2797e093b2547aa9758f1d0f32e",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,37 @@
+go/internal/telemetry/contract_vulnerability_intelligence.go
+  s_072c5984f68e14::t_ef3a91f2f25131 9-10
+docs/docs/reference/telemetry/index.md
+  s_072c5984f68e14::t_bcaef36403de86 263-265,270-271,516,518
+go/internal/telemetry/instruments_test.go
+  s_072c5984f68e14::t_4a3d604c366253 47
+docs/docs/adrs/2026-05-15-vulnerability-intelligence-collector.md
+  s_072c5984f68e14::t_deea8e8642a4c8 455-459
+  s_072c5984f68e14::t_f46ad0432783a4 355,387
+  s_072c5984f68e14::t_fc7f8ed9988d2d 489,493-495
+go/internal/telemetry/instruments.go
+  s_072c5984f68e14::t_db908a32117ace 77,554-556,559,572
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source_test.go
+  s_072c5984f68e14::t_e05623e02f025b 110-148,198,202
+go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md
+  s_072c5984f68e14::t_e633a67b5852ab 41,53-54,70
+go/internal/telemetry/README.md
+  s_072c5984f68e14::t_02ceed38ab8e78 115
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source.go
+  s_072c5984f68e14::t_14f270a72d780e 153-154,156-160,267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "6ef56060a6b1e0662cee2d30b50f2db8bd3ee97c",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

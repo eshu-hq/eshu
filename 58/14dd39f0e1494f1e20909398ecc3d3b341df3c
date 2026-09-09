@@ -1,0 +1,21 @@
+go/internal/mcp/tools_openai_contract_test.go
+  s_09ee6306ad72bc::t_8d90905fdd8af1 5,22
+go/internal/mcp/tools_no_cache_contract_test.go
+  s_09ee6306ad72bc::t_2dd64a74321a82 34-37,41-44,48-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5814dd39f0e1494f1e20909398ecc3d3b341df3c",
+  "prompts": {},
+  "sessions": {
+    "s_09ee6306ad72bc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e2de8-f667-7fd0-b949-d056bf986910",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

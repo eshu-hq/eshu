@@ -1,0 +1,33 @@
+go/internal/storage/postgres/facts_active_jvm_reachability_test.go
+  s_f2f7fbb6f30866::t_b2b3e46043d9f0 1-100
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_3c58f68c9b4287 204-206,210
+  s_f2f7fbb6f30866::t_2adee5122e6e0f 207-209,211-223
+go/internal/storage/postgres/facts_active_jvm_reachability.go
+  s_f2f7fbb6f30866::t_e93a9ba70bfc11 1-12,18-54,115,118-119,121-146,148-168,170-181,183-204,114
+  s_f2f7fbb6f30866::t_8d46d139bd20ff 13,17,55-113,116-117,120,147,169,182
+  s_f2f7fbb6f30866::t_dc24442549a9c1 14-16
+go/internal/reducer/supply_chain_impact_manifest_dependency_test.go
+  s_f2f7fbb6f30866::t_1a1c2b9a5221db 17-20,22-25,72-76,78
+  s_f2f7fbb6f30866::t_ee9df84a113f13 21,77
+go/internal/reducer/supply_chain_impact_jvm_reachability_test.go
+  s_f2f7fbb6f30866::t_b887e9b59a166c 1-4,6-259,269-307,262,265,268
+  s_f2f7fbb6f30866::t_2371884749263b 5,263,266
+  s_f2f7fbb6f30866::t_b6f93b04a9ee64 260-261,264,267
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bcfc8444ed388beb10fc9365076e4e848f25fad9",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

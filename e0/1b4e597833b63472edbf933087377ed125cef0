@@ -1,0 +1,21 @@
+go/internal/storage/postgres/recovery_test.go
+  s_1273e1d3d73976::t_4f38b2a8b41244 60-90,94-96,98-115,148-155
+PRODUCT.md
+  s_1273e1d3d73976::t_014a8b043a83c5 5-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e01b4e597833b63472edbf933087377ed125cef0",
+  "prompts": {},
+  "sessions": {
+    "s_1273e1d3d73976": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e28fa-e5aa-7ac3-a705-f0b90521b5e7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

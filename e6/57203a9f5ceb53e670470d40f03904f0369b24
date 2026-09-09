@@ -1,0 +1,108 @@
+go/internal/collector/packageregistry/identity.go
+  s_f2f7fbb6f30866::t_cd14ff757e1dbc 3,8
+  s_f2f7fbb6f30866::t_c8318ecc7e97eb 12
+go/internal/query/package_registry_test.go
+  s_f2f7fbb6f30866::t_bd2f28dbf04fc0 90-98,100-101,220-226,247-249,275-283,330-332,375-377,408-415
+  s_f2f7fbb6f30866::t_a7f103a7092a44 99,129-131,165-178
+go/internal/storage/cypher/README.md
+  s_f2f7fbb6f30866::t_8cd0679ef4203f 126-128,152-161
+go/internal/collector/packageregistry/dependency.go
+  s_f2f7fbb6f30866::t_d38e7b3fdd0063 52-54,64
+go/internal/collector/packageregistry/doc.go
+  s_f2f7fbb6f30866::t_3e9aa6e61db888 6-11,19-23
+go/internal/collector/packageregistry/version_test.go
+  s_f2f7fbb6f30866::t_71e122b7905b2e 63-65
+go/internal/collector/packageregistry/envelope.go
+  s_f2f7fbb6f30866::t_d38e7b3fdd0063 43-47,49
+go/internal/projector/package_registry_canonical_test.go
+  s_f2f7fbb6f30866::t_a7f103a7092a44 37-51,66-74,102-110,227-231,261-263,339-341
+go/internal/collector/packageregistry/registry_envelopes_test.go
+  s_f2f7fbb6f30866::t_71e122b7905b2e 64-66
+go/internal/collector/vulnerabilityintelligence/identity.go
+  s_f2f7fbb6f30866::t_6e5d64d4568e1d 9,87-89,91,106-113
+  s_f2f7fbb6f30866::t_3df200f6faf0e0 24-31,33-37,47,75,83
+go/internal/collector/vulnerabilityintelligence/doc.go
+  s_f2f7fbb6f30866::t_ff42b062a8ae1b 8-9
+go/internal/collector/vulnerabilityintelligence/osv_envelope_test.go
+  s_f2f7fbb6f30866::t_2d7b3d9e60a8f6 122-141
+  s_f2f7fbb6f30866::t_89d30de0a664a5 142-164
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_8cd0679ef4203f 51-54,87-93
+go/internal/reducer/package_consumption_correlation.go
+  s_f2f7fbb6f30866::t_28bcd01a2f8fa1 9,81-82,89,319-397,399
+go/internal/packageidentity/identity_test.go
+  s_f2f7fbb6f30866::t_d76c0e7c69bc5a 1-146,148-240,261-285
+  s_f2f7fbb6f30866::t_2e75508f141ce2 147
+  s_f2f7fbb6f30866::t_44bcceb5c3aaab 241-260
+go/internal/packageidentity/README.md
+  s_f2f7fbb6f30866::t_1f6c5f371a9b57 1-25,31-39
+  s_f2f7fbb6f30866::t_3e9aa6e61db888 26-30,40-42,44-45,48-53
+  s_f2f7fbb6f30866::t_ff42b062a8ae1b 43,46-47
+go/internal/collector/packageregistry/types.go
+  s_f2f7fbb6f30866::t_cd14ff757e1dbc 3-7,13,17,19,21,23,25-33,35,52,56
+docs/internal/security-intelligence-implementation-plan.md
+  s_f2f7fbb6f30866::t_b212475b5d84a7 122-125,214,218-223
+  s_f2f7fbb6f30866::t_ff42b062a8ae1b 126-127,213,215-217
+go/internal/collector/packageregistry/envelope_test.go
+  s_f2f7fbb6f30866::t_71e122b7905b2e 70-74
+go/internal/collector/packageregistry/identity_test.go
+  s_f2f7fbb6f30866::t_dc100c41b669c3 26-28,44-46,62-64,81-83,103-105,121-123
+go/internal/query/package_registry_cypher.go
+  s_f2f7fbb6f30866::t_c7a3db898a1039 1-111
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_b212475b5d84a7 93-94,450-451
+go/internal/collector/vulnerabilityintelligence/gitlab_gemnasium_envelope_test.go
+  s_f2f7fbb6f30866::t_2d7b3d9e60a8f6 445-465
+go/internal/storage/cypher/package_registry_canonical_writer_test.go
+  s_f2f7fbb6f30866::t_bd2f28dbf04fc0 28-32,49-51,73-75,110-124,139-151,160-163,172-174
+go/internal/collector/packageregistry/version.go
+  s_f2f7fbb6f30866::t_d38e7b3fdd0063 18-23,46-48,55
+go/internal/projector/README.md
+  s_f2f7fbb6f30866::t_8cd0679ef4203f 148-151
+go/internal/collector/vulnerabilityintelligence/gitlab_gemnasium_identity.go
+  s_f2f7fbb6f30866::t_6e5d64d4568e1d 40,68
+go/internal/collector/packageregistry/README.md
+  s_f2f7fbb6f30866::t_3e9aa6e61db888 5-6,8-9,62-64,150-152
+go/internal/query/openapi_paths_package_registry.go
+  s_f2f7fbb6f30866::t_e847d7da0a24e2 34-38,88-90,151-153
+go/internal/query/package_registry.go
+  s_f2f7fbb6f30866::t_c3b6104eb4d877 39-43,57,77-79,166-170,244,337-339
+  s_f2f7fbb6f30866::t_c7a3db898a1039 52-56,58-62,239-243,245-249
+go/internal/packageidentity/doc.go
+  s_f2f7fbb6f30866::t_1f6c5f371a9b57 1-3
+go/internal/packageidentity/AGENTS.md
+  s_f2f7fbb6f30866::t_1f6c5f371a9b57 1-30
+go/internal/projector/package_registry_canonical.go
+  s_f2f7fbb6f30866::t_c3b6104eb4d877 23-27,48-50,81-83,158-162,173-177,203-205,214-216,262-264
+go/internal/collector/packageregistry/envelope_helpers.go
+  s_f2f7fbb6f30866::t_d38e7b3fdd0063 93-97,105-106
+go/internal/packageidentity/identity.go
+  s_f2f7fbb6f30866::t_1f6c5f371a9b57 1-76,78-138,140-149,153-220,224-320
+  s_f2f7fbb6f30866::t_0f9a7fba13e19f 77,150-152
+  s_f2f7fbb6f30866::t_9792dbec9dc5e0 139
+  s_f2f7fbb6f30866::t_cef14e47c48283 221-223
+go/internal/collector/vulnerabilityintelligence/README.md
+  s_f2f7fbb6f30866::t_ff42b062a8ae1b 117-120,145-146
+go/internal/reducer/package_consumption_correlation_test.go
+  s_f2f7fbb6f30866::t_da368940e8c771 72-110
+go/internal/storage/cypher/package_registry_canonical_writer.go
+  s_f2f7fbb6f30866::t_c3b6104eb4d877 28-32,55-57,88-90,108-110,225-229,255-257,293-295,332-334
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_b212475b5d84a7 77-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "e657203a9f5ceb53e670470d40f03904f0369b24",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+go/internal/storage/cypher/doc.go
+  s_0fdb6fbe5bc880::t_4703f197990f7b 15-21
+go/internal/storage/cypher/README.md
+  s_0fdb6fbe5bc880::t_4703f197990f7b 240-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "b0dc7a488783e7173f413c69ec15801275945206",
+  "prompts": {},
+  "sessions": {
+    "s_0fdb6fbe5bc880": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dfda7-b67d-7d01-abd4-1370d870116b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+schema/data-plane/postgres/003_fact_records.sql
+  s_072c5984f68e14::t_4c39cf32bbd4a9 52-56
+docs/docs/adrs/2026-05-09-documentation-truth-collectors-and-actuators.md
+  s_072c5984f68e14::t_fb6d8d8e308878 486-488
+go/internal/storage/postgres/schema_test.go
+  s_072c5984f68e14::t_8aeb61d830ba93 210,213-214
+go/internal/storage/postgres/schema_fact_records.go
+  s_072c5984f68e14::t_406281846cc20c 55-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "247b1dc226257098064c196fc42c473465059421",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

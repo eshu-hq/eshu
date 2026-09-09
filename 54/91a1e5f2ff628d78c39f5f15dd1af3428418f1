@@ -1,0 +1,52 @@
+go/internal/storage/postgres/status.go
+  s_072c5984f68e14::t_dac8e4ef2621b3 85-88,132
+go/internal/storage/postgres/proof_domain_tx_harness_test.go
+  s_072c5984f68e14::t_d158991004cabe 1-206
+go/internal/status/status_health.go
+  s_072c5984f68e14::t_d37c50b9cae7d6 12,35,44,134,136-138
+  s_072c5984f68e14::t_d21c86952abd10 32,34,36-43,74-75
+  s_072c5984f68e14::t_38d550b5f62b25 135
+go/internal/storage/postgres/status_queries.go
+  s_072c5984f68e14::t_09b0477d34643e 17-22,24-33
+  s_072c5984f68e14::t_df8f8eebdfda31 16
+  s_072c5984f68e14::t_aac74f56305199 23
+go/internal/storage/postgres/status_test.go
+  s_072c5984f68e14::t_a08b2d154a7ea6 67-68,117-119,190-191,196
+  s_072c5984f68e14::t_be120308118046 393,395
+  s_072c5984f68e14::t_2ba4f9dfe50306 66,114-116,394,457-465
+go/internal/status/status_health_test.go
+  s_072c5984f68e14::t_68a69da6a9005b 351-365,368-383
+  s_072c5984f68e14::t_23490d942c4113 301-331,334-350
+  s_072c5984f68e14::t_8c412e6be9e58a 332-333,366-367
+docs/docs/reference/remote-e2e-runtime-state.md
+  s_072c5984f68e14::t_f91c26d1d234c4 82-94,106-114
+go/internal/storage/postgres/status_producer_activity.go
+  s_072c5984f68e14::t_da6d76d09dbb51 1-4,6-29,33-39,42-43
+  s_072c5984f68e14::t_5f821159b5afa7 5,30-32,40-41
+go/internal/status/producer_activity.go
+  s_072c5984f68e14::t_c06a7fa7ed1fe4 1-7,10-13,16-17
+  s_072c5984f68e14::t_db59b7cbc3bb33 8-9,14-15
+go/internal/storage/postgres/proof_domain_support_test.go
+  s_072c5984f68e14::t_a0f16840285519 93-101
+go/internal/status/status.go
+  s_072c5984f68e14::t_6114af86d22210 94,225,231
+go/internal/storage/postgres/proof_domain_harness_test.go
+  s_072c5984f68e14::t_f484d94675d6b7 186
+  s_072c5984f68e14::t_309a1d6132fbf8 187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "5491a1e5f2ff628d78c39f5f15dd1af3428418f1",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

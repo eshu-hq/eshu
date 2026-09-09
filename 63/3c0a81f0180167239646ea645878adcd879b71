@@ -1,0 +1,27 @@
+deploy/helm/eshu/values.yaml
+  s_bdaf44668b73dc::t_45077dba035c6c 3
+deploy/argocd/base/values.yaml
+  s_bdaf44668b73dc::t_45077dba035c6c 3
+deploy/manifests/minimal/statefulset.yaml
+  s_bdaf44668b73dc::t_45077dba035c6c 19
+docs/docs/deploy/kubernetes/helm-values.md
+  s_bdaf44668b73dc::t_45077dba035c6c 10
+deploy/helm/eshu/Chart.yaml
+  s_bdaf44668b73dc::t_45077dba035c6c 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "633c0a81f0180167239646ea645878adcd879b71",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

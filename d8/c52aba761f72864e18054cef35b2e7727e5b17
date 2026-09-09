@@ -1,0 +1,21 @@
+go/internal/reducer/supply_chain_impact.go
+  s_072c5984f68e14::t_0255cbb768dc31 292-294
+go/internal/reducer/supply_chain_impact_product_test.go
+  s_072c5984f68e14::t_d5499d12b2cc2c 130-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "d8c52aba761f72864e18054cef35b2e7727e5b17",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,53 @@
+go/internal/reducer/supply_chain_impact_writer.go
+  s_f2f7fbb6f30866::t_216178885b868a 168-169
+go/internal/query/supply_chain_impact_findings_test.go
+  s_f2f7fbb6f30866::t_6cb07c3d3973f4 337-363
+go/internal/query/supply_chain_impact_findings.go
+  s_f2f7fbb6f30866::t_b655939074e560 82-83
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_74701c03eb91c1 138-139
+go/internal/query/openapi_paths_supply_chain_impact_findings.go
+  s_f2f7fbb6f30866::t_19e0cd89ae025a 78-79
+go/internal/query/supply_chain_impact_result.go
+  s_f2f7fbb6f30866::t_4c2d66e7371150 53-54
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_35e8c9dd870e36 596-600,603-606
+go/internal/query/supply_chain_impact_findings_decode.go
+  s_f2f7fbb6f30866::t_5bfa517f0ba632 58-59
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_57196064a26f53 195-196
+go/internal/query/supply_chain_impact_operational_anchor_test.go
+  s_f2f7fbb6f30866::t_33f143a88c62ae 51-56,79-80,119-124,140-141
+go/internal/query/supply_chain_impact_explain.go
+  s_f2f7fbb6f30866::t_19e1e99df3bdc3 129-130
+go/internal/reducer/supply_chain_impact_runtime_test.go
+  s_f2f7fbb6f30866::t_16aec2874c5ab8 375-376
+go/internal/reducer/supply_chain_impact_operational_anchor_test.go
+  s_f2f7fbb6f30866::t_a7e0064d1a8aa3 41-42
+go/internal/reducer/supply_chain_impact_runtime.go
+  s_f2f7fbb6f30866::t_3dacefed8ff502 44-45,63-64
+go/internal/query/evidence-notes.md
+  s_f2f7fbb6f30866::t_d011c48d449910 71-91
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_7b77ff0fcb95f2 732-733,739,741-744,749-751
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_8b6ceaf4db4105 109-110
+go/internal/query/supply_chain_impact_explain_build.go
+  s_f2f7fbb6f30866::t_529f9932b23ad5 147-148,165-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "901aeb62c17d99208d3e46a262486e091051707b",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

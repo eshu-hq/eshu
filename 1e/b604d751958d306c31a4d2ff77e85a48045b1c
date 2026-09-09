@@ -1,0 +1,52 @@
+go/internal/query/supply_chain_security_alerts.go
+  s_f2f7fbb6f30866::t_d3e84291a784d8 37,43
+go/internal/query/supply_chain_repository_selector.go
+  s_f2f7fbb6f30866::t_e40f25a274fed7 77-80,110-113
+  s_f2f7fbb6f30866::t_d3e84291a784d8 5,29-76,81-109,114-124
+go/internal/query/security_alert_reconciliation_aggregates.go
+  s_f2f7fbb6f30866::t_d3e84291a784d8 8-9,55,139-144,193-198,214,216,258-263,290,379
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_0a53b69d2ca0bd 324,471-474
+go/internal/query/security_alert_reconciliation.go
+  s_f2f7fbb6f30866::t_d3e84291a784d8 10-11,33,139,212-217,234-235
+go/internal/query/security_alert_reconciliation_aggregates_handler.go
+  s_f2f7fbb6f30866::t_d3e84291a784d8 172,178
+go/internal/query/supply_chain_security_alerts_test.go
+  s_f2f7fbb6f30866::t_ad32c3113fba9c 302-304
+go/internal/query/supply_chain_repository_selector_aggregates_test.go
+  s_f2f7fbb6f30866::t_f92942e4eea635 6
+  s_f2f7fbb6f30866::t_f72540213f5f5b 105,160-161
+go/internal/storage/postgres/schema_fact_records.go
+  s_f2f7fbb6f30866::t_c8e9102141c8fa 413-432
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  s_f2f7fbb6f30866::t_c8e9102141c8fa 121-122
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_0a53b69d2ca0bd 136-138,211-213,218-221,229,236-238
+  s_f2f7fbb6f30866::t_c8e9102141c8fa 223-226
+schema/data-plane/postgres/003_fact_records.sql
+  s_f2f7fbb6f30866::t_ab9e850d60a49d 410-429
+go/internal/query/supply_chain_repository_selector_test.go
+  s_f2f7fbb6f30866::t_d5fe9007baaa74 185,237-238
+  s_f2f7fbb6f30866::t_e40f25a274fed7 257-300
+go/internal/query/security_alert_reconciliation_aggregates_test.go
+  s_f2f7fbb6f30866::t_f910056d8164b7 369-370
+  s_f2f7fbb6f30866::t_ad32c3113fba9c 341-343,366-368,371-374
+go/internal/storage/postgres/facts_active_supply_chain_impact_test.go
+  s_f2f7fbb6f30866::t_87f329f02cfd57 175-176,184-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1eb604d751958d306c31a4d2ff77e85a48045b1c",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

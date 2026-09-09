@@ -1,0 +1,33 @@
+go/internal/parser/json/swift_package_resolved.go
+  s_f2f7fbb6f30866::t_22de22c40634ca 30-33,40,52,75-103
+go/internal/coordinator/vulnerability_intelligence_batch_test.go
+  s_f2f7fbb6f30866::t_3a8864d16f28b8 8,214-268
+go/internal/query/supply_chain_impact_profile_test.go
+  s_f2f7fbb6f30866::t_80cf4ba6ad1ce0 141-142,145-146
+go/internal/storage/postgres/owned_package_targets.go
+  s_f2f7fbb6f30866::t_5cda056ee5c101 18,21
+go/internal/coordinator/vulnerability_intelligence_scheduler.go
+  s_f2f7fbb6f30866::t_a5d1dee9fc51be 308,418-424,431-435,438,448-451
+go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md
+  s_f2f7fbb6f30866::t_c510126407de6f 63
+go/internal/storage/postgres/owned_package_targets_test.go
+  s_f2f7fbb6f30866::t_2223540d604e1b 23
+go/internal/parser/json/swift_package_resolved_test.go
+  s_f2f7fbb6f30866::t_25d66aa7d6140e 77-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "38507e77b5dde9da53f83bba760f5643b35c6709",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

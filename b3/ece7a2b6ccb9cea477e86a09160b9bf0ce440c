@@ -1,0 +1,48 @@
+go/cmd/collector-jira/config_test.go
+  s_f2f7fbb6f30866::t_eac5663593f1cf 63-65,71-142
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_bea5660029ed1d 296-303
+go/internal/workflow/jira_config_test.go
+  s_f2f7fbb6f30866::t_7be2ef823b9c80 1-51
+  s_f2f7fbb6f30866::t_6ab8d547abae76 52-77
+go/internal/workflow/jira_config.go
+  s_f2f7fbb6f30866::t_c6ec23c826bb78 30,78-79,96-106
+docs/public/run-locally/docker-compose.md
+  s_f2f7fbb6f30866::t_0c1fb5a39cd121 199-201
+go/internal/workflow/README.md
+  s_f2f7fbb6f30866::t_efecce61ad7118 247-256
+go/cmd/collector-jira/README.md
+  s_f2f7fbb6f30866::t_e0c15aeef711cf 37-41,53
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_ded110eb73492b 79
+scripts/test-remote-e2e-hosted-compose-render.sh
+  s_f2f7fbb6f30866::t_5bf4247129a1dd 56
+go/internal/runtime/compose_remote_e2e_hosted_registration_test.go
+  s_f2f7fbb6f30866::t_950d23ba2656a7 37-48
+go/cmd/collector-jira/config.go
+  s_f2f7fbb6f30866::t_97ff2ed581267b 44,176-179,187,196-212
+docs/public/deployment/service-runtimes-collectors.md
+  s_f2f7fbb6f30866::t_66c7b0bf5606d6 75
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_5e5661dac65ced 297
+.env.remote-e2e.example
+  s_f2f7fbb6f30866::t_187025a42b1dfd 87-88
+docs/public/reference/environment-collectors.md
+  s_f2f7fbb6f30866::t_09ecb4998d2ff8 185-195,206-209,212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b3ece7a2b6ccb9cea477e86a09160b9bf0ce440c",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

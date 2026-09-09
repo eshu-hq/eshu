@@ -1,0 +1,49 @@
+docs/docs/reference/nornicdb-tuning.md
+  s_f2f7fbb6f30866::t_cf56c748f9dc42 403,416
+docs/docs/deployment/service-runtimes.md
+  s_f2f7fbb6f30866::t_d6e4808078552a 61,520,539,569,571-586,589-591,593-598,602-604,645,652-655,657-658
+docs/docs/deploy/kubernetes/helm-values.md
+  s_f2f7fbb6f30866::t_557656bbce34b3 15-17,65-84
+  s_f2f7fbb6f30866::t_0684360d820de4 86-108
+scripts/verify-helm-schema-bootstrap.sh
+  s_f2f7fbb6f30866::t_e520fc452b0bb3 1-36,38-42
+  s_f2f7fbb6f30866::t_7322a5306d6540 37
+deploy/helm/eshu/templates/_helpers.tpl
+  s_f2f7fbb6f30866::t_3cf5a8151925ac 55-58,360-369
+  s_f2f7fbb6f30866::t_13a0153b6d845d 162-166
+docs/docs/deploy/kubernetes/index.md
+  s_f2f7fbb6f30866::t_fd01605d2791f1 10-12,33
+deploy/helm/eshu/templates/job-schema-bootstrap.yaml
+  s_f2f7fbb6f30866::t_cf853b80ae7bff 1-21,23-64
+  s_f2f7fbb6f30866::t_fd795958c31c4c 22
+docs/docs/reference/nornicdb-pitfalls.md
+  s_f2f7fbb6f30866::t_cf56c748f9dc42 77
+deploy/helm/eshu/values.schema.json
+  s_f2f7fbb6f30866::t_cb330d743139de 128-154
+deploy/helm/eshu/templates/networkpolicy.yaml
+  s_f2f7fbb6f30866::t_f71a8076d660e9 135-154
+docs/docs/deploy/kubernetes/manifests.md
+  s_f2f7fbb6f30866::t_7ca0045c2955e5 21
+deploy/helm/eshu/values.yaml
+  s_f2f7fbb6f30866::t_e3416ab1431446 39-58
+deploy/helm/eshu/README.md
+  s_f2f7fbb6f30866::t_d482d237951261 12-13,66-70
+docs/docs/reference/backend-conformance.md
+  s_f2f7fbb6f30866::t_3040c659bd0da6 138-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8f572ccdd9aa845f79366fa2b2c4d7588f3a3b4f",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

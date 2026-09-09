@@ -1,0 +1,26 @@
+go/internal/collector/awscloud/services/dynamodb/awssdk/README.md
+  s_f2f7fbb6f30866::t_e521cfd9d4d416 19,67-69
+go/internal/collector/awscloud/services/dynamodb/README.md
+  s_f2f7fbb6f30866::t_828042e1bd741d 93-98
+go/internal/collector/awscloud/services/dynamodb/awssdk/client_test.go
+  s_f2f7fbb6f30866::t_5259d690bda3fc 237-293,314,374
+go/internal/collector/awscloud/services/dynamodb/awssdk/client.go
+  s_f2f7fbb6f30866::t_8ef120c3bcba76 80,98,102,118-119,122,133,136,141,143,145,149,151,194-197,207,210,212
+  s_f2f7fbb6f30866::t_0590ef432bfda9 193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "928cadd0cb65e396ef471404b9d25d062a516b94",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

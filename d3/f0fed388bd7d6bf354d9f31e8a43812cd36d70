@@ -1,0 +1,26 @@
+.env.remote-e2e.example
+  s_f2f7fbb6f30866::t_220b1dfa01e407 9
+go/internal/runtime/compose_remote_e2e_test.go
+  s_f2f7fbb6f30866::t_f45fd9d19bffec 37
+  s_f2f7fbb6f30866::t_4d5a9a63001da3 76-96
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_c0fb2cc659e791 165,213,226,233,240,247
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_646100bb6e583a 252-271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "d3f0fed388bd7d6bf354d9f31e8a43812cd36d70",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

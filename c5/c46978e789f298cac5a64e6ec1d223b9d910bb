@@ -1,0 +1,33 @@
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_01a07cbb4640f8 659-681
+go/internal/reducer/container_image_identity_evidence.go
+  s_f2f7fbb6f30866::t_6d9df4f8d94405 114,123,171,174,185,202,215
+  s_f2f7fbb6f30866::t_faa198795af34b 176-183,187-193,195
+  s_f2f7fbb6f30866::t_7986f8be48511a 58,92-99,104-108,155-159,161-170,175,184,186,194,196-201,203-214,216-222
+  s_f2f7fbb6f30866::t_4704682d609be0 36,59,85-91,100-103,160,172-173
+  s_f2f7fbb6f30866::t_5c89e84da774c3 81
+  s_f2f7fbb6f30866::t_55399859697f80 41,54,154
+go/internal/reducer/container_image_identity.go
+  s_f2f7fbb6f30866::t_a13d3dedba967a 201-202
+go/internal/reducer/container_image_identity_registry.go
+  s_f2f7fbb6f30866::t_64bd24eb3e5952 4
+  s_f2f7fbb6f30866::t_af0f6a1262d49e 66-83,99-122,180-185
+go/internal/reducer/container_image_identity_cicd_test.go
+  s_f2f7fbb6f30866::t_45807a37afc278 1-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c5c46978e789f298cac5a64e6ec1d223b9d910bb",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

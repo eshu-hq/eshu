@@ -1,0 +1,53 @@
+apps/console/src/api/liveData.ts
+  s_a259424f603ccc::t_80c19eafe66716 28-29,31,35-36,39,55,58,61,204-207,244-252,292-298,309-312,440-452
+apps/console/src/pages/CatalogPage.tsx
+  s_a259424f603ccc::t_842fd331f67b8e 78,113-117,150-164
+apps/console/src/api/serviceStoryDossier.ts
+  s_a259424f603ccc::t_a4ec45723f6ce7 7,10,81,95
+apps/console/src/pages/ServiceTrafficPathPanel.tsx
+  s_a259424f603ccc::t_6cf894554392cd 1-12,15-41,43-45,56-114,144-152
+  s_a259424f603ccc::t_1b8b750b21f2f9 13-14,42,46-55,115-143
+apps/console/src/pages/ServiceSpotlightPanel.tsx
+  s_a259424f603ccc::t_d617264ae32acb 14,53
+apps/console/src/styles.css
+  s_a259424f603ccc::t_1b8b750b21f2f9 4
+apps/console/src/serviceTrafficPath.css
+  s_a259424f603ccc::t_1b8b750b21f2f9 1-80
+apps/console/src/api/serviceTrafficPath.ts
+  s_a259424f603ccc::t_34ef83598de03c 1-100
+apps/console/src/api/serviceTrafficPath.test.ts
+  s_a259424f603ccc::t_3f4d9ff759160f 1-89
+apps/console/src/pages/CatalogPage.test.tsx
+  s_a259424f603ccc::t_cfecb88bcb976f 24-25,37-38,63-65
+apps/console/src/tables.css
+  s_a259424f603ccc::t_bdfa78f5c8ee15 51-67
+apps/console/src/pages/ServiceChangeSurfacePanel.tsx
+  s_a259424f603ccc::t_631a680cab72c0 2,24-25,27-32,43-44,47-48,50,53-75
+apps/console/src/pages/ServiceChangeSurfacePanel.test.tsx
+  s_a259424f603ccc::t_2cdf899c866090 12-21,24-25,28,30-35,38-41,43-47,50-66,68-85,87-103,105-107,109-131,136-137
+apps/console/src/api/serviceSpotlight.ts
+  s_a259424f603ccc::t_e26f250543509f 9-13,38,87,256-257
+apps/console/src/pages/ServiceSpotlightPanel.test.tsx
+  s_a259424f603ccc::t_ca798b42482dc1 61
+  s_a259424f603ccc::t_860ea67207238a 32-33,295-303
+  s_a259424f603ccc::t_1b8b750b21f2f9 34
+  s_a259424f603ccc::t_80746514b26777 35
+apps/console/src/api/mockData.ts
+  s_a259424f603ccc::t_17397af52895ec 106,108-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e8888d10924c5c9a506241184e8fa66374138e8e",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,34 @@
+go/internal/reducer/code_call_materialization_relationship.go
+  s_bdaf44668b73dc::t_4966097eebe361 9-10
+go/internal/reducer/code_call_materialization_go_package_test.go
+  s_bdaf44668b73dc::t_31a6d9b7d93102 78-152
+go/internal/reducer/code_call_materialization_index.go
+  s_bdaf44668b73dc::t_a01b08703c2a76 228,245,248-249
+go/internal/reducer/code_call_materialization_go_function_value_test.go
+  s_bdaf44668b73dc::t_e05492a9c8b466 1-115
+go/internal/parser/golang/function_value_references.go
+  s_bdaf44668b73dc::t_03dcb4adafd5c9 67,71,74,79-87
+  s_bdaf44668b73dc::t_9c04824c7c9bba 1-66,68-70,72-73,75-78,88
+go/internal/parser/go_dead_code_function_values_test.go
+  s_bdaf44668b73dc::t_262215fd0f2786 153,155-159,170-172
+  s_bdaf44668b73dc::t_2e9ad46b55b874 66-102,107-110
+  s_bdaf44668b73dc::t_2577e13caa634b 103-106,154,160-169
+go/internal/parser/golang/language.go
+  s_bdaf44668b73dc::t_d1ad016fa488b3 154-156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "8a246926f5f49a0b0caf154c1804cd8b003fb564",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

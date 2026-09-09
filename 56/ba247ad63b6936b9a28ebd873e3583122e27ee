@@ -1,0 +1,98 @@
+go/internal/reducer/supply_chain_impact_version_match_test.go
+  s_f2f7fbb6f30866::t_803803a524fb47 132-202
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_e6eabd9c946105 109
+go/internal/parser/json/dependency_coverage_test.go
+  s_f2f7fbb6f30866::t_b7f47ba8f674a0 87-88
+go/internal/mcp/tools_ecosystem.go
+  s_f2f7fbb6f30866::t_671a2f91b99021 240
+docs/public/reference/dependency-coverage.md
+  s_f2f7fbb6f30866::t_772611cc4ebb40 162,166-167,174
+  s_f2f7fbb6f30866::t_e24e059617ac82 132
+  s_f2f7fbb6f30866::t_24cbc69b30cb0d 249-259,266-268
+  s_f2f7fbb6f30866::t_11755aadcc762d 75
+  s_f2f7fbb6f30866::t_cbb952feb214f4 74,133-137
+go/internal/parser/elixir/doc.go
+  s_f2f7fbb6f30866::t_671a2f91b99021 5-11
+go/internal/query/openapi_paths_package_registry.go
+  s_f2f7fbb6f30866::t_671a2f91b99021 12
+go/internal/parser/README.md
+  s_f2f7fbb6f30866::t_671a2f91b99021 293
+go/internal/reducer/package_consumption_hex_test.go
+  s_f2f7fbb6f30866::t_4205a1918530a7 1-90,120-169,171-192
+  s_f2f7fbb6f30866::t_4c6849b81b088c 91-119,170
+go/internal/parser/registry.go
+  s_f2f7fbb6f30866::t_f5bc47c23ba9ad 232
+go/internal/reducer/package_consumption_correlation.go
+  s_f2f7fbb6f30866::t_d5eea1fc29bf23 343-347,413
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_dbbcc719e117a2 307
+go/internal/query/openapi_package_registry_test.go
+  s_f2f7fbb6f30866::t_671a2f91b99021 5,9-34,36-37
+go/internal/query/supply_chain_impact_aggregates.go
+  s_f2f7fbb6f30866::t_d5eea1fc29bf23 145-146
+go/internal/parser/elixir/hex_dependency_test.go
+  s_f2f7fbb6f30866::t_cbb952feb214f4 21,51-57
+  s_f2f7fbb6f30866::t_a8f9c0d87bd390 23,64-69
+  s_f2f7fbb6f30866::t_c9306583a4d251 1-19,22,24-44,58-63,70-161
+  s_f2f7fbb6f30866::t_4c6849b81b088c 20,45-50
+go/internal/mcp/tools_package_registry_aggregates.go
+  s_f2f7fbb6f30866::t_671a2f91b99021 17
+go/internal/coordinator/derived_package_targets_test.go
+  s_f2f7fbb6f30866::t_177d06edede7f8 211-279
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_dbbcc719e117a2 33
+  s_f2f7fbb6f30866::t_cbb952feb214f4 31-32,34
+go/internal/query/supply_chain_impact_profile_test.go
+  s_f2f7fbb6f30866::t_4c6849b81b088c 146
+go/internal/parser/dependency_coverage_engine_test.go
+  s_f2f7fbb6f30866::t_0ee475294c0c21 203-231
+go/internal/reducer/supply_chain_impact_profile.go
+  s_f2f7fbb6f30866::t_233acca4e853bb 63-64
+docs/public/deployment/service-runtimes-collectors.md
+  s_f2f7fbb6f30866::t_e6eabd9c946105 66
+go/internal/parser/elixir/hex_dependencies.go
+  s_f2f7fbb6f30866::t_d5eea1fc29bf23 32,50-53,136-139,152-159,161
+  s_f2f7fbb6f30866::t_cbb952feb214f4 33-34,40,47-49,140-151
+  s_f2f7fbb6f30866::t_e88c7e474f0d02 1-31,41,43-45,55-135,160,170-177
+  s_f2f7fbb6f30866::t_f2fecd794a617e 39,46,54
+  s_f2f7fbb6f30866::t_a8f9c0d87bd390 35-38,42,162-169
+go/internal/workflow/vulnerability_intelligence_config_test.go
+  s_f2f7fbb6f30866::t_d8b70d0e6de960 177-186
+go/internal/query/supply_chain_impact_findings.go
+  s_f2f7fbb6f30866::t_d5eea1fc29bf23 346-347
+go/internal/mcp/tools_test.go
+  s_f2f7fbb6f30866::t_671a2f91b99021 4,113-138
+go/internal/packageidentity/identity.go
+  s_f2f7fbb6f30866::t_85caa48958dc9a 32-33,150-151,205-206,266-270,310-314
+go/internal/packageidentity/identity_test.go
+  s_f2f7fbb6f30866::t_794d7b12abbcd0 229-251
+  s_f2f7fbb6f30866::t_d3215c265791cc 359
+go/internal/parser/elixir/language.go
+  s_f2f7fbb6f30866::t_5e864a170a21aa 30
+go/internal/parser/json/dependency_coverage.go
+  s_f2f7fbb6f30866::t_de521fabe9c5f0 351-360,362-373
+  s_f2f7fbb6f30866::t_7494eef0c1f8cc 361
+go/internal/reducer/supply_chain_impact_version_match.go
+  s_f2f7fbb6f30866::t_40ae4149d808fc 86-87,287-297
+go/internal/query/supply_chain_impact_aggregates_test.go
+  s_f2f7fbb6f30866::t_4c6849b81b088c 204
+go/internal/parser/elixir/README.md
+  s_f2f7fbb6f30866::t_204ad9ba88443c 8-10,26-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "56ba247ad63b6936b9a28ebd873e3583122e27ee",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

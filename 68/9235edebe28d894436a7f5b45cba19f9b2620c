@@ -1,0 +1,27 @@
+go/internal/query/entity_map.go
+  s_f2f7fbb6f30866::t_1279ec83d95837 27,111,145-149
+go/internal/query/entity_map_resolver.go
+  s_f2f7fbb6f30866::t_1279ec83d95837 34-35
+go/internal/query/entity_map_response.go
+  s_f2f7fbb6f30866::t_1279ec83d95837 17,38,44-47
+go/internal/query/entity_map_test.go
+  s_f2f7fbb6f30866::t_ba978e27a8cfd1 160,185-201,277-279,281-283
+go/internal/query/entity_map_traversal.go
+  s_f2f7fbb6f30866::t_1279ec83d95837 56-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "689235edebe28d894436a7f5b45cba19f9b2620c",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

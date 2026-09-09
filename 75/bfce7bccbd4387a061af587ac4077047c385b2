@@ -1,0 +1,35 @@
+go/internal/storage/postgres/facts_active_supply_chain_impact_test.go
+  s_072c5984f68e14::t_d4a3cbdfb411ba 25-27
+go/internal/reducer/supply_chain_impact.go
+  s_072c5984f68e14::t_815981ab7da7df 182-185,224,228-233
+  s_072c5984f68e14::t_847000d9efff93 46,128,172-181,186-193,234-253,396,414-415,418,422-424,432,439
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  s_072c5984f68e14::t_61f379449a7f1b 107-108
+go/internal/storage/postgres/facts_active_supply_chain_impact.go
+  s_072c5984f68e14::t_d00b0ebcf07f94 79,83,125-126
+  s_072c5984f68e14::t_1f4778c5c1305f 59,61,63,115
+go/internal/reducer/supply_chain_impact_test.go
+  s_072c5984f68e14::t_d6533fa184a46c 22-27,53-55
+go/internal/reducer/README.md
+  s_072c5984f68e14::t_a1ec23609fb5d6 310-312
+go/internal/reducer/supply_chain_impact_active_test.go
+  s_072c5984f68e14::t_4cf5021bb2a51f 89-91
+  s_072c5984f68e14::t_8acc1770a84f78 1-20,31,33-88,92
+  s_072c5984f68e14::t_7b54ac7191a7ef 21-30,32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "75bfce7bccbd4387a061af587ac4077047c385b2",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

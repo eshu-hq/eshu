@@ -1,0 +1,60 @@
+go/internal/reducer/supply_chain_impact_lockfile_test.go
+  s_f2f7fbb6f30866::t_530bdd0d09671e 4,48-84,210-228
+go/internal/reducer/package_source_correlation_test.go
+  s_f2f7fbb6f30866::t_b4dda9521defec 529
+  s_f2f7fbb6f30866::t_a4a856edaa6c2d 482-515,530-538
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_7ebbbd969892d6 309-312
+go/internal/query/supply_chain.go
+  s_f2f7fbb6f30866::t_96863c06f2c83c 76-78
+go/internal/parser/json/package_lock.go
+  s_f2f7fbb6f30866::t_546a9b0bec280b 14,36,62,89-90,100-201
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_61a6ca5bce682f 72,143-160
+go/internal/reducer/package_consumption_correlation.go
+  s_f2f7fbb6f30866::t_d9c389a88600fc 252-282
+  s_f2f7fbb6f30866::t_e89f622128033e 240-251,283-295
+  s_f2f7fbb6f30866::t_ae54e1c220ff15 5,24-39,58-68,95-110,187-197
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_50a49e589e0729 39-45,164-166
+go/internal/query/openapi_paths_supply_chain.go
+  s_f2f7fbb6f30866::t_4ec82aa5b5d99d 87-89
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_b08febcf414b38 72-74
+go/internal/reducer/supply_chain_impact_writer.go
+  s_f2f7fbb6f30866::t_91622fffbfae39 132,165-174
+  s_f2f7fbb6f30866::t_19f17c9ae338f0 133-134
+go/internal/query/supply_chain_impact_findings.go
+  s_f2f7fbb6f30866::t_7f08207f8eb76a 54-56,193-195
+go/internal/query/supply_chain_impact_findings_test.go
+  s_f2f7fbb6f30866::t_77ca92391713f1 10,154
+  s_f2f7fbb6f30866::t_49b3471f8201d9 100-101,155-158
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_ecd8ab23cb4209 134-136
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_67226bfb923335 45-51,268-274
+go/internal/reducer/package_consumption_correlation_test.go
+  s_f2f7fbb6f30866::t_90070306bbc47b 5,63-102,142-143,196-199
+  s_f2f7fbb6f30866::t_2135f3a15d25a7 195
+go/internal/reducer/package_correlation_writer.go
+  s_f2f7fbb6f30866::t_a00ac44e16a6bf 276-277
+  s_f2f7fbb6f30866::t_2e016335e75576 275
+go/internal/parser/json/parser_test.go
+  s_f2f7fbb6f30866::t_c412a0d074b7df 104-148,305-328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "7f1a4c091d749274b36d1af52e5f4197727cae0e",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

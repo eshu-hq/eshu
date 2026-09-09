@@ -1,0 +1,59 @@
+go/internal/collector/ociregistry/envelope.go
+  s_00a320afddcac7::t_3fc8b7d50996fd 182,204-210
+go/internal/collector/packageregistry/source_hint.go
+  s_00a320afddcac7::t_9fe070ca1bc301 61
+go/internal/collector/packageregistry/README.md
+  s_00a320afddcac7::t_e8381bf3c67593 102-106
+go/internal/collector/packageregistry/warning.go
+  s_00a320afddcac7::t_9fe070ca1bc301 36,58
+go/internal/collector/ociregistry/envelope_test.go
+  s_00a320afddcac7::t_08baeb8d799841 122-134
+go/internal/collector/packageregistry/identity.go
+  s_00a320afddcac7::t_9b65edd0120027 61-65
+go/internal/collector/packageregistry/doc.go
+  s_00a320afddcac7::t_e8381bf3c67593 9-14
+go/internal/collector/ociregistry/README.md
+  s_00a320afddcac7::t_e8381bf3c67593 64-65,80-81
+go/internal/collector/ociregistry/doc.go
+  s_00a320afddcac7::t_e8381bf3c67593 9-11
+go/internal/collector/packageregistry/artifact.go
+  s_00a320afddcac7::t_9fe070ca1bc301 49
+go/internal/collector/packageregistry/envelope_test.go
+  s_00a320afddcac7::t_a2439716474f20 112-124
+go/internal/collector/packageregistry/version_test.go
+  s_00a320afddcac7::t_a2439716474f20 98-130
+go/internal/collector/packageregistry/repository_hosting.go
+  s_00a320afddcac7::t_9fe070ca1bc301 34,51,63
+go/internal/collector/packageregistry/envelope_helpers.go
+  s_00a320afddcac7::t_9fe070ca1bc301 30,51-72
+go/internal/collector/packageregistry/dependency.go
+  s_00a320afddcac7::t_9fe070ca1bc301 61
+go/internal/collector/packageregistry/version.go
+  s_00a320afddcac7::t_9fe070ca1bc301 50,57
+go/internal/collector/packageregistry/registry_envelopes_test.go
+  s_00a320afddcac7::t_a2439716474f20 290-293
+go/internal/collector/ociregistry/identity.go
+  s_00a320afddcac7::t_3fc8b7d50996fd 74-78
+go/internal/collector/ociregistry/identity_test.go
+  s_00a320afddcac7::t_08baeb8d799841 38-53
+go/internal/collector/packageregistry/identity_test.go
+  s_00a320afddcac7::t_a2439716474f20 45-58
+go/internal/collector/packageregistry/envelope.go
+  s_00a320afddcac7::t_9fe070ca1bc301 44,48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "f21cb8948b2ed17b1e552b945a71258bed3ae4d0",
+  "prompts": {},
+  "sessions": {
+    "s_00a320afddcac7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1c52-fa77-7391-8873-a102dce078ae",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

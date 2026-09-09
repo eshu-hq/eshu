@@ -1,0 +1,25 @@
+docs/docs/reference/http-api.md
+  s_072c5984f68e14::t_7fc257be542e19 366,379
+go/internal/query/container_image_identities_test.go
+  s_072c5984f68e14::t_03463a63f64ec7 51-77
+go/internal/query/supply_chain.go
+  s_072c5984f68e14::t_88b245515af0b5 236-239,412-419
+go/internal/mcp/README.md
+  s_072c5984f68e14::t_7fc257be542e19 4,70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "d158e5bb4199cdb2ab79a9d43bdc06b684ef7301",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

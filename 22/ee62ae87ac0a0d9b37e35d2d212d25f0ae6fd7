@@ -1,0 +1,25 @@
+go/internal/query/entity_map_repository_test.go
+  s_072c5984f68e14::t_06816efc039b2c 1-318
+go/internal/query/entity_map_traversal.go
+  s_072c5984f68e14::t_b15f93fe51a286 87,172
+go/internal/query/openapi_paths_impact.go
+  s_072c5984f68e14::t_922afd1e8292ee 324-326
+go/internal/query/entity_map_test.go
+  s_072c5984f68e14::t_7c9bb0324c7e46 169-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "22ee62ae87ac0a0d9b37e35d2d212d25f0ae6fd7",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

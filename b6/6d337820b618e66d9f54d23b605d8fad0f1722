@@ -1,0 +1,29 @@
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_f2f7fbb6f30866::t_b45f0be1e5689f 141-144
+go/internal/mcp/README.md
+  s_f2f7fbb6f30866::t_1b6bd468673fd3 46-47,280-287
+docs/public/reference/mcp-reference.md
+  s_f2f7fbb6f30866::t_42c99748d64507 112-113
+  s_f2f7fbb6f30866::t_1358d26e5abfc3 67-70,74-92,96-111,114-125
+go/internal/mcp/server_test.go
+  s_f2f7fbb6f30866::t_4431f5b3c25240 190-238,300-303
+  s_f2f7fbb6f30866::t_532867ec9be416 185-186
+go/internal/mcp/server.go
+  s_f2f7fbb6f30866::t_8e12aeb7c3c374 72-74,395-396,406-417,447-455
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "b66d337820b618e66d9f54d23b605d8fad0f1722",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

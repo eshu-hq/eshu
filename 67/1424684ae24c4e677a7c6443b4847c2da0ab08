@@ -1,0 +1,45 @@
+go/internal/parser/javascript_dead_code_package.go
+  s_bdaf44668b73dc::t_643fc659477af4 11-15,85,102
+  s_bdaf44668b73dc::t_0278054bbe90a7 1-10,16-84,86-101,103-154
+go/internal/query/code_dead_code_javascript_roots.go
+  s_bdaf44668b73dc::t_f133aa28c63a52 26-29
+  s_bdaf44668b73dc::t_54b16985364e56 18-22
+go/internal/parser/javascript_language.go
+  s_bdaf44668b73dc::t_617baee5b137d6 12,45,51,55,59,136,186-196,242,247,268,290
+  s_bdaf44668b73dc::t_343f3b247b40c8 76-78,99-100
+go/internal/parser/engine.go
+  s_bdaf44668b73dc::t_68de54622e609c 214,238,240,291,321,323
+go/internal/query/code_dead_code_javascript_roots_test.go
+  s_bdaf44668b73dc::t_1f1163a9bf08be 131-134,157-160,211
+  s_bdaf44668b73dc::t_74e1d5b2a402b0 110-130,135-156,161-210,212-215
+go/internal/parser/javascript_dead_code_hapi.go
+  s_bdaf44668b73dc::t_cb04e39a55644e 1-57
+go/internal/parser/javascript_dead_code_node_roots_test.go
+  s_bdaf44668b73dc::t_99f7daea0925e2 58-63,118-123
+  s_bdaf44668b73dc::t_dc97febed9e655 1-57,64-117,124-224
+docs/superpowers/plans/2026-05-08-javascript-typescript-dead-code-maturity.md
+  s_bdaf44668b73dc::t_f96fc94d9521b9 284,286-288,290-292,294-295,297-300
+docs/docs/reference/dead-code-reachability-spec.md
+  s_bdaf44668b73dc::t_8c74c177b16348 187-190,195,200
+docs/docs/adrs/2026-05-07-dead-code-root-model-and-language-reachability.md
+  s_bdaf44668b73dc::t_0db72eaddc8313 272-275,424-425
+go/internal/parser/javascript_dead_code_roots.go
+  s_bdaf44668b73dc::t_826d306c673fd9 215-216,218
+  s_bdaf44668b73dc::t_a88f00f738343a 11-29,128-129,131,135-154,190-214,217,219-259
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "671424684ae24c4e677a7c6443b4847c2da0ab08",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

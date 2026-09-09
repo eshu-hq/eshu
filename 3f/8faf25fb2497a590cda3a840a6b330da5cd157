@@ -1,0 +1,40 @@
+docs/public/reference/http-api/context-and-stories.md
+  s_f2f7fbb6f30866::t_47f3b1e188362a 270-278
+  s_f2f7fbb6f30866::t_a4b8733c16e008 266-269
+  s_f2f7fbb6f30866::t_f7a6318d4b00d9 359-368
+go/internal/query/impact_trace_deployment.go
+  s_f2f7fbb6f30866::t_2708aa38075328 81-83,85
+go/internal/query/cloud_resource_dependencies.go
+  s_f2f7fbb6f30866::t_ea939ffc06d76f 5-6,11,18,23-24,30-40,43-49,64,70-79,91-94,102-124,127-139,155-166,168
+  s_f2f7fbb6f30866::t_431c4d9ea090a9 126,148-154
+  s_f2f7fbb6f30866::t_d3aeda68666174 167
+  s_f2f7fbb6f30866::t_3ababe388fae7d 125,140-147
+go/internal/query/service_query_enrichment.go
+  s_f2f7fbb6f30866::t_2e3039f90adf3f 159-160
+go/internal/query/impact_trace_deployment_test.go
+  s_f2f7fbb6f30866::t_d9685c6e445e38 5,7-8
+  s_f2f7fbb6f30866::t_4b02a57a4a63b8 310-312,314-335,338-354,356-392
+  s_f2f7fbb6f30866::t_2387f3bfa0f4af 313,355
+  s_f2f7fbb6f30866::t_5b1e01fe122c27 336-337
+go/internal/query/service_cloud_resource_dependency_test.go
+  s_f2f7fbb6f30866::t_a1e894f12a8033 109,124,150,169
+  s_f2f7fbb6f30866::t_cef4347d809377 161-164
+  s_f2f7fbb6f30866::t_a7299ad96848d6 6
+  s_f2f7fbb6f30866::t_c41f0c3b52d078 85-108,110-123,125-149,151-160,165-168,170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3f8faf25fb2497a590cda3a840a6b330da5cd157",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

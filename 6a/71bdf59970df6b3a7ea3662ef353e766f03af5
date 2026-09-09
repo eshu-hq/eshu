@@ -1,0 +1,41 @@
+go/internal/parser/dbtsql/identifiers.go
+  s_bdaf44668b73dc::t_71cf22f4092c39 1-55
+go/internal/parser/dbt_sql_lineage.go
+  s_bdaf44668b73dc::t_71cf22f4092c39 3,6,9-16
+go/internal/parser/dbtsql/expression_helpers.go
+  s_bdaf44668b73dc::t_7bf10742625498 1-219
+go/internal/parser/dbtsql/doc.go
+  s_bdaf44668b73dc::t_91e8cda920576c 7-9
+  s_bdaf44668b73dc::t_313cf19fbc82b1 5-6
+  s_bdaf44668b73dc::t_71cf22f4092c39 1-4,10
+go/internal/parser/dbtsql/lineage.go
+  s_bdaf44668b73dc::t_71cf22f4092c39 1-497
+go/internal/parser/dbtsql/README.md
+  s_bdaf44668b73dc::t_91e8cda920576c 13-16,47-50
+  s_bdaf44668b73dc::t_313cf19fbc82b1 39-42
+  s_bdaf44668b73dc::t_71cf22f4092c39 1-12,17-38,43-46,51-54
+go/internal/parser/dbtsql/lineage_parity_test.go
+  s_bdaf44668b73dc::t_71cf22f4092c39 1-291
+go/internal/parser/dbtsql/expressions.go
+  s_bdaf44668b73dc::t_71cf22f4092c39 1-309
+go/internal/parser/dbtsql/lineage_test.go
+  s_bdaf44668b73dc::t_71cf22f4092c39 1-145
+go/internal/parser/dbtsql/AGENTS.md
+  s_bdaf44668b73dc::t_71cf22f4092c39 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "6a71bdf59970df6b3a7ea3662ef353e766f03af5",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

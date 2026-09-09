@@ -1,0 +1,169 @@
+go/internal/reducer/code_call_materialization_javascript_roots.go
+  s_bdaf44668b73dc::t_eec196565aacb7 1-30,35-50,52-55
+  s_bdaf44668b73dc::t_fd29f3c53d8ee7 70
+  s_bdaf44668b73dc::t_ebd23938721491 31-34,51
+  s_bdaf44668b73dc::t_ea668ea644ab58 56-69,71-75
+go/internal/query/README.md
+  s_bdaf44668b73dc::t_10847783172428 68-69,225-227
+  s_bdaf44668b73dc::t_3c9c8a1848b7a5 228-229
+  s_bdaf44668b73dc::t_9a5a0304d54bf7 224
+go/internal/query/code_dead_code_contract_test.go
+  s_bdaf44668b73dc::t_a28f97ecbe476c 658-660,674-690,749
+go/internal/reducer/code_call_materialization_javascript_scope_test.go
+  s_bdaf44668b73dc::t_aa043a48d77f29 112-115,117-123,125-138,140-160,162-164,436-444
+  s_bdaf44668b73dc::t_ebd23938721491 111,116,124,139,161
+  s_bdaf44668b73dc::t_f6068d634fe1e4 165-217
+go/internal/parser/javascript_dead_code_hapi_route.go
+  s_bdaf44668b73dc::t_5c63ebb9de5005 45
+  s_bdaf44668b73dc::t_c011d992dc0abb 155-210,302-317
+  s_bdaf44668b73dc::t_7d0e48d784bc39 1-19,22-23,133-154,318-327
+  s_bdaf44668b73dc::t_983637783a403c 211-301
+  s_bdaf44668b73dc::t_031a7fdc96833c 24-31,33-41,43-44,49-73,117-118,131-132
+  s_bdaf44668b73dc::t_a750edf9afd573 20-21,32,42,46-48,74-116,119-130
+go/internal/query/code_dead_code_scan.go
+  s_bdaf44668b73dc::t_5e19e19a86d925 1-67
+go/internal/parser/javascript_dead_code_commonjs_class_test.go
+  s_bdaf44668b73dc::t_d2cf70afd96e11 49-82
+  s_bdaf44668b73dc::t_5c4ef49f02993a 1-32,34-48
+  s_bdaf44668b73dc::t_69253bfa781f86 33
+go/internal/parser/javascript_dead_code_hapi_proxy.go
+  s_bdaf44668b73dc::t_2dc52f2df1468d 1-40
+go/internal/query/code_dead_code_go_roots_test.go
+  s_bdaf44668b73dc::t_ee3faabe444f71 214,244,247,250,253,256,259,262,265,268,271,274,276-284
+  s_bdaf44668b73dc::t_cd191e884c5dbe 273,275
+  s_bdaf44668b73dc::t_26bea279d8cbcd 261,263
+  s_bdaf44668b73dc::t_faaadec16b5e3c 264,266-267,269-270,272
+  s_bdaf44668b73dc::t_e595ac7b01bb8c 260
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_2cb78b35569f57 7
+  s_bdaf44668b73dc::t_10847783172428 8-9
+go/internal/parser/javascript_dead_code_hapi_typescript_test.go
+  s_bdaf44668b73dc::t_53e339684f8740 1-107
+go/internal/parser/javascript_dead_code_framework_exports.go
+  s_bdaf44668b73dc::t_1cea9f819fdcf7 1-91
+go/internal/reducer/code_call_materialization_index.go
+  s_bdaf44668b73dc::t_2c9fdcc1ae798a 331,336-342
+  s_bdaf44668b73dc::t_fb301826dd6729 332-334
+  s_bdaf44668b73dc::t_ebd23938721491 335
+go/internal/parser/javascript_require.go
+  s_bdaf44668b73dc::t_b479c1503cc13c 22,24-28,40-53,70-84
+go/internal/parser/javascript_dead_code_roots.go
+  s_bdaf44668b73dc::t_4b937041244974 162-170,231-254
+  s_bdaf44668b73dc::t_772a215eca8163 25-26,41-44,49-50,52,55,218-220
+  s_bdaf44668b73dc::t_a33e6ece188ef5 206
+  s_bdaf44668b73dc::t_1e56f75bbe318f 14,54,207-208,291-294,297-302
+  s_bdaf44668b73dc::t_cdcfa25ed88471 27-30,203,305,318-321
+  s_bdaf44668b73dc::t_1cea9f819fdcf7 174-176,212-214,224-225
+  s_bdaf44668b73dc::t_efe1ad9e92bb7c 37-40,209-211,215-217,354-369
+  s_bdaf44668b73dc::t_983637783a403c 31-36,45-48
+  s_bdaf44668b73dc::t_a08edf50fe0174 200-202
+go/internal/query/code_dead_code_analysis.go
+  s_bdaf44668b73dc::t_f963d4bcc8e5f8 60
+  s_bdaf44668b73dc::t_a5dec9ae6967fe 67
+  s_bdaf44668b73dc::t_1a021ed6aa9c85 57,63,70,84
+  s_bdaf44668b73dc::t_cf86aea3baa4c4 59,62,64
+  s_bdaf44668b73dc::t_772a215eca8163 68
+go/internal/parser/javascript_language.go
+  s_bdaf44668b73dc::t_55fdd6893c60c0 237,239-241
+  s_bdaf44668b73dc::t_4a1bcb91555201 180-182
+  s_bdaf44668b73dc::t_7bd592beeb41cf 223-224
+  s_bdaf44668b73dc::t_0b857334eae48d 238
+  s_bdaf44668b73dc::t_b8ab4f4e05158e 49,202-205,222
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_499874cc009451 8
+  s_bdaf44668b73dc::t_5f49c399e94a75 9-12
+go/internal/query/code_dead_code_scan_test.go
+  s_bdaf44668b73dc::t_b82245cd7be2f7 1-134
+go/internal/parser/javascript_dead_code_hapi_alias_test.go
+  s_bdaf44668b73dc::t_48eb875ab55a75 234-279
+  s_bdaf44668b73dc::t_358153016718e4 135-140
+  s_bdaf44668b73dc::t_1c409392d6b1a1 194-232
+  s_bdaf44668b73dc::t_20e737883871b6 102-134,141-149,151-153,164-193
+  s_bdaf44668b73dc::t_1c9d4fe1af0441 1-101
+  s_bdaf44668b73dc::t_997e816ab4ffd3 280-352
+  s_bdaf44668b73dc::t_bba20e74b1fa9c 353-387
+  s_bdaf44668b73dc::t_f595e1847b2126 150,154-163
+  s_bdaf44668b73dc::t_cd8efcfe01c6c7 233,388-400
+go/internal/reducer/code_call_materialization_containment.go
+  s_bdaf44668b73dc::t_19712cad50e58b 1-32
+go/internal/query/code_dead_code_javascript_roots_test.go
+  s_bdaf44668b73dc::t_8357f057e8d660 182-192,249-260,306
+  s_bdaf44668b73dc::t_25693e2a4c43b6 154-157,222-224
+  s_bdaf44668b73dc::t_4c610f91d7bd49 158-161,166-173,225-227,232-240
+  s_bdaf44668b73dc::t_9a5750fc742f52 162-165,228-231
+  s_bdaf44668b73dc::t_2cd454e7e4655e 174-176,241-244
+go/internal/reducer/code_call_materialization_relationship.go
+  s_bdaf44668b73dc::t_fc0ac23c8c819c 13-14
+  s_bdaf44668b73dc::t_e34188a624585c 11-12
+  s_bdaf44668b73dc::t_eec196565aacb7 1-10,15-29
+go/internal/reducer/code_call_materialization_helpers.go
+  s_bdaf44668b73dc::t_c034f26209c738 55-57,97-105
+  s_bdaf44668b73dc::t_a7c6a252f97be4 58-65,89-96
+go/internal/query/openapi_paths_code.go
+  s_bdaf44668b73dc::t_3a325a472bc532 284,286-289
+go/internal/query/doc.go
+  s_bdaf44668b73dc::t_10847783172428 14-16
+  s_bdaf44668b73dc::t_06b064a8e98fea 17-19
+go/internal/query/code_dead_code_javascript_roots.go
+  s_bdaf44668b73dc::t_8a3593080b4c73 22-25
+  s_bdaf44668b73dc::t_f20e11ff4a797f 37
+  s_bdaf44668b73dc::t_1a021ed6aa9c85 30,36,43-44
+  s_bdaf44668b73dc::t_2c07c8902c53ed 35,38
+  s_bdaf44668b73dc::t_772a215eca8163 42
+  s_bdaf44668b73dc::t_2416aea2b060ab 41
+go/internal/parser/javascript_dead_code_commonjs.go
+  s_bdaf44668b73dc::t_07da3ad0a0e5a2 127-145
+  s_bdaf44668b73dc::t_489f2d353caf37 156-157,159
+  s_bdaf44668b73dc::t_2dc52f2df1468d 1-48,112-126,146-155,158,160-193
+  s_bdaf44668b73dc::t_375049ef9be806 49-75
+  s_bdaf44668b73dc::t_0f3e93f79f0920 76-111
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_5f49c399e94a75 59-62
+  s_bdaf44668b73dc::t_5665f290564266 58,67-70
+  s_bdaf44668b73dc::t_10847783172428 63-66,247-250
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_10847783172428 134-144
+  s_bdaf44668b73dc::t_c4284163000728 132-133,145
+go/internal/reducer/code_call_materialization_javascript_function_values_test.go
+  s_bdaf44668b73dc::t_6bd75034b869db 69-108,170-174
+  s_bdaf44668b73dc::t_79ef874a43b451 135,150,153-169
+  s_bdaf44668b73dc::t_0484961db502f4 175
+  s_bdaf44668b73dc::t_fdd90f5fbc3f01 1-68,109-134,136-149,151-152,176-177
+go/internal/query/code_dead_code.go
+  s_bdaf44668b73dc::t_2a74934a93f129 26,61,66,72-78,104-105,128-133
+go/internal/parser/javascript_function_value_references.go
+  s_bdaf44668b73dc::t_04be004a99d786 10-15
+  s_bdaf44668b73dc::t_87c9350d730817 4,29,39
+  s_bdaf44668b73dc::t_55fdd6893c60c0 34-35,44,47-69
+  s_bdaf44668b73dc::t_7be2e32cf755aa 1-3,5-9,16-23,30,37,46,102-111,122-123,126
+  s_bdaf44668b73dc::t_cf4def00a47213 24-25,31-33,36,40-43,45,112-121,124-125
+  s_bdaf44668b73dc::t_ba7b5b399d54e9 38
+  s_bdaf44668b73dc::t_bb38dcbcce0154 26-28,70-71,90-101
+  s_bdaf44668b73dc::t_0b857334eae48d 72-89
+go/internal/reducer/code_call_materialization_imports.go
+  s_bdaf44668b73dc::t_fd29f3c53d8ee7 231-234,274-298,380-385,404-410
+go/internal/parser/javascript_dead_code_roots_test.go
+  s_bdaf44668b73dc::t_99ca15aefeb24d 260-422
+go/internal/reducer/code_call_materialization_commonjs_require_parser_test.go
+  s_bdaf44668b73dc::t_0823cf66e6a8fa 65-129,138-139
+  s_bdaf44668b73dc::t_bd2e3351e9c1c1 264-304
+  s_bdaf44668b73dc::t_8fd8d9fa5b9a29 130-137
+  s_bdaf44668b73dc::t_75531d4c11628d 140-206
+  s_bdaf44668b73dc::t_8915e73743a234 207-263
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "4a73cdac17fcd06bda1566922edb7d6799dabd16",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

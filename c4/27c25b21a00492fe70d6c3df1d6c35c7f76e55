@@ -1,0 +1,21 @@
+go/internal/storage/cypher/edge_writer_logging.go
+  s_c8e18fa25bdd71::t_51a483b68b15aa 22-25,50
+go/internal/storage/cypher/edge_writer_telemetry_test.go
+  s_c8e18fa25bdd71::t_7d38b347ecbf0c 54-55,57-58,60-64,77-125,178-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c427c25b21a00492fe70d6c3df1d6c35c7f76e55",
+  "prompts": {},
+  "sessions": {
+    "s_c8e18fa25bdd71": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e23b7-1ff1-7ff2-b1cd-9ade95ecd516",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

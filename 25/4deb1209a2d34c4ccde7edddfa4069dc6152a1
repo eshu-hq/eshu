@@ -1,0 +1,37 @@
+go/internal/storage/postgres/README.md
+  s_bdaf44668b73dc::t_9bc7f71f71d5a4 23,189-191,66
+  s_bdaf44668b73dc::t_029e393c9c1c56 115-119
+  s_bdaf44668b73dc::t_753b2672c8e22c 120
+  s_bdaf44668b73dc::t_8e99e5cab25c06 192
+  s_bdaf44668b73dc::t_5f4d2617860240 61,314,316-317
+go/internal/storage/postgres/doc.go
+  s_bdaf44668b73dc::t_2c6c4141c4e57f 15
+go/internal/storage/postgres/facts_filtered.go
+  s_bdaf44668b73dc::t_66f056d833cf74 7,15,38-41,43,63-67,84-108,114
+  s_bdaf44668b73dc::t_e8e352268b1bb6 68-83
+  s_bdaf44668b73dc::t_d521df695a65d4 12-14
+docs/docs/adrs/2026-05-07-dead-code-root-model-and-language-reachability.md
+  s_bdaf44668b73dc::t_80c77ef1c26931 394-406,412-432,437-439
+  s_bdaf44668b73dc::t_3696abeae4448f 407-411
+go/internal/storage/postgres/facts_filtered_test.go
+  s_bdaf44668b73dc::t_9eac8a86fc811e 72,74-75,78-94,96-107,109-114,116-117,119,123-144
+  s_bdaf44668b73dc::t_a3ddd243c44395 120-122
+  s_bdaf44668b73dc::t_8b42d5ea8c160d 73,76-77,95,115,118
+  s_bdaf44668b73dc::t_37225ed6df83c4 108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "254deb1209a2d34c4ccde7edddfa4069dc6152a1",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

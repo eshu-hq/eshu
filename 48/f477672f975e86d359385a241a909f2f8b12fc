@@ -1,0 +1,24 @@
+go/internal/reducer/package_consumption_correlation.go
+  s_f2f7fbb6f30866::t_d57cb58440d4a2 164,183,189-191
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_44c4742f1c9b65 115-149
+go/internal/reducer/package_source_correlation_test.go
+  s_f2f7fbb6f30866::t_778d13fc2bd6f8 246-291,293-302,613,615-620
+  s_f2f7fbb6f30866::t_f13b1a14f33195 292,614
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "48f477672f975e86d359385a241a909f2f8b12fc",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

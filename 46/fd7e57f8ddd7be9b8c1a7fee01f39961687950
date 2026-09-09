@@ -1,0 +1,36 @@
+go/internal/parser/go_embedded_sql.go
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 3,6-18,21
+go/internal/parser/golang/embedded_sql.go
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 1-220
+go/internal/parser/golang/AGENTS.md
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 1-42
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_17cc75fc55a462 18-20,22,24,139-141
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_17cc75fc55a462 40-43
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_17cc75fc55a462 132-134,270-271
+go/internal/parser/golang/embedded_sql_test.go
+  s_bdaf44668b73dc::t_b8755e620a95bf 1-54,56-66
+  s_bdaf44668b73dc::t_0b61f0d70b2e0a 55
+go/internal/parser/golang/doc.go
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 1-8
+go/internal/parser/golang/README.md
+  s_bdaf44668b73dc::t_2fa7a3a04dc0cf 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "46fd7e57f8ddd7be9b8c1a7fee01f39961687950",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

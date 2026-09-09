@@ -1,0 +1,69 @@
+go/internal/query/README.md
+  s_072c5984f68e14::t_2beb9c5105f3b6 361-362,440-441
+go/internal/mcp/dispatch_documentation.go
+  s_072c5984f68e14::t_c002a4aa957ade 12-13,34-54
+go/internal/telemetry/contract.go
+  s_072c5984f68e14::t_c3e2ba7650c563 165
+go/internal/query/contract.go
+  s_072c5984f68e14::t_c3ccd0b95d4f18 413-419
+go/internal/mcp/tools_test.go
+  s_072c5984f68e14::t_ce17732bb71bdb 10,64
+  s_072c5984f68e14::t_3f26a908d86684 172-173
+go/internal/query/ports_test.go
+  s_072c5984f68e14::t_bb11377d05b414 30-32,168-175
+go/internal/query/documentation_facts_test.go
+  s_072c5984f68e14::t_4e9dc9f4bc862e 1-93,117-148,150-201
+  s_072c5984f68e14::t_e5b2f371e0be84 94-116
+  s_072c5984f68e14::t_6bc8439815cce0 149
+  s_072c5984f68e14::t_d4f5fc908ba54f 202-219
+go/internal/telemetry/contract_test.go
+  s_072c5984f68e14::t_89a2a830ed7088 92
+go/internal/query/openapi_paths_evidence.go
+  s_072c5984f68e14::t_e75a6fd1566a50 135-198
+docs/docs/reference/http-api.md
+  s_072c5984f68e14::t_6481aa8071c27e 295-296
+  s_072c5984f68e14::t_5dfed8939ed858 289-294,297-299
+go/internal/mcp/server_test.go
+  s_072c5984f68e14::t_ee303953f1f249 91
+go/internal/mcp/tools_documentation.go
+  s_072c5984f68e14::t_591fc6a5667c5b 39-69
+go/internal/mcp/README.md
+  s_072c5984f68e14::t_890ec2499187fa 112
+  s_072c5984f68e14::t_b389b730e63fce 62,73
+go/internal/telemetry/registry.go
+  s_072c5984f68e14::t_13f69eaeeabc0e 72
+docs/docs/reference/mcp-tool-contract-matrix.md
+  s_072c5984f68e14::t_6fb257f5cdfa49 76
+go/internal/query/documentation_facts.go
+  s_072c5984f68e14::t_49810f9fffa5ac 13-23,114-116
+  s_072c5984f68e14::t_7a5fa8951f4ff7 1-12,24-113,117-142
+go/internal/mcp/tools_documentation_test.go
+  s_072c5984f68e14::t_50db05c0a91ea9 9,25-30,60-90
+go/internal/query/documentation.go
+  s_072c5984f68e14::t_988fd06098097d 17,68,76
+  s_072c5984f68e14::t_fc072f9d36d9d2 248,267,279
+go/internal/query/documentation_read_model.go
+  s_072c5984f68e14::t_e70b2f547f06a7 336
+  s_072c5984f68e14::t_d6439576b2c628 70-119,305-335,337-379
+specs/capability-matrix.v1.yaml
+  s_072c5984f68e14::t_0505f7522298f6 274-280
+docs/docs/adrs/2026-05-09-documentation-truth-collectors-and-actuators.md
+  s_072c5984f68e14::t_1b6e9725f935a3 478-484,488-492
+  s_072c5984f68e14::t_b7038dadcd704a 485-487
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "c86aeda7c1d718540b77315643332b91e4fa388b",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

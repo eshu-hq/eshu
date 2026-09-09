@@ -1,0 +1,44 @@
+go/internal/storage/cypher/oci_registry_canonical_writer.go
+  s_f2f7fbb6f30866::t_32396cda5558e5 52,73,92,116,138
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_a0f46bb18ad3b7 273-276
+  s_f2f7fbb6f30866::t_66012a31d52922 277-281
+go/internal/storage/cypher/README.md
+  s_f2f7fbb6f30866::t_0ff4afea2630ad 118-121,307-313,328-331
+  s_f2f7fbb6f30866::t_c5806062341875 315-326
+  s_f2f7fbb6f30866::t_48f2e223b3a6cd 115-117,303-306,314,327,371-375
+go/internal/query/impact_trace_deployment_oci.go
+  s_f2f7fbb6f30866::t_d53d889803ce8e 5,17-22,76-79,81-93,95-97,108-115,117-129,131-133
+go/internal/runtime/compose_remote_e2e_test.go
+  s_f2f7fbb6f30866::t_e2170e6cd67a90 97-121
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_e2298c3cb44c3d 273-291
+  s_f2f7fbb6f30866::t_3713f5604186b6 272
+go/internal/storage/cypher/oci_registry_canonical_writer_test.go
+  s_f2f7fbb6f30866::t_02e0f186efe114 83-84,109,147-148,150-151,240,245-246,248-250,253-254
+  s_f2f7fbb6f30866::t_0a3575f90320ce 156,241-244
+go/internal/query/impact_trace_deployment_oci_test.go
+  s_f2f7fbb6f30866::t_2144eae4eaaaf6 69-71,186
+  s_f2f7fbb6f30866::t_ebcd6f6bf83b6b 64-65,180-181
+  s_f2f7fbb6f30866::t_025e3fd23838a9 18-19,59,68,75-84,91-95,124-125,171,185,192-201,208-211
+go/internal/runtime/compose_defaults_test.go
+  s_f2f7fbb6f30866::t_7e18ebff8b26e0 22
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_696984fe97b47e 202,213,227,235,243,251,259,285
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "cb0ea7d55d43dbfdcd6f66ce62c269b37d5f9e72",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+docs/docs/mcp/index.md
+  s_f2f7fbb6f30866::t_dd3e2a1d2c01b2 49-68
+docs/docs/guides/mcp-guide.md
+  s_f2f7fbb6f30866::t_c82fce59eac478 20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "8521985bb27bb7fd7da7c6b69084a7e9e6f8c809",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

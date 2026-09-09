@@ -1,0 +1,28 @@
+go/cmd/eshu/scan_test.go
+  s_f2f7fbb6f30866::t_f00faaad915aa2 23-26
+  s_f2f7fbb6f30866::t_2b1c762c667756 21-22,93-107
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_8d0f317279d72c 193-215
+go/cmd/eshu/scan.go
+  s_f2f7fbb6f30866::t_6d3fd091a7c532 11,189,213-216,245,251-258,302-309,311
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_69b3fde3a733e0 63-73
+docs/docs/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_e45f63215de7b8 223
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "c68268a2a1bae80bf0304f28adfc9fb4d251675d",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

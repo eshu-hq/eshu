@@ -1,0 +1,36 @@
+docker-compose.remote-e2e.pprof.yaml
+  s_f2f7fbb6f30866::t_732a9e9f3a8a94 104-127
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_c4ff79cba5d037 366-369,374-376,385-388,404-411,531-534
+  s_f2f7fbb6f30866::t_99c6d03b8075b0 370-372,416-417,419,422-423,431-432,528-530
+scripts/test-e2e-remote-compose-hosted-manifest.sh
+  s_f2f7fbb6f30866::t_879cd8d2e5c013 168-180,195-197,208,220,230,241,253
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_50d0938a381672 344-345,368-369,395-396
+  s_f2f7fbb6f30866::t_2e10714bb1f45f 1003-1121
+  s_f2f7fbb6f30866::t_4576174ce95113 308-343,346-367,370-394,397-409
+scripts/test-remote-e2e-hosted-compose-render.sh
+  s_f2f7fbb6f30866::t_a345a02ed191eb 61-64,68-71,80-83,85-89,113-116,119-126,131-134,142-145,151-154,162-166,177-184,189-192,198-202
+.env.remote-e2e.example
+  s_f2f7fbb6f30866::t_1d32ba8b755039 112,123,135
+  s_f2f7fbb6f30866::t_8750787dbe3a8d 98-111,113-122,124-134,136-143
+scripts/lib/e2e_remote_compose_manifest.sh
+  s_f2f7fbb6f30866::t_39c8c58ec48ca8 130,135-138,310,319-321
+  s_f2f7fbb6f30866::t_6e86b24325ae29 311-318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a934b86cfa6af4d87bcb81bf6fac9981cb0e1755",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+CLOUDFLARE_PAGES.md
+  s_f2f7fbb6f30866::t_766c462e1b2723 35-57
+src/cloudflareConfig.test.ts
+  s_f2f7fbb6f30866::t_6d89644e4fd6d2 13
+  s_f2f7fbb6f30866::t_16aa56244eff32 15-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "144e40ac2638f56755916ad2f2f69192be2e8c4c",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

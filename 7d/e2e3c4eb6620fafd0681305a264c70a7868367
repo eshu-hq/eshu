@@ -1,0 +1,23 @@
+go/internal/collector/awscloud/services/sqs/awssdk/client.go
+  s_f2f7fbb6f30866::t_dbbceeacf8e9fd 93,95,97
+go/internal/collector/awscloud/services/sqs/awssdk/client_test.go
+  s_f2f7fbb6f30866::t_e836c472d211c0 82-88,100,103-111
+docs/docs/reference/local-testing.md
+  s_f2f7fbb6f30866::t_5a2e7bf935032a 63-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7de2e3c4eb6620fafd0681305a264c70a7868367",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

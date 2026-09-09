@@ -1,0 +1,21 @@
+scripts/lib/remote_e2e_target_story_evidence.sh
+  s_f2f7fbb6f30866::t_bb8e6bce11b21b 53
+scripts/test-verify-remote-e2e-target-story-provider-evidence.sh
+  s_f2f7fbb6f30866::t_eb976d396c2e42 133,139,240-247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "67b2ce311eeb07869a08316e4e73e140ed751425",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

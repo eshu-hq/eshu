@@ -1,0 +1,49 @@
+apps/console/src/styles.css
+  s_a259424f603ccc::t_b369a2adb0e954 229
+  s_a259424f603ccc::t_353678d3d4243f 375-398,439-449,451,467-479,483-513
+apps/console/src/api/liveData.ts
+  s_a259424f603ccc::t_9208f9f3b12f5a 48,334,336,338,341,344,346,348-349
+  s_a259424f603ccc::t_28407c4d1f7e24 347
+apps/console/src/visualization/DeploymentGraphView.tsx
+  s_a259424f603ccc::t_078656b84b4c8d 3-7,18-26,33-34,37-39,50-77,83,87,121,123,131-145,152-191,200,202-204,206-207,242,244-246,251-253,288,290-292,297-299,357-358
+  s_a259424f603ccc::t_aed8587855743d 117
+  s_a259424f603ccc::t_6bf8a43be621dc 359
+  s_a259424f603ccc::t_dd07e9fb38c2b6 15-16,307-308
+apps/console/src/pages/CatalogPage.test.tsx
+  s_a259424f603ccc::t_d56dcc38a1d1ed 145
+  s_a259424f603ccc::t_c1e50fc4ea5dfd 157
+  s_a259424f603ccc::t_aa5f64365a08f2 84-144,146-156,158-167
+apps/console/src/api/liveData.test.ts
+  s_a259424f603ccc::t_80a11ff7ca1e9e 308,311,313-316,320,323,325-328
+apps/console/src/workspace.css
+  s_a259424f603ccc::t_85dd1cf7a10cbf 206-214,216-250,255-268,274-275,281-326,337-338
+  s_a259424f603ccc::t_e4d457a600eb04 251-254,269-273,276-280,327-336
+  s_a259424f603ccc::t_20c716d03a0e5f 435-436,444-454
+  s_a259424f603ccc::t_845e4936b46a36 215
+apps/console/src/tables.css
+  s_a259424f603ccc::t_8bc97ae8cb6344 42,68-75
+apps/console/src/pages/CatalogPage.tsx
+  s_a259424f603ccc::t_ce49e706a8ceee 172
+  s_a259424f603ccc::t_8fad7c0374daad 256
+  s_a259424f603ccc::t_9ba44b169a17ca 12-13,73-78,82-93,95,97,99-102,114-127,151-164,173-216,221-255,257-262,287-293,314-327,348-376
+apps/console/src/api/mockData.ts
+  s_a259424f603ccc::t_262901d620d579 103,106,109,112,114,290,293,295
+apps/console/src/visualization/DeploymentGraphView.test.tsx
+  s_a259424f603ccc::t_2266fa348c1d26 10,59-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "9dd8f4aaafd1db2fe64e31f53dafac925c1cc3c8",
+  "prompts": {},
+  "sessions": {
+    "s_a259424f603ccc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e1e90-ac8f-7602-8bfd-96e4e2e2b57a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

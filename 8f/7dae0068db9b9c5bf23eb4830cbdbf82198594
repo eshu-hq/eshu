@@ -1,0 +1,46 @@
+go/internal/storage/postgres/projector_queue_lifecycle_test.go
+  s_072c5984f68e14::t_e246fc3e473d6d 40,59-66,74,81
+go/internal/storage/cypher/retryable_error.go
+  s_072c5984f68e14::t_ed59beb29b60c9 50-53
+go/internal/storage/postgres/AGENTS.md
+  s_072c5984f68e14::t_93d571d6c1ddc8 11,49,270
+go/internal/storage/postgres/lifecycle-and-workflow-guide.md
+  s_072c5984f68e14::t_689b756d64669b 154-173
+go/internal/storage/postgres/projector_queue_sql.go
+  s_072c5984f68e14::t_2574c9a78c8c83 251-296
+go/internal/storage/cypher/retrying_executor.go
+  s_072c5984f68e14::t_612d5c33b12523 5,12,146-148,157-159
+go/internal/storage/cypher/AGENTS.md
+  s_072c5984f68e14::t_66981aa56dd544 42-45,116-121
+docs/public/reference/telemetry/metrics-reducer-storage.md
+  s_072c5984f68e14::t_19920c76ffec3a 50
+go/internal/storage/postgres/projector_queue_supersession_test.go
+  s_072c5984f68e14::t_2f1d4795f5a258 4,7-10,13-42,44-51
+  s_072c5984f68e14::t_7880eb03b56ef7 43
+go/internal/storage/cypher/retrying_executor_connectivity_test.go
+  s_072c5984f68e14::t_5fa4c351e4a59b 1-77
+go/internal/storage/cypher/retryable_error_test.go
+  s_072c5984f68e14::t_b222feb8270d73 106-115
+go/internal/storage/postgres/projector_queue.go
+  s_072c5984f68e14::t_34fe258f01fb9b 158-161
+go/internal/storage/postgres/README.md
+  s_072c5984f68e14::t_4f1d30f5208170 44,63-65,152
+go/internal/storage/cypher/README.md
+  s_072c5984f68e14::t_8ec6698146d882 169-185,280-283,302-306
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "8f7dae0068db9b9c5bf23eb4830cbdbf82198594",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

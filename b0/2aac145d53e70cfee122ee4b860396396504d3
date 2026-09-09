@@ -1,0 +1,43 @@
+go/cmd/eshu/scan_test.go
+  s_f2f7fbb6f30866::t_762a34a2c9abab 187-201
+  s_f2f7fbb6f30866::t_0e568e382dfdd4 215,237-243,255
+  s_f2f7fbb6f30866::t_bc93aba40482b0 12,93,117
+  s_f2f7fbb6f30866::t_a1caf4bfe441d0 1-11,13-41,46-52,56-73,77-92,94,98-116,118,122-186,202-214,216-236,244-254,256-259
+  s_f2f7fbb6f30866::t_8ccb861f7faef0 74-76
+  s_f2f7fbb6f30866::t_c98aca25ff56fa 42-45,53-55,95-97,119-121
+go/cmd/eshu/scan.go
+  s_f2f7fbb6f30866::t_506df35a520230 1-18,23-36,41,52-86,91-119,126,130-151,157-199,206-271,273-276,280-328
+  s_f2f7fbb6f30866::t_516a355e682c5f 19-22,37-39,44-46,48-51,87-90,121-125,127-129,152-156
+  s_f2f7fbb6f30866::t_37e32fdf48babe 200-205,272
+  s_f2f7fbb6f30866::t_e71f0e8925b5c4 277-279
+docs/docs/reference/cli-indexing.md
+  s_f2f7fbb6f30866::t_87cf7fb2d90425 5-12,18-46
+  s_f2f7fbb6f30866::t_7e27e4918670c2 13-17
+go/cmd/eshu/scan_status.go
+  s_f2f7fbb6f30866::t_ec09e000b6171f 16,33
+  s_f2f7fbb6f30866::t_b804d488e78efc 1-15,17-32,34-171
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_c77103c662352b 25,27,57-60,64-66
+  s_f2f7fbb6f30866::t_281f2ad391e8ba 61-63
+docs/docs/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_b038310e3061ab 205,207-209,211,220
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_02c24c3e6ee17d 170-171,179-192
+  s_f2f7fbb6f30866::t_37b02173e152aa 172-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "b02aac145d53e70cfee122ee4b860396396504d3",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

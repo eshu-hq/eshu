@@ -1,0 +1,42 @@
+docs/docs/reference/environment-variables.md
+  s_072c5984f68e14::t_e98e184c324907 113
+docs/docs/deployment/service-runtimes.md
+  s_072c5984f68e14::t_567f78dc6325fb 253-256
+go/cmd/ingester/wiring_test.go
+  s_072c5984f68e14::t_d7097b7125fc37 194-240,272-274
+go/cmd/ingester/README.md
+  s_072c5984f68e14::t_e98e184c324907 63-68,166
+go/internal/collector/scheduled_sync_config.go
+  s_072c5984f68e14::t_9e849353393b84 39
+  s_072c5984f68e14::t_465e625028e182 1-38,40-41
+go/internal/collector/scheduled_sync_config_test.go
+  s_072c5984f68e14::t_e7c7a617c238b7 24,41,51-53
+  s_072c5984f68e14::t_7b57d17e60450b 1-23,25-40,42-50,54-55
+docs/docs/reference/local-testing.md
+  s_072c5984f68e14::t_e98e184c324907 716-719
+  s_072c5984f68e14::t_d0877227f43301 721-736
+scripts/verify_webhook_refresh_compose.sh
+  s_072c5984f68e14::t_1b2b0439184a79 183
+  s_072c5984f68e14::t_edab5be47cd089 254,314-315
+  s_072c5984f68e14::t_d6d8c3b34432be 10-12
+go/cmd/ingester/wiring.go
+  s_072c5984f68e14::t_465e625028e182 5,148-154,156-158,160-174
+docker-compose.yaml
+  s_072c5984f68e14::t_e98e184c324907 307
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "db8add433f2aa36d478cf9d42533a87f8f1b50e5",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}

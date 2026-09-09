@@ -1,0 +1,19 @@
+.github/workflows/test.yml
+  s_c8e18fa25bdd71::t_fefe366c95dfec 31-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7671689c8c469d51ad5452dba5bdb098862a03f0",
+  "prompts": {},
+  "sessions": {
+    "s_c8e18fa25bdd71": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e23b7-1ff1-7ff2-b1cd-9ade95ecd516",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

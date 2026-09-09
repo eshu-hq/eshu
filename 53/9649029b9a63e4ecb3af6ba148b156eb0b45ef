@@ -1,0 +1,40 @@
+go/internal/storage/cypher/cloud_resource_edge_writer_test.go
+  s_f2f7fbb6f30866::t_3446520c4593d3 228-232
+  s_f2f7fbb6f30866::t_4d83226a3647f9 42,69-136
+go/internal/reducer/intent.go
+  s_f2f7fbb6f30866::t_f577c0693f2039 86
+go/internal/reducer/defaults.go
+  s_f2f7fbb6f30866::t_268ce7384fe342 109
+docs/internal/aws-relationship-edge-materialization-design.md
+  s_f2f7fbb6f30866::t_43cd4766d93e52 404-407,442,448,451-454
+  s_f2f7fbb6f30866::t_773719bbaa4a11 226,228,240-247,271-274,313-315,441,443-447,449-450
+go/internal/storage/cypher/README.md
+  s_f2f7fbb6f30866::t_76d30b17755829 236,239-240,399-401,403,408,410,412-416,418-419,424-425
+  s_f2f7fbb6f30866::t_7278ffa2328379 411,417,420-423
+go/internal/storage/cypher/cloud_resource_edge_writer.go
+  s_f2f7fbb6f30866::t_5ea057ae671432 89-90,92-95,103-106,108,110-124,130-142
+  s_f2f7fbb6f30866::t_8b4bed06a8c86a 6-7,14-22,25-27,33-39
+  s_f2f7fbb6f30866::t_005c72744ad19a 45-46,62,145
+go/internal/reducer/aws_relationship_materialization.go
+  s_f2f7fbb6f30866::t_7479c59252222c 29,44,50,61
+go/internal/projector/aws_relationship_materialization_intents.go
+  s_f2f7fbb6f30866::t_0fd1a0aed0716d 11
+go/internal/reducer/aws_relationship_join.go
+  s_f2f7fbb6f30866::t_322877ae6fef32 192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "539649029b9a63e4ecb3af6ba148b156eb0b45ef",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

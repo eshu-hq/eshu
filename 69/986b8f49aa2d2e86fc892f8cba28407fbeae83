@@ -1,0 +1,61 @@
+go/internal/parser/cloudformation/AGENTS.md
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1-41
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_21b27b57c04ff0 170-173
+go/internal/parser/kotlin/repository_returns.go
+  s_de6babc01f1595::t_81714c2e1946e7 1-266
+go/internal/parser/cloudformation/README.md
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1-48
+go/internal/parser/cloudformation/conditions_test.go
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1,5,26,28-29,31,34,37,40,45,81-83,86,89,92,95,98
+go/internal/parser/cloudformation/condition_helpers.go
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1-68
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_21b27b57c04ff0 43-50
+go/internal/parser/yaml_language.go
+  s_bdaf44668b73dc::t_3a45ebaa192c7c 8-9,113-120
+go/internal/parser/json_language.go
+  s_bdaf44668b73dc::t_3a45ebaa192c7c 9-10,51-58
+go/internal/parser/cloudformation/parser_test.go
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1-106
+go/internal/parser/kotlin/cast_receiver_calls.go
+  s_de6babc01f1595::t_81714c2e1946e7 1-48
+go/internal/parser/AGENTS.md
+  s_bdaf44668b73dc::t_21b27b57c04ff0 26-28,31,33,35
+go/internal/parser/cloudformation/doc.go
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1-9
+go/internal/parser/tree.go
+  s_bdaf44668b73dc::t_fe459fb6d9b60c 4-5,59-65
+go/internal/parser/cloudformation/conditions.go
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1,8,13,19-20,23-24,34,53,57,73,79,86,90,106,112-113,116,118-128,130-143,145,147
+go/internal/parser/cloudformation/parser.go
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1,7-8,16-23,26-27,64-65,70-72,94,98-100,102-107,111-122,124-136,140-150,153-163,165-193
+go/internal/parser/kotlin/helpers.go
+  s_de6babc01f1595::t_81714c2e1946e7 1-426
+go/internal/parser/cloudformation/parser_helpers.go
+  s_bdaf44668b73dc::t_f966c0bd9440c6 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "69986b8f49aa2d2e86fc892f8cba28407fbeae83",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_de6babc01f1595": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e86-7de9-7e82-bd42-3b8eedd9d239",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

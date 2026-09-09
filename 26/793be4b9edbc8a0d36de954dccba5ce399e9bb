@@ -1,0 +1,21 @@
+go/internal/reducer/code_call_materialization_commonjs_require_parser_test.go
+  s_bdaf44668b73dc::t_659f1a5484e4a5 1-120
+docs/superpowers/plans/2026-05-08-javascript-typescript-dead-code-maturity.md
+  s_bdaf44668b73dc::t_7b2450bceb1984 294-296,320-323
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "26793be4b9edbc8a0d36de954dccba5ce399e9bb",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

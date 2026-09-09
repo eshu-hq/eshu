@@ -1,0 +1,35 @@
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_a91a1c5606964b 240-243
+  s_bdaf44668b73dc::t_5117febbeccbfe 60,64-69
+  s_bdaf44668b73dc::t_26d21ed12d93f7 61-63,244-249
+go/internal/parser/javascript_dead_code_package.go
+  s_bdaf44668b73dc::t_8a05c2269c1a8a 23,27,59-62,64,66,70-102,104
+  s_bdaf44668b73dc::t_abc9482b4876d2 219-230
+go/internal/parser/engine_javascript_tsconfig_baseurl_test.go
+  s_bdaf44668b73dc::t_287663e9065251 41-74
+go/internal/parser/javascript_dead_code_node_roots_test.go
+  s_bdaf44668b73dc::t_dc72070d8affe3 139-201,295-341
+go/internal/parser/javascript_tsconfig_paths.go
+  s_bdaf44668b73dc::t_5190ed563760c6 106,112-150,152-202
+  s_bdaf44668b73dc::t_33690810b9749b 151
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_09f8f486471a3d 8-9
+go/internal/parser/javascript_dead_code_hapi.go
+  s_bdaf44668b73dc::t_4a00b62d299709 22,30-43,69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "be26137e32af722d085222e68233cb74bec177ed",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

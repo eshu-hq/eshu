@@ -1,0 +1,40 @@
+go/internal/parser/kotlin_language.go
+  s_de6babc01f1595::t_ed72ff70466613 3-10
+go/internal/parser/kotlin/AGENTS.md
+  s_de6babc01f1595::t_4646ff87d4c145 6-8,23-26
+  s_de6babc01f1595::t_b4684fba4b95f1 1-5,9-22,27-40
+go/internal/parser/kotlin/parser.go
+  s_de6babc01f1595::t_ed72ff70466613 1,7-8,30-33,39,90,109,129,144,159,171,205,239,295,366,446,471-476,481-483,487
+go/internal/parser/kotlin/helpers.go
+  s_de6babc01f1595::t_81714c2e1946e7 1,7-8,390,426
+go/internal/parser/kotlin/receiver_inference.go
+  s_de6babc01f1595::t_8e436c90335197 1-240
+go/internal/parser/kotlin/cast_receiver_calls.go
+  s_de6babc01f1595::t_81714c2e1946e7 1,7-8,42
+go/internal/parser/kotlin/README.md
+  s_de6babc01f1595::t_4646ff87d4c145 42-47
+  s_de6babc01f1595::t_b4684fba4b95f1 1-41,48-53
+go/internal/parser/kotlin/doc.go
+  s_de6babc01f1595::t_b4684fba4b95f1 1-3,8
+  s_de6babc01f1595::t_4646ff87d4c145 4-7
+go/internal/parser/kotlin/scope.go
+  s_de6babc01f1595::t_ed72ff70466613 1-31
+go/internal/parser/kotlin/repository_returns.go
+  s_de6babc01f1595::t_81714c2e1946e7 1,8-9,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "584f8669ba6d8fd3a1d4b8d7842ea72f19b39b91",
+  "prompts": {},
+  "sessions": {
+    "s_de6babc01f1595": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e0e86-7de9-7e82-bd42-3b8eedd9d239",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

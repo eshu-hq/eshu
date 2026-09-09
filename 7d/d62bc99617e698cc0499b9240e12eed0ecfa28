@@ -1,0 +1,39 @@
+go/internal/reducer/README.md
+  s_c8e18fa25bdd71::t_bd26c46e031606 146,151-153
+  s_c8e18fa25bdd71::t_978e33416e7bc1 147,150,154
+  s_c8e18fa25bdd71::t_6eeda1a454c2df 148-149
+go/internal/reducer/code_call_materialization_dynamic_javascript.go
+  s_c8e18fa25bdd71::t_7f7e26ce4679e0 4,19-23,43-55,60,70-111
+  s_c8e18fa25bdd71::t_921a719e1adda9 41-42
+go/internal/reducer/code_call_materialization_containment.go
+  s_c8e18fa25bdd71::t_f4ef1e2e0d3f25 33-60
+go/internal/reducer/code_call_materialization_index.go
+  s_c8e18fa25bdd71::t_ed0be58085f262 14-24,47,62-64
+  s_c8e18fa25bdd71::t_8a2faf19045d33 45-46
+go/internal/reducer/AGENTS.md
+  s_c8e18fa25bdd71::t_4990621b1a728d 54,56
+  s_c8e18fa25bdd71::t_c29549dc9a8984 52
+  s_c8e18fa25bdd71::t_7f2b89357584c9 125
+  s_c8e18fa25bdd71::t_7635817b9cbce4 53,55,57-58,122-124,126
+go/internal/reducer/code_call_materialization_dynamic_javascript_test.go
+  s_c8e18fa25bdd71::t_38903f13960e8e 5-6,8,90,92-95,98-101,145-209
+  s_c8e18fa25bdd71::t_be4c22b04ee8f4 91,96-97
+go/internal/reducer/code_call_materialization_index_types.go
+  s_c8e18fa25bdd71::t_e87ee4ddc27ac9 1-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7dd62bc99617e698cc0499b9240e12eed0ecfa28",
+  "prompts": {},
+  "sessions": {
+    "s_c8e18fa25bdd71": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e23b7-1ff1-7ff2-b1cd-9ade95ecd516",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

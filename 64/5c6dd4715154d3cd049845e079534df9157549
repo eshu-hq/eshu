@@ -1,0 +1,43 @@
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_cbefe5f828800d 74
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_e135c12142d807 45,166-169
+go/internal/query/supply_chain.go
+  s_f2f7fbb6f30866::t_18ff41c5bff398 78
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_76446a7e5db899 51,258-270,273,275-279,281
+go/internal/reducer/package_correlation_writer.go
+  s_f2f7fbb6f30866::t_884c3a4e35b457 259,286-293
+go/internal/reducer/package_consumption_correlation_test.go
+  s_f2f7fbb6f30866::t_e404445681f388 55-63,107-108,143-157,211-212
+go/internal/reducer/package_source_correlation_test.go
+  s_f2f7fbb6f30866::t_913b7fd06c03c1 541-544
+go/internal/reducer/supply_chain_impact_writer.go
+  s_f2f7fbb6f30866::t_ece3d3470ee6cd 105,141-148
+go/internal/reducer/package_consumption_correlation.go
+  s_f2f7fbb6f30866::t_217d9536aa49f4 34,68,202,292,294-317
+go/internal/reducer/supply_chain_impact_lockfile_test.go
+  s_f2f7fbb6f30866::t_7bb0a1be546665 80-81
+go/internal/query/supply_chain_impact_findings_test.go
+  s_f2f7fbb6f30866::t_48a30ddef040e1 102,161-162
+  s_f2f7fbb6f30866::t_67ed38f8168558 191-194
+go/internal/query/supply_chain_impact_findings.go
+  s_f2f7fbb6f30866::t_4f0d5d6e392f93 8,214-215,218
+  s_f2f7fbb6f30866::t_9d9bbd1e6a4045 57,196,204-213,216-217,219-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "645c6dd4715154d3cd049845e079534df9157549",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

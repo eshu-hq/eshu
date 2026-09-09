@@ -1,0 +1,32 @@
+docker-compose.remote-e2e.yaml
+  s_072c5984f68e14::t_229956384ef6dc 230-232,241-243
+go/internal/query/package_registry_test.go
+  s_072c5984f68e14::t_9e598c0419343e 121-122,130-131
+.env.remote-e2e.example
+  s_072c5984f68e14::t_0503f2c7e6932f 12
+docs/docs/reference/remote-e2e-runtime-state.md
+  s_072c5984f68e14::t_bc300c7dbb7358 65-71,122-134
+go/internal/query/package_registry.go
+  s_072c5984f68e14::t_531670094442bd 424
+go/internal/runtime/compose_remote_e2e_test.go
+  s_072c5984f68e14::t_f8dfb74c4fe6a0 98-109
+  s_072c5984f68e14::t_78595596281aeb 38
+go/internal/query/README.md
+  s_072c5984f68e14::t_18b7f19f65e339 72-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "6955e8f0e2bc10fc7b6ac63fe71355d0e37ad1d2",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+.github/workflows/build.yml
+  s_f2f7fbb6f30866::t_e79fe3652e3ff7 76
+deploy/helm/eshu/Chart.yaml
+  s_f2f7fbb6f30866::t_e79fe3652e3ff7 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5ab4d104173614a5b85250f85d97bd416b0fa630",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

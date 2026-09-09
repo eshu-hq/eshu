@@ -1,0 +1,56 @@
+go/internal/storage/postgres/schema_test.go
+  s_072c5984f68e14::t_349d7f96cadd79 301,304-309
+go/internal/reducer/container_image_identity_test.go
+  s_072c5984f68e14::t_0d7e3a4ca15b91 475-486
+  s_072c5984f68e14::t_6cd2dce96e4889 94-106
+go/internal/projector/doc.go
+  s_072c5984f68e14::t_69195ab8d52e47 16-17
+go/internal/reducer/doc.go
+  s_072c5984f68e14::t_e2e2518ad098f4 52-54
+schema/data-plane/postgres/003_fact_records.sql
+  s_072c5984f68e14::t_4becf78c53990e 194-217
+go/internal/storage/postgres/README.md
+  s_072c5984f68e14::t_e11bd16831f973 104-110
+go/internal/projector/runtime.go
+  s_072c5984f68e14::t_494301d64440b7 396-398
+go/internal/reducer/container_image_identity_evidence.go
+  s_072c5984f68e14::t_00b1fb78aa6663 99-107,109
+go/internal/projector/container_image_identity_intents.go
+  s_072c5984f68e14::t_829c9b6b22ccfe 41-42
+  s_072c5984f68e14::t_ecea14016ecf1d 1-3,5-40,43-77,79-96
+  s_072c5984f68e14::t_a0e40b33384fed 4,78
+go/internal/storage/postgres/facts_active_container_image_identity_test.go
+  s_072c5984f68e14::t_a076f0f5ce4163 10,33-66,77,83-88,93-97,99
+docs/docs/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_7b1fd23c80006b 105-125,135-143
+  s_072c5984f68e14::t_47c2b6fb70c145 144-149
+  s_072c5984f68e14::t_4f1c789322b578 126-134
+go/internal/storage/postgres/facts_active_container_image_identity.go
+  s_072c5984f68e14::t_163bc688b1f99b 36-58,61-62,65,68-69
+go/internal/reducer/README.md
+  s_072c5984f68e14::t_07311749a0615a 422-424
+go/internal/storage/postgres/doc.go
+  s_072c5984f68e14::t_846d0e73b0ff8f 31-34
+go/internal/storage/postgres/schema_fact_records.go
+  s_072c5984f68e14::t_0c7681a5d52e8c 197-220
+go/internal/projector/container_image_identity_intents_test.go
+  s_072c5984f68e14::t_02f75e9fbc52d6 1-99
+go/internal/projector/README.md
+  s_072c5984f68e14::t_ace1439c90fae5 159-165,253-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "5523b0e104d4f862339d843ac796eda1a4035b8a",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

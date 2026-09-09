@@ -1,0 +1,30 @@
+go/internal/query/infra_resource_aggregates_category_test.go
+  s_f2f7fbb6f30866::t_ad39300499e310 145,152-154,172-176
+go/internal/query/infra_resource_aggregates.go
+  s_f2f7fbb6f30866::t_6e066336258727 281,344
+go/internal/query/infra.go
+  s_f2f7fbb6f30866::t_f8d42034490514 206,217,258,262,264,317-347
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_4276392f800fe0 577-584,635-642
+docs/public/reference/http-api/iac-content-infra.md
+  s_f2f7fbb6f30866::t_0e444509d13990 79-83
+go/internal/query/infra_test.go
+  s_f2f7fbb6f30866::t_246d1ce4f513a3 329-344,364,377-392
+  s_f2f7fbb6f30866::t_8c4d028485eb3e 167-174,295,326-328,345-363,365-375
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f24fc29f1a1aed3f51ed5547e8e695baa8657bd7",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

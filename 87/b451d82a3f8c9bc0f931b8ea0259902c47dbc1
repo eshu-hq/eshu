@@ -1,0 +1,30 @@
+go/cmd/eshu/docs.go
+  s_f2f7fbb6f30866::t_3e9ecde6cbcaae 7,15,46-50,56-57,59-60,97,104,108,112,163,166,171,173,181,199-201,204-208,211,215,220-223,230-234,238-260,311-346,350,352,355
+  s_f2f7fbb6f30866::t_91de4bcc12d40b 12,58,219
+go/internal/mcp/tools_documentation_test.go
+  s_f2f7fbb6f30866::t_c994b967baf855 53-65
+go/internal/doctruth/verifier.go
+  s_f2f7fbb6f30866::t_0cbbfb42359231 5-6,58-63,150-153,161,163,214-216,325-336,369,388,400,403,425,441-458
+go/internal/doctruth/verifier_test.go
+  s_f2f7fbb6f30866::t_2e8c7cea93cca0 127-188
+go/cmd/eshu/docs_test.go
+  s_f2f7fbb6f30866::t_3fee9e8c9bafab 5-6,83-154
+go/internal/mcp/tools_documentation.go
+  s_f2f7fbb6f30866::t_e5a40d076421ee 16-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "87b451d82a3f8c9bc0f931b8ea0259902c47dbc1",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

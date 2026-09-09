@@ -1,0 +1,92 @@
+go/cmd/eshu/README.md
+  s_bdaf44668b73dc::t_dc550221871405 57-62
+go/internal/reducer/code_call_materialization_index.go
+  s_bdaf44668b73dc::t_f7e1e57af4d5ec 365-368
+go/internal/parser/javascript_dead_code_node_typescript_fixture_test.go
+  s_bdaf44668b73dc::t_5028b394db8bb5 36-45,48-52
+  s_bdaf44668b73dc::t_a4d81937cd3e40 1-35,46-47,53-84
+go/internal/parser/README.md
+  s_bdaf44668b73dc::t_14f477290410c4 59-60
+  s_bdaf44668b73dc::t_201e5efeb2b934 78-80,254-255
+tests/fixtures/dead-code/node-typescript/server/handlers/status.js
+  s_bdaf44668b73dc::t_a4d81937cd3e40 1-5
+docs/superpowers/plans/2026-05-08-javascript-typescript-dead-code-maturity.md
+  s_c1a80318eca70b::t_617e6194c6e562 329-345
+  s_bdaf44668b73dc::t_971cf136744136 386
+docs/docs/releases/v0.0.2.md
+  s_c1a80318eca70b::t_617e6194c6e562 5,12-29,64,73-74,90-96
+tests/fixtures/dead-code/node-typescript/server/init/plugins/specs.ts
+  s_bdaf44668b73dc::t_a4d81937cd3e40 1-9
+docs/docs/run-locally/mcp-local.md
+  s_bdaf44668b73dc::t_8f58ba145e7b19 18-26
+docs/docs/releases/index.md
+  s_c1a80318eca70b::t_617e6194c6e562 8-10
+go/cmd/eshu/service.go
+  s_bdaf44668b73dc::t_4190350853f474 14
+  s_bdaf44668b73dc::t_3bccc3db76400c 43-45,178-179,191-192
+  s_bdaf44668b73dc::t_d4ef84ce46d5e2 110,116,120-123,142,151-169,175-177,180-190,193-230
+docs/docs/run-locally/local-binaries.md
+  s_bdaf44668b73dc::t_f9c9e9827ace08 131,137-141
+docs/docs/mcp/index.md
+  s_bdaf44668b73dc::t_3f9a6bfec21040 12,22-25
+go/cmd/eshu/doc.go
+  s_bdaf44668b73dc::t_a0e290ba0f9383 7-8
+go/cmd/eshu/service_local_test.go
+  s_bdaf44668b73dc::t_bc183acb8419b9 8,12-13,56-161,165,177,193-198,212,218-261
+go/internal/reducer/code_call_materialization_imports.go
+  s_bdaf44668b73dc::t_cfed556dccdf24 90-105,147-148
+go/internal/parser/javascript_dead_code_hapi_alias_test.go
+  s_bdaf44668b73dc::t_ca12742aafeb0e 242-243
+  s_bdaf44668b73dc::t_8c5fd674ecb1bb 253-254
+  s_bdaf44668b73dc::t_f2f320bcf61acc 234-241,244-252,255-259
+go/internal/reducer/README.md
+  s_bdaf44668b73dc::t_b23792b72a3d2d 234-237,242
+  s_bdaf44668b73dc::t_f145838e9e0741 136-138
+  s_bdaf44668b73dc::t_7064f73d1dd72d 238-241
+tests/fixtures/dead-code/node-typescript/server/routes/search.js
+  s_bdaf44668b73dc::t_80a19e1143041c 14-21
+  s_bdaf44668b73dc::t_a834e8f47c3ea0 1-13,22-30
+tests/fixtures/dead-code/node-typescript/server/handlers/accounts.ts
+  s_bdaf44668b73dc::t_a4d81937cd3e40 1-5
+tests/fixtures/dead-code/node-typescript/src/contracts.ts
+  s_bdaf44668b73dc::t_5152bffbbdf8f6 13
+  s_bdaf44668b73dc::t_22863d4f128031 1-2
+docs/docs/reference/cli-reference.md
+  s_bdaf44668b73dc::t_d1d41614d95018 298
+go/internal/parser/doc.go
+  s_bdaf44668b73dc::t_c4e565bd6d81f9 10-12
+go/internal/parser/javascript_dead_code_hapi_route.go
+  s_bdaf44668b73dc::t_54834ab714dd61 176-181
+  s_bdaf44668b73dc::t_6654562491724f 21-22,47-48,96-165
+go/internal/reducer/code_call_materialization_commonjs_namespace_object_test.go
+  s_bdaf44668b73dc::t_74deb0fc0b57e8 1-203
+tests/fixtures/dead-code/node-typescript/expected.json
+  s_bdaf44668b73dc::t_5152bffbbdf8f6 55
+  s_bdaf44668b73dc::t_a4d81937cd3e40 74-102
+go/internal/reducer/doc.go
+  s_bdaf44668b73dc::t_f20e235ca8392c 7-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "054b1b09575bab9785ecb741b045dc2f1fe8edc2",
+  "prompts": {},
+  "sessions": {
+    "s_bdaf44668b73dc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e03a1-8703-74c0-969f-657c8ac7c22c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_c1a80318eca70b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e08e4-beb4-7343-a6f4-a1ffecbdf1df",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

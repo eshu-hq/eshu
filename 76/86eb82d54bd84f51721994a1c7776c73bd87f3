@@ -1,0 +1,23 @@
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_d188b2f4ce6fdc 229-232
+go/cmd/eshu/trace.go
+  s_f2f7fbb6f30866::t_fb5ce9778aa922 15-16,21,99-100
+go/cmd/eshu/trace_test.go
+  s_f2f7fbb6f30866::t_f4915ab4e6dc4f 24,29-31,48,58-59,134-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.11",
+  "base_commit_sha": "7686eb82d54bd84f51721994a1c7776c73bd87f3",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}

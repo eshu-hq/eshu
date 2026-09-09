@@ -1,0 +1,112 @@
+go/cmd/collector-vulnerability-intelligence/config_test.go
+  s_072c5984f68e14::t_a23ab996d21182 1-71
+go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md
+  s_072c5984f68e14::t_fe7f4a76a5bb0b 1-74
+docs/docs/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_36e13f2786f36d 57,379-380
+go/internal/telemetry/instruments.go
+  s_072c5984f68e14::t_f5b0577e2c261c 77-79,207-235,554-577,924-932
+go/internal/coordinator/service.go
+  s_072c5984f68e14::t_1e4b8a8282b546 46-51,59-71
+  s_072c5984f68e14::t_efb66c4bfe65bb 329-368
+  s_072c5984f68e14::t_783ca02321c949 206-214
+docs/docs/reference/telemetry/traces.md
+  s_072c5984f68e14::t_34ea5e661b7b1c 51-52,96-103
+go/cmd/collector-vulnerability-intelligence/README.md
+  s_072c5984f68e14::t_b8d1530d9b3b98 1-33
+docs/docs/deployment/service-runtimes.md
+  s_072c5984f68e14::t_7f0ee80bde2747 74,127-131,140,211-222
+.env.remote-e2e.example
+  s_072c5984f68e14::t_b1284b1f1cb190 35-37
+go/internal/collector/vulnerabilityintelligence/vulnruntime/provider.go
+  s_072c5984f68e14::t_3343af33ea50b2 1-236
+go/cmd/workflow-coordinator/main.go
+  s_072c5984f68e14::t_7392109ef322b9 105
+go/internal/telemetry/README.md
+  s_072c5984f68e14::t_75f4608f00a780 115-117,172
+go/internal/coordinator/vulnerability_intelligence_scheduler.go
+  s_072c5984f68e14::t_9214f9a8b82090 1-211
+go/cmd/collector-vulnerability-intelligence/service.go
+  s_072c5984f68e14::t_b8d1530d9b3b98 1-65
+docker-compose.remote-e2e.yaml
+  s_072c5984f68e14::t_7c01c767fb31c3 147-187,526-541
+go/internal/collector/vulnerabilityintelligence/vulnruntime/doc.go
+  s_072c5984f68e14::t_30549838627be1 1-8
+go/internal/collector/vulnerabilityintelligence/vulnruntime/provider_test.go
+  s_072c5984f68e14::t_92c1f040acfc64 1-67
+go/internal/workflow/collector_contract_test.go
+  s_072c5984f68e14::t_472063f4514fbc 193-210
+go/internal/workflow/vulnerability_intelligence_config_test.go
+  s_072c5984f68e14::t_472063f4514fbc 1-59
+go/internal/scope/scope.go
+  s_072c5984f68e14::t_604a74d537be11 31-32,53-54
+go/internal/collector/vulnerabilityintelligence/vulnruntime/AGENTS.md
+  s_072c5984f68e14::t_fe7f4a76a5bb0b 1-37
+go/internal/telemetry/contract_test.go
+  s_072c5984f68e14::t_bd08eaaf685c38 116-117
+docs/docs/reference/local-testing.md
+  s_072c5984f68e14::t_0933d3e1a19694 392-398,979
+go/internal/workflow/vulnerability_intelligence_config.go
+  s_072c5984f68e14::t_604a74d537be11 1-199
+go/cmd/collector-vulnerability-intelligence/AGENTS.md
+  s_072c5984f68e14::t_b8d1530d9b3b98 1-36
+go/cmd/collector-vulnerability-intelligence/config.go
+  s_072c5984f68e14::t_b8d1530d9b3b98 1-245
+go/cmd/collector-vulnerability-intelligence/main.go
+  s_072c5984f68e14::t_b8d1530d9b3b98 1-109
+go/internal/telemetry/contract_vulnerability_intelligence.go
+  s_072c5984f68e14::t_f5b0577e2c261c 1-31
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source_test.go
+  s_072c5984f68e14::t_153365f2857e00 9
+  s_072c5984f68e14::t_04ed1cabedbe4b 10-14,18,78-82,107-164,166-177,228-304
+  s_072c5984f68e14::t_30549838627be1 1-8,15-17,19-77,83-106,165,178-227,305
+docs/docs/adrs/2026-05-15-vulnerability-intelligence-collector.md
+  s_072c5984f68e14::t_a78d9ddfb8114c 71
+  s_072c5984f68e14::t_6eabe53d3af1d1 470-497
+go/internal/telemetry/instruments_test.go
+  s_072c5984f68e14::t_f5b0577e2c261c 47-49,108
+go/internal/coordinator/vulnerability_intelligence_scheduler_test.go
+  s_072c5984f68e14::t_a01d363c9c96ce 1-97
+go/internal/collector/vulnerabilityintelligence/README.md
+  s_072c5984f68e14::t_a78d9ddfb8114c 101-110
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source.go
+  s_072c5984f68e14::t_2a4165ad0eb7ed 1-166,169,175-176,178-247,258-260,270-299,315
+  s_072c5984f68e14::t_b295c72f10d45f 167-168,170-174,177,248-257,261-269,300-314
+go/internal/scope/scope_test.go
+  s_072c5984f68e14::t_472063f4514fbc 80-84,181-187
+go/internal/runtime/compose_remote_e2e_test.go
+  s_072c5984f68e14::t_cd5e6ac7c07ee2 100,127,164,218,234-275,343
+  s_072c5984f68e14::t_f0d1b32ee938e8 197-199
+Dockerfile
+  s_072c5984f68e14::t_cc71b140957b34 45
+go/internal/workflow/collector_contract.go
+  s_072c5984f68e14::t_604a74d537be11 119-123
+go/internal/workflow/collector_instance.go
+  s_072c5984f68e14::t_604a74d537be11 54-58,103-104
+docs/docs/reference/telemetry/index.md
+  s_072c5984f68e14::t_cb4988c04681be 255
+  s_072c5984f68e14::t_c65b945c5f6df4 258-271,514-516,545,623-624
+  s_072c5984f68e14::t_805d3b15f9f3bb 256-257
+docker-compose.remote-e2e.pprof.yaml
+  s_072c5984f68e14::t_0a82afc740fa4c 57-62
+go/internal/coordinator/service_vulnerability_intelligence_test.go
+  s_072c5984f68e14::t_a01d363c9c96ce 1-114
+go/cmd/collector-vulnerability-intelligence/doc.go
+  s_072c5984f68e14::t_b8d1530d9b3b98 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "4bbb2b5561ccc6658f34296cb1965c31bfaa5b96",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
