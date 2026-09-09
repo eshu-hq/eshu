@@ -193,7 +193,7 @@ func TestPipelinedBootstrapRunsDeferredBackfillWorkflow(t *testing.T) {
 		t.Fatalf("runPipelined() error = %v, want nil", err)
 	}
 
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 	// The reopened list is asserted against the shared source rather than a
@@ -272,7 +272,7 @@ func TestPipelinedBootstrapIaCReachabilityFailureIsFatal(t *testing.T) {
 	if !errors.Is(err, iacErr) {
 		t.Fatalf("runPipelined() error = %v, want wrapping %v", err, iacErr)
 	}
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "backfill", "iac_reachability"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 }
@@ -305,7 +305,7 @@ func TestPipelinedBootstrapReopenFailureIsFatal(t *testing.T) {
 	}
 	// enqueue_drift must NOT be called when reopen fails — the pipeline
 	// returns before Phase 3.5 runs.
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "backfill", "iac_reachability", "reopen"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 }
@@ -336,7 +336,7 @@ func TestPipelinedBootstrapDriftEnqueueFailureIsFatal(t *testing.T) {
 	if !errors.Is(err, driftErr) {
 		t.Fatalf("runPipelined() error = %v, want wrapping %v", err, driftErr)
 	}
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 }
@@ -372,7 +372,95 @@ func TestPipelinedBootstrapWaitsForProjectorDrainBeforeReopen(t *testing.T) {
 	if got := sink.acked.Load(); got != 1 {
 		t.Fatalf("projector not drained before reopen: acked=%d, want 1", got)
 	}
-	if got, want := committer.snapshotCalls(), []string{"backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
+	if got, want := committer.snapshotCalls(), []string{"backfill", "backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("workflow calls = %v, want %v", got, want)
+	}
+}
+
+// The deferred backfill snapshots active generations BEFORE the source-local
+// projector drains, but projector Ack is what activates each scope's new
+// generation (#6184): a generation activated after the snapshot keeps no
+// backward-evidence phase for the rest of the pass, and cross-repo resolution
+// then defers on it (fail-closed, non-counting) with nothing left in the pass
+// to publish the phase. The pipeline must run a covering backfill AFTER the
+// projector drains so the snapshot covers the activated set before the
+// reopen/drain sequence consumes it.
+func TestPipelinedBootstrapRunsCoveringBackfillAfterProjectorDrain(t *testing.T) {
+	t.Parallel()
+
+	quiesced := make(chan struct{})
+	sink := &concurrentWorkSink{}
+	probe := &coveringBackfillOrderProbe{
+		fakeCommitter:     &fakeCommitter{},
+		projectorQuiesced: quiesced,
+	}
+
+	err := runPipelined(
+		context.Background(),
+		collectorDeps{source: &fakeSource{generations: nil}, committer: probe},
+		projectorDeps{
+			workSource: &concurrentWorkSource{
+				items: []projector.ScopeGenerationWork{
+					{Scope: scope.IngestionScope{ScopeID: "s1"}},
+				},
+			},
+			factStore: &fakeFactStore{},
+			runner:    &drainOrderSignalingRunner{delay: 50 * time.Millisecond, done: quiesced},
+			workSink:  sink,
+		},
+		2,
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("runPipelined() error = %v, want nil", err)
+	}
+	if got := sink.acked.Load(); got != 1 {
+		t.Fatalf("projector not drained: acked=%d, want 1", got)
+	}
+	if got := probe.enters; got != 2 {
+		t.Fatalf("backfill calls = %d, want 2 (initial + post-drain covering)", got)
+	}
+	if !probe.secondEnterAfterQuiesce {
+		t.Fatal("covering backfill entered before projector quiesced; it must run after the projector drains")
+	}
+	if got, want := probe.snapshotCalls(), []string{"backfill", "backfill", "iac_reachability", "reopen", "reopen_code_import", "reopen_correlation", "enqueue_drift"}; fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("workflow calls = %v, want %v", got, want)
+	}
+}
+
+func TestPipelinedBootstrapCoveringBackfillFailureIsFatal(t *testing.T) {
+	t.Parallel()
+
+	coveringErr := errors.New("covering backfill failed")
+	probe := &coveringBackfillOrderProbe{
+		fakeCommitter:     &fakeCommitter{},
+		projectorQuiesced: make(chan struct{}),
+		failSecondErr:     coveringErr,
+	}
+
+	err := runPipelined(
+		context.Background(),
+		collectorDeps{source: &fakeSource{generations: nil}, committer: probe},
+		projectorDeps{
+			workSource: &concurrentWorkSource{items: nil},
+			factStore:  &fakeFactStore{},
+			runner:     &fakeProjectionRunner{},
+			workSink:   &concurrentWorkSink{},
+		},
+		2,
+		nil,
+		nil,
+		nil,
+	)
+	if err == nil {
+		t.Fatal("runPipelined() error = nil, want non-nil")
+	}
+	if !errors.Is(err, coveringErr) {
+		t.Fatalf("runPipelined() error = %v, want wrapping %v", err, coveringErr)
+	}
+	if got, want := probe.snapshotCalls(), []string{"backfill", "backfill"}; fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Fatalf("workflow calls = %v, want %v", got, want)
 	}
 }

@@ -55,8 +55,10 @@ func TestReducerGraphDrainHasActiveReducerGraphWork(t *testing.T) {
 // repository facts but has not published its code_entities_uid
 // canonical_nodes_committed phase must hold code-call projection back, because
 // a cross-repository edge drained now MATCHes an endpoint that does not exist
-// yet and is then marked completed — a silent permanent loss. Scopes with no
-// repository facts (non-code scopes never publish this phase) must not block.
+// yet and is then marked completed — a silent permanent loss. The match is
+// per repository (#6184 owner P2): one committed sibling must not release
+// the lane for the rest. Scopes with no repository facts (non-code scopes
+// never publish this phase) must not block.
 func TestReducerGraphDrainHasUncommittedCanonicalCodeScopes(t *testing.T) {
 	t.Parallel()
 
@@ -98,9 +100,11 @@ func TestReducerGraphDrainHasUncommittedCanonicalCodeScopes(t *testing.T) {
 		"fact.fact_kind = 'repository'",
 		"fact.source_system = 'git'",
 		"fact.is_tombstone = FALSE",
+		"NULLIF(fact.payload ->> 'repo_id', '') IS NOT NULL",
 		"FROM graph_projection_phase_state AS phase",
 		"phase.keyspace = $1",
 		"phase.phase = $2",
+		"phase.acceptance_unit_id = fact.payload ->> 'repo_id'",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)

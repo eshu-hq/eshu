@@ -264,8 +264,21 @@ func sortEvidenceFactsForAggregation(facts []EvidenceFact) []EvidenceFact {
 		if mi != mj {
 			return mi < mj
 		}
-		if ordered[i].Confidence != ordered[j].Confidence {
-			return ordered[i].Confidence > ordered[j].Confidence
+		if ri, rj := ordered[i].Confidence, ordered[j].Confidence; ri != rj {
+			// NaN has no magnitude: != is always true for it but NaN > x is
+			// always false, so without this branch a NaN fact
+			// short-circuits to arrival order without consulting the deeper
+			// content keys. Rank a lone NaN below every real value --
+			// unknown confidence must not outrank a measured one -- while a
+			// NaN/NaN pair counts as tied here so Details, rationale, and
+			// repo IDs below still decide, keeping the key total.
+			// (Codex #6184 P2.)
+			if math.IsNaN(ri) != math.IsNaN(rj) {
+				return math.IsNaN(rj)
+			}
+			if !math.IsNaN(ri) {
+				return ri > rj
+			}
 		}
 		// %#v, not %v: %v collides across types (1 vs "1"), which would
 		// leave a type-divergent tie to arrival order. Both verbs print

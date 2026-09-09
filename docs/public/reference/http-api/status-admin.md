@@ -666,14 +666,16 @@ console or API defect.
   its source-local layer: `reducer_work_deleted` (succeeded reducer work items
   removed so the re-projection's enqueue is not deduplicated away),
   `shared_intents_reopened` (shared projection intents whose `completed_at` was
-  cleared so the partition workers drain them again), and
+  cleared so the partition workers drain them again),
   `readiness_phases_cleared` (graph projection phase rows removed, because they
   outlive a graph wipe and would otherwise assert that canonical nodes are
-  committed for a graph that is empty). On a rebuild after a wipe all three
-  should be non-zero; three zeros mean the rebuild will restore source-local
-  structure and nothing else.
+  committed for a graph that is empty), and `generations_retired` (active
+  relationship generations superseded so the re-projection never consumes the
+  prior wave's resolved rows as current truth). On a rebuild after a wipe all
+  four should be non-zero; four zeros mean the rebuild will restore
+  source-local structure and nothing else.
 
-  A retry that returns `duplicate: true` does not carry those three counters.
+  A retry that returns `duplicate: true` does not carry those four counters.
   The `admin_replay_requests` ledger persists the enqueue outcome and not the
   reset counts, so a repeat of an idempotency key that already completed can
   report what was re-enqueued but not what was cleared. If the original

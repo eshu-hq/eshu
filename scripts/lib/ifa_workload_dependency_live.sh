@@ -182,11 +182,17 @@ ifa_workload_dependency_live_assert_work_item_state() {
 
 ifa_workload_dependency_live_drain() {
 	local label="$1" bin_dir="$2" log_dir="$3" timeout="$4"
-	local projector_pid reducer_pid
+	local projector_pid reducer_pid pre_flag=()
+	# The "pre" drain runs before the maintenance pass opens the fail-closed
+	# readiness gates (#6184), so it waits for quiescence -- no live work
+	# left -- instead of convergence. Every other label stays strict.
+	if [[ "${label}" == "pre" ]]; then
+		pre_flag=(-drain-allow-readiness-deferred)
+	fi
 	ifa_det_start_bg "${log_dir}" "projector-workload-dependency-${label}" projector_pid "${bin_dir}/eshu-projector"
 	ifa_det_start_bg "${log_dir}" "reducer-workload-dependency-${label}" reducer_pid "${bin_dir}/eshu-reducer"
 	"${bin_dir}/eshu-golden-corpus-gate" -phase=drains \
-		-snapshot=testdata/golden/e2e-20repo-snapshot.json -drain-timeout="${timeout}" || return 1
+		-snapshot=testdata/golden/e2e-20repo-snapshot.json -drain-timeout="${timeout}" "${pre_flag[@]:-}" || return 1
 	ifa_det_stop_join_untrack_bg_pid "${projector_pid}" TERM || return 1
 	ifa_det_stop_join_untrack_bg_pid "${reducer_pid}" TERM || return 1
 }

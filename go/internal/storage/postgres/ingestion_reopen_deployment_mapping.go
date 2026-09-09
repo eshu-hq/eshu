@@ -30,6 +30,14 @@ import (
 // listSucceededReducerWorkItemsByDomainQuery and
 // TestCorrelationReopenPerDrainCostProof for the measured cost and the bound
 // that keeps it O(active scopes) rather than O(active scopes x generations).
+//
+// Unlike bootstrap-index's runPipelined, this pass has no projector-drain
+// quiescence point, so it runs a single backfill: a generation activated
+// after this pass's snapshot gets its phase from the NEXT periodic pass
+// (#6184). The fail-closed resolution deferrals bridge the gap by retrying
+// without consuming the retry budget, and supersession terminalizes items
+// whose generation is no longer active, so no stranded generation retries
+// forever.
 func (s IngestionStore) RunDeferredRelationshipMaintenance(
 	ctx context.Context,
 	tracer trace.Tracer,

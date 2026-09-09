@@ -197,6 +197,19 @@
         },
         {
           "fact_kind": "shared_followup",
+          "stable_fact_key": "shared_followup:repo-ifa-symbol-runtime-family:deployment_mapping",
+          "schema_version": "1.0.0",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "payload": {
+            "entity_key": "deployment:symbolruntime",
+            "reason": "repository snapshot emitted deployment_mapping follow-up",
+            "reducer_domain": "deployment_mapping",
+            "repo_id": "repo-ifa-symbol-runtime-family"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
           "stable_fact_key": "shared_followup:repo-ifa-symbol-runtime-family:code_call_materialization",
           "schema_version": "1.0.0",
           "collector_kind": "git",

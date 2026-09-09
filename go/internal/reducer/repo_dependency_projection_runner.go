@@ -76,7 +76,7 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 		}
 
 		cycleStart := time.Now()
-		didWork, err := r.runOneCycle(ctx)
+		result, err := r.runOneCycle(ctx)
 		if err != nil {
 			consecutiveEmpty++
 			r.recordRepoDependencyCycleFailure(ctx, err, time.Since(cycleStart).Seconds())
@@ -92,8 +92,23 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 			}
 			continue
 		}
-		if didWork {
+		if result.ProcessedIntents > 0 {
 			consecutiveEmpty = 0
+			continue
+		}
+		// A quiescence-blocked cycle is neither work nor idleness: the lane
+		// is held shut by the canonical-code gate, so reset the empty
+		// backoff and re-poll at the base interval instead of backing off
+		// into a sleep that delays post-quiescence recovery. Mirrors the
+		// code-call lane's BlockedReadiness branch.
+		if result.BlockedReadiness > 0 {
+			consecutiveEmpty = 0
+			if err := r.wait(ctx, r.Config.pollInterval()); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+					return nil
+				}
+				return fmt.Errorf("wait for repo dependency readiness: %w", err)
+			}
 			continue
 		}
 
@@ -107,12 +122,12 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 	}
 }
 
-func (r *RepoDependencyProjectionRunner) runOneCycle(ctx context.Context) (bool, error) {
+func (r *RepoDependencyProjectionRunner) runOneCycle(ctx context.Context) (PartitionProcessResult, error) {
 	result, err := r.processOnce(ctx, time.Now().UTC())
 	if err != nil {
-		return true, err
+		return PartitionProcessResult{}, err
 	}
-	return result.ProcessedIntents > 0, nil
+	return result, nil
 }
 
 func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now time.Time) (PartitionProcessResult, error) {
@@ -127,6 +142,7 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 			return PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
 		}
 		if uncommitted {
+			r.recordRepoDependencyQuiescenceBlocked(ctx, cycleStart)
 			return PartitionProcessResult{BlockedReadiness: 1}, nil
 		}
 	}

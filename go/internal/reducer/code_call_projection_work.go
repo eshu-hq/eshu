@@ -39,8 +39,9 @@ type CanonicalCodeQuiescenceChecker interface {
 // cycle, never both — because the loss happens on every backend and profile
 // while the contention check does not apply to them. The whole lane therefore
 // waits until every code scope's active generation has committed canonical
-// nodes. Scopes without git repository facts never block (the drain query
-// excludes them).
+// nodes. Scopes whose active generation committed only non-git facts never
+// block (non-code scopes: the drain query releases them); a generation with
+// no facts at all still holds while its emission is in flight.
 func (r *CodeCallProjectionRunner) projectionLaneBlocked(ctx context.Context) (bool, error) {
 	if r.ReducerGraphDrain != nil {
 		active, err := r.ReducerGraphDrain.HasActiveReducerGraphWork(ctx)

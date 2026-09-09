@@ -89,6 +89,51 @@ go build ./...  # clean; go vet clean on touched packages
 `TestCodeCallProjectionRunnerWaitsForCanonicalCodeQuiescence` fails without
 the runner check (lease claimed, `BlockedReadiness == 0`).
 
+## Defect 3 — backfill snapshot predates projector activation
+
+Fail-closed resolution (retryable, non-counting deferral while backward
+evidence is uncommitted) turned a latent publisher race into a hard stall:
+the golden-corpus gate drained to residual=8 and never converged.
+
+Verified on a live kept gate stack, not inferred:
+
+- `graph_projection_phase_state` held `backward_evidence_committed` for the
+  previous generations only (29 of 31 scopes matched their active
+  generation); the two retrying generations (`deployable-config`,
+  `supply-chain-demo-db`) had no phase row.
+- Maintenance pass 1 logged `deferred_backfill_completed evidence_facts=3
+  readiness_rows=31` and `deferred_backfill_fanin_completed partitions=31
+  published=31 skipped=0` — the pass believed every partition current.
+- Timestamps: collection committed generation `45914e22` at `04:09:13.110`,
+  the fan-in published at `04:09:13.795`, projector Ack activated the
+  generation at `04:09:15.534` — 1.7 s after the snapshot.
+
+Cause: collectors commit generations as pending; projector Ack activates
+them (`activateProjectorGenerationQuery`, `updateProjectorScopeGenerationQuery`
+in `go/internal/storage/postgres/projector_queue.go`) concurrently with the
+deferred backfill. A scope whose activation lands after the snapshot keeps
+no phase for the rest of the run.
+
+Fix: `runPipelined` re-runs `BackfillAllRelationshipEvidence` after the
+source-local projector drains, under phase
+`relationship_backfill_post_drain`, before the reopen sequence. The
+partition memo gate keeps the repeat cheap: unchanged partitions skip their
+fact loads, so the repeat only derives evidence for newly activated
+generations. The ingester's `RunDeferredRelationshipMaintenance` keeps its
+single backfill — with no quiescence point there, the next periodic pass is
+the covering pass by design; the non-counting retry bridges the gap and
+supersession terminalizes items whose generation is no longer active.
+
+Regression: `TestPipelinedBootstrapRunsCoveringBackfillAfterProjectorDrain`
+fails without the second call (backfill calls = 1, want 2, plus a
+post-quiescence entry assertion);
+`TestPipelinedBootstrapCoveringBackfillFailureIsFatal` pins the fatal path.
+
+Proof: `scripts/verify-golden-corpus-gate.sh` green with the fix —
+`B-7 golden corpus gate green (elapsed 217s, budget ceiling 1800s)`, every
+drain `fact_work_items_residual: residual=0`, zero
+`backward_evidence_not_committed` occurrences in the run log.
+
 ## No-Regression Evidence:
 
 - Baseline: #4594 evidence — 341 s rebuild on the Compose fixture corpus
