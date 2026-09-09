@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
 // TestBuildPackageConsumptionDecisionsAdmitsComposerLockfileExactVersion
@@ -343,7 +343,7 @@ func TestPackageWriterPersistsCargoLockfileEvidence(t *testing.T) {
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresPackageWriter{DB: db, Now: func() time.Time { return observedAt }}
 	_, err := writer.WriteCorrelations(context.Background(), PackageWrite{
 		ScopeID:              "scope-package",
@@ -356,7 +356,7 @@ func TestPackageWriterPersistsCargoLockfileEvidence(t *testing.T) {
 	if got, want := len(db.Execs), 1; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	rows := factwritetest.DecodeBatchedVersionedFactCalls(t, db.Execs)
+	rows := testutil.DecodeBatchedVersionedFactCalls(t, db.Execs)
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}

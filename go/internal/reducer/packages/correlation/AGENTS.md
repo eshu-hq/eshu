@@ -27,7 +27,7 @@ define the done bar; re-read both before changing anything here.
   shared fakes and fixtures (see
   `correlation_root_test_doubles_test.go` in the parent, and the
   local-copy notes in this package's `_test.go` files). Shared test decode
-  for batched versioned writes lives in `factwrite/factwritetest` — extend
+  for batched versioned writes lives in `factwrite/testutil` — extend
   that leaf instead of copying decoders.
 - `telemetry-coverage.md` rows that name files in this package must keep
   pointing at real files with a net-zero row count; the dirgate row for

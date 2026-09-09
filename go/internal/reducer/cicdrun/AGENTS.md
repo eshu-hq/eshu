@@ -77,12 +77,12 @@ fields, a stub's method set), update the root copy in the same commit —
 nothing enforces they stay identical.
 
 The batched-insert fake `Execer` and its call decoder are NOT duplicated:
-`internal/reducer/factwrite/factwritetest` is a shared, exported,
+`internal/reducer/factwrite/testutil` is a shared, exported,
 non-`_test.go` support package this package's own writer tests import
 (`ci_cd_run_correlation_test.go`, `ci_cd_run_correlation_writer_batch_test.go`),
 alongside ~30 other reducer-root writer test files that still use the
 root's own pre-existing copy (`reducer_fact_batch_insert_test_helpers_test.go`,
-untouched). Prefer `factwritetest` over a local fake for any NEW batched-writer
+untouched). Prefer `testutil` over a local fake for any NEW batched-writer
 test in this package or any sibling family.
 
 ## Common changes

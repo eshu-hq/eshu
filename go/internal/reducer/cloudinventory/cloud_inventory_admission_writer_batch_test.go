@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
 // TestWriteCloudInventoryAdmissionBoundedExecCount guards issue #3435: admitted
@@ -32,7 +32,7 @@ func TestWriteCloudInventoryAdmissionBoundedExecCount(t *testing.T) {
 		}
 	}
 
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresCloudInventoryAdmissionWriter{DB: db}
 
 	result, err := writer.WriteCloudInventoryAdmission(context.Background(), CloudInventoryAdmissionWrite{
@@ -50,11 +50,11 @@ func TestWriteCloudInventoryAdmissionBoundedExecCount(t *testing.T) {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
 	}
 
-	wantExecs := factwritetest.ExpectedBatchedExecCount(resourceCount)
+	wantExecs := testutil.ExpectedBatchedExecCount(resourceCount)
 	if got := len(db.Execs); got != wantExecs {
 		t.Fatalf("ExecContext calls = %d for %d resources, want %d (bounded batched inserts)", got, resourceCount, wantExecs)
 	}
-	if rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs); len(rows) != resourceCount {
+	if rows := testutil.DecodeBatchedFactCalls(t, db.Execs); len(rows) != resourceCount {
 		t.Fatalf("decoded rows = %d, want %d", len(rows), resourceCount)
 	}
 }

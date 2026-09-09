@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
 func TestPostgresPackageWriterPersistsOwnershipAndConsumptionFacts(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresPackageWriter{
 		DB:  db,
 		Now: func() time.Time { return now },
@@ -99,7 +99,7 @@ func TestPostgresPackageWriterPersistsOwnershipAndConsumptionFacts(t *testing.T)
 	if !strings.Contains(db.Execs[0].Query, "schema_version") {
 		t.Fatalf("query missing schema_version column for governed package correlation fact: %s", db.Execs[0].Query)
 	}
-	rows := factwritetest.DecodeBatchedVersionedFactCalls(t, db.Execs)
+	rows := testutil.DecodeBatchedVersionedFactCalls(t, db.Execs)
 	if got, want := len(rows), 3; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}

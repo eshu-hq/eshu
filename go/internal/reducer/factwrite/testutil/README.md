@@ -1,4 +1,4 @@
-# internal/reducer/factwrite/factwritetest
+# internal/reducer/factwrite/testutil
 
 ## Purpose
 
@@ -91,12 +91,12 @@ No-Observability-Change below.
 ## Usage
 
 ```go
-db := &factwritetest.FakeExecer{}
+db := &testutil.FakeExecer{}
 writer := SomeWriter{DB: db}
 if _, err := writer.WriteSomething(ctx, someWrite); err != nil {
     t.Fatal(err)
 }
-rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs)
+rows := testutil.DecodeBatchedFactCalls(t, db.Execs)
 ```
 
 See Gotchas / invariants above for `DecodeBatchedFactCalls`'s failure

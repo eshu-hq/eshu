@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package factwritetest provides a fake [factwrite.Execer] ([FakeExecer])
+// Package testutil provides a fake [factwrite.Execer] ([FakeExecer])
 // and a decoder ([DecodeBatchedFactCalls]) for the batched-insert calls
 // [factwrite.BatchInsertFacts] issues against it, so a reducer family's
 // writer test can assert on the rows a batched insert actually recorded
@@ -12,4 +12,4 @@
 // under go/internal/reducer whose writer test wants this fixture must import
 // it from here (issue #6061). Import it only from a _test.go file — it is
 // test support, not a production dependency.
-package factwritetest
+package testutil

@@ -1,4 +1,4 @@
-# Agent instructions: internal/reducer/factwrite/factwritetest
+# Agent instructions: internal/reducer/factwrite/testutil
 
 Scoped rules for this directory. The root `AGENTS.md` still applies.
 
@@ -13,7 +13,7 @@ file (issue #6061). See `README.md` for the full purpose and usage.
 
 - Repository-root `AGENTS.md`
 - `go/internal/reducer/AGENTS.md`
-- `go/internal/reducer/factwrite/factwritetest/README.md`
+- `go/internal/reducer/factwrite/testutil/README.md`
 - `go/internal/reducer/factwrite/README.md`
 
 ## Invariants

@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
 const (
@@ -196,7 +196,7 @@ func TestPostgresCICDRunCorrelationWriterPersistsReducerFacts(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 5, 15, 17, 0, 0, 0, time.UTC)
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresCICDRunCorrelationWriter{
 		DB:  db,
 		Now: func() time.Time { return now },
@@ -237,7 +237,7 @@ func TestPostgresCICDRunCorrelationWriterPersistsReducerFacts(t *testing.T) {
 	if got, want := result.FactsWritten, 1; got != want {
 		t.Fatalf("FactsWritten = %d, want %d", got, want)
 	}
-	rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs)
+	rows := testutil.DecodeBatchedFactCalls(t, db.Execs)
 	if len(rows) == 0 {
 		t.Fatal("decoded rows is empty, want one batched fact row")
 	}
@@ -256,7 +256,7 @@ func TestPostgresCICDRunCorrelationWriterPersistsReducerFacts(t *testing.T) {
 func TestPostgresCICDRunCorrelationWriterDoesNotAddObservedLayerForDerivedRows(t *testing.T) {
 	t.Parallel()
 
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresCICDRunCorrelationWriter{
 		DB: db,
 		Now: func() time.Time {
@@ -288,7 +288,7 @@ func TestPostgresCICDRunCorrelationWriterDoesNotAddObservedLayerForDerivedRows(t
 	if err != nil {
 		t.Fatalf("WriteCICDRunCorrelations() error = %v, want nil", err)
 	}
-	rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs)
+	rows := testutil.DecodeBatchedFactCalls(t, db.Execs)
 	if len(rows) == 0 {
 		t.Fatal("decoded rows is empty, want one batched fact row")
 	}

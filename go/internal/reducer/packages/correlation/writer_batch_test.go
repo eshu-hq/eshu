@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
 // TestPostgresPackageWriterPersistsBatchedFacts proves
@@ -27,7 +27,7 @@ import (
 func TestPostgresPackageWriterPersistsBatchedFacts(t *testing.T) {
 	t.Parallel()
 
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresPackageWriter{DB: db}
 
 	write := PackageWrite{
@@ -76,7 +76,7 @@ func TestPostgresPackageWriterPersistsBatchedFacts(t *testing.T) {
 	if got, want := len(db.Execs), 1; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d (batched insert)", got, want)
 	}
-	rows := factwritetest.DecodeBatchedVersionedFactCalls(t, db.Execs)
+	rows := testutil.DecodeBatchedVersionedFactCalls(t, db.Execs)
 	if got, want := len(rows), 3; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -179,7 +179,7 @@ func TestWriteCorrelationsBoundedExecCount(t *testing.T) {
 		}
 	}
 
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresPackageWriter{DB: db}
 
 	result, err := writer.WriteCorrelations(context.Background(), PackageWrite{
@@ -199,11 +199,11 @@ func TestWriteCorrelationsBoundedExecCount(t *testing.T) {
 		t.Fatalf("FactsWritten = %d, want %d", got, want)
 	}
 
-	wantExecs := factwritetest.ExpectedBatchedExecCount(totalDecisions)
+	wantExecs := testutil.ExpectedBatchedExecCount(totalDecisions)
 	if got := len(db.Execs); got != wantExecs {
 		t.Fatalf("ExecContext calls = %d for %d decisions, want %d (bounded batched inserts)", got, totalDecisions, wantExecs)
 	}
-	if rows := factwritetest.DecodeBatchedVersionedFactCalls(t, db.Execs); len(rows) != totalDecisions {
+	if rows := testutil.DecodeBatchedVersionedFactCalls(t, db.Execs); len(rows) != totalDecisions {
 		t.Fatalf("decoded rows = %d, want %d", len(rows), totalDecisions)
 	}
 }
