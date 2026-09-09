@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestDeadCodeCandidateEntityTypeMapsEveryAdvertisedLabel(t *testing.T) {
@@ -104,7 +104,7 @@ func TestDeadCodeScanRestrictsWorkAndMetadataToRequestedCandidateKind(t *testing
 	if err != nil {
 		t.Fatalf("scanDeadCodeCandidates() error = %v, want nil", err)
 	}
-	if got, want := store.labels, []string{"Trait"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := store.labels, []string{"Trait"}; !slices.Equal(got, want) {
 		t.Fatalf("queried labels = %#v, want %#v", got, want)
 	}
 	if got, want := scan.CandidateScanLimit, scan.CandidateScanLimitPerLabel; got != want {

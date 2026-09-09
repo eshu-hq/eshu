@@ -6,10 +6,10 @@ package query
 import (
 	"context"
 	"database/sql/driver"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // Dead-code candidate-row ContentReader proofs that live in package query:
@@ -41,7 +41,7 @@ func TestContentReaderDeadCodeCandidateRowsKeepsTraitTypeAndRepositoryScope(t *t
 	if got, want := len(rows), 1; got != want {
 		t.Fatalf("len(rows) = %d, want %d", got, want)
 	}
-	if got, want := StringSliceVal(rows[0], "labels"), []string{"Trait"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := StringSliceVal(rows[0], "labels"), []string{"Trait"}; !slices.Equal(got, want) {
 		t.Fatalf("labels = %#v, want %#v", got, want)
 	}
 	if got, want := recorder.args[0][0], driver.Value("repo-1"); got != want {

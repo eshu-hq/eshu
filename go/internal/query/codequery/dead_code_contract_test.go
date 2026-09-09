@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestHandleDeadCodeUsesNornicDBCompatibleCandidateQuery(t *testing.T) {
@@ -285,7 +285,7 @@ func TestHandleDeadCodeExcludesGoPublicAPIRootsOutsideInternalPackages(t *testin
 		}
 		gotIDs = append(gotIDs, result["entity_id"].(string))
 	}
-	if got, want := gotIDs, []string{"go-internal-exported", "go-private-helper"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := gotIDs, []string{"go-internal-exported", "go-private-helper"}; !slices.Equal(got, want) {
 		t.Fatalf("result entity ids = %#v, want %#v", got, want)
 	}
 }
@@ -442,7 +442,7 @@ func TestHandleDeadCodeFetchesPolicyBufferBeforeApplyingLimit(t *testing.T) {
 		}
 		gotIDs = append(gotIDs, result["entity_id"].(string))
 	}
-	if got, want := gotIDs, []string{"internal-helper-1", "internal-helper-2"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := gotIDs, []string{"internal-helper-1", "internal-helper-2"}; !slices.Equal(got, want) {
 		t.Fatalf("result entity ids = %#v, want %#v", got, want)
 	}
 }

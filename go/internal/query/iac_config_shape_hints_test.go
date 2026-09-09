@@ -4,10 +4,9 @@
 package query
 
 import (
+	"slices"
 	"strings"
 	"testing"
-
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // safeReadyFinding returns a cloud_only finding whose safety gate is read-only
@@ -101,7 +100,7 @@ func TestConfigShapeHintForEachSupportedResourceType(t *testing.T) {
 			if hint.ResourceAddress != candidate.SuggestedResourceAddress {
 				t.Fatalf("hint.ResourceAddress = %q, want %q", hint.ResourceAddress, candidate.SuggestedResourceAddress)
 			}
-			if !querytestutil.EqualStringSlices(hint.RequiredArguments, tc.wantRequired) {
+			if !slices.Equal(hint.RequiredArguments, tc.wantRequired) {
 				t.Fatalf("hint.RequiredArguments = %v, want %v", hint.RequiredArguments, tc.wantRequired)
 			}
 			if len(hint.ManualFillWarnings) == 0 {

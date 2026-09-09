@@ -9,12 +9,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestHandleDeadCodeReportsSQLFunctionsAsDerivedCandidates(t *testing.T) {
@@ -121,7 +121,7 @@ func TestHandleDeadCodeSuppressesSQLFunctionsReachedByGraphExecutesEdge(t *testi
 				if !strings.Contains(cypher, "EXECUTES") {
 					t.Fatalf("incoming cypher missing EXECUTES:\n%s", cypher)
 				}
-				if got, want := params["entity_ids"], []string{"sql-refresh"}; !querytestutil.EqualStringSlices(got.([]string), want) {
+				if got, want := params["entity_ids"], []string{"sql-refresh"}; !slices.Equal(got.([]string), want) {
 					t.Fatalf("params[entity_ids] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{{"incoming_entity_id": "sql-refresh"}}, nil
@@ -228,7 +228,7 @@ func TestHandleDeadCodeLanguageFilterScansSQLFunctionsWithoutFunctionStarvation(
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
 
-	if got, want := queriedLabels, []string{"SqlFunction"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := queriedLabels, []string{"SqlFunction"}; !slices.Equal(got, want) {
 		t.Fatalf("queried labels = %#v, want %#v", got, want)
 	}
 
@@ -298,7 +298,7 @@ func TestHandleDeadCodeSuppressesContentSQLFunctionsReachedByGraphExecutesEdge(t
 				if !strings.Contains(cypher, "EXECUTES") {
 					t.Fatalf("incoming cypher missing EXECUTES:\n%s", cypher)
 				}
-				if querytestutil.StringSliceContains(params["entity_ids"].([]string), "sql-refresh") {
+				if slices.Contains(params["entity_ids"].([]string), "sql-refresh") {
 					return []map[string]any{{"incoming_entity_id": "sql-refresh"}}, nil
 				}
 				return nil, nil

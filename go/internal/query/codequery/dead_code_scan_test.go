@@ -173,7 +173,7 @@ func TestHandleDeadCodePagesCandidatesFromContentReadModel(t *testing.T) {
 	if got, want := content.candidateRepoID, "repo-1"; got != want {
 		t.Fatalf("candidate repo id = %q, want %q", got, want)
 	}
-	if got, want := content.candidateLabels, querycontract.DeadCodeCandidateLabels; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := content.candidateLabels, querycontract.DeadCodeCandidateLabels; !slices.Equal(got, want) {
 		t.Fatalf("candidate labels = %#v, want %#v", got, want)
 	}
 }
@@ -244,7 +244,7 @@ func TestHandleDeadCodeBatchesCandidateContentHydration(t *testing.T) {
 	if got, want := singleCalls, 0; got != want {
 		t.Fatalf("single content calls = %d, want %d", got, want)
 	}
-	if got, want := batchIDs, []string{"first-helper", "second-helper"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := batchIDs, []string{"first-helper", "second-helper"}; !slices.Equal(got, want) {
 		t.Fatalf("batch ids = %#v, want %#v", got, want)
 	}
 }
@@ -472,10 +472,10 @@ func TestHandleDeadCodeContentCandidateScanReceivesLanguagePredicate(t *testing.
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := content.candidateLabels, []string{"Function", "Class", "Struct", "Interface"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := content.candidateLabels, []string{"Function", "Class", "Struct", "Interface"}; !slices.Equal(got, want) {
 		t.Fatalf("candidate labels = %#v, want %#v", got, want)
 	}
-	if got, want := content.candidateLanguages, []string{"go", "go", "go", "go"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := content.candidateLanguages, []string{"go", "go", "go", "go"}; !slices.Equal(got, want) {
 		t.Fatalf("candidate languages = %#v, want %#v", got, want)
 	}
 }
@@ -558,7 +558,7 @@ func TestDeadCodeIncomingEntityIDsPrefersMaterializedReachabilityRows(t *testing
 	if got, want := store.legacyCalls, 1; got != want {
 		t.Fatalf("legacy incoming calls = %d, want %d", got, want)
 	}
-	if got, want := store.legacyEntityIDs, []string{"dead-go"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := store.legacyEntityIDs, []string{"dead-go"}; !slices.Equal(got, want) {
 		t.Fatalf("legacy entity IDs = %#v, want %#v", got, want)
 	}
 }
@@ -578,7 +578,7 @@ func TestFilterDeadCodeResultsBatchesSQLGraphIncomingProbes(t *testing.T) {
 				if !ok {
 					t.Fatalf("params[entity_ids] type = %T, want []string", params["entity_ids"])
 				}
-				if got, want := ids, []string{"sql-live", "sql-dead"}; !querytestutil.EqualStringSlices(got, want) {
+				if got, want := ids, []string{"sql-live", "sql-dead"}; !slices.Equal(got, want) {
 					t.Fatalf("params[entity_ids] = %#v, want %#v", got, want)
 				}
 				return []map[string]any{{"incoming_entity_id": "sql-live"}}, nil
@@ -622,7 +622,7 @@ func equalStringSliceMaps(got, want map[string][]string) bool {
 		return false
 	}
 	for key, wantValues := range want {
-		if !querytestutil.EqualStringSlices(got[key], wantValues) {
+		if !slices.Equal(got[key], wantValues) {
 			return false
 		}
 	}

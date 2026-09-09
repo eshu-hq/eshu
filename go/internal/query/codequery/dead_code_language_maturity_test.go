@@ -9,11 +9,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestHandleDeadCodeReportsLanguageMaturity(t *testing.T) {
@@ -375,7 +375,7 @@ func TestBuildDeadCodeAnalysisReportsObservedCExactnessBlockersFromGraphMetadata
 	if !ok {
 		t.Fatalf("analysis[dead_code_observed_exactness_blockers] type = %T, want map[string][]string", analysis["dead_code_observed_exactness_blockers"])
 	}
-	if got, want := observed["c"], []string{"dynamic_symbol_lookup_unresolved", "function_pointer_dispatch_unresolved"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := observed["c"], []string{"dynamic_symbol_lookup_unresolved", "function_pointer_dispatch_unresolved"}; !slices.Equal(got, want) {
 		t.Fatalf("observed[c] = %#v, want %#v", got, want)
 	}
 }
@@ -490,7 +490,7 @@ func TestBuildDeadCodeAnalysisReportsObservedRustExactnessBlockersFromGraphMetad
 	if !ok {
 		t.Fatalf("analysis[dead_code_observed_exactness_blockers] type = %T, want map[string][]string", analysis["dead_code_observed_exactness_blockers"])
 	}
-	if got, want := observed["rust"], []string{"cfg_unresolved", "trait_dispatch_unresolved"}; !querytestutil.EqualStringSlices(got, want) {
+	if got, want := observed["rust"], []string{"cfg_unresolved", "trait_dispatch_unresolved"}; !slices.Equal(got, want) {
 		t.Fatalf("observed[rust] = %#v, want %#v", got, want)
 	}
 }

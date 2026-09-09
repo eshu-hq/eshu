@@ -4,10 +4,10 @@
 package codequery
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestBuildDeadCodeAnalysisForLanguageReportsReflectionModeledTruth(t *testing.T) {
@@ -36,7 +36,7 @@ func TestBuildDeadCodeAnalysisForLanguageReportsReflectionModeledTruth(t *testin
 			if !ok {
 				t.Fatalf("analysis[reflection_modeled_languages] type = %T, want []string", analysis["reflection_modeled_languages"])
 			}
-			if got, want := languages, []string{"java"}; !querytestutil.EqualStringSlices(got, want) {
+			if got, want := languages, []string{"java"}; !slices.Equal(got, want) {
 				t.Fatalf("analysis[reflection_modeled_languages] = %#v, want %#v", got, want)
 			}
 		})
