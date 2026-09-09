@@ -145,8 +145,9 @@ flat singles
 `projection.go` (5), service/runtime core (8, listed above),
 `candidate_loader.go` (1): **39 files**, plus the ~4-file compat facade
 (`compat_cloud.go`, `compat_correlation.go`, `compat_decode.go`,
-`compat_projection.go` — the 1,530 lines of `reducer.X` aliases and
-forwarders, one line per spelling, merged by the compat-consolidation PR).
+`compat_projection.go` — the 1,593 lines of `reducer.X` aliases and
+forwarders, one line per spelling, merged by the compat-consolidation PR
+into 1,549 bucket lines after shared-boilerplate dedup).
 Compat entries burn down to zero as the importer-migration child issue
 lands; until then no new `*_compat.go`, ever — a family move adds a stanza
 to the matching bucket file.
@@ -263,7 +264,7 @@ root); gate/spec lockstep in the same PR.
 ## Restack rule (the dirgate ledger trap)
 
 The ledger (`scripts/lib/dirgate-grandfather.tsv`, row 88:
-`internal/reducer 304 1484cb0d...`) and its generated `.go` mirror
+`internal/reducer <count> <digest>`, re-pinned DOWN by every move PR) and its generated `.go` mirror
 (`scripts/test-generate-dirgate-grandfather-go.sh`) conflict on every
 sibling merge, and a clean merge is the dangerous case. Every move PR:
 take `origin/main`'s copy of both, re-derive count and digest for the real
@@ -286,6 +287,6 @@ recoverable SHAs: `36ea9f98e`, `e13a30304`, base `30fcf3972`.
 
 ## DONE
 
-Reducer root <=40, or the ratcheted row plus this doc as the accepted
-exception; ~13 named domains populated; no verb-named top-level siblings;
+Reducer root <=40 for real — no exception (decision 2 above); ~13 named
+domains populated; no verb-named top-level siblings; 2b child issue filed;
 final comment on #6061 with tree and counts.
