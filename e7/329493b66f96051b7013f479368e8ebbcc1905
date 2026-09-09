@@ -1,0 +1,22 @@
+docs/internal/design/naming-remediation.md
+  s_4a0f86aa680964::t_abeb4ae500b191 9,52-53,291-306
+  s_4a0f86aa680964::t_4d1b030a971dd3 32,47-51,205-208,222-224
+  s_4a0f86aa680964::t_ca03c0fb0fd4b5 27,29-31,34-37,39,146,235-239
+  s_4a0f86aa680964::t_f5f170243467bf 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e7329493b66f96051b7013f479368e8ebbcc1905",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
