@@ -136,6 +136,15 @@ Derived read-side summaries:
 Derived summaries help answer questions. They must not be used as proof that a
 new canonical relationship exists.
 
+### Aggregation Is Order-Independent
+
+Evidence facts arrive in Postgres row order, which is wall clock, not content:
+two indexing runs of the same facts hand them over in a different order. The
+resolver sorts each candidate's facts by a content key (confidence, evidence
+kind, path, matched value, then tie-breaks) before accumulating, so the
+resolved candidate — confidence, rationale, preview, and repo attribution — is
+a pure function of the fact set and identical across runs.
+
 ## Direction Matters
 
 Write the edge in the direction of the behavior being explained:

@@ -31,6 +31,41 @@ import (
 // copied literal so the assertion cannot drift from what the writer stamps.
 const CrossRepoEvidenceSource = "resolver/cross-repo"
 
+// CrossRepoBackwardEvidenceNotReadyFailureClass classifies a deferral of
+// cross-repo resolution while backward evidence has not committed.
+//
+// Registered as a non-counting reducer retry class
+// (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the scope is
+// waiting on upstream evidence, not failing on its own merits. Returning
+// success here instead would terminally strand the scope: the queue item
+// succeeds, nothing retries it, and downstream consumers (deployable-unit
+// correlation, workload materialization) read the generation's partial-or-absent
+// resolved set forever (#6184).
+const CrossRepoBackwardEvidenceNotReadyFailureClass = "cross_repo_backward_evidence_not_ready"
+
+// BackwardEvidenceNotReadyError defers resolution until backward evidence
+// commits. Retryable so the queue re-runs the scope instead of succeeding
+// deferred.
+type BackwardEvidenceNotReadyError struct {
+	ScopeID      string
+	GenerationID string
+}
+
+func (e BackwardEvidenceNotReadyError) Error() string {
+	return fmt.Sprintf(
+		"backward evidence not committed for scope %s generation %s; deferring cross-repo resolution rather than succeeding deferred",
+		e.ScopeID,
+		e.GenerationID,
+	)
+}
+
+func (BackwardEvidenceNotReadyError) Retryable() bool { return true }
+
+func (BackwardEvidenceNotReadyError) FailureClass() string {
+	return CrossRepoBackwardEvidenceNotReadyFailureClass
+}
+
 // EvidenceFactLoader loads persisted evidence facts for a generation.
 type EvidenceFactLoader interface {
 	ListEvidenceFacts(ctx context.Context, generationID string) ([]relationships.EvidenceFact, error)
@@ -140,7 +175,10 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 				slog.String("reason", "backward_evidence_not_committed"),
 			)
 			h.recordDuration(ctx, start, scopeID)
-			return 0, nil
+			return 0, BackwardEvidenceNotReadyError{
+				ScopeID:      scopeID,
+				GenerationID: generationID,
+			}
 		}
 	}
 
