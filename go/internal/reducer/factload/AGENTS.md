@@ -27,7 +27,7 @@
 ## Common changes
 
 Adding a fact kind: add the constant here and the root alias in
-`scoped_fact_loader_compat.go` together, so root call sites keep compiling while
+the factload stanza of `compat_decode.go` together, so root call sites keep compiling while
 their families are still in the root.
 
 ## Failure modes

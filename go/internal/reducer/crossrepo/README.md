@@ -34,7 +34,7 @@ Imports point strictly downward. This package reaches `reducer/contract`,
 `internal/environment`, `internal/ghactionsref`, `internal/relationships`,
 `internal/telemetry` and `pkg/log`, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
-compatibility aliases in `cross_repo_compat.go` for every name its own files,
+compatibility aliases in the cross-repo stanza of `compat_correlation.go` for every name its own files,
 `cmd/reducer`, `internal/ifa/materializededges` and `internal/storage/cypher`
 still spell as `reducer.X` — seven of them today, and that file is the list.
 

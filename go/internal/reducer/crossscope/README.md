@@ -99,7 +99,7 @@ value (`ProducerNotReadyFailureClass`) is copied verbatim, unchanged.
 
 ## Compatibility
 
-The reducer root keeps `cross_scope_readiness_compat.go` as the transitional
+The reducer root keeps the cross-scope stanza of `compat_projection.go` as the transitional
 compatibility surface: unexported function-statement forwarders and type
 aliases for every symbol this package took over, under their EXACT original
 root spelling, so none of the 92-plus existing call sites in
@@ -129,7 +129,7 @@ No-Regression Evidence: #6061 moves the cross-scope producer-readiness floor
 dependency catalog (`cross_scope_dependencies.go`) out of the reducer root
 into this package, cut-paste with identifiers capitalized and doc comments
 rewritten, and leaves compatibility forwarders in
-`cross_scope_readiness_compat.go` so every existing root caller keeps
+the cross-scope stanza of `compat_projection.go` so every existing root caller keeps
 compiling against the identical behavior. Two struct fields needed to become
 exported (see Compatibility above); their two call sites were updated
 accordingly. Measured on the branch, from `go/`:

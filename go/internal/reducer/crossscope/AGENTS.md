@@ -54,7 +54,7 @@ extend `TestCompletionEdgesExposeCatalogExactly` and
 consumer by itself — each handler must opt in by calling the floor helpers.
 
 Adding a root forwarder: match the existing shape in
-`cross_scope_readiness_compat.go` — a function statement (never a
+the cross-scope stanza of `compat_projection.go` — a function statement (never a
 function-valued variable, this sits on the reducer write path and a func var
 cannot be inlined) or a type alias, named EXACTLY the symbol's old root
 spelling, so no existing caller changes.

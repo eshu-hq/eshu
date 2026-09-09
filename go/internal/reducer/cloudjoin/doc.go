@@ -25,7 +25,7 @@
 // package may never import the reducer root. The index therefore lives below
 // both. The root keeps cloudResourceJoinIndex, buildCloudResourceJoinIndex and
 // cloudResourceUID as aliases and forwarders in
-// cloud_resource_join_index_compat.go so its own callers compile unchanged.
+// the cloudjoin stanza of compat_cloud.go so its own callers compile unchanged.
 //
 // The S3 bucket-name index ([S3BucketJoinIndex]) follows the same rule one
 // level narrower: the s3logsto LOGS_TO slice, the s3grant slice, and the S3

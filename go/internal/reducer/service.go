@@ -138,7 +138,7 @@ type Service struct {
 	// (issue #4630) to the reducer_input_invalid_facts read surface.
 	// executeWithTelemetry stashes it on the execution context via
 	// WithQuarantineWriter once per claimed intent so every domain handler's
-	// recordQuarantinedFacts call (quarantine_compat.go, factdecode/quarantine_record.go)
+	// recordQuarantinedFacts call (the quarantine stanza of compat_decode.go, factdecode/quarantine_record.go)
 	// can reach it without a per-handler field. Nil disables durable
 	// persistence; the existing eshu_dp_reducer_input_invalid_facts_total
 	// counter and structured error log are unaffected.

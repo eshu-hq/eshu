@@ -29,12 +29,31 @@ ls -d go/internal/reducer/*/ | wc -l                                            
    dependency points at a named package, then the `supplychain` core plus
    suppression land together (the `Suppression SupplyChainSuppressionDecision`
    struct field at `supply_chain_impact_finding.go:103` makes them one unit).
-2. **Dirgate row: documented exception, not under-40.** Family moves alone
-   cannot reach 40 (measured floor ~100-110 through moves; the spine plus
-   triage roll below are structural). The row ratchets DOWN on every move PR
-   and carries a one-line ledger comment naming the real target, as
-   `internal/collector/gitrepo` does at 66. The ledger-comment edit lands with
-   the first move PR alongside its re-pin, never alone.
+2. **Compat surface (2a) + importer migration (2b); no dirgate exception.**
+   (Owner answers, #6061 comment 5591291715. They supersede the ~100-110
+   floor, which measured the old move-a-family-leave-a-compat-file strategy,
+   not the package: one line pins a `reducer.X` spelling to root, and the
+   compat surface is ~1,600 lines total (1,530 in the 20-file census plus 63
+   in the two numbered decode-seam sequels), i.e. ~4 files at the 500-line
+   cap.)
+   (a) The 22 `*_compat.go` merge into ~4 buckets (`compat_cloud.go`,
+   `compat_correlation.go`, `compat_decode.go`, `compat_projection.go`) in
+   the compat-consolidation PR: no external caller edits, no behavior
+   change, every alias and forwarder preserved; root 304 -> 286. Every
+   later family move adds a stanza to the matching bucket file and NEVER
+   creates a new `*_compat.go` — that rule stops the moves making the
+   problem worse. Rebalance buckets before any one crosses the 500-line cap
+   (`compat_correlation.go` lands at 492).
+   (b) External importers migrate `reducer.X` -> owning subpackage in
+   per-package batches (postgres 191, cypher 65, cmd/reducer 40,
+   projector 39, materializededges 38, then the tail) under its own child
+   issue, after the tree is populated — NOT blocking family moves. Each
+   batch is independently provable and deletes the aliases it retires; this
+   is the coupling #4047/#4398 must remove to extract reducer.
+   (c) Target root ~9: doc.go + ~4 compat + ~4 contract surface (intent,
+   domain, runtime, registry). ≤40 clears with room; no exception. The
+   dirgate row ratchets DOWN on every move PR, as
+   `internal/collector/gitrepo` does at 66.
 3. **This tree: yes as the destination.** PR1 (this doc) commits first; no
    file moves until the doc is merged.
 
@@ -104,8 +123,9 @@ Notes with alternatives considered:
   `service_side_runners.go` — the `serviceSideRunner` interface plus
   `Service.startSideRunners`) STAYS in the spine: it is the
   claim/execute/ack loop, not a domain.
-  `service_catalog_correlation_compat.go` is a compat forwarder for the
-  already-moved family: it burns down with the 20, it does not move.
+  The service-catalog aliases are a stanza in `compat_correlation.go` for the
+  already-moved family: they burn down with the importer migration, the stanza
+  does not move.
   The existing `servicecatalog/` subpackage is grandfathered interim: no
   NEW top-level package is ever created (that is what the no-55th-sibling
   rule bans), and a domain PR relocates `servicecatalog/` whole with a
@@ -117,13 +137,25 @@ Notes with alternatives considered:
 `registry.go` + `registry_additive_domains.go` (2; `defaults_registry.go`
 counts under `defaults*`), `defaults*.go` (17), `intent.go` + `intent_value.go`
 (2; `intent_emission.go` and `intent_domain_platform.go` are triage below),
-`domain.go` (1), `cross_scope*.go` (2, incl. `cross_scope_readiness_compat.go`,
-which burns down with the 20 — spine re-derives to 38 after the
-crossscope move), `doc.go` (1), flat singles
+`domain.go` (1), `cross_scope*.go` (2; the cross-scope readiness aliases live
+as a stanza in `compat_projection.go` and burn down with the importer
+migration — spine re-derives to 38 after the crossscope move), `doc.go` (1),
+flat singles
 `dependency.go`, `observability.go`, `partitioning.go`, `platforms.go`,
 `projection.go` (5), service/runtime core (8, listed above),
-`candidate_loader.go` (1): **39 files**. The 20 `*_compat.go`
-forwarders burn down to zero as families move (no new forwarders, ever).
+`candidate_loader.go` (1): **39 files**, plus the ~4-file compat facade
+(`compat_cloud.go`, `compat_correlation.go`, `compat_decode.go`,
+`compat_projection.go` — the 1,593 lines of `reducer.X` aliases and
+forwarders, one line per spelling, merged by the compat-consolidation PR
+into 1,549 bucket lines after shared-boilerplate dedup).
+Compat entries burn down to zero as the importer-migration child issue
+lands; until then no new `*_compat.go`, ever — a family move adds a stanza
+to the matching bucket file.
+
+Root arithmetic after the compat-consolidation PR: 286 = 39 spine + 4 compat
+facade + 243 awaiting family moves and importer migration. End state ~9:
+doc.go + ~4 compat + ~4 contract surface (intent, domain, runtime,
+registry). ≤40 clears with room; no exception.
 `shared_projection*` (11) is NOT spine. Hoist trigger (exact): the first
 domain move whose `go/types` census references a `shared_projection*`
 symbol carries the hoist in the same PR; direction is family -> shared
@@ -149,7 +181,7 @@ when it disagrees. Never a new top-level package for any of them.
 | `sbom*` singleton, `secrets*` singleton, `security*` singleton | `supplychain/sbom`, `security/secrets`, `security/alert` |
 | `semantic*` singleton | `search/semantic` |
 | `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `decode/` children by census (`intent_emission.go` defaults to `decode/facts`) |
-| `platform_infra_materialization.go` (`platform_compat.go` burns down) | `repodependency/platform` |
+| `platform_infra_materialization.go` (the `platform` stanza in `compat_projection.go` burns down) | `repodependency/platform` |
 | `repo_workload.go` | `workload/repo` |
 | `package_publication_correlation.go`, `package_provenance_edges.go` (already inside the counted 11; no additional singletons) | `packagecorrelation/core` |
 | `code_function*` (2) | `code/` child by census |
@@ -229,10 +261,34 @@ root); gate/spec lockstep in the same PR.
 - `eshu-code-review` P0=P1=P2-blocking=0 on both sides of the promotion
   preflight; only the coordinator runs `make pre-pr`, once per push.
 
+## Proof bar evidence: compat-consolidation PR (decision 2a)
+
+No-Regression Evidence: the 22-file merge is alias/forwarder relocation
+with zero call-site edits, so there is no runtime delta to measure —
+correctness is proven by construction plus replay. Baseline
+`origin/main 4e94c8cf9`, backend go1.27.1 darwin/arm64 with the B-7
+gate's own Postgres + NornicDB stack. Measured on the branch, from
+`go/`: `go build ./...` exit 0; `go vet` clean; `gofumpt -l` clean;
+`go test ./internal/reducer/... -count=1` green (full recursive tree);
+`go test ./internal/payloadusage/... -count=1` green; go/parser census
+281/281 top-level declarations identical across the 22 deleted files vs
+the 4 buckets; B-7 golden-corpus gate 562 pass / 0 fail (31-repo corpus,
+134s); B-12 replay-coverage gate `--blocking` PASS with a byte-identical
+(no-op) dashboard rewrite. Safe because every alias resolves at compile
+time, every forwarder body is byte-identical (inlining shape unchanged),
+and no caller, query, queue, worker, or storage contract changed.
+
+No-Observability-Change: forwarders compute nothing, so no new signals
+are required. The telemetry-coverage rows name the new bucket-stanza
+paths with identical covering instruments (`eshu_dp_reducer_executions_total`
+/ `eshu_dp_reducer_run_duration_seconds` for the owning passes,
+`eshu_dp_reducer_input_invalid_facts_total` for the quarantine surface);
+`verify-telemetry-coverage.sh` green.
+
 ## Restack rule (the dirgate ledger trap)
 
 The ledger (`scripts/lib/dirgate-grandfather.tsv`, row 88:
-`internal/reducer 304 1484cb0d...`) and its generated `.go` mirror
+`internal/reducer <count> <digest>`, re-pinned DOWN by every move PR) and its generated `.go` mirror
 (`scripts/test-generate-dirgate-grandfather-go.sh`) conflict on every
 sibling merge, and a clean merge is the dangerous case. Every move PR:
 take `origin/main`'s copy of both, re-derive count and digest for the real
@@ -255,6 +311,6 @@ recoverable SHAs: `36ea9f98e`, `e13a30304`, base `30fcf3972`.
 
 ## DONE
 
-Reducer root <=40, or the ratcheted row plus this doc as the accepted
-exception; ~13 named domains populated; no verb-named top-level siblings;
+Reducer root <=40 for real — no exception (decision 2 above); ~13 named
+domains populated; no verb-named top-level siblings; 2b child issue filed;
 final comment on #6061 with tree and counts.

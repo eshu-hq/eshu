@@ -88,9 +88,9 @@ describes *coverage decisions*, the same as every other reducer family.
 ## Do not
 
 - Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose name matches a sibling package, so a compatibility shim must be
-  named for its subject — `observability_coverage_compat.go`, not
-  `obscoverage_compat.go`.
+  file whose name matches a sibling package, so a compatibility shim goes as
+  a stanza in `compat_cloud.go`, never a new `*_compat.go`
+  (target-tree decision 2a).
 - Do not suppress `dirgate` with `//nolint`.
 - Do not classify a tombstoned observability object as proving coverage. A
   deleted alarm/dashboard/rule must never be read as covering an otherwise-live

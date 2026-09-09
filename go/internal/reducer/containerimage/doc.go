@@ -22,7 +22,7 @@
 // join reads; packagesourcecore for repository-hint matching; and sbomattest
 // for the attestation attachment decisions the SLSA provenance join reads.
 // The reducer root keeps a compatibility surface
-// (container_image_identity_compat.go) that aliases this family's exported
+// (the container-image stanza of compat_cloud.go) that aliases this family's exported
 // symbols back for its own remaining callers, so the import direction stays
 // one-way: root depends on containerimage, never the reverse.
 //

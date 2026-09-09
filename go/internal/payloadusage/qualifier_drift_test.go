@@ -261,7 +261,7 @@ func TestNoDecodeSeamIsReachedThroughAnUnknownQualifier(t *testing.T) {
 		parsed := walkParsedGoFiles(t, dir, func(path string, file *ast.File) {
 			ast.Inspect(file, func(node ast.Node) bool {
 				// Any SelectorExpr, not only a CallExpr: schemadecode seams are
-				// reached as function VALUES in decode_seam_compat*.go
+				// reached as function VALUES in the decode_seam stanzas of compat_decode.go
 				// (`var decodeX = schemadecode.DecodeX`), 97 of them, and a
 				// call-only walk cannot see a single one. Measured: with the
 				// call-only form, deleting "schemadecode" from

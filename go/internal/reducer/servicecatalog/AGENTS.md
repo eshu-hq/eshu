@@ -95,14 +95,14 @@ root copy needs the same change — nothing enforces they stay in sync.
 ## Do not
 
 - Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose name matches a sibling package, so a compatibility shim must be
-  named for its subject — `service_catalog_correlation_compat.go`, not
-  `servicecatalog_compat.go`.
+  file whose name matches a sibling package, so a compatibility shim goes as
+  a stanza in `compat_correlation.go`, never a new `*_compat.go`
+  (target-tree decision 2a).
 - Do not suppress `dirgate` with `//nolint`.
 - Do not add a root forwarder for something only this package's own tests
   use. Root forwarders exist because a specific still-in-root file names the
-  symbol unqualified; check `service_catalog_correlation_compat.go`'s own
-  comments before adding another one.
+  symbol unqualified; check the service-catalog stanza's own comments in
+  `compat_correlation.go` before adding another one.
 - Do not change what feeds `ServiceMaterializationGenerationID` (which fields,
   or their order) without checking the idempotent re-materialization contract
   it backs: an identical evidence set must keep producing an identical

@@ -30,7 +30,7 @@
 // [gpphase], [payloadcore], [sharedintent], internal/environment,
 // internal/ghactionsref, internal/relationships, internal/telemetry and
 // pkg/log, and never the parent internal/reducer package. The reducer root keeps
-// compatibility aliases in cross_repo_compat.go so its own callers -- and
+// compatibility aliases in the cross-repo stanza of compat_correlation.go so its own callers -- and
 // cmd/reducer, internal/ifa/materializededges and internal/storage/cypher,
 // which spell these names as reducer.X -- compile unchanged. That direction is
 // root importing this family, never the reverse. See AGENTS.md in this

@@ -33,7 +33,7 @@
 // [payloadcore], [schemadecode], internal/facts, internal/graph/edgetype,
 // internal/telemetry, internal/truth, and the factschema SDK, and never the
 // parent internal/reducer package. The reducer root keeps compatibility
-// aliases in iam_can_compat.go so the reducer command and the cypher writers
+// aliases in the iam-can stanza of compat_projection.go so the reducer command and the cypher writers
 // compile unchanged; that direction is root importing this family, never the
 // reverse. See AGENTS.md in this directory before adding an import.
 //

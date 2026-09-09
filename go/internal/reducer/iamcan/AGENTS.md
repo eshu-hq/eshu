@@ -75,8 +75,9 @@ Both slices under-approximate on purpose. Before you widen anything:
 ## Do not
 
 - Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose name matches a sibling package, so a compatibility shim must be
-  named for its subject — `iam_can_compat.go`, not `iamcan_compat.go`.
+  file whose name matches a sibling package, so a compatibility shim goes as
+  a stanza in `compat_projection.go`, never a new `*_compat.go`
+  (target-tree decision 2a).
 - Do not suppress `dirgate` with `//nolint`.
 - Do not confuse the function-local `assumeEdgeKey` in
   `iam_can_assume_edge_rows.go` with `iampolicy.EdgeKey`. Same shape, different

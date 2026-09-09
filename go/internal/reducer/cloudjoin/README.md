@@ -38,7 +38,7 @@ so the index has to live below both. The S3 bucket-name index is shared the
 same way by the s3logsto and s3grant families and the still-in-root S3
 internet-exposure slice. The root keeps `cloudResourceJoinIndex`,
 `buildCloudResourceJoinIndex` and `cloudResourceUID` as an alias and two
-forwarders in `cloud_resource_join_index_compat.go`, so its own callers compile
+forwarders in the cloudjoin stanza of `compat_cloud.go`, so its own callers compile
 unchanged.
 
 Because the type now lives here, the root cannot attach methods to it. The three

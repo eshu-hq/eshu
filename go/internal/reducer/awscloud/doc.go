@@ -37,7 +37,7 @@
 // internal/correlation/drift/cloudruntime and its engine/model/rules
 // siblings, internal/facts, internal/telemetry, internal/truth, and the
 // factschema SDK, and never the parent internal/reducer package. The reducer
-// root keeps compatibility aliases in aws_cloud_family_compat.go so the
+// root keeps compatibility aliases in the aws-cloud stanza of compat_cloud.go so the
 // reducer command, internal/storage/postgres, and
 // internal/replay/costcounting compile unchanged; that direction is root
 // importing this family, never the reverse. See AGENTS.md in this directory

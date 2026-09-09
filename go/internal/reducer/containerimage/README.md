@@ -54,7 +54,7 @@ Imports point strictly downward. This package reaches `reducer/contract`,
 `internal/telemetry`, `internal/truth`, and the factschema SDK, and it never
 imports the parent `internal/reducer` package. The dependency runs the other
 way: the root keeps compatibility aliases in
-`container_image_identity_compat.go` so its own callers, plus `cmd/reducer`,
+the container-image stanza of `compat_cloud.go` so its own callers, plus `cmd/reducer`,
 `internal/storage/postgres`, and `internal/replay/costcounting`, compile
 unchanged.
 

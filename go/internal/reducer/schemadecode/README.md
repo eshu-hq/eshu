@@ -29,7 +29,7 @@ the caller can record them in one write; `FactschemaEnvelope` converts the reduc
 `facts.Envelope` into the `factschema.Envelope` the seams decode from.
 
 The reducer root reaches ninety-eight of them through unexported forwarders of
-their original lowercase names, in `decode_seam_compat*.go`. Two more are reached
+their original lowercase names, in the decode_seam stanzas of `compat_decode.go`. Two more are reached
 only from reducer tests. Read the compat files for the authoritative list rather
 than relying on a count here — this package is being drained family by family and
 any number written down goes stale.
@@ -63,9 +63,9 @@ here. Rename one and its fact kinds silently drop out of the manifest — the ga
 reports "no decode seams found" only when it finds a matching file with no seams
 in it, so a rename is quieter than that.
 
-The same glob is why the root compatibility files are named `decode_seam_compat*`
-rather than `factschema_decode_compat*`: the latter matched the seam glob while
-containing only forwarders, which failed the gate.
+The root compatibility stanzas live in `compat_decode.go`, which like the old
+`decode_seam_compat*` names avoids the `factschema_decode_*.go` seam glob:
+a forwarder file matching that glob fails the gate.
 
 **A decoder is named for its fact kind, not an owner.** Several families consume
 the same kind, so do not assume `factschema_decode_cicdrun.go` belongs to the

@@ -17,7 +17,7 @@ import (
 
 // FactLoader loads fact envelopes for one scope generation. Alias for
 // [factload.FactLoader], mirroring the reducer root's own alias
-// (scoped_fact_loader_compat.go) so this family's handler keeps its existing
+// (the factload stanza of compat_decode.go) so this family's handler keeps its existing
 // field spelling without importing the reducer root (issue #6061).
 type FactLoader = factload.FactLoader
 
@@ -169,7 +169,7 @@ func codeCallInt(values ...any) int {
 }
 
 // Fact-kind names the scoped loader filters on. Forwarders to [factload],
-// mirroring the reducer root's own scoped_fact_loader_compat.go.
+// mirroring the reducer root's own factload stanza of compat_decode.go.
 const (
 	factKindContentEntity = factload.FactKindContentEntity
 	factKindFile          = factload.FactKindFile
@@ -217,7 +217,7 @@ func classifyFactLoadError(err error) error {
 
 // decodeCodegraphRepository and decodeCodegraphFile forward to the
 // [schemadecode] typed decode seam, mirroring the reducer root's own
-// decode_seam_compat.go.
+// decode_seam stanza of compat_decode.go.
 var (
 	decodeCodegraphFile       = schemadecode.DecodeCodegraphFile
 	decodeCodegraphRepository = schemadecode.DecodeCodegraphRepository

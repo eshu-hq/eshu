@@ -121,8 +121,8 @@ INSERT INTO fact_records (
 // BatchInsertVersionedQuery, which is one monolithic statement literal that
 // uses none of these fragments, but the reducer root's completed-cutover
 // container-image-identity writer
-// (container_image_identity_writer_atomic.go, reached through the
-// reducer_fact_write_compat.go forwarders), whose
+// (container_image_identity_writer_atomic.go, reached through
+// the fact-write stanza of compat_decode.go), whose
 // containerImageIdentityCompletedCutoverWriteQuery and
 // containerImageIdentityCompletedCutoverPublishOnlyQuery both interleave a
 // `WHERE EXISTS (SELECT 1 FROM current_claim)` guard between this SELECT and

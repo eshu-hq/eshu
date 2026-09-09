@@ -42,6 +42,6 @@ generation.
 ## Compatibility
 
 The reducer root keeps `type FactLoader = factload.FactLoader` plus forwarders
-in `scoped_fact_loader_compat.go`, so the 64 root call-site files and the
+in the factload stanza of `compat_decode.go`, so the 64 root call-site files and the
 external package naming `reducer.FactLoader` are unchanged. Those forwarders are
 transitional and are deleted as their callers move into family subpackages.

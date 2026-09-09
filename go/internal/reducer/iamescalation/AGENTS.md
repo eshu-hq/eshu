@@ -72,8 +72,9 @@ came to exist.
 
 - Do not name a new root file after this directory. `dirgate` refuses a root
   file whose stem equals a sibling package name or starts with
-  `iamescalation_` — a compatibility shim must be named for its subject,
-  `iam_escalation_compat.go`, never `iamescalation_compat.go`. This trap has
+  `iamescalation_` — a compatibility shim goes as a stanza in
+  `compat_projection.go`, never a new `*_compat.go` (target-tree decision
+  2a). This trap has
   bitten this epic three times.
 - Do not suppress `dirgate` with `//nolint`.
 - Do not export a root test helper to use here. Go test files cannot share

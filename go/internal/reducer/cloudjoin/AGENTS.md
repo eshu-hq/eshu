@@ -59,8 +59,8 @@ do) stays at its caller as a free function taking the index.
   the `No-Regression Evidence:` and `No-Observability-Change:` markers; keep
   them unbolded and at the start of their line or the gate stops seeing them.
 - **`verify-dirgate.sh`** — a root file may not be named after this directory,
-  so the root's compatibility shim is `cloud_resource_join_index_compat.go`, not
-  `cloudjoin_compat.go`.
+  so the root's compatibility shim is a stanza in `compat_cloud.go`, never a
+  new `*_compat.go` (target-tree decision 2a).
 
 ## Do not
 

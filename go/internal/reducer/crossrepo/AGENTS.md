@@ -89,8 +89,9 @@ test.
 ## Do not
 
 - Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose name matches a sibling package, so a compatibility shim must be
-  named for its subject — `cross_repo_compat.go`, not `crossrepo_compat.go`.
+  file whose name matches a sibling package, so a compatibility shim goes as
+  a stanza in `compat_correlation.go`, never a new `*_compat.go`
+  (target-tree decision 2a).
 - Do not suppress `dirgate` with `//nolint`.
 - Do not drop the retraction path. A source repo that resolves to no edges emits
   retraction intent rows on purpose; returning early instead leaves a stale edge

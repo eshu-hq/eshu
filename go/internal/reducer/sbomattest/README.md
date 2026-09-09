@@ -31,7 +31,7 @@ Imports point strictly downward. This package reaches `reducer/contract`,
 `reducer/payloadcore`, `reducer/schemadecode`, `internal/boundedset`,
 `internal/facts`, `internal/telemetry` and `internal/truth`, and it never
 imports the parent `internal/reducer` package. The dependency runs the other
-way: the root keeps compatibility aliases in `sbom_attestation_attachment_compat.go`
+way: the root keeps compatibility aliases in the sbom stanza of `compat_correlation.go`
 (plus `intent.go` for the fact-kind constant) so its own callers compile
 unchanged.
 

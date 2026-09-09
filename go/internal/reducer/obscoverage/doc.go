@@ -33,7 +33,7 @@
 // [factdecode], [factload], [factwrite], [gpphase], [payloadcore],
 // [schemadecode], internal/facts, internal/telemetry, and internal/truth, and
 // never the parent internal/reducer package. The reducer root keeps
-// compatibility aliases in observability_coverage_compat.go so its own
+// compatibility aliases in the obscoverage stanza of compat_cloud.go so its own
 // callers compile unchanged; that direction is root importing this family,
 // never the reverse. See AGENTS.md in this directory before adding an import.
 //

@@ -14,7 +14,7 @@ import (
 // copies live in internal/reducer/crossrepo (issue #6061); Go test files
 // cannot share unexported symbols across a package boundary, so the root
 // tests that exercise CrossRepoRelationshipHandler through the aliases in
-// cross_repo_compat.go keep their own copies here.
+// the cross-repo stanza of compat_correlation.go keep their own copies here.
 
 type fakeEvidenceFactLoader struct {
 	facts []relationships.EvidenceFact
