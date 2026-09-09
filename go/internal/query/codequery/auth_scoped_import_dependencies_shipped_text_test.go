@@ -136,7 +136,7 @@ func TestImportDependencyBuildersCarryNoGrantForAnUnscopedCaller(t *testing.T) {
 func TestImportDependencyParamsBindTheGrantArrays(t *testing.T) {
 	t.Parallel()
 
-	params := importDependencyParams(codemodel.ImportDependencyRequest{
+	params := ImportDependencyParams(codemodel.ImportDependencyRequest{
 		SourceFile: "src/api.py",
 		Access:     repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}},
 	})
@@ -147,7 +147,7 @@ func TestImportDependencyParamsBindTheGrantArrays(t *testing.T) {
 		t.Fatalf("params = %#v, want allowed_scope_ids bound alongside allowed_repository_ids", params)
 	}
 
-	unscoped := importDependencyParams(codemodel.ImportDependencyRequest{
+	unscoped := ImportDependencyParams(codemodel.ImportDependencyRequest{
 		SourceFile: "src/api.py",
 		Access:     repositoryAccessFilter{AllScopes: true},
 	})

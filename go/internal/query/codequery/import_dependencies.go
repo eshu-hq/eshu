@@ -156,7 +156,12 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 	return codemodel.ImportDependencyResponse(req, rows), nil
 }
 
-func importDependencyParams(req codemodel.ImportDependencyRequest) map[string]any {
+// ImportDependencyParams builds the parameter map the import-dependency
+// Cypher builders send: paging, repository, language, grant, and module
+// file bindings from one request. The live grant proof in the parent query
+// package calls it so the statement under proof is the one the handler
+// sends rather than a rewrite of it.
+func ImportDependencyParams(req codemodel.ImportDependencyRequest) map[string]any {
 	params := map[string]any{
 		"limit":  req.QueryLimit(),
 		"offset": req.Offset,

@@ -41,7 +41,7 @@ func TestLiveFileImportCyclesBoundedEdgeScan(t *testing.T) {
 	}
 
 	req := codemodel.ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: repoID, Limit: 6}
-	params := importDependencyParams(req)
+	params := ImportDependencyParams(req)
 	params["cycle_language"] = "python"
 	params["scan_limit"] = querycontract.ImportDependencyInternalScanLimit + 1
 	cypher := codemodel.FileImportCycleEdgeRowsCypher(req)

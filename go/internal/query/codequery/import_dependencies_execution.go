@@ -114,7 +114,7 @@ func (h *CodeHandler) importRows(
 		return []map[string]any{}, nil
 	}
 
-	params := importDependencyParams(req)
+	params := ImportDependencyParams(req)
 	if len(sourceScopes) > 0 {
 		params["source_paths"] = importDependencyScopePaths(sourceScopes)
 		params["scan_limit"] = importDependencyInternalScanLimit + 1
@@ -156,7 +156,7 @@ func (h *CodeHandler) fileImportCycleRows(
 	ctx context.Context,
 	req importDependencyRequest,
 ) ([]map[string]any, error) {
-	params := importDependencyParams(req)
+	params := ImportDependencyParams(req)
 	params["cycle_language"] = "python"
 	params["scan_limit"] = importDependencyInternalScanLimit + 1
 	rows, err := h.Neo4j.Run(ctx, fileImportCycleEdgeRowsCypher(req), params)
@@ -185,7 +185,7 @@ func (h *CodeHandler) crossModuleCallRows(
 		return []map[string]any{}, nil
 	}
 
-	params := importDependencyParams(req)
+	params := ImportDependencyParams(req)
 	params["scan_limit"] = importDependencyInternalScanLimit + 1
 	if len(sourceScopes) > 0 {
 		params["source_paths"] = importDependencyScopePaths(sourceScopes)
@@ -217,7 +217,7 @@ func (h *CodeHandler) importDependencyModuleScopes(
 		return nil, nil
 	}
 
-	params := importDependencyParams(req)
+	params := ImportDependencyParams(req)
 	params["scan_limit"] = importDependencyInternalScanLimit + 1
 	rows, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
