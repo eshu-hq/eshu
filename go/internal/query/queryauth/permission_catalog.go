@@ -16,6 +16,33 @@ import "context"
 // other with nothing at either call site to show for it.
 const PermissionFeatureAskSearch = "ask_search"
 
+// PermissionFeatureIdentityAdmin names the tenant identity-admin feature
+// family gating the admin identity reads/mutations and the provider-config
+// reads/mutations.
+//
+// It lives here for the same reason PermissionFeatureAskSearch does: the
+// admin handlers moved to internal/query/admin/{identity,provider/config}
+// for #6060 and no longer share a package with the root permission catalog,
+// while local-identity and sign-in-policy handlers still authorize against
+// the same names from the root. Two copies of a string would authorize
+// against two different feature names.
+const PermissionFeatureIdentityAdmin = "identity_admin"
+
+// PermissionFeatureRolesGrants names the roles-and-grants feature family
+// gating the admin role, assignment, and group-mapping surfaces. Same
+// single-home reason as PermissionFeatureIdentityAdmin.
+const PermissionFeatureRolesGrants = "roles_grants"
+
+// PermissionFeatureTokens names the token-admin feature family gating the
+// admin API-token list. Same single-home reason as
+// PermissionFeatureIdentityAdmin.
+const PermissionFeatureTokens = "tokens"
+
+// PermissionFeatureAuditExport names the audit-export feature family gating
+// the admin audit-event and summary reads. Same single-home reason as
+// PermissionFeatureIdentityAdmin.
+const PermissionFeatureAuditExport = "audit_export"
+
 // permissionDataClassesAskSearch is the data-class set a caller must hold in
 // full before the ask_search family answers. Stored unexported so callers
 // cannot append to the backing array of a shared slice.

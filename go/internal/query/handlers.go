@@ -14,4 +14,8 @@ package query
 // PackageRegistryHandler is implemented in package_registry.go
 
 // CompareHandler is implemented in compare.go
-// AdminHandler is implemented in admin.go and admin_facts.go
+// Handler is implemented in admin/handler.go, admin/facts.go,
+// admin/replay.go, admin/generations.go, admin/deadletters.go, and
+// admin/inputinvalid.go; the identity handlers live in admin/identity/, the
+// provider-config handlers in admin/provider/config/, and the Postgres store
+// in admin/store/

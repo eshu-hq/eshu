@@ -16,10 +16,10 @@ const (
 	// to internal/query/semanticsearch for #6060, authorizes against the same
 	// name this package's ask handler does.
 	permissionFeatureAskSearch     = queryauth.PermissionFeatureAskSearch
-	permissionFeatureAuditExport   = "audit_export"
-	permissionFeatureIdentityAdmin = "identity_admin"
-	permissionFeatureRolesGrants   = "roles_grants"
-	permissionFeatureTokens        = "tokens"
+	permissionFeatureAuditExport   = queryauth.PermissionFeatureAuditExport
+	permissionFeatureIdentityAdmin = queryauth.PermissionFeatureIdentityAdmin
+	permissionFeatureRolesGrants   = queryauth.PermissionFeatureRolesGrants
+	permissionFeatureTokens        = queryauth.PermissionFeatureTokens
 )
 
 // permissionDataClassesAskSearch is the data-class set the ask_search family

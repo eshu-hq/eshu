@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	adminaudit "github.com/eshu-hq/eshu/go/internal/query/admin/audit"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -245,7 +246,7 @@ func (h *SignInPolicyMutationHandler) audit(
 		actorIDHash = auth.SubjectIDHash
 	}
 	if actorIDHash == "" && actorClass == governanceaudit.ActorClassSharedToken {
-		actorIDHash = sharedAdminActorIDHash
+		actorIDHash = adminaudit.SharedActorIDHash
 	}
 	event := governanceaudit.Event{
 		Type:               governanceaudit.EventTypeIDPConfigChange,

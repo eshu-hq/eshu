@@ -418,16 +418,17 @@
 // rather than zero deltas. Both ports are implemented by the Postgres status
 // store so the handler never depends on a concrete database driver.
 //
-// AdminHandler.listInputInvalidFacts serves the bounded durable per-fact
-// quarantine read at POST /api/v0/admin/input-invalid-facts/query (issue
-// #4630), mirroring listDeadLetters' required-limit-plus-timeout_ms,
-// over-fetch-by-one truncation, and scope-access-filter shape. It requires
-// scope_id and generation_id, reads reducer_input_invalid_facts rows the
-// reducer's best-effort batch writer persisted at reduction time, and returns
-// them deterministically ordered (decided_at DESC, fact_id ASC, missing_field
-// ASC) with a schema_version envelope. AdminInputInvalidFactListHandler mounts
-// only this read (no admin mutations) for cmd/mcp-server, mirroring
-// AdminDeadLetterListHandler.
+// Handler.listInputInvalidFacts (admin/inputinvalid.go) serves the bounded
+// durable per-fact quarantine read at POST
+// /api/v0/admin/input-invalid-facts/query (issue #4630), mirroring
+// listDeadLetters' required-limit-plus-timeout_ms, over-fetch-by-one
+// truncation, and scope-access-filter shape. It requires scope_id and
+// generation_id, reads reducer_input_invalid_facts rows the reducer's
+// best-effort batch writer persisted at reduction time, and returns them
+// deterministically ordered (decided_at DESC, fact_id ASC, missing_field ASC)
+// with a schema_version envelope. InputInvalidFactListHandler mounts only
+// this read (no admin mutations) for cmd/mcp-server, mirroring
+// DeadLetterListHandler.
 //
 // TagHistoryHandler serves GET /api/v0/images/tag-history (issue #5459): a
 // bounded, ordered read of one repository_id+tag's captured
