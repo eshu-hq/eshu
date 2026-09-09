@@ -213,7 +213,7 @@ No-Regression Evidence: the reducer writer-primitive hoist (#6061) moves the two
 fact-writer primitives reducerWriterNow and reducerFactCollectorKind out of
 workload_identity_writer.go into `internal/reducer/factwrite` as Now and
 CollectorKind, with no logic change; the root keeps both under their original
-unexported names in reducer_fact_write_compat.go, the file that already forwards
+unexported names in the fact-write stanza of compat_decode.go, which already forwards
 factwrite.Execer and factwrite.VersionedRow, so all 22 and 20 non-test
 root files that call them were untouched. Baseline `a6ff376ab`, go1.27.0 darwin/arm64. This crosses a
 package boundary, so inlining can genuinely shift and is measured rather than
@@ -456,7 +456,7 @@ definitions that moved, not calls that regressed; the closures disappear
 because the root functions that contained them are now one-line forwarders
 with no inner closure of their own. 6 names join it: the same
 `dedupeReducerFactRowsByFactID` generic function reappears twice — both
-instantiated at `factwrite.Row` (`reducer_fact_write_compat.go:65`), once
+instantiated at `factwrite.Row` (`compat_decode.go:177`), once
 reported under its named type and once under its gcshape form, now that
 `reducerFactRow` is an alias to `factwrite.Row` rather than a locally declared
 type — plus the four new compat forwarders

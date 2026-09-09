@@ -91,7 +91,7 @@ their unqualified root spelling: `payloadMap`, `semanticPayloadString`,
 `semanticPayloadStringSlice`, `semanticQualifyDeltaPath`,
 `semanticDeltaPayloadBool`, `deltaScopeRepositorySet`, and
 `applyRepoRefreshDeltaScope` now live in
-`internal/reducer/shared_payload_delta_compat.go`. This package calls the
+the shared-payload-delta stanza of `compat_decode.go`. This package calls the
 shared-tier functions they forward to directly instead of reaching back into
 root for them. In practice that means `payloadcore` only: the two
 `sharedintent` forwarders were cross-family helpers that merely lived in the
@@ -156,7 +156,7 @@ are the same before and after the move.
   `deltaScopeRepositorySet`, and `applyRepoRefreshDeltaScope` are not here.**
   Their prefix looks like this family, but they are cross-family forwarders
   other root domains still call unqualified; they live in
-  `internal/reducer/shared_payload_delta_compat.go`. Do not reintroduce a
+  the shared-payload-delta stanza of `compat_decode.go`. Do not reintroduce a
   local copy — call the shared-tier function they forward to.
 - **`GraphProjectionPhaseRepairQueue` here is narrower than the root's.** It
   declares only `Enqueue`, the one method `SemanticEntityMaterializationHandler`

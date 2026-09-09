@@ -13,6 +13,8 @@ package reducer
 //
 // Stanzas merged here:
 //   - decode_seam_compat.go
+//   - decode_seam_compat2.go
+//   - decode_seam_compat3.go
 //   - quarantine_compat.go
 //   - reducer_fact_write_compat.go
 //   - scoped_fact_loader_compat.go
@@ -30,6 +32,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+
+	factschema "github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // Stanza: decode_seam_compat.go (merged; do not recreate this file).
@@ -292,4 +296,52 @@ func applyRepoRefreshDeltaScope(
 	filePathsByRepoID map[string][]string,
 ) {
 	sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, filePathsByRepoID)
+}
+
+// Stanza: decode_seam_compat2.go (merged; do not recreate this file).
+
+// This file is the transitional compatibility surface for the per-fact-kind
+// decoders that moved to [schemadecode] (issue #6061). Every entry binds the
+// reducer root's original lowercase spelling to the exported name in that
+// package, so the 45 root call sites keep their current spelling; each entry is
+// deleted once its last caller has moved into a family subpackage. The 17
+// decodeObservability* entries were removed when their only callers moved into
+// internal/reducer/obscoverage, and the three Vault entries when theirs moved
+// into internal/reducer/secretsiam; both subpackages import schemadecode directly.
+
+var (
+	decodeReducerPackageConsumptionCorrelation = schemadecode.DecodeReducerPackageConsumptionCorrelation
+	decodeReducerPackageOwnershipCorrelation   = schemadecode.DecodeReducerPackageOwnershipCorrelation
+	decodeReducerPackagePublicationCorrelation = schemadecode.DecodeReducerPackagePublicationCorrelation
+	decodeScannerWorkerAnalysis                = schemadecode.DecodeScannerWorkerAnalysis
+	decodeSubmodulePin                         = schemadecode.DecodeSubmodulePin
+	decodeVulnerabilityAffectedPackage         = schemadecode.DecodeVulnerabilityAffectedPackage
+	decodeVulnerabilityAffectedProduct         = schemadecode.DecodeVulnerabilityAffectedProduct
+	decodeVulnerabilityCVE                     = schemadecode.DecodeVulnerabilityCVE
+	decodeVulnerabilityEPSSScore               = schemadecode.DecodeVulnerabilityEPSSScore
+	decodeVulnerabilityGoCallReachability      = schemadecode.DecodeVulnerabilityGoCallReachability
+	decodeVulnerabilityGoModuleEvidence        = schemadecode.DecodeVulnerabilityGoModuleEvidence
+	decodeVulnerabilityKnownExploited          = schemadecode.DecodeVulnerabilityKnownExploited
+	decodeVulnerabilityOSPackage               = schemadecode.DecodeVulnerabilityOSPackage
+)
+
+// Stanza: decode_seam_compat3.go (merged; do not recreate this file).
+
+// This file is the transitional compatibility surface for the per-fact-kind
+// decoders that moved to [schemadecode] (issue #6061). Every entry binds the
+// reducer root's original lowercase spelling to the exported name in that
+// package, so the 63 root call sites keep their current spelling; each entry is
+// deleted once its last caller has moved into a family subpackage.
+
+var (
+	decodeCodeDataflowFunction = schemadecode.DecodeCodeDataflowFunction
+	decodeCodeDataflowScanned  = schemadecode.DecodeCodeDataflowScanned
+)
+
+// factschemaEnvelope forwards to [schemadecode.FactschemaEnvelope]. It is a func
+// rather than a var binding so its two root call sites keep inlining it; the
+// decoder forwarders above are var bindings because their targets are far too
+// large to inline in any form, so the binding form costs them nothing.
+func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
+	return schemadecode.FactschemaEnvelope(env)
 }

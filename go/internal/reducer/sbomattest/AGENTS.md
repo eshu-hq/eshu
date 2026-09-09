@@ -70,9 +70,9 @@ test cannot catch that. If you change one, pin the literal in a test.
 ## Do not
 
 - Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose name matches a sibling package, so a compatibility shim must be
-  named for its subject — `sbom_attestation_attachment_compat.go`, not
-  `sbomattest_compat.go`.
+  file whose name matches a sibling package, so a compatibility shim goes as
+  a stanza in `compat_correlation.go`, never a new `*_compat.go`
+  (target-tree decision 2a).
 - Do not suppress `dirgate` with `//nolint`.
 - Do not treat `SBOMAttachmentStatus` as a boolean. Collapsing "unverified" into
   either neighbour loses the distinction between a document that does not apply

@@ -503,4 +503,4 @@ permanently" (Move order) and "not domain-specific" (Families,
 `reducer_fact_batch` row) characterization of `reducer_fact_batch_insert.go`
 and `reducer_fact_batch_insert_versioned.go` does not hold: both files moved
 into `go/internal/reducer/factwrite` (#6061 PR4), leaving type aliases and
-forwarders behind in `reducer_fact_write_compat.go`.
+forwarders behind in the fact-write stanza of `compat_decode.go`.

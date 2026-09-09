@@ -69,7 +69,7 @@ Imports point strictly downward. This package reaches `reducer/contract`,
 `internal/facts`, `internal/relationships`, `internal/telemetry`,
 `internal/truth`, and the factschema SDK, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
-compatibility aliases in `service_catalog_correlation_compat.go` so its own
+compatibility aliases in the service-catalog stanza of `compat_correlation.go` so its own
 callers, plus `cmd/reducer` and `internal/storage/postgres`, compile
 unchanged.
 

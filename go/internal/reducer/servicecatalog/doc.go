@@ -38,7 +38,7 @@
 // ownership, and repository-link facts); and packagesourcecore for the exact
 // and canonicalized repository-URL matching the classifier shares with the
 // still-in-root package-source-correlation family. The reducer root keeps a
-// compatibility surface (service_catalog_correlation_compat.go) that aliases
+// compatibility surface (the service-catalog stanza of compat_correlation.go) that aliases
 // this family's exported symbols back for its own remaining callers
 // (cmd/reducer, internal/storage/postgres, and the still-in-root
 // supply_chain_impact and service_runtime_instance_lookup families), so the

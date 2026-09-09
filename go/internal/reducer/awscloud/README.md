@@ -35,7 +35,7 @@ Imports point strictly downward. This package reaches `reducer/contract`
 siblings, `internal/facts`, `internal/telemetry`, `internal/truth`, and the
 factschema SDK. It never imports the parent `internal/reducer` package. The
 dependency runs the other way: the root keeps compatibility aliases in
-`aws_cloud_family_compat.go` for the wiring types `cmd/reducer`,
+the aws-cloud stanza of `compat_cloud.go` for the wiring types `cmd/reducer`,
 `internal/storage/postgres`, and `internal/replay/costcounting` name
 (`AWSCloudImageMaterializationHandler`, `CloudResourceContainerImageEdgeWriter`,
 `AWSCloudRuntimeDriftHandler`, `PostgresAWSCloudRuntimeDriftWriter`, the

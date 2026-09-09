@@ -41,7 +41,7 @@ Imports point strictly downward. This package reaches `reducer/contract`,
 `reducer/payloadcore`, `reducer/schemadecode`, `internal/facts`,
 `internal/telemetry`, and `internal/truth`, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
-compatibility aliases in `observability_coverage_compat.go` so its own callers
+compatibility aliases in the obscoverage stanza of `compat_cloud.go` so its own callers
 compile unchanged.
 
 Three symbols moved to a shared tier rather than staying root-private, because

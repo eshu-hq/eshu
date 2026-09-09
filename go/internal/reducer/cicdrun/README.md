@@ -158,7 +158,7 @@ identical.
   `container_image_identity_ci_loader.go` and
   `container_image_identity_typed_evidence.go` in the reducer root (via the
   `cicdRunKeyFromParts`/`trimmedCICDPtr` forwarders in
-  `ci_cd_run_correlation_compat.go`).
+  the ci-cd-run stanza of `compat_correlation.go`).
 - **The batch-wide cross-scope resolved count disarms the floor for every
   run in the same `Handle` pass**, not per-run — a documented residual gap
   (`TestCICDRunCorrelationDoesNotDeferABatchWhereAnotherRunResolved`,
@@ -190,12 +190,12 @@ callers) is unchanged. Three previously-unexported symbols
 (`cicdRunKeyFromParts`, `trimmedCICDPtr`, `cicdRunCorrelationFactKind`) and
 one method (`projectCICDWorkflowImageBuiltFromEdges`) were exported because a
 root caller reads them across the seam; the root keeps forwarders for the
-first three (`ci_cd_run_correlation_compat.go`) and the fourth's six call
+first three (the ci-cd-run stanza of `compat_correlation.go`) and the fourth's six call
 sites in `provenance_edge_submission_metrics_test.go` were repointed to the
 capitalized name. `CICDRunCorrelationHandler`/`Writer`/`Decision`/`Write`/
 `WriteResult`/`Outcome` (plus its five outcome values) and
 `PostgresCICDRunCorrelationWriter` keep root type/const aliases in
-`ci_cd_run_correlation_compat.go`, so `cmd/reducer/main.go` and the ~10
+the ci-cd-run stanza of `compat_correlation.go`, so `cmd/reducer/main.go` and the ~10
 `internal/storage/postgres` live-test files that construct them as
 `reducer.CICDRunCorrelationHandler{...}` are unchanged. Several trivial
 test-only fixtures (`ciRunFact`, `ciArtifactFact`, `containerImageIdentityFact`,

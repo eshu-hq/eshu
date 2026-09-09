@@ -32,21 +32,24 @@
 // takes: an enumeration here has been wrong in four separate revisions, and
 // the compiler, not this comment, is the authority on the second case. The
 // contract package is not covered by that rule at all: the root deliberately
-// re-exports its surface. Separately, this package's *_compat.go files may
-// export a compatibility surface for callers outside it; those files are the
-// authoritative list, and as of this commit the whole of it is
-// quarantine_compat.go's QuarantinedFactRecord and QuarantinedFactWriter,
+// re-exports its surface. Separately, this package's compat_*.go bucket files
+// (compat_cloud.go, compat_correlation.go, compat_decode.go,
+// compat_projection.go) may export a compatibility surface for callers outside
+// it; those files are the authoritative list, and as of this commit the whole
+// of it is the quarantine stanza of compat_decode.go's QuarantinedFactRecord
+// and QuarantinedFactWriter,
 // which internal/storage/postgres constructs and implements,
 // WithQuarantineWriter, which Service stashes on the execution context,
-// scoped_fact_loader_compat.go's FactLoader, which internal/storage/cypher's
+// the factload stanza of compat_decode.go's FactLoader, which internal/storage/cypher's
 // edge_writer_unusable_delta_fail_closed_test.go names to type its
-// materialization-handler test harness, and secrets_iam_compat.go's
-// SecretsIAMGraphWriter and PostgresSecretsIAMTrustChainWriter, which
+// materialization-handler test harness, and the secrets stanza of
+// compat_projection.go's SecretsIAMGraphWriter and PostgresSecretsIAMTrustChainWriter, which
 // cmd/reducer wires, SecretsIAMEndpointNotReadyFailureClass and
 // SecretsIAMTrustChainLoadStats, which internal/storage/postgres' readiness
 // claim gate and evidence loader name, and SecretsIAMGraphProjectionHandler,
 // which internal/replay/costcounting's cost test constructs, and
-// iam_escalation_compat.go's IAMEscalationNodesNotReadyFailureClass, which
+// the iam-escalation stanza of compat_projection.go's
+// IAMEscalationNodesNotReadyFailureClass, which
 // internal/storage/postgres' readiness claim gate also names.
 // ParseDomain accepts the known reducer validation identifiers, including the
 // three reserved non-registrable identifiers. Shared-projection constants
@@ -307,7 +310,7 @@
 // code-call intent rows and the existing code-call materialization completion
 // logs; no metric, span, status field, route, or log contract changes.
 //
-// recordQuarantinedFacts (quarantine_compat.go, forwarding to
+// recordQuarantinedFacts (the quarantine stanza of compat_decode.go, forwarding to
 // factdecode/quarantine_record.go) also best-effort persists each
 // quarantined input_invalid fact to the durable reducer_input_invalid_facts
 // read surface (issue #4630) through an optional QuarantinedFactWriter

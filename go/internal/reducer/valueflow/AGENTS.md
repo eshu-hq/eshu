@@ -24,8 +24,8 @@ despite similar naming (`code_value_flow_stale_cleanup_runner.go`,
 ## Invariants
 
 - **No import of the reducer root, ever.** This package is a leaf below
-  `internal/reducer`: the root imports it (via `value_flow_compat.go`'s
-  aliases and `cmd/reducer`'s wiring), never the reverse.
+  `internal/reducer`: the root imports it (via the value-flow stanza of
+  `compat_correlation.go` and `cmd/reducer`'s wiring), never the reverse.
 - **`GraphQueryRunner` in `graph_ports.go` is deliberately re-declared, not
   imported from root.** It is genuinely owned by root (shared with other
   still-in-root families). Go's structural typing makes the local

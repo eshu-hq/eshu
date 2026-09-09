@@ -159,7 +159,7 @@ func BuildRefreshIntents(
 			"evidence_source": EvidenceSource,
 		}
 		// Delta scoping is per repository and fails closed on an unusable
-		// delta; applyRepoRefreshDeltaScope (shared_payload_delta_compat.go)
+		// delta; applyRepoRefreshDeltaScope (the shared-payload-delta stanza of compat_decode.go)
 		// carries the full rule and why the two obvious alternatives lose
 		// edges (#6216).
 		applyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, deltaScope.FilePathsByRepoID)

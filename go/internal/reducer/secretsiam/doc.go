@@ -50,7 +50,7 @@
 // [schemadecode], internal/facts, internal/graph/edgetype, internal/telemetry,
 // internal/truth and the factschema SDK, and never the parent internal/reducer
 // package. The reducer root keeps compatibility aliases in
-// secrets_iam_compat.go so its own callers and the external packages naming
+// the secrets stanza of compat_projection.go so its own callers and the external packages naming
 // these types compile unchanged; that direction is root importing this family,
 // never the reverse. See AGENTS.md in this directory before adding an import.
 //

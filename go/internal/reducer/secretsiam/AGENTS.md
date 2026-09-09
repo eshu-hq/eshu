@@ -89,8 +89,9 @@ tell." Only `exact` rows may be projected into the graph.
 ## Do not
 
 - Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose name matches a sibling package, so a compatibility shim must be
-  named for its subject — `secrets_iam_compat.go`, not `secretsiam_compat.go`.
+  file whose name matches a sibling package, so a compatibility shim goes as
+  a stanza in `compat_projection.go`, never a new `*_compat.go`
+  (target-tree decision 2a).
 - Do not suppress `dirgate` with `//nolint`.
 - Do not move the registration wiring test in here. It exercises the root's
   `appendAdditiveDomainDefinitions` and `NewDefaultRegistry`, so it lives at the

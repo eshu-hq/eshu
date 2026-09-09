@@ -22,9 +22,9 @@ Do not "tidy" the stutter away by renaming `factschema_decode_azure.go` to
 `azure.go`. The gate resolves by basename, and a renamed file drops its fact kinds
 out of the manifest quietly.
 
-For the same reason the root compatibility files are named `decode_seam_compat*.go`,
-not `factschema_decode_compat*.go` — the latter matched the seam glob while
-containing only forwarders, and the gate failed with "no decode seams found".
+The root compatibility stanzas live in `compat_decode.go`, which like the old
+`decode_seam_compat*.go` names avoids the `factschema_decode_*.go` seam glob —
+a forwarder file matching that glob fails the gate with "no decode seams found".
 
 ## Import budget
 
@@ -41,7 +41,7 @@ the mechanism tier.
 
 Add it to the file for its domain, keeping the `factschema_decode_<domain>.go`
 basename. Export it, and add an unexported forwarder of the lowercase spelling to
-a root `decode_seam_compat*.go` file only if a reducer-root call site needs it —
+a stanza in the root `compat_decode.go` only if a reducer-root call site needs it —
 a family package should import this package directly.
 
 Add a row to `docs/public/observability/telemetry-coverage.md`. These files emit

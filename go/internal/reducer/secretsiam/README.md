@@ -89,7 +89,7 @@ Imports point strictly downward. This package reaches `reducer/contract`,
 `internal/facts`, `internal/graph/edgetype`, `internal/telemetry`,
 `internal/truth` and the factschema SDK, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
-compatibility aliases in `secrets_iam_compat.go` so its own callers, plus
+compatibility aliases in the secrets stanza of `compat_projection.go` so its own callers, plus
 `cmd/reducer`, `internal/storage/postgres` and `internal/replay/costcounting`,
 compile unchanged.
 

@@ -96,7 +96,7 @@ covered by `eshu_dp_reducer_executions_total` and
 
 ## Compatibility
 
-The reducer root keeps type aliases and forwarders in `reducer_fact_write_compat.go`, so
+The reducer root keeps type aliases and forwarders in the fact-write stanza of `compat_decode.go`, so
 root call sites are unchanged. `dedupeReducerFactRowsByFactID` forwards as a
 generic function statement rather than a variable: a function-valued variable
 cannot carry a type parameter, and a func statement stays inlinable.

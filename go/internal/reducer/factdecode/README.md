@@ -79,7 +79,7 @@ Rows are in `docs/public/observability/telemetry-coverage.md`. An operator seein
 
 The reducer root keeps type aliases (`quarantinedFact`, `factDecodeError`,
 `QuarantinedFactRecord`, `QuarantinedFactWriter`) and function forwarders in
-`quarantine_compat.go`, so root call sites and the external packages that name
+the quarantine stanza of `compat_decode.go`, so root call sites and the external packages that name
 the exported quarantine types are unchanged. `internal/storage/postgres`
 implements `reducer.QuarantinedFactWriter` and constructs
 `reducer.QuarantinedFactRecord`; both keep working through those aliases.

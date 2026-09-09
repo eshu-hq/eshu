@@ -11,7 +11,7 @@ import (
 
 // This file exports the package-private production symbols the reducer
 // root's own test files still reach unqualified through
-// container_image_identity_compat.go's forwarders (issue #6061):
+// the container-image stanza of compat_cloud.go's forwarders (issue #6061):
 // provenance_edges_bench_test.go, provenance_edge_submission_metrics_test.go,
 // defaults_cicd_test.go, and container_image_identity_ci_run_provenance_test.go
 // exercise this family's BUILT_FROM/DERIVED_FROM row-building and payload

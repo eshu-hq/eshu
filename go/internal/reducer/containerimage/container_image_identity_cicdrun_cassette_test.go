@@ -4,7 +4,7 @@
 // package containerimage_test (external) is deliberate here, not
 // package containerimage: internal/replay/cassette transitively imports
 // internal/reducer (root), and root imports containerimage for its
-// compatibility aliases (container_image_identity_compat.go, issue #6061).
+// compatibility aliases (the container-image stanza of compat_cloud.go, issue #6061).
 // An internal test file pulls that whole chain into containerimage's own
 // test build and creates an import cycle; an external test package is a
 // separate compilation unit nothing else imports, so the same transitive

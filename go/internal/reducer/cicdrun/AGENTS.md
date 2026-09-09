@@ -49,7 +49,7 @@ ownership boundary and exported surface.
   reducer root's `container_image_identity_ci_loader.go` and
   `container_image_identity_typed_evidence.go` read them across the seam**
   (via the `cicdRunKeyFromParts`/`trimmedCICDPtr` forwarders in
-  `ci_cd_run_correlation_compat.go`). Do not treat them as a public run-key
+  the ci-cd-run stanza of `compat_correlation.go`). Do not treat them as a public run-key
   API for new callers outside that one cross-family join.
 - **`ProjectCICDWorkflowImageBuiltFromEdges` is exported ONLY because the
   reducer root's shared `provenance_edge_submission_metrics_test.go`

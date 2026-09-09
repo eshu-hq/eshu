@@ -20,7 +20,7 @@ repo-wide retract that replaces it deletes edges the generation cannot restore
 They now ask the question that actually decides the retract's scope: **is THIS
 repository on a delta generation**, i.e. is it in `deltaScope.repositoryIDs`.
 The decision lives in one place, `applyRepoRefreshDeltaScope`
-(`go/internal/reducer/shared_payload_delta_compat.go`, forwarding to
+(`go/internal/reducer/compat_decode.go` (shared-payload-delta stanza), forwarding to
 `sharedintent.ApplyRepoRefreshDeltaScope` in
 `go/internal/reducer/sharedintent/refresh.go`), which all four builders call.
 

@@ -102,18 +102,18 @@ enforces they stay in sync.
 
 ## Do not
 
-- Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose name matches a sibling package, so a compatibility shim must be
-  named for its subject — `container_image_identity_compat.go`, not
-  `containerimage_compat.go`.
+- Do not create a new root compat file for this directory. New compatibility
+  shims go as a stanza in `compat_cloud.go`, never a new `*_compat.go`
+  (target-tree decision 2a); `dirgate` refuses a root file whose name matches
+  a sibling package anyway.
 - Do not suppress `dirgate` with `//nolint`.
 - Do not move `container_image_identity_cicdrun_cassette_test.go` back to an
   internal `package containerimage` test — see the import-cycle explanation
   above.
 - Do not add a root forwarder for something only this package's own tests
   use. Root forwarders exist because a specific still-in-root file names the
-  symbol unqualified; check `container_image_identity_compat.go`'s own
-  comments before adding another one.
+  symbol unqualified; check the container-image stanza's own comments in
+  `compat_cloud.go` before adding another one.
 - Do not treat `ParsedContainerImageRef`'s `Raw`/`RepositoryKey`/`Tag`/
   `Digest` fields as free-form. `RepositoryKey` in particular is a join key
   other evidence must normalize identically (`NormalizeContainerRepositoryKey`),

@@ -88,10 +88,10 @@ identical logic, and a family package may never import the reducer root.
 
 ## Do not
 
-- Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose stem is `awscloud` or starts with `awscloud_`, so a compatibility
-  shim must be named for its subject —
-  `aws_cloud_family_compat.go`, not `awscloud_compat.go`.
+- Do not create a new root compat file for this directory. New compatibility
+  shims go as a stanza in `compat_cloud.go`, never a new `*_compat.go`
+  (target-tree decision 2a); `dirgate` refuses a root file whose stem is
+  `awscloud` or starts with `awscloud_` anyway.
 - Do not suppress `dirgate` with `//nolint`.
 - Do not export a test helper from the root to use here. Go test files cannot
   share unexported symbols across a package boundary; copy the helper into

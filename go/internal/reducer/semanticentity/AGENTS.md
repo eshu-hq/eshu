@@ -51,7 +51,7 @@ moved out of, but they are cross-family forwarders other root domains
 (`code_call`, `codeowners_ownership`, `documentation_edge`, `rationale`,
 `submodule_pin`, `sql_relationship`, `supply_chain_impact`, `shell_exec`)
 still call unqualified. They moved to
-`internal/reducer/shared_payload_delta_compat.go` instead of here. Do not add
+the shared-payload-delta stanza of `compat_decode.go` instead of here. Do not add
 a local copy under those names — call the shared-tier function they forward
 to.
 
