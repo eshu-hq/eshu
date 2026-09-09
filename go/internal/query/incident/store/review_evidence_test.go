@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -27,8 +28,8 @@ func TestBuildIncidentReviewWorkItemEvidenceAddsExactPullRequest(t *testing.T) {
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
-	assertIncidentNoEdge(t, got, IncidentSlotWorkItem)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotPullRequest, model.IncidentTruthExact)
+	assertIncidentNoEdge(t, got, model.IncidentSlotWorkItem)
 }
 
 func TestBuildIncidentReviewWorkItemEvidenceDoesNotDeriveWorkItemFromAmbiguousProviderPullRequest(t *testing.T) {
@@ -54,8 +55,8 @@ func TestBuildIncidentReviewWorkItemEvidenceDoesNotDeriveWorkItemFromAmbiguousPr
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthAmbiguous)
-	assertIncidentNoEdge(t, got, IncidentSlotWorkItem)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotPullRequest, model.IncidentTruthAmbiguous)
+	assertIncidentNoEdge(t, got, model.IncidentSlotWorkItem)
 }
 
 func TestBuildIncidentReviewWorkItemEvidenceAddsIssueKeyDerivedWorkItem(t *testing.T) {
@@ -96,8 +97,8 @@ func TestBuildIncidentReviewWorkItemEvidenceAddsIssueKeyDerivedWorkItem(t *testi
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
-	edge := querytestutil.AssertIncidentEdge(t, got, IncidentSlotWorkItem, IncidentTruthDerived)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotPullRequest, model.IncidentTruthExact)
+	edge := querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotWorkItem, model.IncidentTruthDerived)
 	if got := edge.Value["project_key"]; got != "INC" {
 		t.Fatalf("project_key = %q, want INC", got)
 	}
@@ -126,14 +127,14 @@ func TestBuildIncidentReviewWorkItemEvidenceKeepsMissingWorkItemImplicit(t *test
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
-	assertIncidentNoEdge(t, got, IncidentSlotWorkItem)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotPullRequest, model.IncidentTruthExact)
+	assertIncidentNoEdge(t, got, model.IncidentSlotWorkItem)
 }
 
 func assertIncidentNoEdge(
 	t *testing.T,
-	edges []IncidentContextEvidenceEdge,
-	slot IncidentEvidenceSlot,
+	edges []model.IncidentContextEvidenceEdge,
+	slot model.IncidentEvidenceSlot,
 ) {
 	t.Helper()
 	if edge := findIncidentEdge(edges, slot); edge != nil {

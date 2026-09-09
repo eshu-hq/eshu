@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package sql
 
-const listIncidentDeclaredPagerDutyRoutingQuery = `
+// ListDeclaredPagerDutyRoutingQuery lists declared PagerDuty routing for one service.
+const ListDeclaredPagerDutyRoutingQuery = `
 SELECT
     entity_id,
     repo_id,
@@ -20,7 +21,8 @@ ORDER BY repo_id ASC, relative_path ASC, start_line ASC, entity_id ASC
 LIMIT $2
 `
 
-const listIncidentAppliedPagerDutyRoutingQuery = incidentContextFactSelect + `
+// ListAppliedPagerDutyRoutingQuery lists applied PagerDuty routing for one service.
+const ListAppliedPagerDutyRoutingQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -40,7 +42,8 @@ ORDER BY fact.scope_id ASC, fact.observed_at DESC, fact.fact_id ASC
 LIMIT $3
 `
 
-const listIncidentObservedPagerDutyRoutingQuery = incidentContextFactSelect + `
+// ListObservedPagerDutyRoutingQuery lists observed PagerDuty routing for one service.
+const ListObservedPagerDutyRoutingQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -60,7 +63,8 @@ ORDER BY fact.scope_id ASC, fact.observed_at DESC, fact.fact_id ASC
 LIMIT $3
 `
 
-const listIncidentRoutingCoverageWarningsQuery = incidentContextFactSelect + `
+// ListRoutingCoverageWarningsQuery lists routing coverage warnings for one scope.
+const ListRoutingCoverageWarningsQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id

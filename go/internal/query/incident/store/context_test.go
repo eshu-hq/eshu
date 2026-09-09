@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -45,8 +46,8 @@ func TestPostgresIncidentContextStoreReadsCollectedPagerDutyIncidentBySourceReco
 		},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	snapshot, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	snapshot, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC123",
 		Limit:              10,
@@ -64,10 +65,10 @@ func TestPostgresIncidentContextStoreReadsCollectedPagerDutyIncidentBySourceReco
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
 
-	response := BuildIncidentContextResponse(snapshot)
-	querytestutil.AssertIncidentEdge(t, response.EvidencePath, IncidentSlotIncident, IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, response.EvidencePath, IncidentSlotService, IncidentTruthMissing)
-	querytestutil.AssertIncidentEdge(t, response.EvidencePath, IncidentSlotWorkItem, IncidentTruthMissing)
+	response := model.BuildIncidentContextResponse(snapshot)
+	querytestutil.AssertIncidentEdge(t, response.EvidencePath, model.IncidentSlotIncident, model.IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, response.EvidencePath, model.IncidentSlotService, model.IncidentTruthMissing)
+	querytestutil.AssertIncidentEdge(t, response.EvidencePath, model.IncidentSlotWorkItem, model.IncidentTruthMissing)
 	if len(recorder.queries) != 2 {
 		t.Fatalf("query count = %d, want 2", len(recorder.queries))
 	}
@@ -109,13 +110,13 @@ func TestPostgresIncidentContextStoreReturnsAmbiguousSourceRecordMatches(t *test
 		},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	_, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	_, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC123",
 		Limit:              10,
 	})
-	var ambiguous IncidentContextAmbiguousError
+	var ambiguous model.IncidentContextAmbiguousError
 	if !errors.As(err, &ambiguous) {
 		t.Fatalf("ReadIncidentContext() error = %T %v, want IncidentContextAmbiguousError", err, err)
 	}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 // How the incident-context read chooses among the anchor rows that matched:
 // which one answers, when the answer is not-found, and when it is ambiguous.
@@ -17,6 +17,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 )
 
 // Two rows match the incident, but only one is a well-formed incident. The
@@ -70,8 +72,8 @@ func TestPostgresIncidentContextStoreReadsTheSoleWellFormedAnchor(t *testing.T) 
 		},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	snapshot, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	snapshot, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC123",
 		Limit:              10,
@@ -114,13 +116,13 @@ func TestPostgresIncidentContextStoreReportsNotFoundWhenNoAnchorDecodes(t *testi
 		},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	_, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	_, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC123",
 		Limit:              10,
 	})
-	if !errors.Is(err, ErrIncidentContextNotFound) {
+	if !errors.Is(err, model.ErrIncidentContextNotFound) {
 		t.Fatalf("ReadIncidentContext() error = %T %v, want ErrIncidentContextNotFound", err, err)
 	}
 }
@@ -188,13 +190,13 @@ func TestPostgresIncidentContextStoreIsAmbiguousWhenTheAnchorProbeFills(t *testi
 		},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	_, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	_, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC123",
 		Limit:              10,
 	})
-	var ambiguous IncidentContextAmbiguousError
+	var ambiguous model.IncidentContextAmbiguousError
 	if !errors.As(err, &ambiguous) {
 		t.Fatalf("ReadIncidentContext() error = %T %v, want IncidentContextAmbiguousError", err, err)
 	}
@@ -275,13 +277,13 @@ func TestPostgresIncidentContextStoreReportsNotFoundWhenAFullProbeDecodesNothing
 		},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	_, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	_, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC123",
 		Limit:              10,
 	})
-	if !errors.Is(err, ErrIncidentContextNotFound) {
+	if !errors.Is(err, model.ErrIncidentContextNotFound) {
 		t.Fatalf("ReadIncidentContext() error = %T %v, want ErrIncidentContextNotFound", err, err)
 	}
 }

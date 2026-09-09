@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -56,9 +57,9 @@ func TestBuildIncidentRuntimeEvidenceUsesExplicitPagerDutyOperationalLink(t *tes
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotDeployable, IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotImage, IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotRuntimeArtifact, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotDeployable, model.IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotImage, model.IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotRuntimeArtifact, model.IncidentTruthExact)
 }
 
 func TestBuildIncidentRuntimeEvidenceAddsBuildAndCommitFromDigestCorrelation(t *testing.T) {
@@ -89,8 +90,8 @@ func TestBuildIncidentRuntimeEvidenceAddsBuildAndCommitFromDigestCorrelation(t *
 		},
 	))
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotBuildDeploy, IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotCommit, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotBuildDeploy, model.IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotCommit, model.IncidentTruthExact)
 }
 
 func TestBuildIncidentRuntimeEvidenceTreatsTagOnlyCommitAsDerived(t *testing.T) {
@@ -118,8 +119,8 @@ func TestBuildIncidentRuntimeEvidenceTreatsTagOnlyCommitAsDerived(t *testing.T) 
 		},
 	))
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotBuildDeploy, IncidentTruthDerived)
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotCommit, IncidentTruthDerived)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotBuildDeploy, model.IncidentTruthDerived)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotCommit, model.IncidentTruthDerived)
 }
 
 func TestBuildIncidentRuntimeEvidenceKeepsMultipleCommitCandidatesAmbiguous(t *testing.T) {
@@ -151,12 +152,12 @@ func TestBuildIncidentRuntimeEvidenceKeepsMultipleCommitCandidatesAmbiguous(t *t
 		},
 	))
 
-	build := incidentEdgeBySlot(t, got, IncidentSlotBuildDeploy)
-	if build.TruthLabel != IncidentTruthAmbiguous {
+	build := incidentEdgeBySlot(t, got, model.IncidentSlotBuildDeploy)
+	if build.TruthLabel != model.IncidentTruthAmbiguous {
 		t.Fatalf("build truth_label = %q, want ambiguous", build.TruthLabel)
 	}
-	commit := incidentEdgeBySlot(t, got, IncidentSlotCommit)
-	if commit.TruthLabel != IncidentTruthAmbiguous {
+	commit := incidentEdgeBySlot(t, got, model.IncidentSlotCommit)
+	if commit.TruthLabel != model.IncidentTruthAmbiguous {
 		t.Fatalf("commit truth_label = %q, want ambiguous", commit.TruthLabel)
 	}
 }
@@ -199,14 +200,14 @@ func TestBuildIncidentRuntimeEvidenceKeepsMultipleImagesAmbiguous(t *testing.T) 
 		},
 	})
 
-	edge := incidentEdgeBySlot(t, got, IncidentSlotImage)
-	if edge.TruthLabel != IncidentTruthAmbiguous {
+	edge := incidentEdgeBySlot(t, got, model.IncidentSlotImage)
+	if edge.TruthLabel != model.IncidentTruthAmbiguous {
 		t.Fatalf("image truth_label = %q, want ambiguous", edge.TruthLabel)
 	}
 	if len(edge.Candidates) != 2 {
 		t.Fatalf("image candidates = %d, want 2", len(edge.Candidates))
 	}
-	if runtime := findIncidentEdge(got, IncidentSlotRuntimeArtifact); runtime != nil {
+	if runtime := findIncidentEdge(got, model.IncidentSlotRuntimeArtifact); runtime != nil {
 		t.Fatalf("runtime artifact edge = %#v, want nil without a single image", runtime)
 	}
 }
@@ -240,8 +241,8 @@ func TestBuildIncidentRuntimeEvidenceDoesNotUseImagesWithoutSingleDeployable(t *
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotDeployable, IncidentTruthAmbiguous)
-	if image := findIncidentEdge(got, IncidentSlotImage); image != nil {
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotDeployable, model.IncidentTruthAmbiguous)
+	if image := findIncidentEdge(got, model.IncidentSlotImage); image != nil {
 		t.Fatalf("image edge = %#v, want nil without one deployable repository", image)
 	}
 }
@@ -276,9 +277,9 @@ func TestBuildIncidentRuntimeEvidenceRequiresExplicitServiceLink(t *testing.T) {
 
 func incidentEdgeBySlot(
 	t *testing.T,
-	edges []IncidentContextEvidenceEdge,
-	slot IncidentEvidenceSlot,
-) IncidentContextEvidenceEdge {
+	edges []model.IncidentContextEvidenceEdge,
+	slot model.IncidentEvidenceSlot,
+) model.IncidentContextEvidenceEdge {
 	t.Helper()
 	edge := findIncidentEdge(edges, slot)
 	if edge == nil {
@@ -288,9 +289,9 @@ func incidentEdgeBySlot(
 }
 
 func findIncidentEdge(
-	edges []IncidentContextEvidenceEdge,
-	slot IncidentEvidenceSlot,
-) *IncidentContextEvidenceEdge {
+	edges []model.IncidentContextEvidenceEdge,
+	slot model.IncidentEvidenceSlot,
+) *model.IncidentContextEvidenceEdge {
 	for idx := range edges {
 		if edges[idx].Slot == slot {
 			return &edges[idx]

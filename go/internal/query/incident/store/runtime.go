@@ -1,20 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 )
 
 const incidentRuntimeEvidenceLimit = 25
 
 func (s PostgresIncidentContextStore) readIncidentRuntimeEvidence(
 	ctx context.Context,
-	incident IncidentContextIncident,
-) ([]IncidentContextEvidenceEdge, error) {
+	incident model.IncidentContextIncident,
+) ([]model.IncidentContextEvidenceEdge, error) {
 	serviceURL := strings.TrimSpace(incident.Service.URL)
 	if serviceURL == "" {
 		return nil, nil
@@ -28,7 +33,7 @@ func (s PostgresIncidentContextStore) readIncidentRuntimeEvidence(
 		return nil, nil
 	}
 	if len(links) > 1 {
-		return []IncidentContextEvidenceEdge{ambiguousIncidentServiceLinkEdge(links)}, nil
+		return []model.IncidentContextEvidenceEdge{ambiguousIncidentServiceLinkEdge(links)}, nil
 	}
 
 	link := links[0]
@@ -72,7 +77,7 @@ func (s PostgresIncidentContextStore) readIncidentServiceCatalogLinks(
 ) ([]incidentServiceCatalogOperationalLink, error) {
 	rows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentServiceCatalogOperationalLinksQuery,
+		incidentsql.ListServiceCatalogOperationalLinksQuery,
 		serviceURL,
 		incidentRuntimeEvidenceLimit+1,
 	)
@@ -94,8 +99,10 @@ func (s PostgresIncidentContextStore) readIncidentServiceCatalogCorrelations(
 	ctx context.Context,
 	link incidentServiceCatalogOperationalLink,
 ) ([]incidentServiceCatalogCorrelation, error) {
-	store := NewPostgresServiceCatalogCorrelationStore(s.DB)
-	rows, err := store.ListServiceCatalogCorrelations(ctx, ServiceCatalogCorrelationFilter{
+	if s.catalog == nil {
+		return nil, fmt.Errorf("incident service catalog store is required")
+	}
+	rows, err := s.catalog.ListServiceCatalogCorrelations(ctx, querycontract.ServiceCatalogCorrelationFilter{
 		Provider:  link.Provider,
 		EntityRef: link.EntityRef,
 		Limit:     incidentRuntimeEvidenceLimit + 1,
@@ -128,8 +135,10 @@ func (s PostgresIncidentContextStore) readIncidentContainerImageIdentities(
 	ctx context.Context,
 	repositoryID string,
 ) ([]incidentContainerImageIdentity, error) {
-	store := NewPostgresContainerImageIdentityStore(s.DB)
-	rows, err := store.ListContainerImageIdentities(ctx, ContainerImageIdentityFilter{
+	if s.images == nil {
+		return nil, fmt.Errorf("incident container image store is required")
+	}
+	rows, err := s.images.ListContainerImageIdentities(ctx, supplychain.ContainerImageIdentityFilter{
 		RepositoryID: repositoryID,
 		Limit:        incidentRuntimeEvidenceLimit + 1,
 	})
@@ -158,8 +167,10 @@ func (s PostgresIncidentContextStore) readIncidentCICDRunCorrelations(
 	image incidentContainerImageIdentity,
 ) ([]incidentCICDRunCorrelation, error) {
 	if image.Digest != "" {
-		store := NewPostgresCICDRunCorrelationStore(s.DB)
-		rows, err := store.ListCICDRunCorrelations(ctx, CICDRunCorrelationFilter{
+		if s.cicd == nil {
+			return nil, fmt.Errorf("incident CI/CD run correlation store is required")
+		}
+		rows, err := s.cicd.ListCICDRunCorrelations(ctx, querycontract.CICDRunCorrelationFilter{
 			ArtifactDigest: image.Digest,
 			Limit:          incidentRuntimeEvidenceLimit + 1,
 		})
@@ -173,7 +184,7 @@ func (s PostgresIncidentContextStore) readIncidentCICDRunCorrelations(
 	}
 	rows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentCICDRunCorrelationsByImageRefQuery,
+		incidentsql.ListCICDRunCorrelationsByImageRefQuery,
 		image.ImageRef,
 		incidentRuntimeEvidenceLimit+1,
 	)
@@ -196,7 +207,7 @@ func (s PostgresIncidentContextStore) readIncidentKubernetesCorrelations(
 	}
 	rows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentKubernetesCorrelationsByImageQuery,
+		incidentsql.ListKubernetesCorrelationsByImageQuery,
 		image.Digest,
 		image.ImageRef,
 		incidentRuntimeEvidenceLimit+1,
@@ -212,7 +223,7 @@ func (s PostgresIncidentContextStore) readIncidentKubernetesCorrelations(
 }
 
 func incidentCICDRunCorrelationsFromRows(
-	rows []CICDRunCorrelationRow,
+	rows []querycontract.CICDRunCorrelationRow,
 ) []incidentCICDRunCorrelation {
 	correlations := make([]incidentCICDRunCorrelation, 0, len(rows))
 	for _, row := range rows {
@@ -250,20 +261,20 @@ func incidentCICDRunCorrelationsFromRows(
 func decodeIncidentCICDRunCorrelation(row incidentContextFactRow) incidentCICDRunCorrelation {
 	return incidentCICDRunCorrelation{
 		FactID:          row.FactID,
-		Provider:        StringVal(row.Payload, "provider"),
-		RunID:           StringVal(row.Payload, "run_id"),
-		RunAttempt:      StringVal(row.Payload, "run_attempt"),
-		RepositoryID:    StringVal(row.Payload, "repository_id"),
-		CommitSHA:       StringVal(row.Payload, "commit_sha"),
-		Environment:     StringVal(row.Payload, "environment"),
-		ArtifactDigest:  StringVal(row.Payload, "artifact_digest"),
-		ImageRef:        StringVal(row.Payload, "image_ref"),
-		Outcome:         StringVal(row.Payload, "outcome"),
-		Reason:          StringVal(row.Payload, "reason"),
-		ProvenanceOnly:  BoolVal(row.Payload, "provenance_only"),
-		CanonicalTarget: StringVal(row.Payload, "canonical_target"),
-		CorrelationKind: StringVal(row.Payload, "correlation_kind"),
-		EvidenceFactIDs: StringSliceVal(row.Payload, "evidence_fact_ids"),
+		Provider:        querycontract.StringVal(row.Payload, "provider"),
+		RunID:           querycontract.StringVal(row.Payload, "run_id"),
+		RunAttempt:      querycontract.StringVal(row.Payload, "run_attempt"),
+		RepositoryID:    querycontract.StringVal(row.Payload, "repository_id"),
+		CommitSHA:       querycontract.StringVal(row.Payload, "commit_sha"),
+		Environment:     querycontract.StringVal(row.Payload, "environment"),
+		ArtifactDigest:  querycontract.StringVal(row.Payload, "artifact_digest"),
+		ImageRef:        querycontract.StringVal(row.Payload, "image_ref"),
+		Outcome:         querycontract.StringVal(row.Payload, "outcome"),
+		Reason:          querycontract.StringVal(row.Payload, "reason"),
+		ProvenanceOnly:  querycontract.BoolVal(row.Payload, "provenance_only"),
+		CanonicalTarget: querycontract.StringVal(row.Payload, "canonical_target"),
+		CorrelationKind: querycontract.StringVal(row.Payload, "correlation_kind"),
+		EvidenceFactIDs: querycontract.StringSliceVal(row.Payload, "evidence_fact_ids"),
 	}
 }
 
@@ -303,36 +314,36 @@ func decodeIncidentServiceCatalogOperationalLink(
 func decodeIncidentKubernetesCorrelation(row incidentContextFactRow) incidentKubernetesCorrelation {
 	return incidentKubernetesCorrelation{
 		FactID:                 row.FactID,
-		ClusterID:              StringVal(row.Payload, "cluster_id"),
-		WorkloadObjectID:       StringVal(row.Payload, "workload_object_id"),
-		Namespace:              StringVal(row.Payload, "namespace"),
-		WorkloadName:           StringVal(row.Payload, "workload_name"),
-		ImageRef:               StringVal(row.Payload, "image_ref"),
-		SourceDigest:           StringVal(row.Payload, "source_digest"),
-		JoinMode:               StringVal(row.Payload, "join_mode"),
-		Outcome:                StringVal(row.Payload, "outcome"),
-		Reason:                 StringVal(row.Payload, "reason"),
-		ProvenanceOnly:         BoolVal(row.Payload, "provenance_only"),
-		CandidateSourceDigests: StringSliceVal(row.Payload, "candidate_source_digests"),
-		EvidenceFactIDs:        StringSliceVal(row.Payload, "evidence_fact_ids"),
+		ClusterID:              querycontract.StringVal(row.Payload, "cluster_id"),
+		WorkloadObjectID:       querycontract.StringVal(row.Payload, "workload_object_id"),
+		Namespace:              querycontract.StringVal(row.Payload, "namespace"),
+		WorkloadName:           querycontract.StringVal(row.Payload, "workload_name"),
+		ImageRef:               querycontract.StringVal(row.Payload, "image_ref"),
+		SourceDigest:           querycontract.StringVal(row.Payload, "source_digest"),
+		JoinMode:               querycontract.StringVal(row.Payload, "join_mode"),
+		Outcome:                querycontract.StringVal(row.Payload, "outcome"),
+		Reason:                 querycontract.StringVal(row.Payload, "reason"),
+		ProvenanceOnly:         querycontract.BoolVal(row.Payload, "provenance_only"),
+		CandidateSourceDigests: querycontract.StringSliceVal(row.Payload, "candidate_source_digests"),
+		EvidenceFactIDs:        querycontract.StringSliceVal(row.Payload, "evidence_fact_ids"),
 	}
 }
 
 func ambiguousIncidentServiceLinkEdge(
 	links []incidentServiceCatalogOperationalLink,
-) IncidentContextEvidenceEdge {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(links))
+) model.IncidentContextEvidenceEdge {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(links))
 	for _, link := range links {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
 			ID:     link.EntityRef,
-			Label:  firstNonEmpty(link.Title, link.EntityRef),
+			Label:  querycontract.FirstNonEmpty(link.Title, link.EntityRef),
 			URL:    link.URL,
 			Reason: "PagerDuty service URL matched multiple service-catalog operational links",
 		})
 	}
-	return IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotDeployable,
-		TruthLabel:  IncidentTruthAmbiguous,
+	return model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotDeployable,
+		TruthLabel:  model.IncidentTruthAmbiguous,
 		Explanation: "PagerDuty service URL matched multiple service-catalog operational links; pass stronger service mapping evidence before selecting a deployable",
 		Candidates:  candidates,
 	}

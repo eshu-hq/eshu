@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"context"
 	"database/sql/driver"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 )
 
 // TestReadIncidentContextTimelineTruncatedWhenVisibleRowDrops is the
@@ -59,8 +61,8 @@ func TestReadIncidentContextTimelineTruncatedWhenVisibleRowDrops(t *testing.T) {
 		},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	snapshot, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	snapshot, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC",
 		Limit:              3, // requested limit 2 + 1 lookahead
@@ -132,8 +134,8 @@ func TestReadIncidentContextRelatedChangesTruncatedWhenVisibleRowDrops(t *testin
 		{match: "fact.fact_kind = 'incident_routing.coverage_warning'", columns: incidentContextFactColumns()},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	snapshot, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	snapshot, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC",
 		Limit:              3, // requested limit 2 + 1 lookahead
@@ -183,8 +185,8 @@ func TestReadIncidentContextTimelineNotTruncatedWhenWithinLimit(t *testing.T) {
 		},
 	})
 
-	store := NewPostgresIncidentContextStore(db)
-	snapshot, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{
+	store := NewStore(db)
+	snapshot, err := store.ReadIncidentContext(context.Background(), model.IncidentContextFilter{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PABC",
 		Limit:              3, // requested limit 2 + 1; only 1 event exists

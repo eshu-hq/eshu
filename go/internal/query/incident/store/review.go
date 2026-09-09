@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"context"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 )
 
 func (s PostgresIncidentContextStore) readIncidentReviewWorkItemEvidence(
 	ctx context.Context,
-	evidence []IncidentContextEvidenceEdge,
-) ([]IncidentContextEvidenceEdge, error) {
+	evidence []model.IncidentContextEvidenceEdge,
+) ([]model.IncidentContextEvidenceEdge, error) {
 	commitSHA := incidentSelectedCommitSHA(evidence)
 	if commitSHA == "" {
 		return nil, nil
@@ -43,13 +46,13 @@ func (s PostgresIncidentContextStore) readIncidentReviewWorkItemEvidence(
 	}), nil
 }
 
-func incidentSelectedCommitSHA(edges []IncidentContextEvidenceEdge) string {
+func incidentSelectedCommitSHA(edges []model.IncidentContextEvidenceEdge) string {
 	for _, edge := range edges {
-		if edge.Slot != IncidentSlotCommit {
+		if edge.Slot != model.IncidentSlotCommit {
 			continue
 		}
 		switch edge.TruthLabel {
-		case IncidentTruthExact, IncidentTruthDerived:
+		case model.IncidentTruthExact, model.IncidentTruthDerived:
 			return strings.TrimSpace(edge.Value["commit_sha"])
 		default:
 			return ""
@@ -64,7 +67,7 @@ func (s PostgresIncidentContextStore) readIncidentPullRequestsByCommit(
 ) ([]incidentPullRequestEvidence, error) {
 	rows, err := s.DB.QueryContext(
 		ctx,
-		listIncidentPullRequestsByCommitQuery,
+		incidentsql.ListPullRequestsByCommitQuery,
 		commitSHA,
 		incidentRuntimeEvidenceLimit+1,
 	)
@@ -102,7 +105,7 @@ func (s PostgresIncidentContextStore) readIncidentWorkItemsByKeys(
 	for _, key := range keys {
 		rows, err := s.queryIncidentContextRows(
 			ctx,
-			listIncidentWorkItemRecordsByKeyQuery,
+			incidentsql.ListWorkItemRecordsByKeyQuery,
 			key,
 			incidentRuntimeEvidenceLimit+1,
 		)
@@ -129,7 +132,7 @@ func (s PostgresIncidentContextStore) readIncidentWorkItemProjectMetadata(
 	for _, projectID := range projectIDs {
 		rows, err := s.queryIncidentContextRows(
 			ctx,
-			listIncidentWorkItemProjectMetadataByIDQuery,
+			incidentsql.ListWorkItemProjectMetadataByIDQuery,
 			projectID,
 			incidentRuntimeEvidenceLimit+1,
 		)
@@ -156,7 +159,7 @@ func (s PostgresIncidentContextStore) readIncidentWorkItemStatusMetadata(
 	for _, statusID := range statusIDs {
 		rows, err := s.queryIncidentContextRows(
 			ctx,
-			listIncidentWorkItemStatusMetadataByIDQuery,
+			incidentsql.ListWorkItemStatusMetadataByIDQuery,
 			statusID,
 			incidentRuntimeEvidenceLimit+1,
 		)

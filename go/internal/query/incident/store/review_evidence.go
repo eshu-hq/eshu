@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"regexp"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 var incidentIssueKeyRE = regexp.MustCompile(`\b[A-Z][A-Z0-9]+-[0-9]+\b`)
@@ -60,11 +63,11 @@ type incidentWorkItemStatusMetadata struct {
 
 func buildIncidentReviewWorkItemEvidence(
 	input incidentReviewWorkItemInput,
-) []IncidentContextEvidenceEdge {
+) []model.IncidentContextEvidenceEdge {
 	if strings.TrimSpace(input.CommitSHA) == "" {
 		return nil
 	}
-	edges := make([]IncidentContextEvidenceEdge, 0, 2)
+	edges := make([]model.IncidentContextEvidenceEdge, 0, 2)
 	pullRequestEdge, selectedPullRequest := buildIncidentPullRequestEdge(input)
 	if pullRequestEdge != nil {
 		edges = append(edges, *pullRequestEdge)
@@ -77,23 +80,23 @@ func buildIncidentReviewWorkItemEvidence(
 
 func buildIncidentPullRequestEdge(
 	input incidentReviewWorkItemInput,
-) (*IncidentContextEvidenceEdge, *incidentPullRequestEvidence) {
+) (*model.IncidentContextEvidenceEdge, *incidentPullRequestEvidence) {
 	candidates := incidentPullRequestCandidates(input.PullRequests, input.CommitSHA)
 	if len(candidates) == 0 {
 		return nil, nil
 	}
 	if len(candidates) > 1 {
-		return &IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotPullRequest,
-			TruthLabel:  IncidentTruthAmbiguous,
+		return &model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotPullRequest,
+			TruthLabel:  model.IncidentTruthAmbiguous,
 			Explanation: "multiple provider pull requests name the incident commit; no single pull request was selected",
 			Candidates:  incidentPullRequestCandidateValues(candidates),
 		}, nil
 	}
 	pullRequest := candidates[0]
-	return &IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotPullRequest,
-		TruthLabel:  IncidentTruthExact,
+	return &model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotPullRequest,
+		TruthLabel:  model.IncidentTruthExact,
 		Explanation: "GitHub pull request merge evidence matched the incident commit",
 		Value: map[string]string{
 			"provider":             pullRequest.Provider,
@@ -103,7 +106,7 @@ func buildIncidentPullRequestEdge(
 			"pull_request_url":     pullRequest.URL,
 			"title":                pullRequest.Title,
 		},
-		Evidence: []IncidentContextEvidenceRef{
+		Evidence: []model.IncidentContextEvidenceRef{
 			incidentEvidenceRef("webhook.pull_request_merged", pullRequest.TriggerID, pullRequest.URL, pullRequest.Provider),
 		},
 	}, &pullRequest
@@ -129,7 +132,7 @@ func incidentPullRequestCandidates(
 func buildIncidentWorkItemEdge(
 	input incidentReviewWorkItemInput,
 	selectedPullRequest *incidentPullRequestEvidence,
-) *IncidentContextEvidenceEdge {
+) *model.IncidentContextEvidenceEdge {
 	if selectedPullRequest == nil {
 		return nil
 	}
@@ -139,7 +142,7 @@ func buildIncidentWorkItemEdge(
 	}
 	return incidentWorkItemRecordEdge(
 		records,
-		IncidentTruthDerived,
+		model.IncidentTruthDerived,
 		"Jira work item key was derived from the provider-verified pull request title",
 		input.ProjectMetadata,
 		input.StatusMetadata,
@@ -148,15 +151,15 @@ func buildIncidentWorkItemEdge(
 
 func incidentWorkItemRecordEdge(
 	records []incidentWorkItemRecord,
-	label IncidentTruthLabel,
+	label model.IncidentTruthLabel,
 	explanation string,
 	projects []incidentWorkItemProjectMetadata,
 	statuses []incidentWorkItemStatusMetadata,
-) *IncidentContextEvidenceEdge {
+) *model.IncidentContextEvidenceEdge {
 	if len(records) > 1 {
-		return &IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotWorkItem,
-			TruthLabel:  IncidentTruthAmbiguous,
+		return &model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotWorkItem,
+			TruthLabel:  model.IncidentTruthAmbiguous,
 			Explanation: "multiple Jira work items matched the pull request issue key evidence",
 			Candidates:  incidentWorkItemRecordCandidates(records),
 		}
@@ -169,11 +172,11 @@ func incidentWorkItemRecordEdge(
 		"summary":       record.Summary,
 		"status_name":   record.StatusName,
 	}
-	evidence := []IncidentContextEvidenceRef{
+	evidence := []model.IncidentContextEvidenceRef{
 		incidentEvidenceRef("work_item.record", record.FactID, record.SourceURL, record.Provider),
 	}
 	if project := incidentWorkItemProjectMetadataForRecord(projects, record); project != nil {
-		value["project_key"] = firstNonEmpty(record.ProjectKey, project.ProjectKey)
+		value["project_key"] = querycontract.FirstNonEmpty(record.ProjectKey, project.ProjectKey)
 		value["project_visibility_state"] = project.VisibilityState
 		evidence = append(evidence, incidentEvidenceRef("work_item.project_metadata", project.FactID, "", project.Provider))
 	} else if strings.TrimSpace(record.ProjectKey) != "" {
@@ -184,8 +187,8 @@ func incidentWorkItemRecordEdge(
 		value["status_category_key"] = status.StatusCategoryKey
 		evidence = append(evidence, incidentEvidenceRef("work_item.status_metadata", status.FactID, "", status.Provider))
 	}
-	return &IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotWorkItem,
+	return &model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotWorkItem,
 		TruthLabel:  label,
 		Explanation: explanation,
 		Value:       value,
@@ -260,12 +263,12 @@ func incidentIssueKeys(text string) []string {
 
 func incidentPullRequestCandidateValues(
 	pullRequests []incidentPullRequestEvidence,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(pullRequests))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(pullRequests))
 	for _, pullRequest := range pullRequests {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(pullRequest.URL, pullRequest.TriggerID),
-			Label:  firstNonEmpty(pullRequest.Number, pullRequest.Title),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(pullRequest.URL, pullRequest.TriggerID),
+			Label:  querycontract.FirstNonEmpty(pullRequest.Number, pullRequest.Title),
 			URL:    pullRequest.URL,
 			Reason: "provider pull request merge matched the incident commit",
 		})
@@ -275,12 +278,12 @@ func incidentPullRequestCandidateValues(
 
 func incidentWorkItemRecordCandidates(
 	records []incidentWorkItemRecord,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(records))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(records))
 	for _, record := range records {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(record.WorkItemKey, record.WorkItemID, record.FactID),
-			Label:  firstNonEmpty(record.WorkItemKey, record.Summary),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(record.WorkItemKey, record.WorkItemID, record.FactID),
+			Label:  querycontract.FirstNonEmpty(record.WorkItemKey, record.Summary),
 			URL:    record.SourceURL,
 			Reason: "Jira work item key matched pull request title evidence",
 		})

@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 type incidentRoutingEvidenceInput struct {
-	Incident IncidentContextIncident
+	Incident model.IncidentContextIncident
 	Declared []incidentDeclaredPagerDutyRouting
 	Applied  []incidentAppliedPagerDutyRouting
 	Observed []incidentObservedPagerDutyRouting
@@ -82,9 +87,9 @@ type incidentRoutingCoverageWarning struct {
 
 func buildIncidentRoutingEvidence(
 	input incidentRoutingEvidenceInput,
-) []IncidentContextEvidenceEdge {
+) []model.IncidentContextEvidenceEdge {
 	appliedEdge, selectedApplied := buildIncidentAppliedRoutingEdge(input.Incident, input.Applied)
-	return []IncidentContextEvidenceEdge{
+	return []model.IncidentContextEvidenceEdge{
 		buildIncidentDeclaredRoutingEdge(input.Incident, input.Declared),
 		appliedEdge,
 		buildIncidentObservedRoutingEdge(input.Incident, input.Observed, selectedApplied, input.Warnings),
@@ -92,35 +97,35 @@ func buildIncidentRoutingEvidence(
 }
 
 func buildIncidentDeclaredRoutingEdge(
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 	declared []incidentDeclaredPagerDutyRouting,
-) IncidentContextEvidenceEdge {
+) model.IncidentContextEvidenceEdge {
 	candidates := incidentDeclaredRoutingCandidates(incident, declared)
 	if len(candidates) == 0 {
-		return missingIncidentContextEdge(IncidentSlotIntendedRouting)
+		return model.MissingEdge(model.IncidentSlotIntendedRouting)
 	}
 	if len(candidates) > 1 || declaredRoutingAmbiguous(candidates[0]) {
-		return IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotIntendedRouting,
-			TruthLabel:  IncidentTruthAmbiguous,
+		return model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotIntendedRouting,
+			TruthLabel:  model.IncidentTruthAmbiguous,
 			Explanation: "multiple Terraform-declared PagerDuty service declarations match the incident service",
 			Candidates:  incidentDeclaredRoutingCandidateValues(candidates),
 		}
 	}
 	item := candidates[0]
-	label := IncidentTruthExact
+	label := model.IncidentTruthExact
 	if strings.TrimSpace(item.Outcome) == "rejected" || strings.TrimSpace(item.Outcome) == "unsupported" {
-		label = IncidentTruthRejected
+		label = model.IncidentTruthRejected
 	} else if strings.TrimSpace(item.ServiceNameResolution) != "" &&
 		strings.TrimSpace(item.ServiceNameResolution) != "literal" {
-		label = IncidentTruthDerived
+		label = model.IncidentTruthDerived
 	}
-	return IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotIntendedRouting,
+	return model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotIntendedRouting,
 		TruthLabel:  label,
 		Explanation: incidentDeclaredRoutingExplanation(item),
 		Value: map[string]string{
-			"source_class":      firstNonEmpty(item.SourceClass, "declared"),
+			"source_class":      querycontract.FirstNonEmpty(item.SourceClass, "declared"),
 			"outcome":           item.Outcome,
 			"repo_id":           item.RepoID,
 			"relative_path":     item.RelativePath,
@@ -130,42 +135,42 @@ func buildIncidentDeclaredRoutingEdge(
 			"redaction_state":   item.RedactionState,
 			"service_name_hash": incidentRoutingShortFingerprint(item.ServiceName),
 		},
-		Evidence: []IncidentContextEvidenceRef{
+		Evidence: []model.IncidentContextEvidenceRef{
 			incidentContentEvidenceRef("content_entity.PagerDutyDeclaration", item.EntityID, "", "terraform_source"),
 		},
 	}
 }
 
 func buildIncidentAppliedRoutingEdge(
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 	applied []incidentAppliedPagerDutyRouting,
-) (IncidentContextEvidenceEdge, *incidentAppliedPagerDutyRouting) {
+) (model.IncidentContextEvidenceEdge, *incidentAppliedPagerDutyRouting) {
 	candidates := incidentAppliedRoutingCandidates(incident, applied)
 	if len(candidates) == 0 {
-		return missingIncidentContextEdge(IncidentSlotAppliedRouting), nil
+		return model.MissingEdge(model.IncidentSlotAppliedRouting), nil
 	}
 	if len(candidates) > 1 {
-		return IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotAppliedRouting,
-			TruthLabel:  IncidentTruthAmbiguous,
+		return model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotAppliedRouting,
+			TruthLabel:  model.IncidentTruthAmbiguous,
 			Explanation: "multiple applied Terraform-state PagerDuty services match the incident service",
 			Candidates:  incidentAppliedRoutingCandidateValues(candidates),
 		}, nil
 	}
 	item := candidates[0]
-	label := IncidentTruthExact
+	label := model.IncidentTruthExact
 	if !strings.EqualFold(strings.TrimSpace(item.ProviderObjectID), strings.TrimSpace(incident.Service.ID)) {
-		label = IncidentTruthDerived
+		label = model.IncidentTruthDerived
 	}
 	if strings.TrimSpace(item.Outcome) == "rejected" {
-		label = IncidentTruthRejected
+		label = model.IncidentTruthRejected
 	}
-	return IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotAppliedRouting,
+	return model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotAppliedRouting,
 		TruthLabel:  label,
 		Explanation: incidentAppliedRoutingExplanation(item, label),
 		Value: map[string]string{
-			"source_class":            firstNonEmpty(item.SourceClass, "applied"),
+			"source_class":            querycontract.FirstNonEmpty(item.SourceClass, "applied"),
 			"source_kind":             item.SourceKind,
 			"outcome":                 item.Outcome,
 			"resource_class":          item.ResourceClass,
@@ -177,44 +182,44 @@ func buildIncidentAppliedRoutingEdge(
 			"declared_match_state":    item.DeclaredMatchState,
 			"redaction_state":         item.RedactionState,
 		},
-		Evidence: []IncidentContextEvidenceRef{
+		Evidence: []model.IncidentContextEvidenceRef{
 			incidentEvidenceRef("incident_routing.applied_pagerduty_resource", item.FactID, "", "terraform_state"),
 		},
 	}, &item
 }
 
 func buildIncidentObservedRoutingEdge(
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 	observed []incidentObservedPagerDutyRouting,
 	applied *incidentAppliedPagerDutyRouting,
 	warnings []incidentRoutingCoverageWarning,
-) IncidentContextEvidenceEdge {
+) model.IncidentContextEvidenceEdge {
 	candidates := incidentObservedRoutingCandidates(incident, observed)
 	if len(candidates) == 0 {
 		if warning := incidentRoutingBestWarning(warnings); warning != nil {
 			return incidentRoutingWarningEdge(*warning)
 		}
-		return missingIncidentContextEdge(IncidentSlotLiveRouting)
+		return model.MissingEdge(model.IncidentSlotLiveRouting)
 	}
 	if len(candidates) > 1 {
-		return IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotLiveRouting,
-			TruthLabel:  IncidentTruthAmbiguous,
+		return model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotLiveRouting,
+			TruthLabel:  model.IncidentTruthAmbiguous,
 			Explanation: "multiple live PagerDuty services match the incident service",
 			Candidates:  incidentObservedRoutingCandidateValues(candidates),
 		}
 	}
 	item := candidates[0]
 	label := incidentObservedRoutingTruthLabel(incident, item, applied)
-	return IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotLiveRouting,
+	return model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotLiveRouting,
 		TruthLabel:  label,
 		Explanation: incidentObservedRoutingExplanation(item, applied, label),
 		Value: map[string]string{
-			"source_class":           firstNonEmpty(item.SourceClass, "observed"),
+			"source_class":           querycontract.FirstNonEmpty(item.SourceClass, "observed"),
 			"source_kind":            item.SourceKind,
 			"outcome":                item.Outcome,
-			"service_id":             firstNonEmpty(item.ServiceID, item.ProviderObjectID),
+			"service_id":             querycontract.FirstNonEmpty(item.ServiceID, item.ProviderObjectID),
 			"status":                 item.Status,
 			"declared_match_state":   item.DeclaredMatchState,
 			"drift_candidate_reason": item.DriftCandidateReason,
@@ -223,42 +228,42 @@ func buildIncidentObservedRoutingEdge(
 			"deleted":                boolString(item.Deleted),
 			"manually_created":       boolString(item.ManuallyCreated),
 		},
-		Evidence: []IncidentContextEvidenceRef{
+		Evidence: []model.IncidentContextEvidenceRef{
 			incidentEvidenceRef("incident_routing.observed_pagerduty_service", item.FactID, item.SourceURL, "pagerduty_api"),
 		},
 	}
 }
 
 func incidentObservedRoutingTruthLabel(
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 	observed incidentObservedPagerDutyRouting,
 	applied *incidentAppliedPagerDutyRouting,
-) IncidentTruthLabel {
+) model.IncidentTruthLabel {
 	if strings.TrimSpace(observed.Outcome) == "rejected" {
-		return IncidentTruthRejected
+		return model.IncidentTruthRejected
 	}
 	if observed.Deleted {
-		return IncidentTruthStale
+		return model.IncidentTruthStale
 	}
 	if applied != nil &&
 		strings.TrimSpace(applied.EscalationPolicyReference) != "" &&
 		strings.TrimSpace(observed.EscalationPolicyReference) != "" &&
 		strings.TrimSpace(applied.EscalationPolicyReference) != strings.TrimSpace(observed.EscalationPolicyReference) {
-		return IncidentTruthDrifted
+		return model.IncidentTruthDrifted
 	}
 	if strings.TrimSpace(observed.DeclaredMatchState) == "drifted" {
-		return IncidentTruthDrifted
+		return model.IncidentTruthDrifted
 	}
 	if !strings.EqualFold(strings.TrimSpace(observed.ServiceID), strings.TrimSpace(incident.Service.ID)) &&
 		!strings.EqualFold(strings.TrimSpace(observed.ProviderObjectID), strings.TrimSpace(incident.Service.ID)) {
-		return IncidentTruthDerived
+		return model.IncidentTruthDerived
 	}
-	return IncidentTruthExact
+	return model.IncidentTruthExact
 }
 
 func incidentRoutingBestWarning(warnings []incidentRoutingCoverageWarning) *incidentRoutingCoverageWarning {
 	for idx := range warnings {
-		if incidentRoutingWarningTruthLabel(warnings[idx]) == IncidentTruthPermissionHidden {
+		if incidentRoutingWarningTruthLabel(warnings[idx]) == model.IncidentTruthPermissionHidden {
 			return &warnings[idx]
 		}
 	}
@@ -268,9 +273,9 @@ func incidentRoutingBestWarning(warnings []incidentRoutingCoverageWarning) *inci
 	return &warnings[0]
 }
 
-func incidentRoutingWarningEdge(warning incidentRoutingCoverageWarning) IncidentContextEvidenceEdge {
-	return IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotLiveRouting,
+func incidentRoutingWarningEdge(warning incidentRoutingCoverageWarning) model.IncidentContextEvidenceEdge {
+	return model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotLiveRouting,
 		TruthLabel:  incidentRoutingWarningTruthLabel(warning),
 		Explanation: incidentRoutingWarningExplanation(warning),
 		Value: map[string]string{
@@ -280,28 +285,28 @@ func incidentRoutingWarningEdge(warning incidentRoutingCoverageWarning) Incident
 			"resource_class":     warning.ResourceClass,
 			"provider_object_id": warning.ProviderObjectID,
 		},
-		Evidence: []IncidentContextEvidenceRef{
+		Evidence: []model.IncidentContextEvidenceRef{
 			incidentEvidenceRef("incident_routing.coverage_warning", warning.FactID, "", warning.SourceKind),
 		},
 	}
 }
 
-func incidentRoutingWarningTruthLabel(warning incidentRoutingCoverageWarning) IncidentTruthLabel {
+func incidentRoutingWarningTruthLabel(warning incidentRoutingCoverageWarning) model.IncidentTruthLabel {
 	reason := strings.ToLower(strings.TrimSpace(warning.Reason))
 	switch {
 	case strings.Contains(reason, "permission"):
-		return IncidentTruthPermissionHidden
+		return model.IncidentTruthPermissionHidden
 	case strings.Contains(reason, "stale"):
-		return IncidentTruthStale
+		return model.IncidentTruthStale
 	case strings.Contains(reason, "reject") || strings.Contains(reason, "unsupported"):
-		return IncidentTruthRejected
+		return model.IncidentTruthRejected
 	default:
-		return IncidentTruthUnresolved
+		return model.IncidentTruthUnresolved
 	}
 }
 
 func declaredRoutingAmbiguous(item incidentDeclaredPagerDutyRouting) bool {
-	return item.DuplicateServiceName || strings.TrimSpace(item.Outcome) == string(IncidentTruthAmbiguous)
+	return item.DuplicateServiceName || strings.TrimSpace(item.Outcome) == string(model.IncidentTruthAmbiguous)
 }
 
 func incidentDeclaredRoutingExplanation(item incidentDeclaredPagerDutyRouting) string {
@@ -317,9 +322,9 @@ func incidentDeclaredRoutingExplanation(item incidentDeclaredPagerDutyRouting) s
 
 func incidentAppliedRoutingExplanation(
 	item incidentAppliedPagerDutyRouting,
-	label IncidentTruthLabel,
+	label model.IncidentTruthLabel,
 ) string {
-	if label == IncidentTruthDerived {
+	if label == model.IncidentTruthDerived {
 		return "Terraform state PagerDuty service matched the incident service by sanitized name fingerprint"
 	}
 	if strings.TrimSpace(item.DeclaredMatchState) == "missing" {
@@ -331,19 +336,19 @@ func incidentAppliedRoutingExplanation(
 func incidentObservedRoutingExplanation(
 	item incidentObservedPagerDutyRouting,
 	applied *incidentAppliedPagerDutyRouting,
-	label IncidentTruthLabel,
+	label model.IncidentTruthLabel,
 ) string {
 	switch label {
-	case IncidentTruthDrifted:
+	case model.IncidentTruthDrifted:
 		if applied != nil {
 			return "live PagerDuty service evidence differs from applied Terraform-state routing evidence"
 		}
 		return "live PagerDuty service evidence reports drift against declared or applied routing evidence"
-	case IncidentTruthStale:
+	case model.IncidentTruthStale:
 		return "live PagerDuty service evidence reports a deleted or stale service"
-	case IncidentTruthRejected:
+	case model.IncidentTruthRejected:
 		return "live PagerDuty service evidence was rejected before promotion"
-	case IncidentTruthDerived:
+	case model.IncidentTruthDerived:
 		return "live PagerDuty service matched the incident service by sanitized name fingerprint"
 	default:
 		return "live PagerDuty API confirms the incident service routing evidence"
@@ -352,11 +357,11 @@ func incidentObservedRoutingExplanation(
 
 func incidentRoutingWarningExplanation(warning incidentRoutingCoverageWarning) string {
 	switch incidentRoutingWarningTruthLabel(warning) {
-	case IncidentTruthPermissionHidden:
+	case model.IncidentTruthPermissionHidden:
 		return "live PagerDuty service configuration is permission-hidden for this incident scope"
-	case IncidentTruthStale:
+	case model.IncidentTruthStale:
 		return "live PagerDuty routing evidence is stale for this incident scope"
-	case IncidentTruthRejected:
+	case model.IncidentTruthRejected:
 		return "live PagerDuty routing evidence was rejected or unsupported for this incident scope"
 	default:
 		return "live PagerDuty routing evidence could not resolve the incident service"
@@ -368,8 +373,8 @@ func incidentContentEvidenceRef(
 	recordID string,
 	url string,
 	source string,
-) IncidentContextEvidenceRef {
-	return IncidentContextEvidenceRef{
+) model.IncidentContextEvidenceRef {
+	return model.IncidentContextEvidenceRef{
 		RecordID: recordID,
 		Kind:     kind,
 		URL:      url,

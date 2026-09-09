@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package sql
 
-const listIncidentServiceCatalogOperationalLinksQuery = incidentContextFactSelect + `
+// ListServiceCatalogOperationalLinksQuery lists operational links for one service URL.
+const ListServiceCatalogOperationalLinksQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -19,7 +20,8 @@ ORDER BY fact.fact_id ASC
 LIMIT $2
 `
 
-const listIncidentKubernetesCorrelationsByImageQuery = incidentContextFactSelect + `
+// ListKubernetesCorrelationsByImageQuery lists Kubernetes correlations for one image.
+const ListKubernetesCorrelationsByImageQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -39,7 +41,8 @@ ORDER BY fact.fact_id ASC
 LIMIT $3
 `
 
-const listIncidentCICDRunCorrelationsByImageRefQuery = incidentContextFactSelect + `
+// ListCICDRunCorrelationsByImageRefQuery lists CI/CD run correlations for one image reference.
+const ListCICDRunCorrelationsByImageRefQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id

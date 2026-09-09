@@ -1,33 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 )
-
-const incidentContextProviderPagerDuty = "pagerduty"
-
-// ErrIncidentContextNotFound reports a missing incident anchor.
-var ErrIncidentContextNotFound = errors.New("incident context not found")
-
-// IncidentContextAmbiguousError reports multiple active incident anchors.
-type IncidentContextAmbiguousError struct {
-	ProviderIncidentID string
-	Candidates         []IncidentContextIncidentCandidate
-}
-
-func (e IncidentContextAmbiguousError) Error() string {
-	return fmt.Sprintf("incident %q matched multiple active provider scopes; pass scope_id", e.ProviderIncidentID)
-}
 
 type incidentContextQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
@@ -46,50 +34,86 @@ type incidentContextFactRow struct {
 }
 
 // PostgresIncidentContextStore reads active PagerDuty incident source facts.
+//
+// The service-catalog, CI/CD run correlation, and container image identity
+// sub-reads behind the runtime evidence arrive as injected ports, not as
+// concrete stores: their owning families (service, CI/CD, image) live
+// outside this package and the query root cannot be imported back without a
+// cycle. The query root's NewPostgresIncidentContextStore forwarder builds
+// the production concretes; tests inject doubles or leave the ports nil.
+// A nil port fails its read with a required-store error rather than an
+// empty result, so a missing wire is loud instead of silently thinning the
+// evidence path.
 type PostgresIncidentContextStore struct {
-	DB incidentContextQueryer
+	DB      incidentContextQueryer
+	catalog querycontract.ServiceCatalogCorrelationStore
+	cicd    querycontract.CICDRunCorrelationStore
+	images  supplychain.ContainerImageIdentityStore
 }
 
-// NewPostgresIncidentContextStore creates the Postgres incident-context store.
-func NewPostgresIncidentContextStore(db incidentContextQueryer) PostgresIncidentContextStore {
+// NewStore creates the Postgres incident-context store over db. The
+// catalog, CI/CD, and image sub-stores attach with WithCatalog, WithCICD,
+// and WithImages; see PostgresIncidentContextStore.
+func NewStore(db incidentContextQueryer) PostgresIncidentContextStore {
 	return PostgresIncidentContextStore{DB: db}
+}
+
+// WithCatalog attaches the service-catalog correlation read behind the
+// runtime evidence.
+func (s PostgresIncidentContextStore) WithCatalog(catalog querycontract.ServiceCatalogCorrelationStore) PostgresIncidentContextStore {
+	s.catalog = catalog
+	return s
+}
+
+// WithCICD attaches the CI/CD run correlation read behind the runtime
+// evidence.
+func (s PostgresIncidentContextStore) WithCICD(cicd querycontract.CICDRunCorrelationStore) PostgresIncidentContextStore {
+	s.cicd = cicd
+	return s
+}
+
+// WithImages attaches the container image identity read behind the runtime
+// evidence.
+func (s PostgresIncidentContextStore) WithImages(images supplychain.ContainerImageIdentityStore) PostgresIncidentContextStore {
+	s.images = images
+	return s
 }
 
 // ReadIncidentContext returns a bounded incident-context snapshot.
 func (s PostgresIncidentContextStore) ReadIncidentContext(
 	ctx context.Context,
-	filter IncidentContextFilter,
-) (IncidentContextSnapshot, error) {
-	filter = normalizeIncidentContextFilter(filter)
+	filter model.IncidentContextFilter,
+) (model.IncidentContextSnapshot, error) {
+	filter = model.NormalizeFilter(filter)
 	if s.DB == nil {
-		return IncidentContextSnapshot{}, fmt.Errorf("incident context database is required")
+		return model.IncidentContextSnapshot{}, fmt.Errorf("incident context database is required")
 	}
 	if filter.ProviderIncidentID == "" {
-		return IncidentContextSnapshot{}, fmt.Errorf("provider_incident_id is required")
+		return model.IncidentContextSnapshot{}, fmt.Errorf("provider_incident_id is required")
 	}
-	if filter.Limit <= 0 || filter.Limit > incidentContextMaxLimit+1 {
-		return IncidentContextSnapshot{}, fmt.Errorf("limit must be between 1 and %d", incidentContextMaxLimit)
+	if filter.Limit <= 0 || filter.Limit > model.MaxLimit+1 {
+		return model.IncidentContextSnapshot{}, fmt.Errorf("limit must be between 1 and %d", model.MaxLimit)
 	}
 	if _, err := parseIncidentContextBound(filter.Since); err != nil {
-		return IncidentContextSnapshot{}, fmt.Errorf("since must be RFC3339: %w", err)
+		return model.IncidentContextSnapshot{}, fmt.Errorf("since must be RFC3339: %w", err)
 	}
 	if _, err := parseIncidentContextBound(filter.Until); err != nil {
-		return IncidentContextSnapshot{}, fmt.Errorf("until must be RFC3339: %w", err)
+		return model.IncidentContextSnapshot{}, fmt.Errorf("until must be RFC3339: %w", err)
 	}
 
 	incidentRows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentContextIncidentsQuery,
+		incidentsql.ListIncidentsQuery,
 		filter.Provider,
 		filter.ProviderIncidentID,
 		filter.ScopeID,
 		incidentContextAnchorProbeLimit,
 	)
 	if err != nil {
-		return IncidentContextSnapshot{}, fmt.Errorf("list incident context anchors: %w", err)
+		return model.IncidentContextSnapshot{}, fmt.Errorf("list incident context anchors: %w", err)
 	}
 	if len(incidentRows) == 0 {
-		return IncidentContextSnapshot{}, ErrIncidentContextNotFound
+		return model.IncidentContextSnapshot{}, model.ErrIncidentContextNotFound
 	}
 
 	// Decode before counting. A row that fails typed decode carries no usable
@@ -99,7 +123,7 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	// cannot act on (#4830).
 	selection := selectIncidentContextAnchor(incidentRows)
 	if selection.Ambiguous {
-		return IncidentContextSnapshot{}, IncidentContextAmbiguousError{
+		return model.IncidentContextSnapshot{}, model.IncidentContextAmbiguousError{
 			ProviderIncidentID: filter.ProviderIncidentID,
 			Candidates:         incidentContextCandidates(selection.WellFormed),
 		}
@@ -107,40 +131,40 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	if len(selection.WellFormed) == 0 {
 		// Every matching row failed to decode, so there is no well-formed
 		// incident to answer for. That is indistinguishable from no match.
-		return IncidentContextSnapshot{}, ErrIncidentContextNotFound
+		return model.IncidentContextSnapshot{}, model.ErrIncidentContextNotFound
 	}
 	anchorRow, incident := selection.Row, selection.Incident
 
 	timeline, timelineTruncated, err := s.readIncidentTimeline(ctx, filter, anchorRow)
 	if err != nil {
-		return IncidentContextSnapshot{}, err
+		return model.IncidentContextSnapshot{}, err
 	}
 	changes, changesTruncated, err := s.readIncidentChangeCandidates(ctx, filter, incident, anchorRow)
 	if err != nil {
-		return IncidentContextSnapshot{}, err
+		return model.IncidentContextSnapshot{}, err
 	}
 	routingEvidence, err := s.readIncidentRoutingEvidence(ctx, incident)
 	if err != nil {
-		return IncidentContextSnapshot{}, err
+		return model.IncidentContextSnapshot{}, err
 	}
 	runtimeEvidence, err := s.readIncidentRuntimeEvidence(ctx, incident)
 	if err != nil {
-		return IncidentContextSnapshot{}, err
+		return model.IncidentContextSnapshot{}, err
 	}
 	reviewEvidence, err := s.readIncidentReviewWorkItemEvidence(ctx, runtimeEvidence)
 	if err != nil {
-		return IncidentContextSnapshot{}, err
+		return model.IncidentContextSnapshot{}, err
 	}
-	evidencePath := append([]IncidentContextEvidenceEdge(nil), routingEvidence...)
+	evidencePath := append([]model.IncidentContextEvidenceEdge(nil), routingEvidence...)
 	evidencePath = append(evidencePath, runtimeEvidence...)
 	evidencePath = append(evidencePath, reviewEvidence...)
 
-	return IncidentContextSnapshot{
-		Query: IncidentContextQuery{
+	return model.IncidentContextSnapshot{
+		Query: model.IncidentContextQuery{
 			Provider:           filter.Provider,
 			ProviderIncidentID: filter.ProviderIncidentID,
 			ScopeID:            filter.ScopeID,
-			ServiceID:          firstNonEmpty(filter.ServiceID, incident.Service.ID),
+			ServiceID:          querycontract.FirstNonEmpty(filter.ServiceID, incident.Service.ID),
 			Since:              filter.Since,
 			Until:              filter.Until,
 			Limit:              filter.Limit,
@@ -167,12 +191,12 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 // the window can never make a truncated timeline report itself complete.
 func (s PostgresIncidentContextStore) readIncidentTimeline(
 	ctx context.Context,
-	filter IncidentContextFilter,
+	filter model.IncidentContextFilter,
 	incident incidentContextFactRow,
-) ([]IncidentContextTimelineEvent, bool, error) {
+) ([]model.IncidentContextTimelineEvent, bool, error) {
 	rows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentContextTimelineQuery,
+		incidentsql.ListTimelineQuery,
 		filter.ProviderIncidentID,
 		incident.ScopeID,
 		incident.GenerationID,
@@ -182,7 +206,7 @@ func (s PostgresIncidentContextStore) readIncidentTimeline(
 		return nil, false, fmt.Errorf("list incident timeline: %w", err)
 	}
 	window, truncated := incidentContextVisibleWindow(rows, filter.Limit)
-	events := make([]IncidentContextTimelineEvent, 0, len(window))
+	events := make([]model.IncidentContextTimelineEvent, 0, len(window))
 	for _, row := range window {
 		event, ok := decodeIncidentContextTimelineEvent(row)
 		if !ok {
@@ -222,18 +246,18 @@ func incidentContextVisibleWindow(rows []incidentContextFactRow, fetchLimit int)
 // reflects whether the lookahead row was fetched.
 func (s PostgresIncidentContextStore) readIncidentChangeCandidates(
 	ctx context.Context,
-	filter IncidentContextFilter,
-	incident IncidentContextIncident,
+	filter model.IncidentContextFilter,
+	incident model.IncidentContextIncident,
 	incidentRow incidentContextFactRow,
-) ([]IncidentContextChangeCandidate, bool, error) {
-	serviceID := firstNonEmpty(filter.ServiceID, incident.Service.ID)
+) ([]model.IncidentContextChangeCandidate, bool, error) {
+	serviceID := querycontract.FirstNonEmpty(filter.ServiceID, incident.Service.ID)
 	if serviceID == "" {
 		return nil, false, nil
 	}
 	since, until := incidentChangeWindow(filter, incident)
 	rows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentContextChangeCandidatesQuery,
+		incidentsql.ListChangeCandidatesQuery,
 		serviceID,
 		incidentRow.ScopeID,
 		incidentRow.GenerationID,
@@ -245,7 +269,7 @@ func (s PostgresIncidentContextStore) readIncidentChangeCandidates(
 		return nil, false, fmt.Errorf("list incident change candidates: %w", err)
 	}
 	window, truncated := incidentContextVisibleWindow(rows, filter.Limit)
-	changes := make([]IncidentContextChangeCandidate, 0, len(window))
+	changes := make([]model.IncidentContextChangeCandidate, 0, len(window))
 	for _, row := range window {
 		change, ok := decodeIncidentContextChangeCandidate(row)
 		if !ok {
@@ -297,19 +321,6 @@ func (s PostgresIncidentContextStore) queryIncidentContextRows(
 	return out, rows.Err()
 }
 
-func normalizeIncidentContextFilter(filter IncidentContextFilter) IncidentContextFilter {
-	filter.Provider = strings.ToLower(strings.TrimSpace(filter.Provider))
-	if filter.Provider == "" {
-		filter.Provider = incidentContextProviderPagerDuty
-	}
-	filter.ProviderIncidentID = strings.TrimSpace(filter.ProviderIncidentID)
-	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
-	filter.ServiceID = strings.TrimSpace(filter.ServiceID)
-	filter.Since = strings.TrimSpace(filter.Since)
-	filter.Until = strings.TrimSpace(filter.Until)
-	return filter
-}
-
 func parseIncidentContextBound(value string) (time.Time, error) {
 	if value == "" {
 		return time.Time{}, nil
@@ -325,8 +336,8 @@ func incidentContextSQLTime(value time.Time) any {
 }
 
 func incidentChangeWindow(
-	filter IncidentContextFilter,
-	incident IncidentContextIncident,
+	filter model.IncidentContextFilter,
+	incident model.IncidentContextIncident,
 ) (time.Time, time.Time) {
 	since, _ := parseIncidentContextBound(filter.Since)
 	until, _ := parseIncidentContextBound(filter.Until)
@@ -334,7 +345,7 @@ func incidentChangeWindow(
 		return since, until
 	}
 	createdAt, _ := time.Parse(time.RFC3339, incident.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, firstNonEmpty(incident.ResolvedAt, incident.UpdatedAt))
+	updatedAt, _ := time.Parse(time.RFC3339, querycontract.FirstNonEmpty(incident.ResolvedAt, incident.UpdatedAt))
 	if !createdAt.IsZero() {
 		since = createdAt.Add(-1 * time.Hour)
 	}
@@ -345,7 +356,7 @@ func incidentChangeWindow(
 }
 
 func incidentChangeInWindow(
-	change IncidentContextChangeCandidate,
+	change model.IncidentContextChangeCandidate,
 	since time.Time,
 	until time.Time,
 ) bool {
@@ -386,7 +397,7 @@ type incidentContextAnchorSelection struct {
 	// Row and Incident are the chosen anchor and its already-decoded incident;
 	// both are zero unless exactly one anchor was well-formed.
 	Row      incidentContextFactRow
-	Incident IncidentContextIncident
+	Incident model.IncidentContextIncident
 	// WellFormed is every row that decoded, which is what an ambiguous error
 	// reports as candidates. A caller cannot disambiguate against a row it
 	// cannot read, so a row that failed decode never appears here.
@@ -409,7 +420,7 @@ func selectIncidentContextAnchor(rows []incidentContextFactRow) incidentContextA
 	selection := incidentContextAnchorSelection{
 		WellFormed: make([]incidentContextFactRow, 0, len(rows)),
 	}
-	var first IncidentContextIncident
+	var first model.IncidentContextIncident
 	for _, row := range rows {
 		incident, ok := decodeIncidentContextIncident(row)
 		if !ok {

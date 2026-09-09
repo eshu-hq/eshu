@@ -5,6 +5,9 @@ package model
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -21,6 +24,12 @@ const DefaultLimit = 25
 // MaxLimit is the largest incident-context limit a caller may request. Its
 // home is incident/model/; see Capability.
 const MaxLimit = 100
+
+// ProviderPagerDuty is the default incident provider. It lives in
+// incident/model/ (#6060, lane B S2) because both NormalizeFilter below and
+// the incident/store/ row decoders fall back to it, and the two must never
+// disagree on the default.
+const ProviderPagerDuty = "pagerduty"
 
 // IncidentContextStore reads bounded incident context evidence.
 type IncidentContextStore interface {
@@ -240,4 +249,40 @@ type IncidentContextIncidentCandidate struct {
 	ServiceName        string `json:"service_name,omitempty"`
 	SourceURL          string `json:"source_url,omitempty"`
 	EvidenceFactID     string `json:"evidence_fact_id,omitempty"`
+}
+
+// ErrIncidentContextNotFound reports a missing incident anchor. It lives in
+// incident/model/ (#6060, lane B S2) with the store contract: the
+// incident/store/ reads return it and the incident/ handler matches it, so
+// neither leaf may own it alone.
+var ErrIncidentContextNotFound = errors.New("incident context not found")
+
+// IncidentContextAmbiguousError reports multiple active incident anchors.
+// It lives in incident/model/ with the store contract; see
+// ErrIncidentContextNotFound.
+type IncidentContextAmbiguousError struct {
+	ProviderIncidentID string
+	Candidates         []IncidentContextIncidentCandidate
+}
+
+func (e IncidentContextAmbiguousError) Error() string {
+	return fmt.Sprintf("incident %q matched multiple active provider scopes; pass scope_id", e.ProviderIncidentID)
+}
+
+// NormalizeFilter trims and defaults one incident-context filter. It lives
+// in incident/model/ (#6060, lane B S2) because both the incident/ handler
+// (which authorizes the normalized provider, incident id, and scope before
+// any read) and the incident/store/ reads apply it, and the two must never
+// disagree on what a filter means.
+func NormalizeFilter(filter IncidentContextFilter) IncidentContextFilter {
+	filter.Provider = strings.ToLower(strings.TrimSpace(filter.Provider))
+	if filter.Provider == "" {
+		filter.Provider = ProviderPagerDuty
+	}
+	filter.ProviderIncidentID = strings.TrimSpace(filter.ProviderIncidentID)
+	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
+	filter.ServiceID = strings.TrimSpace(filter.ServiceID)
+	filter.Since = strings.TrimSpace(filter.Since)
+	filter.Until = strings.TrimSpace(filter.Until)
+	return filter
 }

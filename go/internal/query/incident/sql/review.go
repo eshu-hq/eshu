@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package sql
 
-const listIncidentPullRequestsByCommitQuery = `
+// ListPullRequestsByCommitQuery lists accepted pull-request merges for one commit.
+const ListPullRequestsByCommitQuery = `
 SELECT
     trigger_id,
     provider,
@@ -22,7 +23,8 @@ ORDER BY received_at ASC, trigger_id ASC
 LIMIT $2
 `
 
-const listIncidentWorkItemRecordsByKeyQuery = incidentContextFactSelect + `
+// ListWorkItemRecordsByKeyQuery lists work-item records for one issue key.
+const ListWorkItemRecordsByKeyQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -38,7 +40,8 @@ ORDER BY fact.fact_id ASC
 LIMIT $2
 `
 
-const listIncidentWorkItemProjectMetadataByIDQuery = incidentContextFactSelect + `
+// ListWorkItemProjectMetadataByIDQuery lists work-item project metadata for one project.
+const ListWorkItemProjectMetadataByIDQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -54,7 +57,8 @@ ORDER BY fact.fact_id ASC
 LIMIT $2
 `
 
-const listIncidentWorkItemStatusMetadataByIDQuery = incidentContextFactSelect + `
+// ListWorkItemStatusMetadataByIDQuery lists work-item status metadata for one status.
+const ListWorkItemStatusMetadataByIDQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id

@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 type incidentCICDRunCorrelation struct {
 	FactID          string
@@ -34,30 +39,30 @@ const (
 func buildIncidentBuildCommitEdges(
 	correlations []incidentCICDRunCorrelation,
 	image incidentContainerImageIdentity,
-) []IncidentContextEvidenceEdge {
+) []model.IncidentContextEvidenceEdge {
 	candidates := incidentCICDPromotionCandidates(correlations, image)
 	if len(candidates) == 0 {
 		return nil
 	}
 	if len(candidates) > 1 {
-		return []IncidentContextEvidenceEdge{
+		return []model.IncidentContextEvidenceEdge{
 			{
-				Slot:        IncidentSlotBuildDeploy,
-				TruthLabel:  IncidentTruthAmbiguous,
+				Slot:        model.IncidentSlotBuildDeploy,
+				TruthLabel:  model.IncidentTruthAmbiguous,
 				Explanation: "multiple CI/CD run correlations match the incident image; no single build or deploy was selected",
 				Candidates:  incidentCICDCandidates(candidates),
 			},
 			{
-				Slot:        IncidentSlotCommit,
-				TruthLabel:  IncidentTruthAmbiguous,
+				Slot:        model.IncidentSlotCommit,
+				TruthLabel:  model.IncidentTruthAmbiguous,
 				Explanation: "multiple CI/CD run correlations name different possible commits for the incident image",
 				Candidates:  incidentCommitCandidates(candidates),
 			},
 		}
 	}
 	correlation := candidates[0]
-	edges := []IncidentContextEvidenceEdge{{
-		Slot:        IncidentSlotBuildDeploy,
+	edges := []model.IncidentContextEvidenceEdge{{
+		Slot:        model.IncidentSlotBuildDeploy,
 		TruthLabel:  incidentCICDTruthLabel(correlation, image),
 		Explanation: incidentBuildDeployExplanation(correlation),
 		Value: map[string]string{
@@ -72,13 +77,13 @@ func buildIncidentBuildCommitEdges(
 			"correlation_kind": correlation.CorrelationKind,
 			"provenance_only":  boolString(correlation.ProvenanceOnly),
 		},
-		Evidence: []IncidentContextEvidenceRef{
+		Evidence: []model.IncidentContextEvidenceRef{
 			incidentEvidenceRef("reducer_ci_cd_run_correlation", correlation.FactID, "", correlation.Provider),
 		},
 	}}
 	if correlation.CommitSHA != "" {
-		edges = append(edges, IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotCommit,
+		edges = append(edges, model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotCommit,
 			TruthLabel:  incidentCICDTruthLabel(correlation, image),
 			Explanation: incidentCommitExplanation(correlation),
 			Value: map[string]string{
@@ -87,7 +92,7 @@ func buildIncidentBuildCommitEdges(
 				"provider":      correlation.Provider,
 				"run_id":        correlation.RunID,
 			},
-			Evidence: []IncidentContextEvidenceRef{
+			Evidence: []model.IncidentContextEvidenceRef{
 				incidentEvidenceRef("reducer_ci_cd_run_correlation", correlation.FactID, "", correlation.Provider),
 			},
 		})
@@ -109,13 +114,13 @@ func incidentCICDPromotionCandidates(
 			continue
 		}
 		switch strings.TrimSpace(correlation.Outcome) {
-		case string(IncidentTruthExact):
+		case string(model.IncidentTruthExact):
 			if match == incidentCICDImageDigestMatch {
 				digestExact = append(digestExact, correlation)
 			} else {
 				refExact = append(refExact, correlation)
 			}
-		case string(IncidentTruthDerived), string(IncidentTruthAmbiguous):
+		case string(model.IncidentTruthDerived), string(model.IncidentTruthAmbiguous):
 			if match == incidentCICDImageDigestMatch {
 				digestOther = append(digestOther, correlation)
 			} else {
@@ -151,24 +156,24 @@ func incidentCICDImageMatchKind(
 func incidentCICDTruthLabel(
 	correlation incidentCICDRunCorrelation,
 	image incidentContainerImageIdentity,
-) IncidentTruthLabel {
+) model.IncidentTruthLabel {
 	label := incidentTruthFromReducerOutcome(correlation.Outcome)
-	if label == IncidentTruthExact &&
+	if label == model.IncidentTruthExact &&
 		incidentCICDImageMatchKind(correlation, image) == incidentCICDImageRefMatch {
-		return IncidentTruthDerived
+		return model.IncidentTruthDerived
 	}
 	return label
 }
 
 func incidentCICDCandidates(
 	correlations []incidentCICDRunCorrelation,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(correlations))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(correlations))
 	for _, correlation := range correlations {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(correlation.RunID, correlation.FactID),
-			Label:  firstNonEmpty(correlation.Provider, correlation.CorrelationKind),
-			Reason: firstNonEmpty(correlation.Reason, "CI/CD run correlation candidate"),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(correlation.RunID, correlation.FactID),
+			Label:  querycontract.FirstNonEmpty(correlation.Provider, correlation.CorrelationKind),
+			Reason: querycontract.FirstNonEmpty(correlation.Reason, "CI/CD run correlation candidate"),
 		})
 	}
 	return candidates
@@ -176,13 +181,13 @@ func incidentCICDCandidates(
 
 func incidentCommitCandidates(
 	correlations []incidentCICDRunCorrelation,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(correlations))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(correlations))
 	for _, correlation := range correlations {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(correlation.CommitSHA, correlation.RunID, correlation.FactID),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(correlation.CommitSHA, correlation.RunID, correlation.FactID),
 			Label:  correlation.CommitSHA,
-			Reason: firstNonEmpty(correlation.Reason, "commit candidate from CI/CD run correlation"),
+			Reason: querycontract.FirstNonEmpty(correlation.Reason, "commit candidate from CI/CD run correlation"),
 		})
 	}
 	return candidates

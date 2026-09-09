@@ -51,71 +51,6 @@ func (a *recordingIncidentRepositoryAuthorizer) ResolveDurableIncidentRepositori
 	return a.repositories, a.err
 }
 
-func TestAuthMiddlewareWithScopedTokensAllowsIncidentContextRoute(t *testing.T) {
-	t.Parallel()
-
-	resolver := &fakeScopedTokenResolver{
-		context: AuthContext{
-			Mode:                 AuthModeScoped,
-			TenantID:             "tenant-a",
-			WorkspaceID:          "workspace-a",
-			AllowedRepositoryIDs: []string{"repo-team-a"},
-		},
-		ok: true,
-	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := AuthContextFromContext(r.Context()); !ok {
-			t.Fatal("AuthContextFromContext() ok = false, want true")
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=10", nil)
-	req.Header.Set("Authorization", "Bearer scoped-token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if got, want := rec.Code, http.StatusNoContent; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-	}
-}
-
-func TestAuthMiddlewareWithScopedTokensRejectsAdjacentIncidentRoutes(t *testing.T) {
-	t.Parallel()
-
-	resolver := &fakeScopedTokenResolver{
-		context: AuthContext{
-			Mode:                 AuthModeScoped,
-			TenantID:             "tenant-a",
-			WorkspaceID:          "workspace-a",
-			AllowedRepositoryIDs: []string{"repo-team-a"},
-		},
-		ok: true,
-	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
-	for _, target := range []string{
-		"/api/v0/incidents/PABC123/timeline?limit=10",
-		"/api/v0/incidents/PABC123/context/extra",
-		"/api/v0/incidents//context?limit=10",
-		"/api/v0/incidents/PABC123/context/sub/context",
-	} {
-		target := target
-		t.Run(target, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, target, nil)
-			req.Header.Set("Authorization", "Bearer scoped-token")
-			rec := httptest.NewRecorder()
-			handler.ServeHTTP(rec, req)
-
-			if got, want := rec.Code, http.StatusForbidden; got != want {
-				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-			}
-		})
-	}
-}
-
 func TestIncidentContextScopedEmptyGrantReturnsNotFoundWithoutReads(t *testing.T) {
 	t.Parallel()
 
@@ -294,37 +229,6 @@ func TestIncidentContextSharedTokenSkipsAuthorizer(t *testing.T) {
 	}
 	if authorizer.called {
 		t.Fatal("authorizer consulted for shared (unscoped) token")
-	}
-}
-
-func TestResolveDurableIncidentRepositoriesQueryShape(t *testing.T) {
-	t.Parallel()
-
-	for _, fragment := range []string{
-		"fact.fact_kind = 'incident.record'",
-		"fact.payload->'service'->>'id'",
-		"correlation.fact_kind = 'reducer_incident_repository_correlation'",
-		"correlation.payload->>'provider_service_id'",
-		"correlation.payload->>'provenance_only' = 'false'",
-		"NULLIF(correlation.payload->>'repository_id', '') IS NOT NULL",
-		"generation.status = 'active'",
-	} {
-		if !strings.Contains(resolveDurableIncidentRepositoriesQuery, fragment) {
-			t.Fatalf("durable incident repository query missing %q:\n%s", fragment, resolveDurableIncidentRepositoriesQuery)
-		}
-	}
-}
-
-func TestPostgresIncidentRepositoryAuthorizerBlankInputsSkipRead(t *testing.T) {
-	t.Parallel()
-
-	authorizer := PostgresIncidentRepositoryAuthorizer{DB: unusedIncidentContextQueryer{}}
-	repositories, err := authorizer.ResolveDurableIncidentRepositories(context.Background(), "", "", "")
-	if err != nil {
-		t.Fatalf("ResolveDurableIncidentRepositories() error = %v, want nil", err)
-	}
-	if len(repositories) != 0 {
-		t.Fatalf("repositories = %#v, want empty", repositories)
 	}
 }
 

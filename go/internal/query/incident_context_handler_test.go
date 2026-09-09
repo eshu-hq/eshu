@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 
+	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
+	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -181,7 +183,7 @@ func TestIncidentContextHandlerReturnsAmbiguousCandidates(t *testing.T) {
 func TestPostgresIncidentContextStoreRejectsUnboundedFilter(t *testing.T) {
 	t.Parallel()
 
-	store := NewPostgresIncidentContextStore(unusedIncidentContextQueryer{})
+	store := store.NewStore(unusedIncidentContextQueryer{})
 	_, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{Limit: 5})
 	if err == nil {
 		t.Fatal("ReadIncidentContext() error = nil, want required incident id error")
@@ -203,16 +205,18 @@ func TestIncidentContextQueriesStayBoundedToActiveFacts(t *testing.T) {
 		"($3 = '' OR fact.scope_id = $3)",
 		"LIMIT $4",
 	} {
-		if !strings.Contains(listIncidentContextIncidentsQuery, want) {
-			t.Fatalf("listIncidentContextIncidentsQuery missing %q:\n%s", want, listIncidentContextIncidentsQuery)
+		queryText := incidentsql.ListIncidentsQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("queryText missing %q:\n%s", want, queryText)
 		}
 	}
 	for _, forbidden := range []string{
 		"MATCH ",
 		"CALL db",
 	} {
-		if strings.Contains(listIncidentContextIncidentsQuery, forbidden) {
-			t.Fatalf("listIncidentContextIncidentsQuery must not use graph scan %q:\n%s", forbidden, listIncidentContextIncidentsQuery)
+		queryText := incidentsql.ListIncidentsQuery
+		if strings.Contains(queryText, forbidden) {
+			t.Fatalf("queryText must not use graph scan %q:\n%s", forbidden, queryText)
 		}
 	}
 	for _, want := range []string{
@@ -223,8 +227,9 @@ func TestIncidentContextQueriesStayBoundedToActiveFacts(t *testing.T) {
 		"($5::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz <= $5::timestamptz)",
 		"LIMIT $6",
 	} {
-		if !strings.Contains(listIncidentContextChangeCandidatesQuery, want) {
-			t.Fatalf("listIncidentContextChangeCandidatesQuery missing %q:\n%s", want, listIncidentContextChangeCandidatesQuery)
+		queryText := incidentsql.ListChangeCandidatesQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("queryText missing %q:\n%s", want, queryText)
 		}
 	}
 }
@@ -238,8 +243,9 @@ func TestIncidentContextChangeCandidateQueryCastsNullableTimeParametersEverywher
 		"$5::timestamptz IS NULL",
 		"NULLIF(fact.payload->>'timestamp', '')::timestamptz <= $5::timestamptz",
 	} {
-		if !strings.Contains(listIncidentContextChangeCandidatesQuery, want) {
-			t.Fatalf("listIncidentContextChangeCandidatesQuery missing %q:\n%s", want, listIncidentContextChangeCandidatesQuery)
+		queryText := incidentsql.ListChangeCandidatesQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("queryText missing %q:\n%s", want, queryText)
 		}
 	}
 }
@@ -248,8 +254,9 @@ func TestIncidentContextChangeCandidateQueryCastsServiceIDParameter(t *testing.T
 	t.Parallel()
 
 	want := "jsonb_build_object('id', $1::text)"
-	if !strings.Contains(listIncidentContextChangeCandidatesQuery, want) {
-		t.Fatalf("listIncidentContextChangeCandidatesQuery missing %q:\n%s", want, listIncidentContextChangeCandidatesQuery)
+	queryText := incidentsql.ListChangeCandidatesQuery
+	if !strings.Contains(queryText, want) {
+		t.Fatalf("incidentsql.ListChangeCandidatesQuery missing %q:\n%s", want, queryText)
 	}
 }
 
@@ -262,8 +269,9 @@ func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T
 		"scope.active_generation_id = fact.generation_id",
 		"LIMIT $2",
 	} {
-		if !strings.Contains(listIncidentServiceCatalogOperationalLinksQuery, want) {
-			t.Fatalf("listIncidentServiceCatalogOperationalLinksQuery missing %q:\n%s", want, listIncidentServiceCatalogOperationalLinksQuery)
+		queryText := incidentsql.ListServiceCatalogOperationalLinksQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("queryText missing %q:\n%s", want, queryText)
 		}
 	}
 	for _, want := range []string{
@@ -273,8 +281,9 @@ func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T
 		"fact.payload->>'outcome' IN ('exact', 'derived', 'ambiguous')",
 		"LIMIT $3",
 	} {
-		if !strings.Contains(listIncidentKubernetesCorrelationsByImageQuery, want) {
-			t.Fatalf("listIncidentKubernetesCorrelationsByImageQuery missing %q:\n%s", want, listIncidentKubernetesCorrelationsByImageQuery)
+		queryText := incidentsql.ListKubernetesCorrelationsByImageQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("queryText missing %q:\n%s", want, queryText)
 		}
 	}
 	for _, want := range []string{
@@ -283,8 +292,9 @@ func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T
 		"fact.payload->>'outcome' IN ('exact', 'derived', 'ambiguous')",
 		"LIMIT $2",
 	} {
-		if !strings.Contains(listIncidentCICDRunCorrelationsByImageRefQuery, want) {
-			t.Fatalf("listIncidentCICDRunCorrelationsByImageRefQuery missing %q:\n%s", want, listIncidentCICDRunCorrelationsByImageRefQuery)
+		queryText := incidentsql.ListCICDRunCorrelationsByImageRefQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("queryText missing %q:\n%s", want, queryText)
 		}
 	}
 	for _, want := range []string{
@@ -296,8 +306,9 @@ func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T
 		"pull_request_url <> ''",
 		"LIMIT $2",
 	} {
-		if !strings.Contains(listIncidentPullRequestsByCommitQuery, want) {
-			t.Fatalf("listIncidentPullRequestsByCommitQuery missing %q:\n%s", want, listIncidentPullRequestsByCommitQuery)
+		queryText := incidentsql.ListPullRequestsByCommitQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("queryText missing %q:\n%s", want, queryText)
 		}
 	}
 	for _, want := range []string{
@@ -305,8 +316,9 @@ func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T
 		"fact.payload->>'work_item_key' = $1",
 		"LIMIT $2",
 	} {
-		if !strings.Contains(listIncidentWorkItemRecordsByKeyQuery, want) {
-			t.Fatalf("listIncidentWorkItemRecordsByKeyQuery missing %q:\n%s", want, listIncidentWorkItemRecordsByKeyQuery)
+		queryText := incidentsql.ListWorkItemRecordsByKeyQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("queryText missing %q:\n%s", want, queryText)
 		}
 	}
 }

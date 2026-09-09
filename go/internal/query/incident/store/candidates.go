@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func incidentDeclaredRoutingCandidates(
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 	declared []incidentDeclaredPagerDutyRouting,
 ) []incidentDeclaredPagerDutyRouting {
 	serviceName := strings.TrimSpace(incident.Service.Summary)
@@ -24,7 +27,7 @@ func incidentDeclaredRoutingCandidates(
 }
 
 func incidentAppliedRoutingCandidates(
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 	applied []incidentAppliedPagerDutyRouting,
 ) []incidentAppliedPagerDutyRouting {
 	serviceID := strings.TrimSpace(incident.Service.ID)
@@ -43,7 +46,7 @@ func incidentAppliedRoutingCandidates(
 }
 
 func incidentObservedRoutingCandidates(
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 	observed []incidentObservedPagerDutyRouting,
 ) []incidentObservedPagerDutyRouting {
 	serviceID := strings.TrimSpace(incident.Service.ID)
@@ -65,13 +68,13 @@ func incidentObservedRoutingCandidates(
 
 func incidentDeclaredRoutingCandidateValues(
 	items []incidentDeclaredPagerDutyRouting,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(items))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(items))
 	for _, item := range items {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(item.EntityID, item.RelativePath),
-			Label:  firstNonEmpty(item.EntityName, item.RelativePath),
-			Reason: firstNonEmpty(item.Outcome, "declared PagerDuty routing candidate"),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(item.EntityID, item.RelativePath),
+			Label:  querycontract.FirstNonEmpty(item.EntityName, item.RelativePath),
+			Reason: querycontract.FirstNonEmpty(item.Outcome, "declared PagerDuty routing candidate"),
 		})
 	}
 	return candidates
@@ -79,13 +82,13 @@ func incidentDeclaredRoutingCandidateValues(
 
 func incidentAppliedRoutingCandidateValues(
 	items []incidentAppliedPagerDutyRouting,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(items))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(items))
 	for _, item := range items {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(item.ProviderObjectID, item.TerraformStateAddress, item.FactID),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(item.ProviderObjectID, item.TerraformStateAddress, item.FactID),
 			Label:  item.TerraformStateAddress,
-			Reason: firstNonEmpty(item.Outcome, "applied PagerDuty routing candidate"),
+			Reason: querycontract.FirstNonEmpty(item.Outcome, "applied PagerDuty routing candidate"),
 		})
 	}
 	return candidates
@@ -93,14 +96,14 @@ func incidentAppliedRoutingCandidateValues(
 
 func incidentObservedRoutingCandidateValues(
 	items []incidentObservedPagerDutyRouting,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(items))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(items))
 	for _, item := range items {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(item.ServiceID, item.ProviderObjectID, item.FactID),
-			Label:  firstNonEmpty(item.Status, item.ServiceID),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(item.ServiceID, item.ProviderObjectID, item.FactID),
+			Label:  querycontract.FirstNonEmpty(item.Status, item.ServiceID),
 			URL:    item.SourceURL,
-			Reason: firstNonEmpty(item.Outcome, "live PagerDuty routing candidate"),
+			Reason: querycontract.FirstNonEmpty(item.Outcome, "live PagerDuty routing candidate"),
 		})
 	}
 	return candidates

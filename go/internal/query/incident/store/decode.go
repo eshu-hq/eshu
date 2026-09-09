@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 )
 
@@ -15,7 +17,7 @@ import (
 // the fact failed decode — a payload missing BOTH provider_incident_id and a
 // usable source_record_id, or an unsupported schema major — and the caller
 // must drop the row rather than emit an empty-identity incident.
-func decodeIncidentContextIncident(row incidentContextFactRow) (IncidentContextIncident, bool) {
+func decodeIncidentContextIncident(row incidentContextFactRow) (model.IncidentContextIncident, bool) {
 	record, err := decodeIncidentRecord(incidentContextDecodeInput{
 		FactID:         row.FactID,
 		SourceRecordID: row.SourceRecordID,
@@ -24,10 +26,10 @@ func decodeIncidentContextIncident(row incidentContextFactRow) (IncidentContextI
 	})
 	if err != nil {
 		logIncidentContextDecodeDrop(err)
-		return IncidentContextIncident{}, false
+		return model.IncidentContextIncident{}, false
 	}
-	return IncidentContextIncident{
-		Provider:           firstNonEmpty(record.Provider, incidentContextProviderPagerDuty),
+	return model.IncidentContextIncident{
+		Provider:           querycontract.FirstNonEmpty(record.Provider, model.ProviderPagerDuty),
 		ProviderIncidentID: record.ProviderIncidentID,
 		ScopeID:            row.ScopeID,
 		IncidentNumber:     incidentDerefInt64(record.IncidentNumber),
@@ -42,7 +44,7 @@ func decodeIncidentContextIncident(row incidentContextFactRow) (IncidentContextI
 		CreatedAt:          workItemDerefString(record.CreatedAt),
 		UpdatedAt:          workItemDerefString(record.UpdatedAt),
 		ResolvedAt:         workItemDerefString(record.ResolvedAt),
-		SourceURL:          firstNonEmpty(workItemDerefString(record.SourceURL), row.SourceURI),
+		SourceURL:          querycontract.FirstNonEmpty(workItemDerefString(record.SourceURL), row.SourceURI),
 		EvidenceFactID:     row.FactID,
 		SourceConfidence:   row.SourceConfidence,
 		ObservedAt:         formatIncidentContextTime(row.ObservedAt),
@@ -55,7 +57,7 @@ func decodeIncidentContextIncident(row incidentContextFactRow) (IncidentContextI
 // empty-identity timeline entry.
 func decodeIncidentContextTimelineEvent(
 	row incidentContextFactRow,
-) (IncidentContextTimelineEvent, bool) {
+) (model.IncidentContextTimelineEvent, bool) {
 	event, err := decodeIncidentLifecycleEvent(incidentContextDecodeInput{
 		FactID:         row.FactID,
 		SourceRecordID: row.SourceRecordID,
@@ -64,16 +66,16 @@ func decodeIncidentContextTimelineEvent(
 	})
 	if err != nil {
 		logIncidentContextDecodeDrop(err)
-		return IncidentContextTimelineEvent{}, false
+		return model.IncidentContextTimelineEvent{}, false
 	}
-	return IncidentContextTimelineEvent{
+	return model.IncidentContextTimelineEvent{
 		EventID:          event.ProviderEventID,
 		EventType:        workItemDerefString(event.EventType),
 		Actor:            incidentContextServiceReference(event.Actor),
 		Channel:          workItemDerefString(event.Channel),
 		Summary:          workItemDerefString(event.Summary),
 		CreatedAt:        workItemDerefString(event.CreatedAt),
-		SourceURL:        firstNonEmpty(workItemDerefString(event.SourceURL), row.SourceURI),
+		SourceURL:        querycontract.FirstNonEmpty(workItemDerefString(event.SourceURL), row.SourceURI),
 		EvidenceFactID:   row.FactID,
 		SourceConfidence: row.SourceConfidence,
 		ObservedAt:       formatIncidentContextTime(row.ObservedAt),
@@ -86,7 +88,7 @@ func decodeIncidentContextTimelineEvent(
 // empty-identity change.
 func decodeIncidentContextChangeCandidate(
 	row incidentContextFactRow,
-) (IncidentContextChangeCandidate, bool) {
+) (model.IncidentContextChangeCandidate, bool) {
 	record, err := decodeChangeRecord(incidentContextDecodeInput{
 		FactID:         row.FactID,
 		SourceRecordID: row.SourceRecordID,
@@ -95,17 +97,17 @@ func decodeIncidentContextChangeCandidate(
 	})
 	if err != nil {
 		logIncidentContextDecodeDrop(err)
-		return IncidentContextChangeCandidate{}, false
+		return model.IncidentContextChangeCandidate{}, false
 	}
-	return IncidentContextChangeCandidate{
+	return model.IncidentContextChangeCandidate{
 		ChangeID:         record.ProviderChangeID,
 		Summary:          workItemDerefString(record.Summary),
 		Source:           workItemDerefString(record.Source),
 		Services:         incidentContextServiceReferences(record.Services),
 		Links:            incidentContextChangeLinks(record.Links),
 		Timestamp:        workItemDerefString(record.Timestamp),
-		SourceURL:        firstNonEmpty(workItemDerefString(record.SourceURL), row.SourceURI),
-		TruthLabel:       IncidentTruthFallback,
+		SourceURL:        querycontract.FirstNonEmpty(workItemDerefString(record.SourceURL), row.SourceURI),
+		TruthLabel:       model.IncidentTruthFallback,
 		Explanation:      "candidate matched PagerDuty service and incident time window",
 		EvidenceFactID:   row.FactID,
 		SourceConfidence: row.SourceConfidence,
@@ -118,14 +120,14 @@ func decodeIncidentContextChangeCandidate(
 // dropped from the candidate list rather than shown with an empty identity.
 func incidentContextCandidates(
 	rows []incidentContextFactRow,
-) []IncidentContextIncidentCandidate {
-	out := make([]IncidentContextIncidentCandidate, 0, len(rows))
+) []model.IncidentContextIncidentCandidate {
+	out := make([]model.IncidentContextIncidentCandidate, 0, len(rows))
 	for _, row := range rows {
 		incident, ok := decodeIncidentContextIncident(row)
 		if !ok {
 			continue
 		}
-		out = append(out, IncidentContextIncidentCandidate{
+		out = append(out, model.IncidentContextIncidentCandidate{
 			Provider:           incident.Provider,
 			ProviderIncidentID: incident.ProviderIncidentID,
 			ScopeID:            row.ScopeID,
@@ -142,11 +144,11 @@ func incidentContextCandidates(
 // pointer (nil when the emitter observed no reference) into the read model's
 // IncidentContextReference, matching the pre-typing incidentContextReference
 // helper's zero-value-on-absence behavior.
-func incidentContextServiceReference(ref *incidentv1.ServiceReference) IncidentContextReference {
+func incidentContextServiceReference(ref *incidentv1.ServiceReference) model.IncidentContextReference {
 	if ref == nil {
-		return IncidentContextReference{}
+		return model.IncidentContextReference{}
 	}
-	return IncidentContextReference{
+	return model.IncidentContextReference{
 		ID:      workItemDerefString(ref.ID),
 		Type:    workItemDerefString(ref.Type),
 		Summary: workItemDerefString(ref.Summary),
@@ -157,13 +159,13 @@ func incidentContextServiceReference(ref *incidentv1.ServiceReference) IncidentC
 // incidentContextServiceReferences adapts a typed []incidentv1.ServiceReference
 // slice into the read model's []IncidentContextReference, matching the
 // pre-typing incidentContextReferences helper's nil-on-empty behavior.
-func incidentContextServiceReferences(refs []incidentv1.ServiceReference) []IncidentContextReference {
+func incidentContextServiceReferences(refs []incidentv1.ServiceReference) []model.IncidentContextReference {
 	if len(refs) == 0 {
 		return nil
 	}
-	out := make([]IncidentContextReference, 0, len(refs))
+	out := make([]model.IncidentContextReference, 0, len(refs))
 	for _, ref := range refs {
-		out = append(out, IncidentContextReference{
+		out = append(out, model.IncidentContextReference{
 			ID:      workItemDerefString(ref.ID),
 			Type:    workItemDerefString(ref.Type),
 			Summary: workItemDerefString(ref.Summary),
@@ -176,13 +178,13 @@ func incidentContextServiceReferences(refs []incidentv1.ServiceReference) []Inci
 // incidentContextChangeLinks adapts a typed []incidentv1.ChangeLink slice into
 // the read model's []IncidentContextLink, matching the pre-typing
 // incidentContextLinks helper's nil-on-empty behavior.
-func incidentContextChangeLinks(links []incidentv1.ChangeLink) []IncidentContextLink {
+func incidentContextChangeLinks(links []incidentv1.ChangeLink) []model.IncidentContextLink {
 	if len(links) == 0 {
 		return nil
 	}
-	out := make([]IncidentContextLink, 0, len(links))
+	out := make([]model.IncidentContextLink, 0, len(links))
 	for _, link := range links {
-		out = append(out, IncidentContextLink{
+		out = append(out, model.IncidentContextLink{
 			Href: workItemDerefString(link.Href),
 			Text: workItemDerefString(link.Text),
 		})

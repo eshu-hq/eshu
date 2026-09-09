@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -56,9 +58,9 @@ func TestBuildIncidentRoutingEvidenceShowsDeclaredAppliedObservedConvergence(t *
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotIntendedRouting, IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotAppliedRouting, IncidentTruthExact)
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotLiveRouting, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotIntendedRouting, model.IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotAppliedRouting, model.IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotLiveRouting, model.IncidentTruthExact)
 }
 
 func TestBuildIncidentRoutingEvidenceKeepsNoIaCPagerDutyUseful(t *testing.T) {
@@ -79,9 +81,9 @@ func TestBuildIncidentRoutingEvidenceKeepsNoIaCPagerDutyUseful(t *testing.T) {
 		},
 	})
 
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotIntendedRouting, IncidentTruthMissing)
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotAppliedRouting, IncidentTruthMissing)
-	querytestutil.AssertIncidentEdge(t, got, IncidentSlotLiveRouting, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotIntendedRouting, model.IncidentTruthMissing)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotAppliedRouting, model.IncidentTruthMissing)
+	querytestutil.AssertIncidentEdge(t, got, model.IncidentSlotLiveRouting, model.IncidentTruthExact)
 }
 
 func TestBuildIncidentRoutingEvidenceFlagsLiveDriftAndPermissionHidden(t *testing.T) {
@@ -110,7 +112,7 @@ func TestBuildIncidentRoutingEvidenceFlagsLiveDriftAndPermissionHidden(t *testin
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, drifted, IncidentSlotLiveRouting, IncidentTruthDrifted)
+	querytestutil.AssertIncidentEdge(t, drifted, model.IncidentSlotLiveRouting, model.IncidentTruthDrifted)
 
 	hidden := buildIncidentRoutingEvidence(incidentRoutingEvidenceInput{
 		Incident: incidentRoutingTestIncident(),
@@ -124,7 +126,7 @@ func TestBuildIncidentRoutingEvidenceFlagsLiveDriftAndPermissionHidden(t *testin
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, hidden, IncidentSlotLiveRouting, IncidentTruthPermissionHidden)
+	querytestutil.AssertIncidentEdge(t, hidden, model.IncidentSlotLiveRouting, model.IncidentTruthPermissionHidden)
 }
 
 func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected(t *testing.T) {
@@ -142,7 +144,7 @@ func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, derived, IncidentSlotIntendedRouting, IncidentTruthDerived)
+	querytestutil.AssertIncidentEdge(t, derived, model.IncidentSlotIntendedRouting, model.IncidentTruthDerived)
 
 	stale := buildIncidentRoutingEvidence(incidentRoutingEvidenceInput{
 		Incident: incidentRoutingTestIncident(),
@@ -157,7 +159,7 @@ func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, stale, IncidentSlotLiveRouting, IncidentTruthStale)
+	querytestutil.AssertIncidentEdge(t, stale, model.IncidentSlotLiveRouting, model.IncidentTruthStale)
 
 	unresolved := buildIncidentRoutingEvidence(incidentRoutingEvidenceInput{
 		Incident: incidentRoutingTestIncident(),
@@ -171,7 +173,7 @@ func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, unresolved, IncidentSlotLiveRouting, IncidentTruthUnresolved)
+	querytestutil.AssertIncidentEdge(t, unresolved, model.IncidentSlotLiveRouting, model.IncidentTruthUnresolved)
 
 	rejected := buildIncidentRoutingEvidence(incidentRoutingEvidenceInput{
 		Incident: incidentRoutingTestIncident(),
@@ -184,7 +186,7 @@ func TestBuildIncidentRoutingEvidenceClassifiesDerivedStaleUnresolvedAndRejected
 			},
 		},
 	})
-	querytestutil.AssertIncidentEdge(t, rejected, IncidentSlotIntendedRouting, IncidentTruthRejected)
+	querytestutil.AssertIncidentEdge(t, rejected, model.IncidentSlotIntendedRouting, model.IncidentTruthRejected)
 }
 
 func TestBuildIncidentRoutingEvidenceKeepsAmbiguousDeclaredRouting(t *testing.T) {
@@ -214,8 +216,8 @@ func TestBuildIncidentRoutingEvidenceKeepsAmbiguousDeclaredRouting(t *testing.T)
 		},
 	})
 
-	edge := incidentEdgeBySlot(t, got, IncidentSlotIntendedRouting)
-	if edge.TruthLabel != IncidentTruthAmbiguous {
+	edge := incidentEdgeBySlot(t, got, model.IncidentSlotIntendedRouting)
+	if edge.TruthLabel != model.IncidentTruthAmbiguous {
 		t.Fatalf("intended routing truth_label = %q, want ambiguous", edge.TruthLabel)
 	}
 	if len(edge.Candidates) != 2 {
@@ -233,8 +235,9 @@ func TestIncidentContextRoutingQueriesStayBounded(t *testing.T) {
 		"lower(coalesce(metadata->>'service_name', '')) = lower($1)",
 		"LIMIT $2",
 	} {
-		if !strings.Contains(listIncidentDeclaredPagerDutyRoutingQuery, want) {
-			t.Fatalf("listIncidentDeclaredPagerDutyRoutingQuery missing %q:\n%s", want, listIncidentDeclaredPagerDutyRoutingQuery)
+		queryText := incidentsql.ListDeclaredPagerDutyRoutingQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("listIncidentDeclaredPagerDutyRoutingQuery missing %q:\n%s", want, queryText)
 		}
 	}
 	for _, want := range []string{
@@ -244,8 +247,9 @@ func TestIncidentContextRoutingQueriesStayBounded(t *testing.T) {
 		"fact.payload->>'name_fingerprint' = $2",
 		"LIMIT $3",
 	} {
-		if !strings.Contains(listIncidentAppliedPagerDutyRoutingQuery, want) {
-			t.Fatalf("listIncidentAppliedPagerDutyRoutingQuery missing %q:\n%s", want, listIncidentAppliedPagerDutyRoutingQuery)
+		queryText := incidentsql.ListAppliedPagerDutyRoutingQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("listIncidentAppliedPagerDutyRoutingQuery missing %q:\n%s", want, queryText)
 		}
 	}
 	for _, want := range []string{
@@ -255,8 +259,9 @@ func TestIncidentContextRoutingQueriesStayBounded(t *testing.T) {
 		"fact.payload->>'name_fingerprint' = $2",
 		"LIMIT $3",
 	} {
-		if !strings.Contains(listIncidentObservedPagerDutyRoutingQuery, want) {
-			t.Fatalf("listIncidentObservedPagerDutyRoutingQuery missing %q:\n%s", want, listIncidentObservedPagerDutyRoutingQuery)
+		queryText := incidentsql.ListObservedPagerDutyRoutingQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("listIncidentObservedPagerDutyRoutingQuery missing %q:\n%s", want, queryText)
 		}
 	}
 	for _, want := range []string{
@@ -268,22 +273,23 @@ func TestIncidentContextRoutingQueriesStayBounded(t *testing.T) {
 		"LIKE '%permission%'",
 		"LIMIT $3",
 	} {
-		if !strings.Contains(listIncidentRoutingCoverageWarningsQuery, want) {
-			t.Fatalf("listIncidentRoutingCoverageWarningsQuery missing %q:\n%s", want, listIncidentRoutingCoverageWarningsQuery)
+		queryText := incidentsql.ListRoutingCoverageWarningsQuery
+		if !strings.Contains(queryText, want) {
+			t.Fatalf("listIncidentRoutingCoverageWarningsQuery missing %q:\n%s", want, queryText)
 		}
 	}
 }
 
-func incidentRoutingTestIncident() IncidentContextIncident {
-	return IncidentContextIncident{
+func incidentRoutingTestIncident() model.IncidentContextIncident {
+	return model.IncidentContextIncident{
 		Provider:           "pagerduty",
 		ProviderIncidentID: "PINC",
-		Service: IncidentContextReference{
+		Service: model.IncidentContextReference{
 			ID:      "P-SVC",
 			Type:    "service",
 			Summary: "Checkout API",
 			URL:     "https://example.pagerduty.com/services/P-SVC",
 		},
-		EscalationPolicy: IncidentContextReference{ID: "PEP1"},
+		EscalationPolicy: model.IncidentContextReference{ID: "PEP1"},
 	}
 }

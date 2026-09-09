@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package sql
 
-const incidentContextFactSelect = `
+// FactSelect is the shared active-generation fact-row projection every incident-context read selects.
+const FactSelect = `
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -16,7 +17,8 @@ SELECT
     fact.payload
 `
 
-const listIncidentContextIncidentsQuery = incidentContextFactSelect + `
+// ListIncidentsQuery lists candidate incident anchors for one read.
+const ListIncidentsQuery = FactSelect + `
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -40,7 +42,8 @@ ORDER BY fact.scope_id ASC, fact.observed_at DESC, fact.fact_id ASC
 LIMIT $4
 `
 
-const listIncidentContextTimelineQuery = incidentContextFactSelect + `
+// ListTimelineQuery lists lifecycle events for one incident anchor.
+const ListTimelineQuery = FactSelect + `
 FROM fact_records AS fact
 WHERE fact.payload->>'provider_incident_id' = $1
   AND fact.scope_id = $2
@@ -51,7 +54,8 @@ ORDER BY fact.payload->>'created_at' ASC, fact.fact_id ASC
 LIMIT $4
 `
 
-const listIncidentContextChangeCandidatesQuery = incidentContextFactSelect + `
+// ListChangeCandidatesQuery lists related change candidates for one incident anchor.
+const ListChangeCandidatesQuery = FactSelect + `
 FROM fact_records AS fact
 WHERE fact.payload @> jsonb_build_object('services', jsonb_build_array(jsonb_build_object('id', $1::text)))
   AND fact.scope_id = $2

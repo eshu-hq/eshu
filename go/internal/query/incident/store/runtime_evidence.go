@@ -1,9 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 type incidentRuntimeEvidenceInput struct {
 	ServiceLink            incidentServiceCatalogOperationalLink
@@ -68,7 +73,7 @@ type incidentKubernetesCorrelation struct {
 
 func buildIncidentRuntimeEvidence(
 	input incidentRuntimeEvidenceInput,
-) []IncidentContextEvidenceEdge {
+) []model.IncidentContextEvidenceEdge {
 	if strings.TrimSpace(input.ServiceLink.EntityRef) == "" {
 		return nil
 	}
@@ -81,7 +86,7 @@ func buildIncidentRuntimeEvidence(
 		return nil
 	}
 
-	edges := []IncidentContextEvidenceEdge{*deployableEdge}
+	edges := []model.IncidentContextEvidenceEdge{*deployableEdge}
 	if selectedCatalog.RepositoryID == "" {
 		return edges
 	}
@@ -110,15 +115,15 @@ func buildIncidentRuntimeEvidence(
 func buildIncidentDeployableEdge(
 	link incidentServiceCatalogOperationalLink,
 	correlations []incidentServiceCatalogCorrelation,
-) (*IncidentContextEvidenceEdge, incidentServiceCatalogCorrelation) {
+) (*model.IncidentContextEvidenceEdge, incidentServiceCatalogCorrelation) {
 	candidates := incidentCatalogPromotionCandidates(correlations)
 	if len(candidates) == 0 {
 		return nil, incidentServiceCatalogCorrelation{}
 	}
 	if len(candidates) > 1 {
-		return &IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotDeployable,
-			TruthLabel:  IncidentTruthAmbiguous,
+		return &model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotDeployable,
+			TruthLabel:  model.IncidentTruthAmbiguous,
 			Explanation: "PagerDuty service URL matched a service-catalog entity, but multiple catalog correlations remain possible",
 			Evidence:    incidentEvidenceRefsForServiceLink(link),
 			Candidates:  incidentCatalogCandidates(candidates),
@@ -127,8 +132,8 @@ func buildIncidentDeployableEdge(
 
 	correlation := candidates[0]
 	label := incidentTruthFromReducerOutcome(correlation.Outcome)
-	edge := IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotDeployable,
+	edge := model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotDeployable,
 		TruthLabel:  label,
 		Explanation: incidentDeployableExplanation(correlation),
 		Value: map[string]string{
@@ -153,11 +158,11 @@ func incidentCatalogPromotionCandidates(
 	out := make([]incidentServiceCatalogCorrelation, 0, len(correlations))
 	for _, correlation := range correlations {
 		switch strings.TrimSpace(correlation.Outcome) {
-		case string(IncidentTruthExact), string(IncidentTruthDerived):
+		case string(model.IncidentTruthExact), string(model.IncidentTruthDerived):
 			if correlation.RepositoryID != "" || correlation.ServiceID != "" || correlation.WorkloadID != "" {
 				out = append(out, correlation)
 			}
-		case string(IncidentTruthAmbiguous):
+		case string(model.IncidentTruthAmbiguous):
 			out = append(out, correlation)
 		}
 	}
@@ -166,23 +171,23 @@ func incidentCatalogPromotionCandidates(
 
 func incidentCatalogCandidates(
 	correlations []incidentServiceCatalogCorrelation,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(correlations))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(correlations))
 	for _, correlation := range correlations {
 		if len(correlation.CandidateRepositoryIDs) > 0 {
 			for _, repositoryID := range correlation.CandidateRepositoryIDs {
-				candidates = append(candidates, IncidentContextEvidenceCandidate{
+				candidates = append(candidates, model.IncidentContextEvidenceCandidate{
 					ID:     repositoryID,
 					Label:  correlation.DisplayName,
-					Reason: firstNonEmpty(correlation.Reason, "catalog correlation candidate"),
+					Reason: querycontract.FirstNonEmpty(correlation.Reason, "catalog correlation candidate"),
 				})
 			}
 			continue
 		}
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(correlation.WorkloadID, correlation.ServiceID, correlation.RepositoryID),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(correlation.WorkloadID, correlation.ServiceID, correlation.RepositoryID),
 			Label:  correlation.DisplayName,
-			Reason: firstNonEmpty(correlation.Reason, "catalog correlation candidate"),
+			Reason: querycontract.FirstNonEmpty(correlation.Reason, "catalog correlation candidate"),
 		})
 	}
 	return candidates
@@ -191,22 +196,22 @@ func incidentCatalogCandidates(
 func buildIncidentImageEdge(
 	images []incidentContainerImageIdentity,
 	repositoryID string,
-) (*IncidentContextEvidenceEdge, *incidentContainerImageIdentity) {
+) (*model.IncidentContextEvidenceEdge, *incidentContainerImageIdentity) {
 	candidates := incidentImagePromotionCandidates(images, repositoryID)
 	if len(candidates) == 0 {
 		return nil, nil
 	}
 	if len(candidates) > 1 {
-		return &IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotImage,
-			TruthLabel:  IncidentTruthAmbiguous,
+		return &model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotImage,
+			TruthLabel:  model.IncidentTruthAmbiguous,
 			Explanation: "multiple active container image identities match the incident deployable; no single image was selected",
 			Candidates:  incidentImageCandidates(candidates),
 		}, nil
 	}
 	image := candidates[0]
-	edge := IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotImage,
+	edge := model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotImage,
 		TruthLabel:  incidentTruthFromReducerOutcome(image.Outcome),
 		Explanation: incidentImageExplanation(image),
 		Value: map[string]string{
@@ -216,7 +221,7 @@ func buildIncidentImageEdge(
 			"identity_strength": image.IdentityStrength,
 			"canonical_id":      image.CanonicalID,
 		},
-		Evidence: []IncidentContextEvidenceRef{
+		Evidence: []model.IncidentContextEvidenceRef{
 			incidentEvidenceRef("reducer_container_image_identity", image.FactID, "", ""),
 		},
 	}
@@ -234,11 +239,11 @@ func incidentImagePromotionCandidates(
 			continue
 		}
 		switch strings.TrimSpace(image.Outcome) {
-		case string(IncidentTruthExact):
+		case string(model.IncidentTruthExact):
 			if image.Digest != "" {
 				exact = append(exact, image)
 			}
-		case string(IncidentTruthDerived):
+		case string(model.IncidentTruthDerived):
 			derived = append(derived, image)
 		}
 	}
@@ -250,13 +255,13 @@ func incidentImagePromotionCandidates(
 
 func incidentImageCandidates(
 	images []incidentContainerImageIdentity,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(images))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(images))
 	for _, image := range images {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(image.Digest, image.ImageRef, image.FactID),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(image.Digest, image.ImageRef, image.FactID),
 			Label:  image.ImageRef,
-			Reason: firstNonEmpty(image.Reason, "container image identity candidate"),
+			Reason: querycontract.FirstNonEmpty(image.Reason, "container image identity candidate"),
 		})
 	}
 	return candidates
@@ -265,22 +270,22 @@ func incidentImageCandidates(
 func buildIncidentRuntimeArtifactEdge(
 	correlations []incidentKubernetesCorrelation,
 	image incidentContainerImageIdentity,
-) *IncidentContextEvidenceEdge {
+) *model.IncidentContextEvidenceEdge {
 	candidates := incidentKubernetesPromotionCandidates(correlations, image)
 	if len(candidates) == 0 {
 		return nil
 	}
 	if len(candidates) > 1 {
-		return &IncidentContextEvidenceEdge{
-			Slot:        IncidentSlotRuntimeArtifact,
-			TruthLabel:  IncidentTruthAmbiguous,
+		return &model.IncidentContextEvidenceEdge{
+			Slot:        model.IncidentSlotRuntimeArtifact,
+			TruthLabel:  model.IncidentTruthAmbiguous,
 			Explanation: "multiple live Kubernetes workload correlations match the incident image; no single runtime artifact was selected",
 			Candidates:  incidentKubernetesCandidates(candidates),
 		}
 	}
 	correlation := candidates[0]
-	return &IncidentContextEvidenceEdge{
-		Slot:        IncidentSlotRuntimeArtifact,
+	return &model.IncidentContextEvidenceEdge{
+		Slot:        model.IncidentSlotRuntimeArtifact,
 		TruthLabel:  incidentTruthFromReducerOutcome(correlation.Outcome),
 		Explanation: incidentRuntimeArtifactExplanation(correlation),
 		Value: map[string]string{
@@ -292,7 +297,7 @@ func buildIncidentRuntimeArtifactEdge(
 			"source_digest":      correlation.SourceDigest,
 			"join_mode":          correlation.JoinMode,
 		},
-		Evidence: []IncidentContextEvidenceRef{
+		Evidence: []model.IncidentContextEvidenceRef{
 			incidentEvidenceRef("reducer_kubernetes_correlation", correlation.FactID, "", ""),
 		},
 	}
@@ -308,9 +313,9 @@ func incidentKubernetesPromotionCandidates(
 			continue
 		}
 		switch strings.TrimSpace(correlation.Outcome) {
-		case string(IncidentTruthExact), string(IncidentTruthDerived):
+		case string(model.IncidentTruthExact), string(model.IncidentTruthDerived):
 			out = append(out, correlation)
-		case string(IncidentTruthAmbiguous):
+		case string(model.IncidentTruthAmbiguous):
 			out = append(out, correlation)
 		}
 	}
@@ -329,37 +334,37 @@ func incidentKubernetesMatchesImage(
 
 func incidentKubernetesCandidates(
 	correlations []incidentKubernetesCorrelation,
-) []IncidentContextEvidenceCandidate {
-	candidates := make([]IncidentContextEvidenceCandidate, 0, len(correlations))
+) []model.IncidentContextEvidenceCandidate {
+	candidates := make([]model.IncidentContextEvidenceCandidate, 0, len(correlations))
 	for _, correlation := range correlations {
-		candidates = append(candidates, IncidentContextEvidenceCandidate{
-			ID:     firstNonEmpty(correlation.WorkloadObjectID, correlation.SourceDigest, correlation.ImageRef),
-			Label:  firstNonEmpty(correlation.WorkloadName, correlation.ImageRef),
-			Reason: firstNonEmpty(correlation.Reason, "Kubernetes correlation candidate"),
+		candidates = append(candidates, model.IncidentContextEvidenceCandidate{
+			ID:     querycontract.FirstNonEmpty(correlation.WorkloadObjectID, correlation.SourceDigest, correlation.ImageRef),
+			Label:  querycontract.FirstNonEmpty(correlation.WorkloadName, correlation.ImageRef),
+			Reason: querycontract.FirstNonEmpty(correlation.Reason, "Kubernetes correlation candidate"),
 		})
 	}
 	return candidates
 }
 
-func incidentTruthFromReducerOutcome(outcome string) IncidentTruthLabel {
+func incidentTruthFromReducerOutcome(outcome string) model.IncidentTruthLabel {
 	switch strings.TrimSpace(outcome) {
-	case string(IncidentTruthExact):
-		return IncidentTruthExact
-	case string(IncidentTruthDerived):
-		return IncidentTruthDerived
-	case string(IncidentTruthAmbiguous):
-		return IncidentTruthAmbiguous
+	case string(model.IncidentTruthExact):
+		return model.IncidentTruthExact
+	case string(model.IncidentTruthDerived):
+		return model.IncidentTruthDerived
+	case string(model.IncidentTruthAmbiguous):
+		return model.IncidentTruthAmbiguous
 	case "unresolved", "stale", "rejected":
-		return IncidentTruthMissing
+		return model.IncidentTruthMissing
 	default:
-		return IncidentTruthMissing
+		return model.IncidentTruthMissing
 	}
 }
 
 func incidentEvidenceRefsForServiceLink(
 	link incidentServiceCatalogOperationalLink,
-) []IncidentContextEvidenceRef {
-	return []IncidentContextEvidenceRef{
+) []model.IncidentContextEvidenceRef {
+	return []model.IncidentContextEvidenceRef{
 		incidentEvidenceRef("service_catalog.operational_link", link.FactID, link.URL, link.Provider),
 	}
 }
@@ -369,8 +374,8 @@ func incidentEvidenceRef(
 	factID string,
 	url string,
 	source string,
-) IncidentContextEvidenceRef {
-	return IncidentContextEvidenceRef{
+) model.IncidentContextEvidenceRef {
+	return model.IncidentContextEvidenceRef{
 		FactID: factID,
 		Kind:   kind,
 		URL:    url,

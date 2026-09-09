@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func (s PostgresIncidentContextStore) readIncidentRoutingEvidence(
 	ctx context.Context,
-	incident IncidentContextIncident,
-) ([]IncidentContextEvidenceEdge, error) {
+	incident model.IncidentContextIncident,
+) ([]model.IncidentContextEvidenceEdge, error) {
 	if strings.TrimSpace(incident.Service.ID) == "" && strings.TrimSpace(incident.Service.Summary) == "" {
 		return nil, nil
 	}
@@ -44,7 +48,7 @@ func (s PostgresIncidentContextStore) readIncidentRoutingEvidence(
 
 func (s PostgresIncidentContextStore) readIncidentDeclaredPagerDutyRouting(
 	ctx context.Context,
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 ) ([]incidentDeclaredPagerDutyRouting, error) {
 	serviceName := strings.TrimSpace(incident.Service.Summary)
 	if serviceName == "" {
@@ -52,7 +56,7 @@ func (s PostgresIncidentContextStore) readIncidentDeclaredPagerDutyRouting(
 	}
 	rows, err := s.DB.QueryContext(
 		ctx,
-		listIncidentDeclaredPagerDutyRoutingQuery,
+		incidentsql.ListDeclaredPagerDutyRoutingQuery,
 		serviceName,
 		incidentRuntimeEvidenceLimit+1,
 	)
@@ -81,17 +85,17 @@ func (s PostgresIncidentContextStore) readIncidentDeclaredPagerDutyRouting(
 		if err := json.Unmarshal(metadataBytes, &metadata); err != nil {
 			return nil, fmt.Errorf("decode declared pagerduty routing metadata: %w", err)
 		}
-		item.DeclarationKind = StringVal(metadata, "declaration_kind")
-		item.SourceClass = StringVal(metadata, "source_class")
-		item.Outcome = StringVal(metadata, "outcome")
-		item.ServiceName = StringVal(metadata, "service_name")
-		item.ServiceNameResolution = StringVal(metadata, "service_name_resolution")
-		item.EscalationPolicy = StringVal(metadata, "escalation_policy")
-		item.Environment = StringVal(metadata, "environment")
-		item.Workspace = StringVal(metadata, "workspace")
-		item.RedactionState = StringVal(metadata, "redaction_state")
-		item.UnsupportedReason = StringVal(metadata, "unsupported_reason")
-		item.DuplicateServiceName = BoolVal(metadata, "duplicate_service_name")
+		item.DeclarationKind = querycontract.StringVal(metadata, "declaration_kind")
+		item.SourceClass = querycontract.StringVal(metadata, "source_class")
+		item.Outcome = querycontract.StringVal(metadata, "outcome")
+		item.ServiceName = querycontract.StringVal(metadata, "service_name")
+		item.ServiceNameResolution = querycontract.StringVal(metadata, "service_name_resolution")
+		item.EscalationPolicy = querycontract.StringVal(metadata, "escalation_policy")
+		item.Environment = querycontract.StringVal(metadata, "environment")
+		item.Workspace = querycontract.StringVal(metadata, "workspace")
+		item.RedactionState = querycontract.StringVal(metadata, "redaction_state")
+		item.UnsupportedReason = querycontract.StringVal(metadata, "unsupported_reason")
+		item.DuplicateServiceName = querycontract.BoolVal(metadata, "duplicate_service_name")
 		out = append(out, item)
 	}
 	if err := rows.Err(); err != nil {
@@ -102,7 +106,7 @@ func (s PostgresIncidentContextStore) readIncidentDeclaredPagerDutyRouting(
 
 func (s PostgresIncidentContextStore) readIncidentAppliedPagerDutyRouting(
 	ctx context.Context,
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 ) ([]incidentAppliedPagerDutyRouting, error) {
 	serviceID := strings.TrimSpace(incident.Service.ID)
 	serviceFingerprint := incidentRoutingShortFingerprint(incident.Service.Summary)
@@ -111,7 +115,7 @@ func (s PostgresIncidentContextStore) readIncidentAppliedPagerDutyRouting(
 	}
 	rows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentAppliedPagerDutyRoutingQuery,
+		incidentsql.ListAppliedPagerDutyRoutingQuery,
 		serviceID,
 		serviceFingerprint,
 		incidentRuntimeEvidenceLimit+1,
@@ -132,7 +136,7 @@ func (s PostgresIncidentContextStore) readIncidentAppliedPagerDutyRouting(
 
 func (s PostgresIncidentContextStore) readIncidentObservedPagerDutyRouting(
 	ctx context.Context,
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 ) ([]incidentObservedPagerDutyRouting, error) {
 	serviceID := strings.TrimSpace(incident.Service.ID)
 	serviceFingerprint := incidentRoutingConfigFingerprint(incident.Service.Summary)
@@ -141,7 +145,7 @@ func (s PostgresIncidentContextStore) readIncidentObservedPagerDutyRouting(
 	}
 	rows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentObservedPagerDutyRoutingQuery,
+		incidentsql.ListObservedPagerDutyRoutingQuery,
 		serviceID,
 		serviceFingerprint,
 		incidentRuntimeEvidenceLimit+1,
@@ -162,14 +166,14 @@ func (s PostgresIncidentContextStore) readIncidentObservedPagerDutyRouting(
 
 func (s PostgresIncidentContextStore) readIncidentRoutingCoverageWarnings(
 	ctx context.Context,
-	incident IncidentContextIncident,
+	incident model.IncidentContextIncident,
 ) ([]incidentRoutingCoverageWarning, error) {
 	if strings.TrimSpace(incident.ScopeID) == "" {
 		return nil, nil
 	}
 	rows, err := s.queryIncidentContextRows(
 		ctx,
-		listIncidentRoutingCoverageWarningsQuery,
+		incidentsql.ListRoutingCoverageWarningsQuery,
 		incident.ScopeID,
 		incident.Service.ID,
 		incidentRuntimeEvidenceLimit+1,

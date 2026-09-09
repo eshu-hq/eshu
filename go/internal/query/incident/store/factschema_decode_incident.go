@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package store
 
 import (
 	"errors"
 	"log/slog"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	incidentv1 "github.com/eshu-hq/eshu/sdk/go/factschema/incident/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
@@ -204,7 +205,7 @@ func incidentPayloadWithFallbackIdentity(payload map[string]any, field, value st
 // failed typed decode, mirroring logWorkItemEvidenceDecodeDrop for this read
 // model's decode sites.
 func logIncidentContextDecodeDrop(err error) {
-	var decodeErr *queryDecodeError
+	var decodeErr *querydecode.Error
 	if !errors.As(err, &decodeErr) {
 		slog.Debug("incident context fact dropped: decode error", slog.String("error", err.Error()))
 		return

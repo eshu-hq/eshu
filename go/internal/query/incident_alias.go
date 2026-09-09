@@ -4,7 +4,11 @@
 package query //nolint:dirgate // S2 root alias shim for #6060: type aliases and thin forwarders for the moved incident family must live in package query so handler wiring, cmd constructors, and staying callers compile unchanged.
 
 import (
+	"database/sql"
+
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/incident/store"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 )
 
 // incident_alias.go is the root alias shim for the incident-context handler
@@ -145,10 +149,54 @@ func BuildIncidentContextResponse(snapshot IncidentContextSnapshot) IncidentCont
 	return model.BuildIncidentContextResponse(snapshot)
 }
 
-// missingIncidentContextEdge returns the contract's missing-evidence edge
-// for slot. Its home is incident/model/ (MissingEdge); this wrapper keeps
-// the staying routing builder spelling the package-local name until that
-// file moves to incident/store/ in the same lane. See #6060.
-func missingIncidentContextEdge(slot IncidentEvidenceSlot) IncidentContextEvidenceEdge {
-	return model.MissingEdge(slot)
+// ErrIncidentContextNotFound reports a missing incident anchor. Its home is
+// incident/model/; this alias keeps the staying handler and scope files
+// spelling query.ErrIncidentContextNotFound unchanged. See #6060.
+var ErrIncidentContextNotFound = model.ErrIncidentContextNotFound
+
+// IncidentContextAmbiguousError reports multiple active incident anchors.
+// Its home is incident/model/; this alias keeps the staying handler spelling
+// query.IncidentContextAmbiguousError unchanged. See #6060.
+type IncidentContextAmbiguousError = model.IncidentContextAmbiguousError
+
+// normalizeIncidentContextFilter trims and defaults one incident-context
+// filter. Its home is incident/model/ (NormalizeFilter); this wrapper keeps
+// the staying handler spelling the package-local name until that file moves
+// to incident/ in the same lane. See #6060.
+func normalizeIncidentContextFilter(filter IncidentContextFilter) IncidentContextFilter {
+	return model.NormalizeFilter(filter)
+}
+
+// PostgresIncidentContextStore reads active PagerDuty incident source facts.
+// Its home is incident/store/; this alias keeps the cmd/api and
+// cmd/mcp-server wiring spelling query.PostgresIncidentContextStore
+// unchanged. See #6060.
+type PostgresIncidentContextStore = store.PostgresIncidentContextStore
+
+// NewPostgresIncidentContextStore creates the Postgres incident-context
+// store. Its home is incident/store/ (NewStore); this forwarder builds the
+// service-catalog, CI/CD run correlation, and container image identity
+// sub-stores the runtime evidence reads through, keeping the cmd/api and
+// cmd/mcp-server wiring calling query.NewPostgresIncidentContextStore
+// unchanged. See #6060.
+func NewPostgresIncidentContextStore(db *sql.DB) PostgresIncidentContextStore {
+	return store.NewStore(db).
+		WithCatalog(service.NewPostgresServiceCatalogCorrelationStore(db)).
+		WithCICD(NewPostgresCICDRunCorrelationStore(db)).
+		WithImages(NewPostgresContainerImageIdentityStore(db))
+}
+
+// PostgresIncidentRepositoryAuthorizer resolves an incident's durable owning
+// repositories from the reducer-owned correlation edge. Its home is
+// incident/store/; this alias keeps the cmd/api and cmd/mcp-server wiring
+// spelling query.PostgresIncidentRepositoryAuthorizer unchanged. See #6060.
+type PostgresIncidentRepositoryAuthorizer = store.PostgresIncidentRepositoryAuthorizer
+
+// NewPostgresIncidentRepositoryAuthorizer creates the Postgres incident
+// repository authorizer over the shared fact store. Its home is
+// incident/store/; this forwarder keeps the cmd/api and cmd/mcp-server
+// wiring calling query.NewPostgresIncidentRepositoryAuthorizer unchanged.
+// See #6060.
+func NewPostgresIncidentRepositoryAuthorizer(db *sql.DB) PostgresIncidentRepositoryAuthorizer {
+	return store.PostgresIncidentRepositoryAuthorizer{DB: db}
 }
