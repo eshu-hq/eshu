@@ -94,11 +94,62 @@ if [ "${#package_dirs[@]}" -eq 0 ]; then
   exit 0
 fi
 
+# Staged-rename follow: the package-dir list is derived from the committed
+# base...HEAD diff while the doc check reads the live worktree, so a commit
+# that completes `git mv old new` derives `old` (added by an earlier branch
+# commit) after the worktree already holds `new`. When a derived dir lacks
+# docs, resolve it through the STAGED rename map -- the index is the commit
+# under review. If every tracked changed file under the dir is staged as
+# renamed out of it into one destination inside the governed tree
+# (go/internal, go/cmd), print that destination and return 0. Partial renames,
+# unstaged moves, deletions, and out-of-tree destinations keep the original
+# verdict: fall through with a nonzero return.
+staged_rename_dest() {
+  local dir="$1" dest="" s old new g d
+  local -a dir_files=()
+  for g in "${changed_files[@]}"; do
+    case "$g" in
+      "${dir}/"*) dir_files+=("$g") ;;
+    esac
+  done
+  [[ "${#dir_files[@]}" -gt 0 ]] || return 1
+  # No pathspec: limiting the diff to the old dir excludes the new-side files
+  # rename detection needs to pair them with, collapsing every row to a plain
+  # deletion. Old-side filtering happens row by row below instead.
+  local rename_rows
+  rename_rows="$(git -C "$repo_root" diff --cached --name-status --find-renames 2>/dev/null || true)"
+  [[ -n "$rename_rows" ]] || return 1
+  for g in "${dir_files[@]}"; do
+    d=""
+    while IFS=$'\t' read -r s old new; do
+      case "$s" in R*) ;; *) continue ;; esac
+      [[ "$old" == "$g" ]] || continue
+      d="${new%/*}"
+      break
+    done <<<"$rename_rows"
+    [[ -n "$d" ]] || return 1
+    case "$d" in
+      go/internal/*|go/cmd/*) ;;
+      *) return 1 ;;
+    esac
+    if [[ -z "$dest" ]]; then
+      dest="$d"
+    elif [[ "$d" != "$dest" ]]; then
+      return 1
+    fi
+  done
+  printf '%s\n' "$dest"
+}
+
 missing=0
 for dir in "${package_dirs[@]}"; do
+  check_dir="$dir"
+  if [ ! -f "$repo_root/$dir/doc.go" ] && dest="$(staged_rename_dest "$dir")"; then
+    check_dir="$dest"
+  fi
   for required in doc.go README.md AGENTS.md; do
-    if [ ! -f "$repo_root/$dir/$required" ]; then
-      printf 'verify-package-docs: %s is missing %s\n' "$dir" "$required" >&2
+    if [ ! -f "$repo_root/$check_dir/$required" ]; then
+      printf 'verify-package-docs: %s is missing %s\n' "$check_dir" "$required" >&2
       missing=1
     fi
   done
