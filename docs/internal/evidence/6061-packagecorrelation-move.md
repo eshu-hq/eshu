@@ -10,9 +10,8 @@ construction moved verbatim, and every requalified caller names the same
 symbol through its new package.
 
 Baseline: `origin/main` `3f7d72b55` test state for the touched packages.
-After the move commits (re-push line `feat/6061-packagecorrelation` ending at
-`66ac35d2e` plus this evidence refresh, rebased onto `origin/main`
-`4e94c8cf9`), measured by the
+After the move commits (re-push line `feat/6061-packagecorrelation`,
+rebased onto `origin/main` `4e94c8cf9`), measured by the
 coordinator promotion preflight (`/tmp/move1-prepr.log`):
 
 Addendum (short-rename round, filename-only, no symbol touched):
