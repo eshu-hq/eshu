@@ -261,6 +261,30 @@ root); gate/spec lockstep in the same PR.
 - `eshu-code-review` P0=P1=P2-blocking=0 on both sides of the promotion
   preflight; only the coordinator runs `make pre-pr`, once per push.
 
+## Proof bar evidence: compat-consolidation PR (decision 2a)
+
+No-Regression Evidence: the 22-file merge is alias/forwarder relocation
+with zero call-site edits, so there is no runtime delta to measure —
+correctness is proven by construction plus replay. Baseline
+`origin/main 4e94c8cf9`, backend go1.27.1 darwin/arm64 with the B-7
+gate's own Postgres + NornicDB stack. Measured on the branch, from
+`go/`: `go build ./...` exit 0; `go vet` clean; `gofumpt -l` clean;
+`go test ./internal/reducer/... -count=1` green (full recursive tree);
+`go test ./internal/payloadusage/... -count=1` green; go/parser census
+281/281 top-level declarations identical across the 22 deleted files vs
+the 4 buckets; B-7 golden-corpus gate 562 pass / 0 fail (31-repo corpus,
+134s); B-12 replay-coverage gate `--blocking` PASS with a byte-identical
+(no-op) dashboard rewrite. Safe because every alias resolves at compile
+time, every forwarder body is byte-identical (inlining shape unchanged),
+and no caller, query, queue, worker, or storage contract changed.
+
+No-Observability-Change: forwarders compute nothing, so no new signals
+are required. The telemetry-coverage rows name the new bucket-stanza
+paths with identical covering instruments (`eshu_dp_reducer_executions_total`
+/ `eshu_dp_reducer_run_duration_seconds` for the owning passes,
+`eshu_dp_reducer_input_invalid_facts_total` for the quarantine surface);
+`verify-telemetry-coverage.sh` green.
+
 ## Restack rule (the dirgate ledger trap)
 
 The ledger (`scripts/lib/dirgate-grandfather.tsv`, row 88:
