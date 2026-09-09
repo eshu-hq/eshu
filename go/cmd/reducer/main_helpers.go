@@ -377,9 +377,12 @@ func newRepoDependencyProjectionRunner(
 		AcceptedGenPrefetch: func(ctx context.Context, intents []reducer.SharedProjectionIntentRow) (reducer.AcceptedGenerationLookup, error) {
 			return gatedPrefetch(ctx, intents)
 		},
-		Config:      repoDependencyCfg,
-		Tracer:      tracer,
-		Instruments: instruments,
-		Logger:      logger,
+		// #6184: cross-repo artifact/edge loss happens on every
+		// backend/profile, so quiescence is wired unconditionally.
+		CanonicalQuiescence: postgres.NewReducerGraphDrain(database),
+		Config:              repoDependencyCfg,
+		Tracer:              tracer,
+		Instruments:         instruments,
+		Logger:              logger,
 	}
 }

@@ -46,8 +46,14 @@ type RepoDependencyProjectionRunner struct {
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
 	AcceptedGen                     AcceptedGenerationLookup
 	AcceptedGenPrefetch             AcceptedGenerationPrefetch
-	Config                          RepoDependencyProjectionRunnerConfig
-	Wait                            func(context.Context, time.Duration) error
+	// CanonicalQuiescence holds the lane until every code scope's active
+	// generation has committed canonical nodes (#6184). The lane's artifact
+	// and edge writes MATCH Repository nodes from both the source and
+	// target repos, so an intent drained before either side commits is lost
+	// silently. Nil preserves the pre-#6184 behavior.
+	CanonicalQuiescence CanonicalCodeQuiescenceChecker
+	Config              RepoDependencyProjectionRunnerConfig
+	Wait                func(context.Context, time.Duration) error
 
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
@@ -113,6 +119,17 @@ func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now ti
 	cycleStart := time.Now()
 	claimStart := time.Now()
 	result := PartitionProcessResult{}
+	// #6184: hold the whole lane while any code scope's canonical nodes are
+	// uncommitted, before claiming the lease. See CanonicalCodeQuiescenceChecker.
+	if r.CanonicalQuiescence != nil {
+		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
+		if err != nil {
+			return PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
+		}
+		if uncommitted {
+			return PartitionProcessResult{BlockedReadiness: 1}, nil
+		}
+	}
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
 		ctx,
 		DomainRepoDependency,
