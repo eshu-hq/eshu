@@ -1,15 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package model
 
-import "context"
+import (
+	"context"
 
-const (
-	incidentContextCapability   = "incident.context.read"
-	incidentContextDefaultLimit = 25
-	incidentContextMaxLimit     = 100
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
+
+// Capability is the query capability gating incident-context reads. Its home
+// is incident/model/ (#6060, lane B S2); the query root keeps the
+// lowercase spelling for its staying contract matrix and handler callers.
+const Capability = "incident.context.read"
+
+// DefaultLimit bounds an incident-context read when the caller passes no
+// limit. Its home is incident/model/; see Capability.
+const DefaultLimit = 25
+
+// MaxLimit is the largest incident-context limit a caller may request. Its
+// home is incident/model/; see Capability.
+const MaxLimit = 100
 
 // IncidentContextStore reads bounded incident context evidence.
 type IncidentContextStore interface {
@@ -115,7 +126,7 @@ type IncidentContextResponse struct {
 	MissingEvidence   []IncidentMissingEvidence        `json:"missing_evidence"`
 	AmbiguousEvidence []IncidentContextEvidenceEdge    `json:"ambiguous_evidence"`
 	Truncated         bool                             `json:"truncated"`
-	AnswerMetadata    AnswerMetadata                   `json:"answer_metadata"`
+	AnswerMetadata    querycontract.AnswerMetadata     `json:"answer_metadata"`
 }
 
 // IncidentContextIncident is the provider-reported incident anchor.

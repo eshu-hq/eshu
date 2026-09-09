@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package model
 
 import (
 	"sort"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 var incidentEvidenceSlotOrder = []IncidentEvidenceSlot{
@@ -41,7 +43,7 @@ func BuildIncidentContextResponse(snapshot IncidentContextSnapshot) IncidentCont
 	}
 	for _, slot := range incidentEvidenceSlotOrder {
 		if _, ok := edges[slot]; !ok {
-			edges[slot] = missingIncidentContextEdge(slot)
+			edges[slot] = MissingEdge(slot)
 		}
 	}
 
@@ -58,6 +60,10 @@ func BuildIncidentContextResponse(snapshot IncidentContextSnapshot) IncidentCont
 			})
 		case IncidentTruthAmbiguous:
 			ambiguous = append(ambiguous, edge)
+		case IncidentTruthExact, IncidentTruthDerived, IncidentTruthFallback,
+			IncidentTruthDrifted:
+			// Present evidence: the edge stands as built, deriving neither a
+			// missing nor an ambiguous entry.
 		}
 	}
 
@@ -116,7 +122,7 @@ func normalizeIncidentContextEdge(edge IncidentContextEvidenceEdge) IncidentCont
 
 func incidentAnchorEdge(incident IncidentContextIncident) IncidentContextEvidenceEdge {
 	if incident.ProviderIncidentID == "" {
-		return missingIncidentContextEdge(IncidentSlotIncident)
+		return MissingEdge(IncidentSlotIncident)
 	}
 	return IncidentContextEvidenceEdge{
 		Slot:        IncidentSlotIncident,
@@ -141,7 +147,7 @@ func incidentAnchorEdge(incident IncidentContextIncident) IncidentContextEvidenc
 
 func incidentServiceEdge(incident IncidentContextIncident) IncidentContextEvidenceEdge {
 	if incident.Service.ID == "" && incident.Service.Summary == "" {
-		return missingIncidentContextEdge(IncidentSlotService)
+		return MissingEdge(IncidentSlotService)
 	}
 	return IncidentContextEvidenceEdge{
 		Slot:        IncidentSlotService,
@@ -165,7 +171,12 @@ func incidentServiceEdge(incident IncidentContextIncident) IncidentContextEviden
 	}
 }
 
-func missingIncidentContextEdge(slot IncidentEvidenceSlot) IncidentContextEvidenceEdge {
+// MissingEdge returns the contract's missing-evidence edge for slot: the
+// Missing truth label with the slot's documented explanation. It lives in
+// incident/model/ (#6060, lane B S2) because both the response assembly here
+// and the routing evidence builder in incident/store/ fall back to it, and
+// the two must never disagree on what "missing" means for a slot.
+func MissingEdge(slot IncidentEvidenceSlot) IncidentContextEvidenceEdge {
 	return IncidentContextEvidenceEdge{
 		Slot:        slot,
 		TruthLabel:  IncidentTruthMissing,
@@ -208,6 +219,48 @@ func defaultIncidentContextExplanation(
 	default:
 		return "no evidence is available for this incident path slot"
 	}
+}
+
+// incidentContextAnswerMetadata derives the normalized answer companion from
+// an already-built response payload. It moved here from the query root's
+// answer_metadata_alias.go with the incident-context response assembly
+// (#6060, lane B S2): BuildIncidentContextResponse above is its only caller.
+func incidentContextAnswerMetadata(response IncidentContextResponse) querycontract.AnswerMetadata {
+	missing := make([]map[string]any, 0, len(response.MissingEvidence))
+	for _, item := range response.MissingEvidence {
+		missing = append(missing, map[string]any{
+			"slot":   string(item.Slot),
+			"reason": item.Reason,
+		})
+	}
+	evidence := make([]map[string]any, 0)
+	for _, edge := range response.EvidencePath {
+		for _, ref := range edge.Evidence {
+			if ref.FactID == "" {
+				continue
+			}
+			evidence = append(evidence, map[string]any{
+				"kind":            "fact",
+				"evidence_family": string(edge.Slot),
+				"entity_id":       ref.FactID,
+				"reason":          edge.Explanation,
+			})
+		}
+	}
+	data := map[string]any{
+		"evidence_handles": evidence,
+		"missing_evidence": missing,
+		"truncated":        response.Truncated,
+		"coverage": map[string]any{
+			"query_shape":          "incident_context_evidence_path",
+			"evidence_path_slots":  len(response.EvidencePath),
+			"missing_evidence":     len(response.MissingEvidence),
+			"ambiguous_evidence":   len(response.AmbiguousEvidence),
+			"related_change_count": len(response.RelatedChanges),
+			"truncated":            response.Truncated,
+		},
+	}
+	return querycontract.BuildAnswerMetadata(data)
 }
 
 func orderedIncidentContextEdges(

@@ -3,7 +3,11 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+)
 
 func TestBuildIncidentRuntimeEvidenceUsesExplicitPagerDutyOperationalLink(t *testing.T) {
 	t.Parallel()
@@ -52,9 +56,9 @@ func TestBuildIncidentRuntimeEvidenceUsesExplicitPagerDutyOperationalLink(t *tes
 		},
 	})
 
-	assertIncidentEdge(t, got, IncidentSlotDeployable, IncidentTruthExact)
-	assertIncidentEdge(t, got, IncidentSlotImage, IncidentTruthExact)
-	assertIncidentEdge(t, got, IncidentSlotRuntimeArtifact, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotDeployable, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotImage, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotRuntimeArtifact, IncidentTruthExact)
 }
 
 func TestBuildIncidentRuntimeEvidenceAddsBuildAndCommitFromDigestCorrelation(t *testing.T) {
@@ -85,8 +89,8 @@ func TestBuildIncidentRuntimeEvidenceAddsBuildAndCommitFromDigestCorrelation(t *
 		},
 	))
 
-	assertIncidentEdge(t, got, IncidentSlotBuildDeploy, IncidentTruthExact)
-	assertIncidentEdge(t, got, IncidentSlotCommit, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotBuildDeploy, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotCommit, IncidentTruthExact)
 }
 
 func TestBuildIncidentRuntimeEvidenceTreatsTagOnlyCommitAsDerived(t *testing.T) {
@@ -114,8 +118,8 @@ func TestBuildIncidentRuntimeEvidenceTreatsTagOnlyCommitAsDerived(t *testing.T) 
 		},
 	))
 
-	assertIncidentEdge(t, got, IncidentSlotBuildDeploy, IncidentTruthDerived)
-	assertIncidentEdge(t, got, IncidentSlotCommit, IncidentTruthDerived)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotBuildDeploy, IncidentTruthDerived)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotCommit, IncidentTruthDerived)
 }
 
 func TestBuildIncidentRuntimeEvidenceKeepsMultipleCommitCandidatesAmbiguous(t *testing.T) {
@@ -236,7 +240,7 @@ func TestBuildIncidentRuntimeEvidenceDoesNotUseImagesWithoutSingleDeployable(t *
 		},
 	})
 
-	assertIncidentEdge(t, got, IncidentSlotDeployable, IncidentTruthAmbiguous)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotDeployable, IncidentTruthAmbiguous)
 	if image := findIncidentEdge(got, IncidentSlotImage); image != nil {
 		t.Fatalf("image edge = %#v, want nil without one deployable repository", image)
 	}

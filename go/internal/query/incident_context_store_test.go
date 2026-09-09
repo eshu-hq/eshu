@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestPostgresIncidentContextStoreReadsCollectedPagerDutyIncidentBySourceRecordID(t *testing.T) {
@@ -63,9 +65,9 @@ func TestPostgresIncidentContextStoreReadsCollectedPagerDutyIncidentBySourceReco
 	}
 
 	response := BuildIncidentContextResponse(snapshot)
-	assertIncidentEdge(t, response.EvidencePath, IncidentSlotIncident, IncidentTruthExact)
-	assertIncidentEdge(t, response.EvidencePath, IncidentSlotService, IncidentTruthMissing)
-	assertIncidentEdge(t, response.EvidencePath, IncidentSlotWorkItem, IncidentTruthMissing)
+	querytestutil.AssertIncidentEdge(t, response.EvidencePath, IncidentSlotIncident, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, response.EvidencePath, IncidentSlotService, IncidentTruthMissing)
+	querytestutil.AssertIncidentEdge(t, response.EvidencePath, IncidentSlotWorkItem, IncidentTruthMissing)
 	if len(recorder.queries) != 2 {
 		t.Fatalf("query count = %d, want 2", len(recorder.queries))
 	}

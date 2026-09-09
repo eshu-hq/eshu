@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type recordingIncidentContextStore struct {
@@ -116,7 +118,7 @@ func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
 	if got, want := packet["primary_tool"], "get_incident_context"; got != want {
 		t.Fatalf("answer_packet.primary_tool = %#v, want %#v", got, want)
 	}
-	assertIncidentEdge(t, body.EvidencePath, IncidentSlotWorkItem, IncidentTruthMissing)
+	querytestutil.AssertIncidentEdge(t, body.EvidencePath, IncidentSlotWorkItem, IncidentTruthMissing)
 }
 
 func TestIncidentContextHandlerRequiresIncidentIDAndLimit(t *testing.T) {

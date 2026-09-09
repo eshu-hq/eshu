@@ -3,7 +3,11 @@
 
 package query
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+)
 
 func TestBuildIncidentReviewWorkItemEvidenceAddsExactPullRequest(t *testing.T) {
 	t.Parallel()
@@ -23,7 +27,7 @@ func TestBuildIncidentReviewWorkItemEvidenceAddsExactPullRequest(t *testing.T) {
 		},
 	})
 
-	assertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
 	assertIncidentNoEdge(t, got, IncidentSlotWorkItem)
 }
 
@@ -50,7 +54,7 @@ func TestBuildIncidentReviewWorkItemEvidenceDoesNotDeriveWorkItemFromAmbiguousPr
 		},
 	})
 
-	assertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthAmbiguous)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthAmbiguous)
 	assertIncidentNoEdge(t, got, IncidentSlotWorkItem)
 }
 
@@ -92,8 +96,8 @@ func TestBuildIncidentReviewWorkItemEvidenceAddsIssueKeyDerivedWorkItem(t *testi
 		},
 	})
 
-	assertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
-	edge := assertIncidentEdge(t, got, IncidentSlotWorkItem, IncidentTruthDerived)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
+	edge := querytestutil.AssertIncidentEdge(t, got, IncidentSlotWorkItem, IncidentTruthDerived)
 	if got := edge.Value["project_key"]; got != "INC" {
 		t.Fatalf("project_key = %q, want INC", got)
 	}
@@ -122,7 +126,7 @@ func TestBuildIncidentReviewWorkItemEvidenceKeepsMissingWorkItemImplicit(t *test
 		},
 	})
 
-	assertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
+	querytestutil.AssertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
 	assertIncidentNoEdge(t, got, IncidentSlotWorkItem)
 }
 
