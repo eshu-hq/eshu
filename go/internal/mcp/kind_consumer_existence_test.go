@@ -225,7 +225,7 @@ func TestKindConsumerExistenceBITES_TeethProof(t *testing.T) {
 //     `if envelope.FactKind != facts.<Kind>FactKind { continue }` (token.NEQ),
 //     immediately followed by real payload field reads — seeded here with
 //     the PRODUCTION package_registry.source_hint entry, consumed by
-//     extractPackageSourceHints in go/internal/reducer/packagecorrelation/source.go.
+//     extractPackageSourceHints in go/internal/reducer/packages/correlation/source.go.
 //  2. A raw-JSON storage/postgres reader that compares the fact kind
 //     directly against `facts.<Kind>FactKind` (no locally-declared const)
 //     and then json.Unmarshals the payload and reads specific fields —

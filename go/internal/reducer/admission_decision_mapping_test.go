@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	reducercloudinventory "github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -243,8 +243,8 @@ func TestCloudInventoryAdmissionWritesSharedAdmittedAndNonAdmittedDecisions(t *t
 }
 
 // stubPackageSourceFactLoader is a minimal staying-root fake satisfying
-// factload.FactLoader plus packagecorrelation's narrow active-fact
-// interfaces. The family's own fake moved with it to packagecorrelation
+// factload.FactLoader plus correlation's narrow active-fact
+// interfaces. The family's own fake moved with it to packages/correlation
 // (package_source_correlation_test.go); Go test files cannot share
 // unexported symbols across a package boundary, so the staying admission
 // test keeps this local copy (issue #6061).
@@ -286,7 +286,7 @@ func (s *stubPackageSourceFactLoader) ListActivePackageManifestDependencyFacts(
 }
 
 // recordingPackageCorrelationWriter is a minimal staying-root fake
-// satisfying packagecorrelation.PackageCorrelationWriter. Same history as
+// satisfying correlation.PackageCorrelationWriter. Same history as
 // stubPackageSourceFactLoader above: the family's own fake moved with it,
 // so this local copy reports the consumption canonical-write sum inline.
 type recordingPackageCorrelationWriter struct {
@@ -295,14 +295,14 @@ type recordingPackageCorrelationWriter struct {
 
 func (w *recordingPackageCorrelationWriter) WritePackageCorrelations(
 	_ context.Context,
-	write packagecorrelation.PackageCorrelationWrite,
-) (packagecorrelation.PackageCorrelationWriteResult, error) {
+	write correlation.PackageCorrelationWrite,
+) (correlation.PackageCorrelationWriteResult, error) {
 	w.calls++
 	canonicalWrites := 0
 	for _, decision := range write.ConsumptionDecisions {
 		canonicalWrites += decision.CanonicalWrites
 	}
-	return packagecorrelation.PackageCorrelationWriteResult{
+	return correlation.PackageCorrelationWriteResult{
 		CanonicalWrites: canonicalWrites,
 		FactsWritten: len(write.OwnershipDecisions) +
 			len(write.ConsumptionDecisions) +
@@ -316,7 +316,7 @@ func TestPackageSourceCorrelationWritesSharedOwnershipAndConsumptionDecisions(t 
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
 	admissionWriter := &recordingAdmissionDecisionWriter{}
 	correlationWriter := &recordingPackageCorrelationWriter{}
-	handler := packagecorrelation.PackageSourceCorrelationHandler{
+	handler := correlation.PackageSourceCorrelationHandler{
 		FactLoader: &stubPackageSourceFactLoader{
 			scopeFacts: []facts.Envelope{
 				packageRegistryPackageFact("pkg:npm://registry.example/team-api", "npm", "team-api", "", observedAt),

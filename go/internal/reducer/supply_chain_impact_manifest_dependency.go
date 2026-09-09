@@ -9,7 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
@@ -19,7 +19,7 @@ func (h SupplyChainImpactHandler) loadActivePackageManifestDependencyFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
 ) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(packagecorrelation.ActivePackageManifestDependencyFactLoader)
+	loader, ok := h.FactLoader.(correlation.ActivePackageManifestDependencyFactLoader)
 	if !ok {
 		return nil, nil
 	}
@@ -38,7 +38,7 @@ func (h SupplyChainImpactHandler) loadActivePackageManifestDependencyFacts(
 	return dependencies, nil
 }
 
-func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) packagecorrelation.PackageManifestDependencyFactFilter {
+func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) correlation.PackageManifestDependencyFactFilter {
 	var ecosystems []string
 	var names []string
 	var packageIDs []string
@@ -57,10 +57,10 @@ func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) packa
 		ecosystems = append(ecosystems, string(ecosystem))
 		packageIDs = append(packageIDs, pkg.PackageID)
 		for _, name := range supplyChainAffectedPackageNameCandidates(pkg) {
-			names = append(names, packagecorrelation.PackageConsumptionNameCandidates(ecosystem, name)...)
+			names = append(names, correlation.PackageConsumptionNameCandidates(ecosystem, name)...)
 		}
 	}
-	return packagecorrelation.PackageManifestDependencyFactFilter{
+	return correlation.PackageManifestDependencyFactFilter{
 		Ecosystems:   uniqueSortedStrings(ecosystems),
 		PackageNames: uniqueSortedStrings(names),
 		PackageIDs:   uniqueSortedStrings(packageIDs),

@@ -85,7 +85,7 @@ duplicating any logic — the established precedent is
 `packagesourcecore` as `ExactURLMatch`/`NormalizeExactURL`, alongside the
 sibling `CanonicalURLKey` canonicalizer that family already owned; the root
 keeps a one-line forwarder for its own remaining caller in
-`packagecorrelation/source.go`.
+`packages/correlation/source.go`.
 
 The service-catalog-correlation fact-kind string moved to
 `contract.ServiceCatalogCorrelationFactKind` so both this package and the

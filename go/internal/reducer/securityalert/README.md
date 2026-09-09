@@ -30,7 +30,7 @@ moved out of the flat `internal/reducer` root under issue #6061 and owns the
 
 **Does not own:** matching a provider alert against repository
 manifest/lockfile dependency evidence. That decode and
-package-identity-normalization logic belongs to the packagecorrelation
+package-identity-normalization logic belongs to the package correlation
 family, and a family subpackage may never import the reducer root (nor does
 this package import a sibling family directly) — see "The
 manifest-consumption seam" under Gotchas / invariants below.
@@ -105,13 +105,13 @@ This package registers no instrument of its own.
 Matching a provider alert against repository manifest/lockfile dependency
 evidence depends on `ExtractPackageManifestDependencies` and
 `PackageConsumptionKeys` -- package-identity decode and normalization logic
-owned by the packagecorrelation family
-(`packagecorrelation/security_alert_manifest_dependency_match.go`, moved out
+owned by the package correlation family
+(`packages/correlation/security_alert_manifest_dependency_match.go`, moved out
 of the reducer root with the family in #6061 and exported). A family
 subpackage may never import the reducer root, and this package never imports
 a sibling family directly, so the bridge stays behind the injected
 `ManifestConsumptionExtractor` seam: the reducer root wires
-`packagecorrelation.ExtractSecurityAlertManifestConsumptions` at the one
+`correlation.ExtractSecurityAlertManifestConsumptions` at the one
 construction site instead of this package calling the family.
 
 This package exposes `ManifestConsumptionExtractor`, a
@@ -231,8 +231,8 @@ body
 `BuildSecurityAlertReconciliations`/`WithQuarantine` and
 `SecurityAlertReconciliationHandler` gaining the injected
 `ManifestConsumptionExtractor` (see above) in place of a direct call to
-`packagecorrelation.ExtractSecurityAlertManifestConsumptions`/
-`securityAlertManifestConsumptionMatches`, which moved to the packagecorrelation
+`correlation.ExtractSecurityAlertManifestConsumptions`/
+`securityAlertManifestConsumptionMatches`, which moved to the package correlation
 family with their logic unchanged and only their alert/consumption types
 requalified to this package's exported ones — the reducer root wires that
 same function as the extractor at the handler's one construction site, so the

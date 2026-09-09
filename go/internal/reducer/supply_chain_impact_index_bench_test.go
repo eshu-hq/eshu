@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
 // BenchmarkBuildSupplyChainImpactIndexWithQuarantine measures the in-memory
@@ -58,7 +58,7 @@ func BenchmarkBuildSupplyChainImpactIndexWithQuarantine(b *testing.B) {
 		})
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("package-consumption-%d", i),
-			FactKind: packagecorrelation.PackageConsumptionCorrelationFactKind,
+			FactKind: correlation.PackageConsumptionCorrelationFactKind,
 			Payload: map[string]any{
 				"package_id":       packageID,
 				"repository_id":    fmt.Sprintf("repo-%d", i),

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
@@ -18,7 +18,7 @@ import (
 // security_alert_reconciliation's tests into securityalert (issue #6061):
 // every test here exercises real manifest/lockfile-dependency matching, which
 // the securityalert package can no longer perform on its own —
-// packagecorrelation.ExtractSecurityAlertManifestConsumptions (security_alert_manifest_dependency_match.go)
+// correlation.ExtractSecurityAlertManifestConsumptions (security_alert_manifest_dependency_match.go)
 // is the root-owned bridge a securityalert package cannot import (it would be
 // a reducer-root import from a family subpackage). These tests wire the same
 // bridge production code uses via securityalert.ManifestConsumptionExtractor.
@@ -107,7 +107,7 @@ func TestBuildSecurityAlertReconciliationsUsesSupportedNpmLockfileEvidence(t *te
 	}
 	envelopes[len(envelopes)-1].ObservedAt = time.Date(2026, 5, 25, 11, 0, 0, 0, time.UTC)
 
-	decisions := securityalert.BuildSecurityAlertReconciliations(envelopes, packagecorrelation.ExtractSecurityAlertManifestConsumptions)
+	decisions := securityalert.BuildSecurityAlertReconciliations(envelopes, correlation.ExtractSecurityAlertManifestConsumptions)
 	got := securityAlertDecisionsByFactID(decisions)
 
 	if got["alert-matched"].Status != securityalert.SecurityAlertReconciliationMatched {
@@ -184,7 +184,7 @@ func TestSecurityAlertReconciliationHandlerDefersPackageTriggeredLockfileEvidenc
 	handler := securityalert.SecurityAlertReconciliationHandler{
 		FactLoader:                  loader,
 		Writer:                      writer,
-		ExtractManifestConsumptions: packagecorrelation.ExtractSecurityAlertManifestConsumptions,
+		ExtractManifestConsumptions: correlation.ExtractSecurityAlertManifestConsumptions,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -257,7 +257,7 @@ func TestSecurityAlertReconciliationHandlerDefersProviderTriggeredPendingImpactE
 	handler := securityalert.SecurityAlertReconciliationHandler{
 		FactLoader:                  loader,
 		Writer:                      writer,
-		ExtractManifestConsumptions: packagecorrelation.ExtractSecurityAlertManifestConsumptions,
+		ExtractManifestConsumptions: correlation.ExtractSecurityAlertManifestConsumptions,
 	}
 
 	_, err := handler.Handle(context.Background(), Intent{
@@ -341,7 +341,7 @@ func TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope(t
 	handler := securityalert.SecurityAlertReconciliationHandler{
 		FactLoader:                  loader,
 		Writer:                      writer,
-		ExtractManifestConsumptions: packagecorrelation.ExtractSecurityAlertManifestConsumptions,
+		ExtractManifestConsumptions: correlation.ExtractSecurityAlertManifestConsumptions,
 	}
 
 	result, err := handler.Handle(context.Background(), Intent{

@@ -10,7 +10,7 @@ import (
 	"unicode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packagesourcecore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
@@ -141,7 +141,7 @@ func supplyChainImpactHasPyPIEvidence(envelopes []facts.Envelope) bool {
 		switch envelope.FactKind {
 		case facts.VulnerabilityAffectedPackageFactKind,
 			facts.PackageRegistryPackageFactKind,
-			packagecorrelation.PackageConsumptionCorrelationFactKind:
+			correlation.PackageConsumptionCorrelationFactKind:
 			if normalizedSupplyChainVersionEcosystem(payloadStr(envelope.Payload, "ecosystem")) == "pypi" {
 				return true
 			}

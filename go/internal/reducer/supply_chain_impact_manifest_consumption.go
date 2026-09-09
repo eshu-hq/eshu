@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -17,7 +17,7 @@ func addManifestDependencySupplyChainConsumption(
 	index *supplyChainImpactIndex,
 	envelopes []facts.Envelope,
 ) {
-	dependencies := packagecorrelation.ExtractPackageManifestDependencies(envelopes)
+	dependencies := correlation.ExtractPackageManifestDependencies(envelopes)
 	if len(dependencies) == 0 {
 		return
 	}
@@ -26,7 +26,7 @@ func addManifestDependencySupplyChainConsumption(
 		return
 	}
 	for _, dependency := range dependencies {
-		dependencyKeys := stringSet(packagecorrelation.PackageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
+		dependencyKeys := stringSet(correlation.PackageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
 		if len(dependencyKeys) == 0 {
 			continue
 		}
@@ -71,7 +71,7 @@ func affectedPackageConsumptionKeys(pkg supplychainmodel.AffectedPackage) []stri
 	}
 	keys := make([]string, 0)
 	for _, name := range supplyChainAffectedPackageNameCandidates(pkg) {
-		keys = append(keys, packagecorrelation.PackageConsumptionKeys(string(ecosystem), name)...)
+		keys = append(keys, correlation.PackageConsumptionKeys(string(ecosystem), name)...)
 	}
 	return keys
 }
@@ -89,7 +89,7 @@ func manifestDependencyMatchesAffectedPackage(
 }
 
 func supplyChainConsumptionFromManifestDependency(
-	dependency packagecorrelation.PackageManifestDependency,
+	dependency correlation.PackageManifestDependency,
 	pkg supplychainmodel.AffectedPackage,
 ) supplychainmodel.PackageConsumption {
 	return supplychainmodel.PackageConsumption{

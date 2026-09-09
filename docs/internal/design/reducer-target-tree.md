@@ -25,7 +25,7 @@ ls -d go/internal/reducer/*/ | wc -l                                            
 
 ## Owner decisions recorded (2026-09-08, #6061)
 
-1. **Supplychain hoist: yes.** `packagecorrelation` moves FIRST so the
+1. **Supplychain hoist: yes.** `packages/correlation` moves FIRST so the
    dependency points at a named package, then the `supplychain` core plus
    suppression land together (the `Suppression SupplyChainSuppressionDecision`
    struct field at `supply_chain_impact_finding.go:103` makes them one unit).
@@ -67,12 +67,12 @@ problem. `contract/` stays top-level (shared vocabulary, never a domain).
 | Domain | Children (existing subpackage -> child) | Root buckets landing here (non-test counts) |
 |---|---|---|
 | `supplychain/` | `core` (new: `supply_chain_impact*` INCLUDING `supply_chain_impact_finding.go` + `supply_chain_suppression*`, 67), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 |
-| `packagecorrelation/` | `core` (new: `package_*` 11 + `security_alert_manifest_dependency_match.go`), `source` (`packagesourcecore`, 2) | `package_*` 11, `security_alert_manifest_dependency_match.go` |
+| `packages/` | `correlation` (new: `package_*` 11 + `security_alert_manifest_dependency_match.go`), `source` (`packagesourcecore`, 2) | `package_*` 11, `security_alert_manifest_dependency_match.go` |
 | `code/` | `call` (new: `code_call*` 52 minus the #6609 runner-stays set), `intel` (`codeintel`, 5), `taint` (`codetaint`, 11), `value` (`valueflow`, 8 + `code_value*` 2) | `code_call*` 52, `code_value*` 2 (`code_import*` 6 lives in `repodependency/import`, not here) |
 | `cloud/` | `aws/s3/logging` (`s3logsto`, 3), `aws/s3/grants` (`s3grant`, 3), `aws/ec2/instance` (`ec2instance`, 5), `aws/ec2/blockkms` (`ec2blockkms`, 4), `aws/ec2/usesprofile` (`ec2usesprofile`, 3), `aws/rds/posture` (`rdsposture`, 3), `aws/runtime` (`awscloud`, 8), `aws/core` (new: `aws_*` 7), `gcp/core` (new: `gcp_*` 6), `azure/core` (new: `azure*` 3), `inventory` (`cloudinventory` 7, `cloudasset` 3), `exposure` (`internetexposure`, 5), `multicloud` (`multicloudruntimedrift`, 3), `observability` (`obscoverage`, 11) | `aws_*` 7, `gcp_*` 6, `azure*` 3 |
 | `iam/` | `can` (`iamcan`, 11), `policy` (`iampolicy`, 3), `escalation` (`iamescalation`, 6), `instanceprofile` (`iaminstprofile`, 3) | — (all four already subpackages) |
 | `workload/` | `materialization` (new: `workload_materialization*` 3 + handler), `deployable` (new: `deployable_unit*` 5), `repo` (new: `repo_workload.go`) | `workload_*` ~12, `deployable_unit*` 5 |
-| `repodependency/` | `repo` (new: `repo_dependency*` 8), `import` (new: `code_import*` 6, AFTER `packagecorrelation` — see note), `terraform` (`tfconfigstate` 5, `tfstate` 2), `crossrepo` (`crossrepo`, 6), `platform` (`platformfam`, 4 + `platform_infra_materialization.go` + `intent_domain_platform.go`) | `repo_dependency*` 8, `code_import*` 6 |
+| `repodependency/` | `repo` (new: `repo_dependency*` 8), `import` (new: `code_import*` 6, AFTER `packages/correlation` — see note), `terraform` (`tfconfigstate` 5, `tfstate` 2), `crossrepo` (`crossrepo`, 6), `platform` (`platformfam`, 4 + `platform_infra_materialization.go` + `intent_domain_platform.go`) | `repo_dependency*` 8, `code_import*` 6 |
 | `kubernetes/` | `correlation` (`kubernetescorrelation` 8 + `kubernetes_*` 3), `crossplane` (`crossplane`, 5) | `kubernetes_*` 3 |
 | `security/` | `alert` (`securityalert`, 12), `group` (`secgroup`, 6), `secrets` (`secretsiam` 14 + `secrets_iam.go`), `incident` (`incident`, 8) | `secrets_iam.go` (1; the rest already subpackages) |
 | `search/` | `eshu` (`eshusearch`, 9), `vector` (`searchvector`, 4), `semantic` (`semanticentity` 5 + `semantic_entity.go`) | `semantic_entity.go` |
@@ -85,8 +85,8 @@ Notes with alternatives considered:
 - `code/import` vs `repodependency/import`: `code_import_*` returns
   package-correlation types (`PackageSourceCorrelationDecision` from
   `code_import_owner_facts.go`), so it cannot move as a pure unit until
-  `packagecorrelation` exists — it lands in `repodependency/import` AFTER
-  `packagecorrelation`, importing it one-way. (`restructure-research.md:490`
+  `packages/correlation` exists — it lands in `repodependency/import` AFTER
+  `packages/correlation`, importing it one-way. (`restructure-research.md:490`
   calls it clean; it is not — the eleventh file,
   `code_import_owner_facts.go`, is the coupling. 6 non-test files, not 11.)
 - `sbomattest` lands in `supplychain/sbom`, not `security/`: SBOM
@@ -183,7 +183,7 @@ when it disagrees. Never a new top-level package for any of them.
 | `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `decode/` children by census (`intent_emission.go` defaults to `decode/facts`) |
 | `platform_infra_materialization.go` (the `platform` stanza in `compat_projection.go` burns down) | `repodependency/platform` |
 | `repo_workload.go` | `workload/repo` |
-| `publication.go`, `provenance_edges.go` (already inside the counted 11; no additional singletons) | `packagecorrelation/core` |
+| `publication.go`, `provenance_edges.go` (already inside the counted 11; no additional singletons) | `packages/correlation` |
 | `code_function*` (2) | `code/` child by census |
 | `value_flow.go` | `code/value` |
 | `workload_*` singletons (signal, identity, deployment, dependency, cloud, instance) | `workload/` children by census |
@@ -192,7 +192,7 @@ when it disagrees. Never a new top-level package for any of them.
 
 ## Sequencing (largest first, one family per PR)
 
-1. `packagecorrelation` (12 files: the 11 `package_*` — 13 glob hits
+1. `packages/correlation` (12 files: the 11 `package_*` — 13 glob hits
    minus the two `supply_chain_impact_os_package_*` files — plus
    `security_alert_manifest_dependency_match.go`; needs 6 generic-func
    evictions to `payloadcore` first — `cloneBoolPointer`, `stringSet`,
@@ -202,7 +202,7 @@ when it disagrees. Never a new top-level package for any of them.
    does NOT evict to `payloadcore`: it takes
    `securityalert.ProviderSecurityAlert`, which would violate payloadcore's
    no-family-dependencies boundary (`payloadcore/README.md:17-24`). It
-   travels WITH the leaf into `packagecorrelation/core`, importing the
+   travels WITH the leaf into `packages/correlation`, importing the
    already-extracted `securityalert/` subpackage one-way.
 2. `supplychain` core + suppression together (67 files, explicitly
    including `supply_chain_impact_finding.go`: suppression signatures take
@@ -303,7 +303,7 @@ forward across a rebase without re-deriving.
 Local-only branch `feat/6061-supplychaincore` (`36ea9f98e`, 2026-09-04,
 unpushed) hoisted supply-chain value types before #6568 merged. All 13 of
 its hoisted type names now exist on `main`; its Sept-4 base predates the
-packagecorrelation-first ordering by four days with heavy drift in the
+packages/correlation-first ordering by four days with heavy drift in the
 touched root files (114 insertions / 237 deletions across 4 files vs
 `origin/main`). It is superseded, not revived. The branch is left in
 place for the owner to delete (destructive acts need explicit ask);

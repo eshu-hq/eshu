@@ -19,7 +19,7 @@ import (
 // re-verification this comment describes) that were wrongly disclosed
 // despite being genuinely, production-wired consumed:
 // package_registry.source_hint (consumed by extractPackageSourceHints in
-// go/internal/reducer/packagecorrelation/source.go),
+// go/internal/reducer/packages/correlation/source.go),
 // azure_identity_observation (go/internal/storage/postgres/cloud_identity_policy_evidence.go:85),
 // azure_resource_change (go/internal/storage/postgres/cloud_resource_change_evidence.go:90),
 // and vulnerability.source_snapshot

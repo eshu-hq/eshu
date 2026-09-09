@@ -23,14 +23,14 @@ import (
 // review found ~50 occurrences of
 // `if envelope.FactKind != facts.<Kind>FactKind { continue }` (or `return
 // false`) in go/internal/reducer alone, immediately followed by real payload
-// field reads. go/internal/reducer/packagecorrelation/source.go
+// field reads. go/internal/reducer/packages/correlation/source.go
 // (`extractPackageSourceHints`)'s `if envelope.FactKind != facts.PackageRegistrySourceHintFactKind {
 // continue }` — followed by payload reads of "normalized_url"
 // and friends — is the concrete case that was missed when this scan only
 // matched token.EQL: package_registry.source_hint was wrongly disclosed as
 // unconsumed despite being read here and wired live through
 // BuildPackageSourceCorrelationDecisions
-// (packagecorrelation/source_handler.go,
+// (packages/correlation/source_handler.go,
 // DomainPackageSourceCorrelation).
 //
 // This is the raw-envelope sibling of the decode-seam and direct-decode-call

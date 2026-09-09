@@ -17,7 +17,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/iaminstprofile"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/internetexposure"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/rdsposture"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
@@ -372,7 +372,7 @@ type DefaultHandlers struct {
 	// package-publication decisions into canonical PUBLISHES graph edges
 	// (issue #5457). Nil skips the projection; the package-source-correlation
 	// domain still registers (Postgres decisions are unaffected).
-	PackageProvenanceEdgeWriter packagecorrelation.PackageProvenanceEdgeWriter
+	PackageProvenanceEdgeWriter correlation.PackageProvenanceEdgeWriter
 
 	// ContainerImageProvenanceEdgeWriter projects exact_digest container image
 	// identity decisions into canonical BUILT_FROM graph edges (issue #5457).
@@ -483,5 +483,5 @@ type DefaultHandlers struct {
 
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
-	PackageCorrelationWriter packagecorrelation.PackageCorrelationWriter
+	PackageCorrelationWriter correlation.PackageCorrelationWriter
 }

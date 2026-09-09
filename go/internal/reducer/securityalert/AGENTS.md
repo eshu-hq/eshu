@@ -24,7 +24,7 @@ tree. The one addition specific to this package:
 - **manifest-dependency matching is a genuine injected seam, not a
   forwarder.** `ExtractSecurityAlertManifestConsumptions` needs
   `ExtractPackageManifestDependencies`/`PackageConsumptionKeys` — real decode
-  and package-identity-normalization logic owned by the packagecorrelation
+  and package-identity-normalization logic owned by the package correlation
   family, not a thin wrapper. It could not move here without either
   duplicating that decode subsystem (rejected: it is not a thin helper, and
   duplicating it risks security_alert's matching silently drifting from
@@ -32,12 +32,12 @@ tree. The one addition specific to this package:
   unscoped family. `ManifestConsumptionExtractor`
   (`security_alert_reconciliation.go`) is the resulting seam: this package
   defines the function type and calls it if non-nil, and never imports the
-  packagecorrelation family directly; the reducer root wires
-  `packagecorrelation.ExtractSecurityAlertManifestConsumptions` at the
+  package correlation family directly; the reducer root wires
+  `correlation.ExtractSecurityAlertManifestConsumptions` at the
   handler's one construction site, `defaults_additive_domains_supply_chain.go`.
   Do not "simplify" this by trying to inline the manifest logic here, by
-  importing packagecorrelation, or by duplicating the matcher — read
-  `packagecorrelation/security_alert_manifest_dependency_match.go`'s
+  importing package correlation, or by duplicating the matcher — read
+  `packages/correlation/security_alert_manifest_dependency_match.go`'s
   file-level comment first if you think you've found a way.
 
 ## `_test.go` exports do not cross package boundaries
@@ -52,7 +52,7 @@ of that boundary, not because anyone chose to duplicate them for style:
   matching end to end, which this package cannot do on its own (see above) —
   they call `securityalert.BuildSecurityAlertReconciliations`/
   `WithQuarantine`/`SecurityAlertReconciliationHandler` with
-  `packagecorrelation.ExtractSecurityAlertManifestConsumptions` wired in,
+  `correlation.ExtractSecurityAlertManifestConsumptions` wired in,
   and keep their own
   copies of `recordingSecurityAlertReconciliationFactLoader`/`Writer`.
   `securityAlertDecisionsByFactID` is root's alone -- it never moved and this

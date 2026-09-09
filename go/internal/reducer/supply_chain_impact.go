@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -391,7 +391,7 @@ func supplyChainImpactFactKinds() []string {
 		facts.OCIImageReferrerFactKind,
 		sbomAttestationAttachmentFactKind,
 		containerImageIdentityFactKind,
-		packagecorrelation.PackageConsumptionCorrelationFactKind,
+		correlation.PackageConsumptionCorrelationFactKind,
 		cicdRunCorrelationFactKind,
 		platformMaterializationFactKind,
 		workloadIdentityFactKind,

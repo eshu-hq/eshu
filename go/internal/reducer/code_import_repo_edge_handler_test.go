@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
 // stubCodeImportFactLoader serves the scope-local file facts and the cross-scope
@@ -39,7 +39,7 @@ func (s *stubCodeImportFactLoader) ListActivePackageOwnershipFacts(
 func codeImportOwnershipCorrelationFact(packageID, repositoryID, outcome string, observedAt time.Time) facts.Envelope {
 	return facts.Envelope{
 		FactID:        "ownership:" + packageID,
-		FactKind:      packagecorrelation.PackageOwnershipCorrelationFactKind,
+		FactKind:      correlation.PackageOwnershipCorrelationFactKind,
 		ObservedAt:    observedAt,
 		StableFactKey: "ownership:" + packageID,
 		Payload: map[string]any{
@@ -123,7 +123,7 @@ func TestCodeImportRepoEdgeHandlerQuarantinesMalformedOwnershipCorrelation(t *te
 			packageRegistryPackageFact(packageID, "npm", "express", "", observedAt),
 			{
 				FactID:        "ownership:missing-package",
-				FactKind:      packagecorrelation.PackageOwnershipCorrelationFactKind,
+				FactKind:      correlation.PackageOwnershipCorrelationFactKind,
 				ObservedAt:    observedAt,
 				StableFactKey: "ownership:missing-package",
 				Payload: map[string]any{

@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -22,28 +22,28 @@ import (
 // (split out to keep this file under the repo's 500-line cap).
 
 func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplychainmodel.PackageConsumption, error) {
-	correlation, err := decodeReducerPackageConsumptionCorrelation(envelope)
+	consumption, err := decodeReducerPackageConsumptionCorrelation(envelope)
 	if err != nil {
 		return supplychainmodel.PackageConsumption{}, err
 	}
 	return supplychainmodel.PackageConsumption{
 		FactID:                    envelope.FactID,
-		EvidenceKind:              packagecorrelation.PackageConsumptionCorrelationFactKind,
-		PackageID:                 strings.TrimSpace(correlation.PackageID),
-		RepositoryID:              strings.TrimSpace(derefString(correlation.RepositoryID)),
-		DependencyRange:           strings.TrimSpace(derefString(correlation.DependencyRange)),
-		ObservedVersion:           payloadcore.FirstNonBlank(derefString(correlation.ObservedVersion), derefString(correlation.ResolvedVersion)),
-		RequestedRange:            strings.TrimSpace(derefString(correlation.RequestedRange)),
-		InstalledVersion:          strings.TrimSpace(derefString(correlation.InstalledVersion)),
-		DependencyPath:            orderedStrings(correlation.DependencyPath),
-		DependencyDepth:           payloadcore.DerefInt(correlation.DependencyDepth),
-		DirectDependency:          correlation.DirectDependency,
-		DependencyScope:           supplyChainDependencyScopeFromCorrelation(correlation.DependencyScope, correlation.ManifestSection),
-		VersionEvidence:           strings.TrimSpace(derefString(correlation.VersionEvidence)),
-		UnresolvedMSBuildProperty: strings.TrimSpace(derefString(correlation.UnresolvedMSBuildProperty)),
-		AmbiguousMSBuildProperty:  strings.TrimSpace(derefString(correlation.AmbiguousMSBuildProperty)),
-		PartialEvidence:           payloadcore.DerefBool(correlation.PartialEvidence),
-		Lockfile:                  payloadcore.DerefBool(correlation.Lockfile),
+		EvidenceKind:              correlation.PackageConsumptionCorrelationFactKind,
+		PackageID:                 strings.TrimSpace(consumption.PackageID),
+		RepositoryID:              strings.TrimSpace(derefString(consumption.RepositoryID)),
+		DependencyRange:           strings.TrimSpace(derefString(consumption.DependencyRange)),
+		ObservedVersion:           payloadcore.FirstNonBlank(derefString(consumption.ObservedVersion), derefString(consumption.ResolvedVersion)),
+		RequestedRange:            strings.TrimSpace(derefString(consumption.RequestedRange)),
+		InstalledVersion:          strings.TrimSpace(derefString(consumption.InstalledVersion)),
+		DependencyPath:            orderedStrings(consumption.DependencyPath),
+		DependencyDepth:           payloadcore.DerefInt(consumption.DependencyDepth),
+		DirectDependency:          consumption.DirectDependency,
+		DependencyScope:           supplyChainDependencyScopeFromCorrelation(consumption.DependencyScope, consumption.ManifestSection),
+		VersionEvidence:           strings.TrimSpace(derefString(consumption.VersionEvidence)),
+		UnresolvedMSBuildProperty: strings.TrimSpace(derefString(consumption.UnresolvedMSBuildProperty)),
+		AmbiguousMSBuildProperty:  strings.TrimSpace(derefString(consumption.AmbiguousMSBuildProperty)),
+		PartialEvidence:           payloadcore.DerefBool(consumption.PartialEvidence),
+		Lockfile:                  payloadcore.DerefBool(consumption.Lockfile),
 	}, nil
 }
 

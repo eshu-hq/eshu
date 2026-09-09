@@ -47,8 +47,8 @@
 // One piece of the family's behavior does not live here: reconciling a
 // provider alert against repository manifest/lockfile dependency evidence.
 // That logic (ExtractSecurityAlertManifestConsumptions,
-// packagecorrelation/security_alert_manifest_dependency_match.go, moved out
-// of the reducer root with the packagecorrelation family in issue #6061 and
+// packages/correlation/security_alert_manifest_dependency_match.go, moved out
+// of the reducer root with the package correlation family in issue #6061 and
 // exported) depends on ExtractPackageManifestDependencies and
 // PackageConsumptionKeys -- package-identity decode and normalization logic
 // owned by that family. A family subpackage may never import the reducer
@@ -58,7 +58,7 @@
 // SecurityAlertReconciliationHandler (its ExtractManifestConsumptions field)
 // accept as an injected dependency. The handler has exactly one production
 // construction site, defaults_additive_domains_supply_chain.go, where the
-// reducer root wires packagecorrelation.ExtractSecurityAlertManifestConsumptions in;
+// reducer root wires correlation.ExtractSecurityAlertManifestConsumptions in;
 // supply_chain_impact_security_alert.go calls that same bridge directly rather
 // than through a builder, so it is not a construction site. The reducer root's own test
 // files exercise the real manifest-matching behavior end to end
@@ -96,8 +96,8 @@
 // are deleted from root in the same change and live only here. Each names its
 // root source and history in a doc comment at its definition.
 //
-// The manifest-consumption bridge lives in the packagecorrelation family
-// (packagecorrelation/security_alert_manifest_dependency_match.go) and this
+// The manifest-consumption bridge lives in the package correlation family
+// (packages/correlation/security_alert_manifest_dependency_match.go) and this
 // package re-exports nothing else:
 // every other reducer-root or module caller now names this package's
 // exported symbols directly: cmd/reducer names

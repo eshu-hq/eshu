@@ -32,10 +32,10 @@ This package owns:
 
 It does not own hint extraction, correlation-outcome classification, or the
 decision types the package correlation family's handler produces. Those live
-in `packagecorrelation` because hoisting them would drag the
+in `packages/correlation` because hoisting them would drag the
 `PackageSourceCorrelationDecision` type and the classification logic that reads
 it into a leaf whose budget is the shared shapes and matching helpers.
-`packagecorrelation/publication.go` calls
+`packages/correlation/publication.go` calls
 `extractPackageSourceHints` and `classifyPackageSourceHint` directly today, so
 they are not handler-exclusive.
 
@@ -43,16 +43,16 @@ they are not handler-exclusive.
 
 `BuildPackageSourceCorrelationDecisions` and the handler that classifies a
 hint into a correlation outcome are called only from
-`packagecorrelation/source.go` and
-`packagecorrelation/source_handler.go` themselves (649
+`packages/correlation/source.go` and
+`packages/correlation/source_handler.go` themselves (649
 lines together). Seven other files read these symbols directly and never call
 that handler, each needing a different subset (verified against actual call
 sites, not inferred):
 
 | file | symbols it reads |
 | --- | --- |
-| `packagecorrelation/consumption.go` | `Repository`, `ExtractRepositories` |
-| `packagecorrelation/publication.go` | `Hint`, `ExtractRepositories` |
+| `packages/correlation/consumption.go` | `Repository`, `ExtractRepositories` |
+| `packages/correlation/publication.go` | `Hint`, `ExtractRepositories` |
 | `container_image_identity_provenance.go` | `Hint`, `Repository`, `ExtractRepositories`, `MatchRepositories`, `CanonicalURLKey` |
 | `container_image_identity_slsa.go` | `ExtractRepositories` |
 | `internal/reducer/servicecatalog/service_catalog_correlation_classify.go` | `CanonicalURLKey`, `ExactURLMatch` |
@@ -65,7 +65,7 @@ along to deliver these ~65 (issue #6379, epic #6061). The two
 issue #6061 and import this package directly rather than through a root
 forwarder; `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL`
 (real `net/url` normalization logic, not a forwarder) moved from
-`package_source_correlation.go` (now `packagecorrelation/source.go`) into this package as
+`package_source_correlation.go` (now `packages/correlation/source.go`) into this package as
 `ExactURLMatch`/`NormalizeExactURL` in the same change, alongside the
 `CanonicalURLKey` canonicalizer they now sit next to.
 
@@ -73,7 +73,7 @@ forwarder; `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL`
 
 The family keeps `type packageSourceHint = packagesourcecore.Hint` and
 `type packageSourceRepository = packagesourcecore.Repository` plus forwarders
-at the end of `packagecorrelation/source.go` (not a
+at the end of `packages/correlation/source.go` (not a
 separate compat file: that file was already at 199 lines pre-extraction, well
 under the 500-line cap, and adding a new root `.go` file would have grown
 `internal/reducer`'s dirgate-pinned non-test file count past the
@@ -81,8 +81,8 @@ under the 500-line cap, and adding a new root `.go` file would have grown
 `scripts/lib/dirgate-grandfather.tsv` -- the ratchet only allows that row to
 move down or be removed, never up (see `bash scripts/verify-dirgate.sh
 --digest internal/reducer` for the live count/digest)), so the call sites
-across `packagecorrelation/consumption.go`,
-`packagecorrelation/publication.go`,
+across `packages/correlation/consumption.go`,
+`packages/correlation/publication.go`,
 `container_image_identity_provenance.go`,
 `container_image_identity_slsa.go`, and `supply_chain_impact_python_reachability.go`
 are unchanged. Those forwarders are transitional and are deleted as their

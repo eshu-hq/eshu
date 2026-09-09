@@ -10,10 +10,10 @@
 // It exists below the reducer root, not as a `packagesource` family, because
 // its callers are not that family. BuildPackageSourceCorrelationDecisions and
 // the handler that classifies a hint into a correlation outcome live in the
-// packagecorrelation family; seven other files read these symbols directly
+// package correlation family; seven other files read these symbols directly
 // without ever calling that handler --
-// packagecorrelation/consumption.go and
-// packagecorrelation/publication.go read Repository/Hint
+// packages/correlation/consumption.go and
+// packages/correlation/publication.go read Repository/Hint
 // and ExtractRepositories; container_image_identity_provenance.go reads Hint,
 // Repository, ExtractRepositories, MatchRepositories, and CanonicalURLKey;
 // container_image_identity_slsa.go reads only ExtractRepositories;

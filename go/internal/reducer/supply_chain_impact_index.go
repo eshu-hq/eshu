@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -99,7 +99,7 @@ func classifySupplyChainImpactPackage(
 			finding.DirectDependency = &value
 		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.FactID)
-		finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.EvidenceKind, packagecorrelation.PackageConsumptionCorrelationFactKind))
+		finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.EvidenceKind, correlation.PackageConsumptionCorrelationFactKind))
 		finding.ObservedVersion = strings.TrimSpace(consumption.ObservedVersion)
 		if finding.ObservedVersion == "" {
 			if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {

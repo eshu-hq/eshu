@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagecorrelation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
 // The cross-scope fact kinds the code-import projection consumes
@@ -24,14 +24,14 @@ import (
 // kinds are ignored.
 func decodePackageOwnershipCorrelationDecisions(
 	envelopes []facts.Envelope,
-) ([]packagecorrelation.PackageSourceCorrelationDecision, []quarantinedFact, error) {
-	decisions := make([]packagecorrelation.PackageSourceCorrelationDecision, 0)
+) ([]correlation.PackageSourceCorrelationDecision, []quarantinedFact, error) {
+	decisions := make([]correlation.PackageSourceCorrelationDecision, 0)
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != packagecorrelation.PackageOwnershipCorrelationFactKind || envelope.IsTombstone {
+		if envelope.FactKind != correlation.PackageOwnershipCorrelationFactKind || envelope.IsTombstone {
 			continue
 		}
-		correlation, err := decodeReducerPackageOwnershipCorrelation(envelope)
+		ownership, err := decodeReducerPackageOwnershipCorrelation(envelope)
 		if err != nil {
 			q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
 			if fatal != nil {
@@ -42,13 +42,13 @@ func decodePackageOwnershipCorrelationDecisions(
 				continue
 			}
 		}
-		packageID := strings.TrimSpace(correlation.PackageID)
-		repositoryID := strings.TrimSpace(derefString(correlation.RepositoryID))
-		outcome := packagecorrelation.PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(correlation.Outcome)))
+		packageID := strings.TrimSpace(ownership.PackageID)
+		repositoryID := strings.TrimSpace(derefString(ownership.RepositoryID))
+		outcome := correlation.PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(ownership.Outcome)))
 		if packageID == "" {
 			continue
 		}
-		decisions = append(decisions, packagecorrelation.PackageSourceCorrelationDecision{
+		decisions = append(decisions, correlation.PackageSourceCorrelationDecision{
 			PackageID:    packageID,
 			RepositoryID: repositoryID,
 			Outcome:      outcome,
@@ -63,14 +63,14 @@ func decodePackageOwnershipCorrelationDecisions(
 // participate in owner resolution. Non-publication fact kinds are ignored.
 func decodePackagePublicationCorrelationDecisions(
 	envelopes []facts.Envelope,
-) ([]packagecorrelation.PackagePublicationDecision, []quarantinedFact, error) {
-	decisions := make([]packagecorrelation.PackagePublicationDecision, 0)
+) ([]correlation.PackagePublicationDecision, []quarantinedFact, error) {
+	decisions := make([]correlation.PackagePublicationDecision, 0)
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != packagecorrelation.PackagePublicationCorrelationFactKind || envelope.IsTombstone {
+		if envelope.FactKind != correlation.PackagePublicationCorrelationFactKind || envelope.IsTombstone {
 			continue
 		}
-		correlation, err := decodeReducerPackagePublicationCorrelation(envelope)
+		publication, err := decodeReducerPackagePublicationCorrelation(envelope)
 		if err != nil {
 			q, isQuarantine, fatal := partitionDecodeFailures(envelope, err)
 			if fatal != nil {
@@ -81,13 +81,13 @@ func decodePackagePublicationCorrelationDecisions(
 				continue
 			}
 		}
-		packageID := strings.TrimSpace(correlation.PackageID)
-		repositoryID := strings.TrimSpace(derefString(correlation.RepositoryID))
-		outcome := packagecorrelation.PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(correlation.Outcome)))
+		packageID := strings.TrimSpace(publication.PackageID)
+		repositoryID := strings.TrimSpace(derefString(publication.RepositoryID))
+		outcome := correlation.PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(publication.Outcome)))
 		if packageID == "" {
 			continue
 		}
-		decisions = append(decisions, packagecorrelation.PackagePublicationDecision{
+		decisions = append(decisions, correlation.PackagePublicationDecision{
 			PackageID:    packageID,
 			RepositoryID: repositoryID,
 			Outcome:      outcome,
