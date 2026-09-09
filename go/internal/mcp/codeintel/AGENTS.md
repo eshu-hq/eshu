@@ -25,7 +25,7 @@
    | `find_symbol` | `code_symbol.go` |
    | `inspect_code_inventory` | `code_structural_inventory.go` |
    | `inspect_call_graph_metrics` | `code_call_graph_metrics.go` |
-   | `trace_route_callers` | `code_route_to_caller.go` |
+   | `trace_route_callers` | `route_to_caller.go` |
    | `investigate_code_topic` | `code_topic.go` |
    | `execute_language_query` | `language_queries.go` |
    | `find_function_call_chain` | `code_call_chain.go` |

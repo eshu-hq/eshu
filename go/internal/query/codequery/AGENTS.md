@@ -25,7 +25,7 @@ Scope: the code-family query handlers, split out of root package `query`
 NEVER import root package `query` -- not in production code, not in
 tests (not even `package codequery_test`: the external test package
 may name root only for seam assertions that cannot live anywhere
-else, e.g. `code_seam_crosspackage_test.go`). A future agent breaks
+else, e.g. `seam_crosspackage_test.go`). A future agent breaks
 this blind: `go build ./...` is the tripwire, and it stays green
 only while this rule holds. Allowed: stdlib plus the leaves named in
 [doc.go](doc.go).

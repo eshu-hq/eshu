@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// The relationship response filters split out of code_relationships.go
+// The relationship response filters split out of relationships.go
 // (#6060): they shape the handler payload after the graph rows resolve,
 // so they live apart from the row readers.
 

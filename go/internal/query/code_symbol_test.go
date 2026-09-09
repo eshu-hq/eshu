@@ -18,7 +18,7 @@ import (
 // Symbol-search ContentReader proof that lives in package query: it drives
 // root's ContentReader SQL over a recording fake, which codequery cannot name
 // without importing the root back (#6060). Split from
-// codequery/code_symbol_test.go at the lane-A move; the handler-level symbol
+// codequery/symbol_test.go at the lane-A move; the handler-level symbol
 // proofs stay there.
 
 func TestCodeHandlerSymbolSearchReturnsBoundedContentDefinitions(t *testing.T) {

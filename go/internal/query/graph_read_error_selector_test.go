@@ -213,7 +213,7 @@ func TestHandleComplexitySelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 
 // TestHandleRelationshipsSelectorMapsGraphReadAvailabilityErrors covers
 // handleRelationships's applyRepositorySelectorForCapability call
-// (code_relationships.go).
+// (codequery/relationships.go).
 func TestHandleRelationshipsSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {

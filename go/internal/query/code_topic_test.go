@@ -13,7 +13,7 @@ import (
 // Code-topic ContentReader proofs that live in package query: they drive
 // root's ContentReader SQL builders directly, which codequery cannot name
 // without importing the root back (#6060). Split from
-// codequery/code_topic_test.go at the lane-A move; the handler-level topic
+// codequery/topic_test.go at the lane-A move; the handler-level topic
 // proofs stay there.
 
 func TestContentReaderInvestigateCodeTopicUsesOneScoredQuery(t *testing.T) {

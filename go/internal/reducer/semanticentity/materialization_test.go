@@ -278,12 +278,12 @@ func TestExtractSemanticEntityRowsIncludesGoMethodFunctions(t *testing.T) {
 		{
 			FactKind: "content_entity",
 			SourceRef: facts.Ref{
-				SourceURI: "/repo/go/internal/query/code_relationships.go",
+				SourceURI: "/repo/go/internal/query/codequery/relationships.go",
 			},
 			Payload: map[string]any{
 				"repo_id":       "repo-1",
 				"entity_id":     "function-go-1",
-				"relative_path": "go/internal/query/code_relationships.go",
+				"relative_path": "go/internal/query/codequery/relationships.go",
 				"entity_type":   "Function",
 				"entity_name":   "handleRelationships",
 				"language":      "go",

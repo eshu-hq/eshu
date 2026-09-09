@@ -62,7 +62,7 @@ func TestResolveExactGraphEntityCandidatePrefersUniqueNonTestMatch(t *testing.T)
 			{
 				EntityID:     "content-entity:impl",
 				RepoID:       "repo-1",
-				RelativePath: "go/internal/query/code_relationships.go",
+				RelativePath: "go/internal/query/codequery/relationships.go",
 				EntityType:   "Function",
 				EntityName:   "handleRelationships",
 				StartLine:    22,
@@ -90,7 +90,7 @@ func TestResolveExactGraphEntityCandidateRejectsAmbiguousNonTestMatches(t *testi
 			{
 				EntityID:     "content-entity:one",
 				RepoID:       "repo-1",
-				RelativePath: "go/internal/query/code_relationships.go",
+				RelativePath: "go/internal/query/codequery/relationships.go",
 				EntityType:   "Function",
 				EntityName:   "handleRelationships",
 				StartLine:    22,
@@ -131,7 +131,7 @@ func TestHandleRelationshipsResolvesRepoScopedNameToNonTestEntityID(t *testing.T
 					"id":         "content-entity:impl",
 					"name":       "handleRelationships",
 					"labels":     []any{"Function"},
-					"file_path":  "go/internal/query/code_relationships.go",
+					"file_path":  "go/internal/query/codequery/relationships.go",
 					"repo_id":    "repo-1",
 					"repo_name":  "eshu",
 					"language":   "go",
@@ -162,7 +162,7 @@ func TestHandleRelationshipsResolvesRepoScopedNameToNonTestEntityID(t *testing.T
 				{
 					EntityID:     "content-entity:impl",
 					RepoID:       "repo-1",
-					RelativePath: "go/internal/query/code_relationships.go",
+					RelativePath: "go/internal/query/codequery/relationships.go",
 					EntityType:   "Function",
 					EntityName:   "handleRelationships",
 					StartLine:    22,
@@ -226,9 +226,9 @@ func TestHandleCallChainResolvesRepoScopedNamesToNonTestEntityIDs(t *testing.T) 
 		Content: resolvingContentStore{
 			matches: []querycontract.EntityContent{
 				{EntityID: "content-entity:test", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships_test.go", EntityType: "Function", EntityName: "handleRelationships", StartLine: 40},
-				{EntityID: "content-entity:start-impl", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships.go", EntityType: "Function", EntityName: "handleRelationships", StartLine: 22},
+				{EntityID: "content-entity:start-impl", RepoID: "repo-1", RelativePath: "go/internal/query/codequery/relationships.go", EntityType: "Function", EntityName: "handleRelationships", StartLine: 22},
 				{EntityID: "content-entity:end-test", RepoID: "repo-1", RelativePath: "go/internal/query/code_call_graph_contract_test.go", EntityType: "Function", EntityName: "transitiveRelationshipsGraphResponse", StartLine: 10},
-				{EntityID: "content-entity:end-impl", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships.go", EntityType: "Function", EntityName: "transitiveRelationshipsGraphResponse", StartLine: 250},
+				{EntityID: "content-entity:end-impl", RepoID: "repo-1", RelativePath: "go/internal/query/codequery/relationships.go", EntityType: "Function", EntityName: "transitiveRelationshipsGraphResponse", StartLine: 250},
 			},
 		},
 	}
@@ -280,11 +280,11 @@ func TestHandleCallChainDisambiguatesRepoScopedNamesByReachability(t *testing.T)
 		Content: resolvingContentStoreByName{
 			matches: map[string][]querycontract.EntityContent{
 				"handleRelationships": {
-					{EntityID: "content-entity:start", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships.go", EntityType: "Function", EntityName: "handleRelationships", StartLine: 22},
+					{EntityID: "content-entity:start", RepoID: "repo-1", RelativePath: "go/internal/query/codequery/relationships.go", EntityType: "Function", EntityName: "handleRelationships", StartLine: 22},
 				},
 				"transitiveRelationshipsGraphRow": {
 					{EntityID: "content-entity:end-helper", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships_helper.go", EntityType: "Function", EntityName: "transitiveRelationshipsGraphRow", StartLine: 44},
-					{EntityID: "content-entity:end-impl", RepoID: "repo-1", RelativePath: "go/internal/query/code_relationships.go", EntityType: "Function", EntityName: "transitiveRelationshipsGraphRow", StartLine: 250},
+					{EntityID: "content-entity:end-impl", RepoID: "repo-1", RelativePath: "go/internal/query/codequery/relationships.go", EntityType: "Function", EntityName: "transitiveRelationshipsGraphRow", StartLine: 250},
 				},
 			},
 		},

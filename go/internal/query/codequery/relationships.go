@@ -443,13 +443,11 @@ func (h *CodeHandler) relationshipsFromEntity(
 	}, nil
 }
 
-// Relationship response filters, split out of code_relationships.go for the
-// 500-line file cap (#6060). These shape an already-fetched relationship set:
-// direction normalisation, type filtering, and row coercion. None of them
-// reads the graph, and none is pinned by the queryplan source-coverage
+// normalizeRelationshipDirection coerces the direction filter handleRelationships
+// accepts. It reads no graph and is not pinned by the queryplan source-coverage
 // manifest -- the two pinned readers, relationshipsGraphRow and
-// transitiveRelationshipsGraphRow, deliberately stay in code_relationships.go
-// so their pinned source text is untouched by this split.
+// transitiveRelationshipsGraphRow, deliberately stay in relationships.go
+// so their pinned source text is untouched by file splits.
 
 func normalizeRelationshipDirection(direction string) (string, error) {
 	switch normalized := strings.ToLower(strings.TrimSpace(direction)); normalized {

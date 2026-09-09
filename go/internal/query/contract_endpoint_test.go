@@ -11,7 +11,7 @@ import (
 )
 
 // The CodeHandler cases (TestHandleCallChain_..., TestHandleRelationshipsTransitiveCallers_...)
-// moved to codequery/code_contract_endpoint_test.go at the #6060 CodeHandler
+// moved to codequery/contract_endpoint_test.go at the #6060 CodeHandler
 // move: they drive unexported handleCallChain and handleRelationships, which
 // cannot be called from another package.
 

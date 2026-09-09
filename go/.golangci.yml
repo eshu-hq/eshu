@@ -105,7 +105,7 @@ linters:
             - "!**/internal/query/neo4j_read_policy.go"
             - "!**/internal/query/impact/impact_change_surface_legacy.go"
             - "!**/internal/query/codequery/visualization_packet_graph_query.go"
-            - "!**/internal/query/codequery/code_call_chain.go"
+            - "!**/internal/query/codequery/call_chain.go"
             - "!**/internal/query/impact/exposure_path_mapping.go"
             - "!**/internal/query/querygraphrows/graph_row_shape.go"
           deny:
@@ -428,8 +428,9 @@ linters:
       # handleRelationships moved out of internal/query/code_relationships.go
       # into the codequery family for #6060. Same pre-existing function, same
       # grandfathered status, new path -- as entitysemantics and querycontract
-      # already are above after their own family moves.
-      - path: 'internal/query/codequery/code_relationships\.go'
+      # already are above after their own family moves. Destuttered to
+      # relationships.go under the #6618 naming rules.
+      - path: 'internal/query/codequery/relationships\.go'
         linters:
           - funlen
       - path: 'internal/query/entity_summary\.go'

@@ -89,7 +89,7 @@ func TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository(t *test
 }
 
 // TestCrossRepoDeadCodeConsumerReadPlan moved to
-// codequery/code_dead_code_cross_repo_read_plan_test.go at the #6060 move:
+// codequery/dead_code_cross_repo_read_plan_test.go at the #6060 move:
 // it exercises crossRepoDeadCodeConsumerReadPlan directly and has no
 // dependency on the root *ContentReader the rest of this file needs.
 

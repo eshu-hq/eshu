@@ -117,7 +117,7 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 
 // languageResultMatchKey identifies one entity by where it sits in a file. It
 // is shared with the entity and code-search enrichments (entity_metadata.go,
-// code_search_metadata.go), which anchor their own reads differently, so this
+// search_metadata.go), which anchor their own reads differently, so this
 // route adds the repository through the wrapper below rather than changing the
 // shared shape.
 // languageResultMatchKey forwards to querycontract.LanguageResultMatchKey.

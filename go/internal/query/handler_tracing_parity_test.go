@@ -18,7 +18,7 @@ import (
 // TestHandlerTracingCopiesStayBehaviorIdentical is the copy-drift guard for
 // the four family-local startQueryHandlerSpan helpers (root's
 // handler_tracing.go, supplychain/handler_tracing.go,
-// codeowners/handler_tracing.go, and codequery/code_handler_tracing.go):
+// codeowners/handler_tracing.go, and codequery/handler_tracing.go):
 // a one-sided edit to any of the four must fail loudly here instead of
 // silently forking emitted spans.
 //
@@ -42,7 +42,7 @@ func TestHandlerTracingCopiesStayBehaviorIdentical(t *testing.T) {
 		"root":        filepath.Join(root, "handler_tracing.go"),
 		"supplychain": filepath.Join(root, "supplychain", "handler_tracing.go"),
 		"codeowners":  filepath.Join(root, "codeowners", "handler_tracing.go"),
-		"codequery":   filepath.Join(root, "codequery", "code_handler_tracing.go"),
+		"codequery":   filepath.Join(root, "codequery", "handler_tracing.go"),
 	}
 	want := tracingBehaviorDecls(t, copies["root"])
 	wantNames := tracingDeclNames(t, copies["root"])

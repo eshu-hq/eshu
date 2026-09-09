@@ -15,7 +15,7 @@ import (
 // Dead-code candidate-row ContentReader proofs that live in package query:
 // they drive root's ContentReader SQL builders directly, which codequery
 // cannot name without importing the root back (#6060). Split from
-// codequery/code_dead_code_candidate_contract_regression_test.go at the
+// codequery/dead_code_candidate_contract_regression_test.go at the
 // lane-A move; the contract proofs stay there.
 
 func TestContentReaderDeadCodeCandidateRowsKeepsTraitTypeAndRepositoryScope(t *testing.T) {

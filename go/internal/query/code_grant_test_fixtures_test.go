@@ -24,7 +24,7 @@ import (
 // codeGrantOtherRepo, newCodeGrantRouteRequest),
 // codequery/auth_scoped_code_content_grant_test.go (codeContentGrantAdmits),
 // codequery/auth_scoped_code_graph_rows_grant_test.go
-// (repositoryProjectedColumns), and codequery/code_dead_code_investigation_test.go
+// (repositoryProjectedColumns), and codequery/dead_code_investigation_test.go
 // (decodeEnvelopeData). Keep both copies in lockstep by hand.
 
 // codeGrantGrantedRepo and codeGrantOtherRepo are canonical repository ids
@@ -72,7 +72,7 @@ func repositoryProjectedColumns() []string {
 }
 
 // limitEntityContent truncates rows to limit. Canonical copy:
-// codequery/code_search_authz_test.go.
+// codequery/search_authz_test.go.
 func limitEntityContent(rows []EntityContent, limit int) []EntityContent {
 	if limit > 0 && limit < len(rows) {
 		return append([]EntityContent(nil), rows[:limit]...)
@@ -113,7 +113,7 @@ func codeGrantScopeOnlyAuthContext(repoIDs []string) AuthContext {
 }
 
 // assertCrossRepoDeadCodeBucketMissing fails if buckets[name] contains
-// entityID. Canonical copy: codequery/code_dead_code_cross_repo_review_test.go.
+// entityID. Canonical copy: codequery/dead_code_cross_repo_review_test.go.
 func assertCrossRepoDeadCodeBucketMissing(t *testing.T, buckets map[string]any, name string, entityID string) {
 	t.Helper()
 
@@ -142,7 +142,7 @@ func crossRepoDeadCodeEvidenceColumns() []string {
 
 // assertCrossRepoDeadCodeBucketEntity returns buckets[name]'s row for
 // entityID, failing if absent. Canonical copy:
-// codequery/code_dead_code_cross_repo_test.go.
+// codequery/dead_code_cross_repo_test.go.
 func assertCrossRepoDeadCodeBucketEntity(t *testing.T, buckets map[string]any, name string, entityID string) map[string]any {
 	t.Helper()
 

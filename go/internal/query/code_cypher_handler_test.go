@@ -13,7 +13,7 @@ import (
 // Code-route OpenAPI proofs that live in package query: they assemble the
 // full OpenAPISpec, which is root-owned assembly codequery cannot name
 // without importing the root back (#6060). Split from
-// codequery/code_cypher_handler_test.go at the lane-A move; the
+// codequery/cypher_handler_test.go at the lane-A move; the
 // handler-behavior cypher proofs stay there.
 
 func TestOpenAPICypherRouteDocumentsUnsupportedProfile(t *testing.T) {

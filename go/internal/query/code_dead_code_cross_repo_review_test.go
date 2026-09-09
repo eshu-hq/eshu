@@ -15,7 +15,7 @@ import (
 // Cross-repo dead-code ContentReader proofs that live in package query: they
 // drive root's ContentReader SQL builders directly, which codequery cannot
 // name without importing the root back (#6060). Split from
-// codequery/code_dead_code_cross_repo_review_test.go at the lane-A move; the
+// codequery/dead_code_cross_repo_review_test.go at the lane-A move; the
 // handler-level review proofs stay there.
 
 func TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTruncated(t *testing.T) {
