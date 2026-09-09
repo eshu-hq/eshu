@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type topicInvestigationContentStore struct {
@@ -152,7 +154,7 @@ func TestHandleCodeTopicInvestigationReturnsRankedEvidenceAndHandles(t *testing.
 	if got, want := coverage["query_shape"], "content_topic_investigation"; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
 	}
-	packet := requireAnswerPacketCompanion(t, data, "code.topic")
+	packet := querytestutil.RequireAnswerPacketCompanion(t, data, "code.topic")
 	if got, want := packet["primary_tool"], "investigate_code_topic"; got != want {
 		t.Fatalf("answer_packet.primary_tool = %#v, want %#v", got, want)
 	}
@@ -199,7 +201,7 @@ func TestHandleCodeTopicInvestigationExplainsEmptyCoverage(t *testing.T) {
 	if !ok || len(recommendations) == 0 {
 		t.Fatalf("recommended_next_calls = %#v, want fallback next calls", data["recommended_next_calls"])
 	}
-	packet := requireAnswerPacketCompanion(t, data, "code.topic")
+	packet := querytestutil.RequireAnswerPacketCompanion(t, data, "code.topic")
 	if got, want := packet["supported"], true; got != want {
 		t.Fatalf("answer_packet.supported = %#v, want %#v", got, want)
 	}

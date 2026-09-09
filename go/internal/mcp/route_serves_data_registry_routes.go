@@ -225,24 +225,25 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// IncidentHandler.getIncidentContext -> h.Context
 	// (PostgresIncidentContextStore). Core reads: incident.record,
 	// incident.lifecycle_event, change.record
-	// (incident_context_sql.go:36,48,61) = the incident_context family
-	// (incident_repository_correlation); routing reads: the
-	// incident_routing.* kinds (incident_context_routing_sql.go:31,51,71) =
+	// (go/internal/query/incident/sql/context.go) = the incident_context
+	// family (incident_repository_correlation); routing reads: the
+	// incident_routing.* kinds
+	// (go/internal/query/incident/sql/routing.go) =
 	// incident_routing_materialization. The runtime-enrichment branch also
 	// reads kubernetes and CI/CD correlation kinds — disclosed, not served.
 	"GET /api/v0/incidents/{incident_id}/context": {
-		RegistrationFile: "go/internal/query/incident_context_handler.go",
+		RegistrationFile: "go/internal/query/incident/handler.go",
 		HandlerStruct:    "IncidentHandler",
-		StructFile:       "go/internal/query/incident_context_handler.go",
+		StructFile:       "go/internal/query/incident/handler.go",
 		Method:           "getIncidentContext",
-		MethodFile:       "go/internal/query/incident_context_handler.go",
+		MethodFile:       "go/internal/query/incident/handler.go",
 		ScanFiles: []string{
-			"go/internal/query/incident_context_handler.go",
-			"go/internal/query/incident_context_store.go",
-			"go/internal/query/incident_context_sql.go",
-			"go/internal/query/incident_context_routing_sql.go",
-			"go/internal/query/incident_context_runtime_sql.go",
-			"go/internal/query/incident_context_runtime_store.go",
+			"go/internal/query/incident/handler.go",
+			"go/internal/query/incident/store/context.go",
+			"go/internal/query/incident/sql/context.go",
+			"go/internal/query/incident/sql/routing.go",
+			"go/internal/query/incident/sql/runtime.go",
+			"go/internal/query/incident/store/runtime.go",
 		},
 		Served: []routeServedDomain{
 			{
@@ -250,9 +251,9 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				StoreField: "Context",
 				StoreType:  "IncidentContextStore",
 				Evidence: []routeReadEvidence{
-					{File: "go/internal/query/incident_context_sql.go", Marker: "'incident.record'"},
-					{File: "go/internal/query/incident_context_sql.go", Marker: "'incident.lifecycle_event'"},
-					{File: "go/internal/query/incident_context_sql.go", Marker: "'change.record'"},
+					{File: "go/internal/query/incident/sql/context.go", Marker: "'incident.record'"},
+					{File: "go/internal/query/incident/sql/context.go", Marker: "'incident.lifecycle_event'"},
+					{File: "go/internal/query/incident/sql/context.go", Marker: "'change.record'"},
 				},
 			},
 			{
@@ -260,8 +261,8 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				StoreField: "Context",
 				StoreType:  "IncidentContextStore",
 				Evidence: []routeReadEvidence{
-					{File: "go/internal/query/incident_context_routing_sql.go", Marker: "incident_routing.applied_pagerduty_resource"},
-					{File: "go/internal/query/incident_context_routing_sql.go", Marker: "incident_routing.observed_pagerduty_service"},
+					{File: "go/internal/query/incident/sql/routing.go", Marker: "incident_routing.applied_pagerduty_resource"},
+					{File: "go/internal/query/incident/sql/routing.go", Marker: "incident_routing.observed_pagerduty_service"},
 				},
 			},
 		},
@@ -270,14 +271,14 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				Domain: "kubernetes_correlation",
 				Reason: "runtime-evidence enrichment: the incident context response decorates incidents with reducer_kubernetes_correlation rows resolved by image digest; the correlation rows' own read surface is GET /api/v0/kubernetes/correlations",
 				Evidence: []routeReadEvidence{
-					{File: "go/internal/query/incident_context_runtime_sql.go", Marker: "reducer_kubernetes_correlation"},
+					{File: "go/internal/query/incident/sql/runtime.go", Marker: "reducer_kubernetes_correlation"},
 				},
 			},
 			{
 				Domain: "ci_cd_run_correlation",
 				Reason: "runtime-evidence enrichment: the incident context response decorates incidents with reducer_ci_cd_run_correlation rows; the correlation rows' own read surface is GET /api/v0/ci-cd/run-correlations",
 				Evidence: []routeReadEvidence{
-					{File: "go/internal/query/incident_context_runtime_sql.go", Marker: "reducer_ci_cd_run_correlation"},
+					{File: "go/internal/query/incident/sql/runtime.go", Marker: "reducer_ci_cd_run_correlation"},
 				},
 			},
 		},
