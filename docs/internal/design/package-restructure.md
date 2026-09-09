@@ -456,7 +456,7 @@ definitions that moved, not calls that regressed; the closures disappear
 because the root functions that contained them are now one-line forwarders
 with no inner closure of their own. 6 names join it: the same
 `dedupeReducerFactRowsByFactID` generic function reappears twice — both
-instantiated at `factwrite.Row` (`compat_decode.go:177`), once
+instantiated at `factwrite.Row` (the forwarder in `compat_decode.go`), once
 reported under its named type and once under its gcshape form, now that
 `reducerFactRow` is an alias to `factwrite.Row` rather than a locally declared
 type — plus the four new compat forwarders
