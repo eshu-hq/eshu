@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 )
 
 // claimGatedDomainsWithoutAClaimGate lists reducer domains that return a
@@ -47,6 +48,31 @@ var claimGatedDomainsWithoutAClaimGate = map[string]string{
 	"aws_cloud_image_materialization": "waits on cloud_resource_uid/canonical_nodes_committed " +
 		"via AWSCloudImageMaterializationHandler.sourceNodesReady, the same phase and keyspace " +
 		"aws_relationship_materialization gates on at claim time",
+	// #6184: waits on cross_repo_evidence/backward_evidence_committed via
+	// CrossRepoRelationshipHandler.Resolve before resolving or activating.
+	// No claim-time row names that keyspace yet; adding one changes
+	// claim-time behaviour and needs its own claim-path proof, so the handler
+	// gate stays the only defense until that lands.
+	"deployment_mapping": "waits on cross_repo_evidence/backward_evidence_committed " +
+		"via CrossRepoRelationshipHandler.Resolve before resolving or activating; no " +
+		"claim-time row names that keyspace yet",
+	// #6184: waits on relationship_generations.status = 'active' for the own
+	// scope via ownResolutionGenerationReady before the resolved read. A
+	// claim-time row cannot key relationship generation activation as shaped
+	// today, so the handler gate stays the only defense until a claim-time
+	// shape for it exists. Deliberately own-scope only: foreign scopes are
+	// undiscoverable before the read itself, so gating on them would be
+	// circular.
+	"deployable_unit_correlation": "waits on own relationship generation activation " +
+		"via ownResolutionGenerationReady before the resolved read, which a " +
+		"single-keyspace payload-derived CTE row cannot express",
+	// #6184: waits on the same fence inside the workload materialization
+	// input loader (CorrelatedWorkloadProjectionInputLoader), which merges
+	// the same two resolved feeds. Same single-defense shape and reason as
+	// deployable_unit_correlation above.
+	"workload_materialization": "waits on own relationship generation activation " +
+		"via ownResolutionGenerationReady before the resolved read, which a " +
+		"single-keyspace payload-derived CTE row cannot express",
 }
 
 // TestReadinessDomainsWithoutAClaimGateAreTheKnownSet keeps the gap from
@@ -166,6 +192,18 @@ var readinessClassOwningDomain = map[string]string{
 	// running, so there is no one claim-time row it could map to. Empty string
 	// means "placed, and placed nowhere" — distinct from "could not place".
 	reducer.CrossScopeProducerNotReadyFailureClass: "",
+	// #6184: cross-repo resolution defers inside deployment_mapping until
+	// backward evidence commits. The class name does not follow the
+	// <domain>_nodes_not_ready convention, so it is placed here explicitly.
+	crossrepo.CrossRepoBackwardEvidenceNotReadyFailureClass: string(reducer.DomainDeploymentMapping),
+	// #6184: deployable-unit correlation defers until the scope's own
+	// relationship generation activates. Placed on its handler's domain
+	// explicitly for the same naming reason.
+	reducer.DeployableUnitCorrelationResolutionNotReadyFailureClass: string(reducer.DomainDeployableUnitCorrelation),
+	// #6184: workload projection inputs defer on the same fence inside the
+	// workload materialization input loader. Placed on that domain explicitly
+	// for the same naming reason.
+	reducer.WorkloadMaterializationResolutionNotReadyFailureClass: string(reducer.DomainWorkloadMaterialization),
 }
 
 // domainForReadinessClass returns the domain owning class, and whether it could

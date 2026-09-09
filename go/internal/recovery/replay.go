@@ -245,6 +245,12 @@ type RefinalizeResult struct {
 	// that canonical nodes are committed for a graph that is now empty. Clearing
 	// them re-arms the readiness gates to first-ingest behavior.
 	ReadinessPhasesCleared int
+
+	// GenerationsRetired counts active relationship generations superseded so
+	// the re-projection never consumes the prior wave's resolved rows as
+	// current truth. Resolution re-activates each generation on resolving
+	// from the preserved facts.
+	GenerationsRetired int
 }
 
 // CollectorGenerationReplayFilter constrains collector generation commit

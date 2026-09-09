@@ -144,6 +144,7 @@ type refinalizeResponse struct {
 	ReducerWorkDeleted     int      `json:"reducer_work_deleted"`
 	SharedIntentsReopened  int      `json:"shared_intents_reopened"`
 	ReadinessPhasesCleared int      `json:"readiness_phases_cleared"`
+	GenerationsRetired     int      `json:"generations_retired"`
 }
 
 // handleRefinalize re-enqueues projector work for the specified scopes.
@@ -177,6 +178,7 @@ func (h *RecoveryHandler) handleRefinalize(w http.ResponseWriter, r *http.Reques
 		ReducerWorkDeleted:     result.ReducerWorkDeleted,
 		SharedIntentsReopened:  result.SharedIntentsReopened,
 		ReadinessPhasesCleared: result.ReadinessPhasesCleared,
+		GenerationsRetired:     result.GenerationsRetired,
 	})
 }
 

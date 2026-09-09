@@ -6,6 +6,7 @@ package crossrepo //nolint:filelength // Pre-existing 841-line cross-repo resolu
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -131,9 +132,22 @@ func TestCrossRepoResolutionGatesUntilBackwardEvidenceCommitted(t *testing.T) {
 		},
 	}
 
+	// A gated scope must defer with a retryable error, never succeed deferred:
+	// success would terminally strand the scope with no resolved output while
+	// downstream consumers read its partial-or-absent generation (#6184).
 	count, err := handler.Resolve(context.Background(), "scope-1", "gen-1")
-	if err != nil {
-		t.Fatalf("Resolve() error = %v", err)
+	if err == nil {
+		t.Fatal("Resolve() error = nil, want backward-evidence deferral")
+	}
+	var deferral BackwardEvidenceNotReadyError
+	if !errors.As(err, &deferral) {
+		t.Fatalf("Resolve() error type = %T, want BackwardEvidenceNotReadyError", err)
+	}
+	if !deferral.Retryable() {
+		t.Fatal("deferral Retryable() = false, want true so the queue re-runs the scope")
+	}
+	if got, want := deferral.FailureClass(), CrossRepoBackwardEvidenceNotReadyFailureClass; got != want {
+		t.Fatalf("deferral FailureClass() = %q, want %q", got, want)
 	}
 	if count != 0 {
 		t.Fatalf("Resolve() = %d, want 0 when readiness is missing", count)

@@ -426,11 +426,12 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		ReducerWorkDeleted:     counts.ReducerWorkDeleted,
 		SharedIntentsReopened:  counts.SharedIntentsReopened,
 		ReadinessPhasesCleared: counts.ReadinessPhasesCleared,
+		GenerationsRetired:     counts.GenerationsRetired,
 	}, nil
 }
 
 // refinalizeAffectedGenerations reads the (scope_id, generation_id) set this
-// refinalize covers, once, so the enqueue and the three resets bind the same
+// refinalize covers, once, so the enqueue and the four resets bind the same
 // rows. Re-deriving the set per statement would give each one its own READ
 // COMMITTED snapshot, and an ingester activating a generation mid-refinalize
 // could then leave the enqueue rebuilding G1 while a reset cleared G2.
