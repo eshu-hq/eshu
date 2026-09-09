@@ -1,0 +1,22 @@
+docs/internal/design/naming-remediation.md
+  s_4a0f86aa680964::t_9f751afd68d1c3 13-18,81,89-90,95,102,109,126,149-150,173-186,190-191,199-271
+  s_4a0f86aa680964::t_291e91d54e4008 42-44,57,154-167
+  s_4a0f86aa680964::t_05c903bb53fb1c 171-172,187-189
+  s_4a0f86aa680964::t_ceca20d73f1741 1-12,19-41,45-56,58-80,82-88,91-94,96-101,103-108,110-125,127-148,151-153,168-170,192-198,272-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31aabf81308c4e29a1109cf969339c8e4703ae58",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
