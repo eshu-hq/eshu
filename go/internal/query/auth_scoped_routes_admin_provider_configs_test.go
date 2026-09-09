@@ -4,11 +4,14 @@
 package query
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestScopedProviderConfigReadRoute verifies the matcher recognizes exactly
@@ -79,6 +82,119 @@ func TestScopedProviderConfigMutationRoute(t *testing.T) {
 	}
 }
 
+// providerConfigAdminTenant is the tenant the middleware proof below scopes
+// its fakes to. It mirrors the provider-config family tests' tenant.
+const providerConfigAdminTenant = "tenant_a"
+
+// validOIDCCreateBody is a minimal valid OIDC create body. It mirrors the
+// provider-config family tests' body.
+const validOIDCCreateBody = `{"provider_kind":"oidc","issuer":"https://idp.example.test","client_id":"client-1","client_secret":"s3cr3t-value","scopes":["openid","email"],"group_claim":"groups"}`
+
+// fakeAdminProviderConfigReadStore is a tenant-keyed read double for the
+// middleware proof below. It mirrors the provider-config family tests'
+// double, which this package cannot import; the bodies are identical on
+// purpose so the proof runs against the same fake behavior.
+type fakeAdminProviderConfigReadStore struct {
+	details   map[string]AdminProviderConfigDetail
+	list      map[string][]AdminProviderConfigDetail
+	revisions map[string][]AdminProviderConfigRevisionItem
+	forceErr  error
+}
+
+func (f *fakeAdminProviderConfigReadStore) GetProviderConfigDetail(_ context.Context, providerConfigID, _ string) (AdminProviderConfigDetail, bool, error) {
+	if f.forceErr != nil {
+		return AdminProviderConfigDetail{}, false, f.forceErr
+	}
+	detail, ok := f.details[providerConfigID]
+	return detail, ok, nil
+}
+
+func (f *fakeAdminProviderConfigReadStore) ListProviderConfigDetails(_ context.Context, tenantID string) ([]AdminProviderConfigDetail, error) {
+	if f.forceErr != nil {
+		return nil, f.forceErr
+	}
+	return f.list[tenantID], nil
+}
+
+func (f *fakeAdminProviderConfigReadStore) ListProviderConfigRevisions(_ context.Context, providerConfigID, _ string) ([]AdminProviderConfigRevisionItem, error) {
+	if f.forceErr != nil {
+		return nil, f.forceErr
+	}
+	return f.revisions[providerConfigID], nil
+}
+
+// fakeAdminProviderConfigMutationStore records the request it was asked to
+// perform and returns a canned result. It mirrors the provider-config family
+// tests' double for the same reason as
+// fakeAdminProviderConfigReadStore above.
+type fakeAdminProviderConfigMutationStore struct {
+	gotCreate                                                 AdminProviderConfigCreateRequest
+	gotUpdate                                                 AdminProviderConfigUpdateRequest
+	gotRevert                                                 AdminProviderConfigRevertRequest
+	gotEnableID, gotEnableTenant, gotEnableExpectedRevisionID string
+	gotDisableID, gotDisableTenant                            string
+
+	result   AdminProviderConfigWriteResult
+	forceErr error
+}
+
+func (f *fakeAdminProviderConfigMutationStore) CreateProviderConfig(_ context.Context, req AdminProviderConfigCreateRequest) (AdminProviderConfigWriteResult, error) {
+	f.gotCreate = req
+	if f.forceErr != nil {
+		return AdminProviderConfigWriteResult{}, f.forceErr
+	}
+	return f.result, nil
+}
+
+func (f *fakeAdminProviderConfigMutationStore) UpdateProviderConfig(_ context.Context, req AdminProviderConfigUpdateRequest) (AdminProviderConfigWriteResult, error) {
+	f.gotUpdate = req
+	if f.forceErr != nil {
+		return AdminProviderConfigWriteResult{}, f.forceErr
+	}
+	return f.result, nil
+}
+
+func (f *fakeAdminProviderConfigMutationStore) RevertProviderConfig(_ context.Context, req AdminProviderConfigRevertRequest) (AdminProviderConfigWriteResult, error) {
+	f.gotRevert = req
+	if f.forceErr != nil {
+		return AdminProviderConfigWriteResult{}, f.forceErr
+	}
+	return f.result, nil
+}
+
+func (f *fakeAdminProviderConfigMutationStore) EnableProviderConfig(_ context.Context, providerConfigID, tenantID, expectedActiveRevisionID string) (AdminProviderConfigWriteResult, error) {
+	f.gotEnableID, f.gotEnableTenant, f.gotEnableExpectedRevisionID = providerConfigID, tenantID, expectedActiveRevisionID
+	if f.forceErr != nil {
+		return AdminProviderConfigWriteResult{}, f.forceErr
+	}
+	return f.result, nil
+}
+
+func (f *fakeAdminProviderConfigMutationStore) DisableProviderConfig(_ context.Context, providerConfigID, tenantID string) (AdminProviderConfigWriteResult, error) {
+	f.gotDisableID, f.gotDisableTenant = providerConfigID, tenantID
+	if f.forceErr != nil {
+		return AdminProviderConfigWriteResult{}, f.forceErr
+	}
+	return f.result, nil
+}
+
+// fakeProviderConfigConnectionTester scripts the connection test. It mirrors
+// the provider-config family tests' double for the same reason as
+// fakeAdminProviderConfigReadStore above.
+type fakeProviderConfigConnectionTester struct {
+	gotProviderConfigID, gotTenantID string
+	result                           AdminProviderConfigConnectionTestResult
+	forceErr                         error
+}
+
+func (f *fakeProviderConfigConnectionTester) TestProviderConnection(_ context.Context, providerConfigID, tenantID string) (AdminProviderConfigConnectionTestResult, error) {
+	f.gotProviderConfigID, f.gotTenantID = providerConfigID, tenantID
+	if f.forceErr != nil {
+		return AdminProviderConfigConnectionTestResult{}, f.forceErr
+	}
+	return f.result, nil
+}
+
 // TestAuthMiddlewareWithBrowserSessionsAllowsProviderConfigAdminRoutes extends
 // the #5004 fix to the admin provider-config routes (#4966): the same
 // scoped-route allowlist gap that blocked sign-in-policy also blocked every
@@ -138,7 +254,7 @@ func TestAuthMiddlewareWithBrowserSessionsAllowsProviderConfigAdminRoutes(t *tes
 				Tester: &fakeProviderConfigConnectionTester{
 					result: AdminProviderConfigConnectionTestResult{OK: true, Detail: "ok", RevisionID: "rev_1"},
 				},
-				Audit: &recordingAuditAppender{},
+				Audit: &querytestutil.FakeGovernanceAuditAppender{},
 			}
 
 			mux := http.NewServeMux()

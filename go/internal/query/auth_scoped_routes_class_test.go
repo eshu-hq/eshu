@@ -5,6 +5,7 @@ package query
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -138,3 +139,18 @@ func TestScopedRouteClassZeroValueIsGrantBound(t *testing.T) {
 // middleware calls it with; a change to a path-string argument would lose the
 // method, which several matchers in the union depend on.
 var _ func(*http.Request) bool = scopedRouteNeedsNoCallerGrant
+
+// TestScopedRouteAllowsDeadLettersQuery pins the admin dead-letters query
+// route in the scoped-token tenant-filter admission table: scoped callers
+// with a repository grant reach this read, scoped callers without one do not
+// (the handler then enforces the per-row grant itself).
+//
+// Relocated from the admin dead-letters tests (#6060, lane B S1): it asserts
+// on the root's unexported scoped-route admission table, which stays in the
+// root, so the pin stays here with the table it covers.
+func TestScopedRouteAllowsDeadLettersQuery(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/admin/dead-letters/query", nil)
+	if !scopedHTTPRouteSupportsTenantFilter(req) {
+		t.Fatal("scopedHTTPRouteSupportsTenantFilter(dead-letters query) = false, want true")
+	}
+}

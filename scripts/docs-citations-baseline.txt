@@ -598,7 +598,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/projector/runti
 LINE docs/public/observability/telemetry-coverage.md go/internal/projector/service.go:115
 LINE docs/public/observability/telemetry-coverage.md go/internal/projector/service_logging.go:41
 LINE docs/public/observability/telemetry-coverage.md go/internal/projector/service_logging.go:44
-LINE docs/public/observability/telemetry-coverage.md go/internal/query/admin.go:182
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/ask_handler.go:159
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/capabilities.go:47
 LINE docs/public/observability/telemetry-coverage.md go/internal/query/cloud_resources.go:58

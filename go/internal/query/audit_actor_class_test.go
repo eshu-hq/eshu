@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // actorClassModeCases lists every AuthMode member with a subject hash and the
@@ -55,89 +55,12 @@ func TestActorClassForAuthMapsEveryAuthMode(t *testing.T) {
 	})
 }
 
-// TestAdminRecoveryActorMapsEveryAuthMode pins adminRecoveryActor for every
-// AuthMode member with and without a subject hash. Before #6566 a cookie
-// session was filed as shared_token here while the same session was
-// browser_session on a route denial.
-func TestAdminRecoveryActorMapsEveryAuthMode(t *testing.T) {
-	t.Parallel()
-
-	const hash = "sha256:abcdef12"
-	cases := []struct {
-		name      string
-		auth      AuthContext
-		wantClass governanceaudit.ActorClass
-		wantHash  string
-	}{
-		{
-			name:      "browser session with a subject hash is browser_session",
-			auth:      AuthContext{Mode: AuthModeBrowserSession, SubjectIDHash: hash},
-			wantClass: governanceaudit.ActorClassBrowserSession,
-			wantHash:  hash,
-		},
-		{
-			name:      "browser session with no subject hash downgrades to anonymous",
-			auth:      AuthContext{Mode: AuthModeBrowserSession},
-			wantClass: governanceaudit.ActorClassAnonymous,
-		},
-		{
-			name:      "scoped bearer with a subject hash is scoped_token",
-			auth:      AuthContext{Mode: AuthModeScoped, SubjectIDHash: hash},
-			wantClass: governanceaudit.ActorClassScopedToken,
-			wantHash:  hash,
-		},
-		{
-			name:      "scoped bearer with no subject hash downgrades to anonymous",
-			auth:      AuthContext{Mode: AuthModeScoped},
-			wantClass: governanceaudit.ActorClassAnonymous,
-		},
-		{
-			name:      "shared bearer with a subject hash is shared_token",
-			auth:      AuthContext{Mode: AuthModeShared, SubjectIDHash: hash},
-			wantClass: governanceaudit.ActorClassSharedToken,
-			wantHash:  hash,
-		},
-		{
-			name:      "shared bearer with no subject hash keeps the synthetic identity",
-			auth:      AuthContext{Mode: AuthModeShared},
-			wantClass: governanceaudit.ActorClassSharedToken,
-			wantHash:  sharedAdminActorIDHash,
-		},
-		{
-			name:      "no auth context is anonymous",
-			auth:      AuthContext{},
-			wantClass: governanceaudit.ActorClassAnonymous,
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			gotClass, gotHash := adminRecoveryActor(tc.auth)
-			if gotClass != tc.wantClass {
-				t.Errorf("adminRecoveryActor class = %q, want %q", gotClass, tc.wantClass)
-			}
-			if gotHash != tc.wantHash {
-				t.Errorf("adminRecoveryActor hash = %q, want %q", gotHash, tc.wantHash)
-			}
-			event := governanceaudit.Event{
-				Type:        governanceaudit.EventTypeAdminRecoveryAction,
-				ActorClass:  gotClass,
-				ActorIDHash: gotHash,
-				ScopeClass:  governanceaudit.ScopeClassAdmin,
-				Decision:    governanceaudit.DecisionDenied,
-				ReasonCode:  "replay_refused_unauthorized",
-				OccurredAt:  time.Now(),
-			}
-			if _, err := governanceaudit.NormalizeEvent(event); err != nil {
-				t.Errorf("NormalizeEvent rejected the recovery event: %v", err)
-			}
-		})
-	}
-}
-
-// identityMutationEmitters names every production emitter that stamps an
-// actor class on an identity-mutation row, so the mapping is pinned at each
-// one rather than at a representative.
+// identityMutationEmitters names every staying production emitter that stamps
+// an actor class on an identity-mutation row, so the mapping is pinned at each
+// one rather than at a representative. The admin identity-mutation and
+// provider-config emitters moved to admin/identity/actor_test.go and
+// admin/provider/config/actor_test.go with the families they pin (#6060,
+// lane B S1); the recovery-actor mapping moved to admin/actor_test.go.
 func identityMutationEmitters() []struct {
 	name string
 	emit func(r *http.Request, audit GovernanceAuditAppender)
@@ -151,20 +74,6 @@ func identityMutationEmitters() []struct {
 			emit: func(r *http.Request, audit GovernanceAuditAppender) {
 				h := &LocalIdentityHandler{Audit: audit}
 				h.auditLocalIdentity(r, governanceaudit.EventTypeBreakGlass, governanceaudit.DecisionAllowed, "break_glass_enabled", "")
-			},
-		},
-		{
-			name: "admin identity mutation",
-			emit: func(r *http.Request, audit GovernanceAuditAppender) {
-				h := &AdminIdentityMutationHandler{Audit: audit}
-				h.audit(r, governanceaudit.EventTypeRoleGrantChange, governanceaudit.DecisionAllowed, "role_grant_changed", "")
-			},
-		},
-		{
-			name: "provider config mutation",
-			emit: func(r *http.Request, audit GovernanceAuditAppender) {
-				h := &AdminProviderConfigMutationHandler{Audit: audit}
-				h.audit(r, governanceaudit.EventTypeIDPConfigChange, governanceaudit.DecisionAllowed, "provider_config_changed", "")
 			},
 		},
 		{
@@ -187,17 +96,17 @@ func TestIdentityMutationAuditsStampActorClassByAuthMode(t *testing.T) {
 		for _, mode := range actorClassModeCases() {
 			t.Run(emitter.name+"/"+mode.name, func(t *testing.T) {
 				t.Parallel()
-				audit := &recordingAuditAppender{}
+				audit := &querytestutil.FakeGovernanceAuditAppender{}
 				auth := AuthContext{Mode: mode.mode, SubjectIDHash: "sha256:abcdef12", AllScopes: true}
 				req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/anything", nil)
 				req = req.WithContext(ContextWithAuthContext(req.Context(), auth))
 
 				emitter.emit(req, audit)
 
-				if len(audit.events) != 1 {
-					t.Fatalf("audit events = %d, want 1", len(audit.events))
+				if len(audit.Events) != 1 {
+					t.Fatalf("audit events = %d, want 1", len(audit.Events))
 				}
-				event := audit.events[0]
+				event := audit.Events[0]
 				if event.ActorClass != mode.want {
 					t.Errorf("event.ActorClass = %q, want %q", event.ActorClass, mode.want)
 				}
@@ -264,17 +173,17 @@ func TestIdentityMutationAuditsWithNoSubjectHash(t *testing.T) {
 	for _, emitter := range identityMutationEmitters() {
 		t.Run(emitter.name, func(t *testing.T) {
 			t.Parallel()
-			audit := &recordingAuditAppender{}
+			audit := &querytestutil.FakeGovernanceAuditAppender{}
 			auth := AuthContext{Mode: AuthModeBrowserSession, AllScopes: true}
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/admin/anything", nil)
 			req = req.WithContext(ContextWithAuthContext(req.Context(), auth))
 
 			emitter.emit(req, audit)
 
-			if len(audit.events) != 1 {
-				t.Fatalf("audit events = %d, want 1", len(audit.events))
+			if len(audit.Events) != 1 {
+				t.Fatalf("audit events = %d, want 1", len(audit.Events))
 			}
-			event := audit.events[0]
+			event := audit.Events[0]
 			if got, want := event.ActorClass, governanceaudit.ActorClassBrowserSession; got != want {
 				t.Errorf("event.ActorClass = %q, want %q", got, want)
 			}
