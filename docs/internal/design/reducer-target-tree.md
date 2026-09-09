@@ -29,12 +29,30 @@ ls -d go/internal/reducer/*/ | wc -l                                            
    dependency points at a named package, then the `supplychain` core plus
    suppression land together (the `Suppression SupplyChainSuppressionDecision`
    struct field at `supply_chain_impact_finding.go:103` makes them one unit).
-2. **Dirgate row: documented exception, not under-40.** Family moves alone
-   cannot reach 40 (measured floor ~100-110 through moves; the spine plus
-   triage roll below are structural). The row ratchets DOWN on every move PR
-   and carries a one-line ledger comment naming the real target, as
-   `internal/collector/gitrepo` does at 66. The ledger-comment edit lands with
-   the first move PR alongside its re-pin, never alone.
+2. **Compat surface (2a) + importer migration (2b); no dirgate exception.**
+   (Owner answers, #6061 comment 5591291715. They supersede the ~100-110
+   floor, which measured the old move-a-family-leave-a-compat-file strategy,
+   not the package: one line pins a `reducer.X` spelling to root, and the
+   twenty `*_compat.go` are 1,530 lines total, i.e. ~4 files at the 500-line
+   cap.)
+   (a) The 20 `*_compat.go` merge into ~4 buckets (`compat_cloud.go`,
+   `compat_correlation.go`, `compat_decode.go`, `compat_projection.go`) in
+   the compat-consolidation PR: no external caller edits, no behavior
+   change, every alias and forwarder preserved; root 304 -> ~288. Every
+   later family move adds a stanza to the matching bucket file and NEVER
+   creates a new `*_compat.go` — that rule stops the moves making the
+   problem worse. Rebalance buckets before any one crosses the 500-line cap
+   (`compat_correlation.go` lands at 491).
+   (b) External importers migrate `reducer.X` -> owning subpackage in
+   per-package batches (postgres 191, cypher 65, cmd/reducer 40,
+   projector 39, materializededges 38, then the tail) under its own child
+   issue, after the tree is populated — NOT blocking family moves. Each
+   batch is independently provable and deletes the aliases it retires; this
+   is the coupling #4047/#4398 must remove to extract reducer.
+   (c) Target root ~9: doc.go + ~4 compat + ~4 contract surface (intent,
+   domain, runtime, registry). ≤40 clears with room; no exception. The
+   dirgate row ratchets DOWN on every move PR, as
+   `internal/collector/gitrepo` does at 66.
 3. **This tree: yes as the destination.** PR1 (this doc) commits first; no
    file moves until the doc is merged.
 
@@ -104,8 +122,9 @@ Notes with alternatives considered:
   `service_side_runners.go` — the `serviceSideRunner` interface plus
   `Service.startSideRunners`) STAYS in the spine: it is the
   claim/execute/ack loop, not a domain.
-  `service_catalog_correlation_compat.go` is a compat forwarder for the
-  already-moved family: it burns down with the 20, it does not move.
+  The service-catalog aliases are a stanza in `compat_correlation.go` for the
+  already-moved family: they burn down with the importer migration, the stanza
+  does not move.
   The existing `servicecatalog/` subpackage is grandfathered interim: no
   NEW top-level package is ever created (that is what the no-55th-sibling
   rule bans), and a domain PR relocates `servicecatalog/` whole with a
@@ -117,13 +136,24 @@ Notes with alternatives considered:
 `registry.go` + `registry_additive_domains.go` (2; `defaults_registry.go`
 counts under `defaults*`), `defaults*.go` (17), `intent.go` + `intent_value.go`
 (2; `intent_emission.go` and `intent_domain_platform.go` are triage below),
-`domain.go` (1), `cross_scope*.go` (2, incl. `cross_scope_readiness_compat.go`,
-which burns down with the 20 — spine re-derives to 38 after the
-crossscope move), `doc.go` (1), flat singles
+`domain.go` (1), `cross_scope*.go` (2; the cross-scope readiness aliases live
+as a stanza in `compat_projection.go` and burn down with the importer
+migration — spine re-derives to 38 after the crossscope move), `doc.go` (1),
+flat singles
 `dependency.go`, `observability.go`, `partitioning.go`, `platforms.go`,
 `projection.go` (5), service/runtime core (8, listed above),
-`candidate_loader.go` (1): **39 files**. The 20 `*_compat.go`
-forwarders burn down to zero as families move (no new forwarders, ever).
+`candidate_loader.go` (1): **39 files**, plus the ~4-file compat facade
+(`compat_cloud.go`, `compat_correlation.go`, `compat_decode.go`,
+`compat_projection.go` — the 1,530 lines of `reducer.X` aliases and
+forwarders, one line per spelling, merged by the compat-consolidation PR).
+Compat entries burn down to zero as the importer-migration child issue
+lands; until then no new `*_compat.go`, ever — a family move adds a stanza
+to the matching bucket file.
+
+Root arithmetic after the compat-consolidation PR: 288 = 39 spine + 4 compat
+facade + 245 awaiting family moves and importer migration. End state ~9:
+doc.go + ~4 compat + ~4 contract surface (intent, domain, runtime,
+registry). ≤40 clears with room; no exception.
 `shared_projection*` (11) is NOT spine. Hoist trigger (exact): the first
 domain move whose `go/types` census references a `shared_projection*`
 symbol carries the hoist in the same PR; direction is family -> shared
@@ -149,7 +179,7 @@ when it disagrees. Never a new top-level package for any of them.
 | `sbom*` singleton, `secrets*` singleton, `security*` singleton | `supplychain/sbom`, `security/secrets`, `security/alert` |
 | `semantic*` singleton | `search/semantic` |
 | `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `decode/` children by census (`intent_emission.go` defaults to `decode/facts`) |
-| `platform_infra_materialization.go` (`platform_compat.go` burns down) | `repodependency/platform` |
+| `platform_infra_materialization.go` (the `platform` stanza in `compat_projection.go` burns down) | `repodependency/platform` |
 | `repo_workload.go` | `workload/repo` |
 | `package_publication_correlation.go`, `package_provenance_edges.go` (already inside the counted 11; no additional singletons) | `packagecorrelation/core` |
 | `code_function*` (2) | `code/` child by census |
