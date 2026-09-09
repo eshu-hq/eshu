@@ -1,8 +1,8 @@
-# Reducer package-source core
+# Reducer package source
 
 ## Purpose
 
-`packagesourcecore` owns the primitives package-registry source-hint
+`source` owns the primitives package-registry source-hint
 correlation and its callers reduce to: the `Hint` and `Repository` shapes, the
 repository extraction that reads them out of a fact-envelope batch, and the
 canonical-URL matching that decides whether a hint's source URL names an

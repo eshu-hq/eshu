@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package packagesourcecore holds the reducer's package-registry source-hint
+// Package source holds the reducer's package-registry source-hint
 // matching primitives: the Hint and Repository shapes package source
 // correlation reduces facts into, the repository extraction that reads them
 // out of a fact-envelope batch, and the canonical-URL matching that decides
