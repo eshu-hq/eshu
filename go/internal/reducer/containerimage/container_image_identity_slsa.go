@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagesourcecore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
@@ -118,7 +118,7 @@ func extractSLSADigestAnchorsWithQuarantine(
 		return nil, quarantined, nil
 	}
 
-	repositories := packagesourcecore.ExtractRepositories(envelopes)
+	repositories := source.ExtractRepositories(envelopes)
 	byDigest := map[string]slsaDigestAnchor{}
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AttestationSLSAProvenanceFactKind {

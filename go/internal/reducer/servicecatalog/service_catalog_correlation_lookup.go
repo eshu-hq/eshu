@@ -3,7 +3,7 @@
 
 package servicecatalog
 
-import "github.com/eshu-hq/eshu/go/internal/reducer/packagesourcecore"
+import "github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 
 type serviceCatalogRepositoryLookup struct {
 	activeByID  map[string][]serviceCatalogRepositoryEvidence
@@ -23,7 +23,7 @@ func buildServiceCatalogRepositoryLookup(
 	}
 	for _, repository := range repositories {
 		appendRepositoryByKey(lookup.byTombstoneID(repository.tombstone), repository.repositoryID, repository)
-		appendRepositoryByKey(lookup.byTombstoneURL(repository.tombstone), packagesourcecore.CanonicalURLKey(repository.remoteURL), repository)
+		appendRepositoryByKey(lookup.byTombstoneURL(repository.tombstone), source.CanonicalURLKey(repository.remoteURL), repository)
 	}
 	return lookup
 }

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagesourcecore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -163,12 +163,12 @@ func packageSourceRepositoryIDs(repositories []packageSourceRepository) []string
 	return ids
 }
 
-// exactPackageSourceURLMatch forwards to [packagesourcecore.ExactURLMatch].
+// exactPackageSourceURLMatch forwards to [source.ExactURLMatch].
 // The [servicecatalog] family's ServiceCatalogCorrelationHandler classifier
-// calls the same comparison directly as packagesourcecore.ExactURLMatch;
+// calls the same comparison directly as source.ExactURLMatch;
 // this root spelling stays only for this file's own caller (issue #6061).
 func exactPackageSourceURLMatch(left string, right string) bool {
-	return packagesourcecore.ExactURLMatch(left, right)
+	return source.ExactURLMatch(left, right)
 }
 
 // compactStringSlice forwards to [payloadcore.CompactStringSlice].
@@ -178,34 +178,34 @@ func compactStringSlice(values ...string) []string {
 
 // The remainder of this file is the transitional compatibility surface for
 // the package-source hint/repository shapes and matching helpers that moved
-// to [packagesourcecore] (issue #6379, epic #6061). Root call sites keep
+// to [source] (issue #6379, epic #6061). Root call sites keep
 // their current spelling; each entry is deleted once its last caller has
 // moved into a family subpackage.
 
 // packageSourceHint is one package registry source_hint fact.
-type packageSourceHint = packagesourcecore.Hint
+type packageSourceHint = source.Hint
 
 // packageSourceRepository is one repository fact matched against source
 // hints.
-type packageSourceRepository = packagesourcecore.Repository
+type packageSourceRepository = source.Repository
 
 // extractPackageSourceRepositories forwards to
-// [packagesourcecore.ExtractRepositories].
+// [source.ExtractRepositories].
 func extractPackageSourceRepositories(envelopes []facts.Envelope) []packageSourceRepository {
-	return packagesourcecore.ExtractRepositories(envelopes)
+	return source.ExtractRepositories(envelopes)
 }
 
 // matchPackageSourceRepositories forwards to
-// [packagesourcecore.MatchRepositories].
+// [source.MatchRepositories].
 func matchPackageSourceRepositories(
 	hint packageSourceHint,
 	repositories []packageSourceRepository,
 ) ([]packageSourceRepository, []packageSourceRepository) {
-	return packagesourcecore.MatchRepositories(hint, repositories)
+	return source.MatchRepositories(hint, repositories)
 }
 
 // canonicalPackageSourceURLKey forwards to
-// [packagesourcecore.CanonicalURLKey].
+// [source.CanonicalURLKey].
 func canonicalPackageSourceURLKey(raw string) string {
-	return packagesourcecore.CanonicalURLKey(raw)
+	return source.CanonicalURLKey(raw)
 }

@@ -22,4 +22,4 @@
 // supply_chain_impact_python_reachability.go reads only
 // RepositoryIDFromScope. A family move would drag the handler's ~650 lines
 // along to deliver these ~65 (issue #6379, epic #6061).
-package packagesourcecore
+package source

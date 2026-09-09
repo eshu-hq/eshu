@@ -71,8 +71,8 @@ forwarder; `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL`
 
 ## Compatibility
 
-The family keeps `type packageSourceHint = packagesourcecore.Hint` and
-`type packageSourceRepository = packagesourcecore.Repository` plus forwarders
+The family keeps `type packageSourceHint = source.Hint` and
+`type packageSourceRepository = source.Repository` plus forwarders
 at the end of `packages/correlation/source.go` (not a
 separate compat file: that file was already at 199 lines pre-extraction, well
 under the 500-line cap, and adding a new root `.go` file would have grown

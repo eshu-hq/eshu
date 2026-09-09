@@ -29,7 +29,7 @@ signal about where the symbol belongs, not a reason to reach upward:
 - real logic shared with a sibling family that has also moved goes to that
   family's leaf package — this is how
   `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL` became
-  `packagesourcecore.ExactURLMatch`/`NormalizeExactURL`, next to the sibling
+  `source.ExactURLMatch`/`NormalizeExactURL`, next to the sibling
   `CanonicalURLKey` canonicalizer;
 - a symbol the root genuinely owns as logic AND is still shared by other
   in-root families — `RepositoryScopedResolvedRelationshipLoader` — is

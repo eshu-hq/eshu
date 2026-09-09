@@ -408,7 +408,7 @@ logic stays with the family even when it calls into `factwrite` to publish.
 - `go/internal/reducer/factload/README.md`
 - `go/internal/reducer/factwrite/README.md`
 - `go/internal/reducer/schemadecode/README.md`
-- `go/internal/reducer/packagesourcecore/README.md`
+- `go/internal/reducer/packages/source/README.md`
 - `go/internal/reducer/cloudjoin/README.md`
 - `go/internal/reducer/iampolicy/README.md`
 - `go/internal/reducer/iamcan/README.md`

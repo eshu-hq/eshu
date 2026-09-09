@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagesourcecore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -97,7 +97,7 @@ func pythonReachabilityRepositoryIDsByScope(
 			payloadStr(envelope.Payload, "graph_id"),
 			payloadStr(envelope.Payload, "repo_id"),
 			payloadStr(envelope.Payload, "repository_id"),
-			packagesourcecore.RepositoryIDFromScope(envelope.ScopeID),
+			source.RepositoryIDFromScope(envelope.ScopeID),
 		)
 		if _, ok := needed[repositoryID]; !ok {
 			continue

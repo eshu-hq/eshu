@@ -120,7 +120,7 @@ are now imported from the leaf package that already owned them.
 imported, for the reason above.
 `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL` (~19 lines of
 real `net/url` normalization logic, not a forwarder) moved to
-`packagesourcecore.ExactURLMatch`/`NormalizeExactURL`, with a root forwarder
+`source.ExactURLMatch`/`NormalizeExactURL`, with a root forwarder
 left behind. `ServiceMaterializationGenerationID` was exported (from the
 unexported `serviceMaterializationGenerationID`) because the root's own
 golden fixture test names it directly; it keeps its exact fingerprint

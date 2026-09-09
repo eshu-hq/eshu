@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagesourcecore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func extractOCIConfigProvenanceRefs(envelopes []facts.Envelope) []containerImageRefEvidence {
-	repositories := packagesourcecore.ExtractRepositories(envelopes)
+	repositories := source.ExtractRepositories(envelopes)
 	if len(repositories) == 0 {
 		return nil
 	}
@@ -87,7 +87,7 @@ func singleOCIConfigSourceLabel(labels map[string]string) (string, bool) {
 	}
 	keys := make(map[string]string, len(sourceValues))
 	for _, value := range sourceValues {
-		key := packagesourcecore.CanonicalURLKey(value)
+		key := source.CanonicalURLKey(value)
 		if key == "" {
 			return "", false
 		}
@@ -119,25 +119,25 @@ func singleOCIConfigSourceLabel(labels map[string]string) (string, bool) {
 // neither.
 func matchOCIConfigSourceRepository(
 	sourceURL string,
-	repositories []packagesourcecore.Repository,
-) (packagesourcecore.Repository, bool) {
-	hint := packagesourcecore.Hint{
+	repositories []source.Repository,
+) (source.Repository, bool) {
+	hint := source.Hint{
 		PackageID: "container-image",
 		HintKind:  "repository",
 		SourceURL: sourceURL,
 	}
-	active, _ := packagesourcecore.MatchRepositories(hint, repositories)
-	distinct := make(map[string]packagesourcecore.Repository, len(active))
+	active, _ := source.MatchRepositories(hint, repositories)
+	distinct := make(map[string]source.Repository, len(active))
 	for _, repository := range active {
 		distinct[repository.RepositoryID] = repository
 	}
 	if len(distinct) != 1 {
-		return packagesourcecore.Repository{}, false
+		return source.Repository{}, false
 	}
 	for _, repository := range distinct {
 		return repository, true
 	}
-	return packagesourcecore.Repository{}, false
+	return source.Repository{}, false
 }
 
 // extractOCIConfigBuildProvenanceRefs yields build-provenance-only evidence: for
@@ -150,7 +150,7 @@ func matchOCIConfigSourceRepository(
 // label resolve both the identity tier and BuildProvenanceRepositoryIDs
 // together (#5460, #5801) -- it only feeds the DERIVED_FROM child gate.
 func extractOCIConfigBuildProvenanceRefs(envelopes []facts.Envelope) []containerImageRefEvidence {
-	repositories := packagesourcecore.ExtractRepositories(envelopes)
+	repositories := source.ExtractRepositories(envelopes)
 	if len(repositories) == 0 {
 		return nil
 	}
