@@ -103,10 +103,10 @@ source_coverage:
           max_results: 250
   - file: codequery/import_dependencies_execution.go
     calls:
-      - {symbol: "(*CodeHandler).crossModuleCallRows", count: 1, source_sha256: 0425f0698fd7db7d6f6da1260caf04083bf3df43ed8c26a48752b48ef7cceb04, entry_ids: [QP-CODE-IMPORT-CROSS-MODULE-CALLS]}
-      - {symbol: "(*CodeHandler).fileImportCycleRows", count: 1, source_sha256: f52e7d801ee9c1d2b727c9bf5d602ca4f7f363fcafa3c52c1b2122409651180c, entry_ids: [QP-CODE-IMPORT-CYCLES]}
-      - {symbol: "(*CodeHandler).importDependencyModuleScopes", count: 1, source_sha256: 707264cae808b130895384e40518e68ac762d3ee5965991f870ce0409caec287, entry_ids: [QP-CODE-IMPORT-SOURCE-MODULE-FILES, QP-CODE-IMPORT-TARGET-MODULE-FILES]}
-      - {symbol: "(*CodeHandler).importRows", count: 1, source_sha256: 96f030bb3c3f448a0567c572ac340f6536de527efa9598000f4d6f994f61fe5c, entry_ids: [QP-CODE-IMPORT-ROWS-REPOSITORY, QP-CODE-IMPORT-PACKAGES, QP-CODE-IMPORT-SOURCE-MODULE-ROWS]}
+      - {symbol: "(*CodeHandler).crossModuleCallRows", count: 1, source_sha256: 506c5194ffede41560791f2fde50017b9746c5973da2dfb876e584c9da34c393, entry_ids: [QP-CODE-IMPORT-CROSS-MODULE-CALLS]}
+      - {symbol: "(*CodeHandler).fileImportCycleRows", count: 1, source_sha256: a2304f37bd6326240805de3e6e9c6be1bcaac0fe8b54058dafc8ee84563bab5e, entry_ids: [QP-CODE-IMPORT-CYCLES]}
+      - {symbol: "(*CodeHandler).importDependencyModuleScopes", count: 1, source_sha256: 74c7146846883ee2a76d1756feb585027ce7453923e349676a80090ccc131624, entry_ids: [QP-CODE-IMPORT-SOURCE-MODULE-FILES, QP-CODE-IMPORT-TARGET-MODULE-FILES]}
+      - {symbol: "(*CodeHandler).importRows", count: 1, source_sha256: f52c97ca6c6acdc075535081ee0d10f298760054706e4d08ee7ac58044315bc2, entry_ids: [QP-CODE-IMPORT-ROWS-REPOSITORY, QP-CODE-IMPORT-PACKAGES, QP-CODE-IMPORT-SOURCE-MODULE-ROWS]}
   - file: codequery/quality.go
     calls:
       - symbol: "(*CodeHandler).inspectCodeQuality"
