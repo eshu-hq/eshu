@@ -460,7 +460,7 @@ for the same reason.
   provider-only rows are replaced by later matched or stale rows for the same
   provider alert instead of remaining active beside them.
 - **Package ownership is conservative** —
-  `PackageSourceCorrelationHandler` writes ownership candidates from registry
+  `PackageSourceHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves
   `canonical_writes=0`; manifest dependency facts are the first admitted
   package consumption truth because they combine registry identity with Git

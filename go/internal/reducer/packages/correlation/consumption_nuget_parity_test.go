@@ -100,7 +100,7 @@ func TestBuildPackageConsumptionDecisionsPreservesNuGetPartialMSBuildEvidence(t 
 func TestPackageConsumptionPayloadPersistsNuGetVersionEvidence(t *testing.T) {
 	t.Parallel()
 
-	payload := packageConsumptionPayload(PackageCorrelationWrite{
+	payload := packageConsumptionPayload(PackageWrite{
 		IntentID:     "intent-nuget",
 		ScopeID:      "scope-nuget",
 		GenerationID: "generation-nuget",

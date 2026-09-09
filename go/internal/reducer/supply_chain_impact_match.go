@@ -28,7 +28,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplychainmod
 	}
 	return supplychainmodel.PackageConsumption{
 		FactID:                    envelope.FactID,
-		EvidenceKind:              correlation.PackageConsumptionCorrelationFactKind,
+		EvidenceKind:              correlation.PackageConsumptionFactKind,
 		PackageID:                 strings.TrimSpace(consumption.PackageID),
 		RepositoryID:              strings.TrimSpace(derefString(consumption.RepositoryID)),
 		DependencyRange:           strings.TrimSpace(derefString(consumption.DependencyRange)),

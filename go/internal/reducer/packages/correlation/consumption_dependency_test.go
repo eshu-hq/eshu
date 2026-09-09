@@ -318,7 +318,7 @@ func TestBuildPackageConsumptionDecisionsKeepsCargoLockfileWithoutProofUnchained
 	}
 }
 
-func TestPackageCorrelationWriterPersistsCargoLockfileEvidence(t *testing.T) {
+func TestPackageWriterPersistsCargoLockfileEvidence(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 5, 31, 18, 15, 0, 0, time.UTC)
@@ -344,14 +344,14 @@ func TestPackageCorrelationWriterPersistsCargoLockfileEvidence(t *testing.T) {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
 	db := &factwritetest.FakeExecer{}
-	writer := PostgresPackageCorrelationWriter{DB: db, Now: func() time.Time { return observedAt }}
-	_, err := writer.WritePackageCorrelations(context.Background(), PackageCorrelationWrite{
+	writer := PostgresPackageWriter{DB: db, Now: func() time.Time { return observedAt }}
+	_, err := writer.WriteCorrelations(context.Background(), PackageWrite{
 		ScopeID:              "scope-package",
 		GenerationID:         "generation-package",
 		ConsumptionDecisions: decisions,
 	})
 	if err != nil {
-		t.Fatalf("WritePackageCorrelations() error = %v, want nil", err)
+		t.Fatalf("WriteCorrelations() error = %v, want nil", err)
 	}
 	if got, want := len(db.Execs), 1; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)

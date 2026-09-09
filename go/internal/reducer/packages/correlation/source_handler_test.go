@@ -32,13 +32,13 @@ func (r *recordingRepoDependencyIntentWriter) UpsertIntents(_ context.Context, r
 
 var _ crossrepo.RepoDependencyIntentWriter = (*recordingRepoDependencyIntentWriter)(nil)
 
-// TestPackageSourceCorrelationHandlerEmitsRefreshIntentWhenOwnerDisappears proves
+// TestPackageSourceHandlerEmitsRefreshIntentWhenOwnerDisappears proves
 // the handler wires BuildPackageConsumptionRepoEdgeRefreshIntents into the shared
 // repo-dependency lane: a consumer that declares a package dependency whose owner
 // cannot be resolved this generation must enqueue a refresh/retract intent so any
 // package-consumption edge it held in a prior generation is removed instead of
 // left orphaned (issue #3579, review comment 3455350032).
-func TestPackageSourceCorrelationHandlerEmitsRefreshIntentWhenOwnerDisappears(t *testing.T) {
+func TestPackageSourceHandlerEmitsRefreshIntentWhenOwnerDisappears(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 6, 22, 10, 0, 0, 0, time.UTC)
@@ -73,9 +73,9 @@ func TestPackageSourceCorrelationHandlerEmitsRefreshIntentWhenOwnerDisappears(t 
 		},
 	}
 	intentWriter := &recordingRepoDependencyIntentWriter{}
-	handler := PackageSourceCorrelationHandler{
+	handler := PackageSourceHandler{
 		FactLoader:                 loader,
-		Writer:                     &recordingPackageCorrelationWriter{},
+		Writer:                     &recordingPackageWriter{},
 		RepoDependencyIntentWriter: intentWriter,
 		Now:                        func() time.Time { return observedAt },
 	}

@@ -41,7 +41,7 @@ type PackageConsumptionRepoDependencyInput struct {
 	SourceRunID          string
 	CreatedAt            time.Time
 	ConsumptionDecisions []PackageConsumptionDecision
-	OwnershipDecisions   []PackageSourceCorrelationDecision
+	OwnershipDecisions   []PackageSourceDecision
 	PublicationDecisions []PackagePublicationDecision
 }
 
@@ -234,7 +234,7 @@ func buildPackageConsumptionRepoEdgeRefreshIntent(
 // over publication when both resolve the same package id. Exported because
 // the code-import family admits owners through the same resolution.
 func ResolvePackageOwners(
-	ownership []PackageSourceCorrelationDecision,
+	ownership []PackageSourceDecision,
 	publication []PackagePublicationDecision,
 ) map[string]PackageOwnerResolution {
 	owners := make(map[string]PackageOwnerResolution)
@@ -268,8 +268,8 @@ func ResolvePackageOwners(
 // packageOwnerOutcomeAdmits reports whether a source-correlation outcome
 // carries a single resolved indexed owner repository. Only exact and derived
 // outcomes do; ambiguous/unresolved/stale/rejected do not.
-func packageOwnerOutcomeAdmits(outcome PackageSourceCorrelationOutcome) bool {
-	return outcome == PackageSourceCorrelationExact || outcome == PackageSourceCorrelationDerived
+func packageOwnerOutcomeAdmits(outcome PackageSourceOutcome) bool {
+	return outcome == PackageSourceExact || outcome == PackageSourceDerived
 }
 
 func buildPackageConsumptionRepoEdgeIntent(

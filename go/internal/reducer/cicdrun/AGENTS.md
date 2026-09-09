@@ -54,7 +54,7 @@ ownership boundary and exported surface.
 - **`ProjectCICDWorkflowImageBuiltFromEdges` is exported ONLY because the
   reducer root's shared `provenance_edge_submission_metrics_test.go`
   benchmarks/exercises it directly** (it also exercises the unrelated
-  `PackageSourceCorrelationHandler` and `ContainerImageIdentityHandler`
+  `PackageSourceHandler` and `ContainerImageIdentityHandler`
   provenance-edge counters and could not move here). Do not treat it as a
   public projection API for new callers.
 

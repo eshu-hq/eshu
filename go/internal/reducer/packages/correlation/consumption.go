@@ -490,7 +490,7 @@ func packageManifestDependencyFilter(envelopes []facts.Envelope) PackageManifest
 	}
 }
 
-func packageCorrelationCanonicalWrites(decisions []PackageConsumptionDecision) int {
+func countCanonicalWrites(decisions []PackageConsumptionDecision) int {
 	total := 0
 	for _, decision := range decisions {
 		total += decision.CanonicalWrites

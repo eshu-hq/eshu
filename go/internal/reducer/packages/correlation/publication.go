@@ -25,7 +25,7 @@ type PackagePublicationDecision struct {
 	RepositoryID           string
 	RepositoryName         string
 	CandidateRepositoryIDs []string
-	Outcome                PackageSourceCorrelationOutcome
+	Outcome                PackageSourceOutcome
 	Reason                 string
 	ProvenanceOnly         bool
 	CanonicalWrites        int

@@ -13,10 +13,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-func (h PackageSourceCorrelationHandler) writePackageSourceAdmissionDecisions(
+func (h PackageSourceHandler) writePackageSourceAdmissionDecisions(
 	ctx context.Context,
 	intent reducercontract.Intent,
-	ownership []PackageSourceCorrelationDecision,
+	ownership []PackageSourceDecision,
 	consumption []PackageConsumptionDecision,
 	publication []PackagePublicationDecision,
 ) error {
@@ -39,7 +39,7 @@ func (h PackageSourceCorrelationHandler) writePackageSourceAdmissionDecisions(
 
 func packageOwnershipAdmissionDecision(
 	intent reducercontract.Intent,
-	source PackageSourceCorrelationDecision,
+	source PackageSourceDecision,
 	now time.Time,
 ) admissiondecision.AdmissionDecisionWrite {
 	state := packageSourceAdmissionState(source.Outcome, source.ProvenanceOnly, source.CanonicalWrites)
@@ -70,7 +70,7 @@ func packageOwnershipAdmissionDecision(
 	decision.CanonicalWrite = admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      false,
 		Written:       false,
-		TargetKind:    PackageOwnershipCorrelationFactKind,
+		TargetKind:    PackageOwnershipFactKind,
 		SkippedReason: "source hint is provenance-only until stronger package ownership evidence exists",
 	}
 	decision.RecommendedAction = packageSourceAdmissionNextAction(state, "package ownership")
@@ -111,7 +111,7 @@ func packageConsumptionAdmissionDecision(
 	canonical := admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      source.CanonicalWrites > 0,
 		Written:       source.CanonicalWrites > 0,
-		TargetKind:    PackageConsumptionCorrelationFactKind,
+		TargetKind:    PackageConsumptionFactKind,
 		TargetID:      targetID,
 		SkippedReason: "manifest dependency evidence did not admit canonical consumption",
 	}
@@ -186,7 +186,7 @@ func packagePublicationAdmissionDecision(
 	decision.CanonicalWrite = admissiondecision.AdmissionCanonicalWrite{
 		Eligible:      false,
 		Written:       false,
-		TargetKind:    PackagePublicationCorrelationFactKind,
+		TargetKind:    PackagePublicationFactKind,
 		SkippedReason: "publication hint is provenance-only until release or build evidence exists",
 	}
 	decision.RecommendedAction = packageSourceAdmissionNextAction(state, "package publication")
@@ -210,7 +210,7 @@ func packagePublicationAdmissionDecision(
 }
 
 func packageSourceAdmissionState(
-	outcome PackageSourceCorrelationOutcome,
+	outcome PackageSourceOutcome,
 	provenanceOnly bool,
 	canonicalWrites int,
 ) admissiondecision.AdmissionState {
@@ -218,11 +218,11 @@ func packageSourceAdmissionState(
 		return admissiondecision.AdmissionStateAdmitted
 	}
 	switch outcome {
-	case PackageSourceCorrelationAmbiguous:
+	case PackageSourceAmbiguous:
 		return admissiondecision.AdmissionStateAmbiguous
-	case PackageSourceCorrelationStale:
+	case PackageSourceStale:
 		return admissiondecision.AdmissionStateStale
-	case PackageSourceCorrelationRejected:
+	case PackageSourceRejected:
 		return admissiondecision.AdmissionStateRejected
 	default:
 		return admissiondecision.AdmissionStateMissingEvidence

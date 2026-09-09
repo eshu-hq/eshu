@@ -24,11 +24,11 @@ import (
 // kinds are ignored.
 func decodePackageOwnershipCorrelationDecisions(
 	envelopes []facts.Envelope,
-) ([]correlation.PackageSourceCorrelationDecision, []quarantinedFact, error) {
-	decisions := make([]correlation.PackageSourceCorrelationDecision, 0)
+) ([]correlation.PackageSourceDecision, []quarantinedFact, error) {
+	decisions := make([]correlation.PackageSourceDecision, 0)
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != correlation.PackageOwnershipCorrelationFactKind || envelope.IsTombstone {
+		if envelope.FactKind != correlation.PackageOwnershipFactKind || envelope.IsTombstone {
 			continue
 		}
 		ownership, err := decodeReducerPackageOwnershipCorrelation(envelope)
@@ -44,11 +44,11 @@ func decodePackageOwnershipCorrelationDecisions(
 		}
 		packageID := strings.TrimSpace(ownership.PackageID)
 		repositoryID := strings.TrimSpace(derefString(ownership.RepositoryID))
-		outcome := correlation.PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(ownership.Outcome)))
+		outcome := correlation.PackageSourceOutcome(strings.TrimSpace(derefString(ownership.Outcome)))
 		if packageID == "" {
 			continue
 		}
-		decisions = append(decisions, correlation.PackageSourceCorrelationDecision{
+		decisions = append(decisions, correlation.PackageSourceDecision{
 			PackageID:    packageID,
 			RepositoryID: repositoryID,
 			Outcome:      outcome,
@@ -67,7 +67,7 @@ func decodePackagePublicationCorrelationDecisions(
 	decisions := make([]correlation.PackagePublicationDecision, 0)
 	var quarantined []quarantinedFact
 	for _, envelope := range envelopes {
-		if envelope.FactKind != correlation.PackagePublicationCorrelationFactKind || envelope.IsTombstone {
+		if envelope.FactKind != correlation.PackagePublicationFactKind || envelope.IsTombstone {
 			continue
 		}
 		publication, err := decodeReducerPackagePublicationCorrelation(envelope)
@@ -83,7 +83,7 @@ func decodePackagePublicationCorrelationDecisions(
 		}
 		packageID := strings.TrimSpace(publication.PackageID)
 		repositoryID := strings.TrimSpace(derefString(publication.RepositoryID))
-		outcome := correlation.PackageSourceCorrelationOutcome(strings.TrimSpace(derefString(publication.Outcome)))
+		outcome := correlation.PackageSourceOutcome(strings.TrimSpace(derefString(publication.Outcome)))
 		if packageID == "" {
 			continue
 		}

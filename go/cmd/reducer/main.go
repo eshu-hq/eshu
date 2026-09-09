@@ -345,7 +345,7 @@ func buildReducerService(
 		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
 			DB: database,
 		},
-		PackageCorrelationWriter: correlation.PostgresPackageCorrelationWriter{
+		PackageWriter: correlation.PostgresPackageWriter{
 			DB: database,
 		},
 		DriftHandlers:               buildReducerDriftHandlers(database, tracer, instruments, logger, getenv),

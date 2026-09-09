@@ -99,7 +99,7 @@ func classifySupplyChainImpactPackage(
 			finding.DirectDependency = &value
 		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.FactID)
-		finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.EvidenceKind, correlation.PackageConsumptionCorrelationFactKind))
+		finding.EvidencePath = append(finding.EvidencePath, payloadcore.FirstNonBlank(consumption.EvidenceKind, correlation.PackageConsumptionFactKind))
 		finding.ObservedVersion = strings.TrimSpace(consumption.ObservedVersion)
 		if finding.ObservedVersion == "" {
 			if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {

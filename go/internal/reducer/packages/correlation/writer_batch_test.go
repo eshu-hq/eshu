@@ -13,8 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
 )
 
-// TestPostgresPackageCorrelationWriterPersistsBatchedFacts proves
-// WritePackageCorrelations combines ownership, consumption, and publication
+// TestPostgresPackageWriterPersistsBatchedFacts proves
+// WriteCorrelations combines ownership, consumption, and publication
 // decisions into ONE reducerBatchInsertVersionedFacts bulk-insert call (issue
 // #5317) instead of one ExecContext per decision spread across three
 // separate loops, and that the decoded rows carry byte-identical content —
@@ -24,23 +24,23 @@ import (
 // wrote them: the row-building helpers (packageOwnership/Consumption/
 // PublicationFactID/StableFactKey/Payload) are unchanged, only the
 // ExecContext call site moved and consolidated.
-func TestPostgresPackageCorrelationWriterPersistsBatchedFacts(t *testing.T) {
+func TestPostgresPackageWriterPersistsBatchedFacts(t *testing.T) {
 	t.Parallel()
 
 	db := &factwritetest.FakeExecer{}
-	writer := PostgresPackageCorrelationWriter{DB: db}
+	writer := PostgresPackageWriter{DB: db}
 
-	write := PackageCorrelationWrite{
+	write := PackageWrite{
 		IntentID:     "intent-package-batch",
 		ScopeID:      "scope-package-batch",
 		GenerationID: "generation-package-batch",
 		SourceSystem: "package_registry",
 		Cause:        "package source hints observed",
-		OwnershipDecisions: []PackageSourceCorrelationDecision{
+		OwnershipDecisions: []PackageSourceDecision{
 			{
 				PackageID: "pkg:npm://registry.example/team-api",
 				SourceURL: "https://github.com/acme/team-api",
-				Outcome:   PackageSourceCorrelationExact,
+				Outcome:   PackageSourceExact,
 			},
 		},
 		ConsumptionDecisions: []PackageConsumptionDecision{
@@ -57,14 +57,14 @@ func TestPostgresPackageCorrelationWriterPersistsBatchedFacts(t *testing.T) {
 				VersionID:    "pkg:npm://registry.example/team-api@1.2.0",
 				SourceURL:    "https://github.com/acme/team-api",
 				RepositoryID: "repo-team-api",
-				Outcome:      PackageSourceCorrelationExact,
+				Outcome:      PackageSourceExact,
 			},
 		},
 	}
 
-	result, err := writer.WritePackageCorrelations(context.Background(), write)
+	result, err := writer.WriteCorrelations(context.Background(), write)
 	if err != nil {
-		t.Fatalf("WritePackageCorrelations() error = %v, want nil", err)
+		t.Fatalf("WriteCorrelations() error = %v, want nil", err)
 	}
 	if got, want := result.FactsWritten, 3; got != want {
 		t.Fatalf("FactsWritten = %d, want %d", got, want)
@@ -102,7 +102,7 @@ func TestPostgresPackageCorrelationWriterPersistsBatchedFacts(t *testing.T) {
 	if got, want := ownershipRow.StableFactKey, packageOwnershipStableFactKey(write, write.OwnershipDecisions[0]); got != want {
 		t.Fatalf("ownership row StableFactKey = %q, want %q", got, want)
 	}
-	if got, want := ownershipRow.FactKind, PackageOwnershipCorrelationFactKind; got != want {
+	if got, want := ownershipRow.FactKind, PackageOwnershipFactKind; got != want {
 		t.Fatalf("ownership row FactKind = %q, want %q", got, want)
 	}
 	if got, want := string(ownershipRow.Payload), string(wantOwnershipPayload); got != want {
@@ -115,7 +115,7 @@ func TestPostgresPackageCorrelationWriterPersistsBatchedFacts(t *testing.T) {
 	if got, want := consumptionRow.StableFactKey, packageConsumptionStableFactKey(write, write.ConsumptionDecisions[0]); got != want {
 		t.Fatalf("consumption row StableFactKey = %q, want %q", got, want)
 	}
-	if got, want := consumptionRow.FactKind, PackageConsumptionCorrelationFactKind; got != want {
+	if got, want := consumptionRow.FactKind, PackageConsumptionFactKind; got != want {
 		t.Fatalf("consumption row FactKind = %q, want %q", got, want)
 	}
 	if got, want := string(consumptionRow.Payload), string(wantConsumptionPayload); got != want {
@@ -128,7 +128,7 @@ func TestPostgresPackageCorrelationWriterPersistsBatchedFacts(t *testing.T) {
 	if got, want := publicationRow.StableFactKey, packagePublicationStableFactKey(write, write.PublicationDecisions[0]); got != want {
 		t.Fatalf("publication row StableFactKey = %q, want %q", got, want)
 	}
-	if got, want := publicationRow.FactKind, PackagePublicationCorrelationFactKind; got != want {
+	if got, want := publicationRow.FactKind, PackagePublicationFactKind; got != want {
 		t.Fatalf("publication row FactKind = %q, want %q", got, want)
 	}
 	if got, want := string(publicationRow.Payload), string(wantPublicationPayload); got != want {
@@ -148,21 +148,21 @@ func TestPostgresPackageCorrelationWriterPersistsBatchedFacts(t *testing.T) {
 	}
 }
 
-// TestWritePackageCorrelationsBoundedExecCount guards issue #5317: N
+// TestWriteCorrelationsBoundedExecCount guards issue #5317: N
 // decisions across the three decision lists combined must be persisted in
 // O(N/batchSize) bulk inserts rather than one ExecContext per decision.
-func TestWritePackageCorrelationsBoundedExecCount(t *testing.T) {
+func TestWriteCorrelationsBoundedExecCount(t *testing.T) {
 	t.Parallel()
 
 	const perListCount = 500
-	ownership := make([]PackageSourceCorrelationDecision, perListCount)
+	ownership := make([]PackageSourceDecision, perListCount)
 	consumption := make([]PackageConsumptionDecision, perListCount)
 	publication := make([]PackagePublicationDecision, perListCount)
 	for i := 0; i < perListCount; i++ {
-		ownership[i] = PackageSourceCorrelationDecision{
+		ownership[i] = PackageSourceDecision{
 			PackageID: fmt.Sprintf("pkg:npm://registry.example/svc-%d", i),
 			SourceURL: fmt.Sprintf("https://github.com/acme/svc-%d", i),
-			Outcome:   PackageSourceCorrelationExact,
+			Outcome:   PackageSourceExact,
 		}
 		consumption[i] = PackageConsumptionDecision{
 			PackageID:    fmt.Sprintf("pkg:npm://registry.example/svc-%d", i),
@@ -175,14 +175,14 @@ func TestWritePackageCorrelationsBoundedExecCount(t *testing.T) {
 			VersionID:    fmt.Sprintf("pkg:npm://registry.example/svc-%d@1.0.0", i),
 			SourceURL:    fmt.Sprintf("https://github.com/acme/svc-%d", i),
 			RepositoryID: fmt.Sprintf("repo-%d", i),
-			Outcome:      PackageSourceCorrelationExact,
+			Outcome:      PackageSourceExact,
 		}
 	}
 
 	db := &factwritetest.FakeExecer{}
-	writer := PostgresPackageCorrelationWriter{DB: db}
+	writer := PostgresPackageWriter{DB: db}
 
-	result, err := writer.WritePackageCorrelations(context.Background(), PackageCorrelationWrite{
+	result, err := writer.WriteCorrelations(context.Background(), PackageWrite{
 		IntentID:             "intent-package-batch",
 		ScopeID:              "scope-package-batch",
 		GenerationID:         "generation-batch",
@@ -192,7 +192,7 @@ func TestWritePackageCorrelationsBoundedExecCount(t *testing.T) {
 		PublicationDecisions: publication,
 	})
 	if err != nil {
-		t.Fatalf("WritePackageCorrelations() error = %v", err)
+		t.Fatalf("WriteCorrelations() error = %v", err)
 	}
 	const totalDecisions = perListCount * 3
 	if got, want := result.FactsWritten, totalDecisions; got != want {

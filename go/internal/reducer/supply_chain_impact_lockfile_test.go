@@ -49,7 +49,7 @@ func TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion(t *testing.T) {
 	if strings.Contains(path, facts.PackageRegistryPackageVersionFactKind) {
 		t.Fatalf("EvidencePath = %#v, must not treat registry versions as installed versions", got.EvidencePath)
 	}
-	if !strings.Contains(path, correlation.PackageConsumptionCorrelationFactKind) {
+	if !strings.Contains(path, correlation.PackageConsumptionFactKind) {
 		t.Fatalf("EvidencePath = %#v, want package consumption evidence", got.EvidencePath)
 	}
 }
@@ -342,7 +342,7 @@ func packageConsumptionFactWithRange(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: correlation.PackageConsumptionCorrelationFactKind,
+		FactKind: correlation.PackageConsumptionFactKind,
 		Payload: map[string]any{
 			"package_id":        packageID,
 			"relationship_kind": "consumption",

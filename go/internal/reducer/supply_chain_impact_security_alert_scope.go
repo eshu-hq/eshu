@@ -70,7 +70,7 @@ func securityAlertScopedEnvelopeAllowed(
 	envelope facts.Envelope,
 ) bool {
 	switch envelope.FactKind {
-	case correlation.PackageConsumptionCorrelationFactKind:
+	case correlation.PackageConsumptionFactKind:
 		consumption := securityalert.SecurityAlertConsumption{
 			RepositoryID:   payloadStr(envelope.Payload, "repository_id"),
 			RepositoryName: payloadStr(envelope.Payload, "repository_name"),

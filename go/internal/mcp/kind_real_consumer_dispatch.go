@@ -29,7 +29,7 @@ import (
 // and friends — is the concrete case that was missed when this scan only
 // matched token.EQL: package_registry.source_hint was wrongly disclosed as
 // unconsumed despite being read here and wired live through
-// BuildPackageSourceCorrelationDecisions
+// BuildPackageSourceDecisions
 // (packages/correlation/source_handler.go,
 // DomainPackageSourceCorrelation).
 //

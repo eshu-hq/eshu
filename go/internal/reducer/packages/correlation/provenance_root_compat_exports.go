@@ -20,7 +20,7 @@ import (
 // PackageOwnershipPublishesRows forwards to the package-private
 // packageOwnershipPublishesRows.
 func PackageOwnershipPublishesRows(
-	decisions []PackageSourceCorrelationDecision,
+	decisions []PackageSourceDecision,
 ) []map[string]any {
 	return packageOwnershipPublishesRows(decisions)
 }
@@ -40,10 +40,10 @@ func ProjectPackageProvenanceEdgesForReplayTest(
 	writer PackageProvenanceEdgeWriter,
 	scopeID string,
 	generationID string,
-	ownershipDecisions []PackageSourceCorrelationDecision,
+	ownershipDecisions []PackageSourceDecision,
 	publicationDecisions []PackagePublicationDecision,
 ) error {
-	handler := PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer}
+	handler := PackageSourceHandler{ProvenanceEdgeWriter: writer}
 	return handler.projectPackageProvenanceEdges(
 		ctx,
 		reducercontract.Intent{ScopeID: scopeID, GenerationID: generationID},

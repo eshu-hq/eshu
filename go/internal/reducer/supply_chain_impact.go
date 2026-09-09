@@ -391,7 +391,7 @@ func supplyChainImpactFactKinds() []string {
 		facts.OCIImageReferrerFactKind,
 		sbomAttestationAttachmentFactKind,
 		containerImageIdentityFactKind,
-		correlation.PackageConsumptionCorrelationFactKind,
+		correlation.PackageConsumptionFactKind,
 		cicdRunCorrelationFactKind,
 		platformMaterializationFactKind,
 		workloadIdentityFactKind,

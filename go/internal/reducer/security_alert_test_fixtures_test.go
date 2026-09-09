@@ -38,7 +38,7 @@ func packageConsumptionCorrelationEnvelope(factID string, repoID string, package
 		FactID:       factID,
 		ScopeID:      repoID,
 		GenerationID: "generation-1",
-		FactKind:     correlation.PackageConsumptionCorrelationFactKind,
+		FactKind:     correlation.PackageConsumptionFactKind,
 		ObservedAt:   time.Date(2026, 5, 23, 11, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
 			"repository_id": repoID,

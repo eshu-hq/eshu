@@ -43,7 +43,7 @@ type PackageProvenanceEdgeWriter interface {
 // non-empty) targets that PackageVersion; otherwise it targets the Package.
 // Ambiguous/unresolved/stale/rejected outcomes and decisions with no resolved
 // repository never produce a row (#5472 exact/derived-only tiering).
-func packageOwnershipPublishesRows(decisions []PackageSourceCorrelationDecision) []map[string]any {
+func packageOwnershipPublishesRows(decisions []PackageSourceDecision) []map[string]any {
 	rows := make([]map[string]any, 0, len(decisions))
 	for _, decision := range decisions {
 		if !packageOwnerOutcomeAdmits(decision.Outcome) {
@@ -94,11 +94,11 @@ func packagePublicationPublishesRows(decisions []PackagePublicationDecision) []m
 // handler's wired writer and instruments. It is the test seam the
 // multi-family provenance metrics test drives directly, mirroring the
 // containerimage/cicdrun Project...ForTest seams; production calls go through
-// PackageSourceCorrelationHandler.Handle.
-func (h PackageSourceCorrelationHandler) ProjectPackageProvenanceEdgesForTest(
+// PackageSourceHandler.Handle.
+func (h PackageSourceHandler) ProjectPackageProvenanceEdgesForTest(
 	ctx context.Context,
 	intent reducercontract.Intent,
-	ownershipDecisions []PackageSourceCorrelationDecision,
+	ownershipDecisions []PackageSourceDecision,
 	publicationDecisions []PackagePublicationDecision,
 ) error {
 	return h.projectPackageProvenanceEdges(ctx, intent, ownershipDecisions, publicationDecisions)
@@ -115,10 +115,10 @@ func (h PackageSourceCorrelationHandler) ProjectPackageProvenanceEdgesForTest(
 // Retract runs unconditionally (ahead of any row check) so a generation that
 // drops a previously-admitted decision still removes that decision's stale
 // edge (#5472 retract-first-per-generation).
-func (h PackageSourceCorrelationHandler) projectPackageProvenanceEdges(
+func (h PackageSourceHandler) projectPackageProvenanceEdges(
 	ctx context.Context,
 	intent reducercontract.Intent,
-	ownershipDecisions []PackageSourceCorrelationDecision,
+	ownershipDecisions []PackageSourceDecision,
 	publicationDecisions []PackagePublicationDecision,
 ) error {
 	if h.ProvenanceEdgeWriter == nil {
@@ -162,7 +162,7 @@ func (h PackageSourceCorrelationHandler) projectPackageProvenanceEdges(
 // labeled by the producing evidence_source domain. It is a no-op when no
 // Instruments are wired or the count is zero, matching emitRepoEdgeCounter's
 // shape.
-func (h PackageSourceCorrelationHandler) emitProvenanceEdgeCounter(ctx context.Context, evidenceSource, outcome string, count int) {
+func (h PackageSourceHandler) emitProvenanceEdgeCounter(ctx context.Context, evidenceSource, outcome string, count int) {
 	if h.Instruments == nil || h.Instruments.ProvenanceEdges == nil || count <= 0 {
 		return
 	}

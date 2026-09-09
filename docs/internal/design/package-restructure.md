@@ -308,7 +308,7 @@ pure dependency `extractPackageSourceRepositories` needs and has no
 independent reason to stay in root, and its one other caller
 (`supply_chain_impact_python_reachability.go`) keeps reaching it through the
 same root forwarder every other caller uses. The five named symbols were not
-extracted whole as a family because `BuildPackageSourceCorrelationDecisions`
+extracted whole as a family because `BuildPackageSourceDecisions`
 and the handler that classifies a hint into a correlation outcome are called
 only from `package_source_correlation.go` and
 `package_source_correlation_handler.go` themselves (649 lines together), while

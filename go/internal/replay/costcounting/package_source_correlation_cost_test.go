@@ -16,8 +16,8 @@ import (
 
 // packageSourceCorrelationBudgetRelPath is the committed cost budget for the
 // package_source_correlation scenario (C-14 issue #4367, Tier-2 Postgres
-// cost slice). PostgresPackageCorrelationWriter operates over
-// []PackageSourceCorrelationDecision Go values (the ownership decisions this
+// cost slice). PostgresPackageWriter operates over
+// []PackageSourceDecision Go values (the ownership decisions this
 // domain projects), not a CanonicalMaterialization, so the fixture decisions
 // live inline in this file, matching the container_image_identity_cost_
 // test.go convention.
@@ -29,7 +29,7 @@ const packageSourceCorrelationCostIntentID = "intent-package-source-correlation-
 
 // packageSourceCorrelationFixtureDecisions is the deterministic input for
 // this scenario: two exact-outcome package OWNERSHIP decisions for distinct
-// packages in one scope. WritePackageCorrelations
+// packages in one scope. WriteCorrelations
 // (go/internal/reducer/packages/correlation/writer.go) now combines the
 // ownership, consumption, and publication decision lists into ONE
 // reducerBatchInsertVersionedFacts bulk-insert call (issue #5317) instead of
@@ -38,29 +38,29 @@ const packageSourceCorrelationCostIntentID = "intent-package-source-correlation-
 // PublicationDecisions empty) since package_source_correlation is the
 // ownership-candidate projection — consumption and publication are covered
 // by the domain's own writer share, not this manifest surface.
-func packageSourceCorrelationFixtureDecisions() []correlation.PackageSourceCorrelationDecision {
-	row := func(id string) correlation.PackageSourceCorrelationDecision {
-		return correlation.PackageSourceCorrelationDecision{
+func packageSourceCorrelationFixtureDecisions() []correlation.PackageSourceDecision {
+	row := func(id string) correlation.PackageSourceDecision {
+		return correlation.PackageSourceDecision{
 			PackageID:    "npm:left-pad-" + id,
 			VersionID:    "1.0." + id,
 			HintKind:     "repository_url",
 			SourceURL:    "https://github.com/team/left-pad-" + id,
 			RepositoryID: "repo:team-left-pad-" + id,
-			Outcome:      correlation.PackageSourceCorrelationExact,
+			Outcome:      correlation.PackageSourceExact,
 		}
 	}
-	return []correlation.PackageSourceCorrelationDecision{row("a"), row("b")}
+	return []correlation.PackageSourceDecision{row("a"), row("b")}
 }
 
 // TestCostBudget_PackageSourceCorrelation is the positive cost-counting gate
 // for the package_source_correlation reducer projection. It drives the
-// production PostgresPackageCorrelationWriter.WritePackageCorrelations over
+// production PostgresPackageWriter.WriteCorrelations over
 // two ownership decisions in one scope (no consumption or publication
 // decisions), through a real InstrumentedDB-backed sdkmetric.ManualReader,
 // then asserts eshu_dp_postgres_query_duration_seconds's write-attributed
 // observation count is within the committed budget.
 //
-// WritePackageCorrelations now combines its three decision lists (ownership,
+// WriteCorrelations now combines its three decision lists (ownership,
 // consumption, publication) into ONE reducerBatchInsertVersionedFacts
 // bulk-insert call (issue #5317) instead of one ExecContext per decision, so
 // two ownership decisions fit one chunk and this scenario asserts exactly one
@@ -73,12 +73,12 @@ func TestCostBudget_PackageSourceCorrelation(t *testing.T) {
 	budget := loadBudgetFrom(t, packageSourceCorrelationBudgetRelPath)
 	fake := &countingExecQueryer{}
 	db, reader := newInstrumentedReducerDB(t, fake)
-	writer := correlation.PostgresPackageCorrelationWriter{
+	writer := correlation.PostgresPackageWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
-	result, err := writer.WritePackageCorrelations(context.Background(), correlation.PackageCorrelationWrite{
+	result, err := writer.WriteCorrelations(context.Background(), correlation.PackageWrite{
 		IntentID:           packageSourceCorrelationCostIntentID,
 		ScopeID:            "repo:team-left-pad",
 		GenerationID:       "generation-package-source-correlation-cost",
@@ -87,7 +87,7 @@ func TestCostBudget_PackageSourceCorrelation(t *testing.T) {
 		OwnershipDecisions: packageSourceCorrelationFixtureDecisions(),
 	})
 	if err != nil {
-		t.Fatalf("WritePackageCorrelations() error = %v", err)
+		t.Fatalf("WriteCorrelations() error = %v", err)
 	}
 	if result.FactsWritten != 2 {
 		t.Fatalf("FactsWritten = %d, want 2", result.FactsWritten)
@@ -138,7 +138,7 @@ func TestCostBudget_PackageSourceCorrelation(t *testing.T) {
 
 // TestCostBudget_PackageSourceCorrelation_N1_ExceedsBudget is the mandatory
 // negative control, run through the SAME production batched dispatch as the
-// positive test. It calls WritePackageCorrelations once per fixture ownership
+// positive test. It calls WriteCorrelations once per fixture ownership
 // decision instead of once for the whole batch — the classic N+1
 // anti-pattern for a batched writer — and asserts the accumulated
 // eshu_dp_postgres_query_duration_seconds write observation count EXCEEDS the
@@ -154,21 +154,21 @@ func TestCostBudget_PackageSourceCorrelation_N1_ExceedsBudget(t *testing.T) {
 
 	fake := &countingExecQueryer{}
 	db, reader := newInstrumentedReducerDB(t, fake)
-	writer := correlation.PostgresPackageCorrelationWriter{
+	writer := correlation.PostgresPackageWriter{
 		DB:  db,
 		Now: func() time.Time { return time.Date(2026, time.July, 12, 12, 0, 0, 0, time.UTC) },
 	}
 
 	for _, decision := range decisions {
-		if _, err := writer.WritePackageCorrelations(context.Background(), correlation.PackageCorrelationWrite{
+		if _, err := writer.WriteCorrelations(context.Background(), correlation.PackageWrite{
 			IntentID:           packageSourceCorrelationCostIntentID,
 			ScopeID:            "repo:team-left-pad",
 			GenerationID:       "generation-package-source-correlation-cost",
 			SourceSystem:       "npm",
 			Cause:              "reducer/package_source_correlation",
-			OwnershipDecisions: []correlation.PackageSourceCorrelationDecision{decision},
+			OwnershipDecisions: []correlation.PackageSourceDecision{decision},
 		}); err != nil {
-			t.Fatalf("N+1 WritePackageCorrelations() error = %v", err)
+			t.Fatalf("N+1 WriteCorrelations() error = %v", err)
 		}
 	}
 

@@ -58,7 +58,7 @@ func BenchmarkBuildSupplyChainImpactIndexWithQuarantine(b *testing.B) {
 		})
 		envelopes = append(envelopes, facts.Envelope{
 			FactID:   fmt.Sprintf("package-consumption-%d", i),
-			FactKind: correlation.PackageConsumptionCorrelationFactKind,
+			FactKind: correlation.PackageConsumptionFactKind,
 			Payload: map[string]any{
 				"package_id":       packageID,
 				"repository_id":    fmt.Sprintf("repo-%d", i),

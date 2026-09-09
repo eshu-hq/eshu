@@ -65,7 +65,7 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		t.Fatal("generation 2 must derive previous-generation existence from cassette order")
 	}
 
-	packageGen1 := correlation.BuildPackageSourceCorrelationDecisions(gen1.facts)
+	packageGen1 := correlation.BuildPackageSourceDecisions(gen1.facts)
 	if got, want := len(packageGen1), 1; got != want {
 		t.Fatalf("generation 1 package decisions = %d, want %d", got, want)
 	}
@@ -98,7 +98,7 @@ func TestProvenanceReplayTombstoneCassetteDecisions(t *testing.T) {
 		t.Fatalf("generation 1 DERIVED_FROM rows = %#v, want child-to-base lineage row", derivedFromRows)
 	}
 
-	if got := correlation.BuildPackageSourceCorrelationDecisions(gen2.facts); len(got) != 0 {
+	if got := correlation.BuildPackageSourceDecisions(gen2.facts); len(got) != 0 {
 		t.Fatalf("generation 2 package decisions = %#v, want none", got)
 	}
 	if got := correlation.BuildPackagePublicationDecisions(gen2.facts); len(got) != 0 {
@@ -298,7 +298,7 @@ func projectProvenanceReplayGeneration(
 	generation provenanceReplayGeneration,
 ) {
 	t.Helper()
-	packageDecisions := correlation.BuildPackageSourceCorrelationDecisions(generation.facts)
+	packageDecisions := correlation.BuildPackageSourceDecisions(generation.facts)
 	publicationDecisions := correlation.BuildPackagePublicationDecisions(generation.facts)
 	if err := correlation.ProjectPackageProvenanceEdgesForReplayTest(
 		ctx, writer, generation.scope.ScopeID, generation.generation.GenerationID,

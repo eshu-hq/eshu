@@ -134,7 +134,7 @@ func securityAlertConsumptionEvidenceKind(consumption securityalert.SecurityAler
 	if strings.TrimSpace(consumption.EvidenceKind) != "" {
 		return strings.TrimSpace(consumption.EvidenceKind)
 	}
-	return correlation.PackageConsumptionCorrelationFactKind
+	return correlation.PackageConsumptionFactKind
 }
 
 func securityAlertCanSeedImpact(alert securityalert.ProviderSecurityAlert) bool {

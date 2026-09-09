@@ -52,18 +52,18 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 	intent := Intent{ScopeID: "scope-1", GenerationID: "generation-1"}
 
 	packageWriter := &recordingPackageProvenanceEdgeWriter{}
-	packageHandler := correlation.PackageSourceCorrelationHandler{
+	packageHandler := correlation.PackageSourceHandler{
 		ProvenanceEdgeWriter: packageWriter,
 		Instruments:          instruments,
 	}
 	if err := packageHandler.ProjectPackageProvenanceEdgesForTest(
 		context.Background(),
 		reducercontract.Intent{ScopeID: intent.ScopeID, GenerationID: intent.GenerationID},
-		[]correlation.PackageSourceCorrelationDecision{{
-			PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceCorrelationExact,
+		[]correlation.PackageSourceDecision{{
+			PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceExact,
 		}},
 		[]correlation.PackagePublicationDecision{{
-			PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceCorrelationExact,
+			PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceExact,
 		}},
 	); err != nil {
 		t.Fatalf("projectPackageProvenanceEdges() error = %v", err)
@@ -139,12 +139,12 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingPackageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
-				return (correlation.PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+				return (correlation.PackageSourceHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectPackageProvenanceEdgesForTest(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
-						[]correlation.PackageSourceCorrelationDecision{{
-							PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceCorrelationExact,
+						[]correlation.PackageSourceDecision{{
+							PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceExact,
 						}},
 						nil,
 					)
@@ -155,13 +155,13 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingPackageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
-				return (correlation.PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+				return (correlation.PackageSourceHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
 					ProjectPackageProvenanceEdgesForTest(
 						context.Background(),
 						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
 						[]correlation.PackagePublicationDecision{{
-							PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceCorrelationExact,
+							PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceExact,
 						}},
 					)
 			},
@@ -316,15 +316,15 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 func TestProvenanceEdgeCounterKeepsSuccessfulSubmissionBeforeLaterFailure(t *testing.T) {
 	reader, instruments := newProvenanceEdgeMetricReader(t)
 	writer := &publicationFailingPackageProvenanceEdgeWriter{}
-	handler := correlation.PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}
+	handler := correlation.PackageSourceHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}
 	err := handler.ProjectPackageProvenanceEdgesForTest(
 		context.Background(),
 		reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
-		[]correlation.PackageSourceCorrelationDecision{{
-			PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceCorrelationExact,
+		[]correlation.PackageSourceDecision{{
+			PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceExact,
 		}},
 		[]correlation.PackagePublicationDecision{{
-			PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceCorrelationExact,
+			PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceExact,
 		}},
 	)
 	if err == nil {

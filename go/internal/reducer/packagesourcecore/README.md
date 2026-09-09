@@ -33,7 +33,7 @@ This package owns:
 It does not own hint extraction, correlation-outcome classification, or the
 decision types the package correlation family's handler produces. Those live
 in `packages/correlation` because hoisting them would drag the
-`PackageSourceCorrelationDecision` type and the classification logic that reads
+`PackageSourceDecision` type and the classification logic that reads
 it into a leaf whose budget is the shared shapes and matching helpers.
 `packages/correlation/publication.go` calls
 `extractPackageSourceHints` and `classifyPackageSourceHint` directly today, so
@@ -41,7 +41,7 @@ they are not handler-exclusive.
 
 ## Why a leaf and not a family move
 
-`BuildPackageSourceCorrelationDecisions` and the handler that classifies a
+`BuildPackageSourceDecisions` and the handler that classifies a
 hint into a correlation outcome are called only from
 `packages/correlation/source.go` and
 `packages/correlation/source_handler.go` themselves (649

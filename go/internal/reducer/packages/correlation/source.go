@@ -12,36 +12,36 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// PackageSourceCorrelationOutcome names the reducer decision for one package
+// PackageSourceOutcome names the reducer decision for one package
 // registry source hint. Exact and derived outcomes are still candidates; they
 // do not authorize package ownership graph writes without stronger build or
 // release provenance.
-type PackageSourceCorrelationOutcome string
+type PackageSourceOutcome string
 
 const (
-	// PackageSourceCorrelationExact means the hint URL exactly matched one
+	// PackageSourceExact means the hint URL exactly matched one
 	// active repository remote URL.
-	PackageSourceCorrelationExact PackageSourceCorrelationOutcome = "exact"
-	// PackageSourceCorrelationDerived means the hint URL matched one active
+	PackageSourceExact PackageSourceOutcome = "exact"
+	// PackageSourceDerived means the hint URL matched one active
 	// repository after git URL canonicalization such as SSH-to-HTTPS or .git
 	// suffix removal.
-	PackageSourceCorrelationDerived PackageSourceCorrelationOutcome = "derived"
-	// PackageSourceCorrelationAmbiguous means more than one active repository
+	PackageSourceDerived PackageSourceOutcome = "derived"
+	// PackageSourceAmbiguous means more than one active repository
 	// matched the same source hint.
-	PackageSourceCorrelationAmbiguous PackageSourceCorrelationOutcome = "ambiguous"
-	// PackageSourceCorrelationUnresolved means no repository matched the hint.
-	PackageSourceCorrelationUnresolved PackageSourceCorrelationOutcome = "unresolved"
-	// PackageSourceCorrelationStale means the hint matched only tombstoned
+	PackageSourceAmbiguous PackageSourceOutcome = "ambiguous"
+	// PackageSourceUnresolved means no repository matched the hint.
+	PackageSourceUnresolved PackageSourceOutcome = "unresolved"
+	// PackageSourceStale means the hint matched only tombstoned
 	// repository facts.
-	PackageSourceCorrelationStale PackageSourceCorrelationOutcome = "stale"
-	// PackageSourceCorrelationRejected means the hint cannot participate in
+	PackageSourceStale PackageSourceOutcome = "stale"
+	// PackageSourceRejected means the hint cannot participate in
 	// ownership correlation, such as homepage or generic project metadata.
-	PackageSourceCorrelationRejected PackageSourceCorrelationOutcome = "rejected"
+	PackageSourceRejected PackageSourceOutcome = "rejected"
 )
 
-// PackageSourceCorrelationDecision records the bounded package-source
+// PackageSourceDecision records the bounded package-source
 // correlation result before any canonical package ownership materialization.
-type PackageSourceCorrelationDecision struct {
+type PackageSourceDecision struct {
 	PackageID              string
 	VersionID              string
 	HintKind               string
@@ -49,19 +49,19 @@ type PackageSourceCorrelationDecision struct {
 	RepositoryID           string
 	RepositoryName         string
 	CandidateRepositoryIDs []string
-	Outcome                PackageSourceCorrelationOutcome
+	Outcome                PackageSourceOutcome
 	Reason                 string
 	ProvenanceOnly         bool
 	CanonicalWrites        int
 	EvidenceFactIDs        []string
 }
 
-// BuildPackageSourceCorrelationDecisions classifies package registry
+// BuildPackageSourceDecisions classifies package registry
 // source_hint facts against repository facts for one reducer input set.
-func BuildPackageSourceCorrelationDecisions(envelopes []facts.Envelope) []PackageSourceCorrelationDecision {
+func BuildPackageSourceDecisions(envelopes []facts.Envelope) []PackageSourceDecision {
 	hints := extractPackageSourceHints(envelopes)
 	repositories := extractPackageSourceRepositories(envelopes)
-	decisions := make([]PackageSourceCorrelationDecision, 0, len(hints))
+	decisions := make([]PackageSourceDecision, 0, len(hints))
 	for _, hint := range hints {
 		decisions = append(decisions, classifyPackageSourceHint(hint, repositories))
 	}
@@ -101,8 +101,8 @@ func extractPackageSourceHints(envelopes []facts.Envelope) []packageSourceHint {
 func classifyPackageSourceHint(
 	hint packageSourceHint,
 	repositories []packageSourceRepository,
-) PackageSourceCorrelationDecision {
-	decision := PackageSourceCorrelationDecision{
+) PackageSourceDecision {
+	decision := PackageSourceDecision{
 		PackageID:       hint.PackageID,
 		VersionID:       hint.VersionID,
 		HintKind:        hint.HintKind,
@@ -112,12 +112,12 @@ func classifyPackageSourceHint(
 		EvidenceFactIDs: compactStringSlice(hint.FactID),
 	}
 	if hint.PackageID == "" || hint.SourceURL == "" {
-		decision.Outcome = PackageSourceCorrelationRejected
+		decision.Outcome = PackageSourceRejected
 		decision.Reason = "source hint is missing package identity or URL"
 		return decision
 	}
 	if hint.HintKind != "repository" {
-		decision.Outcome = PackageSourceCorrelationRejected
+		decision.Outcome = PackageSourceRejected
 		decision.Reason = "hint kind " + hint.HintKind + " is provenance-only and cannot prove repository ownership"
 		return decision
 	}
@@ -126,12 +126,12 @@ func classifyPackageSourceHint(
 	switch len(activeMatches) {
 	case 0:
 		if len(staleMatches) > 0 {
-			decision.Outcome = PackageSourceCorrelationStale
+			decision.Outcome = PackageSourceStale
 			decision.CandidateRepositoryIDs = packageSourceRepositoryIDs(staleMatches)
 			decision.Reason = "source hint matched only tombstoned repository facts"
 			return decision
 		}
-		decision.Outcome = PackageSourceCorrelationUnresolved
+		decision.Outcome = PackageSourceUnresolved
 		decision.Reason = "source hint did not match any repository remote"
 		return decision
 	case 1:
@@ -139,15 +139,15 @@ func classifyPackageSourceHint(
 		decision.RepositoryID = match.RepositoryID
 		decision.RepositoryName = match.RepositoryName
 		if exactPackageSourceURLMatch(hint.SourceURL, match.RemoteURL) {
-			decision.Outcome = PackageSourceCorrelationExact
+			decision.Outcome = PackageSourceExact
 			decision.Reason = "source hint matches repository remote exactly"
 			return decision
 		}
-		decision.Outcome = PackageSourceCorrelationDerived
+		decision.Outcome = PackageSourceDerived
 		decision.Reason = "source hint matches repository remote after git URL canonicalization"
 		return decision
 	default:
-		decision.Outcome = PackageSourceCorrelationAmbiguous
+		decision.Outcome = PackageSourceAmbiguous
 		decision.CandidateRepositoryIDs = packageSourceRepositoryIDs(activeMatches)
 		decision.Reason = "source hint matches multiple active repository remotes"
 		return decision

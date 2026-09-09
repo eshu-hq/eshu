@@ -37,7 +37,7 @@ func TestBuildPackagePublicationDecisionsMatchesVersionToRepositoryHint(t *testi
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
 	decision := decisions[0]
-	if got, want := decision.Outcome, PackageSourceCorrelationExact; got != want {
+	if got, want := decision.Outcome, PackageSourceExact; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
 	if got, want := decision.PackageID, "pkg:npm://registry.example/team-api"; got != want {
@@ -85,7 +85,7 @@ func TestBuildPackagePublicationDecisionsKeepsWeakHintsRejected(t *testing.T) {
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
-	if got, want := decisions[0].Outcome, PackageSourceCorrelationRejected; got != want {
+	if got, want := decisions[0].Outcome, PackageSourceRejected; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
 	if decisions[0].RepositoryID != "" {

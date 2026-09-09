@@ -39,7 +39,7 @@ func (s *stubCodeImportFactLoader) ListActivePackageOwnershipFacts(
 func codeImportOwnershipCorrelationFact(packageID, repositoryID, outcome string, observedAt time.Time) facts.Envelope {
 	return facts.Envelope{
 		FactID:        "ownership:" + packageID,
-		FactKind:      correlation.PackageOwnershipCorrelationFactKind,
+		FactKind:      correlation.PackageOwnershipFactKind,
 		ObservedAt:    observedAt,
 		StableFactKey: "ownership:" + packageID,
 		Payload: map[string]any{
@@ -123,7 +123,7 @@ func TestCodeImportRepoEdgeHandlerQuarantinesMalformedOwnershipCorrelation(t *te
 			packageRegistryPackageFact(packageID, "npm", "express", "", observedAt),
 			{
 				FactID:        "ownership:missing-package",
-				FactKind:      correlation.PackageOwnershipCorrelationFactKind,
+				FactKind:      correlation.PackageOwnershipFactKind,
 				ObservedAt:    observedAt,
 				StableFactKey: "ownership:missing-package",
 				Payload: map[string]any{

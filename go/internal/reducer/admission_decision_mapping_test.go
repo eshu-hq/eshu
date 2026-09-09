@@ -285,24 +285,24 @@ func (s *stubPackageSourceFactLoader) ListActivePackageManifestDependencyFacts(
 	return append([]facts.Envelope(nil), s.manifestDependencies...), nil
 }
 
-// recordingPackageCorrelationWriter is a minimal staying-root fake
-// satisfying correlation.PackageCorrelationWriter. Same history as
+// recordingPackageWriter is a minimal staying-root fake
+// satisfying correlation.PackageWriter. Same history as
 // stubPackageSourceFactLoader above: the family's own fake moved with it,
 // so this local copy reports the consumption canonical-write sum inline.
-type recordingPackageCorrelationWriter struct {
+type recordingPackageWriter struct {
 	calls int
 }
 
-func (w *recordingPackageCorrelationWriter) WritePackageCorrelations(
+func (w *recordingPackageWriter) WriteCorrelations(
 	_ context.Context,
-	write correlation.PackageCorrelationWrite,
-) (correlation.PackageCorrelationWriteResult, error) {
+	write correlation.PackageWrite,
+) (correlation.PackageWriteResult, error) {
 	w.calls++
 	canonicalWrites := 0
 	for _, decision := range write.ConsumptionDecisions {
 		canonicalWrites += decision.CanonicalWrites
 	}
-	return correlation.PackageCorrelationWriteResult{
+	return correlation.PackageWriteResult{
 		CanonicalWrites: canonicalWrites,
 		FactsWritten: len(write.OwnershipDecisions) +
 			len(write.ConsumptionDecisions) +
@@ -310,13 +310,13 @@ func (w *recordingPackageCorrelationWriter) WritePackageCorrelations(
 	}, nil
 }
 
-func TestPackageSourceCorrelationWritesSharedOwnershipAndConsumptionDecisions(t *testing.T) {
+func TestPackageSourceWritesSharedOwnershipAndConsumptionDecisions(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
 	admissionWriter := &recordingAdmissionDecisionWriter{}
-	correlationWriter := &recordingPackageCorrelationWriter{}
-	handler := correlation.PackageSourceCorrelationHandler{
+	correlationWriter := &recordingPackageWriter{}
+	handler := correlation.PackageSourceHandler{
 		FactLoader: &stubPackageSourceFactLoader{
 			scopeFacts: []facts.Envelope{
 				packageRegistryPackageFact("pkg:npm://registry.example/team-api", "npm", "team-api", "", observedAt),

@@ -66,26 +66,26 @@ func (s *stubPackageSourceFactLoader) ListActivePackageManifestDependencyFacts(
 	return append([]facts.Envelope(nil), s.manifestDependencies...), nil
 }
 
-type recordingPackageCorrelationWriter struct {
-	write PackageCorrelationWrite
+type recordingPackageWriter struct {
+	write PackageWrite
 	calls int
 }
 
-func (w *recordingPackageCorrelationWriter) WritePackageCorrelations(
+func (w *recordingPackageWriter) WriteCorrelations(
 	_ context.Context,
-	write PackageCorrelationWrite,
-) (PackageCorrelationWriteResult, error) {
+	write PackageWrite,
+) (PackageWriteResult, error) {
 	w.calls++
 	w.write = write
-	return PackageCorrelationWriteResult{
-		CanonicalWrites: packageCorrelationCanonicalWrites(write.ConsumptionDecisions),
+	return PackageWriteResult{
+		CanonicalWrites: countCanonicalWrites(write.ConsumptionDecisions),
 		FactsWritten: len(write.OwnershipDecisions) +
 			len(write.ConsumptionDecisions) +
 			len(write.PublicationDecisions),
 	}, nil
 }
 
-func newPackageSourceCorrelationInstruments(t *testing.T) (*telemetry.Instruments, sdkmetric.Reader) {
+func newPackageSourceInstruments(t *testing.T) (*telemetry.Instruments, sdkmetric.Reader) {
 	t.Helper()
 	reader := sdkmetric.NewManualReader()
 	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -96,10 +96,10 @@ func newPackageSourceCorrelationInstruments(t *testing.T) (*telemetry.Instrument
 	return inst, reader
 }
 
-func TestPackageSourceCorrelationHandlerRejectsWrongDomain(t *testing.T) {
+func TestPackageSourceHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	_, err := PackageSourceCorrelationHandler{}.Handle(context.Background(), reducercontract.Intent{
+	_, err := PackageSourceHandler{}.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-package-source",
 		ScopeID:      "package-registry:npm:team-api",
 		GenerationID: "generation-1",
@@ -111,10 +111,10 @@ func TestPackageSourceCorrelationHandlerRejectsWrongDomain(t *testing.T) {
 	}
 }
 
-func TestPackageSourceCorrelationHandlerRequiresFactLoader(t *testing.T) {
+func TestPackageSourceHandlerRequiresFactLoader(t *testing.T) {
 	t.Parallel()
 
-	_, err := PackageSourceCorrelationHandler{}.Handle(context.Background(), reducercontract.Intent{
+	_, err := PackageSourceHandler{}.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-package-source",
 		ScopeID:      "package-registry:npm:team-api",
 		GenerationID: "generation-1",
@@ -126,11 +126,11 @@ func TestPackageSourceCorrelationHandlerRequiresFactLoader(t *testing.T) {
 	}
 }
 
-func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(t *testing.T) {
+func TestPackageSourceHandlerLoadsActiveRepositoriesAndEmitsCounters(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	inst, reader := newPackageSourceCorrelationInstruments(t)
+	inst, reader := newPackageSourceInstruments(t)
 	loader := &stubPackageSourceFactLoader{
 		scopeFacts: []facts.Envelope{
 			packageRegistryPackageFact(
@@ -176,8 +176,8 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 			),
 		},
 	}
-	writer := &recordingPackageCorrelationWriter{}
-	handler := PackageSourceCorrelationHandler{
+	writer := &recordingPackageWriter{}
+	handler := PackageSourceHandler{
 		FactLoader:  loader,
 		Writer:      writer,
 		Instruments: inst,
@@ -221,7 +221,7 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 		t.Fatalf("PackageNames = %#v, want %#v", got, want)
 	}
 	if writer.calls != 1 {
-		t.Fatalf("WritePackageCorrelations() calls = %d, want 1", writer.calls)
+		t.Fatalf("WriteCorrelations() calls = %d, want 1", writer.calls)
 	}
 	if got, want := len(writer.write.OwnershipDecisions), 1; got != want {
 		t.Fatalf("OwnershipDecisions len = %d, want %d", got, want)
@@ -248,7 +248,7 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 	}
 }
 
-func TestPackageSourceCorrelationHandlerLoadsMavenManifestCoordinates(t *testing.T) {
+func TestPackageSourceHandlerLoadsMavenManifestCoordinates(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 6, 1, 0, 50, 0, 0, time.UTC)
@@ -274,8 +274,8 @@ func TestPackageSourceCorrelationHandlerLoadsMavenManifestCoordinates(t *testing
 			),
 		},
 	}
-	writer := &recordingPackageCorrelationWriter{}
-	handler := PackageSourceCorrelationHandler{
+	writer := &recordingPackageWriter{}
+	handler := PackageSourceHandler{
 		FactLoader: loader,
 		Writer:     writer,
 	}
@@ -305,9 +305,9 @@ func TestPackageSourceCorrelationHandlerLoadsMavenManifestCoordinates(t *testing
 	}
 }
 
-func TestBuildPackageSourceCorrelationDecisionsClassifiesExactRepositoryHint(t *testing.T) {
+func TestBuildPackageSourceDecisionsClassifiesExactRepositoryHint(t *testing.T) {
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	decisions := BuildPackageSourceCorrelationDecisions([]facts.Envelope{
+	decisions := BuildPackageSourceDecisions([]facts.Envelope{
 		packageSourceHintFact(
 			"pkg:npm://registry.example/team-api",
 			"repository",
@@ -321,8 +321,8 @@ func TestBuildPackageSourceCorrelationDecisionsClassifiesExactRepositoryHint(t *
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
 	decision := decisions[0]
-	if decision.Outcome != PackageSourceCorrelationExact {
-		t.Fatalf("Outcome = %q, want %q", decision.Outcome, PackageSourceCorrelationExact)
+	if decision.Outcome != PackageSourceExact {
+		t.Fatalf("Outcome = %q, want %q", decision.Outcome, PackageSourceExact)
 	}
 	if decision.RepositoryID != "repo-team-api" {
 		t.Fatalf("RepositoryID = %q, want repo-team-api", decision.RepositoryID)
@@ -335,9 +335,9 @@ func TestBuildPackageSourceCorrelationDecisionsClassifiesExactRepositoryHint(t *
 	}
 }
 
-func TestBuildPackageSourceCorrelationDecisionsClassifiesDerivedRepositoryHint(t *testing.T) {
+func TestBuildPackageSourceDecisionsClassifiesDerivedRepositoryHint(t *testing.T) {
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	decisions := BuildPackageSourceCorrelationDecisions([]facts.Envelope{
+	decisions := BuildPackageSourceDecisions([]facts.Envelope{
 		packageSourceHintFact(
 			"pkg:npm://registry.example/team-api",
 			"repository",
@@ -350,7 +350,7 @@ func TestBuildPackageSourceCorrelationDecisionsClassifiesDerivedRepositoryHint(t
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
-	if got, want := decisions[0].Outcome, PackageSourceCorrelationDerived; got != want {
+	if got, want := decisions[0].Outcome, PackageSourceDerived; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
 	if got, want := decisions[0].Reason, "source hint matches repository remote after git URL canonicalization"; got != want {
@@ -358,9 +358,9 @@ func TestBuildPackageSourceCorrelationDecisionsClassifiesDerivedRepositoryHint(t
 	}
 }
 
-func TestBuildPackageSourceCorrelationDecisionsKeepsAmbiguousHintsOutOfOwnership(t *testing.T) {
+func TestBuildPackageSourceDecisionsKeepsAmbiguousHintsOutOfOwnership(t *testing.T) {
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	decisions := BuildPackageSourceCorrelationDecisions([]facts.Envelope{
+	decisions := BuildPackageSourceDecisions([]facts.Envelope{
 		packageSourceHintFact(
 			"pkg:npm://registry.example/team-api",
 			"repository",
@@ -375,7 +375,7 @@ func TestBuildPackageSourceCorrelationDecisionsKeepsAmbiguousHintsOutOfOwnership
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
 	decision := decisions[0]
-	if got, want := decision.Outcome, PackageSourceCorrelationAmbiguous; got != want {
+	if got, want := decision.Outcome, PackageSourceAmbiguous; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
 	if decision.RepositoryID != "" {
@@ -386,9 +386,9 @@ func TestBuildPackageSourceCorrelationDecisionsKeepsAmbiguousHintsOutOfOwnership
 	}
 }
 
-func TestBuildPackageSourceCorrelationDecisionsClassifiesUnresolvedHints(t *testing.T) {
+func TestBuildPackageSourceDecisionsClassifiesUnresolvedHints(t *testing.T) {
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	decisions := BuildPackageSourceCorrelationDecisions([]facts.Envelope{
+	decisions := BuildPackageSourceDecisions([]facts.Envelope{
 		packageSourceHintFact(
 			"pkg:npm://registry.example/team-api",
 			"repository",
@@ -401,14 +401,14 @@ func TestBuildPackageSourceCorrelationDecisionsClassifiesUnresolvedHints(t *test
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
-	if got, want := decisions[0].Outcome, PackageSourceCorrelationUnresolved; got != want {
+	if got, want := decisions[0].Outcome, PackageSourceUnresolved; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
 }
 
-func TestBuildPackageSourceCorrelationDecisionsClassifiesStaleRepositoryFacts(t *testing.T) {
+func TestBuildPackageSourceDecisionsClassifiesStaleRepositoryFacts(t *testing.T) {
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	decisions := BuildPackageSourceCorrelationDecisions([]facts.Envelope{
+	decisions := BuildPackageSourceDecisions([]facts.Envelope{
 		packageSourceHintFact(
 			"pkg:npm://registry.example/team-api",
 			"repository",
@@ -421,7 +421,7 @@ func TestBuildPackageSourceCorrelationDecisionsClassifiesStaleRepositoryFacts(t 
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
-	if got, want := decisions[0].Outcome, PackageSourceCorrelationStale; got != want {
+	if got, want := decisions[0].Outcome, PackageSourceStale; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
 	if decisions[0].RepositoryID != "" {
@@ -429,9 +429,9 @@ func TestBuildPackageSourceCorrelationDecisionsClassifiesStaleRepositoryFacts(t 
 	}
 }
 
-func TestBuildPackageSourceCorrelationDecisionsRejectsWeakHomepageHints(t *testing.T) {
+func TestBuildPackageSourceDecisionsRejectsWeakHomepageHints(t *testing.T) {
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
-	decisions := BuildPackageSourceCorrelationDecisions([]facts.Envelope{
+	decisions := BuildPackageSourceDecisions([]facts.Envelope{
 		packageSourceHintFact(
 			"pkg:npm://registry.example/team-api",
 			"homepage",
@@ -444,7 +444,7 @@ func TestBuildPackageSourceCorrelationDecisionsRejectsWeakHomepageHints(t *testi
 	if got, want := len(decisions), 1; got != want {
 		t.Fatalf("len(decisions) = %d, want %d", got, want)
 	}
-	if got, want := decisions[0].Outcome, PackageSourceCorrelationRejected; got != want {
+	if got, want := decisions[0].Outcome, PackageSourceRejected; got != want {
 		t.Fatalf("Outcome = %q, want %q", got, want)
 	}
 	if got, want := decisions[0].Reason, "hint kind homepage is provenance-only and cannot prove repository ownership"; got != want {
@@ -604,7 +604,7 @@ func payloadStringAny(payload map[string]any, key string) string {
 	return str
 }
 
-func packageCorrelationStringSliceFromAny(raw any) []string {
+func stringSliceFromAny(raw any) []string {
 	values, ok := raw.([]any)
 	if !ok {
 		return nil

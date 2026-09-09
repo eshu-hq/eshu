@@ -14,30 +14,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
 )
 
-func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t *testing.T) {
+func TestPostgresPackageWriterPersistsOwnershipAndConsumptionFacts(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
 	db := &factwritetest.FakeExecer{}
-	writer := PostgresPackageCorrelationWriter{
+	writer := PostgresPackageWriter{
 		DB:  db,
 		Now: func() time.Time { return now },
 	}
 
-	result, err := writer.WritePackageCorrelations(context.Background(), PackageCorrelationWrite{
+	result, err := writer.WriteCorrelations(context.Background(), PackageWrite{
 		IntentID:     "intent-package",
 		ScopeID:      "scope-package",
 		GenerationID: "generation-package",
 		SourceSystem: "package_registry",
 		Cause:        "package source hints observed",
-		OwnershipDecisions: []PackageSourceCorrelationDecision{
+		OwnershipDecisions: []PackageSourceDecision{
 			{
 				PackageID:       "pkg:npm://registry.example/team-api",
 				HintKind:        "repository",
 				SourceURL:       "https://github.com/acme/team-api",
 				RepositoryID:    "repo-team-api",
 				RepositoryName:  "team-api",
-				Outcome:         PackageSourceCorrelationExact,
+				Outcome:         PackageSourceExact,
 				Reason:          "source hint matches repository remote exactly",
 				ProvenanceOnly:  true,
 				CanonicalWrites: 0,
@@ -73,7 +73,7 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 				RepositoryID:    "repo-team-api",
 				RepositoryName:  "team-api",
 				SourceURL:       "https://github.com/acme/team-api",
-				Outcome:         PackageSourceCorrelationExact,
+				Outcome:         PackageSourceExact,
 				Reason:          "source hint matches repository remote exactly",
 				ProvenanceOnly:  true,
 				CanonicalWrites: 0,
@@ -82,7 +82,7 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 		},
 	})
 	if err != nil {
-		t.Fatalf("WritePackageCorrelations() error = %v, want nil", err)
+		t.Fatalf("WriteCorrelations() error = %v, want nil", err)
 	}
 	if got, want := result.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
@@ -109,7 +109,7 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 		}
 	}
 	ownershipPayload := unmarshalPackageCorrelationPayload(t, rows[0].Payload)
-	if got, want := ownershipPayload["correlation_kind"], PackageOwnershipCorrelationFactKind; got != want {
+	if got, want := ownershipPayload["correlation_kind"], PackageOwnershipFactKind; got != want {
 		t.Fatalf("correlation_kind = %#v, want %#v", got, want)
 	}
 	if got, want := ownershipPayload["relationship_kind"], "ownership"; got != want {
@@ -119,13 +119,13 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 		t.Fatalf("provenance_only = %#v, want %#v", got, want)
 	}
 	consumptionPayload := unmarshalPackageCorrelationPayload(t, rows[1].Payload)
-	if got, want := consumptionPayload["correlation_kind"], PackageConsumptionCorrelationFactKind; got != want {
+	if got, want := consumptionPayload["correlation_kind"], PackageConsumptionFactKind; got != want {
 		t.Fatalf("correlation_kind = %#v, want %#v", got, want)
 	}
 	if got, want := consumptionPayload["canonical_writes"], float64(1); got != want {
 		t.Fatalf("canonical_writes = %#v, want %#v", got, want)
 	}
-	if got, want := packageCorrelationStringSliceFromAny(consumptionPayload["dependency_path"]), []string{"platform-api", "team-api"}; !reflect.DeepEqual(got, want) {
+	if got, want := stringSliceFromAny(consumptionPayload["dependency_path"]), []string{"platform-api", "team-api"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("dependency_path = %#v, want %#v", got, want)
 	}
 	if got, want := consumptionPayload["dependency_depth"], float64(2); got != want {
@@ -144,7 +144,7 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 		t.Fatalf("development_dependency = %#v, want %#v", got, want)
 	}
 	publicationPayload := unmarshalPackageCorrelationPayload(t, rows[2].Payload)
-	if got, want := publicationPayload["correlation_kind"], PackagePublicationCorrelationFactKind; got != want {
+	if got, want := publicationPayload["correlation_kind"], PackagePublicationFactKind; got != want {
 		t.Fatalf("correlation_kind = %#v, want %#v", got, want)
 	}
 	if got, want := publicationPayload["relationship_kind"], "publication"; got != want {

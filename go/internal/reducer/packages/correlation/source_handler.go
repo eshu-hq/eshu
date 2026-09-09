@@ -40,12 +40,12 @@ type ActiveRepositoryFactLoader interface {
 	ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error)
 }
 
-// PackageSourceCorrelationHandler classifies package-registry source hints
+// PackageSourceHandler classifies package-registry source hints
 // against active repository remotes and admits Git manifest consumption
 // correlations when registry identity and source declarations agree.
-type PackageSourceCorrelationHandler struct {
+type PackageSourceHandler struct {
 	FactLoader              factload.FactLoader
-	Writer                  PackageCorrelationWriter
+	Writer                  PackageWriter
 	Instruments             *telemetry.Instruments
 	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
 	AdmissionDecisionNow    func() time.Time
@@ -66,7 +66,7 @@ type PackageSourceCorrelationHandler struct {
 }
 
 // Handle executes package source correlation for one package-registry scope.
-func (h PackageSourceCorrelationHandler) Handle(
+func (h PackageSourceHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
 ) (reducercontract.Result, error) {
@@ -88,7 +88,7 @@ func (h PackageSourceCorrelationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		packageSourceCorrelationFactKinds(),
+		packageSourceFactKinds(),
 	)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load package source facts: %w", err)
@@ -106,11 +106,11 @@ func (h PackageSourceCorrelationHandler) Handle(
 	}
 	envelopes = append(envelopes, manifestDependencies...)
 
-	decisions := BuildPackageSourceCorrelationDecisions(envelopes)
+	decisions := BuildPackageSourceDecisions(envelopes)
 	consumptionDecisions := BuildPackageConsumptionDecisions(envelopes)
 	publicationDecisions := BuildPackagePublicationDecisions(envelopes)
-	counts := packageSourceCorrelationCounts(decisions)
-	writeResult, err := h.Writer.WritePackageCorrelations(ctx, PackageCorrelationWrite{
+	counts := countDecisionsByOutcome(decisions)
+	writeResult, err := h.Writer.WriteCorrelations(ctx, PackageWrite{
 		IntentID:             intent.IntentID,
 		ScopeID:              intent.ScopeID,
 		GenerationID:         intent.GenerationID,
@@ -151,7 +151,7 @@ func (h PackageSourceCorrelationHandler) Handle(
 		IntentID: intent.IntentID,
 		Domain:   reducercontract.DomainPackageSourceCorrelation,
 		Status:   reducercontract.ResultStatusSucceeded,
-		EvidenceSummary: packageSourceCorrelationSummary(
+		EvidenceSummary: packageSourceSummary(
 			len(decisions),
 			len(consumptionDecisions),
 			len(publicationDecisions),
@@ -169,11 +169,11 @@ func (h PackageSourceCorrelationHandler) Handle(
 // or the join yields no edges, so the package-registry fact-only profile is
 // unchanged. It never fails the package-correlation result for an empty join;
 // only a writer error propagates (issue #3579).
-func (h PackageSourceCorrelationHandler) projectConsumptionRepoDependencyEdges(
+func (h PackageSourceHandler) projectConsumptionRepoDependencyEdges(
 	ctx context.Context,
 	intent reducercontract.Intent,
 	consumptionDecisions []PackageConsumptionDecision,
-	ownershipDecisions []PackageSourceCorrelationDecision,
+	ownershipDecisions []PackageSourceDecision,
 	publicationDecisions []PackagePublicationDecision,
 ) ([]sharedintent.Row, error) {
 	if h.RepoDependencyIntentWriter == nil {
@@ -213,7 +213,7 @@ func (h PackageSourceCorrelationHandler) projectConsumptionRepoDependencyEdges(
 	return intents, nil
 }
 
-func (h PackageSourceCorrelationHandler) emitRepoEdgeCounter(ctx context.Context, outcome string, count int) {
+func (h PackageSourceHandler) emitRepoEdgeCounter(ctx context.Context, outcome string, count int) {
 	if h.Instruments == nil || count <= 0 {
 		return
 	}
@@ -227,7 +227,7 @@ func (h PackageSourceCorrelationHandler) emitRepoEdgeCounter(ctx context.Context
 	)
 }
 
-func (h PackageSourceCorrelationHandler) now() time.Time {
+func (h PackageSourceHandler) now() time.Time {
 	if h.Now != nil {
 		return h.Now().UTC()
 	}
@@ -260,7 +260,7 @@ func packageConsumptionRepoEdgeSourceRunID(scopeID, generationID string) string 
 	return "package_consumption_repo_dependency:" + scopeID
 }
 
-func (h PackageSourceCorrelationHandler) loadActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {
+func (h PackageSourceHandler) loadActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {
 	loader, ok := h.FactLoader.(ActiveRepositoryFactLoader)
 	if !ok {
 		return nil, nil
@@ -272,7 +272,7 @@ func (h PackageSourceCorrelationHandler) loadActiveRepositoryFacts(ctx context.C
 	return repositories, nil
 }
 
-func (h PackageSourceCorrelationHandler) loadActivePackageManifestDependencyFacts(
+func (h PackageSourceHandler) loadActivePackageManifestDependencyFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
 ) ([]facts.Envelope, error) {
@@ -295,14 +295,14 @@ func (h PackageSourceCorrelationHandler) loadActivePackageManifestDependencyFact
 	return dependencies, nil
 }
 
-func (h PackageSourceCorrelationHandler) emitCounters(
+func (h PackageSourceHandler) emitCounters(
 	ctx context.Context,
-	counts map[PackageSourceCorrelationOutcome]int,
+	counts map[PackageSourceOutcome]int,
 ) {
 	if h.Instruments == nil {
 		return
 	}
-	for _, outcome := range packageSourceCorrelationOutcomes() {
+	for _, outcome := range packageSourceOutcomes() {
 		count := counts[outcome]
 		if count == 0 {
 			continue
@@ -331,39 +331,39 @@ func HasPackageSourceRepositoryFact(envelopes []facts.Envelope) bool {
 	return false
 }
 
-func packageSourceCorrelationCounts(
-	decisions []PackageSourceCorrelationDecision,
-) map[PackageSourceCorrelationOutcome]int {
-	counts := make(map[PackageSourceCorrelationOutcome]int, len(packageSourceCorrelationOutcomes()))
+func countDecisionsByOutcome(
+	decisions []PackageSourceDecision,
+) map[PackageSourceOutcome]int {
+	counts := make(map[PackageSourceOutcome]int, len(packageSourceOutcomes()))
 	for _, decision := range decisions {
 		counts[decision.Outcome]++
 	}
 	return counts
 }
 
-func packageSourceCorrelationSummary(
+func packageSourceSummary(
 	evaluated int,
 	consumption int,
 	publication int,
-	counts map[PackageSourceCorrelationOutcome]int,
+	counts map[PackageSourceOutcome]int,
 	canonicalWrites int,
 ) string {
 	return fmt.Sprintf(
 		"package correlations evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d consumption=%d publication=%d canonical_writes=%d",
 		evaluated,
-		counts[PackageSourceCorrelationExact],
-		counts[PackageSourceCorrelationDerived],
-		counts[PackageSourceCorrelationAmbiguous],
-		counts[PackageSourceCorrelationUnresolved],
-		counts[PackageSourceCorrelationStale],
-		counts[PackageSourceCorrelationRejected],
+		counts[PackageSourceExact],
+		counts[PackageSourceDerived],
+		counts[PackageSourceAmbiguous],
+		counts[PackageSourceUnresolved],
+		counts[PackageSourceStale],
+		counts[PackageSourceRejected],
 		consumption,
 		publication,
 		canonicalWrites,
 	)
 }
 
-func packageSourceCorrelationFactKinds() []string {
+func packageSourceFactKinds() []string {
 	return []string{
 		facts.PackageRegistrySourceHintFactKind,
 		facts.PackageRegistryPackageFactKind,
@@ -372,13 +372,13 @@ func packageSourceCorrelationFactKinds() []string {
 	}
 }
 
-func packageSourceCorrelationOutcomes() []PackageSourceCorrelationOutcome {
-	return []PackageSourceCorrelationOutcome{
-		PackageSourceCorrelationExact,
-		PackageSourceCorrelationDerived,
-		PackageSourceCorrelationAmbiguous,
-		PackageSourceCorrelationUnresolved,
-		PackageSourceCorrelationStale,
-		PackageSourceCorrelationRejected,
+func packageSourceOutcomes() []PackageSourceOutcome {
+	return []PackageSourceOutcome{
+		PackageSourceExact,
+		PackageSourceDerived,
+		PackageSourceAmbiguous,
+		PackageSourceUnresolved,
+		PackageSourceStale,
+		PackageSourceRejected,
 	}
 }

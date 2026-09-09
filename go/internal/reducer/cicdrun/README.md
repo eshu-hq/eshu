@@ -149,7 +149,7 @@ identical.
   `CICDWorkflowImageBuiltFromEvidenceSource` are exported only because the
   reducer root's shared `provenance_edge_submission_metrics_test.go`
   exercises them directly** (it also exercises the unrelated
-  `PackageSourceCorrelationHandler` and `ContainerImageIdentityHandler`
+  `PackageSourceHandler` and `ContainerImageIdentityHandler`
   provenance-edge counters in one file and could not move here). Treat them
   as internal to this package's own production callers; the export exists
   for that one shared test file, not as a public API invitation.

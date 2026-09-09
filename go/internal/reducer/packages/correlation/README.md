@@ -11,7 +11,7 @@ repositories and consumer edges: it reads package-registry package/version
 facts, source-hint facts, repository facts, and manifest/lockfile dependency
 evidence, and writes reducer-derived ownership/consumption/publication
 correlation facts plus repo-to-repo `DEPENDS_ON` projection intents. The
-reducer runtime drives `PackageSourceCorrelationHandler` through the default
+reducer runtime drives `PackageSourceHandler` through the default
 domain catalog; `go/cmd/reducer` wires the Postgres writer. Query surfaces
 read the durable facts; they never import this package.
 
@@ -20,7 +20,7 @@ read the durable facts; they never import this package.
 | File | Covers |
 | --- | --- |
 | `source.go` | Source-hint classification, repository-ID narrowing, outcome derivation |
-| `source_handler.go` | `PackageSourceCorrelationHandler`, fact loading, refresh/retract edges, narrow loader interfaces |
+| `source_handler.go` | `PackageSourceHandler`, fact loading, refresh/retract edges, narrow loader interfaces |
 | `source_admission_decisions.go` | Ownership/consumption/publication admission writers |
 | `consumption.go` | Manifest-dependency extraction, consumption keys, consumption builder |
 | `consumption_manifest_metadata.go` | Manifest metadata join and payload shaping |
@@ -42,14 +42,14 @@ read the durable facts; they never import this package.
 - Owner resolution: `ResolvePackageOwners`, `PackageOwnerResolution`,
   `ExtractSecurityAlertManifestConsumptions`,
   `SecurityAlertPackageNameMatches(Dependency)`.
-- Builders/writers: `BuildPackageSourceCorrelationDecisions`,
+- Builders/writers: `BuildPackageSourceDecisions`,
   `BuildPackageConsumptionDecisions`, `BuildPackagePublicationDecisions`,
-  `PostgresPackageCorrelationWriter`, `PackageProvenanceEdgeWriter`,
+  `PostgresPackageWriter`, `PackageProvenanceEdgeWriter`,
   `PackageConsumptionRepoDependencyInput`,
   `BuildPackageConsumptionRepoDependencyIntents`.
-- Durable kinds: `PackageOwnershipCorrelationFactKind`,
-  `PackageConsumptionCorrelationFactKind`,
-  `PackagePublicationCorrelationFactKind`.
+- Durable kinds: `PackageOwnershipFactKind`,
+  `PackageConsumptionFactKind`,
+  `PackagePublicationFactKind`.
 - Narrow loaders: `ActiveRepositoryFactLoader`,
   `ActivePackageManifestDependencyFactLoader`,
   `HasPackageSourceRepositoryFact`.

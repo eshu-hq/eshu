@@ -481,7 +481,7 @@ type DefaultHandlers struct {
 	// ReadinessLookup so edges never resolve against uncommitted nodes.
 	IAMCanPerformEdgeWriter IAMCanPerformEdgeWriter
 
-	// PackageCorrelationWriter persists package ownership candidates and
+	// PackageWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
-	PackageCorrelationWriter correlation.PackageCorrelationWriter
+	PackageWriter correlation.PackageWriter
 }

@@ -83,7 +83,7 @@ problem. `contract/` stays top-level (shared vocabulary, never a domain).
 Notes with alternatives considered:
 
 - `code/import` vs `repodependency/import`: `code_import_*` returns
-  package-correlation types (`PackageSourceCorrelationDecision` from
+  package-correlation types (`PackageSourceDecision` from
   `code_import_owner_facts.go`), so it cannot move as a pure unit until
   `packages/correlation` exists — it lands in `repodependency/import` AFTER
   `packages/correlation`, importing it one-way. (`restructure-research.md:490`

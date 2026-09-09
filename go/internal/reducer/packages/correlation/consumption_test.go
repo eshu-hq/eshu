@@ -252,7 +252,7 @@ func TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain(t *tes
 func TestPackagePublicationIdentityIncludesSourceHintIdentity(t *testing.T) {
 	t.Parallel()
 
-	write := PackageCorrelationWrite{
+	write := PackageWrite{
 		ScopeID:      "scope-package",
 		GenerationID: "generation-package",
 	}

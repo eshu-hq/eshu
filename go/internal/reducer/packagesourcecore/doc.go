@@ -8,7 +8,7 @@
 // whether a hint's source URL names an active repository.
 //
 // It exists below the reducer root, not as a `packagesource` family, because
-// its callers are not that family. BuildPackageSourceCorrelationDecisions and
+// its callers are not that family. BuildPackageSourceDecisions and
 // the handler that classifies a hint into a correlation outcome live in the
 // package correlation family; seven other files read these symbols directly
 // without ever calling that handler --

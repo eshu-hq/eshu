@@ -114,7 +114,7 @@ func addSupplyChainImpactIndexEntry(
 		if product.CVEID != "" && product.Criteria != "" && product.Vulnerable {
 			index.affectedProducts[product.CVEID] = append(index.affectedProducts[product.CVEID], product)
 		}
-	case correlation.PackageConsumptionCorrelationFactKind:
+	case correlation.PackageConsumptionFactKind:
 		consumption, err := supplyChainConsumptionFromEnvelope(envelope)
 		if err != nil {
 			return partitionDecodeFailures(envelope, err)

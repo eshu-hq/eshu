@@ -43,11 +43,11 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 		}
 		definitions = append(definitions, searchDocument)
 	}
-	if handlers.FactLoader != nil && handlers.PackageCorrelationWriter != nil {
+	if handlers.FactLoader != nil && handlers.PackageWriter != nil {
 		packageSource := packageSourceCorrelationDomainDefinition()
-		packageSource.Handler = correlation.PackageSourceCorrelationHandler{
+		packageSource.Handler = correlation.PackageSourceHandler{
 			FactLoader:                 handlers.FactLoader,
-			Writer:                     handlers.PackageCorrelationWriter,
+			Writer:                     handlers.PackageWriter,
 			Instruments:                handlers.Instruments,
 			AdmissionDecisionWriter:    handlers.AdmissionDecisionWriter,
 			AdmissionDecisionNow:       handlers.AdmissionDecisionNow,

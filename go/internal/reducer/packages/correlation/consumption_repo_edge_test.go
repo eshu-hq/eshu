@@ -23,8 +23,8 @@ func consumptionDecision(packageID, consumerRepoID string) PackageConsumptionDec
 	}
 }
 
-func ownershipDecision(packageID, ownerRepoID string, outcome PackageSourceCorrelationOutcome) PackageSourceCorrelationDecision {
-	return PackageSourceCorrelationDecision{
+func ownershipDecision(packageID, ownerRepoID string, outcome PackageSourceOutcome) PackageSourceDecision {
+	return PackageSourceDecision{
 		PackageID:      packageID,
 		RepositoryID:   ownerRepoID,
 		RepositoryName: "owner",
@@ -32,15 +32,15 @@ func ownershipDecision(packageID, ownerRepoID string, outcome PackageSourceCorre
 	}
 }
 
-func ambiguousOwnershipDecision(packageID string, candidates []string) PackageSourceCorrelationDecision {
-	return PackageSourceCorrelationDecision{
+func ambiguousOwnershipDecision(packageID string, candidates []string) PackageSourceDecision {
+	return PackageSourceDecision{
 		PackageID:              packageID,
 		CandidateRepositoryIDs: candidates,
-		Outcome:                PackageSourceCorrelationAmbiguous,
+		Outcome:                PackageSourceAmbiguous,
 	}
 }
 
-func repoEdgeInput(consumption []PackageConsumptionDecision, ownership []PackageSourceCorrelationDecision, publication []PackagePublicationDecision) PackageConsumptionRepoDependencyInput {
+func repoEdgeInput(consumption []PackageConsumptionDecision, ownership []PackageSourceDecision, publication []PackagePublicationDecision) PackageConsumptionRepoDependencyInput {
 	return PackageConsumptionRepoDependencyInput{
 		ScopeID:              "scope-pkg",
 		GenerationID:         "gen-1",
@@ -68,7 +68,7 @@ func findUpsertIntent(rows []sharedintent.Row, consumer, owner string) *sharedin
 func TestBuildPackageConsumptionRepoDependencyIntentsProjectsOwnerEdge(t *testing.T) {
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/left-pad", "repo-consumer")},
-		[]PackageSourceCorrelationDecision{ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceCorrelationExact)},
+		[]PackageSourceDecision{ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceExact)},
 		nil,
 	)
 
@@ -111,7 +111,7 @@ func TestBuildPackageConsumptionRepoDependencyIntentsProjectsViaPublication(t *t
 		[]PackagePublicationDecision{{
 			PackageID:    "pkg:npm/left-pad",
 			RepositoryID: "repo-owner",
-			Outcome:      PackageSourceCorrelationDerived,
+			Outcome:      PackageSourceDerived,
 		}},
 	)
 
@@ -124,7 +124,7 @@ func TestBuildPackageConsumptionRepoDependencyIntentsProjectsViaPublication(t *t
 func TestBuildPackageConsumptionRepoDependencyIntentsSkipsAmbiguousOwner(t *testing.T) {
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/left-pad", "repo-consumer")},
-		[]PackageSourceCorrelationDecision{ambiguousOwnershipDecision("pkg:npm/left-pad", []string{"a", "b"})},
+		[]PackageSourceDecision{ambiguousOwnershipDecision("pkg:npm/left-pad", []string{"a", "b"})},
 		nil,
 	)
 
@@ -137,7 +137,7 @@ func TestBuildPackageConsumptionRepoDependencyIntentsSkipsAmbiguousOwner(t *test
 func TestBuildPackageConsumptionRepoDependencyIntentsSkipsUnresolvedOwner(t *testing.T) {
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/left-pad", "repo-consumer")},
-		[]PackageSourceCorrelationDecision{ownershipDecision("pkg:npm/left-pad", "", PackageSourceCorrelationUnresolved)},
+		[]PackageSourceDecision{ownershipDecision("pkg:npm/left-pad", "", PackageSourceUnresolved)},
 		nil,
 	)
 
@@ -150,7 +150,7 @@ func TestBuildPackageConsumptionRepoDependencyIntentsSkipsUnresolvedOwner(t *tes
 func TestBuildPackageConsumptionRepoDependencyIntentsSkipsSelfReference(t *testing.T) {
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/self", "repo-same")},
-		[]PackageSourceCorrelationDecision{ownershipDecision("pkg:npm/self", "repo-same", PackageSourceCorrelationExact)},
+		[]PackageSourceDecision{ownershipDecision("pkg:npm/self", "repo-same", PackageSourceExact)},
 		nil,
 	)
 
@@ -168,9 +168,9 @@ func TestBuildPackageConsumptionRepoDependencyIntentsDeduplicatesPair(t *testing
 			consumptionDecision("pkg:npm/a", "repo-consumer"),
 			consumptionDecision("pkg:npm/b", "repo-consumer"),
 		},
-		[]PackageSourceCorrelationDecision{
-			ownershipDecision("pkg:npm/a", "repo-owner", PackageSourceCorrelationExact),
-			ownershipDecision("pkg:npm/b", "repo-owner", PackageSourceCorrelationDerived),
+		[]PackageSourceDecision{
+			ownershipDecision("pkg:npm/a", "repo-owner", PackageSourceExact),
+			ownershipDecision("pkg:npm/b", "repo-owner", PackageSourceDerived),
 		},
 		nil,
 	)
@@ -187,7 +187,7 @@ func TestBuildPackageConsumptionRepoDependencyIntentsDeduplicatesPair(t *testing
 func TestBuildPackageConsumptionRepoDependencyIntentsIsIdempotent(t *testing.T) {
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/left-pad", "repo-consumer")},
-		[]PackageSourceCorrelationDecision{ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceCorrelationExact)},
+		[]PackageSourceDecision{ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceExact)},
 		nil,
 	)
 
@@ -207,7 +207,7 @@ func TestBuildPackageConsumptionRepoDependencyIntentsIsIdempotent(t *testing.T) 
 func TestBuildPackageConsumptionRepoDependencyIntentsSkipsMissingConsumer(t *testing.T) {
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/left-pad", "")},
-		[]PackageSourceCorrelationDecision{ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceCorrelationExact)},
+		[]PackageSourceDecision{ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceExact)},
 		nil,
 	)
 
@@ -261,8 +261,8 @@ func TestBuildPackageConsumptionRepoDependencyIntentsStableAcceptanceKeyAcrossGe
 			ConsumptionDecisions: []PackageConsumptionDecision{
 				consumptionDecision("pkg:npm/left-pad", "repo-consumer"),
 			},
-			OwnershipDecisions: []PackageSourceCorrelationDecision{
-				ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceCorrelationExact),
+			OwnershipDecisions: []PackageSourceDecision{
+				ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceExact),
 			},
 		})
 	}
@@ -301,7 +301,7 @@ func TestBuildPackageConsumptionRepoEdgeRefreshIntentsRetractsDisappearedOwner(t
 	// shared repo-dependency lane (issue #3579, review comment 3455350032).
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/left-pad", "repo-consumer")},
-		[]PackageSourceCorrelationDecision{ownershipDecision("pkg:npm/left-pad", "", PackageSourceCorrelationUnresolved)},
+		[]PackageSourceDecision{ownershipDecision("pkg:npm/left-pad", "", PackageSourceUnresolved)},
 		nil,
 	)
 
@@ -343,7 +343,7 @@ func TestBuildPackageConsumptionRepoEdgeRefreshIntentsSkipsOwnedConsumer(t *test
 	// not a retraction, so it must not appear in the refresh set.
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/left-pad", "repo-consumer")},
-		[]PackageSourceCorrelationDecision{ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceCorrelationExact)},
+		[]PackageSourceDecision{ownershipDecision("pkg:npm/left-pad", "repo-owner", PackageSourceExact)},
 		nil,
 	)
 
@@ -359,7 +359,7 @@ func TestBuildPackageConsumptionRepoEdgeRefreshIntentsRetractsSelfReferenceOnlyC
 	// must be removed. The retract is a no-op when no prior edge exists.
 	input := repoEdgeInput(
 		[]PackageConsumptionDecision{consumptionDecision("pkg:npm/self", "repo-same")},
-		[]PackageSourceCorrelationDecision{ownershipDecision("pkg:npm/self", "repo-same", PackageSourceCorrelationExact)},
+		[]PackageSourceDecision{ownershipDecision("pkg:npm/self", "repo-same", PackageSourceExact)},
 		nil,
 	)
 
@@ -387,9 +387,9 @@ func TestBuildPackageConsumptionRepoEdgeRefreshIntentsDeduplicatesConsumer(t *te
 			consumptionDecision("pkg:npm/a", "repo-consumer"),
 			consumptionDecision("pkg:npm/b", "repo-consumer"),
 		},
-		[]PackageSourceCorrelationDecision{
-			ownershipDecision("pkg:npm/a", "", PackageSourceCorrelationUnresolved),
-			ownershipDecision("pkg:npm/b", "", PackageSourceCorrelationUnresolved),
+		[]PackageSourceDecision{
+			ownershipDecision("pkg:npm/a", "", PackageSourceUnresolved),
+			ownershipDecision("pkg:npm/b", "", PackageSourceUnresolved),
 		},
 		nil,
 	)

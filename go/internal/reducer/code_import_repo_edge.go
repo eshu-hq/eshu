@@ -34,7 +34,7 @@ const codeImportRepoEdgeConfidence = 0.6
 // identity used to enqueue durable repo-dependency projection intents.
 //
 // Owners is the codeImportOwnerIndex built from exact/derived
-// PackagePublicationDecision and PackageSourceCorrelationDecision records joined
+// PackagePublicationDecision and PackageSourceDecision records joined
 // to package-registry identity facts on the sanctioned (ecosystem, name) key
 // (the same join issue #3598 uses) via buildCodeImportOwnerIndex.
 type CodeImportRepoDependencyInput struct {
@@ -416,7 +416,7 @@ func classifyCodeImportEdges(input CodeImportRepoDependencyInput) codeImportEdge
 // owner rather than picking one arbitrarily.
 func buildCodeImportOwnerIndex(
 	envelopes []facts.Envelope,
-	ownership []correlation.PackageSourceCorrelationDecision,
+	ownership []correlation.PackageSourceDecision,
 	publication []correlation.PackagePublicationDecision,
 ) codeImportOwnerIndex {
 	ownersByPackageID := correlation.ResolvePackageOwners(ownership, publication)

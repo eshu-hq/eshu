@@ -19,13 +19,13 @@ import (
 // benchPackageOwnershipDecisions builds n exact-outcome package-ownership
 // decisions with distinct package/repository ids, for B-9 (#3802)
 // credential-free micro-benchmarking of the row-building path.
-func benchPackageOwnershipDecisions(n int) []correlation.PackageSourceCorrelationDecision {
-	decisions := make([]correlation.PackageSourceCorrelationDecision, 0, n)
+func benchPackageOwnershipDecisions(n int) []correlation.PackageSourceDecision {
+	decisions := make([]correlation.PackageSourceDecision, 0, n)
 	for i := 0; i < n; i++ {
-		decisions = append(decisions, correlation.PackageSourceCorrelationDecision{
+		decisions = append(decisions, correlation.PackageSourceDecision{
 			PackageID:    fmt.Sprintf("pkg-%d", i),
 			RepositoryID: fmt.Sprintf("repo-%d", i),
-			Outcome:      correlation.PackageSourceCorrelationExact,
+			Outcome:      correlation.PackageSourceExact,
 		})
 	}
 	return decisions
@@ -38,7 +38,7 @@ func benchPackagePublicationDecisions(n int) []correlation.PackagePublicationDec
 			PackageID:    fmt.Sprintf("pkg-%d", i),
 			VersionID:    fmt.Sprintf("pkg-%d@1.0.0", i),
 			RepositoryID: fmt.Sprintf("repo-%d", i),
-			Outcome:      correlation.PackageSourceCorrelationExact,
+			Outcome:      correlation.PackageSourceExact,
 		})
 	}
 	return decisions

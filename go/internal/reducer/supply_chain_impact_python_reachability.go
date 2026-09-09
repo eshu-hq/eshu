@@ -141,7 +141,7 @@ func supplyChainImpactHasPyPIEvidence(envelopes []facts.Envelope) bool {
 		switch envelope.FactKind {
 		case facts.VulnerabilityAffectedPackageFactKind,
 			facts.PackageRegistryPackageFactKind,
-			correlation.PackageConsumptionCorrelationFactKind:
+			correlation.PackageConsumptionFactKind:
 			if normalizedSupplyChainVersionEcosystem(payloadStr(envelope.Payload, "ecosystem")) == "pypi" {
 				return true
 			}

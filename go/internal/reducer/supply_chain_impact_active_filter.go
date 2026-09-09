@@ -135,7 +135,7 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 		case facts.PackageRegistryPackageFactKind:
 			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
-		case correlation.PackageConsumptionCorrelationFactKind:
+		case correlation.PackageConsumptionFactKind:
 			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 		case factKindContentEntity:
@@ -240,7 +240,7 @@ func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []stri
 
 	var repositoryIDs []string
 	for _, envelope := range envelopes {
-		if envelope.FactKind != correlation.PackageConsumptionCorrelationFactKind {
+		if envelope.FactKind != correlation.PackageConsumptionFactKind {
 			continue
 		}
 		consumption, err := supplyChainConsumptionFromEnvelope(envelope)

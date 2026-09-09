@@ -20,53 +20,53 @@ import (
 // kinds. Exported because supply-chain, code-import, and replayeurs read the
 // durable kinds without going through this writer.
 const (
-	PackageOwnershipCorrelationFactKind   = factschema.FactKindReducerPackageOwnershipCorrelation
-	PackageConsumptionCorrelationFactKind = factschema.FactKindReducerPackageConsumptionCorrelation
-	PackagePublicationCorrelationFactKind = factschema.FactKindReducerPackagePublicationCorrelation
+	PackageOwnershipFactKind   = factschema.FactKindReducerPackageOwnershipCorrelation
+	PackageConsumptionFactKind = factschema.FactKindReducerPackageConsumptionCorrelation
+	PackagePublicationFactKind = factschema.FactKindReducerPackagePublicationCorrelation
 )
 
-// PackageCorrelationWrite carries package ownership, publication, and
+// PackageWrite carries package ownership, publication, and
 // consumption decisions for durable reducer facts.
-type PackageCorrelationWrite struct {
+type PackageWrite struct {
 	IntentID             string
 	ScopeID              string
 	GenerationID         string
 	SourceSystem         string
 	Cause                string
-	OwnershipDecisions   []PackageSourceCorrelationDecision
+	OwnershipDecisions   []PackageSourceDecision
 	ConsumptionDecisions []PackageConsumptionDecision
 	PublicationDecisions []PackagePublicationDecision
 }
 
-// PackageCorrelationWriteResult summarizes durable package correlation writes.
-type PackageCorrelationWriteResult struct {
+// PackageWriteResult summarizes durable package correlation writes.
+type PackageWriteResult struct {
 	CanonicalWrites int
 	FactsWritten    int
 	EvidenceSummary string
 }
 
-// PackageCorrelationWriter persists reducer-owned package correlations.
-type PackageCorrelationWriter interface {
-	WritePackageCorrelations(context.Context, PackageCorrelationWrite) (PackageCorrelationWriteResult, error)
+// PackageWriter persists reducer-owned package correlations.
+type PackageWriter interface {
+	WriteCorrelations(context.Context, PackageWrite) (PackageWriteResult, error)
 }
 
-// PostgresPackageCorrelationWriter stores ownership candidates and admitted
+// PostgresPackageWriter stores ownership candidates and admitted
 // consumption decisions in the shared fact store.
-type PostgresPackageCorrelationWriter struct {
+type PostgresPackageWriter struct {
 	DB  factwrite.Execer
 	Now func() time.Time
 }
 
-// WritePackageCorrelations persists source-hint ownership candidates,
+// WriteCorrelations persists source-hint ownership candidates,
 // source-hint publication evidence, and manifest-backed consumption truth.
 // Ownership and publication candidates keep canonical_writes=0 until stronger
 // build, release, or CI evidence exists.
-func (w PostgresPackageCorrelationWriter) WritePackageCorrelations(
+func (w PostgresPackageWriter) WriteCorrelations(
 	ctx context.Context,
-	write PackageCorrelationWrite,
-) (PackageCorrelationWriteResult, error) {
+	write PackageWrite,
+) (PackageWriteResult, error) {
 	if w.DB == nil {
-		return PackageCorrelationWriteResult{}, fmt.Errorf("package correlation database is required")
+		return PackageWriteResult{}, fmt.Errorf("package correlation database is required")
 	}
 	now := factwrite.Now(w.Now)
 	rows := make(
@@ -77,39 +77,39 @@ func (w PostgresPackageCorrelationWriter) WritePackageCorrelations(
 	for _, decision := range write.OwnershipDecisions {
 		row, err := w.buildRow(
 			now,
-			PackageOwnershipCorrelationFactKind,
+			PackageOwnershipFactKind,
 			packageOwnershipFactID(write, decision),
 			packageOwnershipStableFactKey(write, decision),
 			packageOwnershipPayload(write, decision),
 		)
 		if err != nil {
-			return PackageCorrelationWriteResult{}, err
+			return PackageWriteResult{}, err
 		}
 		rows = append(rows, row)
 	}
 	for _, decision := range write.ConsumptionDecisions {
 		row, err := w.buildRow(
 			now,
-			PackageConsumptionCorrelationFactKind,
+			PackageConsumptionFactKind,
 			packageConsumptionFactID(write, decision),
 			packageConsumptionStableFactKey(write, decision),
 			packageConsumptionPayload(write, decision),
 		)
 		if err != nil {
-			return PackageCorrelationWriteResult{}, err
+			return PackageWriteResult{}, err
 		}
 		rows = append(rows, row)
 	}
 	for _, decision := range write.PublicationDecisions {
 		row, err := w.buildRow(
 			now,
-			PackagePublicationCorrelationFactKind,
+			PackagePublicationFactKind,
 			packagePublicationFactID(write, decision),
 			packagePublicationStableFactKey(write, decision),
 			packagePublicationPayload(write, decision),
 		)
 		if err != nil {
-			return PackageCorrelationWriteResult{}, err
+			return PackageWriteResult{}, err
 		}
 		rows = append(rows, row)
 	}
@@ -120,10 +120,10 @@ func (w PostgresPackageCorrelationWriter) WritePackageCorrelations(
 	// O(N/batchSize) round-trips rather than one ExecContext per decision
 	// across three separate loops.
 	if err := factwrite.BatchInsertVersionedFacts(ctx, w.DB, rows); err != nil {
-		return PackageCorrelationWriteResult{}, err
+		return PackageWriteResult{}, err
 	}
-	canonicalWrites := packageCorrelationCanonicalWrites(write.ConsumptionDecisions)
-	return PackageCorrelationWriteResult{
+	canonicalWrites := countCanonicalWrites(write.ConsumptionDecisions)
+	return PackageWriteResult{
 		CanonicalWrites: canonicalWrites,
 		FactsWritten:    factsWritten,
 		EvidenceSummary: fmt.Sprintf(
@@ -139,14 +139,14 @@ func (w PostgresPackageCorrelationWriter) WritePackageCorrelations(
 // buildRow constructs the batched-insert row for one package correlation
 // decision. It deliberately derives scope_id/generation_id/source_system/
 // intent_id from the already-built payload map via payloadString — NOT from the
-// PackageCorrelationWrite struct fields — because the retired per-row
+// PackageWrite struct fields — because the retired per-row
 // writePayload helper derived them from that same payload map, and reading them
 // the same way is what makes the batched insert provably byte-identical to the
 // per-row canonicalVersionedReducerFactInsertQuery loop it replaces. Switching
 // to the struct fields would only be equivalent if they always match the
 // payload's values, which is not guaranteed at this seam; the indirection is the
 // byte-identity contract, not accidental.
-func (w PostgresPackageCorrelationWriter) buildRow(
+func (w PostgresPackageWriter) buildRow(
 	now time.Time,
 	factKind string,
 	factID string,
@@ -175,16 +175,16 @@ func (w PostgresPackageCorrelationWriter) buildRow(
 	}, nil
 }
 
-func packageOwnershipFactID(write PackageCorrelationWrite, decision PackageSourceCorrelationDecision) string {
-	return PackageOwnershipCorrelationFactKind + ":" + facts.StableID(
-		PackageOwnershipCorrelationFactKind,
+func packageOwnershipFactID(write PackageWrite, decision PackageSourceDecision) string {
+	return PackageOwnershipFactKind + ":" + facts.StableID(
+		PackageOwnershipFactKind,
 		packageOwnershipIdentity(write, decision),
 	)
 }
 
 func packageOwnershipStableFactKey(
-	write PackageCorrelationWrite,
-	decision PackageSourceCorrelationDecision,
+	write PackageWrite,
+	decision PackageSourceDecision,
 ) string {
 	identity := packageOwnershipIdentity(write, decision)
 	return strings.Join([]string{
@@ -197,8 +197,8 @@ func packageOwnershipStableFactKey(
 }
 
 func packageOwnershipIdentity(
-	write PackageCorrelationWrite,
-	decision PackageSourceCorrelationDecision,
+	write PackageWrite,
+	decision PackageSourceDecision,
 ) map[string]any {
 	return map[string]any{
 		"generation_id": strings.TrimSpace(write.GenerationID),
@@ -209,21 +209,21 @@ func packageOwnershipIdentity(
 }
 
 func packageOwnershipPayload(
-	write PackageCorrelationWrite,
-	decision PackageSourceCorrelationDecision,
+	write PackageWrite,
+	decision PackageSourceDecision,
 ) map[string]any {
-	return mustPackageCorrelationPayload(typedPackageOwnershipPayload(write, decision))
+	return mustPackagePayload(typedPackageOwnershipPayload(write, decision))
 }
 
-func packageConsumptionFactID(write PackageCorrelationWrite, decision PackageConsumptionDecision) string {
-	return PackageConsumptionCorrelationFactKind + ":" + facts.StableID(
-		PackageConsumptionCorrelationFactKind,
+func packageConsumptionFactID(write PackageWrite, decision PackageConsumptionDecision) string {
+	return PackageConsumptionFactKind + ":" + facts.StableID(
+		PackageConsumptionFactKind,
 		packageConsumptionIdentity(write, decision),
 	)
 }
 
 func packageConsumptionStableFactKey(
-	write PackageCorrelationWrite,
+	write PackageWrite,
 	decision PackageConsumptionDecision,
 ) string {
 	identity := packageConsumptionIdentity(write, decision)
@@ -238,7 +238,7 @@ func packageConsumptionStableFactKey(
 }
 
 func packageConsumptionIdentity(
-	write PackageCorrelationWrite,
+	write PackageWrite,
 	decision PackageConsumptionDecision,
 ) map[string]any {
 	return map[string]any{
@@ -253,21 +253,21 @@ func packageConsumptionIdentity(
 }
 
 func packageConsumptionPayload(
-	write PackageCorrelationWrite,
+	write PackageWrite,
 	decision PackageConsumptionDecision,
 ) map[string]any {
-	return mustPackageCorrelationPayload(typedPackageConsumptionPayload(write, decision))
+	return mustPackagePayload(typedPackageConsumptionPayload(write, decision))
 }
 
-func packagePublicationFactID(write PackageCorrelationWrite, decision PackagePublicationDecision) string {
-	return PackagePublicationCorrelationFactKind + ":" + facts.StableID(
-		PackagePublicationCorrelationFactKind,
+func packagePublicationFactID(write PackageWrite, decision PackagePublicationDecision) string {
+	return PackagePublicationFactKind + ":" + facts.StableID(
+		PackagePublicationFactKind,
 		packagePublicationIdentity(write, decision),
 	)
 }
 
 func packagePublicationStableFactKey(
-	write PackageCorrelationWrite,
+	write PackageWrite,
 	decision PackagePublicationDecision,
 ) string {
 	identity := packagePublicationIdentity(write, decision)
@@ -285,7 +285,7 @@ func packagePublicationStableFactKey(
 }
 
 func packagePublicationIdentity(
-	write PackageCorrelationWrite,
+	write PackageWrite,
 	decision PackagePublicationDecision,
 ) map[string]any {
 	return map[string]any{
@@ -301,13 +301,13 @@ func packagePublicationIdentity(
 }
 
 func packagePublicationPayload(
-	write PackageCorrelationWrite,
+	write PackageWrite,
 	decision PackagePublicationDecision,
 ) map[string]any {
-	return mustPackageCorrelationPayload(typedPackagePublicationPayload(write, decision))
+	return mustPackagePayload(typedPackagePublicationPayload(write, decision))
 }
 
-func mustPackageCorrelationPayload(payload map[string]any, err error) map[string]any {
+func mustPackagePayload(payload map[string]any, err error) map[string]any {
 	if err != nil {
 		panic(fmt.Sprintf("encode package correlation payload: %v", err))
 	}

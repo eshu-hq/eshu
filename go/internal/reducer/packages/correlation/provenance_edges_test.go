@@ -14,15 +14,15 @@ import (
 func TestPackageOwnershipPublishesRowsAdmitsExactAndDerivedOnly(t *testing.T) {
 	t.Parallel()
 
-	decisions := []PackageSourceCorrelationDecision{
-		{PackageID: "pkg-exact", RepositoryID: "repo-1", Outcome: PackageSourceCorrelationExact},
-		{PackageID: "pkg-derived", RepositoryID: "repo-2", Outcome: PackageSourceCorrelationDerived},
-		{PackageID: "pkg-ambiguous", RepositoryID: "repo-3", Outcome: PackageSourceCorrelationAmbiguous},
-		{PackageID: "pkg-unresolved", RepositoryID: "repo-4", Outcome: PackageSourceCorrelationUnresolved},
-		{PackageID: "pkg-stale", RepositoryID: "repo-5", Outcome: PackageSourceCorrelationStale},
-		{PackageID: "pkg-rejected", RepositoryID: "repo-6", Outcome: PackageSourceCorrelationRejected},
+	decisions := []PackageSourceDecision{
+		{PackageID: "pkg-exact", RepositoryID: "repo-1", Outcome: PackageSourceExact},
+		{PackageID: "pkg-derived", RepositoryID: "repo-2", Outcome: PackageSourceDerived},
+		{PackageID: "pkg-ambiguous", RepositoryID: "repo-3", Outcome: PackageSourceAmbiguous},
+		{PackageID: "pkg-unresolved", RepositoryID: "repo-4", Outcome: PackageSourceUnresolved},
+		{PackageID: "pkg-stale", RepositoryID: "repo-5", Outcome: PackageSourceStale},
+		{PackageID: "pkg-rejected", RepositoryID: "repo-6", Outcome: PackageSourceRejected},
 		// exact but no repository resolved -- must never fabricate a row.
-		{PackageID: "pkg-no-repo", RepositoryID: "", Outcome: PackageSourceCorrelationExact},
+		{PackageID: "pkg-no-repo", RepositoryID: "", Outcome: PackageSourceExact},
 	}
 
 	rows := packageOwnershipPublishesRows(decisions)
@@ -39,8 +39,8 @@ func TestPackageOwnershipPublishesRowsAdmitsExactAndDerivedOnly(t *testing.T) {
 func TestPackageOwnershipPublishesRowsTargetsVersionWhenPresent(t *testing.T) {
 	t.Parallel()
 
-	decisions := []PackageSourceCorrelationDecision{
-		{PackageID: "pkg-1", VersionID: "ver-1", RepositoryID: "repo-1", Outcome: PackageSourceCorrelationExact},
+	decisions := []PackageSourceDecision{
+		{PackageID: "pkg-1", VersionID: "ver-1", RepositoryID: "repo-1", Outcome: PackageSourceExact},
 	}
 
 	rows := packageOwnershipPublishesRows(decisions)
@@ -63,10 +63,10 @@ func TestPackagePublicationPublishesRowsAdmitsExactAndDerivedOnly(t *testing.T) 
 	t.Parallel()
 
 	decisions := []PackagePublicationDecision{
-		{PackageID: "pkg-1", VersionID: "ver-1", RepositoryID: "repo-1", Outcome: PackageSourceCorrelationExact},
-		{PackageID: "pkg-2", VersionID: "ver-2", RepositoryID: "repo-2", Outcome: PackageSourceCorrelationDerived},
-		{PackageID: "pkg-3", VersionID: "ver-3", RepositoryID: "repo-3", Outcome: PackageSourceCorrelationAmbiguous},
-		{PackageID: "pkg-4", VersionID: "ver-4", RepositoryID: "", Outcome: PackageSourceCorrelationExact},
+		{PackageID: "pkg-1", VersionID: "ver-1", RepositoryID: "repo-1", Outcome: PackageSourceExact},
+		{PackageID: "pkg-2", VersionID: "ver-2", RepositoryID: "repo-2", Outcome: PackageSourceDerived},
+		{PackageID: "pkg-3", VersionID: "ver-3", RepositoryID: "repo-3", Outcome: PackageSourceAmbiguous},
+		{PackageID: "pkg-4", VersionID: "ver-4", RepositoryID: "", Outcome: PackageSourceExact},
 	}
 
 	rows := packagePublicationPublishesRows(decisions)
@@ -113,7 +113,7 @@ func (w *recordingPackageProvenanceEdgeWriter) RetractPublishesEdges(
 func TestProjectPackageProvenanceEdgesNoOpWithoutWriter(t *testing.T) {
 	t.Parallel()
 
-	h := PackageSourceCorrelationHandler{}
+	h := PackageSourceHandler{}
 	err := h.projectPackageProvenanceEdges(context.Background(), reducercontract.Intent{ScopeID: "scope-1", GenerationID: "gen-1"}, nil, nil)
 	if err != nil {
 		t.Fatalf("projectPackageProvenanceEdges returned error with no writer: %v", err)
@@ -124,12 +124,12 @@ func TestProjectPackageProvenanceEdgesRetractsFirstThenWritesBothEvidenceSources
 	t.Parallel()
 
 	writer := &recordingPackageProvenanceEdgeWriter{}
-	h := PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer}
-	ownership := []PackageSourceCorrelationDecision{
-		{PackageID: "pkg-1", RepositoryID: "repo-1", Outcome: PackageSourceCorrelationExact},
+	h := PackageSourceHandler{ProvenanceEdgeWriter: writer}
+	ownership := []PackageSourceDecision{
+		{PackageID: "pkg-1", RepositoryID: "repo-1", Outcome: PackageSourceExact},
 	}
 	publication := []PackagePublicationDecision{
-		{PackageID: "pkg-2", VersionID: "ver-2", RepositoryID: "repo-2", Outcome: PackageSourceCorrelationExact},
+		{PackageID: "pkg-2", VersionID: "ver-2", RepositoryID: "repo-2", Outcome: PackageSourceExact},
 	}
 
 	if err := h.projectPackageProvenanceEdges(context.Background(), reducercontract.Intent{ScopeID: "scope-1", GenerationID: "gen-1"}, ownership, publication); err != nil {
@@ -161,7 +161,7 @@ func TestProjectPackageProvenanceEdgesRetractsEvenWhenNoRowsToWrite(t *testing.T
 	t.Parallel()
 
 	writer := &recordingPackageProvenanceEdgeWriter{}
-	h := PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer}
+	h := PackageSourceHandler{ProvenanceEdgeWriter: writer}
 
 	// No admitted decisions this generation -- retract must still run so a
 	// dropped decision's stale edge from a prior generation is removed.
@@ -180,9 +180,9 @@ func TestProjectPackageProvenanceEdgesPropagatesWriterError(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingPackageProvenanceEdgeWriter{writeErr: errors.New("boom")}
-	h := PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer}
-	ownership := []PackageSourceCorrelationDecision{
-		{PackageID: "pkg-1", RepositoryID: "repo-1", Outcome: PackageSourceCorrelationExact},
+	h := PackageSourceHandler{ProvenanceEdgeWriter: writer}
+	ownership := []PackageSourceDecision{
+		{PackageID: "pkg-1", RepositoryID: "repo-1", Outcome: PackageSourceExact},
 	}
 
 	err := h.projectPackageProvenanceEdges(context.Background(), reducercontract.Intent{ScopeID: "scope-1", GenerationID: "gen-1"}, ownership, nil)
