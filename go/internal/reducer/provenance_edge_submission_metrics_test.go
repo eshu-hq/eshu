@@ -19,10 +19,10 @@ import (
 
 // recordingPackageProvenanceEdgeWriter is a minimal staying-root fake
 // satisfying correlation.PackageProvenanceEdgeWriter. The family's own
-// fake moved with it to package correlation
-// (package_provenance_edges_test.go); Go test files cannot share unexported
-// symbols across a package boundary, so this multi-family metrics test keeps
-// this local copy (issue #6061).
+// fake moved with it to packages/correlation
+// (packages/correlation/provenance_edges_test.go); Go test files cannot share
+// unexported symbols across a package boundary, so this multi-family metrics
+// test keeps this local copy (issue #6061).
 type recordingPackageProvenanceEdgeWriter struct {
 	writeCalls []recordedPackageProvenanceWrite
 	writeErr   error

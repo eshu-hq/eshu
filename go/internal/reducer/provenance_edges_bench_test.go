@@ -10,6 +10,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
+// These benchmarks stay in the reducer root because they are multi-family:
+// the ownership/publication row builders live in packages/correlation while
+// the built-from/derived-from builders live in containerimage, and one bench
+// binary must drive both through their exported ForTest seams for B-9 (#3802)
+// credential-free micro-benchmarking of the row-building path (issue #6061).
+
 // benchPackageOwnershipDecisions builds n exact-outcome package-ownership
 // decisions with distinct package/repository ids, for B-9 (#3802)
 // credential-free micro-benchmarking of the row-building path.
