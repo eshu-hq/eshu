@@ -11,12 +11,21 @@
 --   ORDER BY relative_path, start_line, entity_name
 --   LIMIT $3
 --
--- WHAT WENT WRONG. No index in this directory carried `language` at all --
--- 004 creates single-column btrees on repo_id, entity_type, relative_path,
--- artifact_type, template_dialect and iac_relevant, 035 adds
--- (repo_id, entity_id), 077 a K8sResource-partial index, and 062 a GIN
--- trigram index on entity_name -- so `language` could only ever be a Filter,
--- never an Index Cond. The planner estimates `entity_type = $1 AND
+-- WHAT WENT WRONG, at checkout 392351ffd where this was diagnosed. No index
+-- in this directory carried `language` at all -- 004 creates single-column
+-- btrees on repo_id, entity_type, relative_path, artifact_type,
+-- template_dialect and iac_relevant, 035 adds (repo_id, entity_id), 077 a
+-- K8sResource-partial index, and 062 a GIN trigram index on entity_name -- so
+-- `language` could only ever be a Filter, never an Index Cond.
+--
+-- THAT ENUMERATION IS NO LONGER COMPLETE for the tree this migration lands in.
+-- 104_content_entities_language_type_idx on (language, entity_type) merged
+-- after the diagnosis, so `language` IS an Index Cond today and the empty case
+-- is already short-circuited by the EXISTS gate #6540 added. What this index
+-- still buys is the ORDERING: 104 stops at (language, entity_type), so the
+-- ORDER BY relative_path, start_line, entity_name needs a Sort that this
+-- five-column key removes. See the evidence note's "Re-measured after the
+-- rebase" section for the numbers. The planner estimates `entity_type = $1 AND
 -- language = $2` by multiplying the two selectivities as though they were
 -- independent. On a 2,000,000-row seed it estimated 28,510 rows for a
 -- combination that has 0, concluded the LIMIT would fill early, costed the

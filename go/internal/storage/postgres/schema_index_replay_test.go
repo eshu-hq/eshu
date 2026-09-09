@@ -220,7 +220,8 @@ func TestCodeReachabilityPageRankIndexIsCreatedOnceAndNeverDropped(t *testing.T)
 
 // TestContentEntitiesLanguageTypeIndexIsCreatedOnceAndNeverDropped pins the
 // same end state for the index the language/entity-type content read needs
-// (#6540). Before it, no index in this directory carried `language` at all, so
+// (#6540). At the checkout where this was diagnosed no index in this directory
+// carried `language` at all (104 has since merged and does), so
 // a filter matching no rows -- (hcl, Function), which is empty in any real
 // corpus because HCL has no function declarations -- walked
 // content_entities_path_idx to the end and returned nothing after 2,013,451

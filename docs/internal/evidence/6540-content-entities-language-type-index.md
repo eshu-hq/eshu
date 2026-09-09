@@ -115,9 +115,15 @@ Limit (cost=20.50..1026.08 rows=50 width=149) (actual time=2634.058..2634.060 ro
 Execution Time: 2634.085 ms
 ```
 
-**Root cause.** No index in the tree carried `language` at all — verified
-against the migration set: `content_entities` had 11 indexes and **zero**
-mentioning `language`. So `language` could only ever be a `Filter`. The planner
+**Root cause, as measured at checkout `392351ffd`.** No index in the tree
+carried `language` at all — verified against the migration set at that
+checkout: `content_entities` had 11 indexes and **zero** mentioning `language`.
+**This is no longer true of the tree this migration lands in.** `origin/main`
+now ships `104_content_entities_language_type_idx` on
+`(language, entity_type)`, merged by #6540 via #6599 after these measurements
+were taken. Everything below the "Re-measured after the rebase" section reflects
+the current tree; this paragraph is kept because the numbers that follow it were
+produced under the conditions it describes. So `language` could only ever be a `Filter`. The planner
 estimates `entity_type = $1 AND language = $2` by multiplying the two
 selectivities as though independent, giving **rows=28,515 for a combination that
 has 0**. A non-zero estimate makes the `LIMIT` look like it fills early, so the
@@ -141,6 +147,71 @@ state.
 | --- | ---: | ---: |
 | A1 | 1.9 s | 14 MB |
 | A2 | 3.1 s | 173 MB |
+
+## Re-measured after the rebase — this supersedes the ladder above
+
+The ladder above was measured at checkout `392351ffd`, which predates
+`origin/main`'s migration 104, and it profiles the statement the reader sees in
+"The statement" above. **Neither still describes this change.** Two things moved
+underneath it:
+
+1. Migration 104 `(language, entity_type)` merged (#6540 via #6599), so the
+   ladder's `baseline` column is not this branch's pre-change state. The `A1`
+   column is.
+2. `SearchEntitiesByLanguageAndTypeForAccess` now wraps the read in an
+   uncorrelated `EXISTS` gate. Every `EXPLAIN` above profiles the pre-gate
+   statement.
+
+Re-measured against the statement the code actually sends:
+
+```sql
+SELECT ... FROM content_entities
+WHERE EXISTS (SELECT 1 FROM content_entities WHERE <filters>) AND <filters>
+ORDER BY relative_path, start_line, entity_name LIMIT $n
+```
+
+| arm | main only (104) | main + this index (107) |
+| --- | ---: | ---: |
+| zero-match `(hcl, Function)` | 0.113 ms, `Incremental Sort` | **0.078 ms, no Sort** |
+| matching `(go, Function)` | 1.255 ms, `Incremental Sort` | **0.523 ms, no Sort** |
+
+**The plan-shape claim holds.** With 107 the `Sort` node disappears and the scan
+becomes `Index Scan using content_entities_language_type_path_idx`; with main's
+104 alone both arms carry an `Incremental Sort` on exactly
+`(relative_path, start_line, entity_name)`.
+
+**The headline number does not.** This note's summary claims a 2,590 ms "before".
+Against the branch's real pre-change state that arm is **0.113 ms**, because
+main's 104 plus the `EXISTS` gate already short-circuit it. The honest gain this
+index adds on top of main is **1.4x on the zero-match arm and 2.4x on the
+matching arm** — real, and three orders of magnitude smaller than the ladder
+implies.
+
+### The `entity_name ILIKE` arm, previously unmeasured
+
+| configuration | result |
+| --- | ---: |
+| 107 present, no trigram index | 29.873 ms — `Bitmap Index Scan` on **104**, ILIKE as a heap `Filter`, `Rows Removed by Filter: 34,994`, plus a full `Sort` |
+| 107 present, migration 062's trigram index present | 0.571 ms — `Bitmap Index Scan` on `content_entities_entity_name_trgm_idx`, still a `Sort` |
+
+**This index is not used for the ILIKE arm in either configuration.** It supplies
+neither the access path nor the ordering there, so it neither improves nor
+regresses that shape. What decides the ILIKE page is whether migration 062's
+trigram index is present — a 52x difference.
+
+### Environment for the re-measurement
+
+Hand-built, and that bound is load-bearing: `content_entities` from migration
+004 with 104 and 107 applied **by hand from the migration text**, not by the
+branch's migration set — so this does not prove the migration applies cleanly in
+sequence. PostgreSQL 16.15, 300,000 rows, 16-core / 123 GB Linux x86_64 host.
+Seed distribution derived from the 895-repo corpus, and it under-represents the
+long tail: path p99 67 / max 121 against the corpus's 116 / 278, `entity_name`
+max 93 against 105. Ordering conclusions are unaffected; **no key-size
+conclusion is drawn from this seed, and none should be.** `entity_name` is
+md5-derived, so the trigram figure is directional rather than exact.
+`absolute_target_applicable = false`: these are plan-shape and same-machine
+relative results.
 
 ### A1 rejected — the planner does not take it
 
@@ -198,8 +269,26 @@ On the baseline index set the `EXISTS` degrades to a sequential scan, because
 with no index on `language` it must still check every `Function` row before it
 can conclude "none". It would replace a 2,590 ms empty answer with a 604 ms one
 — still three orders of magnitude off A2 — while adding a round trip and
-0.007–0.018 ms to every non-empty call. It is only cheap once an index like A2
-exists, at which point the extra statement earns nothing.
+0.007–0.018 ms to every non-empty call.
+
+**THIS REJECTION NO LONGER HOLDS, AND THE REASON IS THAT MAIN SHIPPED THIS
+CANDIDATE.** The paragraph above concludes the `EXISTS` pre-check "is only cheap
+once an index like A2 exists, at which point the extra statement earns nothing".
+Both halves are now false:
+
+- Its premise, "with no index on `language`", is gone. `origin/main` ships
+  migration 104 on `(language, entity_type)`.
+- Its conclusion is contradicted by measurement. With 104 present and **no A2
+  index at all**, the `EXISTS` pre-check returns the zero-match arm in
+  **0.113 ms** — the initplan takes an `Index Only Scan` on
+  `content_entities_language_type_idx`, returns 0 rows in 0.043 ms, the
+  `One-Time Filter` fires and the ordered scan is `(never executed)`.
+
+Candidate (b) is not a rejected alternative to this index. It is **already in
+production**, merged as #6540 via #6599, and
+`SearchEntitiesByLanguageAndTypeForAccess` at this branch's head issues it on
+every call. The two are complementary rather than exclusive: the `EXISTS` gate
+fixes the empty case, and this index removes the `Sort` from the non-empty one.
 
 ## Correctness before performance
 
@@ -219,7 +308,14 @@ returns fewer than 600 rows, so an empty result can never read as agreement.
 ## Cost
 
 `content_entities` is hot and continuously ingested, so the write path pays for
-one more btree. `EXPLAIN (ANALYZE, BUFFERS, WAL)` over 200,000-row inserts, arms
+one more btree.
+
+**Storage, measured on the 300,000-row re-measurement database and previously
+unstated:** this index is **34 MB** against migration 104's **2,096 kB** — about
+sixteen times larger, and larger than both the table's own `relative_path` index
+(24 MB) and its primary key (16 MB), on a 48 MB table. Five columns including
+two unbounded `TEXT` fields is what costs that. The ratio, not the absolute
+figure, is what carries to production. `EXPLAIN (ANALYZE, BUFFERS, WAL)` over 200,000-row inserts, arms
 alternated over two rounds:
 
 | round | without | with | delta |
@@ -253,7 +349,7 @@ changes no existing one. The read it accelerates is already covered by the
 
 `BootstrapDefinitions` enumerates every file under `migrations/` and
 `ApplyDefinitions` Execs all of them on **every** bootstrap; there is no applied
-ledger. Migration 106 therefore only creates, under a new name, with
+ledger. Migration 107 therefore only creates, under a new name, with
 `IF NOT EXISTS`, and no file in the tree drops it — so a bootstrap over an
 install that already has the index does no index work.
 `TestContentEntitiesLanguageTypeIndexIsCreatedOnceAndNeverDropped` pins that
