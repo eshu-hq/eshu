@@ -92,6 +92,23 @@ case is concurrent rather than hypothetical. The ceiling is `len()` of that list
 so adding a holder raises it in the same edit; a new local process that opens a
 pool must be added there.
 
+**Read 170 as a floor, not as the embedded server's fixed ceiling.** That figure
+is what the formula yields at the *default* per-process pool. `eshulocal` derives
+the embedded server's actual `max_connections` from the pool size you have
+configured:
+
+```text
+max_connections = max(170, pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS + 20)
+```
+
+So raising `ESHU_POSTGRES_MAX_OPEN_CONNS` also raises the embedded server's
+`max_connections` — at `60`, the embedded server starts with `5 * 60 + 20 = 320`
+rather than 170. Configuration can raise the ceiling and can never lower it below
+the floor, so the invariant above continues to hold for the embedded profiles at
+any supported pool size. This matters because the knob is process-wide: the
+supervisor's children inherit whatever you export, so a raised pool applies to
+every holder in the list, not just the process you set it for.
+
 If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because
 one phase is slow.
