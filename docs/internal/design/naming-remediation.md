@@ -6,7 +6,7 @@
 restructure before [Naming](../naming.md) existed. All three closed with zero
 nesting and a flat row of siblings whose names glue two or three full words
 together — `observabilitycoveragematerialization`, `awscloudruntimedrift`,
-`supplychainevidence`, and eleven coordinator directories that all end in
+`supplychainevidence`, and ten coordinator directories whose names end in
 `planner`.
 
 Rule 3 forbids that shape, and rule 5 makes fixing it part of any move that
@@ -24,13 +24,19 @@ struct type that cannot cross a package boundary. Those findings stand.
 
 ## Shape of the problem
 
-Every one of these packages is a row of very small siblings, not a few large
-ones. Coordinator's nineteen directories hold exactly two non-test files each.
-Projector and mcp are mostly two or three, with a handful at four to eight. So
-the work is grouping tiny packages under a readable parent, not decomposing
-large ones.
+All counts in this plan describe the #6627 planning snapshot at commit
+`cb032ab3ef1cf167bff2d33e08da5058b25c8004`, not a live inventory.
+Before each rename PR, remeasure the affected subtree against its rebased base
+and record the before/after counts. Distinguish changes from intervening merges
+from changes introduced by the rename.
 
-| package | root non-test | subdirs | nested today |
+Every one of these packages is a row of very small siblings, not a few large
+ones. Coordinator's nineteen directories hold exactly two non-test Go files
+each. Projector and mcp child packages are mostly two or three non-test Go
+files, with a handful at four to eight. So the work is grouping tiny packages
+under a readable parent, not decomposing large ones.
+
+| package | root non-test Go files at snapshot | child dirs at snapshot | nested at snapshot |
 | --- | ---: | ---: | ---: |
 | `internal/coordinator` | 49 | 19 | 0 |
 | `internal/projector` | 47 | 32 | 0 |
@@ -38,10 +44,13 @@ large ones.
 
 ## coordinator
 
-Eleven of nineteen names end in `planner`. The package is telling you what its
-parent should be. Reading `prometheusmimir` shows that it belongs under the
-same parent: it plans metric-metadata collection for Prometheus and Mimir
-targets through one implementation.
+In the planning snapshot, ten of the nineteen coordinator child names end in
+`planner`. Those ten packages belong under `planner/`. `prometheusmimir` joins
+them because it plans metric-metadata collection for Prometheus and Mimir
+targets through one implementation, although its current name hides that
+responsibility.
+`plannercontract` also moves under this parent as the shared plan-key contract,
+not as another planner implementation.
 
 ```
 coordinator/
@@ -134,7 +143,7 @@ mcp/
 ├── package/registry/              ← packageregistry
 ├── secrets/iam/                   ← secretsiam
 ├── security/alert/                ← securityalert
-├── service/                       ← already clean, 4 files
+├── service/                       ← already clean, 4 non-test Go files
 │   └── context/                   ← servicecontext
 └── ask/ cicd/ cloud/ content/ documentation/ ecosystem/ freshness/ impact/
     investigation/ kubernetes/ playbooks/ relationships/ replatforming/
@@ -193,10 +202,10 @@ semantics; the directory spelling does not change that format or its ownership.
   unchanged: production invokes them on planner values through
   root-owned interfaces, rather than as `gcp.PlanGCPWork`. `gcp.WorkPlanner`
   and `gcp.PlanRequest` do not repeat the leaf package name.
-- **Single-child parents are accepted.** `vault/live/`, `scanner/worker/` and
-  `oci/registry/` each end up as a parent holding one child. That is the point
-  of rule 3: the parent is the future boundary, and the thin directory today is
-  the cost of being able to add a sibling tomorrow without renaming anything.
+- **Single-child parents are accepted.** `vault/live/`, `scanner/worker/`, and
+  `oci/registry/` each initially contain one child. The parent is a stable
+  namespace for related siblings and a candidate ownership seam; independent
+  extraction still depends on import direction and runtime contracts.
 
 ## Scope and constraints
 
@@ -210,9 +219,9 @@ or redesign planner interfaces.
 
 Route and tool registrations, wire names and payloads, reducer domains and
 entity keys, runtime behavior, ordering, and telemetry stay identical. Existing
-runtime package boundaries stay intact. Root counts end unchanged — coordinator
-49, projector 47, mcp 105 — unless a rename genuinely orphans a file, which
-must be named and explained.
+runtime package boundaries stay intact. Root runtime-file counts must remain
+unchanged relative to each rename PR's rebased base, unless the rename genuinely
+orphans a file, which must be named and explained.
 
 Every newly created directory, including each intermediate namespace parent,
 must contain an accurate `README.md`, `AGENTS.md`, and `doc.go`. A namespace-only
@@ -223,10 +232,11 @@ Go keyword. These are documentation-only Go packages. Existing runtime parents
 retain their implementation and have their documentation updated for the new
 children. Move and update each leaf's existing documentation trio.
 
-The MCP children's existing filenames are already clean: `doc.go`, `routes.go`,
-`AGENTS.md`, and `README.md`. Their package declarations, imports, aliases, and
-references still need updating. List each coordinator and projector child's
-files before moving it and fix any filename stutter in the same PR.
+MCP children already use clean filenames such as `doc.go`, `routes.go`,
+`tools.go`, `contract.go`, `AGENTS.md`, and `README.md`; the exact mix varies by
+child. Their package declarations, imports, aliases, and references still need
+updating. List every coordinator, projector, and MCP child's files before
+moving it and fix any filename stutter in the same PR.
 
 Prepare for future service repositories by preserving existing ownership and
 making dependencies explicit. This issue does not split services, change Go
@@ -278,7 +288,21 @@ For every parent-nest PR:
 
 1. **coordinator** — clearest win, establishes the pattern.
 2. **projector** — worst offenders, most judgement.
-3. **mcp** — blocked until #6625 merges; that PR touches one mcp file, #6619
-   touches four and #6612 touches ten.
+3. **mcp** — start after #6625's code-family move merges. Treat #6619 and #6612
+   as live overlap dependencies: inspect their current diffs and merge state
+   before selecting an MCP parent-nest, and recheck all three PRs and other
+   overlapping work at every preflight. Include merged dependencies in the
+   working base. Begin an overlapping rename only after its dependency has
+   landed or the ownership and scope have been resolved on #6627.
+
+Before moving `mcp/code/*`, revalidate the proposed grouping against the merged
+result of #6625, which moves query execution into `internal/query/codequery`
+with analysis behind its `deadcode` leaf. Inspect the current MCP family
+responsibilities, registration and dispatch boundaries, imports, shared
+contracts, and handler-path references. Preserve the separation between MCP
+registration and request selection and query execution; matching domain names
+do not make them one owner or a shared package. If the merged code contradicts
+a proposed MCP destination, update this plan and #6627 with source evidence
+before the move. Changes to the query lane remain outside this issue.
 
 One package per PR, and within a package one parent-nest per PR.
