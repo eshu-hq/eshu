@@ -42,7 +42,7 @@ ls -d go/internal/reducer/*/ | wc -l                                            
    later family move adds a stanza to the matching bucket file and NEVER
    creates a new `*_compat.go` — that rule stops the moves making the
    problem worse. Rebalance buckets before any one crosses the 500-line cap
-   (`compat_correlation.go` lands at 491).
+   (`compat_correlation.go` lands at 492).
    (b) External importers migrate `reducer.X` -> owning subpackage in
    per-package batches (postgres 191, cypher 65, cmd/reducer 40,
    projector 39, materializededges 38, then the tail) under its own child
@@ -150,8 +150,8 @@ Compat entries burn down to zero as the importer-migration child issue
 lands; until then no new `*_compat.go`, ever — a family move adds a stanza
 to the matching bucket file.
 
-Root arithmetic after the compat-consolidation PR: 288 = 39 spine + 4 compat
-facade + 245 awaiting family moves and importer migration. End state ~9:
+Root arithmetic after the compat-consolidation PR: 286 = 39 spine + 4 compat
+facade + 243 awaiting family moves and importer migration. End state ~9:
 doc.go + ~4 compat + ~4 contract surface (intent, domain, runtime,
 registry). ≤40 clears with room; no exception.
 `shared_projection*` (11) is NOT spine. Hoist trigger (exact): the first

@@ -121,7 +121,7 @@ INSERT INTO fact_records (
 // BatchInsertVersionedQuery, which is one monolithic statement literal that
 // uses none of these fragments, but the reducer root's completed-cutover
 // container-image-identity writer
-// (container_image_identity_writer_atomic.go, reached through the
+// (container_image_identity_writer_atomic.go, reached through
 // the fact-write stanza of compat_decode.go), whose
 // containerImageIdentityCompletedCutoverWriteQuery and
 // containerImageIdentityCompletedCutoverPublishOnlyQuery both interleave a
