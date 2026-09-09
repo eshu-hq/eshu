@@ -16,20 +16,16 @@ import (
 )
 
 // TestHandlerTracingCopiesStayBehaviorIdentical is the copy-drift guard for
-// the three family-local startQueryHandlerSpan helpers (root's
-// handler_tracing.go, supplychain/handler_tracing.go, and
-// codeowners/handler_tracing.go): a one-sided edit to any of the three must
-// fail loudly here instead of silently forking emitted spans.
+// the four family-local startQueryHandlerSpan helpers (root's
+// handler_tracing.go, supplychain/handler_tracing.go,
+// codeowners/handler_tracing.go, and codequery/code_handler_tracing.go):
+// a one-sided edit to any of the four must fail loudly here instead of
+// silently forking emitted spans.
 //
-// A fourth copy now exists outside this list, in code_handler_tracing.go. It
-// is deliberately spelled differently -- codeQueryHandlerTracer and
-// startCodeQueryHandlerSpan -- because the code family still shares package
-// query and cannot reuse the canonical names while root declares them. It is
-// therefore not comparable to the three below and is not in the map: this
-// test requires the declaration name sets to match exactly, so adding it
-// would fail rather than guard. When the code family becomes its own package
-// (#6060) it takes the canonical names and joins this list. It parses each file and compares the printed AST
-// of the queryHandlerTracer var and the startQueryHandlerSpan func,
+// The codequery copy joined this list when the code family became its own
+// package (#6060 lane A) and took the canonical queryHandlerTracer and
+// startQueryHandlerSpan names. It parses each file and compares the printed
+// AST of the queryHandlerTracer var and the startQueryHandlerSpan func,
 // ignoring the package clause, imports, and comments (each copy carries
 // family-specific prose), and it requires the top-level declaration name
 // sets to match exactly, so an added, removed, or renamed helper fails
@@ -46,6 +42,7 @@ func TestHandlerTracingCopiesStayBehaviorIdentical(t *testing.T) {
 		"root":        filepath.Join(root, "handler_tracing.go"),
 		"supplychain": filepath.Join(root, "supplychain", "handler_tracing.go"),
 		"codeowners":  filepath.Join(root, "codeowners", "handler_tracing.go"),
+		"codequery":   filepath.Join(root, "codequery", "code_handler_tracing.go"),
 	}
 	want := tracingBehaviorDecls(t, copies["root"])
 	wantNames := tracingDeclNames(t, copies["root"])

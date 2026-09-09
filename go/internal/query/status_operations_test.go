@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -236,10 +237,10 @@ func TestGetOperationsScopedWithGrantsSeesOnlyGrantedRowsIdentityRedacted(t *tes
 	if reader.calledAllScopes {
 		t.Fatal("reader called with allScopes = true, want false for a scoped caller")
 	}
-	if got, want := reader.calledAllowedRepositoryIDs, []string{"repo-a"}; !equalStringSlices(got, want) {
+	if got, want := reader.calledAllowedRepositoryIDs, []string{"repo-a"}; !querytestutil.EqualStringSlices(got, want) {
 		t.Fatalf("reader called with AllowedRepositoryIDs = %#v, want %#v", got, want)
 	}
-	if got, want := reader.calledAllowedScopeIDs, []string{"scope-a"}; !equalStringSlices(got, want) {
+	if got, want := reader.calledAllowedScopeIDs, []string{"scope-a"}; !querytestutil.EqualStringSlices(got, want) {
 		t.Fatalf("reader called with AllowedScopeIDs = %#v, want %#v", got, want)
 	}
 

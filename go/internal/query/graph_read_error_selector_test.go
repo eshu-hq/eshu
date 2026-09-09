@@ -155,7 +155,9 @@ func TestHandleRelationshipStorySelectorMapsGraphReadAvailabilityErrors(t *testi
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.handleRelationshipStory(rec, req)
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -177,7 +179,9 @@ func TestHandleSymbolSearchSelectorMapsGraphReadAvailabilityErrors(t *testing.T)
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.handleSymbolSearch(rec, req)
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -198,7 +202,9 @@ func TestHandleComplexitySelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.handleComplexity(rec, req)
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -220,7 +226,9 @@ func TestHandleRelationshipsSelectorMapsGraphReadAvailabilityErrors(t *testing.T
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.handleRelationships(rec, req)
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -242,7 +250,9 @@ func TestHandleDeadCodeSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.handleDeadCode(rec, req)
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})

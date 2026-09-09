@@ -11,63 +11,6 @@ import (
 	"testing"
 )
 
-func TestHandleCodeQualityInspectionMapsGraphReadAvailabilityErrors(t *testing.T) {
-	t.Parallel()
-	for _, test := range graphReadSweepCases() {
-		t.Run(test.name, func(t *testing.T) {
-			handler := &CodeHandler{Neo4j: fakeGraphReader{run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
-				return nil, test.err
-			}}}
-			req := httptest.NewRequest(http.MethodPost, "/api/v0/code/quality", bytes.NewBufferString(`{"check":"function_length"}`))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Accept", EnvelopeMIMEType)
-			rec := httptest.NewRecorder()
-
-			handler.handleCodeQualityInspection(rec, req)
-
-			assertGraphReadSweepResponse(t, rec, test)
-		})
-	}
-}
-
-func TestHandleSearchBundlesMapsGraphReadAvailabilityErrors(t *testing.T) {
-	t.Parallel()
-	for _, test := range graphReadSweepCases() {
-		t.Run(test.name, func(t *testing.T) {
-			handler := &CodeHandler{Neo4j: fakeGraphReader{run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
-				return nil, test.err
-			}}}
-			req := httptest.NewRequest(http.MethodPost, "/api/v0/code/registry/bundles/search", bytes.NewBufferString(`{"query":"left-pad"}`))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Accept", EnvelopeMIMEType)
-			rec := httptest.NewRecorder()
-
-			handler.handleSearchBundles(rec, req)
-
-			assertGraphReadSweepResponse(t, rec, test)
-		})
-	}
-}
-
-func TestHandleRelationshipStoryRepoScopedOverridesMapsGraphReadAvailabilityErrors(t *testing.T) {
-	t.Parallel()
-	for _, test := range graphReadSweepCases() {
-		t.Run(test.name, func(t *testing.T) {
-			handler := &CodeHandler{Neo4j: fakeGraphReader{run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
-				return nil, test.err
-			}}}
-			req := httptest.NewRequest(http.MethodPost, "/api/v0/code/relationships/story", bytes.NewBufferString(`{"query_type":"overrides","repo_id":"repo-1"}`))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("Accept", EnvelopeMIMEType)
-			rec := httptest.NewRecorder()
-
-			handler.handleRelationshipStory(rec, req)
-
-			assertGraphReadSweepResponse(t, rec, test)
-		})
-	}
-}
-
 func TestCodeownersOwnershipListOwnershipMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {

@@ -17,7 +17,7 @@ import (
 // because the fixed graph metadata projection does not select them and the
 // content-enrichment fallback only fires for labels that
 // graphLabelToContentEntityType maps. Before the fix that map omitted the four
-// Flux labels, so resultContentEntityType returned "" and the url was silently
+// Flux labels, so codequery.ResultContentEntityType returned "" and the url was silently
 // dropped -- the same read-surface-bridge gap #5346 fixed for SqlMigration.
 func TestEnrichEntityResultsWithContentMetadataFluxGitRepository(t *testing.T) {
 	t.Parallel()

@@ -13,7 +13,9 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codeowners"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
@@ -100,24 +102,24 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		)
 		return err
 	})
-	directRelationship, _ := nornicDBRelationshipStoryGraphCypher(
-		relationshipStoryRequest{RelationshipType: "CALLS", Limit: 10},
+	directRelationship, _ := codequery.NornicDBRelationshipStoryGraphCypher(
+		codemodel.RelationshipStoryRequest{RelationshipType: "CALLS", Limit: 10},
 		"entity:proof",
 		"Function",
 		"uid",
 		"outgoing",
 		repositoryAccessFilter{AllScopes: true},
 	)
-	incomingRelationship, _ := nornicDBRelationshipStoryGraphCypher(
-		relationshipStoryRequest{RelationshipType: "CALLS", Limit: 10},
+	incomingRelationship, _ := codequery.NornicDBRelationshipStoryGraphCypher(
+		codemodel.RelationshipStoryRequest{RelationshipType: "CALLS", Limit: 10},
 		"entity:proof",
 		"Function",
 		"uid",
 		"incoming",
 		repositoryAccessFilter{AllScopes: true},
 	)
-	transitiveRelationship, _ := nornicDBRelationshipStoryInheritanceDepthCypher(
-		relationshipStoryRequest{MaxDepth: 5, Limit: 10},
+	transitiveRelationship, _ := codequery.NornicDBRelationshipStoryInheritanceDepthCypher(
+		codemodel.RelationshipStoryRequest{MaxDepth: 5, Limit: 10},
 		"entity:proof",
 		"outgoing",
 		"uid",
@@ -204,8 +206,8 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 		"QP-CODE-REL-STORY":                               directRelationship,
 		"QP-CODE-REL-TRANSITIVE":                          transitiveRelationship,
 		"QP-CODE-REL-STORY-INCOMING":                      incomingRelationship,
-		"QP-CODE-REL-STORY-ANCHOR-COLLISION":              nornicDBRelationshipStoryAnchorLookupCypher("Function", "id", false),
-		"QP-CODE-IMPORT-CYCLES":                           fileImportCycleEdgeRowsCypher(importDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10, Access: repositoryAccessFilter{AllScopes: true}}),
+		"QP-CODE-REL-STORY-ANCHOR-COLLISION":              codequery.NornicDBRelationshipStoryAnchorLookupCypher("Function", "id", false),
+		"QP-CODE-IMPORT-CYCLES":                           codemodel.FileImportCycleEdgeRowsCypher(codemodel.ImportDependencyRequest{QueryType: "file_import_cycles", RepoID: "proof-repository", Limit: 10, Access: repositoryAccessFilter{AllScopes: true}}),
 		"QP-READINESS-HOSTED":                             hostedRepositoryCount,
 		"QP-IMPACT-CHANGE-SURFACE":                        changeSurface,
 		"QP-IMPACT-CHANGE-SURFACE-SCOPED":                 changeSurfaceScoped,

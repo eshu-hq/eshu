@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // runFilterCase exercises getRelationships with a JSON body and returns the
@@ -392,7 +394,7 @@ func TestResolveInfraRelationshipTypes(t *testing.T) {
 			if ok != tc.wantOK {
 				t.Fatalf("resolveInfraRelationshipTypes(%q) ok = %v, want %v", tc.input, ok, tc.wantOK)
 			}
-			if !equalStringSlices(got, tc.wantTypes) {
+			if !querytestutil.EqualStringSlices(got, tc.wantTypes) {
 				t.Fatalf("resolveInfraRelationshipTypes(%q) = %#v, want %#v", tc.input, got, tc.wantTypes)
 			}
 		})

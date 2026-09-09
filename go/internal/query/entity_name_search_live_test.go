@@ -58,7 +58,9 @@ func TestGlobalEntityNameAPIDifferentialAndPerformanceLive(t *testing.T) {
 			}
 			recorder := httptest.NewRecorder()
 			started := time.Now()
-			codeHandler.handleSearch(recorder, request)
+			mux := http.NewServeMux()
+			codeHandler.Mount(mux)
+			mux.ServeHTTP(recorder, request)
 			duration := time.Since(started)
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())

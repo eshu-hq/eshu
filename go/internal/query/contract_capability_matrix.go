@@ -4,6 +4,7 @@
 package query
 
 import (
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
@@ -182,7 +183,7 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	},
-	routeToCallerCapability: {
+	codequery.RouteToCallerCapability: {
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,

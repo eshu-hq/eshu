@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -300,4 +302,32 @@ func (h *InfraHandler) graphSummaryRepoLanguages(ctx context.Context, params map
 		languages = append(languages, language)
 	}
 	return languages, nil
+}
+
+// callGraphMetricsEdgesCypher forwards to codequery.CallGraphMetricsEdgesCypher
+// so graphSummaryHotEntities keeps its pre-move declaration bytes: the
+// queryplan source_sha256 for that symbol covers the call text, and Go has
+// no function aliases to preserve the bare name (same reason
+// repositoryAccessFilterFromContext stays a forwarder in repository_authz.go).
+func callGraphMetricsEdgesCypher(repoID string) (string, map[string]any) {
+	return codequery.CallGraphMetricsEdgesCypher(repoID)
+}
+
+const (
+	// callGraphMetricsEdgeScanLimit is the pre-move spelling of
+	// codequery.CallGraphMetricsEdgeScanLimit, kept for the same
+	// digest-pinned call text as callGraphMetricsEdgesCypher above.
+	callGraphMetricsEdgeScanLimit = codequery.CallGraphMetricsEdgeScanLimit
+)
+
+// callGraphMetricsRequest is the pre-move spelling of
+// codemodel.CallGraphMetricsRequest, kept for the digest-pinned
+// graphSummaryHotEntities body above.
+type callGraphMetricsRequest = codemodel.CallGraphMetricsRequest
+
+// callGraphMetricsRows forwards to codemodel.CallGraphMetricsRows so
+// graphSummaryHotEntities keeps its pre-move declaration bytes (Go has no
+// function aliases).
+func callGraphMetricsRows(req callGraphMetricsRequest, edgeRows []map[string]any) []map[string]any {
+	return codemodel.CallGraphMetricsRows(req, edgeRows)
 }

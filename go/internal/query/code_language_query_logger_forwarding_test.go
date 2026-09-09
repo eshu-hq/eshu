@@ -12,45 +12,44 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestCodeHandlerMountForwardsLoggerToLanguageQueryHandler is the #5761 P1-1
-// review-fix regression: in production, LanguageQueryHandler is never
-// constructed directly. It only ever exists as a value built inside
-// CodeHandler.Mount (code.go) and fed by the two wiring routers
-// (cmd/api/wiring_router.go, cmd/mcp-server/wiring_router.go). The
-// pre-existing TestHandleLanguageQueryGenericFailureStaysStaticAndLogsFailureClass
-// (language_query_generic_failure_test.go) proves the log against a
-// hand-built *LanguageQueryHandler{Logger: logger, ...}, which never
-// exercises the `Logger: h.Logger` pass-through line CodeHandler.Mount
-// actually contains -- deleting that line left every package in
-// `./internal/query ./internal/mcp ./cmd/api ./cmd/mcp-server` green.
+// review-fix regression, relocated for the #6060 lane-A move. LanguageQueryHandler
+// used to be built inside CodeHandler.Mount, and this test pinned the
+// `Logger: h.Logger` pass-through there. The mount has since been hoisted:
+// CodeHandler lives in internal/query/codequery, which cannot import package
+// query back to build a LanguageQueryHandler, so APIRouter carries a sibling
+// Language field that both cmd wirings construct with Neo4j/Content/Profile/
+// Logger (cmd/api/wiring_router.go, cmd/mcp-server/wiring_router.go).
 //
-// This test instead builds only a *CodeHandler (never a
-// *LanguageQueryHandler directly), calls the real CodeHandler.Mount, and
-// drives the request through the resulting mux, so it exercises the exact
-// construction path production traffic takes. Because the 500 response body
-// is deliberately static with no cause in the envelope, this log is the sole
-// operator signal for a generic language-query failure -- if
-// `Logger: h.Logger` is ever deleted from CodeHandler.Mount, the log buffer
-// stays empty and this test fails.
+// This test pins the relocated contract at the router level: it builds the
+// APIRouter the way production does -- Code and Language sharing one logger --
+// mounts it, and drives a language-query whose graph read fails generically.
+// Because the 500 response body is deliberately static with no cause in the
+// envelope, this log is the sole operator signal for a generic language-query
+// failure: if Language is ever wired without its Logger, the log buffer stays
+// empty and this test fails.
 func TestCodeHandlerMountForwardsLoggerToLanguageQueryHandler(t *testing.T) {
 	t.Parallel()
 
 	genericErr := errors.New("private driver detail")
 	var logBuf strings.Builder
 	logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
-
-	handler := &CodeHandler{
-		Neo4j: fakeGraphReader{
-			run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
-				return nil, genericErr
-			},
+	graph := querytestutil.FakeGraphReader{
+		RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
+			return nil, genericErr
 		},
-		Logger: logger,
+	}
+
+	router := &APIRouter{
+		Code:     &CodeHandler{Neo4j: graph, Logger: logger},
+		Language: &LanguageQueryHandler{Neo4j: graph, Logger: logger},
 	}
 	mux := http.NewServeMux()
-	handler.Mount(mux)
+	router.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
 		strings.NewReader(`{"language":"go","entity_type":"function","query":"x"}`))

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 )
 
@@ -352,13 +353,13 @@ func TestBuildAdvisoryEvidenceRowsMergesSourceOnlyEvidence(t *testing.T) {
 	if got, want := row.CanonicalID, "CVE-2026-0001"; got != want {
 		t.Fatalf("CanonicalID = %q, want %q", got, want)
 	}
-	if !stringSliceContains(row.GHSAIDs, "GHSA-aaaa-bbbb-cccc") {
+	if !querytestutil.StringSliceContains(row.GHSAIDs, "GHSA-aaaa-bbbb-cccc") {
 		t.Fatalf("GHSAIDs = %#v, want GHSA id", row.GHSAIDs)
 	}
-	if !stringSliceContains(row.OSVIDs, "OSV-2026-0001") {
+	if !querytestutil.StringSliceContains(row.OSVIDs, "OSV-2026-0001") {
 		t.Fatalf("OSVIDs = %#v, want OSV id", row.OSVIDs)
 	}
-	if !stringSliceContains(row.SourceIDs, "nvd:CVE-2026-0001") {
+	if !querytestutil.StringSliceContains(row.SourceIDs, "nvd:CVE-2026-0001") {
 		t.Fatalf("SourceIDs = %#v, want NVD source identity", row.SourceIDs)
 	}
 	if len(row.Sources) != 3 {

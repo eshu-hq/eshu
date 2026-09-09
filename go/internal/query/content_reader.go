@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -58,9 +59,9 @@ func NewContentReader(db *sql.DB) *ContentReader {
 // proof).
 var (
 	_ cloudInventoryReadModelStore               = (*ContentReader)(nil)
-	_ hardcodedSecretInvestigator                = (*ContentReader)(nil)
-	_ symbolContentSearcher                      = (*ContentReader)(nil)
-	_ codeTopicContentInvestigator               = (*ContentReader)(nil)
+	_ codequery.HardcodedSecretInvestigator      = (*ContentReader)(nil)
+	_ codequery.SymbolContentSearcher            = (*ContentReader)(nil)
+	_ codequery.CodeTopicContentInvestigator     = (*ContentReader)(nil)
 	_ querycontract.PagedContentSearcher         = (*ContentReader)(nil)
 	_ documentationReadModelStore                = (*ContentReader)(nil)
 	_ relationshipEvidenceReadModelStore         = (*ContentReader)(nil)

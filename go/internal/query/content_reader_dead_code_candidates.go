@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -17,7 +19,7 @@ import (
 // content read model, preserving the graph candidate response shape.
 func (cr *ContentReader) DeadCodeCandidateRows(
 	ctx context.Context,
-	query deadCodeCandidateQuery,
+	query codeshaping.DeadCodeCandidateQuery,
 ) ([]map[string]any, error) {
 	repoID := strings.TrimSpace(query.RepoID)
 	language := strings.ToLower(strings.TrimSpace(query.Language))
@@ -31,7 +33,7 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 		return nil, fmt.Errorf("unsupported dead code candidate label %q", label)
 	}
 	if limit <= 0 {
-		limit = deadCodeCandidateQueryMin
+		limit = codeshaping.DeadCodeCandidateQueryMin
 	}
 	if offset < 0 {
 		offset = 0
@@ -127,11 +129,9 @@ func (cr *ContentReader) DeadCodeCandidateRows(
 	return results, nil
 }
 
+// deadCodeCandidateEntityType forwards to
+// querycontract.DeadCodeCandidateEntityType. The implementation moved to
+// querycontract for #6060; this wrapper keeps root callers unchanged.
 func deadCodeCandidateEntityType(label string) (string, bool) {
-	switch label {
-	case "Function", "Class", "Struct", "Interface", "Trait", "SqlFunction":
-		return label, true
-	default:
-		return "", false
-	}
+	return querycontract.DeadCodeCandidateEntityType(label)
 }

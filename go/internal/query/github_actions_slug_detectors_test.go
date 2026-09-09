@@ -4,10 +4,10 @@
 package query
 
 import (
+	"testing"
+
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
 )
-
-import "testing"
 
 // TestGithubActionsReusableWorkflowRepoRefMatchesPreConsolidationBehavior is
 // issue #5526's differential proof for githubActionsReusableWorkflowRepoRef.

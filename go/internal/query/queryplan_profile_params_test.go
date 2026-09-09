@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -155,7 +156,7 @@ func queryplanProfileParams() map[string]any {
 		"allowed_scope_ids":      []string{"proof-scope"},
 		"artifact_ids":           []string{"proof-artifact"},
 		"cycle_language":         "python",
-		"edge_scan_limit":        callGraphMetricsEdgeScanLimit + 1,
+		"edge_scan_limit":        codequery.CallGraphMetricsEdgeScanLimit + 1,
 		"ecosystem":              "proof-ecosystem",
 		"entity_id":              "proof-entity",
 		"environment":            "",

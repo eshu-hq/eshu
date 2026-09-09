@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 )
 
 func TestContentReaderInvestigateHardcodedSecretsReturnsClassifiedRows(t *testing.T) {
@@ -25,7 +27,7 @@ func TestContentReaderInvestigateHardcodedSecretsReturnsClassifiedRows(t *testin
 	})
 	reader := NewContentReader(db)
 
-	results, err := reader.InvestigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
+	results, err := reader.InvestigateHardcodedSecrets(context.Background(), codequery.HardcodedSecretInvestigationRequest{
 		RepoID:            "repo-1",
 		Limit:             3,
 		IncludeSuppressed: true,
@@ -61,7 +63,7 @@ func TestContentReaderInvestigateHardcodedSecretsDoesNotDropFetchedSuppressedRow
 	})
 	reader := NewContentReader(db)
 
-	results, err := reader.InvestigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
+	results, err := reader.InvestigateHardcodedSecrets(context.Background(), codequery.HardcodedSecretInvestigationRequest{
 		RepoID:            "repo-1",
 		Limit:             2,
 		IncludeSuppressed: false,
@@ -95,7 +97,7 @@ func TestContentReaderInvestigateHardcodedSecretsPagesAfterSQLSuppressionFilter(
 	})
 	reader := NewContentReader(db)
 
-	_, err := reader.InvestigateHardcodedSecrets(context.Background(), hardcodedSecretInvestigationRequest{
+	_, err := reader.InvestigateHardcodedSecrets(context.Background(), codequery.HardcodedSecretInvestigationRequest{
 		RepoID: "repo-1",
 		Limit:  1,
 	})

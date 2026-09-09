@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,6 +18,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -87,95 +88,10 @@ func TestCrossRepoDeadCodeConsumerSelectorSurvivesABusyGrantedRepository(t *test
 	}
 }
 
-// TestCrossRepoDeadCodeConsumerReadPlan pins every shape the consumer lookup
-// can take, because which list reaches the page decides where the row cap falls
-// and whether the second traversal runs at all.
-func TestCrossRepoDeadCodeConsumerReadPlan(t *testing.T) {
-	t.Parallel()
-
-	scoped := repositoryAccessFilter{
-		AllowedRepositoryIDs: []string{codeGrantGrantedRepo, codeGrantConsumerRepo},
-		Allowed: map[string]struct{}{
-			codeGrantGrantedRepo:  {},
-			codeGrantConsumerRepo: {},
-		},
-	}
-	unscoped := repositoryAccessFilter{AllScopes: true}
-
-	cases := []struct {
-		name      string
-		access    repositoryAccessFilter
-		consumers []string
-		wantPage  []string
-		wantSig   []string
-		wantOK    bool
-	}{
-		{
-			name:      "scoped request naming a consumer binds that consumer",
-			access:    scoped,
-			consumers: []string{codeGrantConsumerRepo},
-			wantPage:  []string{codeGrantConsumerRepo},
-			wantOK:    true,
-		},
-		{
-			name:     "scoped request naming none binds the grant and probes its complement",
-			access:   scoped,
-			wantPage: []string{codeGrantConsumerRepo, codeGrantGrantedRepo},
-			wantSig:  []string{codeGrantConsumerRepo, codeGrantGrantedRepo},
-			wantOK:   true,
-		},
-		{
-			name:      "unscoped request naming a consumer still binds it",
-			access:    unscoped,
-			consumers: []string{codeGrantOtherRepo},
-			wantPage:  []string{codeGrantOtherRepo},
-			wantOK:    true,
-		},
-		{
-			name:   "unscoped request naming none is the one unbounded page",
-			access: unscoped,
-			wantOK: true,
-		},
-		{
-			name:      "scoped request naming only ungranted consumers reads nothing",
-			access:    scoped,
-			consumers: []string{codeGrantOtherRepo},
-			wantOK:    false,
-		},
-		{
-			name:   "scoped caller with no grant at all reads nothing",
-			access: repositoryAccessFilter{},
-			wantOK: false,
-		},
-	}
-	for _, testCase := range cases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			reads, ok := crossRepoDeadCodeConsumerReadPlan(testCase.access, testCase.consumers)
-			if ok != testCase.wantOK {
-				t.Fatalf("ok = %v, want %v", ok, testCase.wantOK)
-			}
-			if !ok {
-				if len(reads.PageRepositoryIDs) != 0 || len(reads.SignalGrant) != 0 {
-					t.Fatalf("reads = %#v, want the zero plan; an unbounded read is not the fallback", reads)
-				}
-				return
-			}
-			if !slices.Equal(reads.PageRepositoryIDs, testCase.wantPage) {
-				t.Fatalf("PageRepositoryIDs = %#v, want %#v", reads.PageRepositoryIDs, testCase.wantPage)
-			}
-			// An empty SignalGrant is the whole guard for a request that named
-			// consumers: the probe answers over the complement of this list, so
-			// running it with anything bound would report a repository the
-			// request excluded. It is also what keeps a grantless caller from
-			// a probe whose every range is empty.
-			if !slices.Equal(reads.SignalGrant, testCase.wantSig) {
-				t.Fatalf("SignalGrant = %#v, want %#v", reads.SignalGrant, testCase.wantSig)
-			}
-		})
-	}
-}
+// TestCrossRepoDeadCodeConsumerReadPlan moved to
+// codequery/code_dead_code_cross_repo_read_plan_test.go at the #6060 move:
+// it exercises crossRepoDeadCodeConsumerReadPlan directly and has no
+// dependency on the root *ContentReader the rest of this file needs.
 
 // crossRepoDeadCodeConsumerRowSet builds the rows the database returns in its
 // ORDER BY order for one producer entity: noise from a granted repository the
@@ -201,6 +117,48 @@ func crossRepoDeadCodeConsumerRowSet(entityID string, noiseRows int) []filtering
 	return append(rows, row(codeGrantConsumerRepo, 0.95))
 }
 
+// deadCodeGrantContentStore answers the producer candidate scan for the
+// granted and other repositories. It is a local copy of the fake the
+// CodeHandler-family grant suite uses (codequery/auth_scoped_code_dead_code_grant_test.go):
+// a _test.go symbol is not importable across the package/codequery boundary,
+// and this file needs the real *ContentReader for its consumer-side read
+// (below), which cannot move to codequery without recreating ContentReader
+// there. See #6060.
+type deadCodeGrantContentStore struct {
+	querytestutil.FakePortContentStore
+	bound   []string
+	queried bool
+}
+
+func (s *deadCodeGrantContentStore) DeadCodeCandidateRows(
+	_ context.Context,
+	q codeshaping.DeadCodeCandidateQuery,
+) ([]map[string]any, error) {
+	s.queried = true
+	s.bound = append([]string(nil), q.AllowedRepositoryIDs...)
+	if q.Label != "Function" || q.Offset > 0 {
+		return nil, nil
+	}
+	rows := make([]map[string]any, 0, 2)
+	for _, repoID := range []string{codeGrantGrantedRepo, codeGrantOtherRepo} {
+		if !codeContentGrantAdmits(repoID, q.RepoID, q.AllowedRepositoryIDs) {
+			continue
+		}
+		rows = append(rows, map[string]any{
+			"entity_id":  repoID + "#unusedHelper",
+			"name":       "unusedHelper",
+			"labels":     []any{"Function"},
+			"file_path":  "internal/legacy/helper.go",
+			"repo_id":    repoID,
+			"repo_name":  repoID,
+			"language":   "go",
+			"start_line": 4,
+			"end_line":   9,
+		})
+	}
+	return rows, nil
+}
+
 // crossRepoDeadCodeSelectorStore answers the producer candidate scan from the
 // shared grant fake and the consumer read from the shipped ContentReader, so
 // the route's statement, its LIMIT, and its truncation marker are the real ones.
@@ -214,7 +172,7 @@ func (s *crossRepoDeadCodeSelectorStore) CrossRepoDeadCodeConsumerEvidence(
 	producerRepoID string,
 	entityIDs []string,
 	reads crossRepoDeadCodeConsumerReads,
-) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
+) (map[string][]deadcode.CrossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
 	return s.reader.CrossRepoDeadCodeConsumerEvidence(ctx, producerRepoID, entityIDs, reads)
 }
 

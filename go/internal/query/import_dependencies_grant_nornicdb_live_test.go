@@ -10,7 +10,7 @@
 // Every one of the seven shipped builders behind the route is here, reached
 // through the request shape the query_type that uses it produces, so the
 // statement under proof is the one the handler sends rather than a rewrite of
-// it. importDependencyRequest.access is the field the handler sets from the
+// it. codemodel.ImportDependencyRequest.access is the field the handler sets from the
 // caller's AuthContext, so setting it here is the same binding production uses.
 package query
 
@@ -18,14 +18,16 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 )
 
 // liveGrantImportRequest is the request every case below starts from: no
 // repo_id, so the caller's grant is the ONLY repository restriction in the
 // statement, and a limit that importDependencyParams turns into a page of 2 --
 // below the six rows the out-of-grant repository can supply.
-func liveGrantImportRequest(queryType string, access repositoryAccessFilter) importDependencyRequest {
-	return importDependencyRequest{
+func liveGrantImportRequest(queryType string, access repositoryAccessFilter) codemodel.ImportDependencyRequest {
+	return codemodel.ImportDependencyRequest{
 		QueryType: queryType,
 		Language:  liveGrantLanguage,
 		Limit:     1,
@@ -80,84 +82,84 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 	runLiveGrantCases(ctx, t, driver, []liveGrantCase{
 		{
 			// query_type imports_by_file, no source module: the direct edge page.
-			name: "directImportRowsCypher/imports_by_file",
+			name: "codemodel.DirectImportRowsCypher/imports_by_file",
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("imports_by_file", access)
-				return directImportRowsCypher(req), importDependencyParams(req)
+				return codemodel.DirectImportRowsCypher(req), importDependencyParams(req)
 			},
 		},
 		{
 			// query_type importers: the same builder anchored on the module
 			// every seeded file imports, so the out-of-grant repository has six
 			// edges competing for the page.
-			name: "directImportRowsCypher/importers",
+			name: "codemodel.DirectImportRowsCypher/importers",
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("importers", access)
 				req.TargetModule = liveGrantImportedModue
-				return directImportRowsCypher(req), importDependencyParams(req)
+				return codemodel.DirectImportRowsCypher(req), importDependencyParams(req)
 			},
 		},
 		{
 			// query_type package_imports with no source module: the DISTINCT
 			// logical-module page. Each out-of-grant file owns a module of its
 			// own, so the DISTINCT set is large enough to squeeze.
-			name: "packageImportRowsCypher/package_imports",
+			name: "codemodel.PackageImportRowsCypher/package_imports",
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("package_imports", access)
-				return packageImportRowsCypher(req, nil), importDependencyParams(req)
+				return codemodel.PackageImportRowsCypher(req, nil), importDependencyParams(req)
 			},
 		},
 		{
 			// query_type package_imports with a source module: the scan-bounded
 			// shape that pages in Go.
-			name:   "packageImportRowsCypher/package_imports scoped",
+			name:   "codemodel.PackageImportRowsCypher/package_imports scoped",
 			params: pathParams,
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("package_imports", access)
 				req.SourceModule = liveGrantSourceModule
-				return packageImportRowsCypher(req, liveGrantModuleScopes()), importDependencyParams(req)
+				return codemodel.PackageImportRowsCypher(req, liveGrantModuleScopes()), importDependencyParams(req)
 			},
 		},
 		{
 			// The source-module membership read that query_type
 			// module_dependencies (and any request carrying source_module) runs
 			// first.
-			name:   "sourceModuleFilesCypher/module_dependencies",
+			name:   "codemodel.SourceModuleFilesCypher/module_dependencies",
 			params: scanParams,
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("module_dependencies", access)
 				req.SourceModule = liveGrantSourceModule
-				return sourceModuleFilesCypher(req), importDependencyParams(req)
+				return codemodel.SourceModuleFilesCypher(req), importDependencyParams(req)
 			},
 		},
 		{
 			// The target-module membership read, which cross_module_calls runs
 			// for its callee side.
-			name:   "targetModuleFilesCypher/cross_module_calls",
+			name:   "codemodel.TargetModuleFilesCypher/cross_module_calls",
 			params: scanParams,
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("cross_module_calls", access)
 				req.TargetModule = liveGrantTargetModule
-				return targetModuleFilesCypher(req), importDependencyParams(req)
+				return codemodel.TargetModuleFilesCypher(req), importDependencyParams(req)
 			},
 		},
 		{
 			// The import-edge read a resolved source module leads to.
-			name:   "sourceModuleImportRowsCypher/module_dependencies",
+			name:   "codemodel.SourceModuleImportRowsCypher/module_dependencies",
 			params: pathParams,
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("module_dependencies", access)
 				req.SourceModule = liveGrantSourceModule
-				return sourceModuleImportRowsCypher(req, liveGrantModuleScopes()), importDependencyParams(req)
+				return codemodel.SourceModuleImportRowsCypher(req, liveGrantModuleScopes()), importDependencyParams(req)
 			},
 		},
 		{
 			// query_type file_import_cycles.
-			name:   "fileImportCycleEdgeRowsCypher/file_import_cycles",
+			name:   "codemodel.FileImportCycleEdgeRowsCypher/file_import_cycles",
 			params: cycleParams,
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("file_import_cycles", access)
-				return fileImportCycleEdgeRowsCypher(req), importDependencyParams(req)
+				return codemodel.FileImportCycleEdgeRowsCypher(req), importDependencyParams(req)
 			},
 		},
 		{
@@ -165,24 +167,24 @@ func TestLiveNornicDBImportDependencyGrantBindsEveryBuilder(t *testing.T) {
 			// unanchored. This is the builder that binds the grant TWICE, once
 			// per endpoint, so the callee's repository identity cannot leak to a
 			// caller granted only the caller's side.
-			name:   "crossModuleCallRowsCypher/cross_module_calls",
+			name:   "codemodel.CrossModuleCallRowsCypher/cross_module_calls",
 			params: pathParams,
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("cross_module_calls", access)
-				return crossModuleCallRowsCypher(req, nil, nil), importDependencyParams(req)
+				return codemodel.CrossModuleCallRowsCypher(req, nil, nil), importDependencyParams(req)
 			},
 		},
 		{
 			// The same builder with both module scopes resolved, which adds the
 			// source_paths and target_paths predicates alongside the two grant
 			// conditions.
-			name:   "crossModuleCallRowsCypher/cross_module_calls scoped",
+			name:   "codemodel.CrossModuleCallRowsCypher/cross_module_calls scoped",
 			params: pathParams,
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				req := liveGrantImportRequest("cross_module_calls", access)
 				req.SourceModule = liveGrantSourceModule
 				req.TargetModule = liveGrantTargetModule
-				return crossModuleCallRowsCypher(req, liveGrantModuleScopes(), liveGrantModuleScopes()), importDependencyParams(req)
+				return codemodel.CrossModuleCallRowsCypher(req, liveGrantModuleScopes(), liveGrantModuleScopes()), importDependencyParams(req)
 			},
 		},
 	})

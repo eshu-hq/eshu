@@ -63,7 +63,7 @@ func TestOpenAPISpecIncludesSecurityAlertReconciliations(t *testing.T) {
 	status := querytestutil.MustMapField(t, rowProps, "reconciliation_status")
 	statusEnum := mustStringSliceField(t, status, "enum")
 	for _, want := range []string{"unsupported", "ambiguous"} {
-		if !stringSliceContains(statusEnum, want) {
+		if !querytestutil.StringSliceContains(statusEnum, want) {
 			t.Fatalf("reconciliation_status enum = %#v, want %q", statusEnum, want)
 		}
 	}

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -197,10 +198,10 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 	// rather than a second copy of the plumbing -- the selector is resolved and
 	// an ungranted one rejected with 400, then the grant the remaining reads
 	// bind is resolved once for all four branches.
-	if !ApplyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, &req.RepoID, languageQueryCapability) {
+	if !codequery.ApplyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, &req.RepoID, languageQueryCapability) {
 		return
 	}
-	grant, blocked := languageQueryGrantFor(r.Context(), req.RepoID)
+	grant, blocked := codequery.LanguageQueryGrantFor(r.Context(), req.RepoID)
 	if blocked {
 		h.writeLanguageQueryEmptyGrantResult(w, r, req.Language, req.EntityType, req.Query)
 		return
@@ -349,6 +350,13 @@ func (h *LanguageQueryHandler) writeLanguageQueryResult(
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(h.profile(), languageQueryCapability, basis, reason))
 }
 
+// languageQueryGrant is the pre-move spelling of
+// codequery.LanguageQueryGrant. The queryplan source_sha256 for
+// queryByLanguageWithSemanticFilter covers the grant parameter text, so the
+// alias keeps the moved signature byte-identical instead of re-freezing the
+// digest.
+type languageQueryGrant = codequery.LanguageQueryGrant
+
 // queryByLanguage builds and executes a language-specific Cypher query.
 func (h *LanguageQueryHandler) queryByLanguage(
 	ctx context.Context,
@@ -432,7 +440,7 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguage(
 	ctx context.Context,
 	language, label, query, repoID string,
 	limit int,
-	grant languageQueryGrant,
+	grant codequery.LanguageQueryGrant,
 ) ([]map[string]any, TruthBasis, error) {
 	return h.queryGraphFirstContentByLanguageWithSemanticFilter(ctx, language, label, label, query, repoID, limit, "", "", grant)
 }

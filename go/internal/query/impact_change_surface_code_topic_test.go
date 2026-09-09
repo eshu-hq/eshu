@@ -5,11 +5,13 @@ package query
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -40,7 +42,7 @@ func decodeChangeSurfaceCodeTopicData(t *testing.T, w *httptest.ResponseRecorder
 // package query although it exercises the impact change-surface handler: the
 // topic half of the fixture is served by topicInvestigationContentStore,
 // whose InvestigateCodeTopic method is typed on the lane-A code-topic family
-// (codeTopicEvidenceRow in code_topic.go), which an impact-package test
+// (codequery.CodeTopicEvidenceRow in code_topic.go), which an impact-package test
 // cannot name without importing the query root back. The changed-paths half
 // is covered from impact/ by
 // TestInvestigateChangeSurfaceMapsChangedPathSymbolsPastRepoProbeWindow.
@@ -63,7 +65,7 @@ func TestInvestigateChangeSurfaceAcceptsCodeTopicAndChangedPaths(t *testing.T) {
 				},
 			},
 		},
-		rows: []codeTopicEvidenceRow{
+		rows: []codequery.CodeTopicEvidenceRow{
 			{
 				SourceKind:   "entity",
 				RepoID:       "repo-1",
@@ -105,4 +107,28 @@ func TestInvestigateChangeSurfaceAcceptsCodeTopicAndChangedPaths(t *testing.T) {
 	if got, want := len(nextCalls), 2; got < want {
 		t.Fatalf("recommended_next_calls = %d, want at least %d", got, want)
 	}
+}
+
+// topicInvestigationContentStore serves canned code-topic rows to the
+// change-surface handler without touching a backend. Twin of the same-named
+// fake in codequery (code_topic_test.go): the InvestigateCodeTopic method is
+// typed on the lane-A code-topic family (codequery.CodeTopicEvidenceRow),
+// which a _test.go symbol in codequery cannot share across the package
+// boundary (#6060).
+type topicInvestigationContentStore struct {
+	fakePortContentStore
+	rows     []codequery.CodeTopicEvidenceRow
+	requests []codequery.CodeTopicInvestigationRequest
+	err      error
+}
+
+func (s *topicInvestigationContentStore) InvestigateCodeTopic(
+	_ context.Context,
+	req codequery.CodeTopicInvestigationRequest,
+) ([]codequery.CodeTopicEvidenceRow, error) {
+	s.requests = append(s.requests, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return append([]codequery.CodeTopicEvidenceRow(nil), s.rows...), nil
 }

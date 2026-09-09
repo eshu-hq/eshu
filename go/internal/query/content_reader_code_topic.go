@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -18,13 +19,13 @@ import (
 // entities, path/content substring match for files), ranked by distinct
 // term hits and scoped by req.RepoID or, for a corpus-wide search, by
 // req.AllowedRepositoryIDs. It is the batched fast path
-// codeTopicContentInvestigator exposes to CodeHandler.codeTopicRows and
+// codequery.CodeTopicContentInvestigator exposes to CodeHandler.codeTopicRows and
 // changeSurfaceTopicRows; the fallback those callers take without a
 // satisfying store returns an error rather than a slower equivalent result.
 func (cr *ContentReader) InvestigateCodeTopic(
 	ctx context.Context,
-	req codeTopicInvestigationRequest,
-) ([]codeTopicEvidenceRow, error) {
+	req codequery.CodeTopicInvestigationRequest,
+) ([]codequery.CodeTopicEvidenceRow, error) {
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
 		trace.WithAttributes(
@@ -104,9 +105,9 @@ func (cr *ContentReader) InvestigateCodeTopic(
 	}
 	defer func() { _ = rows.Close() }()
 
-	var results []codeTopicEvidenceRow
+	var results []codequery.CodeTopicEvidenceRow
 	for rows.Next() {
-		var row codeTopicEvidenceRow
+		var row codequery.CodeTopicEvidenceRow
 		var matchedTerms string
 		if err := rows.Scan(
 			&row.SourceKind,
@@ -134,7 +135,7 @@ func (cr *ContentReader) InvestigateCodeTopic(
 	return results, nil
 }
 
-func codeTopicFilters(req codeTopicInvestigationRequest) ([]string, []any, int) {
+func codeTopicFilters(req codequery.CodeTopicInvestigationRequest) ([]string, []any, int) {
 	filters := make([]string, 0, 3)
 	args := make([]any, 0, 3)
 	nextArg := 1

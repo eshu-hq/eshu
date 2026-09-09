@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 type fakeReplatformingSelectorStore struct {
@@ -151,7 +153,7 @@ func TestReplatformingSelectorsHandlerPassesScopedAWSGrantsToStore(t *testing.T)
 	if got, want := store.requestedScopeIDs, []string{
 		"aws:123456789012:us-east-1:lambda",
 		"aws:210987654321:us-west-2:s3",
-	}; !equalStringSlices(got, want) {
+	}; !querytestutil.EqualStringSlices(got, want) {
 		t.Fatalf("allowed scope ids = %#v, want %#v", got, want)
 	}
 }

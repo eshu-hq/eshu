@@ -4,8 +4,6 @@
 package query //nolint:dirgate // B5 root alias shim for #6060: type aliases and thin forwarders for the moved entity family must live in package query so handler wiring, cmd constructors, and staying callers compile unchanged.
 
 import (
-	"context"
-
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
@@ -88,30 +86,6 @@ func buildWorkloadStory(ctx map[string]any) string {
 // calling the package-local name.
 func contentEntityTypeForResolve(typeName string) string {
 	return querycontract.ContentEntityTypeForResolve(typeName)
-}
-
-// resolveExactGraphEntityCandidates lists exact-name entity candidates.
-// The implementation lives in querycontract; this wrapper keeps the staying
-// authorization and resolution tests calling the package-local name.
-func resolveExactGraphEntityCandidates(
-	ctx context.Context,
-	reader querycontract.ContentStore,
-	repoID string,
-	name string,
-) ([]querycontract.EntityContent, error) {
-	return querycontract.ResolveExactGraphEntityCandidates(ctx, reader, repoID, name)
-}
-
-// resolveExactGraphEntityCandidate resolves one exact-name entity
-// candidate. The implementation lives in querycontract; this wrapper keeps
-// the staying resolution tests calling the package-local name.
-func resolveExactGraphEntityCandidate(
-	ctx context.Context,
-	reader querycontract.ContentStore,
-	repoID string,
-	name string,
-) (*querycontract.EntityContent, error) {
-	return querycontract.ResolveExactGraphEntityCandidate(ctx, reader, repoID, name)
 }
 
 // provisionedPlatformTopologyEdges shapes a provisioned-platform row into

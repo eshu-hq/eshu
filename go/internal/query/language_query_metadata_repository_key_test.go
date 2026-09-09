@@ -75,8 +75,8 @@ func languageMetadataDocstring(repoID string) string {
 
 // languageMetadataCollisionSeeds are the two graph rows the fake returns: same
 // path, label, name and start line, different repository.
-func languageMetadataCollisionSeeds(omitRepoID bool) []graphGrantSeed {
-	seeds := make([]graphGrantSeed, 0, 2)
+func languageMetadataCollisionSeeds(omitRepoID bool) []querytestutil.GraphGrantSeed {
+	seeds := make([]querytestutil.GraphGrantSeed, 0, 2)
 	for _, repoID := range []string{codeGrantGrantedRepo, codeGrantOtherRepo} {
 		row := map[string]any{
 			"entity_id":  repoID + "#" + languageMetadataSharedName,
@@ -92,7 +92,7 @@ func languageMetadataCollisionSeeds(omitRepoID bool) []graphGrantSeed {
 		if omitRepoID {
 			delete(row, "repo_id")
 		}
-		seeds = append(seeds, graphGrantSeed{repoID: repoID, row: row})
+		seeds = append(seeds, querytestutil.GraphGrantSeed{RepoID: repoID, Row: row})
 	}
 	return seeds
 }
@@ -101,10 +101,10 @@ func runLanguageMetadataCollisionQuery(t *testing.T, omitRepoID bool) []any {
 	t.Helper()
 
 	handler := &LanguageQueryHandler{
-		Neo4j: &evaluatingRepositoryGraph{
-			seeds:             languageMetadataCollisionSeeds(omitRepoID),
-			repositoryAlias:   "r",
-			repositoryColumns: repositoryProjectedColumns(),
+		Neo4j: &querytestutil.EvaluatingRepositoryGraph{
+			Seeds:             languageMetadataCollisionSeeds(omitRepoID),
+			RepositoryAlias:   "r",
+			RepositoryColumns: repositoryProjectedColumns(),
 		},
 		Content: &languageMetadataCollisionStore{omitRepoID: omitRepoID},
 		Profile: ProfileLocalAuthoritative,

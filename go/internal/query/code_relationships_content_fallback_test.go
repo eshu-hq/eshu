@@ -229,26 +229,6 @@ func TestHandleRelationshipsFiltersContentFallbackByDirectionAndType(t *testing.
 	}
 }
 
-func TestHandleRelationshipsRejectsInvalidDirection(t *testing.T) {
-	t.Parallel()
-
-	handler := &CodeHandler{}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/code/relationships",
-		bytes.NewBufferString(`{"entity_id":"function-1","direction":"sideways"}`),
-	)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("expected 400, got %d body=%s", w.Code, w.Body.String())
-	}
-}
-
 func TestHandleRelationshipsFallsBackToContentNameLookup(t *testing.T) {
 	t.Parallel()
 

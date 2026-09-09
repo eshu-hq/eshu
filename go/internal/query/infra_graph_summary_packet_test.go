@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 )
 
 // graphSummaryRecordingReader records every Cypher statement and routes the
@@ -391,8 +393,8 @@ func TestGraphSummaryPacketHonorsLimitTruncation(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body=%s", got, want, w.Body.String())
 	}
-	if seenEdgeScanLimit != callGraphMetricsEdgeScanLimit+1 {
-		t.Fatalf("hot-entity edge scan limit = %#v, want %d", seenEdgeScanLimit, callGraphMetricsEdgeScanLimit+1)
+	if seenEdgeScanLimit != codequery.CallGraphMetricsEdgeScanLimit+1 {
+		t.Fatalf("hot-entity edge scan limit = %#v, want %d", seenEdgeScanLimit, codequery.CallGraphMetricsEdgeScanLimit+1)
 	}
 	data := decodeGraphSummaryData(t, w.Body.Bytes())
 	hot := data["hot_entities"].([]any)
@@ -467,5 +469,38 @@ func TestGraphSummaryPacketUnsupportedOnLocalLightweightProfile(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "unsupported_capability") {
 		t.Fatalf("body = %s, want unsupported_capability", w.Body.String())
+	}
+}
+
+// callGraphMetricEdgeRow builds one call-graph edge row for the packet tests.
+// Twin of the same-named helper in codequery
+// (code_call_graph_metrics_aggregation_test.go): a _test.go symbol is not
+// importable across the package boundary, and this pure row builder has no
+// shared-state semantics to drift (#6060).
+func callGraphMetricEdgeRow(
+	sourceID string,
+	sourcePath string,
+	sourceLanguage string,
+	sourceName string,
+	sourceLine int,
+	targetID string,
+	targetPath string,
+	targetLanguage string,
+	targetName string,
+	targetLine int,
+) map[string]any {
+	return map[string]any{
+		"source_id":         sourceID,
+		"source_path":       sourcePath,
+		"source_language":   sourceLanguage,
+		"source_name":       sourceName,
+		"source_start_line": sourceLine,
+		"source_end_line":   sourceLine + 1,
+		"target_id":         targetID,
+		"target_path":       targetPath,
+		"target_language":   targetLanguage,
+		"target_name":       targetName,
+		"target_start_line": targetLine,
+		"target_end_line":   targetLine + 1,
 	}
 }

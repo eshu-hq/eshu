@@ -35,12 +35,12 @@ const languageQueryUnsupportedEntityType = "bogus"
 
 // newLanguageQueryValidationHandler builds a handler whose backends both record
 // every call, so a test can prove a rejected request reached neither.
-func newLanguageQueryValidationHandler() (*LanguageQueryHandler, *languageQueryPlainContentStore, *evaluatingRepositoryGraph) {
+func newLanguageQueryValidationHandler() (*LanguageQueryHandler, *languageQueryPlainContentStore, *querytestutil.EvaluatingRepositoryGraph) {
 	store := &languageQueryPlainContentStore{}
-	graph := &evaluatingRepositoryGraph{
-		seeds:             languageQueryGraphSeeds("Function"),
-		repositoryAlias:   "r",
-		repositoryColumns: repositoryProjectedColumns(),
+	graph := &querytestutil.EvaluatingRepositoryGraph{
+		Seeds:             languageQueryGraphSeeds("Function"),
+		RepositoryAlias:   "r",
+		RepositoryColumns: repositoryProjectedColumns(),
 	}
 	return &LanguageQueryHandler{
 		Neo4j:   graph,
@@ -86,8 +86,8 @@ func TestLanguageQueryRejectsUnsupportedEntityTypeForEveryCaller(t *testing.T) {
 			if len(store.askedRepoIDs) != 0 {
 				t.Fatalf("content store was queried with %#v for an invalid request", store.askedRepoIDs)
 			}
-			if len(graph.statements) != 0 {
-				t.Fatalf("graph was read for an invalid request: %v", graph.statements)
+			if len(graph.Statements) != 0 {
+				t.Fatalf("graph was read for an invalid request: %v", graph.Statements)
 			}
 		})
 	}
@@ -106,8 +106,8 @@ func TestLanguageQueryEmptyGrantStillAnswersASupportedEntityType(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if len(store.askedRepoIDs) != 0 || len(graph.statements) != 0 {
-		t.Fatalf("a grantless scoped caller reached a backend: content %#v, graph %v", store.askedRepoIDs, graph.statements)
+	if len(store.askedRepoIDs) != 0 || len(graph.Statements) != 0 {
+		t.Fatalf("a grantless scoped caller reached a backend: content %#v, graph %v", store.askedRepoIDs, graph.Statements)
 	}
 	data := decodeEnvelopeData(t, rec.Body.Bytes())
 	rows, ok := data["results"].([]any)

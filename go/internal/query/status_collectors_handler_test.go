@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -268,8 +269,8 @@ func TestStatusHandlerCollectorsRouteExplainsAWSHealthEvidence(t *testing.T) {
 	if got, want := healthy.health, "observed"; got != want {
 		t.Fatalf("healthy AWS collector health = %q, want %q; body=%s", got, want, rec.Body.String())
 	}
-	if !stringSliceContains(healthy.evidence, "aws_cloud_scan_status") ||
-		!stringSliceContains(healthy.evidence, "source_facts") {
+	if !querytestutil.StringSliceContains(healthy.evidence, "aws_cloud_scan_status") ||
+		!querytestutil.StringSliceContains(healthy.evidence, "source_facts") {
 		t.Fatalf("healthy AWS evidence = %#v, want scan status and source facts", healthy.evidence)
 	}
 	if strings.Contains(healthy.detail, "commit_failure") {
@@ -361,11 +362,11 @@ func TestStatusHandlerCollectorsRouteExposesPersistedFactEvidence(t *testing.T) 
 		t.Fatalf("collector observation_count = %d, want %d", got, want)
 	}
 	for _, want := range []string{"workflow_coordinator", "source_facts"} {
-		if !stringSliceContains(collector.Evidence, want) {
+		if !querytestutil.StringSliceContains(collector.Evidence, want) {
 			t.Fatalf("collector evidence = %#v, want %q", collector.Evidence, want)
 		}
 	}
-	if !stringSliceContains(collector.SourceSystems, "confluence") {
+	if !querytestutil.StringSliceContains(collector.SourceSystems, "confluence") {
 		t.Fatalf("collector source_systems = %#v, want confluence", collector.SourceSystems)
 	}
 }
@@ -442,11 +443,11 @@ func TestStatusHandlerCollectorsRouteExposesGitRepositoryEvidence(t *testing.T) 
 	if got, want := collector.ObservationCount, 217; got != want {
 		t.Fatalf("observation_count = %d, want %d", got, want)
 	}
-	if !stringSliceContains(collector.Evidence, "workflow_coordinator") ||
-		!stringSliceContains(collector.Evidence, "source_facts") {
+	if !querytestutil.StringSliceContains(collector.Evidence, "workflow_coordinator") ||
+		!querytestutil.StringSliceContains(collector.Evidence, "source_facts") {
 		t.Fatalf("evidence_sources = %#v, want workflow_coordinator and source_facts", collector.Evidence)
 	}
-	if !stringSliceContains(collector.SourceSystems, "git") {
+	if !querytestutil.StringSliceContains(collector.SourceSystems, "git") {
 		t.Fatalf("source_systems = %#v, want git", collector.SourceSystems)
 	}
 }

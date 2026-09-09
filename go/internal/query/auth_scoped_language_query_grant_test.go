@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -28,7 +29,7 @@ import (
 // LanguageQueryHandler is not CodeHandler, so none of the batch-1 selector
 // plumbing was reachable as a method: req.RepoID was used raw and an ungranted
 // one was never rejected. The fix reuses the free functions rather than
-// duplicating them -- ApplyRepositorySelectorForAccess and codeContentGrantScope
+// duplicating them -- codequery.ApplyRepositorySelectorForAccess and codeContentGrantScope
 // (code_repository_selector.go) -- so both handlers resolve a selector and a
 // grant through one implementation.
 
@@ -90,10 +91,10 @@ func languageQueryGrantEntities(repoID string, allowedRepositoryIDs []string, en
 // languageQueryGraphSeeds is the two-tenant graph fixture every graph-backed
 // branch scans: one entity in the granted repository and one in another
 // tenant's.
-func languageQueryGraphSeeds(label string) []graphGrantSeed {
-	return []graphGrantSeed{
-		{repoID: codeGrantGrantedRepo, row: languageQueryGraphRow(label, languageGrantGrantedEntity, codeGrantGrantedRepo)},
-		{repoID: codeGrantOtherRepo, row: languageQueryGraphRow(label, languageGrantUngrantedEntity, codeGrantOtherRepo)},
+func languageQueryGraphSeeds(label string) []querytestutil.GraphGrantSeed {
+	return []querytestutil.GraphGrantSeed{
+		{RepoID: codeGrantGrantedRepo, Row: languageQueryGraphRow(label, languageGrantGrantedEntity, codeGrantGrantedRepo)},
+		{RepoID: codeGrantOtherRepo, Row: languageQueryGraphRow(label, languageGrantUngrantedEntity, codeGrantOtherRepo)},
 	}
 }
 
@@ -128,15 +129,15 @@ func languageQueryGrantBranches() []languageQueryGrantBranch {
 	}
 }
 
-func newLanguageQueryGrantHandler(branch languageQueryGrantBranch, store ContentStore) (*LanguageQueryHandler, *evaluatingRepositoryGraph) {
+func newLanguageQueryGrantHandler(branch languageQueryGrantBranch, store ContentStore) (*LanguageQueryHandler, *querytestutil.EvaluatingRepositoryGraph) {
 	handler := &LanguageQueryHandler{Content: store, Profile: ProfileLocalAuthoritative}
 	if branch.graphLabel == "" {
 		return handler, nil
 	}
-	graph := &evaluatingRepositoryGraph{
-		seeds:             languageQueryGraphSeeds(branch.graphLabel),
-		repositoryAlias:   "r",
-		repositoryColumns: repositoryProjectedColumns(),
+	graph := &querytestutil.EvaluatingRepositoryGraph{
+		Seeds:             languageQueryGraphSeeds(branch.graphLabel),
+		RepositoryAlias:   "r",
+		RepositoryColumns: repositoryProjectedColumns(),
 	}
 	handler.Neo4j = graph
 	return handler, graph
@@ -207,8 +208,8 @@ func TestLanguageQueryEmptyGrantReachesNoBackend(t *testing.T) {
 			if len(store.askedRepoIDs) != 0 {
 				t.Fatalf("content store was queried with %#v; a grantless scoped caller must not reach a backend", store.askedRepoIDs)
 			}
-			if graph != nil && len(graph.statements) != 0 {
-				t.Fatalf("a grantless scoped caller reached the graph: %v", graph.statements)
+			if graph != nil && len(graph.Statements) != 0 {
+				t.Fatalf("a grantless scoped caller reached the graph: %v", graph.Statements)
 			}
 			body := rec.Body.String()
 			for _, leaked := range []string{codeGrantGrantedRepo, codeGrantOtherRepo} {
@@ -310,7 +311,7 @@ func TestLanguageQueryMetadataEnrichmentCannotWidenTheAnswer(t *testing.T) {
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	if len(graph.statements) == 0 {
+	if len(graph.Statements) == 0 {
 		t.Fatal("no statement reached the graph")
 	}
 	for _, asked := range store.askedRepoIDs {
@@ -344,8 +345,8 @@ func TestLanguageQueryUngrantedRepositorySelectorIsRejected(t *testing.T) {
 	if got, want := rec.Code, http.StatusBadRequest; got != want {
 		t.Fatalf("status = %d, want %d for an ungranted repository selector; body = %s", got, want, rec.Body.String())
 	}
-	if len(graph.statements) != 0 {
-		t.Fatalf("an ungranted selector reached the graph: %v", graph.statements)
+	if len(graph.Statements) != 0 {
+		t.Fatalf("an ungranted selector reached the graph: %v", graph.Statements)
 	}
 	if len(store.askedRepoIDs) != 0 {
 		t.Fatalf("an ungranted selector reached the content store: %#v", store.askedRepoIDs)
@@ -359,8 +360,8 @@ func TestLanguageQueryUngrantedRepositorySelectorIsRejected(t *testing.T) {
 // local caller carries: no restriction on either backend. It is what the
 // pre-existing language-query tests pass, so their assertions keep describing
 // the unscoped read.
-func unscopedLanguageQueryGrant() languageQueryGrant {
-	return languageQueryGrant{Access: repositoryAccessFilter{AllScopes: true}}
+func unscopedLanguageQueryGrant() codequery.LanguageQueryGrant {
+	return codequery.LanguageQueryGrant{Access: repositoryAccessFilter{AllScopes: true}}
 }
 
 // TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector covers the half of the
@@ -368,14 +369,14 @@ func unscopedLanguageQueryGrant() languageQueryGrant {
 //
 // The sibling tests above pass no repo_id at all, which is exactly the case the
 // selector never touches, so on their own they prove nothing about it. Routing
-// req.RepoID through ApplyRepositorySelectorForAccess changes what an unscoped
+// req.RepoID through codequery.ApplyRepositorySelectorForAccess changes what an unscoped
 // shared-key, admin or local caller gets for a repo_id that is not a canonical
 // id: the OpenAPI operation has always advertised the field as "canonical ID,
 // name, slug, or path", and until now this route ignored every form but the
 // first.
 //
 // The unresolvable sub-case runs on the content-backed branch, where h.Neo4j is
-// nil, on purpose. evaluatingRepositoryGraph answers the selector's own
+// nil, on purpose. querytestutil.EvaluatingRepositoryGraph answers the selector's own
 // MATCH (r:Repository) probe from its seeded rows, so a graph-backed handler
 // would resolve a selector that does not exist in the fixture.
 func TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector(t *testing.T) {
@@ -393,11 +394,11 @@ func TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector(t *testing.T) {
 		if got, want := rec.Code, http.StatusOK; got != want {
 			t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 		}
-		if len(graph.statements) == 0 {
+		if len(graph.Statements) == 0 {
 			t.Fatal("no statement reached the graph")
 		}
-		if !strings.Contains(normalizeCypherWhitespace(graph.statements[0]), "r.id = $repo_id") {
-			t.Fatalf("a canonical repo_id no longer anchors the read:\n%s", graph.statements[0])
+		if !strings.Contains(querytestutil.NormalizeCypherWhitespace(graph.Statements[0]), "r.id = $repo_id") {
+			t.Fatalf("a canonical repo_id no longer anchors the read:\n%s", graph.Statements[0])
 		}
 		if !strings.Contains(rec.Body.String(), languageGrantGrantedEntity) {
 			t.Fatalf("the named repository's entity is missing: %s", rec.Body.String())

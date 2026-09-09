@@ -1,0 +1,216 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package codequery
+
+import (
+	"sort"
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+)
+
+func TestCodeFlowSQLReadsLatestFactPerStableKeyThroughActiveGeneration(t *testing.T) {
+	t.Parallel()
+
+	query := codemodel.ListActiveCodeFlowFactsSQL
+	for _, want := range []string{
+		"active_scope AS",
+		"active_generation.status = 'active'",
+		"fact.payload->>'repo_id' = $2",
+		"generation.ingested_at <= active_scope.active_ingested_at",
+		"ROW_NUMBER() OVER (",
+		"PARTITION BY fact.scope_id, fact.stable_fact_key",
+		"ORDER BY generation.ingested_at DESC, generation.generation_id DESC, fact.observed_at DESC, fact.fact_id DESC",
+		"candidate.rn = 1",
+		"candidate.is_tombstone = FALSE",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("code-flow SQL missing %q", want)
+		}
+	}
+	if strings.Contains(query, "scope.active_generation_id = fact.generation_id") {
+		t.Fatal("code-flow SQL must not read only the active delta generation")
+	}
+}
+
+func TestCodeFlowSQLPrefersIntraproceduralTaintEvidence(t *testing.T) {
+	t.Parallel()
+
+	query := codemodel.ListActiveCodeFlowFactsSQL
+	priority := "WHEN 'code_taint_evidence' THEN 0"
+	interproc := "WHEN 'code_interproc_evidence' THEN 1"
+	observed := "candidate.observed_at ASC"
+	for _, fragment := range []string{priority, interproc, observed} {
+		if !strings.Contains(query, fragment) {
+			t.Fatalf("code-flow SQL missing deterministic taint precedence fragment %q", fragment)
+		}
+	}
+	if strings.Index(query, priority) > strings.Index(query, observed) || strings.Index(query, interproc) > strings.Index(query, observed) {
+		t.Fatal("code-flow SQL must rank exact intraprocedural taint evidence before time and fact-id tie-breakers")
+	}
+}
+
+// TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex guards the #5280
+// fix: the read filters fact_kind by both the parameterized $1 subset AND a
+// literal `fact_kind IN (...)` conjunct. The literal is what lets PostgreSQL
+// prove the fact_records_code_flow_repo_idx partial-index predicate at plan
+// time; without it a generic prepared plan cannot prove $1 is limited to these
+// kinds and silently falls back to the all-scope over-fetch (proven under
+// plan_cache_mode=force_generic_plan: 10,137 buffers vs 728 with the conjunct).
+// Removing this line reverts the index win on the real pgx production path.
+func TestCodeFlowSQLKeepsLiteralKindConjunctForPartialIndex(t *testing.T) {
+	t.Parallel()
+
+	query := codemodel.ListActiveCodeFlowFactsSQL
+	if !strings.Contains(query, "fact.fact_kind = ANY($1::text[])") {
+		t.Fatal("code-flow SQL must keep the parameterized $1 kind filter for the exact per-read subset")
+	}
+	if !strings.Contains(query, "fact.fact_kind IN (") {
+		t.Fatal("code-flow SQL must keep the literal fact_kind IN (...) conjunct so a generic prepared plan can use the partial index fact_records_code_flow_repo_idx (#5280)")
+	}
+
+	// The literal conjunct must cover EXACTLY the canonical code-flow read set,
+	// not merely a superset: extracting and set-comparing (rather than a
+	// substring check) fails when a kind is missing OR when an extra kind drifts
+	// in, keeping the query literal, the partial index predicate, and
+	// facts.CodeFlowReadFactKinds in lockstep across package boundaries (#5284).
+	got := extractFactKindInList(t, query)
+	want := codeFlowSortedKinds(facts.CodeFlowReadFactKinds())
+	if !codeFlowEqualKinds(got, want) {
+		t.Fatalf("code-flow SQL literal conjunct set = %v, want the canonical facts.CodeFlowReadFactKinds() = %v", got, want)
+	}
+
+	// The canonical set must in turn cover every fact kind codemodel.CodeFlowFactKinds can
+	// return across all codemodel.CodeFlowKind values, so the $1 subset is always drawn
+	// from the same set the literal conjunct (and the index) constrain — the
+	// conjunct is redundant (result-neutral) rather than a filter that could
+	// drop rows the $1 subset would have returned.
+	canonical := map[string]bool{}
+	for _, k := range facts.CodeFlowReadFactKinds() {
+		canonical[k] = true
+	}
+	// Range the production dispatch map itself, not a hand-copied list of
+	// codemodel.CodeFlowKind values: a new kind wired into codemodel.CodeFlowKindFactKinds is picked
+	// up here automatically, so it cannot add a fact kind the canonical set (and
+	// therefore the literal conjunct and index) miss without failing this guard.
+	union := map[string]bool{}
+	for kind := range codemodel.CodeFlowKindFactKinds {
+		for _, k := range codemodel.CodeFlowFactKinds(kind) {
+			union[k] = true
+			if !canonical[k] {
+				t.Fatalf("codemodel.CodeFlowFactKinds(%q) can select kind %q that is not in facts.CodeFlowReadFactKinds(); the read would query a kind the literal conjunct and partial index do not cover", kind, k)
+			}
+		}
+	}
+	if len(union) != len(canonical) {
+		t.Fatalf("codemodel.CodeFlowFactKinds union has %d kinds but facts.CodeFlowReadFactKinds() has %d; the canonical set must equal the kinds the read can actually select", len(union), len(canonical))
+	}
+}
+
+// TestCodeFlowFactKindsDispatch pins the per-kind fact-kind dispatch so the
+// map-backed lookup keeps the exact behavior of the switch it replaced: taint
+// selects the taint+interproc evidence kinds, the three dataflow-derived kinds
+// select the dataflow function kind, and an unknown kind returns nil (which
+// ListCodeFlow short-circuits to an empty read). Order within a kind is part of
+// the contract because it becomes the $1 array the read binds.
+func TestCodeFlowFactKindsDispatch(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		kind codemodel.CodeFlowKind
+		want []string
+	}{
+		{codemodel.CodeFlowKindTaintPath, []string{facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind}},
+		{codemodel.CodeFlowKindReachingDef, []string{facts.CodeDataflowFunctionFactKind}},
+		{codemodel.CodeFlowKindCFGSummary, []string{facts.CodeDataflowFunctionFactKind}},
+		{codemodel.CodeFlowKindPDGSummary, []string{facts.CodeDataflowFunctionFactKind}},
+		{codemodel.CodeFlowKind("unknown_kind"), nil},
+	}
+	for _, tc := range cases {
+		got := codemodel.CodeFlowFactKinds(tc.kind)
+		if len(got) != len(tc.want) {
+			t.Fatalf("codemodel.CodeFlowFactKinds(%q) = %v, want %v", tc.kind, got, tc.want)
+		}
+		for i := range tc.want {
+			if got[i] != tc.want[i] {
+				t.Fatalf("codemodel.CodeFlowFactKinds(%q)[%d] = %q, want %q", tc.kind, i, got[i], tc.want[i])
+			}
+		}
+	}
+}
+
+// TestCodeFlowFactKindsReturnsIsolatedCopy proves codemodel.CodeFlowFactKinds hands back a
+// fresh slice, not the shared codemodel.CodeFlowKindFactKinds backing array: mutating the
+// returned slice in place (sort/append/index-assign) must not corrupt the
+// canonical per-kind entry for later reads across all code-flow endpoints.
+func TestCodeFlowFactKindsReturnsIsolatedCopy(t *testing.T) {
+	t.Parallel()
+
+	first := codemodel.CodeFlowFactKinds(codemodel.CodeFlowKindTaintPath)
+	if len(first) < 2 {
+		t.Fatalf("expected the taint kind to select >=2 fact kinds, got %v", first)
+	}
+	// Corrupt the returned slice in place.
+	for i := range first {
+		first[i] = "corrupted"
+	}
+	// A subsequent call must still return the pristine canonical entry.
+	second := codemodel.CodeFlowFactKinds(codemodel.CodeFlowKindTaintPath)
+	want := []string{facts.CodeTaintEvidenceFactKind, facts.CodeInterprocEvidenceFactKind}
+	if len(second) != len(want) {
+		t.Fatalf("codemodel.CodeFlowFactKinds(taint) after mutation = %v, want %v (shared backing slice corrupted)", second, want)
+	}
+	for i := range want {
+		if second[i] != want[i] {
+			t.Fatalf("codemodel.CodeFlowFactKinds(taint)[%d] = %q after mutation, want %q (shared backing slice corrupted)", i, second[i], want[i])
+		}
+	}
+}
+
+// extractFactKindInList pulls the parenthesised kind list from the single
+// `fact_kind IN ( ... )` conjunct in a code-flow SQL statement and returns the
+// unquoted kinds sorted. It anchors on `fact_kind IN (` so it ignores unrelated
+// `... IN (...)` predicates (e.g. generation.status). Fails the test when the
+// conjunct is absent or malformed rather than silently returning an empty set.
+func extractFactKindInList(t *testing.T, sql string) []string {
+	t.Helper()
+	start := strings.Index(sql, "fact_kind IN (")
+	if start < 0 {
+		t.Fatal("no `fact_kind IN (` conjunct found")
+	}
+	open := start + len("fact_kind IN (")
+	end := strings.Index(sql[open:], ")")
+	if end < 0 {
+		t.Fatal("unterminated `fact_kind IN (` conjunct")
+	}
+	kinds := []string{}
+	for _, part := range strings.Split(sql[open:open+end], ",") {
+		kind := strings.Trim(strings.TrimSpace(part), "'")
+		if kind != "" {
+			kinds = append(kinds, kind)
+		}
+	}
+	sort.Strings(kinds)
+	return kinds
+}
+
+func codeFlowSortedKinds(in []string) []string {
+	out := append([]string(nil), in...)
+	sort.Strings(out)
+	return out
+}
+
+func codeFlowEqualKinds(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

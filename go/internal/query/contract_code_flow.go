@@ -3,29 +3,31 @@
 
 package query
 
+import "github.com/eshu-hq/eshu/go/internal/query/codequery"
+
 func init() {
-	capabilityMatrix[codeFlowTaintPathCapability] = capabilitySupport{
+	capabilityMatrix[codequery.CodeFlowTaintPathCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthDerived,
 		LocalFullStackMax:     &truthDerived,
 		ProductionMax:         &truthDerived,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
-	capabilityMatrix[codeFlowReachingDefCapability] = capabilitySupport{
+	capabilityMatrix[codequery.CodeFlowReachingDefCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
-	capabilityMatrix[codeFlowCFGSummaryCapability] = capabilitySupport{
+	capabilityMatrix[codequery.CodeFlowCFGSummaryCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
-	capabilityMatrix[codeFlowPDGSummaryCapability] = capabilitySupport{
+	capabilityMatrix[codequery.CodeFlowPDGSummaryCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthDerived,
 		LocalFullStackMax:     &truthDerived,

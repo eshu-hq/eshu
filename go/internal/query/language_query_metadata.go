@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -47,7 +48,7 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 	query string,
 	repoID string,
 	limit int,
-	grant languageQueryGrant,
+	grant codequery.LanguageQueryGrant,
 ) ([]map[string]any, bool, error) {
 	if h == nil || h.Content == nil || len(results) == 0 {
 		return results, false, nil
@@ -230,7 +231,7 @@ func (h *LanguageQueryHandler) queryContentByLanguage(
 	ctx context.Context,
 	language, entityType, query, repoID string,
 	limit int,
-	grant languageQueryGrant,
+	grant codequery.LanguageQueryGrant,
 ) ([]map[string]any, error) {
 	rows, err := h.searchLanguageEntities(ctx, languageEntitySearch{
 		RepoID:               repoID,

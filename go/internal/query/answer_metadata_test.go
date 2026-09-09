@@ -6,6 +6,7 @@ package query
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
@@ -36,12 +37,12 @@ func TestAnswerMetadataAttachedToStoryAndInvestigationResponses(t *testing.T) {
 	)
 	querytestutil.AssertAnswerMetadata(t, "repository story", repositoryStory)
 
-	codeTopic := codeTopicResponse(codeTopicInvestigationRequest{
+	codeTopic := codequery.CodeTopicResponse(codequery.CodeTopicInvestigationRequest{
 		Topic:  "repo sync authentication",
 		RepoID: "repo-payments",
 		Limit:  1,
 		Terms:  []string{"repo", "sync", "authentication"},
-	}, []codeTopicEvidenceRow{{
+	}, []codequery.CodeTopicEvidenceRow{{
 		SourceKind:   "entity",
 		RepoID:       "repo-payments",
 		RelativePath: "go/internal/reposync/auth.go",
@@ -131,7 +132,7 @@ func TestNewAnswerPacketFromMetadataConsumesNormalizedShape(t *testing.T) {
 			Data: data,
 			Truth: BuildTruthEnvelope(
 				ProfileProduction,
-				codeTopicCapability,
+				codequery.CodeTopicCapability,
 				TruthBasisContentIndex,
 				"resolved from bounded content-index topic investigation",
 			),

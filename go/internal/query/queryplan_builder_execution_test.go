@@ -71,49 +71,6 @@ func TestResolveEntityExecutesBuilderBytes(t *testing.T) {
 	}
 }
 
-func TestSearchGraphEntitiesExecutesBuilderBytes(t *testing.T) {
-	tests := []struct {
-		name       string
-		repoID     string
-		language   string
-		exact      bool
-		auth       *AuthContext
-		wantSHA256 string
-	}{
-		{
-			name: "repository anchored", repoID: "repository:r_proof", exact: true,
-			wantSHA256: "428464ccf4de18918b814cf137ad4bb330f1bfda643801bf29ffa0ad593e59f3",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var captured queryplanCapturedRun
-			graph := &captureGraphQuery{runFn: func(
-				_ context.Context,
-				cypher string,
-				params map[string]any,
-			) ([]map[string]any, error) {
-				captured = queryplanCapturedRun{cypher: cypher, params: params}
-				return nil, nil
-			}}
-			handler := &CodeHandler{Neo4j: graph}
-			ctx := context.Background()
-			if tt.auth != nil {
-				ctx = ContextWithAuthContext(ctx, *tt.auth)
-			}
-
-			if _, err := handler.searchGraphEntitiesWithExact(ctx, tt.repoID, "proof", tt.language, 10, tt.exact); err != nil {
-				t.Fatalf("searchGraphEntitiesWithExact() error = %v", err)
-			}
-			access := repositoryAccessFilterFromContext(ctx)
-			wantCypher, wantParams := buildSearchGraphEntitiesQuery(tt.repoID, "proof", tt.language, 10, tt.exact, access)
-			assertQueryplanCapturedRun(t, captured, wantCypher, wantParams)
-			assertQueryplanBaselineSHA256(t, captured.cypher, tt.wantSHA256)
-		})
-	}
-}
-
 func TestResolveWorkloadEntitiesExecutesBuilderBytes(t *testing.T) {
 	tests := []struct {
 		name                   string

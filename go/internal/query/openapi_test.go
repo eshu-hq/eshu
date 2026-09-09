@@ -423,13 +423,13 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	symbolSearchPost := querytestutil.MustMapField(t, symbolSearchPath, "post")
 	symbolSearchBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, symbolSearchPost, "requestBody"), "content")
 	symbolSearchJSON := querytestutil.MustMapField(t, symbolSearchBody, "application/json")
-	symbolSearchRequest := querytestutil.MustMapField(t, symbolSearchJSON, "schema")
-	if _, ok := symbolSearchRequest["required"]; ok {
+	symbolSearchRequestSchema := querytestutil.MustMapField(t, symbolSearchJSON, "schema")
+	if _, ok := symbolSearchRequestSchema["required"]; ok {
 		t.Fatal("symbol search request should not require only symbol when query alias is documented")
 	}
-	anyOf, ok := symbolSearchRequest["anyOf"].([]any)
+	anyOf, ok := symbolSearchRequestSchema["anyOf"].([]any)
 	if !ok || len(anyOf) != 2 {
-		t.Fatalf("symbol search request anyOf = %#v, want symbol/query alternatives", symbolSearchRequest["anyOf"])
+		t.Fatalf("symbol search request anyOf = %#v, want symbol/query alternatives", symbolSearchRequestSchema["anyOf"])
 	}
 	symbolSearchResponses := querytestutil.MustMapField(t, symbolSearchPost, "responses")
 	symbolSearchOK := querytestutil.MustMapField(t, symbolSearchResponses, "200")
@@ -448,9 +448,9 @@ func TestOpenAPISpec_ContentEntitySchemasExposeMetadata(t *testing.T) {
 	structuralInventoryPost := querytestutil.MustMapField(t, structuralInventoryPath, "post")
 	structuralInventoryBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, structuralInventoryPost, "requestBody"), "content")
 	structuralInventoryJSON := querytestutil.MustMapField(t, structuralInventoryBody, "application/json")
-	structuralInventoryRequest := querytestutil.MustMapField(t, querytestutil.MustMapField(t, structuralInventoryJSON, "schema"), "properties")
+	structuralInventoryRequestSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, structuralInventoryJSON, "schema"), "properties")
 	for _, field := range []string{"repo_id", "language", "inventory_kind", "entity_kind", "file_path", "symbol", "decorator", "method_name", "class_name", "limit", "offset"} {
-		if _, ok := structuralInventoryRequest[field]; !ok {
+		if _, ok := structuralInventoryRequestSchema[field]; !ok {
 			t.Fatalf("code/structure/inventory request schema missing %s", field)
 		}
 	}

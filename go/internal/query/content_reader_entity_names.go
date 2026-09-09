@@ -21,18 +21,6 @@ const (
 	entityNameSearchProbeLimit = querycontract.EntityNameSearchProbeLimit
 )
 
-// errEntityNameSearchUnavailable and errGlobalGraphEntitySearchUnsupported
-// alias querycontract's sentinel errors rather than declaring their own
-// errors.New value. Root's EntityHandler (entity.go) compares a returned
-// error against these with errors.Is today, and the planned #6060 code family
-// will do the same once CodeHandler leaves root's code.go, so both sides have
-// to resolve to the exact same instance. The values moved to querycontract,
-// the leaf package root already imports and a family package will be able to,
-// so this stays a plain alias rather than a forwarder.
-var (
-	errGlobalGraphEntitySearchUnsupported = querycontract.ErrGlobalGraphEntitySearchUnsupported
-)
-
 // EntityNameMatch controls the case-sensitive entity_name predicate.
 type EntityNameMatch = querycontract.EntityNameMatch
 
