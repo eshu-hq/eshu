@@ -407,13 +407,30 @@ SET p.type = 'platform',
     p.region = row.platform_region,
     p.locator = row.platform_locator`
 
+	// batchRuntimePlatformRunsOnEdgeUpsertCypher never overwrites a foreign
+	// stamp. The identical (WorkloadInstance)-[:RUNS_ON]->(Platform) identity
+	// is also written by the cross-repo resolver for repo_dependency (stamped
+	// CrossRepoEvidenceSource), and the family's exact-set gate plus its retract
+	// both key on that stamp. An unconditional evidence_source SET here made
+	// the family's edge last-writer-wins: whenever workload materialization
+	// cycled after the repo lane, it restamped the family's edge and the gate
+	// reported it missing. Precedence is therefore deterministic: the stamp is
+	// assigned only ON CREATE, so the cross-repo write always wins when the
+	// repo lane writes, while a lane-first workload edge keeps this lane's
+	// stamp. Confidence and reason still refresh unconditionally (Go-precomputed
+	// values, no Cypher CASE per this file's convention); the family gate
+	// compares edge identity, not those properties. (#6184 live-cell wedge in
+	// killworker_repo_dependency: six repo edges present with RUNS_ON restamped
+	// to the workloads source.)
 	batchRuntimePlatformRunsOnEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (i:WorkloadInstance {id: row.instance_id})
 MATCH (p:Platform {id: row.platform_id})
 MERGE (i)-[rel:RUNS_ON]->(p)
-SET rel.confidence = row.platform_confidence,
+ON CREATE SET rel.confidence = row.platform_confidence,
     rel.reason = 'Workload instance runs on inferred platform',
-    rel.evidence_source = row.evidence_source`
+    rel.evidence_source = row.evidence_source
+ON MATCH SET rel.confidence = row.platform_confidence,
+    rel.reason = 'Workload instance runs on inferred platform'`
 
 	batchRepoDependencyUpsertCypher = `UNWIND $rows AS row
 MATCH (source_repo:Repository {id: row.repo_id})

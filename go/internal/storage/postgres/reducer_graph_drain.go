@@ -42,9 +42,21 @@ type ReducerGraphDrain struct {
 // phase row has canonical nodes that are not committed yet — on a first
 // ingest, a bulk load, or a rebuild whose refinalize cleared the phases.
 //
-// The repository-fact gate keeps non-code scopes from blocking: a cloud-only
-// scope never emits repository facts and never publishes this phase, so
-// without the gate it would hold code-call projection back forever.
+// The match is per repository, not per scope: one committed repository must
+// not release the lane for its uncommitted siblings, because a
+// cross-repository edge drained now MATCHes an endpoint that does not exist
+// yet and is then marked completed — a silent permanent loss. (#6184 owner
+// P2: the probe used to release on ANY phase row for the scope.)
+// Repository facts without a repo_id carry no MATCHable identity (the
+// projector skips their phase for the same reason) and are excluded rather
+// than holding the lane forever.
+//
+// Non-code scopes never block: a cloud-only scope emits no git repository
+// facts and never publishes this phase, so the second branch below only
+// holds generations that have committed no facts at all yet (emission still
+// in flight). Once any fact for the generation lands, a scope holding only
+// non-git facts is definitively non-code and releases, while a code scope's
+// repository facts stay governed by the branch above.
 // Tombstoned repository facts do not count: a scope whose repositories are
 // all retracted has nothing left to commit.
 //
@@ -60,22 +72,53 @@ SELECT EXISTS (
     SELECT 1
     FROM ingestion_scopes AS scope
     WHERE scope.active_generation_id IS NOT NULL
-      AND EXISTS (
-        SELECT 1
-        FROM fact_records AS fact
-        WHERE fact.scope_id = scope.scope_id
-          AND fact.generation_id = scope.active_generation_id
-          AND fact.fact_kind = 'repository'
-          AND fact.source_system = 'git'
-          AND fact.is_tombstone = FALSE
-      )
-      AND NOT EXISTS (
-        SELECT 1
-        FROM graph_projection_phase_state AS phase
-        WHERE phase.scope_id = scope.scope_id
-          AND phase.generation_id = scope.active_generation_id
-          AND phase.keyspace = $1
-          AND phase.phase = $2
+      AND (
+        EXISTS (
+            SELECT 1
+            FROM fact_records AS fact
+            WHERE fact.scope_id = scope.scope_id
+              AND fact.generation_id = scope.active_generation_id
+              AND fact.fact_kind = 'repository'
+              AND fact.source_system = 'git'
+              AND fact.is_tombstone = FALSE
+              AND NULLIF(fact.payload ->> 'repo_id', '') IS NOT NULL
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM graph_projection_phase_state AS phase
+                  WHERE phase.scope_id = scope.scope_id
+                    AND phase.generation_id = scope.active_generation_id
+                    AND phase.keyspace = $1
+                    AND phase.phase = $2
+                    AND phase.acceptance_unit_id = fact.payload ->> 'repo_id'
+              )
+        )
+        OR (
+            -- No facts at all are committed for the active generation yet:
+            -- emission is still in flight, so the absence of repository
+            -- facts proves nothing and the lane holds. Once ANY fact for
+            -- the generation lands, its emission happened: a code scope's
+            -- repository facts are then governed by the branch above,
+            -- while a scope holding only non-git facts is a non-code
+            -- (cloud) scope whose canonical-nodes phase will never exist.
+            -- Holding such a scope wedged the whole lane in every cell
+            -- driving cloud cassettes (#6184: nine GCP scopes held
+            -- code-call projection back with six code_calls intents
+            -- pending at the drain).
+            NOT EXISTS (
+                SELECT 1
+                FROM fact_records AS fact
+                WHERE fact.scope_id = scope.scope_id
+                  AND fact.generation_id = scope.active_generation_id
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM graph_projection_phase_state AS phase
+                WHERE phase.scope_id = scope.scope_id
+                  AND phase.generation_id = scope.active_generation_id
+                  AND phase.keyspace = $1
+                  AND phase.phase = $2
+            )
+        )
       )
 )
 `

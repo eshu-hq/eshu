@@ -162,6 +162,20 @@
         {
           "fact_kind": "shared_followup",
           "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-target:deployment_mapping",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "deployment_mapping",
+            "entity_key": "workload:workload-dependency-target",
+            "reason": "repository snapshot emitted deployment mapping follow-up",
+            "repo_id": "repo-ifa-workload-dependency-target"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
           "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-target:workload_materialization",
           "collector_kind": "git",
           "source_confidence": "observed",
@@ -329,6 +343,20 @@
               ]
             },
             "relative_path": "deploy/deployment.yaml",
+            "repo_id": "repo-ifa-workload-dependency-multi-target"
+          }
+        },
+        {
+          "fact_kind": "shared_followup",
+          "schema_version": "1.0.0",
+          "stable_fact_key": "shared_followup:repo-ifa-workload-dependency-multi-target:deployment_mapping",
+          "collector_kind": "git",
+          "source_confidence": "observed",
+          "is_tombstone": false,
+          "payload": {
+            "reducer_domain": "deployment_mapping",
+            "entity_key": "workload:workload-dependency-multi-target",
+            "reason": "repository snapshot emitted deployment mapping follow-up",
             "repo_id": "repo-ifa-workload-dependency-multi-target"
           }
         },

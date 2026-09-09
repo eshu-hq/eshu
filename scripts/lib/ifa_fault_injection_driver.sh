@@ -157,13 +157,30 @@ assert_rationale_delta_truth() {
 # NULL for every row, so a PASS here proves the SQL family's async
 # shared-projection writes -- including any retried one -- fully converged
 # too, not only fact_work_items.
+#
+# A cell name ending in "pre" runs the pre-maintenance quiescence mode
+# (-drain-allow-readiness-deferred, #6184) instead: the fail-closed readiness
+# gates keep gated work retrying until the bootstrap-index maintenance pass
+# publishes backward evidence, so a strict bound can never pass before
+# maintenance runs. The mode passes only when no live, dead-letter, or failed
+# row remains -- every residual row waits on a readiness precondition -- and
+# the post-maintenance (non-"pre") drain stays strict. The "pre" suffix is the
+# established naming convention for these drains (baseline Xpre,
+# "${cell}-pre"); no strict drain name ends in "pre".
 run_drain_gate() {
-	local cell="$1"
+	local cell="$1" drain_allow_readiness_deferred=()
 	log "${cell}: drain projector + reducer (gate polls to the B-12 residual bound)"
+	case "${cell}" in
+	*pre)
+		log "${cell}: pre-maintenance quiescence mode (readiness-deferred residuals reported, not blocking)"
+		drain_allow_readiness_deferred=(-drain-allow-readiness-deferred)
+		;;
+	esac
 	if ! "${bin_dir}/eshu-golden-corpus-gate" \
 		-phase=drains \
 		-snapshot=testdata/golden/e2e-20repo-snapshot.json \
-		-drain-timeout="${GATE_DRAIN_TIMEOUT}"; then
+		-drain-timeout="${GATE_DRAIN_TIMEOUT}" \
+		"${drain_allow_readiness_deferred[@]:-}"; then
 		tail -40 "${log_dir}"/reducer-*"${cell}"*.log 2>/dev/null || true
 		tail -40 "${log_dir}/projector-${cell}.log" 2>/dev/null || true
 		die "${cell}: drain did not reach the snapshot's residual bound within ${GATE_DRAIN_TIMEOUT}"
