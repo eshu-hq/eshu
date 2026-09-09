@@ -33,12 +33,13 @@ ls -d go/internal/reducer/*/ | wc -l                                            
    (Owner answers, #6061 comment 5591291715. They supersede the ~100-110
    floor, which measured the old move-a-family-leave-a-compat-file strategy,
    not the package: one line pins a `reducer.X` spelling to root, and the
-   twenty `*_compat.go` are 1,530 lines total, i.e. ~4 files at the 500-line
+   compat surface is ~1,600 lines total (1,530 in the 20-file census plus 63
+   in the two numbered decode-seam sequels), i.e. ~4 files at the 500-line
    cap.)
-   (a) The 20 `*_compat.go` merge into ~4 buckets (`compat_cloud.go`,
+   (a) The 22 `*_compat.go` merge into ~4 buckets (`compat_cloud.go`,
    `compat_correlation.go`, `compat_decode.go`, `compat_projection.go`) in
    the compat-consolidation PR: no external caller edits, no behavior
-   change, every alias and forwarder preserved; root 304 -> ~288. Every
+   change, every alias and forwarder preserved; root 304 -> 286. Every
    later family move adds a stanza to the matching bucket file and NEVER
    creates a new `*_compat.go` — that rule stops the moves making the
    problem worse. Rebalance buckets before any one crosses the 500-line cap
