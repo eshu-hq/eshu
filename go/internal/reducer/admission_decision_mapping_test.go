@@ -245,7 +245,7 @@ func TestCloudInventoryAdmissionWritesSharedAdmittedAndNonAdmittedDecisions(t *t
 // stubPackageSourceFactLoader is a minimal staying-root fake satisfying
 // factload.FactLoader plus correlation's narrow active-fact
 // interfaces. The family's own fake moved with it to packages/correlation
-// (package_source_correlation_test.go); Go test files cannot share
+// (packages/correlation/source_test.go); Go test files cannot share
 // unexported symbols across a package boundary, so the staying admission
 // test keeps this local copy (issue #6061).
 type stubPackageSourceFactLoader struct {
