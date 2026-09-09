@@ -74,8 +74,9 @@ backend, or any network connection directly.
   list) or `AllScopes` (every active scope holding an active generation).
   Exactly one of the two.
 - `RefinalizeResult` — outcome of a refinalize call: `Enqueued` count,
-  `ScopeIDs`, plus the three rebuild-reset counts `ReducerWorkDeleted`,
-  `SharedIntentsReopened`, and `ReadinessPhasesCleared`. Those three are how an
+  `ScopeIDs`, plus the four rebuild-reset counts `ReducerWorkDeleted`,
+  `SharedIntentsReopened`, `ReadinessPhasesCleared`, and `GenerationsRetired`.
+  Those four are how an
   operator tells a rebuild that will restore the whole graph from one that will
   come back with only its source-local layer; see
   `docs/public/operate/graph-rebuild-from-facts.md`.

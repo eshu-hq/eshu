@@ -93,9 +93,33 @@ WHERE completed_at IS NOT NULL
 // phase rows that survived the graph wipe. The re-projection republishes each
 // phase as it commits, so the gates hold work until its inputs genuinely exist
 // rather than waving it through on an answer about a graph that is gone.
+//
+// The cross_repo_evidence keyspace is deliberately spared. Those rows attest
+// Postgres evidence-fact completeness, which a graph-only rebuild preserves:
+// wiping them strands the re-projection's cross-repo resolution in deferral,
+// because the ingestion backfill fan-in that publishes them never re-runs on a
+// projection-only rebuild (#6184). Graph-write phases describe the wiped graph
+// and must re-arm; evidence phases describe the preserved facts and must not.
 const clearReadinessPhaseStateTemplate = `
 DELETE FROM graph_projection_phase_state
 WHERE (scope_id, generation_id) IN (%s)
+  AND keyspace <> 'cross_repo_evidence'
+`
+
+// retireResolutionGenerationsTemplate supersedes the active relationship
+// generations for the refinalized pairs, pairing the phase re-arm above.
+// Without it the re-projection's by-repos resolved read keeps serving the
+// prior wave's rows as current: relationship_generations is the one truth
+// surface the phase wipe does not touch, so a retired-no-longer-active
+// generation is the only signal that tells downstream consumers their input
+// is being recomputed rather than complete (#6184). The re-projection's
+// resolution re-activates each generation (upsert) once it resolves from the
+// preserved facts, so retirement is a fence, not a loss.
+const retireResolutionGenerationsTemplate = `
+UPDATE relationship_generations
+SET status = 'superseded'
+WHERE status = 'active'
+  AND (scope, generation_id) IN (%s)
 `
 
 // scopePredicate renders the scope filter for the one statement that still reads
@@ -168,9 +192,13 @@ type Counts struct {
 	// ReadinessPhasesCleared counts graph projection phase rows deleted so the
 	// readiness gates stop answering about a graph that was wiped.
 	ReadinessPhasesCleared int
+	// GenerationsRetired counts active relationship generations superseded so
+	// the re-projection never consumes the prior wave's resolved rows as
+	// current truth.
+	GenerationsRetired int
 }
 
-// Apply clears the three pieces of dedup state that would otherwise make a
+// Apply clears the four pieces of dedup state that would otherwise make a
 // rebuild-from-facts stop at source-local structure. It runs inside the caller's
 // transaction so a refinalize either re-enqueues the projector work and reopens
 // its downstream state together, or does neither.
@@ -180,7 +208,7 @@ type Counts struct {
 // projector work. Passing it in rather than re-selecting it is the point: under
 // READ COMMITTED a re-selection could pick up a generation the enqueue never saw.
 //
-// All three statements touch terminal state only, so no live lease is taken away
+// All four statements touch terminal state only, so no live lease is taken away
 // and no claimed item can double-execute.
 func Apply(
 	ctx context.Context,
@@ -197,6 +225,7 @@ func Apply(
 		{"delete succeeded reducer work", deleteSucceededReducerWorkTemplate, &counts.ReducerWorkDeleted},
 		{"reopen shared projection intents", reopenSharedIntentsTemplate, &counts.SharedIntentsReopened},
 		{"clear readiness phase state", clearReadinessPhaseStateTemplate, &counts.ReadinessPhasesCleared},
+		{"retire resolution generations", retireResolutionGenerationsTemplate, &counts.GenerationsRetired},
 	} {
 		query, args := buildResetQuery(step.template, generations)
 		result, err := tx.ExecContext(ctx, query, args...)

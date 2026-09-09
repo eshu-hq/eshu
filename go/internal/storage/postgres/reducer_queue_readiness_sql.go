@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
@@ -96,6 +97,20 @@ var nonCountingReducerRetryFailureClasses = []string{
 	s3grant.S3ExternalPrincipalGrantNodesNotReadyFailureClass,
 	internetexposure.S3InternetExposureNodesNotReadyFailureClass,
 	s3logsto.S3LogsToNodesNotReadyFailureClass,
+	// #6184: cross-repo resolution deferred until backward evidence commits.
+	// Waiting on upstream evidence, not failing on its own merits: counting
+	// it would dead-letter a still-pending scope that nothing reopens, and
+	// returning success instead would strand it with no resolved output.
+	crossrepo.CrossRepoBackwardEvidenceNotReadyFailureClass,
+	// #6184: deployable-unit correlation deferred until the scope's own
+	// relationship generation activates. Evaluating on the partial
+	// resolved set instead succeeds reduced and is never reopened.
+	reducer.DeployableUnitCorrelationResolutionNotReadyFailureClass,
+	// #6184: workload projection inputs deferred on the same fence. Without
+	// it the loader merges the pinned own-scope read with an empty by-repos
+	// read while the generation is retired-or-pending and workload
+	// materialization succeeds on that partial input.
+	reducer.WorkloadMaterializationResolutionNotReadyFailureClass,
 }
 
 // IsNonCountingReducerRetryFailureClass reports whether failureClass is exempt

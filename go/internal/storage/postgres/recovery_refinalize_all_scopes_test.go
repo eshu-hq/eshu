@@ -185,13 +185,14 @@ func assertRefinalizeBindsOneGenerationSet(
 	assertStringSliceArg(t, "projector re-enqueue scope ids", enqueue.args[1], wantScopeIDs)
 	assertStringSliceArg(t, "projector re-enqueue generation ids", enqueue.args[2], wantGenerationIDs)
 
-	if len(db.execs) != 3 {
-		t.Fatalf("rebuild-reset statement count = %d, want 3", len(db.execs))
+	if len(db.execs) != 4 {
+		t.Fatalf("rebuild-reset statement count = %d, want 4", len(db.execs))
 	}
 	wantTargets := []string{
 		"DELETE FROM fact_work_items",
 		"UPDATE shared_projection_intents",
 		"DELETE FROM graph_projection_phase_state",
+		"UPDATE relationship_generations",
 	}
 	for i, want := range wantTargets {
 		if !strings.Contains(db.execs[i].query, want) {

@@ -11,8 +11,44 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/engine"
 	correlationmodel "github.com/eshu-hq/eshu/go/internal/correlation/model"
+	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
+
+// WorkloadMaterializationResolutionNotReadyFailureClass classifies a deferral
+// of workload projection inputs whose own relationship generation has not
+// activated yet.
+//
+// Registered as a non-counting reducer retry class
+// (nonCountingReducerRetryFailureClasses in
+// go/internal/storage/postgres/reducer_queue_readiness_sql.go): the load is
+// waiting on upstream resolution, not failing on its own merits. Without this
+// gate the loader merges the generation-pinned own-scope read with an empty
+// by-repos read while the generation is retired-or-pending and workload
+// materialization succeeds on that partial input, which nothing reopens
+// (#6184).
+const WorkloadMaterializationResolutionNotReadyFailureClass = "workload_materialization_resolution_not_ready"
+
+// workloadMaterializationResolutionNotReadyError defers the input load until
+// the scope's own relationship generation activates.
+type workloadMaterializationResolutionNotReadyError struct {
+	scopeID      string
+	generationID string
+}
+
+func (e workloadMaterializationResolutionNotReadyError) Error() string {
+	return fmt.Sprintf(
+		"cross-repo resolution not active for scope %s generation %s; deferring workload projection inputs rather than materializing against a partial resolved set",
+		e.scopeID,
+		e.generationID,
+	)
+}
+
+func (workloadMaterializationResolutionNotReadyError) Retryable() bool { return true }
+
+func (workloadMaterializationResolutionNotReadyError) FailureClass() string {
+	return WorkloadMaterializationResolutionNotReadyFailureClass
+}
 
 // CorrelatedWorkloadProjectionInputLoader reuses deployable-unit correlation
 // semantics as the authoritative gate for workload materialization inputs.
@@ -20,6 +56,12 @@ type CorrelatedWorkloadProjectionInputLoader struct {
 	FactLoader     FactLoader
 	ResolvedLoader ResolvedRelationshipLoader
 	ScopeResolver  DeploymentRepoScopeResolver
+	// ResolutionActiveLookup backs the resolution-readiness gate: the load
+	// defers while the scope's own relationship generation is inactive. Nil
+	// keeps the gate open for test wiring. This is the shared
+	// relationship-generation fence also backing the repo-dependency lane,
+	// so main.go wires the same lookup value here.
+	ResolutionActiveLookup maintenance.RelationshipGenerationActiveLookup
 }
 
 // LoadWorkloadProjectionInputs loads workload candidates, enriches them with
@@ -44,6 +86,18 @@ func (l CorrelatedWorkloadProjectionInputLoader) LoadWorkloadProjectionInputs(
 	}
 
 	candidates, deploymentEnvironments := ExtractWorkloadCandidates(envelopes)
+	// Fail closed before the resolved-relationship read, mirroring the
+	// deployable-unit correlation gate: an inactive own generation means the
+	// pinned own-scope load and the by-repos load are both partial, and
+	// workload materialization succeeding on that partial input is never
+	// reopened (#6184). Deliberately own-scope only; foreign scopes are
+	// undiscoverable before the read itself (see ownResolutionGenerationReady).
+	if !ownResolutionGenerationReady(l.ResolutionActiveLookup, intent, candidates) {
+		return nil, nil, workloadMaterializationResolutionNotReadyError{
+			scopeID:      intent.ScopeID,
+			generationID: intent.GenerationID,
+		}
+	}
 	if l.ResolvedLoader != nil {
 		resolved, err := loadWorkloadResolvedRelationships(ctx, l.ResolvedLoader, intent, candidates)
 		if err != nil {
