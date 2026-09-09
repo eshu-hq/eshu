@@ -121,9 +121,17 @@ checkout: `content_entities` had 11 indexes and **zero** mentioning `language`.
 **This is no longer true of the tree this migration lands in.** `origin/main`
 now ships `104_content_entities_language_type_idx` on
 `(language, entity_type)`, merged by #6540 via #6599 after these measurements
-were taken. Everything below the "Re-measured after the rebase" section reflects
-the current tree; this paragraph is kept because the numbers that follow it were
-produced under the conditions it describes. So `language` could only ever be a `Filter`. The planner
+ were taken.
+
+**Scope of that correction, stated precisely:** ONLY the "Re-measured after the
+rebase" section and its subsections reflect the current tree. Every other
+measurement in this note -- the ladder, `A1 rejected`, `A2 accepted`,
+`Candidate (b)`, `Correctness before performance` and `Cost` -- was produced at
+`392351ffd` against 2,000,000 rows with no migration 104 and no `EXISTS` gate.
+They are kept as the record of how the index was chosen, not as a description of
+the tree it lands in.
+
+At that checkout, `language` could only ever be a `Filter`. The planner
 estimates `entity_type = $1 AND language = $2` by multiplying the two
 selectivities as though independent, giving **rows=28,515 for a combination that
 has 0**. A non-zero estimate makes the `LIMIT` look like it fills early, so the
@@ -203,8 +211,16 @@ trigram index is present — a 52x difference.
 
 Hand-built, and that bound is load-bearing: `content_entities` from migration
 004 with 104 and 107 applied **by hand from the migration text**, not by the
-branch's migration set — so this does not prove the migration applies cleanly in
-sequence. PostgreSQL 16.15, 300,000 rows, 16-core / 123 GB Linux x86_64 host.
+branch's migration set.
+**That gap is now closed separately:** the full committed migration set (129
+files, 001 through this one) was applied in the byte order `BootstrapDefinitions`
+uses, on a fresh database, with zero failures; applying the entire set a SECOND
+time also gave zero failures and left every `content_entities` index oid
+identical, so replay neither drops nor rebuilds this index. See "Migration
+sequence and replay" below. PostgreSQL 16.15 **in a `postgres:16` container** -- not a host
+binary, which is why this does not contradict the machine-profile note above
+that the host's only Postgres *server* installs are 16.9. 300,000 rows,
+16-core / 123 GB Linux x86_64 host.
 Seed distribution derived from the 895-repo corpus, and it under-represents the
 long tail: path p99 67 / max 121 against the corpus's 116 / 278, `entity_name`
 max 93 against 105. Ordering conclusions are unaffected; **no key-size
@@ -212,6 +228,43 @@ conclusion is drawn from this seed, and none should be.** `entity_name` is
 md5-derived, so the trigram figure is directional rather than exact.
 `absolute_target_applicable = false`: these are plan-shape and same-machine
 relative results.
+
+### Migration sequence and replay
+
+The re-measurement above applies the two indexes by hand, so it says nothing
+about whether the migration itself applies. This section closes that separately,
+against the real committed set.
+
+Fresh PostgreSQL 16.15 database, all **129** committed migration files
+(`001_ingestion_scopes.sql` through this one), applied in the order
+`BootstrapDefinitions` uses — a **byte-wise** path sort
+(`defs[i].Path < defs[j].Path`), reproduced with `LC_ALL=C sort`:
+
+| pass | result |
+| --- | --- |
+| 1 — full set, fresh database | **0 failures** |
+| 2 — the entire set applied AGAIN | **0 failures** |
+| index oids, pass 1 vs pass 2 | **identical** |
+
+The second pass is the one that matters. `ApplyDefinitions` runs every migration
+on **every** bootstrap and there is no applied-ledger, so replay safety is a
+correctness requirement rather than a nicety. Identical index oids across the
+two passes is stronger than "it did not error": nothing was dropped and nothing
+was rebuilt, so a bootstrap over an existing database does not pay to recreate a
+34 MB index. `content_entities` ends with 13 indexes and this one reads:
+
+```
+CREATE INDEX content_entities_language_type_path_idx ON public.content_entities
+    USING btree (language, entity_type, relative_path, start_line, entity_name)
+```
+
+**A harness note worth keeping, because it produced six false failures first.**
+The first attempt applied the files in `ls | sort` order, which is locale
+collated, and six migrations failed — `003a`–`003d` sorted *before*
+`003_fact_records.sql`, so the SBOM-attestation indexes ran before the table
+existed, and `097` then cascaded off the `092*` views. Go compares paths
+byte-wise, where `_` (0x5F) precedes `a` (0x61). Under `LC_ALL=C` the same set
+applies with zero failures. The failures were the harness, not the migrations.
 
 ### A1 rejected — the planner does not take it
 
@@ -269,7 +322,8 @@ On the baseline index set the `EXISTS` degrades to a sequential scan, because
 with no index on `language` it must still check every `Function` row before it
 can conclude "none". It would replace a 2,590 ms empty answer with a 604 ms one
 — still three orders of magnitude off A2 — while adding a round trip and
-0.007–0.018 ms to every non-empty call.
+0.007–0.018 ms to every non-empty call. It is only cheap once an index like A2
+exists, at which point the extra statement earns nothing.
 
 **THIS REJECTION NO LONGER HOLDS, AND THE REASON IS THAT MAIN SHIPPED THIS
 CANDIDATE.** The paragraph above concludes the `EXISTS` pre-check "is only cheap
@@ -314,8 +368,11 @@ one more btree.
 unstated:** this index is **34 MB** against migration 104's **2,096 kB** — about
 sixteen times larger, and larger than both the table's own `relative_path` index
 (24 MB) and its primary key (16 MB), on a 48 MB table. Five columns including
-two unbounded `TEXT` fields is what costs that. The ratio, not the absolute
-figure, is what carries to production. `EXPLAIN (ANALYZE, BUFFERS, WAL)` over 200,000-row inserts, arms
+two unbounded `TEXT` fields is what costs that. The figure that carries is the
+**16x ratio against migration 104**, not the table-relative one: this seed puts
+the index at 71% of a 48 MB heap while the 2,000,000-row seed in `Cost` below
+puts it at 173 MB against a 934 MB heap (18.5%). Those two table-relative
+ratios differ by 4x, so neither is a production estimate. `EXPLAIN (ANALYZE, BUFFERS, WAL)` over 200,000-row inserts, arms
 alternated over two rounds:
 
 | round | without | with | delta |
@@ -334,10 +391,17 @@ after the insert/delete churn of the write-amplification runs, against a 934 MB
 heap and 1,329 MB of pre-existing indexes. Nothing is dropped to pay for it; no
 existing index is superseded by it.
 
-Performance Evidence: unscoped zero-match `content_entities` language search
-2,590 ms / 2,013,451 buffers before, 0.012 ms / 4 buffers after, on 2,000,000
-rows across 600 repositories; matching filters unchanged in row set and ~10x
-faster; write cost +4.8%/+6.4% WAL records over two alternated rounds.
+Performance Evidence: this index removes the `Sort` from the ordered
+language/entity-type page read. Re-measured against the tree it lands in
+(migration 104 present, the #6540 `EXISTS` gate present) and the statement the
+code actually sends: zero-match 0.113 ms -> 0.078 ms, matching 1.255 ms ->
+0.523 ms, `Incremental Sort` -> no `Sort`, on 300,000 rows.
+SUPERSEDED FIGURES, kept because they are what the original selection was made
+on and they must not be quoted as current: 2,590 ms / 2,013,451 buffers before,
+0.012 ms / 4 buffers after, on 2,000,000 rows across 600 repositories. That
+"before" predates migration 104 and the `EXISTS` gate, so it is not this
+branch's pre-change state -- see "Re-measured after the rebase".
+Write cost +4.8%/+6.4% WAL records over two alternated rounds.
 
 No-Observability-Change: this change adds one index through the existing
 bootstrap replay path. It adds no metric, span, log, or status field, and

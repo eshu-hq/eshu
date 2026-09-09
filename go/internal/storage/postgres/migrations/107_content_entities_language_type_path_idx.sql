@@ -70,9 +70,12 @@
 --
 -- Across the six arms timed above it is a strict improvement and a regression
 -- on none; the matching case gets faster too, because removing the sort helps a
--- page that does have rows. Two production shapes were NOT timed and the claim
--- does not cover them: `entity_name ILIKE $n` (the DSL's canonical payload,
--- which competes with migration 062's trigram index) and grant=1 MATCHING.
+-- page that does have rows. Two production shapes were not timed in that round.
+-- `entity_name ILIKE $n` HAS SINCE BEEN TIMED: this index is not used for it in
+-- either configuration -- 29.873 ms with no trigram index (bitmap on 104, ILIKE
+-- as a heap filter) and 0.571 ms once migration 062's trigram index is present.
+-- It neither helps nor harms that shape. grant=1 MATCHING remains untimed and
+-- the claim still does not cover it.
 --
 -- WHAT IT DOES NOT FIX. normalizedLanguageVariants returns two spellings for
 -- javascript, typescript and csharp, and the builder emits those as
@@ -102,6 +105,17 @@
 -- 2590 ms empty answer with a 604 ms one while adding 0.007-0.018 ms and a
 -- round trip to every non-empty call. It is only cheap once an index like
 -- this one exists, at which point the extra statement earns nothing.
+--
+-- THAT SECOND REJECTION IS SUPERSEDED AND MUST NOT BE READ AS CURRENT. The
+-- EXISTS pre-check was not merely reconsidered -- it SHIPPED, as #6540 via
+-- #6599, and SearchEntitiesByLanguageAndTypeForAccess issues it on every call
+-- today. Its rejection rested on "no index on language", which migration 104
+-- removed. Measured on the current tree: with 104 present and this index
+-- ABSENT, the gated zero-match arm returns in 0.113 ms because the initplan
+-- takes an Index Only Scan on content_entities_language_type_idx and the
+-- ordered scan is never executed. The gate and this index are complementary:
+-- the gate fixes the empty case, this index removes the Sort from the
+-- non-empty one.
 --
 -- COST. 173 MB, built CONCURRENTLY in 3.1 s on that seed, against a 934 MB
 -- heap and 1,329 MB of existing indexes. content_entities is hot and
