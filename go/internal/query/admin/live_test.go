@@ -17,13 +17,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/admin"
 	"github.com/eshu-hq/eshu/go/internal/query/admin/store"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // Live admin-handler proofs. These tests seed a real Postgres and drive the
-// moved handlers through specAdminMux (see openapi_test.go); they skip
+// moved handlers through querytestutil.MountAdminHandler; they skip
 // without ESHU_*_LIVE=1 and ESHU_POSTGRES_DSN, exactly as they did in the
 // query root. They live in the external admin_test package because an
 // internal package-admin test cannot import admin/store (import cycle), and
@@ -97,8 +98,8 @@ INSERT INTO fact_work_items (
 	}
 
 	h := &admin.Handler{Store: store.NewStore(db)}
-	mux := specAdminMux(h)
-	w := specPostJSON(mux, "/api/v0/admin/dead-letters/query", map[string]any{
+	mux := querytestutil.MountAdminHandler(h)
+	w := querytestutil.PostJSON(mux, "/api/v0/admin/dead-letters/query", map[string]any{
 		"failure_class":  "projection_bug",
 		"collector_kind": "git",
 		"limit":          10,
@@ -107,7 +108,7 @@ INSERT INTO fact_work_items (
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
 	}
-	got := specDecodeBody(t, w)
+	got := querytestutil.DecodeResponseBody(t, w)
 	if got["count"].(float64) != 1 || got["truncated"] != false {
 		t.Fatalf("response = %#v, want one untruncated row", got)
 	}
@@ -184,7 +185,7 @@ INSERT INTO reducer_input_invalid_facts (
 	}
 
 	h := &admin.Handler{Store: store.NewStore(db)}
-	mux := specAdminMux(h)
+	mux := querytestutil.MountAdminHandler(h)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/admin/input-invalid-facts/query", strings.NewReader(fmt.Sprintf(`{
 		"scope_id": %q,
 		"generation_id": %q,
@@ -207,7 +208,7 @@ INSERT INTO reducer_input_invalid_facts (
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body: %s", w.Code, http.StatusOK, w.Body.String())
 	}
-	got := specDecodeBody(t, w)
+	got := querytestutil.DecodeResponseBody(t, w)
 	if got["count"].(float64) != 1 || got["truncated"] != false {
 		t.Fatalf("response = %#v, want one untruncated row (repository grant must authorize this scope_id via ingestion_scopes.source_key)", got)
 	}

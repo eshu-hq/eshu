@@ -1,21 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package admin_test pins the admin routes in the assembled OpenAPI document
-// from outside the admin packages. These tests assert on the query root's
-// OpenAPISpec (which stays in the root: scripts/verify-openapi.sh scans the
-// top-level openapi_paths_*.go fragments only), so they import the root
-// instead of living in package admin like the handler tests. Go permits this
-// external test package to import the root even though the root imports the
-// admin leaves.
-package admin_test
+// Package query_test pins the admin routes in the assembled OpenAPI document.
+// These tests assert on the query root's OpenAPISpec built from the
+// top-level openapi_paths_*.go fragments beside this file, so this test
+// lives in the root rather than in package admin like the handler tests.
+package query_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"sort"
 	"strings"
 	"testing"
@@ -130,33 +125,6 @@ func (s *specRecoveryHandler) ReplayFailed(_ context.Context, _ recovery.ReplayF
 	return recovery.ReplayResult{}, nil
 }
 
-func specAdminMux(h *admin.Handler) *http.ServeMux {
-	mux := http.NewServeMux()
-	h.Mount(mux)
-	return mux
-}
-
-func specPostJSON(mux *http.ServeMux, path string, body any) *httptest.ResponseRecorder {
-	var buf bytes.Buffer
-	if body != nil {
-		_ = json.NewEncoder(&buf).Encode(body)
-	}
-	req := httptest.NewRequest(http.MethodPost, path, &buf)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-	return w
-}
-
-func specDecodeBody(t *testing.T, w *httptest.ResponseRecorder) map[string]any {
-	t.Helper()
-	var got map[string]any
-	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
-		t.Fatalf("decode body: %v\nbody: %s", err, w.Body.String())
-	}
-	return got
-}
-
 // TestOpenAPIRecoverGenerationsResponsesMatchTheHandler holds the published
 // contract to what the endpoint actually sends. The two 200 bodies are not the
 // same shape: a recovery this call performed reports the three dedup counters,
@@ -180,7 +148,7 @@ func TestOpenAPIRecoverGenerationsResponsesMatchTheHandler(t *testing.T) {
 		}},
 		Store: freshStore,
 	}
-	fresh := specPostJSON(specAdminMux(freshHandler), "/api/v0/admin/recover-generations", map[string]any{
+	fresh := querytestutil.PostJSON(querytestutil.MountAdminHandler(freshHandler), "/api/v0/admin/recover-generations", map[string]any{
 		"scope_ids":       []string{"scope-1"},
 		"reason":          "wedged",
 		"idempotency_key": "fresh-key",
@@ -198,7 +166,7 @@ func TestOpenAPIRecoverGenerationsResponsesMatchTheHandler(t *testing.T) {
 			WorkItemIDs:   []string{"scope-1"},
 		}},
 	}
-	duplicate := specPostJSON(specAdminMux(duplicateHandler), "/api/v0/admin/recover-generations", map[string]any{
+	duplicate := querytestutil.PostJSON(querytestutil.MountAdminHandler(duplicateHandler), "/api/v0/admin/recover-generations", map[string]any{
 		"scope_ids":       []string{"scope-1"},
 		"reason":          "retry",
 		"idempotency_key": "dup-key",
@@ -212,8 +180,8 @@ func TestOpenAPIRecoverGenerationsResponsesMatchTheHandler(t *testing.T) {
 		body      map[string]any
 		duplicate bool
 	}{
-		"recovery performed by this call": {body: specDecodeBody(t, fresh), duplicate: false},
-		"idempotent replay":               {body: specDecodeBody(t, duplicate), duplicate: true},
+		"recovery performed by this call": {body: querytestutil.DecodeResponseBody(t, fresh), duplicate: false},
+		"idempotent replay":               {body: querytestutil.DecodeResponseBody(t, duplicate), duplicate: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			required, ok := variants[tc.duplicate]
