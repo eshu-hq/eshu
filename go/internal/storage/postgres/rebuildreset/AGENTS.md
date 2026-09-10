@@ -42,9 +42,10 @@
 
 `AffectedGenerationsTemplate` is the only statement in a refinalize that reads
 `ingestion_scopes`, so it is the only place the scope guards live. The projector
-re-enqueue in `../recovery.go` and the three resets here all bind the
-`Generations` it returned. Change a guard and every statement follows, because
-none of them selects anything.
+re-enqueue, the drain poll, and the four resets (all in this package; the
+transaction owner in `../recovery.go` only orchestrates) bind the `Generations`
+it returned. Change a guard and every statement follows, because none of them
+selects anything.
 
 If you find yourself adding a `FROM ingestion_scopes` to any other statement,
 stop: that is the defect this shape exists to prevent.
