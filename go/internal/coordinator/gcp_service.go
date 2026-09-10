@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -17,7 +17,7 @@ import (
 // GCPPlanner plans GCP Cloud Asset Inventory workflow rows from collector
 // instance configuration.
 type GCPPlanner interface {
-	PlanGCPWork(context.Context, gcpplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanGCPWork(context.Context, gcp.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 func (s Service) scheduleGCPWork(
@@ -35,7 +35,7 @@ func (s Service) scheduleGCPWork(
 		if s.GCPPlanner == nil {
 			return fmt.Errorf("gcp planner is required for active gcp collectors")
 		}
-		run, items, err := s.GCPPlanner.PlanGCPWork(ctx, gcpplanner.PlanRequest{
+		run, items, err := s.GCPPlanner.PlanGCPWork(ctx, gcp.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.gcpPlanKey(instance, observedAt),

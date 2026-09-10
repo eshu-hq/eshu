@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/grafanaplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/grafana"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeGrafanaPlanner struct {
-	requests []grafanaplanner.PlanRequest
+	requests []grafana.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -37,7 +37,7 @@ func (s *grafanaAdmissionSpyStore) CreateRunWithWorkItemsIfNoOpenTargets(
 
 func (f *fakeGrafanaPlanner) PlanGrafanaWork(
 	_ context.Context,
-	request grafanaplanner.PlanRequest,
+	request grafana.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -123,7 +123,7 @@ func TestServiceRunForwardsExactGrafanaRequestAndAdmitsWork(t *testing.T) {
 			if got, want := len(planner.requests), 1; got != want {
 				t.Fatalf("planner requests = %d, want %d", got, want)
 			}
-			wantRequest := grafanaplanner.PlanRequest{
+			wantRequest := grafana.PlanRequest{
 				Instance:   instance,
 				ObservedAt: now,
 				PlanKey:    test.wantPlanKey,

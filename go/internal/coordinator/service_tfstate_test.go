@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/tfstateplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeTerraformStatePlanner struct {
-	requests []tfstateplanner.PlanRequest
+	requests []tfstate.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -23,7 +23,7 @@ type fakeTerraformStatePlanner struct {
 
 func (f *fakeTerraformStatePlanner) PlanTerraformStateWork(
 	_ context.Context,
-	request tfstateplanner.PlanRequest,
+	request tfstate.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {

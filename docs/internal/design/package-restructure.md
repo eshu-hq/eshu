@@ -1062,7 +1062,7 @@ Coordinator `_scheduler.go` halves extract cleanly
 (they implement a root Planner interface); the `_service.go` halves are
 methods on the shared `Service` struct and stay until Service is
 decomposed — a design decision, not a file move. Shared plan-key validation now
-lives in dependency-neutral `internal/coordinator/plannercontract`. The CI/CD
+lives in dependency-neutral `internal/coordinator/planner/contract`. The CI/CD
 run scheduler now demonstrates the first provider extraction under
 `internal/coordinator/cicdrun`: the child owns its request and planner while
 root keeps the structural interface, scheduling order, durable open-target
@@ -1074,12 +1074,12 @@ scheduler is the third extraction under `internal/coordinator/sbomattestation`
 with the same boundary. The Vault metadata scheduler is the fourth extraction
 under `internal/coordinator/vaultlive`; its pure planner moves while root keeps
 scheduling, admission, retries, and telemetry. The Grafana Tempo scheduler is
-the fifth extraction under `internal/coordinator/tempoplanner`; its
+the fifth extraction under `internal/coordinator/planner/tempo`; its
 deterministic request validation, target filtering, and workflow-row
 construction move while root keeps service scheduling, the plan-key clock,
 tenant and egress filtering, durable admission, retries, and telemetry. The
 Grafana Loki scheduler is the sixth extraction under
-`internal/coordinator/lokiplanner`; its deterministic request validation,
+`internal/coordinator/planner/loki`; its deterministic request validation,
 target filtering, and workflow-row construction move under the same ownership
 boundary. The scanner-worker scheduler is the seventh extraction under
 `internal/coordinator/scannerworker`; the child owns configuration validation,
@@ -1088,28 +1088,28 @@ fairness-key construction. Root keeps the interface, scheduling and plan-key
 clock, active and claims gates, tenant-grant and collector-egress gates, durable
 admission, retries, queue and lease behavior, and telemetry. The
 Prometheus/Mimir scheduler is the eighth extraction under
-`internal/coordinator/prometheusmimir`; the child owns all five request fields,
+`internal/coordinator/planner/metrics`; the child owns all five request fields,
 enabled-target validation and filtering, configured order, deterministic IDs,
 requested-scope privacy, trigger precedence, and per-target fairness keys. Root
 keeps scheduling order, its plan-key clock, tenant and egress filtering,
 empty-item admission skips, durable admission, retries, queue and lease
 behavior, and telemetry. The Grafana scheduler is the ninth extraction under
-`internal/coordinator/grafanaplanner`; the child owns all five request fields,
+`internal/coordinator/planner/grafana`; the child owns all five request fields,
 all-target validation before disabled and scope filtering, configured work-item
 order, deterministic IDs, requested-scope privacy, trigger precedence, and the
 target-instance-to-scope fairness fallback. Root keeps scheduling order, its
 plan-key clock, collector-egress filtering, tenant-grant authorization,
 empty-item admission skips, durable admission, retries, queue and lease
 behavior, and telemetry. PagerDuty and Jira are the tenth and eleventh
-extractions under `internal/coordinator/pagerdutyplanner` and
-`internal/coordinator/jiraplanner`. Each child owns all five request fields,
+extractions under `internal/coordinator/planner/pagerduty` and
+`internal/coordinator/planner/jira`. Each child owns all five request fields,
 all-target validation before scope filtering, webhook-scope membership,
 configured order, deterministic IDs, privacy, and trigger precedence;
 PagerDuty partitions fairness by provider and Jira by site. Root keeps
 scheduling, clock, policy filtering, empty-item skips, durable admission,
 freshness-trigger transitions, retries, queue and lease behavior, and
 telemetry. GCP is the twelfth extraction under
-`internal/coordinator/gcpplanner`; the child owns request validation,
+`internal/coordinator/planner/gcp`; the child owns request validation,
 scope-configuration parsing and defaulting, duplicate and field validation,
 requested-scope filtering, requested-scope privacy, and deterministic
 work-item construction. Unlike the other eleven, root's own freshness handoff
@@ -1123,14 +1123,14 @@ purpose — `EnabledScopes` (returning a privacy-scoped `ConfiguredScope`
 without content_family or the credential handle) and
 `ValidateClaimSchedulerConfiguration` — rather than reaching into the child's
 private configuration types, following the same export-a-query-function
-precedent `jiraplanner.HasConfiguredScope` and
-`pagerdutyplanner.HasConfiguredScope` set for their own freshness call sites.
+precedent `jira.HasConfiguredScope` and
+`pagerduty.HasConfiguredScope` set for their own freshness call sites.
 Root keeps scheduling order, the plan-key clock, tenant-grant authorization,
 durable admission, freshness trigger claim/handoff/reap, retries, queue and
 lease behavior, and telemetry. These moves do not change scheduler order,
 workflow wire values, concurrency, or observability.
 The generic component extension scheduler is the thirteenth extraction under
-`internal/coordinator/componentextensionplanner`, and the first to hit the
+`internal/coordinator/planner/component/extension`, and the first to hit the
 acyclic-boundary problem Part 3's prerequisite section describes for query,
 reducer, projector, and mcp. `parseComponentInstanceConfig` — the shared
 generic component-activation configuration parse/validate function the
@@ -1150,11 +1150,11 @@ into a new dependency-neutral package, `internal/coordinator/componentactivation
 (`Config`, `RuntimeConfig`, `ParseConfig`) — the same
 hoist-to-a-neutral-package pattern `internal/projector/intent` already uses
 for the projector families' equivalent problem. `component_activation_config.go`,
-`pagerduty_service.go`, `governance_audit.go`, and `componentextensionplanner`
-all import `componentactivation`; none of them imports another from this
-list, and `componentactivation` imports neither `coordinator` nor
-`componentextensionplanner`. Root keeps scheduling order, hosted extension
-egress-policy filtering and audit, durable admission, retries, queue and
+`component_extension_service.go`, `pagerduty_service.go`,
+`governance_audit.go`, and the `planner/component/extension` leaf all import
+`componentactivation`; `component_activation_config_test.go` is the only test
+importer. The shared contract imports neither root nor a planner. Root keeps
+scheduling order, hosted extension egress-policy filtering and audit, durable admission, retries, queue and
 lease behavior, and telemetry. These moves do not change scheduler order,
 workflow wire values, concurrency, or observability.
 Terraform-state keeps its separate plan-key validator, and the root
@@ -1926,7 +1926,7 @@ fine. Both at once is an import cycle, and Go refuses to build it.
 
 Collector and coordinator are genuinely clear. Collector families are
 constructed from external `cmd/` binaries. Coordinator scheduler families use
-the dependency-neutral `plannercontract` helper while root retains their
+the dependency-neutral `planner/contract` helper while root retains their
 Planner interfaces and service methods, so an extracted scheduler does not
 need to import root.
 `cmd/eshu` has a different constraint rather than a cycle — it is `package main`

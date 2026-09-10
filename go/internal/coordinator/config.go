@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -251,7 +251,7 @@ func (c Config) Validate() error {
 func validateCollectorClaimSchedulingSupported(instance workflow.DesiredCollectorInstance) error {
 	switch instance.CollectorKind {
 	case scope.CollectorGCP:
-		return gcpplanner.ValidateClaimSchedulerConfiguration(instance)
+		return gcp.ValidateClaimSchedulerConfiguration(instance)
 	default:
 		return nil
 	}

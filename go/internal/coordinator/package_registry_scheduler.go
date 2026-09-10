@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -122,7 +122,7 @@ func validatePackageRegistryPlanRequest(request PackageRegistryPlanRequest) erro
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("package registry planner observed_at must not be zero")
 	}
-	if err := plannercontract.ValidateSafePlanKey("package registry planner", request.PlanKey); err != nil {
+	if err := contract.ValidateSafePlanKey("package registry planner", request.PlanKey); err != nil {
 		return err
 	}
 	return nil

@@ -23,7 +23,7 @@ remain in the parent package.
 ## Dependencies
 
 The collector scanner-worker package supplies analyzer and target-kind
-contracts. `plannercontract` validates plan keys; `facts`, `scope`, and
+contracts. `contract` validates plan keys; `facts`, `scope`, and
 `workflow` supply stable identities and durable row contracts. This package
 does not import its parent.
 

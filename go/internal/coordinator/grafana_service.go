@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/grafanaplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/grafana"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -17,7 +17,7 @@ import (
 // GrafanaPlanner plans Grafana observability workflow rows from collector
 // instance configuration.
 type GrafanaPlanner interface {
-	PlanGrafanaWork(context.Context, grafanaplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanGrafanaWork(context.Context, grafana.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 func (s Service) scheduleGrafanaWork(
@@ -35,7 +35,7 @@ func (s Service) scheduleGrafanaWork(
 		if s.GrafanaPlanner == nil {
 			return fmt.Errorf("grafana planner is required for active grafana collectors")
 		}
-		run, items, err := s.GrafanaPlanner.PlanGrafanaWork(ctx, grafanaplanner.PlanRequest{
+		run, items, err := s.GrafanaPlanner.PlanGrafanaWork(ctx, grafana.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.grafanaPlanKey(instance, observedAt),

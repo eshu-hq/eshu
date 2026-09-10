@@ -9,7 +9,7 @@
 4. `../service.go` for the `OCIRegistryPlanner` interface — unlike sibling
    extractions, it stays there rather than moving into `oci_registry_service.go`
    (issue #6057: Service decomposition is a separate design decision).
-5. `../plannercontract/README.md` for plan-key grammar.
+5. `../planner/contract/README.md` for plan-key grammar.
 
 ## Invariants
 

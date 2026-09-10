@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/tempoplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tempo"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeTempoPlanner struct {
-	requests []tempoplanner.PlanRequest
+	requests []tempo.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -23,7 +23,7 @@ type fakeTempoPlanner struct {
 
 func (f *fakeTempoPlanner) PlanTempoWork(
 	_ context.Context,
-	request tempoplanner.PlanRequest,
+	request tempo.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -94,7 +94,7 @@ func TestServiceRunActiveModeSchedulesTempoWorkThroughChildPlanner(t *testing.T)
 	if got, want := len(planner.requests), 1; got != want {
 		t.Fatalf("planner requests = %d, want %d", got, want)
 	}
-	wantRequest := tempoplanner.PlanRequest{
+	wantRequest := tempo.PlanRequest{
 		Instance:   instance,
 		ObservedAt: now,
 		PlanKey:    "continuous-20260605T180000Z",

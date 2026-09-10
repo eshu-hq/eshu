@@ -13,15 +13,15 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
+	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 	"go.opentelemetry.io/otel/metric"
 )
 
 type fakeAWSFreshnessTriggerStore struct {
-	claimed         []freshness.StoredTrigger
+	claimed         []awsfreshness.StoredTrigger
 	claimCalls      int
 	claimedLeases   []time.Duration
 	handedOffIDs    []string
@@ -29,7 +29,7 @@ type fakeAWSFreshnessTriggerStore struct {
 	failureClass    string
 	failureReason   string
 	markFailedErr   error
-	reclaimed       []freshness.StoredTrigger
+	reclaimed       []awsfreshness.StoredTrigger
 	reclaimCalls    int
 	reclaimErr      error
 	reclaimAsOfSeen []time.Time
@@ -50,13 +50,13 @@ func (f *fakeAWSFreshnessTriggerStore) ClaimQueuedTriggers(
 	_ time.Time,
 	_ int,
 	leaseDuration time.Duration,
-) ([]freshness.StoredTrigger, error) {
+) ([]awsfreshness.StoredTrigger, error) {
 	f.claimCalls++
 	f.claimedLeases = append(f.claimedLeases, leaseDuration)
 	if f.currentFencingToken == nil {
 		f.currentFencingToken = make(map[string]int64)
 	}
-	claimed := append([]freshness.StoredTrigger(nil), f.claimed...)
+	claimed := append([]awsfreshness.StoredTrigger(nil), f.claimed...)
 	for i := range claimed {
 		f.currentFencingToken[claimed[i].TriggerID]++
 		claimed[i].ClaimFencingToken = f.currentFencingToken[claimed[i].TriggerID]
@@ -68,18 +68,18 @@ func (f *fakeAWSFreshnessTriggerStore) ReapExpiredTriggerClaims(
 	_ context.Context,
 	asOf time.Time,
 	_ int,
-) ([]freshness.StoredTrigger, error) {
+) ([]awsfreshness.StoredTrigger, error) {
 	f.reclaimCalls++
 	f.reclaimAsOfSeen = append(f.reclaimAsOfSeen, asOf)
 	if f.reclaimErr != nil {
 		return nil, f.reclaimErr
 	}
-	return append([]freshness.StoredTrigger(nil), f.reclaimed...), nil
+	return append([]awsfreshness.StoredTrigger(nil), f.reclaimed...), nil
 }
 
 func (f *fakeAWSFreshnessTriggerStore) MarkTriggersHandedOff(
 	_ context.Context,
-	triggers []freshness.StoredTrigger,
+	triggers []awsfreshness.StoredTrigger,
 	_ time.Time,
 ) error {
 	for _, trigger := range triggers {
@@ -94,7 +94,7 @@ func (f *fakeAWSFreshnessTriggerStore) MarkTriggersHandedOff(
 
 func (f *fakeAWSFreshnessTriggerStore) MarkTriggersFailed(
 	_ context.Context,
-	triggers []freshness.StoredTrigger,
+	triggers []awsfreshness.StoredTrigger,
 	_ time.Time,
 	failureClass string,
 	failureReason string,
@@ -123,9 +123,9 @@ func TestServiceRunActiveModeHandsOffAWSFreshnessTriggers(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 15, 18, 30, 0, 0, time.UTC)
-	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
+	trigger, err := awsfreshness.NewStoredTrigger(awsfreshness.Trigger{
 		EventID:     "event-1",
-		Kind:        freshness.EventKindConfigChange,
+		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: awscloud.ServiceLambda,
@@ -134,7 +134,7 @@ func TestServiceRunActiveModeHandsOffAWSFreshnessTriggers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStoredTrigger() error = %v", err)
 	}
-	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []freshness.StoredTrigger{trigger}}
+	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []awsfreshness.StoredTrigger{trigger}}
 	counter := &fakeAWSFreshnessCounter{}
 	store := &fakeStore{
 		instances: []workflow.CollectorInstance{testServiceAWSInstance(now)},
@@ -160,7 +160,7 @@ func TestServiceRunActiveModeHandsOffAWSFreshnessTriggers(t *testing.T) {
 		},
 		Store:                store,
 		AWSFreshnessTriggers: freshnessStore,
-		AWSFreshnessPlanner:  awsfreshnessplanner.WorkPlanner{},
+		AWSFreshnessPlanner:  freshness.WorkPlanner{},
 		AWSFreshnessEvents:   counter,
 		Clock:                func() time.Time { return now },
 	}
@@ -192,9 +192,9 @@ func TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen(t *testing.T
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 15, 18, 30, 0, 0, time.UTC)
-	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
+	trigger, err := awsfreshness.NewStoredTrigger(awsfreshness.Trigger{
 		EventID:     "event-1",
-		Kind:        freshness.EventKindConfigChange,
+		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: awscloud.ServiceLambda,
@@ -203,7 +203,7 @@ func TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen(t *testing.T
 	if err != nil {
 		t.Fatalf("NewStoredTrigger() error = %v", err)
 	}
-	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []freshness.StoredTrigger{trigger}}
+	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []awsfreshness.StoredTrigger{trigger}}
 	counter := &fakeAWSFreshnessCounter{}
 	store := &fakeStore{
 		instances: []workflow.CollectorInstance{testServiceAWSInstance(now)},
@@ -235,7 +235,7 @@ func TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen(t *testing.T
 		},
 		Store:                store,
 		AWSFreshnessTriggers: freshnessStore,
-		AWSFreshnessPlanner:  awsfreshnessplanner.WorkPlanner{},
+		AWSFreshnessPlanner:  freshness.WorkPlanner{},
 		AWSFreshnessEvents:   counter,
 		Clock:                func() time.Time { return now },
 	}
@@ -267,9 +267,9 @@ func TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles(t *testing.
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 15, 18, 30, 0, 0, time.UTC)
-	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
+	trigger, err := awsfreshness.NewStoredTrigger(awsfreshness.Trigger{
 		EventID:     "event-1",
-		Kind:        freshness.EventKindConfigChange,
+		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: awscloud.ServiceLambda,
@@ -278,7 +278,7 @@ func TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles(t *testing.
 	if err != nil {
 		t.Fatalf("NewStoredTrigger() error = %v", err)
 	}
-	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []freshness.StoredTrigger{trigger}}
+	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []awsfreshness.StoredTrigger{trigger}}
 	store := &fakeStore{
 		instances: []workflow.CollectorInstance{testServiceAWSInstance(now)},
 	}
@@ -289,7 +289,7 @@ func TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles(t *testing.
 		},
 		Store:                store,
 		AWSFreshnessTriggers: freshnessStore,
-		AWSFreshnessPlanner:  awsfreshnessplanner.WorkPlanner{},
+		AWSFreshnessPlanner:  freshness.WorkPlanner{},
 		Clock:                func() time.Time { return now },
 	}
 
@@ -314,9 +314,9 @@ func TestScheduleAWSFreshnessWorkRequiresPlannerBeforeClaim(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.May, 15, 18, 30, 0, 0, time.UTC)
-	trigger, err := freshness.NewStoredTrigger(freshness.Trigger{
+	trigger, err := awsfreshness.NewStoredTrigger(awsfreshness.Trigger{
 		EventID:     "event-1",
-		Kind:        freshness.EventKindConfigChange,
+		Kind:        awsfreshness.EventKindConfigChange,
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: awscloud.ServiceLambda,
@@ -325,7 +325,7 @@ func TestScheduleAWSFreshnessWorkRequiresPlannerBeforeClaim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStoredTrigger() error = %v", err)
 	}
-	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []freshness.StoredTrigger{trigger}}
+	freshnessStore := &fakeAWSFreshnessTriggerStore{claimed: []awsfreshness.StoredTrigger{trigger}}
 	service := Service{
 		Config: Config{
 			DeploymentMode: deploymentModeActive,
@@ -386,7 +386,7 @@ func TestMarkAWSFreshnessFailedLogsWhenMarkErrors(t *testing.T) {
 
 	service.markAWSFreshnessFailed(
 		context.Background(),
-		[]freshness.StoredTrigger{{TriggerID: "aws-trigger-1"}},
+		[]awsfreshness.StoredTrigger{{TriggerID: "aws-trigger-1"}},
 		now,
 		"aws_freshness_handoff_error",
 		"boom",

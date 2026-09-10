@@ -40,7 +40,7 @@
 #     - Coordinator plans fresh terraform_state work items against the
 #       gen-2 instance (the per-RunID idempotency built by
 #       terraformStateRunID in
-#       go/internal/coordinator/tfstateplanner/planner.go is scoped to one
+#       go/internal/coordinator/planner/tfstate/planner.go is scoped to one
 #       instance, so gen-2's RunID is distinct from gen-1's).
 #     - collector-gen2 claims and drains; emits the serial=2 snapshot for
 #       bucket C and the empty serial=2 snapshot for bucket F.

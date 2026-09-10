@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/jiraplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/jira"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeJiraPlanner struct {
-	requests []jiraplanner.PlanRequest
+	requests []jira.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -37,7 +37,7 @@ func (s *jiraAdmissionSpyStore) CreateRunWithWorkItemsIfNoOpenTargets(
 
 func (f *fakeJiraPlanner) PlanJiraWork(
 	_ context.Context,
-	request jiraplanner.PlanRequest,
+	request jira.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -120,13 +120,13 @@ func TestServiceRunActiveModeSchedulesJiraWork(t *testing.T) {
 			if err := service.Run(ctx); err != nil {
 				t.Fatalf("Run() error = %v, want nil", err)
 			}
-			wantRequest := jiraplanner.PlanRequest{
+			wantRequest := jira.PlanRequest{
 				Instance:   instance,
 				ObservedAt: now,
 				PlanKey:    test.wantPlanKey,
 			}
-			if !reflect.DeepEqual(planner.requests, []jiraplanner.PlanRequest{wantRequest}) {
-				t.Fatalf("planner requests = %#v, want %#v", planner.requests, []jiraplanner.PlanRequest{wantRequest})
+			if !reflect.DeepEqual(planner.requests, []jira.PlanRequest{wantRequest}) {
+				t.Fatalf("planner requests = %#v, want %#v", planner.requests, []jira.PlanRequest{wantRequest})
 			}
 			if got, want := len(store.createdRuns), 1; got != want {
 				t.Fatalf("created runs = %d, want %d", got, want)
