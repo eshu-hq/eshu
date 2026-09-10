@@ -27,7 +27,7 @@ changing anything here.
 - Test doubles stay family-local: Go test files cannot share unexported
   symbols across a package boundary, so each side keeps its own copy of
   shared fakes and fixtures (see
-  `supply_chain_impact_cross_scope_test_doubles_test.go` here, and the
+  `cross_scope_test_doubles_test.go` here, and the
   staying twins in the parent's `*_test_doubles_test.go` /
   `*_test_fixtures_test.go` / `defaults_cross_scope_readiness_wiring_test.go`
   files). Shared test decode for batched versioned writes lives in

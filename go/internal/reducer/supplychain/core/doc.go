@@ -24,7 +24,11 @@
 // factschema. It never imports the parent reducer package, and the parent
 // references it only through supplychaincore-qualified names — external
 // callers keep their reducer.X spelling through the supply_chain_impact
-// stanza in the parent's compat_correlation.go.
+// stanza in the parent's compat_correlation.go. File names in this package
+// carry no family prefix (rule: never repeat the directory in the file
+// name); the impact builders live in short plain-English files
+// (finding.go, writer.go, index_build.go), suppression in suppression*.go,
+// and the Go reachability classifier in go_reachability*.go.
 //
 // The exported surface is the join contract other families program against:
 // the impact builders and finding type (BuildSupplyChainImpactFindings,
@@ -36,5 +40,5 @@
 // (ClassifyGoVulnerabilityReachability). Test seams for the reducer root's
 // own wiring test live in the parent's compat stanza, following the
 // containerimage precedent; family-local test doubles live in
-// supply_chain_impact_cross_scope_test_doubles_test.go.
+// cross_scope_test_doubles_test.go.
 package core //nolint:dirgate // supplychain family for #6061: 71 non-test files vs the 40-file cap; the tree doc names supplychain/core as the single destination and the Suppression-on-SupplyChainImpactFinding field makes finding+core+suppression indivisible, so splitting the directory mid-move would re-create the root<->package cycle the unit move exists to end.

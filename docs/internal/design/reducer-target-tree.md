@@ -28,7 +28,7 @@ ls -d go/internal/reducer/*/ | wc -l                                            
 1. **Supplychain hoist: yes.** `packages/correlation` moves FIRST so the
    dependency points at a named package, then the `supplychain` core plus
    suppression land together (the `Suppression SupplyChainSuppressionDecision`
-   struct field at `supply_chain_impact_finding.go:103` makes them one unit).
+   struct field at `finding.go:103` makes them one unit).
 2. **Compat surface (2a) + importer migration (2b); no dirgate exception.**
    (Owner answers, #6061 comment 5591291715. They supersede the ~100-110
    floor, which measured the old move-a-family-leave-a-compat-file strategy,
@@ -78,7 +78,7 @@ problem. `contract/` stays top-level (shared vocabulary, never a domain).
 
 | Domain | Children (existing subpackage -> child) | Root buckets landing here (non-test counts) |
 |---|---|---|
-| `supplychain/` | `core` (new: `supply_chain_impact*` INCLUDING `supply_chain_impact_finding.go` + `supply_chain_suppression*`, 70 — 67 at approval plus the 3 `go_vulnerability_reachability*` files, see sequencing step 2), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 + `go_vulnerability_reachability*` 3 |
+| `supplychain/` | `core` (new: destuttered short names INCLUDING `finding.go` + `suppression*` 4 + `go_reachability*` 3, 70 — 67 at approval plus the 3 classifier files, see sequencing step 2), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 + `go_vulnerability_reachability*` 3 |
 | `packages/` | `correlation` (new: `consumption*`, `source*`, `publication.go`, `provenance_edges.go`, `writer*`, `payloads.go` + `security_alert_manifest_dependency_match.go`), `source` (2 files, renamed from `packagesourcecore` #6061) | — (family fully moved; nothing remains at root) |
 | `code/` | `call` (new: `code_call*` 52 minus the #6609 runner-stays set), `intel` (`codeintel`, 5), `taint` (`codetaint`, 11), `value` (`valueflow`, 8 + `code_value*` 2) | `code_call*` 52, `code_value*` 2 (`code_import*` 6 lives in `repodependency/import`, not here) |
 | `cloud/` | `aws/s3/logging` (`s3logsto`, 3), `aws/s3/grants` (`s3grant`, 3), `aws/ec2/instance` (`ec2instance`, 5), `aws/ec2/blockkms` (`ec2blockkms`, 4), `aws/ec2/usesprofile` (`ec2usesprofile`, 3), `aws/rds/posture` (`rdsposture`, 3), `aws/runtime` (`awscloud`, 8), `aws/core` (new: `aws_*` 7), `gcp/core` (new: `gcp_*` 6), `azure/core` (new: `azure*` 3), `inventory` (`cloudinventory` 7, `cloudasset` 3), `exposure` (`internetexposure`, 5), `multicloud` (`multicloudruntimedrift`, 3), `observability` (`obscoverage`, 11) | `aws_*` 7, `gcp_*` 6, `azure*` 3 |
@@ -220,7 +220,7 @@ when it disagrees. Never a new top-level package for any of them.
    travels WITH the leaf into `packages/correlation`, importing the
    already-extracted `securityalert/` subpackage one-way.
 2. `supplychain` core + suppression together (70 files, explicitly
-   including `supply_chain_impact_finding.go`: suppression signatures take
+   including `finding.go`: suppression signatures take
    `SupplyChainImpactFinding`, so moving the unit while `finding.go` stays
    is a root<->package cycle — the unit is finding+core+suppression or
    nothing; `model` leaf #6568 already merged as the stated prerequisite).
@@ -229,7 +229,7 @@ when it disagrees. Never a new top-level package for any of them.
    move-time census showed resolve only to leaves (facts, factdecode,
    payloadcore, schemadecode, supplychainmodel, SDK) and travel with the
    core batch. The handler files
-   (`supply_chain_impact.go`, `supply_chain_impact_writer.go`) travel with
+   (`impact.go`, `writer.go`) travel with
    their ~8 in-unit user files in the same PR so no batch boundary ever
    splits a symbol from its users; external callers resolve through the
    supply_chain_impact stanza in `compat_correlation.go` with zero edits.

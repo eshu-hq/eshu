@@ -19,21 +19,21 @@ package.
 
 ## Files
 
-70 non-test files: 63 `supply_chain_impact*` (impact builders, ecosystem
-matchers, reachability, anchoring, writers), 4 `supply_chain_suppression*`
-(suppression decode, scope match, reasons), 3
-`go_vulnerability_reachability*` (Go module/call reachability classifier),
-plus 80 test files.
+70 non-test files: 63 `impact*`/`*.go` short names (impact builders,
+ecosystem matchers, reachability, anchoring, writers), 4 `suppression*`
+(suppression decode, scope match, reasons), 3 `go_reachability*` (Go
+module/call reachability classifier), plus 80 test files. No file repeats
+the directory name.
 
 | File | Covers |
 | --- | --- |
-| `supply_chain_impact.go` | `SupplyChainImpactHandler`, finding pipeline |
-| `supply_chain_impact_finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |
-| `supply_chain_impact_writer.go` | `PostgresSupplyChainImpactWriter`, batched versioned inserts |
-| `supply_chain_impact_winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep |
-| `supply_chain_suppression*.go` | Suppression decode, scope match, reasons |
-| `go_vulnerability_reachability*.go` | Go module/call reachability classification |
-| `supply_chain_impact_cross_scope_test_doubles_test.go` | Family-local test doubles (each side keeps its own copy) |
+| `impact.go` | `SupplyChainImpactHandler`, finding pipeline |
+| `finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |
+| `writer.go` | `PostgresSupplyChainImpactWriter`, batched versioned inserts |
+| `winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep |
+| `suppression*.go` | Suppression decode, scope match, reasons |
+| `go_reachability*.go` | Go module/call reachability classification |
+| `cross_scope_test_doubles_test.go` | Family-local test doubles (each side keeps its own copy) |
 
 ## Seams other families use
 
