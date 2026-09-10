@@ -124,12 +124,6 @@ while IFS="${tab}" read -r status old new; do
     D) new="" ;;
     *) continue ;;
   esac
-  # A path git reported as deleted or renamed away, but which still exists in
-  # the tree, is not vacated: the reference still resolves. This catches a
-  # rename whose old path the same branch re-created, NOT a split in place --
-  # git reports a split in place as a modification, so it is filtered by the
-  # status case above and never reaches here.
-  [ -e "${old}" ] && continue
   printf '%s\t%s\n' "${old}" "${new:-}" >>"${tmp_dir}/vacated.txt"
 done <"${tmp_dir}/changed.txt"
 

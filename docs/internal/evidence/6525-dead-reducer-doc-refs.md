@@ -128,7 +128,7 @@ the number that was missing.
   git leaves unpaired, an allowlist entry leaking to another referencing file,
   and the widened-base control that makes the attribution case non-vacuous
 
-Known scope limit, tracked separately (#6525): the gate matches only fully-qualified
+Known scope limit, tracked in #6525: the gate matches only fully-qualified
 `go/internal/...` paths, so any other spelling is invisible to it. The live
 examples sit in `go/internal/exposure/sink_catalog.go`, and the spelling there is
 neither repo-relative nor `go/`-prefixed — it is a `reducer/<file>.go` shorthand
