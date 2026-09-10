@@ -309,7 +309,7 @@ occur in the tree today. Widening the match is tracked separately, because it
 widens a blocking gate and needs a repo-scale false-positive measurement first.
 
 The check is scoped to the branch, not the tree: a path is reported only when
-it existed at the diff base and does not exist now. That is what keeps it
+it existed at the diff base and does not exist at HEAD. That is what keeps it
 precise. Inherited debt did not change, so it is not reported, and a deliberate
 negative fixture — a path a test asserts is *missing*, such as
 `does_not_exist.go`, `no_such_handler_file.go`, the telemetry-coverage ghost

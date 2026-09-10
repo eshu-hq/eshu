@@ -26,7 +26,7 @@
 #
 # It is "this branch removed a path that something still points at". The
 # attribution is what makes it precise: a path is reported only when it existed
-# at the diff base and does not exist in the working tree. A deliberate fixture
+# at the diff base and does not exist at HEAD. A deliberate fixture
 # never existed at the base, so it can never trip this gate; inherited debt did
 # not change, so it cannot either. Only a pointer the branch itself broke is
 # reported -- exactly the failure the #6061 moves kept shipping.
