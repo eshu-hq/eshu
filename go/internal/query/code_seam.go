@@ -8,6 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -56,7 +57,7 @@ import (
 //     guard is right and stays untouched; the fix belongs on our side of it.
 //
 // deadCodeIncomingEdge needs no entry here: it already aliases
-// querycontract.DeadCodeIncomingEdge (code_dead_code_scan.go), so a staying
+// querycontract.DeadCodeIncomingEdge (codequery/aliases.go), so a staying
 // caller across the future move names querycontract directly.
 //
 // ContentReader.crossRepoDeadCodeUngrantedConsumers needs no entry here
@@ -198,11 +199,11 @@ func AppendMatchedFile(files []map[string]any, row CodeTopicEvidenceRow) []map[s
 }
 
 // CallGraphMetricsEdgesCypher is the exported seam for
-// codequery.CallGraphMetricsEdgesCypher, which infra_graph_summary_packet.go calls from
-// outside the code move set. It forwards so the code family can move without
+// metrics.CallGraphMetricsEdgesCypher, which infra_graph_summary_packet.go calls from
+// outside the code move set. It forwards so the code family can nest without
 // touching callers. See #6060.
 func CallGraphMetricsEdgesCypher(repoID string) (string, map[string]any) {
-	return codequery.CallGraphMetricsEdgesCypher(repoID)
+	return metrics.CallGraphMetricsEdgesCypher(repoID)
 }
 
 // CodeTopicEvidenceGroup is the exported seam for codequery.CodeTopicEvidenceGroup,
@@ -249,7 +250,7 @@ func LanguageQueryGrantFor(ctx context.Context, repoID string) (LanguageQueryGra
 // deadcode.MergeStrongestDeadCodeIncomingEdge, which content_reader_dead_code.go calls
 // from outside the code move set. It forwards so the code family can move
 // without touching callers. deadCodeIncomingEdge already aliases
-// querycontract.DeadCodeIncomingEdge (code_dead_code_scan.go), so the
+// querycontract.DeadCodeIncomingEdge (codequery/aliases.go), so the
 // signature names that exported type directly rather than the local
 // unexported alias. See #6060.
 func MergeStrongestDeadCodeIncomingEdge(

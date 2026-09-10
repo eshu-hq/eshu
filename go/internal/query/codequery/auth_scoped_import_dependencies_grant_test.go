@@ -63,7 +63,7 @@ func (g *evaluatingImportDependencyGraph) Run(
 	params map[string]any,
 ) ([]map[string]any, error) {
 	g.statements = append(g.statements, cypher)
-	normalized := querytestutil.NormalizeCypherWhitespace(cypher)
+	normalized := querycontract.NormalizeCypherWhitespace(cypher)
 	for _, answer := range g.answers {
 		if !answer.match(normalized) {
 			continue
@@ -100,8 +100,8 @@ func importGrantRowAdmitted(normalized string, params map[string]any, seed impor
 			}
 		}
 		if strings.Contains(normalized, alias+".id IN $allowed_repository_ids") {
-			if !querytestutil.GraphParamContains(params, "allowed_repository_ids", repoID) &&
-				!querytestutil.GraphParamContains(params, "allowed_scope_ids", repoID) {
+			if !querycontract.GraphParamContains(params, "allowed_repository_ids", repoID) &&
+				!querycontract.GraphParamContains(params, "allowed_scope_ids", repoID) {
 				return false
 			}
 		}
@@ -297,7 +297,7 @@ func TestImportDependenciesEmptyGrantReachesNoBackend(t *testing.T) {
 			if len(graph.statements) != 0 {
 				t.Fatalf("a grantless scoped caller reached the graph: %v", graph.statements)
 			}
-			data := decodeEnvelopeData(t, rec.Body.Bytes())
+			data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 			rowKey := importGrantRowKey(tc.queryType)
 			value, ok := data[rowKey]
 			if !ok {
@@ -438,7 +438,7 @@ func TestCrossModuleCallsBindTargetRepositoryIndependently(t *testing.T) {
 	if len(graph.statements) == 0 {
 		t.Fatal("no statement reached the graph")
 	}
-	normalized := querytestutil.NormalizeCypherWhitespace(graph.statements[len(graph.statements)-1])
+	normalized := querycontract.NormalizeCypherWhitespace(graph.statements[len(graph.statements)-1])
 	for _, alias := range []string{"source_repo", "target_repo"} {
 		if !strings.Contains(normalized, alias+".id IN $allowed_repository_ids") {
 			t.Fatalf("cross-module call query does not bind %s to the grant:\n%s", alias, normalized)

@@ -25,10 +25,10 @@
    | `find_symbol` | `codequery/symbol.go` |
    | `inspect_code_inventory` | `codequery/structural_inventory.go` |
    | `inspect_call_graph_metrics` | `codequery/call_graph_metrics.go` |
-   | `trace_route_callers` | `codequery/route_to_caller.go` |
+   | `trace_route_callers` | `codequery/route_handlers.go` (leaf: `codequery/routes/`) |
    | `investigate_code_topic` | `codequery/topic.go` |
    | `execute_language_query` | `language_queries.go` |
-   | `find_function_call_chain` | `codequery/call_chain.go` |
+   | `find_function_call_chain` | `codequery/callers.go` |
 
 ## Invariants
 

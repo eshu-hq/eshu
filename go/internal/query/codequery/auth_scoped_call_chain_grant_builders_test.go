@@ -7,7 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // Shipped-text pin for the two shortestPath call-chain builders, split out of
@@ -28,8 +29,8 @@ func TestShortestPathCallChainBuildersBindTheGrant(t *testing.T) {
 
 	t.Run("neo4j_compat_binds_endpoints_and_every_hop", func(t *testing.T) {
 		t.Parallel()
-		cypher, params := buildCallChainCypher(req, GraphBackendNeo4j, access)
-		endpoints, hops, parsed := callChainClausePredicates(cypher)
+		cypher, params := chain.BuildCallChainCypher(req, GraphBackendNeo4j, access)
+		endpoints, hops, parsed := chain.ClausePredicates(cypher)
 		if !parsed {
 			t.Fatalf("the compat statement no longer has the shape this pin reads:\n%s", cypher)
 		}
@@ -48,15 +49,15 @@ func TestShortestPathCallChainBuildersBindTheGrant(t *testing.T) {
 		if !containsPredicate(hops, access.GraphConditionOnProperty("node", "repo_id")) {
 			t.Fatalf("no hop predicate binds the grant, so an interior hop is unbounded:\n%s", cypher)
 		}
-		if !querytestutil.GraphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
+		if !querycontract.GraphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
 			t.Fatalf("params do not bind the grant array: %#v", params)
 		}
 	})
 
 	t.Run("nornicdb_binds_endpoints", func(t *testing.T) {
 		t.Parallel()
-		cypher, params := buildNornicDBCallChainCypher(req, access)
-		endpoints, hops, parsed := callChainClausePredicates(cypher)
+		cypher, params := chain.BuildNornicDBCallChainCypher(req, access)
+		endpoints, hops, parsed := chain.ClausePredicates(cypher)
 		if !parsed {
 			t.Fatalf("the NornicDB statement no longer has the shape this pin reads:\n%s", cypher)
 		}
@@ -75,7 +76,7 @@ func TestShortestPathCallChainBuildersBindTheGrant(t *testing.T) {
 		if containsPredicate(hops, access.GraphConditionOnProperty("node", "repo_id")) {
 			t.Fatalf("the NornicDB builder gained a hop predicate the backend does not evaluate:\n%s", cypher)
 		}
-		if !querytestutil.GraphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
+		if !querycontract.GraphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
 			t.Fatalf("params do not bind the grant array: %#v", params)
 		}
 	})
@@ -83,8 +84,8 @@ func TestShortestPathCallChainBuildersBindTheGrant(t *testing.T) {
 	t.Run("unscoped_carries_no_grant", func(t *testing.T) {
 		t.Parallel()
 		for name, cypher := range map[string]string{
-			"neo4j_compat": firstOf(buildCallChainCypher(req, GraphBackendNeo4j, repositoryAccessFilter{AllScopes: true})),
-			"nornicdb":     firstOf(buildNornicDBCallChainCypher(req, repositoryAccessFilter{AllScopes: true})),
+			"neo4j_compat": firstOf(chain.BuildCallChainCypher(req, GraphBackendNeo4j, repositoryAccessFilter{AllScopes: true})),
+			"nornicdb":     firstOf(chain.BuildNornicDBCallChainCypher(req, repositoryAccessFilter{AllScopes: true})),
 		} {
 			if strings.Contains(cypher, "$allowed_repository_ids") || strings.Contains(cypher, "$allowed_scope_ids") {
 				t.Fatalf("%s rendered a grant for an unscoped caller:\n%s", name, cypher)

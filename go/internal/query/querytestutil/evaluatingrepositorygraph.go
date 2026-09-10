@@ -5,8 +5,9 @@ package querytestutil
 
 import (
 	"context"
-	"slices"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // A graph fake that evaluates the emitted pattern, for the #5167 code-family
@@ -150,7 +151,7 @@ func RepositoryBindingIsOptional(cypher string) bool {
 // RepositoryBindingIsOptionalForAlias is RepositoryBindingIsOptional for an
 // explicit Repository alias.
 func RepositoryBindingIsOptionalForAlias(cypher, alias string) bool {
-	normalized := NormalizeCypherWhitespace(cypher)
+	normalized := querycontract.NormalizeCypherWhitespace(cypher)
 	anchor := strings.Index(normalized, alias+":Repository")
 	if anchor < 0 {
 		return false
@@ -168,7 +169,7 @@ func RepositoryBindingIsOptionalForAlias(cypher, alias string) bool {
 // after that binding, up to the next clause keyword. A predicate list joined by
 // AND is what every builder in this family emits.
 func RepositoryGoverningPredicatesForAlias(cypher, alias string) []string {
-	normalized := NormalizeCypherWhitespace(cypher)
+	normalized := querycontract.NormalizeCypherWhitespace(cypher)
 	anchor := strings.Index(normalized, alias+":Repository")
 	if anchor < 0 {
 		return nil
@@ -239,26 +240,12 @@ func RepositoryPredicateAdmitsForAlias(predicate, alias, repoID string, params m
 	switch {
 	case strings.Contains(predicate, "$allowed_repository_ids"),
 		strings.Contains(predicate, "$allowed_scope_ids"):
-		return GraphParamContains(params, "allowed_repository_ids", repoID) ||
-			GraphParamContains(params, "allowed_scope_ids", repoID)
+		return querycontract.GraphParamContains(params, "allowed_repository_ids", repoID) ||
+			querycontract.GraphParamContains(params, "allowed_scope_ids", repoID)
 	case strings.Contains(predicate, alias+".id = $repo_id"):
 		bound, _ := params["repo_id"].(string)
 		return repoID == bound && repoID != ""
 	default:
 		return true
 	}
-}
-
-func GraphParamContains(params map[string]any, key, candidate string) bool {
-	values, ok := params[key].([]string)
-	if !ok || candidate == "" {
-		return false
-	}
-	return slices.Contains(values, candidate)
-}
-
-// NormalizeCypherWhitespace collapses a Cypher statement's whitespace to
-// single spaces so substring anchors do not depend on formatting.
-func NormalizeCypherWhitespace(cypher string) string {
-	return strings.Join(strings.Fields(cypher), " ")
 }

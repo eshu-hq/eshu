@@ -218,7 +218,7 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 	//
 	// POST /api/v0/code/dead-code left this table for the same reason (#5167
 	// code family): its one candidate read, deadCodeCandidateRows
-	// (code_dead_code_scan.go), now binds the caller's granted repositories in
+	// (codequery/analyzer.go), now binds the caller's granted repositories in
 	// both backends, so a restricted credential is expected to reach it and
 	// receive only granted rows. The handler binding is proven by
 	// TestDeadCodeRoutesFilterByRepositoryGrant and the real-middleware round

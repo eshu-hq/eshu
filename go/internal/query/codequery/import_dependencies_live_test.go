@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/imports"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
@@ -70,7 +71,7 @@ func TestLiveFileImportCyclesBoundedEdgeScan(t *testing.T) {
 		TargetModule: StringVal(firstCycle, "target_module"),
 		Limit:        1,
 	}
-	scopedRows, err := (&CodeHandler{Neo4j: graph}).fileImportCycleRows(ctx, scopedReq)
+	scopedRows, err := imports.CycleRows(ctx, graph, scopedReq)
 	if err != nil {
 		t.Fatalf("directionally scoped cycle read: %v", err)
 	}

@@ -1,0 +1,214 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package relationships
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
+)
+
+// EntityLabels lists the code-entity labels the NornicDB relationship
+// reads may anchor, in lockstep with graphLabelToContentEntityType so
+// the graph-only label fallback (nil content) resolves a node's label
+// the way the content-backed path does.
+var EntityLabels = []string{
+	"Annotation", "Function", "Class", "Interface", "Module", "Variable",
+	"Struct", "Enum", "Union", "Macro", "ImplBlock", "Typedef", "TypeAlias",
+	"TypeAnnotation", "Component", "SqlColumn", "SqlFunction", "SqlIndex",
+	"SqlMigration", "SqlTable", "SqlTrigger", "SqlView", "TerraformModule", "TerragruntConfig",
+	"TerragruntDependency",
+	// Flux typed entities (issue #5360 PR A; FluxHelmRelease/
+	// FluxHelmRepository added issue #5483 C1): kept in lockstep with
+	// graphLabelToContentEntityType so the graph-only relationship-label
+	// fallback (h.Content nil) can resolve a Flux node's label, matching the
+	// content-backed path's nornicDBGraphLabelForContentEntityType gate.
+	"FluxKustomization", "FluxGitRepository", "FluxOCIRepository", "FluxBucket",
+	"FluxHelmRelease", "FluxHelmRepository",
+}
+
+// NornicDBGraphLabelForContentEntityType resolves a content entity type
+// to its graph label, or "" when the type is not a known code entity.
+func NornicDBGraphLabelForContentEntityType(entityType string) string {
+	label := strings.TrimSpace(entityType)
+	if querycontract.GraphLabelToContentEntityType(label) == "" {
+		return ""
+	}
+	return label
+}
+
+// PrimaryEntityLabel returns the row's first known code-entity label,
+// or "" when the row carries none.
+func PrimaryEntityLabel(row map[string]any) string {
+	for _, label := range querycontract.StringSliceVal(row, "labels") {
+		if querycontract.GraphLabelToContentEntityType(label) != "" {
+			return label
+		}
+	}
+	return ""
+}
+
+// EntityLabelCypher builds the per-label UNION lookup for one entity id
+// property, wrapped in CALL{} with a plain outer RETURN: a top-level
+// UNION is mis-parsed on the pinned NornicDB build (branch columns
+// mangled into a single row), while CALL{...UNION...} plus a plain
+// outer RETURN executes correctly (#5287). Each branch keeps its
+// single-label inline-property anchor (the safe shape; a bare
+// label-disjunction MATCH matches zero rows on this build).
+func EntityLabelCypher(property string, repositoryScoped bool) string {
+	queries := make([]string, 0, len(EntityLabels))
+	for _, label := range EntityLabels {
+		match := fmt.Sprintf("MATCH (e:%s {%s: $entity_id})", label, property)
+		if repositoryScoped {
+			match += "<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(repo:Repository {id: $repo_id})"
+		}
+		queries = append(queries, fmt.Sprintf(
+			"%s RETURN e.uid AS uid, e.id AS id, labels(e) AS labels",
+			match,
+		))
+	}
+	return "CALL {\n" + strings.Join(queries, "\nUNION\n") + "\n}\nRETURN uid, id, labels\nLIMIT 2"
+}
+
+// MetadataPredicate builds the metadata lookup's WHERE and its
+// parameters.
+//
+// The grant binds on the Repository alias rather than on the entity
+// node, because this statement reaches the repository through two
+// REQUIRED MATCH clauses -- an entity the graph cannot attribute to a
+// repository never resolves here at all. #5167 batch 2b measured both
+// halves live: the repository predicate in this clause position does
+// decide row membership, and an entity with no File/Repository chain
+// returns nothing.
+//
+// It is shared with POST /api/v0/code/relationships, which is still on
+// the pending row-filtering ledger. Binding the grant here narrows that
+// route for a scoped caller too, which is safe in the only direction
+// that matters: the route stays fail-closed at the policy layer until
+// it is promoted on its own proof.
+func MetadataPredicate(
+	name string,
+	repoID string,
+	access querycontract.RepositoryAccessFilter,
+) (string, map[string]any) {
+	params := make(map[string]any)
+	var predicates []string
+	if trimmed := strings.TrimSpace(name); trimmed != "" {
+		predicates = append(predicates, "e.name = $name")
+		params["name"] = trimmed
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+		predicates = append(predicates, access.GraphCondition("repo"))
+	}
+	if trimmed := strings.TrimSpace(repoID); trimmed != "" {
+		predicates = append(predicates, "repo.id = $repo_id")
+		params["repo_id"] = trimmed
+	}
+	return strings.Join(predicates, " AND "), params
+}
+
+// MetadataCypher builds the single-clause metadata read for one entity
+// label and id property.
+func MetadataCypher(predicate string, entityLabel string, entityIDProperty string) string {
+	entityPattern := "(e" + NornicDBLabelPattern(entityLabel) + ")"
+	if strings.TrimSpace(entityIDProperty) != "" {
+		entityPattern = NornicDBNodePatternWithProperty("e", entityLabel, entityIDProperty, "$entity_id")
+	}
+	var predicates []string
+	if trimmed := strings.TrimSpace(predicate); trimmed != "" {
+		predicates = append(predicates, trimmed)
+	}
+	whereClause := ""
+	if len(predicates) > 0 {
+		whereClause = `
+		WHERE ` + strings.Join(predicates, " AND ")
+	}
+	return `
+		MATCH ` + entityPattern + `<-[:CONTAINS]-(f:File)
+		MATCH (repo:Repository)-[:REPO_CONTAINS]->(f)
+		` + whereClause + `
+		RETURN coalesce(e.id, e.uid) as id, e.name as name, labels(e) as labels,
+		       f.relative_path as file_path,
+		       repo.id as repo_id, repo.name as repo_name,
+		       coalesce(e.language, f.language) as language,
+		       e.start_line as start_line,
+		       e.end_line as end_line,
+` + querygraphrows.GraphSemanticMetadataProjection() + `
+		LIMIT 2
+	`
+}
+
+// The three helpers below back the NornicDB inheritance walk's interior
+// grant filter (#6548). They live here, with the family's other
+// NornicDB-specific node and predicate readers; the relationship story
+// family builds on them from here.
+
+// NornicDBInheritanceRowsInGrant drops every inheritance row whose path
+// crosses a class the caller was not granted, and removes the path
+// projection the check reads so it cannot reach the response.
+//
+// The endpoints are already bound in the statement. This is the
+// interior: an out-of-grant class sitting between two granted ones. The
+// row it produces carries no id, name or repository for that class --
+// the projection is the two endpoints and length(path) -- but the depth
+// counts hops through a repository the caller cannot read, which is a
+// real if narrow inference channel (#6548).
+//
+// Fail-closed, and each way it can fail is pinned by a test: a node
+// with an empty repo_id, a node with no repo_id property at all, and an
+// element that is not a node shape this function understands all drop
+// the row. An unscoped caller renders no projection, so it takes the
+// early return and its rows are untouched.
+func NornicDBInheritanceRowsInGrant(rows []map[string]any, access querycontract.RepositoryAccessFilter) []map[string]any {
+	if !access.Scoped() {
+		return rows
+	}
+	kept := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		raw, present := row["path_nodes"]
+		delete(row, "path_nodes")
+		if !present {
+			// The statement asked for the path and the backend did not return
+			// it. Admitting the row would restore the leak this closes.
+			continue
+		}
+		if NornicDBInheritancePathInGrant(raw, access) {
+			kept = append(kept, row)
+		}
+	}
+	return kept
+}
+
+// NornicDBInheritancePathInGrant reports whether every node on the
+// projected path carries a repository id the caller may read.
+func NornicDBInheritancePathInGrant(raw any, access querycontract.RepositoryAccessFilter) bool {
+	nodes, ok := raw.([]any)
+	if !ok || len(nodes) == 0 {
+		return false
+	}
+	for _, node := range nodes {
+		if !access.AllowsRepositoryID(NornicDBPathNodeRepoID(node)) {
+			return false
+		}
+	}
+	return true
+}
+
+// NornicDBPathNodeRepoID reads one projected path node's repo_id through
+// graphPathNodeProps, the driver-owning reader in neo4j.go, so this file
+// does not import the Bolt driver. It returns "" for any shape that
+// reader does not recognise and for a node with no repo_id, and
+// AllowsRepositoryID refuses "" for a scoped caller, so an unreadable
+// element fails closed rather than being skipped.
+func NornicDBPathNodeRepoID(node any) string {
+	props, ok := querygraphrows.GraphPathNodeProps(node)
+	if !ok {
+		return ""
+	}
+	repoID, _ := props["repo_id"].(string)
+	return strings.TrimSpace(repoID)
+}

@@ -134,7 +134,7 @@ func TestDeadCodeKeepsACandidateWhoseOnlyConsumerIsOutsideTheGrant(t *testing.T)
 	if got := store.boundConsumerGrant; !slices.Contains(got, codeGrantGrantedRepo) {
 		t.Fatalf("consumer grant = %#v, want the caller's grant bound into the incoming-edge read", got)
 	}
-	data := decodeEnvelopeData(t, rec.Body.Bytes())
+	data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 	results, _ := data["results"].([]any)
 	if len(results) != 1 {
 		t.Fatalf("results = %#v, want the candidate kept: an edge the caller cannot see is neither live nor dead; body = %s", results, rec.Body.String())
@@ -161,7 +161,7 @@ func TestDeadCodeInvestigateReportsThePermissionHiddenConsumerReason(t *testing.
 	if got, want := rec.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 	}
-	data := decodeEnvelopeData(t, rec.Body.Bytes())
+	data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 	buckets, _ := data["candidate_buckets"].(map[string]any)
 	cleanupReady, _ := buckets["cleanup_ready"].([]any)
 	if len(cleanupReady) != 0 {
@@ -196,7 +196,7 @@ func TestDeadCodeSharedKeyIncomingProbeIsUnchanged(t *testing.T) {
 	if got := store.boundConsumerGrant; len(got) != 0 {
 		t.Fatalf("consumer grant = %#v, want nothing bound for a shared-key caller", got)
 	}
-	data := decodeEnvelopeData(t, rec.Body.Bytes())
+	data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 	if results, _ := data["results"].([]any); len(results) != 0 {
 		t.Fatalf("results = %#v, want the candidate filtered out by its strong incoming edge", results)
 	}
@@ -211,7 +211,7 @@ func TestDeadCodeGraphIncomingProbeIsGrantBound(t *testing.T) {
 	t.Parallel()
 
 	access := repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}}
-	scoped := buildDeadCodeScopedIncomingBatchProbeCypher("Function", access)
+	scoped := deadcode.BuildDeadCodeScopedIncomingBatchProbeCypher("Function", access)
 	for _, want := range []string{
 		"OPTIONAL MATCH (source)<-[:CONTAINS]-(:File)<-[:REPO_CONTAINS]-(source_repo:Repository)",
 		"(source_repo IS NOT NULL AND " + access.GraphCondition("source_repo") + ") as in_grant",
@@ -230,7 +230,7 @@ func TestDeadCodeGraphIncomingProbeIsGrantBound(t *testing.T) {
 	if strings.Count(scoped, "MATCH") != 2 {
 		t.Fatalf("the scoped probe must expand incoming edges exactly once:\n%s", scoped)
 	}
-	if unscoped := buildDeadCodeScopedIncomingBatchProbeCypher("Function", repositoryAccessFilter{AllScopes: true}); unscoped != deadcode.BuildDeadCodeIncomingBatchProbeCypher("Function") {
+	if unscoped := deadcode.BuildDeadCodeScopedIncomingBatchProbeCypher("Function", repositoryAccessFilter{AllScopes: true}); unscoped != deadcode.BuildDeadCodeIncomingBatchProbeCypher("Function") {
 		t.Fatalf("an unscoped caller must run the unchanged probe text:\n%s", unscoped)
 	}
 }

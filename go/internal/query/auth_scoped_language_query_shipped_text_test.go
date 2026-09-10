@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -118,7 +119,7 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 			t.Parallel()
 
 			cypher, params := buildLanguageCypherWithSemanticFilter("go", label, "", "", 50, "", "", scoped)
-			normalized := querytestutil.NormalizeCypherWhitespace(cypher)
+			normalized := querycontract.NormalizeCypherWhitespace(cypher)
 			if !strings.Contains(normalized, want) {
 				t.Fatalf("%s builder missing %q:\n%s", label, want, normalized)
 			}
@@ -140,7 +141,7 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 
 			unscopedCypher, unscopedParams := buildLanguageCypher("go", label, "", "", 50)
 			if strings.Contains(unscopedCypher, "$allowed_repository_ids") {
-				t.Fatalf("%s builder carries a grant condition for an unscoped caller:\n%s", label, querytestutil.NormalizeCypherWhitespace(unscopedCypher))
+				t.Fatalf("%s builder carries a grant condition for an unscoped caller:\n%s", label, querycontract.NormalizeCypherWhitespace(unscopedCypher))
 			}
 			if _, ok := unscopedParams["allowed_repository_ids"]; ok {
 				t.Fatalf("%s builder bound grant params for an unscoped caller: %#v", label, unscopedParams)

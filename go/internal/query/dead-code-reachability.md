@@ -217,7 +217,7 @@ Content-backed incoming-edge checks group candidates by repository before
 calling the relational read model so repo-optional scans do not ask one
 repository for another repository's entity ids. Exact one-entity graph probes
 are avoided: `deadCodeResultsWithGraphIncomingEdges` in
-`code_dead_code_scan.go:258` batches candidate ids into one graph read for
+`codequery/analyzer.go` batches candidate ids into one graph read for
 content stores without that relational read model and for SQL routine
 reachability, whose reducer-owned `EXECUTES` edges are graph-written rather
 than stored as completed shared-projection intent rows. Small display limits use

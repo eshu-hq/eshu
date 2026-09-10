@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -397,7 +398,7 @@ func TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector(t *testing.T) {
 		if len(graph.Statements) == 0 {
 			t.Fatal("no statement reached the graph")
 		}
-		if !strings.Contains(querytestutil.NormalizeCypherWhitespace(graph.Statements[0]), "r.id = $repo_id") {
+		if !strings.Contains(querycontract.NormalizeCypherWhitespace(graph.Statements[0]), "r.id = $repo_id") {
 			t.Fatalf("a canonical repo_id no longer anchors the read:\n%s", graph.Statements[0])
 		}
 		if !strings.Contains(rec.Body.String(), languageGrantGrantedEntity) {

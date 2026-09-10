@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -133,7 +134,7 @@ func storySeedAdmits(seed storyGrantSeed, predicates []string, params map[string
 // follows an OPTIONAL MATCH. The second list is what the pinned backend
 // evaluates against the optional pattern only.
 func storyClausePredicates(cypher string) (anchoring []string, stranded []string) {
-	normalized := querytestutil.NormalizeCypherWhitespace(cypher)
+	normalized := querycontract.NormalizeCypherWhitespace(cypher)
 	seenOptional := false
 	for _, token := range storyClauseTokens(normalized) {
 		switch {
@@ -207,13 +208,13 @@ func storyPredicateAdmits(predicate string, repoByAlias map[string]string, param
 	for alias, repoID := range repoByAlias {
 		switch {
 		case strings.Contains(predicate, alias+".repo_id IN $allowed_repository_ids"):
-			return querytestutil.GraphParamContains(params, "allowed_repository_ids", repoID) ||
-				querytestutil.GraphParamContains(params, "allowed_scope_ids", repoID)
+			return querycontract.GraphParamContains(params, "allowed_repository_ids", repoID) ||
+				querycontract.GraphParamContains(params, "allowed_scope_ids", repoID)
 		case strings.Contains(predicate, alias+".repo_id = $repo_id"):
 			bound, _ := params["repo_id"].(string)
 			return repoID == bound && repoID != ""
 		case strings.Contains(predicate, alias+".repo_id, '') IN $traversal_repo_ids"):
-			return querytestutil.GraphParamContains(params, "traversal_repo_ids", repoID)
+			return querycontract.GraphParamContains(params, "traversal_repo_ids", repoID)
 		}
 	}
 	return true
@@ -224,14 +225,14 @@ func storyPredicateAdmits(predicate string, repoByAlias map[string]string, param
 // grant reached the read rather than only that the answer looked right.
 type storyGrantContentStore struct {
 	querytestutil.FakePortContentStore
-	entities    map[string]EntityContent
-	byName      []EntityContent
+	entities    map[string]querycontract.EntityContent
+	byName      []querycontract.EntityContent
 	askedRepo   []string
 	askedEntity []string
 	anyRepo     bool
 }
 
-func (s *storyGrantContentStore) GetEntityContent(_ context.Context, entityID string) (*EntityContent, error) {
+func (s *storyGrantContentStore) GetEntityContent(_ context.Context, entityID string) (*querycontract.EntityContent, error) {
 	s.askedEntity = append(s.askedEntity, entityID)
 	entity, ok := s.entities[entityID]
 	if !ok {
@@ -244,7 +245,7 @@ func (s *storyGrantContentStore) SearchEntitiesByName(
 	_ context.Context,
 	repoID, _, name string,
 	limit int,
-) ([]EntityContent, error) {
+) ([]querycontract.EntityContent, error) {
 	s.askedRepo = append(s.askedRepo, repoID)
 	return s.matches(repoID, name, limit), nil
 }
@@ -259,7 +260,7 @@ func (s *storyGrantContentStore) SearchEntitiesByExactName(
 	_ context.Context,
 	repoID, _, name string,
 	limit int,
-) ([]EntityContent, error) {
+) ([]querycontract.EntityContent, error) {
 	s.askedRepo = append(s.askedRepo, repoID)
 	return s.matches(repoID, name, limit), nil
 }
@@ -268,7 +269,7 @@ func (s *storyGrantContentStore) SearchEntitiesByExactNameAnyRepo(
 	_ context.Context,
 	_, name string,
 	limit int,
-) ([]EntityContent, error) {
+) ([]querycontract.EntityContent, error) {
 	s.anyRepo = true
 	return s.matches("", name, limit), nil
 }
@@ -277,7 +278,7 @@ func (s *storyGrantContentStore) SearchEntitiesByNameAnyRepo(
 	_ context.Context,
 	_, name string,
 	limit int,
-) ([]EntityContent, error) {
+) ([]querycontract.EntityContent, error) {
 	s.anyRepo = true
 	return s.matches("", name, limit), nil
 }
@@ -286,7 +287,7 @@ func (s *storyGrantContentStore) SearchEntitiesByLanguageAndType(
 	_ context.Context,
 	repoID, _, _, query string,
 	limit int,
-) ([]EntityContent, error) {
+) ([]querycontract.EntityContent, error) {
 	s.askedRepo = append(s.askedRepo, repoID)
 	return s.matches(repoID, query, limit), nil
 }
@@ -300,8 +301,8 @@ func (s *storyGrantContentStore) reachedTheStore() bool {
 // matches mirrors the shipped SQL: an explicit repository anchors the scan and
 // an empty one does not restrict it at all. That is what makes the leak
 // assertion fail when the handler stops binding the grant.
-func (s *storyGrantContentStore) matches(repoID, name string, limit int) []EntityContent {
-	rows := make([]EntityContent, 0, len(s.byName))
+func (s *storyGrantContentStore) matches(repoID, name string, limit int) []querycontract.EntityContent {
+	rows := make([]querycontract.EntityContent, 0, len(s.byName))
 	for _, entity := range s.byName {
 		if repoID != "" && entity.RepoID != repoID {
 			continue

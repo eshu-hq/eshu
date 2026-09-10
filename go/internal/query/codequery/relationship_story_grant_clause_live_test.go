@@ -40,6 +40,10 @@ import (
 // storyProbeRequest is the request every story probe shares: no repo_id (the
 // gap the ledger row describes -- a scoped caller who names no repository), one
 // relationship type, a limit wide enough that no row is dropped by paging.
+// codeGrantGrantedRepo is shared from auth_scoped_code_topic_grant_test.go:
+// same-package test files share scope whenever both build constraints are
+// satisfied, so no local copy is needed (a duplicate breaks the live-tagged
+// build that compiles both files).
 func storyProbeRequest() codemodel.RelationshipStoryRequest {
 	return codemodel.RelationshipStoryRequest{
 		EntityID:         liveClauseAnchorUID,

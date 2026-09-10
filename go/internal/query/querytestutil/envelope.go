@@ -111,6 +111,25 @@ func DecodeResponseBody(t *testing.T, rec *httptest.ResponseRecorder) map[string
 	return resp
 }
 
+// DecodeEnvelopeData unmarshals a raw body into its data map. It moved here
+// from the dead-code investigation test with the codequery nesting work: the
+// dead-code family took its tests to the deadcode leaf while grant-shape and
+// cross-repo tests stay in codequery, and test files cannot share helpers
+// across packages.
+func DecodeEnvelopeData(t *testing.T, body []byte) map[string]any {
+	t.Helper()
+
+	var resp map[string]any
+	if err := json.Unmarshal(body, &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	data, ok := resp["data"].(map[string]any)
+	if !ok {
+		t.Fatalf("data type = %T, want map[string]any", resp["data"])
+	}
+	return data
+}
+
 // RequireAnswerPacketCompanion asserts the normalized answer-packet
 // companion on a decoded response body and returns it for further checks.
 // It moved here from the query root's answer-packet route test with lane B

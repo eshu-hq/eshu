@@ -73,8 +73,8 @@ func TestHandleRelationshipStoryClassHierarchyMapsGraphReadAvailabilityErrors(t 
 }
 
 // TestHandleDeadCodeMapsGraphReadAvailabilityErrors proves handleDeadCode
-// (code_dead_code.go, error from scanDeadCodeCandidates -> deadCodeCandidateRows
-// -> h.Neo4j.Run in code_dead_code_scan.go) maps the shared Neo4jReader
+// (codequery/analyzer.go, error from scanDeadCodeCandidates -> deadCodeCandidateRows
+// -> h.Neo4j.Run in codequery/analyzer.go) maps the shared Neo4jReader
 // sentinels to 503/504.
 func TestHandleDeadCodeMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()

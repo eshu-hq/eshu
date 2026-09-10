@@ -39,7 +39,7 @@ Primary proof:
 - `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathRust`
 - `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathRustImplBlocks`
 - `go/internal/parser/rust/engine_rust_lifetimes_test.go::TestDefaultEngineParsePathRustCapturesImplLifetimes`
-- `go/internal/query/codequery/relationships_rust_graph_test.go::TestHandleRelationshipsReturnsGraphBackedRustImplBlockOwnership`
+- `go/internal/query/codequery/relationships/relationships_rust_graph_test.go::TestHandleRelationshipsReturnsGraphBackedRustImplBlockOwnership`
 - `go/internal/query/content_relationships_rust_test.go::TestBuildContentRelationshipSetRustImplBlockContainsMethods`
 
 ## Known Limitations

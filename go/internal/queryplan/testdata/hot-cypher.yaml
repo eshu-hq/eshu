@@ -336,9 +336,9 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codequery/relationship_story_nornicdb.go
+      file: go/internal/query/codequery/story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
-      source_sha256: 957ba2fcf51e362365df93afe0bb583660561da053a85fd6af2fa0cb5e7fd14b
+      source_sha256: 97e21e2ac4c394ec354cded8232322ea544d956f1ffd6b20922ffcd60c10cfd9
       line_hint: 36
     required_anchors:
       - label: Function
@@ -366,9 +366,9 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codequery/relationship_story_nornicdb.go
+      file: go/internal/query/codequery/story_nornicdb.go
       symbol: nornicDBRelationshipStoryInheritanceDepthCypher
-      source_sha256: ba105ff4f969a474dabebc9d926aa9d53ce6006a84ff9e21643aeede7dfafe2d
+      source_sha256: b80ede5daccc9ba1e2246c3360c87b3a84f1305da303da4b0ceefc15dfff5e38
       line_hint: 116
     required_anchors:
       - label: Class
@@ -394,9 +394,9 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codequery/relationship_story_nornicdb.go
+      file: go/internal/query/codequery/story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
-      source_sha256: 957ba2fcf51e362365df93afe0bb583660561da053a85fd6af2fa0cb5e7fd14b
+      source_sha256: 97e21e2ac4c394ec354cded8232322ea544d956f1ffd6b20922ffcd60c10cfd9
       line_hint: 36
     required_anchors:
       - label: Function
@@ -426,7 +426,7 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/codequery/relationship_story_nornicdb.go
+      file: go/internal/query/codequery/story_nornicdb.go
       symbol: (*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty
       source_sha256: 92e00f48c6258d06df21e456d17d13d8be4df2dbb8b664d5e68957e246b962ec
       line_hint: 48

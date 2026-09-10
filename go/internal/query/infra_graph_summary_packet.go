@@ -12,6 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -304,13 +305,13 @@ func (h *InfraHandler) graphSummaryRepoLanguages(ctx context.Context, params map
 	return languages, nil
 }
 
-// callGraphMetricsEdgesCypher forwards to codequery.CallGraphMetricsEdgesCypher
+// callGraphMetricsEdgesCypher forwards to metrics.CallGraphMetricsEdgesCypher
 // so graphSummaryHotEntities keeps its pre-move declaration bytes: the
 // queryplan source_sha256 for that symbol covers the call text, and Go has
 // no function aliases to preserve the bare name (same reason
 // repositoryAccessFilterFromContext stays a forwarder in repository_authz.go).
 func callGraphMetricsEdgesCypher(repoID string) (string, map[string]any) {
-	return codequery.CallGraphMetricsEdgesCypher(repoID)
+	return metrics.CallGraphMetricsEdgesCypher(repoID)
 }
 
 const (
