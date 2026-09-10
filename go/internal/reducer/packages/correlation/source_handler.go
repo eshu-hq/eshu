@@ -1,0 +1,384 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package correlation
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// ActivePackageManifestDependencyFactLoader exposes active package manifest
+// dependency facts filtered by ecosystem and package name. Exported because
+// the supply-chain impact handler narrows the same manifest facts through
+// this interface; the postgres loader satisfies it structurally.
+type ActivePackageManifestDependencyFactLoader interface {
+	ListActivePackageManifestDependencyFacts(
+		ctx context.Context,
+		ecosystems []string,
+		packageNames []string,
+	) ([]facts.Envelope, error)
+}
+
+// ActiveRepositoryFactLoader exposes active repository facts across source
+// scopes. Exported because the supply-chain impact handler loads repository
+// facts through the same narrow interface; the postgres loader satisfies it
+// structurally.
+type ActiveRepositoryFactLoader interface {
+	ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error)
+}
+
+// PackageSourceHandler classifies package-registry source hints
+// against active repository remotes and admits Git manifest consumption
+// correlations when registry identity and source declarations agree.
+type PackageSourceHandler struct {
+	FactLoader              factload.FactLoader
+	Writer                  PackageWriter
+	Instruments             *telemetry.Instruments
+	AdmissionDecisionWriter admissiondecision.AdmissionDecisionWriter
+	AdmissionDecisionNow    func() time.Time
+	// RepoDependencyIntentWriter persists consumer-repo DEPENDS_ON owner-repo
+	// projection intents derived from package consumption-to-owner correlation
+	// joins. When nil the join is skipped so the package-registry deployment
+	// profile stays fact-only; the existing repo-dependency projection lane
+	// drains the intents into canonical DEPENDS_ON edges (issue #3579).
+	RepoDependencyIntentWriter crossrepo.RepoDependencyIntentWriter
+	// ProvenanceEdgeWriter projects exact/derived package-ownership and
+	// package-publication decisions into canonical Repository-[:PUBLISHES]->
+	// Package|PackageVersion graph edges (issue #5457). When nil the
+	// projection is skipped so the package-source-correlation profile stays
+	// Postgres-only.
+	ProvenanceEdgeWriter PackageProvenanceEdgeWriter
+	// Now overrides the wall clock for deterministic intent created_at in tests.
+	Now func() time.Time
+}
+
+// Handle executes package source correlation for one package-registry scope.
+func (h PackageSourceHandler) Handle(
+	ctx context.Context,
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainPackageSourceCorrelation {
+		return reducercontract.Result{}, fmt.Errorf(
+			"package_source_correlation handler does not accept domain %q",
+			intent.Domain,
+		)
+	}
+	if h.FactLoader == nil {
+		return reducercontract.Result{}, fmt.Errorf("package source correlation fact loader is required")
+	}
+	if h.Writer == nil {
+		return reducercontract.Result{}, fmt.Errorf("package correlation writer is required")
+	}
+
+	envelopes, err := factload.LoadFactsForKinds(
+		ctx,
+		h.FactLoader,
+		intent.ScopeID,
+		intent.GenerationID,
+		packageSourceFactKinds(),
+	)
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("load package source facts: %w", err)
+	}
+	if !HasPackageSourceRepositoryFact(envelopes) {
+		repositories, err := h.loadActiveRepositoryFacts(ctx)
+		if err != nil {
+			return reducercontract.Result{}, fmt.Errorf("load active repository facts: %w", err)
+		}
+		envelopes = append(envelopes, repositories...)
+	}
+	manifestDependencies, err := h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("load active package manifest dependency facts: %w", err)
+	}
+	envelopes = append(envelopes, manifestDependencies...)
+
+	decisions := BuildPackageSourceDecisions(envelopes)
+	consumptionDecisions := BuildPackageConsumptionDecisions(envelopes)
+	publicationDecisions := BuildPackagePublicationDecisions(envelopes)
+	counts := countDecisionsByOutcome(decisions)
+	writeResult, err := h.Writer.WriteCorrelations(ctx, PackageWrite{
+		IntentID:             intent.IntentID,
+		ScopeID:              intent.ScopeID,
+		GenerationID:         intent.GenerationID,
+		SourceSystem:         intent.SourceSystem,
+		Cause:                intent.Cause,
+		OwnershipDecisions:   decisions,
+		ConsumptionDecisions: consumptionDecisions,
+		PublicationDecisions: publicationDecisions,
+	})
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("write package correlations: %w", err)
+	}
+	if err := h.writePackageSourceAdmissionDecisions(
+		ctx,
+		intent,
+		decisions,
+		consumptionDecisions,
+		publicationDecisions,
+	); err != nil {
+		return reducercontract.Result{}, err
+	}
+	repoEdgeIntents, err := h.projectConsumptionRepoDependencyEdges(
+		ctx,
+		intent,
+		consumptionDecisions,
+		decisions,
+		publicationDecisions,
+	)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+	if err := h.projectPackageProvenanceEdges(ctx, intent, decisions, publicationDecisions); err != nil {
+		return reducercontract.Result{}, err
+	}
+	h.emitCounters(ctx, counts)
+
+	return reducercontract.Result{
+		IntentID: intent.IntentID,
+		Domain:   reducercontract.DomainPackageSourceCorrelation,
+		Status:   reducercontract.ResultStatusSucceeded,
+		EvidenceSummary: packageSourceSummary(
+			len(decisions),
+			len(consumptionDecisions),
+			len(publicationDecisions),
+			counts,
+			writeResult.CanonicalWrites,
+		) + fmt.Sprintf(" repo_dependency_edges=%d", len(repoEdgeIntents)),
+		CanonicalWrites: writeResult.CanonicalWrites,
+	}, nil
+}
+
+// projectConsumptionRepoDependencyEdges joins the consumption decisions to the
+// exact/derived owner and publisher decisions on package id and persists the
+// resulting consumer-repo DEPENDS_ON owner-repo intents through the shared
+// repo-dependency projection lane. It is a no-op when no intent writer is wired
+// or the join yields no edges, so the package-registry fact-only profile is
+// unchanged. It never fails the package-correlation result for an empty join;
+// only a writer error propagates (issue #3579).
+func (h PackageSourceHandler) projectConsumptionRepoDependencyEdges(
+	ctx context.Context,
+	intent reducercontract.Intent,
+	consumptionDecisions []PackageConsumptionDecision,
+	ownershipDecisions []PackageSourceDecision,
+	publicationDecisions []PackagePublicationDecision,
+) ([]sharedintent.Row, error) {
+	if h.RepoDependencyIntentWriter == nil {
+		return nil, nil
+	}
+
+	edgeInput := PackageConsumptionRepoDependencyInput{
+		ScopeID:              intent.ScopeID,
+		GenerationID:         intent.GenerationID,
+		SourceRunID:          packageConsumptionRepoEdgeSourceRunID(intent.ScopeID, intent.GenerationID),
+		CreatedAt:            h.now(),
+		ConsumptionDecisions: consumptionDecisions,
+		OwnershipDecisions:   ownershipDecisions,
+		PublicationDecisions: publicationDecisions,
+	}
+	upsertIntents := BuildPackageConsumptionRepoDependencyIntents(edgeInput)
+	// Refresh-first: consumers that declared package dependencies but resolve no
+	// owner this generation must still reprocess so the shared lane retracts any
+	// package-consumption edge they held in a prior generation. Without these the
+	// stale edge would persist because the upsert build emits nothing for them.
+	refreshIntents := BuildPackageConsumptionRepoEdgeRefreshIntents(edgeInput)
+
+	h.emitRepoEdgeCounter(ctx, "projected", len(upsertIntents))
+	if len(refreshIntents) > 0 {
+		h.emitRepoEdgeCounter(ctx, "skipped_no_owner", len(refreshIntents))
+	}
+
+	intents := make([]sharedintent.Row, 0, len(upsertIntents)+len(refreshIntents))
+	intents = append(intents, upsertIntents...)
+	intents = append(intents, refreshIntents...)
+	if len(intents) == 0 {
+		return nil, nil
+	}
+	if err := h.RepoDependencyIntentWriter.UpsertIntents(ctx, intents); err != nil {
+		return nil, fmt.Errorf("upsert package consumption repo dependency intents: %w", err)
+	}
+	return intents, nil
+}
+
+func (h PackageSourceHandler) emitRepoEdgeCounter(ctx context.Context, outcome string, count int) {
+	if h.Instruments == nil || count <= 0 {
+		return
+	}
+	h.Instruments.PackageConsumptionRepoEdges.Add(
+		ctx,
+		int64(count),
+		metric.WithAttributes(
+			telemetry.AttrDomain(string(reducercontract.DomainRepoDependency)),
+			telemetry.AttrOutcome(outcome),
+		),
+	)
+}
+
+func (h PackageSourceHandler) now() time.Time {
+	if h.Now != nil {
+		return h.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
+// packageConsumptionRepoEdgeSourceRunID returns a deterministic acceptance
+// source-run id for consumption-derived repo-dependency intents. It is a stable
+// function of the package-registry scope ONLY, deliberately excluding the
+// generation, so re-projecting the same scope in a new generation yields the
+// same source-run id and therefore the same shared-projection acceptance key
+// (scope, acceptance unit, source-run) for an unchanged consumer/owner edge.
+// That stable acceptance key is what lets the shared repo-dependency lane
+// reconstruct the consumer's active edge snapshot across generations and treat
+// the new generation's edge as a refresh of the prior edge rather than a
+// brand-new one, keeping the downstream DEPENDS_ON MERGE idempotent across
+// generations and retries. The intent id legitimately still varies by
+// generation (generation_id is part of the intent identity hash and is how the
+// lane selects the newest generation per acceptance unit); the source-run id
+// must not also vary, or the acceptance unit splits and the refresh misses. The
+// generationID argument is accepted for call-site symmetry but is not part of
+// the source-run identity. It mirrors crossRepoContributionSourceRunID, which is
+// likewise scope-only (issue #3579, review comment 3455350029).
+func packageConsumptionRepoEdgeSourceRunID(scopeID, generationID string) string {
+	_ = generationID // intentionally excluded from the stable identity
+	scopeID = strings.TrimSpace(scopeID)
+	if scopeID == "" {
+		return "package_consumption_repo_dependency"
+	}
+	return "package_consumption_repo_dependency:" + scopeID
+}
+
+func (h PackageSourceHandler) loadActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error) {
+	loader, ok := h.FactLoader.(ActiveRepositoryFactLoader)
+	if !ok {
+		return nil, nil
+	}
+	repositories, err := loader.ListActiveRepositoryFacts(ctx)
+	if err != nil {
+		return nil, factload.ClassifyFactLoadError(err)
+	}
+	return repositories, nil
+}
+
+func (h PackageSourceHandler) loadActivePackageManifestDependencyFacts(
+	ctx context.Context,
+	envelopes []facts.Envelope,
+) ([]facts.Envelope, error) {
+	loader, ok := h.FactLoader.(ActivePackageManifestDependencyFactLoader)
+	if !ok {
+		return nil, nil
+	}
+	filter := packageManifestDependencyFilter(envelopes)
+	if len(filter.Ecosystems) == 0 || len(filter.PackageNames) == 0 {
+		return nil, nil
+	}
+	dependencies, err := loader.ListActivePackageManifestDependencyFacts(
+		ctx,
+		filter.Ecosystems,
+		filter.PackageNames,
+	)
+	if err != nil {
+		return nil, factload.ClassifyFactLoadError(err)
+	}
+	return dependencies, nil
+}
+
+func (h PackageSourceHandler) emitCounters(
+	ctx context.Context,
+	counts map[PackageSourceOutcome]int,
+) {
+	if h.Instruments == nil {
+		return
+	}
+	for _, outcome := range packageSourceOutcomes() {
+		count := counts[outcome]
+		if count == 0 {
+			continue
+		}
+		h.Instruments.PackageSourceCorrelations.Add(
+			ctx,
+			int64(count),
+			metric.WithAttributes(
+				telemetry.AttrDomain(string(reducercontract.DomainPackageSourceCorrelation)),
+				telemetry.AttrOutcome(string(outcome)),
+			),
+		)
+	}
+}
+
+// HasPackageSourceRepositoryFact reports whether the batch already carries
+// repository facts, in which case the handler skips the cross-scope active
+// repository load. Exported because the supply-chain impact handler gates
+// its own repository load on the same check.
+func HasPackageSourceRepositoryFact(envelopes []facts.Envelope) bool {
+	for _, envelope := range envelopes {
+		if envelope.FactKind == factload.FactKindRepository {
+			return true
+		}
+	}
+	return false
+}
+
+func countDecisionsByOutcome(
+	decisions []PackageSourceDecision,
+) map[PackageSourceOutcome]int {
+	counts := make(map[PackageSourceOutcome]int, len(packageSourceOutcomes()))
+	for _, decision := range decisions {
+		counts[decision.Outcome]++
+	}
+	return counts
+}
+
+func packageSourceSummary(
+	evaluated int,
+	consumption int,
+	publication int,
+	counts map[PackageSourceOutcome]int,
+	canonicalWrites int,
+) string {
+	return fmt.Sprintf(
+		"package correlations evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d consumption=%d publication=%d canonical_writes=%d",
+		evaluated,
+		counts[PackageSourceExact],
+		counts[PackageSourceDerived],
+		counts[PackageSourceAmbiguous],
+		counts[PackageSourceUnresolved],
+		counts[PackageSourceStale],
+		counts[PackageSourceRejected],
+		consumption,
+		publication,
+		canonicalWrites,
+	)
+}
+
+func packageSourceFactKinds() []string {
+	return []string{
+		facts.PackageRegistrySourceHintFactKind,
+		facts.PackageRegistryPackageFactKind,
+		facts.PackageRegistryPackageVersionFactKind,
+		factload.FactKindRepository,
+	}
+}
+
+func packageSourceOutcomes() []PackageSourceOutcome {
+	return []PackageSourceOutcome{
+		PackageSourceExact,
+		PackageSourceDerived,
+		PackageSourceAmbiguous,
+		PackageSourceUnresolved,
+		PackageSourceStale,
+		PackageSourceRejected,
+	}
+}

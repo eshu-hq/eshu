@@ -308,7 +308,7 @@ pure dependency `extractPackageSourceRepositories` needs and has no
 independent reason to stay in root, and its one other caller
 (`supply_chain_impact_python_reachability.go`) keeps reaching it through the
 same root forwarder every other caller uses. The five named symbols were not
-extracted whole as a family because `BuildPackageSourceCorrelationDecisions`
+extracted whole as a family because `BuildPackageSourceDecisions`
 and the handler that classifies a hint into a correlation outcome are called
 only from `package_source_correlation.go` and
 `package_source_correlation_handler.go` themselves (649 lines together), while
@@ -371,15 +371,15 @@ does not grow -- now inlined at every one of their call sites (verified
 against that file and each caller's file:line).
 `packageSourceRepositoryIDFromScope` (+1) is the same shape for the one
 remaining root caller, `supply_chain_impact_python_reachability.go:97`.
-`CanonicalURLKey` (+2) is `packagesourcecore.MatchRepositories`'s own two
+`CanonicalURLKey` (+2) is `source.MatchRepositories`'s own two
 internal call sites, newly visible because the whole-tree scope now compiles
-the leaf itself. `packagesourcecore.CanonicalURLKey` (+4) is a nested inline
+the leaf itself. `source.CanonicalURLKey` (+4) is a nested inline
 one level up: at every site where the `canonicalPackageSourceURLKey` forwarder
 itself gets inlined (`container_image_identity_provenance.go:88`,
 `internal/reducer/servicecatalog/service_catalog_correlation_lookup.go`,
 `internal/reducer/servicecatalog/service_catalog_correlation_classify.go`, plus the forwarder's own
 definition in `package_source_correlation.go`), the call it makes to
-`packagesourcecore.CanonicalURLKey` inlines a second level into the same site.
+`source.CanonicalURLKey` inlines a second level into the same site.
 `canonicalPackageSourceURLKey` itself drops from 5 to 3 call sites: the 2 it
 loses are the calls that used to live inside `matchPackageSourceRepositories`'s
 own body, which moved to the leaf and now calls `CanonicalURLKey` directly
@@ -393,7 +393,7 @@ now calls `payloadcore.PayloadStr` directly instead.
 definition itself is deleted. `strings.TrimPrefix` and its runtime-inlined
 `stringslite.*` siblings show no net delta on the whole-tree scope: the one
 call inside `packageSourceRepositoryIDFromScope`'s body moved from root to
-`packagesourcecore.RepositoryIDFromScope`, not away from the reducer tree, so
+`source.RepositoryIDFromScope`, not away from the reducer tree, so
 a scope that covers both sides sees no change (the earlier narrow,
 root-only measurement had reported this as -1, which was correct for that
 narrower scope but not for the tree as a whole). The `can inline` definition

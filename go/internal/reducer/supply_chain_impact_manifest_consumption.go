@@ -8,6 +8,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -15,7 +17,7 @@ func addManifestDependencySupplyChainConsumption(
 	index *supplyChainImpactIndex,
 	envelopes []facts.Envelope,
 ) {
-	dependencies := extractPackageManifestDependencies(envelopes)
+	dependencies := correlation.ExtractPackageManifestDependencies(envelopes)
 	if len(dependencies) == 0 {
 		return
 	}
@@ -24,7 +26,7 @@ func addManifestDependencySupplyChainConsumption(
 		return
 	}
 	for _, dependency := range dependencies {
-		dependencyKeys := stringSet(packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
+		dependencyKeys := stringSet(correlation.PackageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
 		if len(dependencyKeys) == 0 {
 			continue
 		}
@@ -69,7 +71,7 @@ func affectedPackageConsumptionKeys(pkg supplychainmodel.AffectedPackage) []stri
 	}
 	keys := make([]string, 0)
 	for _, name := range supplyChainAffectedPackageNameCandidates(pkg) {
-		keys = append(keys, packageConsumptionKeys(string(ecosystem), name)...)
+		keys = append(keys, correlation.PackageConsumptionKeys(string(ecosystem), name)...)
 	}
 	return keys
 }
@@ -87,7 +89,7 @@ func manifestDependencyMatchesAffectedPackage(
 }
 
 func supplyChainConsumptionFromManifestDependency(
-	dependency packageManifestDependency,
+	dependency correlation.PackageManifestDependency,
 	pkg supplychainmodel.AffectedPackage,
 ) supplychainmodel.PackageConsumption {
 	return supplychainmodel.PackageConsumption{
@@ -116,20 +118,12 @@ func supplyChainConsumptionFromManifestDependency(
 	}
 }
 
+// stringSet forwards to [payloadcore.StringSet].
 func stringSet(values []string) map[string]struct{} {
-	out := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		if value = strings.TrimSpace(value); value != "" {
-			out[value] = struct{}{}
-		}
-	}
-	return out
+	return payloadcore.StringSet(values)
 }
 
+// cloneBoolPointer forwards to [payloadcore.CloneBoolPointer].
 func cloneBoolPointer(value *bool) *bool {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
+	return payloadcore.CloneBoolPointer(value)
 }

@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 )
 
@@ -42,11 +43,11 @@ func appendCorrelationCoreAdditiveDomains(definitions []DomainDefinition, handle
 		}
 		definitions = append(definitions, searchDocument)
 	}
-	if handlers.FactLoader != nil && handlers.PackageCorrelationWriter != nil {
+	if handlers.FactLoader != nil && handlers.PackageWriter != nil {
 		packageSource := packageSourceCorrelationDomainDefinition()
-		packageSource.Handler = PackageSourceCorrelationHandler{
+		packageSource.Handler = correlation.PackageSourceHandler{
 			FactLoader:                 handlers.FactLoader,
-			Writer:                     handlers.PackageCorrelationWriter,
+			Writer:                     handlers.PackageWriter,
 			Instruments:                handlers.Instruments,
 			AdmissionDecisionWriter:    handlers.AdmissionDecisionWriter,
 			AdmissionDecisionNow:       handlers.AdmissionDecisionNow,

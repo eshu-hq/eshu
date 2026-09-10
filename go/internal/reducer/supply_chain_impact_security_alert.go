@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
@@ -41,7 +42,7 @@ func appendSecurityAlertImpactFindings(
 		return findings, quarantined, nil
 	}
 	consumptions := securityalert.ExtractSecurityAlertConsumptions(envelopes)
-	consumptions = append(consumptions, extractSecurityAlertManifestConsumptions(alerts, envelopes)...)
+	consumptions = append(consumptions, correlation.ExtractSecurityAlertManifestConsumptions(alerts, envelopes)...)
 	for _, alert := range alerts {
 		finding, ok := buildSecurityAlertImpactFinding(alert, consumptions, findings, index)
 		if !ok {
@@ -133,7 +134,7 @@ func securityAlertConsumptionEvidenceKind(consumption securityalert.SecurityAler
 	if strings.TrimSpace(consumption.EvidenceKind) != "" {
 		return strings.TrimSpace(consumption.EvidenceKind)
 	}
-	return packageConsumptionCorrelationFactKind
+	return correlation.PackageConsumptionFactKind
 }
 
 func securityAlertCanSeedImpact(alert securityalert.ProviderSecurityAlert) bool {
@@ -156,7 +157,7 @@ func supplyChainAffectedPackageFromSecurityAlert(alert securityalert.ProviderSec
 		Ecosystem:        strings.ToLower(strings.TrimSpace(alert.Ecosystem)),
 		Name:             alert.PackageName,
 		AffectedRangeRaw: normalizeSecurityAlertComparatorRange(alert.VulnerableRange),
-		FixedVersions:    compactStringSlice(alert.PatchedVersion),
+		FixedVersions:    payloadcore.CompactStringSlice(alert.PatchedVersion),
 	}
 }
 

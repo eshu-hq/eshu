@@ -149,7 +149,7 @@ identical.
   `CICDWorkflowImageBuiltFromEvidenceSource` are exported only because the
   reducer root's shared `provenance_edge_submission_metrics_test.go`
   exercises them directly** (it also exercises the unrelated
-  `PackageSourceCorrelationHandler` and `ContainerImageIdentityHandler`
+  `PackageSourceHandler` and `ContainerImageIdentityHandler`
   provenance-edge counters in one file and could not move here). Treat them
   as internal to this package's own production callers; the export exists
   for that one shared test file, not as a public API invitation.
@@ -207,7 +207,7 @@ each side kept its own copy — see Root-side test doubles above. The
 batched-insert fake `Execer` and decoder (`fakeWorkloadIdentityExecer`,
 `decodeBatchedFactCalls`, used by ~30 reducer-root writer test files) moved
 to a new exported, non-`_test.go` support package,
-`internal/reducer/factwrite/factwritetest`, rather than being duplicated,
+`internal/reducer/factwrite/testutil`, rather than being duplicated,
 because that fixture is substantial (241 lines, decodes 16 positional
 SQL-array arguments) and already shared across many unrelated families; the
 root's own copy in `reducer_fact_batch_insert_test_helpers_test.go` was left
@@ -215,7 +215,7 @@ untouched since every existing root caller still resolves against it
 unqualified. Measured from `go/`, with `GOROOT` unset and `GOCACHE` pointed
 at this worktree: `go build ./...` exited 0; `go vet ./...` exited 0;
 `go test ./internal/reducer/... -count=1` exited 0 across all reducer
-subpackages including the new `cicdrun` and `factwrite/factwritetest`; `go
+subpackages including the new `cicdrun` and `factwrite/testutil`; `go
 test ./cmd/reducer ./internal/storage/postgres ./internal/query -count=1`
 exited 0, which proves the storage layer's `reducer.CICDRunCorrelationHandler`/
 `PostgresCICDRunCorrelationWriter`/`Write`/`WriteResult` call sites still

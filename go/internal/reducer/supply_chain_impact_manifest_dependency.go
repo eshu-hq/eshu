@@ -5,11 +5,12 @@ package reducer
 
 import (
 	"context"
-	"net/url"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
@@ -18,7 +19,7 @@ func (h SupplyChainImpactHandler) loadActivePackageManifestDependencyFacts(
 	ctx context.Context,
 	envelopes []facts.Envelope,
 ) ([]facts.Envelope, error) {
-	loader, ok := h.FactLoader.(activePackageManifestDependencyFactLoader)
+	loader, ok := h.FactLoader.(correlation.ActivePackageManifestDependencyFactLoader)
 	if !ok {
 		return nil, nil
 	}
@@ -37,7 +38,7 @@ func (h SupplyChainImpactHandler) loadActivePackageManifestDependencyFacts(
 	return dependencies, nil
 }
 
-func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) PackageManifestDependencyFactFilter {
+func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) correlation.PackageManifestDependencyFactFilter {
 	var ecosystems []string
 	var names []string
 	var packageIDs []string
@@ -56,10 +57,10 @@ func supplyChainImpactManifestDependencyFilter(envelopes []facts.Envelope) Packa
 		ecosystems = append(ecosystems, string(ecosystem))
 		packageIDs = append(packageIDs, pkg.PackageID)
 		for _, name := range supplyChainAffectedPackageNameCandidates(pkg) {
-			names = append(names, packageConsumptionNameCandidates(ecosystem, name)...)
+			names = append(names, correlation.PackageConsumptionNameCandidates(ecosystem, name)...)
 		}
 	}
-	return PackageManifestDependencyFactFilter{
+	return correlation.PackageManifestDependencyFactFilter{
 		Ecosystems:   uniqueSortedStrings(ecosystems),
 		PackageNames: uniqueSortedStrings(names),
 		PackageIDs:   uniqueSortedStrings(packageIDs),
@@ -110,38 +111,12 @@ func supplyChainAffectedPackageNameCandidates(pkg supplychainmodel.AffectedPacka
 	return uniqueSortedStrings(candidates)
 }
 
+// packageNameFromPURL forwards to [payloadcore.PackageNameFromPURL].
 func packageNameFromPURL(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	beforeQuery, _, _ := strings.Cut(raw, "?")
-	_, path, ok := strings.Cut(beforeQuery, "/")
-	if !ok {
-		return ""
-	}
-	if versionAt := strings.LastIndex(path, "@"); versionAt > 0 {
-		path = path[:versionAt]
-	}
-	decoded, err := url.PathUnescape(path)
-	if err != nil {
-		return strings.TrimSpace(path)
-	}
-	return strings.TrimSpace(decoded)
+	return payloadcore.PackageNameFromPURL(raw)
 }
 
+// packageNameFromPackageID forwards to [payloadcore.PackageNameFromPackageID].
 func packageNameFromPackageID(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-	_, afterScheme, ok := strings.Cut(raw, "://")
-	if !ok {
-		return ""
-	}
-	_, path, ok := strings.Cut(afterScheme, "/")
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(path)
+	return payloadcore.PackageNameFromPackageID(raw)
 }

@@ -11,7 +11,7 @@ Imports point strictly downward:
 
 This package is a family. It may import `reducer/contract`,
 `reducer/factload`, `reducer/factdecode`, `reducer/factwrite`,
-`reducer/payloadcore`, `reducer/schemadecode`, `reducer/packagesourcecore`,
+`reducer/payloadcore`, `reducer/schemadecode`, `reducer/packages/source`,
 `internal/facts`, `internal/relationships`, `internal/telemetry`,
 `internal/truth`, and the factschema SDK. It must **never** import the parent
 `internal/reducer` package, directly or transitively.
@@ -29,7 +29,7 @@ signal about where the symbol belongs, not a reason to reach upward:
 - real logic shared with a sibling family that has also moved goes to that
   family's leaf package — this is how
   `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL` became
-  `packagesourcecore.ExactURLMatch`/`NormalizeExactURL`, next to the sibling
+  `source.ExactURLMatch`/`NormalizeExactURL`, next to the sibling
   `CanonicalURLKey` canonicalizer;
 - a symbol the root genuinely owns as logic AND is still shared by other
   in-root families — `RepositoryScopedResolvedRelationshipLoader` — is

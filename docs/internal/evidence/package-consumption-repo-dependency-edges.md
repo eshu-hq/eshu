@@ -6,7 +6,7 @@ unchanged from the original section.
 
 ## Package-Consumption Repo Dependency Edges
 
-`PackageSourceCorrelationHandler` now joins its package consumption decisions to
+`PackageSourceHandler` now joins its package consumption decisions to
 the exact/derived owner and publisher decisions (on package id) and projects
 consumer-repo `DEPENDS_ON` owner-repo edges through the shared repo-dependency
 projection lane (`DomainRepoDependency`), reusing `BuildSharedProjectionIntent`
@@ -37,7 +37,7 @@ No-Regression Evidence: `go test ./internal/reducer ./internal/telemetry
 -count=1` — the focused `TestBuildPackageConsumptionRepoDependencyIntents*`,
 `TestBuildPackageConsumptionRepoEdgeRefreshIntents*`,
 `TestPackageConsumptionRepoEdgeSourceRunID*`, and
-`TestPackageSourceCorrelationHandlerEmitsRefreshIntentWhenOwnerDisappears` cases
+`TestPackageSourceHandlerEmitsRefreshIntentWhenOwnerDisappears` cases
 cover the owner edge, publication-derived edge,
 ambiguous/unresolved/self/missing-consumer skips, multi-package dedupe
 (`evidence_count = 2`), cross-generation acceptance-key stability (idempotent

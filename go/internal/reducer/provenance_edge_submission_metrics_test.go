@@ -12,26 +12,58 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+// recordingPackageProvenanceEdgeWriter is a minimal staying-root fake
+// satisfying correlation.PackageProvenanceEdgeWriter. The family's own
+// fake moved with it to packages/correlation
+// (packages/correlation/provenance_edges_test.go); Go test files cannot share
+// unexported symbols across a package boundary, so this multi-family metrics
+// test keeps this local copy (issue #6061).
+type recordingPackageProvenanceEdgeWriter struct {
+	writeCalls []recordedPackageProvenanceWrite
+	writeErr   error
+	retractErr error
+}
+
+type recordedPackageProvenanceWrite struct {
+	rows           []map[string]any
+	evidenceSource string
+}
+
+func (w *recordingPackageProvenanceEdgeWriter) WritePublishesEdges(
+	_ context.Context, rows []map[string]any, _ string, _ string, evidenceSource string,
+) error {
+	w.writeCalls = append(w.writeCalls, recordedPackageProvenanceWrite{rows: rows, evidenceSource: evidenceSource})
+	return w.writeErr
+}
+
+func (w *recordingPackageProvenanceEdgeWriter) RetractPublishesEdges(
+	_ context.Context, _ string, _ string, evidenceSource string,
+) error {
+	return w.retractErr
+}
 
 func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testing.T) {
 	reader, instruments := newProvenanceEdgeMetricReader(t)
 	intent := Intent{ScopeID: "scope-1", GenerationID: "generation-1"}
 
 	packageWriter := &recordingPackageProvenanceEdgeWriter{}
-	packageHandler := PackageSourceCorrelationHandler{
+	packageHandler := correlation.PackageSourceHandler{
 		ProvenanceEdgeWriter: packageWriter,
 		Instruments:          instruments,
 	}
-	if err := packageHandler.projectPackageProvenanceEdges(
+	if err := packageHandler.ProjectPackageProvenanceEdgesForTest(
 		context.Background(),
-		intent,
-		[]PackageSourceCorrelationDecision{{
-			PackageID: "package-1", RepositoryID: "repository-1", Outcome: PackageSourceCorrelationExact,
+		reducercontract.Intent{ScopeID: intent.ScopeID, GenerationID: intent.GenerationID},
+		[]correlation.PackageSourceDecision{{
+			PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceExact,
 		}},
-		[]PackagePublicationDecision{{
-			PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: PackageSourceCorrelationExact,
+		[]correlation.PackagePublicationDecision{{
+			PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceExact,
 		}},
 	); err != nil {
 		t.Fatalf("projectPackageProvenanceEdges() error = %v", err)
@@ -81,8 +113,8 @@ func TestProvenanceEdgeCounterRecordsSubmittedRowsAfterSuccessfulWrites(t *testi
 
 	metrics := collectProvenanceEdgeMetrics(t, reader)
 	for _, domain := range []string{
-		packageOwnershipProvenanceEvidenceSource,
-		packagePublicationProvenanceEvidenceSource,
+		correlation.PackageOwnershipProvenanceEvidenceSource,
+		correlation.PackagePublicationProvenanceEvidenceSource,
 		containerImageBuiltFromProvenanceEvidenceSource,
 		cicdWorkflowImageBuiltFromEvidenceSource,
 		containerImageDerivedFromProvenanceEvidenceSource,
@@ -107,12 +139,12 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingPackageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
-				return (PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
-					projectPackageProvenanceEdges(
+				return (correlation.PackageSourceHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+					ProjectPackageProvenanceEdgesForTest(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
-						[]PackageSourceCorrelationDecision{{
-							PackageID: "package-1", RepositoryID: "repository-1", Outcome: PackageSourceCorrelationExact,
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						[]correlation.PackageSourceDecision{{
+							PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceExact,
 						}},
 						nil,
 					)
@@ -123,13 +155,13 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 			wantError: true,
 			run: func(instruments *telemetry.Instruments) error {
 				writer := &recordingPackageProvenanceEdgeWriter{writeErr: errors.New("write failed")}
-				return (PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
-					projectPackageProvenanceEdges(
+				return (correlation.PackageSourceHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}).
+					ProjectPackageProvenanceEdgesForTest(
 						context.Background(),
-						Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+						reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
 						nil,
-						[]PackagePublicationDecision{{
-							PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: PackageSourceCorrelationExact,
+						[]correlation.PackagePublicationDecision{{
+							PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceExact,
 						}},
 					)
 			},
@@ -284,15 +316,15 @@ func TestProvenanceEdgeCounterSkipsUnacceptedRows(t *testing.T) {
 func TestProvenanceEdgeCounterKeepsSuccessfulSubmissionBeforeLaterFailure(t *testing.T) {
 	reader, instruments := newProvenanceEdgeMetricReader(t)
 	writer := &publicationFailingPackageProvenanceEdgeWriter{}
-	handler := PackageSourceCorrelationHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}
-	err := handler.projectPackageProvenanceEdges(
+	handler := correlation.PackageSourceHandler{ProvenanceEdgeWriter: writer, Instruments: instruments}
+	err := handler.ProjectPackageProvenanceEdgesForTest(
 		context.Background(),
-		Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
-		[]PackageSourceCorrelationDecision{{
-			PackageID: "package-1", RepositoryID: "repository-1", Outcome: PackageSourceCorrelationExact,
+		reducercontract.Intent{ScopeID: "scope-1", GenerationID: "generation-1"},
+		[]correlation.PackageSourceDecision{{
+			PackageID: "package-1", RepositoryID: "repository-1", Outcome: correlation.PackageSourceExact,
 		}},
-		[]PackagePublicationDecision{{
-			PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: PackageSourceCorrelationExact,
+		[]correlation.PackagePublicationDecision{{
+			PackageID: "package-2", VersionID: "version-2", RepositoryID: "repository-2", Outcome: correlation.PackageSourceExact,
 		}},
 	)
 	if err == nil {
@@ -300,10 +332,10 @@ func TestProvenanceEdgeCounterKeepsSuccessfulSubmissionBeforeLaterFailure(t *tes
 	}
 
 	metrics := collectProvenanceEdgeMetrics(t, reader)
-	if got, ok := provenanceEdgeCounterValue(metrics, packageOwnershipProvenanceEvidenceSource, "submitted"); !ok || got != 1 {
+	if got, ok := provenanceEdgeCounterValue(metrics, correlation.PackageOwnershipProvenanceEvidenceSource, "submitted"); !ok || got != 1 {
 		t.Fatalf("ownership submitted counter = (%d, %t), want (1, true)", got, ok)
 	}
-	if _, ok := provenanceEdgeCounterValue(metrics, packagePublicationProvenanceEvidenceSource, "submitted"); ok {
+	if _, ok := provenanceEdgeCounterValue(metrics, correlation.PackagePublicationProvenanceEvidenceSource, "submitted"); ok {
 		t.Fatal("publication submitted counter emitted for a failed writer call")
 	}
 }
@@ -313,7 +345,7 @@ type publicationFailingPackageProvenanceEdgeWriter struct{}
 func (*publicationFailingPackageProvenanceEdgeWriter) WritePublishesEdges(
 	_ context.Context, _ []map[string]any, _ string, _ string, evidenceSource string,
 ) error {
-	if evidenceSource == packagePublicationProvenanceEvidenceSource {
+	if evidenceSource == correlation.PackagePublicationProvenanceEvidenceSource {
 		return errors.New("publication write failed")
 	}
 	return nil

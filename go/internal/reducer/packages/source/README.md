@@ -1,0 +1,89 @@
+# Reducer package source
+
+## Purpose
+
+`source` owns the primitives package-registry source-hint
+correlation and its callers reduce to: the `Hint` and `Repository` shapes, the
+repository extraction that reads them out of a fact-envelope batch, and the
+canonical-URL matching that decides whether a hint's source URL names an
+active repository.
+
+## Ownership boundary
+
+This package owns:
+
+- `Hint` — one package registry `source_hint` fact, reduced to package,
+  version, hint kind, and source URL.
+- `Repository` — one repository fact, reduced to ID, name, remote URL, and
+  tombstone state.
+- `ExtractRepositories` — reads `Repository` values out of a fact-envelope
+  batch, deriving each repository's ID from its payload or, failing that, its
+  scope.
+- `RepositoryIDFromScope` — the scope-ID fallback `ExtractRepositories` uses
+  when a repository fact carries no explicit ID field.
+- `MatchRepositories` — partitions repositories into active and tombstoned
+  matches for one hint's canonical source-URL key.
+- `CanonicalURLKey` — the canonical host/path key a git remote URL reduces to,
+  shared with the git collector via `repositoryidentity`.
+- `ExactURLMatch` / `NormalizeExactURL` — the narrower scheme/host-lowercased,
+  order-preserving comparison that distinguishes an exact repository-remote
+  match from one that only matches after `CanonicalURLKey`'s further
+  canonicalization (issue #6061).
+
+It does not own hint extraction, correlation-outcome classification, or the
+decision types the package correlation family's handler produces. Those live
+in `packages/correlation` because hoisting them would drag the
+`PackageSourceDecision` type and the classification logic that reads
+it into a leaf whose budget is the shared shapes and matching helpers.
+`packages/correlation/publication.go` calls
+`extractPackageSourceHints` and `classifyPackageSourceHint` directly today, so
+they are not handler-exclusive.
+
+## Why a leaf and not a family move
+
+`BuildPackageSourceDecisions` and the handler that classifies a
+hint into a correlation outcome are called only from
+`packages/correlation/source.go` and
+`packages/correlation/source_handler.go` themselves (649
+lines together). Seven other files read these symbols directly and never call
+that handler, each needing a different subset (verified against actual call
+sites, not inferred):
+
+| file | symbols it reads |
+| --- | --- |
+| `packages/correlation/consumption.go` | `Repository`, `ExtractRepositories` |
+| `packages/correlation/publication.go` | `Hint`, `ExtractRepositories` |
+| `container_image_identity_provenance.go` | `Hint`, `Repository`, `ExtractRepositories`, `MatchRepositories`, `CanonicalURLKey` |
+| `container_image_identity_slsa.go` | `ExtractRepositories` |
+| `internal/reducer/servicecatalog/service_catalog_correlation_classify.go` | `CanonicalURLKey`, `ExactURLMatch` |
+| `internal/reducer/servicecatalog/service_catalog_correlation_lookup.go` | `CanonicalURLKey` |
+| `supply_chain_impact_python_reachability.go` | `RepositoryIDFromScope` |
+
+Moving the whole `packagesource` family would drag the handler's ~650 lines
+along to deliver these ~65 (issue #6379, epic #6061). The two
+`internal/reducer/servicecatalog` files moved out of the flat root under
+issue #6061 and import this package directly rather than through a root
+forwarder; `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL`
+(real `net/url` normalization logic, not a forwarder) moved from
+`package_source_correlation.go` (now `packages/correlation/source.go`) into this package as
+`ExactURLMatch`/`NormalizeExactURL` in the same change, alongside the
+`CanonicalURLKey` canonicalizer they now sit next to.
+
+## Compatibility
+
+The family keeps `type packageSourceHint = source.Hint` and
+`type packageSourceRepository = source.Repository` plus forwarders
+at the end of `packages/correlation/source.go` (not a
+separate compat file: that file was already at 199 lines pre-extraction, well
+under the 500-line cap, and adding a new root `.go` file would have grown
+`internal/reducer`'s dirgate-pinned non-test file count past the
+`internal/reducer` row's current grandfathered ceiling in
+`scripts/lib/dirgate-grandfather.tsv` -- the ratchet only allows that row to
+move down or be removed, never up (see `bash scripts/verify-dirgate.sh
+--digest internal/reducer` for the live count/digest)), so the call sites
+across `packages/correlation/consumption.go`,
+`packages/correlation/publication.go`,
+`container_image_identity_provenance.go`,
+`container_image_identity_slsa.go`, and `supply_chain_impact_python_reachability.go`
+are unchanged. Those forwarders are transitional and are deleted as their
+callers move into family subpackages.

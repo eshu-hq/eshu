@@ -173,7 +173,7 @@ isolation, and backend performance evidence is in
 
 ## Truth-contract decision (item 7): no separate materialization domain needed
 
-`PUBLISHES`/`BUILT_FROM` write inline from `PackageSourceCorrelationHandler.Handle`
+`PUBLISHES`/`BUILT_FROM` write inline from `PackageSourceHandler.Handle`
 and `ContainerImageIdentityHandler.Handle` -- there is no separate queued
 reducer intent/domain for the graph projection (unlike, say,
 `kubernetes_correlation` vs `kubernetes_correlation_materialization`, which are
@@ -213,7 +213,7 @@ lifecycle, which `PUBLISHES`/`BUILT_FROM` do not.
 
 `testdata/cassettes/replaydelta/provenance-edges-tombstone.json` is a synthetic,
 two-generation packet loaded through `replay/cassette`. Generation 1 feeds the
-real `BuildPackageSourceCorrelationDecisions`,
+real `BuildPackageSourceDecisions`,
 `BuildPackagePublicationDecisions`, and `BuildContainerImageIdentityDecisions`
 builders, then the package-private `projectPackageProvenanceEdges` and
 `projectContainerImageBuiltFromEdges` paths. The real

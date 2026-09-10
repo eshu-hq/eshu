@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -57,7 +58,7 @@ func (h SupplyChainImpactHandler) loadActiveJVMReachabilityFacts(
 func jvmReachabilityFactFilter(envelopes []facts.Envelope) JVMReachabilityFactFilter {
 	var repositoryIDs []string
 	var apiPackages []string
-	for _, dependency := range extractPackageManifestDependencies(envelopes) {
+	for _, dependency := range correlation.ExtractPackageManifestDependencies(envelopes) {
 		if !jvmPackageManager(dependency.PackageManager) {
 			continue
 		}

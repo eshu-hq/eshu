@@ -5,6 +5,7 @@ package payloadcore
 
 import (
 	"fmt"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -227,4 +228,136 @@ func DedupeNonEmptyStrings(values []string) []string {
 		return nil
 	}
 	return deduped
+}
+
+// StringSet returns the trimmed, non-empty values as a set. It differs from
+// SortedKeys in that it builds the set instead of reading one, and from
+// CleanFactFilterValues in that it returns the set itself rather than a
+// slice, so callers testing membership do not sort first.
+func StringSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out[value] = struct{}{}
+		}
+	}
+	return out
+}
+
+// CloneBoolPointer returns a copy of the pointed-to bool, or nil when value
+// is nil. It differs from DerefBool in that it preserves the absent/false
+// distinction instead of collapsing nil to false, so callers round-tripping
+// an optional payload field keep absence absent.
+func CloneBoolPointer(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
+// OrderedStrings returns the trimmed, non-empty values in input order. It
+// differs from DedupeNonEmptyStrings in that it keeps duplicates, and from
+// CompactStringSlice in that a zero-length input returns nil instead of an
+// empty slice, so callers appending to the result share append semantics
+// with the pre-eviction helper.
+func OrderedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+// NonVersionDependencyPrefix reports whether a lower-cased dependency range
+// names a non-registry source (a file path, VCS URL, or workspace alias)
+// rather than a version. Callers pass an already-lower-cased value, matching
+// the pre-eviction helper.
+func NonVersionDependencyPrefix(lower string) bool {
+	for _, prefix := range []string{
+		"file:",
+		"git+",
+		"github:",
+		"http:",
+		"https:",
+		"link:",
+		"npm:",
+		"portal:",
+		"workspace:",
+	} {
+		if strings.HasPrefix(lower, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// ExactManifestDependencyVersion returns version when it names one exact
+// version rather than a range, tag, URL, or property expression. The "exact"
+// test is syntactic: anything containing a range operator, wildcard, or
+// variable reference is rejected, as is the "latest" tag.
+func ExactManifestDependencyVersion(raw string) (string, bool) {
+	version := strings.TrimSpace(raw)
+	if version == "" {
+		return "", false
+	}
+	lower := strings.ToLower(version)
+	if lower == "latest" || NonVersionDependencyPrefix(lower) {
+		return "", false
+	}
+	if strings.ContainsAny(version, "<>^~*=|, []") ||
+		strings.Contains(lower, " - ") ||
+		strings.Contains(version, "$") ||
+		strings.Contains(lower, ".x") ||
+		strings.Contains(lower, "x.") {
+		return "", false
+	}
+	return version, true
+}
+
+// PackageNameFromPURL extracts the package name from a package-URL string by
+// taking the path after the scheme, stripping any version suffix, and
+// unescaping it. It returns "" when the input has no path to extract.
+func PackageNameFromPURL(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	beforeQuery, _, _ := strings.Cut(raw, "?")
+	_, path, ok := strings.Cut(beforeQuery, "/")
+	if !ok {
+		return ""
+	}
+	if versionAt := strings.LastIndex(path, "@"); versionAt > 0 {
+		path = path[:versionAt]
+	}
+	decoded, err := url.PathUnescape(path)
+	if err != nil {
+		return strings.TrimSpace(path)
+	}
+	return strings.TrimSpace(decoded)
+}
+
+// PackageNameFromPackageID extracts the package name from an Eshu
+// package-registry URI by taking the path after the authority. It returns ""
+// when the input has no scheme or no path after the authority.
+func PackageNameFromPackageID(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	_, afterScheme, ok := strings.Cut(raw, "://")
+	if !ok {
+		return ""
+	}
+	_, path, ok := strings.Cut(afterScheme, "/")
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(path)
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
 func TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion(t *testing.T) {
@@ -48,7 +49,7 @@ func TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion(t *testing.T) {
 	if strings.Contains(path, facts.PackageRegistryPackageVersionFactKind) {
 		t.Fatalf("EvidencePath = %#v, must not treat registry versions as installed versions", got.EvidencePath)
 	}
-	if !strings.Contains(path, packageConsumptionCorrelationFactKind) {
+	if !strings.Contains(path, correlation.PackageConsumptionFactKind) {
 		t.Fatalf("EvidencePath = %#v, want package consumption evidence", got.EvidencePath)
 	}
 }
@@ -341,7 +342,7 @@ func packageConsumptionFactWithRange(
 ) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
-		FactKind: packageConsumptionCorrelationFactKind,
+		FactKind: correlation.PackageConsumptionFactKind,
 		Payload: map[string]any{
 			"package_id":        packageID,
 			"relationship_kind": "consumption",

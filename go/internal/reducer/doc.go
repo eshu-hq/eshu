@@ -17,7 +17,7 @@
 // row shapes, statements, chunking, and its Execer port. The schemadecode
 // subpackage owns the per-fact-kind decode seams themselves, which import the
 // per-domain factschema packages and so cannot live in factdecode. The
-// packagesourcecore subpackage owns the package-source hint and repository
+// packages/source subpackage owns the package-source hint and repository
 // shapes plus their extraction, matching, and canonical-URL keying. The
 // codeintel subpackage is the first that is a domain rather than a shared
 // helper: it owns the code-reachability projection and the code-root verdicts

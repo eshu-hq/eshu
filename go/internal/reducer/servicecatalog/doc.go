@@ -35,9 +35,9 @@
 // loading; factdecode for quarantine handling; factwrite for the batched
 // fact-row writer; payloadcore for payload accessors and identity helpers;
 // schemadecode for the sdk/go/factschema decode seam (service-catalog entity,
-// ownership, and repository-link facts); and packagesourcecore for the exact
+// ownership, and repository-link facts); and packages/source for the exact
 // and canonicalized repository-URL matching the classifier shares with the
-// still-in-root package-source-correlation family. The reducer root keeps a
+// packages/correlation family. The reducer root keeps a
 // compatibility surface (the service-catalog stanza of compat_correlation.go) that aliases
 // this family's exported symbols back for its own remaining callers
 // (cmd/reducer, internal/storage/postgres, and the still-in-root

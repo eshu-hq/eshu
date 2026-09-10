@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
 // TestWriteCICDRunCorrelationsBoundedExecCount is the regression guard for
@@ -32,7 +32,7 @@ func TestWriteCICDRunCorrelationsBoundedExecCount(t *testing.T) {
 		}
 	}
 
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresCICDRunCorrelationWriter{DB: db}
 
 	result, err := writer.WriteCICDRunCorrelations(context.Background(), CICDRunCorrelationWrite{
@@ -49,11 +49,11 @@ func TestWriteCICDRunCorrelationsBoundedExecCount(t *testing.T) {
 		t.Fatalf("FactsWritten = %d, want %d", got, want)
 	}
 
-	wantExecs := factwritetest.ExpectedBatchedExecCount(decisionCount)
+	wantExecs := testutil.ExpectedBatchedExecCount(decisionCount)
 	if got := len(db.Execs); got != wantExecs {
 		t.Fatalf("ExecContext calls = %d for %d decisions, want %d (bounded batched inserts)", got, decisionCount, wantExecs)
 	}
-	if rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs); len(rows) != decisionCount {
+	if rows := testutil.DecodeBatchedFactCalls(t, db.Execs); len(rows) != decisionCount {
 		t.Fatalf("decoded rows = %d, want %d", len(rows), decisionCount)
 	}
 }

@@ -5,6 +5,7 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 type supplyChainImageIdentity struct {
@@ -57,8 +58,8 @@ func supplyChainImageIdentityFromEnvelope(envelope facts.Envelope) supplyChainIm
 		// disagree, and preferSupplyChainImageIdentity's cross-row tier A >
 		// tier B > tier C (#5813) never lets one row's build provenance alone
 		// outrank multiple rows that already agree by sourceRepositoryIDs.
-		sourceRepositoryIDs:          payloadOrderedStrings(envelope.Payload, "source_repository_ids"),
-		buildProvenanceRepositoryIDs: payloadOrderedStrings(envelope.Payload, "build_provenance_repository_ids"),
+		sourceRepositoryIDs:          payloadcore.PayloadOrderedStrings(envelope.Payload, "source_repository_ids"),
+		buildProvenanceRepositoryIDs: payloadcore.PayloadOrderedStrings(envelope.Payload, "build_provenance_repository_ids"),
 		outcome:                      payloadStr(envelope.Payload, "outcome"),
 		canonicalWrites:              supplyChainInt(envelope.Payload, "canonical_writes"),
 	}

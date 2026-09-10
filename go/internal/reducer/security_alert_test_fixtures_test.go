@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
 // securityAlertEnvelope and packageConsumptionCorrelationEnvelope are
@@ -37,7 +38,7 @@ func packageConsumptionCorrelationEnvelope(factID string, repoID string, package
 		FactID:       factID,
 		ScopeID:      repoID,
 		GenerationID: "generation-1",
-		FactKind:     packageConsumptionCorrelationFactKind,
+		FactKind:     correlation.PackageConsumptionFactKind,
 		ObservedAt:   time.Date(2026, 5, 23, 11, 0, 0, 0, time.UTC),
 		Payload: map[string]any{
 			"repository_id": repoID,

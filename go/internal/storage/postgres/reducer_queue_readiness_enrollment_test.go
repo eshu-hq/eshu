@@ -117,7 +117,7 @@ func readinessFailureClassesInReducer(t *testing.T) (map[string]string, []unread
 	// immediate subdirectories -- but not deeper. Every *_not_ready class in the
 	// tree today lives at one of those two depths; going deeper would start
 	// descending into a family's own nested test-helper packages (for example
-	// internal/reducer/factwrite/factwritetest), which declare no reducer types
+	// internal/reducer/factwrite/testutil), which declare no reducer types
 	// at all.
 	dirs := []string{reducerDir}
 	topEntries, err := os.ReadDir(reducerDir)

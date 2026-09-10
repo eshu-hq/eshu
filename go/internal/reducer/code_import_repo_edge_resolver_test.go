@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
 // TestNormalizeImportSourceNPM verifies that npm bare specifiers are normalized
@@ -321,7 +322,7 @@ type ecoName struct {
 func newCodeImportOwnerIndexForTest(pairs map[ecoName]string) codeImportOwnerIndex {
 	byKey := make(map[string]string)
 	for pair, repoID := range pairs {
-		for _, key := range packageConsumptionKeys(pair.ecosystem, pair.name) {
+		for _, key := range correlation.PackageConsumptionKeys(pair.ecosystem, pair.name) {
 			byKey[key] = repoID
 		}
 	}
@@ -334,7 +335,7 @@ func newAmbiguousCodeImportOwnerIndexForTest(ecosystem, name, repoA, repoB strin
 	_ = repoA
 	_ = repoB
 	ambiguous := make(map[string]struct{})
-	for _, key := range packageConsumptionKeys(ecosystem, name) {
+	for _, key := range correlation.PackageConsumptionKeys(ecosystem, name) {
 		ambiguous[key] = struct{}{}
 	}
 	// Seed byKey with one unrelated entry so empty() stays false.

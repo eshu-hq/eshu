@@ -44,20 +44,21 @@
 //
 // # The manifest-consumption injection seam
 //
-// One piece of the family's pre-move behavior does not live here:
-// reconciling a provider alert against repository manifest/lockfile
-// dependency evidence. That logic (extractSecurityAlertManifestConsumptions,
-// security_alert_manifest_dependency_match.go in the reducer root) depends on
-// extractPackageManifestDependencies and packageConsumptionKeys --
-// package-identity decode and normalization logic owned by the reducer
-// root's still-in-root package-consumption-correlation family (issue #6061).
-// A family subpackage may never import the reducer root, so this package
-// exposes ManifestConsumptionExtractor, a function type both
+// One piece of the family's behavior does not live here: reconciling a
+// provider alert against repository manifest/lockfile dependency evidence.
+// That logic (ExtractSecurityAlertManifestConsumptions,
+// packages/correlation/security_alert_manifest_dependency_match.go, moved out
+// of the reducer root with the package correlation family in issue #6061 and
+// exported) depends on ExtractPackageManifestDependencies and
+// PackageConsumptionKeys -- package-identity decode and normalization logic
+// owned by that family. A family subpackage may never import the reducer
+// root, and this package never imports a sibling family directly, so this
+// package exposes ManifestConsumptionExtractor, a function type both
 // BuildSecurityAlertReconciliations/WithQuarantine and
 // SecurityAlertReconciliationHandler (its ExtractManifestConsumptions field)
 // accept as an injected dependency. The handler has exactly one production
 // construction site, defaults_additive_domains_supply_chain.go, where the
-// reducer root wires its own unexported bridge function in;
+// reducer root wires correlation.ExtractSecurityAlertManifestConsumptions in;
 // supply_chain_impact_security_alert.go calls that same bridge directly rather
 // than through a builder, so it is not a construction site. The reducer root's own test
 // files exercise the real manifest-matching behavior end to end
@@ -80,12 +81,10 @@
 // helpers; and schemadecode for the sdk/go/factschema
 // security_alert.repository_alert decode seam. activeRepositoryFactLoader and
 // activePackageManifestDependencyFactLoader are declared locally rather than
-// imported (security_alert_reconciliation_handler.go): the reducer root's own
-// copies (package_source_correlation_handler.go) are shared by several
-// families that have not moved out of root yet, and Go interfaces are
-// satisfied structurally, so the same concrete FactLoader implementation root
-// wires into other families' handlers also satisfies these local
-// declarations without duplicating any logic -- the same pattern
+// imported (security_alert_reconciliation_handler.go): the concrete loader
+// root wires into every family's handler is the one shared factload.FactLoader,
+// and Go interfaces are satisfied structurally, so it also satisfies these
+// local declarations without duplicating any logic -- the same pattern
 // internal/reducer/codetaint's graph_ports.go established. A handful of
 // small, pure helpers this package's own logic touches
 // (package-name-from-purl/package-ID parsing, the dependency-scope and
@@ -97,8 +96,9 @@
 // are deleted from root in the same change and live only here. Each names its
 // root source and history in a doc comment at its definition.
 //
-// The reducer root keeps its own manifest-consumption bridge
-// (security_alert_manifest_dependency_match.go) and re-exports nothing else:
+// The manifest-consumption bridge lives in the package correlation family
+// (packages/correlation/security_alert_manifest_dependency_match.go) and this
+// package re-exports nothing else:
 // every other reducer-root or module caller now names this package's
 // exported symbols directly: cmd/reducer names
 // PostgresSecurityAlertReconciliationWriter, internal/storage/postgres names

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 )
 
@@ -38,7 +39,7 @@ func supplyChainDeploymentIDsFromPayload(payload map[string]any) []string {
 	if deploymentID := payloadStr(payload, "deployment_id"); deploymentID != "" {
 		deploymentIDs = append(deploymentIDs, deploymentID)
 	}
-	for _, entityKey := range payloadOrderedStrings(payload, "entity_keys") {
+	for _, entityKey := range payloadcore.PayloadOrderedStrings(payload, "entity_keys") {
 		if strings.HasPrefix(entityKey, "deployment:") {
 			deploymentIDs = append(deploymentIDs, entityKey)
 		}

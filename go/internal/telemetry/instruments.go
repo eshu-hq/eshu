@@ -5568,9 +5568,9 @@ const (
 	// pom.xml, *.csproj, etc.). The git parser does NOT set artifact_type for
 	// these files; the manifest signal lives in entity metadata instead. A
 	// manifest dependency entity is emitted with entity_type "Variable" and
-	// metadata config_kind "dependency" (the exact pair the reducer's
-	// extractPackageManifestDependencies admits in
-	// internal/reducer/package_consumption_correlation.go). This is the bucket
+	// metadata config_kind "dependency" (the exact pair admitted by
+	// ExtractPackageManifestDependencies in
+	// go/internal/reducer/packages/correlation/consumption.go). This is the bucket
 	// that surfaces a lockfile content_entity explosion (issue #3676).
 	SourceFileKindPackageManifest = "package_manifest"
 	// SourceFileKindConfig represents an infra or config artifact. Classified

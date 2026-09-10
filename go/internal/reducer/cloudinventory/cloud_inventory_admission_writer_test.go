@@ -11,7 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/correlation/cloudinventory"
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/factwritetest"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite/testutil"
 )
 
 func cloudInventoryWriteFixture() CloudInventoryAdmissionWrite {
@@ -85,7 +85,7 @@ func TestPostgresCloudInventoryAdmissionWriterPersistsOneFactPerResource(t *test
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresCloudInventoryAdmissionWriter{DB: db, Now: func() time.Time { return now }}
 
 	result, err := writer.WriteCloudInventoryAdmission(context.Background(), cloudInventoryWriteFixture())
@@ -100,7 +100,7 @@ func TestPostgresCloudInventoryAdmissionWriterPersistsOneFactPerResource(t *test
 	if got, want := len(db.Execs), 1; got != want {
 		t.Fatalf("ExecContext calls = %d, want %d", got, want)
 	}
-	rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs)
+	rows := testutil.DecodeBatchedFactCalls(t, db.Execs)
 	if got, want := len(rows), 2; got != want {
 		t.Fatalf("decoded rows = %d, want %d", got, want)
 	}
@@ -167,7 +167,7 @@ func TestPostgresCloudInventoryAdmissionWriterIsIdempotentByUID(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
-	db := &factwritetest.FakeExecer{}
+	db := &testutil.FakeExecer{}
 	writer := PostgresCloudInventoryAdmissionWriter{DB: db, Now: func() time.Time { return now }}
 	write := cloudInventoryWriteFixture()
 
@@ -185,7 +185,7 @@ func TestPostgresCloudInventoryAdmissionWriterIsIdempotentByUID(t *testing.T) {
 	if len(first.CanonicalIDs) != len(second.CanonicalIDs) {
 		t.Fatalf("canonical id count drift: %d vs %d", len(first.CanonicalIDs), len(second.CanonicalIDs))
 	}
-	rows := factwritetest.DecodeBatchedFactCalls(t, db.Execs)
+	rows := testutil.DecodeBatchedFactCalls(t, db.Execs)
 	half := len(rows) / 2
 	for i := 0; i < half; i++ {
 		if rows[i].FactID != rows[i+half].FactID {

@@ -134,4 +134,35 @@ if env -u ESHU_PACKAGE_DOCS_BASE -u GITHUB_BASE_REF \
   exit 1
 fi
 
+# Regression (staged rename): a commit that completes `git mv old new` derives
+# `old` from the committed base...HEAD diff while the worktree already holds
+# `new`. The verifier must follow the STAGED rename map to `new` and pass when
+# the destination carries docs. The move stays staged and uncommitted with the
+# base at the pre-add commit, so the old path is what the branch diff names --
+# exactly the pre-commit state that falsely failed before the follow.
+rename_repo="$(init_repo rename)"
+mkdir -p "${rename_repo}/go/internal/collector/oldpkg"
+printf 'package oldpkg\n' >"${rename_repo}/go/internal/collector/oldpkg/source.go"
+printf 'package oldpkg\n' >"${rename_repo}/go/internal/collector/oldpkg/doc.go"
+printf '# Old Pkg\n' >"${rename_repo}/go/internal/collector/oldpkg/README.md"
+printf '# Old Pkg Agent Rules\n' >"${rename_repo}/go/internal/collector/oldpkg/AGENTS.md"
+git -C "${rename_repo}" add .
+git -C "${rename_repo}" commit -q -m 'add oldpkg with docs'
+git -C "${rename_repo}" mv go/internal/collector/oldpkg go/internal/collector/newpkg
+expect_pass "${rename_repo}"
+
+# Control: a staged rename to a destination WITHOUT docs must still fail --
+# the follow resolves where to look, it never waives the docs requirement.
+rename_nodocs_repo="$(init_repo rename-nodocs)"
+mkdir -p "${rename_nodocs_repo}/go/internal/collector/oldpkg"
+printf 'package oldpkg\n' >"${rename_nodocs_repo}/go/internal/collector/oldpkg/source.go"
+printf 'package oldpkg\n' >"${rename_nodocs_repo}/go/internal/collector/oldpkg/doc.go"
+printf '# Old Pkg\n' >"${rename_nodocs_repo}/go/internal/collector/oldpkg/README.md"
+printf '# Old Pkg Agent Rules\n' >"${rename_nodocs_repo}/go/internal/collector/oldpkg/AGENTS.md"
+git -C "${rename_nodocs_repo}" add .
+git -C "${rename_nodocs_repo}" commit -q -m 'add oldpkg with docs'
+git -C "${rename_nodocs_repo}" mv go/internal/collector/oldpkg go/internal/collector/newpkg
+git -C "${rename_nodocs_repo}" rm -qf go/internal/collector/newpkg/doc.go
+expect_fail "${rename_nodocs_repo}"
+
 printf 'verify-package-docs tests passed\n'

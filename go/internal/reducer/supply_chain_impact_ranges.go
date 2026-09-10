@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/supplychainmodel"
 	"golang.org/x/mod/semver"
 )
@@ -228,23 +229,10 @@ func normalizeComposerVersion(raw string) (string, bool) {
 	return normalized, true
 }
 
+// exactManifestDependencyVersion forwards to
+// [payloadcore.ExactManifestDependencyVersion].
 func exactManifestDependencyVersion(raw string) (string, bool) {
-	version := strings.TrimSpace(raw)
-	if version == "" {
-		return "", false
-	}
-	lower := strings.ToLower(version)
-	if lower == "latest" || nonVersionDependencyPrefix(lower) {
-		return "", false
-	}
-	if strings.ContainsAny(version, "<>^~*=|, []") ||
-		strings.Contains(lower, " - ") ||
-		strings.Contains(version, "$") ||
-		strings.Contains(lower, ".x") ||
-		strings.Contains(lower, "x.") {
-		return "", false
-	}
-	return version, true
+	return payloadcore.ExactManifestDependencyVersion(raw)
 }
 
 func exactConsumptionDependencyVersion(
@@ -267,21 +255,8 @@ func exactConsumptionDependencyVersion(
 	return exactManifestDependencyVersion(consumption.DependencyRange)
 }
 
+// nonVersionDependencyPrefix forwards to
+// [payloadcore.NonVersionDependencyPrefix].
 func nonVersionDependencyPrefix(lower string) bool {
-	for _, prefix := range []string{
-		"file:",
-		"git+",
-		"github:",
-		"http:",
-		"https:",
-		"link:",
-		"npm:",
-		"portal:",
-		"workspace:",
-	} {
-		if strings.HasPrefix(lower, prefix) {
-			return true
-		}
-	}
-	return false
+	return payloadcore.NonVersionDependencyPrefix(lower)
 }

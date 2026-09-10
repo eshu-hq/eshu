@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
 )
 
@@ -54,7 +55,7 @@ func securityAlertScopedRepositoryIDs(
 			}
 		}
 	}
-	for _, dependency := range extractPackageManifestDependencies(envelopes) {
+	for _, dependency := range correlation.ExtractPackageManifestDependencies(envelopes) {
 		if !securityAlertManifestDependencyMatches(alerts, dependency) {
 			continue
 		}
@@ -69,7 +70,7 @@ func securityAlertScopedEnvelopeAllowed(
 	envelope facts.Envelope,
 ) bool {
 	switch envelope.FactKind {
-	case packageConsumptionCorrelationFactKind:
+	case correlation.PackageConsumptionFactKind:
 		consumption := securityalert.SecurityAlertConsumption{
 			RepositoryID:   payloadStr(envelope.Payload, "repository_id"),
 			RepositoryName: payloadStr(envelope.Payload, "repository_name"),
@@ -82,7 +83,7 @@ func securityAlertScopedEnvelopeAllowed(
 		}
 		return false
 	case factKindContentEntity:
-		for _, dependency := range extractPackageManifestDependencies([]facts.Envelope{envelope}) {
+		for _, dependency := range correlation.ExtractPackageManifestDependencies([]facts.Envelope{envelope}) {
 			if securityAlertScopedManifestDependencyAllowed(alerts, allowedRepositoryIDs, dependency) {
 				return true
 			}
@@ -97,7 +98,7 @@ func securityAlertScopedEnvelopeAllowed(
 
 func securityAlertManifestDependencyMatches(
 	alerts []securityalert.ProviderSecurityAlert,
-	dependency packageManifestDependency,
+	dependency correlation.PackageManifestDependency,
 ) bool {
 	if dependency.RepositoryID == "" || dependency.DependencyName == "" {
 		return false
@@ -109,7 +110,7 @@ func securityAlertManifestDependencyMatches(
 		}) {
 			continue
 		}
-		if securityAlertPackageNameMatchesDependency(alert, dependency) {
+		if correlation.SecurityAlertPackageNameMatchesDependency(alert, dependency) {
 			return true
 		}
 	}
@@ -119,7 +120,7 @@ func securityAlertManifestDependencyMatches(
 func securityAlertScopedManifestDependencyAllowed(
 	alerts []securityalert.ProviderSecurityAlert,
 	allowedRepositoryIDs map[string]struct{},
-	dependency packageManifestDependency,
+	dependency correlation.PackageManifestDependency,
 ) bool {
 	if securityAlertRepositoryIDAllowed(dependency.RepositoryID, allowedRepositoryIDs) &&
 		securityAlertManifestDependencyPackageMatches(alerts, dependency) {
@@ -130,27 +131,10 @@ func securityAlertScopedManifestDependencyAllowed(
 
 func securityAlertManifestDependencyPackageMatches(
 	alerts []securityalert.ProviderSecurityAlert,
-	dependency packageManifestDependency,
+	dependency correlation.PackageManifestDependency,
 ) bool {
 	for _, alert := range alerts {
-		if securityAlertPackageNameMatchesDependency(alert, dependency) {
-			return true
-		}
-	}
-	return false
-}
-
-func securityAlertPackageNameMatches(alert securityalert.ProviderSecurityAlert, dependencyName string) bool {
-	dependencyName = strings.ToLower(strings.TrimSpace(dependencyName))
-	if dependencyName == "" {
-		return false
-	}
-	for _, candidate := range []string{
-		alert.PackageName,
-		packageNameFromPackageID(alert.PackageID),
-		packageNameFromPURL(alert.PackageID),
-	} {
-		if strings.ToLower(strings.TrimSpace(candidate)) == dependencyName {
+		if correlation.SecurityAlertPackageNameMatchesDependency(alert, dependency) {
 			return true
 		}
 	}

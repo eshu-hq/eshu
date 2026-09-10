@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 )
 
 // codeImportEvidenceSource labels repo-to-repo DEPENDS_ON edges derived from
@@ -33,7 +34,7 @@ const codeImportRepoEdgeConfidence = 0.6
 // identity used to enqueue durable repo-dependency projection intents.
 //
 // Owners is the codeImportOwnerIndex built from exact/derived
-// PackagePublicationDecision and PackageSourceCorrelationDecision records joined
+// PackagePublicationDecision and PackageSourceDecision records joined
 // to package-registry identity facts on the sanctioned (ecosystem, name) key
 // (the same join issue #3598 uses) via buildCodeImportOwnerIndex.
 type CodeImportRepoDependencyInput struct {
@@ -280,7 +281,7 @@ func codeImportResolvedID(consumerRepoID, ownerRepoID string) string {
 // repository through the sanctioned (ecosystem, name) consumption key. It is the
 // composition of two maps proven correct by issue #3598:
 //
-//   - byKey: packageConsumptionKeys(ecosystem, name) -> owning RepositoryID,
+//   - byKey: correlation.PackageConsumptionKeys(ecosystem, name) -> owning RepositoryID,
 //     built from package-registry identity facts joined to exact/derived
 //     ownership/publication decisions on PackageID.
 //   - ambiguous: consumption keys that resolved to more than one distinct owning
@@ -322,7 +323,7 @@ const (
 // import is never silently counted as unresolved.
 func (idx codeImportOwnerIndex) lookupStatus(ecosystem, coordinate string) (string, codeImportLookupStatus) {
 	sawAmbiguous := false
-	for _, key := range packageConsumptionKeys(ecosystem, coordinate) {
+	for _, key := range correlation.PackageConsumptionKeys(ecosystem, coordinate) {
 		if _, bad := idx.ambiguous[key]; bad {
 			sawAmbiguous = true
 			continue
@@ -415,34 +416,34 @@ func classifyCodeImportEdges(input CodeImportRepoDependencyInput) codeImportEdge
 // owner rather than picking one arbitrarily.
 func buildCodeImportOwnerIndex(
 	envelopes []facts.Envelope,
-	ownership []PackageSourceCorrelationDecision,
-	publication []PackagePublicationDecision,
+	ownership []correlation.PackageSourceDecision,
+	publication []correlation.PackagePublicationDecision,
 ) codeImportOwnerIndex {
-	ownersByPackageID := resolvePackageOwners(ownership, publication)
+	ownersByPackageID := correlation.ResolvePackageOwners(ownership, publication)
 	if len(ownersByPackageID) == 0 {
 		return codeImportOwnerIndex{}
 	}
 
 	byKey := make(map[string]string)
 	ambiguous := make(map[string]struct{})
-	for _, identity := range extractPackageRegistryIdentities(envelopes) {
+	for _, identity := range correlation.ExtractPackageRegistryIdentities(envelopes) {
 		owner, ok := ownersByPackageID[strings.TrimSpace(identity.PackageID)]
-		if !ok || owner.repoID == "" {
+		if !ok || owner.RepoID == "" {
 			continue
 		}
 		for _, name := range identity.Names {
-			for _, key := range packageConsumptionKeys(identity.Ecosystem, name) {
+			for _, key := range correlation.PackageConsumptionKeys(identity.Ecosystem, name) {
 				if _, bad := ambiguous[key]; bad {
 					continue
 				}
 				existing, seen := byKey[key]
-				if seen && existing != owner.repoID {
+				if seen && existing != owner.RepoID {
 					// Same coordinate, two different owners: ambiguous, drop it.
 					delete(byKey, key)
 					ambiguous[key] = struct{}{}
 					continue
 				}
-				byKey[key] = owner.repoID
+				byKey[key] = owner.RepoID
 			}
 		}
 	}

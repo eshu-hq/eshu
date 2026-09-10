@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/packagesourcecore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/source"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
@@ -222,7 +222,7 @@ func matchServiceCatalogRepositoryURL(
 	link serviceCatalogRepositoryLinkEvidence,
 	lookup serviceCatalogRepositoryLookup,
 ) ([]serviceCatalogRepositoryMatch, []serviceCatalogRepositoryEvidence) {
-	linkKey := packagesourcecore.CanonicalURLKey(link.repositoryURL)
+	linkKey := source.CanonicalURLKey(link.repositoryURL)
 	if linkKey == "" {
 		return nil, nil
 	}
@@ -234,7 +234,7 @@ func matchServiceCatalogRepositoryURL(
 		outcome := ServiceCatalogCorrelationDerived
 		reason := "catalog repository link matches repository remote after git URL canonicalization"
 		strength := 1
-		if packagesourcecore.ExactURLMatch(link.repositoryURL, repository.remoteURL) {
+		if source.ExactURLMatch(link.repositoryURL, repository.remoteURL) {
 			outcome = ServiceCatalogCorrelationExact
 			reason = "catalog repository link matches repository remote exactly"
 			strength = 2
