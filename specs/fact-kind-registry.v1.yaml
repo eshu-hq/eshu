@@ -385,6 +385,7 @@ families:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"
     reducer_domain: supply_chain_impact
+    reducer_dir: go/internal/reducer/supplychain/core
     projection_hook: supply_chain_impact
     admission_hook: facts.ValidateSchemaVersion
     read_surface: "GET /api/v0/supply-chain/impact/findings"
@@ -574,6 +575,7 @@ families:
     lifecycle_owner: go/internal/facts
     schema_version: "1.0.0"
     reducer_domain: supply_chain_impact
+    reducer_dir: go/internal/reducer/supplychain/core
     projection_hook: vulnerability_source_state
     admission_hook: facts.ValidateSchemaVersion
     read_surface: "GET /api/v0/supply-chain/impact/findings"
@@ -603,6 +605,7 @@ families:
     lifecycle_owner: go/internal/facts
     schema_version: "1.1.0"
     reducer_domain: supply_chain_impact
+    reducer_dir: go/internal/reducer/supplychain/core
     projection_hook: vulnerability_suppression_admission
     admission_hook: facts.ValidateSchemaVersion
     read_surface: "GET /api/v0/supply-chain/impact/findings"
