@@ -249,3 +249,41 @@ func TestResetSparesBackwardEvidencePhases(t *testing.T) {
 			"republishes", string(gpphase.KeyspaceCrossRepoEvidence))
 	}
 }
+
+// TestResetRetirementGuardsAgainstLiveReducerLeases is the Codex #6184 P1
+// hermetic pin for the atomic half of the in-flight reducer fence. Retirement
+// must commit only when no reducer row holds a live lease on the refinalized
+// pairs, in the same statement: a drain-wait poll alone leaves the
+// poll-to-commit window open for a claim landing between the last poll and the
+// UPDATE. Asserted against the shipped constant, not a copied literal, and the
+// arg reuse ($1/$2 re-unnested) is asserted too: a guard binding a different
+// set than the outer IN retires would fence the wrong generations.
+func TestResetRetirementGuardsAgainstLiveReducerLeases(t *testing.T) {
+	t.Parallel()
+
+	var generations Generations
+	generations.Append("scope-a", "gen-a")
+
+	retire, args := buildResetQuery(retireResolutionGenerationsTemplate, generations)
+	if !strings.Contains(retire, "NOT EXISTS") {
+		t.Fatalf("generation retirement lost its live-lease guard; a resolver claimed before "+
+			"refinalize would get its generation retired mid-flight, then re-activate it stale\n%s", retire)
+	}
+	for _, want := range []string{
+		"fact_work_items",
+		"stage = 'reducer'",
+		"'claimed'",
+		"'running'",
+		"claim_until > now()",
+		"unnest($1::text[], $2::text[])",
+	} {
+		if !strings.Contains(retire, want) {
+			t.Fatalf("generation retirement guard does not pin %q; the fence would admit "+
+				"stale in-flight resolution\n%s", want, retire)
+		}
+	}
+	if len(args) != 2 {
+		t.Fatalf("retirement binds %d args, want 2: the guard must reuse the outer "+
+			"generation arrays, not bind its own set", len(args))
+	}
+}

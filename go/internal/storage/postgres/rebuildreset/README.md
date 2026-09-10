@@ -36,8 +36,15 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   once, first, inside its transaction.
 - `Generations` — that set, held as two index-aligned arrays. Build it with
   `Append`; `Args` hands it to a statement.
-- `Apply(ctx, tx, generations) (Counts, error)` — runs the three resets inside
+- `Apply(ctx, tx, generations) (Counts, error)` — runs the four resets inside
   the caller's transaction, against the set it was given.
+- `ReadAffectedGenerations`, `EnqueueProjectorWork`, `WaitForReducerDrain`,
+  `AssertRetirementFenced` — the ordered coordination prelude the caller runs
+  in its transaction before `Apply`: read the set once, wait out in-flight
+  reducer leases (bounded), re-enqueue projector work, then confirm the
+  retirement actually committed. `InflightReducersError` is the abort signal.
+  `Queryer`/`Rows` are narrow local interfaces so this package never imports
+  its caller.
 - `Counts` — how many rows each reset touched, surfaced to the operator in the
   `recover-generations` response.
 - `Execer` — the narrow `ExecContext` surface, declared here so the dependency
@@ -49,6 +56,17 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   and running rows hold live leases a rebuild must not yank; `dead_letter` and
   `failed` belong to the replay endpoint and contributed nothing to the pre-wipe
   graph.
+- **Retire only over drained reducers.** The generation retirement carries an
+  atomic live-lease guard: it commits only when no reducer row holds a live
+  lease (`claimed`/`running` with `claim_until > now()`) on the refinalized
+  pairs. A resolver that claimed before the refinalize would otherwise get its
+  generation retired mid-flight, then re-activate it with stale rows while its
+  success ack dedupes the re-emitted intent (Codex #6184 P1). The caller waits
+  out the drain first and aborts past its bound; the guard closes the
+  poll-to-commit window in the same statement. Expired leases are reclaimable,
+  not in-flight: whoever reclaims such a row resolves post-retirement, which is
+  the legitimate re-projection direction, so crashed workers never wedge
+  recovery.
 - **Delete, do not reset to pending.** A pending row is claimable before the
   projector re-run that owns its inputs has committed anything, which is the same
   silent-incompleteness defect this package exists to fix. Reset-to-pending also

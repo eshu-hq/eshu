@@ -6,7 +6,7 @@
 //
 // Eshu's graph is a projection: throw it away, keep Postgres, and a refinalize
 // replays every active generation to rebuild it. That worked for source-local
-// structure and stopped there, because three pieces of Postgres state outlive a
+// structure and stopped there, because four pieces of Postgres state outlive a
 // graph wipe and each one tells the pipeline the work is already done.
 //
 //  1. Succeeded reducer work items. A re-projection re-derives every reducer
@@ -21,6 +21,9 @@
 //     committed. After a wipe that assertion is false, and it is the worst kind
 //     of false: the edge Cypher is MATCH-only, so work admitted on a stale
 //     readiness answer matches nothing, writes nothing, and still acks succeeded.
+//  4. Active relationship generations. The phase wipe does not touch
+//     relationship_generations, so without retirement the re-projection's
+//     resolved read keeps serving the prior wave's rows as current truth.
 //
 // Both dedup guards stay exactly as they are. They are correct for ordinary
 // operation, where every shard drain, reopen, and retry depends on completed
@@ -28,15 +31,18 @@
 // generations a refinalize is actually rebuilding, issued once by the recovery
 // path, in the same transaction as the projector re-enqueue.
 //
-// Apply is the entry point; Counts reports what it cleared.
+// Apply is the entry point; Counts reports what it cleared. The ordered
+// coordination around it — ReadAffectedGenerations, EnqueueProjectorWork,
+// WaitForReducerDrain, AssertRetirementFenced in finalize.go — is part of the
+// same contract: the caller runs the prelude in its transaction before Apply,
+// so every statement binds the one generation set read first, and retirement
+// never commits under a resolver holding a live lease (Codex #6184 P1).
 //
-// The caller runs AffectedGenerationsQuery once, at the top of its refinalize
-// transaction, and binds the Generations it returns to both its own projector
-// re-enqueue and to Apply. That is deliberate: a refinalize transaction runs at
-// Postgres's default READ COMMITTED isolation, so a statement that re-derived
-// the generation set would get its own snapshot, and an ingester activating a
-// generation mid-refinalize could leave the enqueue rebuilding one generation
-// while the resets cleared another. One read, four bindings.
+// A refinalize transaction runs at Postgres's default READ COMMITTED
+// isolation, so a statement that re-derived the generation set would get its
+// own snapshot, and an ingester activating a generation mid-refinalize could
+// leave the enqueue rebuilding one generation while the resets cleared
+// another. One read, every statement binds it.
 //
 // Why the reducer rows are DELETED rather than reset to pending: a pending row
 // is claimable immediately, before the projector re-run that owns its inputs has
