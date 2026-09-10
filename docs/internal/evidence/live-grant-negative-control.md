@@ -112,7 +112,7 @@ credentials (`:57`) and starts Bolt with `boltConfig.RequireAuth = true`
 So `ESHU_NEO4J_URI` must point at a backend that accepts unauthenticated Bolt —
 in practice the pinned NornicDB container — and these tests **cannot** exercise
 the embedded runtime as configured. This is pre-existing: the helper predates
-this branch (last touched 2026-09-05) and is shared by all five tagged files in
+this branch (created in `276d75016`, 2026-09-06) and is shared by all five tagged files in
 this package; the new controls simply inherit it. It is recorded here rather than
 fixed, because changing the helper's auth would alter what every sibling test
 connects to.

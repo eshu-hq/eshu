@@ -33,7 +33,8 @@ No local override lowers the pool: `runtime.LoadPostgresConfig` returns 30 for
 every process unless `ESHU_POSTGRES_MAX_OPEN_CONNS` is set, and nothing in
 `internal/eshulocal` or the `cmd/` entrypoints reduces it for local profiles.
 
-**Consequence.** The local supervisor alone runs three pool-holding children
+**Consequence.** Under the `mcp_stdio` owner mode the local supervisor alone runs
+three pool-holding children
 concurrently. Three such processes want 90 connections against a server that
 admits 35 (32 usable: `superuser_reserved_connections` is 3), so the local stack can exhaust connections ("too many clients
 already") and refuse the operator's own diagnostic session — the exact failure
@@ -130,7 +131,12 @@ there rather than being swallowed.
 Mutation-proved, worktree `pgconns`. Unlike the live run recorded further
 down, these two mutants ARE reproducible at this head: the resolver and both
 guards exist here, so the transcript below can be regenerated rather than
-taken on trust.
+taken on trust. It is abridged to the first failing test: `-run
+'ResolveLocalPostgres'` now matches three tests, and mutating the resolver also
+fails `TestResolveLocalPostgresMaxConnectionsFollowsConfiguredPool`, whose
+"raised pool raises the ceiling" case wants `5 * 60 + 20 = 320` and would get
+170. Narrow to `-run 'CoversTheConfiguredPoolBudget'` to reproduce exactly what
+is shown.
 
 ```text
 $ (resolver mutated to ignore the env knob)
