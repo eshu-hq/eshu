@@ -223,7 +223,7 @@ for the same reason.
   short-circuit returns; for the largest fact set the handler observes in
   CI fixtures (`TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings`
   in `impact_test.go` and the new
-  `suppression_handler_test.go` cases) the additional decode
+  `handler_test.go` cases) the additional decode
   and evaluate steps stay under one millisecond per finding on the same
   scope, so the existing `go test ./internal/reducer -count=1` gate is the
   baseline.

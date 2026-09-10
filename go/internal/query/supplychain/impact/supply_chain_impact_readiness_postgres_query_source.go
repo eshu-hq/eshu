@@ -270,7 +270,7 @@ os_package_active AS (
     -- (distro/package identity only); the scanned image is resolved through
     -- the sibling scanner_worker.analysis fact in the SAME scan scope below,
     -- the identical join the reducer uses to stamp SubjectDigest (issue
-    -- #5463, go/internal/reducer/supply_chain_impact.go).
+    -- #5463, supplychain/core/impact.go).
     SELECT fact.payload, fact.observed_at, fact.scope_id, fact.generation_id
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope

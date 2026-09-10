@@ -28,8 +28,9 @@ const supplyChainImpactCostIntentID = "intent-supply-chain-impact-cost"
 
 // supplyChainImpactFixtureFindings is the deterministic input for this
 // scenario: two affected_exact findings for distinct CVEs in one scope.
-// WriteSupplyChainImpactFindings (go/internal/reducer/supply_chain_impact_
-// writer.go) now calls the shared reducerBatchInsertVersionedFacts bounded
+// WriteSupplyChainImpactFindings
+// (go/internal/reducer/supplychain/core/writer.go) now calls the shared
+// reducerBatchInsertVersionedFacts bounded
 // chunked bulk insert (issue #5317), so two findings fit in one 1000-row
 // chunk and cost exactly one ExecContext round-trip.
 func supplyChainImpactFixtureFindings() []reducer.SupplyChainImpactFinding {

@@ -106,7 +106,7 @@ func securityAlertVersionTextLooksLikeRange(raw string) bool {
 // (security_alert.go): a short fallback shared with
 // supplychain/core's own finding assembly (issue #6061),
 // for the same reason as the helpers in
-// security_alert_reconciliation.go.
+// reconciliation.go.
 func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) string {
 	if strings.TrimSpace(consumption.EvidenceKind) != "" {
 		return strings.TrimSpace(consumption.EvidenceKind)

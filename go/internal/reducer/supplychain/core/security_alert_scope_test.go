@@ -12,7 +12,7 @@ import (
 )
 
 // TestSupplyChainImpactSecurityAlertScopingSurvivesAllMalformedAlerts is the
-// codex P1 regression (security_alert_reconciliation_decode.go:74): when every
+// codex P1 regression (securityalert/reconciliation_decode.go:74): when every
 // security_alert.repository_alert in a security-alert-triggered
 // supply_chain_impact intent is missing its required repository_id, the lenient
 // pre-filter extractor (securityalert.ExtractProviderSecurityAlerts) must still

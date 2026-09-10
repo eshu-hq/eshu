@@ -59,7 +59,7 @@ state flow into `supply_chain_impact` as promoted truth.
 - The `cvss` (`map[string]any`), `epss` (`map[string]string`), and `cwes`
   (`[]map[string]string`) container fields model the RAW collector shapes; the
   reducer applies its own trim / drop-empty normalization after decode
-  (`security_alert_reconciliation_decode.go`), so this struct must not itself
+  (`reducer/securityalert/reconciliation_decode.go`), so this struct must not itself
   prune or reshape them — the decode stays a faithful mirror of the wire
   payload.
 - `ClassificationInputInvalid` is the parent `factschema` package's own

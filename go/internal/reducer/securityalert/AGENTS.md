@@ -30,7 +30,7 @@ tree. The one addition specific to this package:
   duplicating it risks security_alert's matching silently drifting from
   supply_chain_impact's identical matching) or taking over an unrelated,
   unscoped family. `ManifestConsumptionExtractor`
-  (`security_alert_reconciliation.go`) is the resulting seam: this package
+  (`reconciliation.go`) is the resulting seam: this package
   defines the function type and calls it if non-nil, and never imports the
   package correlation family directly; the reducer root wires
   `correlation.ExtractSecurityAlertManifestConsumptions` at the
@@ -72,7 +72,7 @@ If you rename or reshape a fixture here that one of those root files mirrors
 (by name or by the comment citing it), check whether the root copy needs the
 same change — nothing enforces they stay in sync.
 
-`security_alert_reconciliation_batch_insert_test_helpers_test.go` in this
+`reconciliation_batch_insert_test_helpers_test.go` in this
 package is itself a local copy of the reducer root's generic
 `reducer_fact_batch_insert_test_helpers_test.go`, trimmed to the
 non-versioned pieces this package's writer test uses — the same pattern

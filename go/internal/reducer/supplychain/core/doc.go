@@ -27,7 +27,8 @@
 // stanza in the parent's compat_correlation.go. File names in this package
 // carry no family prefix (rule: never repeat the directory in the file
 // name); the impact builders live in short plain-English files
-// (finding.go, writer.go, index_build.go), suppression in suppression*.go,
+// (finding.go, writer.go, index_build.go); the suppression story lives in
+// evaluation.go (Decision + Evaluate), decode.go, reasons.go, and scope.go;
 // and the Go reachability classifier in go_reachability*.go.
 //
 // The exported surface is the join contract other families program against:

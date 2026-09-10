@@ -81,7 +81,7 @@
 // helpers; and schemadecode for the sdk/go/factschema
 // security_alert.repository_alert decode seam. activeRepositoryFactLoader and
 // activePackageManifestDependencyFactLoader are declared locally rather than
-// imported (security_alert_reconciliation_handler.go): the concrete loader
+// imported (reconciliation_handler.go): the concrete loader
 // root wires into every family's handler is the one shared factload.FactLoader,
 // and Go interfaces are satisfied structurally, so it also satisfies these
 // local declarations without duplicating any logic -- the same pattern

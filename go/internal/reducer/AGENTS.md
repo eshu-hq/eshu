@@ -93,7 +93,7 @@ before touching any file in this directory.
   change — the corpus FAILS if a tracked gap is fixed but its marker is left
   behind, so markers cannot go stale.
 - **Security-alert reconciliation identity is provider-alert stable** —
-  `security_alert_reconciliation_writer.go` must key reducer facts by provider,
+  `securityalert/reconciliation_writer.go` must key reducer facts by provider,
   provider alert id or number, provider evidence scope, package id, and advisory
   ids. Do not include mutable canonical `repository_id` or source fact id in
   the replacement identity, or provider-only placeholders can remain active

@@ -60,7 +60,7 @@ type SupplyChainImpactFinding struct {
 	WorkloadIDs           []string
 	// ServiceWorkloadPairs is genuine (ServiceID, WorkloadID) co-occurrence
 	// for tuple-aware suppression matching (#5466 F-2); see
-	// runtime.go and suppression_scope_match.go.
+	// runtime.go and scope.go.
 	ServiceWorkloadPairs []SupplyChainServiceWorkloadPair
 	DeploymentIDs        []string
 	ServiceIDs           []string

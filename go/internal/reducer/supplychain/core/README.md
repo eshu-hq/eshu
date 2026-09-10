@@ -20,8 +20,9 @@ package.
 ## Files
 
 70 non-test files: 63 `impact*`/`*.go` short names (impact builders,
-ecosystem matchers, reachability, anchoring, writers), 4 `suppression*`
-(suppression decode, scope match, reasons), 3 `go_reachability*` (Go
+ecosystem matchers, reachability, anchoring, writers), 4 suppression-story
+files (`evaluation.go`, `decode.go`, `reasons.go`, `scope.go`), 3
+`go_reachability*` (Go
 module/call reachability classifier), plus 80 test files. No file repeats
 the directory name.
 
@@ -31,7 +32,7 @@ the directory name.
 | `finding.go` | `SupplyChainImpactFinding` (carries the `Suppression` field: impact + suppression are one unit) |
 | `writer.go` | `PostgresSupplyChainImpactWriter`, batched versioned inserts |
 | `winners_maintainer.go` | `SupplyChainImpactWinnersMaintainer` read-model resweep |
-| `suppression*.go` | Suppression decode, scope match, reasons |
+| `evaluation.go`, `decode.go`, `reasons.go`, `scope.go` | Suppression story: Decision + Evaluate, decode, reasons, scope match |
 | `go_reachability*.go` | Go module/call reachability classification |
 | `cross_scope_test_doubles_test.go` | Family-local test doubles (each side keeps its own copy) |
 
