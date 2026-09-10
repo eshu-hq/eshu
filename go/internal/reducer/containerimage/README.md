@@ -50,7 +50,7 @@ internals except through the root's compatibility aliases.
 Imports point strictly downward. This package reaches `reducer/contract`,
 `reducer/factload`, `reducer/factdecode`, `reducer/factwrite`,
 `reducer/payloadcore`, `reducer/schemadecode`, `reducer/cicdrun`,
-`reducer/packagesourcecore`, `reducer/sbomattest`, `internal/facts`,
+`reducer/packages/source`, `reducer/sbomattest`, `internal/facts`,
 `internal/telemetry`, `internal/truth`, and the factschema SDK, and it never
 imports the parent `internal/reducer` package. The dependency runs the other
 way: the root keeps compatibility aliases in

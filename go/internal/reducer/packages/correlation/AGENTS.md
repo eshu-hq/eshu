@@ -11,7 +11,7 @@ define the done bar; re-read both before changing anything here.
 
 - Never import the parent reducer package, and never let the shared tier
   (`contract`, `factload`, `factwrite`, `crossrepo`, `sharedintent`,
-  `payloadcore`, `admissiondecision`, `packagesourcecore`) import this
+  `payloadcore`, `admissiondecision`, `packages/source`) import this
   package. The `securityalert` import stays one-way (this package reads its
   exported alert/consumption types; `securityalert` keeps local copies of
   the bridge helpers it needs and never imports this package).

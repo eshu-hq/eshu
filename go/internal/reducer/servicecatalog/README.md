@@ -65,7 +65,7 @@ prefix is a historical artifact of the flat root, not a package boundary.
 
 Imports point strictly downward. This package reaches `reducer/contract`,
 `reducer/factload`, `reducer/factdecode`, `reducer/factwrite`,
-`reducer/payloadcore`, `reducer/schemadecode`, `reducer/packagesourcecore`,
+`reducer/payloadcore`, `reducer/schemadecode`, `reducer/packages/source`,
 `internal/facts`, `internal/relationships`, `internal/telemetry`,
 `internal/truth`, and the factschema SDK, and it never imports the parent
 `internal/reducer` package. The dependency runs the other way: the root keeps
@@ -82,7 +82,7 @@ duplicating any logic — the established precedent is
 `internal/reducer/codetaint/graph_ports.go`.
 
 `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL` moved to
-`packagesourcecore` as `ExactURLMatch`/`NormalizeExactURL`, alongside the
+`packages/source` as `ExactURLMatch`/`NormalizeExactURL`, alongside the
 sibling `CanonicalURLKey` canonicalizer that family already owned; the root
 keeps a one-line forwarder for its own remaining caller in
 `packages/correlation/source.go`.
@@ -140,7 +140,7 @@ telemetry-coverage rows point at changed.
 
 - **Do not import the reducer root from here.** If this package needs a
   symbol the root defines, hoist it to a shared-core tier
-  (`payloadcore`/`contract`/`packagesourcecore`/etc.) with a root forwarder,
+  (`payloadcore`/`contract`/`packages/source`/etc.) with a root forwarder,
   or — if the symbol is genuinely root-owned and shared by other still-in-root
   families — redeclare a structurally identical interface locally, the way
   `RepositoryScopedResolvedRelationshipLoader` does here.

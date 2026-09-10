@@ -58,7 +58,7 @@ read the durable facts; they never import this package.
 
 One-way imports only: this package reads the shared tier (`contract`,
 `factload`, `factwrite`, `crossrepo`, `sharedintent`, `payloadcore`,
-`admissiondecision`, `packagesourcecore`), `facts`, `packageidentity`,
+`admissiondecision`, `packages/source`), `facts`, `packageidentity`,
 `telemetry`, and `securityalert`'s exported types. It never imports the
 parent reducer package. The parent references it only through
 `correlation`-qualified names.

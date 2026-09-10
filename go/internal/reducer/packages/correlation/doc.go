@@ -16,7 +16,7 @@
 //
 // Dependency rule: this package imports the shared tier (contract, factload,
 // factwrite, crossrepo, sharedintent, payloadcore, admissiondecision,
-// packagesourcecore), facts, packageidentity, and telemetry, and the
+// source), facts, packageidentity, and telemetry, and the
 // already-extracted securityalert subpackage one-way (only its exported
 // alert/consumption types). It never imports the parent reducer package, and
 // the parent references it only through package correlation-qualified names —

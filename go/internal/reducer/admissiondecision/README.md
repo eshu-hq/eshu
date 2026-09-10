@@ -8,7 +8,7 @@ why a correlation or materialization candidate ended up admitted, rejected,
 ambiguous, stale, missing evidence, permission-hidden, unsupported, or unsafe.
 This package moved out of the flat `internal/reducer` root under issue #6061
 (a seam hoist, not a family move: it unblocks the `cloudinventory` and
-`packagesourcecore` family hoists queued behind it).
+`packages/source` family hoists queued behind it).
 
 ## Ownership boundary
 

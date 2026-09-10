@@ -19,7 +19,7 @@
 // schemadecode for the sdk/go/factschema decode seam (AWS/Azure/GCP image
 // references, OCI registry and CI/CD envelopes, SBOM attestation predicates);
 // cicdrun for the CI-run correlation key/pointer helpers the build-provenance
-// join reads; packagesourcecore for repository-hint matching; and sbomattest
+// join reads; packages/source for repository-hint matching; and sbomattest
 // for the attestation attachment decisions the SLSA provenance join reads.
 // The reducer root keeps a compatibility surface
 // (the container-image stanza of compat_cloud.go) that aliases this family's exported

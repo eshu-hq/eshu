@@ -12,7 +12,7 @@ Imports point strictly downward:
 This package is a family. It may import `reducer/contract`,
 `reducer/factload`, `reducer/factdecode`, `reducer/factwrite`,
 `reducer/payloadcore`, `reducer/schemadecode`, `reducer/cicdrun`,
-`reducer/packagesourcecore`, `reducer/sbomattest`, `internal/facts`,
+`reducer/packages/source`, `reducer/sbomattest`, `internal/facts`,
 `internal/telemetry`, `internal/truth`, and the factschema SDK. It must
 **never** import the parent `internal/reducer` package, directly or
 transitively.
