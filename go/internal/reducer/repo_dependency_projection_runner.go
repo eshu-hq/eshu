@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-//nolint:filelength // 513 lines: the #6184 quiescence gate threads through runSerial/processOnce control flow, which cannot leave this file without restructuring the hot loop; the structural runner split is tracked by #6061.
+//nolint:filelength // The #6184 quiescence gate threads through runSerial/processOnce control flow, which cannot leave this file without restructuring the hot loop; the structural runner split is tracked by #6061.
 package reducer
 
 import (
