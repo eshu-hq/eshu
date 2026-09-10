@@ -265,9 +265,6 @@ func mainPlanHasSeqScan(plan string) bool {
 			if relationship, ok := typed["Parent Relationship"].(string); ok && relationship == "InitPlan" {
 				return
 			}
-			if _, ok := typed["Subplan Name"]; ok {
-				return
-			}
 			if nodeType, ok := typed["Node Type"].(string); ok && nodeType == "Seq Scan" {
 				found = true
 			}
@@ -296,6 +293,16 @@ func planReachesIndexCond(plan string, column string) bool {
 	walk = func(value any) {
 		switch typed := value.(type) {
 		case map[string]any:
+			// Skip InitPlan subtrees for the same reason mainPlanHasSeqScan does,
+			// and here it is load-bearing rather than cosmetic: migration 104 is
+			// (language, entity_type), so the uncorrelated access-grant EXISTS gate
+			// ALWAYS carries an Index Cond naming `language`. Walking into it makes
+			// this assertion true no matter how the ordered page read is served —
+			// including when this migration is absent, which is the exact #6540
+			// regression the assertion exists to catch.
+			if relationship, ok := typed["Parent Relationship"].(string); ok && relationship == "InitPlan" {
+				return
+			}
 			if cond, ok := typed["Index Cond"].(string); ok && strings.Contains(cond, column) {
 				found = true
 			}
