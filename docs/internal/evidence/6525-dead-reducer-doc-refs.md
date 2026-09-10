@@ -9,7 +9,7 @@ references in an allowlist.
 
 ## Residual debt, disclosed rather than implied away
 
-Commit `1ec7c4305` says "Repoint 40 of them across 50 files" and "Thirteen dead
+Commit `899f2d388` says "Repoint 40 of them across 50 files" and "Thirteen dead
 paths are deliberate negative fixtures", which sums to 53 and reads as a
 complete sweep. **It is not complete, and the arithmetic should not be read as
 claiming it is.**
@@ -25,7 +25,7 @@ Re-derived over the commit's own scope (`docs/ scripts/ specs/ go/`, distinct
 Of the 53: 28 distinct paths were repointed, 13 are declared fixtures, 1 is an
 undeclared fixture (`container_image_identity.go`, referenced only from
 `scripts/test-verify-performance-evidence-inherited-marker.sh`), 1 is an
-allowlisted transcript, 2 are self-test artifacts, and **11 ordinary repointable
+allowlisted transcript, 2 are self-test artifacts, and **13 ordinary repointable
 dead paths remain**:
 
     ci_cd_run_correlation_writer.go              -> reducer/cicdrun/
@@ -60,8 +60,8 @@ was already dead before this branch started, exactly like the other ten. What is
 actually different is that it is the one path this branch tried to clear and had
 to put back; why the 4784/4786 explanation does not cover it is stated further
 down this section. Commit
-`1ec7c4305` repointed the three `factschema_decode.go` references in the Go
-comments of `go/internal/relationships/gcp_evidence.go`, and `bc1589019`
+`899f2d388` repointed the three `factschema_decode.go` references in the Go
+comments of `go/internal/relationships/gcp_evidence.go`, and `fa222cef9`
 REVERTED that file. The reason is recorded in that commit: the
 parser-relationship kit reasons over file PATHS rather than diffs, so any
 change under `go/internal/relationships/**.go` — a comment edit included —
@@ -77,7 +77,7 @@ Unlike the other ten, this one is NOT reachable from 4784 or 4786, so that
 explanation does not cover it.
 
 **The head row above predates this revert.** The table was measured in
-`ed93049f5`, which is an ancestor of `bc1589019` (`git merge-base
+`9e8939007`, which is an ancestor of `fa222cef9` (`git merge-base
 --is-ancestor` confirms it), so its `27` counts the state before the three
 references came back. Read the head dead-path count as one higher than the
 table shows. The table is left as measured rather than silently re-stated,
