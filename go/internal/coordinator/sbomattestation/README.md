@@ -19,7 +19,7 @@ telemetry. Methods on `coordinator.Service` remain in the parent package.
 
 ## Dependencies
 
-`plannercontract` validates plan keys; `facts`, `scope`, and `workflow` provide
+`contract` validates plan keys; `facts`, `scope`, and `workflow` provide
 stable identities and durable row contracts. This package does not import its
 parent.
 

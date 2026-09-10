@@ -24,7 +24,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/coordinator/plannercontract` validates the shared plan-key grammar.
+- `internal/coordinator/planner/contract` validates the shared plan-key grammar.
 - `internal/facts` builds stable generation identities.
 - `internal/scope` and `internal/workflow` provide collector and durable
   workflow contracts.
@@ -58,6 +58,6 @@ root `CICDRunPlanner` interface.
 ## Related docs
 
 - `go/internal/coordinator/README.md`
-- `go/internal/coordinator/plannercontract/README.md`
+- `go/internal/coordinator/planner/contract/README.md`
 - `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

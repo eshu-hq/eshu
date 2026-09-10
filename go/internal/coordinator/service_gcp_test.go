@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeGCPPlanner struct {
-	requests []gcpplanner.PlanRequest
+	requests []gcp.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -23,7 +23,7 @@ type fakeGCPPlanner struct {
 
 func (f *fakeGCPPlanner) PlanGCPWork(
 	_ context.Context,
-	request gcpplanner.PlanRequest,
+	request gcp.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -152,7 +152,7 @@ func TestServiceRunActiveModeSkipsGCPWorkWhenPriorTargetIsOpen(t *testing.T) {
 			}},
 		},
 		Store:      store,
-		GCPPlanner: gcpplanner.WorkPlanner{},
+		GCPPlanner: gcp.WorkPlanner{},
 		Clock:      func() time.Time { return now },
 	}
 
@@ -203,7 +203,7 @@ func TestServiceRunActiveModeFiltersDeniedGCPTenantScopes(t *testing.T) {
 			}},
 		},
 		Store:      store,
-		GCPPlanner: gcpplanner.WorkPlanner{},
+		GCPPlanner: gcp.WorkPlanner{},
 		TenantGrantReader: &fakeTenantGrantReader{
 			grants: []WorkflowTenantScopeGrant{{
 				ScopeID:            authorizedScope,
@@ -248,7 +248,7 @@ func testServiceGCPInstance(observedAt time.Time) workflow.CollectorInstance {
 }
 
 // testServiceGCPConfigWithTwoEnabledScopes mirrors
-// gcpplanner's own fixture of the same shape; root keeps its own copy so
+// gcp's own fixture of the same shape; root keeps its own copy so
 // this file does not reach into the child package's private test helpers.
 func testServiceGCPConfigWithTwoEnabledScopes() string {
 	return `{

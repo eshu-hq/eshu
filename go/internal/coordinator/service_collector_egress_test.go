@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
@@ -216,7 +216,7 @@ func TestServiceIncidentFreshnessSkipsDeniedCollectorEgress(t *testing.T) {
 			}`),
 		},
 		Store:                     store,
-		PagerDutyPlanner:          pagerdutyplanner.WorkPlanner{},
+		PagerDutyPlanner:          pagerduty.WorkPlanner{},
 		IncidentFreshnessTriggers: triggerStore,
 		Clock:                     func() time.Time { return now },
 	}

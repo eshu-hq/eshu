@@ -18,23 +18,23 @@ live in the repository today.
 | `go/internal/collector/` | Git collection, discovery, snapshotting, and fact shaping |
 | `go/internal/content/` | content shaping and content-store persistence |
 | `go/internal/coordinator/` | workflow coordinator service ordering, planner interfaces, durable admission, retry, and telemetry ownership |
-| `go/internal/coordinator/awsfreshnessplanner/` | AWS freshness scheduler target-scope parsing, target authorization shared with root, trigger coalescing, and deterministic workflow planning |
-| `go/internal/coordinator/awsscheduledplanner/` | Scheduled AWS collector work planning from instance configuration: the `scheduled_scan_enabled` decode, target planning over scopes parsed by `awsfreshnessplanner`, and deterministic workflow run and work-item construction |
+| `go/internal/coordinator/planner/aws/freshness/` | AWS freshness scheduler target-scope parsing, target authorization shared with root, trigger coalescing, and deterministic workflow planning |
+| `go/internal/coordinator/planner/aws/scheduled/` | Scheduled AWS collector work planning from instance configuration: the `scheduled_scan_enabled` decode, target planning over scopes parsed by `freshness`, and deterministic workflow run and work-item construction |
 | `go/internal/coordinator/cicdrun/` | CI/CD run scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/componentactivation/` | dependency-neutral generic component-activation configuration parsing and validation shared by the component-extension planner and unrelated root scheduling/audit files |
-| `go/internal/coordinator/componentextensionplanner/` | generic component-extension scheduler activation-scoped workflow planning |
-| `go/internal/coordinator/gcpplanner/` | GCP Cloud Asset Inventory scheduler scope configuration parsing, validation, and deterministic workflow planning |
-| `go/internal/coordinator/grafanaplanner/` | Grafana scheduler request validation, target filtering, privacy, and deterministic workflow planning |
-| `go/internal/coordinator/jiraplanner/` | Jira scheduler request and target validation, webhook-scope membership, privacy, and deterministic workflow planning |
-| `go/internal/coordinator/lokiplanner/` | Grafana Loki scheduler request validation, target filtering, and deterministic workflow planning |
-| `go/internal/coordinator/pagerdutyplanner/` | PagerDuty scheduler request and target validation, webhook-scope membership, privacy, and deterministic workflow planning |
-| `go/internal/coordinator/plannercontract/` | dependency-neutral scheduler plan-key validation |
-| `go/internal/coordinator/prometheusmimir/` | Prometheus/Mimir scheduler request validation, target filtering, privacy, and deterministic workflow planning |
+| `go/internal/coordinator/planner/component/extension/` | generic component-extension scheduler activation-scoped workflow planning |
+| `go/internal/coordinator/planner/gcp/` | GCP Cloud Asset Inventory scheduler scope configuration parsing, validation, and deterministic workflow planning |
+| `go/internal/coordinator/planner/grafana/` | Grafana scheduler request validation, target filtering, privacy, and deterministic workflow planning |
+| `go/internal/coordinator/planner/jira/` | Jira scheduler request and target validation, webhook-scope membership, privacy, and deterministic workflow planning |
+| `go/internal/coordinator/planner/loki/` | Grafana Loki scheduler request validation, target filtering, and deterministic workflow planning |
+| `go/internal/coordinator/planner/pagerduty/` | PagerDuty scheduler request and target validation, webhook-scope membership, privacy, and deterministic workflow planning |
+| `go/internal/coordinator/planner/contract/` | dependency-neutral scheduler plan-key validation |
+| `go/internal/coordinator/planner/metrics/` | Prometheus/Mimir scheduler request validation, target filtering, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/scannerworker/` | scanner-worker scheduler configuration validation, requested-scope privacy, and deterministic workflow planning |
 | `go/internal/coordinator/securityalert/` | provider security-alert scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/sbomattestation/` | hosted SBOM and attestation scheduler request validation and deterministic workflow planning |
-| `go/internal/coordinator/tempoplanner/` | Grafana Tempo scheduler request validation, target filtering, and deterministic workflow planning |
-| `go/internal/coordinator/tfstateplanner/` | Terraform-state scheduler request and plan-key validation, discovery-candidate resolution, locator-free requested-scope construction, and deterministic workflow planning |
+| `go/internal/coordinator/planner/tempo/` | Grafana Tempo scheduler request validation, target filtering, and deterministic workflow planning |
+| `go/internal/coordinator/planner/tfstate/` | Terraform-state scheduler request and plan-key validation, discovery-candidate resolution, locator-free requested-scope construction, and deterministic workflow planning |
 | `go/internal/coordinator/vaultlive/` | Vault metadata scheduler request validation and deterministic workflow planning |
 | `go/internal/facts/` | durable fact models and queue contracts |
 | `go/internal/graph/` | canonical graph schema and write helpers |

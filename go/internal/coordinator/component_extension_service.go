@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/componentextensionplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // ComponentExtensionPlanner plans generic component extension workflow rows.
 type ComponentExtensionPlanner interface {
-	PlanComponentExtensionWork(context.Context, componentextensionplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanComponentExtensionWork(context.Context, extension.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 func (s Service) scheduleComponentExtensionWork(
@@ -59,7 +59,7 @@ func (s Service) scheduleComponentExtensionWork(
 		}
 		run, items, err := s.ComponentExtensionPlanner.PlanComponentExtensionWork(
 			ctx,
-			componentextensionplanner.PlanRequest{
+			extension.PlanRequest{
 				Instance:   instance,
 				ObservedAt: observedAt,
 				PlanKey:    s.componentExtensionPlanKey(instance, observedAt),

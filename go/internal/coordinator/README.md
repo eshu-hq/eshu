@@ -9,7 +9,7 @@ scheduled-work planning reconciliation, active-mode workflow-run progress, AWS
 and incident freshness handoff, and expired-claim reaping against a narrow
 `Store` backed by Postgres. The package also owns
 `ESHU_WORKFLOW_COORDINATOR_*` env parsing and coordinator OTEL instruments.
-The dependency-neutral `plannercontract` child owns the shared scheduler
+The dependency-neutral `planner/contract` child owns the shared scheduler
 plan-key grammar; it does not own scheduler requests or runtime behavior.
 The `cicdrun` child owns the CI/CD run planning request and planner
 implementation; root retains its interface, scheduling position, and durable
@@ -21,10 +21,10 @@ and planner while root retains scheduling and durable admission.
 The `vaultlive` child owns the Vault metadata planning request and planner
 under the same boundary; root retains scheduling, admission, retries, and
 telemetry.
-The `tempoplanner` child owns the Tempo trace-signal planning request and pure
+The `tempo` child owns the Tempo trace-signal planning request and pure
 planner; root retains scheduling order, tenant and egress filtering, the
 plan-key clock, durable admission, retries, and telemetry.
-The `lokiplanner`, `prometheusmimir`, `ociregistry`, and `tfstateplanner`
+The `loki`, `metrics`, `ociregistry`, and `tfstate`
 children own planning for Loki, Prometheus/Mimir, OCI registry, and
 Terraform-state targets; root retains scheduling order, tenant and egress
 filtering, the plan-key clock, durable admission, retries, and telemetry.
@@ -116,7 +116,7 @@ one enabled bounded scope; invalid configurations fail validation.
 - `ReconcileObservation`, `ReapObservation`, `RunReconciliationObservation` —
   value types passed to `Metrics` recording methods.
 - `TerraformStatePlanner` — the root interface implemented by
-  `tfstateplanner.WorkPlanner`. Its `BackendFacts` port returns Terraform
+  `tfstate.WorkPlanner`. Its `BackendFacts` port returns Terraform
   backend block and Terragrunt remote_state candidates already resolved into
   their underlying backend kind, so the planner stays on one scheduler shape.
 - `OCIRegistryPlanner` — the root interface implemented by
@@ -160,37 +160,37 @@ one enabled bounded scope; invalid configurations fail validation.
   `scannerworker.WorkPlanner`. The child plans configured targets without
   exposing runtime-local roots in workflow metadata; root keeps scheduling,
   the plan-key clock, durable admission, retries, and telemetry.
-- `PagerDutyPlanner` — implemented by `pagerdutyplanner.WorkPlanner`; child owns
+- `PagerDutyPlanner` — implemented by `pagerduty.WorkPlanner`; child owns
   validated target membership and private planning. Root retains authorization,
   scheduling, admission, trigger transitions, retries, and telemetry.
-- `JiraPlanner` — implemented by `jiraplanner.WorkPlanner`; child owns private
+- `JiraPlanner` — implemented by `jira.WorkPlanner`; child owns private
   planning and validated membership, while root keeps scheduling and admission.
 - `PrometheusMimirPlanner` — the root interface implemented by
-  `prometheusmimir.WorkPlanner`. The child plans Prometheus/Grafana Mimir
+  `metrics.WorkPlanner`. The child plans Prometheus/Grafana Mimir
   metric-metadata work from `configuration.targets[]`; each enabled target is
   one claimable item, while disabled or empty target sets plan no work. Root
   retains scheduling and admission. Per-scope fairness keys stay unchanged,
   and requested-scope metadata omits URLs and credential environment names.
 - `TempoPlanner` — the root structural interface implemented by
-  `tempoplanner.WorkPlanner`. The child plans Grafana Tempo trace-signal
+  `tempo.WorkPlanner`. The child plans Grafana Tempo trace-signal
   collection from `configuration.targets[]`; root keeps scheduling order, the
   plan-key clock, tenant and egress filtering, and durable admission.
 - `GrafanaPlanner` — the root interface implemented by
-  `grafanaplanner.WorkPlanner`. The child plans Grafana observability metadata
+  `grafana.WorkPlanner`. The child plans Grafana observability metadata
   from `configuration.targets[]`; each enabled target becomes one claimable
   item, while root retains scheduling, collector-egress filtering, tenant-grant
   authorization, and admission. Fairness keys use target instance IDs with
   scope-ID fallback, and requested-scope metadata omits URLs, credential
   environment names, resource limits, and staleness settings.
 - `LokiPlanner` — the root structural interface implemented by
-  `lokiplanner.WorkPlanner`. The child plans Grafana Loki observability
+  `loki.WorkPlanner`. The child plans Grafana Loki observability
   collection from `configuration.targets[]`; root keeps scheduling order, the
   plan-key clock, tenant and egress filtering, and durable admission. Each
   enabled target remains one claimable work item with the per-target fairness
   key `loki:<instance_id>:<scope_id>`.
-- `GCPPlanner` — implemented by `gcpplanner.WorkPlanner`, which also exposes
+- `GCPPlanner` — implemented by `gcp.WorkPlanner`, which also exposes
   `EnabledScopes`/`ValidateClaimSchedulerConfiguration` for root reuse.
-- `ComponentExtensionPlanner` — `componentextensionplanner.WorkPlanner`, from `componentactivation.Config`.
+- `ComponentExtensionPlanner` — `extension.WorkPlanner`, from `componentactivation.Config`.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.
@@ -201,7 +201,7 @@ one enabled bounded scope; invalid configurations fail validation.
   `vulnerability.os_package` facts; SBOM component reads come from active
   attached `sbom.component` facts whose attachment evidence is active for the
   same scope.
-- `AWSScheduledPlanner` — root interface implemented by `awsscheduledplanner.WorkPlanner`; plans scheduled AWS collection runs from the
+- `AWSScheduledPlanner` — root interface implemented by `scheduled.WorkPlanner`; plans scheduled AWS collection runs from the
   configured target scopes without requiring a separate provider webhook when
   the AWS collector configuration sets `scheduled_scan_enabled=true`. Each
   valid `(account_id, region, service_kind)` tuple becomes one claimable work
@@ -210,7 +210,7 @@ one enabled bounded scope; invalid configurations fail validation.
   Invalid configured pairings are recorded in the workflow run
   `requested_scope_set.skipped_targets` payload with a stable reason.
 - `AWSFreshnessPlanner` — the root interface implemented by
-  `awsfreshnessplanner.WorkPlanner`; each unique `(account_id, region,
+  `freshness.WorkPlanner`; each unique `(account_id, region,
   service_kind)` target from claimed freshness triggers becomes one AWS claim.
 - `AWSFreshnessTriggerStore` — claim, handed-off, and failed-state operations
   for the coalesced `aws_freshness_triggers` handoff queue.
@@ -220,7 +220,7 @@ one enabled bounded scope; invalid configurations fail validation.
 
 ## Dependencies
 
-- `internal/coordinator/plannercontract` — dependency-neutral shared plan-key validation used directly by scheduler planners and extension egress parsing.
+- `internal/coordinator/planner/contract` — dependency-neutral shared plan-key validation used directly by scheduler planners and extension egress parsing.
 - `internal/coordinator/cicdrun` — CI/CD run plan request and deterministic
   planner implementation.
 - `internal/coordinator/securityalert` — provider security-alert plan request
@@ -229,12 +229,12 @@ one enabled bounded scope; invalid configurations fail validation.
   and deterministic planner implementation.
 - `internal/coordinator/scannerworker` — scanner-worker request validation,
   requested-scope privacy, and deterministic planning.
-- `internal/coordinator/pagerdutyplanner` — PagerDuty validated membership, privacy, and deterministic planning.
-- `internal/coordinator/jiraplanner` — Jira membership, privacy, and planning.
-- `internal/coordinator/vaultlive` — Vault metadata plan request and
-  deterministic planner implementation.
-- `internal/coordinator/tempoplanner`, `lokiplanner`, `prometheusmimir`, `grafanaplanner`, `gcpplanner`, `ociregistry`, `tfstateplanner`, `componentextensionplanner` — planners; `awsfreshnessplanner` — AWS freshness planner that also owns the `target_scopes` parsing and `TargetAuthorized` decision root shares with `awsscheduledplanner`;
-  `componentactivation` — dependency-neutral activation config.
+- `internal/coordinator/planner/{pagerduty,jira,tempo,loki,metrics,grafana,gcp,tfstate}`
+  — provider-specific deterministic planners.
+- `internal/coordinator/planner/aws/{freshness,scheduled}` — AWS planner leaves.
+- `internal/coordinator/planner/component/extension` — component work planner.
+- `internal/coordinator/componentactivation` — shared activation configuration.
+- `internal/coordinator/vaultlive` — Vault metadata planner.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.
 - `internal/scope` — `CollectorKind` used by `Config` and
@@ -356,7 +356,7 @@ handles, source payloads, or token values. When wired to
 aggregate governance audit counts by event type, decision, scope class, actor
 class, and reason code.
 
-No-Regression Evidence: `go test ./internal/coordinator/gcpplanner -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/planner/gcp -count=1`
 proves live-mode rejection, sorted planning, privacy-safe `EnabledScopes`,
 deterministic IDs, and empty-selection freshness filtering; `go test
 ./internal/coordinator -run 'TestLoadConfig.*GCP|TestServiceRunActiveMode(SchedulesGCPWork|SkipsGCPWorkWhenPriorTargetIsOpen|FiltersDeniedGCPTenantScopes)' -count=1`
@@ -497,7 +497,7 @@ advisory payloads.
 
 ## Evidence
 
-No-Regression Evidence: `go test ./internal/coordinator/awsscheduledplanner ./internal/coordinator -run 'TestAWSScheduledWorkPlanner|TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun' -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/planner/aws/scheduled ./internal/coordinator -run 'TestAWSScheduledWorkPlanner|TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun' -count=1`
 covers scheduled AWS target planning, invalid `aws-global` pair filtering, and
 the audit-only run recorded when all configured tuples are invalid.
 

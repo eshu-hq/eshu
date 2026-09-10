@@ -16,7 +16,7 @@ retains the `OCIRegistryPlanner` interface, scheduling order, the plan-key
 clock, durable open-target admission, retries, and telemetry. Methods on
 `coordinator.Service` remain in the parent package (`oci_registry_service.go`).
 
-Unlike sibling extractions (`gcpplanner`, `prometheusmimir`, `vaultlive`), the
+Unlike sibling extractions (`gcp`, `metrics`, `vaultlive`), the
 `OCIRegistryPlanner` interface itself stays in `service.go` rather than moving
 into `oci_registry_service.go`: issue #6057 scopes this PR to the
 `_scheduler.go` half only and treats decomposing `Service`'s interface block
@@ -37,7 +37,7 @@ See `doc.go` for the godoc contract.
 
 `internal/collector/ociregistry` and its per-provider adapters (`acr`,
 `dockerhub`, `ecr`, `gar`, `ghcr`, `harbor`, `jfrog`) resolve each configured
-target into the shared normalized repository identity. `plannercontract`
+target into the shared normalized repository identity. `contract`
 validates plan keys. `facts`, `scope`, and `workflow` provide stable
 identities and durable row contracts. This package does not import its parent
 and performs no I/O.

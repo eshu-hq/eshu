@@ -60,9 +60,9 @@ flowchart TB
 6. `coordinator.Service` is wired with all dependencies, including
    Terraform-state, OCI registry, package registry, vulnerability installed
    advisory target readers, the extracted `cicdrun`, `securityalert`,
-   `sbomattestation`, `scannerworker`, `gcpplanner`, `grafanaplanner`,
-   `lokiplanner`, `jiraplanner`, `pagerdutyplanner`, `prometheusmimir`,
-   `tempoplanner`, `vaultlive`, and `componentextensionplanner` planners,
+   `sbomattestation`, `scannerworker`, `gcp`, `grafana`,
+   `loki`, `jira`, `pagerduty`, `metrics`,
+   `tempo`, `vaultlive`, and `extension` planners,
    scheduled AWS and AWS freshness planners, plus freshness trigger stores,
    and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
@@ -139,27 +139,27 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 - `internal/coordinator` — `Service`, `LoadConfig`, `NewMetrics`, `Store`;
   the coordinator loop and config parsing
 - `internal/coordinator/cicdrun` — concrete CI/CD run planner wiring
-- `internal/coordinator/componentextensionplanner` — concrete scheduler
+- `internal/coordinator/planner/component/extension` — concrete scheduler
   wiring for generic component-extension activation targets
-- `internal/coordinator/gcpplanner` — concrete scheduler wiring for GCP Cloud
+- `internal/coordinator/planner/gcp` — concrete scheduler wiring for GCP Cloud
   Asset Inventory targets
-- `internal/coordinator/grafanaplanner` — concrete scheduler wiring for Grafana
+- `internal/coordinator/planner/grafana` — concrete scheduler wiring for Grafana
   observability targets
-- `internal/coordinator/pagerdutyplanner` — concrete PagerDuty scheduled and
+- `internal/coordinator/planner/pagerduty` — concrete PagerDuty scheduled and
   webhook-freshness planner wiring
-- `internal/coordinator/jiraplanner` — concrete Jira scheduled and
+- `internal/coordinator/planner/jira` — concrete Jira scheduled and
   webhook-freshness planner wiring
 - `internal/coordinator/securityalert` — concrete provider security-alert
   planner wiring
 - `internal/coordinator/sbomattestation` — concrete scheduler wiring for hosted
   SBOM and attestation targets
-- `internal/coordinator/lokiplanner` — concrete scheduler wiring for Grafana
+- `internal/coordinator/planner/loki` — concrete scheduler wiring for Grafana
   Loki observability targets
-- `internal/coordinator/prometheusmimir` — concrete scheduler wiring for
+- `internal/coordinator/planner/metrics` — concrete scheduler wiring for
   Prometheus and Grafana Mimir metric-metadata targets
-- `internal/coordinator/tempoplanner` — concrete scheduler wiring for Grafana
+- `internal/coordinator/planner/tempo` — concrete scheduler wiring for Grafana
   Tempo trace-signal targets
-- `internal/coordinator/tfstateplanner` — concrete scheduler wiring for
+- `internal/coordinator/planner/tfstate` — concrete scheduler wiring for
   Terraform-state drift targets
 - `internal/coordinator/vaultlive` — concrete scheduler wiring for Vault
   metadata targets

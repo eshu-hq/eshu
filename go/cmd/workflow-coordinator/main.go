@@ -19,22 +19,22 @@ import (
 	// SupportsServiceKind checks accept every service the collector ships.
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/awsscheduledplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/componentextensionplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/grafanaplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/jiraplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/lokiplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/prometheusmimir"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/scheduled"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/grafana"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/jira"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/loki"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/metrics"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tempo"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/tempoplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/tfstateplanner"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -100,7 +100,7 @@ func run(parent context.Context) error {
 	}
 
 	meter := providers.MeterProvider.Meter(telemetry.DefaultSignalName)
-	metrics, err := coordinator.NewMetrics(meter)
+	coordinatorMetrics, err := coordinator.NewMetrics(meter)
 	if err != nil {
 		return fmt.Errorf("coordinator metrics: %w", err)
 	}
@@ -180,7 +180,7 @@ func run(parent context.Context) error {
 	serviceRunner := coordinator.Service{
 		Config: cfg,
 		Store:  store,
-		TerraformStatePlanner: tfstateplanner.WorkPlanner{
+		TerraformStatePlanner: tfstate.WorkPlanner{
 			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
 			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
 		},
@@ -191,29 +191,29 @@ func run(parent context.Context) error {
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
 		SecurityAlertPlanner:              securityalert.WorkPlanner{},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},
-		PagerDutyPlanner:                  pagerdutyplanner.WorkPlanner{},
-		JiraPlanner:                       jiraplanner.WorkPlanner{},
-		PrometheusMimirPlanner:            prometheusmimir.WorkPlanner{},
-		TempoPlanner:                      tempoplanner.WorkPlanner{},
-		GCPPlanner:                        gcpplanner.WorkPlanner{},
-		GrafanaPlanner:                    grafanaplanner.WorkPlanner{},
-		LokiPlanner:                       lokiplanner.WorkPlanner{},
+		PagerDutyPlanner:                  pagerduty.WorkPlanner{},
+		JiraPlanner:                       jira.WorkPlanner{},
+		PrometheusMimirPlanner:            metrics.WorkPlanner{},
+		TempoPlanner:                      tempo.WorkPlanner{},
+		GCPPlanner:                        gcp.WorkPlanner{},
+		GrafanaPlanner:                    grafana.WorkPlanner{},
+		LokiPlanner:                       loki.WorkPlanner{},
 		VaultLivePlanner:                  coordinatorvaultlive.WorkPlanner{},
-		ComponentExtensionPlanner:         componentextensionplanner.WorkPlanner{},
+		ComponentExtensionPlanner:         extension.WorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		TenantGrantReader:                 tenantGrantReader{store: tenantGrantStore},
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,
-		AWSScheduledPlanner:               awsscheduledplanner.WorkPlanner{},
+		AWSScheduledPlanner:               scheduled.WorkPlanner{},
 		AWSFreshnessTriggers:              awsFreshnessStore,
-		AWSFreshnessPlanner:               awsfreshnessplanner.WorkPlanner{},
+		AWSFreshnessPlanner:               freshness.WorkPlanner{},
 		AWSFreshnessEvents:                instruments.AWSFreshnessEvents,
 		GCPFreshnessTriggers:              gcpFreshnessStore,
 		GCPFreshnessEvents:                instruments.GCPFreshnessEvents,
 		GCPFreshnessFanOut:                instruments.GCPFreshnessFanOut,
 		IncidentFreshnessTriggers:         incidentFreshnessStore,
 		GovernanceAudit:                   governanceAuditStore,
-		Metrics:                           metrics,
+		Metrics:                           coordinatorMetrics,
 		Logger:                            logger,
 	}
 	if semanticWorkerCfg.Enabled {

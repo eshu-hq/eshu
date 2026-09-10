@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/plannercontract"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/contract"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -94,7 +94,7 @@ func validateSBOMAttestationPlanRequest(request PlanRequest) error {
 	if request.ObservedAt.IsZero() {
 		return fmt.Errorf("SBOM attestation planner observed_at must not be zero")
 	}
-	if err := plannercontract.ValidateSafePlanKey("SBOM attestation planner", request.PlanKey); err != nil {
+	if err := contract.ValidateSafePlanKey("SBOM attestation planner", request.PlanKey); err != nil {
 		return err
 	}
 	return nil

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/jiraplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/jira"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -146,9 +146,9 @@ func incidentFreshnessScopeAuthorized(
 ) bool {
 	switch trigger.Provider {
 	case webhook.ProviderPagerDuty:
-		return pagerdutyplanner.HasConfiguredScope(instance.Configuration, trigger.ScopeID)
+		return pagerduty.HasConfiguredScope(instance.Configuration, trigger.ScopeID)
 	case webhook.ProviderJira:
-		return jiraplanner.HasConfiguredScope(instance.Configuration, trigger.ScopeID)
+		return jira.HasConfiguredScope(instance.Configuration, trigger.ScopeID)
 	default:
 		return false
 	}
@@ -178,7 +178,7 @@ func (s Service) handoffPagerDutyFreshnessAssignment(
 	if s.PagerDutyPlanner == nil {
 		return fmt.Errorf("pagerduty planner is required before claiming incident freshness triggers")
 	}
-	run, items, err := s.PagerDutyPlanner.PlanPagerDutyWork(ctx, pagerdutyplanner.PlanRequest{
+	run, items, err := s.PagerDutyPlanner.PlanPagerDutyWork(ctx, pagerduty.PlanRequest{
 		Instance:    assignment.instance,
 		ObservedAt:  observedAt,
 		PlanKey:     s.incidentFreshnessPlanKey(observedAt),
@@ -200,7 +200,7 @@ func (s Service) handoffJiraFreshnessAssignment(
 	if s.JiraPlanner == nil {
 		return fmt.Errorf("jira planner is required before claiming incident freshness triggers")
 	}
-	run, items, err := s.JiraPlanner.PlanJiraWork(ctx, jiraplanner.PlanRequest{
+	run, items, err := s.JiraPlanner.PlanJiraWork(ctx, jira.PlanRequest{
 		Instance:    assignment.instance,
 		ObservedAt:  observedAt,
 		PlanKey:     s.incidentFreshnessPlanKey(observedAt),

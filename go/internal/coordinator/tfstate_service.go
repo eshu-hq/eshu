@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/tfstateplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -30,7 +30,7 @@ func (s Service) scheduleTerraformStateWork(
 		if s.TerraformStatePlanner == nil {
 			return fmt.Errorf("terraform state planner is required for active terraform_state collectors")
 		}
-		run, items, err := s.TerraformStatePlanner.PlanTerraformStateWork(ctx, tfstateplanner.PlanRequest{
+		run, items, err := s.TerraformStatePlanner.PlanTerraformStateWork(ctx, tfstate.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.terraformStatePlanKey(instance, observedAt),

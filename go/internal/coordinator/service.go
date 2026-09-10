@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/awsscheduledplanner"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/tfstateplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/scheduled"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -46,7 +46,7 @@ type GovernanceAuditAppender interface {
 // signature exactly, which is why root needs no other change to keep
 // compiling once the scheduler half moves.
 type TerraformStatePlanner interface {
-	PlanTerraformStateWork(context.Context, tfstateplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanTerraformStateWork(context.Context, tfstate.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 // OCIRegistryPlanner plans OCI registry workflow rows from collector instance
@@ -85,7 +85,7 @@ type OwnedPackageTargetReader interface {
 
 // AWSScheduledPlanner plans scheduled AWS collector work from configuration.
 type AWSScheduledPlanner interface {
-	PlanAWSScheduledWork(context.Context, awsscheduledplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanAWSScheduledWork(context.Context, scheduled.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 // Service is the workflow coordinator runner.

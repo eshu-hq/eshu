@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/awsscheduledplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/scheduled"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // These three cases assert Service.Run wiring for scheduled AWS work: they
 // construct a Service with fakeStore and therefore stay at root, while the
-// pure planner cases moved into awsscheduledplanner with the family.
+// pure planner cases moved into scheduled with the family.
 
 func TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers(t *testing.T) {
 	t.Parallel()
@@ -44,7 +44,7 @@ func TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers(t *testing
 			}},
 		},
 		Store:               store,
-		AWSScheduledPlanner: awsscheduledplanner.WorkPlanner{},
+		AWSScheduledPlanner: scheduled.WorkPlanner{},
 		Clock:               func() time.Time { return now },
 	}
 
@@ -94,7 +94,7 @@ func TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen(t *testi
 			}},
 		},
 		Store:               store,
-		AWSScheduledPlanner: awsscheduledplanner.WorkPlanner{},
+		AWSScheduledPlanner: scheduled.WorkPlanner{},
 		Clock:               func() time.Time { return current },
 	}
 
@@ -141,7 +141,7 @@ func TestServiceRunActiveModePersistsAuditOnlyAWSScheduledRun(t *testing.T) {
 			}},
 		},
 		Store:               store,
-		AWSScheduledPlanner: awsscheduledplanner.WorkPlanner{},
+		AWSScheduledPlanner: scheduled.WorkPlanner{},
 		Clock:               func() time.Time { return now },
 	}
 

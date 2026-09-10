@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -18,7 +18,7 @@ import (
 // PagerDutyPlanner plans PagerDuty incident-evidence workflow rows from
 // collector instance configuration.
 type PagerDutyPlanner interface {
-	PlanPagerDutyWork(context.Context, pagerdutyplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanPagerDutyWork(context.Context, pagerduty.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 func (s Service) schedulePagerDutyWork(
@@ -36,7 +36,7 @@ func (s Service) schedulePagerDutyWork(
 		if s.PagerDutyPlanner == nil {
 			return fmt.Errorf("pagerduty planner is required for active pagerduty collectors")
 		}
-		run, items, err := s.PagerDutyPlanner.PlanPagerDutyWork(ctx, pagerdutyplanner.PlanRequest{
+		run, items, err := s.PagerDutyPlanner.PlanPagerDutyWork(ctx, pagerduty.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.pagerDutyPlanKey(instance, observedAt),

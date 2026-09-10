@@ -97,12 +97,12 @@ That's 10 distinct files, each needing 2–4 independent edits (dup'd across two
 The first coordinator family now lives under `internal/coordinator/cicdrun`.
 Its 207-line scheduler and 73-line test had no cross-family symbol use: every
 unexported declaration was file-local, and production imports were limited to
-`plannercontract`, facts, scope, and workflow contracts. Root keeps
+`planner/contract`, facts, scope, and workflow contracts. Root keeps
 `cicd_run_service.go`, the structural planner interface, scheduling position,
 clock-derived plan key, and durable admission.
 
 The Loki scheduler now follows that boundary under
-`internal/coordinator/lokiplanner`. The child owns request validation, target
+`internal/coordinator/planner/loki`. The child owns request validation, target
 filtering, and deterministic workflow-row construction. Root keeps
 `loki_service.go`, the structural interface, service scheduling order,
 clock-derived plan key, tenant and egress filtering, durable admission, retries,
@@ -143,7 +143,7 @@ and telemetry.
   KEEP IN ROOT <- projector: failure_classification.go + decisions.go + retry. [5 non-test / 3 test = 8] shared-core
   KEEP IN ROOT <- coordinator: service.go + config.go + metrics.go + governanc [5 non-test / 3 test = 8] shared-core
   KEEP IN ROOT <- coordinator: owned_package_target_helpers.go + derived_targe [3 non-test / 3 test = 6] shared-core
-  one subpackage per provider (grafana, jira, loki, tempo, vaultlive, prometheusmimir, ociregistry, sbomattestation, scannerworker, securityalert, cicdrun, packageregistry, pagerduty, gcp, awsscheduled, componentextension, vulnerabilityintelligence), implementing the root-defined Planner interface (Go's structural interface satisfaction keeps this compiling across the package boundary) <- coordinator: per-provider _scheduler.go halves (self-contain [~17 non-test / ~17 test = ~34] clean
+  one subpackage per provider (grafana, jira, loki, tempo, vaultlive, metrics for Prometheus/Mimir, ociregistry, sbomattestation, scannerworker, securityalert, cicdrun, packageregistry, pagerduty, gcp, scheduled, extension, vulnerabilityintelligence), implementing the root-defined Planner interface (Go's structural interface satisfaction keeps this compiling across the package boundary) <- coordinator: per-provider _scheduler.go halves (self-contain [~17 non-test / ~17 test = ~34] clean
   MUST STAY IN ROOT unless Service is redesigned into composed per-provider sub-structs (separate design decision, not a file move) <- coordinator: per-provider _service.go halves — methods on th [~30 non-test / ~35 test = ~65] tangled
   KEEP IN ROOT <- coordinator: workflow_tenant_grants* + installed_advisory_ta [7 non-test / 5 test = 12] shared-core
 ```

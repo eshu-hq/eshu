@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 	"go.opentelemetry.io/otel/metric"
@@ -183,7 +183,7 @@ func TestServiceRunActiveModeFansOutGCPFreshnessTriggerToMultipleContentFamilies
 			}},
 		},
 		Store:                store,
-		GCPPlanner:           gcpplanner.WorkPlanner{},
+		GCPPlanner:           gcp.WorkPlanner{},
 		GCPFreshnessTriggers: freshnessStore,
 		GCPFreshnessEvents:   counter,
 		GCPFreshnessFanOut:   fanOut,
@@ -301,7 +301,7 @@ func TestServiceRunActiveModeSkipsGCPFreshnessWhenPriorTargetIsOpen(t *testing.T
 			}},
 		},
 		Store:                store,
-		GCPPlanner:           gcpplanner.WorkPlanner{},
+		GCPPlanner:           gcp.WorkPlanner{},
 		GCPFreshnessTriggers: freshnessStore,
 		GCPFreshnessEvents:   counter,
 		Clock:                func() time.Time { return now },
@@ -400,7 +400,7 @@ func TestScheduleGCPFreshnessWorkMarksFailedWhenNoScopeMatchesTuple(t *testing.T
 			ClaimsEnabled:  true,
 		},
 		GCPFreshnessTriggers: freshnessStore,
-		GCPPlanner:           gcpplanner.WorkPlanner{},
+		GCPPlanner:           gcp.WorkPlanner{},
 		GCPFreshnessEvents:   counter,
 	}
 

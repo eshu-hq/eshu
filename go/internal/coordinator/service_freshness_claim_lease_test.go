@@ -13,14 +13,14 @@ import (
 	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
 	"github.com/eshu-hq/eshu/go/internal/collector/gcpcloud"
 	gcpfreshness "github.com/eshu-hq/eshu/go/internal/collector/gcpcloud/freshness"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/gcpplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/gcp"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 // fakeAWSFreshnessPlanner fails PlanAWSFreshnessWork for one configured
-// instance ID and otherwise delegates to the real awsfreshnessplanner.WorkPlanner, so
+// instance ID and otherwise delegates to the real freshness.WorkPlanner, so
 // tests can prove a single bad assignment does not strand its batch-mates.
 type fakeAWSFreshnessPlanner struct {
 	failForInstanceID string
@@ -29,13 +29,13 @@ type fakeAWSFreshnessPlanner struct {
 
 func (p *fakeAWSFreshnessPlanner) PlanAWSFreshnessWork(
 	ctx context.Context,
-	request awsfreshnessplanner.PlanRequest,
+	request freshness.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	p.calls = append(p.calls, request.Instance.InstanceID)
 	if request.Instance.InstanceID == p.failForInstanceID {
 		return workflow.Run{}, nil, errors.New("simulated plan failure for " + request.Instance.InstanceID)
 	}
-	return awsfreshnessplanner.WorkPlanner{}.PlanAWSFreshnessWork(ctx, request)
+	return freshness.WorkPlanner{}.PlanAWSFreshnessWork(ctx, request)
 }
 
 // fakeGCPFreshnessPlanner is fakeAWSFreshnessPlanner's GCP counterpart.
@@ -46,13 +46,13 @@ type fakeGCPFreshnessPlanner struct {
 
 func (p *fakeGCPFreshnessPlanner) PlanGCPWork(
 	ctx context.Context,
-	request gcpplanner.PlanRequest,
+	request gcp.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	p.calls = append(p.calls, request.Instance.InstanceID)
 	if request.Instance.InstanceID == p.failForInstanceID {
 		return workflow.Run{}, nil, errors.New("simulated plan failure for " + request.Instance.InstanceID)
 	}
-	return gcpplanner.WorkPlanner{}.PlanGCPWork(ctx, request)
+	return gcp.WorkPlanner{}.PlanGCPWork(ctx, request)
 }
 
 // TestScheduleAWSFreshnessWorkContinuesPastOneAssignmentFailure proves the
@@ -421,9 +421,9 @@ func TestRunActiveMaintenanceReapsFreshnessClaimsBeforeHandoff(t *testing.T) {
 		},
 		Store:                store,
 		AWSFreshnessTriggers: awsStore,
-		AWSFreshnessPlanner:  awsfreshnessplanner.WorkPlanner{},
+		AWSFreshnessPlanner:  freshness.WorkPlanner{},
 		GCPFreshnessTriggers: gcpStore,
-		GCPPlanner:           gcpplanner.WorkPlanner{},
+		GCPPlanner:           gcp.WorkPlanner{},
 		Clock:                func() time.Time { return now },
 	}
 

@@ -34,38 +34,38 @@
 // follows the same boundary for hosted SBOM and attestation targets. The
 // vaultlive child owns deterministic Vault metadata planning while this
 // package retains scheduling, admission, retries, and telemetry.
-// The tempoplanner child owns deterministic Tempo trace-signal planning while
+// The tempo child owns deterministic Tempo trace-signal planning while
 // this package retains scheduling order, tenant and egress filtering, the
 // plan-key clock, durable admission, retries, and telemetry.
-// The lokiplanner child owns deterministic Loki observability planning under
+// The loki child owns deterministic Loki observability planning under
 // the same boundary. It preserves each enabled target's durable partition
 // identity as work-item metadata; claim ordering and pacing do not use that
 // metadata. The parent coordinator's Postgres open-target admission prevents
 // overlapping scheduled work.
-// The root PagerDutyPlanner interface accepts pagerdutyplanner.PlanRequest.
+// The root PagerDutyPlanner interface accepts pagerduty.PlanRequest.
 // The child validates every configured target before filtering, checks
 // configured webhook-scope membership, and plans deterministic
 // incident-evidence work. This package retains authorization, scheduling, and
 // freshness orchestration.
-// The root JiraPlanner interface accepts jiraplanner.PlanRequest. The child
+// The root JiraPlanner interface accepts jira.PlanRequest. The child
 // validates every configured target before filtering, checks configured
 // webhook-scope membership, and plans deterministic work-item evidence. This
 // package retains authorization, scheduling, and freshness orchestration.
 // The root PrometheusMimirPlanner interface accepts
-// prometheusmimir.PlanRequest. The child plans bounded metric-metadata work,
+// metrics.PlanRequest. The child plans bounded metric-metadata work,
 // one item per enabled Prometheus or Grafana Mimir target, partitioned by
 // target scope so concurrent reconciles never contend for one metric source.
-// The root TempoPlanner interface accepts the child tempoplanner.PlanRequest;
+// The root TempoPlanner interface accepts the child tempo.PlanRequest;
 // the child emits one bounded trace-signal work item per enabled Grafana Tempo
 // target and skips disabled targets. The root LokiPlanner interface likewise
-// accepts lokiplanner.PlanRequest. The root GrafanaPlanner interface accepts
-// grafanaplanner.PlanRequest. The child emits one bounded observability work
+// accepts loki.PlanRequest. The root GrafanaPlanner interface accepts
+// grafana.PlanRequest. The child emits one bounded observability work
 // item per enabled Grafana target, preserves configured order and per-target
 // fairness metadata, and returns a populated run for valid empty selections.
 // The coordinator retains collector-egress filtering, tenant-grant authorization,
 // and Postgres open-target admission, which prevents overlapping scheduled work.
 // The root TerraformStatePlanner interface accepts the child
-// tfstateplanner.PlanRequest; the child plans one bounded claimable work item per
+// tfstate.PlanRequest; the child plans one bounded claimable work item per
 // resolved Terraform-state discovery candidate, carrying candidate identity as
 // a hashed planning ID so no raw bucket, key, or version locator reaches a
 // durable row. The root retains scheduling order, the plan-key clock, durable
@@ -78,7 +78,7 @@
 // shared normalized repository identity and rejecting duplicate normalized
 // targets before any work item is built. The root retains scheduling order,
 // the plan-key clock, durable admission, retries, and telemetry.
-// The root GCPPlanner interface accepts the child gcpplanner.PlanRequest; the
+// The root GCPPlanner interface accepts the child gcp.PlanRequest; the
 // child plans one bounded Cloud Asset Inventory work item per enabled GCP
 // scope after explicit live opt-in and exposes EnabledScopes and
 // ValidateClaimSchedulerConfiguration so the root freshness handoff loop and
@@ -87,15 +87,15 @@
 // scannerworker.PlanRequest; the child plans explicit scanner-worker source
 // evidence targets so a healthy worker must still have claimable work before a
 // proof can count source evidence. The root AWSScheduledPlanner interface accepts the
-// child awsscheduledplanner.PlanRequest; the child plans ordinary AWS collector
+// child scheduled.PlanRequest; the child plans ordinary AWS collector
 // work from configured schedules. The root AWSFreshnessPlanner
-// interface accepts the child awsfreshnessplanner.PlanRequest; the child
+// interface accepts the child freshness.PlanRequest; the child
 // coalesces claimed webhook freshness triggers into one claimable work item
 // per unique (account_id, region, service_kind) target and exposes
 // ParseTargetScopes and TargetAuthorized so the root trigger-routing filter
 // and the scheduled AWS planner share one definition of which
 // configured targets a collector instance may collect. The root ComponentExtensionPlanner
-// interface accepts the child componentextensionplanner.PlanRequest; the child
+// interface accepts the child extension.PlanRequest; the child
 // plans source-evidence-only work for verified claim-capable component
 // activations loaded from the local component registry after hosted extension
 // egress policy allows the component identity, storing component identity,
@@ -105,7 +105,7 @@
 // dependency-neutral componentactivation package rather than in either root
 // or the planner: root's component_activation_config.go constructs it,
 // pagerduty_service.go and governance_audit.go read it for reasons unrelated
-// to component-extension scheduling, and componentextensionplanner plans from
+// to component-extension scheduling, and extension plans from
 // it, so no one of those four owns it.
 // Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
 // authorized configured scope IDs before creating normal collector work. Planners
@@ -116,7 +116,7 @@
 // denied or unavailable collector and component-extension egress decisions append
 // validation-safe audit events with hashed scope identity and low-cardinality
 // reason codes before the coordinator skips claimable work.
-// Scheduler planners call plannercontract.ValidateSafePlanKey for the shared
+// Scheduler planners call contract.ValidateSafePlanKey for the shared
 // plan-key grammar. The contract package validates only the string. Service
 // keeps ordering, admission, persistence, retry, and telemetry ownership.
 //

@@ -5,7 +5,7 @@
 1. `README.md` for ownership and invariants.
 2. `planner.go` for validation and deterministic identities.
 3. `../service_scanner_worker.go` for root scheduling and admission.
-4. `../plannercontract/README.md` for plan-key grammar.
+4. `../planner/contract/README.md` for plan-key grammar.
 
 ## Invariants
 

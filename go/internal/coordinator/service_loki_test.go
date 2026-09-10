@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/lokiplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/loki"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeLokiPlanner struct {
-	requests []lokiplanner.PlanRequest
+	requests []loki.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -23,7 +23,7 @@ type fakeLokiPlanner struct {
 
 func (f *fakeLokiPlanner) PlanLokiWork(
 	_ context.Context,
-	request lokiplanner.PlanRequest,
+	request loki.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -95,7 +95,7 @@ func TestServiceRunActiveModeSchedulesLokiWorkThroughChildPlanner(t *testing.T) 
 	if got, want := len(planner.requests), 1; got != want {
 		t.Fatalf("planner requests = %d, want %d", got, want)
 	}
-	wantRequest := lokiplanner.PlanRequest{
+	wantRequest := loki.PlanRequest{
 		Instance:   instance,
 		ObservedAt: now,
 		PlanKey:    "continuous-20260605T180000Z",

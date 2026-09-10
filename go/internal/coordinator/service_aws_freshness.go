@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/awsfreshnessplanner"
+	awsfreshness "github.com/eshu-hq/eshu/go/internal/collector/awscloud/freshness"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -43,29 +43,29 @@ type AWSFreshnessTriggerStore interface {
 	// a mid-batch handoff abort or coordinator crash cannot strand the claim
 	// forever (#4576). The returned StoredTrigger.ClaimFencingToken must be
 	// presented back to MarkTriggersHandedOff/MarkTriggersFailed.
-	ClaimQueuedTriggers(ctx context.Context, owner string, claimedAt time.Time, limit int, leaseDuration time.Duration) ([]freshness.StoredTrigger, error)
+	ClaimQueuedTriggers(ctx context.Context, owner string, claimedAt time.Time, limit int, leaseDuration time.Duration) ([]awsfreshness.StoredTrigger, error)
 	// MarkTriggersHandedOff completes claimed triggers, fenced by each
 	// trigger's ClaimFencingToken (#4576): a row only completes if its current
 	// claim_fencing_token still matches the token the caller received from
 	// ClaimQueuedTriggers, so a stale claimant whose lease expired and was
 	// reaped — and whose trigger a different owner then re-claimed — cannot
 	// complete a claim it no longer holds.
-	MarkTriggersHandedOff(ctx context.Context, triggers []freshness.StoredTrigger, handedOffAt time.Time) error
+	MarkTriggersHandedOff(ctx context.Context, triggers []awsfreshness.StoredTrigger, handedOffAt time.Time) error
 	// MarkTriggersFailed is MarkTriggersHandedOff's failure-path counterpart;
 	// see that method's doc comment for the fencing rationale (#4576).
-	MarkTriggersFailed(ctx context.Context, triggers []freshness.StoredTrigger, failedAt time.Time, failureClass string, failureMessage string) error
+	MarkTriggersFailed(ctx context.Context, triggers []awsfreshness.StoredTrigger, failedAt time.Time, failureClass string, failureMessage string) error
 	// ReapExpiredTriggerClaims reclaims 'claimed' rows whose claim_expires_at
 	// lease has expired back to 'queued', mirroring the workflow_claims
 	// expired-lease reclaim pattern (#4464).
-	ReapExpiredTriggerClaims(ctx context.Context, asOf time.Time, limit int) ([]freshness.StoredTrigger, error)
+	ReapExpiredTriggerClaims(ctx context.Context, asOf time.Time, limit int) ([]awsfreshness.StoredTrigger, error)
 }
 
 // AWSFreshnessPlanner plans ordinary AWS workflow work from claimed freshness
-// triggers. Its request type lives in the awsfreshnessplanner child package
-// (issue #6057); awsfreshnessplanner.WorkPlanner satisfies this interface
+// triggers. Its request type lives in the freshness child package
+// (issue #6057); freshness.WorkPlanner satisfies this interface
 // structurally.
 type AWSFreshnessPlanner interface {
-	PlanAWSFreshnessWork(context.Context, awsfreshnessplanner.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanAWSFreshnessWork(context.Context, freshness.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 type awsFreshnessEventCounter interface {
@@ -135,20 +135,20 @@ func (s Service) awsFreshnessClaimLeaseDuration() time.Duration {
 
 type awsFreshnessAssignment struct {
 	instance workflow.CollectorInstance
-	triggers []freshness.StoredTrigger
+	triggers []awsfreshness.StoredTrigger
 }
 
 func (s Service) assignAWSFreshnessTriggers(
 	ctx context.Context,
 	observedAt time.Time,
-	triggers []freshness.StoredTrigger,
+	triggers []awsfreshness.StoredTrigger,
 	instances []workflow.CollectorInstance,
 ) []awsFreshnessAssignment {
 	assignments := map[string]awsFreshnessAssignment{}
 	for _, trigger := range triggers {
 		instance, ok := findAWSFreshnessInstance(trigger, instances)
 		if !ok {
-			s.markAWSFreshnessFailed(ctx, []freshness.StoredTrigger{trigger}, observedAt, "unauthorized_target", "no AWS collector instance authorizes the freshness target")
+			s.markAWSFreshnessFailed(ctx, []awsfreshness.StoredTrigger{trigger}, observedAt, "unauthorized_target", "no AWS collector instance authorizes the freshness target")
 			continue
 		}
 		assignment := assignments[instance.InstanceID]
@@ -164,18 +164,18 @@ func (s Service) assignAWSFreshnessTriggers(
 }
 
 func findAWSFreshnessInstance(
-	trigger freshness.StoredTrigger,
+	trigger awsfreshness.StoredTrigger,
 	instances []workflow.CollectorInstance,
 ) (workflow.CollectorInstance, bool) {
 	for _, instance := range instances {
 		if !shouldScheduleAWSFreshness(instance) {
 			continue
 		}
-		scopes, err := awsfreshnessplanner.ParseTargetScopes(instance.Configuration)
+		scopes, err := freshness.ParseTargetScopes(instance.Configuration)
 		if err != nil {
 			continue
 		}
-		if awsfreshnessplanner.TargetAuthorized(trigger.Target(), scopes) {
+		if freshness.TargetAuthorized(trigger.Target(), scopes) {
 			return instance, true
 		}
 	}
@@ -193,7 +193,7 @@ func (s Service) handoffAWSFreshnessAssignment(
 	observedAt time.Time,
 	assignment awsFreshnessAssignment,
 ) error {
-	run, items, err := s.AWSFreshnessPlanner.PlanAWSFreshnessWork(ctx, awsfreshnessplanner.PlanRequest{
+	run, items, err := s.AWSFreshnessPlanner.PlanAWSFreshnessWork(ctx, freshness.PlanRequest{
 		Instance:   assignment.instance,
 		Triggers:   assignment.triggers,
 		ObservedAt: observedAt,
@@ -223,7 +223,7 @@ func (s Service) handoffAWSFreshnessAssignment(
 
 func (s Service) markAWSFreshnessFailed(
 	ctx context.Context,
-	triggers []freshness.StoredTrigger,
+	triggers []awsfreshness.StoredTrigger,
 	observedAt time.Time,
 	failureClass string,
 	failureMessage string,
@@ -255,7 +255,7 @@ func (s Service) awsFreshnessPlanKey(observedAt time.Time) string {
 	return "freshness-" + observedAt.UTC().Truncate(interval).Format("20060102T150405Z")
 }
 
-func (s Service) recordAWSFreshnessEvent(ctx context.Context, kind freshness.EventKind, action string) {
+func (s Service) recordAWSFreshnessEvent(ctx context.Context, kind awsfreshness.EventKind, action string) {
 	if s.AWSFreshnessEvents == nil {
 		return
 	}

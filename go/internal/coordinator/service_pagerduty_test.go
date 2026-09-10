@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/pagerdutyplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakePagerDutyPlanner struct {
-	requests []pagerdutyplanner.PlanRequest
+	requests []pagerduty.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 	err      error
@@ -37,7 +37,7 @@ func (s *pagerDutyAdmissionSpyStore) CreateRunWithWorkItemsIfNoOpenTargets(
 
 func (f *fakePagerDutyPlanner) PlanPagerDutyWork(
 	_ context.Context,
-	request pagerdutyplanner.PlanRequest,
+	request pagerduty.PlanRequest,
 ) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	if f.err != nil {
@@ -120,13 +120,13 @@ func TestServiceRunActiveModeSchedulesPagerDutyWork(t *testing.T) {
 			if err := service.Run(ctx); err != nil {
 				t.Fatalf("Run() error = %v, want nil", err)
 			}
-			wantRequest := pagerdutyplanner.PlanRequest{
+			wantRequest := pagerduty.PlanRequest{
 				Instance:   instance,
 				ObservedAt: now,
 				PlanKey:    test.wantPlanKey,
 			}
-			if !reflect.DeepEqual(planner.requests, []pagerdutyplanner.PlanRequest{wantRequest}) {
-				t.Fatalf("planner requests = %#v, want %#v", planner.requests, []pagerdutyplanner.PlanRequest{wantRequest})
+			if !reflect.DeepEqual(planner.requests, []pagerduty.PlanRequest{wantRequest}) {
+				t.Fatalf("planner requests = %#v, want %#v", planner.requests, []pagerduty.PlanRequest{wantRequest})
 			}
 			if got, want := len(store.createdRuns), 1; got != want {
 				t.Fatalf("created runs = %d, want %d", got, want)

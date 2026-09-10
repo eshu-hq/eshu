@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/componentextensionplanner"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -60,7 +60,7 @@ func TestServiceRunSchedulesComponentExtensionWork(t *testing.T) {
 		},
 		Store:                     store,
 		GovernanceAudit:           audit,
-		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
+		ComponentExtensionPlanner: extension.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -127,7 +127,7 @@ func TestServiceRunSchedulesPagerDutyComponentExtensionThroughGenericPlanner(t *
 		},
 		Store:                     store,
 		PagerDutyPlanner:          pagerDutyPlanner,
-		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
+		ComponentExtensionPlanner: extension.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -174,7 +174,7 @@ func TestServiceRunSkipsComponentExtensionWithoutEgressPolicy(t *testing.T) {
 		},
 		Store:                     store,
 		GovernanceAudit:           audit,
-		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
+		ComponentExtensionPlanner: extension.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -241,7 +241,7 @@ func TestServiceRunSkipsDeniedComponentExtensionEgress(t *testing.T) {
 		},
 		Store:                     store,
 		GovernanceAudit:           audit,
-		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
+		ComponentExtensionPlanner: extension.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -310,7 +310,7 @@ func TestServiceComponentExtensionReconcileIsIdempotentAcrossRestart(t *testing.
 			}},
 		},
 		Store:                     store,
-		ComponentExtensionPlanner: componentextensionplanner.WorkPlanner{},
+		ComponentExtensionPlanner: extension.WorkPlanner{},
 		Clock:                     func() time.Time { return now },
 	}
 
@@ -355,7 +355,7 @@ func testScorecardComponentInstance(now time.Time) workflow.CollectorInstance {
 // error instead of silently skipping the instance. The planner-side
 // assertion that PlanComponentExtensionWork actually returns that
 // runtime.sdk_protocol rejection now lives in
-// componentextensionplanner.TestComponentExtensionPlannerRejectsUnsupportedSDKProtocol,
+// extension.TestComponentExtensionPlannerRejectsUnsupportedSDKProtocol,
 // and the parse/validation rule itself is pinned independently in
 // componentactivation.TestParseConfig.
 func TestShouldScheduleComponentExtensionSurfacesInvalidActivationConfig(t *testing.T) {
