@@ -116,7 +116,7 @@ func TestContainerImageIdentityPublicationPrefersCanonicalExactDigest(t *testing
 // SourceRepositoryIDs across colliding decisions, this test's published
 // source_repository_ids value changes and the test fails, giving that
 // change a visible signal instead of a silent re-tiering three call frames
-// away in supply_chain_impact_anchor_tier.go.
+// away in anchor_tier.go.
 func TestContainerImageIdentityPublicationCanNarrowSourceRepositoryIDs(t *testing.T) {
 	t.Parallel()
 

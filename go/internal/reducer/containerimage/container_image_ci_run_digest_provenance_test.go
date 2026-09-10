@@ -127,7 +127,7 @@ func TestCIRunDigestAnchorConfersBuildProvenanceOnCompetingImageRefDecision(t *t
 // survive.
 //
 // Before the fix the correlation lands ambiguous + provenance_only, which
-// matchingSupplyChainDeployments (supply_chain_impact_runtime.go) rejects
+// matchingSupplyChainDeployments (runtime.go) rejects
 // outright -- so the deployment's environment and its #5425 environment_evidence
 // never reach a supply-chain impact finding.
 func TestCIRunDigestBuildProvenanceLetsCorrelationEscapeProvenanceOnly(t *testing.T) {

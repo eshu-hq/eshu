@@ -27,7 +27,7 @@ import (
 // ProducerReadiness before its cross-scope load and returns
 // ProducerNotReadyError when the load resolved no producer output and the
 // producer scopes have not activated (readiness_floor.go, and
-// supply_chain_impact_evidence_load.go for the second consumer's
+// evidence_load.go for the second consumer's
 // producer-owned counting rule).
 //
 // Being in the dependency catalog is not what gates a consumer. Each handler

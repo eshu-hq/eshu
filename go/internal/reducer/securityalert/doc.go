@@ -59,7 +59,7 @@
 // accept as an injected dependency. The handler has exactly one production
 // construction site, defaults_additive_domains_supply_chain.go, where the
 // reducer root wires correlation.ExtractSecurityAlertManifestConsumptions in;
-// supply_chain_impact_security_alert.go calls that same bridge directly rather
+// security_alert.go calls that same bridge directly rather
 // than through a builder, so it is not a construction site. The reducer root's own test
 // files exercise the real manifest-matching behavior end to end
 // (security_alert_reconciliation_lockfile_test.go,

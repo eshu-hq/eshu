@@ -42,7 +42,7 @@ import (
 // directly by addCICDArtifactImageReference. An asymmetric append there left
 // a competing decision ambiguous by SourceRepositoryIDs with empty
 // BuildProvenanceRepositoryIDs -- a shape
-// singleSupplyChainImageSourceRepositoryID (supply_chain_impact_anchor_tier.go)
+// singleSupplyChainImageSourceRepositoryID (anchor_tier.go)
 // resolves to nothing, blanking the supply-chain finding's RepositoryID.
 //
 // This is a pure decision-level test, deliberately scope-free: with the #5810

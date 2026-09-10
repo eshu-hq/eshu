@@ -222,8 +222,8 @@ for the same reason.
   O(suppressions × scope keys) with case-insensitive string compares and
   short-circuit returns; for the largest fact set the handler observes in
   CI fixtures (`TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings`
-  in `supply_chain_impact_test.go` and the new
-  `supply_chain_suppression_handler_test.go` cases) the additional decode
+  in `impact_test.go` and the new
+  `suppression_handler_test.go` cases) the additional decode
   and evaluate steps stay under one millisecond per finding on the same
   scope, so the existing `go test ./internal/reducer -count=1` gate is the
   baseline.
@@ -334,7 +334,7 @@ for the same reason.
   manifest range, which the existing comparator engine evaluates without
   any extra fact load, queue claim, lease, or canonical write. The reducer
   handler test suite (`go test ./internal/reducer -count=1`) is the
-  baseline; the new `supply_chain_impact_remediation_test.go` cases each
+  baseline; the new `remediation_test.go` cases each
   finish in microseconds on the developer fixture set.
   No-Regression Evidence: `BuildSupplyChainImpactRemediation` is the only
   per-finding addition to `appendSupplyChainImpactFinding`; no Postgres,

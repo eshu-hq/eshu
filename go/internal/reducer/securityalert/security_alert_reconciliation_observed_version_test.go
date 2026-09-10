@@ -109,7 +109,7 @@ func TestBuildSecurityAlertReconciliationsReportsMissingAndMalformedObservedVers
 }
 
 // assertContainsString is declared locally rather than imported from the
-// reducer root's copy (supply_chain_impact_version_match_helpers_test.go): Go
+// supplychain/core's copy (version_match_helpers_test.go): Go
 // test files never export across packages, and this seven-line
 // case-insensitive membership check has no reducer-root dependency (issue
 // #6061).

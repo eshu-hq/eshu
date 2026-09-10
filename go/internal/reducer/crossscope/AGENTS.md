@@ -41,14 +41,14 @@
   reducer root reads them by field access across the package boundary (see
   the README's Compatibility section). Do not re-unexport them without also
   fixing `ci_cd_run_correlation.go` and
-  `supply_chain_impact_cross_scope_readiness_test.go`.
+  `cross_scope_readiness_test.go`.
 
 ## Common changes
 
 Adding a third cross-scope consumer: add its entry to `dependencyCatalog` in
 `dependencies.go`, wire its handler to call `CheckProducerReadinessBeforeLoad`
 / `UnreadyProducers` / `LogProducerNotReadyDefer` the same way
-`ci_cd_run_correlation.go` and `supply_chain_impact_evidence_load.go` do, and
+`ci_cd_run_correlation.go` and `evidence_load.go` do, and
 extend `TestCompletionEdgesExposeCatalogExactly` and
 `TestDependencyCatalogIsValid`. Being in the catalog does not gate a
 consumer by itself — each handler must opt in by calling the floor helpers.

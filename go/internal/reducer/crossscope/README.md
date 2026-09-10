@@ -34,7 +34,7 @@ declarations, no fact decoding, no writer, and no queue or Postgres access. The
 parent reducer package still owns registry composition, runtime and queue
 execution, and the two handlers that call this floor
 (`CICDRunCorrelationHandler` in `ci_cd_run_correlation.go`,
-`SupplyChainImpactHandler` in `supply_chain_impact_evidence_load.go`).
+`SupplyChainImpactHandler` in `evidence_load.go`).
 
 ## Why this is a shared tier, not a family helper
 
@@ -48,7 +48,7 @@ for the compatibility forwarders it keeps).
 The tier is genuinely shared, not merely convenient to share: both
 `ci_cd_run_correlation` and `supply_chain_impact` are registered consumers in
 the catalog, and `LogProducerNotReadyDefer` is called from both
-`ci_cd_run_correlation.go` and `supply_chain_impact_evidence_load.go`. Moving
+`ci_cd_run_correlation.go` and `evidence_load.go`. Moving
 it into either family's subpackage would leave the other needing to import a
 sibling family, which the restructure forbids — families import shared-core
 tiers, never each other.
@@ -103,7 +103,7 @@ The reducer root keeps the cross-scope stanza of `compat_projection.go` as the t
 compatibility surface: unexported function-statement forwarders and type
 aliases for every symbol this package took over, under their EXACT original
 root spelling, so none of the 92-plus existing call sites in
-`ci_cd_run_correlation.go`, `supply_chain_impact_evidence_load.go`,
+`ci_cd_run_correlation.go`, `evidence_load.go`,
 `registry_additive_domains.go`, and the storage layer's
 `internal/storage/postgres/cross_scope_completion_fanout.go` and
 `cross_scope_producer_readiness.go` (which reference `reducer.CrossScopeCompletionEdges`,
@@ -119,7 +119,7 @@ and `ProducerNotReadyError.ProducerDomains` are exported (capitalized) because
 `ci_cd_run_correlation.go` and a supply-chain-impact test read them directly
 by field access, which an unexported field cannot support across packages
 even through a type alias. `ci_cd_run_correlation.go:173` and
-`supply_chain_impact_cross_scope_readiness_test.go` were repointed at the
+`cross_scope_readiness_test.go` were repointed at the
 capitalized name; every other call site is unchanged.
 
 ## No-Regression / No-Observability-Change Evidence

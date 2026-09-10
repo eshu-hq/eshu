@@ -1084,7 +1084,7 @@ this migration. Result class: Correctness win with a bounded, measured handler
 cost (the real perf gap — the float64 fallback — found and fixed; the residual
 is architectural reflection overhead, not an unmeasured regression).
 `TestBuildSupplyChainImpactFindingsQuarantinesOSPackageMissingInstalledVersion`
-(new flagship regression test, `vulnerability_input_invalid_test.go`) failed
+(new flagship regression test, `build_input_invalid_test.go`) failed
 before `buildSupplyChainImpactIndexWithQuarantine` routed a
 missing-`installed_version_raw` `vulnerability.os_package` fact through the
 decode seam (the old `payloadStr` lookup returned `""` for the absent key and

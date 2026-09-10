@@ -103,9 +103,9 @@ func securityAlertVersionTextLooksLikeRange(raw string) bool {
 
 // securityAlertConsumptionEvidenceKind declares locally rather than importing
 // the reducer root's securityAlertConsumptionEvidenceKind
-// (supply_chain_impact_security_alert.go): a short fallback shared with
-// supply_chain's own finding assembly, which has not moved out of root yet
-// (issue #6061), for the same reason as the helpers in
+// (security_alert.go): a short fallback shared with
+// supplychain/core's own finding assembly (issue #6061),
+// for the same reason as the helpers in
 // security_alert_reconciliation.go.
 func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) string {
 	if strings.TrimSpace(consumption.EvidenceKind) != "" {

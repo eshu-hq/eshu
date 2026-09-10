@@ -23,9 +23,9 @@ import (
 // these under their original unqualified names, so root keeps this trimmed
 // copy rather than requiring every one of those files to import containerimage
 // and requalify every call site. The moved supplychain/core suite
-// (supply_chain_impact_repository_anchor_ci_run_test.go and the
-// supply_chain_impact_* reachability tests) keeps its own copies in
-// supply_chain_impact_cross_scope_test_doubles_test.go. Mirrors
+// (repository_anchor_ci_run_test.go and the
+// reachability tests) keeps its own copies in
+// cross_scope_test_doubles_test.go. Mirrors
 // internal/reducer/secretsiam's writer test gaining a local exec double for
 // the same reason.
 
@@ -87,7 +87,7 @@ func containerImageIdentityFact(factID, repositoryID, imageRef, digest string) f
 // effectiveDecisions/effectiveProjectionPresent fields to feed the graph
 // projection path; this package cannot reach those unexported fields across
 // the package boundary, and its own callers (defaults_test.go,
-// supply_chain_impact_repository_anchor_ci_run_test.go) construct this only
+// repository_anchor_ci_run_test.go) construct this only
 // as a zero-value stand-in and never inspect the returned result, so the
 // simpler CanonicalWrites-only result is equivalent for their purposes.
 type recordingContainerImageIdentityWriter struct {
