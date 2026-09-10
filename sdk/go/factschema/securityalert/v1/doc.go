@@ -14,7 +14,7 @@
 //
 // This family has a deliberate accuracy boundary. The single decode site on
 // the reducer side (ExtractProviderSecurityAlerts,
-// go/internal/reducer/securityalert/security_alert_reconciliation.go) feeds TWO consumers:
+// go/internal/reducer/securityalert/reconciliation.go) feeds TWO consumers:
 // the security-alert reconciliation read surface
 // (GET /api/v0/supply-chain/security-alerts/reconciliations, the
 // security_alert_reconciliation domain) and the supply-chain-impact seeder

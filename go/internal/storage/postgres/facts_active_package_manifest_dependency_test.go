@@ -77,7 +77,7 @@ func TestFactStoreListActivePackageManifestDependencyFactsUsesActiveGenerations(
 // facts visible (a tombstone supersedes within the same generation), so the
 // read model must filter them out with an explicit predicate, matching every
 // sibling active source-local reader. Two of the three consumers
-// (package_source_correlation_handler.go, security_alert_reconciliation_handler.go)
+// (package_source_correlation_handler.go, securityalert/reconciliation_handler.go)
 // do not filter IsTombstone themselves, so the guard belongs in the query.
 func TestFactStoreListActivePackageManifestDependencyFactsExcludesTombstones(t *testing.T) {
 	t.Parallel()
