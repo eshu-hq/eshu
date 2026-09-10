@@ -84,7 +84,7 @@ key, reason string, and input-order anchor selection across the three
 provider kinds are identical to the base commit, and the dispatcher's ordered
 fan-out is unchanged at 44 builder probes with this probe still running
 immediately after `azure.BuildRelationshipMaterializationReducerIntent` and
-before `workloadcloud.BuildWorkloadCloudRelationshipMaterializationReducerIntent`.
+before `workload.BuildReducerIntent`.
 During the earlier #6057 extraction, the private
 `cloudInventoryAdmissionSourceSystem` helper the root file owned was a pure
 delegation to `projectorintent.SourceSystem` — its entire body was

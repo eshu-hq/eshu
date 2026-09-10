@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package workloadcloud
+package cloud
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -9,13 +9,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// BuildWorkloadCloudRelationshipMaterializationReducerIntent enqueues one
-// reducer intent that promotes exact workload anchors on aws_resource facts
-// into WorkloadInstance USES CloudResource graph edges. The entity key
-// intentionally matches the CloudResource node materialization slice so the
-// reducer can gate on that readiness row while the graph writer handles
-// missing workload endpoints with MATCH-only no-ops.
-func BuildWorkloadCloudRelationshipMaterializationReducerIntent(
+// BuildReducerIntent enqueues one reducer intent that promotes exact workload
+// anchors on aws_resource facts into WorkloadInstance USES CloudResource graph
+// edges. The entity key intentionally matches the CloudResource node
+// materialization slice so the reducer can gate on that readiness row while
+// the graph writer handles missing workload endpoints with MATCH-only no-ops.
+func BuildReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,

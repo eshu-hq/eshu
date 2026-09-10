@@ -70,7 +70,7 @@
 // and internet-exposure reducer-intent builders live in the
 // internal/projector/aws/s3 child package; the reducer owns edge and posture
 // projection. The workload-cloud-relationship reducer-intent builder lives in
-// the internal/projector/workloadcloud child package; the reducer owns
+// the internal/projector/workload/cloud child package; the reducer owns
 // workload-endpoint resolution and USES edge projection. The incident-routing
 // reducer-intent builder lives in the internal/projector/incident/routing child
 // package; the reducer owns routing comparison and IncidentRoutingEvidence

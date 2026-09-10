@@ -100,7 +100,7 @@ live in the repository today.
 | `go/internal/projector/security/` | security-alert reconciliation and AWS security-group reducer-intent family builders |
 | `go/internal/projector/servicecatalog/` | service-catalog-correlation reducer-intent family builder |
 | `go/internal/projector/supplychainimpact/` | supply-chain-impact reducer-intent family builder |
-| `go/internal/projector/workloadcloud/` | workload-cloud-relationship reducer-intent family builder |
+| `go/internal/projector/workload/cloud/` | workload-cloud-relationship reducer-intent family builder |
 | `go/internal/query/` | HTTP query/admin handlers plus OpenAPI support |
 | `go/internal/query/packagereg/` | package-registry query handler family: package/version identity, package-native dependency edges, reducer-derived correlation, and inventory reads |
 | `go/internal/query/queryauth/` | request-scoped authorization bounds a query handler reads, and the context slot they travel in |
