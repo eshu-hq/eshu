@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package multicloudruntimedrift builds the multi_cloud_runtime_drift
+// Package multi builds the multi_cloud_runtime_drift
 // reducer intent from one immutable scope generation. The trigger fires on
 // the earliest gcp_cloud_resource or azure_cloud_resource fact (issue #5759,
 // closing the "registered but never enqueued" gap left since #1997/#1998).
@@ -18,4 +18,4 @@
 // behavior-preserving substitution, not a change. Root projector assembly
 // owns lookup construction and lifetime, invocation order, queue writes,
 // retries, and telemetry.
-package multicloudruntimedrift
+package multi

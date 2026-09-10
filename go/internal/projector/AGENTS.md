@@ -111,7 +111,7 @@
   `package_source_correlation` domain via raw map access, a separate reducer
   family this projector wave did not convert.
 - **AWS runtime drift stays reducer-owned** —
-  `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` may enqueue one
+  `awsdrift.BuildReducerIntent` may enqueue one
   reducer intent when an AWS generation contains `aws_resource` facts, but the
   projector must not join AWS resources to Terraform state or config. ARN
   matching, backend ownership, and orphan/unmanaged admission belong in
@@ -234,7 +234,7 @@
   actually exercise `buildProjection`, so the whole file stayed at root,
   renamed `crossplane_satisfied_by_materialization_projection_test.go`.
 - **Multi-cloud runtime drift family (#6057)** — the
-  `multi_cloud_runtime_drift` builder lives in `multicloudruntimedrift/` and
+  `multi_cloud_runtime_drift` builder lives in `cloud/runtime/drift/multi/` and
   consumes the lookup like the families above. It carries no decode seam: it
   triggers on the earliest `gcp_cloud_resource` or `azure_cloud_resource`
   fact and deliberately excludes `aws_resource` (issue #5759 provider
@@ -257,7 +257,7 @@
   different values) and moved into the child's own test file, since the
   private helper they exercised no longer exists.
 - **AWS-cloud-runtime-drift family (#6057)** — the
-  `aws_cloud_runtime_drift` builder lives in `awscloudruntimedrift/` and
+  `aws_cloud_runtime_drift` builder lives in `cloud/runtime/drift/aws/` and
   consumes the lookup like the families above. It carries no decode seam: it
   triggers on the earliest `aws_resource` fact in original input order. The
   root `awsCloudRuntimeDriftSourceSystem` helper was byte-identical to
@@ -331,7 +331,7 @@
   `..._intents_test.go` when the builder moved out), because it drives
   `buildProjection`, a root-only function; the child's own
   `materialization_intents_test.go` carries builder-level unit tests in the
-  `awscloudruntimedrift` style.
+  cloud runtime-drift leaf style.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.

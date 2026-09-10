@@ -72,7 +72,7 @@
   `go/internal/query/ci_cd_run_correlations.go` and
   `go/internal/query/incident_context_runtime_sql.go` for the
   `ci_cd_run_correlation` domain, not any projector file — no entry cites
-  this package (verified with a positive control against the cloudinventory
+  this package (verified with a positive control against the cloud-inventory
   citations). If a route is ever repointed to cite a projector source file
   for this family, that will create the coupling the sibling extractions
   warn about: the registry test reads cited files by path and fails with

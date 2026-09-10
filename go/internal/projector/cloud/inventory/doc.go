@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package cloudinventory builds the cloud-inventory-admission reducer intent
+// Package inventory builds the cloud-inventory-admission reducer intent
 // from one immutable scope generation: when the generation carries at least
 // one provider cloud-inventory source fact — an aws_resource,
 // gcp_cloud_resource, or azure_cloud_resource — it asks the reducer to admit
@@ -19,4 +19,4 @@
 // handler owns candidate classification and every identity-row write. Root
 // projector assembly owns lookup construction and lifetime, invocation order,
 // queue writes, retries, and telemetry.
-package cloudinventory
+package inventory

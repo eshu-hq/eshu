@@ -38,13 +38,13 @@
 // containerimageidentity.BuildContainerImageIdentityReducerIntent; the
 // reducer owns the cross-source join.
 // AWS resource observations stay source-local until
-// awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent emits one
+// awsdrift.BuildReducerIntent emits one
 // aws_cloud_runtime_drift reducer intent for the AWS scope generation; the
 // reducer owns ARN joins and unmanaged/orphan admission. That reducer-intent
-// builder lives in the internal/projector/awscloudruntimedrift child package.
+// builder lives in the internal/projector/cloud/runtime/drift/aws child package.
 // GCP and Azure cloud resource observations emit one multi_cloud_runtime_drift
 // reducer intent via
-// multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent (issue
+// multidrift.BuildReducerIntent (issue
 // #5759); AWS resource facts alone do not trigger it, since
 // aws_cloud_runtime_drift exclusively owns AWS drift findings and the
 // reducer filters any AWS-provider row its shared canonical-uid evidence

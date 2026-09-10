@@ -3,20 +3,20 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants, including
+2. `../../AGENTS.md` and `../../README.md` for projector-wide invariants, including
    the rule that the projector never makes cross-source admission decisions.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
+3. `../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after the Azure relationship-materialization probe and before the
    workload-cloud-relationship probe.
-5. `go/internal/reducer/cloud_inventory_admission.go` for what the reducer
+5. `go/internal/reducer/cloudinventory/cloud_inventory_admission.go` for what the reducer
    does with the intent this package enqueues.
 
 ## Invariants
 
 - Import `internal/projector/intent`, never the root projector package. Root
   imports this package to dispatch, so the reverse import cycles.
-- `BuildCloudInventoryAdmissionReducerIntent` triggers only on a provider
+- `BuildReducerIntent` triggers only on a provider
   cloud-inventory source fact — `aws_resource`, `gcp_cloud_resource`, or
   `azure_cloud_resource` — and anchors to the earliest such fact in original
   input order across the three kinds, via `FirstMatchingKindPredicate`. Do not
@@ -51,7 +51,7 @@
   `facts.GCPCloudResourceFactKind`, then add the matching `routeReadEvidence`
   marker to `go/internal/mcp/route_serves_data_registry_routes.go` for
   `GET /api/v0/cloud/inventory`. The registry reads this file by path and
-  greps for the marker, so a new kind that is not registered there serves a
+  searches for the marker, so a new kind that is not registered there serves a
   domain the registry cannot prove.
 - **Changing the intent's reason or entity key.** Both are asserted verbatim by
   the package tests and read by reducer projection; change them together.
@@ -59,7 +59,7 @@
 ## Failure modes
 
 - **The registry stops resolving this file.** It cites
-  `go/internal/projector/cloudinventory/admission_intents.go` by path. Renaming
+  `go/internal/projector/cloud/inventory/reducer_intent.go` by path. Renaming
   or splitting this file breaks `TestRouteServesDataRegistryHonestStateGreen`
   from a distance, in `internal/mcp`, with a `read ...: no such file` error that
   does not name this package.
@@ -76,7 +76,7 @@
   `projectorintent.SourceSystem`; re-adding it only hides the seam.
 - Do not import the root `projector` package. Root imports this package to
   dispatch, and the reverse direction is an import cycle.
-- Do not widen the export surface past `BuildCloudInventoryAdmissionReducerIntent`.
+- Do not widen the export surface past `BuildReducerIntent`.
   Every sibling family in this series exports exactly one builder and no types.
 
 ## Changes needing ADR review

@@ -183,7 +183,7 @@ func (h MultiCloudRuntimeDriftHandler) Handle(ctx context.Context, intent reduce
 // because multi-cloud should ALSO publish an AWS finding. Without this filter,
 // a scope that carries both AWS and GCP/Azure facts (which enqueues this
 // domain for its GCP/Azure coverage; see
-// projector/multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent)
+// projector/cloud/runtime/drift/multi.BuildReducerIntent)
 // would silently republish every AWS orphaned/unmanaged/ambiguous/unknown
 // finding a second time under reducer_multi_cloud_runtime_drift_finding,
 // duplicating what list_aws_runtime_drift_findings already reports for the

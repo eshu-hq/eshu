@@ -180,7 +180,7 @@ impact can be recomputed when package evidence arrives after vulnerability
 intelligence.
 AWS cloud facts follow the same source-local rule. The projector does not join
 AWS resources to Terraform state; when a generation contains one or more
-`aws_resource` facts, `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` emits one
+`aws_resource` facts, `awsdrift.BuildReducerIntent` emits one
 `aws_cloud_runtime_drift` reducer intent for the AWS scope/generation so the
 reducer can run the bounded ARN join after source-local projection succeeds.
 The same `aws_resource` generation also emits one
@@ -193,11 +193,11 @@ fabricating a relationship. The projector never writes those service/cloud
 relationships itself; see [workload-cloud-relationship architecture](workloadcloud/README.md).
 Provider-neutral multi-cloud runtime drift follows a related but distinct rule
 (issue #5759). When a generation contains one or more `gcp_cloud_resource` or
-`azure_cloud_resource` facts, `multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent` ([architecture](multicloudruntimedrift/README.md)) emits
+`azure_cloud_resource` facts, `multidrift.BuildReducerIntent` ([architecture](cloud/runtime/drift/multi/README.md)) emits
 one `multi_cloud_runtime_drift` reducer intent for the scope/generation so the
 reducer can run the bounded `cloud_resource_uid` join shared with the AWS drift
 path. `aws_resource` facts alone do NOT trigger this intent: AWS runtime drift
-stays exclusively `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent`'s job, and
+stays exclusively `awsdrift.BuildReducerIntent`'s job, and
 `MultiCloudRuntimeDriftHandler.Handle` drops any AWS-provider row its shared
 evidence loader also resolves before publishing, so the two domains never
 disagree about the same AWS resource. A scope carrying both AWS and GCP/Azure
@@ -247,7 +247,7 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
 `internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observabilitycoverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicdruncorrelation`, `internal/projector/containerimageidentity`, `internal/projector/supplychainimpact`, `internal/projector/crossplanesatisfiedby`, `internal/projector/multicloudruntimedrift`, `internal/projector/awscloudruntimedrift`, and `internal/projector/aws/resource`
+`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloud/inventory`, `internal/projector/code/taint/evidence`, `internal/projector/code/interproc/evidence`, `internal/projector/code/function/summary`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observabilitycoverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicdruncorrelation`, `internal/projector/containerimageidentity`, `internal/projector/supplychainimpact`, `internal/projector/crossplanesatisfiedby`, `internal/projector/cloud/runtime/drift/multi`, `internal/projector/cloud/runtime/drift/aws`, and `internal/projector/aws/resource`
 families import that neutral lookup (semanticentity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -616,7 +616,7 @@ projector stage logs, `canonical.write` spans, phase-publish logs, and content
 write result logs still diagnose the projection.
 
 No-Regression Evidence: cloud-inventory admission intent scheduling (#2209) is
-covered by `../scripts/go-test-run-guard.sh 1 'TestBuildCloudInventoryAdmissionReducerIntent' -- ./internal/projector/cloudinventory -count=1`, run from the `go/` module root (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing after a rename).
+covered by `../scripts/go-test-run-guard.sh 1 'TestBuildReducerIntent' -- ./internal/projector/cloud/inventory -count=1`, run from the `go/` module root (the guard rather than a bare `go test -run`, which exits 0 when the pattern matches nothing after a rename).
 Baseline: the `cloud_inventory_admission` reducer domain was registered and wired
 but received no intent, so `reducer_cloud_resource_identity` rows were never
 written and `GET /api/v0/cloud/inventory` returned zero rows. After: the

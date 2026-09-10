@@ -105,7 +105,7 @@ identifiers changed from struct-field reads (`scope.IngestionScope`,
 `scope.ScopeGeneration`) to plain string parameters carrying the same values
 from the call site. The dispatcher's ordered fan-out is unchanged at 44 builder
 probes on both sides, with this probe still running immediately after
-`multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent` and
+`multidrift.BuildReducerIntent` and
 immediately before `gcp.BuildResourceMaterializationReducerIntent`.
 
 Focused proof, run from the `go/` module root:

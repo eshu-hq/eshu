@@ -13,13 +13,13 @@ import (
 )
 
 // This file drives the FULL enqueue path (buildProjection, not the
-// awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent builder in
+// awsdrift.BuildReducerIntent builder in
 // isolation) for the aws_cloud_runtime_drift family: it proves
 // appendScopeGenerationReducerIntents still wires the extracted builder into
 // dispatch after the #6057 move, and that the same aws_resource generation
 // enqueues the other AWS-scope-keyed intents it always has. The builder's own
 // anchor-selection, entity-key, and source-system unit coverage lives in
-// internal/projector/awscloudruntimedrift/reducer_intent_test.go.
+// internal/projector/cloud/runtime/drift/aws/reducer_intent_test.go.
 
 func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 	t.Parallel()

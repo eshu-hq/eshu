@@ -3,11 +3,11 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants, including
+2. `../../../../AGENTS.md` and `../../../../README.md` for projector-wide invariants, including
    the rule that the projector never makes cross-source admission decisions.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
-   runs after `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` and before
+3. `../../../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../../../scope_generation_intents.go` for root-owned assembly order; this probe
+   runs after `awsdrift.BuildReducerIntent` and before
    `resource.BuildMaterializationReducerIntent`.
 5. `go/internal/reducer/multi-cloud-runtime-drift.md` and
    `go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift.go`: what the reducer does
@@ -19,7 +19,7 @@
 
 - Import `internal/projector/intent`, never the root projector package. Root
   imports this package to dispatch, so the reverse import cycles.
-- `BuildMultiCloudRuntimeDriftReducerIntent` fires on the earliest
+- `BuildReducerIntent` fires on the earliest
   `gcp_cloud_resource` or `azure_cloud_resource` fact. `aws_resource` facts
   alone must NEVER trigger this domain — `DomainAWSCloudRuntimeDrift` already
   owns AWS runtime-drift findings end-to-end, so enqueuing here for an
@@ -34,8 +34,8 @@
   and the `multi_cloud_runtime_drift:<scope>` entity key byte-identical. The
   reducer claims one intent per scope generation and reloads the
   generation's facts itself. **The root fan-out parity fixture
-  (`../scope_generation_intents_fanout_parity_test.go` and
-  `../scope_generation_intents_fanout_test.go`) DOES cover this domain** —
+  (`../../../../scope_generation_intents_fanout_parity_test.go` and
+  `../../../../scope_generation_intents_fanout_test.go`) DOES cover this domain** —
   `reducer.DomainMultiCloudRuntimeDrift` appears in both
   `fanOutParityExpectations` and `fanOutParityExpectedOrder`, and the shared
   fixture carries both a `gcp_cloud_resource` and an `azure_cloud_resource`
@@ -57,8 +57,8 @@
   fact-kind constant to `candidateFactKinds`, decide whether the reducer's
   evidence loader and `excludeAWSOwnedRows`-style partitioning need the same
   addition, and update this package's tests plus the root fan-out fixture
-  (`../scope_generation_intents_fanout_test.go`) and parity expectations
-  (`../scope_generation_intents_fanout_parity_test.go`) — this domain IS
+  (`../../../../scope_generation_intents_fanout_test.go`) and parity expectations
+  (`../../../../scope_generation_intents_fanout_parity_test.go`) — this domain IS
   covered there, unlike some sibling families.
 - **Changing the reason string or the entity key.** Update both this
   package's tests and the fan-out parity fixture's
@@ -70,7 +70,7 @@
 - **Root dispatcher tests live outside this directory.** The `buildProjection`
   cases for this domain — GCP-only trigger, Azure-only trigger, AWS-only
   non-trigger, and no-cloud-facts non-trigger — stayed at root in
-  `../multi_cloud_runtime_drift_projection_test.go` because they call the
+  `../../../../multi_cloud_runtime_drift_projection_test.go` because they call the
   unexported root `buildProjection` dispatcher directly, which this package
   cannot import. A change here can break them without touching any file in
   this directory.
@@ -94,7 +94,7 @@
 - Do not import the root `projector` package. Root imports this package to
   dispatch, and the reverse direction is an import cycle.
 - Do not widen the export surface past
-  `BuildMultiCloudRuntimeDriftReducerIntent`. Every sibling family in this
+  `BuildReducerIntent`. Every sibling family in this
   series exports exactly one builder and no types.
 - Do not add `facts.AWSResourceFactKind` to `candidateFactKinds`. AWS-only
   triggering for this domain was explicitly removed by issue #5759's

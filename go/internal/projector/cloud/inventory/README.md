@@ -21,7 +21,7 @@ cross-source admission decisions.
 
 ## Exported surface
 
-- `BuildCloudInventoryAdmissionReducerIntent` builds the
+- `BuildReducerIntent` builds the
   `cloud_inventory_admission` intent, anchored to the earliest `aws_resource`,
   `gcp_cloud_resource`, or `azure_cloud_resource` fact in the generation's
   original input order.
@@ -77,15 +77,17 @@ Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
 
-No-Regression Evidence: this extraction moves one builder without changing
-the trigger, value, or fan-out position. The reducer intent domain, entity
+No-Regression Evidence: #6627 changes this builder's package path, package
+name, exported symbol, filename, and references without changing the trigger,
+value, or fan-out position. The reducer intent domain, entity
 key, reason string, and input-order anchor selection across the three
 provider kinds are identical to the base commit, and the dispatcher's ordered
 fan-out is unchanged at 44 builder probes with this probe still running
 immediately after `azure.BuildRelationshipMaterializationReducerIntent` and
 before `workloadcloud.BuildWorkloadCloudRelationshipMaterializationReducerIntent`.
-The private `cloudInventoryAdmissionSourceSystem` helper the root file owned
-was a pure delegation to `projectorintent.SourceSystem` — its entire body was
+During the earlier #6057 extraction, the private
+`cloudInventoryAdmissionSourceSystem` helper the root file owned was a pure
+delegation to `projectorintent.SourceSystem` — its entire body was
 `return projectorintent.SourceSystem(envelope)` — so inlining the shared call
 is behavior-identical by construction and the focused test pins the
 `CollectorKind` fallback; the root `firstMatchingKindPredicate` forwarder was
@@ -93,12 +95,12 @@ a direct delegate to `projectorintent.FactLookup.FirstMatchingKindPredicate`,
 so that substitution is behavior-identical the same way, and the forwarder
 stays at root for the observability-coverage correlation probe that still
 calls it. Focused proof, run from the `go/` module root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildCloudInventoryAdmissionReducerIntent' -- ./internal/projector/cloudinventory -count=1`
+`go test ./internal/projector/cloud/inventory -count=1`
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

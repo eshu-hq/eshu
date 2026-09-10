@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package awscloudruntimedrift builds the AWS cloud-runtime-drift reducer
+// Package aws builds the AWS cloud-runtime-drift reducer
 // intent from one immutable scope generation: when the generation carries any
 // aws_resource fact, it asks the reducer to run the bounded AWS ARN join
 // against active Terraform-state and Terraform-config facts and re-classify
@@ -12,4 +12,4 @@
 // generation order so the reducer claim is stable across reprojections of the
 // same generation. Root projector assembly owns lookup construction and
 // lifetime, invocation order, queue writes, retries, and telemetry.
-package awscloudruntimedrift
+package aws

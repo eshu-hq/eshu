@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package multicloudruntimedrift
+package multi
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -11,13 +11,13 @@ import (
 
 // candidateFactKinds are the fact kinds triggerFact ever inspects: GCP and
 // Azure cloud-inventory facts. aws_resource is deliberately excluded; see
-// BuildMultiCloudRuntimeDriftReducerIntent for why.
+// BuildReducerIntent for why.
 var candidateFactKinds = []string{
 	facts.GCPCloudResourceFactKind,
 	facts.AzureCloudResourceFactKind,
 }
 
-// BuildMultiCloudRuntimeDriftReducerIntent enqueues DomainMultiCloudRuntimeDrift
+// BuildReducerIntent enqueues DomainMultiCloudRuntimeDrift
 // for one scope generation whenever GCP or Azure cloud-inventory facts are
 // present (issue #5759, closing the "registered but never enqueued" gap left
 // since #1997/#1998). The trigger set is deliberately {gcp_cloud_resource,
@@ -38,7 +38,7 @@ var candidateFactKinds = []string{
 // and at publish time (which provider a resolved row belongs to) are separate
 // decisions because the trigger only sees this generation's fact kinds, not
 // which provider rows the loader's join will actually resolve.
-func BuildMultiCloudRuntimeDriftReducerIntent(
+func BuildReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,

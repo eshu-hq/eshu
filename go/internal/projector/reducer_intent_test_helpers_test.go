@@ -15,7 +15,7 @@ import (
 // fixtures used by many builder-family test files in this package. They
 // originally lived in aws_cloud_runtime_drift_intents_test.go; they moved
 // here, unchanged, when that file's builder was extracted into
-// internal/projector/awscloudruntimedrift (#6057) so every other family's
+// internal/projector/cloud/runtime/drift/aws (#6057, later moved for #6627) so every other family's
 // dispatch test kept a home for them in the root package.
 
 // intentForDomain returns the single reducer intent for domain, or fails the

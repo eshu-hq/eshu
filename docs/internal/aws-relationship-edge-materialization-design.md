@@ -30,7 +30,7 @@ A deep read of the pipeline established two facts that shape the whole design:
 
 2. **`aws_resource` facts have no graph node materialization either.** Its
    consumers in `go/internal/projector` — eight at the time of writing, including
-   `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` — merely
+   `awsdrift.BuildReducerIntent` — merely
    *trigger* their reducers when AWS resource facts appear. There is no `CloudResource` /
    `AwsResource` node label, uniqueness constraint, or uid index in
    `go/internal/graph/schema.go`. The query layer references a `CloudResource`

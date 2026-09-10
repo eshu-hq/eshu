@@ -36,7 +36,7 @@ write; none of that happens here.
 
 ## Exported surface
 
-- `BuildMultiCloudRuntimeDriftReducerIntent` builds the
+- `BuildReducerIntent` builds the
   `multi_cloud_runtime_drift` intent, anchored to the earliest accepted
   `gcp_cloud_resource`/`azure_cloud_resource` fact.
 
@@ -79,8 +79,8 @@ span, metric, or log boundary.
   sibling families in this series.
   `reducer.DomainMultiCloudRuntimeDrift` appears in both
   `fanOutParityExpectations` and `fanOutParityExpectedOrder` in
-  `../scope_generation_intents_fanout_parity_test.go`, and the shared fixture
-  in `../scope_generation_intents_fanout_test.go` carries both a
+  `../../../../scope_generation_intents_fanout_parity_test.go`, and the shared fixture
+  in `../../../../scope_generation_intents_fanout_test.go` carries both a
   `gcp_cloud_resource` fact (`gcp-resource-1`) and an `azure_cloud_resource`
   fact (`azure-resource-1`), so the parity fixture is a second safety net for
   this family's reason string, entity key, and source-system derivation, on
@@ -91,23 +91,24 @@ span, metric, or log boundary.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Reducer multi-cloud-runtime-drift architecture](../../reducer/multi-cloud-runtime-drift.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../../README.md)
+- [Intent contract](../../../../intent/README.md)
+- [Reducer multi-cloud-runtime-drift architecture](../../../../../reducer/multi-cloud-runtime-drift.md)
+- [Package restructure](../../../../../../../docs/internal/design/package-restructure.md)
 
-No-Regression Evidence: this extraction moves one builder without changing its
-trigger, value, or fan-out position. The reducer intent domain
+No-Regression Evidence: #6627 changes this builder's package path, package
+name, exported symbol, filename, and references without changing its trigger,
+value, or fan-out position. The reducer intent domain
 (`DomainMultiCloudRuntimeDrift`), the `multi_cloud_runtime_drift:<scope>`
 entity key, the `gcp or azure cloud resource facts observed` reason string,
-and the fact-id selection are identical to the base commit; only the scope
-and generation identifiers changed from struct-field reads to parameters,
-carrying the same values from the call site. The dispatcher's ordered fan-out
+and the fact-id selection are identical to the base commit. The dispatcher's
+ordered fan-out
 is unchanged at 44 builder probes on both sides, with this probe still
-running immediately after `awscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent` and
+running immediately after `awsdrift.BuildReducerIntent` and
 immediately before `resource.BuildMaterializationReducerIntent`.
 
-The family's private `multiCloudRuntimeDriftSourceSystem` helper was compared
+During the earlier #6057 extraction, the family's private
+`multiCloudRuntimeDriftSourceSystem` helper was compared
 body-for-body against `projectorintent.SourceSystem` and found identical --
 two tiers, both trimmed, no third literal fallback -- so it was dropped in
 favour of the shared seam rather than moved. The package's own
@@ -124,16 +125,15 @@ domain: `DomainMultiCloudRuntimeDrift` appears in both
 `fanOutParityExpectations` and `fanOutParityExpectedOrder`, and the shared
 fixture carries both a `gcp_cloud_resource` and an `azure_cloud_resource`
 fact. Verified by reading
-`../scope_generation_intents_fanout_parity_test.go` and
-`../scope_generation_intents_fanout_test.go` directly rather than assumed
+`../../../../scope_generation_intents_fanout_parity_test.go` and
+`../../../../scope_generation_intents_fanout_test.go` directly rather than assumed
 from a sibling family's finding.
 
 No-Observability-Change: no metric, span, log, or quarantine counter is added,
-moved, or renamed by this extraction. Root assembly and
+moved, or renamed by the #6627 package move. Root assembly and
 `eshu_dp_reducer_intents_enqueued_total` are untouched, the
 `multi_cloud_runtime_drift` domain keeps its existing reducer-side write
-telemetry, and the two files under this package emit no signal of their own
--- `multi_cloud_runtime_drift_intents.go` is a pure trigger-and-value builder
-with no I/O. The telemetry-coverage row for it was updated in place from the
-row already covering the pre-move root file, repointed to this package's
-path.
+telemetry, and `reducer_intent.go` emits no signal of its own: it is a pure
+trigger-and-value builder with no I/O. The telemetry-coverage row was updated
+in place from the row already covering the pre-move root file and repointed to
+this package's path.

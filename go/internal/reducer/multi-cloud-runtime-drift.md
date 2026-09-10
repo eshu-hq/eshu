@@ -27,8 +27,8 @@ presented as managed. `MultiCloudRuntimeDriftHandler` writes
 additive: it registers only when both a `MultiCloudRuntimeDriftEvidenceLoader`
 and writer are wired.
 
-`go/internal/projector/multicloudruntimedrift`'s
-`BuildMultiCloudRuntimeDriftReducerIntent` enqueues this domain when a scope
+`go/internal/projector/cloud/runtime/drift/multi`'s
+`BuildReducerIntent` enqueues this domain when a scope
 generation carries `gcp_cloud_resource` or
 `azure_cloud_resource` facts (#5759; before that fix it was registered but
 never enqueued, so it fired for no scope). **Provider partitioning:** AWS

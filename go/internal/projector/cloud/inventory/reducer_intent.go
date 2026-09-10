@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cloudinventory
+package inventory
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -19,7 +19,7 @@ var cloudInventoryAdmissionSourceFactKinds = map[string]struct{}{
 	facts.AzureCloudResourceFactKind: {},
 }
 
-// BuildCloudInventoryAdmissionReducerIntent enqueues one reducer intent that
+// BuildReducerIntent enqueues one reducer intent that
 // admits the scope generation's provider cloud-inventory source facts
 // (aws_resource, gcp_cloud_resource, azure_cloud_resource) into the shared
 // canonical CloudResource identity keyspace as reducer_cloud_resource_identity
@@ -34,7 +34,7 @@ var cloudInventoryAdmissionSourceFactKinds = map[string]struct{}{
 // reprojections of the same generation. The source-system label is the shared
 // two-tier projectorintent.SourceSystem fallback (SourceRef.SourceSystem, then
 // CollectorKind).
-func BuildCloudInventoryAdmissionReducerIntent(
+func BuildReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,
