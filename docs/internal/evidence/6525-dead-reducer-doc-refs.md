@@ -28,35 +28,51 @@ undeclared fixture (`container_image_identity.go`, referenced only from
 allowlisted transcript, 2 are self-test artifacts, and **13 ordinary repointable
 dead paths remain**:
 
+Grouped by why each survived, because the reason differs and an earlier revision
+of this note tracked them by list position, which broke every time the list grew.
+
+Cited from `docs/internal/design/4784-reducer-derived-fact-governance.md` and
+`4786-contract-integration-matrix.md`, which this branch never opened (11):
+
     ci_cd_run_correlation_writer.go              -> reducer/cicdrun/
     container_image_identity_provenance.go       -> reducer/containerimage/
     container_image_identity_writer.go           -> reducer/containerimage/
     eshu_search_document_domain.go               -> reducer/eshusearch/
     eshu_search_document_writer.go               -> reducer/eshusearch/
+    package_correlation_writer.go                -> reducer/packages/correlation/writer.go
     platform_materialization_writer.go           -> reducer/platformfam/
     sbom_attestation_attachment_index.go         -> reducer/sbomattest/
     sbom_attestation_attachment_writer.go        -> reducer/sbomattest/
     secrets_iam_graph_projection_extract_test.go -> reducer/secretsiam/
     secrets_iam_trust_chain_writer.go            -> reducer/secretsiam/
+
+Cited from the package-family docs instead, so the 4784/4786 explanation does
+not reach it (1):
+
+    package_consumption_correlation.go           -> reducer/packages/correlation/consumption.go
+
+Cited only from Go comments; this branch cleared it and had to revert (1):
+
     factschema_decode.go                         -> reducer/schemadecode/
 
+The last two entries are the ones the rebase onto `9cfb05ace` added: main moved
+the package-correlation family underneath this branch. Both are alive at
+`c74d5b6c5` and dead at `9cfb05ace` — `git cat-file -e <ref>:<path>` confirms
+each — and both are ordinary repointable references rather than fixtures.
+
 Those categories were tallied across separate measurements and **do not
-reconcile**: they sum to 56 against a base count of 53, an excess of 3. At least
+reconcile**: they sum to 58 against a base count of 53, an excess of 5. At least
 one path is counted twice — a repointed path that is also a fixture, or a listed
 remainder already inside the 28 — and splitting them correctly needs a full
 re-run of the sweep, which is not done here. The LIST is the checkable part:
 every entry can be confirmed with `git cat-file -e <base>:<path>`. Read the
 category tally as approximate and the list as exact.
 
-The first ten were missed because they are cited from
-`docs/internal/design/4784-reducer-derived-fact-governance.md` and
-`4786-contract-integration-matrix.md`, which this branch never opened.
-
-**The eleventh was dead at the base too; what differs is why it is still here.**
+**`factschema_decode.go` was dead at the base too; what differs is why it is still here.**
 An earlier revision of this note called it "this branch's own doing". That was
 wrong, and `git cat-file -e c74d5b6c5:go/internal/reducer/factschema_decode.go`
 fails while the subpackage form resolves at that same base — so the reference
-was already dead before this branch started, exactly like the other ten. What is
+was already dead before this branch started, exactly like the other twelve. What
 actually different is that it is the one path this branch tried to clear and had
 to put back; why the 4784/4786 explanation does not cover it is stated further
 down this section. Commit
@@ -73,8 +89,8 @@ than this branch should carry.
 At this branch's head that file still carries three references (lines 28, 39
 and 62) to `go/internal/reducer/factschema_decode.go`, a path that does not
 exist — the live file is `go/internal/reducer/schemadecode/factschema_decode.go`.
-Unlike the other ten, this one is NOT reachable from 4784 or 4786, so that
-explanation does not cover it.
+Unlike the eleven grouped above, this one is NOT reachable from 4784 or 4786, so
+that explanation does not cover it.
 
 **The head row above predates this revert.** The table was measured in
 `9e8939007`, which is an ancestor of `fa222cef9` (`git merge-base
@@ -84,13 +100,13 @@ table shows. The table is left as measured rather than silently re-stated,
 because the number it reports is what that run actually produced.
 
 **Why disclosing them matters more than the count being wrong.** The new gate is
-branch-scoped: it only inspects paths the branch itself vacates. All eleven were
-already dead at the base, so the gate will never report them, and there is no
-decreasing baseline ledger (the sibling `verify-doc-citations.sh` has one) to
+branch-scoped: it only inspects paths the branch itself vacates. All thirteen
+were already dead at the base, so the gate will never report them, and there is
+no decreasing baseline ledger (the sibling `verify-doc-citations.sh` has one) to
 keep them visible. Without this note the sweep, the guard, and the commit
-message would each independently hide the same 11 paths — and the eleventh is
-the one a reader is most likely to be surprised by, because the branch touched
-it and then put it back.
+message would each independently hide the same 13 paths — and
+`factschema_decode.go` is the one a reader is most likely to be surprised by,
+because the branch touched it and then put it back.
 
 ## Gate cost, measured
 
