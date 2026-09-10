@@ -24,7 +24,7 @@ import (
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
 	projectoriaminstanceprofile "github.com/eshu-hq/eshu/go/internal/projector/iaminstanceprofile"
-	projectorincidentrouting "github.com/eshu-hq/eshu/go/internal/projector/incidentrouting"
+	"github.com/eshu-hq/eshu/go/internal/projector/incident/routing"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	projectorobservabilitycoverage "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoverage"
 	projectorobservabilitycoveragematerialization "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoveragematerialization"
@@ -106,7 +106,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorobservabilitycoverage.BuildObservabilityCoverageCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorincidentrouting.BuildIncidentRoutingMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := routing.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := taint.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

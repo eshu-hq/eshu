@@ -72,7 +72,7 @@
 // projection. The workload-cloud-relationship reducer-intent builder lives in
 // the internal/projector/workloadcloud child package; the reducer owns
 // workload-endpoint resolution and USES edge projection. The incident-routing
-// reducer-intent builder lives in the internal/projector/incidentrouting child
+// reducer-intent builder lives in the internal/projector/incident/routing child
 // package; the reducer owns routing comparison and IncidentRoutingEvidence
 // projection. The AWS relationship reducer-intent builder lives in the
 // internal/projector/aws/relationship child package; the reducer owns the

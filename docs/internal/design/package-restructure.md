@@ -740,8 +740,8 @@ decode wrapper, so the move is a one-file, one-caller extraction with no
 moved into `internal/projector/workloadcloud` on that same shape: it triggers
 on mere `aws_resource` fact presence, decodes no payload, and shares the
 generic `aws_resource_materialization:<scope>` entity key with the S3 and RDS
-builders. The incident-routing builder moved into
-`internal/projector/incidentrouting` on the same presence-only shape: it
+builders. The incident-routing builder lives in
+`internal/projector/incident/routing` on the same presence-only shape: it
 triggers on `incident.record` plus the `incident_routing.*` kinds
 `internal/facts` registers, anchors with the cross-kind `FirstAcrossKinds`
 lookup the security-alert builder also uses, keys on its own

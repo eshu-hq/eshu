@@ -12,6 +12,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
+// TestBuildProjectionQueuesIncidentRoutingMaterializationForIncidentRecord
+// proves root dispatch preserves incident-record trigger behavior.
 func TestBuildProjectionQueuesIncidentRoutingMaterializationForIncidentRecord(t *testing.T) {
 	t.Parallel()
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package incidentrouting
+package routing
 
 import (
 	"reflect"
@@ -34,12 +34,12 @@ func incidentEnvelope(factID, factKind, sourceSystem, collectorKind string) fact
 	}
 }
 
-// TestBuildIncidentRoutingMaterializationReducerIntent proves the builder
-// enqueues from incident.record or any incident_routing.* fact, anchors to the
-// earliest candidate fact in original input order regardless of which kind it
-// carries, keys the intent by scope, and falls back to CollectorKind when
-// SourceRef's SourceSystem is blank.
-func TestBuildIncidentRoutingMaterializationReducerIntent(t *testing.T) {
+// TestBuildReducerIntent proves the builder
+// enqueues from incident.record or every registered incident-routing fact,
+// anchors to the earliest candidate fact in original input order regardless of
+// which kind it carries, keys the intent by scope, and falls back to
+// CollectorKind when SourceRef's SourceSystem is blank.
+func TestBuildReducerIntent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("queues from incident.record, anchored to the earliest fact", func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestBuildIncidentRoutingMaterializationReducerIntent(t *testing.T) {
 			incidentEnvelope("incident-fact-1", facts.IncidentRecordFactKind, "pagerduty", "pagerduty"),
 			incidentEnvelope("incident-fact-2", facts.IncidentRecordFactKind, "pagerduty", "pagerduty"),
 		})
-		got, ok := BuildIncidentRoutingMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -70,7 +70,7 @@ func TestBuildIncidentRoutingMaterializationReducerIntent(t *testing.T) {
 			lookup := projectorintent.NewFactLookup([]facts.Envelope{
 				incidentEnvelope("routing-fact-1", kind, "pagerduty", "pagerduty"),
 			})
-			got, ok := BuildIncidentRoutingMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+			got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 			if !ok {
 				t.Fatalf("kind %q: ok = false, want true", kind)
 			}
@@ -89,7 +89,7 @@ func TestBuildIncidentRoutingMaterializationReducerIntent(t *testing.T) {
 			incidentEnvelope("routing-fact-1", facts.IncidentRoutingObservedPagerDutyServiceFactKind, "pagerduty", "pagerduty"),
 			incidentEnvelope("incident-fact-1", facts.IncidentRecordFactKind, "pagerduty", "pagerduty"),
 		})
-		got, ok := BuildIncidentRoutingMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -103,7 +103,7 @@ func TestBuildIncidentRoutingMaterializationReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			incidentEnvelope("incident-fact-1", facts.IncidentRecordFactKind, "", "pagerduty_collector"),
 		})
-		got, ok := BuildIncidentRoutingMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -117,7 +117,7 @@ func TestBuildIncidentRoutingMaterializationReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			incidentEnvelope("unrelated-1", facts.AWSResourceFactKind, "aws", "aws_cloud"),
 		})
-		got, ok := BuildIncidentRoutingMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {
 			t.Fatalf("returned (%#v, %t), want zero intent and false", got, ok)
 		}
