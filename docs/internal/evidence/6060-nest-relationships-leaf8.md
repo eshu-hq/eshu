@@ -6,7 +6,7 @@ compounds into nested directories): `enrich.go`, `filters.go`,
 `identity.go`, `nornicdb.go`, with the thin `*CodeHandler` methods left in
 `codequery/relationship_handlers.go` (a `relationships.go` there trips the
 dirgate file/dir stutter rule). 22 family test files moved with them, plus
-new leaf-level `relationships_test.go` / `relationships_test_helpers_test.go`.
+new leaf-level `contract_test.go` / `test_helpers_test.go`.
 Handler-seam tests that construct the root `CodeHandler` stay in `codequery/`
 — a different package cannot name it — as do the grant/fake suites owned by
 #5167.
