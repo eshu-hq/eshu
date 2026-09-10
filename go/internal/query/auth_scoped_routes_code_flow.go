@@ -78,16 +78,16 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //
 //   - POST /api/v0/code/dead-code, /dead-code/investigate, and
 //     /dead-code/cross-repo -- CodeHandler.deadCodeCandidateRows
-//     (code_dead_code_scan.go), the one candidate read all three share. Its SQL
+//     (codequery/analyzer.go), the one candidate read all three share. Its SQL
 //     backend gains `repo_id = ANY($n)` (content_reader_dead_code_candidates.go)
 //     and its graph backend gains the `r.id IN $allowed_*` predicate on the
-//     Repository anchor (buildDeadCodeGraphCypherForLabel, code_dead_code.go);
+//     Repository anchor (deadcode.BuildDeadCodeGraphCypherForLabel,
 //     every probe downstream is keyed on entity ids that read already returned.
 //     Two of those probes bind the grant again on the consumer side, because a
 //     consumer lives outside the producer's repository by definition: the
 //     incoming-edge probe projects it per row as in_grant
-//     (buildDeadCodeScopedIncomingBatchProbeCypher,
-//     code_dead_code_candidate_entity.go), and cross-repo binds it in the
+//     (deadcode.BuildDeadCodeScopedIncomingBatchProbeCypher,
+//     codequery/deadcode/entities.go), and cross-repo binds it in the
 //     consumer-evidence page read ahead of that read's LIMIT
 //     (crossRepoDeadCodeConsumerReadPlan, code_dead_code_cross_repo_filter.go)
 //     on top of the Go-side filterCrossRepoDeadCodeEvidence.
@@ -146,8 +146,8 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     SearchEntitiesByNameAnyRepo and list every tenant's candidate.
 //   - POST /api/v0/code/call-chain -- the grant lands on the target node's own
 //     repo_id in the anchoring MATCH of nornicDBCallChainOneHopRows
-//     (code_call_chain_nornicdb.go) and callChainCandidateOneHopRows
-//     (code_call_chain_resolution.go), and on both endpoints of the two
+//     and callChainCandidateOneHopRows (codequery/callers.go), and on
+//     both endpoints of the two
 //     shortestPath builders. The NornicDB response path is a Go-side
 //     breadth-first search over that one-hop read, so bounding each hop bounds
 //     the whole chain; that is what it takes, because the

@@ -12,17 +12,19 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestCodeSeamExportsForward is the tripwire for the #6060 code seam export:
-// every seam forwarder returns what its backing home returns on the same
-// input, every seam alias names its home type, and every seam const pins its
-// contract value. If a forwarder body diverges (or a seam name is removed),
-// this fails. It also fails to COMPILE if any seam name is removed, which is
-// the point -- the code move depends on each of these names resolving from
-// outside the code subpackage.
+// the one true forwarder pair (root callGraphMetricsEdgesCypher against the
+// metrics leaf) must agree on the same input, every other home pins its
+// computed values directly, every seam alias names its home type, and every
+// seam const pins its contract value. If a forwarder body diverges (or a seam
+// name is removed), this fails. It also fails to COMPILE if any seam name is
+// removed, which is the point -- the code move depends on each of these names
+// resolving from outside the code subpackage.
 func TestCodeSeamExportsForward(t *testing.T) {
 	t.Parallel()
 
@@ -58,13 +60,15 @@ func TestCodeSeamExportsForward(t *testing.T) {
 		t.Fatalf("ErrCodeTopicBackendUnavailable = %v, want code topic investigation backend is unavailable", ErrCodeTopicBackendUnavailable)
 	}
 
-	gotCypher, gotParams := CallGraphMetricsEdgesCypher(" r1 ")
-	wantCypher, wantParams := CallGraphMetricsEdgesCypher(" r1 ")
+	// Root forwarder against leaf home: the pair must agree, proving the
+	// seam forwards rather than reimplements.
+	gotCypher, gotParams := callGraphMetricsEdgesCypher(" r1 ")
+	wantCypher, wantParams := metrics.CallGraphMetricsEdgesCypher(" r1 ")
 	if gotCypher != wantCypher || !reflect.DeepEqual(gotParams, wantParams) {
-		t.Fatal("CallGraphMetricsEdgesCypher != CallGraphMetricsEdgesCypher")
+		t.Fatal("callGraphMetricsEdgesCypher != metrics.CallGraphMetricsEdgesCypher")
 	}
-	if wantParams["repo_id"] != "r1" {
-		t.Fatalf("CallGraphMetricsEdgesCypher params repo_id = %v, want trimmed r1", wantParams["repo_id"])
+	if gotParams["repo_id"] != "r1" {
+		t.Fatalf("metrics.CallGraphMetricsEdgesCypher params repo_id = %v, want trimmed r1", gotParams["repo_id"])
 	}
 
 	row := CodeTopicEvidenceRow{
@@ -81,10 +85,6 @@ func TestCodeSeamExportsForward(t *testing.T) {
 		Score:        3,
 	}
 	gotFiles := AppendMatchedFile(nil, row)
-	wantFiles := AppendMatchedFile(nil, row)
-	if !reflect.DeepEqual(gotFiles, wantFiles) {
-		t.Fatal("AppendMatchedFile != AppendMatchedFile")
-	}
 	if len(gotFiles) != 1 || gotFiles[0]["repo_id"] != "r1" {
 		t.Fatalf("AppendMatchedFile(nil, row) = %#v, want one row for r1", gotFiles)
 	}
@@ -95,33 +95,21 @@ func TestCodeSeamExportsForward(t *testing.T) {
 	}
 
 	gotGroup := CodeTopicEvidenceGroup(row, 1)
-	wantGroup := CodeTopicEvidenceGroup(row, 1)
-	if !reflect.DeepEqual(gotGroup, wantGroup) {
-		t.Fatal("CodeTopicEvidenceGroup != CodeTopicEvidenceGroup")
-	}
 	if gotGroup["entity_id"] != "e1" || gotGroup["rank"] != 1 {
 		t.Fatalf("CodeTopicEvidenceGroup(row, 1) = %#v, want entity_id e1 rank 1", gotGroup)
 	}
 
 	gotSymbol := CodeTopicSymbol(row, 2)
-	wantSymbol := CodeTopicSymbol(row, 2)
-	if !reflect.DeepEqual(gotSymbol, wantSymbol) {
-		t.Fatal("CodeTopicSymbol != CodeTopicSymbol")
-	}
 	if gotSymbol["entity_name"] != "Foo" || gotSymbol["rank"] != 2 {
 		t.Fatalf("CodeTopicSymbol(row, 2) = %#v, want entity_name Foo rank 2", gotSymbol)
 	}
 
 	gotTerms := CodeTopicSearchTerms("authentication flow", "", nil)
-	wantTerms := CodeTopicSearchTerms("authentication flow", "", nil)
-	if !reflect.DeepEqual(gotTerms, wantTerms) {
-		t.Fatal("CodeTopicSearchTerms != CodeTopicSearchTerms")
-	}
 	if len(gotTerms) == 0 {
 		t.Fatal("CodeTopicSearchTerms(authentication flow, ...) = empty, want at least one term")
 	}
 
-	if got, want := deadcode.CrossRepoDeadCodeConfidenceLabel(0.95), deadcode.CrossRepoDeadCodeConfidenceLabel(0.95); got != want || got != "high" {
+	if got := deadcode.CrossRepoDeadCodeConfidenceLabel(0.95); got != "high" {
 		t.Fatalf("deadcode.CrossRepoDeadCodeConfidenceLabel(0.95) = %q, want high", got)
 	}
 	if got := deadcode.CrossRepoDeadCodeConfidenceLabel(0); got != "unknown" {
@@ -129,7 +117,7 @@ func TestCodeSeamExportsForward(t *testing.T) {
 	}
 
 	result := map[string]any{"labels": []string{"Function"}}
-	if got, want := ResultContentEntityType(result), ResultContentEntityType(result); got != want || got != "Function" {
+	if got := ResultContentEntityType(result); got != "Function" {
 		t.Fatalf("ResultContentEntityType(labels=[Function]) = %q, want Function", got)
 	}
 	if got := ResultContentEntityType(map[string]any{"labels": []string{"NotAKnownLabel"}}); got != "" {
@@ -169,11 +157,6 @@ func TestCodeSeamExportsForward(t *testing.T) {
 	if _, blocked := LanguageQueryGrantFor(scopedEmptyCtx, ""); !blocked {
 		t.Fatal("LanguageQueryGrantFor(scoped, no grants) reported not blocked, want true")
 	}
-	wantGrant, wantBlocked := LanguageQueryGrantFor(context.Background(), "")
-	if blocked != wantBlocked || !reflect.DeepEqual(grant, LanguageQueryGrant(wantGrant)) {
-		t.Fatal("LanguageQueryGrantFor != LanguageQueryGrantFor")
-	}
-
 	// ApplyRepositorySelectorForAccess is exported at its own declaration
 	// (code_repository_selector.go), not forwarded from here -- a forwarder
 	// would add a third capability-parameter call site that

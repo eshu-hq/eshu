@@ -1463,7 +1463,7 @@
       "proof_signals": [
         {
           "kind": "go_test",
-          "ref": "./internal/query"
+          "ref": "./internal/query/..."
         },
         {
           "kind": "remote_validation",
@@ -1534,7 +1534,7 @@
       "proof_signals": [
         {
           "kind": "go_test",
-          "ref": "./internal/query"
+          "ref": "./internal/query/..."
         },
         {
           "kind": "remote_validation",
@@ -1604,7 +1604,7 @@
       "proof_signals": [
         {
           "kind": "go_test",
-          "ref": "./internal/query"
+          "ref": "./internal/query/..."
         },
         {
           "kind": "remote_validation",
@@ -10966,7 +10966,7 @@
       "proof_signals": [
         {
           "kind": "go_test",
-          "ref": "./internal/query"
+          "ref": "./internal/query/..."
         },
         {
           "kind": "remote_validation",

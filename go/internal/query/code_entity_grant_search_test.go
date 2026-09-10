@@ -7,10 +7,10 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships/story"
 )
 
-// searchEntitiesForGrant (code_relationship_story_resolution.go) and
+// searchEntitiesForGrant (codequery/relationships/story/resolution.go) and
 // LanguageQueryHandler.searchLanguageEntities (language_query_metadata.go) hold
 // the same three-branch dispatch on purpose: the parser-relationship kit
 // classifies every go/internal/query/language*.go path as Language Query DSL
@@ -66,7 +66,7 @@ func TestSearchEntitiesForGrantMatchesTheLanguageQueryRead(t *testing.T) {
 				// first call's record rather than its own.
 				viaHandler, handlerErr := (&LanguageQueryHandler{Content: newStore()}).
 					searchLanguageEntities(t.Context(), tc.search)
-				viaHelper, helperErr := codequery.SearchEntitiesForGrant(t.Context(), newStore(), tc.search)
+				viaHelper, helperErr := story.SearchEntitiesForGrant(t.Context(), newStore(), tc.search)
 				if (handlerErr == nil) != (helperErr == nil) {
 					t.Fatalf("%s: handler err = %v, helper err = %v", storeName, handlerErr, helperErr)
 				}
@@ -86,7 +86,7 @@ func TestSearchEntitiesForGrantMatchesTheLanguageQueryRead(t *testing.T) {
 func TestSearchEntitiesForGrantRejectsANilStore(t *testing.T) {
 	t.Parallel()
 
-	if _, err := codequery.SearchEntitiesForGrant(t.Context(), nil, languageEntitySearch{EntityType: "Variable"}); err == nil {
+	if _, err := story.SearchEntitiesForGrant(t.Context(), nil, languageEntitySearch{EntityType: "Variable"}); err == nil {
 		t.Fatal("a nil content store must be refused, not read")
 	}
 	if _, err := (&LanguageQueryHandler{}).

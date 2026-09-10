@@ -26,7 +26,7 @@ import (
 //     deadCodeGrantContentStore, whose filter mirrors the shipped SQL: an
 //     explicit repo_id anchors the scan, a non-empty grant list restricts it,
 //     an empty list does not restrict it at all.
-//   - the graph fallback (buildDeadCodeGraphCypherForLabel), proved by
+//   - the graph fallback (deadcode.BuildDeadCodeGraphCypherForLabel), proved by
 //     TestDeadCodeGraphCandidateScanBindsTheGrantInTheBuiltCypher, which
 //     captures the Cypher the handler actually runs.
 //

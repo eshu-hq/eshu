@@ -8,7 +8,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
-	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
@@ -160,6 +160,6 @@ func handlerQueryplanProductionCypher() map[string]string {
 }
 
 func mustCallGraphMetricsEdgesCypher(repoID string) string {
-	cypher, _ := codequery.CallGraphMetricsEdgesCypher(repoID)
+	cypher, _ := metrics.CallGraphMetricsEdgesCypher(repoID)
 	return cypher
 }

@@ -6,9 +6,11 @@ package codequery
 import (
 	"context"
 	"net/http"
+	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/search"
 )
 
 // This file owns the boundary between CodeHandler and the deadcode
@@ -17,10 +19,10 @@ import (
 // the Mount route table and tests that drive the handler -- still name
 // them on *CodeHandler. Each delegate builds a per-call Analyzer from the
 // handler's own fields, so no wiring changes and no shared mutable state.
-// The two queryplan-pinned row readers (deadCodeCandidateRows,
-// deadCodeResultsWithGraphIncomingEdges) are NOT here; they stay
-// byte-identical in code_dead_code_scan.go and
-// code_dead_code_candidate_entity.go with their source_sha256 pins.
+// The two queryplan-pinned row readers below (deadCodeCandidateRows,
+// deadCodeResultsWithGraphIncomingEdges) are thin *CodeHandler methods
+// delegating to the deadcode leaf, with their source_sha256 pins in
+// query-source-coverage.yaml.
 
 // deadAnalyzer binds a fresh deadcode Analyzer to this handler's fields
 // for one call.
@@ -36,10 +38,10 @@ func (h *CodeHandler) deadAnalyzer() *deadcode.Analyzer {
 		GrantFilter:   codeGrantAccessFilter,
 		GrantScope:    codeContentGrantScope,
 
-		ResultEntityIDs: deadCodeResultEntityIDs,
-		NextCalls:       deadCodeInvestigationNextCalls,
+		ResultEntityIDs: deadcode.DeadCodeResultEntityIDs,
+		NextCalls:       deadcode.InvestigationNextCalls,
 		StartSpan:       startQueryHandlerSpan,
-		MergeMetadata:   mergeGraphAndContentMetadata,
+		MergeMetadata:   search.MergeMetadata,
 		FilterResponse:  filterRelationshipResponse,
 
 		WriteSuccess:        WriteSuccess,
@@ -66,34 +68,72 @@ func (h *CodeHandler) handleDeadCodeInvestigation(w http.ResponseWriter, r *http
 }
 
 // scanDeadCodeCandidates runs the candidate scan staying tests drive directly.
-func (h *CodeHandler) scanDeadCodeCandidates(ctx context.Context, req deadcode.DeadCodeRequest) (deadcode.DeadCodeCandidateScan, error) {
-	return h.deadAnalyzer().ScanDeadCodeCandidates(ctx, req)
+
+func (h *CodeHandler) deadCodeCandidateRows(
+	ctx context.Context,
+	repoID string,
+	label string,
+	language string,
+	limit int,
+	offset int,
+) ([]map[string]any, error) {
+	allowedRepositoryIDs, blocked := codeContentGrantScope(ctx, repoID)
+	if blocked {
+		return nil, nil
+	}
+	query := deadCodeCandidateQuery{
+		RepoID:               repoID,
+		Label:                label,
+		Language:             language,
+		Limit:                limit,
+		Offset:               offset,
+		AllowedRepositoryIDs: allowedRepositoryIDs,
+	}
+	if content, ok := h.Content.(deadCodeCandidateContentStore); ok {
+		return content.DeadCodeCandidateRows(ctx, query)
+	}
+	access := codeGrantAccessFilter(ctx)
+	cypher := deadcode.BuildDeadCodeGraphCypherForLabel(repoID != "", label, language, access)
+	return h.Neo4j.Run(ctx, cypher, deadcode.DeadCodeGraphParams(repoID, language, limit, offset, access))
 }
 
-// scanCrossRepoDeadCodeCandidates runs the cross-repo candidate scan
-// staying tests drive directly.
-func (h *CodeHandler) scanCrossRepoDeadCodeCandidates(ctx context.Context, req deadcode.CrossRepoDeadCodeRequest) (deadcode.CrossRepoDeadCodeScan, error) {
-	return h.deadAnalyzer().ScanCrossRepoDeadCodeCandidates(ctx, req)
-}
-
-// scanDeadCodeInvestigation runs the investigation scan staying tests
-// drive directly.
-func (h *CodeHandler) scanDeadCodeInvestigation(ctx context.Context, req deadcode.DeadCodeInvestigationRequest) (deadcode.DeadCodeInvestigationScan, error) {
-	return h.deadAnalyzer().ScanDeadCodeInvestigation(ctx, req)
-}
-
-// deadCodeIncomingEntityIDs resolves incoming entity IDs for staying tests.
-func (h *CodeHandler) deadCodeIncomingEntityIDs(ctx context.Context, results []map[string]any) (map[string]deadcode.DeadCodeIncomingEdge, error) {
-	return h.deadAnalyzer().DeadCodeIncomingEntityIDs(ctx, results)
-}
-
-// filterDeadCodeResultsWithoutIncomingEdges filters unreachable results
-// for staying tests.
-func (h *CodeHandler) filterDeadCodeResultsWithoutIncomingEdges(ctx context.Context, results []map[string]any, label string) ([]map[string]any, error) {
-	return h.deadAnalyzer().FilterDeadCodeResultsWithoutIncomingEdges(ctx, results, label)
-}
-
-// loadDeadCodeDowngradedRoots loads downgraded verdict roots for staying tests.
-func (h *CodeHandler) loadDeadCodeDowngradedRoots(ctx context.Context, results []map[string]any) codemodel.DeadCodeDowngradedRoots {
-	return h.deadAnalyzer().LoadDeadCodeDowngradedRoots(ctx, results)
+func (h *CodeHandler) deadCodeResultsWithGraphIncomingEdges(
+	ctx context.Context,
+	results []map[string]any,
+	label string,
+) (map[string]deadCodeIncomingEdge, error) {
+	entityIDs := deadcode.DeadCodeResultEntityIDs(results)
+	incoming := make(map[string]deadCodeIncomingEdge)
+	if len(entityIDs) == 0 {
+		return incoming, nil
+	}
+	access := codeGrantAccessFilter(ctx)
+	rows, err := h.Neo4j.Run(
+		ctx,
+		deadcode.BuildDeadCodeScopedIncomingBatchProbeCypher(label, access),
+		access.GraphParams(map[string]any{"entity_ids": entityIDs}),
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		entityID := strings.TrimSpace(StringVal(row, "incoming_entity_id"))
+		if entityID == "" {
+			continue
+		}
+		// in_grant is projected only by the scoped statement. BoolVal reads an
+		// absent column as false, so the unscoped caller -- whose statement has
+		// no such column and whose every row is evidence -- must be answered
+		// before the column is consulted at all.
+		if access.Scoped() && !BoolVal(row, "in_grant") {
+			deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{HiddenConsumer: true})
+			continue
+		}
+		method := strings.TrimSpace(StringVal(row, "resolution_method"))
+		deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{
+			MaxConfidence: codeprovenance.Confidence(method),
+			Method:        method,
+		})
+	}
+	return incoming, nil
 }

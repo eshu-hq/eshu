@@ -104,8 +104,8 @@ linters:
             - "!**/internal/query/neo4j.go"
             - "!**/internal/query/neo4j_read_policy.go"
             - "!**/internal/query/impact/impact_change_surface_legacy.go"
-            - "!**/internal/query/codequery/visualization_packet_graph_query.go"
-            - "!**/internal/query/codequery/call_chain.go"
+            - "!**/internal/query/codequery/visualization/packet.go"
+            - "!**/internal/query/codequery/responses.go"
             - "!**/internal/query/impact/exposure_path_mapping.go"
             - "!**/internal/query/querygraphrows/graph_row_shape.go"
           deny:

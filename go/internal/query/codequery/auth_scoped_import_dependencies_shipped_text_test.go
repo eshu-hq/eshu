@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
-	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // #5167 code-family batch 2a: the shipped-text guard for the seven builders
@@ -94,7 +94,7 @@ func TestImportDependencyBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 		t.Run(builder.name, func(t *testing.T) {
 			t.Parallel()
 
-			normalized := querytestutil.NormalizeCypherWhitespace(builder.build(scoped))
+			normalized := querycontract.NormalizeCypherWhitespace(builder.build(scoped))
 			for _, alias := range builder.aliases {
 				want := "(" + alias + ".id IN $allowed_repository_ids OR " + alias + ".id IN $allowed_scope_ids)"
 				at := strings.Index(normalized, want)
@@ -124,7 +124,7 @@ func TestImportDependencyBuildersCarryNoGrantForAnUnscopedCaller(t *testing.T) {
 			t.Parallel()
 
 			if got := builder.build(unscoped); strings.Contains(got, "allowed_repository_ids") {
-				t.Fatalf("%s carries a grant condition for an unscoped caller:\n%s", builder.name, querytestutil.NormalizeCypherWhitespace(got))
+				t.Fatalf("%s carries a grant condition for an unscoped caller:\n%s", builder.name, querycontract.NormalizeCypherWhitespace(got))
 			}
 		})
 	}
@@ -140,7 +140,7 @@ func TestImportDependencyParamsBindTheGrantArrays(t *testing.T) {
 		SourceFile: "src/api.py",
 		Access:     repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}},
 	})
-	if !querytestutil.GraphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
+	if !querycontract.GraphParamContains(params, "allowed_repository_ids", codeGrantGrantedRepo) {
 		t.Fatalf("params[allowed_repository_ids] = %#v, want the caller's granted ids", params["allowed_repository_ids"])
 	}
 	if _, ok := params["allowed_scope_ids"]; !ok {

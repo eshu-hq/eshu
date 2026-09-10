@@ -191,7 +191,7 @@ change-surface) all-node-scan fixes.
 
 The three reads and their new anchors:
 
-- `go/internal/query/codequery/call_chain.go` (`buildCallChainCypher`, Neo4j builder
+- `go/internal/query/codequery/chain/cypher.go` (`chain.BuildCallChainCypher`, Neo4j builder
   only): `MATCH (start)` / `MATCH (end)` →
   `MATCH (start:Function|Class|Struct|Interface|TypeAlias|File)` /
   `MATCH (end:...)`. The label disjunction mirrors the authoritative CALLS-source
@@ -961,7 +961,7 @@ instrumentation.
 ### Relationship Story Token Budget And Multi-Type Filter
 
 The relationship story (`POST /api/v0/code/relationships/story`,
-`go/internal/query/codequery/relationship_story.go`) gained two additive,
+`codequery/story_handlers.go` + `codequery/relationships/story/data.go`) gained two additive,
 backward-compatible parameters from [issue #2232](https://github.com/eshu-hq/eshu/issues/2232):
 `token_budget` (cap the response by an estimated serialized token cost) and
 `relationship_types` (a multi-type filter that supersedes the singular

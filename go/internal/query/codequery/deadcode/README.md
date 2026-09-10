@@ -17,8 +17,8 @@ readers stay behind in `codequery` -- `deadCodeCandidateRows` and
 ## How it connects
 
 - `codequery` delegates to a per-call `Analyzer` (`NewAnalyzer` +
-  `Dependencies` in `analyzer.go`; delegates in
-  `go/internal/query/codequery/deadcode.go`). The `Mount` route table
+  `Dependencies` in `analyzer.go`; the thin `*CodeHandler` delegates
+  live there too). The `Mount` route table
   and staying tests still name the handler methods, so behavior is
   unchanged.
 - `Dependencies` carries value fields (`Content`, `Graph`, `Profile`)

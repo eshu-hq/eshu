@@ -1320,11 +1320,11 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   mutations, bounds the query with `boundedReadOnlyCypher`, executes it under the
   same 30 second deadline against `GraphQuery`, then projects the returned graph
   nodes, relationships, and paths into a bounded `VisualizationPacket`
-  (`BuildGraphQueryVisualizationPacket`) instead of returning a hardcoded
-  browser URL. Scalar-only results yield an explicit unsupported packet.
-  No-Regression Evidence: `go test ./internal/query -run
-  'TestHandleVisualizeQuery' -count=1` covers graph-entity projection, the
-  empty/scalar-only result contract, and mutation rejection. Observability
+  (`visualization.BuildGraphQueryVisualizationPacket`) instead of returning
+  a hardcoded browser URL. Scalar-only results yield an explicit
+  unsupported packet. No-Regression Evidence: `go test
+  ./internal/query/codequery/visualization -count=1`, `TestHandleVisualizeQuery`.
+  Observability
   Evidence: reads reuse the existing `neo4j.query` span in `Neo4jReader.Run`; the
   projection is a pure in-memory transform that adds no new telemetry.
 - `ContentReader` traces each Postgres call with an OTEL span labeled

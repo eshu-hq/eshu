@@ -8,9 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/imports"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -162,28 +162,5 @@ func (h *CodeHandler) importDependencyData(ctx context.Context, req codemodel.Im
 // package calls it so the statement under proof is the one the handler
 // sends rather than a rewrite of it.
 func ImportDependencyParams(req codemodel.ImportDependencyRequest) map[string]any {
-	params := map[string]any{
-		"limit":  req.QueryLimit(),
-		"offset": req.Offset,
-	}
-	if repoID := strings.TrimSpace(req.RepoID); repoID != "" {
-		params["repo_id"] = repoID
-	}
-	if language := req.NormalizedLanguage(); language != "" {
-		params["language"] = language
-	}
-	params = req.Access.GraphParams(params)
-	if sourceFile := strings.TrimSpace(req.SourceFile); sourceFile != "" {
-		params["source_file"] = sourceFile
-	}
-	if targetFile := strings.TrimSpace(req.TargetFile); targetFile != "" {
-		params["target_file"] = targetFile
-	}
-	if sourceModule := strings.TrimSpace(req.SourceModule); sourceModule != "" {
-		params["source_module"] = sourceModule
-	}
-	if targetModule := strings.TrimSpace(req.TargetModule); targetModule != "" {
-		params["target_module"] = targetModule
-	}
-	return params
+	return imports.Params(req)
 }

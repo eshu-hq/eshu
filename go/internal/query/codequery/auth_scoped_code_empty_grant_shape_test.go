@@ -135,7 +135,7 @@ func TestCodeRoutesEmptyGrantAnswersWithArraysNotNull(t *testing.T) {
 			if got, want := rec.Code, http.StatusOK; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
 			}
-			data := decodeEnvelopeData(t, rec.Body.Bytes())
+			data := querytestutil.DecodeEnvelopeData(t, rec.Body.Bytes())
 			for _, field := range route.fields {
 				value, ok := codeEmptyGrantShapeField(data, field)
 				if !ok {

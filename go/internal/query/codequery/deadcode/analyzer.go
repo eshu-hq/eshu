@@ -77,7 +77,7 @@ type Dependencies struct {
 	GrantScope func(ctx context.Context, repoID string) (allowed []string, blocked bool)
 
 	// ResultEntityIDs extracts entity IDs from candidate result rows
-	// (staying codequery helper deadCodeResultEntityIDs).
+	// (deadcode helper DeadCodeResultEntityIDs).
 	ResultEntityIDs func(results []map[string]any) []string
 	// NextCalls builds the recommended follow-up calls for an
 	// investigation scan (staying codequery helper

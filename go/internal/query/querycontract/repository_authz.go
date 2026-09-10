@@ -4,6 +4,7 @@
 package querycontract
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -102,6 +103,25 @@ func ContainsAuthString(values []string, candidate string) bool {
 		}
 	}
 	return false
+}
+
+// GraphParamContains reports whether the graph params carry candidate under
+// key. It moved here from querytestutil with the codequery nesting work: a
+// production fake (the chain grant double) reads grant params, and production
+// code must not import the test-only helper package.
+func GraphParamContains(params map[string]any, key, candidate string) bool {
+	values, ok := params[key].([]string)
+	if !ok || candidate == "" {
+		return false
+	}
+	return slices.Contains(values, candidate)
+}
+
+// NormalizeCypherWhitespace collapses a Cypher statement's whitespace to
+// single spaces so substring anchors do not depend on formatting. It moved
+// here from querytestutil alongside GraphParamContains for the same reason.
+func NormalizeCypherWhitespace(cypher string) string {
+	return strings.Join(strings.Fields(cypher), " ")
 }
 
 // GraphParams merges the caller's grant arrays (and, for a scoped caller,

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -335,7 +336,7 @@ func (g *evaluatingCallGraphEdges) Run(
 	params map[string]any,
 ) ([]map[string]any, error) {
 	g.statements = append(g.statements, cypher)
-	normalized := querytestutil.NormalizeCypherWhitespace(cypher)
+	normalized := querycontract.NormalizeCypherWhitespace(cypher)
 	anchor, _ := params["repo_id"].(string)
 	rows := make([]map[string]any, 0, len(g.edges))
 	for _, edge := range g.edges {
@@ -346,13 +347,13 @@ func (g *evaluatingCallGraphEdges) Run(
 			continue
 		}
 		if strings.Contains(normalized, "source.repo_id IN $allowed_repository_ids") &&
-			!querytestutil.GraphParamContains(params, "allowed_repository_ids", edge.sourceRepo) &&
-			!querytestutil.GraphParamContains(params, "allowed_scope_ids", edge.sourceRepo) {
+			!querycontract.GraphParamContains(params, "allowed_repository_ids", edge.sourceRepo) &&
+			!querycontract.GraphParamContains(params, "allowed_scope_ids", edge.sourceRepo) {
 			continue
 		}
 		if strings.Contains(normalized, "target.repo_id IN $allowed_repository_ids") &&
-			!querytestutil.GraphParamContains(params, "allowed_repository_ids", edge.targetRepo) &&
-			!querytestutil.GraphParamContains(params, "allowed_scope_ids", edge.targetRepo) {
+			!querycontract.GraphParamContains(params, "allowed_repository_ids", edge.targetRepo) &&
+			!querycontract.GraphParamContains(params, "allowed_scope_ids", edge.targetRepo) {
 			continue
 		}
 		rows = append(rows, edge.row)

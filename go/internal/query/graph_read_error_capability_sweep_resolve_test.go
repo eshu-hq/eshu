@@ -288,15 +288,10 @@ func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.Fun
 		}
 		return s.resolveLocalIdent(e.Name, enclosing, visitedFuncs)
 	case *ast.CallExpr:
-		callee, ok := e.Fun.(*ast.Ident)
-		if !ok {
-			return nil, false
-		}
-		// An unqualified call (bare *ast.Ident callee, not a package-selector)
-		// can only reach a function declared in the same package as the call
-		// site itself, so the callee's directory is the call expression's own
-		// directory.
-		return s.resolveFuncReturns(callee.Name, s.dirOf(e.Pos()), visitedFuncs)
+		// Call-result resolution (bare and package-qualified callees) lives
+		// in graph_read_error_capability_sweep_qualified_call_test.go to
+		// keep this file under the repo's 500-line cap.
+		return s.resolveCallResult(e, visitedFuncs)
 	case *ast.SelectorExpr:
 		// A package-qualified constant (advisory.AdvisoryEvidenceCapability
 		// from a #6060 family leaf, passed by a root handler that can no

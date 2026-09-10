@@ -459,8 +459,8 @@ ones with no repository path at all.
 
 ### Eshu implications
 
-`buildDeadCodeScopedIncomingBatchProbeCypher`
-(`go/internal/query/code_dead_code_candidate_entity.go`) is exactly this shape:
+`BuildDeadCodeScopedIncomingBatchProbeCypher`
+(`go/internal/query/codequery/deadcode/entities.go`) is exactly this shape:
 it expands a dead-code candidate's incoming edges, optionally matches the source
 repository, and projects the caller's grant per row. It groups with `count(*)`
 rather than `RETURN DISTINCT` for this reason, and the `count(*)` column is

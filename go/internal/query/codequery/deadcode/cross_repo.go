@@ -351,7 +351,7 @@ func (a *Analyzer) bucketCrossRepoDeadCodeResults(
 		}
 
 		// A strong granted consumer outranks a hidden one, the order
-		// ApplyDeadCodeIncomingEdges (code_dead_code_scan.go) applies on the
+		// ApplyDeadCodeIncomingEdges (deadcode/candidates.go) applies on the
 		// other two dead-code routes; the invariant is in this package's
 		// AGENTS.md. The count stays on the row, so a live answer still says a
 		// consumer is hidden. Only the count is outranked -- every other reason,

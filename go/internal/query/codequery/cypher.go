@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/visualization"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -423,7 +424,7 @@ func (h *CodeHandler) handleVisualizeQuery(w http.ResponseWriter, r *http.Reques
 	}
 
 	truth := h.visualizationGraphQueryTruth()
-	packet := BuildGraphQueryVisualizationPacket(rows, truth)
+	packet := visualization.BuildGraphQueryVisualizationPacket(rows, truth)
 	if truncatedRows {
 		packet.Truncation.Truncated = true
 		packet.Limitations = querycontract.AppendReason(packet.Limitations,
