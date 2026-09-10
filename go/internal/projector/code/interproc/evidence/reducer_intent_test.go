@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package codeinterprocevidence
+package evidence
 
 import (
 	"testing"
@@ -11,32 +11,32 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestBuildCodeInterprocEvidenceReducerIntentNoFactNoIntent(t *testing.T) {
+func TestBuildReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: "file"}})
-	if _, ok := BuildCodeInterprocEvidenceReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued an interproc intent without any code_interproc_evidence fact")
 	}
 }
 
-func TestBuildCodeInterprocEvidenceReducerIntentEmptyGeneration(t *testing.T) {
+func TestBuildReducerIntentEmptyGeneration(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup(nil)
-	if _, ok := BuildCodeInterprocEvidenceReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued an interproc intent for a generation with no facts at all")
 	}
 }
 
-func TestBuildCodeInterprocEvidenceReducerIntentFromFact(t *testing.T) {
+func TestBuildReducerIntentFromFact(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeInterprocEvidenceFactKind, FactID: "interproc-fact-1", CollectorKind: "git"},
 	})
-	intent, ok := BuildCodeInterprocEvidenceReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a code_interproc_evidence fact")
 	}
@@ -54,35 +54,30 @@ func TestBuildCodeInterprocEvidenceReducerIntentFromFact(t *testing.T) {
 	}
 }
 
-// TestBuildCodeInterprocEvidenceReducerIntentSkipsFunctionSummaryFact pins the
-// boundary with the neighboring family: a code_function_summary fact belongs to
-// the summary-persistence domain and must not trigger a direct interproc
-// intent — summary-driven fixpoint projection runs only after the
-// function-summary handler persists its durable stores.
-func TestBuildCodeInterprocEvidenceReducerIntentSkipsFunctionSummaryFact(t *testing.T) {
+// TestBuildReducerIntentSkipsFunctionSummaryFact verifies that summary facts
+// remain owned by the summary-persistence domain.
+func TestBuildReducerIntentSkipsFunctionSummaryFact(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeFunctionSummaryFactKind, FactID: "summary-fact-1", CollectorKind: "git"},
 	})
-	if _, ok := BuildCodeInterprocEvidenceReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued direct interproc intent for code_function_summary fact")
 	}
 }
 
-// TestBuildCodeInterprocEvidenceReducerIntentFromMarkerOnly proves the dataflow
-// marker alone (no findings) queues a retraction intent so stale TAINT_FLOWS_TO
-// edges from a prior generation are cleared when the current finding set is
-// empty (#2919).
-func TestBuildCodeInterprocEvidenceReducerIntentFromMarkerOnly(t *testing.T) {
+// TestBuildReducerIntentFromMarkerOnly verifies the #2919 stale-edge
+// retraction trigger for scans with no findings.
+func TestBuildReducerIntentFromMarkerOnly(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
 	})
-	intent, ok := BuildCodeInterprocEvidenceReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a dataflow marker without findings")
 	}
@@ -97,18 +92,16 @@ func TestBuildCodeInterprocEvidenceReducerIntentFromMarkerOnly(t *testing.T) {
 	}
 }
 
-// TestBuildCodeInterprocEvidenceReducerIntentPrefersFindingProvenance pins the
-// documented rule that an interproc finding outranks the dataflow marker even
-// when the marker appears earlier in the generation's original input order —
-// the two kinds are looked up independently, not merged by position.
-func TestBuildCodeInterprocEvidenceReducerIntentPrefersFindingProvenance(t *testing.T) {
+// TestBuildReducerIntentPrefersFindingProvenance verifies that a finding wins
+// provenance regardless of cross-kind input order.
+func TestBuildReducerIntentPrefersFindingProvenance(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
 		{FactKind: facts.CodeInterprocEvidenceFactKind, FactID: "finding-1", CollectorKind: "git"},
 	})
-	intent, ok := BuildCodeInterprocEvidenceReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued when both a finding and the marker are present")
 	}
@@ -120,11 +113,9 @@ func TestBuildCodeInterprocEvidenceReducerIntentPrefersFindingProvenance(t *test
 	}
 }
 
-// TestBuildCodeInterprocEvidenceReducerIntentTrimsCollectorKind pins the
-// single-tier source-system label: the trimmed CollectorKind alone, never the
-// two-tier projectorintent.SourceSystem fallback. A trigger fact carrying a
-// SourceRef identity must still label the intent with its collector kind.
-func TestBuildCodeInterprocEvidenceReducerIntentTrimsCollectorKind(t *testing.T) {
+// TestBuildReducerIntentTrimsCollectorKind verifies the single-tier source
+// label even when the trigger also carries a SourceRef identity.
+func TestBuildReducerIntentTrimsCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
@@ -133,7 +124,7 @@ func TestBuildCodeInterprocEvidenceReducerIntentTrimsCollectorKind(t *testing.T)
 		CollectorKind: "  git  ",
 		SourceRef:     facts.Ref{SourceSystem: "source-ref-system"},
 	}})
-	intent, ok := BuildCodeInterprocEvidenceReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a code_interproc_evidence fact")
 	}

@@ -364,7 +364,7 @@ func fanOutParityFixture(scopeValue scope.IngestionScope, generation scope.Scope
 			Payload: map[string]any{"repo_id": "repo-fanout"},
 		},
 
-		// code_function_summary finding: buildCodeFunctionSummaryReducerIntent
+		// code_function_summary finding: summary.BuildReducerIntent
 		// prefers a finding fact over the marker above when both are present.
 		{
 			FactID: "code-function-summary-1", ScopeID: scopeID, GenerationID: generationID,

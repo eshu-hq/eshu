@@ -76,7 +76,7 @@ builder probes with this probe still running immediately after
 the observability-coverage-correlation probe (now
 `observabilitycoverage.BuildObservabilityCoverageCorrelationReducerIntent`) and immediately before
 the code-taint-evidence probe (now
-`codetaintevidence.BuildCodeTaintEvidenceReducerIntent`). `incidentRoutingMaterializationSourceSystem`
+`taint.BuildReducerIntent`). `incidentRoutingMaterializationSourceSystem`
 was compared body-for-body against its `projectorintent.SourceSystem`
 replacement (both trim `SourceRef.SourceSystem` and fall back to a trimmed
 `CollectorKind`), and the root `firstAcrossKinds` forwarder it called was a

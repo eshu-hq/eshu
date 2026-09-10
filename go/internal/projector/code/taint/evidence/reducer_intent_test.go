@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package codetaintevidence
+package evidence
 
 import (
 	"testing"
@@ -11,32 +11,32 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestBuildCodeTaintEvidenceReducerIntentNoFactNoIntent(t *testing.T) {
+func TestBuildReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: "file"}})
-	if _, ok := BuildCodeTaintEvidenceReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a taint intent without any code_taint_evidence fact")
 	}
 }
 
-func TestBuildCodeTaintEvidenceReducerIntentEmptyGeneration(t *testing.T) {
+func TestBuildReducerIntentEmptyGeneration(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup(nil)
-	if _, ok := BuildCodeTaintEvidenceReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a taint intent for a generation with no facts at all")
 	}
 }
 
-func TestBuildCodeTaintEvidenceReducerIntentFromFact(t *testing.T) {
+func TestBuildReducerIntentFromFact(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeTaintEvidenceFactKind, FactID: "taint-fact-1", CollectorKind: "git"},
 	})
-	intent, ok := BuildCodeTaintEvidenceReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a code_taint_evidence fact")
 	}
@@ -54,17 +54,16 @@ func TestBuildCodeTaintEvidenceReducerIntentFromFact(t *testing.T) {
 	}
 }
 
-// TestBuildCodeTaintEvidenceReducerIntentFromMarkerOnly proves the dataflow marker
-// alone (no findings) queues a retraction intent so stale CodeTaintEvidence from a
-// prior generation is cleared when the current finding set is empty (#2919).
-func TestBuildCodeTaintEvidenceReducerIntentFromMarkerOnly(t *testing.T) {
+// TestBuildReducerIntentFromMarkerOnly verifies the #2919 stale-evidence
+// retraction trigger for scans with no findings.
+func TestBuildReducerIntentFromMarkerOnly(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
 		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
 	})
-	intent, ok := BuildCodeTaintEvidenceReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a dataflow marker without findings")
 	}
@@ -79,18 +78,16 @@ func TestBuildCodeTaintEvidenceReducerIntentFromMarkerOnly(t *testing.T) {
 	}
 }
 
-// TestBuildCodeTaintEvidenceReducerIntentPrefersFindingProvenance pins the
-// documented rule that a taint finding outranks the dataflow marker even when
-// the marker appears earlier in the generation's original input order — the two
-// kinds are looked up independently, not merged by position.
-func TestBuildCodeTaintEvidenceReducerIntentPrefersFindingProvenance(t *testing.T) {
+// TestBuildReducerIntentPrefersFindingProvenance verifies that a finding wins
+// provenance regardless of cross-kind input order.
+func TestBuildReducerIntentPrefersFindingProvenance(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: facts.CodeDataflowScannedFactKind, FactID: "marker-1", CollectorKind: "git"},
 		{FactKind: facts.CodeTaintEvidenceFactKind, FactID: "taint-fact-1", CollectorKind: "git"},
 	})
-	intent, ok := BuildCodeTaintEvidenceReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued when both a finding and the marker are present")
 	}
@@ -102,11 +99,9 @@ func TestBuildCodeTaintEvidenceReducerIntentPrefersFindingProvenance(t *testing.
 	}
 }
 
-// TestBuildCodeTaintEvidenceReducerIntentTrimsCollectorKind pins the
-// single-tier source-system label: the trimmed CollectorKind alone, never the
-// two-tier projectorintent.SourceSystem fallback. A trigger fact carrying a
-// SourceRef identity must still label the intent with its collector kind.
-func TestBuildCodeTaintEvidenceReducerIntentTrimsCollectorKind(t *testing.T) {
+// TestBuildReducerIntentTrimsCollectorKind verifies the single-tier source
+// label even when the trigger also carries a SourceRef identity.
+func TestBuildReducerIntentTrimsCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
@@ -115,7 +110,7 @@ func TestBuildCodeTaintEvidenceReducerIntentTrimsCollectorKind(t *testing.T) {
 		CollectorKind: "  git  ",
 		SourceRef:     facts.Ref{SourceSystem: "source-ref-system"},
 	}})
-	intent, ok := BuildCodeTaintEvidenceReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a code_taint_evidence fact")
 	}

@@ -143,11 +143,11 @@
   service-catalog-correlation, and secrets-IAM-trust-chain builders trigger on
   fact presence alone and carry no decode seam.
 - **Code-function-summary family (#6057)** — the `code_function_summary`
-  builder lives in `codefunctionsummary/` and consumes the lookup like the
-  families above. It is decode-seam-bearing: `codeFunctionSummaryTriggerRepoID`
+  builder lives in `code/function/summary/` and consumes the lookup like the
+  families above. It is decode-seam-bearing: `triggerRepoID`
   decodes either `code_function_summary` (function_id prefix) or
   `code_dataflow_scanned` (repo_id field) through its own
-  `factschema_decode_codedataflow.go` against `sdk/go/factschema`. Root's
+  `factschema_decode.go` against `sdk/go/factschema`. Root's
   `decodeCodeFunctionSummary` and `decodeCodeDataflowScanned` wrappers had this
   builder as their only caller, so they moved out entirely with the
   extraction (the `containerimageidentity` precedent) rather than staying

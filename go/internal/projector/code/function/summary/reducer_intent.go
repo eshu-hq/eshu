@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package codefunctionsummary
+package summary
 
 import (
 	"strings"
@@ -11,12 +11,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// BuildCodeFunctionSummaryReducerIntent queues one function-summary persistence
+// BuildReducerIntent queues one function-summary persistence
 // intent per scope generation when either summary facts or the full-snapshot
 // value-flow scan marker are present. Summary facts refresh changed functions;
 // the full marker additionally lets the reducer replace the repo snapshot and
 // prune summaries deleted or renamed out of the latest complete scan.
-func BuildCodeFunctionSummaryReducerIntent(
+func BuildReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,
@@ -41,14 +41,14 @@ func BuildCodeFunctionSummaryReducerIntent(
 		return projectorintent.ReducerIntent{}, false
 	}
 	payload := map[string]any{}
-	repoID := codeFunctionSummaryTriggerRepoID(trigger)
+	repoID := triggerRepoID(trigger)
 	// hasMarkerFact && hasSummaryFact reproduces the original pointer check
 	// "markerFact != nil && markerFact != trigger": trigger only equals the
 	// marker when no summary fact is present, so a distinct marker fallback
 	// exists exactly when both facts are present and the summary won as
 	// trigger.
 	if repoID == "" && hasMarkerFact && hasSummaryFact {
-		repoID = codeFunctionSummaryTriggerRepoID(&markerFact)
+		repoID = triggerRepoID(&markerFact)
 	}
 	if repoID != "" {
 		payload["repo_id"] = repoID
@@ -68,25 +68,25 @@ func BuildCodeFunctionSummaryReducerIntent(
 	}, true
 }
 
-// codeFunctionSummaryTriggerRepoID resolves the repo id a trigger fact carries,
+// triggerRepoID resolves the repo id a trigger fact carries,
 // decoding a code_function_summary fact's function_id prefix or a
 // code_dataflow_scanned marker's repo_id field. It returns "" on a nil
 // trigger, an unrecognized fact kind, or a decode failure — the caller treats
 // an empty repo id as "omit repo_id from the payload", never as a reason to
 // drop the intent itself.
-func codeFunctionSummaryTriggerRepoID(trigger *facts.Envelope) string {
+func triggerRepoID(trigger *facts.Envelope) string {
 	if trigger == nil {
 		return ""
 	}
 	switch trigger.FactKind {
 	case facts.CodeFunctionSummaryFactKind:
-		summary, err := decodeCodeFunctionSummary(*trigger)
+		summary, err := decodeFunctionSummary(*trigger)
 		if err != nil {
 			return ""
 		}
 		return repoIDFromFunctionID(summary.FunctionID)
 	case facts.CodeDataflowScannedFactKind:
-		scanned, err := decodeCodeDataflowScanned(*trigger)
+		scanned, err := decodeDataflowScanned(*trigger)
 		if err != nil {
 			return ""
 		}

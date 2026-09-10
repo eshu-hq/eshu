@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package codetaintevidence builds the code-taint-evidence reducer intent from
+// Package evidence builds the code-taint-evidence reducer intent from
 // one immutable scope generation: a code_taint_evidence finding when present,
 // else the code_dataflow_scanned marker as the retraction-reconcile fallback
 // that lets the reducer clear stale CodeTaintEvidence nodes when a prior
@@ -16,4 +16,4 @@
 // owns typed decode, quarantine, graph writes, and stale-evidence retraction.
 // Root projector assembly owns lookup construction and lifetime, invocation
 // order, queue writes, retries, and telemetry.
-package codetaintevidence
+package evidence

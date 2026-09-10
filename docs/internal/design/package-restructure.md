@@ -827,7 +827,7 @@ regression test (`TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFam
 stays at root in `schema_version_admission_test.go` because it asserts root's
 `validateFactSchemaVersion`, not the builder.
 The code-taint-evidence builder moved into
-`internal/projector/codetaintevidence`. It triggers on a `code_taint_evidence`
+`internal/projector/code/taint/evidence`. It triggers on a `code_taint_evidence`
 finding, else on the `code_dataflow_scanned` marker — the #2919
 retraction-reconcile fallback — with the finding outranking the marker
 regardless of input order (two independent `FirstOfKind` probes, deliberately
@@ -845,7 +845,7 @@ that go through `buildProjection` — including the marker case proving BOTH the
 taint and interproc retraction domains enqueue — stay at root in
 `code_taint_evidence_projection_test.go`.
 The code-interproc-evidence builder moved into
-`internal/projector/codeinterprocevidence`. It triggers on a
+`internal/projector/code/interproc/evidence`. It triggers on a
 `code_interproc_evidence` finding, else on the `code_dataflow_scanned` marker
 — the #2919 retraction-reconcile fallback for stale TAINT_FLOWS_TO edges —
 with the finding outranking the marker regardless of input order (two
@@ -864,7 +864,7 @@ in `code_interproc_evidence_projection_test.go`, and the marker case proving
 BOTH value-flow retraction domains enqueue stays in
 `code_taint_evidence_projection_test.go`.
 The code-function-summary builder moved into
-`internal/projector/codefunctionsummary`. It triggers on a
+`internal/projector/code/function/summary`. It triggers on a
 `code_function_summary` finding, else on the `code_dataflow_scanned` marker,
 with the finding outranking the marker regardless of input order (two
 independent `FirstOfKind` probes, deliberately no cross-kind original-order

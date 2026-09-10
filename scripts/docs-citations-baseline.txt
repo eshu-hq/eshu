@@ -221,7 +221,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cl
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/inventory_tools.go:8
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/mcp/cloud/runtime_drift_tools.go:9
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/canonical_builder.go:96
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/code_function_summary_intents.go:48
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/container_image_identity_intents.go:51
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/container_image_identity_intents.go:51
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/factschema_decode_ociregistry.go:28
@@ -233,7 +232,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/runtime.go:302
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/semantic_entity_intents.go:30
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/semantic_entity_intents.go:30
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/stage_facts.go:16
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/stage_workloads.go:37
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/tfstate_canonical.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/query/ci_cd_run_correlation_aggregates.go:115
@@ -288,7 +286,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_call_projection_work.go:376
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_import_repo_edge_identity.go:56
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_import_repo_edge_identity.go:56
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/container_image_identity_provenance.go:24
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/container_image_identity_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/eshu_search_document_writer.go:87
@@ -320,7 +317,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/workload_identity_writer.go:52
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/relationships/evidence.go:73
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/relationships/evidence.go:73
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/relationships/evidence.go:73
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/relationships/gcp_evidence.go:25
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/relationships/gcp_evidence.go:25
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/relationships/structured_family_evidence.go:22
@@ -329,9 +325,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/relati
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/replay/cassette/source.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/replay/offlinetier/delta.go:84
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/replay/offlinetier/materialization.go:73
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/replay/offlinetier/materialization.go:73
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/replay/parserfixture/source.go:1
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/replay/parserfixture/source.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/replay/parserfixture/source.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/semanticdocs/emitter.go:89
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/semanticdocs/emitter.go:89
@@ -356,7 +349,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storag
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:337
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:337
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:348
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:61
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records.go:61
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records_documentation.go:9
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/storage/postgres/schema_fact_records_documentation.go:9

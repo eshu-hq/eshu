@@ -96,8 +96,8 @@ $2`, then upserts current rows in the same transaction, so a rollback restores
 the pre-replacement state and stale writers cannot delete newer summaries. The
 operator-facing row counts are the reducer completion log fields:
 `full_snapshot`, `repo_id`, `function_count`, and the existing result summary's
-persisted-row count. `go test ./internal/projector -run
-TestBuildCodeFunctionSummaryReducerIntent -count=1`, `go test
+persisted-row count. `go test ./internal/projector/code/function/summary -run
+TestBuildReducerIntent -count=1`, `go test
 ./internal/reducer -run 'TestCodeFunctionSummaryHandler(Replaces|Preserves)'
 -count=1`, and `go test ./internal/storage/postgres -run
 TestFunctionSummaryStoreReplaceSnapshot -count=1` cover marker-only cleanup,
