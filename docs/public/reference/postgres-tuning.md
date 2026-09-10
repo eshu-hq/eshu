@@ -120,12 +120,17 @@ the knob, and two ordinary paths break that:
   whatever is exported in *your* shell, which need not match what the owner
   started with.
 
-So an owner started at the default under `eshu local-host watch` — which itself
-holds two pools, `eshu-reducer` and `eshu-ingester` — with a `vuln-scan` invoked
-at `ESHU_POSTGRES_MAX_OPEN_CONNS=60` demands at least
-`2 * 30 + 2 * 60 + 20 = 200` against a server fixed at 170, and `230` once an
-`eshu mcp` session attaches as well. Export the knob before starting the owner,
-and keep it consistent across every process that attaches to it.
+So an owner running the authoritative profile — `eshu graph start`, or
+`ESHU_QUERY_PROFILE=local_authoritative eshu watch .` — holds two pools,
+`eshu-reducer` and `eshu-ingester`. Started at the default pool, with a
+`vuln-scan` invoked at `ESHU_POSTGRES_MAX_OPEN_CONNS=60`, it demands at least
+`2 * 30 + 2 * 60 + 20 = 200` against a server fixed at 170, and `260` once an
+`eshu mcp` session attaches from that same shell and takes the 60 too. A plain
+`eshu local-host watch` owner defaults to the lightweight profile and holds only
+`eshu-ingester`, so the same scenario lands on `1 * 30 + 2 * 60 + 20 = 170` —
+exactly the ceiling, and the exhaustion appears one holder later. Export the knob
+before starting the owner, and keep it consistent across every process that
+attaches to it.
 
 If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because
