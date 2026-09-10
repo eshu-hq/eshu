@@ -3,9 +3,10 @@
 ## Purpose
 
 This package recognizes PagerDuty incident-routing evidence for one scope
-generation — an `incident.record` fact or any `incident_routing.*` source fact
-— and builds the reducer intent that asks the reducer to compare declared,
-applied, and live routing and write `IncidentRoutingEvidence` graph truth.
+generation — an `incident.record` fact or a routing source kind registered by
+`facts.IncidentRoutingFactKinds()` — and builds the reducer intent that asks
+the reducer to compare declared, applied, and live routing and write
+`IncidentRoutingEvidence` graph truth.
 
 ## Ownership boundary
 
@@ -19,7 +20,7 @@ publication.
 
 ## Exported surface
 
-- `BuildIncidentRoutingMaterializationReducerIntent` builds the
+- `BuildReducerIntent` builds the
   `incident_routing_materialization` intent, anchored to the earliest
   candidate fact in original input order across `incident.record` and every
   kind `facts.IncidentRoutingFactKinds()` returns.
@@ -68,26 +69,22 @@ tests, ordered fan-out parity and probe-count tests, the projector package
 tree, package-doc and path mirrors, dirgate, telemetry coverage, and the
 golden-corpus gates selected by the changed paths.
 
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain, entity
-key, reason, anchor selection, and source-system derivation are identical to
-the base commit, and the dispatcher's ordered fan-out is unchanged at 44
-builder probes with this probe still running immediately after
-the observability-coverage-correlation probe (now
-`observabilitycoverage.BuildObservabilityCoverageCorrelationReducerIntent`) and immediately before
-the code-taint-evidence probe (now
-`taint.BuildReducerIntent`). `incidentRoutingMaterializationSourceSystem`
-was compared body-for-body against its `projectorintent.SourceSystem`
-replacement (both trim `SourceRef.SourceSystem` and fall back to a trimmed
-`CollectorKind`), and the root `firstAcrossKinds` forwarder it called was a
-direct delegate to `projectorintent.FactLookup.FirstAcrossKinds`, so both
-substitutions are behavior-identical by construction. Focused proof:
-`go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
+No-Regression Evidence: the #6627 move changes the package path, filename,
+and exported builder name without changing the production body, trigger,
+intent value, or fan-out position. The dispatcher's ordered fan-out remains
+44 builder probes, with this probe immediately after observability coverage
+correlation and before code taint evidence. The focused package and root
+dispatch tests pin those contracts; the issue evidence record contains the
+exact commands and results.
+
+The nested namespace makes the ownership boundary legible for a future
+service split, but it does not make this package independently extractable.
+It still imports Eshu's internal facts, projector-intent, and reducer
+contracts, while root projector assembly remains its only production caller.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [PagerDuty evidence](../../../../docs/public/reference/pagerduty-evidence.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [PagerDuty evidence](../../../../../docs/public/reference/pagerduty-evidence.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

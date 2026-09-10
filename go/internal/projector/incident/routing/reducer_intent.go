@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package incidentrouting
+package routing
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -9,15 +9,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// BuildIncidentRoutingMaterializationReducerIntent enqueues one reducer
-// intent when a scope generation carries PagerDuty incident-routing evidence:
-// an incident.record fact or any incident_routing.* source fact. The intent is
-// anchored to the earliest such fact in original input order across every
-// candidate kind, so the reducer claim stays stable across reprojections. The
-// projector never compares declared, applied, or live routing evidence and
-// never decodes the payload; the reducer owns IncidentRoutingEvidence
-// materialization.
-func BuildIncidentRoutingMaterializationReducerIntent(
+// BuildReducerIntent enqueues one reducer intent when a scope generation
+// carries PagerDuty incident-routing evidence: an incident.record fact or a
+// registered incident-routing source fact. The intent is anchored to the
+// earliest such fact in original input order across every candidate kind, so
+// the reducer claim stays stable across reprojections. The projector never
+// compares declared, applied, or live routing evidence and never decodes the
+// payload; the reducer owns IncidentRoutingEvidence materialization.
+func BuildReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,

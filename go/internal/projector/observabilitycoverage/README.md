@@ -91,7 +91,7 @@ key, reasons, anchor selection, and source-system derivation are identical to
 the base commit, and the dispatcher's ordered fan-out is unchanged at 44
 builder probes with this probe still running immediately after
 `buildObservabilityCoverageMaterializationReducerIntent` and immediately
-before `incidentrouting.BuildIncidentRoutingMaterializationReducerIntent`.
+before `routing.BuildReducerIntent`.
 The family's `observabilitySourceSystem` helper was compared body-for-body
 against `projectorintent.SourceSystem` and was NOT identical — it carries a
 literal third `"observability"` fallback where the shared helper returns an

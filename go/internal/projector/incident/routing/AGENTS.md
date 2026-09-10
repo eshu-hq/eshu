@@ -3,14 +3,14 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order.
+2. `../../AGENTS.md` and `../../README.md` for projector-wide invariants.
+3. `../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../scope_generation_intents.go` for root-owned assembly order.
 
 ## Invariants
 
 - Import `internal/projector/intent`, never the root projector package.
-- `BuildIncidentRoutingMaterializationReducerIntent` triggers on
+- `BuildReducerIntent` triggers on
   `incident.record` plus every kind `facts.IncidentRoutingFactKinds()` returns.
   Add a new routing source kind in `internal/facts`, not here; the builder
   must keep reading the registry so the trigger set cannot drift from the
@@ -31,6 +31,6 @@
 ## Verification
 
 Use TDD. Run the focused child test, the root incident-routing
-`buildProjection` tests, ordered fan-out parity, package-doc verification, the
-projector package tree, and the golden-corpus gates selected by the changed
-paths.
+`buildProjection` tests in `../../incident_routing_projection_test.go`,
+ordered fan-out parity, package-doc verification, the projector package tree,
+and the golden-corpus gates selected by the changed paths.
