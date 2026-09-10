@@ -156,7 +156,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 35d25f6dd592c75030f5945303187511c4c45c4a086362c3ffbcec01861553c5
+          source_sha256: e5e5784f4b2f0cd8f6897e3d56ee94c2a7955a4c8c9ebbca8aebc2cc574478cb
           key_bound: single_key
           max_results: 101
   - file: codeowners/codeowners_ownership_rows.go
