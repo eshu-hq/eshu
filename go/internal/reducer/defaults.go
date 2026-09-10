@@ -144,6 +144,7 @@ type DefaultHandlers struct {
 	EvidenceFactLoader         EvidenceFactLoader
 	AssertionLoader            AssertionLoader
 	ResolutionPersister        ResolutionPersister
+	ScopeRepos                 ScopeRepositoryReader
 	ResolvedRelationshipLoader ResolvedRelationshipLoader
 	RepoDependencyIntentWriter RepoDependencyIntentWriter
 

@@ -273,6 +273,7 @@ func buildReducerService(
 		EvidenceFactLoader:                    relationshipStore,
 		AssertionLoader:                       relationshipStore,
 		ResolutionPersister:                   relationshipStore,
+		ScopeRepos:                            relationshipStore,
 		ResolvedRelationshipLoader:            relationshipStore,
 		RepoDependencyIntentWriter:            repoDependencyIntentWriter,
 		RepoDependencyEdgeWriter:              edgeWriterForHandlers,
