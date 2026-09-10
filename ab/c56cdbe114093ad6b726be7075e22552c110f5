@@ -1,0 +1,84 @@
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_0b876d487a2590 97
+go/internal/projector/doc.go
+  s_4a0f86aa680964::t_0b876d487a2590 88
+go/internal/projector/cicdruncorrelation/README.md
+  s_4a0f86aa680964::t_0b876d487a2590 50
+go/internal/projector/package/doc.go
+  s_4a0f86aa680964::t_2d29833efe2750 1-7
+go/internal/projector/package_registry_canonical.go
+  s_4a0f86aa680964::t_f2129b18ce9d9c 4
+go/internal/projector/package_registry_canonical_artifact.go
+  s_4a0f86aa680964::t_f2129b18ce9d9c 4
+go/internal/projector/AGENTS.md
+  s_4a0f86aa680964::t_0b876d487a2590 64
+go/internal/projector/package/source/doc.go
+  s_4a0f86aa680964::t_2d29833efe2750 4,18
+sdk/go/factschema/packageregistry/v1/doc.go
+  s_4a0f86aa680964::t_8a2d3bd7f43b5e 39-40
+  s_4a0f86aa680964::t_0b876d487a2590 43
+go/internal/projector/package/source/AGENTS.md
+  s_4a0f86aa680964::t_955f7d96834682 6,8-9,11,18
+go/internal/projector/cloud/inventory/README.md
+  s_4a0f86aa680964::t_0b876d487a2590 38
+go/internal/projector/package/AGENTS.md
+  s_4a0f86aa680964::t_2d29833efe2750 1-22
+go/internal/projector/scope_generation_intents.go
+  s_4a0f86aa680964::t_a099f16d0ee479 31,64
+go/internal/projector/package/source/README.md
+  s_4a0f86aa680964::t_2d29833efe2750 99,105-109
+  s_4a0f86aa680964::t_955f7d96834682 23
+  s_4a0f86aa680964::t_8a2d3bd7f43b5e 94-98
+go/internal/projector/package_registry_identity_lock.go
+  s_4a0f86aa680964::t_f2129b18ce9d9c 4
+go/internal/projector/cloud/runtime/drift/aws/README.md
+  s_4a0f86aa680964::t_0b876d487a2590 89
+go/internal/projector/supplychainimpact/README.md
+  s_4a0f86aa680964::t_0b876d487a2590 45
+go/internal/projector/servicecatalog/README.md
+  s_4a0f86aa680964::t_0b876d487a2590 39
+go/internal/projector/package_registry_canonical_event.go
+  s_4a0f86aa680964::t_f2129b18ce9d9c 4
+go/internal/projector/package/source/reducer_intent_test.go
+  s_4a0f86aa680964::t_46dae3002b2daa 4,60,67,79,104,127,142
+sdk/go/factschema/packageregistry/v1/AGENTS.md
+  s_4a0f86aa680964::t_8a2d3bd7f43b5e 82
+go/internal/projector/package/source/reducer_intent.go
+  s_4a0f86aa680964::t_a099f16d0ee479 4,12,23
+go/internal/projector/secretsiam/README.md
+  s_4a0f86aa680964::t_0b876d487a2590 38
+go/internal/projector/README.md
+  s_4a0f86aa680964::t_0b876d487a2590 175,250
+go/internal/projector/sbomattestation/README.md
+  s_4a0f86aa680964::t_0b876d487a2590 37
+sdk/go/factschema/packageregistry/v1/README.md
+  s_4a0f86aa680964::t_8a2d3bd7f43b5e 96
+  s_4a0f86aa680964::t_0b876d487a2590 98
+docs/internal/evidence/6627-projector-package-source-intent-package-move.md
+  s_4a0f86aa680964::t_f2129b18ce9d9c 35-41,94-96
+  s_4a0f86aa680964::t_2e13ee40cbf4af 1-34,42-93,97-110
+go/internal/projector/package/README.md
+  s_4a0f86aa680964::t_2d29833efe2750 1-14
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_0b876d487a2590 769,800,812,823
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_0b876d487a2590 64
+go/internal/projector/scope_generation_intents_fanout_test.go
+  s_4a0f86aa680964::t_0b876d487a2590 76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "abc56cdbe114093ad6b726be7075e22552c110f5",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
