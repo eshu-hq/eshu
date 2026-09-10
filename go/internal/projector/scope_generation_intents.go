@@ -5,7 +5,7 @@ package projector
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/projector/aws/cloud/image"
+	awsimage "github.com/eshu-hq/eshu/go/internal/projector/aws/cloud/image"
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/ec2"
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/rds"
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/relationship"
@@ -97,7 +97,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := relationship.BuildMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := image.BuildMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := awsimage.BuildMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorobservabilitycoveragematerialization.BuildObservabilityCoverageMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
