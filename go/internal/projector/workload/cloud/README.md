@@ -1,4 +1,4 @@
-# Workload-cloud-relationship projector intents
+# Workload-cloud projector intent
 
 ## Purpose
 
@@ -17,7 +17,7 @@ and telemetry. Reducer handlers own workload-endpoint resolution,
 
 ## Exported surface
 
-- `BuildWorkloadCloudRelationshipMaterializationReducerIntent` builds the
+- `BuildReducerIntent` builds the
   `workload_cloud_relationship_materialization` intent, anchored to the first
   `aws_resource` fact observed in the generation.
 
@@ -36,10 +36,11 @@ builders.
 ## Telemetry
 
 No-Observability-Change: this package emits no signal directly. Root intent
-enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`; reducer
-handlers retain execution, workload-endpoint-resolution, and graph-write
-telemetry. Moving the pure builder adds no queue, storage, graph, span,
-metric, or log boundary.
+enqueue remains covered by `eshu_dp_reducer_intents_enqueued_total`. Reducer
+execution remains visible through the shared per-domain run signals, malformed
+inputs through the input-invalid signals and result summary, and graph writes
+through the existing storage instrumentation. Moving the pure builder adds no
+queue, storage, graph, span, metric, or log boundary.
 
 ## Gotchas / invariants
 
@@ -57,25 +58,25 @@ metric, or log boundary.
 
 ## Verification
 
-Run the package contract tests, root workload-cloud assembly tests, ordered
-fan-out parity and probe-count tests, the projector package tree,
-package-doc and path mirrors, dirgate, telemetry coverage, and the
-golden-corpus gates selected by the changed paths.
+Run the package contract test, root ordered fan-out parity and probe-count
+tests, the projector package tree, package-doc and path mirrors, dirgate,
+telemetry coverage, and the golden-corpus gates selected by the changed paths.
 
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain it emits
-is identical to the base commit, and the dispatcher's ordered fan-out is
-unchanged at 44 builder probes with this builder at its original position.
-`awsCloudRuntimeDriftSourceSystem` and `firstOfKind` were compared
-body-for-body against their `projectorintent.SourceSystem` and
-`projectorintent.FactLookup.FirstOfKind` replacements rather than by name;
-`firstOfKind` was already a direct forwarder to `FirstOfKind`, so the
-substitution is behavior-identical by construction. Focused proof:
-`go test ./internal/projector/... -count=1` green, whole-module `go build`
-and `go vet` clean.
+No-Regression Evidence: the #6627 move changes the package path, filename, and
+exported builder name without changing the production body, trigger, intent
+value, or fan-out position. The dispatcher remains at 44 builder probes, with
+this probe immediately after cloud inventory and before EC2 instance-node
+materialization. The focused package test and root fan-out/probe guards pin
+those contracts; the issue evidence record contains the exact commands and
+results.
+
+The nested namespace makes the ownership boundary legible for a future service
+split, but it does not make this package independently extractable. It still
+imports Eshu's internal facts, projector-intent, and reducer contracts, while
+root projector assembly remains its only production caller.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

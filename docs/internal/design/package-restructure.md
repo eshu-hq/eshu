@@ -737,7 +737,7 @@ unlike EC2's `USES_PROFILE` and S3's `LOGS_TO`, it triggers on
 `rds_instance_posture` fact-kind presence alone and needs no typed-payload
 decode wrapper, so the move is a one-file, one-caller extraction with no
 `factschema_decode_aws.go` companion. The workload-cloud-relationship builder
-moved into `internal/projector/workloadcloud` on that same shape: it triggers
+lives in `internal/projector/workload/cloud` on that same shape: it triggers
 on mere `aws_resource` fact presence, decodes no payload, and shares the
 generic `aws_resource_materialization:<scope>` entity key with the S3 and RDS
 builders. The incident-routing builder lives in

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package workloadcloud
+package cloud
 
 import (
 	"reflect"
@@ -34,12 +34,12 @@ func awsResourceEnvelope(factID, sourceSystem, collectorKind string) facts.Envel
 	}
 }
 
-// TestBuildWorkloadCloudRelationshipMaterializationReducerIntent proves the
+// TestBuildReducerIntent proves the
 // builder enqueues from aws_resource presence alone, anchors to the earliest
 // fact, shares the aws_resource_materialization entity key with the
 // CloudResource node phase, and falls back to CollectorKind when SourceRef's
 // SourceSystem is blank.
-func TestBuildWorkloadCloudRelationshipMaterializationReducerIntent(t *testing.T) {
+func TestBuildReducerIntent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("queues from aws_resource presence, anchored to the earliest fact", func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestBuildWorkloadCloudRelationshipMaterializationReducerIntent(t *testing.T
 			awsResourceEnvelope("fact-resource-1", "aws", "aws_cloud"),
 			awsResourceEnvelope("fact-resource-2", "aws", "aws_cloud"),
 		})
-		got, ok := BuildWorkloadCloudRelationshipMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -69,7 +69,7 @@ func TestBuildWorkloadCloudRelationshipMaterializationReducerIntent(t *testing.T
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			awsResourceEnvelope("fact-resource-1", "", "aws_cloud"),
 		})
-		got, ok := BuildWorkloadCloudRelationshipMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -81,7 +81,7 @@ func TestBuildWorkloadCloudRelationshipMaterializationReducerIntent(t *testing.T
 	t.Run("does not queue without aws_resource facts", func(t *testing.T) {
 		t.Parallel()
 		lookup := projectorintent.NewFactLookup(nil)
-		got, ok := BuildWorkloadCloudRelationshipMaterializationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {
 			t.Fatalf("returned (%#v, %t), want zero intent and false", got, ok)
 		}

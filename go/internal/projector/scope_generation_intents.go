@@ -34,7 +34,7 @@ import (
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
 	projectorservicecatalog "github.com/eshu-hq/eshu/go/internal/projector/servicecatalog"
 	projectorsupplychainimpact "github.com/eshu-hq/eshu/go/internal/projector/supplychainimpact"
-	projectorworkloadcloud "github.com/eshu-hq/eshu/go/internal/projector/workloadcloud"
+	workload "github.com/eshu-hq/eshu/go/internal/projector/workload/cloud"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -88,7 +88,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := inventory.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorworkloadcloud.BuildWorkloadCloudRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := workload.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := ec2.BuildInstanceNodeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

@@ -64,7 +64,7 @@ storage, graph, span, metric, or log boundary.
   builders emit the same `aws_resource_materialization:<scope>` key so their
   handlers gate on the `CloudResource` substrate this domain publishes — the
   `aws/relationship`, `aws/cloud/image`, `iamcanassume`, `iaminstanceprofile`,
-  `rds`, `security`, and `workloadcloud` packages, three builders in `s3`, and
+  `rds`, `security`, and `workload/cloud` packages, three builders in `s3`, and
   `observabilitycoveragematerialization/materialization_intents.go`. (Twelve
   `EntityKey` assignment sites carry the prefix in non-test projector code,
   counting this package's own; `security` reaches it through
