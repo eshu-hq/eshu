@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cloudinventory
+package inventory
 
 import (
 	"reflect"
@@ -28,13 +28,13 @@ func admissionEnvelope(factID, factKind, sourceSystem, collectorKind string) fac
 	}
 }
 
-// TestBuildCloudInventoryAdmissionReducerIntent proves the builder anchors to
+// TestBuildReducerIntent proves the builder anchors to
 // the earliest provider cloud-inventory source fact in original input order
 // across the three candidate kinds, that each provider kind triggers on its
 // own, that the source-system label prefers SourceRef.SourceSystem and falls
 // back to CollectorKind, and that a generation without a provider
 // cloud-inventory source fact enqueues nothing.
-func TestBuildCloudInventoryAdmissionReducerIntent(t *testing.T) {
+func TestBuildReducerIntent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("queues once from the earliest source fact across provider kinds", func(t *testing.T) {
@@ -46,7 +46,7 @@ func TestBuildCloudInventoryAdmissionReducerIntent(t *testing.T) {
 			admissionEnvelope("fact-azure-1", facts.AzureCloudResourceFactKind, "azure", ""),
 			admissionEnvelope("fact-gcp-1", facts.GCPCloudResourceFactKind, "gcp", ""),
 		})
-		got, ok := BuildCloudInventoryAdmissionReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -73,7 +73,7 @@ func TestBuildCloudInventoryAdmissionReducerIntent(t *testing.T) {
 				{FactID: "decoy-1", FactKind: "file"},
 				admissionEnvelope("anchor-"+kind, kind, provider, ""),
 			})
-			got, ok := BuildCloudInventoryAdmissionReducerIntent(testScopeID, testGenerationID, lookup)
+			got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 			if !ok {
 				t.Fatalf("kind %q: ok = false, want true", kind)
 			}
@@ -91,7 +91,7 @@ func TestBuildCloudInventoryAdmissionReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			admissionEnvelope("fact-gcp-1", facts.GCPCloudResourceFactKind, "  ", "gcp"),
 		})
-		got, ok := BuildCloudInventoryAdmissionReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -105,7 +105,7 @@ func TestBuildCloudInventoryAdmissionReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			{FactID: "decoy-1", FactKind: "file"},
 		})
-		got, ok := BuildCloudInventoryAdmissionReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {
 			t.Fatalf("returned (%#v, %t) for non-inventory evidence, want zero intent and false", got, ok)
 		}
@@ -113,7 +113,7 @@ func TestBuildCloudInventoryAdmissionReducerIntent(t *testing.T) {
 
 	t.Run("does not queue for an empty generation", func(t *testing.T) {
 		t.Parallel()
-		got, ok := BuildCloudInventoryAdmissionReducerIntent(testScopeID, testGenerationID,
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID,
 			projectorintent.NewFactLookup(nil))
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {
 			t.Fatalf("returned (%#v, %t) for an empty generation, want zero intent and false", got, ok)

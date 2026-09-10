@@ -24,7 +24,7 @@ admitted candidates through `AWSCloudRuntimeDriftFindingWriter`.
 
 ## Exported surface
 
-- `BuildAWSCloudRuntimeDriftReducerIntent` builds the
+- `BuildReducerIntent` builds the
   `aws_cloud_runtime_drift` intent, anchored to the first `aws_resource` fact
   observed in the generation.
 
@@ -62,9 +62,9 @@ builder adds no queue, storage, graph, span, metric, or log boundary.
   trimmed `SourceRef.SourceSystem`, falling back to a trimmed
   `CollectorKind`. The pre-extraction root helper
   (`awsCloudRuntimeDriftSourceSystem`) had the identical two-tier body, and
-  the child tests pin both tiers. That helper still has two other root
-  callers after this extraction (`aws_resource_materialization_intents.go`,
-  since extracted into `../aws/resource/materialization_intents.go`, and
+  the child tests pin both tiers. At extraction time that helper had two other
+  root callers (`aws_resource_materialization_intents.go`,
+  since extracted into `../../../../aws/resource/materialization_intents.go`, and
   `observabilitycoveragematerialization/materialization_intents.go`); both were
   repointed to `projectorintent.SourceSystem` directly rather than left
   calling a now-deleted root function.
@@ -80,26 +80,28 @@ Run the package contract tests, ordered fan-out parity and probe-count tests,
 the projector package tree, package-doc and path mirrors, dirgate, telemetry
 coverage, and the golden-corpus gates selected by the changed paths.
 
-No-Regression Evidence: this extraction moves one builder without changing
-its trigger, value, or fan-out position. The reducer intent domain, entity
+No-Regression Evidence: #6627 changes this builder's package path, package
+name, exported symbol, and references without changing its trigger, value, or
+fan-out position. The reducer intent domain, entity
 key, reason, anchor selection, and source-system derivation are identical to
 the base commit, and the dispatcher's ordered fan-out is unchanged at 44
 builder probes with this probe still running immediately after
 `packagesource.BuildPackageSourceCorrelationReducerIntent` and immediately
-before `multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent`. The root
+before `multidrift.BuildReducerIntent`. During the earlier #6057 extraction,
+the root
 `awsCloudRuntimeDriftSourceSystem` helper it called was compared body-for-body
 against its `projectorintent.SourceSystem` replacement (both trim
 `SourceRef.SourceSystem` and fall back to a trimmed `CollectorKind`, with no
 third literal fallback in either), so the substitution used both here and at
-this helper's two remaining root call sites is behavior-identical by
+the helper's two other root call sites at that time is behavior-identical by
 construction, and the child pins both tiers. Focused proof, run from the `go/`
 module root:
-`go test ./internal/projector/awscloudruntimedrift/... -run TestBuildAWSCloudRuntimeDriftReducerIntent -count=1`
+`go test ./internal/projector/cloud/runtime/drift/aws -count=1`
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../../README.md)
+- [Intent contract](../../../../intent/README.md)
+- [Package restructure](../../../../../../../docs/internal/design/package-restructure.md)

@@ -24,7 +24,7 @@ import (
 // The cases first lived in aws_cloud_runtime_drift_intents_test.go alongside
 // the aws_cloud_runtime_drift dispatch tests, and moved into a file of their
 // own when that unrelated family was extracted into
-// internal/projector/awscloudruntimedrift (#6057).
+// internal/projector/cloud/runtime/drift/aws (#6057, later moved for #6627).
 
 func TestBuildProjectionQueuesAWSResourceMaterializationIntent(t *testing.T) {
 	t.Parallel()

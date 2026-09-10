@@ -6,7 +6,7 @@
 2. `../../AGENTS.md` and `../../README.md` for projector-wide invariants.
 3. `../../intent/AGENTS.md` for the neutral builder contract.
 4. `../../scope_generation_intents.go` for root-owned assembly order; this probe
-   runs immediately after `multicloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent`
+   runs immediately after `multidrift.BuildReducerIntent`
    and immediately before `gcp.BuildResourceMaterializationReducerIntent`.
 5. `go/internal/reducer/aws_resource_materialization.go` for what the reducer
    does with the intent this package enqueues: payload decode,
@@ -77,7 +77,7 @@
   pre-extraction root path
   (`go/internal/projector/aws_resource_materialization_intents.go`) — the
   registry's only projector citations are three
-  `go/internal/projector/cloudinventory/admission_intents.go` rows, which
+  `go/internal/projector/cloud/inventory/reducer_intent.go` rows, which
   served as the positive control proving the search string was right. Re-run
   the check on any future rename here:
   `rg -n 'internal/projector' go/internal/mcp/route_serves_data_registry*.go`

@@ -11,10 +11,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/relationship"
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/resource"
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/s3"
-	projectorawscloudruntimedrift "github.com/eshu-hq/eshu/go/internal/projector/awscloudruntimedrift"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorcicdruncorrelation "github.com/eshu-hq/eshu/go/internal/projector/cicdruncorrelation"
-	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
+	inventory "github.com/eshu-hq/eshu/go/internal/projector/cloud/inventory"
+	awsdrift "github.com/eshu-hq/eshu/go/internal/projector/cloud/runtime/drift/aws"
+	multidrift "github.com/eshu-hq/eshu/go/internal/projector/cloud/runtime/drift/multi"
 	summary "github.com/eshu-hq/eshu/go/internal/projector/code/function/summary"
 	interproc "github.com/eshu-hq/eshu/go/internal/projector/code/interproc/evidence"
 	taint "github.com/eshu-hq/eshu/go/internal/projector/code/taint/evidence"
@@ -25,7 +26,6 @@ import (
 	projectoriaminstanceprofile "github.com/eshu-hq/eshu/go/internal/projector/iaminstanceprofile"
 	projectorincidentrouting "github.com/eshu-hq/eshu/go/internal/projector/incidentrouting"
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
-	projectormulticloudruntimedrift "github.com/eshu-hq/eshu/go/internal/projector/multicloudruntimedrift"
 	projectorobservabilitycoverage "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoverage"
 	projectorobservabilitycoveragematerialization "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoveragematerialization"
 	projectorpackagesource "github.com/eshu-hq/eshu/go/internal/projector/packagesource"
@@ -64,10 +64,10 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorpackagesource.BuildPackageSourceCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorawscloudruntimedrift.BuildAWSCloudRuntimeDriftReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := awsdrift.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectormulticloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := multidrift.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := resource.BuildMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
@@ -85,7 +85,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorazure.BuildRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorcloudinventory.BuildCloudInventoryAdmissionReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := inventory.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorworkloadcloud.BuildWorkloadCloudRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

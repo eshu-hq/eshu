@@ -48,7 +48,7 @@ func TestBuildProjectionRejectsUnsupportedServiceCatalogSchemaVersion(t *testing
 // per-family projector validator before #3211. azure_cloud_resource is admitted
 // at its supported version and rejected for an older major, a future major, and
 // a blank version. It lives at root because validateFactSchemaVersion is root
-// behavior, not the cloudinventory child builder's.
+// behavior, not the cloud/inventory child builder's.
 func TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily(t *testing.T) {
 	t.Parallel()
 

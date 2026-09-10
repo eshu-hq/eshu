@@ -80,7 +80,7 @@
   `go/internal/query/sbom_attestation_attachments.go` for the one indirect
   `missing_evidence` signal and names the `:ContainerImage` node label in a
   comment, not a `File:` evidence entry (verified with a positive control
-  against the `cloudinventory` citations, which DO name projector files). If
+  against the cloud-inventory citations, which DO name projector files). If
   a route is ever repointed to cite this package's file, that creates the
   coupling the sibling extractions warn about: the registry test reads
   cited files by path and fails with `read ...: no such file` on a rename.

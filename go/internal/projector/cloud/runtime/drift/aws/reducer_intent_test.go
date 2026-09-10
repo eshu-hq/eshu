@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloudruntimedrift
+package aws
 
 import (
 	"reflect"
@@ -37,13 +37,13 @@ func resourceEnvelope(factID, factKind, sourceSystem, collectorKind string) fact
 	}
 }
 
-// TestBuildAWSCloudRuntimeDriftReducerIntent proves the builder enqueues from
+// TestBuildReducerIntent proves the builder enqueues from
 // aws_resource presence alone, anchors to the earliest such fact in original
 // input order, derives the aws_cloud_runtime_drift-keyed entity key, and
 // derives the two-tier source-system label (SourceRef.SourceSystem trimmed,
 // falling back to a trimmed CollectorKind) the root awsCloudRuntimeDriftSourceSystem
 // helper produced before the #6057 extraction.
-func TestBuildAWSCloudRuntimeDriftReducerIntent(t *testing.T) {
+func TestBuildReducerIntent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("queues from aws_resource presence, anchored to the earliest fact", func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestBuildAWSCloudRuntimeDriftReducerIntent(t *testing.T) {
 			resourceEnvelope("fact-aws-1", facts.AWSResourceFactKind, "aws", "aws_cloud"),
 			resourceEnvelope("fact-aws-2", facts.AWSResourceFactKind, "aws", "aws_cloud"),
 		})
-		got, ok := BuildAWSCloudRuntimeDriftReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -77,7 +77,7 @@ func TestBuildAWSCloudRuntimeDriftReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			resourceEnvelope("fact-aws-1", facts.AWSResourceFactKind, "  aws  ", "aws_cloud_collector"),
 		})
-		got, ok := BuildAWSCloudRuntimeDriftReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -94,7 +94,7 @@ func TestBuildAWSCloudRuntimeDriftReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			resourceEnvelope("fact-aws-1", facts.AWSResourceFactKind, "  ", " aws_cloud_collector "),
 		})
-		got, ok := BuildAWSCloudRuntimeDriftReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -108,7 +108,7 @@ func TestBuildAWSCloudRuntimeDriftReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			resourceEnvelope("fact-rel-1", facts.AWSRelationshipFactKind, "aws", "aws_cloud"),
 		})
-		got, ok := BuildAWSCloudRuntimeDriftReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {
 			t.Fatalf("returned (%#v, %t), want zero intent and false", got, ok)
 		}

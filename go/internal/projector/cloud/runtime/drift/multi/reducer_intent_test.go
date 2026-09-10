@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package multicloudruntimedrift
+package multi
 
 import (
 	"testing"
@@ -11,27 +11,27 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestBuildMultiCloudRuntimeDriftReducerIntentNoFactNoIntent(t *testing.T) {
+func TestBuildReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
 		FactKind: facts.AWSResourceFactKind,
 	}})
-	if _, ok := BuildMultiCloudRuntimeDriftReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a multi_cloud_runtime_drift intent for an AWS-only generation")
 	}
 }
 
-func TestBuildMultiCloudRuntimeDriftReducerIntentEmptyGeneration(t *testing.T) {
+func TestBuildReducerIntentEmptyGeneration(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup(nil)
-	if _, ok := BuildMultiCloudRuntimeDriftReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a multi_cloud_runtime_drift intent for a generation with no facts at all")
 	}
 }
 
-func TestBuildMultiCloudRuntimeDriftReducerIntentFromGCPCandidate(t *testing.T) {
+func TestBuildReducerIntentFromGCPCandidate(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
@@ -39,7 +39,7 @@ func TestBuildMultiCloudRuntimeDriftReducerIntentFromGCPCandidate(t *testing.T) 
 		FactID:    "fact-gcp-1",
 		SourceRef: facts.Ref{SourceSystem: "gcp"},
 	}})
-	intent, ok := BuildMultiCloudRuntimeDriftReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a gcp_cloud_resource fact")
 	}
@@ -60,7 +60,7 @@ func TestBuildMultiCloudRuntimeDriftReducerIntentFromGCPCandidate(t *testing.T) 
 	}
 }
 
-func TestBuildMultiCloudRuntimeDriftReducerIntentFromAzureCandidate(t *testing.T) {
+func TestBuildReducerIntentFromAzureCandidate(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
@@ -68,7 +68,7 @@ func TestBuildMultiCloudRuntimeDriftReducerIntentFromAzureCandidate(t *testing.T
 		FactID:    "fact-azure-1",
 		SourceRef: facts.Ref{SourceSystem: "azure"},
 	}})
-	intent, ok := BuildMultiCloudRuntimeDriftReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for an azure_cloud_resource fact")
 	}
@@ -80,19 +80,19 @@ func TestBuildMultiCloudRuntimeDriftReducerIntentFromAzureCandidate(t *testing.T
 	}
 }
 
-// TestBuildMultiCloudRuntimeDriftReducerIntentEarliestAcrossKinds proves the
+// TestBuildReducerIntentEarliestAcrossKinds proves the
 // candidateFactKinds order is not priority: FirstAcrossKinds walks original
 // generation order, so an azure_cloud_resource fact earlier in the
 // generation wins over a later gcp_cloud_resource fact even though GCP is
 // listed first in candidateFactKinds.
-func TestBuildMultiCloudRuntimeDriftReducerIntentEarliestAcrossKinds(t *testing.T) {
+func TestBuildReducerIntentEarliestAcrossKinds(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: facts.AzureCloudResourceFactKind, FactID: "fact-azure-first"},
 		{FactKind: facts.GCPCloudResourceFactKind, FactID: "fact-gcp-second"},
 	})
-	intent, ok := BuildMultiCloudRuntimeDriftReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued")
 	}
@@ -101,11 +101,11 @@ func TestBuildMultiCloudRuntimeDriftReducerIntentEarliestAcrossKinds(t *testing.
 	}
 }
 
-// TestBuildMultiCloudRuntimeDriftReducerIntentSourceSystemFallsBackToCollectorKind
+// TestBuildReducerIntentSourceSystemFallsBackToCollectorKind
 // pins the shared two-tier projectorintent.SourceSystem label this family
 // uses verbatim: SourceRef.SourceSystem wins when set, else the trimmed
 // CollectorKind.
-func TestBuildMultiCloudRuntimeDriftReducerIntentSourceSystemFallsBackToCollectorKind(t *testing.T) {
+func TestBuildReducerIntentSourceSystemFallsBackToCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
@@ -113,7 +113,7 @@ func TestBuildMultiCloudRuntimeDriftReducerIntentSourceSystemFallsBackToCollecto
 		FactID:        "fact-gcp-2",
 		CollectorKind: "  gcp_cloud  ",
 	}})
-	intent, ok := BuildMultiCloudRuntimeDriftReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a gcp_cloud_resource fact")
 	}
@@ -122,13 +122,13 @@ func TestBuildMultiCloudRuntimeDriftReducerIntentSourceSystemFallsBackToCollecto
 	}
 }
 
-// TestBuildMultiCloudRuntimeDriftReducerIntentSourceSystemPrefersSourceRef
+// TestBuildReducerIntentSourceSystemPrefersSourceRef
 // pins the tier ORDER, which the fallback test above cannot: it sets
 // SourceRef.SourceSystem and CollectorKind to DIFFERENT values, so a
 // regression that swapped the two tiers would change the result. A test
 // where both tiers carry the same value passes either way and proves only
 // that a label was produced.
-func TestBuildMultiCloudRuntimeDriftReducerIntentSourceSystemPrefersSourceRef(t *testing.T) {
+func TestBuildReducerIntentSourceSystemPrefersSourceRef(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
@@ -137,7 +137,7 @@ func TestBuildMultiCloudRuntimeDriftReducerIntentSourceSystemPrefersSourceRef(t 
 		CollectorKind: "azure_scanner",
 		SourceRef:     facts.Ref{SourceSystem: "  azure_live  "},
 	}})
-	intent, ok := BuildMultiCloudRuntimeDriftReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for an azure_cloud_resource fact")
 	}

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package awscloudruntimedrift
+package aws
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// BuildAWSCloudRuntimeDriftReducerIntent enqueues one reducer intent that asks
+// BuildReducerIntent enqueues one reducer intent that asks
 // the reducer to run the bounded AWS ARN join against active Terraform-state
 // and Terraform-config facts (issue #6053 epic, #6057 extraction). The
 // trigger is the mere presence of an aws_resource fact in the scope
@@ -21,7 +21,7 @@ import (
 // The intent is anchored to the first aws_resource fact in original
 // generation order (FirstOfKind) so the reducer claim is stable across
 // reprojections of the same generation.
-func BuildAWSCloudRuntimeDriftReducerIntent(
+func BuildReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,

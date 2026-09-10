@@ -814,7 +814,7 @@ no other root caller and was body-identical to `projectorintent.SourceSystem`
 (crossplane, container-image-identity, multi-cloud runtime drift, and
 supply-chain impact).
 The cloud-inventory-admission builder moved into
-`internal/projector/cloudinventory`. It triggers on any provider
+`internal/projector/cloud/inventory`. It triggers on any provider
 cloud-inventory source fact (`aws_resource`, `gcp_cloud_resource`, or
 `azure_cloud_resource`), anchoring with `FirstMatchingKindPredicate` on the
 earliest such fact in input order, and carries no decode seam. Its private
