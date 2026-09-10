@@ -16,6 +16,8 @@
   input order.
 - When both facts exist and the summary cannot yield a repo ID, fall back to
   the marker repo ID. Keep this logic in `triggerRepoID`.
+  `TestBuildReducerIntentFallsBackToMarkerRepoIDWhenSummaryRepoIDUnresolvable`
+  pins this two-step fallback.
 - Set `full_snapshot` whenever the marker exists, even when the finding supplies
   provenance.
 - Preserve the reason strings and `code_function_summary:<scope>` entity key.
