@@ -16,6 +16,7 @@ package reducer
 //   - ci_cd_run_correlation_compat.go
 //   - cross_repo_compat.go
 //   - sbom_attestation_attachment_compat.go
+//   - supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
 
 import (
 	"time"
@@ -23,10 +24,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
-	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -38,8 +39,9 @@ import (
 // (defaults.go, defaults_additive_domains.go, defaults_service_incidents.go,
 // defaults_additive_domains_correlation.go, registry_additive_domains.go),
 // cmd/reducer's writer construction, internal/storage/postgres' loaders, and
-// the still-in-root supply_chain_impact and service_runtime_instance_lookup
-// families' shared outcome/evidence vocabulary. Everything else the family
+// the supplychain/core family plus the still-in-root
+// service_runtime_instance_lookup family's shared outcome/evidence
+// vocabulary. Everything else the family
 // exports is reached as servicecatalog.X, and each entry here is deleted once
 // its last caller has moved.
 
@@ -258,9 +260,6 @@ type CICDRunCorrelationHandler = cicdrun.CICDRunCorrelationHandler
 // [cicdrun.PostgresCICDRunCorrelationWriter].
 type PostgresCICDRunCorrelationWriter = cicdrun.PostgresCICDRunCorrelationWriter
 
-// cicdRunCorrelationFactKind forwards to [cicdrun.CICDRunCorrelationFactKind].
-const cicdRunCorrelationFactKind = cicdrun.CICDRunCorrelationFactKind
-
 // cicdWorkflowImageBuiltFromEvidenceSource forwards to
 // [cicdrun.CICDWorkflowImageBuiltFromEvidenceSource].
 const cicdWorkflowImageBuiltFromEvidenceSource = cicdrun.CICDWorkflowImageBuiltFromEvidenceSource
@@ -401,16 +400,57 @@ func ComponentEvidenceTupleEqual(a, b ComponentEvidence) bool {
 	return sbomattest.ComponentEvidenceTupleEqual(a, b)
 }
 
-// payloadStrings forwards to [payloadcore.PayloadStrings]. It reaches the
-// shared helper directly rather than through sbomattest: the root callers are
-// secrets/IAM, security-alert-reconciliation and supply-chain-impact, none of
-// which have anything to do with the SBOM family.
-func payloadStrings(payload map[string]any, scalarKey string, sliceKey string) []string {
-	return payloadcore.PayloadStrings(payload, scalarKey, sliceKey)
-}
-
 // sbomAttestationAttachmentFactKind lives in intent.go, aliased directly from
 // [reducercontract.SBOMAttestationAttachmentFactKind] rather than forwarded
 // through sbomattest -- see that file's alias block, mirroring
 // containerImageIdentityFactKind's identical shape for the same reason
 // (#6431).
+
+// Stanza: supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
+// This file is the transitional compatibility surface for the supply-chain
+// impact + suppression family that moved to [supplychaincore] (issue #6061).
+// External packages that name these types (cmd/reducer's writer construction,
+// internal/storage/postgres' loaders, internal/replay/costcounting's fixture
+// findings) keep their current reducer.X spelling; each entry is deleted once
+// its last caller has moved into a family subpackage. The dependency runs
+// root -> family only; the family never imports this package.
+
+// SupplyChainImpactFactFilter bounds active evidence loading for one impact
+// reducer intent. See [supplychaincore.SupplyChainImpactFactFilter].
+type SupplyChainImpactFactFilter = supplychaincore.SupplyChainImpactFactFilter
+
+// SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.
+// See [supplychaincore.SupplyChainImpactFinding].
+type SupplyChainImpactFinding = supplychaincore.SupplyChainImpactFinding
+
+// SupplyChainImpactAffectedExact means package identity and observed version
+// match the affected package evidence exactly. See
+// [supplychaincore.SupplyChainImpactAffectedExact].
+const SupplyChainImpactAffectedExact = supplychaincore.SupplyChainImpactAffectedExact
+
+// SupplyChainImpactWrite carries findings for durable publication. See
+// [supplychaincore.SupplyChainImpactWrite].
+type SupplyChainImpactWrite = supplychaincore.SupplyChainImpactWrite
+
+// SupplyChainImpactWriteResult summarizes durable impact publication. See
+// [supplychaincore.SupplyChainImpactWriteResult].
+type SupplyChainImpactWriteResult = supplychaincore.SupplyChainImpactWriteResult
+
+// SupplyChainImpactHandler publishes vulnerability impact findings without
+// turning CVSS, EPSS, or KEV signals into reachability proof. See
+// [supplychaincore.SupplyChainImpactHandler].
+type SupplyChainImpactHandler = supplychaincore.SupplyChainImpactHandler
+
+// PostgresSupplyChainImpactWriter is the Postgres-backed
+// SupplyChainImpactWriter. See
+// [supplychaincore.PostgresSupplyChainImpactWriter].
+type PostgresSupplyChainImpactWriter = supplychaincore.PostgresSupplyChainImpactWriter
+
+// SupplyChainImpactWinnersMaintainer keeps the
+// supply_chain_impact_canonical_winners read model reconciled with the active
+// impact facts. See [supplychaincore.SupplyChainImpactWinnersMaintainer].
+type SupplyChainImpactWinnersMaintainer = supplychaincore.SupplyChainImpactWinnersMaintainer
+
+// JVMReachabilityFactFilter bounds active JVM reachability evidence loading.
+// See [supplychaincore.JVMReachabilityFactFilter].
+type JVMReachabilityFactFilter = supplychaincore.JVMReachabilityFactFilter

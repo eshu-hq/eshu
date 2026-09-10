@@ -11,9 +11,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-const workloadIdentityFactKind = "reducer_workload_identity"
+// workloadIdentityFactKind aliases the exported contract constant so the
+// workload writer and the moved supplychain/core family name one durable
+// kind without either importing the other (#6061).
+const workloadIdentityFactKind = reducercontract.WorkloadIdentityFactKind
 
 // PostgresWorkloadIdentityWriter persists one workload-identity reducer
 // reconciliation into the shared fact store.

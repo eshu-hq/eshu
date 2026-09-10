@@ -1,0 +1,249 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package core
+
+import (
+	"strings"
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+)
+
+// TestBuildSupplyChainImpactFindingsQuarantinesOSPackageMissingInstalledVersion
+// is the flagship regression test for Wave 4c of Contract System v1
+// (issue #4566): the vulnerability_intelligence family's typed-decode
+// migration. It proves the accuracy guarantee the migration exists to protect
+// AND the per-fact isolation contract every prior wave established: a
+// vulnerability.os_package fact missing its required installed_version_raw
+// key is QUARANTINED as a visible input_invalid dead-letter — never silently
+// dropped with no operator signal — while a VALID sibling os_package fact in
+// the same batch still produces its finding (per-fact isolation, not a
+// whole-intent failure).
+//
+// Before the migration this behavior was impossible: supplyChainOSPackageFromEnvelope
+// read installed_version_raw with payloadStr, which returns "" for the absent
+// key, and the malformed fact's row silently entered the os_package index
+// under an empty InstalledVersion with no operator-visible signal.
+//
+// After the migration buildSupplyChainImpactIndexWithQuarantine decodes each
+// vulnerability.os_package fact through factschema.DecodeVulnerabilityOSPackage;
+// the malformed fact yields a classified *factDecodeError that
+// partitionDecodeFailures routes to a per-fact quarantine. The index builder
+// skips the malformed fact and continues, so the batch's valid os_package
+// evidence still produces its finding.
+func TestBuildSupplyChainImpactFindingsQuarantinesOSPackageMissingInstalledVersion(t *testing.T) {
+	t.Parallel()
+
+	// A vulnerability.os_package fact whose required installed_version_raw
+	// key is ABSENT (not merely empty): the exact malformed input the AC
+	// names. Everything else is present so the ONLY reason to quarantine the
+	// fact is the missing required field.
+	malformed := facts.Envelope{
+		FactID:   "malformed-os-package",
+		FactKind: facts.VulnerabilityOSPackageFactKind,
+		ScopeID:  "image://registry.example/malformed-app@sha256:deadbeef",
+		Payload: map[string]any{
+			// "installed_version_raw" intentionally absent.
+			"distro":                 "debian",
+			"distro_version":         "12",
+			"package_manager":        "dpkg",
+			"name":                   "openssl",
+			"arch":                   "amd64",
+			"repository_class":       "vendor",
+			"vendor_advisory_source": "debian",
+			"purl":                   "pkg:deb/debian/openssl?arch=amd64&distro=debian-12",
+		},
+	}
+
+	// A fully valid, independent CVE + affected_package + os_package trio that
+	// must still produce a finding despite the malformed fact sharing the
+	// batch. This is the isolation half of the contract: valid facts are
+	// unaffected by a poisoned sibling.
+	validEnvelopes := []facts.Envelope{
+		vulnerabilityCVEFactWithProvenance(
+			"debian-cve-quarantine",
+			"CVE-2026-9001",
+			"debian",
+			"DSA-2026-9001",
+			7.5,
+			"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+			"HIGH",
+			"2026-05-31T12:00:00Z",
+		),
+		vulnerabilityAffectedPackageFactWithSource(
+			"debian-affected-quarantine",
+			"CVE-2026-9001",
+			"debian",
+			"DSA-2026-9001",
+			"pkg:deb/debian/openssl",
+			"deb",
+			"openssl",
+			"3.0.11-1~deb12u2",
+			"3.0.11-1~deb12u3",
+		),
+		osPackageFact("valid-os-package-quarantine", "image://registry.example/valid-app@sha256:cafef00d", map[string]any{
+			"distro":                 "debian",
+			"distro_version":         "12",
+			"package_manager":        "dpkg",
+			"name":                   "openssl",
+			"arch":                   "amd64",
+			"repository_class":       "vendor",
+			"vendor_advisory_source": "debian",
+			"installed_version_raw":  "3.0.11-1~deb12u2",
+			"purl":                   "pkg:deb/debian/openssl@3.0.11-1~deb12u2?arch=amd64&distro=debian-12",
+		}),
+	}
+
+	envelopes := append([]facts.Envelope{malformed}, validEnvelopes...)
+
+	findings, quarantined, err := buildSupplyChainImpactFindingsWithQuarantine(envelopes)
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactFindingsWithQuarantine returned error %v; a single malformed vulnerability.os_package fact must be quarantined per-fact, not fail the whole batch", err)
+	}
+
+	// Per-fact isolation: the malformed fact does NOT abort the whole batch —
+	// exactly one quarantine is recorded and the valid CVE still produces its
+	// finding using the valid os_package evidence.
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1; the missing-installed_version_raw fact must be recorded as one input_invalid quarantine", len(quarantined))
+	}
+	if quarantined[0].Field != "installed_version_raw" {
+		t.Fatalf("quarantined[0].Field = %q, want %q", quarantined[0].Field, "installed_version_raw")
+	}
+	if quarantined[0].Classification != "input_invalid" {
+		t.Fatalf("quarantined[0].Classification = %q, want %q", quarantined[0].Classification, "input_invalid")
+	}
+	if quarantined[0].FactID != "malformed-os-package" {
+		t.Fatalf("quarantined[0].FactID = %q, want %q", quarantined[0].FactID, "malformed-os-package")
+	}
+
+	if len(findings) != 1 {
+		t.Fatalf("len(findings) = %d, want 1; the valid CVE/affected_package/os_package trio must still produce a finding despite the quarantined sibling fact", len(findings))
+	}
+	got := findings[0]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.ObservedVersion != "3.0.11-1~deb12u2" {
+		t.Fatalf("ObservedVersion = %q, want the valid os_package installed_version_raw preserved verbatim", got.ObservedVersion)
+	}
+	if got.RuntimeReachability != "image_os_package" {
+		t.Fatalf("RuntimeReachability = %q, want image_os_package (the valid os_package evidence, not the malformed sibling)", got.RuntimeReachability)
+	}
+	path := strings.Join(got.EvidencePath, " -> ")
+	if !strings.Contains(path, facts.VulnerabilityOSPackageFactKind) {
+		t.Fatalf("EvidencePath = %#v, want os package evidence", got.EvidencePath)
+	}
+}
+
+// TestBuildSupplyChainImpactIndexQuarantinesPackageConsumptionMissingPackageID
+// proves the reducer_package_consumption_correlation consumer uses the typed
+// reducer-derived decode seam: a persisted package-consumption fact missing
+// package_id is quarantined as input_invalid, while a valid sibling remains in
+// the impact index for downstream matching.
+func TestBuildSupplyChainImpactIndexQuarantinesPackageConsumptionMissingPackageID(t *testing.T) {
+	t.Parallel()
+
+	valid := facts.Envelope{
+		FactID:   "valid-package-consumption",
+		FactKind: correlation.PackageConsumptionFactKind,
+		Payload: map[string]any{
+			"package_id":       "pkg:npm/express",
+			"repository_id":    "repo-consumer",
+			"dependency_range": "^4.18.0",
+			"observed_version": "4.18.3",
+		},
+	}
+	malformed := facts.Envelope{
+		FactID:   "malformed-package-consumption",
+		FactKind: correlation.PackageConsumptionFactKind,
+		Payload: map[string]any{
+			// "package_id" intentionally absent.
+			"repository_id":    "repo-ignored",
+			"dependency_range": "^4.18.0",
+		},
+	}
+
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine([]facts.Envelope{malformed, valid})
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactIndexWithQuarantine() error = %v, want nil", err)
+	}
+	if len(quarantined) != 1 {
+		t.Fatalf("len(quarantined) = %d, want 1", len(quarantined))
+	}
+	if quarantined[0].FactID != "malformed-package-consumption" {
+		t.Fatalf("quarantined[0].FactID = %q, want malformed-package-consumption", quarantined[0].FactID)
+	}
+	if quarantined[0].Field != "package_id" {
+		t.Fatalf("quarantined[0].Field = %q, want package_id", quarantined[0].Field)
+	}
+
+	consumption := index.consumption["pkg:npm/express"]
+	if len(consumption) != 1 {
+		t.Fatalf("indexed consumption rows = %d, want 1 valid sibling", len(consumption))
+	}
+	if got := consumption[0].RepositoryID; got != "repo-consumer" {
+		t.Fatalf("repositoryID = %q, want repo-consumer", got)
+	}
+	if got := consumption[0].ObservedVersion; got != "4.18.3" {
+		t.Fatalf("observedVersion = %q, want 4.18.3", got)
+	}
+}
+
+// TestBuildSupplyChainImpactFindingsOSPackagePresentButEmptyVendorAdvisorySourceDecodes
+// proves the absent-vs-empty distinction that makes this migration safe for the
+// os_package kind specifically: RepositoryClass and VendorAdvisorySource are
+// OPTIONAL fields on the typed struct, so a present-but-empty
+// vendor_advisory_source (the collector's own "ambiguous/unknown vendor
+// origin" fail-closed observation, e.g. WarningReasonAmbiguousVendorOrigin) is
+// a VALID decode, not a quarantine — the existing matcher simply does not
+// match it, byte-identical to pre-typing behavior. Do NOT conflate this with
+// the missing-installed_version_raw case above: an empty optional field must
+// never dead-letter.
+func TestBuildSupplyChainImpactFindingsOSPackagePresentButEmptyVendorAdvisorySourceDecodes(t *testing.T) {
+	t.Parallel()
+
+	findings, quarantined, err := buildSupplyChainImpactFindingsWithQuarantine([]facts.Envelope{
+		vulnerabilityCVEFactWithProvenance(
+			"redhat-cve-ambiguous-quarantine",
+			"CVE-2026-9002",
+			"redhat",
+			"RHSA-2026:9002",
+			7.8,
+			"CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+			"HIGH",
+			"2026-05-31T12:00:00Z",
+		),
+		vulnerabilityAffectedPackageFactWithSource(
+			"redhat-affected-ambiguous-quarantine",
+			"CVE-2026-9002",
+			"redhat",
+			"RHSA-2026:9002",
+			"pkg:rpm/redhat/openssl",
+			"redhat",
+			"openssl",
+			"1:3.0.7-18.el9_2",
+			"1:3.0.7-20.el9_2",
+		),
+		osPackageFact("ambiguous-os-package-quarantine", "image://registry.example/ambiguous-app@sha256:ambiguous", map[string]any{
+			"distro":                 "redhat",
+			"distro_version":         "9.2",
+			"package_manager":        "rpm",
+			"name":                   "openssl",
+			"arch":                   "x86_64",
+			"repository_class":       "unknown",
+			"vendor_advisory_source": "",
+			"installed_version_raw":  "1:3.0.7-18.el9_2",
+			"purl":                   "pkg:rpm/redhat/openssl@1:3.0.7-18.el9_2?arch=x86_64&distro=redhat-9.2",
+		}),
+	})
+	if err != nil {
+		t.Fatalf("buildSupplyChainImpactFindingsWithQuarantine returned error %v, want nil (a present-but-empty vendor_advisory_source is a VALID decode)", err)
+	}
+	if len(quarantined) != 0 {
+		t.Fatalf("quarantined = %v, want none; a present-but-empty vendor_advisory_source must decode, not dead-letter", quarantined)
+	}
+	if len(findings) != 0 {
+		t.Fatalf("findings = %d, want 0 because an unknown-origin RPM package must not produce impact truth (unchanged pre-typing behavior): %#v", len(findings), findings)
+	}
+}

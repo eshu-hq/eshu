@@ -7,6 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
 
 // appendSupplyChainCorrelationAdditiveDomains registers the observability,
@@ -47,7 +48,7 @@ func appendSupplyChainCorrelationAdditiveDomains(definitions []DomainDefinition,
 	}
 	if handlers.FactLoader != nil && handlers.SupplyChainImpactWriter != nil {
 		impact := supplyChainImpactDomainDefinition()
-		impact.Handler = SupplyChainImpactHandler{
+		impact.Handler = supplychaincore.SupplyChainImpactHandler{
 			FactLoader:  handlers.FactLoader,
 			Writer:      handlers.SupplyChainImpactWriter,
 			Instruments: handlers.Instruments,

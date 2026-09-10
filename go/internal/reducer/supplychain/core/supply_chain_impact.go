@@ -1,0 +1,416 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package core
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"slices"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/packages/correlation"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// SupplyChainImpactStatus names the reducer decision for one vulnerability
+// impact finding.
+type SupplyChainImpactStatus string
+
+const (
+	// SupplyChainImpactAffectedExact means package identity and observed
+	// version match the affected package evidence exactly.
+	SupplyChainImpactAffectedExact SupplyChainImpactStatus = "affected_exact"
+	// SupplyChainImpactAffectedDerived means impact follows from SBOM, image,
+	// repository, or runtime joins after package identity is established.
+	SupplyChainImpactAffectedDerived SupplyChainImpactStatus = "affected_derived"
+	// SupplyChainImpactPossiblyAffected means advisory evidence exists but
+	// package identity or version precision is incomplete.
+	SupplyChainImpactPossiblyAffected SupplyChainImpactStatus = "possibly_affected"
+	// SupplyChainImpactNotAffectedKnownFixed means the observed version is at
+	// or beyond a source-reported fixed version under Eshu's conservative
+	// numeric version comparison.
+	SupplyChainImpactNotAffectedKnownFixed SupplyChainImpactStatus = "not_affected_known_fixed"
+	// SupplyChainImpactUnknown means vulnerability source truth exists but Eshu
+	// lacks enough package or runtime evidence to decide impact.
+	SupplyChainImpactUnknown SupplyChainImpactStatus = "unknown_impact"
+)
+
+// SupplyChainImpactFactFilter bounds active evidence loading for one impact
+// reducer intent.
+type SupplyChainImpactFactFilter struct {
+	PackageIDs []string
+	PURLs      []string
+	CVEIDs     []string
+	// AdvisoryIDs binds both the top-level exact-match predicate and the
+	// normalized suppression-scope predicate. It is populated alongside
+	// CVEIDs because supplyChainCVEID prefers cve_id over advisory_id when
+	// both are present.
+	AdvisoryIDs       []string
+	SubjectDigests    []string
+	DocumentIDs       []string
+	ProductCriteria   []string
+	RepositoryIDs     []string
+	FileRepositoryIDs []string
+	ImageRefs         []string
+}
+
+// SupplyChainImpactWrite carries findings for durable publication.
+type SupplyChainImpactWrite struct {
+	IntentID     string
+	ScopeID      string
+	GenerationID string
+	SourceSystem string
+	Cause        string
+	Findings     []SupplyChainImpactFinding
+}
+
+// SupplyChainImpactWriteResult summarizes durable impact publication.
+type SupplyChainImpactWriteResult struct {
+	CanonicalWrites int
+	FactsWritten    int
+	EvidenceSummary string
+}
+
+// SupplyChainImpactWriter persists reducer-owned impact findings.
+type SupplyChainImpactWriter interface {
+	WriteSupplyChainImpactFindings(context.Context, SupplyChainImpactWrite) (SupplyChainImpactWriteResult, error)
+}
+
+type activeSupplyChainImpactFactLoader interface {
+	// The bool return reports pagination truncation (#5466 P1-B, see
+	// supply_chain_impact_handler_helpers.go): callers OR it into the same
+	// truncation signal maxSupplyChainImpactActiveEvidenceLoads produces.
+	ListActiveSupplyChainImpactFacts(context.Context, SupplyChainImpactFactFilter) ([]facts.Envelope, bool, error)
+}
+
+// SupplyChainImpactHandler publishes vulnerability impact findings without
+// turning CVSS, EPSS, or KEV signals into reachability proof.
+type SupplyChainImpactHandler struct {
+	FactLoader  factload.FactLoader
+	Writer      SupplyChainImpactWriter
+	Instruments *telemetry.Instruments
+	// Now lets tests pin the evaluation clock used for suppression
+	// expiration checks. Defaults to time.Now() in UTC.
+	Now func() time.Time
+	// ProducerReadiness is the #5709 cross-scope correctness floor. This domain
+	// reads container_image_identity output for repository anchoring and
+	// ci_cd_run_correlation output for deployment context, both published by
+	// scopes other than its own vulnerability-intelligence scope. An impact pass
+	// that runs before those scopes activate their generations resolves neither,
+	// and would otherwise write durable findings computed without that evidence
+	// that no later event disturbs. When wired, such a pass defers instead.
+	// Optional: nil keeps the pre-#5709 behaviour.
+	ProducerReadiness crossscope.ProducerReadiness
+	// Logger records a cross-scope readiness deferral as its own structured
+	// line. Optional: nil silences it. Worth wiring -- the deferral's failure
+	// class freezes attempt_count, so the queue row alone cannot tell an
+	// operator how long this consumer has been waiting.
+	Logger *slog.Logger
+}
+
+// Handle executes one supply-chain impact reducer intent.
+func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	totalStarted := time.Now()
+
+	if intent.Domain != reducercontract.DomainSupplyChainImpact {
+		return reducercontract.Result{}, fmt.Errorf("supply_chain_impact handler does not accept domain %q", intent.Domain)
+	}
+	if h.FactLoader == nil {
+		return reducercontract.Result{}, fmt.Errorf("supply chain impact fact loader is required")
+	}
+	if h.Writer == nil {
+		return reducercontract.Result{}, fmt.Errorf("supply chain impact writer is required")
+	}
+
+	loaded, timing, err := h.loadSupplyChainImpactEvidence(ctx, intent)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+	envelopes := loaded.envelopes
+
+	phaseStarted := time.Now()
+	findings, quarantinedVulnerabilityFacts, err := buildSupplyChainImpactFindingsWithQuarantine(envelopes)
+	if err != nil {
+		// A non-decode error (transient fact-load or other fatal condition
+		// factdecode.PartitionDecodeFailures did NOT quarantine) fails the whole intent so
+		// the durable queue triages it correctly.
+		return reducercontract.Result{}, fmt.Errorf("build supply chain impact findings: %w", err)
+	}
+	if loaded.activeEvidenceTruncated {
+		findings = markSupplyChainImpactFindingsActiveExpansionTruncated(findings)
+	}
+	timing.buildFindingsDuration = time.Since(phaseStarted)
+
+	phaseStarted = time.Now()
+	suppressions, quarantinedSuppressions, err := BuildVulnerabilitySuppressions(envelopes)
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("build vulnerability suppressions: %w", err)
+	}
+	quarantinedVulnerabilityFacts = append(quarantinedVulnerabilityFacts, quarantinedSuppressions...)
+	if loaded.suppressionEvidenceTruncated {
+		// Selection is newest AuthoredAt and then SuppressionID across the
+		// complete adjacent candidate set. A bounded prefix cannot prove its
+		// retained winner is globally preferred, so discard every candidate
+		// and keep findings visible rather than persist a false audit winner.
+		suppressions = nil
+	}
+	// Per-fact isolation: a malformed vulnerability or suppression fact is
+	// quarantined as a visible input_invalid dead-letter while valid facts
+	// still contribute to findings and suppression decisions.
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(
+		ctx,
+		h.Instruments,
+		reducercontract.DomainSupplyChainImpact,
+		intent.ScopeID,
+		intent.GenerationID,
+		quarantinedVulnerabilityFacts,
+	)
+	now := h.evaluationNow()
+	for i := range findings {
+		findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], suppressions, now)
+	}
+	counts := supplyChainImpactCounts(findings)
+	suppressionCounts := supplyChainSuppressionCounts(findings)
+	remediationCounts := supplyChainRemediationCounts(findings)
+	timing.evaluateSuppressionsDuration = time.Since(phaseStarted)
+
+	phaseStarted = time.Now()
+	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, SupplyChainImpactWrite{
+		IntentID:     intent.IntentID,
+		ScopeID:      intent.ScopeID,
+		GenerationID: intent.GenerationID,
+		SourceSystem: intent.SourceSystem,
+		Cause:        intent.Cause,
+		Findings:     findings,
+	})
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
+	}
+	timing.writeFindingsDuration = time.Since(phaseStarted)
+
+	phaseStarted = time.Now()
+	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
+	timing.emitCountersDuration = time.Since(phaseStarted)
+	timing.totalDuration = time.Since(totalStarted)
+
+	evidenceSummary := supplyChainImpactSummary(len(findings), counts, suppressionCounts, writeResult.CanonicalWrites)
+	if loaded.activeEvidenceTruncated {
+		evidenceSummary += " active_evidence_truncated=true"
+	}
+	subSignals := supplyChainImpactDiagnosticSignals(
+		loaded.scopeFacts,
+		loaded.repositoryFacts,
+		loaded.manifestDependencyFacts,
+		loaded.activeEvidenceFacts,
+		loaded.osPackageAdvisoryFacts,
+		loaded.osPackageAdvisoryTargetsSkipped,
+		loaded.scannerAnalysisScopeFacts,
+		loaded.resolvedDigestEvidenceFacts,
+		loaded.pythonReachabilityFacts,
+		loaded.jvmReachabilityFactCount,
+		loaded.postSecurityAlertScopeFacts,
+		loaded.securityAlertScopingApplied,
+		loaded.securityAlertScopedOutFacts,
+		len(findings),
+		loaded.activeEvidenceTruncated,
+		writeResult.FactsWritten,
+	)
+	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
+		subSignals[key] = value
+	}
+	return reducercontract.Result{
+		IntentID:        intent.IntentID,
+		Domain:          reducercontract.DomainSupplyChainImpact,
+		Status:          reducercontract.ResultStatusSucceeded,
+		EvidenceSummary: evidenceSummary,
+		CanonicalWrites: writeResult.CanonicalWrites,
+		SubDurations:    supplyChainImpactSubDurations(timing),
+		SubSignals:      subSignals,
+	}, nil
+}
+
+// BuildSupplyChainImpactFindings classifies vulnerability source facts against
+// explicit package, SBOM, image, and repository evidence.
+//
+// Multi-source CVE and affected_package observations for the same advisory
+// identity are consolidated into one finding so callers see a single row per
+// (cve_id, package_id) anchor with full per-source provenance, instead of one
+// row per advisory source overwriting the others at the writer.
+//
+// A vulnerability.* fact whose payload is missing a required identity field is
+// excluded from the index (mirroring the pre-typing behavior of dropping a
+// fact with a blank required string), matching this function's fixed,
+// error-free signature that the existing table tests already assert against.
+// SupplyChainImpactHandler.Handle calls the quarantine-aware
+// buildSupplyChainImpactFindingsWithQuarantine instead, so the reducer intent
+// path still reports a visible input_invalid dead-letter (counter + structured
+// log) for the malformed fact while this function stays a pure,
+// table-test-friendly classifier with no telemetry side effects.
+func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImpactFinding {
+	findings, _, _ := buildSupplyChainImpactFindingsWithQuarantine(envelopes)
+	return findings
+}
+
+// buildSupplyChainImpactFindingsWithQuarantine is the quarantine-aware
+// counterpart BuildSupplyChainImpactFindings delegates to and
+// SupplyChainImpactHandler.Handle calls directly, so the reducer intent path
+// can report each malformed vulnerability.* fact as a visible input_invalid
+// dead-letter via factdecode.RecordQuarantinedFacts. A non-decode error (a fatal
+// condition factdecode.PartitionDecodeFailures did not quarantine) is returned so the
+// caller fails the whole intent for durable triage. The classification logic
+// itself is unchanged from BuildSupplyChainImpactFindings.
+func buildSupplyChainImpactFindingsWithQuarantine(envelopes []facts.Envelope) ([]SupplyChainImpactFinding, []factdecode.QuarantinedFact, error) {
+	index, quarantined, err := buildSupplyChainImpactIndexWithQuarantine(envelopes)
+	if err != nil {
+		return nil, nil, err
+	}
+	cveGroups := groupSupplyChainCVEsByID(index.cves)
+	findings := make([]SupplyChainImpactFinding, 0, len(index.affectedPackages)+len(index.affectedProducts))
+	for _, cveID := range sortedCVEKeys(cveGroups) {
+		group := cveGroups[cveID]
+		affected := index.affectedPackages[cveID]
+		if len(affected) > 0 {
+			pkgGroups := groupSupplyChainAffectedByPackage(affected)
+			for _, packageID := range sortedPackageKeys(pkgGroups) {
+				pkgs := pkgGroups[packageID]
+				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(group, pkgs, index))
+			}
+			continue
+		}
+		products := index.affectedProducts[cveID]
+		if len(products) > 0 {
+			for _, product := range products {
+				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactProduct(group.representative(), product, index))
+			}
+			continue
+		}
+	}
+	findings, securityAlertQuarantined, err := appendSecurityAlertImpactFindings(findings, envelopes, index)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Merge the security-alert decode quarantines with the vulnerability
+	// quarantines so SupplyChainImpactHandler.Handle records every malformed
+	// fact of either family as a per-fact input_invalid dead-letter through the
+	// same factdecode.RecordQuarantinedFacts path, and a poisoned security_alert fact never
+	// aborts the whole supply_chain_impact generation.
+	quarantined = append(quarantined, securityAlertQuarantined...)
+	sort.SliceStable(findings, func(i, j int) bool {
+		if findings[i].CVEID != findings[j].CVEID {
+			return findings[i].CVEID < findings[j].CVEID
+		}
+		if findings[i].PackageID != findings[j].PackageID {
+			return findings[i].PackageID < findings[j].PackageID
+		}
+		return findings[i].ProductCriteria < findings[j].ProductCriteria
+	})
+	return findings, quarantined, nil
+}
+
+func appendSupplyChainImpactFinding(
+	findings []SupplyChainImpactFinding,
+	finding SupplyChainImpactFinding,
+) []SupplyChainImpactFinding {
+	if !supplyChainImpactFindingHasOwnedAnchor(finding) {
+		return findings
+	}
+	if supplyChainImpactFindingHasUnsupportedMatcher(finding) {
+		return findings
+	}
+	finding.DetectionProfile = classifySupplyChainImpactDetectionProfile(finding)
+	finding = withSupplyChainReachability(finding)
+	finding = withSupplyChainImpactPriority(finding)
+	finding.Remediation = BuildSupplyChainImpactRemediation(finding)
+	return append(findings, finding)
+}
+
+// supplyChainImpactFindingHasOwnedAnchor reports whether finding is backed by
+// evidence this reducer actually observed, so appendSupplyChainImpactFinding
+// keeps it rather than dropping an unanchored guess. RepositoryID and
+// SubjectDigest are the two general anchors every ecosystem can supply. An
+// os_package match is its own anchor even when neither of those is set: it
+// already required repositoryClass=="vendor" plus a matching
+// VendorAdvisorySource (osPackageMatchesAffectedPackage) before
+// classifySupplyChainImpactPackage ever reached this finding, so the finding
+// is anchored to a real scanned installation, not a guess — its accuracy does
+// not depend on whether a sibling scanner_worker.analysis fact happened to
+// resolve a real image digest for it (issue #5463 deleted the scope_id
+// fallback that used to make SubjectDigest non-blank here as a side effect;
+// this keeps the owned-anchor gate independently correct without resurrecting
+// scope_id as a fake digest).
+func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bool {
+	if strings.TrimSpace(finding.RepositoryID) != "" || strings.TrimSpace(finding.SubjectDigest) != "" {
+		return true
+	}
+	return slices.Contains(finding.EvidencePath, facts.VulnerabilityOSPackageFactKind)
+}
+
+func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFinding) bool {
+	if strings.TrimSpace(finding.MatchReason) != supplyChainVersionReasonUnsupportedEcosystem {
+		return false
+	}
+	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os"
+}
+
+// supplyChainImpactFactKinds is the set of fact kinds loaded from the intent's
+// OWN scope/generation via factload.LoadFactsForKinds. It intentionally OMITS
+// facts.VulnerabilityOSPackageFactKind and facts.ScannerWorkerAnalysisFactKind
+// even though both feed supply-chain-impact classification: neither lives in
+// the intent's vulnerability-intelligence scope, so listing them here would
+// query the wrong scope and return nothing. They are loaded cross-scope by two
+// dedicated stages in loadSupplyChainImpactEvidence instead —
+// loadSupplyChainImpactOSPackageAdvisoryFacts pulls vulnerability.os_package by
+// ecosystem through the advisory-target reader (#5705/#5463), and
+// loadSupplyChainImpactScannerAnalysisScopeFacts then loads each os_package's
+// sibling scanner_worker.analysis from that package's OWN scan scope to stamp
+// SubjectDigest (#5463). Adding either kind here is the tempting-but-wrong fix
+// flagged in review: it cannot reach a cross-scope fact. The end-to-end path is
+// proven by TestSupplyChainImpactHandlerLoadsScannerAnalysisFromOSPackageScanScope
+// and the golden-corpus list_supply_chain_impact_findings floor (CVE-2026-00010).
+func supplyChainImpactFactKinds() []string {
+	return []string{
+		facts.VulnerabilityCVEFactKind,
+		facts.VulnerabilityAffectedPackageFactKind,
+		facts.VulnerabilityAffectedProductFactKind,
+		facts.VulnerabilityEPSSScoreFactKind,
+		facts.VulnerabilityKnownExploitedFactKind,
+		facts.VulnerabilitySuppressionFactKind,
+		facts.VulnerabilityGoModuleEvidenceFactKind,
+		facts.VulnerabilityGoCallReachabilityFactKind,
+		facts.SecurityAlertRepositoryAlertFactKind,
+		facts.PackageRegistryPackageFactKind,
+		facts.SBOMComponentFactKind,
+		facts.OCIImageManifestFactKind,
+		facts.OCIImageIndexFactKind,
+		facts.OCIImageTagObservationFactKind,
+		facts.OCIImageReferrerFactKind,
+		reducercontract.SBOMAttestationAttachmentFactKind,
+		reducercontract.ContainerImageIdentityFactKind,
+		correlation.PackageConsumptionFactKind,
+		cicdrun.CICDRunCorrelationFactKind,
+		reducercontract.PlatformMaterializationFactKind,
+		reducercontract.WorkloadIdentityFactKind,
+		reducercontract.ServiceCatalogCorrelationFactKind,
+		factload.FactKindFile,
+	}
+}
+
+func supplyChainImpactStatuses() []SupplyChainImpactStatus {
+	return []SupplyChainImpactStatus{
+		SupplyChainImpactAffectedExact,
+		SupplyChainImpactAffectedDerived,
+		SupplyChainImpactPossiblyAffected,
+		SupplyChainImpactNotAffectedKnownFixed,
+		SupplyChainImpactUnknown,
+	}
+}

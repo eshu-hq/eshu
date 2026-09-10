@@ -95,15 +95,6 @@ func decodeBatchedFactCall(t *testing.T, call fakeWorkloadIdentityExecCall) []de
 	return rows
 }
 
-// expectedBatchedExecCount returns the number of ExecContext calls a batched
-// writer must issue for rowCount rows: ceil(rowCount/reducerFactBatchSize).
-func expectedBatchedExecCount(rowCount int) int {
-	if rowCount == 0 {
-		return 0
-	}
-	return (rowCount + reducerFactBatchSize - 1) / reducerFactBatchSize
-}
-
 // decodedBatchedVersionedFactRow is one row recovered from a
 // reducerFactBatchInsertVersionedQuery ExecContext call. It mirrors
 // decodedBatchedFactRow with an added SchemaVersion field, plus FencingToken

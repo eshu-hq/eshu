@@ -20,10 +20,6 @@ package reducer
 //   - value_flow_compat.go
 
 import (
-	"context"
-	"log/slog"
-	"time"
-
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -193,17 +189,6 @@ const CrossScopeProducerNotReadyFailureClass = crossscope.ProducerNotReadyFailur
 // as retryable. See [crossscope.ProducerNotReadyError].
 type crossScopeProducerNotReadyError = crossscope.ProducerNotReadyError
 
-// newCrossScopeProducerNotReadyError forwards to
-// [crossscope.NewProducerNotReadyError].
-func newCrossScopeProducerNotReadyError(
-	consumerDomain Domain,
-	scopeID string,
-	generationID string,
-	producerDomains []Domain,
-) crossScopeProducerNotReadyError {
-	return crossscope.NewProducerNotReadyError(consumerDomain, scopeID, generationID, producerDomains)
-}
-
 // CrossScopeProducerReadiness answers whether the producer scopes a consumer
 // depends on have finished publishing. See [crossscope.ProducerReadiness].
 type CrossScopeProducerReadiness = crossscope.ProducerReadiness
@@ -211,42 +196,6 @@ type CrossScopeProducerReadiness = crossscope.ProducerReadiness
 // CrossScopeProducerReadinessByDomain answers readiness for each producer
 // domain separately. See [crossscope.ProducerReadinessByDomain].
 type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
-
-// crossScopeProducerReadinessSignal is the floor's answer, captured BEFORE the
-// consumer's cross-scope load runs. See [crossscope.ProducerReadinessSignal].
-type crossScopeProducerReadinessSignal = crossscope.ProducerReadinessSignal
-
-// checkCrossScopeProducerReadinessBeforeLoad forwards to
-// [crossscope.CheckProducerReadinessBeforeLoad].
-func checkCrossScopeProducerReadinessBeforeLoad(
-	ctx context.Context,
-	readiness CrossScopeProducerReadiness,
-	intent Intent,
-	now time.Time,
-	crossScopeLookupPlanned bool,
-) (crossScopeProducerReadinessSignal, error) {
-	return crossscope.CheckProducerReadinessBeforeLoad(ctx, readiness, intent, now, crossScopeLookupPlanned)
-}
-
-// crossScopeUnreadyProducers forwards to [crossscope.UnreadyProducers].
-func crossScopeUnreadyProducers(
-	signal crossScopeProducerReadinessSignal,
-	resolvedByProducer map[Domain]int,
-) []Domain {
-	return crossscope.UnreadyProducers(signal, resolvedByProducer)
-}
-
-// logCrossScopeProducerNotReadyDefer forwards to
-// [crossscope.LogProducerNotReadyDefer].
-func logCrossScopeProducerNotReadyDefer(
-	ctx context.Context,
-	logger *slog.Logger,
-	intent Intent,
-	now time.Time,
-	producerDomains []Domain,
-) {
-	crossscope.LogProducerNotReadyDefer(ctx, logger, intent, now, producerDomains)
-}
 
 // Stanza: platform_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the platform family

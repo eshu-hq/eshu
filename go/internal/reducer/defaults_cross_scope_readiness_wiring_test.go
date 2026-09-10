@@ -8,7 +8,46 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 )
+
+// stubSupplyChainImpactFactLoader is the staying-root twin of the same-named
+// double in supplychain/core's own test suite: the wiring test below only
+// constructs it as a zero value to prove the registration carries the loader
+// through, so this trimmed copy implements just the base loader surface.
+// Each side keeps its own copy across the root/core seam (issue #6061).
+type stubSupplyChainImpactFactLoader struct{}
+
+func (*stubSupplyChainImpactFactLoader) ListFacts(
+	context.Context,
+	string,
+	string,
+) ([]facts.Envelope, error) {
+	return nil, nil
+}
+
+func (*stubSupplyChainImpactFactLoader) ListFactsByKind(
+	context.Context,
+	string,
+	string,
+	[]string,
+) ([]facts.Envelope, error) {
+	return nil, nil
+}
+
+// recordingSupplyChainImpactWriter is the staying-root twin of the same-named
+// double in supplychain/core's own test suite, trimmed to the zero-value
+// construction the wiring test below needs (issue #6061).
+type recordingSupplyChainImpactWriter struct{}
+
+func (*recordingSupplyChainImpactWriter) WriteSupplyChainImpactFindings(
+	context.Context,
+	supplychaincore.SupplyChainImpactWrite,
+) (supplychaincore.SupplyChainImpactWriteResult, error) {
+	return supplychaincore.SupplyChainImpactWriteResult{}, nil
+}
 
 // TestCICDRunCorrelationRegistrationCarriesTheReadinessSeam guards the wiring,
 // not the logic.
@@ -90,15 +129,15 @@ func TestSupplyChainImpactRegistrationCarriesTheReadinessSeam(t *testing.T) {
 		CrossScopeReadinessLogger:   logger,
 	})
 
-	var handler SupplyChainImpactHandler
+	var handler supplychaincore.SupplyChainImpactHandler
 	found := false
 	for _, definition := range definitions {
 		if definition.Domain != DomainSupplyChainImpact {
 			continue
 		}
-		typed, ok := definition.Handler.(SupplyChainImpactHandler)
+		typed, ok := definition.Handler.(supplychaincore.SupplyChainImpactHandler)
 		if !ok {
-			t.Fatalf("handler for %s = %T, want SupplyChainImpactHandler", definition.Domain, definition.Handler)
+			t.Fatalf("handler for %s = %T, want supplychaincore.SupplyChainImpactHandler", definition.Domain, definition.Handler)
 		}
 		handler, found = typed, true
 	}

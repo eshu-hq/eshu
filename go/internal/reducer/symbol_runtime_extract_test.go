@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // symbolRuntimeFileEnvelope builds one file fact envelope carrying functions,
@@ -358,7 +359,7 @@ func TestExtractSymbolRuntimeIntentRowsRepoWideRefreshPairing(t *testing.T) {
 				continue
 			}
 			edgeCount++
-			if !payloadBool(row.Payload, "retract_via_refresh") {
+			if !payloadcore.PayloadBool(row.Payload, "retract_via_refresh") {
 				t.Fatalf("[%s] per-edge row missing retract_via_refresh=true: %+v", domain, row.Payload)
 			}
 		}
