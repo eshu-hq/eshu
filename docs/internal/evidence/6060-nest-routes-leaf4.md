@@ -15,7 +15,7 @@ four grandfathered reads, forwarders) plus the `routes/` leaf:
 - `routes/impact.go` — `SplitRelationships`, `EmptyImpact`,
   `MergeMaps`, and the six scoped-access helpers (exported as
   forwarder targets).
-- `routes/routes_test.go` — contract tests for the pure functions.
+- `routes/test.go` — contract tests for the pure functions.
 
 ## Pin handling
 

@@ -18,7 +18,7 @@
 6. `../routecontract/README.md` for the dependency-neutral request contract.
 7. `go/internal/query/codequery/handler.go` (`handleComplexity`),
    `go/internal/query/codemodel/code_complexity_page.go`, and
-   `go/internal/query/codequery/quality.go` for the handlers behind the two paths:
+   `go/internal/query/codequery/inspection.go` and `go/internal/query/codequery/quality/` for the handlers behind the two paths:
    both substitute 10 for a nonpositive `limit` and clamp above 100, the
    inspection floors a negative `offset` to 0 but rejects anything above
    10000 with HTTP 400, a blank `check` resolves to `refactoring_candidates`
