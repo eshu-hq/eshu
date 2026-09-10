@@ -121,7 +121,7 @@ its trigger, value, or fan-out position. The reducer intent domain, entity
 key, reason string, candidate-kind set, and source-system derivation are
 identical to the base commit, and the dispatcher's ordered fan-out is
 unchanged at 44 builder probes with this probe still running immediately
-after `projectors3.BuildInternetExposureMaterializationReducerIntent` and
+after `s3.BuildInternetExposureMaterializationReducerIntent` and
 immediately before `cicdruncorrelation.BuildCICDRunCorrelationReducerIntent`.
 The family carried one private helper,
 `containerImageIdentitySourceSystem`, checked body-for-body against

@@ -21,8 +21,8 @@ import (
 // call the handler directly and bypass the enqueue path entirely). This test
 // drives the FULL enqueue path (appendScopeGenerationReducerIntents, not the
 // handler) and fails without
-// awscloudimage.BuildAWSCloudImageMaterializationReducerIntent wired into it.
-// The builder itself lives in internal/projector/awscloudimage; these are the
+// image.BuildMaterializationReducerIntent wired into it. The builder itself
+// lives in internal/projector/aws/cloud/image; these are the
 // root dispatcher wiring cases, and this file keeps its pre-extraction name
 // because go/internal/reducer/awscloud/aws_cloud_image_materialization_test.go cites
 // the file and its retraction-safety test by name as the enqueue-side half of
@@ -93,7 +93,7 @@ func TestBuildProjectionQueuesAWSCloudImageMaterialization(t *testing.T) {
 	}
 	// FactID anchors to the aws_resource fact, not the relationship fact: the
 	// trigger is aws_resource presence (see
-	// awscloudimage.BuildAWSCloudImageMaterializationReducerIntent's doc), so
+	// image.BuildMaterializationReducerIntent's doc), so
 	// the intent claim is stable even in a generation with no
 	// lambda_function_uses_image relationship at all.
 	if got, want := intent.FactID, "fact-lambda-resource-1"; got != want {

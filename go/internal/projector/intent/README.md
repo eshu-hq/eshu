@@ -52,9 +52,9 @@ allocation regression. Its fixture contains 5,000 interleaved source-code
 decoys and produces 42 ordered intents across 44 builder probes. No graph
 backend participates, and it creates no queue rows.
 
-No-Regression Evidence: `internal/projector/azure`, `internal/projector/ec2`,
+No-Regression Evidence: `internal/projector/azure`, `internal/projector/aws/ec2`,
 `internal/projector/gcp`, `internal/projector/kubernetes`,
-`internal/projector/s3`, and `internal/projector/security` import this
+`internal/projector/aws/s3`, and `internal/projector/security` import this
 contract for their extracted intent builders while root assembly passes the
 shared `FactLookup`. Focused family and ordered fan-out tests plus the full
 projector tree preserve exact trigger, value, and order behavior. The

@@ -14,12 +14,12 @@ import (
 
 // These cases are the root dispatch-level coverage for the
 // aws_resource_materialization family: they assert that buildProjection reaches
-// awsresource.BuildAWSResourceMaterializationReducerIntent through
+// resource.BuildMaterializationReducerIntent through
 // appendScopeGenerationReducerIntents and appends what it returns. They stayed
-// at root when that builder moved into internal/projector/awsresource (#6057),
+// at root when that builder moved into internal/projector/aws/resource (#6057),
 // because buildProjection is a root-only function the child package cannot
 // call; the builder's own unit tests live in
-// awsresource/materialization_intents_test.go.
+// aws/resource/materialization_intents_test.go.
 //
 // The cases first lived in aws_cloud_runtime_drift_intents_test.go alongside
 // the aws_cloud_runtime_drift dispatch tests, and moved into a file of their

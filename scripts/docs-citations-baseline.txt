@@ -150,7 +150,6 @@ LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/st
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/schema_fact_records_sbom_test.go:37
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/storage/postgres/service_incident_evidence_loader.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/ec2_posture_envelope.go:23
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/ec2_posture_envelope.go:23
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/envelope.go:1
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/collector/awscloud/posture_envelope.go:23
@@ -225,7 +224,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projec
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/code_function_summary_intents.go:48
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/container_image_identity_intents.go:51
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/container_image_identity_intents.go:51
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/ec2/instance_node_materialization_intents.go:26
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/factschema_decode_ociregistry.go:28
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/factschema_decode_ociregistry.go:28
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/projector/factschema_decode_ociregistry.go:28
@@ -306,7 +304,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/python_metaclass_materialization.go:50
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/sbom_attestation_attachment_index.go:297
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/sbom_attestation_attachment_writer.go:17
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/schemadecode/factschema_decode.go:65
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/secrets_iam_trust_chain_writer.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/secrets_iam_trust_chain_writer.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/secrets_iam_trust_chain_writer.go:19
