@@ -104,10 +104,24 @@ max_connections = max(170, pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS 
 So raising `ESHU_POSTGRES_MAX_OPEN_CONNS` also raises the embedded server's
 `max_connections` — at `60`, the embedded server starts with `5 * 60 + 20 = 320`
 rather than 170. Configuration can raise the ceiling and can never lower it below
-the floor, so the invariant above continues to hold for the embedded profiles at
-any supported pool size. This matters because the knob is process-wide: the
-supervisor's children inherit whatever you export, so a raised pool applies to
-every holder in the list, not just the process you set it for.
+the floor.
+
+That holds only while the postmaster and every pool holder read the same value of
+the knob, and two ordinary paths break that:
+
+- `max_connections` is fixed when the embedded postmaster starts. Exporting a
+  larger pool afterwards raises no ceiling on the server already running; it has
+  to be restarted for the new value to take effect.
+- `eshu vuln-scan repo` attaches to an already-running owner and starts
+  `eshu-api` and `eshu-bootstrap-index` through `localsupervisor.ChildEnv`, which
+  merges the invoking process's environment through unfiltered and does not carry
+  this knob explicitly. Those two holders take whatever is exported in *your*
+  shell, which need not match what the owner started with.
+
+So an owner started at the default, with a `vuln-scan` invoked at
+`ESHU_POSTGRES_MAX_OPEN_CONNS=60`, demands `3 * 30 + 2 * 60 + 20 = 230` against a
+server fixed at 170. Export the knob before starting the owner and keep it
+consistent across every process that attaches to it.
 
 If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because
