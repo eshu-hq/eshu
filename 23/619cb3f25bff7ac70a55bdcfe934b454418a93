@@ -1,0 +1,132 @@
+go/internal/projector/scope_generation_intents.go
+  s_4a0f86aa680964::t_126aac10d66dea 16-18,67,70,88
+go/internal/projector/cloud/runtime/drift/aws/reducer_intent.go
+  s_4a0f86aa680964::t_6274497c692cee 1-42
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_4fe8f5771d8cba 68,79,449
+go/internal/projector/doc.go
+  s_4a0f86aa680964::t_2efcb8d74238fd 41,44,47
+go/internal/mcp/route_serves_data_registry.go
+  s_4a0f86aa680964::t_4fe8f5771d8cba 78
+go/internal/projector/cloud/README.md
+  s_4a0f86aa680964::t_a9df9506ce066a 1-13
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_4fe8f5771d8cba 817
+go/internal/projector/cloud/runtime/drift/multi/doc.go
+  s_4a0f86aa680964::t_6274497c692cee 1-21
+go/internal/projector/cloud/runtime/drift/aws/doc.go
+  s_4a0f86aa680964::t_6274497c692cee 1-15
+go/internal/projector/cloud/runtime/AGENTS.md
+  s_4a0f86aa680964::t_a9df9506ce066a 1-8
+go/internal/projector/cloud/runtime/drift/aws/AGENTS.md
+  s_4a0f86aa680964::t_2efcb8d74238fd 60
+  s_4a0f86aa680964::t_da2a83ddc66025 1-5,9-43,45-49,51-59,61-70,72-81,83-87,89-119,121-124
+  s_4a0f86aa680964::t_03784691f724f6 6-8,44,50,71,82,88,120
+go/internal/projector/aws_cloud_runtime_drift_projection_test.go
+  s_4a0f86aa680964::t_2efcb8d74238fd 16,22
+go/internal/reducer/gotchas-supply-chain-and-vulnerabilities.md
+  s_4a0f86aa680964::t_b0021a09af2988 104
+docs/internal/design/5584-route-serves-data-registry.md
+  s_4a0f86aa680964::t_4fe8f5771d8cba 90
+go/internal/projector/cloud/runtime/drift/AGENTS.md
+  s_4a0f86aa680964::t_a9df9506ce066a 1-9
+go/internal/projector/schema_version_admission_test.go
+  s_4a0f86aa680964::t_2efcb8d74238fd 51
+go/internal/projector/cloud/inventory/reducer_intent.go
+  s_4a0f86aa680964::t_6274497c692cee 1-61
+go/internal/projector/cloud/runtime/drift/aws/README.md
+  s_4a0f86aa680964::t_4273fe7fb2760e 65-66,96
+  s_4a0f86aa680964::t_2226cf092f1b05 67
+  s_4a0f86aa680964::t_0b1ee0b81679dd 83-85,90-91
+  s_4a0f86aa680964::t_03784691f724f6 105-107
+  s_4a0f86aa680964::t_da2a83ddc66025 1-64,68-82,86-89,92-95,97-104
+go/internal/projector/containerimageidentity/AGENTS.md
+  s_4a0f86aa680964::t_2efcb8d74238fd 83
+go/internal/projector/cloud/inventory/doc.go
+  s_4a0f86aa680964::t_6274497c692cee 1-22
+go/internal/projector/cloud/AGENTS.md
+  s_4a0f86aa680964::t_a9df9506ce066a 1-13
+go/internal/projector/cloud/runtime/doc.go
+  s_4a0f86aa680964::t_a9df9506ce066a 1-6
+go/internal/projector/cloud/runtime/drift/multi/reducer_intent.go
+  s_4a0f86aa680964::t_6274497c692cee 1-65
+go/internal/projector/cloud/runtime/README.md
+  s_4a0f86aa680964::t_a9df9506ce066a 1-8
+go/internal/projector/cloud/inventory/README.md
+  s_4a0f86aa680964::t_0b1ee0b81679dd 80-82,88-90
+  s_4a0f86aa680964::t_03784691f724f6 104-106
+  s_4a0f86aa680964::t_da2a83ddc66025 1-79,83-87,91-103
+go/internal/projector/cloud/runtime/drift/multi/README.md
+  s_4a0f86aa680964::t_68af66a3534d84 136
+  s_4a0f86aa680964::t_ef001cacc52c15 137-139
+  s_4a0f86aa680964::t_0b1ee0b81679dd 99-101,104-105,110-111,133
+  s_4a0f86aa680964::t_da2a83ddc66025 1-81,84-93,98,102-103,106-109,112-127,130-132,134-135
+  s_4a0f86aa680964::t_03784691f724f6 82-83,94-97,128-129
+go/internal/projector/cloud/doc.go
+  s_4a0f86aa680964::t_a9df9506ce066a 1-6
+go/internal/projector/aws/resource/AGENTS.md
+  s_4a0f86aa680964::t_2efcb8d74238fd 9,80
+go/internal/projector/cicdruncorrelation/AGENTS.md
+  s_4a0f86aa680964::t_2efcb8d74238fd 75
+go/internal/projector/AGENTS.md
+  s_4a0f86aa680964::t_b0021a09af2988 114,237,260,334
+go/internal/projector/README.md
+  s_4a0f86aa680964::t_b0021a09af2988 183,196,200,250,619
+go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift.go
+  s_4a0f86aa680964::t_b0021a09af2988 186
+go/internal/projector/cloud/inventory/AGENTS.md
+  s_4a0f86aa680964::t_da2a83ddc66025 1-5,7,10-11,13-53,55-96
+  s_4a0f86aa680964::t_68af66a3534d84 12,54
+  s_4a0f86aa680964::t_03784691f724f6 6,8-9
+go/internal/projector/cloud/runtime/drift/multi/AGENTS.md
+  s_4a0f86aa680964::t_da2a83ddc66025 1-5,7,10-36,39-59,62-72,74-116
+  s_4a0f86aa680964::t_03784691f724f6 6,8-9,37-38,60-61,73
+go/internal/projector/packagesource/README.md
+  s_4a0f86aa680964::t_2efcb8d74238fd 87
+go/internal/projector/reducer_intent_test_helpers_test.go
+  s_4a0f86aa680964::t_2efcb8d74238fd 18
+go/internal/projector/aws/resource/README.md
+  s_4a0f86aa680964::t_2efcb8d74238fd 108
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_4fe8f5771d8cba 83-84
+go/internal/projector/cloud/runtime/drift/doc.go
+  s_4a0f86aa680964::t_a9df9506ce066a 1-6
+go/internal/mcp/route_serves_data_registry_routes.go
+  s_4a0f86aa680964::t_4fe8f5771d8cba 58,75,82,89
+go/internal/projector/aws_resource_materialization_projection_test.go
+  s_4a0f86aa680964::t_2efcb8d74238fd 27
+go/internal/reducer/multicloudruntimedrift/AGENTS.md
+  s_4a0f86aa680964::t_b0021a09af2988 6-7
+go/internal/projector/cloud/runtime/drift/README.md
+  s_4a0f86aa680964::t_a9df9506ce066a 1-10
+docs/internal/aws-relationship-edge-materialization-design.md
+  s_4a0f86aa680964::t_4fe8f5771d8cba 33
+go/internal/projector/cicdruncorrelation/README.md
+  s_4a0f86aa680964::t_2efcb8d74238fd 50
+docs/internal/design/391-observability-coverage-correlation.md
+  s_4a0f86aa680964::t_4fe8f5771d8cba 249
+go/internal/reducer/multi-cloud-runtime-drift.md
+  s_4a0f86aa680964::t_b0021a09af2988 30-31
+go/internal/projector/cloud/inventory/reducer_intent_test.go
+  s_4a0f86aa680964::t_143180d318ece7 4,31,37,49,76,94,108,116
+go/internal/projector/cloud/runtime/drift/aws/reducer_intent_test.go
+  s_4a0f86aa680964::t_818e36219f1b74 4,40,46,55,80,97,111
+go/internal/projector/cloud/runtime/drift/multi/reducer_intent_test.go
+  s_4a0f86aa680964::t_da4d91bb0c37cb 4,14,20,25,29,34,42,63,71,83,88,95,104,108,116,125,131,140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "23619cb3f25bff7ac70a55bdcfe934b454418a93",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
