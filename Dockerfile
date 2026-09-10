@@ -151,14 +151,15 @@ CMD ["eshu-mock-github"]
 FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 
 # c-ares (a transitive libcurl dependency) is pinned to the patched build for
-# CVE-2026-33630. Pinning it here — rather than relying on a base-image digest
+# CVE-2026-33630. libexpat is likewise pinned for CVE-2026-76956 and
+# CVE-2026-76957. Pinning them here — rather than relying on a base-image digest
 # bump — is load-bearing: docker-publish.yml imports a persistent type=gha layer
 # cache, and this RUN precedes the go-binary COPY, so a go.mod-only change leaves
 # this layer's cache key untouched and BuildKit would reship the old vulnerable
-# c-ares. The explicit constraint changes the layer's cache key (forcing a
-# rebuild that pulls the fixed package) and fails the build closed if the
-# Alpine 3.21 repo ever regresses below the patched version.
-RUN apk add --no-cache git curl "c-ares>=1.34.8-r0"
+# packages. The explicit constraints change the layer's cache key (forcing a
+# rebuild that pulls the fixed packages) and fail the build closed if the
+# Alpine 3.21 repo ever regresses below either patched version.
+RUN apk add --no-cache git curl "c-ares>=1.34.8-r0" "libexpat>=2.8.4-r0"
 
 # Copy Go binaries
 COPY --from=builder /go-bin/ /usr/local/bin/
