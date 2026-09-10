@@ -57,7 +57,7 @@
 // RDS posture observations emit one rds_posture_materialization reducer intent;
 // the reducer waits for CloudResource readiness and owns posture property
 // projection on existing RDS nodes. The RDS posture reducer-intent builder
-// lives in the internal/projector/rds child package.
+// lives in the internal/projector/aws/rds child package.
 // Azure cloud resource and relationship observations emit reducer intents for
 // Azure CloudResource node readiness and relationship edge projection; the
 // reducer owns exact ARM-id endpoint resolution.
@@ -66,16 +66,16 @@
 // owns exposure derivation from EC2, ENI, and security-group evidence. The
 // EC2 instance-node, instance-identity, block-device KMS posture, internet
 // exposure, and USES_PROFILE edge reducer-intent builders live in the
-// internal/projector/ec2 child package. S3 LOGS_TO, external-principal-grant,
+// internal/projector/aws/ec2 child package. S3 LOGS_TO, external-principal-grant,
 // and internet-exposure reducer-intent builders live in the
-// internal/projector/s3 child package; the reducer owns edge and posture
+// internal/projector/aws/s3 child package; the reducer owns edge and posture
 // projection. The workload-cloud-relationship reducer-intent builder lives in
 // the internal/projector/workloadcloud child package; the reducer owns
 // workload-endpoint resolution and USES edge projection. The incident-routing
 // reducer-intent builder lives in the internal/projector/incidentrouting child
 // package; the reducer owns routing comparison and IncidentRoutingEvidence
 // projection. The AWS relationship reducer-intent builder lives in the
-// internal/projector/awsrelationship child package; the reducer owns the
+// internal/projector/aws/relationship child package; the reducer owns the
 // bounded relationship join, the canonical-nodes readiness gate, and edge
 // projection. The IAM CAN_ASSUME reducer-intent builder and its
 // aws_iam_permission decode wrapper live in the internal/projector/iamcanassume

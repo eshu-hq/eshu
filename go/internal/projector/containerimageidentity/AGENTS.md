@@ -7,7 +7,7 @@
    the rule that the projector never makes cross-source admission decisions.
 3. `../intent/AGENTS.md` for the neutral builder contract.
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
-   runs after `projectors3.BuildInternetExposureMaterializationReducerIntent`
+   runs after `s3.BuildInternetExposureMaterializationReducerIntent`
    and before `cicdruncorrelation.BuildCICDRunCorrelationReducerIntent`.
 5. `go/internal/reducer/container_image_identity.go` and its sibling
    `container_image_identity_*.go` files for what the reducer does with the

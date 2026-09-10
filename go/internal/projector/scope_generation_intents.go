@@ -5,10 +5,13 @@ package projector
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	projectorawscloudimage "github.com/eshu-hq/eshu/go/internal/projector/awscloudimage"
+	"github.com/eshu-hq/eshu/go/internal/projector/aws/cloud/image"
+	"github.com/eshu-hq/eshu/go/internal/projector/aws/ec2"
+	"github.com/eshu-hq/eshu/go/internal/projector/aws/rds"
+	"github.com/eshu-hq/eshu/go/internal/projector/aws/relationship"
+	"github.com/eshu-hq/eshu/go/internal/projector/aws/resource"
+	"github.com/eshu-hq/eshu/go/internal/projector/aws/s3"
 	projectorawscloudruntimedrift "github.com/eshu-hq/eshu/go/internal/projector/awscloudruntimedrift"
-	projectorawsrelationship "github.com/eshu-hq/eshu/go/internal/projector/awsrelationship"
-	projectorawsresource "github.com/eshu-hq/eshu/go/internal/projector/awsresource"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorcicdruncorrelation "github.com/eshu-hq/eshu/go/internal/projector/cicdruncorrelation"
 	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
@@ -17,7 +20,6 @@ import (
 	projectorcodetaintevidence "github.com/eshu-hq/eshu/go/internal/projector/codetaintevidence"
 	projectorcontainerimageidentity "github.com/eshu-hq/eshu/go/internal/projector/containerimageidentity"
 	projectorcrossplanesatisfiedby "github.com/eshu-hq/eshu/go/internal/projector/crossplanesatisfiedby"
-	projectorec2 "github.com/eshu-hq/eshu/go/internal/projector/ec2"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
 	projectoriamcanassume "github.com/eshu-hq/eshu/go/internal/projector/iamcanassume"
 	projectoriaminstanceprofile "github.com/eshu-hq/eshu/go/internal/projector/iaminstanceprofile"
@@ -27,8 +29,6 @@ import (
 	projectorobservabilitycoverage "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoverage"
 	projectorobservabilitycoveragematerialization "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoveragematerialization"
 	projectorpackagesource "github.com/eshu-hq/eshu/go/internal/projector/packagesource"
-	projectorrds "github.com/eshu-hq/eshu/go/internal/projector/rds"
-	projectors3 "github.com/eshu-hq/eshu/go/internal/projector/s3"
 	projectorsbomattestation "github.com/eshu-hq/eshu/go/internal/projector/sbomattestation"
 	projectorsecretsiam "github.com/eshu-hq/eshu/go/internal/projector/secretsiam"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
@@ -70,7 +70,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectormulticloudruntimedrift.BuildMultiCloudRuntimeDriftReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorawsresource.BuildAWSResourceMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := resource.BuildMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorgcp.BuildResourceMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
@@ -91,13 +91,13 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorworkloadcloud.BuildWorkloadCloudRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorec2.BuildInstanceNodeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := ec2.BuildInstanceNodeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorawsrelationship.BuildAWSRelationshipMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := relationship.BuildMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorawscloudimage.BuildAWSCloudImageMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := image.BuildMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorobservabilitycoveragematerialization.BuildObservabilityCoverageMaterializationReducerIntent(scopeValue, generation, index.lookup); ok {
@@ -121,31 +121,31 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectoriamcanassume.BuildIAMCanAssumeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectors3.BuildLogsToMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := s3.BuildLogsToMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectors3.BuildExternalPrincipalGrantMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := s3.BuildExternalPrincipalGrantMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorrds.BuildRDSPostureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := rds.BuildPostureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorec2.BuildInstanceIdentityMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := ec2.BuildInstanceIdentityMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorec2.BuildUsesProfileMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := ec2.BuildUsesProfileMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectoriaminstanceprofile.BuildIAMInstanceProfileRoleMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorec2.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := ec2.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorec2.BuildBlockDeviceKMSPostureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := ec2.BuildBlockDeviceKMSPostureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectors3.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := s3.BuildInternetExposureMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorcontainerimageidentity.BuildContainerImageIdentityReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

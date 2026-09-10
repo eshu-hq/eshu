@@ -726,13 +726,13 @@ keeps its own local decode call against `sdk/go/factschema` rather than
 importing root's classified decode wrapper, since importing root would create
 the same cycle `ReducerIntent` and `FactLookup` route around. S3's LOGS_TO,
 external-principal-grant, and internet-exposure intent builders moved into
-`internal/projector/s3` the same way; its LOGS_TO builder is the second family
+`internal/projector/aws/s3` the same way; its LOGS_TO builder is the second family
 to need a typed-payload decode and follows the same local-decode pattern. All
 three S3 builders share the generic `aws_resource_materialization:<scope>`
 entity key rather than a family-distinct one, since they gate on the same AWS
 `CloudResource` canonical-nodes phase the reducer publishes for every
 AWS-provider scope. RDS's single posture-materialization builder moved into
-`internal/projector/rds` the same way, sharing that same generic entity key;
+`internal/projector/aws/rds` the same way, sharing that same generic entity key;
 unlike EC2's `USES_PROFILE` and S3's `LOGS_TO`, it triggers on
 `rds_instance_posture` fact-kind presence alone and needs no typed-payload
 decode wrapper, so the move is a one-file, one-caller extraction with no
@@ -746,7 +746,7 @@ triggers on `incident.record` plus the `incident_routing.*` kinds
 `internal/facts` registers, anchors with the cross-kind `FirstAcrossKinds`
 lookup the security-alert builder also uses, keys on its own
 `incident_routing_materialization:<scope>` entity, and decodes no payload.
-The AWS relationship builder moved into `internal/projector/awsrelationship`
+The AWS relationship builder moved into `internal/projector/aws/relationship`
 on the same presence-only shape: it triggers on `aws_relationship` fact
 presence, anchors with `FirstOfKind`, decodes no payload, and keeps the shared
 `aws_resource_materialization:<scope>` entity key on purpose, because the
@@ -890,7 +890,7 @@ correlation). The root fan-out order and payload-parity fixtures
 (`scope_generation_intents_fanout_test.go`,
 `scope_generation_intents_fanout_parity_test.go`) stay at root — this domain
 is covered by both, unlike `crossplanesatisfiedby`.
-The AWS cloud-image builder moved into `internal/projector/awscloudimage`.
+The AWS cloud-image builder moved into `internal/projector/aws/cloud/image`.
 It triggers on `aws_resource` fact presence — the #5450 retraction-safety
 trigger, deliberately NOT `lambda_function_uses_image` relationship presence,
 so a generation whose image relationship disappeared still runs the reducer

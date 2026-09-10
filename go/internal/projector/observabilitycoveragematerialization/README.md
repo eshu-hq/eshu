@@ -30,7 +30,7 @@ series exports exactly one builder.
   decision in `docs/internal/design/package-restructure.md`.
 - **This package keeps its own AWS decode.** `factschema_decode_aws.go` exists
   rather than importing root's `decodeAWSResource` wrapper, the same way
-  `internal/projector/ec2` and the sibling do: root already imports this package
+  `internal/projector/aws/ec2` and the sibling do: root already imports this package
   to dispatch, so importing root back would cycle. The filename matters — the
   payload-usage gate globs `factschema_decode*.go` recursively and AST-scans each
   body for a `factschema.FactKindXxx` reference, so a decode under any other name

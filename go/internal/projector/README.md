@@ -246,8 +246,8 @@ old full scan made — not "earliest fact of the first-checked kind" — so anch
 `FactID`, `Reason`, and `SourceSystem` stay byte-identical.
 Root assembly constructs one concrete `intent.FactLookup` per generation and
 retains a compatibility wrapper for unmoved family builders. The extracted
-`internal/projector/azure`, `internal/projector/ec2`, `internal/projector/gcp`,
-`internal/projector/kubernetes`, `internal/projector/rds`, `internal/projector/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/awsrelationship`, `internal/projector/awscloudimage`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/codetaintevidence`, `internal/projector/codeinterprocevidence`, `internal/projector/codefunctionsummary`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observabilitycoverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicdruncorrelation`, `internal/projector/containerimageidentity`, `internal/projector/supplychainimpact`, `internal/projector/crossplanesatisfiedby`, `internal/projector/multicloudruntimedrift`, `internal/projector/awscloudruntimedrift`, and `internal/projector/awsresource`
+`internal/projector/azure`, `internal/projector/aws/ec2`, `internal/projector/gcp`,
+`internal/projector/kubernetes`, `internal/projector/aws/rds`, `internal/projector/aws/s3`, `internal/projector/security`, `internal/projector/workloadcloud`, `internal/projector/incidentrouting`, `internal/projector/aws/relationship`, `internal/projector/aws/cloud/image`, `internal/projector/iamcanassume`, `internal/projector/packagesource`, `internal/projector/cloudinventory`, `internal/projector/codetaintevidence`, `internal/projector/codeinterprocevidence`, `internal/projector/codefunctionsummary`, `internal/projector/sbomattestation`, `internal/projector/servicecatalog`, `internal/projector/secretsiam`, `internal/projector/observabilitycoverage`, `internal/projector/iaminstanceprofile`, `internal/projector/cicdruncorrelation`, `internal/projector/containerimageidentity`, `internal/projector/supplychainimpact`, `internal/projector/crossplanesatisfiedby`, `internal/projector/multicloudruntimedrift`, `internal/projector/awscloudruntimedrift`, and `internal/projector/aws/resource`
 families import that neutral lookup (semanticentity does not: it is per-fact);
 remaining root builders keep using the private forwarders until they move.
 `ReducerIntent` in the root package is a type alias, so existing writer and
@@ -260,13 +260,13 @@ reducer-intent builder calls and fails if that constant (and, by extension,
 this prose) ever drifts from the source again — this doc count went stale
 silently twice before that guard existed.
 RDS posture facts follow that same reducer-owned handoff, now from the
-`internal/projector/rds` child package. When a generation contains an
-`rds_instance_posture` fact, `rds.BuildRDSPostureMaterializationReducerIntent`
+`internal/projector/aws/rds` child package. When a generation contains an
+`rds_instance_posture` fact, `rds.BuildPostureMaterializationReducerIntent`
 emits one `rds_posture_materialization` reducer intent for the scope/generation. The
 projector does not set RDS graph properties, infer exposure, or create RDS
 nodes; the reducer waits for the CloudResource canonical-nodes phase and then
 projects bounded posture metadata onto existing RDS CloudResource nodes.
-EC2 posture observations now use the extracted `internal/projector/ec2` child
+EC2 posture observations now use the extracted `internal/projector/aws/ec2` child
 package. `ec2.BuildInstanceNodeMaterializationReducerIntent` and
 `ec2.BuildInstanceIdentityMaterializationReducerIntent` share the
 `ec2_instance_node_materialization:<scope>` entity key for the EC2 instance
@@ -350,7 +350,7 @@ contains an `s3_bucket_posture` fact,
 `s3.BuildInternetExposureMaterializationReducerIntent` emits one
 `s3_internet_exposure_materialization` reducer intent for the scope/generation,
 keyed to `aws_resource_materialization:<scope>` so the reducer waits for the
-same CloudResource canonical-nodes phase as AWS relationship (`awsrelationship.BuildAWSRelationshipMaterializationReducerIntent`, [architecture](awsrelationship/README.md)) and S3 LOGS_TO
+same CloudResource canonical-nodes phase as AWS relationship (`relationship.BuildMaterializationReducerIntent`, [architecture](aws/relationship/README.md)) and S3 LOGS_TO
 work. The projector does not derive exposed/not_exposed/unknown posture and never reads raw bucket policies or ACL grants.
 
 S3 external-principal grants follow the same reducer-owned boundary. When a
@@ -362,7 +362,7 @@ reducer waits for the same CloudResource canonical-nodes phase before writing
 `GRANTS_ACCESS_TO` edges. The projector does not create `ExternalPrincipal`
 nodes, does not infer access from posture booleans, and never carries raw bucket
 policy, statement, ACL, condition, action, resource, or object data. S3 LOGS_TO
-projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same boundary; see [S3 architecture](s3/README.md) for its full contract.
+projection (`s3.BuildLogsToMaterializationReducerIntent`) follows the same boundary; see [S3 architecture](aws/s3/README.md) for its full contract.
 
 ## Telemetry
 
