@@ -44,6 +44,13 @@ attractive, so A2's adoption is not at risk at 1.1 and the fix decision stands.
 But the baseline numbers, and the **A1 rejection** in particular, are 4.0-specific,
 and #5490 is the in-tree proof that an A1-style rejection can invert at 1.1.
 
+**That gap is now closed by measurement rather than by the argument above.**
+[6540-random-page-cost-plan-stability.md](6540-random-page-cost-plan-stability.md)
+re-runs both arms at 4.0 **and** 1.1 on 2,000,000 rows: 107 is adopted at both,
+the `Sort` is absent at both, and the knob flips neither the index chosen nor the
+plan shape in either schema. The #5490 inversion does not reproduce for this
+statement.
+
 Set deliberately and **not** planner-relevant:
 `shared_buffers = 2GB`, `maintenance_work_mem = 1GB`, and `fsync`,
 `synchronous_commit`, `full_page_writes` off (load speed only; they do not
