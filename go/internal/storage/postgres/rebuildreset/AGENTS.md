@@ -4,9 +4,11 @@
 
 1. `README.md` in this directory — why the package exists and what each reset is
    for
-2. `reset.go` — the three SQL templates, `AffectedGenerationsQuery`, `Apply`
+2. `reset.go` — the four reset templates, `AffectedGenerationsQuery`, `Apply`;
+   `refinalize.go` — the ordered coordination (read once, drain-wait, enqueue,
+   fence check) the caller runs before `Apply`
 3. `../recovery.go` — `RecoveryStore.RefinalizeScopeProjections`, the only
-   caller, and the projector re-enqueue that runs in the same transaction
+   caller, which orchestrates the `refinalize.go` prelude in its transaction
 4. `docs/internal/evidence/4594-graph-rebuild-from-facts.md` — the measured
    before/after, and the failures that are still open
 5. `docs/public/operate/graph-rebuild-from-facts.md` — the operator runbook

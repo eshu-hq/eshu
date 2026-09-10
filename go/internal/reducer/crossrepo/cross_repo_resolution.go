@@ -181,7 +181,10 @@ func filterEvidenceFactsBySourceRepos(
 	if !enforce {
 		return facts
 	}
-	kept := facts[:0]
+	// Allocated, not filtered in place: the caller retains facts for its own
+	// logging, and an in-place facts[:0] filter would clobber the backing
+	// array out from under it.
+	kept := make([]relationships.EvidenceFact, 0, len(facts))
 	for _, fact := range facts {
 		source := normalizeReducerRepositoryID(fact.SourceRepoID)
 		if source == "" {

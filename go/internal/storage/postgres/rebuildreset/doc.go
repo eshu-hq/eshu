@@ -33,7 +33,7 @@
 //
 // Apply is the entry point; Counts reports what it cleared. The ordered
 // coordination around it — ReadAffectedGenerations, EnqueueProjectorWork,
-// WaitForReducerDrain, AssertRetirementFenced in finalize.go — is part of the
+// WaitForReducerDrain, AssertRetirementFenced in refinalize.go — is part of the
 // same contract: the caller runs the prelude in its transaction before Apply,
 // so every statement binds the one generation set read first, and retirement
 // never commits under a resolver holding a live lease (Codex #6184 P1).

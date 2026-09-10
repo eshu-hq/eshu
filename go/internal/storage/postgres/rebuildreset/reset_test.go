@@ -74,7 +74,7 @@ func TestAffectedGenerationsQueryExplicitScopesBindsTheScopeList(t *testing.T) {
 }
 
 // TestResetQueriesBindTheSameGenerationSet is the cross-statement agreement
-// proof. All three resets must act on exactly the generations the caller read,
+// proof. All four resets must act on exactly the generations the caller read,
 // and on the same ones as each other; if one drifted, a rebuild could delete a
 // domain's work without reopening the intents that rebuild it, and the graph
 // would come back short in a way no single statement's test would catch.
