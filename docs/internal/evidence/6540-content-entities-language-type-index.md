@@ -409,6 +409,60 @@ changes no existing one. The read it accelerates is already covered by the
 `postgres.query` span `SearchEntitiesByLanguageAndTypeForAccess` starts, with
 `db.operation = search_entities_by_language_and_type`.
 
+## Documented assumption: the composite key stays far inside the btree tuple limit
+
+This index puts two unbounded `TEXT` columns — `relative_path` and `entity_name` —
+into one btree key. `entity_name` had only ever been GIN-indexed before, where no
+tuple limit applies, so this is the first btree key to carry it. Review raised
+that as a potential write-path failure: a row whose combined key exceeds
+PostgreSQL's ~2704-byte btree limit would fail the `CONCURRENTLY` build at
+bootstrap, or fail content projection on insert after a successful upgrade.
+
+Measured against the 895-repository validation corpus (428,882 files) rather than
+argued:
+
+| component | measured |
+| --- | --- |
+| `relative_path` | mean 48.6 B, p50 46, p99 116, p999 147, max 278 |
+| `entity_name` (longest real declaration name in the corpus) | 105 B |
+| `language` + `entity_type` | well under 32 B combined |
+| `start_line` | 4 B |
+| worst-case composite key | **≈ 419 B against a ~2704 B limit** |
+
+That 419 is already an over-count: the longest path and the longest declaration
+name occur in different files, so no single row combines them. Zero declarations
+anywhere in the corpus carry a name ≥ 200 characters — checked against
+declaration syntax, not identifier-shaped tokens, because a naive token scan
+returns a 574,719-character maximum that is entirely base64 blobs inside string
+literals (inlined `data:image/svg+xml;base64,…`, an embedded certificate, a gzip
+padding fixture), not one of them a declaration.
+
+So the limit is not reachable on this corpus, and this is recorded as an
+assumption rather than a redesign of the key. Two things that assumption does
+**not** claim:
+
+- **One corpus is not a universal bound.** These are 895 repositories of one
+  estate. A different corpus — heavy protobuf or ORM codegen, or deeply nested
+  monorepo paths — could sit higher.
+- **Declaration tokens in source are not the parser's emitted `EntityName`.** If
+  any language path builds a qualified or composite name, the stored value can
+  exceed the raw token counted here.
+
+Worth noting the exposure is not novel to this index: `content_file_references`
+(migration 004) has a PRIMARY KEY over four unbounded `TEXT` columns, and
+`content_files` keys on `(repo_id, relative_path)`. A PK is the more load-bearing
+case, since an oversized key there fails the INSERT with no index to drop, while
+this secondary index could be dropped and rebuilt in another shape.
+
+`ContentWriter.Write` bounds neither column beyond non-emptiness, so nothing
+upstream establishes that the concatenation fits. A length guard there would be
+the cheap place to assert it for both tables, reusing `truncateUTF8ByBytes` in
+`go/internal/content/shape/source_cache.go`, which already caps snippets at 4096
+bytes and records `source_cache_truncated` / `source_cache_original_bytes`. That
+is deliberately left out of this change: it is a write-path guard for the content
+store generally, not a property of this index, and it belongs with the
+`content_file_references` PK work rather than here.
+
 ## Replay safety
 
 `BootstrapDefinitions` enumerates every file under `migrations/` and
