@@ -128,7 +128,7 @@ the number that was missing.
   git leaves unpaired, an allowlist entry leaking to another referencing file,
   and the widened-base control that makes the attribution case non-vacuous
 
-Known scope limit, tracked separately: the gate matches only fully-qualified
+Known scope limit, tracked separately (#6525): the gate matches only fully-qualified
 `go/internal/...` paths, so any other spelling is invisible to it. The live
 examples sit in `go/internal/exposure/sink_catalog.go`, and the spelling there is
 neither repo-relative nor `go/`-prefixed — it is a `reducer/<file>.go` shorthand
@@ -146,6 +146,14 @@ was never moved. Stating the shorthand
 rather than "repo-relative" matters, because a reader looking for
 `internal/exposure/...`-style paths in that file finds NONE — the blind spot is
 wider than one alternate spelling.
+
+Second known limit, same class: the reference scan is `git grep -F`, so a
+vacated path is matched as a plain substring. A vacated `a/b/c.go` therefore
+also matches a longer literal that merely starts with it, such as
+`a/b/c.golden.json`. Reproduced deliberately; there are zero such pairs in the
+tree today, so it reports no false positive now, and it can only ever produce
+a false POSITIVE (a reference reported that is not one), never a false
+negative that lets a genuinely dead reference through.
 
 ## Why the perf-evidence gate fired on this branch
 
