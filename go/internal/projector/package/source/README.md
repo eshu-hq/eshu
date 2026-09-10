@@ -20,7 +20,7 @@ consumption truth from a source hint.
 
 ## Exported surface
 
-- `BuildPackageSourceCorrelationReducerIntent` builds the
+- `BuildReducerIntent` builds the
   `package_source_correlation` intent, anchored to the first
   `package_registry.source_hint` fact in the generation, or to the first
   `package_registry.package` fact when the generation carries no hint.
@@ -91,18 +91,19 @@ trim `SourceRef.SourceSystem` and fall back to a trimmed `CollectorKind`) and
 had no other caller, so it was dropped rather than moved; the root
 `firstOfKind` forwarder was a direct delegate to
 `projectorintent.FactLookup.FirstOfKind`, so both substitutions are
-behavior-identical by construction, and that forwarder stays at root for the
-eleven root probes that still call it. The `packageIdentityEnvelope` test
-fixture stays at root because the fan-out and supply-chain-impact tests still
-build on it. Focused proof, run from the `go/` module root:
-`../scripts/go-test-run-guard.sh 1 'TestBuildPackageSourceCorrelationReducerIntent' -- ./internal/projector/packagesource -count=1`
+behavior-identical by construction. That compatibility forwarder has no
+production caller now and remains unchanged outside this path-only move. The
+`packageIdentityEnvelope` test fixture stays at root because the fan-out and
+supply-chain-impact tests still build on it. Focused proof, run from the `go/`
+module root:
+`../scripts/go-test-run-guard.sh 1 'TestBuildReducerIntent' -- ./internal/projector/package/source -count=1`
 and `go test ./internal/projector/... -count=1` green, whole-module `go build`
 and `go vet` clean.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package registry payload contract](../../../../sdk/go/factschema/packageregistry/v1/README.md)
-- [Reducer domain catalog](../../reducer/domain-catalog.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../README.md)
+- [Intent contract](../../intent/README.md)
+- [Package registry payload contract](../../../../../sdk/go/factschema/packageregistry/v1/README.md)
+- [Reducer domain catalog](../../../reducer/domain-catalog.md)
+- [Package restructure](../../../../../docs/internal/design/package-restructure.md)

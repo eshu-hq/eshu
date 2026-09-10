@@ -766,7 +766,7 @@ this builder as its only caller, so the wrapper moved with it (still named
 root keeps no copy. `awsCloudRuntimeDriftSourceSystem` stays at root for its
 five remaining root callers.
 The package-source-correlation builder moved into
-`internal/projector/packagesource`. It is the first probe in the ordered
+`internal/projector/package/source`. It is the first probe in the ordered
 fan-out and carries no decode seam: it anchors with `FirstOfKind` on the
 earliest `package_registry.source_hint` fact and falls back to the earliest
 `package_registry.package` fact, reading only the fact kind. Its private
@@ -797,7 +797,7 @@ checked body-for-body against `projectorintent.SourceSystem` and was not
 identical: it carries a literal third fallback to `secrets_iam_posture`
 where the shared helper returns an empty string, so it moved with the family
 unchanged; the builder needs no scope value beyond the IDs, so it takes
-`scopeID`/`generationID` strings the way `packagesource` does. The root
+`scopeID`/`generationID` strings the way `package/source` does. The root
 `firstMatchingKindPredicate` forwarder stays for its two remaining root
 callers. The unsupported-schema-version regression test stays at root in
 `schema_version_admission_test.go` because it asserts root's
@@ -809,7 +809,7 @@ with `FirstAcrossKinds` on the earliest such fact in input order, and carries
 no decode seam. Its private `sbomAttestationAttachmentSourceSystem` helper had
 no other root caller and was body-identical to `projectorintent.SourceSystem`
 (two tiers, no scope fallback), so it was dropped rather than moved, the
-`packagesource` way rather than the `servicecatalog` way. The root
+`package/source` way rather than the `servicecatalog` way. The root
 `firstAcrossKinds` forwarder stays for its four remaining root callers
 (crossplane, container-image-identity, multi-cloud runtime drift, and
 supply-chain impact).
@@ -820,7 +820,7 @@ cloud-inventory source fact (`aws_resource`, `gcp_cloud_resource`, or
 earliest such fact in input order, and carries no decode seam. Its private
 `cloudInventoryAdmissionSourceSystem` helper had no other caller and was a
 pure delegation to `projectorintent.SourceSystem` — its entire body was that
-call — so it was dropped rather than moved, the `packagesource` way. The root
+call — so it was dropped rather than moved, the `package/source` way. The root
 `firstMatchingKindPredicate` forwarder stays for its one remaining root
 caller (observability-coverage correlation). The central schema-version
 regression test (`TestProjectEnforcesCentralSchemaVersionForPreviouslyUngatedFamily`)

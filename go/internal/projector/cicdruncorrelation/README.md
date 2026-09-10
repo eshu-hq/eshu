@@ -47,7 +47,7 @@ The builder depends on `internal/projector/intent.FactLookup`,
 root projector package — root already imports this package to dispatch to
 it, so the reverse import would cycle. It reads `internal/facts` for the two
 fact-kind constants and `internal/reducer` for the domain constant. There is
-no decode seam: like `packagesource` and `cloud/inventory`, this builder reads
+no decode seam: like `package/source` and `cloud/inventory`, this builder reads
 only envelope fields and never a payload key.
 
 ## Telemetry

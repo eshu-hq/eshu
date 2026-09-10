@@ -85,7 +85,7 @@
 // supply_chain_impact reducer intents so manifest-backed consumption and
 // vulnerability findings can catch up when package evidence arrives after
 // source intelligence. The package-source-correlation reducer-intent builder
-// lives in the internal/projector/packagesource child package; the reducer
+// lives in the internal/projector/package/source child package; the reducer
 // owns hint classification and consumption admission. The
 // supply-chain-impact reducer-intent builder lives in the
 // internal/projector/supplychainimpact child package via

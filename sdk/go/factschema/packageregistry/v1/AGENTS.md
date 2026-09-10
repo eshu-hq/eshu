@@ -79,7 +79,7 @@ and `Warning`. It must remain independent from Eshu internals.
   `RepositoryHosting`, and `Warning` have no decode-seam read consumer in the
   current codebase. `SourceHint` IS read by the reducer's
   `package_source_correlation` domain
-  (`go/internal/reducer/package_source_correlation.go`), a separate reducer
+  (`go/internal/reducer/packages/correlation/source.go`), a separate reducer
   family this wave does not convert — do not add a projector decode site for
   it here; that conversion belongs to the reducer family's own migration.
   `VulnerabilityHint.PackageID` and `Warning.Ecosystem`/`Warning.WarningCode`

@@ -73,7 +73,7 @@ func iamInstanceProfileResourceFact(factID, scopeID, generationID string, roleAR
 
 // packageIdentityEnvelope returns one package_registry.package identity fact.
 // It lived beside the package_source_correlation builder's root tests until
-// that family moved into internal/projector/packagesource; the root fan-out
+// that family moved into internal/projector/package/source; the root fan-out
 // fixture and the supply-chain-impact test still need it, so it stays at root.
 func packageIdentityEnvelope(factID, scopeID, generationID string) facts.Envelope {
 	return facts.Envelope{

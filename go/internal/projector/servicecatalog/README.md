@@ -36,7 +36,7 @@ root projector package — root already imports this package to dispatch to it,
 so the reverse import would cycle. It reads `internal/facts` for the catalog
 schema registry, `internal/reducer` for the domain constant, and
 `internal/scope` for the scope value whose `SourceSystem` is the last
-source-label fallback. There is no decode seam: like `packagesource`, this
+source-label fallback. There is no decode seam: like `package/source`, this
 builder reads only `envelope.FactKind` and never a payload field.
 
 ## Telemetry

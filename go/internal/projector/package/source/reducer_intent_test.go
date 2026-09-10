@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package packagesource
+package source
 
 import (
 	"reflect"
@@ -57,14 +57,14 @@ func packageIdentityEnvelope(factID, sourceSystem, collectorKind string) facts.E
 	}
 }
 
-// TestBuildPackageSourceCorrelationReducerIntent proves the builder anchors to
+// TestBuildReducerIntent proves the builder anchors to
 // the earliest package_registry.source_hint fact in original input order, that
 // a source hint outranks an identity fact placed ahead of it (kind priority,
 // not input position), that it falls back to the earliest
 // package_registry.package fact when no hint exists, that it falls back to
 // CollectorKind when SourceRef's SourceSystem is blank, and that a generation
 // carrying neither kind enqueues nothing.
-func TestBuildPackageSourceCorrelationReducerIntent(t *testing.T) {
+func TestBuildReducerIntent(t *testing.T) {
 	t.Parallel()
 
 	t.Run("queues from the earliest source hint, outranking an earlier identity fact", func(t *testing.T) {
@@ -76,7 +76,7 @@ func TestBuildPackageSourceCorrelationReducerIntent(t *testing.T) {
 			sourceHintEnvelope("fact-source-1", "package_registry", "package_registry"),
 			sourceHintEnvelope("fact-source-2", "package_registry", "package_registry"),
 		})
-		got, ok := BuildPackageSourceCorrelationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -101,7 +101,7 @@ func TestBuildPackageSourceCorrelationReducerIntent(t *testing.T) {
 			packageIdentityEnvelope("fact-package-1", "package_registry", "package_registry"),
 			packageIdentityEnvelope("fact-package-2", "package_registry", "package_registry"),
 		})
-		got, ok := BuildPackageSourceCorrelationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -124,7 +124,7 @@ func TestBuildPackageSourceCorrelationReducerIntent(t *testing.T) {
 		lookup := projectorintent.NewFactLookup([]facts.Envelope{
 			sourceHintEnvelope("fact-source-1", "  ", "package_registry_collector"),
 		})
-		got, ok := BuildPackageSourceCorrelationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if !ok {
 			t.Fatal("ok = false, want true")
 		}
@@ -139,7 +139,7 @@ func TestBuildPackageSourceCorrelationReducerIntent(t *testing.T) {
 			{FactID: "decoy-1", FactKind: "code_symbol_reference"},
 			{FactID: "decoy-2", FactKind: facts.PackageRegistryPackageVersionFactKind},
 		})
-		got, ok := BuildPackageSourceCorrelationReducerIntent(testScopeID, testGenerationID, lookup)
+		got, ok := BuildReducerIntent(testScopeID, testGenerationID, lookup)
 		if ok || !reflect.DeepEqual(got, projectorintent.ReducerIntent{}) {
 			t.Fatalf("returned (%#v, %t) without a trigger kind, want zero intent and false", got, ok)
 		}

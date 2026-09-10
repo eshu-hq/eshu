@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package packagesource builds the package-source-correlation reducer intent
+// Package source builds the package-source-correlation reducer intent
 // from one immutable scope generation: when the generation carries at least
 // one package_registry.source_hint fact, or failing that at least one
 // package_registry.package identity fact, it asks the reducer to classify the
@@ -15,4 +15,4 @@
 // package_source_correlation handler owns ownership, publication, and
 // consumption admission. Root projector assembly owns lookup construction and
 // lifetime, invocation order, queue writes, retries, and telemetry.
-package packagesource
+package source

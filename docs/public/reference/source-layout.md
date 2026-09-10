@@ -94,7 +94,7 @@ live in the repository today.
 | `go/internal/projector/kubernetes/` | Kubernetes live-workload and namespace reducer-intent family builders |
 | `go/internal/projector/observabilitycoverage/` | observability-coverage-correlation reducer-intent family builder and its aws_resource decode wrapper |
 | `go/internal/projector/observabilitycoveragematerialization/` | Observability-coverage materialization intent: the closed observability resource-type set, the AWS resource decode, and the COVERS-edge reducer intent |
-| `go/internal/projector/packagesource/` | package-source-correlation reducer-intent family builder |
+| `go/internal/projector/package/source/` | package-source-correlation reducer-intent family builder |
 | `go/internal/projector/secretsiam/` | secrets/IAM trust-chain reducer-intent family builder |
 | `go/internal/projector/sbomattestation/` | SBOM-attestation-attachment reducer-intent family builder |
 | `go/internal/projector/security/` | security-alert reconciliation and AWS security-group reducer-intent family builders |
