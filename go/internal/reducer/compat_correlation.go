@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the correlation families (servicecatalog, cicdrun, crossrepo, sbomattest, valueflow)
+// This file is the reducer root's compatibility surface for the correlation families (servicecatalog, cicdrun, crossrepo, sbomattest)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -16,20 +16,18 @@ package reducer
 //   - ci_cd_run_correlation_compat.go
 //   - cross_repo_compat.go
 //   - sbom_attestation_attachment_compat.go
-//   - value_flow_compat.go
+//   - supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
 
 import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
-	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
-	"github.com/eshu-hq/eshu/go/internal/reducer/valueflow"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/relationships"
 )
 
@@ -41,8 +39,9 @@ import (
 // (defaults.go, defaults_additive_domains.go, defaults_service_incidents.go,
 // defaults_additive_domains_correlation.go, registry_additive_domains.go),
 // cmd/reducer's writer construction, internal/storage/postgres' loaders, and
-// the still-in-root supply_chain_impact and service_runtime_instance_lookup
-// families' shared outcome/evidence vocabulary. Everything else the family
+// the supplychain/core family plus the still-in-root
+// service_runtime_instance_lookup family's shared outcome/evidence
+// vocabulary. Everything else the family
 // exports is reached as servicecatalog.X, and each entry here is deleted once
 // its last caller has moved.
 
@@ -261,9 +260,6 @@ type CICDRunCorrelationHandler = cicdrun.CICDRunCorrelationHandler
 // [cicdrun.PostgresCICDRunCorrelationWriter].
 type PostgresCICDRunCorrelationWriter = cicdrun.PostgresCICDRunCorrelationWriter
 
-// cicdRunCorrelationFactKind forwards to [cicdrun.CICDRunCorrelationFactKind].
-const cicdRunCorrelationFactKind = cicdrun.CICDRunCorrelationFactKind
-
 // cicdWorkflowImageBuiltFromEvidenceSource forwards to
 // [cicdrun.CICDWorkflowImageBuiltFromEvidenceSource].
 const cicdWorkflowImageBuiltFromEvidenceSource = cicdrun.CICDWorkflowImageBuiltFromEvidenceSource
@@ -404,89 +400,57 @@ func ComponentEvidenceTupleEqual(a, b ComponentEvidence) bool {
 	return sbomattest.ComponentEvidenceTupleEqual(a, b)
 }
 
-// payloadStrings forwards to [payloadcore.PayloadStrings]. It reaches the
-// shared helper directly rather than through sbomattest: the root callers are
-// secrets/IAM, security-alert-reconciliation and supply-chain-impact, none of
-// which have anything to do with the SBOM family.
-func payloadStrings(payload map[string]any, scalarKey string, sliceKey string) []string {
-	return payloadcore.PayloadStrings(payload, scalarKey, sliceKey)
-}
-
 // sbomAttestationAttachmentFactKind lives in intent.go, aliased directly from
 // [reducercontract.SBOMAttestationAttachmentFactKind] rather than forwarded
 // through sbomattest -- see that file's alias block, mirroring
 // containerImageIdentityFactKind's identical shape for the same reason
 // (#6431).
 
-// Stanza: value_flow_compat.go (merged; do not recreate this file).
-// This file is the transitional compatibility surface for the value-flow
-// fixpoint family that moved to [valueflow] (issue #6061). Reducer-root call
-// sites keep their current spelling; each entry is deleted once its last
-// caller has moved into a family subpackage.
-//
-// code_value_flow_stale_cleanup_runner.go and
-// code_value_flow_backfill_state_marker.go stay in root: the first has no
-// dependency on the moved family (it only reaches codetaint's writer/ledger
-// surface), and the second's only real caller is the still-in-root
-// projected_source_edge_backfill family, so neither belongs in valueflow.
+// Stanza: supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
+// This file is the transitional compatibility surface for the supply-chain
+// impact + suppression family that moved to [supplychaincore] (issue #6061).
+// External packages that name these types (cmd/reducer's writer construction,
+// internal/storage/postgres' loaders, internal/replay/costcounting's fixture
+// findings) keep their current reducer.X spelling; each entry is deleted once
+// its last caller has moved into a family subpackage. The dependency runs
+// root -> family only; the family never imports this package.
 
-// GraphValueFlowCloudSinkTargetLoader loads graph-backed cloud sink edges for
-// the value-flow fixpoint. See [valueflow.GraphValueFlowCloudSinkTargetLoader].
-type GraphValueFlowCloudSinkTargetLoader = valueflow.GraphValueFlowCloudSinkTargetLoader
+// SupplyChainImpactFactFilter bounds active evidence loading for one impact
+// reducer intent. See [supplychaincore.SupplyChainImpactFactFilter].
+type SupplyChainImpactFactFilter = supplychaincore.SupplyChainImpactFactFilter
 
-// ValueFlowCloudSinkTargetsCypher is the bounded Cypher query cloud sink
-// target loading runs. See [valueflow.ValueFlowCloudSinkTargetsCypher].
-const ValueFlowCloudSinkTargetsCypher = valueflow.ValueFlowCloudSinkTargetsCypher
+// SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.
+// See [supplychaincore.SupplyChainImpactFinding].
+type SupplyChainImpactFinding = supplychaincore.SupplyChainImpactFinding
 
-// ValueFlowFixpointComponentStore is the durable weak-component cache store
-// port. See [valueflow.ValueFlowFixpointComponentStore].
-type ValueFlowFixpointComponentStore = valueflow.ValueFlowFixpointComponentStore
+// SupplyChainImpactAffectedExact means package identity and observed version
+// match the affected package evidence exactly. See
+// [supplychaincore.SupplyChainImpactAffectedExact].
+const SupplyChainImpactAffectedExact = supplychaincore.SupplyChainImpactAffectedExact
 
-// NewValueFlowFixpointCache forwards to [valueflow.NewValueFlowFixpointCache].
-func NewValueFlowFixpointCache() *valueflow.ValueFlowFixpointCache {
-	return valueflow.NewValueFlowFixpointCache()
-}
+// SupplyChainImpactWrite carries findings for durable publication. See
+// [supplychaincore.SupplyChainImpactWrite].
+type SupplyChainImpactWrite = supplychaincore.SupplyChainImpactWrite
 
-// ValueFlowProgramInput is the bounded in-memory snapshot used to assemble a
-// value-flow Program. See [valueflow.ValueFlowProgramInput].
-type ValueFlowProgramInput = valueflow.ValueFlowProgramInput
+// SupplyChainImpactWriteResult summarizes durable impact publication. See
+// [supplychaincore.SupplyChainImpactWriteResult].
+type SupplyChainImpactWriteResult = supplychaincore.SupplyChainImpactWriteResult
 
-// ValueFlowCallEdge is one active code-call edge used by Program assembly.
-// See [valueflow.ValueFlowCallEdge].
-type ValueFlowCallEdge = valueflow.ValueFlowCallEdge
+// SupplyChainImpactHandler publishes vulnerability impact findings without
+// turning CVSS, EPSS, or KEV signals into reachability proof. See
+// [supplychaincore.SupplyChainImpactHandler].
+type SupplyChainImpactHandler = supplychaincore.SupplyChainImpactHandler
 
-// ValueFlowProgramAssemblyStats summarizes one Program assembly cycle. See
-// [valueflow.ValueFlowProgramAssemblyStats].
-type ValueFlowProgramAssemblyStats = valueflow.ValueFlowProgramAssemblyStats
+// PostgresSupplyChainImpactWriter is the Postgres-backed
+// SupplyChainImpactWriter. See
+// [supplychaincore.PostgresSupplyChainImpactWriter].
+type PostgresSupplyChainImpactWriter = supplychaincore.PostgresSupplyChainImpactWriter
 
-// BuildValueFlowProgram forwards to [valueflow.BuildValueFlowProgram].
-func BuildValueFlowProgram(input ValueFlowProgramInput) (interproc.Program, ValueFlowProgramAssemblyStats) {
-	return valueflow.BuildValueFlowProgram(input)
-}
+// SupplyChainImpactWinnersMaintainer keeps the
+// supply_chain_impact_canonical_winners read model reconciled with the active
+// impact facts. See [supplychaincore.SupplyChainImpactWinnersMaintainer].
+type SupplyChainImpactWinnersMaintainer = supplychaincore.SupplyChainImpactWinnersMaintainer
 
-// FunctionSummarySnapshotLoader reloads durable value-flow summaries for the
-// cross-repo fixpoint. See [valueflow.FunctionSummarySnapshotLoader].
-type FunctionSummarySnapshotLoader = valueflow.FunctionSummarySnapshotLoader
-
-// FunctionSourceSnapshotLoader reloads durable value-flow source ports for
-// the cross-repo fixpoint. See [valueflow.FunctionSourceSnapshotLoader].
-type FunctionSourceSnapshotLoader = valueflow.FunctionSourceSnapshotLoader
-
-// FunctionGraphIDSnapshotLoader reloads durable FunctionID->Function.uid
-// mappings. See [valueflow.FunctionGraphIDSnapshotLoader].
-type FunctionGraphIDSnapshotLoader = valueflow.FunctionGraphIDSnapshotLoader
-
-// ValueFlowFixpointEvidenceLoader composes durable function summaries,
-// source ports, graph ids, and graph-backed cloud sink targets into the
-// existing code_interproc_evidence reducer input. See
-// [valueflow.ValueFlowFixpointEvidenceLoader].
-type ValueFlowFixpointEvidenceLoader = valueflow.ValueFlowFixpointEvidenceLoader
-
-// ValueFlowFixpointEvidenceProjector writes summary-fixpoint findings as
-// TAINT_FLOWS_TO evidence. See [valueflow.ValueFlowFixpointEvidenceProjector].
-type ValueFlowFixpointEvidenceProjector = valueflow.ValueFlowFixpointEvidenceProjector
-
-// ValueFlowFixpointProjectionResult records the visible outcome of a
-// post-summary fixpoint projection. See
-// [valueflow.ValueFlowFixpointProjectionResult].
-type ValueFlowFixpointProjectionResult = valueflow.ValueFlowFixpointProjectionResult
+// JVMReachabilityFactFilter bounds active JVM reachability evidence loading.
+// See [supplychaincore.JVMReachabilityFactFilter].
+type JVMReachabilityFactFilter = supplychaincore.JVMReachabilityFactFilter

@@ -221,7 +221,7 @@ type OSPackageAdvisoryTarget struct {
 	ScopeID              string
 	// GenerationID is the source fact's generation, additive alongside ScopeID
 	// so a cross-scope consumer (the reducer's supply-chain-impact evidence
-	// pipeline, go/internal/reducer/supply_chain_impact_os_package_advisory_load.go)
+	// pipeline, go/internal/reducer/supplychain/core/os_package_advisory_load.go)
 	// can reconstruct a vulnerability.os_package envelope that keys the
 	// scanner-analysis-scope join (ScopeID+GenerationID) exactly like a
 	// natively loaded fact. The coordinator's planning consumer ignores it.

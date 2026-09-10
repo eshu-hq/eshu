@@ -1,0 +1,356 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package core
+
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+func TestClassifyGoVulnerabilityReachabilityModuleOnly(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "golang.org/x/text", "v0.3.7", false, "", ""),
+		goAffectedPackageEnvelope(t, "GO-2022-1059", "golang.org/x/text"),
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("findings = %d, want %d: %#v", got, want, findings)
+	}
+	finding := findings[0]
+	if finding.Reachability != GoVulnReachabilityModuleOnly {
+		t.Fatalf("Reachability = %q, want module_only", finding.Reachability)
+	}
+	if finding.RequiredVersion != "v0.3.7" {
+		t.Fatalf("RequiredVersion = %q", finding.RequiredVersion)
+	}
+	if !containsString(finding.MissingEvidence, "govulncheck call-graph evidence missing") {
+		t.Fatalf("MissingEvidence = %#v, want govulncheck note", finding.MissingEvidence)
+	}
+	if !containsString(finding.MissingEvidence, "advisory affected-range evidence missing") {
+		t.Fatalf("MissingEvidence = %#v, want range note", finding.MissingEvidence)
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilityDropsSafeVersionAgainstFixedRange(t *testing.T) {
+	t.Parallel()
+
+	advisory := goAffectedPackageEnvelopeWithRange(
+		t, "GO-2022-1059", "golang.org/x/text",
+		[]map[string]any{
+			{
+				"type": "SEMVER",
+				"events": []map[string]any{
+					{"introduced": "0.0.0"},
+					{"fixed": "0.3.8"},
+				},
+			},
+		},
+		nil,
+	)
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "golang.org/x/text", "v0.3.7", false, "golang.org/x/text", "v0.21.0"),
+		advisory,
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 0; got != want {
+		t.Fatalf("findings = %d, want %d (replacement v0.21.0 is past the fix): %#v", got, want, findings)
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilityKeepsVulnerableVersionAgainstRange(t *testing.T) {
+	t.Parallel()
+
+	advisory := goAffectedPackageEnvelopeWithRange(
+		t, "GO-2022-1059", "golang.org/x/text",
+		[]map[string]any{
+			{
+				"type": "SEMVER",
+				"events": []map[string]any{
+					{"introduced": "0.0.0"},
+					{"fixed": "0.3.8"},
+				},
+			},
+		},
+		nil,
+	)
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "golang.org/x/text", "v0.3.7", false, "", ""),
+		advisory,
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("findings = %d, want %d", got, want)
+	}
+	if findings[0].Reachability != GoVulnReachabilityModuleOnly {
+		t.Fatalf("Reachability = %q, want module_only", findings[0].Reachability)
+	}
+	if containsString(findings[0].MissingEvidence, "advisory affected-range evidence missing") {
+		t.Fatalf("range-applicable finding should not flag missing range evidence: %#v", findings[0].MissingEvidence)
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilityDropsSafeVersionAgainstFixedVersionsOnly(t *testing.T) {
+	t.Parallel()
+
+	advisory := goAffectedPackageEnvelopeWithRange(
+		t, "GO-2024-3333", "example.com/safe",
+		nil,
+		[]string{"v1.2.5"},
+	)
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "example.com/safe", "v1.2.5", false, "", ""),
+		advisory,
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 0; got != want {
+		t.Fatalf("findings = %d, want %d (observed v1.2.5 is the fixed version)", got, want)
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilityImportReachable(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "golang.org/x/text", "v0.3.7", false, "", ""),
+		goAffectedPackageEnvelope(t, "GO-2022-1059", "golang.org/x/text"),
+		goReachabilityEnvelope(t, "repo-1", "GO-2022-1059", "golang.org/x/text", "v0.3.7", "golang.org/x/text/language", "", "import"),
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("findings = %d, want %d", got, want)
+	}
+	if findings[0].Reachability != GoVulnReachabilityPackageImportReachable {
+		t.Fatalf("Reachability = %q, want package_import_reachable", findings[0].Reachability)
+	}
+	if findings[0].PackagePath != "golang.org/x/text/language" {
+		t.Fatalf("PackagePath = %q", findings[0].PackagePath)
+	}
+	if findings[0].Symbol != "" {
+		t.Fatalf("Symbol must be blank for import-only, got %q", findings[0].Symbol)
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilitySymbolReachable(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "example.com/vuln", "v1.2.3", false, "", ""),
+		goAffectedPackageEnvelope(t, "GO-2024-9999", "example.com/vuln"),
+		goReachabilityEnvelope(t, "repo-1", "GO-2024-9999", "example.com/vuln", "v1.2.3", "example.com/vuln/inner", "DangerousCall", "symbol"),
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("findings = %d, want %d", got, want)
+	}
+	if findings[0].Reachability != GoVulnReachabilitySymbolReachable {
+		t.Fatalf("Reachability = %q, want symbol_reachable", findings[0].Reachability)
+	}
+	if findings[0].Symbol != "DangerousCall" {
+		t.Fatalf("Symbol = %q", findings[0].Symbol)
+	}
+	if len(findings[0].CallTrace) == 0 {
+		t.Fatalf("CallTrace must be preserved")
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilityDoesNotCrossApplyModuleTrace(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "example.com/a", "v1.0.0", false, "", ""),
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "example.com/b", "v1.0.0", false, "", ""),
+		goAffectedPackageEnvelope(t, "GO-2024-9090", "example.com/a"),
+		goAffectedPackageEnvelope(t, "GO-2024-9090", "example.com/b"),
+		goReachabilityEnvelope(t, "repo-1", "GO-2024-9090", "example.com/b", "v1.0.0", "example.com/b/vuln", "DangerousCall", "symbol"),
+	}
+
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 2; got != want {
+		t.Fatalf("findings = %d, want %d: %#v", got, want, findings)
+	}
+	byModule := make(map[string]GoVulnerabilityFinding, len(findings))
+	for _, finding := range findings {
+		byModule[finding.ModulePath] = finding
+	}
+	if byModule["example.com/a"].Reachability != GoVulnReachabilityModuleOnly {
+		t.Fatalf("module a reachability = %q, want module_only without module b call trace", byModule["example.com/a"].Reachability)
+	}
+	if !containsString(byModule["example.com/a"].MissingEvidence, "govulncheck call-graph evidence missing") {
+		t.Fatalf("module a MissingEvidence = %#v, want missing call proof", byModule["example.com/a"].MissingEvidence)
+	}
+	if byModule["example.com/b"].Reachability != GoVulnReachabilitySymbolReachable {
+		t.Fatalf("module b reachability = %q, want symbol_reachable", byModule["example.com/b"].Reachability)
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilityNotCalled(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "example.com/quiet", "v2.0.0", true, "", ""),
+		goAffectedPackageEnvelope(t, "GO-2024-8888", "example.com/quiet"),
+		goReachabilityEnvelope(t, "repo-1", "GO-2024-8888", "example.com/quiet", "v2.0.0", "example.com/quiet/sub", "", "not_called"),
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("findings = %d, want %d", got, want)
+	}
+	if findings[0].Reachability != GoVulnReachabilityNotCalled {
+		t.Fatalf("Reachability = %q, want not_called", findings[0].Reachability)
+	}
+	if !findings[0].Indirect {
+		t.Fatalf("Indirect should be true for not-called fixture")
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilityRequiresOwnedModuleEvidence(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		goReachabilityEnvelope(t, "repo-1", "GO-2024-7777", "example.com/lonely", "v1.0.0", "", "", ""),
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 0; got != want {
+		t.Fatalf("findings = %d, want %d; govulncheck evidence alone must not prove owned module impact: %#v", got, want, findings)
+	}
+}
+
+func TestClassifyGoVulnerabilityReachabilityReplacementPreserved(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		goModuleEvidenceEnvelope(t, "repo-1", "go.mod", "golang.org/x/text", "v0.3.7", false, "golang.org/x/text", "v0.21.0"),
+		goAffectedPackageEnvelope(t, "GO-2022-1059", "golang.org/x/text"),
+	}
+	findings := ClassifyGoVulnerabilityReachability(envelopes)
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("findings = %d, want %d", got, want)
+	}
+	if findings[0].ReplacementPath != "golang.org/x/text" || findings[0].ReplacementVersion != "v0.21.0" {
+		t.Fatalf("replacement not preserved: %#v", findings[0])
+	}
+}
+
+// goModuleEvidenceEnvelope builds a vulnerability.go_module_evidence fixture.
+// line_number is a JSON number (5, not "5"): the real collector
+// (vulnerabilityintelligence.GoModuleRequirement.LineNumber, an int) always
+// emits it as a number, so a string fixture value was never realistic
+// collector output — it silently exercised a payload shape the typed decode
+// seam now correctly rejects as a type mismatch on that field.
+func goModuleEvidenceEnvelope(
+	t *testing.T,
+	repoID, relativePath, modulePath, requiredVersion string,
+	indirect bool,
+	replacementPath, replacementVersion string,
+) facts.Envelope {
+	t.Helper()
+	return facts.Envelope{
+		FactID:        facts.StableID(facts.VulnerabilityGoModuleEvidenceFactKind, map[string]any{"repo": repoID, "module": modulePath, "version": requiredVersion}),
+		FactKind:      facts.VulnerabilityGoModuleEvidenceFactKind,
+		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+		Payload: map[string]any{
+			"repository_id":       repoID,
+			"relative_path":       relativePath,
+			"module_path":         modulePath,
+			"required_version":    requiredVersion,
+			"indirect":            indirect,
+			"replacement_path":    replacementPath,
+			"replacement_version": replacementVersion,
+			"ecosystem":           "go-module",
+			"package_id":          "go-module/proxy.golang.org/" + modulePath,
+			"package_name":        modulePath,
+			"line_number":         5,
+		},
+	}
+}
+
+func goAffectedPackageEnvelope(t *testing.T, osvID, modulePath string) facts.Envelope {
+	t.Helper()
+	return goAffectedPackageEnvelopeWithRange(t, osvID, modulePath, nil, nil)
+}
+
+func goAffectedPackageEnvelopeWithRange(
+	t *testing.T,
+	osvID, modulePath string,
+	affectedRanges []map[string]any,
+	fixedVersions []string,
+) facts.Envelope {
+	t.Helper()
+	payload := map[string]any{
+		"advisory_id":  osvID,
+		"cve_id":       osvID,
+		"ecosystem":    "go",
+		"package_name": modulePath,
+		"module_path":  modulePath,
+	}
+	if len(affectedRanges) > 0 {
+		ranges := make([]any, 0, len(affectedRanges))
+		for _, r := range affectedRanges {
+			rng := map[string]any{"type": r["type"]}
+			if events, ok := r["events"].([]map[string]any); ok {
+				eventsAny := make([]any, 0, len(events))
+				for _, event := range events {
+					eventsAny = append(eventsAny, map[string]any(event))
+				}
+				rng["events"] = eventsAny
+			}
+			ranges = append(ranges, rng)
+		}
+		payload["affected_ranges"] = ranges
+	}
+	if len(fixedVersions) > 0 {
+		payload["fixed_versions"] = fixedVersions
+	}
+	return facts.Envelope{
+		FactID:        facts.StableID(facts.VulnerabilityAffectedPackageFactKind, map[string]any{"osv": osvID, "module": modulePath}),
+		FactKind:      facts.VulnerabilityAffectedPackageFactKind,
+		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+		Payload:       payload,
+	}
+}
+
+func containsString(haystack []string, needle string) bool {
+	for _, value := range haystack {
+		if value == needle {
+			return true
+		}
+	}
+	return false
+}
+
+func goReachabilityEnvelope(
+	t *testing.T,
+	repoID, osvID, modulePath, moduleVersion, packagePath, symbol, level string,
+) facts.Envelope {
+	t.Helper()
+	trace := []map[string]string{}
+	frame := map[string]string{
+		"module":  modulePath,
+		"version": moduleVersion,
+	}
+	if packagePath != "" {
+		frame["package"] = packagePath
+	}
+	if symbol != "" {
+		frame["function"] = symbol
+	}
+	trace = append(trace, frame)
+	return facts.Envelope{
+		FactID:        facts.StableID(facts.VulnerabilityGoCallReachabilityFactKind, map[string]any{"osv": osvID, "module": modulePath, "package": packagePath}),
+		FactKind:      facts.VulnerabilityGoCallReachabilityFactKind,
+		SchemaVersion: facts.VulnerabilityIntelligenceSchemaVersionV1,
+		Payload: map[string]any{
+			"repository_id":      repoID,
+			"osv_id":             osvID,
+			"deepest_module":     modulePath,
+			"deepest_package":    packagePath,
+			"deepest_symbol":     symbol,
+			"reachability_level": level,
+			"trace":              trace,
+		},
+	}
+}

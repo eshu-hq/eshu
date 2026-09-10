@@ -32,8 +32,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-
-	factschema "github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
 // Stanza: decode_seam_compat.go (merged; do not recreate this file).
@@ -222,21 +220,6 @@ func loadFactsForKinds(
 	return factload.LoadFactsForKinds(ctx, loader, scopeID, generationID, factKinds)
 }
 
-// loadFactsForKindAndPayloadValue forwards to
-// [factload.LoadFactsForKindAndPayloadValue].
-func loadFactsForKindAndPayloadValue(
-	ctx context.Context,
-	loader FactLoader,
-	scopeID string,
-	generationID string,
-	factKind string,
-	payloadKey string,
-	payloadValues []string,
-) ([]facts.Envelope, error) {
-	return factload.LoadFactsForKindAndPayloadValue(
-		ctx, loader, scopeID, generationID, factKind, payloadKey, payloadValues)
-}
-
 // classifyFactLoadError forwards to [factload.ClassifyFactLoadError].
 func classifyFactLoadError(err error) error {
 	return factload.ClassifyFactLoadError(err)
@@ -303,26 +286,19 @@ func applyRepoRefreshDeltaScope(
 // This file is the transitional compatibility surface for the per-fact-kind
 // decoders that moved to [schemadecode] (issue #6061). Every entry binds the
 // reducer root's original lowercase spelling to the exported name in that
-// package, so the 45 root call sites keep their current spelling; each entry is
-// deleted once its last caller has moved into a family subpackage. The 17
-// decodeObservability* entries were removed when their only callers moved into
-// internal/reducer/obscoverage, and the three Vault entries when theirs moved
-// into internal/reducer/secretsiam; both subpackages import schemadecode directly.
+// package, so the 3 remaining root call sites keep their current spelling;
+// each entry is deleted once its last caller has moved into a family
+// subpackage. The 17 decodeObservability* entries were removed when their only
+// callers moved into internal/reducer/obscoverage, and the three Vault entries
+// when theirs moved into internal/reducer/secretsiam; both subpackages import
+// schemadecode directly. The 9 vulnerability/scanner/package-consumption
+// entries were removed with the supplychain/core move: their only callers
+// were supply-chain files that now import schemadecode directly (#6061).
 
 var (
-	decodeReducerPackageConsumptionCorrelation = schemadecode.DecodeReducerPackageConsumptionCorrelation
 	decodeReducerPackageOwnershipCorrelation   = schemadecode.DecodeReducerPackageOwnershipCorrelation
 	decodeReducerPackagePublicationCorrelation = schemadecode.DecodeReducerPackagePublicationCorrelation
-	decodeScannerWorkerAnalysis                = schemadecode.DecodeScannerWorkerAnalysis
 	decodeSubmodulePin                         = schemadecode.DecodeSubmodulePin
-	decodeVulnerabilityAffectedPackage         = schemadecode.DecodeVulnerabilityAffectedPackage
-	decodeVulnerabilityAffectedProduct         = schemadecode.DecodeVulnerabilityAffectedProduct
-	decodeVulnerabilityCVE                     = schemadecode.DecodeVulnerabilityCVE
-	decodeVulnerabilityEPSSScore               = schemadecode.DecodeVulnerabilityEPSSScore
-	decodeVulnerabilityGoCallReachability      = schemadecode.DecodeVulnerabilityGoCallReachability
-	decodeVulnerabilityGoModuleEvidence        = schemadecode.DecodeVulnerabilityGoModuleEvidence
-	decodeVulnerabilityKnownExploited          = schemadecode.DecodeVulnerabilityKnownExploited
-	decodeVulnerabilityOSPackage               = schemadecode.DecodeVulnerabilityOSPackage
 )
 
 // Stanza: decode_seam_compat3.go (merged; do not recreate this file).
@@ -330,18 +306,13 @@ var (
 // This file is the transitional compatibility surface for the per-fact-kind
 // decoders that moved to [schemadecode] (issue #6061). Every entry binds the
 // reducer root's original lowercase spelling to the exported name in that
-// package, so the 63 root call sites keep their current spelling; each entry is
-// deleted once its last caller has moved into a family subpackage.
+// package, so the 6 remaining root call sites (in codedataflow_input_invalid_test.go)
+// keep their current spelling; each entry is deleted once its last caller has
+// moved into a family subpackage. The factschemaEnvelope forwarder was removed
+// with the supplychain/core move: its only callers were supply-chain files
+// that now import schemadecode directly (#6061).
 
 var (
 	decodeCodeDataflowFunction = schemadecode.DecodeCodeDataflowFunction
 	decodeCodeDataflowScanned  = schemadecode.DecodeCodeDataflowScanned
 )
-
-// factschemaEnvelope forwards to [schemadecode.FactschemaEnvelope]. It is a func
-// rather than a var binding so its two root call sites keep inlining it; the
-// decoder forwarders above are var bindings because their targets are far too
-// large to inline in any form, so the binding form costs them nothing.
-func factschemaEnvelope(env facts.Envelope) factschema.Envelope {
-	return schemadecode.FactschemaEnvelope(env)
-}

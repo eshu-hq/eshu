@@ -66,8 +66,9 @@ build. This bit two things during the #6061 move:
 ## Root test files needed their own local copies
 
 Several still-in-root test files (`cross_scope_readiness_floor_handler_test.go`,
-`supply_chain_impact_repository_anchor_ci_run_test.go`, materialization tests
-across AWS/GCP/IAM/security-group families) depended on this family's
+materialization tests across AWS/GCP/IAM/security-group families) and the
+supplychain/core suite (`repository_anchor_ci_run_test.go`, since moved out of
+root with the #6061 supplychain move) depended on this family's
 unexported test doubles before the move
 (`fakeWorkloadIdentityExecer`/`decodedBatchedFactRow`, `ciRunFact`/
 `ciArtifactFact`, `metricHasAttrs`, `stubContainerImageIdentityFactLoader`,

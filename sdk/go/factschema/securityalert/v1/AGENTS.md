@@ -49,7 +49,7 @@ state flow into `supply_chain_impact` as promoted truth.
   real traffic.
 - The SINGLE reducer decode site for this kind
   (`ExtractProviderSecurityAlerts`,
-  `go/internal/reducer/securityalert/security_alert_reconciliation.go`) feeds TWO consumers:
+  `go/internal/reducer/securityalert/reconciliation.go`) feeds TWO consumers:
   `BuildSecurityAlertReconciliations` (the reconciliation read surface) and
   `appendSecurityAlertImpactFindings` (the `supply_chain_impact` seeder, a
   CanonicalWrites path). Any change to this struct changes the input to BOTH.
@@ -59,7 +59,7 @@ state flow into `supply_chain_impact` as promoted truth.
 - The `cvss` (`map[string]any`), `epss` (`map[string]string`), and `cwes`
   (`[]map[string]string`) container fields model the RAW collector shapes; the
   reducer applies its own trim / drop-empty normalization after decode
-  (`security_alert_reconciliation_decode.go`), so this struct must not itself
+  (`reducer/securityalert/reconciliation_decode.go`), so this struct must not itself
   prune or reshape them — the decode stays a faithful mirror of the wire
   payload.
 - `ClassificationInputInvalid` is the parent `factschema` package's own

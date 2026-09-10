@@ -30,7 +30,7 @@ tree. The one addition specific to this package:
   duplicating it risks security_alert's matching silently drifting from
   supply_chain_impact's identical matching) or taking over an unrelated,
   unscoped family. `ManifestConsumptionExtractor`
-  (`security_alert_reconciliation.go`) is the resulting seam: this package
+  (`reconciliation.go`) is the resulting seam: this package
   defines the function type and calls it if non-nil, and never imports the
   package correlation family directly; the reducer root wires
   `correlation.ExtractSecurityAlertManifestConsumptions` at the
@@ -62,7 +62,7 @@ of that boundary, not because anyone chose to duplicate them for style:
   `supplyChainImpactFindingEnvelope`, and
   `securityAlertEnvelopeMissingRepositoryID` for `supply_chain_impact`'s own
   tests and the root-side scoping test below.
-- `supply_chain_impact_security_alert_scope_test.go` (root) tests
+- `security_alert_scope_test.go` (root) tests
   `supplyChainImpactUsesSecurityAlertScope`, a `supply_chain_impact`-owned
   root function this package cannot import, using
   `securityalert.ExtractProviderSecurityAlerts`/
@@ -72,7 +72,7 @@ If you rename or reshape a fixture here that one of those root files mirrors
 (by name or by the comment citing it), check whether the root copy needs the
 same change — nothing enforces they stay in sync.
 
-`security_alert_reconciliation_batch_insert_test_helpers_test.go` in this
+`reconciliation_batch_insert_test_helpers_test.go` in this
 package is itself a local copy of the reducer root's generic
 `reducer_fact_batch_insert_test_helpers_test.go`, trimmed to the
 non-versioned pieces this package's writer test uses — the same pattern
@@ -117,7 +117,7 @@ non-versioned pieces this package's writer test uses — the same pattern
   stand-in that could silently diverge from production behavior.
 - Do not change `SecurityAlertReconciliationDecision`'s field set casually.
   Outside this package it is named by the reducer root's
-  `supply_chain_impact_manifest_dependency.go` and lockfile test, and by
+  `manifest_dependency.go` and lockfile test, and by
   `internal/replay/costcounting`'s cost test. `internal/storage/postgres`
   imports this package but names `SecurityAlertReconciliationFactFilter`, a
   different type, and nothing under `internal/query` imports it at all --

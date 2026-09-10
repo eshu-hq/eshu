@@ -15,18 +15,18 @@ moved out of the flat `internal/reducer` root under issue #6061 and owns the
 
 | piece | file | what it does |
 |---|---|---|
-| `BuildSecurityAlertReconciliations` / `WithQuarantine` | `security_alert_reconciliation.go` | the entry points that build one decision per decoded provider alert |
-| `SecurityAlertReconciliationDecision` | `security_alert_reconciliation.go` | the family's canonical output row |
-| `ManifestConsumptionExtractor` | `security_alert_reconciliation.go` | the injected manifest-matching seam; see Gotchas / invariants below |
-| classification | `security_alert_reconciliation.go` (`classifyProviderSecurityAlert`) | matched/unmatched/stale/dismissed/fixed/provider_only/unsupported/ambiguous outcome logic |
-| triage | `security_alert_reconciliation_triage.go` | unsupported-ecosystem detection and missing-evidence records |
-| observed-version resolution | `security_alert_reconciliation_observed_version.go` | resolves and validates the observed installed version against manifest evidence |
-| typed decode | `security_alert_reconciliation_decode.go` | decodes `security_alert.repository_alert` through the `schemadecode` seam, strict (quarantining) and lenient variants |
-| `SecurityAlertReconciliationHandler` | `security_alert_reconciliation_handler.go` | the reducer handler: fact loading, dedup, pending-impact deferral, quarantine recording |
-| `SecurityAlertReconciliationDomainDefinition` | `security_alert_reconciliation_domain.go` | the additive domain registration |
-| `PostgresSecurityAlertReconciliationWriter` | `security_alert_reconciliation_writer.go` | the batched Postgres fact writer |
-| `SecurityAlertReconciliationStatus` and its constants | `security_alert_reconciliation_status.go` | the comparison outcome enum |
-| `ProviderSecurityAlert` / `SecurityAlertConsumption` / `SecurityAlertImpact` | `security_alert_reconciliation_types.go` | the decoded alert, dependency-consumption, and impact-evidence shapes the matching logic joins |
+| `BuildSecurityAlertReconciliations` / `WithQuarantine` | `reconciliation.go` | the entry points that build one decision per decoded provider alert |
+| `SecurityAlertReconciliationDecision` | `reconciliation.go` | the family's canonical output row |
+| `ManifestConsumptionExtractor` | `reconciliation.go` | the injected manifest-matching seam; see Gotchas / invariants below |
+| classification | `reconciliation.go` (`classifyProviderSecurityAlert`) | matched/unmatched/stale/dismissed/fixed/provider_only/unsupported/ambiguous outcome logic |
+| triage | `reconciliation_triage.go` | unsupported-ecosystem detection and missing-evidence records |
+| observed-version resolution | `reconciliation_observed_version.go` | resolves and validates the observed installed version against manifest evidence |
+| typed decode | `reconciliation_decode.go` | decodes `security_alert.repository_alert` through the `schemadecode` seam, strict (quarantining) and lenient variants |
+| `SecurityAlertReconciliationHandler` | `reconciliation_handler.go` | the reducer handler: fact loading, dedup, pending-impact deferral, quarantine recording |
+| `SecurityAlertReconciliationDomainDefinition` | `reconciliation_domain.go` | the additive domain registration |
+| `PostgresSecurityAlertReconciliationWriter` | `reconciliation_writer.go` | the batched Postgres fact writer |
+| `SecurityAlertReconciliationStatus` and its constants | `reconciliation_status.go` | the comparison outcome enum |
+| `ProviderSecurityAlert` / `SecurityAlertConsumption` / `SecurityAlertImpact` | `reconciliation_types.go` | the decoded alert, dependency-consumption, and impact-evidence shapes the matching logic joins |
 
 **Does not own:** matching a provider alert against repository
 manifest/lockfile dependency evidence. That decode and
@@ -126,7 +126,7 @@ a forgotten registration, and failing open there commits every lockfile-only
 alert as `provider_only` with no error and no counter. The handler has exactly
 one production construction site,
 `defaults_additive_domains_supply_chain.go:66`, and the reducer root wires its
-own concrete implementation there. `supply_chain_impact_security_alert.go` is
+own concrete implementation there. `security_alert.go` is
 not a construction site: it calls the same bridge function directly, without
 going through a builder. Root keeps its own tests for the
 real matching behavior
@@ -150,7 +150,7 @@ directly where root returns its `packageConsumptionCorrelationFactKind` alias
 for the same value. Each bullet below says which:
 
 - `activeRepositoryFactLoader` / `activePackageManifestDependencyFactLoader`
-  (`security_alert_reconciliation_handler.go`) mirror the reducer root's
+  (`reconciliation_handler.go`) mirror the reducer root's
   identically-named interfaces (`package_source_correlation_handler.go`),
   shared by several families that have not moved yet. Go interfaces are
   satisfied structurally, so the same concrete `FactLoader` implementation
@@ -158,24 +158,24 @@ for the same value. Each bullet below says which:
   declarations without duplicating any logic -- the pattern
   `internal/reducer/codetaint/graph_ports.go` established.
 - `packageNameFromPURL` / `packageNameFromPackageID`
-  (`security_alert_reconciliation.go`) mirror
-  `supply_chain_impact_manifest_dependency.go`: pure purl/package-ID string
+  (`reconciliation.go`) mirror
+  `manifest_dependency.go`: pure purl/package-ID string
   parsing with no further dependency.
 - `securityAlertDependencyScope` / `securityAlertPayloadBoolPointer`
-  (`security_alert_reconciliation.go`) are `supply_chain_impact_match.go`'s
+  (`reconciliation.go`) are `match.go`'s
   former `supplyChainDependencyScope` / `payloadBoolPointer`: short payload
   fallbacks this family was the only caller of, so the root copies are deleted
   in the same change rather than left dead.
 - `securityAlertHasPackageSourceRepositoryFact`
-  (`security_alert_reconciliation_handler.go`) is
+  (`reconciliation_handler.go`) is
   `package_source_correlation_handler.go`'s `hasPackageSourceRepositoryFact`
   under a family-scoped name: a short envelope-kind scan. Root keeps its
   own copy: two root callers still use it
-  (`package_source_correlation_handler.go`, `supply_chain_impact_repository.go`).
+  (`package_source_correlation_handler.go`, `repository.go`).
 - `securityAlertConsumptionEvidenceKind`, `exactConsumptionDependencyVersion`,
   `exactManifestDependencyVersion`, and `nonVersionDependencyPrefix`
-  (`security_alert_reconciliation_observed_version.go`) mirror
-  `supply_chain_impact_security_alert.go` and `supply_chain_impact_ranges.go`
+  (`reconciliation_observed_version.go`) mirror
+  `security_alert.go` and `ranges.go`
   (which holds all three version helpers): pure version-string and
   evidence-kind-fallback logic with no reducer-root state. Only
   `exactConsumptionDependencyVersion` is re-parameterised, to the three
@@ -192,7 +192,7 @@ manifest-consumption seam" above for why the tests that DO need real
 manifest matching live in the reducer root instead
 (`security_alert_reconciliation_lockfile_test.go`,
 `security_alert_scoped_npm_test.go`), and why
-`security_alert_reconciliation_batch_insert_test_helpers_test.go` is a local
+`reconciliation_batch_insert_test_helpers_test.go` is a local
 copy of the reducer root's generic batched-writer test infrastructure rather
 than an import (Go test files never export across packages regardless).
 

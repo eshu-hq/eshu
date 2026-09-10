@@ -16,7 +16,7 @@ func TestListActiveSupplyChainImpactFactsQueryNormalizesSuppressionScopeSiblings
 	t.Parallel()
 
 	// #5466 round-3 review F-6: scopeAnchorMatches
-	// (go/internal/reducer/supply_chain_suppression_scope_match.go) compares
+	// (go/internal/reducer/supplychain/core/scope.go) compares
 	// every vulnerability.suppression scope anchor -- CVEID, PackageID,
 	// PURL, RepositoryID, SubjectDigest -- with strings.TrimSpace +
 	// strings.EqualFold, so a payload of {"cve_id":"cve-2026-1234"}

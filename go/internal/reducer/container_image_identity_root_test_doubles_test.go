@@ -5,7 +5,6 @@ package reducer
 
 import (
 	"context"
-	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -18,14 +17,17 @@ import (
 // internal/reducer/containerimage (issue #6061). Go test files cannot share
 // unexported symbols across a package boundary, and several still-in-root
 // families' tests (cross_scope_readiness_floor_handler_test.go,
-// supply_chain_impact_repository_anchor_ci_run_test.go, defaults_test.go,
-// defaults_cicd_test.go, provenance_edge_submission_metrics_test.go, the
-// aws_*/gcp_*/iam_*/security_group_* materialization tests, and the
-// supply_chain_impact_* reachability tests) still reference these under their
-// original unqualified names, so root keeps this trimmed copy rather than
-// requiring every one of those files to import containerimage and requalify
-// every call site. Mirrors internal/reducer/secretsiam's writer test gaining
-// a local exec double for the same reason.
+// defaults_test.go, defaults_cicd_test.go,
+// provenance_edge_submission_metrics_test.go, and the
+// aws_*/gcp_*/iam_*/security_group_* materialization tests) still reference
+// these under their original unqualified names, so root keeps this trimmed
+// copy rather than requiring every one of those files to import containerimage
+// and requalify every call site. The moved supplychain/core suite
+// (repository_anchor_ci_run_test.go and the
+// reachability tests) keeps its own copies in
+// cross_scope_test_doubles_test.go. Mirrors
+// internal/reducer/secretsiam's writer test gaining a local exec double for
+// the same reason.
 
 // ciRunFact and ciArtifactFact build minimal ci.run / ci.artifact envelopes.
 // They mirror the equivalent fixture builders in the ci_cd_run_correlation
@@ -79,133 +81,13 @@ func containerImageIdentityFact(factID, repositoryID, imageRef, digest string) f
 	}
 }
 
-// stringSliceContains reports whether want appears in values.
-func stringSliceContains(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
-}
-
-// decisionsByRef indexes decisions by ImageRef for assertion convenience.
-func decisionsByRef(decisions []ContainerImageIdentityDecision) map[string]ContainerImageIdentityDecision {
-	out := make(map[string]ContainerImageIdentityDecision, len(decisions))
-	for _, decision := range decisions {
-		out[decision.ImageRef] = decision
-	}
-	return out
-}
-
-func ociManifestFact(factID string, digest string) facts.Envelope {
-	return ociImageFact(factID, facts.OCIImageManifestFactKind, digest, map[string]any{})
-}
-
-func ociImageFact(factID string, kind string, digest string, extra map[string]any) facts.Envelope {
-	payload := map[string]any{
-		"registry":      "registry.example.com",
-		"repository":    "team/api",
-		"repository_id": "oci-registry://registry.example.com/team/api",
-		"digest":        digest,
-		"media_type":    "application/vnd.oci.image.manifest.v1+json",
-	}
-	for key, value := range extra {
-		payload[key] = value
-	}
-	return facts.Envelope{
-		FactID:           factID,
-		ScopeID:          "oci-registry://registry.example.com/team/api",
-		GenerationID:     "generation-oci",
-		FactKind:         kind,
-		SchemaVersion:    "1.0.0",
-		CollectorKind:    "oci_registry",
-		SourceConfidence: facts.SourceConfidenceReported,
-		ObservedAt:       time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
-		SourceRef: facts.Ref{
-			SourceSystem: "oci_registry",
-		},
-		Payload: payload,
-	}
-}
-
-// stubContainerImageIdentityFactLoader is a local copy of
-// internal/reducer/containerimage's own fixture, trimmed to the surface
-// supply_chain_impact_repository_anchor_ci_run_test.go exercises. It
-// satisfies factload.FactLoader plus containerimage's private cross-scope
-// loader interfaces structurally (Go interfaces are duck-typed), so the same
-// stub works as ContainerImageIdentityHandler.FactLoader without this package
-// importing any of those private interface types.
-type stubContainerImageIdentityFactLoader struct {
-	scopeFacts                 []facts.Envelope
-	active                     []facts.Envelope
-	kindCalls                  [][]string
-	activeCall                 int
-	slsaActive                 []facts.Envelope
-	slsaActiveCall             int
-	ciActive                   []facts.Envelope
-	ciActiveCall               int
-	ciActiveOwnerRepositoryIDs []string
-	warnings                   []facts.Envelope
-	warningCalls               int
-	warningErr                 error
-}
-
-func (s *stubContainerImageIdentityFactLoader) ListFacts(
-	context.Context,
-	string,
-	string,
-) ([]facts.Envelope, error) {
-	return append([]facts.Envelope(nil), s.scopeFacts...), nil
-}
-
-func (s *stubContainerImageIdentityFactLoader) ListFactsByKind(
-	_ context.Context,
-	_ string,
-	_ string,
-	kinds []string,
-) ([]facts.Envelope, error) {
-	s.kindCalls = append(s.kindCalls, append([]string(nil), kinds...))
-	return append([]facts.Envelope(nil), s.scopeFacts...), nil
-}
-
-func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageIdentityFacts(
-	context.Context,
-) ([]facts.Envelope, error) {
-	s.activeCall++
-	return append([]facts.Envelope(nil), s.active...), nil
-}
-
-func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageIdentityWarnings(
-	context.Context,
-) ([]facts.Envelope, error) {
-	s.warningCalls++
-	return append([]facts.Envelope(nil), s.warnings...), s.warningErr
-}
-
-func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageSLSAFacts(
-	context.Context,
-) ([]facts.Envelope, error) {
-	s.slsaActiveCall++
-	return append([]facts.Envelope(nil), s.slsaActive...), nil
-}
-
-func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageCIFacts(
-	_ context.Context,
-	ownerRepositoryID string,
-) ([]facts.Envelope, error) {
-	s.ciActiveCall++
-	s.ciActiveOwnerRepositoryIDs = append(s.ciActiveOwnerRepositoryIDs, ownerRepositoryID)
-	return append([]facts.Envelope(nil), s.ciActive...), nil
-}
-
 // recordingContainerImageIdentityWriter is a trimmed local copy of
 // internal/reducer/containerimage's own fixture. The upstream version also
 // sets ContainerImageIdentityWriteResult's package-private
 // effectiveDecisions/effectiveProjectionPresent fields to feed the graph
 // projection path; this package cannot reach those unexported fields across
 // the package boundary, and its own callers (defaults_test.go,
-// supply_chain_impact_repository_anchor_ci_run_test.go) construct this only
+// repository_anchor_ci_run_test.go) construct this only
 // as a zero-value stand-in and never inspect the returned result, so the
 // simpler CanonicalWrites-only result is equivalent for their purposes.
 type recordingContainerImageIdentityWriter struct {

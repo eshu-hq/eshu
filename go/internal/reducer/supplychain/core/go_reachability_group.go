@@ -1,0 +1,102 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package core
+
+import (
+	"sort"
+	"strings"
+)
+
+func groupGoModuleEvidence(rows []goModuleEvidenceRow) map[string][]goModuleEvidenceRow {
+	out := make(map[string][]goModuleEvidenceRow, len(rows))
+	for _, row := range rows {
+		key := row.repositoryID + "\x00" + strings.ToLower(row.modulePath)
+		out[key] = append(out[key], row)
+	}
+	return out
+}
+
+func groupGoReachability(rows []goReachabilityRow) map[string][]goReachabilityRow {
+	out := make(map[string][]goReachabilityRow, len(rows))
+	for _, row := range rows {
+		key := row.repositoryID + "\x00" + row.osvID
+		out[key] = append(out[key], row)
+	}
+	return out
+}
+
+func goReachabilityRowsForModule(rows []goReachabilityRow, modulePath string) []goReachabilityRow {
+	modulePath = strings.ToLower(strings.TrimSpace(modulePath))
+	if modulePath == "" {
+		return nil
+	}
+	out := make([]goReachabilityRow, 0, len(rows))
+	for _, row := range rows {
+		if strings.ToLower(strings.TrimSpace(row.deepestModule)) != modulePath {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func groupGoAdvisoryByModule(rows []goAffectedPackageRow) map[string][]string {
+	out := make(map[string][]string, len(rows))
+	seen := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		key := strings.ToLower(row.modulePath)
+		dedupKey := key + "\x00" + row.osvID
+		if _, ok := seen[dedupKey]; ok {
+			continue
+		}
+		seen[dedupKey] = struct{}{}
+		out[key] = append(out[key], row.osvID)
+	}
+	for key := range out {
+		sort.Strings(out[key])
+	}
+	return out
+}
+
+func selectGoModuleEvidence(rows []goModuleEvidenceRow) goModuleEvidenceRow {
+	if len(rows) == 1 {
+		return rows[0]
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].replacementPath != rows[j].replacementPath {
+			return rows[i].replacementPath != ""
+		}
+		if rows[i].indirect != rows[j].indirect {
+			return !rows[i].indirect
+		}
+		if rows[i].lineNumber != rows[j].lineNumber {
+			return rows[i].lineNumber < rows[j].lineNumber
+		}
+		return rows[i].factID < rows[j].factID
+	})
+	return rows[0]
+}
+
+func selectGoReachability(rows []goReachabilityRow) goReachabilityRow {
+	sort.SliceStable(rows, func(i, j int) bool {
+		pi := goReachabilityLevelPriority(rows[i].level)
+		pj := goReachabilityLevelPriority(rows[j].level)
+		if pi != pj {
+			return pi < pj
+		}
+		if rows[i].deepestPackage != rows[j].deepestPackage {
+			return rows[i].deepestPackage < rows[j].deepestPackage
+		}
+		return rows[i].factID < rows[j].factID
+	})
+	return rows[0]
+}
+
+// The raw-payload-any trace decoder decodeGoReachabilityTrace (and its
+// decodeGoReachabilityFrames helper) was replaced by the typed contracts-seam
+// equivalent goVulnerabilityCallFramesFromTyped in
+// go_reachability_extract.go (Contract System v1
+// vulnerability_intelligence migration); every trace read now goes through
+// the typed vulnerability.go_call_reachability decode, so the raw-payload
+// path has no caller left.

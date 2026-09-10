@@ -18,6 +18,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/codeintel"
 	"github.com/eshu-hq/eshu/go/internal/reducer/maintenance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/searchvector"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -78,7 +79,7 @@ type Service struct {
 	// supply_chain_impact_canonical_winners read model reconciled with the active
 	// impact facts (#3389) via a lease-guarded periodic atomic resweep. Nil
 	// disables the maintainer.
-	SupplyChainImpactWinnersMaintainer *SupplyChainImpactWinnersMaintainer
+	SupplyChainImpactWinnersMaintainer *supplychaincore.SupplyChainImpactWinnersMaintainer
 
 	// CollectorEvidenceSummaryMaintainer keeps the collector_evidence_summary read
 	// model reconciled with the active fact set (#3466) via a lease-guarded

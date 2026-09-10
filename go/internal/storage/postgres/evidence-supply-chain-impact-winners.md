@@ -58,7 +58,7 @@ maintainer that drives it is covered below.
 ## Phase 1b maintainer (this change) — reducer side-runner
 
 `SupplyChainImpactWinnersMaintainer`
-(`go/internal/reducer/supply_chain_impact_winners_maintainer.go`) runs as a
+(`go/internal/reducer/supplychain/core/winners_maintainer.go`) runs as a
 reducer service side-runner: one resweep at startup (backfill/reconcile) and then
 on a fixed cadence (default 30s), each resweep calling `RebuildAllWinners` (the
 atomic upsert-all + delete-stale statement).
@@ -83,7 +83,7 @@ to the lease TTL; the idempotent rebuild is the backstop if the lease is lost
 mid-run — the next owner reconciles to the same state.
 
 No-Regression Evidence: maintainer logic is covered by
-`supply_chain_impact_winners_maintainer_test.go` across the replay/retry matrix:
+`winners_maintainer_test.go` across the replay/retry matrix:
 lease-acquired resweep, lease-not-acquired skip (no rebuild), rebuild-error with
 the lease still released (no held lease after error), idempotent repeated cycles
 (claim/release balanced), missing-dependency validation, and context-cancel loop

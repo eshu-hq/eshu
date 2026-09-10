@@ -307,7 +307,7 @@ func resolveContainerImageSourceRevision(ref containerImageRefEvidence) (revisio
 // (SourceRepositoryIDs only, the pre-#5810 shape) left a competing decision
 // ambiguous by source with empty provenance -- a shape
 // supplyChainImageIdentityAnchorTier/singleSupplyChainImageSourceRepositoryID
-// (supply_chain_impact_anchor_tier.go) resolve to nothing, blanking the
+// (anchor_tier.go) resolve to nothing, blanking the
 // supply-chain finding's RepositoryID (the live B-7 golden-corpus gate
 // failure "mcp:list_supply_chain_impact_findings: result item missing
 // required field \"repository_id\"").

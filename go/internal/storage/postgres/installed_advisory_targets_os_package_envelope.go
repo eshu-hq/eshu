@@ -34,7 +34,7 @@ import (
 // already imports both internal/workflow and internal/facts (and
 // internal/reducer, in other files, e.g. accepted_generation.go), so the
 // target->envelope bridge lives here instead of in the reducer's own load
-// stage (go/internal/reducer/supply_chain_impact_os_package_advisory_load.go),
+// stage (go/internal/reducer/supplychain/core/os_package_advisory_load.go),
 // which declares its FactLoader-satisfying interface using only leaf types
 // (context.Context, []string, int, []facts.Envelope) that this method's
 // signature matches structurally.
@@ -70,7 +70,7 @@ func (s FactStore) ListOSPackageAdvisoryFactEnvelopes(
 // sdk/go/factschema/vulnerability/v1/os_package.go) — plus the optional
 // purl/repository_class/vendor_advisory_source fields the reducer's
 // supply-chain-impact matcher reads
-// (go/internal/reducer/supply_chain_impact_match.go,
+// (go/internal/reducer/supplychain/core/match.go,
 // osPackageMatchesAffectedPackage). A target missing any required field, its
 // FactID, its ScopeID, or its GenerationID is skipped (ok=false) rather than
 // producing an envelope that would either dead-letter as input_invalid

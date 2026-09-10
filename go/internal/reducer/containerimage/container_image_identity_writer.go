@@ -22,7 +22,7 @@ import (
 // ContainerImageIdentityFormatImageRef is the identity_format payload value
 // this writer stamps on every published fact, marking it as the current
 // image-ref encoding. Readers such as
-// supply_chain_impact_anchor_consensus.go compare identity_format against
+// anchor_consensus.go compare identity_format against
 // this constant to prefer a v2 row over a legacy row sharing the same logical
 // key. The fact-kind constant this writer also emits,
 // reducercontract.ContainerImageIdentityFactKind, no longer lives in this file — it is now a

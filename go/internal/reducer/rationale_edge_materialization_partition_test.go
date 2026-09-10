@@ -115,7 +115,7 @@ func rationaleTestDeltaFilePaths(rows []SharedProjectionIntentRow) (map[string]s
 	paths := make(map[string]struct{})
 	hasDelta := false
 	for _, row := range rows {
-		if !payloadBool(row.Payload, "delta_projection") {
+		if !payloadcore.PayloadBool(row.Payload, "delta_projection") {
 			continue
 		}
 		hasDelta = true

@@ -27,7 +27,7 @@ const (
 	// readiness store resolves the digest through the sibling
 	// scanner_worker.analysis fact in the SAME scan scope, mirroring exactly
 	// how the reducer stamps SubjectDigest for an os_package finding
-	// (go/internal/reducer/supply_chain_impact.go). A present-but-zero count
+	// (go/internal/reducer/supplychain/core/impact.go). A present-but-zero count
 	// for an image that DID scan (see EvidenceFamilyScannerWorkerAnalysis) is
 	// a valid "no installed packages found" observation, not missing
 	// evidence.

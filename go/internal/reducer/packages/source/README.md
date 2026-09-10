@@ -57,7 +57,7 @@ sites, not inferred):
 | `container_image_identity_slsa.go` | `ExtractRepositories` |
 | `internal/reducer/servicecatalog/service_catalog_correlation_classify.go` | `CanonicalURLKey`, `ExactURLMatch` |
 | `internal/reducer/servicecatalog/service_catalog_correlation_lookup.go` | `CanonicalURLKey` |
-| `supply_chain_impact_python_reachability.go` | `RepositoryIDFromScope` |
+| `python_reachability.go` | `RepositoryIDFromScope` |
 
 Moving the whole `packagesource` family would drag the handler's ~650 lines
 along to deliver these ~65 (issue #6379, epic #6061). The two
@@ -84,6 +84,6 @@ move down or be removed, never up (see `bash scripts/verify-dirgate.sh
 across `packages/correlation/consumption.go`,
 `packages/correlation/publication.go`,
 `container_image_identity_provenance.go`,
-`container_image_identity_slsa.go`, and `supply_chain_impact_python_reachability.go`
+`container_image_identity_slsa.go`, and `python_reachability.go`
 are unchanged. Those forwarders are transitional and are deleted as their
 callers move into family subpackages.

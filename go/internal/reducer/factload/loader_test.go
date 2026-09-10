@@ -180,7 +180,7 @@ func (p *payloadValueLoader) ListFactsByKindAndPayloadValue(
 // TestLoadFactsForKindAndPayloadValueCleansValuesBeforePushDown pins that the
 // prologue's payloadcore.CleanFactFilterValues call runs before the push-down
 // query, using input shaped like the real caller
-// (supply_chain_impact_python_reachability.go), which hands the loader a
+// (python_reachability.go), which hands the loader a
 // runtime-derived repo-ID slice that is not pre-cleaned.
 func TestLoadFactsForKindAndPayloadValueCleansValuesBeforePushDown(t *testing.T) {
 	t.Parallel()

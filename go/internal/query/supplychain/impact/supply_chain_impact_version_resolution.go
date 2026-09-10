@@ -152,7 +152,7 @@ func supplyChainVersionResolutionClaim(
 // supplyChainCIDeclaredDigestContradictsFinding reports whether the
 // CI-declared artifact digest the reducer baked (issue #5469) actively
 // contradicts the finding's own subject digest -- the same contradiction
-// supplyChainDeploymentPromotesRuntimeReachability (supply_chain_impact_runtime.go)
+// supplyChainDeploymentPromotesRuntimeReachability (runtime.go)
 // already treats as decisive evidence the vulnerable artifact was NOT what
 // shipped. This can happen even for a STRONG-branch match: a deployment can
 // match through image-ref equality while its own artifact_digest genuinely

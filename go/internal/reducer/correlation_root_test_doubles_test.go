@@ -13,16 +13,17 @@ import (
 // The builders below are the staying-root twins of the same-named fixtures
 // in correlation's source_test.go (hint, repository, package, and
 // manifest builders plus boolPtr) and publication_test.go
-// (packageRegistryPackageVersionFact), kept for the supply-chain,
-// security-alert, code-import, and admission tests that stayed in the reducer
-// root when package correlation moved (#6061). Go test files cannot share
-// unexported symbols across a package boundary, so each side keeps its own
-// copy; the bodies are byte-identical by construction and must stay that way.
+// (packageRegistryPackageVersionFact), kept for the security-alert,
+// code-import, and admission tests that stayed in the reducer root when
+// package correlation moved (#6061). The moved supplychain/core suite keeps
+// its own copies in cross_scope_test_doubles_test.go.
+// Go test files cannot share unexported symbols across a package boundary, so
+// each side keeps its own copy; the bodies are byte-identical by construction
+// and must stay that way.
 
 // boolPtr is the staying-root twin of the same-named helper in
-// correlation's source_test.go, kept for the
-// staying supply-chain tests that build *bool fields without importing the
-// family package.
+// correlation's source_test.go, kept for the staying tests that build *bool
+// fields without importing the family package.
 
 func packageSourceHintFact(packageID, hintKind, normalizedURL string, observedAt time.Time) facts.Envelope {
 	return facts.Envelope{
@@ -181,8 +182,4 @@ func packageManifestDependencyFactWithMetadata(
 			"repo_name":       repositoryName,
 		},
 	}
-}
-
-func boolPtr(value bool) *bool {
-	return &value
 }

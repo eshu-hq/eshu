@@ -59,7 +59,7 @@
 // accept as an injected dependency. The handler has exactly one production
 // construction site, defaults_additive_domains_supply_chain.go, where the
 // reducer root wires correlation.ExtractSecurityAlertManifestConsumptions in;
-// supply_chain_impact_security_alert.go calls that same bridge directly rather
+// security_alert.go calls that same bridge directly rather
 // than through a builder, so it is not a construction site. The reducer root's own test
 // files exercise the real manifest-matching behavior end to end
 // (security_alert_reconciliation_lockfile_test.go,
@@ -81,7 +81,7 @@
 // helpers; and schemadecode for the sdk/go/factschema
 // security_alert.repository_alert decode seam. activeRepositoryFactLoader and
 // activePackageManifestDependencyFactLoader are declared locally rather than
-// imported (security_alert_reconciliation_handler.go): the concrete loader
+// imported (reconciliation_handler.go): the concrete loader
 // root wires into every family's handler is the one shared factload.FactLoader,
 // and Go interfaces are satisfied structurally, so it also satisfies these
 // local declarations without duplicating any logic -- the same pattern

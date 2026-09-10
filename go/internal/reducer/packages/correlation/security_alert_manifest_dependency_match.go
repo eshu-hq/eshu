@@ -16,14 +16,14 @@ import (
 // securityalert family (issue #6061). ExtractSecurityAlertManifestConsumptions
 // and securityAlertManifestConsumptionMatches moved here with package
 // consumption correlation, rather than with the rest of
-// security_alert_reconciliation.go, because they depend on
+// securityalert/reconciliation.go, because they depend on
 // ExtractPackageManifestDependencies and PackageConsumptionKeys: decode and
 // package-identity-normalization logic shared with families that have not
 // moved out of root yet (supply_chain_impact). A family subpackage may never
 // import the reducer root, so this bridge is wired into
 // securityalert.SecurityAlertReconciliationHandler at its one construction
 // site instead (defaults_additive_domains_supply_chain.go), and called
-// directly by supply_chain_impact_security_alert.go, which does not go through
+// directly by security_alert.go, which does not go through
 // a builder; see securityalert.ManifestConsumptionExtractor.
 
 // ExtractSecurityAlertManifestConsumptions matches decoded provider alerts

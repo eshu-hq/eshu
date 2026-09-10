@@ -14,7 +14,7 @@ import (
 
 // TestListActiveSupplyChainImpactFactsLoadsSuppressionScopedByLowercaseCVEIDAndPaddedPURLLive
 // is the #5466 round-3 review F-6 fix proof: scopeAnchorMatches
-// (go/internal/reducer/supply_chain_suppression_scope_match.go) compares
+// (go/internal/reducer/supplychain/core/scope.go) compares
 // scope.CVEID and scope.PURL with strings.TrimSpace + strings.EqualFold, so
 // a payload authored with different case or padding than the reducer's
 // derived filter decodes and matches in Go, but the ORIGINAL exact-match

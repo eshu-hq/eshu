@@ -28,7 +28,7 @@ ls -d go/internal/reducer/*/ | wc -l                                            
 1. **Supplychain hoist: yes.** `packages/correlation` moves FIRST so the
    dependency points at a named package, then the `supplychain` core plus
    suppression land together (the `Suppression SupplyChainSuppressionDecision`
-   struct field at `supply_chain_impact_finding.go:103` makes them one unit).
+   struct field at `finding.go:103` makes them one unit).
 2. **Compat surface (2a) + importer migration (2b); no dirgate exception.**
    (Owner answers, #6061 comment 5591291715. They supersede the ~100-110
    floor, which measured the old move-a-family-leave-a-compat-file strategy,
@@ -44,6 +44,18 @@ ls -d go/internal/reducer/*/ | wc -l                                            
    creates a new `*_compat.go` — that rule stops the moves making the
    problem worse. Rebalance buckets before any one crosses the 500-line cap
    (`compat_correlation.go` lands at 492).
+   Measured at #6061 HEAD `81a51b706` (after the value_flow rebalance, before
+   any family move): `compat_cloud.go` 369, `compat_correlation.go` 416,
+   `compat_decode.go` 347, `compat_projection.go` 417 (1,549 bucket lines).
+   The rebalance relocated the value_flow stanza byte-identical from
+   `compat_correlation.go` (492) to `compat_projection.go`, freeing
+   correlation for the incoming supplychain stanza. The supplychain move adds
+   a 50-line stanza to `compat_correlation.go` (416 -> 468 with the stanza
+   list/header updates). The move's orphan burn-down (dead forwarders whose
+   last callers moved, per the rule below) removes a further 12 net lines
+   from correlation plus 28/29/51 from cloud/decode/projection, landing the
+   buckets at 341/456/318/366 (1,481 lines; correlation keeps 44 lines of
+   headroom under the cap).
    (b) External importers migrate `reducer.X` -> owning subpackage in
    per-package batches (postgres 191, cypher 65, cmd/reducer 40,
    projector 39, materializededges 38, then the tail) under its own child
@@ -66,7 +78,7 @@ problem. `contract/` stays top-level (shared vocabulary, never a domain).
 
 | Domain | Children (existing subpackage -> child) | Root buckets landing here (non-test counts) |
 |---|---|---|
-| `supplychain/` | `core` (new: `supply_chain_impact*` INCLUDING `supply_chain_impact_finding.go` + `supply_chain_suppression*`, 67), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 |
+| `supplychain/` | `core` (new: destuttered short names INCLUDING `finding.go` + suppression story (`evaluation.go`, `decode.go`, `reasons.go`, `scope.go`) + `go_reachability*` 3, 70 — 67 at approval plus the 3 classifier files, see sequencing step 2), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 + `go_vulnerability_reachability*` 3 |
 | `packages/` | `correlation` (new: `consumption*`, `source*`, `publication.go`, `provenance_edges.go`, `writer*`, `payloads.go` + `security_alert_manifest_dependency_match.go`), `source` (2 files, renamed from `packagesourcecore` #6061) | — (family fully moved; nothing remains at root) |
 | `code/` | `call` (new: `code_call*` 52 minus the #6609 runner-stays set), `intel` (`codeintel`, 5), `taint` (`codetaint`, 11), `value` (`valueflow`, 8 + `code_value*` 2) | `code_call*` 52, `code_value*` 2 (`code_import*` 6 lives in `repodependency/import`, not here) |
 | `cloud/` | `aws/s3/logging` (`s3logsto`, 3), `aws/s3/grants` (`s3grant`, 3), `aws/ec2/instance` (`ec2instance`, 5), `aws/ec2/blockkms` (`ec2blockkms`, 4), `aws/ec2/usesprofile` (`ec2usesprofile`, 3), `aws/rds/posture` (`rdsposture`, 3), `aws/runtime` (`awscloud`, 8), `aws/core` (new: `aws_*` 7), `gcp/core` (new: `gcp_*` 6), `azure/core` (new: `azure*` 3), `inventory` (`cloudinventory` 7, `cloudasset` 3), `exposure` (`internetexposure`, 5), `multicloud` (`multicloudruntimedrift`, 3), `observability` (`obscoverage`, 11) | `aws_*` 7, `gcp_*` 6, `azure*` 3 |
@@ -153,7 +165,10 @@ lands; until then no new `*_compat.go`, ever — a family move adds a stanza
 to the matching bucket file.
 
 Root arithmetic after the compat-consolidation PR: 286 = 39 spine + 4 compat
-facade + 243 awaiting family moves and importer migration. End state ~9:
+facade + 243 awaiting family moves and importer migration. After the
+`packages/correlation` move (12 files): 274 = 39 + 4 + 231. After the
+`supplychain/core` move (70 files): 204 = 39 + 4 + 161 (dirgate row
+re-pinned 274 -> 204 with the re-derived digest in the same PR). End state ~9:
 doc.go + ~4 compat + ~4 contract surface (intent, domain, runtime,
 registry). ≤40 clears with room; no exception.
 `shared_projection*` (11) is NOT spine. Hoist trigger (exact): the first
@@ -204,11 +219,20 @@ when it disagrees. Never a new top-level package for any of them.
    no-family-dependencies boundary (`payloadcore/README.md:17-24`). It
    travels WITH the leaf into `packages/correlation`, importing the
    already-extracted `securityalert/` subpackage one-way.
-2. `supplychain` core + suppression together (67 files, explicitly
-   including `supply_chain_impact_finding.go`: suppression signatures take
+2. `supplychain` core + suppression together (70 files, explicitly
+   including `finding.go`: suppression signatures take
    `SupplyChainImpactFinding`, so moving the unit while `finding.go` stays
    is a root<->package cycle — the unit is finding+core+suppression or
    nothing; `model` leaf #6568 already merged as the stated prerequisite).
+   Count correction: 67 `supply_chain_*` non-test files at approval plus the
+   3 root-self-contained `go_vulnerability_reachability*.go` files, which the
+   move-time census showed resolve only to leaves (facts, factdecode,
+   payloadcore, schemadecode, supplychainmodel, SDK) and travel with the
+   core batch. The handler files
+   (`impact.go`, `writer.go`) travel with
+   their ~8 in-unit user files in the same PR so no batch boundary ever
+   splits a symbol from its users; external callers resolve through the
+   supply_chain_impact stanza in `compat_correlation.go` with zero edits.
 3. `code/` (45 = 52 `code_call*` minus the 7 `code_call_projection*`
    runner-stays, plus 2 `code_value*` = 47; `code_import*` travels
    separately in `repodependency/import`; the runner stay set is #6609's
@@ -283,6 +307,43 @@ are required. The telemetry-coverage rows name the new bucket-stanza
 paths with identical covering instruments (`eshu_dp_reducer_executions_total`
 / `eshu_dp_reducer_run_duration_seconds` for the owning passes,
 `eshu_dp_reducer_input_invalid_facts_total` for the quarantine surface);
+`verify-telemetry-coverage.sh` green.
+
+## Proof bar evidence: supplychain move (tree step 2)
+
+No-Regression Evidence: the 70-file unit move is package relocation with
+zero external-caller edits, so there is no runtime delta to measure —
+correctness is proven by construction plus replay. Baseline
+`origin/main 9cfb05ace`, backend go1.27.1 darwin/arm64 with the B-7
+gate's own Postgres + NornicDB stack. Measured on the branch, from
+`go/`: `go build ./...` exit 0; `go vet ./internal/reducer/...` clean;
+`gofumpt -l` clean; `go test ./internal/reducer/... -count=1` green
+(full recursive tree); `go test ./internal/payloadusage/... -count=1`
+green; doc-citations 296/296; family-dirs gate green;
+`verify-telemetry-coverage.sh` green. 148 of 179 changed paths are
+git-mv renames (similarity 60-99%; the sub-90 scores are small files
+where package-clause plus leaf-symbol requalification dominates the
+line count — line-by-line audit of every non-matching hunk shows only
+requalification swaps, test-local twins, and the touches below, no
+changed operators, thresholds, conditions, or strings). The only logic
+touches are two exhaustive case additions that spell out the pre-move
+default (empty cases, zero behavior delta) and one funlen tail
+extraction (pure code motion, identical conditions and order), all
+covered by the recursive suite; ~30 deleted compat forwarders were
+lint-unused proven with zero callers. B-7 golden-corpus gate 562 pass
+/ 0 fail (129s); B-12
+replay-coverage gate `--blocking` PASS with byte-identical report and
+reference-doc rewrites. Safe because every moved symbol resolves at
+compile time, the new compat stanza preserves every external spelling,
+no caller, query, queue, worker, or storage contract changed, and the
+moved tree imports only leaves the root already imports (no import
+cycle possible by construction).
+
+No-Observability-Change: the move adds no stage and the one new file
+outside it (`contract/workload_identity.go`, a single string constant)
+emits nothing; its coverage row cites the unchanged writer-path trio
+(`eshu_dp_postgres_query_duration_seconds`,
+`eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`).
 `verify-telemetry-coverage.sh` green.
 
 ## Restack rule (the dirgate ledger trap)

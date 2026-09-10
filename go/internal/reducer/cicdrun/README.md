@@ -185,7 +185,7 @@ shared contract, not owned by `container_image_identity` alone), and the
 moved the same way into
 `contract/ci_cd_run_correlation_environment_evidence.go`; both keep a root
 type/const alias so every existing root caller (`container_image_provenance_edges.go`,
-`supply_chain_impact_environment_evidence.go`, and their ~20 combined test
+`environment_evidence.go`, and their ~20 combined test
 callers) is unchanged. Three previously-unexported symbols
 (`cicdRunKeyFromParts`, `trimmedCICDPtr`, `cicdRunCorrelationFactKind`) and
 one method (`projectCICDWorkflowImageBuiltFromEdges`) were exported because a

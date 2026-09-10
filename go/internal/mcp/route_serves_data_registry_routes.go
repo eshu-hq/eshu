@@ -173,7 +173,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 				StoreType:  "SupplyChainImpactFindingStore",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/supplychain/impact/supply_chain_impact_findings_queries.go", Marker: "reducer_supply_chain_impact_finding"},
-					{File: "go/internal/reducer/supply_chain_impact_writer.go", Marker: "ReducerSupplyChainImpactFindingFactKind"},
+					{File: "go/internal/reducer/supplychain/core/writer.go", Marker: "ReducerSupplyChainImpactFindingFactKind"},
 				},
 			},
 		},

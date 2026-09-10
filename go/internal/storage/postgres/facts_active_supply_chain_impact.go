@@ -65,7 +65,7 @@ WHERE fact.fact_kind IN (
   -- reachability branch further down, and that branch cannot match unless
   -- $10 (FileRepositoryIDs) is non-empty. $10 is populated only when an
   -- affected package is npm-ecosystem (npmAffectedPackages,
-  -- go/internal/reducer/supply_chain_impact_active_filter.go), so for a
+  -- supplychain/core/active_filter.go), so for a
   -- Maven/PyPI/Go/OS-package intent every 'file' row in every active scope
   -- was read and its payload detoasted once per ungated identity predicate
   -- below -- roughly thirteen full detoasts per file fact -- to produce no
@@ -93,7 +93,7 @@ WHERE fact.fact_kind IN (
       -- fallback left for package_id/purl/cve_id/subject_digest/
       -- repository_id under "scope" -- $13-$17 fully supersede them, added
       -- for #5466 round-3 review F-6: scopeAnchorMatches
-      -- (go/internal/reducer/supply_chain_suppression_scope_match.go)
+      -- (supplychain/core/scope.go)
       -- compares every vulnerability.suppression scope anchor with
       -- strings.TrimSpace + strings.EqualFold, so a payload of
       -- {"cve_id":"cve-2026-1234"} (lowercase) or a whitespace-padded purl

@@ -19,7 +19,7 @@
 // container_image_identity_slsa.go reads only ExtractRepositories;
 // service_catalog_correlation_classify.go and
 // service_catalog_correlation_lookup.go read only CanonicalURLKey; and
-// supply_chain_impact_python_reachability.go reads only
+// python_reachability.go reads only
 // RepositoryIDFromScope. A family move would drag the handler's ~650 lines
 // along to deliver these ~65 (issue #6379, epic #6061).
 package source

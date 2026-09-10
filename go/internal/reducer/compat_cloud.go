@@ -25,7 +25,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
-	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // Stanza: aws_cloud_family_compat.go (merged; do not recreate this file).
@@ -204,23 +203,6 @@ func digestFromImageRef(raw string) string {
 	return containerimage.DigestFromImageRef(raw)
 }
 
-// containerImageIdentityFormatImageRef forwards to
-// [containerimage.ContainerImageIdentityFormatImageRef].
-// internal/reducer/supply_chain_impact_anchor_consensus.go still compares
-// identity_format against this constant to prefer a v2 row over a legacy row
-// sharing the same logical key; that family has not moved out of root
-// (#6061).
-const containerImageIdentityFormatImageRef = containerimage.ContainerImageIdentityFormatImageRef
-
-// ociRepositoryID forwards to [payloadcore.OCIRepositoryID]. It was a
-// one-line forwarder inside the container-image-identity family before that
-// family moved to [containerimage] (#6061); the still-in-root
-// supply_chain_impact_active_filter.go depends on it under this unqualified
-// spelling.
-func ociRepositoryID(payload map[string]any) string {
-	return payloadcore.OCIRepositoryID(payload)
-}
-
 // containerImageBuiltFromRows forwards to
 // [containerimage.ContainerImageBuiltFromRows].
 // provenance_edges_bench_test.go and container_image_identity_slsa_test.go
@@ -242,16 +224,6 @@ const containerImageBuiltFromProvenanceEvidenceSource = containerimage.Container
 // containerImageDerivedFromProvenanceEvidenceSource forwards to
 // [containerimage.ContainerImageDerivedFromProvenanceEvidenceSource].
 const containerImageDerivedFromProvenanceEvidenceSource = containerimage.ContainerImageDerivedFromProvenanceEvidenceSource
-
-// containerImageIdentityPayload forwards to
-// [containerimage.ContainerImageIdentityPayload].
-func containerImageIdentityPayload(
-	write ContainerImageIdentityWrite,
-	decision ContainerImageIdentityDecision,
-	canonicalID string,
-) map[string]any {
-	return containerimage.ContainerImageIdentityPayload(write, decision, canonicalID)
-}
 
 // containerimage re-declares the root GraphQueryRunner locally rather than
 // importing it, because a family package must not import the reducer root and

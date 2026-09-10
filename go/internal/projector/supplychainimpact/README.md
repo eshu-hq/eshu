@@ -20,7 +20,7 @@ reducer-intent value. The root `internal/projector` package validates
 scope-generation boundaries, constructs and owns the immutable fact lookup,
 preserves family order, and owns projection lifecycle, queue writes,
 retries, and telemetry. The reducer's `DomainSupplyChainImpact` handler
-(`go/internal/reducer/supply_chain_impact.go`) owns the cross-source join
+(`go/internal/reducer/supplychain/core/impact.go`) owns the cross-source join
 that resolves affected packages, deployment/environment evidence read
 through `crossscope.dependencyCatalog`'s `ci_cd_run_correlation` link, and
 the durable finding write; none of that happens here.

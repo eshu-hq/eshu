@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/multicloudruntimedrift"
 	"github.com/eshu-hq/eshu/go/internal/reducer/securityalert"
+	supplychaincore "github.com/eshu-hq/eshu/go/internal/reducer/supplychain/core"
 	"github.com/eshu-hq/eshu/go/internal/reducer/tfconfigstate"
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 )
@@ -193,7 +194,7 @@ type SupplyChainSecurityHandlers struct {
 
 	// SupplyChainImpactWriter persists vulnerability impact findings with
 	// explicit package, SBOM, image, and repository evidence paths.
-	SupplyChainImpactWriter SupplyChainImpactWriter
+	SupplyChainImpactWriter supplychaincore.SupplyChainImpactWriter
 
 	// SecurityAlertReconciliationWriter persists provider alert comparison
 	// state without promoting provider alerts into impact truth.

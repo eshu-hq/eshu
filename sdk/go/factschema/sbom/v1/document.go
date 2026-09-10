@@ -108,7 +108,7 @@ type Document struct {
 // always sets it, and it is the reducer's join key back to the owning
 // Document (index.components keyed by DocumentID) AND the supply-chain
 // impact index's join key
-// (supplyChainSBOMComponentFromEnvelope/supply_chain_impact_index.go). A
+// (supplyChainSBOMComponentFromEnvelope/supplychain/core/index.go). A
 // component whose document_id is absent could never join to its document or
 // contribute impact evidence, so this is the one field worth a decode-time
 // guarantee rather than a silent empty-string join failure. PURL, CPE,

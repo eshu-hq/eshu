@@ -380,27 +380,6 @@ const (
 	// every existing unqualified use in this package keeps compiling unchanged --
 	// container_image_identity_writer.go and its callers.
 	containerImageIdentityFactKind = reducercontract.ContainerImageIdentityFactKind
-	// sbomAttestationAttachmentFactKind aliases the exported contract constant
-	// so every existing unqualified use in this package keeps compiling
-	// unchanged -- the supply_chain_impact family's EvidencePath construction
-	// and active-fact-kind switches. See
-	// [reducercontract.SBOMAttestationAttachmentFactKind]: the
-	// sbom_attestation_attachment family itself moved to
-	// internal/reducer/sbomattest (#6061) and imports contract directly.
-	sbomAttestationAttachmentFactKind = reducercontract.SBOMAttestationAttachmentFactKind
-	// platformMaterializationFactKind aliases the exported contract constant so
-	// the supply-chain-impact index, its active-fact-kind filter and its runtime
-	// evidence walk keep their unqualified spelling. The deployment_mapping
-	// writer that publishes the kind moved to internal/reducer/platformfam
-	// (#6061) and names the contract constant directly.
-	platformMaterializationFactKind = reducercontract.PlatformMaterializationFactKind
-	// serviceCatalogCorrelationFactKind aliases the exported contract constant
-	// so the supply-chain-impact index, its active-fact-kind filter, and its
-	// missing-evidence/runtime/security-alert-scope walks keep their
-	// unqualified spelling. The service-catalog-correlation writer that
-	// publishes the kind moved to internal/reducer/servicecatalog (#6061) and
-	// names the contract constant directly.
-	serviceCatalogCorrelationFactKind = reducercontract.ServiceCatalogCorrelationFactKind
 )
 
 const (

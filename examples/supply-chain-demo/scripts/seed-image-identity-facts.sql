@@ -181,7 +181,7 @@ ON CONFLICT (fact_id) DO NOTHING;
 -- 3c. sbom.component — the synthetic vulnerable component. purl
 --     pkg:npm/synthetic-vulnerable-npm@1.0.0 is the join key to the advisory's
 --     affected package (componentMatchesAffectedPackage in
---     go/internal/reducer/supply_chain_impact_match.go matches on purl). The
+--     supplychain/core/match.go matches on purl). The
 --     shared document_id links the component to the document/attachment.
 -- ----------------------------------------------------------------------------
 INSERT INTO fact_records (
@@ -239,7 +239,7 @@ ON CONFLICT (fact_id) DO NOTHING;
 -- ----------------------------------------------------------------------------
 -- 3e. vulnerability.cve — the synthetic advisory identity. Fields mirror
 --     supplyChainCVEFromEnvelope in
---     go/internal/reducer/supply_chain_impact_match.go (cve_id, advisory_id,
+--     supplychain/core/match.go (cve_id, advisory_id,
 --     source, cvss_score, severity_label).
 -- ----------------------------------------------------------------------------
 INSERT INTO fact_records (
