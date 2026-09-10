@@ -125,12 +125,14 @@ So an owner running the authoritative profile — `eshu graph start`, or
 `eshu-reducer` and `eshu-ingester`. Started at the default pool, with a
 `vuln-scan` invoked at `ESHU_POSTGRES_MAX_OPEN_CONNS=60`, it demands at least
 `2 * 30 + 2 * 60 + 20 = 200` against a server fixed at 170, and `260` once an
-`eshu mcp` session attaches from that same shell and takes the 60 too. A plain
-`eshu local-host watch` owner defaults to the lightweight profile and holds only
-`eshu-ingester`, so the same scenario lands on `1 * 30 + 2 * 60 + 20 = 170` —
-exactly the ceiling, and the exhaustion appears one holder later. Export the knob
-before starting the owner, and keep it consistent across every process that
-attaches to it.
+`eshu mcp` session attaches from that same shell and takes the 60 too.
+
+That is the configuration to size for, and the only one where this divergence
+arises: `eshu vuln-scan repo` requires the authoritative profile — it refuses to
+attach to a lightweight owner, and pins the profile when it starts one itself —
+so a plain `eshu watch .` never reaches the two-holder `vuln-scan` shape. Export
+the knob before starting the owner, and keep it consistent across every process
+that attaches to it.
 
 If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because
