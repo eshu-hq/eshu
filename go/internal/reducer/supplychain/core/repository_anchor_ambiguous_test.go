@@ -21,7 +21,7 @@ import (
 // repositories must not accidentally match either.
 //
 // Split into its own file (rather than
-// supply_chain_impact_repository_anchor_test.go, where the other #5464
+// repository_anchor_test.go, where the other #5464
 // repository-anchor tests and the shared
 // containerImageIdentityImpactFactWithSourceRepositoryIDs helper live) to
 // keep both files under the repo's 500-line cap.

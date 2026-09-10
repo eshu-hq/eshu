@@ -11,7 +11,7 @@ import (
 )
 
 // This file holds fixture-builder and assertion helpers for
-// supply_chain_impact_version_match_test.go, split out to keep both files
+// version_match_test.go, split out to keep both files
 // under the repo's 500-line cap.
 
 // vulnerabilityAffectedPackageMavenRangeFact builds a

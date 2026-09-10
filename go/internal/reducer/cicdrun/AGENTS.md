@@ -98,7 +98,7 @@ the new field.
 Adding a new outcome or changing `CICDRunCorrelationDecision`'s shape: update
 `cicdRunCorrelationPayload` (`ci_cd_run_correlation_writer.go`) so the
 published fact payload carries it, and check
-`supply_chain_impact_evidence_load.go` / `supply_chain_impact_runtime.go`
+`evidence_load.go` / `runtime.go`
 (reducer root) for a consumer that reads the field by string key off that
 payload — those are not type-checked against this package's struct.
 

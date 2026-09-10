@@ -88,7 +88,7 @@ uses; the reducer's existing claim/queue instrumentation is untouched.
   (`sdk/go/factschema/schema/scanner_worker.analysis.v1.schema.json`) has no
   CVE or package reference field — a real reducer forms that join through
   richer evidence-path machinery, not a flat payload field
-  (`go/internal/reducer/supply_chain_impact.go`). This fixture adds two
+  (`go/internal/reducer/supplychain/core/impact.go`). This fixture adds two
   additional (schema-legal: `additionalProperties: true`) fields,
   `linked_cve_id` and `linked_purl`, solely to give this credential-free,
   in-memory ordering fixture a cross-hook join. This does not claim
@@ -96,7 +96,7 @@ uses; the reducer's existing claim/queue instrumentation is untouched.
 - `vulnerability.suppression` has no committed JSON Schema (confirmed: no
   `sdk/go/factschema/schema/vulnerability.suppression*.json` file exists);
   its payload keys come from the reducer decode seam
-  (`go/internal/reducer/supply_chain_suppression_decode.go`) per the assigned
+  (`go/internal/reducer/supplychain/core/suppression_decode.go`) per the assigned
   design. This fixture repurposes `evidence_ref` (a generic evidence
   reference) to carry the suppressed finding's `target_locator_hash`.
 

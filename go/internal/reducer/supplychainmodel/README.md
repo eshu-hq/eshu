@@ -157,6 +157,6 @@ required-metric set is unchanged at 395 entries.
 ## Related docs
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
-- `go/internal/reducer/supply_chain_impact_index.go` — the orchestration functions that read these DTOs
+- `go/internal/reducer/supplychain/core/index.go` — the orchestration functions that read these DTOs
 - `docs/internal/design/package-restructure.md` — the #6061 restructure this hoist is part of
 - `docs/public/observability/telemetry-coverage.md` — the coverage rows for these files

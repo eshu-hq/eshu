@@ -62,7 +62,7 @@ of that boundary, not because anyone chose to duplicate them for style:
   `supplyChainImpactFindingEnvelope`, and
   `securityAlertEnvelopeMissingRepositoryID` for `supply_chain_impact`'s own
   tests and the root-side scoping test below.
-- `supply_chain_impact_security_alert_scope_test.go` (root) tests
+- `security_alert_scope_test.go` (root) tests
   `supplyChainImpactUsesSecurityAlertScope`, a `supply_chain_impact`-owned
   root function this package cannot import, using
   `securityalert.ExtractProviderSecurityAlerts`/
@@ -117,7 +117,7 @@ non-versioned pieces this package's writer test uses — the same pattern
   stand-in that could silently diverge from production behavior.
 - Do not change `SecurityAlertReconciliationDecision`'s field set casually.
   Outside this package it is named by the reducer root's
-  `supply_chain_impact_manifest_dependency.go` and lockfile test, and by
+  `manifest_dependency.go` and lockfile test, and by
   `internal/replay/costcounting`'s cost test. `internal/storage/postgres`
   imports this package but names `SecurityAlertReconciliationFactFilter`, a
   different type, and nothing under `internal/query` imports it at all --

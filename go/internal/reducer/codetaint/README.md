@@ -100,7 +100,7 @@ rule. Go interfaces are satisfied structurally, so the same concrete
 implementations `cmd/reducer` wires into root's other families also satisfy
 these local declarations with no logic duplicated. `derefFloat64` is
 similarly kept as a small local unexported copy (root's version,
-`supply_chain_impact_match.go`, is real logic for the unrelated
+`match.go`, is real logic for the unrelated
 `vulnerability.cve` domain — not worth a leaf-package hoist for one 4-line
 nil-guard).
 
@@ -161,7 +161,7 @@ were hoisted to `payloadcore` (alongside the existing `DerefBool`/
 `internal/reducer` root (`defaults_handlers.go`,
 `defaults_additive_domains_incident_code.go`,
 `code_value_flow_stale_cleanup_runner.go`,
-`value_flow_fixpoint_evidence_loader.go`, `supply_chain_impact_match.go`) —
+`value_flow_fixpoint_evidence_loader.go`, `match.go`) —
 was updated to the qualified `codetaint.` symbol in the same commit.
 Measured against baseline `86daa9eee` on `feat/6061-codetaint` (based on
 `feat/6061-generationcheck`): from `go/`, with `GOROOT` unset and `GOCACHE`

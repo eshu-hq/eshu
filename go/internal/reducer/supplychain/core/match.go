@@ -20,7 +20,7 @@ import (
 // (supplyChainCVEFromEnvelope, supplyChainAffectedPackageFromEnvelope,
 // canonicalSupplyChainAffectedPackageID, supplyChainAffectedProductFromEnvelope,
 // supplyChainAffectedRangesFromTyped, supplyChainAffectedRangeEventsFromTyped,
-// supplyChainOSPackageFromEnvelope) live in supply_chain_impact_typed_decode.go
+// supplyChainOSPackageFromEnvelope) live in typed_decode.go
 // (split out to keep this file under the repo's 500-line cap).
 
 func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) (supplychainmodel.PackageConsumption, error) {
@@ -89,7 +89,7 @@ func supplyChainAttachmentFromEnvelope(envelope facts.Envelope) supplychainmodel
 }
 
 // supplyChainImageIdentityFromEnvelope, singleSupplyChainImageSourceRepositoryID,
-// and singleSupplyChainRepositoryID live in supply_chain_impact_anchor_tier.go
+// and singleSupplyChainRepositoryID live in anchor_tier.go
 // (split out to keep this file under the repo's 500-line cap).
 
 func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplychainmodel.WorkloadContext {

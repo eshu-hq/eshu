@@ -22,7 +22,7 @@ import (
 // particular mixes this genuinely-paired source with
 // reducer_workload_identity's workload IDs, which have no known service at
 // all. suppressionServiceWorkloadPairMatches
-// (supply_chain_suppression_scope_match.go) uses this to verify a
+// (suppression_scope_match.go) uses this to verify a
 // suppression scoped by BOTH workload_id and service_id names a combination
 // that actually co-occurred, rather than two independently-true list
 // memberships that never occurred together.

@@ -121,7 +121,7 @@ func singleSupplyChainRepositoryID(repositoryIDs []string) string {
 // #5464 layer 2). The producer writes one canonical decision fact per
 // triggering scope/ref with no per-digest canonicalization, so one digest can
 // carry many rows -- this corpus alone has 16 for one digest -- and unlike
-// the scannerAnalyses last-write-wins case in supply_chain_impact_index_build.go
+// the scannerAnalyses last-write-wins case in index_build.go
 // (safe because a content-addressed digest is identical across every writer,
 // so any winner is equally correct), these rows can DISAGREE on
 // source_repository_ids: fifteen rows here carry exactly one repository, one
@@ -149,7 +149,7 @@ func singleSupplyChainRepositoryID(repositoryIDs []string) string {
 // about the underlying evidence changed -- see issue #5887, where this
 // bare function's tie-break was exactly that failure mode.
 //
-// preferSupplyChainImageIdentityConsensus (supply_chain_impact_anchor_consensus.go)
+// preferSupplyChainImageIdentityConsensus (anchor_consensus.go)
 // is the run-stable replacement bestSupplyChainImageIdentitiesByDigest and
 // addSupplyChainImpactIndexEntry actually use: it defers to this function
 // for the tier check and for any same-repository or unresolved-repository
@@ -239,7 +239,7 @@ func preferSupplyChainImageIdentity(existing, candidate supplyChainImageIdentity
 // provenance) depends on tier A's priority holding even when tier A's own
 // evidence is thin. See
 // TestPreferSupplyChainImageIdentityAcceptedLimitationLoneDeployRowBeatsBuildProvenanceRow
-// in supply_chain_impact_index_build_test.go for the pinned regression.
+// in index_build_test.go for the pinned regression.
 // Changing tier A to require multi-writer corroboration (rather than mere
 // singleton-ness of sourceRepositoryIDs) is a deliberate semantic decision
 // that needs owner sign-off before it changes behavior here -- it is not an
@@ -265,7 +265,7 @@ func supplyChainImageIdentityAnchorTier(row supplyChainImageIdentity) int {
 // (#5887; see that function's doc for why the bare factID tie-break alone is
 // not run-stable). Exposed as its own batch helper (rather than inlined into
 // addSupplyChainImpactIndexEntry's per-envelope case in
-// supply_chain_impact_index_build.go) so any future consumer that needs the
+// index_build.go) so any future consumer that needs the
 // same digest-to-repository resolution over a whole envelope batch can reuse
 // this exact tie-break instead of re-deriving it.
 func bestSupplyChainImageIdentitiesByDigest(envelopes []facts.Envelope) map[string]supplyChainImageIdentity {

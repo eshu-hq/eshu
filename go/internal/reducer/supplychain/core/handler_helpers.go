@@ -90,7 +90,7 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 // facts arrive from the active-evidence SQL stage carrying their own
 // scan-target ScopeID — a different scope than the intent's
 // vulnerability-intelligence scope (see classifySupplyChainImpactPackage in
-// supply_chain_impact_index.go and supplychainmodel.ScopeGenerationKey for
+// index.go and supplychainmodel.ScopeGenerationKey for
 // the join this feeds). This cap keeps a pathological generation with an unbounded
 // number of distinct scan targets from turning the sibling load into
 // unbounded per-intent fan-out.
@@ -203,7 +203,7 @@ const maxSupplyChainImpactResolvedDigestLoads = maxSupplyChainImpactScannerAnaly
 // reducer_container_image_identity for a pure OS-package finding was never
 // loaded, finding.RepositoryID stayed empty, and every downstream
 // repository-keyed join (matchingSupplyChainWorkloads/DeploymentLanes/Services
-// in supply_chain_impact_runtime.go) early-returned nil for that finding. This
+// in runtime.go) early-returned nil for that finding. This
 // stage is purely ADDITIVE — it does not reorder or replace the earlier
 // stage, which still resolves whatever digests, package IDs, or CVE IDs were
 // already known at that point.

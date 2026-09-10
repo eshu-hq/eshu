@@ -126,7 +126,7 @@ a forgotten registration, and failing open there commits every lockfile-only
 alert as `provider_only` with no error and no counter. The handler has exactly
 one production construction site,
 `defaults_additive_domains_supply_chain.go:66`, and the reducer root wires its
-own concrete implementation there. `supply_chain_impact_security_alert.go` is
+own concrete implementation there. `security_alert.go` is
 not a construction site: it calls the same bridge function directly, without
 going through a builder. Root keeps its own tests for the
 real matching behavior
@@ -159,10 +159,10 @@ for the same value. Each bullet below says which:
   `internal/reducer/codetaint/graph_ports.go` established.
 - `packageNameFromPURL` / `packageNameFromPackageID`
   (`security_alert_reconciliation.go`) mirror
-  `supply_chain_impact_manifest_dependency.go`: pure purl/package-ID string
+  `manifest_dependency.go`: pure purl/package-ID string
   parsing with no further dependency.
 - `securityAlertDependencyScope` / `securityAlertPayloadBoolPointer`
-  (`security_alert_reconciliation.go`) are `supply_chain_impact_match.go`'s
+  (`security_alert_reconciliation.go`) are `match.go`'s
   former `supplyChainDependencyScope` / `payloadBoolPointer`: short payload
   fallbacks this family was the only caller of, so the root copies are deleted
   in the same change rather than left dead.
@@ -171,11 +171,11 @@ for the same value. Each bullet below says which:
   `package_source_correlation_handler.go`'s `hasPackageSourceRepositoryFact`
   under a family-scoped name: a short envelope-kind scan. Root keeps its
   own copy: two root callers still use it
-  (`package_source_correlation_handler.go`, `supply_chain_impact_repository.go`).
+  (`package_source_correlation_handler.go`, `repository.go`).
 - `securityAlertConsumptionEvidenceKind`, `exactConsumptionDependencyVersion`,
   `exactManifestDependencyVersion`, and `nonVersionDependencyPrefix`
   (`security_alert_reconciliation_observed_version.go`) mirror
-  `supply_chain_impact_security_alert.go` and `supply_chain_impact_ranges.go`
+  `security_alert.go` and `ranges.go`
   (which holds all three version helpers): pure version-string and
   evidence-kind-fallback logic with no reducer-root state. Only
   `exactConsumptionDependencyVersion` is re-parameterised, to the three

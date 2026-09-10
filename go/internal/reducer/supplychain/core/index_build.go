@@ -215,5 +215,5 @@ func addSupplyChainImpactIndexEntry(
 
 // preferSupplyChainImageIdentity, supplyChainImageIdentityAnchorTier, and
 // bestSupplyChainImageIdentitiesByDigest live in
-// supply_chain_impact_anchor_tier.go (split out to keep this file under the
+// anchor_tier.go (split out to keep this file under the
 // repo's 500-line cap).

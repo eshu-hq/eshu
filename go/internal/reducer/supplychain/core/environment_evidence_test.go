@@ -23,7 +23,7 @@ const (
 )
 
 // cicdRunCorrelationImpactFactWithEvidence extends cicdRunCorrelationImpactFact
-// (supply_chain_impact_runtime_test.go) with an explicit environment_evidence
+// (runtime_test.go) with an explicit environment_evidence
 // value, the #5425 corroboration signal #5426 reads. It never mutates the
 // existing helper's signature so every pre-#5426 caller keeps compiling
 // unchanged.

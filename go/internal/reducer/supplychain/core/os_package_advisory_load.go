@@ -82,7 +82,7 @@ func (h SupplyChainImpactHandler) loadSupplyChainImpactOSPackageAdvisoryFacts(
 // classified from every loaded vulnerability.affected_package fact, in sorted
 // order. These are the SAME values classifyAffectedPackageAdvisorySource
 // derives for firstOSPackageImpactPath's own matching
-// (supply_chain_impact_match.go) — which is also exactly what the SQL
+// (match.go) — which is also exactly what the SQL
 // advisory-target reader's ecosystem column computes
 // (LOWER(COALESCE(vendor_advisory_source, distro)),
 // listOSPackageAdvisoryTargetsQuery). A raw affected_package "ecosystem"

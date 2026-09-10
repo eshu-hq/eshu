@@ -19,7 +19,7 @@ import (
 // package use) actually loads a scanner_worker.analysis fact from an
 // os_package's OWN scan scope, not the intent's scope.
 //
-// The existing stubSupplyChainImpactFactLoader in supply_chain_impact_test.go
+// The existing stubSupplyChainImpactFactLoader in impact_test.go
 // is intentionally scope-blind (ListFactsByKind ignores the scopeID/
 // generationID it is called with and always returns the same fixed slice),
 // which is exactly what let issue #5463's missing load stage go undetected:
@@ -35,7 +35,7 @@ type scanScopedSupplyChainImpactFactLoader struct {
 	// osPackageAdvisoryFactEnvelopes, when non-nil, is what
 	// ListOSPackageAdvisoryFactEnvelopes returns, letting a test prove the
 	// cross-scope os_package advisory-reader load stage
-	// (supply_chain_impact_os_package_advisory_load.go, issue #5463/#5705)
+	// (os_package_advisory_load.go, issue #5463/#5705)
 	// consumes reconstructed vulnerability.os_package envelopes from this
 	// reader instead of requiring them to arrive through
 	// ListActiveSupplyChainImpactFacts (the pre-#5705 path every other fixture
@@ -124,7 +124,7 @@ func (l *scanScopedSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts
 // vulnerability.os_package at all, so os_package supply-chain-impact findings
 // (and therefore this digest join) are inert end-to-end until os_package Handle
 // loading is wired (tracked in #5705, part of #5464). The direct-builder tests
-// in supply_chain_impact_scanner_analysis_test.go prove the classify/join logic
+// in scanner_analysis_test.go prove the classify/join logic
 // on a hand-built envelope set; this test additionally proves the load stage's
 // scope handling. Neither exercises real os_package delivery into the Handle
 // pipeline, which #5705/#5464 add.

@@ -101,7 +101,7 @@ func TestGoldenCassetteDebianOSPackageChainSynthesizesFinding(t *testing.T) {
 
 	// Enrichment: epss_score + known_exploited populate risk signals for
 	// every finding keyed on this CVE, including the os_package-backed one
-	// (applyRiskSignals, supply_chain_impact_product.go), regardless of
+	// (applyRiskSignals, product.go), regardless of
 	// which extraction path produced the finding.
 	if got.EPSSProbability != "0.87345" {
 		t.Fatalf("EPSSProbability = %q, want 0.87345 from the epss_score fact", got.EPSSProbability)
@@ -112,7 +112,7 @@ func TestGoldenCassetteDebianOSPackageChainSynthesizesFinding(t *testing.T) {
 	if !got.KnownExploited {
 		t.Fatalf("KnownExploited = false, want true from the known_exploited fact")
 	}
-	// withSupplyChainImpactPriority (supply_chain_impact_priority.go)
+	// withSupplyChainImpactPriority (priority.go)
 	// overwrites PriorityReason with the final triage-bucket sentence after
 	// applyRiskSignals sets its own interim value, so KnownExploited's
 	// effect is asserted through PriorityReasonCodes/PriorityContributions

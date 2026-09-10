@@ -257,7 +257,7 @@ func TestSupplyChainImpactFileFactCarriesNoUngatedIdentityKey(t *testing.T) {
 // to serve the JS/TS reachability branch, and that branch cannot match unless
 // $10 (FileRepositoryIDs) is non-empty. $10 is populated only for npm-ecosystem
 // affected packages (npmAffectedPackages in
-// go/internal/reducer/supply_chain_impact_active_filter.go), so without this
+// go/internal/reducer/supplychain/core/active_filter.go), so without this
 // gate every non-npm intent reads and detoasts every `file` payload in every
 // active scope for nothing.
 func TestListActiveSupplyChainImpactFactsGatesFileKindOnFileRepositoryIDs(t *testing.T) {

@@ -927,7 +927,7 @@ this same index is a different family's kind whose reducer decode wrapper
 lives in the projector package, so it also stays on raw `payloadString`
 reads here, matching the scope-discipline precedent of the GCP/Azure waves
 leaving a shared cross-family surface's raw reads alone.
-`supplyChainSBOMComponentFromEnvelope` (`supply_chain_impact_match.go`) also
+`supplyChainSBOMComponentFromEnvelope` (`match.go`) also
 reads `sbom.component` raw: it is a different reducer domain
 (`supply_chain_impact`) with zero existing quarantine plumbing of its own
 across ANY of its many vulnerability/OS-package/deployment-context kinds, so
@@ -1008,16 +1008,16 @@ existing struct dirs in `Load`; this only widens which decode seams the gate
 covers and adds no new gate mechanism.
 No-Regression Evidence (Wave 4c, vulnerability_intelligence family typed-payload
 decode, Contract System v1 #4566/#4582): `buildSupplyChainImpactIndexWithQuarantine`
-(supply_chain_impact_index_build.go) now decodes `vulnerability.cve`,
+(index_build.go) now decodes `vulnerability.cve`,
 `.affected_package`, `.affected_product`, `.os_package`, `.epss_score`, and
 `.known_exploited` fact payloads through the `sdk/go/factschema` seam
 (`supplyChainCVEFromEnvelope`, `supplyChainAffectedPackageFromEnvelope`,
 `supplyChainAffectedProductFromEnvelope`, `supplyChainOSPackageFromEnvelope` in
-`supply_chain_impact_typed_decode.go`; `decodeVulnerabilityEPSSScore`/
+`typed_decode.go`; `decodeVulnerabilityEPSSScore`/
 `decodeVulnerabilityKnownExploited` inline) instead of raw `payloadStr`/
 `payloadStrings`/`payloadBool` map lookups, mirroring the #4568 AWS migration.
 `vulnerability.go_module_evidence`/`.go_call_reachability` extraction
-(`go_vulnerability_reachability_extract.go`) and `ClassifyGoVulnerabilityReachability`
+(`go_reachability_extract.go`) and `ClassifyGoVulnerabilityReachability`
 convert the same way, gaining `extractGoModuleEvidenceRowsWithQuarantine`/
 `extractGovulncheckReachabilityRowsWithQuarantine`/
 `classifyGoVulnerabilityReachabilityWithQuarantine` counterparts. Only the eight
@@ -1068,7 +1068,7 @@ is `assignField`/`decodeAndValidate` reflection dispatch scaling with
 Attributes-free — this kind has no untyped pass-through) versus the old raw
 string-keyed map lookups, incurred TWICE per Go-ecosystem advisory fact: once
 in the main index loop and once in `extractGoAffectedPackages`
-(`go_vulnerability_reachability_extract.go`), a double-decode structure that
+(`go_reachability_extract.go`), a double-decode structure that
 predates this migration byte-for-byte (the pre-migration `extractGoAffectedPackages`
 already independently re-read the same envelopes' `payloadStr` fields a second
 time for Go-specific filtering). The typed path buys the accuracy guarantee (a
@@ -1106,7 +1106,7 @@ and an absent `*float64` field (stays nil) all decode correctly, while a
 non-numeric value fails closed with an error rather than silently zeroing the
 field.
 
-`osPackageMatchesAffectedPackage` (supply_chain_impact_match.go) is UNCHANGED
+`osPackageMatchesAffectedPackage` (match.go) is UNCHANGED
 by this migration: it still decides `vulnerability.os_package` impact purely
 by `RepositoryClass=="vendor"` plus a `VendorAdvisorySource` string match
 against the affected package's classified vendor source

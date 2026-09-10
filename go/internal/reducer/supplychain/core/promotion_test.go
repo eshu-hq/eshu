@@ -13,7 +13,7 @@ import (
 
 // Promotion behaviour for RuntimeReachability="deployed_image" (#5426). The
 // evidence vocabulary itself -- normalize, record, and the envelope decode --
-// lives in supply_chain_impact_environment_evidence_test.go, which also owns
+// lives in environment_evidence_test.go, which also owns
 // the shared fixtures these tests use.
 
 // Test 2: a branch-3-only deployment (repository + environment match, no

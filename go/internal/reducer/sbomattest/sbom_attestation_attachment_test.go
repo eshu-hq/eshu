@@ -491,7 +491,7 @@ func ociImageReferrerFact(
 
 // assertContainsString is a local copy of the reducer root's generic
 // case-insensitive containment assertion (see
-// supply_chain_impact_version_match_helpers_test.go there); it carries no
+// version_match_helpers_test.go there); it carries no
 // sbom_attestation-specific logic, so it is duplicated here rather than
 // exported cross-package for a single test-only helper.
 func assertContainsString(t *testing.T, values []string, want string) {

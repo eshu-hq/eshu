@@ -17,7 +17,7 @@ import (
 // This file holds the typed-contracts-seam extraction functions for the
 // vulnerability_intelligence family's identity-critical kinds (cve,
 // affected_package, affected_product, os_package). It is split out of
-// supply_chain_impact_match.go (the matching/scoring logic that consumes
+// match.go (the matching/scoring logic that consumes
 // these rows) to keep both files under the repo's 500-line cap.
 
 // supplyChainCVEFromEnvelope decodes one vulnerability.cve envelope through
@@ -158,7 +158,7 @@ func supplyChainAffectedRangeEventsFromTyped(events []vulnerabilityv1.AffectedRa
 // InstalledVersion decodes verbatim from installed_version_raw — reducers
 // MUST NOT compare it against an upstream advisory's fixed version; impact is
 // decided by RepositoryClass=="vendor" plus a VendorAdvisorySource string
-// match (osPackageMatchesAffectedPackage, supply_chain_impact_match.go), never
+// match (osPackageMatchesAffectedPackage, match.go), never
 // by version comparison. RepositoryClass and VendorAdvisorySource are optional
 // on the typed struct, so a present-but-empty value here (a legitimate "no
 // vendor evidence" observation) decodes to "" exactly as the pre-typing

@@ -42,7 +42,7 @@ func TestEvaluateSupplyChainSuppressionMultiAnchorScopeDoesNotMatchUnverifiedCom
 	}
 	// The finding aggregates two DISTINCT, independently sourced
 	// deployments -- applySupplyChainRuntimeContext
-	// (supply_chain_impact_runtime.go) would build exactly this shape from
+	// (runtime.go) would build exactly this shape from
 	// a repository with two reducer_ci_cd_run_correlation deployments
 	// (stage, prod) and two reducer_workload_identity workloads
 	// (workload-a, workload-b), with no fact correlating which environment

@@ -96,7 +96,7 @@ func selectGoReachability(rows []goReachabilityRow) goReachabilityRow {
 // The raw-payload-any trace decoder decodeGoReachabilityTrace (and its
 // decodeGoReachabilityFrames helper) was replaced by the typed contracts-seam
 // equivalent goVulnerabilityCallFramesFromTyped in
-// go_vulnerability_reachability_extract.go (Contract System v1
+// go_reachability_extract.go (Contract System v1
 // vulnerability_intelligence migration); every trace read now goes through
 // the typed vulnerability.go_call_reachability decode, so the raw-payload
 // path has no caller left.

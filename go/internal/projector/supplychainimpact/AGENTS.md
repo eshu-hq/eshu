@@ -9,7 +9,7 @@
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `secretsiam.BuildSecretsIAMTrustChainReducerIntent` and before
    the `security.BuildSecurityAlertReconciliationReducerIntent` probe.
-5. `go/internal/reducer/supply_chain_impact.go` for what the reducer does
+5. `go/internal/reducer/supplychain/core/impact.go` for what the reducer does
    with the intent this package enqueues: the cross-source
    vulnerability-to-package-to-deployment join and the durable finding write.
 

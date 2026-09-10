@@ -109,7 +109,7 @@ func packageSourceRepositoryFact(
 
 // stubContainerImageIdentityFactLoader is a local copy of
 // internal/reducer/containerimage's own fixture, trimmed to the surface
-// supply_chain_impact_repository_anchor_ci_run_test.go exercises. It
+// repository_anchor_ci_run_test.go exercises. It
 // satisfies factload.FactLoader plus containerimage's private cross-scope
 // loader interfaces structurally (Go interfaces are duck-typed), so the same
 // stub works as a cross-scope loader without this package
@@ -185,7 +185,7 @@ func (s *stubContainerImageIdentityFactLoader) ListActiveContainerImageCIFacts(
 // effectiveDecisions/effectiveProjectionPresent fields to feed the graph
 // projection path; this package cannot reach those unexported fields across
 // the package boundary, and its own caller
-// (supply_chain_impact_repository_anchor_ci_run_test.go) constructs this only
+// (repository_anchor_ci_run_test.go) constructs this only
 // as a zero-value stand-in and never inspects the returned result, so the
 // simpler CanonicalWrites-only result is equivalent for its purposes. Copied
 // from the reducer root's container_image_identity_root_test_doubles_test.go

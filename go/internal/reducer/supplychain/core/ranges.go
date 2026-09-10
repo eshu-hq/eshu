@@ -20,7 +20,7 @@ import (
 // supplyChainAffectedRangeEvents) were replaced by the typed contracts-seam
 // equivalents supplyChainAffectedRangesFromTyped /
 // supplyChainAffectedRangeEventsFromTyped in
-// supply_chain_impact_typed_decode.go (Contract System v1 vulnerability_intelligence
+// typed_decode.go (Contract System v1 vulnerability_intelligence
 // migration); every affected_ranges read now goes through the typed
 // vulnerability.affected_package decode, so the raw-map path has no caller
 // left.

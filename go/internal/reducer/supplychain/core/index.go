@@ -21,7 +21,7 @@ import (
 // supplychainmodel.DeploymentContext, supplychainmodel.DeploymentLaneContext,
 // supplychainmodel.WorkloadContext, supplychainmodel.ServiceContext,
 // supplychainmodel.RiskSignals) and 2 in the sibling
-// supply_chain_impact_ranges.go (supplychainmodel.AffectedRange,
+// ranges.go (supplychainmodel.AffectedRange,
 // supplychainmodel.AffectedRangeEvent) — plus the supplyChainScopeGenerationKey
 // function, now supplychainmodel.ScopeGenerationKey, all moved to
 // [supplychainmodel] (issue #6061 PR1); this file, and every other
@@ -31,7 +31,7 @@ import (
 
 // supplyChainImageIdentity, its envelope decode, and the anchor-tier ranking
 // logic that resolves it to a single repository (both row-level and
-// cross-row) live in supply_chain_impact_anchor_tier.go (split out to keep
+// cross-row) live in anchor_tier.go (split out to keep
 // this file under the repo's 500-line cap).
 
 // supplyChainImpactIndex aggregates every supply-chain-impact evidence
@@ -65,7 +65,7 @@ type supplyChainImpactIndex struct {
 }
 
 // buildSupplyChainImpactIndex and buildSupplyChainImpactIndexWithQuarantine
-// live in supply_chain_impact_index_build.go (split out to keep this file
+// live in index_build.go (split out to keep this file
 // under the repo's 500-line cap).
 
 func classifySupplyChainImpactPackage(
@@ -171,7 +171,7 @@ func classifySupplyChainImpactPackage(
 		// "oci-registry://ghcr.io/org/repo", see payloadcore.OCIRepositoryID in
 		// container_image_identity_registry.go) — a namespace disjoint from
 		// every git-source Repository entity id. matchingSupplyChainWorkloads/
-		// DeploymentLanes/Services (supply_chain_impact_runtime.go) compare
+		// DeploymentLanes/Services (runtime.go) compare
 		// finding.RepositoryID by exact equality against workload/service/
 		// deployment-lane records, which are always the git "repository:..." id
 		// (supplyChainWorkloadRepositoryID/repositoryIDFromReducerScope); an OCI

@@ -465,5 +465,5 @@ func TestMavenVersionCompareFollowsQualifierOrdering(t *testing.T) {
 
 // vulnerabilityAffectedPackageMavenRangeFact, vulnerabilityAffectedPackageMalformedRangeFact,
 // vulnerabilityAffectedPackageRawRangeFact, assertContainsString, and
-// compareSign live in supply_chain_impact_version_match_helpers_test.go
+// compareSign live in version_match_helpers_test.go
 // (split out to keep this file under the repo's 500-line cap).

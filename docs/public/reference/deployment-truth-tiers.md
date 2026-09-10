@@ -187,7 +187,7 @@ The mechanism (issue #5469 review): the reducer bakes the matched
 `cicd_run_correlation` deployment's OWN declared identity onto the finding as
 `ci_declared_artifact_digest`/`ci_declared_image_ref`
 (`bakeSupplyChainCIDeclaredArtifactIdentity`,
-`go/internal/reducer/supply_chain_impact_runtime.go`), but ONLY when that
+`go/internal/reducer/supplychain/core/runtime.go`), but ONLY when that
 deployment matched through a strong branch (its own `artifact_digest` equals
 the finding's `subject_digest`, or its own `image_ref` equals the finding's
 `image_ref`) — never the weak branch. `version_resolution_tier`'s

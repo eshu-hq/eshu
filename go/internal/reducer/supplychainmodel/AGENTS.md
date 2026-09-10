@@ -40,7 +40,7 @@ to avoid. It stays at the reducer root.
 
 **Do not move the 7 orchestration functions that stay at the root**
 (`classifySupplyChainImpactPackage` and its helpers in
-`supply_chain_impact_index.go`). This package is the type hoist only; the
+`index.go`). This package is the type hoist only; the
 family's cluster split is a later PR. The root originally had 8 such
 functions; the 8th, `supplyChainScopeGenerationKey`, was a pure
 key-derivation helper rather than orchestration logic, and it already moved

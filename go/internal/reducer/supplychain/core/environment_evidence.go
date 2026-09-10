@@ -19,7 +19,7 @@ import (
 // vocabulary verbatim rather than inventing a parallel one: reading
 // reducer_ci_cd_run_correlation is not a cross-domain join (that fact kind is
 // already in the supply-chain reducer's load set, see
-// supplyChainImpactFactKinds() in supply_chain_impact.go), and these two
+// supplyChainImpactFactKinds() in impact.go), and these two
 // states are exactly the corroboration signal issue #5426 was redefined to
 // consume after its original terraform-tag and reducer-side
 // cloud/kubernetes-join sources proved to be dead ends (#5452/PR #5790). The

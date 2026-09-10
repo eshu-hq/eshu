@@ -116,7 +116,7 @@ func securityAlertConsumptionEvidenceKind(consumption SecurityAlertConsumption) 
 
 // exactConsumptionDependencyVersion, exactManifestDependencyVersion, and
 // nonVersionDependencyPrefix declare locally rather than importing the
-// reducer root's versions (all three in supply_chain_impact_ranges.go): pure
+// reducer root's versions (all three in ranges.go): pure
 // version-string classification
 // with no reducer-root state, shared with supply_chain's own observed-version
 // resolution, which has not moved out of root yet (issue #6061).

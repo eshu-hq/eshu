@@ -7,7 +7,7 @@ package core
 // cross-scope envelopes count as "the producer answered", which filter
 // dimensions can reach a producer row at all, and which load stages the count
 // has to be taken after. The defer/no-defer behaviour these rules drive lives in
-// supply_chain_impact_cross_scope_readiness_test.go, which also carries the
+// cross_scope_readiness_test.go, which also carries the
 // shared fixtures both files use.
 //
 // This is where this consumer diverges from CICDRunCorrelationHandler, whose

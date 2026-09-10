@@ -12,11 +12,11 @@ import (
 
 // TestSupplyChainImpactFindingPrefersConsumptionRepositoryOverSBOMImageIdentity
 // is the #5780 regression guard for the SBOM path, the sibling of the #5779
-// fix for the OS-package path (supply_chain_impact_repository_anchor_test.go).
+// fix for the OS-package path (repository_anchor_test.go).
 // A finding with BOTH a per-package consumption anchor (a git "github.com/..."
 // repository) AND SBOM component/attachment/image evidence — but NO OS-package
 // evidence — must keep the consumption anchor. The SBOM branch of
-// classifySupplyChainImpactPackage (supply_chain_impact_index.go) overwrote
+// classifySupplyChainImpactPackage (index.go) overwrote
 // RepositoryID with the image's OCI registry path
 // (containerImageIdentity.repository_id), which #5463 forbids as an anchor: an
 // OCI registry path can never equal a git "repository:..." workload/service/

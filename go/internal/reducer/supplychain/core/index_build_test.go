@@ -325,7 +325,7 @@ func TestPreferSupplyChainImageIdentityBuildProvenanceBeatsFullyUnresolved(t *te
 // TestPreferSupplyChainImageIdentityAcceptedLimitationLoneDeployRowBeatsBuildProvenanceRow
 // pins an ACCEPTED LIMITATION, not desired-in-principle behavior: see
 // supplyChainImageIdentityAnchorTier's doc comment in
-// supply_chain_impact_anchor_tier.go for the full explanation.
+// anchor_tier.go for the full explanation.
 //
 // Tier A (supplyChainImageIdentityAnchorTier) only requires that a row's OWN
 // sourceRepositoryIDs is a singleton -- it does not require corroboration
@@ -340,7 +340,7 @@ func TestPreferSupplyChainImageIdentityBuildProvenanceBeatsFullyUnresolved(t *te
 // pre-#5801), preferSupplyChainImageIdentity's single "unambiguous" boolean
 // was backed by singleSupplyChainImageSourceRepositoryID, which at that time
 // reduced to the equivalent of len(sourceRepositoryIDs) == 1 (see
-// git history for supply_chain_impact_index_build.go / supply_chain_impact_match.go
+// git history for index_build.go / match.go
 // pre-#5801) -- so the lone deploy-only row was ALREADY treated as
 // unambiguous and ALREADY won over the build-provenance row in this exact
 // shape, before either #5801 or #5813 touched this code. The tier fix

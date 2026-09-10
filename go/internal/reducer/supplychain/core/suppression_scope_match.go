@@ -72,7 +72,7 @@ func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerab
 	// #5466 round-7 review P1-A, tightened by round-8 review F-2:
 	// Environment, WorkloadID, and ServiceID are flattened onto the finding
 	// as evidence lists built by applySupplyChainRuntimeContext
-	// (supply_chain_impact_runtime.go). Environment has NO shared join key
+	// (runtime.go). Environment has NO shared join key
 	// to WorkloadID/ServiceID at all (a separate fact source,
 	// reducer_ci_cd_run_correlation, correlated only by repository_id), so a
 	// scope combining Environment with either one can only be verified when

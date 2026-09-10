@@ -15,15 +15,15 @@ import (
 // TestSupplyChainImpactFindingIdentityStableAcrossAnchorFactIDDraws is the
 // #5887 finding-identity regression guard, one layer past the anchor-tier
 // fix pinned in TestPreferSupplyChainImageIdentityConsensusSurvivesUnluckyFactIDDraw
-// (supply_chain_impact_index_build_test.go).
+// (index_build_test.go).
 //
-// supplyChainImpactLogicalIdentity (supply_chain_impact_writer.go) includes
+// supplyChainImpactLogicalIdentity (writer.go) includes
 // finding.RepositoryID, and that identity map feeds BOTH
 // supplyChainImpactFindingID (a facts.StableID hash) and
 // supplyChainImpactStableFactKey (a literal colon-joined string with
 // repository_id as one of its components). finding.RepositoryID is itself
 // stamped from singleSupplyChainImageSourceRepositoryID(winner) in
-// supply_chain_impact_index.go's os_package join -- the exact winner
+// index.go's os_package join -- the exact winner
 // preferSupplyChainImageIdentityConsensus resolves.
 //
 // So the #5887 bug was never only a mislabeled anchor: when the anchor
