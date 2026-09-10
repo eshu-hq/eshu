@@ -4,129 +4,19 @@
 package query
 
 import (
-	"bytes"
 	"context"
 	"database/sql/driver"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-func TestHandleCrossRepoDeadCodeFiltersProducerLocalLiveCandidates(t *testing.T) {
-	t.Parallel()
-
-	content := &crossRepoDeadCodeIncomingContentStore{
-		crossRepoDeadCodeContentStore: &crossRepoDeadCodeContentStore{
-			fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-				fakePortContentStore: fakePortContentStore{
-					repositories: []RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
-				},
-				entities: map[string]EntityContent{
-					"producer-local-live": {
-						EntityID:     "producer-local-live",
-						RepoID:       "repo-producer",
-						RelativePath: "pkg/payments/local_live.go",
-						EntityType:   "Function",
-						EntityName:   "helper",
-						Language:     "go",
-						SourceCache:  "func helper() {}",
-					},
-				},
-			},
-			rows: []map[string]any{
-				deadCodeInvestigationRow(
-					"producer-local-live",
-					"helper",
-					"go",
-					"pkg/payments/local_live.go",
-					8,
-					12,
-				),
-			},
-			evidenceByEntity: map[string][]crossRepoDeadCodeEvidence{},
-		},
-		incoming: map[string]deadCodeIncomingEdge{
-			"producer-local-live": {
-				MaxConfidence: codeprovenance.Confidence(codeprovenance.MethodSCIP),
-				Method:        codeprovenance.MethodSCIP,
-			},
-		},
-	}
-	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Content: content, Neo4j: fakeGraphReader{}}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/code/dead-code/cross-repo",
-		bytes.NewBufferString(`{"repo_id":"repo-producer","limit":10}`),
-	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if got, want := w.Code, http.StatusOK; got != want {
-		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
-	}
-	data := decodeEnvelopeData(t, w.Body.Bytes())
-	buckets := data["candidate_buckets"].(map[string]any)
-	for _, bucket := range []string{"dead", "live_by_consumer", "unknown"} {
-		assertCrossRepoDeadCodeBucketMissing(t, buckets, bucket, "producer-local-live")
-	}
-}
-
-func TestHandleCrossRepoDeadCodeTruncatedEvidenceStaysUnknown(t *testing.T) {
-	t.Parallel()
-
-	content := &crossRepoDeadCodeContentStore{
-		fakeDeadCodeContentStore: fakeDeadCodeContentStore{
-			fakePortContentStore: fakePortContentStore{
-				repositories: []RepositoryCatalogEntry{{ID: "repo-producer", Name: "payments-lib"}},
-			},
-			entities: map[string]EntityContent{
-				"producer-missing-evidence": {
-					EntityID:     "producer-missing-evidence",
-					RepoID:       "repo-producer",
-					RelativePath: "pkg/payments/missing.go",
-					EntityType:   "Function",
-					EntityName:   "maybeLive",
-					Language:     "go",
-					SourceCache:  "func maybeLive() {}",
-				},
-			},
-		},
-		rows: []map[string]any{
-			deadCodeInvestigationRow("producer-missing-evidence", "maybeLive", "go", "pkg/payments/missing.go", 8, 12),
-		},
-		evidenceByEntity: map[string][]crossRepoDeadCodeEvidence{
-			"producer-missing-evidence": {truncatedCrossRepoDeadCodeEvidence()},
-		},
-	}
-	handler := &CodeHandler{Profile: ProfileLocalAuthoritative, Content: content, Neo4j: fakeGraphReader{}}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/code/dead-code/cross-repo",
-		bytes.NewBufferString(`{"repo_id":"repo-producer","limit":10}`),
-	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if got, want := w.Code, http.StatusOK; got != want {
-		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
-	}
-	data := decodeEnvelopeData(t, w.Body.Bytes())
-	buckets := data["candidate_buckets"].(map[string]any)
-	unknown := assertCrossRepoDeadCodeBucketEntity(t, buckets, "unknown", "producer-missing-evidence")
-	assertCrossRepoDeadCodeReason(t, unknown, "consumer_evidence_truncated")
-	assertCrossRepoDeadCodeBucketMissing(t, buckets, "dead", "producer-missing-evidence")
-}
+// Cross-repo dead-code ContentReader proofs that live in package query: they
+// drive root's ContentReader SQL builders directly, which codequery cannot
+// name without importing the root back (#6060). Split from
+// codequery/dead_code_cross_repo_review_test.go at the lane-A move; the
+// handler-level review proofs stay there.
 
 func TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTruncated(t *testing.T) {
 	t.Parallel()
@@ -187,57 +77,5 @@ func TestContentReaderCrossRepoDeadCodeEvidenceMarksMissingEntitiesUnknownWhenTr
 	}
 	if !containsAllSubstrings(recorder.queries[0], "LIMIT 1001") {
 		t.Fatalf("query missing sentinel limit:\n%s", recorder.queries[0])
-	}
-}
-
-type crossRepoDeadCodeIncomingContentStore struct {
-	*crossRepoDeadCodeContentStore
-	incoming map[string]deadCodeIncomingEdge
-}
-
-func (s *crossRepoDeadCodeIncomingContentStore) DeadCodeIncomingEntityIDs(
-	_ context.Context,
-	_ string,
-	entityIDs []string,
-) (map[string]deadCodeIncomingEdge, error) {
-	result := make(map[string]deadCodeIncomingEdge)
-	for _, entityID := range entityIDs {
-		if edge, ok := s.incoming[entityID]; ok {
-			result[entityID] = edge
-		}
-	}
-	return result, nil
-}
-
-func assertCrossRepoDeadCodeBucketMissing(
-	t *testing.T,
-	buckets map[string]any,
-	name string,
-	entityID string,
-) {
-	t.Helper()
-
-	rawRows, ok := buckets[name].([]any)
-	if !ok {
-		t.Fatalf("candidate_buckets[%s] type = %T, want []any", name, buckets[name])
-	}
-	for _, raw := range rawRows {
-		row := raw.(map[string]any)
-		if row["entity_id"] == entityID {
-			t.Fatalf("candidate_buckets[%s] unexpectedly contains entity %q: %#v", name, entityID, row)
-		}
-	}
-}
-
-func truncatedCrossRepoDeadCodeEvidence() crossRepoDeadCodeEvidence {
-	return crossRepoDeadCodeEvidence{
-		EvidenceFamily:   "code_reachability",
-		Citation:         "code_reachability_rows:truncated",
-		ConfidenceLabel:  "unknown",
-		GenerationStatus: "active",
-		NeedsEvidence:    true,
-		Reason:           "consumer_evidence_truncated",
-		RelationshipType: "REACHES",
-		ResolutionMethod: "bounded_lookup",
 	}
 }

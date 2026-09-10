@@ -1,0 +1,440 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package codequery
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"strings"
+	"sync"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+func (h *CodeHandler) handleRepoScopedOverrideStory(
+	w http.ResponseWriter,
+	r *http.Request,
+	req codemodel.RelationshipStoryRequest,
+) {
+	if strings.TrimSpace(req.RepoID) == "" {
+		WriteError(w, http.StatusBadRequest, "repo_id is required for repo-scoped overrides")
+		return
+	}
+	if relationshipStoryGrantBlocked(r.Context(), req) {
+		h.writeRelationshipStory(w, r, req, codemodel.RelationshipStoryResolution{
+			Status: "not_found",
+			RepoID: strings.TrimSpace(req.RepoID),
+		}, nil, TruthBasisContentIndex)
+		return
+	}
+	rows, sourceBackend, basis, err := h.relationshipStoryOverrideRows(r.Context(), req)
+	if err != nil {
+		if err == errSymbolBackendUnavailable {
+			WriteError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
+		if WriteGraphReadError(w, r, err, relationshipStoryCapability) {
+			return
+		}
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	resolution := codemodel.RelationshipStoryResolution{
+		Status:   "repo_scoped",
+		RepoID:   strings.TrimSpace(req.RepoID),
+		Language: strings.TrimSpace(req.Language),
+	}
+	data := relationshipStoryData(req, resolution, rows)
+	data["source_backend"] = sourceBackend
+	data["override_story"] = relationshipStoryOverrideData(req, rows)
+	markRelationshipStoryRepoOverrideCoverage(data)
+	WriteSuccess(
+		w,
+		r,
+		http.StatusOK,
+		data,
+		BuildTruthEnvelope(h.profile(), relationshipStoryCapability, basis, "resolved from bounded override story lookup"),
+	)
+}
+
+func (h *CodeHandler) relationshipStoryClassHierarchy(
+	ctx context.Context,
+	req codemodel.RelationshipStoryRequest,
+	entity *EntityContent,
+	relationships []map[string]any,
+) (map[string]any, error) {
+	var methods []map[string]any
+	var ancestorDepthRows []map[string]any
+	var descendantDepthRows []map[string]any
+	var ancestorRawCount, descendantRawCount int
+	errs := make(chan error, 3)
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+		rows, err := h.relationshipStoryClassMethods(ctx, req, entity)
+		if err != nil {
+			errs <- err
+			return
+		}
+		methods = rows
+	}()
+	go func() {
+		defer wg.Done()
+		rows, rawCount, err := h.relationshipStoryInheritanceDepthRows(ctx, req, entity, "outgoing")
+		if err != nil {
+			errs <- err
+			return
+		}
+		ancestorDepthRows, ancestorRawCount = rows, rawCount
+	}()
+	go func() {
+		defer wg.Done()
+		rows, rawCount, err := h.relationshipStoryInheritanceDepthRows(ctx, req, entity, "incoming")
+		if err != nil {
+			errs <- err
+			return
+		}
+		descendantDepthRows, descendantRawCount = rows, rawCount
+	}()
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	parents, children := splitClassHierarchyRelationships(relationships)
+	return map[string]any{
+		"methods":           relationshipStoryMethodRowsWithHandles(methods, req.NormalizedLimit()),
+		"methods_truncated": len(methods) > req.NormalizedLimit(),
+		"parents":           relationshipStoryRowsWithHandles(limitRelationshipStoryRows(parents, req.NormalizedLimit())),
+		"children":          relationshipStoryRowsWithHandles(limitRelationshipStoryRows(children, req.NormalizedLimit())),
+		"depth_summary": relationshipStoryDepthSummary(
+			ancestorDepthRows, descendantDepthRows,
+			ancestorRawCount, descendantRawCount, req.NormalizedLimit()),
+	}, nil
+}
+
+func splitClassHierarchyRelationships(rows []map[string]any) ([]map[string]any, []map[string]any) {
+	parents := make([]map[string]any, 0)
+	children := make([]map[string]any, 0)
+	for _, row := range rows {
+		if !strings.EqualFold(StringVal(row, "type"), "INHERITS") {
+			continue
+		}
+		switch StringVal(row, "direction") {
+		case "outgoing":
+			parents = append(parents, row)
+		case "incoming":
+			children = append(children, row)
+		}
+	}
+	return parents, children
+}
+
+func (h *CodeHandler) relationshipStoryClassMethods(
+	ctx context.Context,
+	req relationshipStoryRequest,
+	entity *EntityContent,
+) ([]map[string]any, error) {
+	if h == nil || h.Neo4j == nil {
+		return []map[string]any{}, nil
+	}
+	entityID := relationshipStoryEntityID(req, entity)
+	if entityID == "" {
+		return []map[string]any{}, nil
+	}
+	if h.graphBackend() == GraphBackendNornicDB {
+		return h.nornicDBRelationshipStoryClassMethods(ctx, req, entityID)
+	}
+	cypher, params := relationshipStoryClassMethodsCypher(req, entityID, graphEntityIDPredicate, codeGrantAccessFilter(ctx))
+	return h.Neo4j.Run(ctx, cypher, params)
+}
+
+func relationshipStoryClassMethodsCypher(
+	req codemodel.RelationshipStoryRequest,
+	entityID string,
+	predicate func(string, string) string,
+	access querycontract.RepositoryAccessFilter,
+) (string, map[string]any) {
+	params := map[string]any{
+		"entity_id": strings.TrimSpace(entityID),
+		"limit":     req.NormalizedLimit() + 1,
+		"offset":    req.Offset,
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
+	// Both endpoints bind: a class in grant can contain a method the projector
+	// attributed to another repository, and the method row is what ships.
+	predicates := append([]string{predicate("class", "$entity_id")},
+		relationshipStoryGrantPredicates(access, "class", "method")...)
+	return `
+		MATCH (class)-[:CONTAINS]->(method:Function)
+		WHERE ` + strings.Join(predicates, " AND ") + `
+		RETURN coalesce(method.id, method.uid) as method_id,
+		       method.name as method_name,
+		       method.path as file_path,
+		       method.start_line as start_line,
+		       method.end_line as end_line
+		ORDER BY method.name, method_id
+		SKIP $offset
+		LIMIT $limit
+	`, params
+}
+
+func (h *CodeHandler) relationshipStoryInheritanceDepthRows(
+	ctx context.Context,
+	req relationshipStoryRequest,
+	entity *EntityContent,
+	direction string,
+) ([]map[string]any, int, error) {
+	if h == nil || h.Neo4j == nil {
+		return []map[string]any{}, 0, nil
+	}
+	entityID := relationshipStoryEntityID(req, entity)
+	if entityID == "" {
+		return []map[string]any{}, 0, nil
+	}
+	if h.graphBackend() == GraphBackendNornicDB {
+		return h.nornicDBRelationshipStoryInheritanceDepthRows(ctx, req, entityID, direction)
+	}
+	cypher, params := relationshipStoryInheritanceDepthCypher(req, entityID, direction, graphEntityIDPredicate, codeGrantAccessFilter(ctx))
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	// The compat lane bounds its interior in the statement, so no row is
+	// dropped after the read and the raw count is the returned count.
+	return rows, len(rows), err
+}
+
+func relationshipStoryInheritanceDepthCypher(
+	req codemodel.RelationshipStoryRequest,
+	entityID string,
+	direction string,
+	predicate func(string, string) string,
+	access querycontract.RepositoryAccessFilter,
+) (string, map[string]any) {
+	maxDepth := normalizedRelationshipStoryMaxDepth(req.MaxDepth)
+	params := map[string]any{
+		"entity_id": strings.TrimSpace(entityID),
+		"limit":     req.NormalizedLimit() + 1,
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
+	// Endpoints and interior both bind here. This is the Neo4j-compat builder --
+	// relationshipStoryInheritanceDepthRows sends a NornicDB backend to
+	// nornicDBRelationshipStoryInheritanceDepthRows before this function is
+	// reached -- and on Neo4j all(node IN nodes(path) WHERE node.repo_id IN $ids)
+	// does evaluate, which is why the compat call-chain bounds its interior with
+	// exactly that shape (callChainPathHopPredicates, code_call_chain.go). The
+	// inertness of the list form is a fact about the pinned NornicDB build only,
+	// and it is the sibling builder that carries it and says so.
+	//
+	// The clause is rendered by the grant contract rather than written out, so a
+	// change to how it renders moves this predicate with the endpoint ones. The
+	// bare property is right: a null repo_id makes the membership test null,
+	// all() over a null yields null, and WHERE null drops the row, so an
+	// unattributable interior class still fails closed.
+	inheritancePredicates := func(anchor string) string {
+		predicates := append([]string{predicate(anchor, "$entity_id")},
+			relationshipStoryGrantPredicates(access, "source", "target")...)
+		if access.Scoped() {
+			predicates = append(predicates,
+				"all(node IN nodes(path) WHERE "+access.GraphConditionOnProperty("node", "repo_id")+")")
+		}
+		return strings.Join(predicates, " AND ")
+	}
+	if direction == "incoming" {
+		return fmt.Sprintf(`
+		MATCH path = (source:Class)-[:INHERITS*1..%d]->(target:Class)
+		WHERE %s
+		RETURN 'incoming' as direction,
+		       coalesce(source.id, source.uid) as source_id,
+		       source.name as source_name,
+		       coalesce(target.id, target.uid) as target_id,
+		       target.name as target_name,
+		       length(path) as depth
+		ORDER BY depth DESC, source.name, source_id
+		LIMIT $limit
+	`, maxDepth, inheritancePredicates("target")), params
+	}
+	return fmt.Sprintf(`
+		MATCH path = (source:Class)-[:INHERITS*1..%d]->(target:Class)
+		WHERE %s
+		RETURN 'outgoing' as direction,
+		       coalesce(source.id, source.uid) as source_id,
+		       source.name as source_name,
+		       coalesce(target.id, target.uid) as target_id,
+		       target.name as target_name,
+		       length(path) as depth
+		ORDER BY depth DESC, target.name, target_id
+		LIMIT $limit
+	`, maxDepth, inheritancePredicates("source")), params
+}
+
+func relationshipStoryEntityID(req codemodel.RelationshipStoryRequest, entity *EntityContent) string {
+	if entity != nil && strings.TrimSpace(entity.EntityID) != "" {
+		return strings.TrimSpace(entity.EntityID)
+	}
+	return strings.TrimSpace(req.EntityID)
+}
+
+func relationshipStoryMethodRowsWithHandles(rows []map[string]any, limit int) []map[string]any {
+	rows = limitRelationshipStoryRows(rows, limit)
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		item := cloneQueryAnyMap(row)
+		if methodID := StringVal(item, "method_id"); methodID != "" {
+			item["method_handle"] = "entity:" + methodID
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+// relationshipStoryDepthSummary reports the deepest inheritance hop in each
+// direction and whether the caller's page was full.
+//
+// The truncated flags are computed from ancestorsRaw/descendantsRaw -- the row
+// counts the BACKEND returned -- not from the slices beside them. On NornicDB
+// those slices have already had out-of-grant paths removed in Go
+// (nornicDBInheritanceRowsInGrant), so a page the statement filled to its
+// LIMIT of normalizedLimit()+1 can arrive here at exactly `limit` rows. Reading
+// the flag off the filtered slice would then report a full page as complete and
+// tell the caller it had seen everything while granted rows beyond the page
+// were never fetched. This is the rule the pitfalls page states for every
+// project-and-filter-in-Go read on this backend.
+//
+// The depths are read from the FILTERED rows on purpose: a depth measured
+// through a class the caller cannot read is the disclosure #6548 closed, so it
+// must not come back through this summary either.
+func relationshipStoryDepthSummary(
+	ancestors []map[string]any,
+	descendants []map[string]any,
+	ancestorsRaw int,
+	descendantsRaw int,
+	limit int,
+) map[string]any {
+	return map[string]any{
+		"max_parent_depth": maxRelationshipStoryDepth(ancestors),
+		"max_child_depth":  maxRelationshipStoryDepth(descendants),
+		"parent_truncated": ancestorsRaw > limit,
+		"child_truncated":  descendantsRaw > limit,
+	}
+}
+
+func maxRelationshipStoryDepth(rows []map[string]any) int {
+	maxDepth := 0
+	for _, row := range rows {
+		if depth := IntVal(row, "depth"); depth > maxDepth {
+			maxDepth = depth
+		}
+	}
+	return maxDepth
+}
+
+func relationshipStoryOverrideData(req codemodel.RelationshipStoryRequest, rows []map[string]any) map[string]any {
+	limit := req.NormalizedLimit()
+	overrides := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if strings.EqualFold(StringVal(row, "type"), "OVERRIDES") {
+			overrides = append(overrides, row)
+		}
+	}
+	return map[string]any{
+		"overrides": relationshipStoryRowsWithHandles(limitRelationshipStoryRows(overrides, limit)),
+		"truncated": len(overrides) > limit,
+	}
+}
+
+func limitRelationshipStoryRows(rows []map[string]any, limit int) []map[string]any {
+	if limit <= 0 {
+		return []map[string]any{}
+	}
+	if len(rows) > limit {
+		return rows[:limit]
+	}
+	return rows
+}
+
+func (h *CodeHandler) relationshipStoryOverrideRows(
+	ctx context.Context,
+	req relationshipStoryRequest,
+) ([]map[string]any, string, TruthBasis, error) {
+	if h == nil || h.Neo4j == nil {
+		return nil, "", "", errSymbolBackendUnavailable
+	}
+	cypher, params := relationshipStoryOverrideRowsCypher(req, codeGrantAccessFilter(ctx))
+	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	if err != nil {
+		return nil, "", "", err
+	}
+	return rows, "graph", TruthBasisAuthoritativeGraph, nil
+}
+
+func relationshipStoryOverrideRowsCypher(
+	req codemodel.RelationshipStoryRequest,
+	access querycontract.RepositoryAccessFilter,
+) (string, map[string]any) {
+	params := map[string]any{
+		"repo_id":         strings.TrimSpace(req.RepoID),
+		"limit":           req.NormalizedLimit() + 1,
+		"offset":          req.Offset,
+		"override_labels": relationshipStoryOverrideNodeLabels(),
+	}
+	if access.Scoped() {
+		params = access.GraphParams(params)
+	}
+	languagePredicate := ""
+	if language := strings.TrimSpace(req.Language); language != "" {
+		params["language"] = language
+		languagePredicate = `
+		  AND source.language = $language
+		  AND target.language = $language`
+	}
+	// source is already anchored through the granted repository's own File, so
+	// the grant on it is defense in depth. target is the one that was open: an
+	// OVERRIDES edge can leave the repository, and the row names the target's
+	// id, name and labels.
+	grantPredicate := ""
+	if predicates := relationshipStoryGrantPredicates(access, "source", "target"); len(predicates) > 0 {
+		grantPredicate = `
+		  AND ` + strings.Join(predicates, `
+		  AND `)
+	}
+	return `
+		MATCH (repo:Repository {id: $repo_id})-[:REPO_CONTAINS]->(file:File)-[:CONTAINS]->(source)-[rel:OVERRIDES]->(target)
+		WHERE any(label IN labels(source) WHERE label IN $override_labels)
+		  AND any(label IN labels(target) WHERE label IN $override_labels)` + languagePredicate + grantPredicate + `
+		RETURN 'outgoing' as direction,
+		       type(rel) as type,
+		       rel.reason as reason,
+		       coalesce(source.id, source.uid) as source_id,
+		       source.name as source_name,
+		       labels(source) as source_labels,
+		       coalesce(target.id, target.uid) as target_id,
+		       target.name as target_name,
+		       labels(target) as target_labels,
+		       file.relative_path as file_path
+		ORDER BY source.name, target.name, source_id, target_id
+		SKIP $offset
+		LIMIT $limit
+	`, params
+}
+
+func relationshipStoryOverrideNodeLabels() []string {
+	return []string{"Function", "Class", "Interface", "Trait", "Struct", "Enum", "Protocol"}
+}
+
+func markRelationshipStoryRepoOverrideCoverage(data map[string]any) {
+	if coverage, ok := data["coverage"].(map[string]any); ok {
+		coverage["query_shape"] = "repo_anchor_override_story"
+		coverage["relationship_types"] = []string{"OVERRIDES"}
+	}
+}

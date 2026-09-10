@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
 	pgstatus "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -114,11 +115,11 @@ func newInstrumentedPostgresStore(
 // process-local deterministic embedder so request source snippets never egress
 // on the find_code path. When semantic search is disabled the ranker is nil and
 // find_code keeps its lexical content order.
-func newCodeHybridRanker(config searchembedruntime.Config) query.CodeResultReranker {
+func newCodeHybridRanker(config searchembedruntime.Config) codemodel.CodeResultReranker {
 	if !config.Enabled {
 		return nil
 	}
-	return query.NewCodeHybridRanker(true)
+	return codemodel.NewCodeHybridRanker(true)
 }
 
 // newContentHybridRanker builds the optional search_entity_content /

@@ -93,9 +93,9 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     on top of the Go-side filterCrossRepoDeadCodeEvidence.
 //   - POST /api/v0/code/call-graph/metrics -- bound by its mandatory repo_id,
 //     not by a predicate in its query. repo_id is required by
-//     callGraphMetricsRequest.validate, and applyRepositorySelectorForCapability
+//     codemodel.CallGraphMetricsRequest.validate, and applyRepositorySelectorForCapability
 //     resolves it against the caller's grant and rejects an ungranted one with
-//     400 before the handler body runs. callGraphMetricsEdgesCypher
+//     400 before the handler body runs. codequery.CallGraphMetricsEdgesCypher
 //     (code_call_graph_metrics.go) therefore carries no grant of its own: it
 //     anchors both CALLS endpoints on {repo_id: $repo_id} and nothing else, so
 //     every caller runs the one query text the plan manifest pins for
@@ -120,7 +120,7 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     fallbacks, and the metadata enrichment pass. This route is owned by
 //     LanguageQueryHandler rather than CodeHandler, so it reaches the family's
 //     selector and grant helpers through the free functions
-//     ApplyRepositorySelectorForAccess and codeContentGrantScope
+//     codequery.ApplyRepositorySelectorForAccess and codeContentGrantScope
 //     (code_repository_selector.go) instead of CodeHandler methods.
 //   - POST /api/v0/code/imports/investigate -- all seven builders in
 //     code_import_dependencies_queries.go, through
@@ -128,7 +128,7 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     writeCypherPredicates, which attaches its WHERE to the single anchoring
 //     MATCH, so the grant lands ahead of SKIP/LIMIT on the paged builders and
 //     ahead of LIMIT $scan_limit on the three that page in Go.
-//     crossModuleCallRowsCypher binds source_repo and target_repo
+//     codemodel.CrossModuleCallRowsCypher binds source_repo and target_repo
 //     independently: the Go pass that drops a mismatched pair runs after the
 //     scan, so binding only the caller side would still spend the 25,000-row
 //     budget on callees the caller may not see.

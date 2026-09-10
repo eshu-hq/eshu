@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -45,7 +46,7 @@ func TestImportDependencyQueryplanVariantsStayComplete(t *testing.T) {
 	}
 }
 
-func reachableImportDependencyQueryplanRequests() []importDependencyRequest {
+func reachableImportDependencyQueryplanRequests() []codemodel.ImportDependencyRequest {
 	queryTypes := []string{
 		"imports_by_file",
 		"importers",
@@ -63,7 +64,7 @@ func reachableImportDependencyQueryplanRequests() []importDependencyRequest {
 		{name: "all", filter: repositoryAccessFilter{AllScopes: true}},
 		{name: "scoped", filter: queryplanScopedRepositoryAccess()},
 	}
-	requests := make([]importDependencyRequest, 0, len(queryTypes)*len(accesses)*62)
+	requests := make([]codemodel.ImportDependencyRequest, 0, len(queryTypes)*len(accesses)*62)
 	for _, access := range accesses {
 		for _, queryType := range queryTypes {
 			for scopeMask := 1; scopeMask < 1<<5; scopeMask++ {
@@ -88,7 +89,7 @@ type importDependencyQueryplanAccess struct {
 
 // importDependencyQueryplanAccessName reads the caller class back off a request
 // rather than carrying a label on the production struct.
-func importDependencyQueryplanAccessName(request importDependencyRequest) string {
+func importDependencyQueryplanAccessName(request codemodel.ImportDependencyRequest) string {
 	if request.Access.Scoped() {
 		return "scoped"
 	}
@@ -100,8 +101,8 @@ func importDependencyQueryplanRequest(
 	scopeMask int,
 	withLanguage bool,
 	access importDependencyQueryplanAccess,
-) importDependencyRequest {
-	request := importDependencyRequest{
+) codemodel.ImportDependencyRequest {
+	request := codemodel.ImportDependencyRequest{
 		QueryType: queryType,
 		Limit:     10,
 		Access:    access.filter,
@@ -132,41 +133,41 @@ type importDependencyQueryplanQuery struct {
 	cypher string
 }
 
-func importDependencyQueryplanQueries(request importDependencyRequest) []importDependencyQueryplanQuery {
+func importDependencyQueryplanQueries(request codemodel.ImportDependencyRequest) []importDependencyQueryplanQuery {
 	switch request.EffectiveQueryType() {
 	case "file_import_cycles":
-		return []importDependencyQueryplanQuery{{name: "cycle-edges", cypher: fileImportCycleEdgeRowsCypher(request)}}
+		return []importDependencyQueryplanQuery{{name: "cycle-edges", cypher: codemodel.FileImportCycleEdgeRowsCypher(request)}}
 	case "cross_module_calls":
 		queries := make([]importDependencyQueryplanQuery, 0, 3)
 		var sourceScopes []map[string]any
 		if strings.TrimSpace(request.SourceModule) != "" {
-			queries = append(queries, importDependencyQueryplanQuery{name: "source-membership", cypher: sourceModuleFilesCypher(request)})
+			queries = append(queries, importDependencyQueryplanQuery{name: "source-membership", cypher: codemodel.SourceModuleFilesCypher(request)})
 			sourceScopes = []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}
 		}
 		var targetScopes []map[string]any
 		if strings.TrimSpace(request.TargetModule) != "" {
-			queries = append(queries, importDependencyQueryplanQuery{name: "target-membership", cypher: targetModuleFilesCypher(request)})
+			queries = append(queries, importDependencyQueryplanQuery{name: "target-membership", cypher: codemodel.TargetModuleFilesCypher(request)})
 			targetScopes = []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/target.py"}}
 		}
 		queries = append(queries, importDependencyQueryplanQuery{
 			name:   "cross-module-calls",
-			cypher: crossModuleCallRowsCypher(request, sourceScopes, targetScopes),
+			cypher: codemodel.CrossModuleCallRowsCypher(request, sourceScopes, targetScopes),
 		})
 		return queries
 	default:
 		queries := make([]importDependencyQueryplanQuery, 0, 2)
 		var sourceScopes []map[string]any
 		if strings.TrimSpace(request.SourceModule) != "" {
-			queries = append(queries, importDependencyQueryplanQuery{name: "source-membership", cypher: sourceModuleFilesCypher(request)})
+			queries = append(queries, importDependencyQueryplanQuery{name: "source-membership", cypher: codemodel.SourceModuleFilesCypher(request)})
 			sourceScopes = []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}
 		}
 		switch {
 		case request.EffectiveQueryType() == "package_imports":
-			queries = append(queries, importDependencyQueryplanQuery{name: "package-imports", cypher: packageImportRowsCypher(request, sourceScopes)})
+			queries = append(queries, importDependencyQueryplanQuery{name: "package-imports", cypher: codemodel.PackageImportRowsCypher(request, sourceScopes)})
 		case len(sourceScopes) > 0:
-			queries = append(queries, importDependencyQueryplanQuery{name: "source-module-imports", cypher: sourceModuleImportRowsCypher(request, sourceScopes)})
+			queries = append(queries, importDependencyQueryplanQuery{name: "source-module-imports", cypher: codemodel.SourceModuleImportRowsCypher(request, sourceScopes)})
 		default:
-			queries = append(queries, importDependencyQueryplanQuery{name: "direct-imports", cypher: directImportRowsCypher(request)})
+			queries = append(queries, importDependencyQueryplanQuery{name: "direct-imports", cypher: codemodel.DirectImportRowsCypher(request)})
 		}
 		return queries
 	}
@@ -190,7 +191,7 @@ func importDependencyQueryplanVariants() map[string]string {
 	return variants
 }
 
-func importDependencyQueryplanRequestName(request importDependencyRequest) string {
+func importDependencyQueryplanRequestName(request codemodel.ImportDependencyRequest) string {
 	parts := []string{importDependencyQueryplanAccessName(request), request.EffectiveQueryType()}
 	for _, filter := range []struct {
 		name  string

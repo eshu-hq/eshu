@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -45,7 +46,7 @@ func TestCodeHandlerStructuralInventoryReturnsBoundedDataclasses(t *testing.T) {
 		"/api/v0/code/structure/inventory",
 		bytes.NewBufferString(`{"repo_id":"repo-1","language":"python","inventory_kind":"dataclass","limit":1}`),
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -153,7 +154,7 @@ func TestCodeHandlerStructuralInventoryFindsClassesWithMethod(t *testing.T) {
 		"/api/v0/code/structure/inventory",
 		bytes.NewBufferString(`{"repo_id":"repo-1","inventory_kind":"class_with_method","method_name":"render","limit":10}`),
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -196,7 +197,7 @@ func TestCodeHandlerStructuralInventoryCountsFunctionsPerFile(t *testing.T) {
 		"/api/v0/code/structure/inventory",
 		bytes.NewBufferString(`{"repo_id":"repo-1","language":"python","inventory_kind":"function_count_by_file","limit":1}`),
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -229,80 +230,10 @@ func TestCodeHandlerStructuralInventoryCountsFunctionsPerFile(t *testing.T) {
 	}
 }
 
-func TestCodeHandlerStructuralInventoryRejectsInvalidBounds(t *testing.T) {
-	t.Parallel()
-
-	handler := &CodeHandler{Content: fakePortContentStore{}, Profile: ProfileLocalAuthoritative}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/api/v0/code/structure/inventory",
-		bytes.NewBufferString(`{"inventory_kind":"entity","offset":10001}`),
-	)
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	if got, want := w.Code, http.StatusBadRequest; got != want {
-		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
-	}
-	if !strings.Contains(w.Body.String(), "offset must be <= 10000") {
-		t.Fatalf("body = %s, want offset bound error", w.Body.String())
-	}
-}
-
-func TestStructuralInventoryValidationRejectsOverMaxLimit(t *testing.T) {
-	t.Parallel()
-
-	err := (structuralInventoryRequest{
-		RepoID:        "repo-1",
-		InventoryKind: "entity",
-		Limit:         structuralInventoryMaxLimit + 1,
-	}).validate()
-
-	if err == nil {
-		t.Fatal("validate() error = nil, want limit bound error")
-	}
-	if got, want := err.Error(), "limit must be <= 200"; got != want {
-		t.Fatalf("validate() error = %q, want %q", got, want)
-	}
-}
-
-func TestStructuralInventoryValidationRequiresScope(t *testing.T) {
-	t.Parallel()
-
-	err := (structuralInventoryRequest{InventoryKind: "super_call"}).validate()
-
-	if err == nil {
-		t.Fatal("validate() error = nil, want scope error")
-	}
-	if got, want := err.Error(), "one of repo_id, file_path, language, entity_kind, or symbol is required"; got != want {
-		t.Fatalf("validate() error = %q, want %q", got, want)
-	}
-}
-
-func TestStructuralInventoryValidationRejectsNonFunctionFileCounts(t *testing.T) {
-	t.Parallel()
-
-	err := (structuralInventoryRequest{
-		RepoID:        "repo-1",
-		InventoryKind: "function_count_by_file",
-		EntityKind:    "class",
-	}).validate()
-
-	if err == nil {
-		t.Fatal("validate() error = nil, want entity_kind error")
-	}
-	if got, want := err.Error(), "entity_kind must be function for function_count_by_file inventory"; got != want {
-		t.Fatalf("validate() error = %q, want %q", got, want)
-	}
-}
-
 func TestStructuralInventoryWhereUsesLanguageVariants(t *testing.T) {
 	t.Parallel()
 
-	where, args := structuralInventoryWhere(structuralInventoryRequest{Language: "typescript"})
+	where, args := structuralInventoryWhere(StructuralInventoryRequest{Language: "typescript"})
 
 	joined := strings.Join(where, " AND ")
 	if !strings.Contains(joined, "language = $1 OR language = $2") {
@@ -316,7 +247,7 @@ func TestStructuralInventoryWhereUsesLanguageVariants(t *testing.T) {
 func TestStructuralInventoryWhereGuardsUnscopedSuperCallSearch(t *testing.T) {
 	t.Parallel()
 
-	where, _ := structuralInventoryWhere(structuralInventoryRequest{
+	where, _ := structuralInventoryWhere(StructuralInventoryRequest{
 		Language:      "go",
 		InventoryKind: "super_call",
 	})
@@ -330,7 +261,7 @@ func TestStructuralInventoryWhereGuardsUnscopedSuperCallSearch(t *testing.T) {
 func TestStructuralInventoryWhereHonorsClassNameForClassWithMethod(t *testing.T) {
 	t.Parallel()
 
-	where, args := structuralInventoryWhere(structuralInventoryRequest{
+	where, args := structuralInventoryWhere(StructuralInventoryRequest{
 		RepoID:        "repo-1",
 		InventoryKind: "class_with_method",
 		MethodName:    "render",
@@ -352,7 +283,7 @@ func TestStructuralInventoryWhereHonorsClassNameForClassWithMethod(t *testing.T)
 func TestStructuralInventoryWhereRestrictsTopLevelToFunctionsAndClasses(t *testing.T) {
 	t.Parallel()
 
-	where, _ := structuralInventoryWhere(structuralInventoryRequest{
+	where, _ := structuralInventoryWhere(StructuralInventoryRequest{
 		RepoID:        "repo-1",
 		InventoryKind: "top_level",
 	})
@@ -366,7 +297,7 @@ func TestStructuralInventoryWhereRestrictsTopLevelToFunctionsAndClasses(t *testi
 func TestStructuralInventoryWhereMatchesObjectDecorators(t *testing.T) {
 	t.Parallel()
 
-	where, args := structuralInventoryWhere(structuralInventoryRequest{
+	where, args := structuralInventoryWhere(StructuralInventoryRequest{
 		RepoID:        "repo-1",
 		InventoryKind: "decorated",
 		Decorator:     "route",

@@ -336,7 +336,7 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/code_relationship_story_nornicdb.go
+      file: go/internal/query/codequery/relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
       source_sha256: 957ba2fcf51e362365df93afe0bb583660561da053a85fd6af2fa0cb5e7fd14b
       line_hint: 36
@@ -366,7 +366,7 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/code_relationship_story_nornicdb.go
+      file: go/internal/query/codequery/relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryInheritanceDepthCypher
       source_sha256: ba105ff4f969a474dabebc9d926aa9d53ce6006a84ff9e21643aeede7dfafe2d
       line_hint: 116
@@ -394,7 +394,7 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/code_relationship_story_nornicdb.go
+      file: go/internal/query/codequery/relationship_story_nornicdb.go
       symbol: nornicDBRelationshipStoryGraphCypher
       source_sha256: 957ba2fcf51e362365df93afe0bb583660561da053a85fd6af2fa0cb5e7fd14b
       line_hint: 36
@@ -426,7 +426,7 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/code_relationship_story_nornicdb.go
+      file: go/internal/query/codequery/relationship_story_nornicdb.go
       symbol: (*CodeHandler).resolveNornicDBRelationshipStoryAnchorProperty
       source_sha256: 92e00f48c6258d06df21e456d17d13d8be4df2dbb8b664d5e68957e246b962ec
       line_hint: 48

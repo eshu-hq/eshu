@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/rubycontroller"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,11 +28,11 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	ctx context.Context,
 	repoID string,
 	entityIDs []string,
-) (map[string]deadCodeIncomingEdge, error) {
+) (map[string]querycontract.DeadCodeIncomingEdge, error) {
 	repoID = strings.TrimSpace(repoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
 	if cr == nil || cr.db == nil || repoID == "" || len(entityIDs) == 0 {
-		return map[string]deadCodeIncomingEdge{}, nil
+		return map[string]querycontract.DeadCodeIncomingEdge{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(
@@ -93,7 +95,7 @@ func (cr *ContentReader) DeadCodeIncomingEntityIDs(
 	}
 	defer func() { _ = rows.Close() }()
 
-	incoming := make(map[string]deadCodeIncomingEdge)
+	incoming := make(map[string]querycontract.DeadCodeIncomingEdge)
 	for rows.Next() {
 		var (
 			entityID string
@@ -132,11 +134,11 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	repoID string,
 	entityIDs []string,
 	allowedRepositoryIDs []string,
-) (map[string]deadCodeIncomingEdge, error) {
+) (map[string]querycontract.DeadCodeIncomingEdge, error) {
 	repoID = strings.TrimSpace(repoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
 	if cr == nil || cr.db == nil || repoID == "" || len(entityIDs) == 0 {
-		return map[string]deadCodeIncomingEdge{}, nil
+		return map[string]querycontract.DeadCodeIncomingEdge{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(
@@ -180,7 +182,7 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 	}
 	defer func() { _ = rows.Close() }()
 
-	incoming := make(map[string]deadCodeIncomingEdge)
+	incoming := make(map[string]querycontract.DeadCodeIncomingEdge)
 	for rows.Next() {
 		var entityID string
 		var method sql.NullString
@@ -195,7 +197,7 @@ func (cr *ContentReader) CodeReachabilityIncomingEntityIDs(
 			return nil, fmt.Errorf("scan code reachability incoming entity id: %w", err)
 		}
 		if !inGrant {
-			mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{HiddenConsumer: true})
+			deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, querycontract.DeadCodeIncomingEdge{HiddenConsumer: true})
 			continue
 		}
 		mergeDeadCodeIncomingEdge(incoming, entityID, method.String)
@@ -292,10 +294,10 @@ func (cr *ContentReader) DowngradedCodeRootKinds(
 func (cr *ContentReader) CodeReachabilityCoverage(
 	ctx context.Context,
 	repoID string,
-) (codeReachabilityCoverage, error) {
+) (deadcode.CodeReachabilityCoverage, error) {
 	repoID = strings.TrimSpace(repoID)
 	if cr == nil || cr.db == nil || repoID == "" {
-		return codeReachabilityCoverage{}, nil
+		return deadcode.CodeReachabilityCoverage{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(
@@ -324,10 +326,10 @@ func (cr *ContentReader) CodeReachabilityCoverage(
 		       coalesce(bool_or(truncated), false) AS truncated
 		FROM active_watermarks
 	`
-	var coverage codeReachabilityCoverage
+	var coverage deadcode.CodeReachabilityCoverage
 	if err := cr.db.QueryRowContext(ctx, query, repoID).Scan(&coverage.Available, &coverage.Truncated); err != nil {
 		span.RecordError(err)
-		return codeReachabilityCoverage{}, fmt.Errorf("code reachability coverage: %w", err)
+		return deadcode.CodeReachabilityCoverage{}, fmt.Errorf("code reachability coverage: %w", err)
 	}
 	return coverage, nil
 }
@@ -337,11 +339,11 @@ func (cr *ContentReader) CodeReachabilityCoverage(
 // a missing or unrecorded method yields LegacyConfidence (strong) rather than a
 // silent demotion.
 // mergeDeadCodeIncomingEdge records one scanned edge for an entity. It routes
-// through mergeStrongestDeadCodeIncomingEdge so a granted edge arriving after an
+// through deadcode.MergeStrongestDeadCodeIncomingEdge so a granted edge arriving after an
 // out-of-grant one keeps the hidden marker: the caller has both a consumer they
 // can see and one they cannot, and only the second decides the answer.
-func mergeDeadCodeIncomingEdge(incoming map[string]deadCodeIncomingEdge, entityID, method string) {
-	mergeStrongestDeadCodeIncomingEdge(incoming, entityID, deadCodeIncomingEdge{
+func mergeDeadCodeIncomingEdge(incoming map[string]querycontract.DeadCodeIncomingEdge, entityID, method string) {
+	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, querycontract.DeadCodeIncomingEdge{
 		MaxConfidence: codeprovenance.Confidence(method),
 		Method:        method,
 	})

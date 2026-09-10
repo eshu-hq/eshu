@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -41,18 +42,21 @@ func TestCypherRouteComposesThirtySecondOuterWithTenSecondReaderBudget(t *testin
 		}}
 	})
 	handler := &CodeHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/cypher", strings.NewReader(`{"cypher_query":"RETURN 1 AS value"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.handleCypherQuery(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200 body=%s", rec.Code, rec.Body.String())
 	}
-	if cypherQueryTimeout != 30*time.Second {
-		t.Fatalf("outer route timeout = %s, want 30s", cypherQueryTimeout)
-	}
+	// The 30s outer route budget (codequery's unexported cypherQueryTimeout)
+	// is pinned in codequery's TestHandleCypherQueryPassesDeadlineToGraph,
+	// which names the constant directly; from outside the package only the
+	// 10s reader budget below is observable.
 	if reader.policy.readTimeout != 10*time.Second {
 		t.Fatalf("reader timeout = %s, want 10s", reader.policy.readTimeout)
 	}
@@ -89,12 +93,14 @@ func TestCypherRouteMapsRetryableNeo4jAvailabilityFailureToSanitized503(t *testi
 		}}
 	})
 	handler := &CodeHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/cypher", strings.NewReader(`{"cypher_query":"RETURN 1"}`))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.handleCypherQuery(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusServiceUnavailable || attempts != maxGraphReadAttempts {
 		t.Fatalf("response = %d after %d attempts body=%s, want sanitized 503 after bounded retry", rec.Code, attempts, rec.Body.String())

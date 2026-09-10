@@ -66,106 +66,13 @@ func TestCloudInventoryHandlerStoreUsesCloudInventoryIdentitiesFastPath(t *testi
 	}
 }
 
-// --- hardcodedSecretInvestigator ---
-
-type fakeHardcodedSecretTripwireStore struct {
-	fakePortContentStore
-	calls int
-}
-
-func (s *fakeHardcodedSecretTripwireStore) InvestigateHardcodedSecrets(
-	context.Context, hardcodedSecretInvestigationRequest,
-) ([]hardcodedSecretFindingRow, error) {
-	s.calls++
-	return nil, nil
-}
-
-// TestCodeHandlerHardcodedSecretRowsUsesInvestigatorFastPath proves
-// (h *CodeHandler).hardcodedSecretRows's h.Content.(hardcodedSecretInvestigator)
-// assertion resolves to a real implementer rather than silently returning
-// errHardcodedSecretBackendUnavailable.
-func TestCodeHandlerHardcodedSecretRowsUsesInvestigatorFastPath(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeHardcodedSecretTripwireStore{}
-	h := &CodeHandler{Content: fake, Profile: ProfileLocalAuthoritative}
-	if _, err := h.hardcodedSecretRows(context.Background(), hardcodedSecretInvestigationRequest{RepoID: "repo-a", Limit: 10}); err != nil {
-		t.Fatalf("hardcodedSecretRows() error = %v, want nil", err)
-	}
-	if got, want := fake.calls, 1; got != want {
-		t.Fatalf("calls = %d, want %d (fast path not taken)", got, want)
-	}
-}
-
-// --- symbolContentSearcher ---
-
-type fakeSymbolSearchTripwireStore struct {
-	fakePortContentStore
-	calls int
-}
-
-func (s *fakeSymbolSearchTripwireStore) SearchSymbols(
-	context.Context, symbolSearchRequest,
-) ([]EntityContent, error) {
-	s.calls++
-	return nil, nil
-}
-
-// TestCodeHandlerSymbolSearchResultsUsesSearcherFastPath proves
-// (h *CodeHandler).symbolSearchResults's h.Content.(symbolContentSearcher)
-// assertion resolves to a real implementer rather than silently falling
-// back to the different-semantics SearchEntitiesByName name lookup (the
-// #6060 audit finding: that fallback used to claim the same source_backend
-// as this fast path).
-func TestCodeHandlerSymbolSearchResultsUsesSearcherFastPath(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeSymbolSearchTripwireStore{}
-	h := &CodeHandler{Content: fake, Profile: ProfileLocalAuthoritative}
-	_, source, _, err := h.symbolSearchResults(context.Background(), symbolSearchRequest{Symbol: "Handle", RepoID: "repo-a"})
-	if err != nil {
-		t.Fatalf("symbolSearchResults() error = %v, want nil", err)
-	}
-	if got, want := fake.calls, 1; got != want {
-		t.Fatalf("calls = %d, want %d (fast path not taken)", got, want)
-	}
-	if got, want := source, symbolSourceBackendContentStore; got != want {
-		t.Fatalf("source_backend = %q, want %q", got, want)
-	}
-}
-
-// --- codeTopicContentInvestigator ---
-
-type fakeCodeTopicTripwireStore struct {
-	fakePortContentStore
-	calls int
-}
-
-func (s *fakeCodeTopicTripwireStore) InvestigateCodeTopic(
-	context.Context, codeTopicInvestigationRequest,
-) ([]codeTopicEvidenceRow, error) {
-	s.calls++
-	return nil, nil
-}
-
-// TestCodeHandlerCodeTopicRowsUsesInvestigatorFastPath proves
-// (h *CodeHandler).codeTopicRows's h.Content.(codeTopicContentInvestigator)
-// assertion resolves to a real implementer. codeTopicContentInvestigator is
-// also asserted from impact_change_surface_code.go's changeSurfaceTopicRows
-// -- both call sites share this one interface and implementer, so either
-// family moving away from the other silently breaks both.
-func TestCodeHandlerCodeTopicRowsUsesInvestigatorFastPath(t *testing.T) {
-	t.Parallel()
-
-	fake := &fakeCodeTopicTripwireStore{}
-	h := &CodeHandler{Content: fake, Profile: ProfileLocalAuthoritative}
-	if _, err := h.codeTopicRows(context.Background(), codeTopicInvestigationRequest{Topic: "auth", RepoID: "repo-a", Limit: 10}); err != nil {
-		t.Fatalf("codeTopicRows() error = %v, want nil", err)
-	}
-	if got, want := fake.calls, 1; got != want {
-		t.Fatalf("calls = %d, want %d (fast path not taken)", got, want)
-	}
-}
+// --- codequery.HardcodedSecretInvestigator, codequery.SymbolContentSearcher,
+// codequery.CodeTopicContentInvestigator ---
+//
+// These three tripwires moved with the CodeHandler family to
+// internal/query/codequery (code_interface_export_tripwire_test.go) in the
+// #6060 lane-A move: each drives an unexported CodeHandler method and
+// request type that cannot be named from root once the family moves.
 
 // --- pagedContentSearcher ---
 //

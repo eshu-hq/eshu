@@ -22,9 +22,9 @@ func TestOpenAPIImportDependencyInvestigation(t *testing.T) {
 	importDependencyPost := querytestutil.MustMapField(t, importDependencyPath, "post")
 	importDependencyBody := querytestutil.MustMapField(t, querytestutil.MustMapField(t, importDependencyPost, "requestBody"), "content")
 	importDependencyJSON := querytestutil.MustMapField(t, importDependencyBody, "application/json")
-	importDependencyRequest := querytestutil.MustMapField(t, querytestutil.MustMapField(t, importDependencyJSON, "schema"), "properties")
+	importDependencyRequestSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, importDependencyJSON, "schema"), "properties")
 	for _, field := range []string{"query_type", "repo_id", "language", "source_file", "target_file", "source_module", "target_module", "limit", "offset"} {
-		if _, ok := importDependencyRequest[field]; !ok {
+		if _, ok := importDependencyRequestSchema[field]; !ok {
 			t.Fatalf("code/imports/investigate request schema missing %s", field)
 		}
 	}
@@ -44,13 +44,13 @@ func TestOpenAPIImportDependencyInvestigation(t *testing.T) {
 	_ = querytestutil.MustMapField(t, tooBroadContent, "application/json")
 	importDependencyOK := querytestutil.MustMapField(t, importDependencyResponses, "200")
 	importDependencyContent := querytestutil.MustMapField(t, querytestutil.MustMapField(t, importDependencyOK, "content"), "application/json")
-	importDependencyResponse := querytestutil.MustMapField(t, querytestutil.MustMapField(t, importDependencyContent, "schema"), "properties")
+	importDependencyResponseSchema := querytestutil.MustMapField(t, querytestutil.MustMapField(t, importDependencyContent, "schema"), "properties")
 	for _, field := range []string{"dependencies", "modules", "cycles", "cross_module_calls", "truncated", "next_offset", "source_backend", "coverage"} {
-		if _, ok := importDependencyResponse[field]; !ok {
+		if _, ok := importDependencyResponseSchema[field]; !ok {
 			t.Fatalf("code/imports/investigate response schema missing %s", field)
 		}
 	}
-	cycles := querytestutil.MustMapField(t, importDependencyResponse, "cycles")
+	cycles := querytestutil.MustMapField(t, importDependencyResponseSchema, "cycles")
 	cycleItems := querytestutil.MustMapField(t, cycles, "items")
 	cycleProperties := querytestutil.MustMapField(t, cycleItems, "properties")
 	for _, field := range []string{"repo_id", "repo_name", "source_file", "target_file", "relationship_type", "cycle_path", "cycle_edges"} {
@@ -59,7 +59,7 @@ func TestOpenAPIImportDependencyInvestigation(t *testing.T) {
 		}
 	}
 	for _, field := range []string{"results", "matches"} {
-		if _, ok := importDependencyResponse[field]; ok {
+		if _, ok := importDependencyResponseSchema[field]; ok {
 			t.Fatalf("code/imports/investigate response schema includes ambiguous %s alias", field)
 		}
 	}

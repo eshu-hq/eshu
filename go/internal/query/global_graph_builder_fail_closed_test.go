@@ -4,10 +4,17 @@
 package query
 
 import (
-	"context"
-	"errors"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 )
+
+// Global-graph fail-closed builder proof that lives in package query: it
+// calls the root-owned buildResolveEntityGraphQuery builder and the
+// queryplan-scoped test helper directly, which codequery cannot name without
+// importing the root back (#6060). Split from
+// codequery/global_graph_builder_fail_closed_test.go at the lane-A move; the
+// direct-search guard stays there.
 
 func TestGlobalGraphBuildersFailClosed(t *testing.T) {
 	t.Parallel()
@@ -16,20 +23,8 @@ func TestGlobalGraphBuildersFailClosed(t *testing.T) {
 		if cypher, params := buildResolveEntityGraphQuery(resolveEntityRequest{Name: "proof", Type: "function"}, 10, access); cypher != "" || params != nil {
 			t.Fatalf("global entity graph builder = %q/%#v, want fail-closed empty", cypher, params)
 		}
-		if cypher, params := buildSearchGraphEntitiesQuery("", "proof", "go", 10, true, access); cypher != "" || params != nil {
+		if cypher, params := codemodel.BuildSearchGraphEntitiesQuery("", "proof", "go", 10, true, access); cypher != "" || params != nil {
 			t.Fatalf("global code graph builder = %q/%#v, want fail-closed empty", cypher, params)
 		}
-	}
-}
-
-func TestDirectGlobalGraphSearchDoesNotCallGraph(t *testing.T) {
-	t.Parallel()
-	graph := &captureGraphQuery{runFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
-		t.Fatal("direct global graph search called GraphQuery")
-		return nil, nil
-	}}
-	_, err := (&CodeHandler{Neo4j: graph}).searchGraphEntitiesWithExact(context.Background(), "", "proof", "", 10, true)
-	if !errors.Is(err, errGlobalGraphEntitySearchUnsupported) {
-		t.Fatalf("error = %v, want fail-closed global graph error", err)
 	}
 }

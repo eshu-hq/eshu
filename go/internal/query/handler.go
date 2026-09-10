@@ -72,9 +72,15 @@ func capabilityUnsupported(profile QueryProfile, capability string) bool {
 
 // APIRouter builds the top-level /api/v0 mux for all query endpoints.
 type APIRouter struct {
-	Repositories                 *RepositoryHandler
-	Entities                     *EntityHandler
-	Code                         *CodeHandler
+	Repositories *RepositoryHandler
+	Entities     *EntityHandler
+	Code         *CodeHandler
+	// Language mounts /api/v0/code/language-query. It is a sibling of Code
+	// rather than a field CodeHandler builds internally: CodeHandler moved to
+	// internal/query/codequery for #6060 (lane A), and that subpackage
+	// cannot import package query back to construct a LanguageQueryHandler
+	// without an import cycle. APIRouter.Mount mounts it directly instead.
+	Language                     *LanguageQueryHandler
 	Content                      *ContentHandler
 	Infra                        *InfraHandler
 	GraphEntityInventory         *GraphEntityInventoryHandler
@@ -208,6 +214,13 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Code
 	if a.Code != nil {
 		a.Code.Mount(mux)
+	}
+
+	// Language-specific queries. Hoisted out of CodeHandler.Mount for #6060
+	// (lane A): CodeHandler now lives in internal/query/codequery, which
+	// cannot import package query back to build a LanguageQueryHandler.
+	if a.Language != nil {
+		a.Language.Mount(mux)
 	}
 
 	// Content

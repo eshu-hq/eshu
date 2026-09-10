@@ -8,6 +8,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 )
 
 func TestGraphSummaryHotEntitiesUsesExactBoundedCallEdgePass(t *testing.T) {
@@ -21,7 +23,7 @@ func TestGraphSummaryHotEntitiesUsesExactBoundedCallEdgePass(t *testing.T) {
 			if got, want := params["repo_id"], "repository:r_dart"; got != want {
 				t.Fatalf("repo_id = %#v, want %#v", got, want)
 			}
-			if got, want := params["edge_scan_limit"], callGraphMetricsEdgeScanLimit+1; got != want {
+			if got, want := params["edge_scan_limit"], codequery.CallGraphMetricsEdgeScanLimit+1; got != want {
 				t.Fatalf("edge_scan_limit = %#v, want %#v", got, want)
 			}
 			return []map[string]any{
@@ -62,7 +64,7 @@ func TestGraphSummaryHotEntitiesFailsClosedAtEdgeScanSentinel(t *testing.T) {
 
 	reader := &graphSummaryRecordingReader{
 		multi: func(_ string, _ map[string]any) ([]map[string]any, error) {
-			return make([]map[string]any, callGraphMetricsEdgeScanLimit+1), nil
+			return make([]map[string]any, codequery.CallGraphMetricsEdgeScanLimit+1), nil
 		},
 	}
 	handler := &InfraHandler{Profile: ProfileProduction, Neo4j: reader}

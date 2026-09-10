@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
@@ -55,7 +56,7 @@ type crossRepoDeadCodeHiddenConsumers = querycontract.CrossRepoDeadCodeHiddenCon
 //     the "this symbol has a consumer you cannot see" answer, which filtering in
 //     SQL alone would lose, and losing it would mark a live symbol dead. It
 //     returns producer entity ids and nothing else --
-//     crossRepoDeadCodeUngrantedConsumerProbeQuery walks each producer entity's
+//     deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery walks each producer entity's
 //     distinct (repository_id, scope_id) pairs in index order and stops as soon
 //     as one of them is both outside the grant and live, a loose index scan
 //     rather than the page statement re-run with no grant bound. Pairs rather
@@ -77,11 +78,11 @@ func (cr *ContentReader) CrossRepoDeadCodeConsumerEvidence(
 	producerRepoID string,
 	entityIDs []string,
 	reads crossRepoDeadCodeConsumerReads,
-) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
+) (map[string][]deadcode.CrossRepoDeadCodeEvidence, crossRepoDeadCodeHiddenConsumers, error) {
 	producerRepoID = strings.TrimSpace(producerRepoID)
 	entityIDs = cleanDeadCodeIncomingEntityIDs(entityIDs)
 	if cr == nil || cr.db == nil || producerRepoID == "" || len(entityIDs) == 0 {
-		return map[string][]crossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, nil
+		return map[string][]deadcode.CrossRepoDeadCodeEvidence{}, crossRepoDeadCodeHiddenConsumers{}, nil
 	}
 
 	ctx, span := cr.tracer.Start(
@@ -152,7 +153,7 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 	producerRepoID string,
 	entityIDs []string,
 	allowedRepositoryIDs []string,
-) (map[string][]crossRepoDeadCodeEvidence, crossRepoDeadCodeConsumerCoverage, error) {
+) (map[string][]deadcode.CrossRepoDeadCodeEvidence, crossRepoDeadCodeConsumerCoverage, error) {
 	query, args := buildCrossRepoDeadCodeConsumerEvidenceQuery(producerRepoID, entityIDs, allowedRepositoryIDs)
 	coverage := crossRepoDeadCodeConsumerCoverage{}
 	rows, err := cr.db.QueryContext(ctx, query, args...)
@@ -161,7 +162,7 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 	}
 	defer func() { _ = rows.Close() }()
 
-	result := make(map[string][]crossRepoDeadCodeEvidence, len(entityIDs))
+	result := make(map[string][]deadcode.CrossRepoDeadCodeEvidence, len(entityIDs))
 	rowCount := 0
 	lastEntityID := ""
 	sentinelEntityID := ""
@@ -208,7 +209,7 @@ func (cr *ContentReader) crossRepoDeadCodeConsumerRows(
 // crossRepoDeadCodeUngrantedConsumers runs the ungranted-consumer probe for one
 // candidate page and returns the producer entities that have a consumer the
 // caller may not see. The probe query itself
-// (crossRepoDeadCodeUngrantedConsumerProbeQuery) stays in
+// (deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery) stays in
 // code_dead_code_cross_repo_filter.go; this method is relocated here (#6060)
 // because its receiver, ContentReader, is declared in content_reader.go,
 // which stays in root when code_dead_code_cross_repo_filter.go's family
@@ -236,7 +237,7 @@ func (cr *ContentReader) crossRepoDeadCodeUngrantedConsumers(
 	}
 	rows, err := cr.db.QueryContext(
 		ctx,
-		crossRepoDeadCodeUngrantedConsumerProbeQuery,
+		deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery,
 		producerRepoID,
 		pgarray.Array(entityIDs),
 		pgarray.Array(grantRepositoryIDs),
@@ -356,7 +357,7 @@ LIMIT %d
 // carries NeedsEvidence, so the handler answers unknown_needs_evidence for that
 // entity rather than reading a partial page as a complete one.
 func markCrossRepoDeadCodeConsumerEvidenceTruncated(
-	result map[string][]crossRepoDeadCodeEvidence,
+	result map[string][]deadcode.CrossRepoDeadCodeEvidence,
 	entityIDs []string,
 	page crossRepoDeadCodeConsumerCoverage,
 ) {
@@ -364,7 +365,7 @@ func markCrossRepoDeadCodeConsumerEvidenceTruncated(
 		if page.covers(entityID) {
 			continue
 		}
-		result[entityID] = append(result[entityID], crossRepoDeadCodeEvidence{
+		result[entityID] = append(result[entityID], deadcode.CrossRepoDeadCodeEvidence{
 			EvidenceFamily:   "code_reachability",
 			Citation:         "code_reachability_rows:truncated",
 			ConfidenceLabel:  "unknown",
@@ -388,7 +389,7 @@ type crossRepoDeadCodeRowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanCrossRepoDeadCodeEvidence(rows crossRepoDeadCodeRowScanner) (string, crossRepoDeadCodeEvidence, error) {
+func scanCrossRepoDeadCodeEvidence(rows crossRepoDeadCodeRowScanner) (string, deadcode.CrossRepoDeadCodeEvidence, error) {
 	var (
 		entityID         string
 		consumerRepoID   string
@@ -421,17 +422,17 @@ func scanCrossRepoDeadCodeEvidence(rows crossRepoDeadCodeRowScanner) (string, cr
 		&observedAt,
 		&updatedAt,
 	); err != nil {
-		return "", crossRepoDeadCodeEvidence{}, fmt.Errorf("scan cross-repo dead code consumer evidence: %w", err)
+		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("scan cross-repo dead code consumer evidence: %w", err)
 	}
 	var evidence []string
 	if err := json.Unmarshal(rawEvidence, &evidence); err != nil {
-		return "", crossRepoDeadCodeEvidence{}, fmt.Errorf("unmarshal cross-repo dead code evidence: %w", err)
+		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("unmarshal cross-repo dead code evidence: %w", err)
 	}
 	var rootKinds []string
 	if err := json.Unmarshal(rawRootKinds, &rootKinds); err != nil {
-		return "", crossRepoDeadCodeEvidence{}, fmt.Errorf("unmarshal cross-repo dead code root kinds: %w", err)
+		return "", deadcode.CrossRepoDeadCodeEvidence{}, fmt.Errorf("unmarshal cross-repo dead code root kinds: %w", err)
 	}
-	item := crossRepoDeadCodeEvidence{
+	item := deadcode.CrossRepoDeadCodeEvidence{
 		ConsumerRepoID:   consumerRepoID,
 		ConsumerRepoName: consumerRepoName,
 		ConsumerEntityID: rootEntityID,
@@ -439,7 +440,7 @@ func scanCrossRepoDeadCodeEvidence(rows crossRepoDeadCodeRowScanner) (string, cr
 		EvidenceFamily:   "direct_code",
 		Citation:         crossRepoDeadCodeCitation(generationID, consumerRepoID, rootEntityID, entityID),
 		Confidence:       confidence,
-		ConfidenceLabel:  crossRepoDeadCodeConfidenceLabel(confidence),
+		ConfidenceLabel:  deadcode.CrossRepoDeadCodeConfidenceLabel(confidence),
 		ResolutionMethod: resolutionMethod,
 		Depth:            depth,
 		GenerationID:     generationID,

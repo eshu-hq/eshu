@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -71,21 +72,21 @@ func codeContentGrantAdmits(rowRepoID, repoID string, allowedRepositoryIDs []str
 }
 
 type hardcodedSecretGrantStore struct {
-	fakePortContentStore
+	querytestutil.FakePortContentStore
 	codeContentGrantRecorder
 }
 
 func (s *hardcodedSecretGrantStore) InvestigateHardcodedSecrets(
 	_ context.Context,
-	req hardcodedSecretInvestigationRequest,
-) ([]hardcodedSecretFindingRow, error) {
+	req HardcodedSecretInvestigationRequest,
+) ([]HardcodedSecretFindingRow, error) {
 	s.record(req.RepoID, req.AllowedRepositoryIDs)
-	rows := make([]hardcodedSecretFindingRow, 0, 2)
+	rows := make([]HardcodedSecretFindingRow, 0, 2)
 	for _, repoID := range []string{codeGrantGrantedRepo, codeGrantOtherRepo} {
 		if !codeContentGrantAdmits(repoID, req.RepoID, req.AllowedRepositoryIDs) {
 			continue
 		}
-		rows = append(rows, hardcodedSecretFindingRow{
+		rows = append(rows, HardcodedSecretFindingRow{
 			RepoID:       repoID,
 			RelativePath: "internal/config/keys.go",
 			Language:     "go",
@@ -98,26 +99,26 @@ func (s *hardcodedSecretGrantStore) InvestigateHardcodedSecrets(
 }
 
 type symbolSearchGrantStore struct {
-	fakePortContentStore
+	querytestutil.FakePortContentStore
 	codeContentGrantRecorder
 }
 
 func (s *symbolSearchGrantStore) SearchSymbols(
 	_ context.Context,
-	req symbolSearchRequest,
+	req SymbolSearchRequest,
 ) ([]EntityContent, error) {
 	s.record(req.RepoID, req.AllowedRepositoryIDs)
 	return codeContentGrantEntities(req.RepoID, req.AllowedRepositoryIDs), nil
 }
 
 type structuralInventoryGrantStore struct {
-	fakePortContentStore
+	querytestutil.FakePortContentStore
 	codeContentGrantRecorder
 }
 
 func (s *structuralInventoryGrantStore) InspectStructuralInventory(
 	_ context.Context,
-	req structuralInventoryRequest,
+	req StructuralInventoryRequest,
 ) ([]EntityContent, error) {
 	s.record(req.RepoID, req.AllowedRepositoryIDs)
 	return codeContentGrantEntities(req.RepoID, req.AllowedRepositoryIDs), nil
@@ -125,12 +126,12 @@ func (s *structuralInventoryGrantStore) InspectStructuralInventory(
 
 func (s *structuralInventoryGrantStore) CountStructuralInventoryByFile(
 	_ context.Context,
-	req structuralInventoryRequest,
-) ([]StructuralInventoryFileCount, error) {
+	req StructuralInventoryRequest,
+) ([]codequery.StructuralInventoryFileCount, error) {
 	s.record(req.RepoID, req.AllowedRepositoryIDs)
-	counts := make([]StructuralInventoryFileCount, 0, 2)
+	counts := make([]codequery.StructuralInventoryFileCount, 0, 2)
 	for _, entity := range codeContentGrantEntities(req.RepoID, req.AllowedRepositoryIDs) {
-		counts = append(counts, StructuralInventoryFileCount{
+		counts = append(counts, codequery.StructuralInventoryFileCount{
 			RepoID:        entity.RepoID,
 			RelativePath:  entity.RelativePath,
 			Language:      entity.Language,
@@ -311,11 +312,11 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 		{
 			name: "hardcoded_secrets",
 			scoped: func() ([]string, []any) {
-				filters, args, _ := hardcodedSecretFilters(hardcodedSecretInvestigationRequest{AllowedRepositoryIDs: grant})
+				filters, args, _ := hardcodedSecretFilters(HardcodedSecretInvestigationRequest{AllowedRepositoryIDs: grant})
 				return filters, args
 			},
 			anchored: func() []string {
-				filters, _, _ := hardcodedSecretFilters(hardcodedSecretInvestigationRequest{RepoID: codeGrantGrantedRepo})
+				filters, _, _ := hardcodedSecretFilters(HardcodedSecretInvestigationRequest{RepoID: codeGrantGrantedRepo})
 				return filters
 			},
 			want: "repo_id = ANY($1)",
@@ -323,11 +324,11 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 		{
 			name: "symbol_search",
 			scoped: func() ([]string, []any) {
-				filters, args, _ := symbolSearchFilters(symbolSearchRequest{Symbol: "RefreshSession", AllowedRepositoryIDs: grant})
+				filters, args, _ := symbolSearchFilters(SymbolSearchRequest{Symbol: "RefreshSession", AllowedRepositoryIDs: grant})
 				return filters, args
 			},
 			anchored: func() []string {
-				filters, _, _ := symbolSearchFilters(symbolSearchRequest{Symbol: "RefreshSession", RepoID: codeGrantGrantedRepo})
+				filters, _, _ := symbolSearchFilters(SymbolSearchRequest{Symbol: "RefreshSession", RepoID: codeGrantGrantedRepo})
 				return filters
 			},
 			want: "repo_id = ANY($2)",
@@ -335,10 +336,10 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 		{
 			name: "structural_inventory",
 			scoped: func() ([]string, []any) {
-				return structuralInventoryWhere(structuralInventoryRequest{AllowedRepositoryIDs: grant})
+				return structuralInventoryWhere(StructuralInventoryRequest{AllowedRepositoryIDs: grant})
 			},
 			anchored: func() []string {
-				where, _ := structuralInventoryWhere(structuralInventoryRequest{RepoID: codeGrantGrantedRepo})
+				where, _ := structuralInventoryWhere(StructuralInventoryRequest{RepoID: codeGrantGrantedRepo})
 				return where
 			},
 			want: "repo_id = ANY($1)",
@@ -351,7 +352,7 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 			if !slices.Contains(filters, tc.want) {
 				t.Fatalf("%s builder = %#v, want a %q grant predicate; without it a scoped caller's grant is resolved but never applied", tc.name, filters, tc.want)
 			}
-			assertBoundRepositoryGrantArray(t, args, grant)
+			querytestutil.AssertBoundRepositoryGrantArray(t, args, grant)
 
 			// A caller who named one repository must keep the single-repo
 			// equality predicate, not gain a second, wider ANY() scan.
@@ -366,14 +367,14 @@ func TestCodeContentFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 
 // symbolNameFallbackGrantStore drives the second read path behind
 // POST /api/v0/code/symbols/search. When h.Content does not satisfy
-// symbolContentSearcher, symbolSearchResults falls back to
+// SymbolContentSearcher, symbolSearchResults falls back to
 // SearchEntitiesByName, which takes ONE repository at a time -- so a
 // corpus-wide scoped search has to iterate the granted repositories itself. An
 // unbound fallback asks for repository "" instead, which this store answers
 // with every tenant's symbol, the same way the all-repository content query
 // does.
 type symbolNameFallbackGrantStore struct {
-	fakePortContentStore
+	querytestutil.FakePortContentStore
 	askedRepoIDs []string
 }
 

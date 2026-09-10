@@ -21,14 +21,14 @@
 
    | Tool | Handler |
    | --- | --- |
-   | `find_code` | `code.go` |
-   | `find_symbol` | `code_symbol.go` |
-   | `inspect_code_inventory` | `code_structural_inventory.go` |
-   | `inspect_call_graph_metrics` | `code_call_graph_metrics.go` |
-   | `trace_route_callers` | `code_route_to_caller.go` |
-   | `investigate_code_topic` | `code_topic.go` |
+   | `find_code` | `codequery/handler.go` |
+   | `find_symbol` | `codequery/symbol.go` |
+   | `inspect_code_inventory` | `codequery/structural_inventory.go` |
+   | `inspect_call_graph_metrics` | `codequery/call_graph_metrics.go` |
+   | `trace_route_callers` | `codequery/route_to_caller.go` |
+   | `investigate_code_topic` | `codequery/topic.go` |
    | `execute_language_query` | `language_queries.go` |
-   | `find_function_call_chain` | `code_call_chain.go` |
+   | `find_function_call_chain` | `codequery/call_chain.go` |
 
 ## Invariants
 

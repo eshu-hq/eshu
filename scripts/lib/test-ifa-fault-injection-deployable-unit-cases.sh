@@ -270,7 +270,10 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	' "${deployable_unit_live_lib}")"
 	while read -r du_standalone_fn_ln du_standalone_fn_name; do
 		du_standalone_fn_at_line["${du_standalone_fn_ln}"]="${du_standalone_fn_name}"
-	done <<<"${du_standalone_fn_at_line_raw}"
+	# Process substitution, not a here-string: <<< deadlocks on bash >= 5.3
+	# (this shell), while a pipeline would run the loop in a subshell and
+	# lose the array. See scripts/dev/pre-pr.sh run_or_defer.
+	done < <(printf '%s\n' "${du_standalone_fn_at_line_raw}")
 
 	local du_standalone_report_lines du_standalone_assert_lines
 	du_standalone_report_lines=($(rg -n --fixed-strings -- 'ifa_deployable_unit_live_report_intents_after_maintenance "${compose_project}"' "${deployable_unit_live_lib}" | cut -d: -f1 || true))
@@ -320,7 +323,9 @@ run_ifa_fault_injection_deployable_unit_cases() {
 	' "${deployable_unit_cells_lib}")"
 	while read -r du_fn_ln du_fn_name; do
 		du_fn_at_line["${du_fn_ln}"]="${du_fn_name}"
-	done <<<"${du_fn_at_line_raw}"
+	# Process substitution, not a here-string: <<< deadlocks on bash >= 5.3
+	# (this shell); a pipeline would lose the array to a subshell.
+	done < <(printf '%s\n' "${du_fn_at_line_raw}")
 
 	local du_report_lines du_assert_lines
 	du_report_lines=($(rg -n --fixed-strings -- 'ifa_deployable_unit_live_report_intents_after_maintenance "${FAULT_COMPOSE_PROJECT}"' "${deployable_unit_cells_lib}" | cut -d: -f1 || true))

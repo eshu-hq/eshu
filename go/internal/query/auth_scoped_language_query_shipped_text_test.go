@@ -83,7 +83,7 @@ func TestLanguageTypeEntityFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 	if !slices.Contains(filters, "repo_id = ANY($2)") {
 		t.Fatalf("buildLanguageTypeEntityFilters() = %#v, want a repo_id = ANY($2) grant predicate; without it a scoped caller's grant is resolved but never applied", filters)
 	}
-	assertBoundRepositoryGrantArray(t, args, grant)
+	querytestutil.AssertBoundRepositoryGrantArray(t, args, grant)
 
 	// A caller who named one repository keeps the single-repo equality
 	// predicate and must not gain a second, wider ANY() scan.
@@ -118,11 +118,11 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 			t.Parallel()
 
 			cypher, params := buildLanguageCypherWithSemanticFilter("go", label, "", "", 50, "", "", scoped)
-			normalized := normalizeCypherWhitespace(cypher)
+			normalized := querytestutil.NormalizeCypherWhitespace(cypher)
 			if !strings.Contains(normalized, want) {
 				t.Fatalf("%s builder missing %q:\n%s", label, want, normalized)
 			}
-			if !slices.Contains(repositoryGoverningPredicatesForAlias(cypher, "r"), want) {
+			if !slices.Contains(querytestutil.RepositoryGoverningPredicatesForAlias(cypher, "r"), want) {
 				t.Fatalf("%s builder puts the grant outside the Repository binding's own WHERE, so it does not decide row membership:\n%s", label, normalized)
 			}
 			// The governing-predicates assertion above already proves the
@@ -140,7 +140,7 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 
 			unscopedCypher, unscopedParams := buildLanguageCypher("go", label, "", "", 50)
 			if strings.Contains(unscopedCypher, "$allowed_repository_ids") {
-				t.Fatalf("%s builder carries a grant condition for an unscoped caller:\n%s", label, normalizeCypherWhitespace(unscopedCypher))
+				t.Fatalf("%s builder carries a grant condition for an unscoped caller:\n%s", label, querytestutil.NormalizeCypherWhitespace(unscopedCypher))
 			}
 			if _, ok := unscopedParams["allowed_repository_ids"]; ok {
 				t.Fatalf("%s builder bound grant params for an unscoped caller: %#v", label, unscopedParams)

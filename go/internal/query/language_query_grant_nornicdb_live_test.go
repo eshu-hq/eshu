@@ -402,7 +402,7 @@ func liveGrantOtherFilePath(index int) string {
 
 // liveGrantOwnModule names the import target only one file has. The
 // out-of-grant repository owns six of them, so the DISTINCT page of
-// packageImportRowsCypher is full before the granted repository's single module
+// codemodel.PackageImportRowsCypher is full before the granted repository's single module
 // is reached.
 func liveGrantOwnModule(marker string, index int) string {
 	return fmt.Sprintf("%s_%s_%d", liveGrantImportedModue, marker, index)

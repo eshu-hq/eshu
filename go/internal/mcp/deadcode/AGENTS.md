@@ -15,9 +15,9 @@
    stay at the parent's root and must keep naming the same fields this
    builder selects.
 6. `../routecontract/README.md` for the dependency-neutral request contract.
-7. `go/internal/query/code_dead_code.go`,
-   `go/internal/query/code_dead_code_investigation.go`, and
-   `go/internal/query/code_dead_code_cross_repo.go` for the handlers behind
+7. `go/internal/query/codequery/deadcode/results.go`,
+   `go/internal/query/codequery/deadcode/investigation.go`, and
+   `go/internal/query/codequery/deadcode/cross_repo.go` for the handlers behind
    the three paths: each substitutes 100 for a nonpositive `limit` and clamps
    above 500, the investigation caps `offset` at 2000, and only the
    cross-repo handler rejects a blank `repo_id`.

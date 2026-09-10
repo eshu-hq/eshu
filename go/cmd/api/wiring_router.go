@@ -15,6 +15,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/component"
 	"github.com/eshu-hq/eshu/go/internal/query"
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/recovery"
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
@@ -131,11 +132,17 @@ func newRouterWithSemanticEmbedding(
 			GraphBackend:         graphBackend,
 			Neo4j:                neo4jReader,
 			Content:              contentReader,
-			CodeFlow:             query.NewPostgresCodeFlowStore(db),
+			CodeFlow:             codemodel.NewPostgresCodeFlowStore(db),
 			Profile:              queryProfile,
 			HybridRanker:         newCodeHybridRanker(semanticSearchEmbedding),
 			Logger:               logger,
 			ContentRelationships: query.ContentIndexRelationshipBuilder{},
+		},
+		Language: &query.LanguageQueryHandler{
+			Neo4j:   neo4jReader,
+			Content: contentReader,
+			Profile: queryProfile,
+			Logger:  logger,
 		},
 		Content: &query.ContentHandler{
 			Content:      contentReader,

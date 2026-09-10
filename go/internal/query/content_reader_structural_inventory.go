@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -16,7 +17,7 @@ import (
 // content index using only scoped, deterministic predicates.
 func (cr *ContentReader) InspectStructuralInventory(
 	ctx context.Context,
-	req structuralInventoryRequest,
+	req codequery.StructuralInventoryRequest,
 ) ([]EntityContent, error) {
 	if cr == nil || cr.db == nil {
 		return nil, nil
@@ -92,8 +93,8 @@ func (cr *ContentReader) InspectStructuralInventory(
 // the content index without hydrating source bodies.
 func (cr *ContentReader) CountStructuralInventoryByFile(
 	ctx context.Context,
-	req structuralInventoryRequest,
-) ([]StructuralInventoryFileCount, error) {
+	req codequery.StructuralInventoryRequest,
+) ([]codequery.StructuralInventoryFileCount, error) {
 	if cr == nil || cr.db == nil {
 		return nil, nil
 	}
@@ -131,9 +132,9 @@ func (cr *ContentReader) CountStructuralInventoryByFile(
 	}
 	defer func() { _ = rows.Close() }()
 
-	results := make([]StructuralInventoryFileCount, 0, req.QueryLimit())
+	results := make([]codequery.StructuralInventoryFileCount, 0, req.QueryLimit())
 	for rows.Next() {
-		var row StructuralInventoryFileCount
+		var row codequery.StructuralInventoryFileCount
 		if err := rows.Scan(&row.RepoID, &row.RelativePath, &row.Language, &row.FunctionCount); err != nil {
 			span.RecordError(err)
 			return nil, fmt.Errorf("scan structural inventory file count: %w", err)
@@ -155,7 +156,7 @@ func (cr *ContentReader) CountStructuralInventoryByFile(
 	return results, nil
 }
 
-func structuralInventoryWhere(req structuralInventoryRequest) ([]string, []any) {
+func structuralInventoryWhere(req codequery.StructuralInventoryRequest) ([]string, []any) {
 	where := make([]string, 0, 10)
 	args := make([]any, 0, 10)
 	addArg := func(value any) string {
@@ -195,7 +196,7 @@ func structuralInventoryWhere(req structuralInventoryRequest) ([]string, []any) 
 }
 
 func structuralInventoryKindPredicates(
-	req structuralInventoryRequest,
+	req codequery.StructuralInventoryRequest,
 	addArg func(any) string,
 ) []string {
 	switch req.Kind() {

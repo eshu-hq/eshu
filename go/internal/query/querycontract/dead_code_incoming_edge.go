@@ -17,6 +17,23 @@ import "strings"
 // advertises with nothing failing.
 var DeadCodeCandidateLabels = []string{"Function", "Class", "Struct", "Interface", "Trait", "SqlFunction"}
 
+// DeadCodeCandidateEntityType maps a candidate scan label to the content
+// entity type it selects, reporting false for a label no candidate scan
+// covers.
+//
+// It lives here beside DeadCodeCandidateLabels rather than in root because
+// the code-family contract proofs in codequery name it directly, and a
+// _test.go symbol in root is not importable across that package boundary
+// (#6060). Root keeps an unexported wrapper, so its callers are unchanged.
+func DeadCodeCandidateEntityType(label string) (string, bool) {
+	switch label {
+	case "Function", "Class", "Struct", "Interface", "Trait", "SqlFunction":
+		return label, true
+	default:
+		return "", false
+	}
+}
+
 // DeadCodeRootKindsFromMetadata reads the content-store dead_code_root_kinds
 // classification off an entity's metadata map.
 //

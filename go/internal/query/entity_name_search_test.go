@@ -210,7 +210,9 @@ func TestGlobalCodeSearchUsesOneAuthorizedContentNameQuery(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 
-	handler.handleSearch(rec, req)
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
@@ -261,7 +263,9 @@ func TestGlobalCodeSearchRequiresBoundedSubstringAndNameStore(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/code/search", bytes.NewBufferString(tc.body))
 			rec := httptest.NewRecorder()
-			tc.handler.handleSearch(rec, req)
+			mux := http.NewServeMux()
+			tc.handler.Mount(mux)
+			mux.ServeHTTP(rec, req)
 			if rec.Code != tc.status {
 				t.Fatalf("status = %d, want %d; body=%s", rec.Code, tc.status, rec.Body.String())
 			}

@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/graph"
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
@@ -38,7 +40,7 @@ func handlerQueryplanProductionCypher() map[string]string {
 		Name:   "proof",
 		RepoID: "proof-repository",
 	}, 10, allAccess)
-	codeCypher, _ := buildSearchGraphEntitiesQuery(
+	codeCypher, _ := codemodel.BuildSearchGraphEntitiesQuery(
 		"proof-repository",
 		"proof",
 		"",
@@ -78,34 +80,34 @@ func handlerQueryplanProductionCypher() map[string]string {
 		// scoped shapes are covered by the import-dependency variant family
 		// (queryplan_import_dependencies_variants_test.go), which enumerates
 		// both caller classes.
-		"QP-CODE-IMPORT-ROWS-REPOSITORY": directImportRowsCypher(importDependencyRequest{
+		"QP-CODE-IMPORT-ROWS-REPOSITORY": codemodel.DirectImportRowsCypher(codemodel.ImportDependencyRequest{
 			RepoID:     "proof-repository",
 			SourceFile: "proof.go",
 			Access:     allAccess,
 		}),
-		"QP-CODE-IMPORT-PACKAGES": packageImportRowsCypher(importDependencyRequest{
+		"QP-CODE-IMPORT-PACKAGES": codemodel.PackageImportRowsCypher(codemodel.ImportDependencyRequest{
 			QueryType:    "package_imports",
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
 			Access:       allAccess,
 		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
-		"QP-CODE-IMPORT-SOURCE-MODULE-FILES": sourceModuleFilesCypher(importDependencyRequest{
+		"QP-CODE-IMPORT-SOURCE-MODULE-FILES": codemodel.SourceModuleFilesCypher(codemodel.ImportDependencyRequest{
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
 			Access:       allAccess,
 		}),
-		"QP-CODE-IMPORT-TARGET-MODULE-FILES": targetModuleFilesCypher(importDependencyRequest{
+		"QP-CODE-IMPORT-TARGET-MODULE-FILES": codemodel.TargetModuleFilesCypher(codemodel.ImportDependencyRequest{
 			RepoID:       "proof-repository",
 			TargetModule: "proof.target",
 			Access:       allAccess,
 		}),
-		"QP-CODE-IMPORT-SOURCE-MODULE-ROWS": sourceModuleImportRowsCypher(importDependencyRequest{
+		"QP-CODE-IMPORT-SOURCE-MODULE-ROWS": codemodel.SourceModuleImportRowsCypher(codemodel.ImportDependencyRequest{
 			RepoID:       "proof-repository",
 			SourceModule: "proof.source",
 			Access:       allAccess,
 		}, []map[string]any{{"repo_id": "proof-repository", "path": "/proof/src/proof.py"}}),
-		"QP-CODE-IMPORT-CROSS-MODULE-CALLS": crossModuleCallRowsCypher(
-			importDependencyRequest{
+		"QP-CODE-IMPORT-CROSS-MODULE-CALLS": codemodel.CrossModuleCallRowsCypher(
+			codemodel.ImportDependencyRequest{
 				QueryType:    "cross_module_calls",
 				RepoID:       "proof-repository",
 				SourceModule: "proof.source",
@@ -158,6 +160,6 @@ func handlerQueryplanProductionCypher() map[string]string {
 }
 
 func mustCallGraphMetricsEdgesCypher(repoID string) string {
-	cypher, _ := callGraphMetricsEdgesCypher(repoID)
+	cypher, _ := codequery.CallGraphMetricsEdgesCypher(repoID)
 	return cypher
 }

@@ -36,8 +36,8 @@ Primary proof:
 - `go/internal/parser/java/java_reflection_test.go`
 - `go/internal/reducer/code_call_materialization_java_reflection_test.go`
 - `go/internal/reducer/handles_route_java_test.go`
-- `go/internal/query/code_dead_code_java_roots_test.go`
-- `go/internal/query/code_route_to_caller_java_test.go::TestHandleRouteToCallerResolvesJavaSpringHandler`
+- `go/internal/query/codequery/dead_code_java_roots_test.go`
+- `go/internal/query/codequery/route_to_caller_java_test.go::TestHandleRouteToCallerResolvesJavaSpringHandler`
 
 ## Dead-Code Support
 
@@ -115,7 +115,7 @@ Supported today:
   `go/internal/reducer/handles_route_projection_process_test.go` (intent to
   `HANDLES_ROUTE` edge write with endpoint-presence gating),
   `go/internal/storage/cypher/edge_writer_handles_route_test.go` (edge Cypher
-  dispatch), and `go/internal/query/code_route_to_caller_live_test.go` (live
+  dispatch), and `go/internal/query/codequery/route_to_caller_live_test.go` (live
   NornicDB read of a materialized `HANDLES_ROUTE` edge).
 - Gradle plugin/task/DSL roots, JUnit tests and lifecycle methods,
   Jenkins/Stapler extension points, serialization hooks, ServiceLoader

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -20,13 +21,13 @@ const hardcodedSecretSQLPattern = `(password|passwd|pwd|api[_-]?key|apikey|token
 // finding kind, and evaluates hardcodedSecretSQLSuppressionPredicate so
 // test/fixture paths and placeholder literals are excluded unless
 // req.IncludeSuppressed is set. It is the Postgres-backed fast path
-// hardcodedSecretInvestigator exposes to CodeHandler.hardcodedSecretRows;
+// codequery.HardcodedSecretInvestigator exposes to CodeHandler.hardcodedSecretRows;
 // without a satisfying store that caller returns
 // errHardcodedSecretBackendUnavailable rather than a degraded scan.
 func (cr *ContentReader) InvestigateHardcodedSecrets(
 	ctx context.Context,
-	req hardcodedSecretInvestigationRequest,
-) ([]hardcodedSecretFindingRow, error) {
+	req codequery.HardcodedSecretInvestigationRequest,
+) ([]codequery.HardcodedSecretFindingRow, error) {
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
 		trace.WithAttributes(
@@ -93,9 +94,9 @@ func (cr *ContentReader) InvestigateHardcodedSecrets(
 	}
 	defer func() { _ = rows.Close() }()
 
-	results := make([]hardcodedSecretFindingRow, 0)
+	results := make([]codequery.HardcodedSecretFindingRow, 0)
 	for rows.Next() {
-		var row hardcodedSecretFindingRow
+		var row codequery.HardcodedSecretFindingRow
 		if err := rows.Scan(
 			&row.RepoID,
 			&row.RelativePath,
@@ -119,7 +120,7 @@ func (cr *ContentReader) InvestigateHardcodedSecrets(
 	return results, nil
 }
 
-func hardcodedSecretFilters(req hardcodedSecretInvestigationRequest) ([]string, []any, int) {
+func hardcodedSecretFilters(req codequery.HardcodedSecretInvestigationRequest) ([]string, []any, int) {
 	filters := make([]string, 0, 2)
 	args := make([]any, 0, 2)
 	nextArg := 1

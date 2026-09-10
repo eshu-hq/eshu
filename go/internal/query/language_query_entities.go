@@ -111,7 +111,7 @@ func allSupportedEntityTypes() map[string]string {
 
 // acceptLanguageQueryEntityType reports whether entityType is one a dispatch
 // branch of handleLanguageQuery serves, writing the 400 below and reporting
-// false when it is not. It mirrors ApplyRepositorySelectorForAccess'
+// false when it is not. It mirrors codequery.ApplyRepositorySelectorForAccess'
 // write-and-report-false shape so the handler's request-validation block stays
 // one line per check.
 func acceptLanguageQueryEntityType(w http.ResponseWriter, entityType string) bool {

@@ -39,11 +39,3 @@ func resolveRepositorySelectorForRequestWithAccess(
 ) (string, bool) {
 	return queryselector.ResolveForRequestWithAccess(w, r, graph, content, selector, access, capability)
 }
-
-func isRepositorySelectorNotFound(err error) bool {
-	return queryselector.IsNotFound(err)
-}
-
-func resolveRepositoryCatalogMatches(entries []RepositoryCatalogEntry, selector string) []string {
-	return queryselector.CatalogMatches(entries, selector)
-}

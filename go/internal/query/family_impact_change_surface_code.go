@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
@@ -69,11 +70,11 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 		}
 		sourceBackends = append(sourceBackends, "postgres_content_store")
 		for index, row := range rows {
-			files = appendMatchedFile(files, row)
+			files = codequery.AppendMatchedFile(files, row)
 			if row.EntityID != "" {
-				symbols = append(symbols, codeTopicSymbol(row, index+1))
+				symbols = append(symbols, codequery.CodeTopicSymbol(row, index+1))
 			}
-			evidenceGroups = append(evidenceGroups, codeTopicEvidenceGroup(row, index+1))
+			evidenceGroups = append(evidenceGroups, codequery.CodeTopicEvidenceGroup(row, index+1))
 		}
 	}
 	pathSymbolsTruncated := false
@@ -112,21 +113,21 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 // fetchChangeSurfaceTopicRows is the former (h *ImpactHandler)
 // changeSurfaceTopicRows, converted to a free function with zero body
 // changes. It stays in root because it names lane-A codeTopic* types.
-func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impact.ChangeSurfaceInvestigationRequest) ([]codeTopicEvidenceRow, error) {
+func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impact.ChangeSurfaceInvestigationRequest) ([]codequery.CodeTopicEvidenceRow, error) {
 	if h == nil || h.Content == nil {
-		return nil, errCodeTopicBackendUnavailable
+		return nil, codequery.ErrCodeTopicBackendUnavailable
 	}
-	investigator, ok := h.Content.(codeTopicContentInvestigator)
+	investigator, ok := h.Content.(codequery.CodeTopicContentInvestigator)
 	if !ok {
-		return nil, errCodeTopicBackendUnavailable
+		return nil, codequery.ErrCodeTopicBackendUnavailable
 	}
-	topicReq := codeTopicInvestigationRequest{
+	topicReq := codequery.CodeTopicInvestigationRequest{
 		Topic:  req.Topic,
 		RepoID: req.RepoID,
 		Limit:  req.Limit + 1,
 		Offset: req.Offset,
 		Intent: "change_surface",
-		Terms:  codeTopicSearchTerms(req.Topic, "change_surface", nil),
+		Terms:  codequery.CodeTopicSearchTerms(req.Topic, "change_surface", nil),
 	}
 	// #5167 W3 P1: when the search is corpus-wide (no explicit repo_id), push the
 	// caller's grant into the content-store SQL WHERE so its LIMIT is taken from
@@ -144,17 +145,17 @@ func fetchChangeSurfaceTopicRows(ctx context.Context, h *ImpactHandler, req impa
 	return rows, nil
 }
 
-// filterCodeTopicRowsForAccess drops codeTopicEvidenceRow entries whose
+// filterCodeTopicRowsForAccess drops codequery.CodeTopicEvidenceRow entries whose
 // RepoID is outside the caller's grant. InvestigateCodeTopic (the "code/*"
 // #5167 family) has no grant filtering of its own, so change-surface callers
 // that fold topic evidence into their response bind it here independently
 // (see changeSurfaceCodeBackend.FetchCodeSurface). It stays in root because
 // it names the lane-A row type.
-func filterCodeTopicRowsForAccess(rows []codeTopicEvidenceRow, access querycontract.RepositoryAccessFilter) []codeTopicEvidenceRow {
+func filterCodeTopicRowsForAccess(rows []codequery.CodeTopicEvidenceRow, access querycontract.RepositoryAccessFilter) []codequery.CodeTopicEvidenceRow {
 	if !access.Scoped() {
 		return rows
 	}
-	filtered := make([]codeTopicEvidenceRow, 0, len(rows))
+	filtered := make([]codequery.CodeTopicEvidenceRow, 0, len(rows))
 	for _, row := range rows {
 		if impact.ImpactRepoIDAllowed(row.RepoID, access) {
 			filtered = append(filtered, row)

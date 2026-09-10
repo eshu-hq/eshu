@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 )
 
 // The EXPLAIN plumbing the plan and work guards share: running the shipped
@@ -49,7 +51,7 @@ func crossRepoDeadCodeProbePlan(
 ) string {
 	t.Helper()
 
-	statement := prefix + crossRepoDeadCodeUngrantedConsumerProbeQuery
+	statement := prefix + deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery
 	args := []any{
 		producerRepoID,
 		crossRepoDeadCodeProbeTextArray(entityIDs),
@@ -133,7 +135,7 @@ func crossRepoDeadCodeProbeGenericStatement(
 	})
 	if _, err := db.ExecContext(
 		ctx,
-		"PREPARE "+name+"(text, text[], text[], int) AS "+crossRepoDeadCodeUngrantedConsumerProbeQuery,
+		"PREPARE "+name+"(text, text[], text[], int) AS "+deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery,
 	); err != nil {
 		t.Fatalf("prepare the probe: %v", err)
 	}

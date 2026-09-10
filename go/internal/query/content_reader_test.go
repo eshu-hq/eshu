@@ -4,11 +4,16 @@
 package query
 
 import (
+	"bytes"
 	"context"
 	"database/sql/driver"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestContentReaderMatchRepositoriesReturnsExactMatches(t *testing.T) {
@@ -261,18 +266,30 @@ func TestCodeHandlerSearchEntityContentIncludesMetadata(t *testing.T) {
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db)}
-	results, err := handler.searchEntityContent(context.Background(), "repo-1", "handler", "", 10)
-	if err != nil {
-		t.Fatalf("searchEntityContent() error = %v, want nil", err)
+	handler := &CodeHandler{Content: NewContentReader(db), Neo4j: querytestutil.FakeGraphReader{}, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/search",
+		bytes.NewBufferString(`{"query":"handler","repo_id":"repo-1","limit":10}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	if len(results) != 1 {
-		t.Fatalf("len(results) = %d, want 1", len(results))
+	data := decodeEnvelopeData(t, rec.Body.Bytes())
+	results, ok := data["results"].([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("results = %#v, want 1 entry", data["results"])
+	}
+	result, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("results[0] type = %T, want map[string]any", results[0])
 	}
 
-	metadata, ok := results[0]["metadata"].(map[string]any)
+	metadata, ok := result["metadata"].(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][metadata] type = %T, want map[string]any", results[0]["metadata"])
+		t.Fatalf("results[0][metadata] type = %T, want map[string]any", result["metadata"])
 	}
 	if got, want := metadata["async"], true; got != want {
 		t.Fatalf("metadata[async] = %#v, want %#v", got, want)
@@ -304,26 +321,38 @@ func TestCodeHandlerSearchEntityContentIncludesEntityNameMatches(t *testing.T) {
 		},
 	})
 
-	handler := &CodeHandler{Content: NewContentReader(db)}
-	results, err := handler.searchEntityContent(context.Background(), "repo-1", "Button", "typescript", 10)
-	if err != nil {
-		t.Fatalf("searchEntityContent() error = %v, want nil", err)
+	handler := &CodeHandler{Content: NewContentReader(db), Neo4j: querytestutil.FakeGraphReader{}, Profile: ProfileLocalAuthoritative}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/search",
+		bytes.NewBufferString(`{"query":"Button","repo_id":"repo-1","language":"typescript","limit":10}`))
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 	}
-	if len(results) != 1 {
-		t.Fatalf("len(results) = %d, want 1", len(results))
+	data := decodeEnvelopeData(t, rec.Body.Bytes())
+	rawResults, ok := data["results"].([]any)
+	if !ok || len(rawResults) != 1 {
+		t.Fatalf("results = %#v, want 1 entry", data["results"])
 	}
-	if got, want := results[0]["entity_name"], "Button"; got != want {
+	result, ok := rawResults[0].(map[string]any)
+	if !ok {
+		t.Fatalf("results[0] type = %T, want map[string]any", rawResults[0])
+	}
+	if got, want := result["entity_name"], "Button"; got != want {
 		t.Fatalf("results[0][entity_name] = %#v, want %#v", got, want)
 	}
-	if got, want := results[0]["language"], "tsx"; got != want {
+	if got, want := result["language"], "tsx"; got != want {
 		t.Fatalf("results[0][language] = %#v, want %#v", got, want)
 	}
-	if got, want := results[0]["semantic_summary"], "Component Button is associated with the react framework."; got != want {
+	if got, want := result["semantic_summary"], "Component Button is associated with the react framework."; got != want {
 		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", got, want)
 	}
-	semanticProfile, ok := results[0]["semantic_profile"].(map[string]any)
+	semanticProfile, ok := result["semantic_profile"].(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", results[0]["semantic_profile"])
+		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", result["semantic_profile"])
 	}
 	if got, want := semanticProfile["surface_kind"], "framework_component"; got != want {
 		t.Fatalf("semantic_profile[surface_kind] = %#v, want %#v", got, want)

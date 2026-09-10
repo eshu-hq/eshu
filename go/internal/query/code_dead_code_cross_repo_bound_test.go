@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 )
 
 // POST /api/v0/code/dead-code/cross-repo bounds its consumer reads by what the
@@ -77,7 +79,7 @@ func TestCrossRepoDeadCodeSignalReadIsTheBoundedUngrantedProbe(t *testing.T) {
 	}
 
 	probe := recorder.queries[1]
-	if probe != crossRepoDeadCodeUngrantedConsumerProbeQuery {
+	if probe != deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery {
 		t.Fatalf("second statement is not the ungranted-consumer probe:\n%s", probe)
 	}
 	// The whole point of the probe is that it stops early, and it stops early

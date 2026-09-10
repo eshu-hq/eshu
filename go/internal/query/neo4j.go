@@ -13,7 +13,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -258,15 +257,6 @@ func resourceInvestigationHopReason(props map[string]any) string {
 		return reason
 	}
 	return StringVal(props, "evidence_type")
-}
-
-// routeToCallerEntityFromChain extracts the far-endpoint (caller/callee) entity
-// fields from a nodes(path) value. The implementation moved to
-// querygraphrows for #6060 so a handler-family subpackage can decode a
-// route-to-caller chain without importing this package; see that package's
-// doc.go for why it, rather than querycontract, is the new home.
-func routeToCallerEntityFromChain(chain any) map[string]any {
-	return querygraphrows.RouteToCallerEntityFromChain(chain)
 }
 
 // RepoProjection returns the standard Cypher RETURN clause for repository nodes.

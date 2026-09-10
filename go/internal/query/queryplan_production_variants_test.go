@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
@@ -282,7 +283,7 @@ func handlerQueryplanSafeCypherVariants() map[string]string {
 			if language != "" {
 				languageName = "language"
 			}
-			cypher, _ := buildSearchGraphEntitiesQuery("proof-repository", "proof", language, 10, exact, allAccess)
+			cypher, _ := codemodel.BuildSearchGraphEntitiesQuery("proof-repository", "proof", language, 10, exact, allAccess)
 			variants[fmt.Sprintf("code/repository/%s/%s", matchName, languageName)] = cypher
 		}
 	}

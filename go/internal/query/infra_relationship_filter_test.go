@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -392,7 +393,7 @@ func TestResolveInfraRelationshipTypes(t *testing.T) {
 			if ok != tc.wantOK {
 				t.Fatalf("resolveInfraRelationshipTypes(%q) ok = %v, want %v", tc.input, ok, tc.wantOK)
 			}
-			if !equalStringSlices(got, tc.wantTypes) {
+			if !slices.Equal(got, tc.wantTypes) {
 				t.Fatalf("resolveInfraRelationshipTypes(%q) = %#v, want %#v", tc.input, got, tc.wantTypes)
 			}
 		})

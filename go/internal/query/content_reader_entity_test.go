@@ -8,6 +8,8 @@ import (
 	"database/sql/driver"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codeshaping"
 )
 
 func TestContentReaderGetEntityContentIncludesMetadata(t *testing.T) {
@@ -358,7 +360,7 @@ func TestContentReaderDeadCodeCandidateRowsReturnsGraphShapedRows(t *testing.T) 
 	})
 
 	reader := NewContentReader(db)
-	rows, err := reader.DeadCodeCandidateRows(context.Background(), deadCodeCandidateQuery{RepoID: "repo-1", Label: "Function", Language: "go", Limit: 10})
+	rows, err := reader.DeadCodeCandidateRows(context.Background(), codeshaping.DeadCodeCandidateQuery{RepoID: "repo-1", Label: "Function", Language: "go", Limit: 10})
 	if err != nil {
 		t.Fatalf("DeadCodeCandidateRows() error = %v, want nil", err)
 	}
@@ -405,7 +407,7 @@ func TestContentReaderDeadCodeCandidateRowsReturnsSQLFunctions(t *testing.T) {
 	})
 
 	reader := NewContentReader(db)
-	rows, err := reader.DeadCodeCandidateRows(context.Background(), deadCodeCandidateQuery{RepoID: "repo-1", Label: "SqlFunction", Language: "sql", Limit: 10})
+	rows, err := reader.DeadCodeCandidateRows(context.Background(), codeshaping.DeadCodeCandidateQuery{RepoID: "repo-1", Label: "SqlFunction", Language: "sql", Limit: 10})
 	if err != nil {
 		t.Fatalf("DeadCodeCandidateRows() error = %v, want nil", err)
 	}
@@ -451,7 +453,7 @@ func TestContentReaderDeadCodeCandidateRowsAllowsRepositoryOptionalScan(t *testi
 	})
 
 	reader := NewContentReader(db)
-	rows, err := reader.DeadCodeCandidateRows(context.Background(), deadCodeCandidateQuery{Label: "SqlFunction", Language: "sql", Limit: 10})
+	rows, err := reader.DeadCodeCandidateRows(context.Background(), codeshaping.DeadCodeCandidateQuery{Label: "SqlFunction", Language: "sql", Limit: 10})
 	if err != nil {
 		t.Fatalf("DeadCodeCandidateRows() error = %v, want nil", err)
 	}

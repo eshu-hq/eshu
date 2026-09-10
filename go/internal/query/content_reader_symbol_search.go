@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -15,7 +16,7 @@ import (
 // SearchSymbols queries content_entities for entities whose entity_name
 // matches req's symbol (exact match when req.MustMatchMode() is "exact",
 // otherwise an ILIKE substring match), further scoped by req.RepoID and
-// req.Language. It is the symbol-aware fast path symbolContentSearcher
+// req.Language. It is the symbol-aware fast path codequery.SymbolContentSearcher
 // exposes to CodeHandler.symbolSearchResults; the fallback that runs
 // without a satisfying store uses SearchEntitiesByName's different name-only
 // match semantics, so callers must not treat the two as interchangeable --
@@ -23,7 +24,7 @@ import (
 // source_backend value for exactly this reason.
 func (cr *ContentReader) SearchSymbols(
 	ctx context.Context,
-	req symbolSearchRequest,
+	req codequery.SymbolSearchRequest,
 ) ([]EntityContent, error) {
 	ctx, span := cr.tracer.Start(
 		ctx, "postgres.query",
@@ -88,7 +89,7 @@ func (cr *ContentReader) SearchSymbols(
 	return results, nil
 }
 
-func symbolSearchFilters(req symbolSearchRequest) ([]string, []any, int) {
+func symbolSearchFilters(req codequery.SymbolSearchRequest) ([]string, []any, int) {
 	filters := make([]string, 0, 4)
 	args := make([]any, 0, 4)
 	nextArg := 2

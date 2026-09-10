@@ -4,6 +4,7 @@
 package query
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -99,7 +100,7 @@ func TestConfigShapeHintForEachSupportedResourceType(t *testing.T) {
 			if hint.ResourceAddress != candidate.SuggestedResourceAddress {
 				t.Fatalf("hint.ResourceAddress = %q, want %q", hint.ResourceAddress, candidate.SuggestedResourceAddress)
 			}
-			if !equalStringSlices(hint.RequiredArguments, tc.wantRequired) {
+			if !slices.Equal(hint.RequiredArguments, tc.wantRequired) {
 				t.Fatalf("hint.RequiredArguments = %v, want %v", hint.RequiredArguments, tc.wantRequired)
 			}
 			if len(hint.ManualFillWarnings) == 0 {

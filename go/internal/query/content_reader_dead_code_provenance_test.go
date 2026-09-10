@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 )
 
 func TestContentReaderDeadCodeIncomingDerivesConfidenceFromResolutionMethod(t *testing.T) {
@@ -38,13 +39,13 @@ func TestContentReaderDeadCodeIncomingDerivesConfidenceFromResolutionMethod(t *t
 	if got, want := incoming["content-entity:weak"].MaxConfidence, codeprovenance.Confidence(codeprovenance.MethodRepoUniqueName); got != want {
 		t.Fatalf("weak MaxConfidence = %v, want %v", got, want)
 	}
-	if !deadCodeIncomingEdgeIsWeak(incoming["content-entity:weak"].MaxConfidence) {
+	if !deadcode.DeadCodeIncomingEdgeIsWeak(incoming["content-entity:weak"].MaxConfidence) {
 		t.Fatalf("weak edge classified strong: %#v", incoming["content-entity:weak"])
 	}
-	if deadCodeIncomingEdgeIsWeak(incoming["content-entity:strong"].MaxConfidence) {
+	if deadcode.DeadCodeIncomingEdgeIsWeak(incoming["content-entity:strong"].MaxConfidence) {
 		t.Fatalf("strong edge classified weak: %#v", incoming["content-entity:strong"])
 	}
-	if deadCodeIncomingEdgeIsWeak(incoming["content-entity:legacy"].MaxConfidence) {
+	if deadcode.DeadCodeIncomingEdgeIsWeak(incoming["content-entity:legacy"].MaxConfidence) {
 		t.Fatalf("legacy (empty method) edge classified weak: %#v", incoming["content-entity:legacy"])
 	}
 	if got, want := len(recorder.queries), 1; got != want {
@@ -80,7 +81,7 @@ func TestContentReaderDeadCodeIncomingKeepsMaxConfidencePerEntity(t *testing.T) 
 	if got, want := incoming["content-entity:mixed"].MaxConfidence, codeprovenance.Confidence(codeprovenance.MethodImportBinding); got != want {
 		t.Fatalf("mixed MaxConfidence = %v, want %v (strongest wins)", got, want)
 	}
-	if deadCodeIncomingEdgeIsWeak(incoming["content-entity:mixed"].MaxConfidence) {
+	if deadcode.DeadCodeIncomingEdgeIsWeak(incoming["content-entity:mixed"].MaxConfidence) {
 		t.Fatalf("mixed edge classified weak despite strong import_binding edge")
 	}
 }

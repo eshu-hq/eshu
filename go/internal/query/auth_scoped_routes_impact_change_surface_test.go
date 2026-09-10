@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -159,9 +160,9 @@ func TestAuthMiddlewareWithScopedTokensAllowsChangeSurfaceFamily(t *testing.T) {
 
 // fakeChangeSurfaceTopicContentStore embeds fakePortContentStore (the
 // existing full-interface ContentStore fake in ports_test.go) and adds
-// InvestigateCodeTopic so it also satisfies codeTopicContentInvestigator --
+// InvestigateCodeTopic so it also satisfies codequery.CodeTopicContentInvestigator --
 // the real production type assertion path
-// (changeSurfaceCodeSurface -> changeSurfaceTopicRows -> h.Content.(codeTopicContentInvestigator))
+// (changeSurfaceCodeSurface -> changeSurfaceTopicRows -> h.Content.(codequery.CodeTopicContentInvestigator))
 // a *ContentReader (the real Postgres-backed content store, per
 // cmd/api/wiring.go) also satisfies. InvestigateCodeTopic itself has no repo
 // grant filtering of its own (a different #5167 "code/*" workstream), so this
@@ -170,13 +171,13 @@ func TestAuthMiddlewareWithScopedTokensAllowsChangeSurfaceFamily(t *testing.T) {
 // underlying content-store query -- is what removes the cross-tenant row.
 type fakeChangeSurfaceTopicContentStore struct {
 	fakePortContentStore
-	topicRows []codeTopicEvidenceRow
+	topicRows []codequery.CodeTopicEvidenceRow
 }
 
 func (f fakeChangeSurfaceTopicContentStore) InvestigateCodeTopic(
 	_ context.Context,
-	_ codeTopicInvestigationRequest,
-) ([]codeTopicEvidenceRow, error) {
+	_ codequery.CodeTopicInvestigationRequest,
+) ([]codequery.CodeTopicEvidenceRow, error) {
 	return f.topicRows, nil
 }
 
@@ -186,12 +187,12 @@ func (f fakeChangeSurfaceTopicContentStore) InvestigateCodeTopic(
 // caller granted only repo-a also see repo-b's code-topic evidence (touched
 // symbols and matched files), because InvestigateCodeTopic itself performs a
 // corpus-wide search with no repo predicate. This drives the real content-store
-// type-assertion path (h.Content.(codeTopicContentInvestigator)), the same
+// type-assertion path (h.Content.(codequery.CodeTopicContentInvestigator)), the same
 // path production's *ContentReader satisfies -- not a Neo4j-only fake.
 func TestInvestigateChangeSurfaceScopedFiltersCrossTenantTopicEvidence(t *testing.T) {
 	t.Parallel()
 
-	content := fakeChangeSurfaceTopicContentStore{topicRows: []codeTopicEvidenceRow{
+	content := fakeChangeSurfaceTopicContentStore{topicRows: []codequery.CodeTopicEvidenceRow{
 		{SourceKind: "entity", RepoID: "repo-a", RelativePath: "handlers/auth.go", EntityID: "entity-a", EntityName: "Authenticate"},
 		{SourceKind: "entity", RepoID: "repo-b", RelativePath: "handlers/auth.go", EntityID: "entity-b", EntityName: "AuthenticateOther"},
 	}}

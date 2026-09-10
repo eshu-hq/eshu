@@ -6,6 +6,8 @@ package query
 import (
 	"context"
 
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/codequery/deadcode"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -69,101 +71,101 @@ import (
 // CodeReachabilityCoverage is the exported seam for codeReachabilityCoverage,
 // which content_reader_dead_code.go reads from outside the code move set.
 // See #6060.
-type CodeReachabilityCoverage = codeReachabilityCoverage
+type CodeReachabilityCoverage = deadcode.CodeReachabilityCoverage
 
 // CodeTopicContentInvestigator is the exported seam for
 // codeTopicContentInvestigator, which content_reader.go and
 // family_impact_change_surface_code.go read from outside the code move set.
 // See #6060.
-type CodeTopicContentInvestigator = codeTopicContentInvestigator
+type CodeTopicContentInvestigator = codequery.CodeTopicContentInvestigator
 
 // CodeTopicEvidenceRow is the exported seam for codeTopicEvidenceRow, which
 // content_reader_code_topic.go and family_impact_change_surface_code.go read
 // from outside the code move set. See #6060.
-type CodeTopicEvidenceRow = codeTopicEvidenceRow
+type CodeTopicEvidenceRow = codequery.CodeTopicEvidenceRow
 
 // CodeTopicInvestigationRequest is the exported seam for
 // codeTopicInvestigationRequest, which answer_packet_routes.go,
 // content_reader_code_topic.go, and family_impact_change_surface_code.go read
 // from outside the code move set. See #6060.
-type CodeTopicInvestigationRequest = codeTopicInvestigationRequest
+type CodeTopicInvestigationRequest = codequery.CodeTopicInvestigationRequest
 
 // CrossRepoDeadCodeEvidence is the exported seam for crossRepoDeadCodeEvidence,
 // which content_reader_dead_code_cross_repo.go reads from outside the code
 // move set. See #6060.
-type CrossRepoDeadCodeEvidence = crossRepoDeadCodeEvidence
+type CrossRepoDeadCodeEvidence = deadcode.CrossRepoDeadCodeEvidence
 
 // HardcodedSecretFindingRow is the exported seam for
 // hardcodedSecretFindingRow, which content_reader_security_secrets.go reads
 // from outside the code move set. See #6060.
-type HardcodedSecretFindingRow = hardcodedSecretFindingRow
+type HardcodedSecretFindingRow = codequery.HardcodedSecretFindingRow
 
 // HardcodedSecretInvestigationRequest is the exported seam for
 // hardcodedSecretInvestigationRequest, which
 // content_reader_security_secrets.go reads from outside the code move set.
 // See #6060.
-type HardcodedSecretInvestigationRequest = hardcodedSecretInvestigationRequest
+type HardcodedSecretInvestigationRequest = codequery.HardcodedSecretInvestigationRequest
 
 // HardcodedSecretInvestigator is the exported seam for
 // hardcodedSecretInvestigator, which content_reader.go reads from outside the
 // code move set. See #6060.
-type HardcodedSecretInvestigator = hardcodedSecretInvestigator
+type HardcodedSecretInvestigator = codequery.HardcodedSecretInvestigator
 
 // LanguageQueryGrant is the exported seam for languageQueryGrant, which
 // language_queries.go and language_query_metadata.go read from outside the
 // code move set. See #6060.
-type LanguageQueryGrant = languageQueryGrant
+type LanguageQueryGrant = codequery.LanguageQueryGrant
 
 // StructuralInventoryRequest is the exported seam for
 // structuralInventoryRequest, which content_reader_structural_inventory.go
 // reads from outside the code move set. See #6060.
-type StructuralInventoryRequest = structuralInventoryRequest
+type StructuralInventoryRequest = codequery.StructuralInventoryRequest
 
 // SymbolContentSearcher is the exported seam for symbolContentSearcher, which
 // content_reader.go reads from outside the code move set. See #6060.
-type SymbolContentSearcher = symbolContentSearcher
+type SymbolContentSearcher = codequery.SymbolContentSearcher
 
 // SymbolSearchRequest is the exported seam for symbolSearchRequest, which
 // content_reader_symbol_search.go reads from outside the code move set. See
 // #6060.
-type SymbolSearchRequest = symbolSearchRequest
+type SymbolSearchRequest = codequery.SymbolSearchRequest
 
 const (
 	// CallGraphMetricsEdgeScanLimit is the exported seam for
 	// callGraphMetricsEdgeScanLimit, which infra_graph_summary_packet.go reads
 	// from outside the code move set. See #6060.
-	CallGraphMetricsEdgeScanLimit = callGraphMetricsEdgeScanLimit
+	CallGraphMetricsEdgeScanLimit = codequery.CallGraphMetricsEdgeScanLimit
 
 	// CodeFlowCFGSummaryCapability is the exported seam for
 	// codeFlowCFGSummaryCapability, which contract_code_flow.go reads from
 	// outside the code move set. See #6060.
-	CodeFlowCFGSummaryCapability = codeFlowCFGSummaryCapability
+	CodeFlowCFGSummaryCapability = codequery.CodeFlowCFGSummaryCapability
 
 	// CodeFlowPDGSummaryCapability is the exported seam for
 	// codeFlowPDGSummaryCapability, which contract_code_flow.go reads from
 	// outside the code move set. See #6060.
-	CodeFlowPDGSummaryCapability = codeFlowPDGSummaryCapability
+	CodeFlowPDGSummaryCapability = codequery.CodeFlowPDGSummaryCapability
 
 	// CodeFlowReachingDefCapability is the exported seam for
 	// codeFlowReachingDefCapability, which contract_code_flow.go reads from
 	// outside the code move set. See #6060.
-	CodeFlowReachingDefCapability = codeFlowReachingDefCapability
+	CodeFlowReachingDefCapability = codequery.CodeFlowReachingDefCapability
 
 	// CodeFlowTaintPathCapability is the exported seam for
 	// codeFlowTaintPathCapability, which contract_code_flow.go reads from
 	// outside the code move set. See #6060.
-	CodeFlowTaintPathCapability = codeFlowTaintPathCapability
+	CodeFlowTaintPathCapability = codequery.CodeFlowTaintPathCapability
 
 	// RouteToCallerCapability is the exported seam for
 	// routeToCallerCapability, which contract_capability_matrix.go reads from
 	// outside the code move set. See #6060.
-	RouteToCallerCapability = routeToCallerCapability
+	RouteToCallerCapability = codequery.RouteToCallerCapability
 
 	// StructuralInventoryDefaultLimit is the exported seam for
 	// structuralInventoryDefaultLimit, which
 	// content_reader_structural_inventory.go reads from outside the code move
 	// set. See #6060.
-	StructuralInventoryDefaultLimit = structuralInventoryDefaultLimit
+	StructuralInventoryDefaultLimit = codequery.StructuralInventoryDefaultLimit
 
 	// CrossRepoDeadCodeUngrantedConsumerProbeQuery is the exported seam for
 	// crossRepoDeadCodeUngrantedConsumerProbeQuery. The statement is declared
@@ -174,72 +176,77 @@ const (
 	// this cross-boundary read: it does not exist on main. Aliasing rather
 	// than moving the statement keeps the query text in exactly one place, so
 	// the tree-wide literal comparison stays byte-identical. See #6060.
-	CrossRepoDeadCodeUngrantedConsumerProbeQuery = crossRepoDeadCodeUngrantedConsumerProbeQuery
+	CrossRepoDeadCodeUngrantedConsumerProbeQuery = deadcode.CrossRepoDeadCodeUngrantedConsumerProbeQuery
+
+	// CodeTopicCapability is the exported seam for codeTopicCapability, which
+	// answer_metadata_test.go reads from outside the code move set. See
+	// #6060.
+	CodeTopicCapability = codequery.CodeTopicCapability
 )
 
 // ErrCodeTopicBackendUnavailable is the exported seam for
 // errCodeTopicBackendUnavailable, which family_impact_change_surface_code.go
 // reads from outside the code move set. See #6060.
-var ErrCodeTopicBackendUnavailable = errCodeTopicBackendUnavailable
+var ErrCodeTopicBackendUnavailable = codequery.ErrCodeTopicBackendUnavailable
 
-// AppendMatchedFile is the exported seam for appendMatchedFile, which
+// AppendMatchedFile is the exported seam for codequery.AppendMatchedFile, which
 // family_impact_change_surface_code.go calls from outside the code move set.
 // It forwards so the code family can move without touching callers. See
 // #6060.
 func AppendMatchedFile(files []map[string]any, row CodeTopicEvidenceRow) []map[string]any {
-	return appendMatchedFile(files, row)
+	return codequery.AppendMatchedFile(files, row)
 }
 
 // CallGraphMetricsEdgesCypher is the exported seam for
-// callGraphMetricsEdgesCypher, which infra_graph_summary_packet.go calls from
+// codequery.CallGraphMetricsEdgesCypher, which infra_graph_summary_packet.go calls from
 // outside the code move set. It forwards so the code family can move without
 // touching callers. See #6060.
 func CallGraphMetricsEdgesCypher(repoID string) (string, map[string]any) {
-	return callGraphMetricsEdgesCypher(repoID)
+	return codequery.CallGraphMetricsEdgesCypher(repoID)
 }
 
-// CodeTopicEvidenceGroup is the exported seam for codeTopicEvidenceGroup,
+// CodeTopicEvidenceGroup is the exported seam for codequery.CodeTopicEvidenceGroup,
 // which family_impact_change_surface_code.go calls from outside the code
 // move set. It forwards so the code family can move without touching
 // callers. See #6060.
 func CodeTopicEvidenceGroup(row CodeTopicEvidenceRow, rank int) map[string]any {
-	return codeTopicEvidenceGroup(row, rank)
+	return codequery.CodeTopicEvidenceGroup(row, rank)
 }
 
-// CodeTopicSearchTerms is the exported seam for codeTopicSearchTerms, which
+// CodeTopicSearchTerms is the exported seam for codequery.CodeTopicSearchTerms, which
 // family_impact_change_surface_code.go calls from outside the code move set.
 // It forwards so the code family can move without touching callers. See
 // #6060.
 func CodeTopicSearchTerms(topic, intent string, explicit []string) []string {
-	return codeTopicSearchTerms(topic, intent, explicit)
+	return codequery.CodeTopicSearchTerms(topic, intent, explicit)
 }
 
-// CodeTopicSymbol is the exported seam for codeTopicSymbol, which
+// CodeTopicSymbol is the exported seam for codequery.CodeTopicSymbol, which
 // family_impact_change_surface_code.go calls from outside the code move set.
 // It forwards so the code family can move without touching callers. See
 // #6060.
 func CodeTopicSymbol(row CodeTopicEvidenceRow, rank int) map[string]any {
-	return codeTopicSymbol(row, rank)
+	return codequery.CodeTopicSymbol(row, rank)
 }
 
 // CrossRepoDeadCodeConfidenceLabel is the exported seam for
-// crossRepoDeadCodeConfidenceLabel, which
+// deadcode.CrossRepoDeadCodeConfidenceLabel, which
 // content_reader_dead_code_cross_repo.go calls from outside the code move
 // set. It forwards so the code family can move without touching callers. See
 // #6060.
 func CrossRepoDeadCodeConfidenceLabel(confidence float64) string {
-	return crossRepoDeadCodeConfidenceLabel(confidence)
+	return deadcode.CrossRepoDeadCodeConfidenceLabel(confidence)
 }
 
-// LanguageQueryGrantFor is the exported seam for languageQueryGrantFor, which
+// LanguageQueryGrantFor is the exported seam for codequery.LanguageQueryGrantFor, which
 // language_queries.go calls from outside the code move set. It forwards so
 // the code family can move without touching callers. See #6060.
 func LanguageQueryGrantFor(ctx context.Context, repoID string) (LanguageQueryGrant, bool) {
-	return languageQueryGrantFor(ctx, repoID)
+	return codequery.LanguageQueryGrantFor(ctx, repoID)
 }
 
 // MergeStrongestDeadCodeIncomingEdge is the exported seam for
-// mergeStrongestDeadCodeIncomingEdge, which content_reader_dead_code.go calls
+// deadcode.MergeStrongestDeadCodeIncomingEdge, which content_reader_dead_code.go calls
 // from outside the code move set. It forwards so the code family can move
 // without touching callers. deadCodeIncomingEdge already aliases
 // querycontract.DeadCodeIncomingEdge (code_dead_code_scan.go), so the
@@ -250,12 +257,30 @@ func MergeStrongestDeadCodeIncomingEdge(
 	entityID string,
 	edge querycontract.DeadCodeIncomingEdge,
 ) {
-	mergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
+	deadcode.MergeStrongestDeadCodeIncomingEdge(incoming, entityID, edge)
 }
 
-// ResultContentEntityType is the exported seam for resultContentEntityType,
+// ResultContentEntityType is the exported seam for codequery.ResultContentEntityType,
 // which entity_metadata.go calls from outside the code move set. It forwards
 // so the code family can move without touching callers. See #6060.
 func ResultContentEntityType(result map[string]any) string {
-	return resultContentEntityType(result)
+	return codequery.ResultContentEntityType(result)
+}
+
+// DeadCodeIncomingEdgeIsWeak is the exported seam for deadcode.DeadCodeIncomingEdgeIsWeak,
+// which content_reader_dead_code_provenance_test.go calls from outside the
+// code move set. It forwards so the code family can move without touching
+// callers. See #6060.
+func DeadCodeIncomingEdgeIsWeak(confidence float64) bool {
+	return deadcode.DeadCodeIncomingEdgeIsWeak(confidence)
+}
+
+// CodeTopicResponse is the exported seam for codequery.CodeTopicResponse, which
+// answer_metadata_test.go calls from outside the code move set to prove
+// answer metadata is attached consistently across the service-story,
+// repository-story, and code-topic response builders in the same assertion.
+// It forwards so the code family can move without splitting that
+// cross-family test. See #6060.
+func CodeTopicResponse(req CodeTopicInvestigationRequest, rows []CodeTopicEvidenceRow, truncated bool) map[string]any {
+	return codequery.CodeTopicResponse(req, rows, truncated)
 }

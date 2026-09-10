@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 )
 
 func TestHardcodedSecretGoldenFixtureCandidateIsUnsuppressedAndRedacted(t *testing.T) {
@@ -57,7 +59,7 @@ func TestHardcodedSecretGoldenFixtureCandidateIsUnsuppressedAndRedacted(t *testi
 	if confidence != "medium" || severity != "high" {
 		t.Fatalf("password_literal risk = confidence:%q severity:%q, want medium/high", confidence, severity)
 	}
-	redacted := redactHardcodedSecretLine(line)
+	redacted := codequery.RedactHardcodedSecretLine(line)
 	if got, want := redacted, `password = "[REDACTED]"`; got != want {
 		t.Fatalf("redacted fixture line = %q, want %q", got, want)
 	}
