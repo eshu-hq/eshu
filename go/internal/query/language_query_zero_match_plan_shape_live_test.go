@@ -112,7 +112,7 @@ func TestLivePostgresLanguageQueryZeroMatchPlanShape(t *testing.T) {
 	}
 	// A Sort above the scan means the index no longer carries the ORDER BY
 	// key, which is exactly the truncated-index regression described above.
-	if strings.Contains(plan, `"Node Type": "Sort"`) || strings.Contains(plan, `"Node Type": "Incremental Sort"`) {
+	if mainPlanHasNodeType(plan, "Sort", "Incremental Sort") {
 		t.Fatalf("a Sort node sits above the scan, so the index no longer serves ORDER BY relative_path, start_line, entity_name; a (language, entity_type) prefix alone is not taken by the planner under ORDER BY ... LIMIT (#6540):\n%s", plan)
 	}
 }
@@ -241,9 +241,48 @@ func explainZeroMatchPlanJSON(ctx context.Context, t *testing.T, db *sql.DB, sta
 	return plan
 }
 
-// planReachesIndexCond reports whether column appears in an Index Cond (or a
-// bitmap Recheck Cond) anywhere in the plan, meaning the predicate is narrowing
-// the scan itself rather than filtering rows the scan already read.
+// mainPlanHasNodeType reports whether any of nodeTypes appears on the MAIN read
+// path. It exists because a substring test over the whole plan document also
+// matches nodes inside the access-grant EXISTS InitPlan, which is evaluated once
+// and says nothing about how the ordered page read is served -- the same defect
+// that made the Seq Scan and Index Cond assertions unreliable.
+func mainPlanHasNodeType(plan string, nodeTypes ...string) bool {
+	var nodes []map[string]any
+	if err := json.Unmarshal([]byte(plan), &nodes); err != nil {
+		return false
+	}
+	wanted := make(map[string]struct{}, len(nodeTypes))
+	for _, nodeType := range nodeTypes {
+		wanted[nodeType] = struct{}{}
+	}
+	found := false
+	var walk func(any)
+	walk = func(value any) {
+		switch typed := value.(type) {
+		case map[string]any:
+			if relationship, ok := typed["Parent Relationship"].(string); ok && relationship == "InitPlan" {
+				return
+			}
+			if nodeType, ok := typed["Node Type"].(string); ok {
+				if _, hit := wanted[nodeType]; hit {
+					found = true
+				}
+			}
+			for _, nested := range typed {
+				walk(nested)
+			}
+		case []any:
+			for _, nested := range typed {
+				walk(nested)
+			}
+		}
+	}
+	for _, node := range nodes {
+		walk(node)
+	}
+	return found
+}
+
 // mainPlanHasSeqScan reports whether a Seq Scan sits on the MAIN read path.
 //
 // InitPlan subtrees are skipped deliberately. The access-grant EXISTS gate is
@@ -283,6 +322,15 @@ func mainPlanHasSeqScan(plan string) bool {
 	return found
 }
 
+// planReachesIndexCond reports whether column appears in an Index Cond (or a
+// bitmap Recheck Cond) on the MAIN read path, meaning the predicate is narrowing
+// the scan itself rather than filtering rows the scan already read.
+//
+// It skips InitPlan subtrees, and that is load-bearing rather than tidy:
+// migration 104 is (language, entity_type), so the uncorrelated access-grant
+// EXISTS gate always carries an Index Cond naming language. Walking into it made
+// this assertion true however the ordered page read was served -- including with
+// this migration absent, which is the #6540 regression it exists to catch.
 func planReachesIndexCond(plan string, column string) bool {
 	var nodes []map[string]any
 	if err := json.Unmarshal([]byte(plan), &nodes); err != nil {
