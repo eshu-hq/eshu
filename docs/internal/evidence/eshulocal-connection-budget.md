@@ -161,19 +161,56 @@ RESTORED-EXIT=0
 Both mutants fail on the **value**, not on a missing symbol, so the guards
 reject the real defect rather than passing vacuously.
 
-### Proven against a live postmaster at a non-default pool
+### Proven against a live postmaster, both arms, at this head
 
-The unit tests prove the arithmetic. This proves the server honours it:
+The unit tests prove the arithmetic. This proves the server honours it.
+
+**Run at `f40f8b916`**, after the last change to any Go file on this branch:
 
 ```text
-$ ESHU_EMBEDDED_POSTGRES_LIVE=1 ESHU_POSTGRES_MAX_OPEN_CONNS=60 \
-    go test ./internal/eshulocal -run 'Live' -count=1
---- PASS: TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive (5.55s)
-LIVE60-EXIT=0
+$ env -u ESHU_POSTGRES_MAX_OPEN_CONNS ESHU_EMBEDDED_POSTGRES_LIVE=1 \
+    go test ./internal/eshulocal -run TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive -count=1
+--- PASS: TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive (5.50s)
+ARM1-EXIT=0
+
+$ ESHU_POSTGRES_MAX_OPEN_CONNS=60 ESHU_EMBEDDED_POSTGRES_LIVE=1 \
+    go test ./internal/eshulocal -run TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive -count=1
+--- PASS: TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive (5.08s)
+ARM2-EXIT=0
 ```
 
-A real postmaster booted with `max_connections = 320` (5 x 60 + 20) and
-reported it back through `SHOW max_connections`.
+Exit codes captured directly, not read after a pipe. The resolver's value in each
+environment, probed separately so the two arms are distinguishable:
+
+```text
+ESHU_POSTGRES_MAX_OPEN_CONNS=""   -> max_connections=170
+ESHU_POSTGRES_MAX_OPEN_CONNS="60" -> max_connections=320
+```
+
+**The pair is the proof, not either arm.** The assertion compares `SHOW
+max_connections` against `ResolveLocalPostgresMaxConnections(os.Getenv)` — the
+same resolver the server was started from — so a single arm proves only that the
+function equals itself. Two arms under different environments, yielding 170 and
+320, cannot both pass if the start-parameter plumbing drops the resolved value:
+the postmaster would fall back to its own default and one arm would fail.
+
+**Why a run at `f40f8b916` postdates the final edit of this branch.** The head is
+`78160ede6`, one commit later, and that commit touches exactly one file:
+
+```text
+$ git diff --stat f40f8b916..78160ede6
+ docs/public/reference/postgres-tuning.md | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+```
+
+It relocates a prose block inside the tuning guide. No Go file, no build tag, and
+no test changed, so the binary these two arms exercised is byte-for-byte the one
+at the head.
+
+Worth stating because it bounds what a green gate tells you: **this test is not
+part of `make pre-pr`.** The gate's live lane runs the golden-corpus gate; this
+one is behind `ESHU_EMBEDDED_POSTGRES_LIVE` and was run by hand. A green gate
+would not have caught a regression here.
 
 Negative control, the same environment with the assertion pinned back to the
 floor constant:
@@ -400,12 +437,20 @@ live test asserts the resolved value actually reaches the postmaster via
 (5 holders x 60 + 20 reserved) with exit 0, and a negative control pinned back
 to the old constant failed with
 `SHOW max_connections = 320, want 170 (the resolved local pool budget)`.
-PROVENANCE, stated rather than implied: that run happened on a pre-merge commit
-of the branch this fix was carried from, which is not reachable from any remote
-ref, so it is not independently reproducible from the repository. The work it
-belonged to merged as `a7d22aa7f` (#6603), but main's copy of the test differs
-from the reviewed one -- carrying that difference forward is why this branch
-exists. The assertion has NOT been re-executed at this head.
+PROVENANCE, stated rather than implied: the run described in that sentence
+happened on a pre-merge commit of the branch this fix was carried from, which is
+not reachable from any remote ref, so *that* run is not independently
+reproducible. The work it belonged to merged as `a7d22aa7f` (#6603), but main's
+copy of the test differs from the reviewed one -- carrying that difference
+forward is why this branch exists.
+
+**The assertion HAS since been re-executed, at this head, in both arms.** See
+"Proven against a live postmaster, both arms, at this head" above: knob unset
+resolves to 170 and knob=60 resolves to 320, both PASS with exit 0, run at
+`f40f8b916`, which differs from the head `78160ede6` only by a prose relocation
+inside `postgres-tuning.md` (4 insertions, 4 deletions, no Go). An earlier
+revision of this note said the assertion had NOT been re-executed; that sentence
+was true when written and is superseded.
 
 No-Observability-Change: this branch adds no runtime signal and removes none.
 The resolved ceiling is a start parameter visible through `SHOW max_connections`
