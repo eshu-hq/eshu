@@ -127,7 +127,10 @@ no error return, and the child reading the same variable through
 `runtime.LoadPostgresConfig` still fails loudly on it, so the error surfaces
 there rather than being swallowed.
 
-Mutation-proved, worktree `pgconns`:
+Mutation-proved, worktree `pgconns`. Unlike the live run recorded further
+down, these two mutants ARE reproducible at this head: the resolver and both
+guards exist here, so the transcript below can be regenerated rather than
+taken on trust.
 
 ```text
 $ (resolver mutated to ignore the env knob)
@@ -203,11 +206,11 @@ budget.
 Found in review of this change, and it is the sharper of the two limits.
 
 `localPostgresPoolHolders` budgets **one** `eshu-mcp-server`. That is wrong for
-attached MCP: `RunAttachedMCPStdio` ends in
+attached MCP: `RunAttachedMCPStdio` starts its child at
 
     StartChildProcess("eshu-mcp-server", []string{"eshu-mcp-server"}, ChildEnv(dsn, ...))
 
-— the final statement of `RunAttachedMCPStdio` in
+— the last child-starting statement of `RunAttachedMCPStdio` in
 `go/internal/cli/localsupervisor/host.go` — with no deduplication, no
 admission control and no cap on concurrent instances. The guards above it check
 the owner record, workspace match, process liveness and socket health — none of
