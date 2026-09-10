@@ -1,0 +1,20 @@
+go/internal/projector/aws/README.md
+  s_4a0f86aa680964::t_b6402680b6e664 49-54,57-83
+  s_4a0f86aa680964::t_05ec54fcc39119 55-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dfa98f83d7ad4039e92dc9285c9872980bc500ac",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
