@@ -187,7 +187,9 @@ func armLiveLease(t *testing.T, ctx context.Context, db *sql.DB, workItemID stri
 }
 
 // seedActiveRelationshipGeneration publishes one active relationship
-// generation for the refinalized pair, the row the fence protects.
+// generation for the refinalized pair, the row the fence protects. It removes
+// the row on cleanup: the probe suites share one database and a leaked
+// generation is a global row nobody's assertion filters.
 func seedActiveRelationshipGeneration(t *testing.T, ctx context.Context, db *sql.DB, generationID, scopeID string) {
 	t.Helper()
 	if _, err := db.ExecContext(ctx,
@@ -195,6 +197,12 @@ func seedActiveRelationshipGeneration(t *testing.T, ctx context.Context, db *sql
 		generationID, scopeID); err != nil {
 		t.Fatalf("seed active relationship generation %s: %v", generationID, err)
 	}
+	t.Cleanup(func() {
+		if _, err := db.ExecContext(context.Background(),
+			`DELETE FROM relationship_generations WHERE generation_id = $1`, generationID); err != nil {
+			t.Errorf("cleanup relationship generation %s: %v", generationID, err)
+		}
+	})
 }
 
 // relationshipGenerationStatus reads one generation's status for the
