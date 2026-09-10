@@ -46,8 +46,10 @@
 // behavioral break is not. Nothing in CI has a PostgreSQL to point this at.
 // Run it yourself against a disposable PostgreSQL 16:
 //
-//	ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN=... \
-//	ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=yes \
+//	# the DSN must point at the *administrative* `postgres` database: the
+//	# harness creates and drops its own disposable database from there.
+//	ESHU_TEST_CONTENT_INDEX_POSTGRES_DSN=postgres://user:pw@host:port/postgres \
+//	ESHU_TEST_CONTENT_INDEX_POSTGRES_DISPOSABLE=1 \
 //	go test ./internal/query -tags live_postgres_language_zero_match_plan \
 //	  -run TestLivePostgresLanguageQueryZeroMatchPlanShape -count=1
 package query
@@ -102,7 +104,7 @@ func TestLivePostgresLanguageQueryZeroMatchPlanShape(t *testing.T) {
 	plan := explainZeroMatchPlanJSON(ctx, t, db, statement, args)
 	t.Logf("zero-match plan:\n%s", plan)
 
-	if strings.Contains(plan, `"Node Type": "Seq Scan"`) {
+	if mainPlanHasSeqScan(plan) {
 		t.Fatalf("the zero-match read falls back to a Seq Scan over content_entities:\n%s", plan)
 	}
 	if !planReachesIndexCond(plan, "language") {
@@ -242,6 +244,48 @@ func explainZeroMatchPlanJSON(ctx context.Context, t *testing.T, db *sql.DB, sta
 // planReachesIndexCond reports whether column appears in an Index Cond (or a
 // bitmap Recheck Cond) anywhere in the plan, meaning the predicate is narrowing
 // the scan itself rather than filtering rows the scan already read.
+// mainPlanHasSeqScan reports whether a Seq Scan sits on the MAIN read path.
+//
+// InitPlan subtrees are skipped deliberately. The access-grant EXISTS gate is
+// uncorrelated, so the planner evaluates it once as its own subplan; a Seq Scan
+// there says nothing about how the ordered page read is served. Substring-
+// matching the whole plan document instead — which this guard originally did —
+// fails on a plan whose main read is exactly the Index Scan this test exists to
+// pin, and then reports "falls back to a Seq Scan" about a read that did not.
+func mainPlanHasSeqScan(plan string) bool {
+	var nodes []map[string]any
+	if err := json.Unmarshal([]byte(plan), &nodes); err != nil {
+		return false
+	}
+	found := false
+	var walk func(any)
+	walk = func(value any) {
+		switch typed := value.(type) {
+		case map[string]any:
+			if relationship, ok := typed["Parent Relationship"].(string); ok && relationship == "InitPlan" {
+				return
+			}
+			if _, ok := typed["Subplan Name"]; ok {
+				return
+			}
+			if nodeType, ok := typed["Node Type"].(string); ok && nodeType == "Seq Scan" {
+				found = true
+			}
+			for _, nested := range typed {
+				walk(nested)
+			}
+		case []any:
+			for _, nested := range typed {
+				walk(nested)
+			}
+		}
+	}
+	for _, node := range nodes {
+		walk(node)
+	}
+	return found
+}
+
 func planReachesIndexCond(plan string, column string) bool {
 	var nodes []map[string]any
 	if err := json.Unmarshal([]byte(plan), &nodes); err != nil {
