@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package codeinterprocevidence builds the code-interproc-evidence reducer
+// Package evidence builds the code-interproc-evidence reducer
 // intent from one immutable scope generation: a code_interproc_evidence
 // finding when present, else the code_dataflow_scanned marker as the
 // retraction-reconcile fallback that lets the reducer clear stale
@@ -18,4 +18,4 @@
 // nodes, and stale-edge retraction. Root projector assembly owns lookup
 // construction and lifetime, invocation order, queue writes, retries, and
 // telemetry.
-package codeinterprocevidence
+package evidence

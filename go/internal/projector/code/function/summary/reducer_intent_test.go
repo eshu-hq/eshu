@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package codefunctionsummary
+package summary
 
 import (
 	"testing"
@@ -11,15 +11,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestBuildCodeFunctionSummaryReducerIntentNoFactNoIntent(t *testing.T) {
+func TestBuildReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: "file"}})
-	if _, ok := BuildCodeFunctionSummaryReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a summary intent without any code_function_summary fact")
 	}
 }
 
-func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
+func TestBuildReducerIntentFromFact(t *testing.T) {
 	t.Parallel()
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: "file"},
@@ -30,7 +30,7 @@ func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 			Payload:       map[string]any{"function_id": "repo-1\x1fpkg\x1f\x1fHandle"},
 		},
 	})
-	intent, ok := BuildCodeFunctionSummaryReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a code_function_summary fact")
 	}
@@ -48,7 +48,7 @@ func TestBuildCodeFunctionSummaryReducerIntentFromFact(t *testing.T) {
 	}
 }
 
-func TestBuildCodeFunctionSummaryReducerIntentSkipsInvalidSummaryRepoID(t *testing.T) {
+func TestBuildReducerIntentSkipsInvalidSummaryRepoID(t *testing.T) {
 	t.Parallel()
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
@@ -58,7 +58,7 @@ func TestBuildCodeFunctionSummaryReducerIntentSkipsInvalidSummaryRepoID(t *testi
 			Payload:       map[string]any{"repo_id": "repo-1"},
 		},
 	})
-	intent, ok := BuildCodeFunctionSummaryReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a code_function_summary fact")
 	}
@@ -67,7 +67,7 @@ func TestBuildCodeFunctionSummaryReducerIntentSkipsInvalidSummaryRepoID(t *testi
 	}
 }
 
-func TestBuildCodeFunctionSummaryReducerIntentFromMarkerOnly(t *testing.T) {
+func TestBuildReducerIntentFromMarkerOnly(t *testing.T) {
 	t.Parallel()
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{
@@ -77,7 +77,7 @@ func TestBuildCodeFunctionSummaryReducerIntentFromMarkerOnly(t *testing.T) {
 			Payload:       map[string]any{"repo_id": "repo-1"},
 		},
 	})
-	intent, ok := BuildCodeFunctionSummaryReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for marker-only full dataflow scan")
 	}

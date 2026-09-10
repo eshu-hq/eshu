@@ -13,27 +13,22 @@ package v1
 // (ESHU_EMIT_DATAFLOW) ran for a repository, regardless of whether the scan
 // produced any taint/interproc findings. It carries no findings; its sole
 // purpose is to let the projector's reducer-intent builders
-// (go/internal/projector/codefunctionsummary/code_function_summary_intents.go,
-// go/internal/projector/codetaintevidence/evidence_intents.go,
-// go/internal/projector/codeinterprocevidence/evidence_intents.go) trigger
+// (go/internal/projector/code/function/summary/reducer_intent.go,
+// go/internal/projector/code/taint/evidence/reducer_intent.go,
+// go/internal/projector/code/interproc/evidence/reducer_intent.go) trigger
 // their reconciliation domains even on a generation whose finding set is
 // empty, so stale evidence from a prior generation is retracted rather than
 // left stranded.
 //
-// RepoID is the only field any consumer reads (the projector's
-// buildCodeFunctionSummaryReducerIntent falls back to it when no summary fact
-// is present in the same batch). It is OPTIONAL here, matching the
-// projector's own tolerant read (payloadString returns "" on a missing key
-// without failing the marker's trigger role) — the marker's job is "the gate
-// ran," which is true regardless of whether repo_id resolved, so promoting it
-// to required would dead-letter a fact whose only content-bearing field the
-// consumer already handles as optional.
+// RepoID is the only field any consumer reads. The summary projector uses it
+// as a fallback and omits the payload key when it is absent; the marker still
+// triggers reconciliation because the scan ran. Requiring RepoID here would
+// reject a marker whose trigger role remains valid.
 type DataflowScanned struct {
-	// RepoID is the scanned repository's canonical id. Optional: the
-	// projector's trigger-fact fallback already tolerates an absent value
-	// (buildCodeFunctionSummaryReducerIntent), so requiring it here would
-	// dead-letter a marker whose sole job (signaling "the gate ran") does not
-	// depend on it.
+	// RepoID is the scanned repository's canonical id. Optional because the
+	// function-summary projector tolerates an absent value; requiring it here
+	// would dead-letter a marker whose sole job (signaling "the gate ran") does
+	// not depend on it.
 	RepoID *string `json:"repo_id,omitempty"`
 
 	// Reason is a human-readable note on why this marker was emitted.

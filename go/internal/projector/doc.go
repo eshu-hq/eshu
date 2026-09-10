@@ -51,7 +51,7 @@
 // loader also resolves before publication.
 // Direct code_interproc_evidence facts emit direct interproc reducer intents;
 // code_function_summary facts emit summary persistence intents via
-// internal/projector/codefunctionsummary, and the reducer runs fixpoint
+// internal/projector/code/function/summary, and the reducer runs fixpoint
 // TAINT_FLOWS_TO projection only after its durable summary/source/graph-id
 // stores are updated.
 // RDS posture observations emit one rds_posture_materialization reducer intent;

@@ -10,14 +10,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// These tests stay at root after the builder moved into
-// internal/projector/codetaintevidence because they assert root's dispatcher
-// wiring through buildProjection, not the builder in isolation — the builder's
-// focused cases live in the child package.
+// These tests remain at root after the builder moved into
+// internal/projector/code/taint/evidence because they assert root's dispatcher
+// wiring through buildProjection, not the leaf builder in isolation.
 
-// TestBuildProjectionQueuesBothEvidenceDomainsFromMarker proves the live runtime
-// projection enqueues BOTH value-flow evidence retraction intents from the
-// dataflow marker alone — the empty-generation reconciliation path (#2919).
+// TestBuildProjectionQueuesBothEvidenceDomainsFromMarker verifies that the
+// dataflow marker queues both #2919 empty-generation retraction intents.
 func TestBuildProjectionQueuesBothEvidenceDomainsFromMarker(t *testing.T) {
 	t.Parallel()
 
@@ -45,7 +43,7 @@ func TestBuildProjectionQueuesBothEvidenceDomainsFromMarker(t *testing.T) {
 	}
 }
 
-// TestBuildProjectionQueuesCodeTaintEvidence proves the live runtime projection
+// TestBuildProjectionQueuesCodeTaintEvidence verifies that live projection
 // (buildProjection -> appendScopeGenerationReducerIntents) enqueues a
 // DomainCodeTaintEvidence intent from a code_taint_evidence fact. This is the
 // same FactKind-based intent path the incident-routing domain uses; the fact

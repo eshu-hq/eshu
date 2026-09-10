@@ -15,9 +15,9 @@ import (
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
 	projectorcicdruncorrelation "github.com/eshu-hq/eshu/go/internal/projector/cicdruncorrelation"
 	projectorcloudinventory "github.com/eshu-hq/eshu/go/internal/projector/cloudinventory"
-	projectorcodefunctionsummary "github.com/eshu-hq/eshu/go/internal/projector/codefunctionsummary"
-	projectorcodeinterprocevidence "github.com/eshu-hq/eshu/go/internal/projector/codeinterprocevidence"
-	projectorcodetaintevidence "github.com/eshu-hq/eshu/go/internal/projector/codetaintevidence"
+	summary "github.com/eshu-hq/eshu/go/internal/projector/code/function/summary"
+	interproc "github.com/eshu-hq/eshu/go/internal/projector/code/interproc/evidence"
+	taint "github.com/eshu-hq/eshu/go/internal/projector/code/taint/evidence"
 	projectorcontainerimageidentity "github.com/eshu-hq/eshu/go/internal/projector/containerimageidentity"
 	projectorcrossplanesatisfiedby "github.com/eshu-hq/eshu/go/internal/projector/crossplanesatisfiedby"
 	projectorgcp "github.com/eshu-hq/eshu/go/internal/projector/gcp"
@@ -109,13 +109,13 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorincidentrouting.BuildIncidentRoutingMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorcodetaintevidence.BuildCodeTaintEvidenceReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := taint.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorcodeinterprocevidence.BuildCodeInterprocEvidenceReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := interproc.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorcodefunctionsummary.BuildCodeFunctionSummaryReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := summary.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectoriamcanassume.BuildIAMCanAssumeMaterializationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

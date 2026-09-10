@@ -11,16 +11,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
-// This test stays at root after the builder moved into
-// internal/projector/codeinterprocevidence because it asserts root's dispatcher
+// This test remains at root after the builder moved into
+// internal/projector/code/interproc/evidence because it asserts root's dispatcher
 // wiring through appendScopeGenerationReducerIntents, not the builder in
-// isolation — the builder's focused cases live in the child package. The
-// buildProjection marker case proving BOTH value-flow retraction domains
-// enqueue (#2919) lives in code_taint_evidence_projection_test.go.
+// isolation. The marker case for both #2919 retraction domains lives in
+// code_taint_evidence_projection_test.go.
 
-// TestAppendScopeGenerationReducerIntentsWiresCodeInterproc proves the interproc
-// builder is actually wired into the scope-generation intent chain, not just
-// defined in isolation.
+// TestAppendScopeGenerationReducerIntentsWiresCodeInterproc verifies the root
+// scope-generation dispatcher calls the interproc builder.
 func TestAppendScopeGenerationReducerIntentsWiresCodeInterproc(t *testing.T) {
 	t.Parallel()
 
