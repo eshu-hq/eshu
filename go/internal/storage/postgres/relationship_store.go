@@ -157,6 +157,47 @@ func (s *RelationshipStore) ActivateResolutionGeneration(
 	return nil
 }
 
+// scopeRepositoryIDsSQL lists the git repository IDs whose facts belong to a
+// scope generation. The cross-repo resolver uses it to attribute each resolved
+// edge to the scope that owns its source repository (single-writer per edge).
+// It mirrors the repository-fact predicate of the reducer-graph-drain
+// canonical-code probe: live (non-tombstone) git repository facts with a
+// non-empty repo_id. Served by fact_records_scope_generation_idx.
+const scopeRepositoryIDsSQL = `
+SELECT DISTINCT fact.payload ->> 'repo_id'
+FROM fact_records AS fact
+WHERE fact.scope_id = $1
+  AND fact.generation_id = $2
+  AND fact.fact_kind = 'repository'
+  AND fact.source_system = 'git'
+  AND fact.is_tombstone = FALSE
+  AND NULLIF(fact.payload ->> 'repo_id', '') IS NOT NULL`
+
+// ListScopeRepositoryIDs implements crossrepo.ScopeRepositoryReader.
+func (s *RelationshipStore) ListScopeRepositoryIDs(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, scopeRepositoryIDsSQL, scopeID, generationID)
+	if err != nil {
+		return nil, fmt.Errorf("list scope repository IDs: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var repoIDs []string
+	for rows.Next() {
+		var repoID string
+		if err := rows.Scan(&repoID); err != nil {
+			return nil, fmt.Errorf("scan scope repository ID: %w", err)
+		}
+		repoIDs = append(repoIDs, repoID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate scope repository IDs: %w", err)
+	}
+	return repoIDs, nil
+}
+
 // IsGenerationActive reports whether the relationship generation is currently
 // active (published). It is a primary-key lookup on relationship_generations and
 // backs the repo-dependency graph-projection authority gate: graph edges for a

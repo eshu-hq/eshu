@@ -91,6 +91,15 @@ type RepoDependencyIntentWriter interface {
 	UpsertIntents(ctx context.Context, rows []sharedintent.Row) error
 }
 
+// ScopeRepositoryReader lists the git repository IDs whose facts belong to a
+// scope generation. The resolver uses it to attribute each resolved edge to
+// the scope that owns its source repository (see partitionResolvedOwnership).
+// Nil disables the partition (legacy emit-all); unit tests that construct the
+// handler directly leave it nil.
+type ScopeRepositoryReader interface {
+	ListScopeRepositoryIDs(ctx context.Context, scopeID, generationID string) ([]string, error)
+}
+
 // CrossRepoRelationshipHandler resolves cross-repository relationships from
 // persisted evidence facts and emits durable repo-dependency projection intents.
 //
@@ -99,7 +108,11 @@ type RepoDependencyIntentWriter interface {
 //  2. Loads assertions from the assertion store
 //  3. Runs relationships.Resolve() to produce candidates and resolved edges
 //  4. Persists candidates and resolved edges for audit trail
-//  5. Emits repo-owned shared-projection intents for later canonical writes
+//  5. Emits repo-owned shared-projection intents for later canonical writes,
+//     attributed to the scope that owns each edge's source repository so the
+//     same logical edge is never stamped by two generations (see
+//     partitionResolvedOwnership). Activation (step 6) is unaffected: a scope
+//     whose emits are all foreign still publishes its generation.
 type CrossRepoRelationshipHandler struct {
 	EvidenceLoader    EvidenceFactLoader
 	Assertions        AssertionLoader
@@ -107,8 +120,102 @@ type CrossRepoRelationshipHandler struct {
 	IntentWriter      RepoDependencyIntentWriter
 	ReadinessLookup   gpphase.ReadinessLookup
 	ReadinessPrefetch gpphase.ReadinessPrefetch
+	ScopeRepos        ScopeRepositoryReader
 	Tracer            trace.Tracer
 	Instruments       *telemetry.Instruments
+}
+
+// partitionResolvedOwnership splits resolved edges into the ones this scope
+// owns (source repository belongs to one of its own repository facts) and
+// foreign ones owned by another scope. Every resolving scope sees the union
+// of its own and backward evidence, so without this partition two scopes
+// routinely resolve the same logical edge; both rows reach the graph writer,
+// which MERGEs by edge identity and lets the generation stamp be
+// last-writer-wins. Worker-count scheduling then decides the stamp and the
+// byte-exact graph digest diverges across the determinism matrix (#6184: the
+// same multi-source→multi-target DEPENDS_ON edge landed stamped
+// multi-source in N=1 and multi-target in N=4).
+//
+// Ownership is single-writer by construction: the source scope's resolver
+// always emits (its deployment_mapping item exists by production parity —
+// every repo snapshot emits the follow-up), so dropping the foreign copy
+// loses no edge. Scopes the reader cannot classify (nil reader, lookup
+// error is fatal, empty repository set) keep the legacy emit-all behavior
+// rather than silently dropping edges.
+// resolveOwnership loads this scope's own repository IDs for the ownership
+// partition. It returns enforce=false (legacy emit-all) when no reader is
+// wired or the scope holds no git repository facts and therefore cannot be
+// classified; a lookup failure is fatal rather than guessed.
+func (h *CrossRepoRelationshipHandler) resolveOwnership(
+	ctx context.Context,
+	scopeID string,
+	generationID string,
+) (map[string]struct{}, bool, error) {
+	if h.ScopeRepos == nil {
+		return nil, false, nil
+	}
+	repoIDs, err := h.ScopeRepos.ListScopeRepositoryIDs(ctx, scopeID, generationID)
+	if err != nil {
+		return nil, false, err
+	}
+	own := make(map[string]struct{}, len(repoIDs))
+	for _, repoID := range repoIDs {
+		if normalized := normalizeReducerRepositoryID(repoID); normalized != "" {
+			own[normalized] = struct{}{}
+		}
+	}
+	if len(own) == 0 {
+		return nil, false, nil
+	}
+	return own, true, nil
+}
+
+// filterEvidenceFactsBySourceRepos restricts evidence to this scope's own
+// repositories so retraction covers only repos this scope may rewrite. With
+// enforce=false the input is returned unchanged (legacy behavior).
+func filterEvidenceFactsBySourceRepos(
+	facts []relationships.EvidenceFact,
+	ownRepos map[string]struct{},
+	enforce bool,
+) []relationships.EvidenceFact {
+	if !enforce {
+		return facts
+	}
+	kept := facts[:0]
+	for _, fact := range facts {
+		source := normalizeReducerRepositoryID(fact.SourceRepoID)
+		if source == "" {
+			kept = append(kept, fact)
+			continue
+		}
+		if _, ok := ownRepos[source]; ok {
+			kept = append(kept, fact)
+		}
+	}
+	return kept
+}
+
+func partitionResolvedOwnership(
+	resolved []relationships.ResolvedRelationship,
+	ownRepos map[string]struct{},
+	enforce bool,
+) (owned, dropped []relationships.ResolvedRelationship) {
+	if !enforce {
+		return resolved, nil
+	}
+	for _, relationship := range resolved {
+		source := normalizeReducerRepositoryID(relationship.SourceRepoID)
+		if source == "" {
+			owned = append(owned, relationship)
+			continue
+		}
+		if _, ok := ownRepos[source]; ok {
+			owned = append(owned, relationship)
+			continue
+		}
+		dropped = append(dropped, relationship)
+	}
+	return owned, dropped
 }
 
 // Resolve executes the cross-repo relationship resolution pipeline for one
@@ -256,6 +363,25 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	candidates = normalizeRelationshipCandidates(candidates)
 	resolved = normalizeResolvedRelationships(resolved)
 
+	// Ownership partition (single-writer per edge): keep only the resolved
+	// edges sourced in this scope's own repositories, and scope the
+	// retraction inputs the same way. See partitionResolvedOwnership.
+	ownRepos, enforceOwnership, err := h.resolveOwnership(ctx, scopeID, generationID)
+	if err != nil {
+		return 0, fmt.Errorf("list scope repositories for resolution ownership: %w", err)
+	}
+	ownedResolved, droppedResolved := partitionResolvedOwnership(resolved, ownRepos, enforceOwnership)
+	ownEvidenceFacts := filterEvidenceFactsBySourceRepos(evidenceFacts, ownRepos, enforceOwnership)
+	if len(droppedResolved) > 0 {
+		slog.InfoContext(
+			ctx, "cross-repo resolution dropped foreign-owned edges",
+			log.ScopeID(scopeID),
+			log.GenerationID(generationID),
+			slog.Int("dropped", len(droppedResolved)),
+			slog.Int("owned", len(ownedResolved)),
+		)
+	}
+
 	slog.InfoContext(
 		ctx, "cross-repo relationship resolution completed",
 		log.ScopeID(scopeID),
@@ -275,7 +401,7 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 		if err := h.Persister.UpsertCandidates(ctx, generationID, candidates); err != nil {
 			return 0, fmt.Errorf("persist candidates: %w", err)
 		}
-		if err := h.Persister.UpsertResolved(ctx, generationID, resolved); err != nil {
+		if err := h.Persister.UpsertResolved(ctx, generationID, ownedResolved); err != nil {
 			return 0, fmt.Errorf("persist resolved: %w", err)
 		}
 	}
@@ -290,14 +416,14 @@ func (h *CrossRepoRelationshipHandler) Resolve(
 	now := time.Now().UTC()
 	retractRows := buildResolvedEdgeRetractionIntentRows(
 		scopeID,
-		evidenceFacts,
-		resolved,
+		ownEvidenceFacts,
+		ownedResolved,
 		sourceRunID,
 		generationID,
 		now,
 	)
 	writeRows, routeCounts := buildResolvedEdgeIntentRows(
-		resolved,
+		ownedResolved,
 		scopeID,
 		sourceRunID,
 		generationID,
