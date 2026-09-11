@@ -8,6 +8,9 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // rejectingFenceLookup fails the test if the refresh fence is consulted at all.
@@ -91,7 +94,7 @@ func TestRationaleProductionIntentsNeverReachRetractAsUnmarkedRows(t *testing.T)
 		t.Fatalf("emitted intents = %d, want 4 (2 refresh + 2 per-edge)", len(rows))
 	}
 
-	plan, err := planRepoWideRetractWork(
+	plan, err := worker.PlanRepoWideRetractWork(
 		context.Background(),
 		DomainRationaleEdges,
 		roundTripPayloads(t, rows),
@@ -142,11 +145,11 @@ func TestRationalePerEdgeIntentsCarryRefreshFenceMarkerAfterRoundTrip(t *testing
 
 	perEdge := 0
 	for _, row := range roundTripPayloads(t, rows) {
-		if isRepoRefreshRow(row) {
+		if sharedintent.IsRepoRefreshRow(row) {
 			continue
 		}
 		perEdge++
-		if !rowUsesRefreshFence(row) {
+		if !worker.RowUsesRefreshFence(row) {
 			t.Fatalf("per-edge intent %s lost its %s marker across the durable round trip (payload %#v)",
 				row.IntentID, retractViaRefreshKey, row.Payload)
 		}

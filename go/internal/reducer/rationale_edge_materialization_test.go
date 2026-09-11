@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRationaleHandlerRejectsMismatchedDomain(t *testing.T) {
@@ -131,7 +133,7 @@ func TestRationaleHandlerEmitsIntentsWithDeltaRefresh(t *testing.T) {
 	if len(edges) != 1 {
 		t.Fatalf("per-edge intents = %d, want 1", len(edges))
 	}
-	if !rowUsesRefreshFence(edges[0]) {
+	if !worker.RowUsesRefreshFence(edges[0]) {
 		t.Fatalf("edge intent %q not marked retract_via_refresh", edges[0].IntentID)
 	}
 	if !strings.HasPrefix(edges[0].PartitionKey, rationalePartitionKeyVersion+":files:") {
@@ -400,7 +402,7 @@ func (w *recordingRationaleIntentWriter) UpsertIntents(_ context.Context, rows [
 func (w *recordingRationaleIntentWriter) refreshRows() []SharedProjectionIntentRow {
 	var out []SharedProjectionIntentRow
 	for _, row := range w.rows {
-		if isRepoRefreshRow(row) {
+		if sharedintent.IsRepoRefreshRow(row) {
 			out = append(out, row)
 		}
 	}
@@ -411,7 +413,7 @@ func (w *recordingRationaleIntentWriter) refreshRows() []SharedProjectionIntentR
 func (w *recordingRationaleIntentWriter) edgeRows() []SharedProjectionIntentRow {
 	var out []SharedProjectionIntentRow
 	for _, row := range w.rows {
-		if !isRepoRefreshRow(row) {
+		if !sharedintent.IsRepoRefreshRow(row) {
 			out = append(out, row)
 		}
 	}

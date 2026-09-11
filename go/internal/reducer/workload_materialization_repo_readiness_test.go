@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 // keyedPhaseLookup answers readiness from an in-memory set of exact phase keys,
@@ -105,7 +106,7 @@ func TestFilterRowsByReadinessHandlesRouteResolvesViaRepoKey(t *testing.T) {
 		apiEndpointRepoPathPresenceKey(repoID, "/users/{id}"): {},
 	}}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainHandlesRoute,
 		[]SharedProjectionIntentRow{row}, lookup.lookup, nil, presence,
 	)
@@ -168,7 +169,7 @@ func TestFilterRowsByReadinessHandlesRouteOldStyleKeyStillMisses(t *testing.T) {
 	}}
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}}
 
-	ready, blocked, _, err := filterRowsByReadiness(
+	ready, blocked, _, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainHandlesRoute,
 		[]SharedProjectionIntentRow{row}, lookup.lookup, nil, presence,
 	)
@@ -215,7 +216,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 		intentKey: GraphProjectionPhaseCanonicalNodesCommitted,
 	}}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainCodeCalls,
 		[]SharedProjectionIntentRow{row}, lookup.lookup, nil, nil,
 	)
@@ -232,7 +233,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 	repoOnly := keyedPhaseLookup{ready: map[GraphProjectionPhaseKey]GraphProjectionPhase{
 		repoKey: GraphProjectionPhaseCanonicalNodesCommitted,
 	}}
-	ready, blocked, _, err = filterRowsByReadiness(
+	ready, blocked, _, err = worker.FilterRowsByReadiness(
 		context.Background(), DomainCodeCalls,
 		[]SharedProjectionIntentRow{row}, repoOnly.lookup, nil, nil,
 	)

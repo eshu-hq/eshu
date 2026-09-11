@@ -95,7 +95,7 @@ func (w *recordingInheritanceIntentWriter) UpsertIntents(_ context.Context, rows
 func (w *recordingInheritanceIntentWriter) edgeRows() []sharedintent.Row {
 	var out []sharedintent.Row
 	for _, row := range w.rows {
-		if !isRepoRefreshRow(row) {
+		if !sharedintent.IsRepoRefreshRow(row) {
 			out = append(out, row)
 		}
 	}

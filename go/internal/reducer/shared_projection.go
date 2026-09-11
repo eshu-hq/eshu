@@ -83,12 +83,6 @@ func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjec
 // Alias for [sharedintent.AcceptanceKey].
 type SharedProjectionAcceptanceKey = sharedintent.AcceptanceKey
 
-// sharedProjectionReadinessPhase forwards to
-// [worker.ReadinessPhase].
-func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) {
-	return worker.ReadinessPhase(domain)
-}
-
 // sharedProjectionReadinessKeyspace returns the graph-projection keyspace whose
 // readiness phase gates a domain's edge projection. The generic shared
 // projection worker reads this so each domain's readiness lookup targets the
@@ -105,16 +99,9 @@ func sharedProjectionReadinessKeyspace(domain string) GraphProjectionKeyspace {
 	return GraphProjectionKeyspaceCodeEntitiesUID
 }
 
-// graphProjectionPhaseKeyForAcceptance forwards to
-// [worker.GraphProjectionPhaseKeyForAcceptance].
-func graphProjectionPhaseKeyForAcceptance(
-	key SharedProjectionAcceptanceKey,
-	generationID string,
-	keyspace GraphProjectionKeyspace,
-) (GraphProjectionPhaseKey, bool) {
-	return worker.GraphProjectionPhaseKeyForAcceptance(key, generationID, keyspace)
-}
-
+// graphProjectionPhaseKeyForIntent forwards to
+// [worker.GraphProjectionPhaseKeyForAcceptance] once the row yields an
+// acceptance key.
 func graphProjectionPhaseKeyForIntent(
 	row SharedProjectionIntentRow,
 	generationID string,
@@ -124,10 +111,5 @@ func graphProjectionPhaseKeyForIntent(
 	if !ok {
 		return GraphProjectionPhaseKey{}, false
 	}
-	return graphProjectionPhaseKeyForAcceptance(acceptanceKey, generationID, keyspace)
-}
-
-// RowsForPartition forwards to [sharedintent.RowsForPartition].
-func RowsForPartition(rows []SharedProjectionIntentRow, partitionID, partitionCount int) []SharedProjectionIntentRow {
-	return sharedintent.RowsForPartition(rows, partitionID, partitionCount)
+	return worker.GraphProjectionPhaseKeyForAcceptance(acceptanceKey, generationID, keyspace)
 }

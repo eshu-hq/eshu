@@ -4,9 +4,6 @@
 package reducer
 
 import (
-	"context"
-	"log/slog"
-
 	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
@@ -23,8 +20,8 @@ import (
 //
 // Four further production sites spell the same value as a hard-coded literal
 // rather than through this constant. Two EMIT it --
-// code/call/intents.go and code_call_projection_work.go -- and
-// two COMPARE against it: code_call_projection_partitions.go, and
+// code/call/intents.go and code/call/projection/rows.go -- and
+// two COMPARE against it: code/call/projection/partitions.go, and
 // storage/postgres/shared_intents_history.go, where it decides
 // rowCanBeCoveredByFileRefresh. All four are DomainCodeCalls-side and never
 // reach collectWholeScopeRefreshRepoIDs, so none is a live drift hazard for the
@@ -63,34 +60,9 @@ func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
 	return sharedintent.RepoWideRetractRefreshPartitionKey(domain, repoID)
 }
 
-// isRepoRefreshRow forwards to [sharedintent.IsRepoRefreshRow].
-func isRepoRefreshRow(row SharedProjectionIntentRow) bool {
-	return sharedintent.IsRepoRefreshRow(row)
-}
-
-// rowUsesRefreshFence forwards to [worker.RowUsesRefreshFence].
-func rowUsesRefreshFence(row SharedProjectionIntentRow) bool {
-	return worker.RowUsesRefreshFence(row)
-}
-
 // SharedProjectionRefreshFenceLookup is the root spelling of
 // [worker.RefreshFenceLookup].
 type SharedProjectionRefreshFenceLookup = worker.RefreshFenceLookup
 
 // FirstProjectionLookup is the root spelling of [worker.FirstProjectionLookup].
 type FirstProjectionLookup = worker.FirstProjectionLookup
-
-// repoWideRetractPlan is the root spelling of [worker.RepoWideRetractPlan].
-type repoWideRetractPlan = worker.RepoWideRetractPlan
-
-// planRepoWideRetractWork forwards to [worker.PlanRepoWideRetractWork].
-func planRepoWideRetractWork(
-	ctx context.Context,
-	domain string,
-	rows []SharedProjectionIntentRow,
-	fence SharedProjectionRefreshFenceLookup,
-	firstProjection FirstProjectionLookup,
-	logger *slog.Logger,
-) (repoWideRetractPlan, error) {
-	return worker.PlanRepoWideRetractWork(ctx, domain, rows, fence, firstProjection, logger)
-}

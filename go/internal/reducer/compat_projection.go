@@ -20,6 +20,11 @@ package reducer
 // cross_scope_readiness_compat.go relocated byte-identical to
 // compat_decode.go (issue #6061 code/ subtree move) to keep this bucket
 // under the 500-line cap; see that file's header for its stanza list.
+//
+// shell-exec family stanza relocated byte-identical to compat_cloud.go
+// (issue #6061 H5 root-remnant fold) to make room for the shared-projection
+// worker/runner/refresh-fence/unroutable/readiness stanza below; see that
+// file's header for its stanza list.
 
 import (
 	"context"
@@ -30,15 +35,15 @@ import (
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
-	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
-	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // Stanza: iam_can_compat.go (merged; do not recreate this file).
@@ -370,66 +375,125 @@ func mapSlice(value any) []map[string]any {
 // kept for the root's python_metaclass_materialization_test.go.
 const pythonMetaclassEvidenceSource = codecall.PythonMetaclassEvidenceSource
 
-// Stanza: shell-exec family move (#6061; no prior compat file).
-// The shell-exec fact extraction, materialization, and shared-intent row
-// construction family moved to [shell] (go/internal/reducer/code/shell).
-// Every entry keeps the reducer.X spelling (exported) or the unexported
-// root call sites' spelling (the sibling delta-gate/retract-reachability
-// cross-domain proofs and the factload benchmark) unchanged. Each entry is
-// deleted once its last caller names [shell] directly.
+// Stanza: shared-projection worker/runner plumbing (H5 root-remnant fold,
+// issue #6061; folds shared_projection_worker.go, shared_projection_runner.go,
+// shared_projection_config.go, shared_projection_partition_candidate.go,
+// shared_projection_batch_selection.go, selection_phase_durations.go, and
+// acceptance_observability.go). SelectPartitionBatch, PartitionBatchResult,
+// and filterRowsByReadiness were dropped, not folded: their only callers were
+// root test/production files, repointed to worker.SelectPartitionBatch/
+// worker.FilterRowsByReadiness directly (D12). Each remaining entry is
+// deleted once its last caller names [worker]/[sharedintent] directly.
 
-// ShellExecIntentWriter is the root spelling of [shell.IntentWriter].
-type ShellExecIntentWriter = shell.IntentWriter
+// maxSharedSelectionScanLimit mirrors [worker]'s unexported scan cap (const
+// aliases cannot cross packages to an unexported name).
+const maxSharedSelectionScanLimit = 10_000
 
-// shellExecMaterializationFactKinds is the root spelling of
-// [shell.MaterializationFactKinds]. The reducer root's
-// factload_materialization_bench_test.go corpus-coverage guard reads it.
-var shellExecMaterializationFactKinds = shell.MaterializationFactKinds()
+// SharedProjectionEdgeWriter is the root spelling of [sharedintent.EdgeWriter].
+type SharedProjectionEdgeWriter = sharedintent.EdgeWriter
 
-// ShellExecMaterializationHandler is the root spelling of
-// [shell.Handler].
-type ShellExecMaterializationHandler = shell.Handler
+// PartitionLeaseManager is the root spelling of [sharedintent.PartitionLeaseManager].
+type PartitionLeaseManager = sharedintent.PartitionLeaseManager
 
-// ExtractShellExecRows forwards to [shell.ExtractExecRows].
-func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
-	return shell.ExtractExecRows(envelopes)
-}
+// SharedIntentReader is the root spelling of [worker.IntentReader].
+type SharedIntentReader = worker.IntentReader
 
-// loadShellExecMaterializationFacts forwards to
-// [shell.LoadMaterializationFacts]. The reducer root's
-// factload_materialization_bench_test.go benches it under this spelling.
-func loadShellExecMaterializationFacts(
+// AcceptedGenerationLookup is the root spelling of [sharedintent.AcceptedGenerationLookup].
+type AcceptedGenerationLookup = sharedintent.AcceptedGenerationLookup
+
+// AcceptedGenerationPrefetch is the root spelling of [sharedintent.AcceptedGenerationPrefetch].
+type AcceptedGenerationPrefetch = sharedintent.AcceptedGenerationPrefetch
+
+// PartitionProcessorConfig is the root spelling of [worker.PartitionProcessorConfig].
+type PartitionProcessorConfig = worker.PartitionProcessorConfig
+
+// PartitionProcessResult is the root spelling of [worker.PartitionProcessResult].
+type PartitionProcessResult = worker.PartitionProcessResult
+
+// ProcessPartitionOnce forwards to [worker.ProcessPartitionOnce].
+func ProcessPartitionOnce(
 	ctx context.Context,
-	loader FactLoader,
-	scopeID string,
-	generationID string,
-) ([]facts.Envelope, error) {
-	return shell.LoadMaterializationFacts(ctx, loader, scopeID, generationID)
+	now time.Time,
+	cfg PartitionProcessorConfig,
+	leaseManager PartitionLeaseManager,
+	reader SharedIntentReader,
+	edgeWriter SharedProjectionEdgeWriter,
+	acceptedGen AcceptedGenerationLookup,
+	prefetch AcceptedGenerationPrefetch,
+	readinessLookup GraphProjectionReadinessLookup,
+	readinessPrefetch GraphProjectionReadinessPrefetch,
+	endpointPresence EndpointPresenceLookup,
+	refreshFence SharedProjectionRefreshFenceLookup,
+	firstProjection FirstProjectionLookup,
+	unroutableWriter SharedProjectionUnroutableWriter,
+) (result PartitionProcessResult, retErr error) {
+	return worker.ProcessPartitionOnce(ctx, now, cfg, leaseManager, reader, edgeWriter, acceptedGen, prefetch, readinessLookup, readinessPrefetch, endpointPresence, refreshFence, firstProjection, unroutableWriter)
 }
 
-// buildShellExecRefreshIntents forwards to [shell.BuildRefreshIntents]. The
-// reducer root's sibling_edge_intent_delta_gate_test.go drives this
-// alongside inheritance.BuildRefreshIntents and sqlrelationship.BuildRefreshIntents
-// through one cross-domain table.
-func buildShellExecRefreshIntents(
-	deltaScope sqlrelationship.DeltaScope,
-	repoIDs []string,
-	contextByRepoID map[string]ProjectionContext,
-	createdAt time.Time,
-) []SharedProjectionIntentRow {
-	return shell.BuildRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)
+// The default* constants are root spellings of [worker]'s exported defaults.
+const (
+	defaultBatchLimit         = worker.DefaultBatchLimit
+	defaultSharedPollInterval = worker.DefaultPollInterval
+	defaultEvidenceSource     = worker.DefaultEvidenceSource
+)
+
+// DefaultSharedProjectionLeaseOwnerPrefix is the root spelling of
+// [worker.DefaultLeaseOwnerPrefix].
+const DefaultSharedProjectionLeaseOwnerPrefix = worker.DefaultLeaseOwnerPrefix
+
+// sharedProjectionDomains copies [worker.Domains]'s result once at init (no
+// cross-package var/const alias exists in Go).
+var sharedProjectionDomains = worker.Domains()
+
+// SharedProjectionRunnerConfig is the root spelling of [worker.RunnerConfig].
+type SharedProjectionRunnerConfig = worker.RunnerConfig
+
+// SharedProjectionRunner is the root spelling of [worker.Runner].
+type SharedProjectionRunner = worker.Runner
+
+// LoadSharedProjectionConfig forwards to [worker.LoadConfig].
+func LoadSharedProjectionConfig(getenv func(string) string) SharedProjectionRunnerConfig {
+	return worker.LoadConfig(getenv)
 }
 
-// buildShellExecSharedIntentRows forwards to [shell.BuildSharedIntentRows].
-// The reducer root's sibling_edge_intent_retract_reachability_test.go drives
-// this alongside inheritance.BuildSharedIntentRows and
-// sqlrelationship.BuildSharedIntentRows through one cross-domain table.
-func buildShellExecSharedIntentRows(
-	edgeRows []map[string]any,
-	deltaScope sqlrelationship.DeltaScope,
-	repoIDs []string,
-	contextByRepoID map[string]ProjectionContext,
-	createdAt time.Time,
-) []SharedProjectionIntentRow {
-	return shell.BuildSharedIntentRows(edgeRows, deltaScope, repoIDs, contextByRepoID, createdAt)
+// SharedProjectionPartitionCandidateReader is the root spelling of
+// [worker.PartitionCandidateReader].
+type SharedProjectionPartitionCandidateReader = worker.PartitionCandidateReader
+
+// SharedProjectionUnhashedCandidateReader is the root spelling of
+// [worker.UnhashedCandidateReader].
+type SharedProjectionUnhashedCandidateReader = worker.UnhashedCandidateReader
+
+// LatestIntentsByRepoAndPartition forwards to [worker.LatestIntentsByRepoAndPartition].
+func LatestIntentsByRepoAndPartition(intents []SharedProjectionIntentRow) ([]SharedProjectionIntentRow, []string) {
+	return worker.LatestIntentsByRepoAndPartition(intents)
+}
+
+// FilterAuthoritativeIntents forwards to [worker.FilterAuthoritativeIntents].
+func FilterAuthoritativeIntents(
+	intents []SharedProjectionIntentRow,
+	acceptedGen AcceptedGenerationLookup,
+) (active []SharedProjectionIntentRow, staleIDs []string) {
+	return worker.FilterAuthoritativeIntents(intents, acceptedGen)
+}
+
+// SelectionPhaseDurations is the root spelling of [worker.SelectionPhaseDurations].
+type SelectionPhaseDurations = worker.SelectionPhaseDurations
+
+// sharedAcceptanceLookupEvent is the root spelling of [worker.AcceptanceLookupEvent].
+type sharedAcceptanceLookupEvent = worker.AcceptanceLookupEvent
+
+// sharedAcceptanceTelemetry is the root spelling of [worker.AcceptanceTelemetry].
+type sharedAcceptanceTelemetry = worker.AcceptanceTelemetry
+
+// Stanza: partitioning (H5 root-remnant fold, partitioning.go, issue #6061).
+
+// PartitionHashForKey forwards to [sharedintent.PartitionHashForKey].
+func PartitionHashForKey(partitionKey string) uint64 {
+	return sharedintent.PartitionHashForKey(partitionKey)
+}
+
+// PartitionForKey forwards to [sharedintent.PartitionForKey].
+func PartitionForKey(partitionKey string, partitionCount int) (int, error) {
+	return sharedintent.PartitionForKey(partitionKey, partitionCount)
 }

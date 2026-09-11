@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // rationaleStateModelingEdgeWriter models the canonical rationale EXPLAINS edge
@@ -438,7 +440,7 @@ func assertRationaleIntentKeyShapes(t *testing.T, intents []SharedProjectionInte
 	sawRefresh := false
 	sawPerEdge := false
 	for _, intent := range intents {
-		if isRepoRefreshRow(intent) {
+		if sharedintent.IsRepoRefreshRow(intent) {
 			sawRefresh = true
 			if intent.PartitionKey != rationaleWholeScopePartitionKey(intent.RepositoryID) {
 				t.Fatalf("refresh intent partition key %q is not the whole-scope fence key", intent.PartitionKey)
@@ -449,7 +451,7 @@ func assertRationaleIntentKeyShapes(t *testing.T, intents []SharedProjectionInte
 		if !strings.HasPrefix(intent.PartitionKey, rationalePartitionKeyVersion+":files:") {
 			t.Fatalf("per-edge intent partition key %q lacks file-scoped prefix", intent.PartitionKey)
 		}
-		if !rowUsesRefreshFence(intent) {
+		if !worker.RowUsesRefreshFence(intent) {
 			t.Fatalf("per-edge intent %q is not marked retract_via_refresh", intent.IntentID)
 		}
 	}

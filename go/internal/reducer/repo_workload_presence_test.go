@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 // runsInIntentRow builds a minimal DomainRunsIn intent row carrying the repo_id
@@ -128,7 +129,7 @@ func TestFilterRowsByReadinessRunsInTerminatesAbsentWorkload(t *testing.T) {
 		repoWorkloadPresenceKey("repo-with-workload"): {},
 	}}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainRunsIn, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
@@ -164,7 +165,7 @@ func TestFilterRowsByReadinessRunsInProjectsWhenWorkloadPresent(t *testing.T) {
 		repoWorkloadPresenceKey("repo-1"): {},
 	}}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainRunsIn, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
@@ -188,7 +189,7 @@ func TestFilterRowsByReadinessRunsInNilPresenceIsTodaysBehavior(t *testing.T) {
 		return true, true
 	}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainRunsIn, rows, phaseReady, nil, nil,
 	)
 	if err != nil {

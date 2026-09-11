@@ -31,7 +31,7 @@ var grandfatheredDirectories = map[string]grandfatherEntry{
 	"internal/parser/javascript":  {FileCount: 48, Digest: "b6aaa1628818f74382a4b7eee937f476f991d613f624a325b930fd89aa7e437c"},
 	"internal/projector":          {FileCount: 47, Digest: "90bc68bb690013862bc225b94c15ff4d758882a9c4cfb57363b8af52c45e123d"},
 	"internal/query":              {FileCount: 496, Digest: "c4dd72cad559bc0fec731a2dac533b8be3c2f09497a44ac831dc7a71d5ab40b5"},
-	"internal/reducer":            {FileCount: 136, Digest: "68d7d34c19693159a8b03ec3bacb616912afb9d5af0bb2d7bdfb029d387284d1"},
+	"internal/reducer":            {FileCount: 127, Digest: "e6c4d4d4316a0983a191d7e42f5199763790aa131bff28c3745499335e05f988"},
 	"internal/status":             {FileCount: 45, Digest: "c7dfe62bb4c04da7f242ba8d2a8fb744865937c103df10c5374f05df25ce9261"},
 	"internal/storage/cypher":     {FileCount: 131, Digest: "eb310aa90dadf1c8bba189a65bd0c9f529c9c40a59e098789465e073f1996de7"},
 	"internal/storage/postgres":   {FileCount: 372, Digest: "813c9bf8a06608058485c87e4f80b720de917ce01ca0a087358f8d9de5b3f883"},

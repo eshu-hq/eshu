@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -413,7 +415,7 @@ func assertSQLRelationshipIntentKeyShapes(t *testing.T, intents []SharedProjecti
 	sawRefresh := false
 	sawPerEdge := false
 	for _, intent := range intents {
-		if isRepoRefreshRow(intent) {
+		if sharedintent.IsRepoRefreshRow(intent) {
 			sawRefresh = true
 			if intent.PartitionKey != sqlrelationship.WholeScopePartitionKey(intent.RepositoryID) {
 				t.Fatalf("refresh intent partition key %q is not the whole-scope fence key", intent.PartitionKey)
@@ -424,7 +426,7 @@ func assertSQLRelationshipIntentKeyShapes(t *testing.T, intents []SharedProjecti
 		if !strings.HasPrefix(intent.PartitionKey, sqlrelationship.PartitionKeyVersion+":files:") {
 			t.Fatalf("per-edge intent partition key %q lacks file-scoped prefix", intent.PartitionKey)
 		}
-		if !rowUsesRefreshFence(intent) {
+		if !worker.RowUsesRefreshFence(intent) {
 			t.Fatalf("per-edge intent %q is not marked retract_via_refresh", intent.IntentID)
 		}
 	}

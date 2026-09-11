@@ -44,8 +44,3 @@ type SharedProjectionUnroutableWriter = worker.UnroutableWriter
 func CarriesNoEdge(row SharedProjectionIntentRow) bool {
 	return sharedintent.CarriesNoEdge(row)
 }
-
-// filterUpsertRows forwards to [sharedintent.FilterUpsertRows].
-func filterUpsertRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
-	return sharedintent.FilterUpsertRows(rows)
-}

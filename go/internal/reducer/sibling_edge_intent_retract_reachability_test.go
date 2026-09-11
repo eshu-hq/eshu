@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -122,7 +124,7 @@ func TestSiblingProductionIntentsNeverReachRetractAsUnmarkedRows(t *testing.T) {
 				t.Fatalf("emitted intents = %d, want 4 (2 refresh + 2 per-edge)", len(rows))
 			}
 
-			plan, err := planRepoWideRetractWork(
+			plan, err := worker.PlanRepoWideRetractWork(
 				context.Background(),
 				tc.domain,
 				roundTripPayloads(t, rows),
@@ -176,11 +178,11 @@ func TestSiblingPerEdgeIntentsCarryRefreshFenceMarkerAfterRoundTrip(t *testing.T
 
 			perEdge := 0
 			for _, row := range roundTripPayloads(t, rows) {
-				if isRepoRefreshRow(row) {
+				if sharedintent.IsRepoRefreshRow(row) {
 					continue
 				}
 				perEdge++
-				if !rowUsesRefreshFence(row) {
+				if !worker.RowUsesRefreshFence(row) {
 					t.Fatalf("per-edge intent %s lost its %s marker across the durable round trip (payload %#v)",
 						row.IntentID, retractViaRefreshKey, row.Payload)
 				}

@@ -18,15 +18,22 @@ package reducer
 //   - observability_coverage_compat.go
 //   - cloud_resource_join_index_compat.go
 //   - platform_compat.go (relocated from compat_projection.go by the code/ move, #6609)
+//   - shell-exec family move (relocated byte-identical from compat_projection.go
+//     to make room for the H5 root-remnant fold there, issue #6061)
 
 import (
+	"context"
+	"time"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // Stanza: aws_cloud_family_compat.go (merged; do not recreate this file).
@@ -435,4 +442,58 @@ func TerraformPlatformEvidenceKind(kind, scope string) string {
 // FormatPlatformKindLabel forwards to [platformfam.FormatPlatformKindLabel].
 func FormatPlatformKindLabel(kind string) string {
 	return platformfam.FormatPlatformKindLabel(kind)
+}
+
+// Stanza: shell-exec family move (#6061; no prior compat file), moved to
+// [shell] (go/internal/reducer/code/shell); each entry is deleted once its
+// last caller names [shell] directly.
+
+// ShellExecIntentWriter is the root spelling of [shell.IntentWriter].
+type ShellExecIntentWriter = shell.IntentWriter
+
+// shellExecMaterializationFactKinds is [shell.MaterializationFactKinds]
+// (factload_materialization_bench_test.go reads it).
+var shellExecMaterializationFactKinds = shell.MaterializationFactKinds()
+
+// ShellExecMaterializationHandler is the root spelling of [shell.Handler].
+type ShellExecMaterializationHandler = shell.Handler
+
+// ExtractShellExecRows forwards to [shell.ExtractExecRows].
+func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
+	return shell.ExtractExecRows(envelopes)
+}
+
+// loadShellExecMaterializationFacts forwards to
+// [shell.LoadMaterializationFacts] (factload_materialization_bench_test.go
+// benches it under this spelling).
+func loadShellExecMaterializationFacts(
+	ctx context.Context,
+	loader FactLoader,
+	scopeID string,
+	generationID string,
+) ([]facts.Envelope, error) {
+	return shell.LoadMaterializationFacts(ctx, loader, scopeID, generationID)
+}
+
+// buildShellExecRefreshIntents forwards to [shell.BuildRefreshIntents]
+// (sibling_edge_intent_delta_gate_test.go's cross-domain table).
+func buildShellExecRefreshIntents(
+	deltaScope sqlrelationship.DeltaScope,
+	repoIDs []string,
+	contextByRepoID map[string]ProjectionContext,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	return shell.BuildRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)
+}
+
+// buildShellExecSharedIntentRows forwards to [shell.BuildSharedIntentRows]
+// (sibling_edge_intent_retract_reachability_test.go's cross-domain table).
+func buildShellExecSharedIntentRows(
+	edgeRows []map[string]any,
+	deltaScope sqlrelationship.DeltaScope,
+	repoIDs []string,
+	contextByRepoID map[string]ProjectionContext,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	return shell.BuildSharedIntentRows(edgeRows, deltaScope, repoIDs, contextByRepoID, createdAt)
 }

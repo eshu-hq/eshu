@@ -3,12 +3,16 @@
 
 package reducer
 
-import "testing"
+import (
+	"testing"
+
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+)
 
 func TestHandlesRouteReadinessGatesOnWorkloadMaterialization(t *testing.T) {
 	t.Parallel()
 
-	phase, gated := sharedProjectionReadinessPhase(DomainHandlesRoute)
+	phase, gated := worker.ReadinessPhase(DomainHandlesRoute)
 	if !gated {
 		t.Fatalf("DomainHandlesRoute must be readiness-gated")
 	}

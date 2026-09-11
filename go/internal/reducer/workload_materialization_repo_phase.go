@@ -141,7 +141,7 @@ func enqueueRepoReadinessPhaseRepairs(
 	if cause != nil {
 		reason = cause.Error()
 	}
-	repairs := GraphProjectionPhaseRepairsFromStates(states, reason, time.Now().UTC())
+	repairs := gpphase.PhaseRepairsFromStates(states, reason, time.Now().UTC())
 	if err := repairQueue.Enqueue(ctx, repairs); err != nil {
 		return fmt.Errorf("enqueue repo workload-materialization readiness repairs: %w", err)
 	}

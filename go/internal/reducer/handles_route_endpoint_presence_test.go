@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 // handlesRouteIntentRow builds a minimal DomainHandlesRoute intent row carrying
@@ -198,7 +200,7 @@ func TestFilterRowsByReadinessHandlesRouteTerminatesAbsentEndpoint(t *testing.T)
 		},
 	}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainHandlesRoute, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
@@ -234,7 +236,7 @@ func TestFilterRowsByReadinessHandlesRoutePhaseBlockedStaysDeferred(t *testing.T
 	}
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainHandlesRoute, rows, phaseNotReady, nil, presence,
 	)
 	if err != nil {
@@ -271,7 +273,7 @@ func TestFilterRowsByReadinessHandlesRouteProjectsWhenPresent(t *testing.T) {
 		apiEndpointRepoPathPresenceKey("repo-1", "/b"): {},
 	}}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainHandlesRoute, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
@@ -302,7 +304,7 @@ func TestFilterRowsByReadinessHandlesRouteNilPresenceIsTodaysBehavior(t *testing
 		return true, true
 	}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainHandlesRoute, rows, phaseReady, nil, nil,
 	)
 	if err != nil {
@@ -341,7 +343,7 @@ func TestFilterRowsByReadinessNonHandlesRouteIgnoresPresence(t *testing.T) {
 	// row would be blocked. It must not.
 	presence := &fakeRepoPathPresenceLookup{present: map[string]struct{}{}}
 
-	ready, blocked, terminal, err := filterRowsByReadiness(
+	ready, blocked, terminal, err := worker.FilterRowsByReadiness(
 		context.Background(), DomainCodeCalls, rows, phaseReady, nil, presence,
 	)
 	if err != nil {
