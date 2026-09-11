@@ -1,35 +1,107 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
+	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-// recordServiceChangedSinceSpan drives the production handler with a recording
-// tracer swapped in for queryHandlerTracer and returns the single span the
-// route emitted, flattened to a name -> value map. It mirrors
-// TestHandleLanguageQueryEmitsLanguageQuerySpan's setup; the tracer swap is
-// process-global, so these subtests deliberately do not run in parallel.
+// fakeServiceChangedSinceLineageReader always resolves the requested service
+// to a lineage row. The span-attribute proof below only needs a reader that
+// lets the two non-refused cases (granted, shared-key) reach
+// span.SetAttributes; the grant-boundary correctness of the lineage read
+// itself is proven separately by package query's
+// service_changed_since_grant_test.go (TestServiceChangedSinceTwoTenantGrantBoundary).
+type fakeServiceChangedSinceLineageReader struct{}
+
+func (fakeServiceChangedSinceLineageReader) ComputeServiceChangedSinceDelta(
+	_ context.Context, filter status.ServiceChangedSinceFilter,
+) (status.ServiceChangedSinceSummary, error) {
+	return status.ServiceChangedSinceSummary{
+		ServiceID:                 filter.ServiceID,
+		SinceGenerationID:         filter.SinceGenerationID,
+		CurrentActiveGenerationID: "gen-current",
+		SampleLimit:               filter.SampleLimit,
+	}, nil
+}
+
+// fakeServiceOwnershipProbeResult answers serviceChangedSinceGrantAdmits'
+// two-probe ownership check with a fixed pair of row counts, one for the
+// admission probe and one for the exclusivity (OutsideGrant) probe. It is
+// deliberately simpler than querytestutil's two-tenant correlation mirror:
+// this proof only needs to land on each of the four closed refusal reasons
+// plus the two non-refused paths, not re-prove the SQL-mirroring grant
+// intersection the service_changed_since_grant_test.go sibling already
+// proves in package query.
+type fakeServiceOwnershipProbeResult struct {
+	granted   []service.CatalogCorrelationRow
+	contested []service.CatalogCorrelationRow
+}
+
+func (f fakeServiceOwnershipProbeResult) ListServiceCatalogCorrelations(
+	_ context.Context, filter service.CatalogCorrelationFilter,
+) ([]service.CatalogCorrelationRow, error) {
+	if filter.OutsideGrant {
+		return f.contested, nil
+	}
+	return f.granted, nil
+}
+
+var oneGrantedCorrelationRow = []service.CatalogCorrelationRow{{CorrelationID: "fact-a", ServiceID: "svc", RepositoryID: "repo-a"}}
+
+// oneContestedCorrelationRow is a row owned by a repository outside tenant
+// A's grant, so a shared service id resolves to contested ownership.
+var oneContestedCorrelationRow = []service.CatalogCorrelationRow{{CorrelationID: "fact-b", ServiceID: "svc", RepositoryID: "repo-b"}}
+
+// recordServiceChangedSinceSpan drives the production handler with a
+// recording tracer swapped in for this package's own freshnessHandlerTracer
+// and returns the single span the route emitted, flattened to a name ->
+// value map. The swap is package-local (handler_tracing.go), so this test
+// does not run in parallel with itself or with any other test in this
+// package that also swaps freshnessHandlerTracer.
 func recordServiceChangedSinceSpan(
-	t *testing.T, serviceID string, auth AuthContext, ownership ServiceCatalogCorrelationStore,
+	t *testing.T, serviceID string, auth queryauth.AuthContext, ownership service.CatalogCorrelationStore,
 ) map[string]any {
 	t.Helper()
 
 	recorder := tracetest.NewSpanRecorder()
 	provider := tracesdk.NewTracerProvider(tracesdk.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	previousTracer := queryHandlerTracer
-	queryHandlerTracer = provider.Tracer("service-changed-since-grant-telemetry-test")
-	t.Cleanup(func() { queryHandlerTracer = previousTracer })
+	previousTracer := freshnessHandlerTracer
+	freshnessHandlerTracer = provider.Tracer("service-changed-since-grant-telemetry-test")
+	t.Cleanup(func() { freshnessHandlerTracer = previousTracer })
 
-	serveServiceChangedSinceOwnership(t, serviceID, auth, ownership)
+	handler := &Handler{
+		ServiceChangedSince: fakeServiceChangedSinceLineageReader{},
+		ServiceOwnership:    ownership,
+		Profile:             querycontract.ProfileLocalAuthoritative,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/freshness/services/changed-since?service_id="+serviceID+"&since_generation_id=gen-prior",
+		nil,
+	)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
 
 	spans := recorder.Ended()
 	if got, want := len(spans), 1; got != want {
@@ -60,25 +132,27 @@ func recordServiceChangedSinceSpan(
 // The server-side span attributes are the fix. They never reach the caller, so
 // they add no oracle, and the reason vocabulary is closed and carries no
 // service, tenant, workspace, repository, or scope identifier.
+//
+// This test moved here from package query's
+// freshness_service_changed_since_telemetry_test.go (#6642): the handler it drives
+// moved to this package, and the tracer seam handler_tracing.go documents is
+// deliberately package-local, so a test swapping package query's
+// queryHandlerTracer no longer observes any span this route emits.
 func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
-	mirroringOwnership := func() ServiceCatalogCorrelationStore {
-		return &grantMirroringServiceOwnership{rows: twoTenantServiceCorrelations()}
-	}
-
 	for _, tc := range []struct {
 		name      string
 		serviceID string
-		auth      AuthContext
-		ownership func() ServiceCatalogCorrelationStore
+		auth      queryauth.AuthContext
+		ownership service.CatalogCorrelationStore
 		// wantReason is empty for the cases that must carry no refusal
 		// attribute at all.
 		wantReason string
 	}{
 		{
 			name:       "ungranted service records not_granted",
-			serviceID:  serviceChangedSinceGrantServiceB,
-			auth:       scopedServiceChangedSinceTenantA(),
-			ownership:  mirroringOwnership,
+			serviceID:  "svc-b",
+			auth:       querytestutil.ScopedChangedSinceTenantA(),
+			ownership:  fakeServiceOwnershipProbeResult{},
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalNotGranted,
 		},
 		{
@@ -86,43 +160,43 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			// correlations for this id, so the existential check admitted it
 			// and served tenant B's lineage.
 			name:       "shared service id records shared_ownership",
-			serviceID:  serviceChangedSinceGrantShared,
-			auth:       scopedServiceChangedSinceTenantA(),
-			ownership:  mirroringOwnership,
+			serviceID:  "svc-shared",
+			auth:       querytestutil.ScopedChangedSinceTenantA(),
+			ownership:  fakeServiceOwnershipProbeResult{granted: oneGrantedCorrelationRow, contested: oneContestedCorrelationRow},
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalSharedOwnership,
 		},
 		{
 			name:       "empty grant records empty_grant",
-			serviceID:  serviceChangedSinceGrantServiceA,
-			auth:       AuthContext{Mode: AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
-			ownership:  mirroringOwnership,
+			serviceID:  "svc-a",
+			auth:       queryauth.AuthContext{Mode: queryauth.AuthModeScoped, TenantID: "tenant-a", WorkspaceID: "workspace-a"},
+			ownership:  fakeServiceOwnershipProbeResult{},
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalEmptyGrant,
 		},
 		{
 			name:       "unwired ownership records ownership_unwired",
-			serviceID:  serviceChangedSinceGrantServiceA,
-			auth:       scopedServiceChangedSinceTenantA(),
-			ownership:  func() ServiceCatalogCorrelationStore { return nil },
+			serviceID:  "svc-a",
+			auth:       querytestutil.ScopedChangedSinceTenantA(),
+			ownership:  nil,
 			wantReason: telemetry.ServiceChangedSinceGrantRefusalOwnershipUnwired,
 		},
 		{
 			name:      "granted service carries no refusal attribute",
-			serviceID: serviceChangedSinceGrantServiceA,
-			auth:      scopedServiceChangedSinceTenantA(),
-			ownership: mirroringOwnership,
+			serviceID: "svc-a",
+			auth:      querytestutil.ScopedChangedSinceTenantA(),
+			ownership: fakeServiceOwnershipProbeResult{granted: oneGrantedCorrelationRow},
 		},
 		{
 			// The absence assertion that matters most for an alert: an
 			// unscoped caller is never grant-refused, so a dashboard counting
 			// this attribute must not pick up shared-key traffic.
 			name:      "shared key carries no refusal attribute",
-			serviceID: serviceChangedSinceGrantServiceB,
-			auth:      AuthContext{Mode: AuthModeShared},
-			ownership: mirroringOwnership,
+			serviceID: "svc-b",
+			auth:      queryauth.AuthContext{Mode: queryauth.AuthModeShared},
+			ownership: fakeServiceOwnershipProbeResult{},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			attributes := recordServiceChangedSinceSpan(t, tc.serviceID, tc.auth, tc.ownership())
+			attributes := recordServiceChangedSinceSpan(t, tc.serviceID, tc.auth, tc.ownership)
 
 			refused, refusedSet := attributes[telemetry.SpanAttrServiceChangedSinceGrantRefused]
 			reason, reasonSet := attributes[telemetry.SpanAttrServiceChangedSinceGrantRefusedReason]
@@ -157,13 +231,7 @@ func TestServiceChangedSinceGrantRefusalIsRecordedOnTheSpan(t *testing.T) {
 			// into every trace backend that samples this route, which is the
 			// leak the not-found body already refuses to make.
 			for _, identifier := range []string{
-				serviceChangedSinceGrantServiceA,
-				serviceChangedSinceGrantServiceB,
-				serviceChangedSinceGrantShared,
-				"tenant-a",
-				"workspace-a",
-				"repo-a",
-				"scope-a",
+				"svc-a", "svc-b", "svc-shared", "tenant-a", "workspace-a", "repo-a", "scope-a",
 			} {
 				if reason == identifier {
 					t.Fatalf("%s carries the identifying value %q",

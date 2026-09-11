@@ -76,3 +76,12 @@ go/internal/query/codequery/route_query_proof_matrix_test.go:go/internal/reducer
 # records the citation line numbers as they stood at research time, which
 # repointing to the post-move destination would falsify.
 docs/internal/design/restructure-research.md:go/internal/reducer/shared_projection.go
+
+# #6642 freshness family move: dated #5167 evidence records that quote the
+# root paths as they stood when the evidence was captured; repointing would
+# falsify the record. The live pointers are go/internal/query/freshness/ and
+# the renamed root tests service_changed_since_*_test.go.
+docs/internal/evidence/5167-service-changed-since-ambiguous-candidates.md:go/internal/query/freshness_service_changed_since.go
+docs/internal/evidence/5167-service-changed-since-ambiguous-candidates.md:go/internal/query/freshness_service_changed_since_ambiguous_test.go
+docs/internal/evidence/5167-service-changed-since-shared-ownership.md:go/internal/query/freshness_service_changed_since.go
+docs/internal/evidence/5167-service-changed-since-shared-ownership.md:go/internal/query/freshness_service_changed_since_shared_ownership_test.go

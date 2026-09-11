@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"context"
 	"fmt"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
-const freshnessServiceChangedSinceRoute = "GET /api/v0/freshness/services/changed-since"
+const serviceChangedSinceRoute = "GET /api/v0/freshness/services/changed-since"
 
 // ServiceChangedSinceReader computes one bounded service-scope changed-since
 // delta summary (#1943) that diffs a prior service materialization generation's
@@ -25,25 +27,25 @@ type ServiceChangedSinceReader interface {
 	ComputeServiceChangedSinceDelta(context.Context, status.ServiceChangedSinceFilter) (status.ServiceChangedSinceSummary, error)
 }
 
-func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listServiceChangedSince(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryFreshnessServiceChangedSince,
-		freshnessServiceChangedSinceRoute,
-		freshnessServiceChangedSinceCapability,
+		serviceChangedSinceRoute,
+		ServiceChangedSinceCapability,
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), freshnessServiceChangedSinceCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), ServiceChangedSinceCapability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"service changed-since summaries are not supported in this profile",
-			ErrorCodeUnsupportedCapability,
-			freshnessServiceChangedSinceCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			ServiceChangedSinceCapability,
 			h.profile(),
-			requiredProfile(freshnessServiceChangedSinceCapability),
+			querycontract.RequiredProfile(ServiceChangedSinceCapability),
 		)
 		return
 	}
@@ -54,15 +56,15 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 	}
 
 	if h.ServiceChangedSince == nil {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			"service changed-since reader is not configured",
-			ErrorCodeBackendUnavailable,
-			freshnessServiceChangedSinceCapability,
+			querycontract.ErrorCodeBackendUnavailable,
+			ServiceChangedSinceCapability,
 			h.profile(),
-			requiredProfile(freshnessServiceChangedSinceCapability),
+			querycontract.RequiredProfile(ServiceChangedSinceCapability),
 		)
 		return
 	}
@@ -73,7 +75,7 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 
 	summary, err := h.ServiceChangedSince.ComputeServiceChangedSinceDelta(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("compute service changed-since delta: %v", err))
+		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("compute service changed-since delta: %v", err))
 		return
 	}
 
@@ -85,15 +87,15 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 
 	// The service resolved but the since reference matched no prior generation.
 	if summary.SinceGenerationID == "" && !summary.Unavailable {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotFound,
 			fmt.Sprintf("no service generation %q for service_id %q", filter.SinceGenerationID, filter.ServiceID),
-			ErrorCodeNotFound,
-			freshnessServiceChangedSinceCapability,
+			querycontract.ErrorCodeNotFound,
+			ServiceChangedSinceCapability,
 			h.profile(),
-			requiredProfile(freshnessServiceChangedSinceCapability),
+			querycontract.RequiredProfile(ServiceChangedSinceCapability),
 		)
 		return
 	}
@@ -115,7 +117,7 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 		body["current_observed_at"] = summary.CurrentObservedAt
 	}
 
-	WriteSuccess(w, r, http.StatusOK, body, h.serviceChangedSinceTruthEnvelope(summary))
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, h.serviceChangedSinceTruthEnvelope(summary))
 }
 
 // serviceChangedSinceGrantAdmits binds the caller's repository grant to the
@@ -207,12 +209,12 @@ func (h *FreshnessHandler) listServiceChangedSince(w http.ResponseWriter, r *htt
 // Every refusal is recorded on the handler span before it returns
 // (refuseServiceChangedSinceGrant), because the caller-facing body cannot say
 // which one fired without turning the route back into an existence oracle.
-func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
+func (h *Handler) serviceChangedSinceGrantAdmits(
 	w http.ResponseWriter,
 	r *http.Request,
 	serviceID string,
 ) bool {
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if !access.Scoped() {
 		// Shared, admin, and local callers have no grant for the correlation
 		// filter to intersect, so the unscoped path issues no extra query.
@@ -233,7 +235,7 @@ func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
 	// One row is the whole answer on both probes: the questions are whether
 	// the grant covers this service at all, and whether anything outside the
 	// grant also claims the id -- never which repository owns it.
-	probe := ServiceCatalogCorrelationFilter{
+	probe := service.CatalogCorrelationFilter{
 		ServiceID:            serviceID,
 		AllowedRepositoryIDs: access.GrantedRepositoryIDs(),
 		AllowedScopeIDs:      access.GrantedScopeIDs(),
@@ -242,7 +244,7 @@ func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
 
 	granted, err := h.ServiceOwnership.ListServiceCatalogCorrelations(r.Context(), probe)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
+		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
 		return false
 	}
 	if len(granted) == 0 {
@@ -262,7 +264,7 @@ func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
 	probe.OutsideGrant = true
 	contested, err := h.ServiceOwnership.ListServiceCatalogCorrelations(r.Context(), probe)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
+		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("resolve service ownership: %v", err))
 		return false
 	}
 	if len(contested) > 0 {
@@ -288,7 +290,7 @@ func (h *FreshnessHandler) serviceChangedSinceGrantAdmits(
 // vocabulary and never carries the service id, tenant, workspace, repository,
 // or scope: a per-tenant identifier here would leak into every trace backend
 // that samples the route.
-func (h *FreshnessHandler) refuseServiceChangedSinceGrant(
+func (h *Handler) refuseServiceChangedSinceGrant(
 	w http.ResponseWriter,
 	r *http.Request,
 	serviceID string,
@@ -305,35 +307,35 @@ func (h *FreshnessHandler) refuseServiceChangedSinceGrant(
 // answer. Both the unresolved-service path and the ungranted-service refusal go
 // through it so the two responses stay byte-identical and the route cannot be
 // used as an existence oracle for another tenant's services.
-func (h *FreshnessHandler) writeServiceChangedSinceNotFound(
+func (h *Handler) writeServiceChangedSinceNotFound(
 	w http.ResponseWriter,
 	r *http.Request,
 	serviceID string,
 ) {
-	WriteContractError(
+	querycontract.WriteContractError(
 		w,
 		r,
 		http.StatusNotFound,
 		fmt.Sprintf("no service materialization lineage found for service_id %q", serviceID),
-		ErrorCodeServiceNotFound,
-		freshnessServiceChangedSinceCapability,
+		querycontract.ErrorCodeServiceNotFound,
+		ServiceChangedSinceCapability,
 		h.profile(),
-		requiredProfile(freshnessServiceChangedSinceCapability),
+		querycontract.RequiredProfile(ServiceChangedSinceCapability),
 	)
 }
 
-func (h *FreshnessHandler) parseServiceChangedSinceFilter(w http.ResponseWriter, r *http.Request) (status.ServiceChangedSinceFilter, bool) {
+func (h *Handler) parseServiceChangedSinceFilter(w http.ResponseWriter, r *http.Request) (status.ServiceChangedSinceFilter, bool) {
 	filter := status.ServiceChangedSinceFilter{
-		ServiceID:         QueryParam(r, "service_id"),
-		SinceGenerationID: QueryParam(r, "since_generation_id"),
+		ServiceID:         querycontract.QueryParam(r, "service_id"),
+		SinceGenerationID: querycontract.QueryParam(r, "since_generation_id"),
 	}
 
 	if !filter.HasServiceSelector() {
-		WriteError(w, http.StatusBadRequest, "service_id is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "service_id is required")
 		return status.ServiceChangedSinceFilter{}, false
 	}
 	if !filter.HasSinceReference() {
-		WriteError(w, http.StatusBadRequest, "since_generation_id is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "since_generation_id is required")
 		return status.ServiceChangedSinceFilter{}, false
 	}
 
@@ -346,22 +348,22 @@ func (h *FreshnessHandler) parseServiceChangedSinceFilter(w http.ResponseWriter,
 	return filter.Normalize(), true
 }
 
-func (h *FreshnessHandler) serviceChangedSinceTruthEnvelope(summary status.ServiceChangedSinceSummary) *TruthEnvelope {
-	envelope := BuildTruthEnvelope(
+func (h *Handler) serviceChangedSinceTruthEnvelope(summary status.ServiceChangedSinceSummary) *querycontract.TruthEnvelope {
+	envelope := querycontract.BuildTruthEnvelope(
 		h.profile(),
-		freshnessServiceChangedSinceCapability,
-		TruthBasisSemanticFacts,
+		ServiceChangedSinceCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"diffed from durable service_evidence_snapshots keyed by (generation_id, service_evidence_key); service changed-since is persisted reducer snapshot truth, not live graph-materialized correlation",
 	)
 	switch {
 	case summary.Unavailable:
-		envelope.Freshness.State = FreshnessUnavailable
+		envelope.Freshness.State = querycontract.FreshnessUnavailable
 		envelope.Freshness.Detail = "the service has no current active materialization generation, so a changed-since diff cannot be computed yet"
-		WithFreshnessCause(envelope, FreshnessCausePendingRepoGeneration)
+		WithCause(envelope, CausePendingRepoGeneration)
 	case summary.Building:
-		envelope.Freshness.State = FreshnessBuilding
+		envelope.Freshness.State = querycontract.FreshnessBuilding
 		envelope.Freshness.Detail = "the service has a pending materialization generation in flight; the current active generation may change"
-		WithFreshnessCause(envelope, FreshnessCausePendingRepoGeneration)
+		WithCause(envelope, CausePendingRepoGeneration)
 	}
 	return envelope
 }

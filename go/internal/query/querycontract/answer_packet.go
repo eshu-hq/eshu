@@ -309,7 +309,8 @@ func answerPacketRecommendedCallsEqual(a, b map[string]any) bool {
 // FreshnessNextCheckAsRecommendedCall renders a bounded freshness follow-up
 // call as a recommended-next-call map. The implementation moved from root's
 // freshness_causality.go for #6060 so a handler-family subpackage can build
-// the same call without importing root.
+// the same call without importing root; root's own copy later moved again to
+// freshness/causality.go (#6642), which forwards here unchanged.
 func FreshnessNextCheckAsRecommendedCall(next FreshnessNextCheck) map[string]any {
 	call := map[string]any{}
 	if tool := strings.TrimSpace(next.Tool); tool != "" {

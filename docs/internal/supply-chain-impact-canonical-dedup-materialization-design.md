@@ -198,7 +198,7 @@ New pieces:
   - `fresh` when the canonical materialization backlog for the relevant scopes
     is drained,
   - `building`/`stale` with cause `reducer_backlog` (existing cause vocabulary,
-    `freshness_causality.go`) when dirty keys are pending.
+    `go/internal/query/querycontract/freshness.go`) when dirty keys are pending.
 - `truth.level`/`truth.basis` stay `semantic_facts`/derived as today — the
   winner is still reducer-derived; we are not inventing new truth, only
   precomputing the selection the read already made.

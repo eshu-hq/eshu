@@ -83,7 +83,7 @@ func (h *Handler) getRepositoryFreshness(w http.ResponseWriter, r *http.Request)
 }
 
 // repositoryFreshnessTruth builds the truth envelope directly, mirroring
-// freshnessCausalityTruth (freshness_causality_handler.go): this is a
+// freshnessCausalityTruth (go/internal/query/status_freshness_causality.go): this is a
 // status-surface read composed from Postgres runtime state, not a
 // graph/content capability gated by the capabilityMatrix BuildTruthEnvelope
 // checks, so it is never registered there.

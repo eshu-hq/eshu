@@ -100,7 +100,7 @@ the catch-up; neither implies the data is wrong. Correctness is governed by
 next check, not discard it as false.
 
 The cause enumeration and the cause→`next_check` mapping live in
-`go/internal/query/freshness_causality.go`. Causes are wired into handlers
+`go/internal/query/querycontract/freshness.go`. Causes are wired into handlers
 incrementally; the metrics time-series handler is the first proof-of-contract
 (it attaches `missing_collector_completion` when no collector is reporting and
 `content_coverage_unavailable` when a metric has no indexed history yet).

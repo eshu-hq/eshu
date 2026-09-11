@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"context"
 	"fmt"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/status"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const freshnessGenerationLifecycleRoute = "GET /api/v0/freshness/generations"
+const generationLifecycleRoute = "GET /api/v0/freshness/generations"
 
 // GenerationLifecycleReader reads one bounded, ordered page of scope generation
 // lifecycle drilldown rows. It is implemented by the Postgres status store and
@@ -22,11 +24,11 @@ type GenerationLifecycleReader interface {
 	ListGenerationLifecycle(context.Context, status.GenerationLifecycleFilter) (status.GenerationLifecyclePage, error)
 }
 
-// FreshnessHandler exposes the bounded generation lifecycle drilldown and the
+// Handler exposes the bounded generation lifecycle drilldown and the
 // bounded changed-since delta summary so callers can inspect active, pending,
 // superseded, completed, and failed generation history and diff a prior
 // generation against current truth without scraping broad status payloads.
-type FreshnessHandler struct {
+type Handler struct {
 	Generations  GenerationLifecycleReader
 	ChangedSince ChangedSinceReader
 	// ServiceChangedSince reads the per-service evidence lineage. Its tables
@@ -38,43 +40,43 @@ type FreshnessHandler struct {
 	// listServiceChangedSince refuse an ungranted service before touching the
 	// lineage tables. Leaving it nil fails a scoped caller closed on that
 	// route; an unscoped caller never consults it.
-	ServiceOwnership ServiceCatalogCorrelationStore
-	Profile          QueryProfile
+	ServiceOwnership service.CatalogCorrelationStore
+	Profile          querycontract.QueryProfile
 }
 
 // Mount registers freshness drilldown routes on the given mux.
-func (h *FreshnessHandler) Mount(mux *http.ServeMux) {
-	mux.HandleFunc(freshnessGenerationLifecycleRoute, h.listGenerationLifecycle)
-	mux.HandleFunc(freshnessChangedSinceRoute, h.listChangedSince)
-	mux.HandleFunc(freshnessServiceChangedSinceRoute, h.listServiceChangedSince)
+func (h *Handler) Mount(mux *http.ServeMux) {
+	mux.HandleFunc(generationLifecycleRoute, h.listGenerationLifecycle)
+	mux.HandleFunc(changedSinceRoute, h.listChangedSince)
+	mux.HandleFunc(serviceChangedSinceRoute, h.listServiceChangedSince)
 }
 
-func (h *FreshnessHandler) profile() QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil || h.Profile == "" {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
 	return h.Profile
 }
 
-func (h *FreshnessHandler) listGenerationLifecycle(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listGenerationLifecycle(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryFreshnessGenerationLifecycle,
-		freshnessGenerationLifecycleRoute,
-		freshnessGenerationLifecycleCapability,
+		generationLifecycleRoute,
+		GenerationLifecycleCapability,
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), freshnessGenerationLifecycleCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), GenerationLifecycleCapability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"generation lifecycle drilldown is not supported in this profile",
-			ErrorCodeUnsupportedCapability,
-			freshnessGenerationLifecycleCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			GenerationLifecycleCapability,
 			h.profile(),
-			requiredProfile(freshnessGenerationLifecycleCapability),
+			querycontract.RequiredProfile(GenerationLifecycleCapability),
 		)
 		return
 	}
@@ -89,25 +91,25 @@ func (h *FreshnessHandler) listGenerationLifecycle(w http.ResponseWriter, r *htt
 	}
 
 	filter := status.GenerationLifecycleFilter{
-		ScopeID:       QueryParam(r, "scope_id"),
-		Repository:    QueryParam(r, "repository"),
-		CollectorKind: QueryParam(r, "collector_kind"),
-		SourceSystem:  QueryParam(r, "source_system"),
-		GenerationID:  QueryParam(r, "generation_id"),
+		ScopeID:       querycontract.QueryParam(r, "scope_id"),
+		Repository:    querycontract.QueryParam(r, "repository"),
+		CollectorKind: querycontract.QueryParam(r, "collector_kind"),
+		SourceSystem:  querycontract.QueryParam(r, "source_system"),
+		GenerationID:  querycontract.QueryParam(r, "generation_id"),
 		Status:        statusFilter,
 		Limit:         limit,
 	}.Normalize()
 
 	if h.Generations == nil {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			"generation lifecycle reader is not configured",
-			ErrorCodeBackendUnavailable,
-			freshnessGenerationLifecycleCapability,
+			querycontract.ErrorCodeBackendUnavailable,
+			GenerationLifecycleCapability,
 			h.profile(),
-			requiredProfile(freshnessGenerationLifecycleCapability),
+			querycontract.RequiredProfile(GenerationLifecycleCapability),
 		)
 		return
 	}
@@ -118,29 +120,29 @@ func (h *FreshnessHandler) listGenerationLifecycle(w http.ResponseWriter, r *htt
 	// generation_id would reach any tenant's generation while both selector
 	// fields sat empty. An empty grant selects nothing, which is the
 	// fail-closed half.
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	filter.Scoped = access.Scoped()
 	filter.AllowedRepositoryIDs = access.GrantedRepositoryIDs()
 	filter.AllowedScopeIDs = access.GrantedScopeIDs()
 
 	page, err := h.Generations.ListGenerationLifecycle(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list generation lifecycle: %v", err))
+		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("list generation lifecycle: %v", err))
 		return
 	}
 
 	// A named scope/repository/generation selector that matches nothing is an
 	// explicit not-found, never a confident empty list.
 	if len(page.Records) == 0 && filter.HasScopeSelector() {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotFound,
 			generationLifecycleNotFoundMessage(filter),
 			generationLifecycleNotFoundCode(filter),
-			freshnessGenerationLifecycleCapability,
+			GenerationLifecycleCapability,
 			h.profile(),
-			requiredProfile(freshnessGenerationLifecycleCapability),
+			querycontract.RequiredProfile(GenerationLifecycleCapability),
 		)
 		return
 	}
@@ -153,43 +155,43 @@ func (h *FreshnessHandler) listGenerationLifecycle(w http.ResponseWriter, r *htt
 		"limit":       page.Limit,
 		"truncated":   page.Truncated,
 	}
-	WriteSuccess(w, r, http.StatusOK, body, h.truthEnvelope(page))
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, h.truthEnvelope(page))
 }
 
-func (h *FreshnessHandler) truthEnvelope(page status.GenerationLifecyclePage) *TruthEnvelope {
-	envelope := BuildTruthEnvelope(
+func (h *Handler) truthEnvelope(page status.GenerationLifecyclePage) *querycontract.TruthEnvelope {
+	envelope := querycontract.BuildTruthEnvelope(
 		h.profile(),
-		freshnessGenerationLifecycleCapability,
-		TruthBasisSemanticFacts,
+		GenerationLifecycleCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from durable scope_generations and fact_work_items rows; generation lifecycle is persisted truth, not graph-materialized correlation",
 	)
 	if generationLifecycleHasBuilding(page.Records) {
-		envelope.Freshness.State = FreshnessBuilding
+		envelope.Freshness.State = querycontract.FreshnessBuilding
 		envelope.Freshness.Detail = "at least one returned scope has a pending or in-flight generation"
 	}
 	return envelope
 }
 
-func (h *FreshnessHandler) parseLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
-	raw := QueryParam(r, "limit")
+func (h *Handler) parseLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
+	raw := querycontract.QueryParam(r, "limit")
 	if raw == "" {
 		return status.DefaultGenerationLifecycleLimit, true
 	}
-	limit := QueryParamInt(r, "limit", -1)
+	limit := querycontract.QueryParamInt(r, "limit", -1)
 	if limit <= 0 || limit > status.MaxGenerationLifecycleLimit {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", status.MaxGenerationLifecycleLimit))
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", status.MaxGenerationLifecycleLimit))
 		return 0, false
 	}
 	return limit, true
 }
 
-func (h *FreshnessHandler) parseStatus(w http.ResponseWriter, r *http.Request) (string, bool) {
-	raw := QueryParam(r, "status")
+func (h *Handler) parseStatus(w http.ResponseWriter, r *http.Request) (string, bool) {
+	raw := querycontract.QueryParam(r, "status")
 	if raw == "" {
 		return "", true
 	}
 	if !knownGenerationLifecycleStatus(raw) {
-		WriteError(w, http.StatusBadRequest, "status must be one of pending, active, superseded, completed, failed")
+		querycontract.WriteError(w, http.StatusBadRequest, "status must be one of pending, active, superseded, completed, failed")
 		return "", false
 	}
 	return raw, true
@@ -213,11 +215,11 @@ func generationLifecycleHasBuilding(records []status.GenerationLifecycleRecord) 
 	return false
 }
 
-func generationLifecycleNotFoundCode(filter status.GenerationLifecycleFilter) ErrorCode {
+func generationLifecycleNotFoundCode(filter status.GenerationLifecycleFilter) querycontract.ErrorCode {
 	if filter.ScopeID != "" || filter.Repository != "" {
-		return ErrorCodeScopeNotFound
+		return querycontract.ErrorCodeScopeNotFound
 	}
-	return ErrorCodeNotFound
+	return querycontract.ErrorCodeNotFound
 }
 
 func generationLifecycleNotFoundMessage(filter status.GenerationLifecycleFilter) string {

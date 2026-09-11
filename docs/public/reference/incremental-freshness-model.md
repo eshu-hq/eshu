@@ -273,7 +273,7 @@ timing, not validity.
 
 When a handler holds the evidence, it attaches a bounded `cause` and a
 `next_check`. The cause enumeration and the cause-to-next-check mapping live in
-`go/internal/query/freshness_causality.go`. Causes are wired into handlers
+`go/internal/query/querycontract/freshness.go`. Causes are wired into handlers
 incrementally and a handler that cannot prove a cause leaves it unset. The closed
 cause set is:
 

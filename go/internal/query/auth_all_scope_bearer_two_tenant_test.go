@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // TestAllScopeBearerTwoTenantBoundary is the data-plane half of #6450's
@@ -27,10 +29,12 @@ import (
 // there is no cross-tenant read to leak, whatever the response says.
 //
 // It runs the two promoted routes against the same two-tenant fixtures their
-// own grant-boundary proofs use (grantMirroringChangedSince and
-// grantMirroringGenerations, which apply the shipped SQL predicate rather
-// than merely recording the filter), so "the read is gone" is measured
-// against the same corpus "the grant binds" is measured against.
+// own grant-boundary proofs use (querytestutil.GrantMirroringChangedSince and
+// querytestutil.GrantMirroringGenerations, which apply the shipped SQL
+// predicate rather than merely recording the filter, and are promoted there
+// per the #6608 rule because package freshness's own grant-boundary proofs
+// use them too), so "the read is gone" is measured against the same corpus
+// "the grant binds" is measured against.
 func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 	t.Parallel()
 
@@ -58,8 +62,8 @@ func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 			// 1 closed, this was a 200 carrying tenant B's delta; a refusal
 			// that still consulted the store would be a refusal that had
 			// already done the cross-tenant read.
-			if reader.called {
-				t.Fatalf("the changed-since reader ran for a refused all-scope bearer; filter = %#v", reader.lastFilter)
+			if reader.Called {
+				t.Fatalf("the changed-since reader ran for a refused all-scope bearer; filter = %#v", reader.LastFilter)
 			}
 			// Belt and braces on the same point: even the other tenant's scope
 			// id must not appear in the refusal body.
@@ -87,13 +91,13 @@ func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 			}
-			if !reader.called {
+			if !reader.Called {
 				t.Fatal("the changed-since reader was never called; an admitted caller must reach the query")
 			}
-			if reader.lastFilter.Scoped {
+			if reader.LastFilter.Scoped {
 				t.Fatal("filter.Scoped = true for an all-scope bearer; the grant predicate is inert for it, which is exactly why hosted_multi_tenant refuses it")
 			}
-			data, _ := decodeChangedSinceEnvelope(t, rec)
+			data, _ := querytestutil.DecodeChangedSinceEnvelope(t, rec)
 			if got, want := data["scope_id"], "scope-b"; got != want {
 				t.Fatalf("data[scope_id] = %v, want %q; the unbounded read resolves the other tenant's scope, which is the posture local_no_policy accepts", got, want)
 			}
@@ -111,16 +115,16 @@ func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 					t.Parallel()
 
 					rec, reader := serveChangedSinceThroughBearerMiddleware(
-						t, scopedChangedSinceTenantA(), ScopedRoutePolicyForGovernanceMode(GovernanceStatusConfig{Mode: mode}), "repo-a",
+						t, querytestutil.ScopedChangedSinceTenantA(), ScopedRoutePolicyForGovernanceMode(GovernanceStatusConfig{Mode: mode}), "repo-a",
 					)
 
 					if rec.Code != http.StatusOK {
 						t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 					}
-					if !reader.lastFilter.Scoped {
+					if !reader.LastFilter.Scoped {
 						t.Fatal("filter.Scoped = false for a restricted bearer; its grant must still bind")
 					}
-					data, _ := decodeChangedSinceEnvelope(t, rec)
+					data, _ := querytestutil.DecodeChangedSinceEnvelope(t, rec)
 					if got, want := data["scope_id"], "scope-a"; got != want {
 						t.Fatalf("data[scope_id] = %v, want %q", got, want)
 					}
@@ -142,8 +146,8 @@ func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 			if rec.Code != http.StatusForbidden {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusForbidden, rec.Body.String())
 			}
-			if reader.called {
-				t.Fatalf("the generation lifecycle reader ran for a refused all-scope bearer; filter = %#v", reader.lastFilter)
+			if reader.Called {
+				t.Fatalf("the generation lifecycle reader ran for a refused all-scope bearer; filter = %#v", reader.LastFilter)
 			}
 			for _, leak := range []string{"gen-a", "gen-b", "scope-b"} {
 				if strings.Contains(rec.Body.String(), leak) {
@@ -162,10 +166,10 @@ func TestAllScopeBearerTwoTenantBoundary(t *testing.T) {
 			if rec.Code != http.StatusOK {
 				t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusOK, rec.Body.String())
 			}
-			if !reader.called {
+			if !reader.Called {
 				t.Fatal("the generation lifecycle reader was never called; an admitted caller must reach the query")
 			}
-			if reader.lastFilter.Scoped {
+			if reader.LastFilter.Scoped {
 				t.Fatal("filter.Scoped = true for an all-scope bearer; the grant predicate is inert for it")
 			}
 		})
@@ -188,17 +192,17 @@ func serveChangedSinceThroughBearerMiddleware(
 	auth AuthContext,
 	policy BrowserSessionRoutePolicy,
 	repository string,
-) (*httptest.ResponseRecorder, *grantMirroringChangedSince) {
+) (*httptest.ResponseRecorder, *querytestutil.GrantMirroringChangedSince) {
 	t.Helper()
 
-	reader := &grantMirroringChangedSince{scopes: twoTenantChangedSinceScopes()}
+	reader := &querytestutil.GrantMirroringChangedSince{Scopes: querytestutil.TwoTenantChangedSinceScopes()}
 	mux := http.NewServeMux()
 	(&FreshnessHandler{ChangedSince: reader, Profile: ProfileLocalAuthoritative}).Mount(mux)
 
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v0/freshness/changed-since?repository="+repository+
-			"&since_generation_id="+changedSinceTwoTenantPriorGeneration,
+			"&since_generation_id="+querytestutil.ChangedSinceTwoTenantPriorGeneration,
 		nil,
 	)
 	return serveThroughBearerMiddleware(t, req, auth, policy, mux), reader
@@ -212,10 +216,10 @@ func serveGenerationsThroughBearerMiddleware(
 	auth AuthContext,
 	policy BrowserSessionRoutePolicy,
 	generationID string,
-) (*httptest.ResponseRecorder, *grantMirroringGenerations) {
+) (*httptest.ResponseRecorder, *querytestutil.GrantMirroringGenerations) {
 	t.Helper()
 
-	reader := &grantMirroringGenerations{rows: twoTenantGenerationRows()}
+	reader := &querytestutil.GrantMirroringGenerations{Rows: querytestutil.TwoTenantGenerationRows()}
 	mux := http.NewServeMux()
 	(&FreshnessHandler{Generations: reader, Profile: ProfileLocalAuthoritative}).Mount(mux)
 

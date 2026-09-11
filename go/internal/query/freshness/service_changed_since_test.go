@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"context"
 	"net/http"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -29,7 +30,7 @@ func (r *recordingServiceChangedSinceReader) ComputeServiceChangedSinceDelta(
 }
 
 func newServiceChangedSinceMux(reader ServiceChangedSinceReader) *http.ServeMux {
-	handler := &FreshnessHandler{ServiceChangedSince: reader, Profile: ProfileLocalAuthoritative}
+	handler := &Handler{ServiceChangedSince: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	return mux
@@ -54,7 +55,7 @@ func TestServiceChangedSinceUnchangedProducesNoFalseDeltas(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Truth == nil || envelope.Truth.Freshness.State != FreshnessFresh {
+	if envelope.Truth == nil || envelope.Truth.Freshness.State != querycontract.FreshnessFresh {
 		t.Fatalf("expected fresh truth, got %+v", envelope.Truth)
 	}
 	data := envelope.Data.(map[string]any)
@@ -78,7 +79,7 @@ func TestServiceChangedSinceUnknownServiceNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Error == nil || envelope.Error.Code != ErrorCodeServiceNotFound {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeServiceNotFound {
 		t.Fatalf("expected service_not_found error, got %+v", envelope.Error)
 	}
 }
@@ -101,7 +102,7 @@ func TestServiceChangedSinceUnavailableWhenNoActiveGeneration(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Truth == nil || envelope.Truth.Freshness.State != FreshnessUnavailable {
+	if envelope.Truth == nil || envelope.Truth.Freshness.State != querycontract.FreshnessUnavailable {
 		t.Fatalf("expected unavailable freshness, got %+v", envelope.Truth)
 	}
 }
