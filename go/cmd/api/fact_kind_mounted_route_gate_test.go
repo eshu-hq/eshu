@@ -37,7 +37,7 @@ func factKindRegistrySpecPath(t *testing.T) string {
 // cmd/capability-inventory's enumerateAPIRoutes) -- never against the set of
 // routes actually registered on the production *http.ServeMux
 // (query.APIRouter.Mount). A route can be declared in an
-// openapi_paths_*.go source file (so it appears in the spec, and so in the
+// internal/query/openapi/paths/<family>/ fragment (so it appears in the spec, and so in the
 // inventory that gate consults) while the handler that would serve it is
 // never wired into APIRouter -- verify-openapi.sh keeps the spec in parity
 // with HandleFunc *declarations*, not with what newRouter actually mounts --

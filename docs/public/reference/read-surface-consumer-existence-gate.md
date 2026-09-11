@@ -76,7 +76,8 @@ fact-kind read_surface literal is *documented* — it matches
 `capabilitycatalog.LoadSurfaceInventory`, the OpenAPI-derived inventory
 generated from the served spec (`query.OpenAPISpec()` by way of
 `cmd/capability-inventory`'s `enumerateAPIRoutes`). `verify-openapi.sh` keeps
-that spec in parity with `HandleFunc` *declarations* in `openapi_paths_*.go`
+that spec in parity with `HandleFunc` *declarations* in the
+`go/internal/query/openapi/paths/<family>/` fragments
 source files, not with what production wiring actually mounts on the API
 router's `*http.ServeMux` — a route can be declared (and so documented) while
 the handler that would serve it is never assigned onto `query.APIRouter`, in

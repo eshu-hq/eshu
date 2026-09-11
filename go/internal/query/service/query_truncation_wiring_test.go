@@ -141,7 +141,7 @@ func runProvisioningTruncationTrace(t *testing.T, candidateRowCount int) map[str
 
 // provisioningTruncationResponseFields are the three disclosure fields the
 // #5720 fix declares on /impact/trace-deployment-chain in
-// openapi_paths_impact.go.
+// openapi/paths/impact/routes.go.
 var provisioningTruncationResponseFields = []string{
 	"dependents_truncated",
 	"consumer_repositories_truncated",

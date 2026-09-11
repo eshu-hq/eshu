@@ -5,8 +5,8 @@
 # exclusion list, not a backlog: an entry here asserts "this route is not
 # OpenAPI," never that its OpenAPI fragment simply does not exist in the
 # codebase (#5762 -- POST /api/v0/code/visualize sat here under that second,
-# false claim from #3781 until it got a real openapi_paths_code_graph.go
-# entry). Because of that history, scripts/verify-openapi.sh enforces rules
+# false claim from #3781 until it got a real code-graph path fragment, now
+# go/internal/query/openapi/paths/code/graph.go). Because of that history, scripts/verify-openapi.sh enforces rules
 # on this file: no comment line may contain one of a fixed set of deferral
 # markers (a closed, conventional token set) or one of a fixed, best-effort
 # list of prose deferral phrases -- neither list is exhaustive of every way a

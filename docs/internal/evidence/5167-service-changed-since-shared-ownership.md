@@ -354,7 +354,7 @@ literal `shared_ownership`. No metric and no log key is added, so no
 This section is history. Commits seven through ten put an admission sentence
 on four surfaces, kept identical in all of them: the OpenAPI operation
 description (`openAPIPathsFreshnessServiceChangedSince`,
-`go/internal/query/openapi_paths_service_changed_since.go`), the
+`go/internal/query/openapi/paths/freshness/service_changed_since.go`), the
 `get_service_changed_since` tool description
 (`go/internal/mcp/freshness/tools.go`),
 `docs/public/reference/http-api/status-admin.md`, and the tool's row in

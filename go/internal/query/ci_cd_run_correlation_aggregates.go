@@ -346,7 +346,7 @@ func cicdRunCorrelationInventoryGroupExpression(
 
 // isSupportedCICDRunCorrelationOutcome rejects unknown outcome filters,
 // matching the enum the existing list endpoint advertises in
-// openapi_paths_cicd.go (`exact`, `derived`, `ambiguous`, `unresolved`,
+// openapi/paths/cicd/routes.go (`exact`, `derived`, `ambiguous`, `unresolved`,
 // `rejected`).
 func isSupportedCICDRunCorrelationOutcome(outcome string) bool {
 	switch outcome {

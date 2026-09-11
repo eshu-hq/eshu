@@ -98,7 +98,7 @@ func TestResolveRouteMapsContainerImageTagHistoryToBoundedQuery(t *testing.T) {
 // This mirrors the shape of dispatch_container_image_identity_authz_test.go
 // (proving a real AuthContext-carrying dispatch), but does not exercise a
 // scoped-bearer-token round trip: GET /api/v0/images/tag-history follows
-// GET /api/v0/images' own precedent (see openapi_paths_images.go) of not
+// GET /api/v0/images' own precedent (see openapi/paths/supplychain/images.go) of not
 // carrying the "x-scoped-token-support" marker, so it is not part of the
 // scoped-token allowlist today. That is a deliberate, documented decision for
 // this change, not an oversight; see the executor's completion report for

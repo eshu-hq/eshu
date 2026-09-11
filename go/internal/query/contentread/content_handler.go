@@ -16,7 +16,7 @@ import (
 // Search-page bounds for the content read surface. Exported (#6060) so
 // root's OpenAPI sweep test can keep asserting the emitted schema maximum
 // against the same constant the handler validates: the offset maximum is
-// already wire-public (openapi_paths_content.go emits it), so naming it here
+// already wire-public (openapi/paths/search/content.go emits it), so naming it here
 // adds no new surface.
 const (
 	ContentSearchDefaultLimit = 50

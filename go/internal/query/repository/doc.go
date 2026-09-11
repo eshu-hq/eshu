@@ -8,7 +8,7 @@
 // reads share with the entity layer, and the repository
 // story/context/stats/coverage/tree/content/branches/freshness reads. The
 // OpenAPI fragments documenting the repository routes stay in the query
-// root beside openapi.go (the B2 precedent for family moves); the route
+// root beside openapi/spec.go (the B2 precedent for family moves); the route
 // handlers live here. Read-model loaders the family shares with the staying
 // root package live in querycontract; file-content artifact readers live in
 // repositoryartifacts; ref resolution and page shaping live in

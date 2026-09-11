@@ -10,7 +10,7 @@
 // provider profile is configured). This client streams reasoning steps or falls
 // back to one synchronous request, surfaces disabled/forbidden states, and never
 // renders or logs raw provider bodies. See docs/public/reference/http-api.md and
-// go/internal/query/openapi_paths_ask.go (the source of truth for the shape).
+// go/internal/query/openapi/paths/search/ask.go (the source of truth for the shape).
 
 import {
   narrationData,

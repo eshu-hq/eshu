@@ -30,7 +30,7 @@ import (
 // scopedHTTPRouteSupportsTenantFilter (auth_scoped_routes.go) and carries no
 // "x-scoped-token-support" OpenAPI marker, the same posture already held by
 // its two stack-wide source routes, GET /api/v0/status/index and GET
-// /api/v0/status/pipeline (openapi_paths_status.go). AuthMiddleware always
+// /api/v0/status/pipeline (openapi/paths/status/routes.go). AuthMiddleware always
 // rejects a scoped-bearer-token caller before this handler runs. A
 // browser-session caller's admission is policy-dependent, not a flat reject:
 // browserSessionRouteDenialReason (auth_browser_session_route_policy.go)

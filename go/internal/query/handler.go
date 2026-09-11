@@ -6,6 +6,7 @@ package query
 import (
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/openapi"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
@@ -416,4 +417,30 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	if a.Ask != nil {
 		a.Ask.Mount(mux)
 	}
+}
+
+// OpenAPISpec returns the OpenAPI 3.0 specification for the Eshu Query API.
+//
+// The document itself is assembled in internal/query/openapi; this forward
+// keeps the long-standing query.OpenAPISpec spelling its callers already use:
+// internal/cli/docs, cmd/capability-inventory, the cmd/api fact-kind mounted-
+// route gate, the replay API-recording lockstep test, and the root openapi
+// contract tests that stay in this package.
+func OpenAPISpec() string {
+	return openapi.Spec()
+}
+
+// ServeOpenAPI serves the assembled specification as JSON.
+func ServeOpenAPI(w http.ResponseWriter, r *http.Request) {
+	openapi.ServeSpec(w, r)
+}
+
+// ServeSwaggerUI serves a browser UI for exploring the OpenAPI schema.
+func ServeSwaggerUI(w http.ResponseWriter, r *http.Request) {
+	openapi.ServeSwaggerUI(w, r)
+}
+
+// ServeReDoc serves a reader-friendly OpenAPI reference page.
+func ServeReDoc(w http.ResponseWriter, r *http.Request) {
+	openapi.ServeReDoc(w, r)
 }

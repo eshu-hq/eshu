@@ -11,7 +11,7 @@ import (
 )
 
 // TestOpenAPIWorkloadContextSchemaDeclaresTruncationFlags is a PR #5933
-// review fix (Copilot, openapi_components_workload_session.go:37).
+// review fix (Copilot, openapi/components_workload_session.go:37).
 // GET /api/v0/workloads/{workload_id}/context and
 // GET /api/v0/services/{service_name}/context both $ref the WorkloadContext
 // schema and return dependents_truncated, consumer_repositories_truncated,

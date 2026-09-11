@@ -12,7 +12,7 @@
 // resolution): those methods moved with their receiver type.
 //
 // The OpenAPI fragments documenting the entity routes stay in the query
-// root (openapi_paths_entities.go), where scripts/verify-openapi.sh
+// root (openapi/paths/search/entities.go), where scripts/verify-openapi.sh
 // requires every family's fragments to live; the root spec assembly
 // consumes them directly.
 //

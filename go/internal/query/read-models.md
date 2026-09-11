@@ -536,7 +536,7 @@ separate partial lookup indexes cover run/provider, commit_sha,
 artifact_digest, image_ref, and environment; no new schema or graph migration
 is needed. The aggregate handler validates the
 `outcome` filter against the same enum the list endpoint advertises in
-`openapi_paths_cicd.go` (`exact`, `derived`, `ambiguous`, `unresolved`,
+`openapi/paths/cicd/routes.go` (`exact`, `derived`, `ambiguous`, `unresolved`,
 `rejected`), so typos surface as 400 instead of silently returning zero
 counts.
 
@@ -652,7 +652,7 @@ reducer-owned `repository_ids`, `workload_ids`, and `service_ids` payload arrays
 so a scoped request with no matching evidence returns scoped zero instead of
 falling back to global attachment totals. The handler validates the
 `attachment_status` and `artifact_kind` filters against the same closed
-enums the list endpoint advertises in `openapi_paths_supply_chain_sbom.go`,
+enums the list endpoint advertises in `openapi/paths/supplychain/sbom_attestations.go`,
 so typos surface as 400 instead of silently returning zero counts.
 
 No-Regression Evidence: `go test ./internal/query -run

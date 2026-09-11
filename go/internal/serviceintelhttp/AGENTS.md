@@ -36,7 +36,7 @@ evidence loader).
   consistent.
 - Keep the handler thin and deterministic; the composition logic lives in
   `serviceintel`.
-- Keep the route, its OpenAPI fragment (`go/internal/query/openapi_paths_service_intelligence_report.go`),
+- Keep the route, its OpenAPI fragment (`go/internal/query/openapi/paths/service/intelligence_report.go`),
   the MCP tool/dispatch, and `docs/public/reference/http-api.md` in lockstep.
 - Add tests before changing handler behavior.
 

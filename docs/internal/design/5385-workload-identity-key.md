@@ -1303,7 +1303,7 @@ differently.**
 
 **Tier 1 — loud, and alias-fixable.** `workload_id` is a path parameter on
 `/api/v0/workloads/{workload_id}/context` and `/story`
-(`openapi_paths_entities.go:107,134`; handler matches `w.id` exactly at
+(`openapi/paths/search/entities.go`; handler matches `w.id` exactly at
 `entity_workload_handlers.go:19,29`, 404 on miss). It is a required body field on
 `POST /api/v0/compare/environments` (`go/internal/query/compare.go:35,64`, `MATCH (w:Workload) WHERE
 w.id = $workload_id` at `:160`, no name fallback). The CLI rejects a label
