@@ -12,12 +12,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// Resolvers is the Perl language resolver list.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolvePerlPackageImportCallee,
-	},
+// Resolvers returns the Perl language resolver list.
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolvePerlPackageImportCallee,
+		},
+	}
 }
 
 func resolvePerlPackageImportCallee(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {

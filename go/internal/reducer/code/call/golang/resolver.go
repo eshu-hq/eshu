@@ -9,27 +9,30 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// Resolvers is the Go language resolver list in its declared phase order:
+// Resolvers returns the Go language resolver list in its declared phase order:
 // package-qualified import binding, method-return-chain inference, and
 // same-directory resolution run before the generic repo-unique-name
 // fallback; cross-repo package-export resolution runs after it.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveGoPackageQualifiedCallee,
-	},
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveGoMethodReturnChainCallee,
-	},
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveGoSameDirectoryCallee,
-	},
-	{
-		Phase:   shared.PhaseAfterRepoFallback,
-		Resolve: resolveGoCrossRepoExportCallee,
-	},
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveGoPackageQualifiedCallee,
+		},
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveGoMethodReturnChainCallee,
+		},
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveGoSameDirectoryCallee,
+		},
+		{
+			Phase:   shared.PhaseAfterRepoFallback,
+			Resolve: resolveGoCrossRepoExportCallee,
+		},
+	}
 }
 
 func resolveGoPackageQualifiedCallee(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {

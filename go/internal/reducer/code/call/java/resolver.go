@@ -19,12 +19,15 @@ var javaReceiverResolverConfig = jvm.ReceiverConfig{
 	MatchTypeFileName: true,
 }
 
-// Resolvers is the Java language resolver list.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveJavaSemanticCallee,
-	},
+// Resolvers returns the Java language resolver list.
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveJavaSemanticCallee,
+		},
+	}
 }
 
 func resolveJavaSemanticCallee(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {

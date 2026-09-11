@@ -13,12 +13,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// Resolvers is the Dart language resolver list.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveDartImportCallee,
-	},
+// Resolvers returns the Dart language resolver list.
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveDartImportCallee,
+		},
+	}
 }
 
 func resolveDartImportCallee(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {

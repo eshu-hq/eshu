@@ -12,12 +12,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// Resolvers is the Python language resolver list.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolvePythonDeclaredBaseCallee,
-	},
+// Resolvers returns the Python language resolver list.
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolvePythonDeclaredBaseCallee,
+		},
+	}
 }
 
 func resolvePythonDeclaredBaseCallee(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {

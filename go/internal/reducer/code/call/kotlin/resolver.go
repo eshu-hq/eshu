@@ -25,12 +25,15 @@ var kotlinReceiverResolverConfig = jvm.ReceiverConfig{
 	SourceExtension: ".kt",
 }
 
-// Resolvers is the Kotlin language resolver list.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveKotlinSemanticCallee,
-	},
+// Resolvers returns the Kotlin language resolver list.
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveKotlinSemanticCallee,
+		},
+	}
 }
 
 // resolveKotlinSemanticCallee resolves a Kotlin receiver-typed call to its

@@ -13,12 +13,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// Resolvers is the Elixir language resolver list.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveElixirAliasImportCallee,
-	},
+// Resolvers returns the Elixir language resolver list.
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveElixirAliasImportCallee,
+		},
+	}
 }
 
 func resolveElixirAliasImportCallee(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {

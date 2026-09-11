@@ -13,14 +13,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// Resolvers is the TypeScript/TSX language resolver list. code/call wires it
+// Resolvers returns the TypeScript/TSX language resolver list. code/call wires it
 // under both the "typescript" and "tsx" language keys, matching the
 // pre-split dual registration.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveTypeScriptInterfaceCallee,
-	},
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveTypeScriptInterfaceCallee,
+		},
+	}
 }
 
 func resolveTypeScriptInterfaceCallee(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {

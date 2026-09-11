@@ -31,21 +31,21 @@ import (
 // languages_test.go) swaps this variable directly, so it stays a package
 // variable rather than a function-local literal.
 var codeCallLanguageResolvers = map[string][]shared.Resolver{
-	"dart":       dart.Resolvers,
-	"elixir":     elixir.Resolvers,
-	"go":         golang.Resolvers,
-	"groovy":     groovy.Resolvers,
-	"haskell":    haskell.Resolvers,
-	"java":       java.Resolvers,
-	"javascript": javascript.Resolvers,
-	"jsx":        javascript.Resolvers,
-	"kotlin":     kotlin.Resolvers,
-	"perl":       perl.Resolvers,
-	"python":     python.Resolvers,
-	"rust":       rust.Resolvers,
-	"swift":      swift.Resolvers,
-	"typescript": typescript.Resolvers,
-	"tsx":        typescript.Resolvers,
+	"dart":       dart.Resolvers(),
+	"elixir":     elixir.Resolvers(),
+	"go":         golang.Resolvers(),
+	"groovy":     groovy.Resolvers(),
+	"haskell":    haskell.Resolvers(),
+	"java":       java.Resolvers(),
+	"javascript": javascript.Resolvers(),
+	"jsx":        javascript.Resolvers(),
+	"kotlin":     kotlin.Resolvers(),
+	"perl":       perl.Resolvers(),
+	"python":     python.Resolvers(),
+	"rust":       rust.Resolvers(),
+	"swift":      swift.Resolvers(),
+	"typescript": typescript.Resolvers(),
+	"tsx":        typescript.Resolvers(),
 }
 
 func resolveLanguageSpecificCallee(

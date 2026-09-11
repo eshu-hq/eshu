@@ -9,12 +9,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// Resolvers is the Swift language resolver list.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveSwiftReceiverCallee,
-	},
+// Resolvers returns the Swift language resolver list.
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveSwiftReceiverCallee,
+		},
+	}
 }
 
 // resolveSwiftReceiverCallee binds a Swift receiver-typed call to the uniquely

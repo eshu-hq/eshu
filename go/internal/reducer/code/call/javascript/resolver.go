@@ -9,14 +9,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
-// Resolvers is the JavaScript/JSX language resolver list. code/call wires it
+// Resolvers returns the JavaScript/JSX language resolver list. code/call wires it
 // under both the "javascript" and "jsx" language keys, matching the pre-split
 // dual registration.
-var Resolvers = []shared.Resolver{
-	{
-		Phase:   shared.PhaseBeforeRepoFallback,
-		Resolve: resolveJavaScriptReceiverCallee,
-	},
+// Each call returns a fresh slice, so no caller can mutate another's view.
+func Resolvers() []shared.Resolver {
+	return []shared.Resolver{
+		{
+			Phase:   shared.PhaseBeforeRepoFallback,
+			Resolve: resolveJavaScriptReceiverCallee,
+		},
+	}
 }
 
 // resolveJavaScriptReceiverCallee binds a JavaScript or JSX receiver-typed call
