@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 // NornicDB does not confine a shutting-down store to transaction-lifecycle
@@ -77,11 +79,11 @@ func TestBackendClosedDuringMergeChainRemainsQueueRetryable(t *testing.T) {
 	require.Equal(t, GraphWriteTimeoutFailureClass, classified.FailureClass())
 }
 
-// TestMergeChainRelationshipCreateMissingStartNodeIsRetryable covers the
-// consequential half, and pins that it rides the SAME MERGE-shaped guard the
-// sibling "update failed: not found" conflict already uses. Replay is safe on
-// its own terms even if the start node were genuinely absent: the statement is
-// MERGE-shaped, so re-execution converges, and a start node that really does
+// TestMergeChainRelationshipCreateMissingStartNodeIsRetryable covers the first
+// endpoint shape and pins that it rides the SAME replay-safety guard the sibling
+// "update failed: not found" conflict already uses. Replay is safe on its own
+// terms even if the start node were genuinely absent: the statement converges
+// on re-execution, and a start node that really does
 // not exist simply fails again and dead-letters once the retry budget is spent
 // — the same terminal outcome as today, reached only after recovery was
 // actually attempted.
@@ -110,10 +112,63 @@ func TestMergeChainRelationshipCreateMissingStartNodeIsRetryable(t *testing.T) {
 		"an exhausted MERGE-chain replay must still reach the durable queue rather than dead-letter")
 }
 
+// TestMergeChainRelationshipCreateMissingEndNodeRetries pins the exact sibling
+// captured by PR #6651's hosted restart cell and proves one replay converges.
+func TestMergeChainRelationshipCreateMissingEndNodeRetries(t *testing.T) {
+	t.Parallel()
+
+	err := newNeo4jError(
+		nornicDBStatementSyntaxErrorCode,
+		"UNWIND MERGE chain relationship create failed: end node nornic:0cb9ed9e-3825-4f75-b278-649f7fada124 does not exist",
+	)
+	statement := Statement{
+		Operation: OperationCanonicalUpsert,
+		Cypher:    "UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MERGE (source)-[rel:GCP_route_in_network]->(target)",
+	}
+	require.Equal(t, graphWriteRetryReasonWriteConflict,
+		classifyRetryableGraphWriteGroupError(err, []Statement{statement}))
+
+	inner := &relationshipSnapshotConflictExecutor{groupFailures: 1, err: err}
+	executor := &RetryingExecutor{Inner: inner, MaxRetries: 2, BaseDelay: time.Nanosecond}
+	require.NoError(t, executor.ExecuteGroup(context.Background(), []Statement{statement}))
+	require.Equal(t, int32(2), inner.groupCalls.Load(),
+		"the hosted missing-end-node failure must replay once and converge")
+}
+
+func TestMergeChainRelationshipCreateMissingEndNodeRetriesSingleStatement(t *testing.T) {
+	t.Parallel()
+
+	err := newNeo4jError(
+		nornicDBStatementSyntaxErrorCode,
+		"UNWIND MERGE chain relationship create failed: end node nornic:0cb9ed9e-3825-4f75-b278-649f7fada124 does not exist",
+	)
+	inner := &relationshipSnapshotConflictExecutor{executeFailures: 1, err: err}
+	reader := metric.NewManualReader()
+	provider := metric.NewMeterProvider(metric.WithReader(reader))
+	instruments, instrumentErr := telemetry.NewInstruments(provider.Meter("missing-endpoint-retry-test"))
+	require.NoError(t, instrumentErr)
+	executor := &RetryingExecutor{
+		Inner:       inner,
+		MaxRetries:  2,
+		BaseDelay:   time.Nanosecond,
+		Instruments: instruments,
+	}
+	statement := Statement{
+		Operation: OperationCanonicalUpsert,
+		Cypher:    "UNWIND $rows AS row MATCH (source:CloudResource {uid: row.source_uid}) MERGE (source)-[rel:GCP_route_in_network]->(target)",
+	}
+
+	require.NoError(t, executor.Execute(context.Background(), statement))
+	require.Equal(t, int32(2), inner.executeCalls.Load())
+	attrs := retryCounterAttributes(t, reader)
+	require.Equal(t, graphWriteRetryReasonWriteConflict, attrs[telemetry.MetricDimensionReason])
+	require.Equal(t, string(OperationCanonicalUpsert), attrs[telemetry.MetricDimensionWritePhase])
+}
+
 // TestBackendClosingMergeChainClassificationFailsClosedForNearMisses keeps both
 // additions narrow. A real Cypher syntax error carries the same code, so the
 // message is what separates a backend teardown from a malformed query, and a
-// non-MERGE group must not be replayed on the missing-start-node shape.
+// non-replay-safe group must not be replayed on either endpoint shape.
 func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testing.T) {
 	t.Parallel()
 
@@ -164,20 +219,74 @@ func TestBackendClosingMergeChainClassificationFailsClosedForNearMisses(t *testi
 		require.Same(t, err, WrapRetryableNeo4jError(err))
 	})
 
+	t.Run("leading text before the exact shape stays terminal", func(t *testing.T) {
+		t.Parallel()
+		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+			"wrapper: UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist")
+		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
+			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
+		}}))
+		require.Same(t, err, WrapRetryableNeo4jError(err))
+	})
+
+	t.Run("trailing text after the exact shape stays terminal", func(t *testing.T) {
+		t.Parallel()
+		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+			"UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist (cached)")
+		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
+			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
+		}}))
+		require.Same(t, err, WrapRetryableNeo4jError(err))
+	})
+
+	t.Run("empty endpoint identifier stays terminal", func(t *testing.T) {
+		t.Parallel()
+		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+			"UNWIND MERGE chain relationship create failed: end node  does not exist")
+		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
+			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
+		}}))
+		require.Same(t, err, WrapRetryableNeo4jError(err))
+	})
+
+	t.Run("missing end node under an unrelated code stays terminal", func(t *testing.T) {
+		t.Parallel()
+		err := newNeo4jError("Neo.ClientError.Security.Unauthorized",
+			"UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist")
+		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
+			Cypher: "UNWIND $rows AS row MERGE (source)-[rel:GCP_route_in_network]->(target)",
+		}}))
+		require.Same(t, err, WrapRetryableNeo4jError(err))
+	})
+
 	// #6176 moved this boundary from "contains MERGE" to "converges on
 	// replay", so the group that must stay terminal is one holding a statement
 	// a second execution would double-apply. The predicate-scoped retract this
 	// subtest used to carry is now replay-safe and is asserted retryable in the
 	// following subtest; keeping it here would have pinned the old gate rather
 	// than the safety property behind it.
-	t.Run("missing start node in a non-idempotent group stays terminal", func(t *testing.T) {
+	t.Run("missing end node in a non-idempotent group stays terminal", func(t *testing.T) {
 		t.Parallel()
 		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
-			"UNWIND MERGE chain relationship create failed: start node nornic:abc does not exist")
+			"UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist")
 		require.Empty(t, classifyRetryableGraphWriteGroupError(err, []Statement{{
 			Operation: OperationCanonicalUpsert,
 			Cypher:    "MATCH (source:CloudResource {uid: $uid}) CREATE (a:Audit {uid: $audit_uid})",
 		}}))
+	})
+
+	t.Run("missing end node in a non-MERGE single statement stays terminal", func(t *testing.T) {
+		t.Parallel()
+		err := newNeo4jError(nornicDBStatementSyntaxErrorCode,
+			"UNWIND MERGE chain relationship create failed: end node nornic:abc does not exist")
+		inner := &relationshipSnapshotConflictExecutor{executeFailures: 10, err: err}
+		executor := &RetryingExecutor{Inner: inner, MaxRetries: 2, BaseDelay: time.Nanosecond}
+
+		require.Error(t, executor.Execute(context.Background(), Statement{
+			Operation: OperationCanonicalUpsert,
+			Cypher:    "MATCH (source:CloudResource {uid: $uid}) CREATE (a:Audit {uid: $audit_uid})",
+		}))
+		require.Equal(t, int32(1), inner.executeCalls.Load())
 	})
 
 	t.Run("missing start node in an idempotent retract group is replayed", func(t *testing.T) {

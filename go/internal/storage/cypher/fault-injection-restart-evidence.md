@@ -31,13 +31,36 @@ incomplete if the graph read times out or fails. A default local run without
 `--keep` emits the existing stderr diagnostics and removes its temporary work
 directory instead of collecting this retained artifact set.
 
+## Hosted diagnosis
+
+The first hosted run with this capture path, PR #6651 run 34605794613, retained
+a complete failure artifact from `cell_restartbackend`. The baseline and failure
+dumps both contained 678 nodes, while the failure dump lacked exactly one
+63-edge synthetic GCP scope. Its durable work row recorded the previously
+unseen sibling of the #6142 restart conflict:
+
+```text
+Neo.ClientError.Statement.SyntaxError
+UNWIND MERGE chain relationship create failed:
+end node nornic:0cb9ed9e-3825-4f75-b278-649f7fada124 does not exist
+```
+
+The relationship item dead-lettered at attempt 1 as `projection_bug`. The
+typed retry guard covered only NornicDB's adjacent `start node` branch. It now
+accepts either exact endpoint role with a non-empty id under the existing
+MERGE-shaped single-statement or all-statements-replay-safe group gate;
+malformed queries and broader missing-node errors remain terminal.
+The run used the Compose-resolved revision
+`3722b483c02c38a8e046d198f8768f200f31023c`. It is not evidence for the
+separately deployed NornicDB v1.3.1 environment.
+
 ## Performance and observability
 
-No-Regression Evidence (#6162): baseline
+No-Regression Evidence (diagnostics, #6162): baseline
 `48e77c61ecb6df06c7dcd4cbce3d37cb19ece5f5` and implementation commit
 `c4b7485522a32e2858a9cb539cee6747e54404dc` both select
 `fault_executor_off.go` in default builds. The recorder and restart sentinel
-path are absent, so this change adds no production graph call, work item,
+path are absent, so the capture path adds no production graph call, work item,
 queue row, or request-path work. No runtime timing was measured or is claimed.
 The hermetic tagged regression uses a recording executor with two completed
 groups; the trigger group contains one canonical-upsert statement and one
@@ -52,11 +75,22 @@ terminal queue counts are not applicable locally. Before merge, the hosted
 shard must provide its existing drain, dead-letter, and digest result against
 the Compose-resolved NornicDB revision; this note does not claim that result.
 
-No-Observability-Change (production): baseline and after add no production
-metric, span, structured log, status field, or dashboard series. The opt-in
-tagged harness adds the stderr trigger line with group ordinal, statement
-count, and capture duration. Failure-only artifacts retain the trigger JSON,
-canonical graph dump and SHA-256/count manifest, work-item and GCP-fact
-snapshots, reducer/projector/Compose logs, expected and actual backend
-revisions, safe container and mount evidence, and the diagnostics completeness
-manifest. These are CI fault-gate diagnostics, not production telemetry.
+No-Regression Evidence (classifier): successful graph writes do not enter the
+error classifier. The new branch performs no graph call and adds no success-path
+work. On the exact end-node failure it uses the existing `write_conflict` loop,
+bounded by `RetryingExecutor.MaxRetries`, instead of returning a terminal error
+after the first attempt. Focused regressions prove one failure followed by
+success makes exactly two calls through both executor APIs and records the
+existing `write_conflict` reason. The fail-closed cases prove unrelated errors,
+non-MERGE single statements, and non-replay-safe groups make one call. No
+runtime timing is claimed.
+
+Observability Evidence: no metric, span, structured-log field, status field, or
+dashboard series is added. The classified end-node shape now emits the existing
+`neo4j transient error, retrying` log and
+`eshu_dp_neo4j_deadlock_retries_total{reason="write_conflict"}` counter instead
+of a `projection_bug` dead letter. The opt-in tagged harness adds the stderr
+trigger line and retains the trigger JSON, canonical graph dump and manifest,
+work-item and GCP-fact snapshots, runtime logs, backend provenance, and the
+diagnostics completeness manifest. These are CI fault-gate diagnostics, not
+production telemetry.

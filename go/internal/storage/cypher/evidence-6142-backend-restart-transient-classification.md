@@ -11,6 +11,33 @@ in the same cell reported healthy — 4/4 drains PASS, `residual=0`,
 re-run of the same job at the same commit (attempt 2, job 95453325823) passed,
 so the cell is intermittent rather than standing red.
 
+### 2026-09-11: the end-node sibling
+
+PR #6651 run 34605794613, job 103283774256, captured the symmetric endpoint
+shape at head `014d4e7192d83c510e1c329938dff7c2d814632f`:
+
+```text
+gcp_relationship_materialization  gcp:project:acme-demo-gcp-02:seed:4580
+dead_letter  attempt_count=1  failure_class=projection_bug
+UNWIND MERGE chain relationship create failed:
+end node nornic:0cb9ed9e-3825-4f75-b278-649f7fada124 does not exist
+```
+
+The retained baseline and failure dumps both contain 678 nodes. The failure
+dump has exactly 63 fewer GCP edges, one complete synthetic scope batch. The
+resource item succeeded before the relationship item ran, and the restart
+watcher fired. This is the end-node branch of the same interrupted
+`CreateEdge` path as the already-classified start-node error, not lost node
+durability after restart.
+
+At the repository's pinned NornicDB revision
+`3722b483c02c38a8e046d198f8768f200f31023c`,
+`pkg/storage/badger_transaction.go` checks `edge.StartNode` and `edge.EndNode`
+in adjacent branches and emits the same `node <id> does not exist` suffix for
+either. The Eshu classifier matched only the start-node prefix. The fix below
+recognizes both exact endpoint roles while retaining the typed error-code and
+replay-safety gates.
+
 ## Reproduction
 
 Reproduced locally on 2026-08-17 (macOS, 12 cores, Docker 29.4.0, NornicDB
@@ -69,7 +96,7 @@ Before this change only three points were classified:
 | WAL closed before begin | `TransactionStartFailed` / `failed to write WAL tx begin: wal: closed` | retryable (#5989) |
 | **store closing, commit refused** | `TransactionCommitFailed` / `…badger commit failed: Writes are blocked, possibly due to DropAll or Close` | **terminal** |
 | **store closed under a statement** | `Statement.SyntaxError` / `UNWIND MERGE chain create failed: checking node existence: reading node: DB Closed` | **terminal** |
-| **endpoint unreadable mid-chain** | `Statement.SyntaxError` / `UNWIND MERGE chain relationship create failed: start node nornic:<uuid> does not exist` | **terminal** |
+| **endpoint unreadable mid-chain** | `Statement.SyntaxError` / `UNWIND MERGE chain relationship create failed: start node nornic:<uuid> does not exist` or `end node nornic:<uuid> does not exist` | **terminal** |
 
 The last three reached the reducer as plain `*neo4jdriver.Neo4jError` values,
 `reducer.IsRetryable` returned false, and `ReducerQueue.failIntent` dead-lettered
@@ -82,7 +109,7 @@ points the dead-letter follows every time; only *whether* it lands there is
 timing-dependent, which is why the gate is intermittent and why a larger, faster
 reference host does not expose it.
 
-### What this does NOT explain: CI's truncated edge set
+### What this does NOT explain: PR #6142's truncated edge set
 
 CI's failing cell had `dead_letter=0` and a converged drain. Every shape fixed
 here dead-letters. So none of them produces CI's signature, and this section
@@ -128,7 +155,7 @@ the reducer genuinely takes that grouped single-transaction path —
 `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` gates only *semantic* writes
 (`cmd/reducer/multi_cloud_runtime_drift_wiring.go`), not this writer.
 
-**So the cause of CI's truncated edge set is unidentified.** Not the three
+**So the cause of PR #6142's truncated edge set is unidentified.** Not the three
 shapes fixed here (all dead-letter; CI had none). Not a torn group (measured,
 rejected). Not supersession — that requires a newer active generation for the
 same scope (`supersedeInactiveReducerGenerationsCTE`, which does sweep
@@ -172,8 +199,10 @@ terminal:
   so a replay finds nothing half-applied.
 - `isNornicDBRelationshipCreateMissingEndpoint` (`retrying_executor.go`) — folded
   into `isNornicDBRelationshipSnapshotConflict` beside its update-side sibling,
-  so it inherits that path's existing MERGE-shape gate. Both bracketing
-  fragments are required; matching the `create failed` prefix alone also
+  so it inherits that path's existing MERGE-shaped single-statement and
+  all-statements-replay-safe group gates. The exact start/end role, a non-empty
+  node id, and both bracketing fragments are required;
+  matching the `create failed` prefix alone also
   swallows `create failed: not found`, which
   `TestRetryingExecutorDoesNotBroadenRelationshipSnapshotRetry` deliberately
   keeps terminal — an earlier draft did exactly that and the existing guard
@@ -201,7 +230,8 @@ Regressions first, red before green, in
 `retrying_executor_backend_restart_commit_test.go` and
 `retrying_executor_backend_closing_test.go`: queue-retryability through the real
 `CloudResourceNodeWriter` dispatch for the commit-side and `DB Closed` shapes,
-in-place replay plus queue-retryable exhaustion for the missing-endpoint shape,
+in-place replay for both missing-endpoint roles through the single and grouped
+executor APIs, plus queue-retryable exhaustion,
 and fail-closed controls for a real syntax error, a `DB Closed` body under an
 unrelated code, `create failed: not found`, and a non-MERGE group.
 
@@ -225,11 +255,11 @@ post-fix restart cells held that digest exactly, against a pre-fix cell that
 dead-lettered and blew the gate's 4-minute drain budget; one of those five
 recovered four `ConnectivityError`s during its restart window and still matched.
 What is NOT claimed: no post-fix cell has yet been observed hitting one of the
-three newly classified shapes and recovering from it live. Those shapes were
-each observed live BEFORE the fix, with the durable `fact_work_items` rows
-quoted above, and the classification flip is pinned by regression tests driving
-the real writer dispatch; the end-to-end recovery of each specific shape is left
-to the gate itself, which exercises this cell on every run.
+four classified restart shapes and recovering from it live. Those shapes were
+each observed live before their classifier fix, with the durable
+`fact_work_items` rows quoted above. Regression tests pin the classification
+flip through the real writer dispatch; the gate exercises end-to-end recovery
+on every run.
 
 Observability Evidence: a restart-interrupted write is now recorded on a
 `retrying` row under `failure_class=graph_write_timeout` (via
@@ -251,17 +281,17 @@ deleted because it was the reasoning the fix was originally justified by, and
 the justification that survives is the weaker, correct one — replay is safe
 because the backend discards everything, not because a replay sweeps a partial.
 
-**CI's truncated edge set is still unexplained.** See the section above. The
-three shapes fixed here all dead-letter; CI's failing cell had `dead_letter=0`
-and a converged drain. This change removes three real ways the restart cell
-fails. It is not known to be the change that makes CI's specific failure stop.
+**PR #6142's truncated edge set is still unexplained.** See the section above.
+The four shapes fixed here all dead-letter; that earlier cell had
+`dead_letter=0` and a converged drain. This change removes four real ways the
+restart cell fails. It is not known to address that earlier failure signature.
 
-**A genuine missing-endpoint bug now reports a different class.** If a start
-node is absent for a real reason — a projection ordering defect rather than a
+**A genuine missing-endpoint bug now reports a different class.** If a start or
+end node is absent for a real reason — a projection ordering defect rather than a
 backend teardown — that write is now retried and, once the budget is spent,
 dead-lettered as `graph_write_timeout` instead of `projection_bug`. The item
 still dead-letters and `failure_message` still carries NornicDB's exact
-"start node … does not exist" text, so it remains diagnosable, but the triage
+"start/end node … does not exist" text, so it remains diagnosable, but the triage
 class is less specific than before. This is the same trade the update-side
 sibling has always made, and it is the deliberate direction: mislabelling a
 restart as a projection bug broke recovery outright, while mislabelling a

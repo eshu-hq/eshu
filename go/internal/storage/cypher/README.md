@@ -697,8 +697,8 @@ wraps a concrete driver executor with `TimeoutExecutor` â†’ `RetryingExecutor` â
 
 `RetryingExecutor` detects transient Neo4j errors (deadlock, lock timeout,
 retryable driver `ConnectivityError`), NornicDB MERGE unique conflicts, and
-typed NornicDB relationship snapshot conflicts and retries with exponential
-backoff and jitter. A driver `ConnectivityError`
+typed NornicDB relationship snapshot conflicts for exact non-empty start/end
+node create-failure shapes, with exponential backoff and jitter. A driver `ConnectivityError`
 wrapping `CommitFailedDeadError` is not retried in place because its commit
 outcome is unknown. Durable callers may later replay still-pending idempotent
 work after backoff. The same loop covers `Execute` and `ExecuteGroup`; group retries stay
