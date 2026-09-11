@@ -38,9 +38,19 @@ const (
 	// liveGrantImpossibleRepo is not the id of any seeded repository.
 	liveGrantImpossibleRepo = "repo://live-alpha/no-such-repository"
 
-	// liveGrantNegativeControlLimit bounds both controls. It is larger than the
-	// whole fixture on purpose: a limit that could truncate would let a leaking
-	// query return zero rows for the wrong reason.
+	// liveGrantNegativeControlLimit bounds both controls, satisfying the call
+	// contract's required-limit rule.
+	//
+	// The limit is NOT load-bearing for these assertions, and an earlier version
+	// of this comment claimed it was ("a limit that could truncate would let a
+	// leaking query return zero rows for the wrong reason"). That reasoning is
+	// backwards: with any limit >= 1, a leaking query matching k >= 1 rows
+	// returns min(limit, k) >= 1, so `len(rows) != 0` still fails as intended.
+	// Truncation cannot manufacture the zero-row pass it warned about.
+	//
+	// The real vacuous-pass risk is an EMPTY OR UNREACHABLE FIXTURE, which no
+	// choice of limit affects. 50 is simply a bound generous enough not to
+	// invite the reader into the wrong inference above.
 	liveGrantNegativeControlLimit = 50
 )
 

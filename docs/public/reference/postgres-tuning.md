@@ -96,6 +96,48 @@ If that inequality fails, reduce per-runtime pools or add a measured pooling
 layer outside Eshu. Do not raise every runtime to the same number just because
 one phase is slow.
 
+**Read 170 as a floor, not as the embedded server's fixed ceiling.** That figure
+is what the formula yields at the *default* per-process pool. `eshulocal` derives
+the embedded server's actual `max_connections` from the pool size you have
+configured:
+
+```text
+max_connections = max(170, pool-holding services * ESHU_POSTGRES_MAX_OPEN_CONNS + 20)
+```
+
+So raising `ESHU_POSTGRES_MAX_OPEN_CONNS` also raises the embedded server's
+`max_connections` — at `60`, the embedded server starts with `5 * 60 + 20 = 320`
+rather than 170. Configuration can raise the ceiling and can never lower it below
+the floor.
+
+That holds only while the postmaster and every pool holder read the same value of
+the knob, and two ordinary paths break that:
+
+- `max_connections` is fixed when the embedded postmaster starts. Exporting a
+  larger pool afterwards raises no ceiling on the server already running; it has
+  to be restarted for the new value to take effect.
+- `eshu vuln-scan repo` attaches to an already-running owner and starts
+  `eshu-api` and `eshu-bootstrap-index` through `localsupervisor.ChildEnv`, which
+  merges the invoking process's environment through unfiltered and does not carry
+  this knob explicitly. `eshu mcp start` reaches that same `ChildEnv` through
+  `RunAttachedMCPStdio` and diverges identically. An attached holder takes
+  whatever is exported in *your* shell, which need not match what the owner
+  started with.
+
+So an owner running the authoritative profile — `eshu graph start`, or
+`ESHU_QUERY_PROFILE=local_authoritative eshu watch .` — holds two pools,
+`eshu-reducer` and `eshu-ingester`. Started at the default pool, with a
+`vuln-scan` invoked at `ESHU_POSTGRES_MAX_OPEN_CONNS=60`, it demands at least
+`2 * 30 + 2 * 60 + 20 = 200` against a server fixed at 170, and `260` once an
+`eshu mcp` session attaches from that same shell and takes the 60 too.
+
+That is the configuration to size for, and the only one where this divergence
+arises: `eshu vuln-scan repo` requires the authoritative profile — it refuses to
+attach to a lightweight owner, and pins the profile when it starts one itself —
+so a plain `eshu watch .` never reaches the two-holder `vuln-scan` shape. Export
+the knob before starting the owner, and keep it consistent across every process
+that attaches to it.
+
 ## Planner Cost Knobs (`random_page_cost`)
 
 `random_page_cost` tells the planner how expensive a random (non-sequential)

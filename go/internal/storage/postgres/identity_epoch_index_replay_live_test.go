@@ -249,7 +249,13 @@ func identityEpochReplayDefinitions(t *testing.T) (tables, indexes []Definition)
 		if isTable[definition.Name] {
 			continue
 		}
-		if strings.Contains(definition.SQL, identityEpochIndexFamily) {
+		// Strip `--` comments before matching. Definition.SQL is the raw embed
+		// bytes, so a migration that merely MENTIONS this family in a header
+		// comment would otherwise join the replay set: 081 and 099 both name it
+		// in prose only, and the unit side (migrationIndexCreateDropCounts)
+		// already strips first, so matching raw text here made the two
+		// discovery rules disagree.
+		if strings.Contains(stripSQLLineComments(definition.SQL), identityEpochIndexFamily) {
 			indexes = append(indexes, definition)
 		}
 	}

@@ -84,14 +84,26 @@ func TestStartEmbeddedPostgresBootstrapsThroughForkedDriverLive(t *testing.T) {
 	}
 
 	// The #4456 connection budget is only real if the running server actually
-	// applies it. The unit guard checks the derived constant; this checks that
-	// the postmaster booted with it, which is what a developer's concurrent
-	// API + MCP + indexing session depends on.
+	// applies it. The unit guard checks the derived value; this checks that the
+	// postmaster booted with it.
+	//
+	// The composition is the five roles in localPostgresPoolHolders -- reducer,
+	// ingester and mcp-server from the supervisor, plus the api and
+	// bootstrap-index that `eshu vuln-scan repo` attaches. An earlier version of
+	// this comment said "API + MCP + indexing", which was the three-holder
+	// composition review repudiated: the API is not a supervised child at all
+	// (#6603 review).
+	//
+	// Compare against the RESOLVED value, not the floor constant. The server is
+	// started from ResolveLocalPostgresMaxConnections(os.Getenv), so an
+	// environment that sets ESHU_POSTGRES_MAX_OPEN_CONNS boots a larger ceiling
+	// and a constant here would fail for the wrong reason.
 	var maxConns int
 	if err := db.QueryRowContext(ctx, "SHOW max_connections").Scan(&maxConns); err != nil {
 		t.Fatalf("SHOW max_connections error = %v, want nil", err)
 	}
-	if maxConns != LocalPostgresMaxConnections {
-		t.Fatalf("SHOW max_connections = %d, want %d (the derived local pool budget)", maxConns, LocalPostgresMaxConnections)
+	wantConns := ResolveLocalPostgresMaxConnections(os.Getenv)
+	if maxConns != wantConns {
+		t.Fatalf("SHOW max_connections = %d, want %d (the resolved local pool budget)", maxConns, wantConns)
 	}
 }

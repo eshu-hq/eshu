@@ -22,69 +22,6 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// Local embedded-Postgres connection budget (#4456).
-//
-// The runtime invariant is max_connections >= (pool-holding services) *
-// per-process pool ceiling + reserved/admin headroom. internal/runtime enforces
-// exactly this for the Compose stacks in
-// TestComposePostgresMaxConnectionsCoversPoolBudget; the embedded local server
-// had been exempt and carried a bare "35" literal, which is how it came to sit
-// below the budget for even a single pool-holding process.
-//
-// localPostgresPoolHolders enumerates the processes that can hold a pool
-// against this server at the same time, rather than stating a count. A count is
-// a number someone has to keep true; a list is one a reader can check against
-// the code that starts these processes. Deriving the ceiling from len() means
-// adding a holder here raises the ceiling in the same edit.
-//
-// The first three are the local supervisor's own children
-// (internal/cli/localsupervisor/host.go: StartChildProcess for eshu-reducer,
-// eshu-ingester and eshu-mcp-server under the authoritative/mcp_stdio modes).
-// The last two are added by `eshu vuln-scan repo`, which attaches to a running
-// owner and launches a short-lived loopback eshu-api plus eshu-bootstrap-index
-// against that owner's Postgres (cmd/eshu/gotchas-read-surface-commands.md).
-// All five take the shared 30-connection default, so the worst case is
-// concurrent, not hypothetical.
-//
-// KNOWN LIMIT, stated because the list implies a completeness it cannot have:
-// the local supervisor also opens its own connections with a bare
-// sql.Open("pgx", dsn) and never calls runtime.ConfigurePostgresPool --
-// config.go:216, content_search_indexes.go:42, iac_reachability_finalizer.go:28
-// and progress.go:28. database/sql defaults MaxOpenConns to 0, i.e. unlimited,
-// and the first two are long-lived for a whole authoritative run. So no finite
-// ceiling here is strictly sound until those are bounded; this raises the floor
-// from "guaranteed exhaustion" to "covers every capped holder", which is an
-// improvement rather than a proof. That is the #4456 gap still open in the
-// supervisor.
-var localPostgresPoolHolders = [...]string{
-	"eshu-reducer",
-	"eshu-ingester",
-	"eshu-mcp-server",
-	"eshu-api",
-	"eshu-bootstrap-index",
-}
-
-const (
-	// localPostgresPoolHolderCount is a compile-time len() of the array above,
-	// so the ceiling cannot drift from the list it is derived from.
-	localPostgresPoolHolderCount = len(localPostgresPoolHolders)
-
-	// localPostgresPerProcessPoolConns mirrors runtime.defaultPostgresMaxOpenConns.
-	// It is duplicated rather than imported because internal/eshulocal/AGENTS.md
-	// requires this package stay a leaf with no internal imports.
-	localPostgresPerProcessPoolConns = 30
-
-	// localPostgresReservedConns mirrors the reserved/admin headroom the Compose
-	// budget leaves above the pool sum: superuser_reserved_connections (3 on the
-	// embedded server), an operator psql session, the admin-status probe, and
-	// transient tooling.
-	localPostgresReservedConns = 20
-
-	// LocalPostgresMaxConnections is the max_connections the embedded local
-	// server starts with, derived from the budget above rather than chosen.
-	LocalPostgresMaxConnections = localPostgresPoolHolderCount*localPostgresPerProcessPoolConns + localPostgresReservedConns
-)
-
 const (
 	localPostgresHost     = "127.0.0.1"
 	localPostgresUser     = "eshu"
@@ -244,7 +181,7 @@ func embeddedPostgresConfig(
 		Logger(logs).
 		StartParameters(map[string]string{
 			"listen_addresses":        "localhost",
-			"max_connections":         strconv.Itoa(LocalPostgresMaxConnections),
+			"max_connections":         strconv.Itoa(ResolveLocalPostgresMaxConnections(os.Getenv)),
 			"unix_socket_directories": socketDir,
 		})
 }
