@@ -11,6 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// ContainerImageIdentityAggregateCapability is the capability string that
+// gates the cheap-summary container-image-identity aggregate (count) route,
+// distinct from ContainerImageIdentitiesCapability's row-level list route: a
+// caller may be authorized for one without the other.
 const ContainerImageIdentityAggregateCapability = "supply_chain.container_image_identities.aggregate"
 
 // containerImageIdentityAggregateRoutes registers the cheap-summary aggregate

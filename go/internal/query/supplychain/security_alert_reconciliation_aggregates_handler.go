@@ -12,6 +12,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// SecurityAlertReconciliationAggregateCapability keys the capability-matrix
+// row that gates the security-alert reconciliation count route. It is a
+// separate capability from SecurityAlertReconciliationsCapability, which
+// gates the list route, so a profile can serve one without the other.
 const SecurityAlertReconciliationAggregateCapability = "supply_chain.security_alert_reconciliations.aggregate"
 
 // securityAlertReconciliationAggregateRoutes registers the cheap-summary

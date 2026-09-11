@@ -11,6 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// SBOMAttestationAttachmentAggregateCapability keys the capability-matrix
+// row that gates the SBOM attestation attachment count route. It is a
+// separate capability from SBOMAttestationAttachmentsCapability, which
+// gates the list route, so a profile can serve one without the other.
 const SBOMAttestationAttachmentAggregateCapability = "supply_chain.sbom_attestation_attachments.aggregate"
 
 // sbomAttestationAttachmentAggregateRoutes registers the cheap-summary
