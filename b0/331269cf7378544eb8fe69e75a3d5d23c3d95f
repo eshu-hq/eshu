@@ -1,0 +1,128 @@
+go/internal/query/openapi_workload_context_truncation_test.go
+  s_0ba77f969c084a::t_55886260c50021 19
+docs/internal/design/5584-route-serves-data-registry.md
+  s_0ba77f969c084a::t_8f048607abac92 104
+docs/internal/design/1943-service-scope-changed-since-deltas.md
+  s_0ba77f969c084a::t_d49672d09ad859 139-141,145
+  s_0ba77f969c084a::t_0926eb1300ddee 193
+  s_0ba77f969c084a::t_27e346eb89675d 129-130
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_0ba77f969c084a::t_d5d7858f59deff 214,216,218,220,222-223,230
+go/internal/query/querycontract/visualization_packet_merge.go
+  s_0ba77f969c084a::t_2470ee4f4ca363 115
+  s_e8ab01ccdfa8e2::t_5d5d01c6a03a4f 114
+go/internal/query/service/query_evidence_types_test.go
+  s_0ba77f969c084a::t_a95ff535fa7bd3 15
+go/internal/query/service/story_dossier.go
+  s_0ba77f969c084a::t_a8196be63f55fb 314
+  s_0ba77f969c084a::t_ae2263cf8d5f47 340
+go/internal/query/freshness_service_changed_since_grant_test.go
+  s_0ba77f969c084a::t_560eea68b7b717 79
+  s_0ba77f969c084a::t_aa14e750d3bbe0 58
+docs/internal/design/563-service-catalog-manifest-fact-emitter.md
+  s_0ba77f969c084a::t_c19a2a6d07dc4c 30
+go/internal/query/querycontract/evidence_boundaries.go
+  s_0ba77f969c084a::t_ed76f44e8d4334 53
+docs/public/reference/deployment-truth-tiers.md
+  s_0ba77f969c084a::t_b24a5b8b5e6e2d 112
+go/internal/query/evidence_boundaries_test.go
+  s_0ba77f969c084a::t_2ca331b07c83ff 289,291
+go/internal/query/deployment_trace_repoid_tiebreak_test.go
+  s_0ba77f969c084a::t_769cef2f5659d1 24
+docs/internal/design/4784-reducer-derived-fact-governance.md
+  s_0ba77f969c084a::t_3b2c702f36792c 90
+docs/public/reference/visualization-packets.md
+  s_0ba77f969c084a::t_37d2fc2b715a33 252
+go/internal/query/entity/service_story_infrastructure_truncated_fold_test.go
+  s_0ba77f969c084a::t_8f70ff778ff8b0 27
+go/internal/query/context_story_limits_test.go
+  s_0ba77f969c084a::t_483e96ed5a0c69 177-178
+  s_0ba77f969c084a::t_32c251e19e58d0 188
+docs/public/reference/environment-alias-contract.md
+  s_0ba77f969c084a::t_bab3bd05b63692 85
+  s_0ba77f969c084a::t_f58dc01e2b71e4 107-108
+go/internal/query/service/deployment_trace_truncation_disclosure_test.go
+  s_0ba77f969c084a::t_f22358852846b8 93
+go/internal/query/auth_scoped_routes_impact_evidence_fallback_test.go
+  s_0ba77f969c084a::t_6d0595aa81b6a3 53
+go/internal/query/impacttrace/impact_trace_deployment_response.go
+  s_0ba77f969c084a::t_269a5021b91878 73
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_0ba77f969c084a::t_ccbc17c776d608 546
+  s_0ba77f969c084a::t_e6daf5bf9f5e5e 549
+go/internal/query/service_query_enrichment_provisioning_leak_test.go
+  s_0ba77f969c084a::t_b2db45541165d2 25
+go/internal/query/repository/README.md
+  s_0ba77f969c084a::t_770416253229af 45
+  s_e8ab01ccdfa8e2::t_f490dd270040a0 44
+go/internal/query/service/query_enrichment.go
+  s_0ba77f969c084a::t_58d4f4972230e6 119
+go/internal/query/service/result_limits_evidence_file_bound_test.go
+  s_0ba77f969c084a::t_07503f468b52b2 13
+  s_0ba77f969c084a::t_8f833c526c7d44 16
+go/internal/contentrefs/README.md
+  s_0ba77f969c084a::t_838af61f9e2054 20
+go/internal/query/service/investigation_packet.go
+  s_0ba77f969c084a::t_0c15737985c239 341
+  s_0ba77f969c084a::t_31db31379489de 359
+  s_0ba77f969c084a::t_cf856daa94675e 355
+go/.golangci.yml
+  s_e8ab01ccdfa8e2::t_3e8ca94e4b2be6 482
+go/internal/query/service/evidence/AGENTS.md
+  s_0ba77f969c084a::t_2787a0a00050cf 23
+  s_0ba77f969c084a::t_94981df66ca5ce 19,27
+go/internal/query/querycontract/context_limits.go
+  s_0ba77f969c084a::t_57089fe94c6948 79
+  s_0ba77f969c084a::t_39feafa750dcda 69
+go/internal/query/querycontract/README.md
+  s_0ba77f969c084a::t_74678322827a8a 119
+go/internal/query/service/evidence/README.md
+  s_0ba77f969c084a::t_20d088d0ad8011 47-48
+go/internal/query/impacttrace/impact_access_filter.go
+  s_0ba77f969c084a::t_52d17c40c6e680 93
+go/internal/query/read-models.md
+  s_0ba77f969c084a::t_611162da70cda0 146
+docs/internal/design/5472-graph-projection-policy.md
+  s_0ba77f969c084a::t_96da1de8d09627 210
+go/internal/query/impacttrace/deployment_trace_enrichment.go
+  s_0ba77f969c084a::t_5f566ac90f69fa 29
+  s_0ba77f969c084a::t_f15ddf4275e3ce 312
+  s_0ba77f969c084a::t_667ff1119bf6c6 337
+  s_0ba77f969c084a::t_c96f7cfd1d213b 158
+  s_0ba77f969c084a::t_0a19b0f652a5b4 219
+  s_0ba77f969c084a::t_471f7ada76d8f4 319
+go/internal/query/entity/entity_workload_context.go
+  s_e8ab01ccdfa8e2::t_24af7cbc9cf052 156,158
+go/internal/query/impact_trace_deployment_live_evidence_truncation_test.go
+  s_e8ab01ccdfa8e2::t_9623bd1d77986d 7-8
+go/internal/query/service/doc.go
+  s_e8ab01ccdfa8e2::t_1f856c34f0881f 14-21
+go/internal/query/supplychain/impact/supply_chain_impact_helpers.go
+  s_e8ab01ccdfa8e2::t_bce5278de2a4f0 145-147
+go/internal/query/supplychain/impact/supply_chain_impact_runtime_context_store.go
+  s_e8ab01ccdfa8e2::t_8a02d32dfc8cbc 18-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b0331269cf7378544eb8fe69e75a3d5d23c3d95f",
+  "prompts": {},
+  "sessions": {
+    "s_0ba77f969c084a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "803aa63c-fc6b-48fb-8a47-34c1049b129c",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
