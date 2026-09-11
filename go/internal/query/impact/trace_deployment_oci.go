@@ -159,9 +159,13 @@ func fetchOCIImageTagRows(
 	if len(imageRefs) == 0 {
 		return nil, nil
 	}
-	tags, err := reader.Run(ctx, ociTagObservationByRefCypher, map[string]any{"image_refs": imageRefs})
-	if err != nil {
-		return nil, err
+	tags := make([]map[string]any, 0, len(imageRefs))
+	for _, batch := range ociKeyBatches(imageRefs) {
+		batchRows, err := reader.Run(ctx, ociTagObservationByRefCypher, map[string]any{"image_refs": batch})
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, batchRows...)
 	}
 	if len(tags) == 0 {
 		return nil, nil
@@ -200,11 +204,13 @@ func fetchOCIImagesByDigest(
 	}
 	rows := make([]map[string]any, 0, len(digests)*len(ociImageLookupLabels))
 	for _, label := range ociImageLookupLabels {
-		labelRows, err := reader.Run(ctx, fmt.Sprintf(ociImageByDigestCypher, label), map[string]any{"digests": digests})
-		if err != nil {
-			return nil, err
+		for _, batch := range ociKeyBatches(digests) {
+			labelRows, err := reader.Run(ctx, fmt.Sprintf(ociImageByDigestCypher, label), map[string]any{"digests": batch})
+			if err != nil {
+				return nil, err
+			}
+			rows = append(rows, labelRows...)
 		}
-		rows = append(rows, labelRows...)
 	}
 	return rows, nil
 }
@@ -221,16 +227,63 @@ func fetchOCIRepositoriesByUID(
 	if len(uids) == 0 {
 		return result, nil
 	}
-	rows, err := reader.Run(ctx, ociRepositoryByUIDCypher, map[string]any{"repository_ids": uids})
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		if id := querycontract.StringVal(row, "repository_id"); id != "" {
-			result[id] = row
+	for _, batch := range ociKeyBatches(uids) {
+		rows, err := reader.Run(ctx, ociRepositoryByUIDCypher, map[string]any{"repository_ids": batch})
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			if id := querycontract.StringVal(row, "repository_id"); id != "" {
+				result[id] = row
+			}
 		}
 	}
 	return result, nil
+}
+
+// ociMaxKeysPerStatement is the per-statement IN-list bound these reads are
+// recorded against in go/internal/queryplan/testdata/query-source-coverage.yaml
+// (bounded_key_batch, max_keys: 250).
+//
+// The bound used to be an assumption rather than a property of the code (#6590).
+// The keys are deduplicated upstream but their COUNT is not capped: they come
+// from a workload row set capped at ServiceStoryItemLimit rows, but a single
+// workload can declare any number of containers and initContainers, so 50
+// workloads with six images each already puts 300 keys into one IN-list.
+// Enforcing it here makes the recorded bound true by construction.
+//
+// Batching rather than truncating is deliberate: a truncated key set would
+// silently drop images from the deployment trace, which is an accuracy loss.
+// Capping at the source is also wrong -- collectContainerImages lives in the
+// YAML parser, and a cap there would discard facts at ingest.
+const ociMaxKeysPerStatement = 250
+
+// ociKeyBatches splits keys into consecutive batches of at most
+// ociMaxKeysPerStatement, preserving order. It is pure: it issues no statement.
+//
+// That is deliberate. The query-plan registry
+// (go/internal/queryplan/testdata/query-source-coverage.yaml) attributes a
+// graph read to the function that calls Run, and records a separate bound for
+// each of these three reads. A shared helper that called Run itself collapsed
+// three differently-bounded queries into one anonymous callsite and erased the
+// per-query audit this bound exists for. So each fetcher keeps its own Run,
+// looped over these batches, and remains its own registered callsite.
+//
+// Batching preserves every caller's semantics: each read is a keyed IN-list
+// lookup, so all rows for one key land in the same batch; the tag and
+// repository reads join through maps; and fetchOCIImagesByDigest batches
+// inside its per-label loop, so indexOCIImagesByDigest's first-wins ordering
+// across labels is unchanged. A key set within the bound is one batch, so it
+// issues exactly the single statement it always did.
+func ociKeyBatches(keys []string) [][]string {
+	if len(keys) == 0 {
+		return nil
+	}
+	batches := make([][]string, 0, (len(keys)+ociMaxKeysPerStatement-1)/ociMaxKeysPerStatement)
+	for start := 0; start < len(keys); start += ociMaxKeysPerStatement {
+		batches = append(batches, keys[start:min(start+ociMaxKeysPerStatement, len(keys))])
+	}
+	return batches
 }
 
 // indexOCIImagesByDigest keeps the first image row seen per digest so a tag can
