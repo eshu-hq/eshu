@@ -32,7 +32,7 @@ The deployment-trace enrichment the service enrichment consumes
 bounds) lives in `impacttrace`, not here: it is deployment family, shared
 with the staying deployment-trace wrappers. Shared read-model loaders, row
 decoders, bounds, and ports live in `querycontract`; YAML/OpenAPI content
-parsing lives in `serviceevidence`; repository overviews live in
+parsing lives in `service/evidence`; repository overviews live in
 `repository`/`repositoryartifacts`. This package imports those leaves,
 never the reverse, and never the query root (the root cycles back through
 `handler.go` and `service_alias.go`).
@@ -56,7 +56,7 @@ The package imports the Go standard library, `querycontract` (types, ports,
 envelopes, shared bounds), `queryselector` (selector resolution),
 `querytestutil`-adjacent fakes in tests only, `impact`/`impacttrace`
 (deployment seams), `repository`/`repositoryartifacts` (deployment and
-relationship overviews), `serviceevidence` (spec parsing), `supplychain`
+relationship overviews), `service/evidence` (spec parsing), `supplychain`
 (image/SBOM read models), `doctruth` (image-ref normalization), and the
 `telemetry`/`log` packages for the `service_query.stage_*` events. It never
 imports the query root or graph drivers.

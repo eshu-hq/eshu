@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/serviceevidence"
+	"github.com/eshu-hq/eshu/go/internal/query/service/evidence"
 )
 
 func LoadServiceQueryEvidence(
@@ -28,7 +28,7 @@ func LoadServiceQueryEvidence(
 		return ServiceQueryEvidence{}, err
 	}
 
-	evidence := ServiceQueryEvidence{filesTruncated: filesTruncated}
+	collected := ServiceQueryEvidence{filesTruncated: filesTruncated}
 	seenHostnames := map[string]struct{}{}
 	seenEntrypointCandidates := map[string]struct{}{}
 	seenEnvironments := map[string]struct{}{}
@@ -65,7 +65,7 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenEntrypointCandidates[key] = struct{}{}
-			evidence.EntrypointCandidates = append(evidence.EntrypointCandidates, ServiceEntrypointCandidateEvidence{
+			collected.EntrypointCandidates = append(collected.EntrypointCandidates, ServiceEntrypointCandidateEvidence{
 				Candidate:      candidate.Value,
 				Classification: candidate.Classification,
 				RelativePath:   hydrated.RelativePath,
@@ -81,7 +81,7 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenHostnames[hostname] = struct{}{}
-			evidence.Hostnames = append(evidence.Hostnames, ServiceHostnameEvidence{
+			collected.Hostnames = append(collected.Hostnames, ServiceHostnameEvidence{
 				Hostname:     hostname,
 				Environment:  environment,
 				RelativePath: hydrated.RelativePath,
@@ -94,7 +94,7 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenEnvironments[environment] = struct{}{}
-			evidence.Environments = append(evidence.Environments, ServiceEnvironmentEvidence{
+			collected.Environments = append(collected.Environments, ServiceEnvironmentEvidence{
 				Environment:  environment,
 				RelativePath: hydrated.RelativePath,
 				Reason:       "path_or_content_environment_signal",
@@ -106,7 +106,7 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenDocsRoutes[route] = struct{}{}
-			evidence.DocsRoutes = append(evidence.DocsRoutes, ServiceDocsRouteEvidence{
+			collected.DocsRoutes = append(collected.DocsRoutes, ServiceDocsRouteEvidence{
 				Route:        route,
 				RelativePath: hydrated.RelativePath,
 				Reason:       "docs_route_reference",
@@ -123,42 +123,42 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenSpecs[key] = struct{}{}
-			evidence.APISpecs = append(evidence.APISpecs, spec)
+			collected.APISpecs = append(collected.APISpecs, spec)
 		}
 	}
 
-	sort.Slice(evidence.Hostnames, func(i, j int) bool {
-		if evidence.Hostnames[i].Hostname != evidence.Hostnames[j].Hostname {
-			return evidence.Hostnames[i].Hostname < evidence.Hostnames[j].Hostname
+	sort.Slice(collected.Hostnames, func(i, j int) bool {
+		if collected.Hostnames[i].Hostname != collected.Hostnames[j].Hostname {
+			return collected.Hostnames[i].Hostname < collected.Hostnames[j].Hostname
 		}
-		return evidence.Hostnames[i].RelativePath < evidence.Hostnames[j].RelativePath
+		return collected.Hostnames[i].RelativePath < collected.Hostnames[j].RelativePath
 	})
-	sort.Slice(evidence.Environments, func(i, j int) bool {
-		if evidence.Environments[i].Environment != evidence.Environments[j].Environment {
-			return evidence.Environments[i].Environment < evidence.Environments[j].Environment
+	sort.Slice(collected.Environments, func(i, j int) bool {
+		if collected.Environments[i].Environment != collected.Environments[j].Environment {
+			return collected.Environments[i].Environment < collected.Environments[j].Environment
 		}
-		return evidence.Environments[i].RelativePath < evidence.Environments[j].RelativePath
+		return collected.Environments[i].RelativePath < collected.Environments[j].RelativePath
 	})
-	sort.Slice(evidence.DocsRoutes, func(i, j int) bool {
-		if evidence.DocsRoutes[i].Route != evidence.DocsRoutes[j].Route {
-			return evidence.DocsRoutes[i].Route < evidence.DocsRoutes[j].Route
+	sort.Slice(collected.DocsRoutes, func(i, j int) bool {
+		if collected.DocsRoutes[i].Route != collected.DocsRoutes[j].Route {
+			return collected.DocsRoutes[i].Route < collected.DocsRoutes[j].Route
 		}
-		return evidence.DocsRoutes[i].RelativePath < evidence.DocsRoutes[j].RelativePath
+		return collected.DocsRoutes[i].RelativePath < collected.DocsRoutes[j].RelativePath
 	})
-	sort.Slice(evidence.EntrypointCandidates, func(i, j int) bool {
-		if evidence.EntrypointCandidates[i].Candidate != evidence.EntrypointCandidates[j].Candidate {
-			return evidence.EntrypointCandidates[i].Candidate < evidence.EntrypointCandidates[j].Candidate
+	sort.Slice(collected.EntrypointCandidates, func(i, j int) bool {
+		if collected.EntrypointCandidates[i].Candidate != collected.EntrypointCandidates[j].Candidate {
+			return collected.EntrypointCandidates[i].Candidate < collected.EntrypointCandidates[j].Candidate
 		}
-		if evidence.EntrypointCandidates[i].Classification != evidence.EntrypointCandidates[j].Classification {
-			return evidence.EntrypointCandidates[i].Classification < evidence.EntrypointCandidates[j].Classification
+		if collected.EntrypointCandidates[i].Classification != collected.EntrypointCandidates[j].Classification {
+			return collected.EntrypointCandidates[i].Classification < collected.EntrypointCandidates[j].Classification
 		}
-		return evidence.EntrypointCandidates[i].RelativePath < evidence.EntrypointCandidates[j].RelativePath
+		return collected.EntrypointCandidates[i].RelativePath < collected.EntrypointCandidates[j].RelativePath
 	})
-	sort.Slice(evidence.APISpecs, func(i, j int) bool {
-		return evidence.APISpecs[i].RelativePath < evidence.APISpecs[j].RelativePath
+	sort.Slice(collected.APISpecs, func(i, j int) bool {
+		return collected.APISpecs[i].RelativePath < collected.APISpecs[j].RelativePath
 	})
 
-	return evidence, nil
+	return collected, nil
 }
 
 func isServiceEvidenceCandidate(file querycontract.FileContent, normalizedServiceName string) bool {
@@ -167,8 +167,8 @@ func isServiceEvidenceCandidate(file querycontract.FileContent, normalizedServic
 
 // extractAPISpecEvidence summarizes one candidate API spec file, resolving
 // external `$ref` path entries through resolver first. The implementation
-// moved to the serviceevidence leaf for #6060; this wrapper keeps root
+// moved to the service/evidence leaf for #6060; this wrapper keeps root
 // callers unchanged.
 func extractAPISpecEvidence(file querycontract.FileContent, resolver specFileResolver) (ServiceAPISpecEvidence, bool, error) {
-	return serviceevidence.ExtractAPISpecEvidence(file, resolver)
+	return evidence.ExtractAPISpecEvidence(file, resolver)
 }

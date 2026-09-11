@@ -2,17 +2,19 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Service evidence parsing holds the pure content extractors shared by the
-// service evidence stayer in package query and the repository narrative
+// service evidence stayer in package service and the repository narrative
 // overviews in package repository: docs-route references, OpenAPI spec
 // summaries (including `$ref` resolution through a caller-supplied resolver),
 // and the loose YAML/JSON document accessors they are built from.
 //
 // The implementation moved here from querycontract for #6060 lane-B B3
 // review: querycontract stays dependency-neutral (Go standard library only),
-// so the `gopkg.in/yaml.v3` runtime lives in this leaf instead. Package
-// query keeps thin wrappers so existing callers are unchanged.
+// so the `gopkg.in/yaml.v3` runtime lives in this leaf instead. It nested
+// under service/ for #6642 Part D, splitting the old glued compound package
+// name into a directory per docs/internal/naming.md rule 3; package query
+// and package service keep thin wrappers so existing callers are unchanged.
 
-package serviceevidence
+package evidence
 
 import (
 	"net/url"
@@ -26,11 +28,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// ServiceSliceValue, ServiceMapValue, and ServiceStringValue read one field
-// out of a loosely-parsed YAML/JSON spec document. A spec file is caller
-// content, so any node can be any type; each accessor returns the zero value
-// rather than panicking on a shape the repository happened to commit.
-func ServiceSliceValue(raw any) []any {
+// SliceValue, MapValue, and StringValue read one field out of a
+// loosely-parsed YAML/JSON spec document. A spec file is caller content, so
+// any node can be any type; each accessor returns the zero value rather than
+// panicking on a shape the repository happened to commit.
+func SliceValue(raw any) []any {
 	switch typed := raw.(type) {
 	case []any:
 		return typed
@@ -39,16 +41,16 @@ func ServiceSliceValue(raw any) []any {
 	}
 }
 
-// ServiceMapValue reads a map field out of a loosely-parsed spec document,
+// MapValue reads a map field out of a loosely-parsed spec document,
 // returning nil when the node is not a map.
-func ServiceMapValue(raw any) map[string]any {
+func MapValue(raw any) map[string]any {
 	typed, _ := raw.(map[string]any)
 	return typed
 }
 
-// ServiceStringValue reads a string field out of a loosely-parsed spec
-// document, returning "" when the node is not a string.
-func ServiceStringValue(raw any) string {
+// StringValue reads a string field out of a loosely-parsed spec document,
+// returning "" when the node is not a string.
+func StringValue(raw any) string {
 	value, _ := raw.(string)
 	return value
 }
@@ -191,7 +193,7 @@ func resolveOpenAPIPathRefs(doc map[string]any, baseRelativePath string, resolve
 	if resolver == nil {
 		return nil
 	}
-	paths := ServiceMapValue(doc["paths"])
+	paths := MapValue(doc["paths"])
 	if len(paths) == 0 {
 		return nil
 	}
@@ -219,7 +221,7 @@ func resolveOpenAPIPathRefs(doc map[string]any, baseRelativePath string, resolve
 
 func resolveOpenAPIPathItemRefs(paths map[string]any, baseRelativePath string, resolver querycontract.SpecFileResolver) error {
 	for route, rawPathItem := range paths {
-		pathItemMap := ServiceMapValue(rawPathItem)
+		pathItemMap := MapValue(rawPathItem)
 		if pathItemMap == nil {
 			continue
 		}
@@ -244,12 +246,12 @@ func resolveOpenAPIPathItemRefs(paths map[string]any, baseRelativePath string, r
 }
 
 func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string]any) (querycontract.ServiceAPISpecEvidence, bool) {
-	specVersion := ServiceStringValue(doc["openapi"])
+	specVersion := StringValue(doc["openapi"])
 	if specVersion == "" {
-		specVersion = ServiceStringValue(doc["swagger"])
+		specVersion = StringValue(doc["swagger"])
 	}
 
-	paths := ServiceMapValue(doc["paths"])
+	paths := MapValue(doc["paths"])
 	if specVersion == "" && len(paths) == 0 {
 		return querycontract.ServiceAPISpecEvidence{}, false
 	}
@@ -259,7 +261,7 @@ func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string
 	docsRoutes := make([]string, 0)
 	endpoints := make([]querycontract.ServiceAPIEndpointEvidence, 0, len(paths))
 	for route, rawOperation := range paths {
-		routeMap := ServiceMapValue(rawOperation)
+		routeMap := MapValue(rawOperation)
 		methods := make([]string, 0, len(routeMap))
 		operationIDs := make([]string, 0, len(routeMap))
 		for method, rawOperationSpec := range routeMap {
@@ -268,8 +270,8 @@ func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string
 			}
 			methodCount++
 			methods = append(methods, strings.ToLower(method))
-			operationMap := ServiceMapValue(rawOperationSpec)
-			if operationID := ServiceStringValue(operationMap["operationId"]); operationID != "" {
+			operationMap := MapValue(rawOperationSpec)
+			if operationID := StringValue(operationMap["operationId"]); operationID != "" {
 				operationIDCount++
 				operationIDs = append(operationIDs, operationID)
 			}
@@ -292,9 +294,9 @@ func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string
 
 	hostnames := make([]string, 0)
 	seenHostnames := map[string]struct{}{}
-	for _, server := range ServiceSliceValue(doc["servers"]) {
-		serverMap := ServiceMapValue(server)
-		serverURL := ServiceStringValue(serverMap["url"])
+	for _, server := range SliceValue(doc["servers"]) {
+		serverMap := MapValue(server)
+		serverURL := StringValue(serverMap["url"])
 		if serverURL == "" {
 			continue
 		}
@@ -310,13 +312,13 @@ func buildOpenAPISpecEvidence(relativePath string, format string, doc map[string
 	}
 	sort.Strings(hostnames)
 
-	info := ServiceMapValue(doc["info"])
+	info := MapValue(doc["info"])
 	return querycontract.ServiceAPISpecEvidence{
 		RelativePath:     relativePath,
 		Format:           format,
 		Parsed:           true,
 		SpecVersion:      specVersion,
-		APIVersion:       ServiceStringValue(info["version"]),
+		APIVersion:       StringValue(info["version"]),
 		EndpointCount:    len(paths),
 		MethodCount:      methodCount,
 		OperationIDCount: operationIDCount,
