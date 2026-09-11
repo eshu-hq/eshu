@@ -33,7 +33,7 @@ func languageInventoryAdminRequest(t *testing.T, target string) *http.Request {
 func TestListRepositoriesByLanguageRequiresLanguage(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{}
+	handler := &Handler{}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories/by-language", nil)
 	w := httptest.NewRecorder()
 	handler.ListRepositoriesByLanguage(w, req)
@@ -47,7 +47,7 @@ func TestListRepositoriesByLanguageRendersAdminPage(t *testing.T) {
 	t.Parallel()
 
 	family := repositoryLanguageFamily("go")
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			LanguageCounts: map[string]querycontract.RepositoryLanguageAggregate{
 				strings.Join(family, ","): {RepositoryCount: 2, FileCount: 42},
@@ -87,7 +87,7 @@ func TestListRepositoriesByLanguageRendersAdminPage(t *testing.T) {
 func TestGetRepositoryLanguageInventoryRendersAdminRows(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			LanguageInventory: []querycontract.RepositoryLanguageInventoryRow{
 				{Language: "go", RepositoryCount: 2, FileCount: 42},

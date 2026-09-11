@@ -15,7 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
-func requestRepositoryBranches(t *testing.T, handler *RepositoryHandler, target string) *httptest.ResponseRecorder {
+func requestRepositoryBranches(t *testing.T, handler *Handler, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -29,7 +29,7 @@ func TestGetRepositoryBranchesReturnsSingleIndexedRef(t *testing.T) {
 	t.Parallel()
 
 	indexedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    []querycontract.FileContent{{RepoID: "repo-1", RelativePath: "main.go", CommitSHA: "abc123"}},
@@ -68,7 +68,7 @@ func TestGetRepositoryBranchesReturnsSourceBackedRefs(t *testing.T) {
 
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{
@@ -137,7 +137,7 @@ func TestGetRepositoryBranchesReturnsTagsSeparately(t *testing.T) {
 
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{
@@ -226,7 +226,7 @@ func TestGetRepositoryBranchesTagSameNameAsBranch(t *testing.T) {
 
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{
@@ -306,7 +306,7 @@ func TestGetRepositoryBranchesTagsExceedingCapAreTruncated(t *testing.T) {
 			IndexedAt:  indexedAt,
 		})
 	}
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: refs,
@@ -357,7 +357,7 @@ func TestGetRepositoryBranchesTagsWithinCapNotTruncated(t *testing.T) {
 
 	observedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
 	indexedAt := time.Date(2026, 6, 1, 9, 5, 0, 0, time.UTC)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{
@@ -388,7 +388,7 @@ func TestGetRepositoryBranchesTagsWithinCapNotTruncated(t *testing.T) {
 func TestGetRepositoryBranchesEmptyWhenNoCommitIndexed(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 		},
@@ -409,7 +409,7 @@ func TestGetRepositoryBranches_LocalLightweightReturnsBranches(t *testing.T) {
 	t.Parallel()
 
 	indexedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Profile: querycontract.ProfileLocalLightweight,
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
@@ -444,7 +444,7 @@ func TestGetRepositoryBranches_LocalLightweightReturnsBranches(t *testing.T) {
 func TestGetRepositoryBranchesUnknownRepoReturns404(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{Content: querytestutil.FakePortContentStore{}}
+	handler := &Handler{Content: querytestutil.FakePortContentStore{}}
 	w := requestRepositoryBranches(t, handler, "/api/v0/repositories/repo-ghost/branches")
 	if got, want := w.Code, http.StatusNotFound; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())

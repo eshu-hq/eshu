@@ -10,14 +10,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// RepositoryInfrastructureEntityLimit bounds the infrastructure-typed
+// InfrastructureEntityLimit bounds the infrastructure-typed
 // content entities one read classifies. Exported for #6060 so root tests can
 // name the truncation bound from outside this package.
-const RepositoryInfrastructureEntityLimit = 5000
+const InfrastructureEntityLimit = 5000
 
-const repositoryInfrastructureEntityLimit = RepositoryInfrastructureEntityLimit
+const repositoryInfrastructureEntityLimit = InfrastructureEntityLimit
 
-// RepositoryInfrastructureEntityTypes is the canonical content_entities
+// InfrastructureEntityTypes is the canonical content_entities
 // entity_type set for the repository infrastructure panel (exported for #6060
 // so root tests can name it from outside this package): Kubernetes,
 // Terraform, Terragrunt, ArgoCD, Helm, Kustomize, Crossplane, and
@@ -31,7 +31,7 @@ const repositoryInfrastructureEntityLimit = RepositoryInfrastructureEntityLimit
 // missing from that switch would fetch rows the content path then silently
 // drops (ok=false), narrowing the panel without a truncation signal to
 // explain why.
-var RepositoryInfrastructureEntityTypes = []string{
+var InfrastructureEntityTypes = []string{
 	"K8sResource", "TerraformResource", "TerraformModule", "TerraformDataSource",
 	"TerraformBackend", "TerraformImport", "TerraformMovedBlock", "TerraformRemovedBlock",
 	"TerraformCheck", "TerraformLockProvider",
@@ -367,4 +367,4 @@ func queryRepoInfrastructureFromGraph(ctx context.Context, reader querycontract.
 	return QueryRepoInfrastructureFromGraph(ctx, reader, params)
 }
 
-var repositoryInfrastructureEntityTypes = RepositoryInfrastructureEntityTypes
+var repositoryInfrastructureEntityTypes = InfrastructureEntityTypes

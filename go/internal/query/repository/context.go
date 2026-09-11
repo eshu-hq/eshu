@@ -15,11 +15,11 @@ import (
 // GetRepositoryContext serves repository context. It forwards to getRepositoryContext; exported for
 // #6060 so the cross-family graph-read sweep tests in package query can name
 // it from outside this package.
-func (h *RepositoryHandler) GetRepositoryContext(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	h.getRepositoryContext(w, r)
 }
 
-func (h *RepositoryHandler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryContext(w http.ResponseWriter, r *http.Request) {
 	if !querycontract.RequireContextOverview(w, r, h.profile(), "repository context requires authoritative platform context truth") {
 		return
 	}

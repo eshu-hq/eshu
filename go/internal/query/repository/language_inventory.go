@@ -30,11 +30,11 @@ const (
 // ListRepositoriesByLanguage lists repositories by language. It forwards to
 // listRepositoriesByLanguage; exported for #6060 so root tests in package
 // query can name it from outside this package.
-func (h *RepositoryHandler) ListRepositoriesByLanguage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListRepositoriesByLanguage(w http.ResponseWriter, r *http.Request) {
 	h.listRepositoriesByLanguage(w, r)
 }
 
-func (h *RepositoryHandler) listRepositoriesByLanguage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listRepositoriesByLanguage(w http.ResponseWriter, r *http.Request) {
 	language := strings.ToLower(strings.TrimSpace(querycontract.QueryParam(r, "language")))
 	if language == "" {
 		querycontract.WriteError(w, http.StatusBadRequest, "language is required")
@@ -106,11 +106,11 @@ func (h *RepositoryHandler) listRepositoriesByLanguage(w http.ResponseWriter, r 
 // GetRepositoryLanguageInventory serves the repository language inventory.
 // It forwards to getRepositoryLanguageInventory; exported for #6060 so root
 // tests in package query can name it from outside this package.
-func (h *RepositoryHandler) GetRepositoryLanguageInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetRepositoryLanguageInventory(w http.ResponseWriter, r *http.Request) {
 	h.getRepositoryLanguageInventory(w, r)
 }
 
-func (h *RepositoryHandler) getRepositoryLanguageInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryLanguageInventory(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.Content == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "repository language content store is unavailable")
 		return
@@ -155,7 +155,7 @@ func (h *RepositoryHandler) getRepositoryLanguageInventory(w http.ResponseWriter
 // page reads nothing, so it reports TruthBasisNoBackendRead rather than the
 // content_index it claimed before #6544; no content store was consulted to
 // produce it.
-func (h *RepositoryHandler) writeEmptyRepositoryLanguagePage(
+func (h *Handler) writeEmptyRepositoryLanguagePage(
 	w http.ResponseWriter,
 	r *http.Request,
 	language string,
@@ -182,7 +182,7 @@ func (h *RepositoryHandler) writeEmptyRepositoryLanguagePage(
 
 // writeEmptyRepositoryLanguageInventoryPage is the language-inventory
 // counterpart of writeEmptyRepositoryLanguagePage.
-func (h *RepositoryHandler) writeEmptyRepositoryLanguageInventoryPage(
+func (h *Handler) writeEmptyRepositoryLanguageInventoryPage(
 	w http.ResponseWriter,
 	r *http.Request,
 	page readmodel.ListPage,
@@ -218,7 +218,7 @@ func repositoryLanguagePageFromRequest(r *http.Request, allowZeroLimit bool) rea
 	return readmodel.ListPage{Limit: limit, Offset: offset}
 }
 
-func RepositoryLanguageFamily(language string) []string {
+func LanguageFamily(language string) []string {
 	normalized := strings.ToLower(strings.TrimSpace(language))
 	switch normalized {
 	case "ts", "typescript":
@@ -264,7 +264,7 @@ func repositoryLanguageInventoryMaps(rows []querycontract.RepositoryLanguageInve
 }
 
 // repositoryLanguageFamily keeps the in-package spelling after the #6060
-// export; root tests name RepositoryLanguageFamily.
+// export; root tests name LanguageFamily.
 func repositoryLanguageFamily(language string) []string {
-	return RepositoryLanguageFamily(language)
+	return LanguageFamily(language)
 }

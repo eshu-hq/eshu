@@ -16,12 +16,12 @@ import (
 )
 
 const (
-	// RepositoryStatsContentCoverageShape labels the content-store coverage
+	// StatsContentCoverageShape labels the content-store coverage
 	// query shape. Exported for #6060 so root envelope tests can name it from
 	// outside this package.
-	RepositoryStatsContentCoverageShape = "content_store_repository_coverage"
-	repositoryStatsIdentityOnlyShape    = "repository_identity_only"
-	repositoryStatsReadTimeout          = 2 * time.Second
+	StatsContentCoverageShape        = "content_store_repository_coverage"
+	repositoryStatsIdentityOnlyShape = "repository_identity_only"
+	repositoryStatsReadTimeout       = 2 * time.Second
 )
 
 // getRepositoryStats returns bounded repository statistics from read models. The
@@ -29,7 +29,7 @@ const (
 // drilldown block and an explicit partial_reasons slot so a prompt-ready caller
 // sees fan-out bounds and missing evidence without raw Cypher, while the
 // existing coverage partial_results/truncated/timeout fields are preserved.
-func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), repositoryStatsReadTimeout)
 	defer cancel()
 
@@ -82,7 +82,7 @@ func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Re
 	)
 }
 
-func (h *RepositoryHandler) resolveRepositoryStatsPathSelector(
+func (h *Handler) resolveRepositoryStatsPathSelector(
 	ctx context.Context,
 	w http.ResponseWriter,
 	r *http.Request,
@@ -115,7 +115,7 @@ func (h *RepositoryHandler) resolveRepositoryStatsPathSelector(
 	return repoID, true
 }
 
-func (h *RepositoryHandler) repositoryStatsRepositoryRef(
+func (h *Handler) repositoryStatsRepositoryRef(
 	ctx context.Context,
 	repoID string,
 ) (any, string, error) {
@@ -140,7 +140,7 @@ func (h *RepositoryHandler) repositoryStatsRepositoryRef(
 	return nil, "unavailable", nil
 }
 
-func (h *RepositoryHandler) repositoryStatsContentCoverage(
+func (h *Handler) repositoryStatsContentCoverage(
 	ctx context.Context,
 	repoID string,
 ) (querycontract.RepositoryContentCoverage, error) {
@@ -304,4 +304,4 @@ func repositoryStatsCoverageHasEvidence(coverage querycontract.RepositoryContent
 		!coverage.EntityIndexedAt.IsZero()
 }
 
-const repositoryStatsContentCoverageShape = RepositoryStatsContentCoverageShape
+const repositoryStatsContentCoverageShape = StatsContentCoverageShape

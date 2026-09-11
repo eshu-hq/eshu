@@ -33,7 +33,7 @@ import (
 func TestGetRepositoryStoryInfrastructureTruncatedSetsTopLevelTruncated(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeGraphReader{
 			RunSingleFn: func(context.Context, string, map[string]any) (map[string]any, error) {
 				return map[string]any{"id": "repo-story-infra-trunc-1", "name": "repo-story-infra-trunc-one"}, nil

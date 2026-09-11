@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func (h *RepositoryHandler) repositoryStoryContentCoverage(
+func (h *Handler) repositoryStoryContentCoverage(
 	ctx context.Context,
 	repoID string,
 ) (*querycontract.RepositoryContentCoverage, map[string]any, error) {

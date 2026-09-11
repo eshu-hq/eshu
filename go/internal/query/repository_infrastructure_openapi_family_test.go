@@ -35,7 +35,7 @@ var repositoryInfrastructureFamilyAliases = map[string]string{
 // repositoryInfrastructureTypeFamily derives the family token this test
 // checks against OpenAPI prose from a canonical entity_type name, with no
 // hand-written family-to-type map: the token comes straight out of the type
-// name Go already declares in repository.RepositoryInfrastructureEntityTypes.
+// name Go already declares in repository.InfrastructureEntityTypes.
 func repositoryInfrastructureTypeFamily(entityType string) string {
 	family := repositoryInfrastructureFamilyLeadingWordPattern.FindString(entityType)
 	if alias, ok := repositoryInfrastructureFamilyAliases[family]; ok {
@@ -90,7 +90,7 @@ func TestRepositoryInfrastructureOpenAPIDescriptionNamesEveryCanonicalFamily(t *
 	}
 	description := match[1]
 
-	for _, entityType := range repository.RepositoryInfrastructureEntityTypes {
+	for _, entityType := range repository.InfrastructureEntityTypes {
 		family := repositoryInfrastructureTypeFamily(entityType)
 		if family == "" {
 			t.Fatalf("repositoryInfrastructureTypeFamily(%q) = \"\", want a non-empty leading word", entityType)

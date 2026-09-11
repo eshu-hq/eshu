@@ -14,12 +14,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
-// RepositoryFreshnessReader reads the per-repository commit-receipt and
+// FreshnessReader reads the per-repository commit-receipt and
 // build-completeness evidence backing GET
 // /api/v0/repositories/{id}/freshness (#5143). It is a narrow port, separate
 // from status.Reader, because it is keyed by a single already-resolved
 // canonical repository id rather than composing the fixed RawSnapshot shape.
-type RepositoryFreshnessReader interface {
+type FreshnessReader interface {
 	ReadRepositoryFreshness(ctx context.Context, repoID string) (status.RepositoryFreshnessSnapshot, error)
 }
 
@@ -33,11 +33,11 @@ type RepositoryFreshnessReader interface {
 // GetRepositoryFreshness serves repository freshness evidence. It forwards to getRepositoryFreshness; exported for
 // #6060 so the cross-family graph-read sweep tests in package query can name
 // it from outside this package.
-func (h *RepositoryHandler) GetRepositoryFreshness(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetRepositoryFreshness(w http.ResponseWriter, r *http.Request) {
 	h.getRepositoryFreshness(w, r)
 }
 
-func (h *RepositoryHandler) getRepositoryFreshness(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryFreshness(w http.ResponseWriter, r *http.Request) {
 	if h == nil || h.Freshness == nil {
 		querycontract.WriteError(w, http.StatusServiceUnavailable, "repository freshness reader not configured")
 		return

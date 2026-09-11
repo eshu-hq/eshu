@@ -75,7 +75,7 @@ func TestListCatalogReturnsRepositoriesWorkloadsAndServices(t *testing.T) {
 		},
 	}
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j:   rows.reader(t, 3),
 		Profile: querycontract.ProfileLocalAuthoritative,
 	}
@@ -135,7 +135,7 @@ func TestListCatalogMergesInstanceAndDeploymentEvidenceEnvironments(t *testing.T
 		},
 	}
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j:   rows.reader(t, 0),
 		Profile: querycontract.ProfileLocalAuthoritative,
 	}
@@ -183,7 +183,7 @@ func TestListCatalogTruncatesEachCollectionByLimit(t *testing.T) {
 		},
 	}
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j:   rows.reader(t, 0),
 		Profile: querycontract.ProfileLocalAuthoritative,
 	}
@@ -220,7 +220,7 @@ func TestListCatalogDistinguishesRepositoryOnlyTruncation(t *testing.T) {
 			{"id": "workload:w_1", "name": "one", "kind": "service"},
 		},
 	}
-	handler := &RepositoryHandler{Neo4j: rows.reader(t, 0), Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: rows.reader(t, 0), Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=1", nil)
 	rec := httptest.NewRecorder()
 
@@ -241,7 +241,7 @@ func TestListCatalogDistinguishesRepositoryOnlyTruncation(t *testing.T) {
 func TestListCatalogIncludesIdentityOnlyServicesFromReadModel(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			WorkloadIdentities: []querycontract.CatalogWorkloadIdentityEntry{
 				{
@@ -373,7 +373,7 @@ func TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs(t *testing.T) {
 		},
 	}
 
-	handler := &RepositoryHandler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
 	rec := httptest.NewRecorder()
 	handler.listCatalog(rec, req)
@@ -418,7 +418,7 @@ func TestListCatalogSkipsEnrichmentWhenNoWorkloads(t *testing.T) {
 		},
 	}
 
-	handler := &RepositoryHandler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
 	rec := httptest.NewRecorder()
 	handler.listCatalog(rec, req)

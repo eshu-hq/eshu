@@ -16,8 +16,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
-func repositoryFreshnessTestHandler(reader *querytestutil.FakeRepositoryFreshnessReader) *RepositoryHandler {
-	return &RepositoryHandler{
+func repositoryFreshnessTestHandler(reader *querytestutil.FakeRepositoryFreshnessReader) *Handler {
+	return &Handler{
 		Neo4j: querytestutil.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),
@@ -285,7 +285,7 @@ func TestGetRepositoryFreshnessUnknownRepositoryReturns404(t *testing.T) {
 	t.Parallel()
 
 	reader := &querytestutil.FakeRepositoryFreshnessReader{Snapshot: querytestutil.FullyBuiltRepositoryFreshnessSnapshot()}
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j:     querytestutil.FakeRepoGraphReader{},
 		Content:   querytestutil.FakePortContentStore{},
 		Freshness: reader,
@@ -311,7 +311,7 @@ func TestGetRepositoryFreshnessUnknownRepositoryReturns404(t *testing.T) {
 func TestGetRepositoryFreshnessReaderNotConfiguredReturns503(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{}
+	handler := &Handler{}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

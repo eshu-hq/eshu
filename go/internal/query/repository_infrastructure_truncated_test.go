@@ -20,7 +20,7 @@ import (
 
 // TestGetRepositoryContextInfrastructureTruncatedAddsReason is the P2-2
 // review follow-up to #5764's infrastructure ATTRIBUTED-DEGRADE fix: a
-// HEALTHY graph read that lands past repository.RepositoryInfrastructureEntityLimit rows
+// HEALTHY graph read that lands past repository.InfrastructureEntityLimit rows
 // (more rows exist beyond it) must add repository.InfrastructureTruncatedReason to
 // partial_reasons, distinct
 // from repository.InfrastructureReadDegradedReason (no error occurred here -- the read
@@ -65,8 +65,8 @@ func TestGetRepositoryContextInfrastructureTruncatedAddsReason(t *testing.T) {
 		t.Fatalf("unmarshal body: %v", err)
 	}
 	infrastructure, ok := body["infrastructure"].([]any)
-	if !ok || len(infrastructure) != repository.RepositoryInfrastructureEntityLimit {
-		t.Fatalf("len(body[infrastructure]) = %d, want %d (bounded, not fabricated empty)", len(infrastructure), repository.RepositoryInfrastructureEntityLimit)
+	if !ok || len(infrastructure) != repository.InfrastructureEntityLimit {
+		t.Fatalf("len(body[infrastructure]) = %d, want %d (bounded, not fabricated empty)", len(infrastructure), repository.InfrastructureEntityLimit)
 	}
 
 	partialReasons, ok := body["partial_reasons"].([]any)

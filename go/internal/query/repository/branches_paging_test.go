@@ -47,7 +47,7 @@ func buildPagedRefFixture(branchCount, tagCount int) []querycontract.RepositoryR
 	return refs
 }
 
-func pagedBranchesResponse(t *testing.T, handler *RepositoryHandler, target string) map[string]any {
+func pagedBranchesResponse(t *testing.T, handler *Handler, target string) map[string]any {
 	t.Helper()
 	w := requestRepositoryBranches(t, handler, target)
 	if got, want := w.Code, http.StatusOK; got != want {
@@ -84,7 +84,7 @@ func TestGetRepositoryBranchesPagingFirstPageDefaultLimit(t *testing.T) {
 	t.Parallel()
 
 	refs := buildPagedRefFixture(150, 100) // 1 default + 149 + 100 = 250
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: refs,
@@ -130,7 +130,7 @@ func TestGetRepositoryBranchesPagingCursorRoundTripCoversFullSet(t *testing.T) {
 	t.Parallel()
 
 	refs := buildPagedRefFixture(150, 100)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: refs,
@@ -189,7 +189,7 @@ func TestGetRepositoryBranchesPagingSpansBranchTagBoundary(t *testing.T) {
 	t.Parallel()
 
 	refs := buildPagedRefFixture(100, 50) // 100 branches (incl. default) + 50 tags
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: refs,
@@ -220,8 +220,8 @@ func TestGetRepositoryBranchesPagingLimitValidation(t *testing.T) {
 	t.Parallel()
 
 	refs := buildPagedRefFixture(150, 100)
-	newHandler := func() *RepositoryHandler {
-		return &RepositoryHandler{
+	newHandler := func() *Handler {
+		return &Handler{
 			Content: querytestutil.FakePortContentStore{
 				Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 				RepositoryRefs: refs,
@@ -263,8 +263,8 @@ func TestGetRepositoryBranchesPagingInvalidCursor(t *testing.T) {
 	t.Parallel()
 
 	refs := buildPagedRefFixture(150, 100)
-	newHandler := func() *RepositoryHandler {
-		return &RepositoryHandler{
+	newHandler := func() *Handler {
+		return &Handler{
 			Content: querytestutil.FakePortContentStore{
 				Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 				RepositoryRefs: refs,
@@ -348,7 +348,7 @@ func TestGetRepositoryBranchesPagingChurnBetweenPages(t *testing.T) {
 	branchB := querycontract.RepositoryRef{Name: "branch-001", Kind: "branch", HeadSHA: "sha-b", ObservedAt: observedAt, IndexedAt: indexedAt}
 	main := querycontract.RepositoryRef{Name: "main", Kind: "branch", HeadSHA: "sha-main", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt}
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: []querycontract.RepositoryRef{main, branchA, branchB},
@@ -396,7 +396,7 @@ func TestGetRepositoryBranchesPagingDefaultChurnNoDupSkip(t *testing.T) {
 		{Name: "main", Kind: "branch", HeadSHA: "sha-main", Default: true, ObservedAt: observedAt, IndexedAt: indexedAt},
 		{Name: "alpha", Kind: "branch", HeadSHA: "sha-alpha", Default: false, ObservedAt: observedAt, IndexedAt: indexedAt},
 	}
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories:   []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepositoryRefs: page1Refs,
@@ -450,7 +450,7 @@ func TestGetRepositoryBranchesPagingFallbackAcceptsParams(t *testing.T) {
 	t.Parallel()
 
 	indexedAt := time.Date(2026, 6, 1, 9, 0, 0, 0, time.UTC)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{querytestutil.RepositoryStatsCatalogEntry()},
 			RepoFiles:    []querycontract.FileContent{{RepoID: "repo-1", RelativePath: "main.go", CommitSHA: "abc123"}},

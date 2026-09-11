@@ -16,7 +16,7 @@ import (
 func TestListRepositoriesFallsBackToContentCatalogWithoutGraph(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{
@@ -66,7 +66,7 @@ func TestListRepositoriesFallsBackToContentCatalogWithoutGraph(t *testing.T) {
 func TestGetRepositoryCoverageFallsBackToContentCatalogWithoutGraph(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{

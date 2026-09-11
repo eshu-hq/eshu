@@ -35,7 +35,7 @@ func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t 
 
 			var runCyphers []string
 			var runSingleCyphers []string
-			handler := &RepositoryHandler{
+			handler := &Handler{
 				Neo4j: querytestutil.FakeRepoGraphReader{
 					RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 						runCyphers = append(runCyphers, cypher)
@@ -123,7 +123,7 @@ func TestGetRepositoryStatsUsesContentCoverageForRepositoryNameAndCanonicalID(t 
 func TestGetRepositoryStatsReportsMissingContentCoverageWithoutInventedTotals(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeRepoGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "OPTIONAL MATCH") || strings.Contains(cypher, "CONTAINS]->(e)") {
@@ -184,7 +184,7 @@ func TestGetRepositoryStatsLogsMissingCoverageTelemetry(t *testing.T) {
 	t.Parallel()
 
 	var logs bytes.Buffer
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),

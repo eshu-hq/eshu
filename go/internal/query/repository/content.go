@@ -18,12 +18,12 @@ import (
 // repository content endpoint. Files larger than this are truncated (on a UTF-8
 // rune boundary when text) and flagged with truncated=true so the UI can offer a
 // "view full file" affordance instead of streaming arbitrarily large blobs.
-// RepositoryContentMaxBytes bounds a single served repository file at 1 MiB.
+// ContentMaxBytes bounds a single served repository file at 1 MiB.
 // Exported for #6060 so root content tests can name the bound from outside
 // this package.
-const RepositoryContentMaxBytes = 1 << 20 // 1 MiB
+const ContentMaxBytes = 1 << 20 // 1 MiB
 
-const repositoryContentMaxBytes = RepositoryContentMaxBytes
+const repositoryContentMaxBytes = ContentMaxBytes
 
 // getRepositoryContent returns the indexed bytes of a single repository file
 // from the Postgres content store. Text is returned as utf-8; bytes that are not
@@ -34,11 +34,11 @@ const repositoryContentMaxBytes = RepositoryContentMaxBytes
 // GetRepositoryContent serves repository content. It forwards to getRepositoryContent; exported for
 // #6060 so the cross-family graph-read sweep tests in package query can name
 // it from outside this package.
-func (h *RepositoryHandler) GetRepositoryContent(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetRepositoryContent(w http.ResponseWriter, r *http.Request) {
 	h.getRepositoryContent(w, r)
 }
 
-func (h *RepositoryHandler) getRepositoryContent(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryContent(w http.ResponseWriter, r *http.Request) {
 	repoID, ok := h.resolveRepositoryPathSelector(w, r, "code_search.content_search")
 	if !ok {
 		return

@@ -19,7 +19,7 @@ func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCoun
 	t.Parallel()
 
 	indexedAt := time.Date(2026, 6, 6, 15, 30, 0, 0, time.UTC)
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeRepoGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "count(DISTINCT e) as entity_count") {
@@ -111,7 +111,7 @@ func TestGetRepositoryStoryUsesContentCoverageWhenStatsAndCoverageRoutesHaveCoun
 func TestGetRepositoryStoryReportsMissingContentCoverageReason(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (r:Repository {id: $repo_id})": querytestutil.RepositoryStatsGraphRow(),

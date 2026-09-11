@@ -17,7 +17,7 @@ import (
 func TestListRepositoriesReturnsBoundedEnvelopeFromContentCatalog(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repository:one", Name: "one"},
@@ -68,7 +68,7 @@ func TestListRepositoriesTotalIsIndependentOfPageSize(t *testing.T) {
 	t.Parallel()
 
 	// Content store has three repositories; request only one per page.
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{
 				{ID: "repository:one", Name: "one"},
@@ -119,7 +119,7 @@ func TestListRepositoriesTotalFromGraphIsIndependentOfPageSize(t *testing.T) {
 			return pageRows, nil
 		},
 	}
-	handler := &RepositoryHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=1&offset=0", nil)
 	rec := httptest.NewRecorder()
 

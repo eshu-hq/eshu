@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package repository holds the repository-handler family (Issue #6060,
-// lane B): the RepositoryHandler HTTP surface plus every file that declares
+// lane B): the Handler HTTP surface plus every file that declares
 // one of its methods, the catalog routes served through that handler, the
 // catalog workload-enrichment reads, the entity-semantics shaping the story
 // reads share with the entity layer, and the repository

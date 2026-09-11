@@ -2,13 +2,13 @@
 
 ## Purpose
 
-`repository` holds the RepositoryHandler HTTP surface and every file that
+`repository` holds the Handler HTTP surface and every file that
 declares one of its methods (Issue #6060, lane B): the repository
 list/context/story/stats/coverage/tree/content/branches/freshness routes,
 the `GET /api/v0/catalog` routes and catalog workload-enrichment reads
 served through the same handler, the entity-semantics shaping the story
 reads share with the entity layer, and the deployment/config/workflow
-evidence shaping behind the story responses. The `RepositoryHandler` struct
+evidence shaping behind the story responses. The `Handler` struct
 keeps its `Neo4j`, `Content`, `CICDRunCorrelations`,
 `ServiceCatalogCorrelations`, `Freshness`, `Profile`, and `Logger`
 dependencies; `cmd/api` and `cmd/mcp-server` wire it through the root
@@ -83,6 +83,20 @@ ok, 0 failures; `./internal/mcp/...` ok; `./internal/queryplan/...` ok;
 `go vet` clean on all three trees; `git diff --check` clean;
 `verify-dirgate.sh --all` exit 0. No benchmark delta is claimed because no
 hot path changed shape; the suites above are the no-regression proof.
+
+No-Regression Evidence (#6642 rule 4): the export destutter renamed
+fifteen identifiers and nothing else. Every SQL and Cypher literal in this
+package is byte-identical to the pre-rename commit; the eight queryplan
+source digests that moved did so only because the receiver type in the
+recorded function text changed, and `go test ./internal/queryplan/` is
+green on the re-pinned rows. `go test ./internal/query/... -count=1`,
+`./cmd/api ./cmd/mcp-server ./internal/mcp`, and the parser-relationship-kit
+verifier pass on the renamed tree; no benchmark delta is claimed because no
+query changed shape.
+
+No-Observability-Change (#6642 rule 4): the rename touches no span, metric,
+or log name; `repository_query.stage_*` events and the tracer scope are
+unchanged.
 
 No-Observability-Change (#6060 lane-B B3): no new runtime behavior, so no
 new spans, metrics, or logs. The existing `repository_query.stage_*`

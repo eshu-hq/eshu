@@ -10,12 +10,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// RepositoryAPISurfaceEndpointLimit bounds the API-surface endpoint detail
+// APISurfaceEndpointLimit bounds the API-surface endpoint detail
 // rows one read carries. Exported for #6060 so root performance tests can
 // name it from outside this package.
-const RepositoryAPISurfaceEndpointLimit = 50
+const APISurfaceEndpointLimit = 50
 
-const repositoryAPISurfaceEndpointLimit = RepositoryAPISurfaceEndpointLimit
+const repositoryAPISurfaceEndpointLimit = APISurfaceEndpointLimit
 
 // queryRepoAPISurface reads API endpoint graph truth for repository context.
 func QueryRepoAPISurface(ctx context.Context, reader querycontract.GraphQuery, params map[string]any) map[string]any {

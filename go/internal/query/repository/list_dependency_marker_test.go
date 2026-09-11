@@ -42,7 +42,7 @@ func TestListRepositoriesScopedDependencyMarkerFiltersDepender(t *testing.T) {
 		},
 	}
 
-	handler := &RepositoryHandler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=10", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
@@ -102,7 +102,7 @@ func TestListRepositoriesMarksDependencyFromInboundEdge(t *testing.T) {
 		},
 	}
 
-	handler := &RepositoryHandler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=10", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()

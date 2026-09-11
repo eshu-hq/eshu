@@ -14,13 +14,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
 )
 
-// RepositoryDeploymentEvidenceArtifactLimit bounds the deployment-evidence
+// DeploymentEvidenceArtifactLimit bounds the deployment-evidence
 // artifact rows one response carries. Exported for #6060 so the root
 // ContentReader deployment-evidence stayer can name it from outside this
 // package.
-const RepositoryDeploymentEvidenceArtifactLimit = 50
+const DeploymentEvidenceArtifactLimit = 50
 
-const repositoryDeploymentEvidenceArtifactLimit = RepositoryDeploymentEvidenceArtifactLimit
+const repositoryDeploymentEvidenceArtifactLimit = DeploymentEvidenceArtifactLimit
 
 // deploymentEvidenceEndpointIdentitySuffixes is the full set of per-endpoint
 // repository identity keys a deployment-evidence artifact row can carry, for

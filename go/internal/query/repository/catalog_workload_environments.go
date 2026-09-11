@@ -112,7 +112,7 @@ type catalogWorkloadEnrichment struct {
 // repository, instance, and deployment-evidence environment facts in Go. It
 // trims to limit+1 detection so the caller can report truncation consistently
 // with the repository catalog path.
-func (h *RepositoryHandler) assembleCatalogWorkloadsFromGraph(
+func (h *Handler) assembleCatalogWorkloadsFromGraph(
 	ctx context.Context,
 	limit int,
 ) ([]catalogWorkload, bool, error) {
@@ -167,7 +167,7 @@ func (h *RepositoryHandler) assembleCatalogWorkloadsFromGraph(
 // the bounded base query returned, so the endpoint never aggregates over the
 // whole graph (issue #3389). An empty id set short-circuits all graph round
 // trips because no workload can be enriched.
-func (h *RepositoryHandler) catalogWorkloadEnrichments(
+func (h *Handler) catalogWorkloadEnrichments(
 	ctx context.Context,
 	ids []string,
 ) (map[string]*catalogWorkloadEnrichment, error) {

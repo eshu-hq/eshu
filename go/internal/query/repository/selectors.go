@@ -13,7 +13,7 @@ import (
 )
 
 // getRepositoryCoverage returns content store coverage for the repository.
-func (h *RepositoryHandler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryCoverage(w http.ResponseWriter, r *http.Request) {
 	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")
 	if !ok {
 		return
@@ -48,7 +48,7 @@ func (h *RepositoryHandler) getRepositoryCoverage(w http.ResponseWriter, r *http
 
 // resolveRepositorySelector resolves a repository selector (canonical id, name,
 // or slug) to its canonical repository id using the graph and content backends.
-func (h *RepositoryHandler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
+func (h *Handler) resolveRepositorySelector(ctx context.Context, selector string) (string, error) {
 	return queryselector.ResolveExactForAccess(ctx, h.Neo4j, h.Content, selector, querycontract.RepositoryAccessFilterFromContext(ctx))
 }
 
@@ -61,7 +61,7 @@ func (h *RepositoryHandler) resolveRepositorySelector(ctx context.Context, selec
 // so a backend timeout or outage during selector resolution surfaces as the
 // same 503/504 contract every other graph-backed read uses, rather than
 // falling through to the generic 400/404 branch below.
-func (h *RepositoryHandler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.Request, capability string) (string, bool) {
+func (h *Handler) resolveRepositoryPathSelector(w http.ResponseWriter, r *http.Request, capability string) (string, bool) {
 	repoSelector := querycontract.PathParam(r, "repo_id")
 	if repoSelector == "" {
 		querycontract.WriteError(w, http.StatusBadRequest, "repo_id is required")

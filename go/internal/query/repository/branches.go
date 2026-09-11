@@ -22,11 +22,11 @@ import (
 // GetRepositoryBranches serves repository branches. It forwards to getRepositoryBranches; exported for
 // #6060 so the cross-family graph-read sweep tests in package query can name
 // it from outside this package.
-func (h *RepositoryHandler) GetRepositoryBranches(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetRepositoryBranches(w http.ResponseWriter, r *http.Request) {
 	h.getRepositoryBranches(w, r)
 }
 
-func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryBranches(w http.ResponseWriter, r *http.Request) {
 	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")
 	if !ok {
 		return
@@ -147,7 +147,7 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 
 // indexedCommitSHA returns the commit SHA recorded for the repository's indexed
 // files, or "" when none is available.
-func (h *RepositoryHandler) indexedCommitSHA(ctx context.Context, repoID string) string {
+func (h *Handler) indexedCommitSHA(ctx context.Context, repoID string) string {
 	files, err := h.Content.ListRepoFiles(ctx, repoID, 1)
 	if err != nil {
 		return ""

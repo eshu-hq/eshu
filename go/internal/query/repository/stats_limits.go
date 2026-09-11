@@ -14,12 +14,12 @@ import (
 // to a single repository stats payload so one prompt-ready read stays within the
 // route budget and exposes truncation explicitly. It mirrors the
 // contextStoryItemLimit bound used by the context/story routes.
-// RepositoryStatsItemLimit bounds the language and entity-type fan-out.
+// StatsItemLimit bounds the language and entity-type fan-out.
 // Exported for #6060 so root stats tests can name it from outside this
 // package.
-const RepositoryStatsItemLimit = 50
+const StatsItemLimit = 50
 
-const repositoryStatsItemLimit = RepositoryStatsItemLimit
+const repositoryStatsItemLimit = StatsItemLimit
 
 // repositoryStatsResultLimits builds the additive result_limits drilldown block
 // for a singleton repository stats payload. It caps the languages and

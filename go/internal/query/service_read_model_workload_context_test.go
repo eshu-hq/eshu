@@ -123,7 +123,7 @@ func (s nonFilteringInfrastructureContentStore) ListRepoEntitiesByTypes(_ contex
 func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testing.T) {
 	t.Parallel()
 
-	rawEntities := make([]EntityContent, repository.RepositoryInfrastructureEntityLimit+1)
+	rawEntities := make([]EntityContent, repository.InfrastructureEntityLimit+1)
 	for i := range rawEntities {
 		rawEntities[i] = EntityContent{
 			RepoID:       "repo-serverless-degrade",
@@ -203,7 +203,7 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *testing.T) {
 	t.Parallel()
 
-	graphRows := make([]map[string]any, repository.RepositoryInfrastructureEntityLimit+1)
+	graphRows := make([]map[string]any, repository.InfrastructureEntityLimit+1)
 	for i := range graphRows {
 		graphRows[i] = map[string]any{
 			"type":      "Function",

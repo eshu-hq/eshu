@@ -9,13 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// RepositoryDeploymentEvidenceStore is the narrow optional port a
+// DeploymentEvidenceStore is the narrow optional port a
 // ContentStore implements to answer deployment-evidence reads directly. It
 // is the structural twin of the staying root package's unexported
 // repositoryDeploymentEvidenceReadModelStore: the ContentReader satisfies
 // both, so the fast-path assertion below resolves exactly as it did before
 // the move (#6060, lane B B3).
-type RepositoryDeploymentEvidenceStore interface {
+type DeploymentEvidenceStore interface {
 	RepositoryDeploymentEvidence(context.Context, string) (querycontract.RepositoryDeploymentEvidenceReadModel, error)
 }
 
@@ -25,7 +25,7 @@ type RepositoryDeploymentEvidenceStore interface {
 // the evidence map. Root keeps an unexported forwarder so its read-model
 // tripwires compile unchanged.
 func LoadRepositoryDeploymentEvidence(ctx context.Context, content querycontract.ContentStore, repoID string) (map[string]any, error) {
-	store, ok := content.(RepositoryDeploymentEvidenceStore)
+	store, ok := content.(DeploymentEvidenceStore)
 	if !ok || repoID == "" {
 		return nil, nil
 	}

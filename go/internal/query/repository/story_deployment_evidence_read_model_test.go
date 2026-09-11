@@ -18,7 +18,7 @@ import (
 func TestGetRepositoryStoryUsesReadModelDeploymentEvidence(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeRepoGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (r:Repository {id: $repo_id})": {

@@ -76,7 +76,7 @@ func (g serviceStorySpecCountGraphReader) Run(_ context.Context, cypher string, 
 	case strings.Contains(cypher, "RETURN count(endpoint) AS endpoint_count"):
 		return []map[string]any{{"endpoint_count": 2}}, nil
 	case strings.Contains(cypher, "endpoint.id AS endpoint_id"):
-		if got, want := params["limit"], repository.RepositoryAPISurfaceEndpointLimit; got != want {
+		if got, want := params["limit"], repository.APISurfaceEndpointLimit; got != want {
 			g.t.Fatalf("params[limit] = %#v, want %d", got, want)
 		}
 		return []map[string]any{

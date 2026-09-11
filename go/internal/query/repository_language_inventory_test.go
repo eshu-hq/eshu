@@ -407,9 +407,9 @@ func TestRepositoryLanguageFamilyAliases(t *testing.T) {
 		{input: "terraform", want: []string{"terraform", "hcl", "tfvars"}},
 		{input: "go", want: []string{"go"}},
 	} {
-		got := repository.RepositoryLanguageFamily(tt.input)
+		got := repository.LanguageFamily(tt.input)
 		if !sameStringSet(got, tt.want) {
-			t.Fatalf("repository.RepositoryLanguageFamily(%q) = %#v, want %#v", tt.input, got, tt.want)
+			t.Fatalf("repository.LanguageFamily(%q) = %#v, want %#v", tt.input, got, tt.want)
 		}
 	}
 }

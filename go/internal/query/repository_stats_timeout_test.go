@@ -160,7 +160,7 @@ func TestGetRepositoryStatsReturnsLargeContentCoverageInsideBoundedShape(t *test
 	}
 
 	coverage := querytestutil.MustMapField(t, resp, "coverage")
-	if got, want := coverage["query_shape"], repository.RepositoryStatsContentCoverageShape; got != want {
+	if got, want := coverage["query_shape"], repository.StatsContentCoverageShape; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
 	}
 	if got, want := coverage["partial_results"], false; got != want {

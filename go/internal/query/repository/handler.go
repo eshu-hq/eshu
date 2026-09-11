@@ -20,8 +20,8 @@ var repositoryBaseCypher = fmt.Sprintf(`
 	RETURN %s
 `, querycontract.RepoProjection("r"))
 
-// RepositoryHandler exposes HTTP routes for repository queries.
-type RepositoryHandler struct {
+// Handler exposes HTTP routes for repository queries.
+type Handler struct {
 	Neo4j               querycontract.GraphQuery
 	Content             querycontract.ContentStore
 	CICDRunCorrelations querycontract.CICDRunCorrelationStore
@@ -35,13 +35,13 @@ type RepositoryHandler struct {
 	// /api/v0/repositories/{id}/freshness (#5143). Nil is treated as
 	// not-configured (503), matching the sibling nil-reader checks on the
 	// status routes.
-	Freshness RepositoryFreshnessReader
+	Freshness FreshnessReader
 	Profile   querycontract.QueryProfile
 	Logger    *slog.Logger
 }
 
 // Mount registers all repository routes on the given mux.
-func (h *RepositoryHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/catalog", h.listCatalog)
 	mux.HandleFunc("GET /api/v0/repositories", h.listRepositories)
 	mux.HandleFunc("GET /api/v0/repositories/by-language", h.listRepositoriesByLanguage)
@@ -56,7 +56,7 @@ func (h *RepositoryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/freshness", h.getRepositoryFreshness)
 }
 
-func (h *RepositoryHandler) profile() querycontract.QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil {
 		return querycontract.ProfileProduction
 	}
@@ -131,7 +131,7 @@ func queryRepositoryTotal(ctx context.Context, graph querycontract.GraphQuery, a
 // response carries an additive result_limits drilldown block, an explicit
 // partial_reasons slot, and a total field that reflects the true repository
 // count independent of page size.
-func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listRepositories(w http.ResponseWriter, r *http.Request) {
 	page := readmodel.ListPageFromRequest(r)
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if h == nil {
@@ -224,7 +224,7 @@ func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Requ
 	querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse(repos, page, truncated, total), querycontract.BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", querycontract.TruthBasisAuthoritativeGraph, "resolved from bounded repository graph catalog"))
 }
 
-func (h *RepositoryHandler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {
+func (h *Handler) listRepositoriesFromContent(ctx context.Context) ([]map[string]any, error) {
 	if h == nil || h.Content == nil {
 		return []map[string]any{}, nil
 	}
@@ -246,11 +246,11 @@ func (h *RepositoryHandler) listRepositoriesFromContent(ctx context.Context) ([]
 // GetRepositoryStory serves the repository story response. It forwards to
 // getRepositoryStory; exported for #6060 so the cross-family endpoint
 // contract test in package query can name it from outside this package.
-func (h *RepositoryHandler) GetRepositoryStory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	h.getRepositoryStory(w, r)
 }
 
-func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryStory(w http.ResponseWriter, r *http.Request) {
 	if !querycontract.RequireContextOverview(w, r, h.profile(), "repository story requires authoritative platform context truth") {
 		return
 	}

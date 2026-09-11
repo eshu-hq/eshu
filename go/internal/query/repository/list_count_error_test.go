@@ -29,7 +29,7 @@ func TestListRepositoriesDoesNotPublishZeroWhenGraphCountFails(t *testing.T) {
 			return []map[string]any{{"id": "repository:one", "name": "one"}}, nil
 		},
 	}
-	handler := &RepositoryHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=1", nil)
 	rec := httptest.NewRecorder()
 
@@ -54,7 +54,7 @@ func TestListRepositoriesMapsGraphCountAvailabilityError(t *testing.T) {
 			return nil, fmt.Errorf("%s: %w", privateCause, querycontract.ErrGraphUnavailable)
 		},
 	}
-	handler := &RepositoryHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=1", nil)
 	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()

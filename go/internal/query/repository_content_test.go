@@ -186,7 +186,7 @@ func TestGetRepositoryContentUnknownRepoReturns404(t *testing.T) {
 func TestGetRepositoryContentTruncatesLargeFile(t *testing.T) {
 	t.Parallel()
 
-	content := strings.Repeat("a", repository.RepositoryContentMaxBytes+100)
+	content := strings.Repeat("a", repository.ContentMaxBytes+100)
 	handler := repositoryContentHandler([]FileContent{
 		{RepoID: "repo-1", RelativePath: "big.txt", Content: content},
 	})
@@ -204,8 +204,8 @@ func TestGetRepositoryContentTruncatesLargeFile(t *testing.T) {
 	if !ok {
 		t.Fatalf("content type = %T, want string", resp["content"])
 	}
-	if len(returned) > repository.RepositoryContentMaxBytes {
-		t.Fatalf("returned content = %d bytes, want <= cap %d", len(returned), repository.RepositoryContentMaxBytes)
+	if len(returned) > repository.ContentMaxBytes {
+		t.Fatalf("returned content = %d bytes, want <= cap %d", len(returned), repository.ContentMaxBytes)
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 )
 
 // FakeRepositoryFreshnessReader is the test double for
-// RepositoryFreshnessReader. Promoted here for #6060 lane B3: the freshness
+// repository.FreshnessReader. Promoted here for #6060 lane B3: the freshness
 // route tests live in package repository while the graph-read-error sweep
 // tests stay in package query, and an unexported double in either package
 // is unreachable from the other. Fields are exported so both packages can

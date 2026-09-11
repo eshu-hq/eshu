@@ -62,7 +62,7 @@ func TestGetRepositoryTreeLanguageFilterPushesPredicateBelowCap(t *testing.T) {
 	store.byLanguage = []querycontract.FileContent{
 		{RepoID: "repo-1", RelativePath: "zzz/late_sorting.py", CommitSHA: "abc123", LineCount: 5, Language: "python"},
 	}
-	handler := &RepositoryHandler{Content: store}
+	handler := &Handler{Content: store}
 
 	w := requestRepositoryTree(t, handler, "/api/v0/repositories/repo-1/tree?recursive=true&language=python")
 	resp := decodeRepositoryTree(t, w)
@@ -73,8 +73,8 @@ func TestGetRepositoryTreeLanguageFilterPushesPredicateBelowCap(t *testing.T) {
 	if len(store.gotLanguages) == 0 || store.gotLanguages[0] != "python" {
 		t.Fatalf("language predicate not pushed down; got %v", store.gotLanguages)
 	}
-	if store.gotLimit != RepositoryTreeFileLimit+1 {
-		t.Fatalf("pushed-down limit = %d, want %d", store.gotLimit, RepositoryTreeFileLimit+1)
+	if store.gotLimit != TreeFileLimit+1 {
+		t.Fatalf("pushed-down limit = %d, want %d", store.gotLimit, TreeFileLimit+1)
 	}
 	if got := resp["ref"]; got != "abc123" {
 		t.Fatalf("ref = %v, want abc123", got)
@@ -88,7 +88,7 @@ func TestGetRepositoryTreeLanguageFilterRealPathZeroMatchesEmptyNot404(t *testin
 	store := languageListerTreeStore()
 	store.pathExists = true
 	store.byLanguage = nil
-	handler := &RepositoryHandler{Content: store}
+	handler := &Handler{Content: store}
 
 	w := requestRepositoryTree(t, handler, "/api/v0/repositories/repo-1/tree?path=cmd/app&language=rust")
 	resp := decodeRepositoryTree(t, w)
@@ -108,7 +108,7 @@ func TestGetRepositoryTreeLanguageFilterRealPathZeroMatchesEmptyNot404(t *testin
 func TestGetRepositoryTreeLanguageFilterUnknownPathReturns404(t *testing.T) {
 	store := languageListerTreeStore()
 	store.pathExists = false
-	handler := &RepositoryHandler{Content: store}
+	handler := &Handler{Content: store}
 
 	w := requestRepositoryTree(t, handler, "/api/v0/repositories/repo-1/tree?path=nope&language=go")
 	if w.Code != http.StatusNotFound {

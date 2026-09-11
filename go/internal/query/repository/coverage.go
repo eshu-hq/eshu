@@ -15,21 +15,21 @@ import (
 const (
 	repositoryGraphCoverageStatsTimeout = 2 * time.Second
 
-	// RepositoryCoverageContentFilesTable and
-	// RepositoryCoverageContentEntitiesTable name the content-store tables
+	// CoverageContentFilesTable and
+	// CoverageContentEntitiesTable name the content-store tables
 	// repository coverage reads. Exported for #6060 so the root
 	// ContentReader coverage stayers can name them from outside this
 	// package.
-	RepositoryCoverageContentFilesTable    = "content_files"
-	RepositoryCoverageContentEntitiesTable = "content_entities"
+	CoverageContentFilesTable    = "content_files"
+	CoverageContentEntitiesTable = "content_entities"
 )
 
 const (
-	repositoryCoverageContentFilesTable    = RepositoryCoverageContentFilesTable
-	repositoryCoverageContentEntitiesTable = RepositoryCoverageContentEntitiesTable
+	repositoryCoverageContentFilesTable    = CoverageContentFilesTable
+	repositoryCoverageContentEntitiesTable = CoverageContentEntitiesTable
 )
 
-func (h *RepositoryHandler) resolveCoverageRepositoryID(ctx context.Context, selector string) (string, error) {
+func (h *Handler) resolveCoverageRepositoryID(ctx context.Context, selector string) (string, error) {
 	return h.resolveRepositorySelector(ctx, selector)
 }
 
@@ -38,11 +38,11 @@ func (h *RepositoryHandler) resolveCoverageRepositoryID(ctx context.Context, sel
 // store. It forwards to queryContentStoreCoverage; exported for #6060 so the
 // cross-family ports test in package query can name it from outside this
 // package.
-func (h *RepositoryHandler) QueryContentStoreCoverage(ctx context.Context, repoID string) (map[string]any, error) {
+func (h *Handler) QueryContentStoreCoverage(ctx context.Context, repoID string) (map[string]any, error) {
 	return h.queryContentStoreCoverage(ctx, repoID)
 }
 
-func (h *RepositoryHandler) queryContentStoreCoverage(ctx context.Context, repoID string) (map[string]any, error) {
+func (h *Handler) queryContentStoreCoverage(ctx context.Context, repoID string) (map[string]any, error) {
 	var contentCoverage querycontract.RepositoryContentCoverage
 	if h.Content != nil {
 		var err error
@@ -130,7 +130,7 @@ func repositoryCoverageResponse(
 	return coverage
 }
 
-func (h *RepositoryHandler) queryRepositoryGraphCoverageStatsWithTimeout(
+func (h *Handler) queryRepositoryGraphCoverageStatsWithTimeout(
 	ctx context.Context,
 	repoID string,
 ) (repositoryGraphCoverageStats, error) {
@@ -152,7 +152,7 @@ type repositoryGraphCoverageStats struct {
 	Available   bool
 }
 
-func (h *RepositoryHandler) queryRepositoryGraphCoverageStats(
+func (h *Handler) queryRepositoryGraphCoverageStats(
 	ctx context.Context,
 	repoID string,
 ) (repositoryGraphCoverageStats, error) {
@@ -181,7 +181,7 @@ func (h *RepositoryHandler) queryRepositoryGraphCoverageStats(
 }
 
 func QueryMaxIndexedAt(ctx context.Context, db *sql.DB, table string, repoID string) (time.Time, error) {
-	safeTable, err := RepositoryCoverageIndexedAtTable(table)
+	safeTable, err := CoverageIndexedAtTable(table)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -200,7 +200,7 @@ func QueryMaxIndexedAt(ctx context.Context, db *sql.DB, table string, repoID str
 	return indexedAt.Time.UTC(), nil
 }
 
-func RepositoryCoverageIndexedAtTable(table string) (string, error) {
+func CoverageIndexedAtTable(table string) (string, error) {
 	switch table {
 	case repositoryCoverageContentFilesTable, repositoryCoverageContentEntitiesTable:
 		return table, nil

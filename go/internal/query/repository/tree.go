@@ -19,12 +19,12 @@ import (
 // building a repository file tree. The tree is derived from the Postgres
 // content store (content_files), so this keeps the read bounded for very large
 // repositories; callers see `truncated: true` when the cap is reached.
-// RepositoryTreeFileLimit bounds the indexed files scanned when listing a
+// TreeFileLimit bounds the indexed files scanned when listing a
 // repository tree. Exported for #6060 so root tree tests can name it from
 // outside this package.
-const RepositoryTreeFileLimit = 50000
+const TreeFileLimit = 50000
 
-const repositoryTreeFileLimit = RepositoryTreeFileLimit
+const repositoryTreeFileLimit = TreeFileLimit
 
 // repoFileLanguageLister is the optional content-store capability that pushes the
 // language predicate and the path/ref lookup into the database, so the file cap
@@ -45,11 +45,11 @@ type repoFileLanguageLister interface {
 // GetRepositoryTree serves the repository file tree. It forwards to getRepositoryTree; exported for
 // #6060 so the cross-family graph-read sweep tests in package query can name
 // it from outside this package.
-func (h *RepositoryHandler) GetRepositoryTree(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetRepositoryTree(w http.ResponseWriter, r *http.Request) {
 	h.getRepositoryTree(w, r)
 }
 
-func (h *RepositoryHandler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getRepositoryTree(w http.ResponseWriter, r *http.Request) {
 	repoID, ok := h.resolveRepositoryPathSelector(w, r, "platform_impact.context_overview")
 	if !ok {
 		return

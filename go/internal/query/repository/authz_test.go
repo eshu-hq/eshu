@@ -45,7 +45,7 @@ func TestRepositoryListGraphAppliesScopedAuthBeforePagination(t *testing.T) {
 			}}, nil
 		},
 	}
-	handler := &RepositoryHandler{Neo4j: reader}
+	handler := &Handler{Neo4j: reader}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=1", nil)
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
 		Mode:                 queryauth.AuthModeScoped,
@@ -99,7 +99,7 @@ func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := &RepositoryHandler{Neo4j: reader}
+	handler := &Handler{Neo4j: reader}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=10", nil)
 	rec := httptest.NewRecorder()
 
@@ -154,7 +154,7 @@ func TestRepositoryListExposesSourceBackedGroupEvidence(t *testing.T) {
 func TestRepositoryListContentAppliesScopedAuthBeforeMetadata(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=2", nil)
@@ -198,7 +198,7 @@ func TestRepositoryListContentAppliesScopedAuthBeforeMetadata(t *testing.T) {
 func TestResolveRepositorySelectorAppliesScopedAuthBeforeAmbiguity(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
@@ -223,7 +223,7 @@ func TestResolveRepositorySelectorAppliesScopedAuthBeforeAmbiguity(t *testing.T)
 func TestResolveRepositorySelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	ctx := queryauth.ContextWithAuthContext(context.Background(), queryauth.AuthContext{
@@ -249,7 +249,7 @@ func TestResolveRepositorySelectorDeniesOutOfScopeCanonicalID(t *testing.T) {
 func TestRepositoryListSharedAuthKeepsExistingScope(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=3", nil)
@@ -274,7 +274,7 @@ func TestRepositoryListSharedAuthKeepsExistingScope(t *testing.T) {
 func TestRepositoryListAllScopeAdminKeepsExistingScope(t *testing.T) {
 	t.Parallel()
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Content: querytestutil.FakePortContentStore{Repositories: querytestutil.TenantAuthzRepositories()},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/repositories?limit=3", nil)
