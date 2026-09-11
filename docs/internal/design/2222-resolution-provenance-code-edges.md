@@ -103,8 +103,8 @@ contract the accuracy goldens (#2226) assert against.
 | `resolveReexportedCrossFileCallee` | `import_binding` |
 | `resolveGoSameDirectoryCalleeEntityID` | `scope_unique_name` |
 | `resolveGoCrossRepoExportCalleeEntityID` | `cross_repo_export_package` |
-| `index.uniqueNameByRepo` exact-name match | `repo_unique_name` |
-| `index.uniqueNameByRepo` broad-name match | `repo_unique_name` |
+| `index.UniqueNameByRepo` exact-name match | `repo_unique_name` |
+| `index.UniqueNameByRepo` broad-name match | `repo_unique_name` |
 
 If a new resolver branch is added later, this table and the goldens MUST be
 updated in the same change; an unmapped branch defaults to `unspecified` and

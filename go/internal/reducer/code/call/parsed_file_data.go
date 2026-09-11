@@ -24,7 +24,7 @@ import "github.com/eshu-hq/eshu/sdk/go/factschema"
 // this typing, rather than dead-lettering the whole fact on an inner shape the
 // outer contract does not require. Byte-identity of the resulting graph rows is
 // the S1 gate, proven by the accessor/raw-read equivalence tests in
-// parsed_file_data_typed_test.go and the golden-corpus gate.
+// parsed_file_data_test.go and the golden-corpus gate.
 
 // parsedFileDataDeadCodeFileRootKinds returns the JavaScript dead-code file
 // root-kind literals from a parsed_file_data map through the typed accessor,
