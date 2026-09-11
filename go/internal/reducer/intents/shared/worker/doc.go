@@ -40,29 +40,38 @@
 //
 // # Who calls this package
 //
-// The code-call projection runner (code/call/projection) imports this package
-// directly. The repo-dependency projection runner and the shared-projection
-// edge-materialization handlers still live in the reducer root, a later hoist
-// in issue #6061's PR sequence. They call this package's exported surface —
-// [DefaultBatchLimit], [DefaultLeaseTTL], [DefaultPollInterval],
-// [DefaultEvidenceSource], [MergePartitionProcessResult],
-// [MaxIntentWaitSeconds], [RecordStepDurations],
-// [AcceptanceTelemetry], [AcceptanceLookupEvent],
-// [ReadinessPhase], and [GraphProjectionPhaseKeyForAcceptance]
-// — through thin root forwarders/aliases under their original unexported
-// spellings, so no call site in those still-root files changed.
+// The code-call projection runner (code/call/projection) imports this
+// package directly. The repo-dependency projection runner and the
+// shared-projection edge-materialization handlers still live in the
+// reducer root.
 //
-// The root also keeps aliases and forwarders under its original,
-// pre-#6061 exported spellings for its own and cross-package callers, each
-// pointing at this package's de-stuttered name: SharedProjectionRunner
-// ([Runner]), SharedProjectionRunnerConfig ([RunnerConfig]),
+// Most of the root's own test files (and one production file,
+// repo_dependency_projection_concurrency_proof.go) call this package's
+// exported surface directly — [ReadinessPhase], [ReadinessKeyspace],
+// [FilterRowsByReadiness], [SelectPartitionBatch], [RowUsesRefreshFence],
+// [PlanRepoWideRetractWork], and [GraphProjectionPhaseKeyForRow] — rather
+// than through a root forwarder: those forwarders had no caller outside
+// the reducer root's own tests, so the H5 root-remnant fold (issue #6061
+// decision D12) deleted them instead of keeping them as compat entries.
+//
+// The root keeps aliases and forwarders under their original, pre-#6061
+// exported spellings only for the names that still have a caller outside
+// this package's own tests: SharedProjectionRunner ([Runner]),
+// SharedProjectionRunnerConfig ([RunnerConfig]),
 // DefaultSharedProjectionLeaseOwnerPrefix ([DefaultLeaseOwnerPrefix]),
 // LoadSharedProjectionConfig ([LoadConfig]), PartitionProcessorConfig,
-// ProcessPartitionOnce, SharedProjectionPartitionCandidateReader
-// ([PartitionCandidateReader]), SharedProjectionUnhashedCandidateReader
-// ([UnhashedCandidateReader]), LatestIntentsByRepoAndPartition,
-// FilterAuthoritativeIntents, SelectionPhaseDurations, FirstProjectionLookup,
-// and SharedProjectionUnroutableWriter (aliased to [UnroutableWriter]).
+// PartitionProcessResult, ProcessPartitionOnce,
+// SharedProjectionPartitionCandidateReader ([PartitionCandidateReader]),
+// SharedProjectionUnhashedCandidateReader ([UnhashedCandidateReader]),
+// LatestIntentsByRepoAndPartition, FilterAuthoritativeIntents,
+// SharedProjectionRefreshFenceLookup ([RefreshFenceLookup]),
+// FirstProjectionLookup, SharedProjectionUnroutableWriter (aliased to
+// [UnroutableWriter]), sharedAcceptanceLookupEvent
+// ([AcceptanceLookupEvent]), sharedAcceptanceTelemetry
+// ([AcceptanceTelemetry]), the unexported default* constants (aliased to
+// [DefaultBatchLimit], [DefaultPollInterval], [DefaultEvidenceSource]),
+// and sharedProjectionDomains (copied from [Domains]'s result once at
+// init, since Go has no cross-package var/const alias).
 //
 // # Naming
 //

@@ -17,6 +17,11 @@ package reducer
 //   - cross_repo_compat.go
 //   - sbom_attestation_attachment_compat.go
 //   - supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
+//   - shared-projection intent row + unroutable-write (H5 root-remnant
+//     fold, issue #6061; folded from shared_projection_unroutable.go)
+//   - graph-projection phase repair (H5 root-remnant fold, issue #6061;
+//     folded from graph_projection_phase_repair.go and
+//     graph_projection_phase_repair_runner.go)
 
 import (
 	"time"
@@ -24,6 +29,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -454,3 +462,39 @@ type SupplyChainImpactWinnersMaintainer = supplychaincore.SupplyChainImpactWinne
 // JVMReachabilityFactFilter bounds active JVM reachability evidence loading.
 // See [supplychaincore.JVMReachabilityFactFilter].
 type JVMReachabilityFactFilter = supplychaincore.JVMReachabilityFactFilter
+
+// Stanza: shared-projection intent row and unroutable-write (H5
+// root-remnant fold, issue #6061). Writer.Write MUST fail the owning cycle
+// and be idempotent (ON CONFLICT DO NOTHING keyed on intent id).
+type (
+	SharedProjectionIntentRow          = sharedintent.Row
+	SharedProjectionIntentInput        = sharedintent.Input
+	SharedProjectionAcceptanceKey      = sharedintent.AcceptanceKey
+	SharedProjectionUnroutableRow      = sharedintent.UnroutableRow
+	SharedProjectionWriteReport        = sharedintent.WriteReport
+	SharedProjectionUnroutableWriter   = worker.UnroutableWriter
+	SharedProjectionRefreshFenceLookup = worker.RefreshFenceLookup
+	FirstProjectionLookup              = worker.FirstProjectionLookup
+)
+
+func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjectionIntentRow {
+	return sharedintent.Build(input)
+}
+
+func CarriesNoEdge(row SharedProjectionIntentRow) bool {
+	return sharedintent.CarriesNoEdge(row)
+}
+
+// Stanza: graph-projection phase repair (H5 root-remnant fold, issue #6061;
+// folded from graph_projection_phase_repair.go and
+// graph_projection_phase_repair_runner.go).
+type (
+	GraphProjectionPhaseRepair         = gpphase.PhaseRepair
+	GraphProjectionPhaseRepairQueue    = gpphase.PhaseRepairQueue
+	GraphProjectionPhaseRepairerConfig = repair.Config
+	GraphProjectionPhaseRepairer       = repair.Repairer
+)
+
+func GraphProjectionPhaseRepairsFromStates(states []GraphProjectionPhaseState, lastError string, enqueuedAt time.Time) []GraphProjectionPhaseRepair {
+	return gpphase.PhaseRepairsFromStates(states, lastError, enqueuedAt)
+}

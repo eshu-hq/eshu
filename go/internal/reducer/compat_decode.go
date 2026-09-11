@@ -22,6 +22,8 @@ package reducer
 //   - codeowners-ownership family move (#6061; no prior compat file)
 //   - cross_scope_readiness_compat.go (relocated byte-identical from
 //     compat_projection.go to keep that bucket under the 500-line cap)
+//   - shared-projection domains + intent row (H5 root-remnant fold, issue
+//     #6061; folded from shared_projection.go)
 
 import (
 	"context"
@@ -467,3 +469,32 @@ type CrossScopeProducerReadiness = crossscope.ProducerReadiness
 // CrossScopeProducerReadinessByDomain answers readiness for each producer
 // domain separately. See [crossscope.ProducerReadinessByDomain].
 type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
+
+// Stanza: shared-projection domains + intent row (H5 root-remnant fold,
+// issue #6061). HandlesRoute/RunsIn ride the ordering-safe shared-projection
+// path (#2721, #2722); InvokesCloudAction/CodeownersOwnershipEdges/
+// SubmodulePinEdges MERGE both endpoints inline, needing no readiness gate.
+const (
+	DomainRepoDependency           = reducercontract.DomainRepoDependency
+	DomainWorkloadDependency       = reducercontract.DomainWorkloadDependency
+	DomainCodeCalls                = reducercontract.DomainCodeCalls
+	DomainSQLRelationships         = reducercontract.DomainSQLRelationships
+	DomainShellExec                = reducercontract.DomainShellExec
+	DomainInheritanceEdges         = reducercontract.DomainInheritanceEdges
+	DomainDocumentationEdges       = reducercontract.DomainDocumentationEdges
+	DomainRationaleEdges           = reducercontract.DomainRationaleEdges
+	DomainDeployableUnitEdges      = reducercontract.DomainDeployableUnitEdges
+	DomainHandlesRoute             = reducercontract.DomainHandlesRoute
+	DomainRunsIn                   = reducercontract.DomainRunsIn
+	DomainInvokesCloudAction       = reducercontract.DomainInvokesCloudAction
+	DomainCodeownersOwnershipEdges = reducercontract.DomainCodeownersOwnershipEdges
+	DomainSubmodulePinEdges        = reducercontract.DomainSubmodulePinEdges
+)
+
+// allProjectionDomains forwards to [reducercontract.ProjectionDomains].
+var allProjectionDomains = reducercontract.ProjectionDomains()
+
+// repoWideRetractRefreshPartitionKey forwards to [sharedintent.RepoWideRetractRefreshPartitionKey].
+func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
+	return sharedintent.RepoWideRetractRefreshPartitionKey(domain, repoID)
+}

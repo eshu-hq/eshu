@@ -66,7 +66,7 @@ func ReadinessPhase(domain string) (gpphase.Phase, bool) {
 	}
 }
 
-// sharedProjectionReadinessKeyspace returns the graph-projection keyspace whose
+// ReadinessKeyspace returns the graph-projection keyspace whose
 // readiness phase gates a domain's edge projection. The generic shared
 // projection worker reads this so each domain's readiness lookup targets the
 // keyspace its prerequisite phase was published under: code_calls and the
@@ -75,7 +75,7 @@ func ReadinessPhase(domain string) (gpphase.Phase, bool) {
 // commits Endpoint and Workload nodes is published under the service identity
 // keyspace (#2721, #2722). A wrong keyspace here would make the readiness lookup
 // miss forever and silently drop every edge.
-func sharedProjectionReadinessKeyspace(domain string) gpphase.Keyspace {
+func ReadinessKeyspace(domain string) gpphase.Keyspace {
 	if domain == reducercontract.DomainHandlesRoute || domain == reducercontract.DomainRunsIn {
 		return gpphase.KeyspaceServiceUID
 	}
@@ -104,7 +104,11 @@ func GraphProjectionPhaseKeyForAcceptance(
 	return phaseKey, true
 }
 
-func graphProjectionPhaseKeyForIntent(
+// GraphProjectionPhaseKeyForRow forwards to
+// [GraphProjectionPhaseKeyForAcceptance] once the row yields an acceptance
+// key, so a caller holding only the intent row (not its parsed acceptance
+// key) can still resolve the phase key.
+func GraphProjectionPhaseKeyForRow(
 	row sharedintent.Row,
 	generationID string,
 	keyspace gpphase.Keyspace,

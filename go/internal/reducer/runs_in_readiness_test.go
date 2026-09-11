@@ -29,7 +29,7 @@ func TestRunsInReadinessKeyspaceMatchesWorkloadPublication(t *testing.T) {
 	// published under the service_uid keyspace (see WorkloadMaterializationHandler),
 	// so the readiness gate must look it up under the same keyspace or the edge is
 	// never drained — exactly like handles_route.
-	if got := sharedProjectionReadinessKeyspace(DomainRunsIn); got != GraphProjectionKeyspaceServiceUID {
+	if got := worker.ReadinessKeyspace(DomainRunsIn); got != GraphProjectionKeyspaceServiceUID {
 		t.Fatalf("runs_in readiness keyspace = %q, want %q", got, GraphProjectionKeyspaceServiceUID)
 	}
 }

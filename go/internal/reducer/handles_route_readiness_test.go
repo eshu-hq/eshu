@@ -27,10 +27,10 @@ func TestHandlesRouteReadinessKeyspaceMatchesWorkloadPublication(t *testing.T) {
 	// The workload_materialization phase is published under the service_uid
 	// keyspace (see WorkloadMaterializationHandler). The generic readiness gate
 	// must look it up under the same keyspace or the edge is never drained.
-	if got := sharedProjectionReadinessKeyspace(DomainHandlesRoute); got != GraphProjectionKeyspaceServiceUID {
+	if got := worker.ReadinessKeyspace(DomainHandlesRoute); got != GraphProjectionKeyspaceServiceUID {
 		t.Fatalf("handles_route readiness keyspace = %q, want %q", got, GraphProjectionKeyspaceServiceUID)
 	}
-	if got := sharedProjectionReadinessKeyspace(DomainCodeCalls); got != GraphProjectionKeyspaceCodeEntitiesUID {
+	if got := worker.ReadinessKeyspace(DomainCodeCalls); got != GraphProjectionKeyspaceCodeEntitiesUID {
 		t.Fatalf("code_calls readiness keyspace = %q, want %q", got, GraphProjectionKeyspaceCodeEntitiesUID)
 	}
 }

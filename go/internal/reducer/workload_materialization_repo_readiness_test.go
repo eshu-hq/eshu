@@ -66,7 +66,7 @@ func TestWorkloadMaterializationRepoReadinessKeyRoundTrips(t *testing.T) {
 // #2891 mismatch and proves the repo-keyed readiness key fixes it: the
 // handles_route intent's acceptance unit (repository:r_858f75b9) and source_run
 // (a CODE-stage run) differ from the workload stage's, so the old
-// graphProjectionPhaseKeyForIntent lookup misses forever. The ONLY published
+// worker.GraphProjectionPhaseKeyForRow lookup misses forever. The ONLY published
 // phase row is the repo-keyed one (au=repository:r_858f75b9, srun=generation),
 // which the consumer must reconstruct and match.
 func TestFilterRowsByReadinessHandlesRouteResolvesViaRepoKey(t *testing.T) {
@@ -186,7 +186,7 @@ func TestFilterRowsByReadinessHandlesRouteOldStyleKeyStillMisses(t *testing.T) {
 
 // TestFilterRowsByReadinessCodeCallsKeyUnchanged guards that a non-symbol-runtime
 // domain (code_calls) keeps deriving its readiness key from
-// graphProjectionPhaseKeyForIntent, byte-identical to its pre-#2891 behavior:
+// worker.GraphProjectionPhaseKeyForRow, byte-identical to its pre-#2891 behavior:
 // the intent-derived key resolves it, and the repo-keyed row does NOT.
 func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 	t.Parallel()
@@ -208,7 +208,7 @@ func TestFilterRowsByReadinessCodeCallsKeyUnchanged(t *testing.T) {
 		CreatedAt:        time.Now().UTC(),
 	}
 
-	intentKey, ok := graphProjectionPhaseKeyForIntent(row, generationID, GraphProjectionKeyspaceCodeEntitiesUID)
+	intentKey, ok := worker.GraphProjectionPhaseKeyForRow(row, generationID, GraphProjectionKeyspaceCodeEntitiesUID)
 	if !ok {
 		t.Fatal("code_calls intent key not derivable")
 	}

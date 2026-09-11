@@ -18,7 +18,7 @@ import (
 // intent row. For the symbol→runtime domains (handles_route, runs_in) it uses
 // the deterministic per-repo key (#2891) so the code-stage intent finds the
 // workload-stage phase row across the source-run boundary. For every other
-// domain it falls back to the intent-derived key (graphProjectionPhaseKeyForIntent),
+// domain it falls back to the intent-derived key (GraphProjectionPhaseKeyForRow),
 // keeping code_calls and the semantic edge domains byte-identical to their
 // pre-#2891 behavior.
 func sharedProjectionReadinessKeyForRow(
@@ -34,7 +34,7 @@ func sharedProjectionReadinessKeyForRow(
 		}
 		return key, true
 	}
-	return graphProjectionPhaseKeyForIntent(row, row.GenerationID, keyspace)
+	return GraphProjectionPhaseKeyForRow(row, row.GenerationID, keyspace)
 }
 
 // FilterRowsByReadiness partitions a domain's pending intent rows into three
@@ -42,7 +42,7 @@ func sharedProjectionReadinessKeyForRow(
 // graph-projection phase (deferred, re-enqueued), and rows that are terminally
 // complete with no edge (drained without a write). Domains without a readiness
 // gate pass through as ready. The readiness key is built under the domain's
-// prerequisite keyspace (sharedProjectionReadinessKeyspace) so a multi-keyspace
+// prerequisite keyspace (ReadinessKeyspace) so a multi-keyspace
 // domain such as handles_route looks up the phase under the keyspace it was
 // published in.
 //
@@ -76,7 +76,7 @@ func FilterRowsByReadiness(
 	if !gated || len(rows) == 0 {
 		return rows, nil, nil, nil
 	}
-	keyspace := sharedProjectionReadinessKeyspace(domain)
+	keyspace := ReadinessKeyspace(domain)
 
 	lookup := readinessLookup
 	if readinessPrefetch != nil {

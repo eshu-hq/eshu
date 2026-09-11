@@ -23,8 +23,8 @@ package reducer
 //
 // shell-exec family stanza relocated byte-identical to compat_cloud.go
 // (issue #6061 H5 root-remnant fold) to make room for the shared-projection
-// worker/runner/refresh-fence/unroutable/readiness stanza below; see that
-// file's header for its stanza list.
+// worker/runner/partitioning/refresh-fence/phase-repair stanzas below; see
+// that file's header for its stanza list.
 
 import (
 	"context"
@@ -260,11 +260,6 @@ type ValueFlowFixpointEvidenceLoader = value.FixpointEvidenceLoader
 // TAINT_FLOWS_TO evidence. See [value.FixpointEvidenceProjector].
 type ValueFlowFixpointEvidenceProjector = value.FixpointEvidenceProjector
 
-// ValueFlowFixpointProjectionResult records the visible outcome of a
-// post-summary fixpoint projection. See
-// [value.FixpointProjectionResult].
-type ValueFlowFixpointProjectionResult = value.FixpointProjectionResult
-
 // Stanza: code-call family move (#6609; no prior compat file).
 // The code-call extraction, entity-index, resolver, and intent-building
 // family moved to [codecall] (go/internal/reducer/code/call); the handler,
@@ -395,9 +390,6 @@ type SharedProjectionEdgeWriter = sharedintent.EdgeWriter
 // PartitionLeaseManager is the root spelling of [sharedintent.PartitionLeaseManager].
 type PartitionLeaseManager = sharedintent.PartitionLeaseManager
 
-// SharedIntentReader is the root spelling of [worker.IntentReader].
-type SharedIntentReader = worker.IntentReader
-
 // AcceptedGenerationLookup is the root spelling of [sharedintent.AcceptedGenerationLookup].
 type AcceptedGenerationLookup = sharedintent.AcceptedGenerationLookup
 
@@ -416,7 +408,7 @@ func ProcessPartitionOnce(
 	now time.Time,
 	cfg PartitionProcessorConfig,
 	leaseManager PartitionLeaseManager,
-	reader SharedIntentReader,
+	reader worker.IntentReader,
 	edgeWriter SharedProjectionEdgeWriter,
 	acceptedGen AcceptedGenerationLookup,
 	prefetch AcceptedGenerationPrefetch,
@@ -477,9 +469,6 @@ func FilterAuthoritativeIntents(
 	return worker.FilterAuthoritativeIntents(intents, acceptedGen)
 }
 
-// SelectionPhaseDurations is the root spelling of [worker.SelectionPhaseDurations].
-type SelectionPhaseDurations = worker.SelectionPhaseDurations
-
 // sharedAcceptanceLookupEvent is the root spelling of [worker.AcceptanceLookupEvent].
 type sharedAcceptanceLookupEvent = worker.AcceptanceLookupEvent
 
@@ -497,3 +486,15 @@ func PartitionHashForKey(partitionKey string) uint64 {
 func PartitionForKey(partitionKey string, partitionCount int) (int, error) {
 	return sharedintent.PartitionForKey(partitionKey, partitionCount)
 }
+
+// Stanza: repo-wide-retract refresh fence (H5 root-remnant fold, #6061).
+// RepoRefreshIntentType is a storage/cypher wire contract (#5998).
+const (
+	UnroutableReasonMissingRequiredField = sharedintent.UnroutableReasonMissingRequiredField
+	UnroutableReasonNoStatementForType   = sharedintent.UnroutableReasonNoStatementForType
+	RepoRefreshIntentType                = sharedintent.RepoRefreshIntentType
+	repoRefreshAction                    = sharedintent.RepoRefreshAction
+	retractViaRefreshKey                 = sharedintent.RetractViaRefreshKey
+)
+
+func RepoWideRetractDomains() []string { return sharedintent.RepoWideRetractDomains() }

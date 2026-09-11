@@ -43,17 +43,21 @@ prefix that stuttered against its own `intents/shared/worker` path (issue
 #6061's naming pass): `Runner`, `RunnerConfig`, `LoadConfig`, `IntentReader`,
 `PartitionCandidateReader`, `UnhashedCandidateReader`, `RefreshFenceLookup`,
 `ReadinessPhase`, `Domains`, `AcceptanceTelemetry`, `AcceptanceLookupEvent`,
-`RecordStepDurations`, `MaxIntentWaitSeconds`, `DefaultPollInterval`, and
-`DefaultLeaseOwnerPrefix`. `LatestIntentsByRepoAndPartition` and
+`RecordStepDurations`, `MaxIntentWaitSeconds`, `DefaultPollInterval`,
+`DefaultLeaseOwnerPrefix`, `ReadinessKeyspace`, and
+`GraphProjectionPhaseKeyForRow`. `LatestIntentsByRepoAndPartition` and
 `FilterAuthoritativeIntents` do not stutter and keep their names. The
-reducer root keeps every currently-exported name as a type alias or thin
-forwarder under its ORIGINAL (pre-#6061) spelling — e.g. `SharedProjectionRunner`
-aliases `Runner`, `LoadSharedProjectionConfig` forwards to `LoadConfig` — and
-also newly exports (from what were root-unexported helpers) `DefaultBatchLimit`,
-`DefaultLeaseTTL`, `DefaultEvidenceSource`, and
-`MergePartitionProcessResult`, `GraphProjectionPhaseKeyForAcceptance` so the
-repo-dependency runner, still at the root, can reach them through a root
-forwarder under their original unexported spelling.
+reducer root keeps a type alias or thin forwarder under its ORIGINAL
+(pre-#6061) spelling only for the names that still have a caller outside
+this package's own tests — e.g. `SharedProjectionRunner` aliases `Runner`,
+`LoadSharedProjectionConfig` forwards to `LoadConfig`. The H5 root-remnant
+fold (issue #6061 decision D12) deleted the root forwarders for
+`SelectPartitionBatch`, `FilterRowsByReadiness`, `ReadinessPhase`,
+`ReadinessKeyspace`, `RowUsesRefreshFence`, `PlanRepoWideRetractWork`, and
+`GraphProjectionPhaseKeyForRow`: their only callers were the reducer
+root's own tests and one production file
+(`repo_dependency_projection_concurrency_proof.go`), so those now name
+this package directly instead of going through a forwarder.
 
 ## Dependencies
 
