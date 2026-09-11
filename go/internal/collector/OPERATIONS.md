@@ -258,7 +258,7 @@ and query stages own correlation, drift, and truth decisions.
   changes without adding a new metric or label.
 - No-Regression Evidence: `go test ./internal/collector -run 'FunctionSummary|FunctionSource' -count=1`,
   `go test ./internal/storage/postgres -run 'FunctionSource' -count=1`, and
-  `go test ./internal/reducer -run 'CodeFunctionSummary' -count=1` prove
+  `go test ./internal/reducer ./internal/reducer/code/function/summary -run 'CodeFunctionSummary' -count=1` prove
   `buildFunctionSummaries`/`buildFunctionSources` read the `dataflow_summaries` and
   `dataflow_sources` buckets into per-function snapshots; that `streamFacts` emits
   one `code_function_summary` fact per function and one `code_function_source` fact

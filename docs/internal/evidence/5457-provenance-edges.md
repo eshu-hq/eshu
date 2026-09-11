@@ -38,7 +38,7 @@ than `PUBLISHES`, which also admits `derived`); `PUBLISHES` admits
 
 ### B-9 (#3802) row-builder handler budgets
 
-Benchmark Evidence: `go test ./internal/reducer -bench
+Benchmark Evidence: `go test ./internal/reducer ./internal/reducer/code/call ./internal/reducer/code/call/javascript ./internal/reducer/code/call/python ./internal/reducer/code/call/shared ./internal/reducer/code/function/summary ./internal/reducer/code/shell ./internal/reducer/gpphase ./internal/reducer/intents/shared/worker -bench
 'BenchmarkPackageOwnershipPublishesRows|BenchmarkPackagePublicationPublishesRows|BenchmarkContainerImageBuiltFromRows'
 -benchtime=100ms -count=6`, darwin/arm64 (Apple M5 Max), 2026-07-23, 5000
 decisions/rows per benchmark, median of 6 samples:
@@ -192,7 +192,7 @@ domain/contract/registry test with zero changes needed:
 go test ./internal/truth/... -count=1
 ok  	github.com/eshu-hq/eshu/go/internal/truth	0.462s
 
-go test ./internal/reducer -run 'Contract|Domain|Default' -count=1
+go test ./internal/reducer ./internal/reducer/code/function/summary ./internal/reducer/intents/shared/worker -run 'Contract|Domain|Default' -count=1
 ok  	github.com/eshu-hq/eshu/go/internal/reducer	0.953s
 ```
 

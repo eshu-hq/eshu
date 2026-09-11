@@ -77,7 +77,7 @@ regressions cover a positive imported receiver edge, duplicate import-bound
 source roots before method lookup, and fully qualified receiver declarations
 that conflict with a same-leaf import. The local proof was
 `go test ./internal/parser/java -run TestParseEmitsQualifiedJavaReceiverType -count=1`
-and `go test ./internal/reducer -run 'TestResolveGenericCallee(LeavesDuplicateJavaImportBindingUnresolvedBeforeMethodLookup|DoesNotBindQualifiedJavaReceiverToConflictingImport|UsesJavaImportedReceiverBeforeAmbiguousRepoName|LeavesAmbiguousJavaImportedReceiverUnresolved)' -count=1`.
+and `go test ./internal/reducer/code/call -run 'TestResolveGenericCallee(LeavesDuplicateJavaImportBindingUnresolvedBeforeMethodLookup|DoesNotBindQualifiedJavaReceiverToConflictingImport|UsesJavaImportedReceiverBeforeAmbiguousRepoName|LeavesAmbiguousJavaImportedReceiverUnresolved)' -count=1`.
 
 No-Observability-Change: the resolver uses existing parsed import rows,
 repository prescan import maps, parser receiver metadata, and the in-memory
@@ -96,11 +96,11 @@ proof was
 which failed before the resolver emitted `repo_unique_name` for
 `import { helper } from "./lib"; helper()`, then passed after the
 JavaScript-family import-binding branch ran before repository fallback.
-`go test ./internal/reducer -run TestExtractCodeCallRowsBlocksTypeScriptDirectImportFallbackToRepoUnique -count=1`
+`go test ./internal/reducer/code/call -run TestExtractCodeCallRowsBlocksTypeScriptDirectImportFallbackToRepoUnique -count=1`
 failed before unresolved parser-proven direct imports could block an unrelated
 repo-unique helper, then passed after unresolved direct imports stayed
 unresolved instead of fabricating a weak fallback edge.
-`go test ./internal/reducer -run 'TypeScript|Import|ReExport' -count=1`
+`go test ./internal/reducer ./internal/reducer/code/call ./internal/reducer/code/call/python ./internal/reducer/code/call/shared -run 'TypeScript|Import|ReExport' -count=1`
 proves existing TypeScript interface, baseUrl, namespace import, and static
 re-export behavior still holds.
 

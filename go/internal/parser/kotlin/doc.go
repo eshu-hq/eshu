@@ -22,7 +22,7 @@
 // blocks resolve receivers without brace-depth bookkeeping.
 //
 // No-Regression Evidence: `go test ./internal/parser -run Kotlin -count=1`,
-// `go test ./internal/reducer -run Kotlin -count=1`, and
+// `go test ./internal/reducer/code/call -run Kotlin -count=1`, and
 // `go test ./internal/parser/goldenaudit -count=1` pass unchanged after the
 // regex/line-scan extraction was replaced by AST node-walking. The payload
 // map[string]any keys and value shapes Kotlin emits are byte-identical to the

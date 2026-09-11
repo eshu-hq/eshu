@@ -98,7 +98,7 @@ operator-facing row counts are the reducer completion log fields:
 `full_snapshot`, `repo_id`, `function_count`, and the existing result summary's
 persisted-row count. `go test ./internal/projector/code/function/summary -run
 TestBuildReducerIntent -count=1`, `go test
-./internal/reducer -run 'TestCodeFunctionSummaryHandler(Replaces|Preserves)'
+./internal/reducer/code/function/summary -run 'TestCodeFunctionSummaryHandler(Replaces|Preserves)'
 -count=1`, and `go test ./internal/storage/postgres -run
 TestFunctionSummaryStoreReplaceSnapshot -count=1` cover marker-only cleanup,
 delta no-delete behavior, full snapshot delete/rename pruning, empty snapshots,

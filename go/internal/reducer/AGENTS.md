@@ -250,7 +250,7 @@ No-Regression Evidence: `go test ./internal/reducer/securityalert -run 'TestBuil
 
 No-Observability-Change: the observed-version change only extends reducer-owned `reducer_security_alert_reconciliation` payloads and the existing HTTP/MCP read model. It adds no route, graph query, queue domain, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans and execution counters, persisted reconciliation payloads, `query.supply_chain_security_alerts` spans, provider-source coverage, and Postgres query duration metrics.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey|TestBuildCodeCallSharedIntentRowsCarriesDeltaPartitionForSourceFile|TestBuildCodeCallRefreshIntentsCarriesDeltaFileScope|TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions' -count=1` failed before CALLS delta edge intents carried source-file-scoped delta payloads and durable file partition keys, then passed. `go test ./internal/reducer -count=1` also passed after the shared-intent identity override preserved same-file edges with distinct relationship types while repo-refresh rows kept the full delta file set for safe retraction.
+No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey|TestBuildCodeCallSharedIntentRowsCarriesDeltaPartitionForSourceFile|TestBuildCodeCallRefreshIntentsCarriesDeltaFileScope|TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions' -count=1` and `go test ./internal/reducer/code/call -run 'TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey|TestBuildCodeCallSharedIntentRowsCarriesDeltaPartitionForSourceFile|TestBuildCodeCallRefreshIntentsCarriesDeltaFileScope|TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions' -count=1` failed before CALLS delta edge intents carried source-file-scoped delta payloads and durable file partition keys, then passed. `go test ./internal/reducer -count=1` also passed after the shared-intent identity override preserved same-file edges with distinct relationship types while repo-refresh rows kept the full delta file set for safe retraction.
 
 No-Observability-Change: the CALLS delta partition change only alters reducer intent construction for accepted code-call materialization rows. It adds no graph query, queue table, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing `code_call_materialization` completion logs, code-call projection runner timing, reducer execution counters, and shared-intent backlog/status queries.
 
@@ -503,7 +503,7 @@ gated on its loader+writer (so it never registers without a handler), following
 the existing claim/execute/ack path, with no change to any existing domain's
 selection, write, or readiness path. Unlike the evidence domains it persists to a
 durable Postgres table (`function_summaries`) rather than the graph, so it adds no
-Cypher. `go test ./internal/reducer -run 'CodeFunctionSummary' -count=1`,
+Cypher. `go test ./internal/reducer ./internal/reducer/code/function/summary -run 'CodeFunctionSummary' -count=1`,
 `go test ./internal/storage/postgres -run 'CodeFunctionSummary' -count=1`, and
 `go test ./internal/projector -run 'CodeFunctionSummary' -count=1` cover the
 handler (versioned-snapshot persistence, wrong-domain reject, registration gate),
@@ -528,7 +528,7 @@ each `code_function_summary` fact, and a `CodeFunctionGraphIDWriter` =
 the summaries and sources, idempotent on `FunctionID`, skipping unresolved
 (empty) uids. It is additive and behind the same off-by-default value-flow gate;
 no new Cypher (a durable `function_graph_ids` Postgres table), graph write,
-worker, queue, or batch. `go test ./internal/reducer -run 'CodeFunctionSummary'
+worker, queue, or batch. `go test ./internal/reducer ./internal/reducer/code/function/summary -run 'CodeFunctionSummary'
 -count=1` and `go test ./internal/storage/postgres -run 'FunctionGraphID|Bootstrap'
 -count=1` cover the handler graph-id persistence and the store/ordered bootstrap
 schema; `go test ./cmd/reducer -count=1` proves the wiring.
@@ -588,7 +588,7 @@ existing code-call intent rows and materialization completion logs.
 
 No-Regression Evidence: Java code-call resolver registration moves receiver and
 argument type evidence ahead of the weak repository-wide fallback without
-changing edge identity. `go test ./internal/reducer -run
+changing edge identity. `go test ./internal/reducer/code/call -run
 'TestResolveGenericCalleeUsesJavaReceiverTypeBeforeRepoUniqueName|TestExtractCodeCallRowsResolvesJava'
 -count=1` fails before the Java resolver because the edge is classified as
 `repo_unique_name`, then passes with `type_inferred`. `go test
@@ -1900,7 +1900,7 @@ ever recorded — the missing field decoded to `""` and the fact was silently
 skipped by the `repositoryID == ""` guard), then passed after. Measured with the
 existing hot-path benchmark (in-memory extractor; the 500-source large-JS
 dynamic-call corpus the benchmark builds; darwin/arm64, `-count=5`): `go test
-./internal/reducer -run '^$' -bench
+./internal/reducer/code/call -run '^$' -bench
 'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls' -benchmem`. BEFORE
 (raw `payloadStr`, `origin/main`) -> AFTER (typed decode):
 8.79ms/1653571 B/30209 allocs -> 8.77ms/1655558 B/30208 allocs (~0% time, ~0%
@@ -2072,10 +2072,10 @@ through typed factschema accessors instead of raw map lookups —
 `file.v1.schema.json` wire schema is unchanged (no major bump) and the graph
 rows for valid facts stay byte-identical. Byte-identity is proven three ways:
 (a) accessor/raw-read equivalence tests
-(`go test ./internal/reducer -run 'TestParsedFileData|TestResolveFileRootCallerIDTypedByteIdentity' -count=1`);
+(`go test ./internal/reducer/code/call/javascript -run 'TestParsedFileData|TestResolveFileRootCallerIDTypedByteIdentity' -count=1` and `go test ./internal/reducer/code/call/shared -run 'TestParsedFileData|TestResolveFileRootCallerIDTypedByteIdentity' -count=1`);
 (b) hot-path ns/op no-regression on the same JavaScript code-call benchmark the
 prior typed-decode waves used —
-`go test ./internal/reducer -run '^$' -bench 'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls' -benchmem -count=5`
+`go test ./internal/reducer/code/call -run '^$' -bench 'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls' -benchmem -count=5`
 went 8.82ms/1.66MB/30,212allocs (BEFORE) -> 8.82ms/1.66MB/30,211allocs (AFTER),
 0% delta (darwin/arm64, Apple M1 Max); (c) the B-7/B-12 golden-corpus gate
 byte-identical. The two migrated read sites are cold relative to the SCIP and

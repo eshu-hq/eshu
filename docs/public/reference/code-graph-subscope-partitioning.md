@@ -75,7 +75,7 @@ acceptance key remains the same
 future file-partitioned rows for the same repository remain in one freshness
 contract.
 
-No-Regression Evidence: `go test ./internal/reducer -run
+No-Regression Evidence: `go test ./internal/reducer/code/call -run
 'Test(BuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey|CodeCallRefreshPartitionKeyFallsBackForUnsafeAffectedFiles|BuildCodeCallDeltaFileScopesRejectsUnsafeAffectedPath|BuildCodeCallRefreshIntentsCarriesDeltaFileScope|BuildCodeCallSharedIntentRowsDeduplicatesIntentIdentity|BuildCodeCallDeltaFilePathsByRepoIDUsesRepositoryDeltaFact)'
 -count=1` proves deterministic hashed CALLS file keys, duplicate replay
 stability, malformed-input fallback, unchanged delta payload carry, and

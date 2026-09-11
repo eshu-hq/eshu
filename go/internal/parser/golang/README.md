@@ -302,7 +302,7 @@ No-Regression Evidence:
 not) failed before native Go function rows emitted `scip_symbol` and
 package-qualified imported calls emitted `stable_symbol_key`, then passed after
 symbol emission was tied only to stable package import paths. `go test
-./internal/reducer -run
+./internal/reducer/code/call -run
 'TestExtractCodeCallRows(PrefersNativeGoSCIPSymbolForCrossRepoCall|NativeGoSCIPSymbolIdentityStableAcrossGenerations|ResolvesCrossRepoSCIPEdgeBySymbol)'
 -count=1` proves the existing reducer symbol index resolves those native Go
 symbols at SCIP provenance and remains generation-stable.

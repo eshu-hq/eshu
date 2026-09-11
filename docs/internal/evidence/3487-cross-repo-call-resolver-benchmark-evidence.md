@@ -20,7 +20,7 @@ lookup per receiver-typed call before the repo-fallback stage; the dispatch orde
 is otherwise unchanged.
 
 - No-Regression Evidence: `BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls`
-  (`go test ./internal/reducer/ -bench ... -benchmem`), Go 1.x on darwin/arm64,
+  (`go test ./internal/reducer/ ./internal/reducer/code/call ./internal/reducer/code/call/javascript ./internal/reducer/code/call/python ./internal/reducer/code/call/shared ./internal/reducer/code/function/summary ./internal/reducer/code/shell ./internal/reducer/gpphase ./internal/reducer/intents/shared/worker -bench ... -benchmem`), Go 1.x on darwin/arm64,
   large synthetic JavaScript code-call corpus exercising `ExtractCodeCallRows`
   (full index build + resolution). Baseline at `b491df69` (pre-#3487):
   ~9.9–11.8 ms/op, ~1.66 MB/op, 30206–30211 allocs/op. After this change:

@@ -18,7 +18,7 @@ writer and skips the domain, and the handler runs only against a recording write
 in tests. The handler writes all node families before all edge families (so each
 edge `MATCH` resolves an already-committed node), retracts-before-reproject
 (skipped only on a first-generation first attempt), and counts skipped rows.
-Covered by `go test ./internal/reducer -run 'Extract|GraphProjection|AppendAdditiveDomains.*SecretsIAM'`,
+Covered by `go test ./internal/reducer ./internal/reducer/code/call ./internal/reducer/code/call/python ./internal/reducer/code/shell -run 'Extract|GraphProjection|AppendAdditiveDomains.*SecretsIAM'`,
 `go test ./internal/storage/cypher -run SecretsIAMGraph`, and
 `go test ./cmd/reducer -run SecretsIAMGraphProjectionWriter` (flag default-off,
 enabled, and malformed-value cases). Cross-scope readiness gating, retry
