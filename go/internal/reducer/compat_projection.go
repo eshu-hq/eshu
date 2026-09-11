@@ -29,6 +29,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/projection"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
@@ -264,12 +265,49 @@ type ValueFlowFixpointProjectionResult = value.FixpointProjectionResult
 // family moved to [codecall] (go/internal/reducer/code/call); the handler,
 // handles_route, runs_in, invokes_cloud_action, and symbol-runtime refresh
 // files moved to [materialization]
-// (go/internal/reducer/code/call/materialization, issue #6061). The seven
-// code_call_projection_* runner files still stay in root: they need the
-// root lease and shared-projection machinery. The exported forwarders keep
-// the reducer.X spelling for callers outside these packages; the unexported
-// spellings keep the runner files' call sites unchanged. Each entry is
-// deleted once its last caller names [codecall]/[materialization] directly.
+// (go/internal/reducer/code/call/materialization, issue #6061); the seven
+// code_call_projection_* runner files moved to [projection]
+// (go/internal/reducer/code/call/projection, issue #6061). The exported
+// forwarders keep the reducer.X spelling for callers outside these
+// packages. Each entry is deleted once its last caller names
+// [codecall]/[materialization]/[projection] directly.
+
+// CodeCallProjectionRunner is the root spelling of [projection.Runner].
+type CodeCallProjectionRunner = projection.Runner
+
+// CodeCallProjectionRunnerConfig is the root spelling of
+// [projection.RunnerConfig].
+type CodeCallProjectionRunnerConfig = projection.RunnerConfig
+
+// ReducerGraphDrain is the root spelling of [projection.ReducerGraphDrain].
+type ReducerGraphDrain = projection.ReducerGraphDrain
+
+// DefaultCodeCallProjectionLeaseOwnerPrefix is the root spelling of
+// [projection.DefaultLeaseOwnerPrefix].
+const DefaultCodeCallProjectionLeaseOwnerPrefix = projection.DefaultLeaseOwnerPrefix
+
+// DefaultCodeCallAcceptanceScanLimit is the root spelling of
+// [projection.DefaultAcceptanceScanLimit].
+const DefaultCodeCallAcceptanceScanLimit = projection.DefaultAcceptanceScanLimit
+
+// CodeCallProjectionFilePartitionKeyPrefix forwards to
+// [projection.FilePartitionKeyPrefix]. internal/storage/postgres calls this
+// as reducer.CodeCallProjectionFilePartitionKeyPrefix.
+func CodeCallProjectionFilePartitionKeyPrefix() string {
+	return projection.FilePartitionKeyPrefix()
+}
+
+// CodeCallProjectionPartitionCandidateReader is the root spelling of
+// [projection.PartitionCandidateReader].
+type CodeCallProjectionPartitionCandidateReader = projection.PartitionCandidateReader
+
+// CodeCallProjectionUnhashedCandidateReader is the root spelling of
+// [projection.UnhashedCandidateReader].
+type CodeCallProjectionUnhashedCandidateReader = projection.UnhashedCandidateReader
+
+// CodeCallProjectionRefreshFenceLookup is the root spelling of
+// [projection.RefreshFenceLookup].
+type CodeCallProjectionRefreshFenceLookup = projection.RefreshFenceLookup
 
 // CodeCallMaterializationHandler is the root spelling of
 // [materialization.Handler].
@@ -328,23 +366,9 @@ func mapSlice(value any) []map[string]any {
 	return payloadcore.MapSlice(value)
 }
 
-// codeCallEvidenceSource is [codecall.EvidenceSource] for the root handler and
-// the code_call_projection_work.go runner file.
-const codeCallEvidenceSource = codecall.EvidenceSource
-
-// pythonMetaclassEvidenceSource is [codecall.PythonMetaclassEvidenceSource]
-// for the root handler and the code_call_projection_work.go runner file.
+// pythonMetaclassEvidenceSource is [codecall.PythonMetaclassEvidenceSource],
+// kept for the root's python_metaclass_materialization_test.go.
 const pythonMetaclassEvidenceSource = codecall.PythonMetaclassEvidenceSource
-
-// codeCallPartitionKeyVersion is [codecall.PartitionKeyVersion], kept for the
-// code_call_projection_partitions.go runner file.
-const codeCallPartitionKeyVersion = codecall.PartitionKeyVersion
-
-// codeCallPayloadBool forwards to [codecall.PayloadBool] for the
-// code_call_projection_work.go runner file.
-func codeCallPayloadBool(payload map[string]any, key string) bool {
-	return codecall.PayloadBool(payload, key)
-}
 
 // Stanza: shell-exec family move (#6061; no prior compat file).
 // The shell-exec fact extraction, materialization, and shared-intent row

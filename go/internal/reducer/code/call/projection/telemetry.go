@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:dirgate // code-call projection runner stays in root (#6609): it needs the root lease and shared-projection machinery that sharedintent/doc.go pins here
+package projection
 
 import (
 	"context"
@@ -11,22 +11,25 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-func (r *CodeCallProjectionRunner) recordCodeCallCycle(
+func (r *Runner) recordCodeCallCycle(
 	ctx context.Context,
-	key SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	generationID string,
 	writtenRows int,
 	writtenGroups int,
 	startedAt time.Time,
-	timing PartitionProcessResult,
+	timing worker.PartitionProcessResult,
 ) error {
 	duration := time.Since(startedAt).Seconds()
 	if r.Instruments != nil {
-		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainCodeCalls))
+		attrs := metric.WithAttributes(telemetry.AttrDomain(reducercontract.DomainCodeCalls))
 		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
 		r.Instruments.CanonicalWrites.Add(ctx, int64(writtenRows), attrs)
 	}
@@ -61,7 +64,7 @@ func (r *CodeCallProjectionRunner) recordCodeCallCycle(
 	return nil
 }
 
-func (r *CodeCallProjectionRunner) recordCodeCallTiming(ctx context.Context, result PartitionProcessResult) {
+func (r *Runner) recordCodeCallTiming(ctx context.Context, result worker.PartitionProcessResult) {
 	if r.Instruments == nil {
 		return
 	}
@@ -70,7 +73,7 @@ func (r *CodeCallProjectionRunner) recordCodeCallTiming(ctx context.Context, res
 			ctx,
 			result.MaxIntentWaitSeconds,
 			metric.WithAttributes(
-				telemetry.AttrDomain(DomainCodeCalls),
+				telemetry.AttrDomain(reducercontract.DomainCodeCalls),
 				telemetry.AttrOutcome("processed"),
 			),
 		)
@@ -80,7 +83,7 @@ func (r *CodeCallProjectionRunner) recordCodeCallTiming(ctx context.Context, res
 			ctx,
 			result.MaxBlockedIntentWaitSeconds,
 			metric.WithAttributes(
-				telemetry.AttrDomain(DomainCodeCalls),
+				telemetry.AttrDomain(reducercontract.DomainCodeCalls),
 				telemetry.AttrOutcome("readiness_blocked"),
 			),
 		)
@@ -90,32 +93,32 @@ func (r *CodeCallProjectionRunner) recordCodeCallTiming(ctx context.Context, res
 			ctx,
 			result.ProcessingDurationSeconds,
 			metric.WithAttributes(
-				telemetry.AttrDomain(DomainCodeCalls),
+				telemetry.AttrDomain(reducercontract.DomainCodeCalls),
 				telemetry.AttrOutcome("completed"),
 			),
 		)
 	}
-	recordSharedProjectionStepDurations(ctx, r.Instruments, DomainCodeCalls, result)
+	worker.RecordStepDurations(ctx, r.Instruments, reducercontract.DomainCodeCalls, result)
 }
 
-func (r *CodeCallProjectionRunner) recordCodeCallCycleFailure(ctx context.Context, err error, duration float64) {
+func (r *Runner) recordCodeCallCycleFailure(ctx context.Context, err error, duration float64) {
 	if r.Logger == nil {
 		return
 	}
 
 	failureClass := "code_call_projection_cycle_error"
-	if IsRetryable(err) {
+	if reducercontract.IsRetryable(err) {
 		failureClass = "code_call_projection_retryable"
 	}
 
 	logAttrs := make([]any, 0, 6)
-	for _, attr := range telemetry.DomainAttrs(string(DomainCodeCalls), "") {
+	for _, attr := range telemetry.DomainAttrs(string(reducercontract.DomainCodeCalls), "") {
 		logAttrs = append(logAttrs, attr)
 	}
 	logAttrs = append(
 		logAttrs,
 		slog.Float64("duration_seconds", duration),
-		slog.Bool("retryable", IsRetryable(err)),
+		slog.Bool("retryable", reducercontract.IsRetryable(err)),
 		log.Err(err),
 		telemetry.FailureClassAttr(failureClass),
 		telemetry.PhaseAttr(telemetry.PhaseReduction),
@@ -123,7 +126,7 @@ func (r *CodeCallProjectionRunner) recordCodeCallCycleFailure(ctx context.Contex
 	r.Logger.ErrorContext(ctx, "code call projection cycle failed", logAttrs...)
 }
 
-func (r *CodeCallProjectionRunner) validate() error {
+func (r *Runner) validate() error {
 	if r.IntentReader == nil {
 		return errors.New("code call projection runner: intent reader is required")
 	}

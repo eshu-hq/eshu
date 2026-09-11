@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
@@ -10,6 +10,9 @@ import (
 	"time"
 
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallProjectionRunnerProcessesDistinctDeltaFilePartitionsSeparately(t *testing.T) {
@@ -42,23 +45,23 @@ func TestCodeCallProjectionRunnerProcessesDistinctDeltaFilePartitionsSeparately(
 	if !codeCallProjectionPartitionMatches(callerRow, callerPartitionID, partitionCount) {
 		t.Fatalf("caller row does not match partition %d/%d", callerPartitionID, partitionCount)
 	}
-	if codeCallProjectionRowBlockedByRepoFence(callerRow, []SharedProjectionIntentRow{callerRow, modelsRow}, 0) {
+	if codeCallProjectionRowBlockedByRepoFence(callerRow, []sharedintent.Row{callerRow, modelsRow}, 0) {
 		t.Fatal("caller row unexpectedly blocked by repo fence")
 	}
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{callerRow, modelsRow},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{callerRow, modelsRow},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {callerRow, modelsRow},
 		},
 		leaseGranted: true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:     10,
 			PartitionCount: partitionCount,
 			Workers:        2,
@@ -73,7 +76,7 @@ func TestCodeCallProjectionRunnerProcessesDistinctDeltaFilePartitionsSeparately(
 	if err != nil {
 		t.Fatalf("select caller partition error = %v", err)
 	}
-	if selection.Key == (SharedProjectionAcceptanceKey{}) {
+	if selection.Key == (sharedintent.AcceptanceKey{}) {
 		t.Fatalf("selection = %#v, want caller partition key %q", selection, callerPartition)
 	}
 	if selection.PartitionKey != callerPartition {
@@ -120,18 +123,18 @@ func TestCodeCallProjectionRunnerWholeScopeBlocksFilePartitions(t *testing.T) {
 		now.Add(time.Millisecond),
 	)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{wholeRow, fileRow},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{wholeRow, fileRow},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {wholeRow, fileRow},
 		},
 		leaseGranted: true,
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config:       CodeCallProjectionRunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
+		Config:       RunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
 	}
 
 	result, err := runner.processPartitionOnce(
@@ -176,18 +179,18 @@ func TestCodeCallProjectionRunnerFileRefreshBlocksCoveredFilePartitions(t *testi
 		now.Add(time.Millisecond),
 	)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{fileRow, refreshRow},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{fileRow, refreshRow},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {fileRow, refreshRow},
 		},
 		leaseGranted: true,
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config:       CodeCallProjectionRunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
+		Config:       RunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
 	}
 
 	result, err := runner.processPartitionOnce(
@@ -222,18 +225,18 @@ func TestCodeCallProjectionRunnerFilePartitionsBlockLaterWholeScope(t *testing.T
 	)
 	wholeRow := codeCallProjectionWholeScopeRow("whole-refresh", "repo-a", now.Add(time.Millisecond))
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{fileRow, wholeRow},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{fileRow, wholeRow},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {fileRow, wholeRow},
 		},
 		leaseGranted: true,
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config:       CodeCallProjectionRunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
+		Config:       RunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
 	}
 
 	result, err := runner.processPartitionOnce(
@@ -268,19 +271,19 @@ func TestCodeCallProjectionRunnerLaterWholeRefreshDoesNotBlockEarlierFilePartiti
 	)
 	wholeRow := codeCallProjectionWholeScopeRow("whole-refresh", "repo-a", now.Add(time.Millisecond))
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{fileRow, wholeRow},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{fileRow, wholeRow},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {fileRow, wholeRow},
 		},
 		leaseGranted: true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config:       CodeCallProjectionRunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
+		Config:       RunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
 	}
 
 	result, err := runner.processPartitionOnce(
@@ -314,18 +317,18 @@ func TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope(t *testing.T) {
 		t.Fatalf("test legacy whole keys mapped to same partition %d; choose different keys", firstPartition)
 	}
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{firstWhole, secondWhole},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{firstWhole, secondWhole},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {firstWhole, secondWhole},
 		},
 		leaseGranted: true,
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config:       CodeCallProjectionRunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
+		Config:       RunnerConfig{BatchLimit: 10, PartitionCount: partitionCount},
 	}
 
 	result, err := runner.processPartitionOnce(context.Background(), now, secondPartition, partitionCount)
@@ -343,9 +346,9 @@ func TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope(t *testing.T) {
 func mustPartitionForKey(t *testing.T, partitionKey string, partitionCount int) int {
 	t.Helper()
 
-	partitionID, err := PartitionForKey(partitionKey, partitionCount)
+	partitionID, err := sharedintent.PartitionForKey(partitionKey, partitionCount)
 	if err != nil {
-		t.Fatalf("PartitionForKey(%q, %d) error = %v", partitionKey, partitionCount, err)
+		t.Fatalf("sharedintent.PartitionForKey(%q, %d) error = %v", partitionKey, partitionCount, err)
 	}
 	return partitionID
 }
@@ -356,10 +359,10 @@ func codeCallProjectionDeltaPartitionRow(
 	repositoryID string,
 	deltaFilePath string,
 	createdAt time.Time,
-) SharedProjectionIntentRow {
-	return SharedProjectionIntentRow{
+) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:         intentID,
-		ProjectionDomain: DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     partitionKey,
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: repositoryID,
@@ -370,7 +373,7 @@ func codeCallProjectionDeltaPartitionRow(
 			"repo_id":          repositoryID,
 			"caller_entity_id": "caller:" + intentID,
 			"callee_entity_id": "callee:" + intentID,
-			"evidence_source":  codeCallEvidenceSource,
+			"evidence_source":  codecall.EvidenceSource,
 			"delta_projection": true,
 			"delta_file_paths": []string{deltaFilePath},
 		},
@@ -378,10 +381,10 @@ func codeCallProjectionDeltaPartitionRow(
 	}
 }
 
-func codeCallProjectionWholeScopeRow(intentID string, repositoryID string, createdAt time.Time) SharedProjectionIntentRow {
-	return SharedProjectionIntentRow{
+func codeCallProjectionWholeScopeRow(intentID string, repositoryID string, createdAt time.Time) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:         intentID,
-		ProjectionDomain: DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     codecall.WholeScopePartitionKey(repositoryID),
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: repositoryID,
@@ -404,10 +407,10 @@ func codeCallProjectionFileRefreshRow(
 	repositoryID string,
 	deltaFilePaths []string,
 	createdAt time.Time,
-) SharedProjectionIntentRow {
-	return SharedProjectionIntentRow{
+) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:         intentID,
-		ProjectionDomain: DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     partitionKey,
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: repositoryID,
@@ -431,7 +434,7 @@ func codeCallProjectionLegacyWholeScopeRow(
 	partitionKey string,
 	repositoryID string,
 	createdAt time.Time,
-) SharedProjectionIntentRow {
+) sharedintent.Row {
 	row := codeCallProjectionWholeScopeRow(intentID, repositoryID, createdAt)
 	row.PartitionKey = partitionKey
 	return row
@@ -447,7 +450,7 @@ func assertCodeCallRetractPath(t *testing.T, calls []recordedProjectionCall, wan
 		if len(call.rows) != 1 {
 			t.Fatalf("retractCalls[%d].rows len = %d, want 1", i, len(call.rows))
 		}
-		got := semanticPayloadStringSlice(call.rows[0].Payload, "delta_file_paths")
+		got := payloadcore.SemanticPayloadStringSlice(call.rows[0].Payload, "delta_file_paths")
 		if !slices.Equal(got, []string{wantPath}) {
 			t.Fatalf("retractCalls[%d] delta_file_paths = %v, want [%s]", i, got, wantPath)
 		}

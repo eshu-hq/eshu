@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"time"
 
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallProjectionRunnerSkipsRetractForDurableFirstProjection(t *testing.T) {
@@ -16,10 +17,10 @@ func TestCodeCallProjectionRunnerSkipsRetractForDurableFirstProjection(t *testin
 
 	now := time.Date(2026, time.April, 28, 17, 30, 0, 0, time.UTC)
 	baseReader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			codeCallProjectionTestRow("edge-1", "gen-1", now),
 		},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {
 				codeCallProjectionTestRow("edge-1", "gen-1", now),
 			},
@@ -28,14 +29,14 @@ func TestCodeCallProjectionRunnerSkipsRetractForDurableFirstProjection(t *testin
 	}
 	reader := &historyAwareCodeCallIntentStore{fakeCodeCallIntentStore: baseReader}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)
@@ -61,10 +62,10 @@ func TestCodeCallProjectionRunnerRetractsWhenDurableHistoryExists(t *testing.T) 
 
 	now := time.Date(2026, time.April, 28, 17, 35, 0, 0, time.UTC)
 	baseReader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			codeCallProjectionTestRow("edge-1", "gen-1", now),
 		},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {
 				codeCallProjectionTestRow("edge-1", "gen-1", now),
 			},
@@ -76,14 +77,14 @@ func TestCodeCallProjectionRunnerRetractsWhenDurableHistoryExists(t *testing.T) 
 		hasCompleted:            true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)
@@ -103,10 +104,10 @@ func TestCodeCallProjectionRunnerSkipsRetractForCurrentRunChunkAfterFirstChunk(t
 
 	now := time.Date(2026, time.April, 28, 17, 37, 0, 0, time.UTC)
 	baseReader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			codeCallProjectionTestRow("edge-2", "gen-1", now),
 		},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {
 				codeCallProjectionTestRow("edge-2", "gen-1", now),
 			},
@@ -119,14 +120,14 @@ func TestCodeCallProjectionRunnerSkipsRetractForCurrentRunChunkAfterFirstChunk(t
 		hasCompletedCurrentRun:  true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)
@@ -155,8 +156,8 @@ func TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition(t *test
 		now,
 	)
 	baseReader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{active},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{active},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {active},
 		},
 		leaseGranted: true,
@@ -168,14 +169,14 @@ func TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition(t *test
 		completedCurrentRunPartitions: map[string]bool{completedPartition: true},
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)
@@ -204,8 +205,8 @@ func TestCodeCallProjectionRunnerSkipsRetractAfterCompletedCoveringRefresh(t *te
 		now,
 	)
 	baseReader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{active},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{active},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {active},
 		},
 		leaseGranted: true,
@@ -218,14 +219,14 @@ func TestCodeCallProjectionRunnerSkipsRetractAfterCompletedCoveringRefresh(t *te
 		},
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)
@@ -250,22 +251,22 @@ func TestCodeCallProjectionRunnerRetractsWhenStaleRowsExistWithoutDurableHistory
 	active := codeCallProjectionTestRow("edge-1", "gen-1", now)
 	stale := codeCallProjectionTestRow("stale-1", "gen-old", now.Add(-time.Second))
 	baseReader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{stale, active},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{stale, active},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {stale, active},
 		},
 		leaseGranted: true,
 	}
 	reader := &historyAwareCodeCallIntentStore{fakeCodeCallIntentStore: baseReader}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	_, err := runner.processOnce(context.Background(), now)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
@@ -9,6 +9,9 @@ import (
 	"time"
 
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallProjectionRunnerSelectsAcceptanceUnitUsingScopeAndUnit(t *testing.T) {
@@ -16,10 +19,10 @@ func TestCodeCallProjectionRunnerSelectsAcceptanceUnitUsingScopeAndUnit(t *testi
 
 	now := time.Date(2026, time.April, 17, 10, 0, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "scope-b",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-a",
@@ -30,7 +33,7 @@ func TestCodeCallProjectionRunnerSelectsAcceptanceUnitUsingScopeAndUnit(t *testi
 			},
 			{
 				IntentID:         "scope-a",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -41,15 +44,15 @@ func TestCodeCallProjectionRunnerSelectsAcceptanceUnitUsingScopeAndUnit(t *testi
 			},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			if key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1" {
 				return "gen-a", true
 			}
 			return "", false
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	key, err := runner.selectAcceptanceUnitWork(context.Background())
@@ -72,10 +75,10 @@ func TestCodeCallProjectionRunnerSelectsAcceptanceUnitBeyondInitialBatchWindow(t
 
 	now := time.Date(2026, time.April, 17, 11, 0, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "stale-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee-1",
 				ScopeID:          "scope-stale-1",
 				AcceptanceUnitID: "repo-stale-1",
@@ -86,7 +89,7 @@ func TestCodeCallProjectionRunnerSelectsAcceptanceUnitBeyondInitialBatchWindow(t
 			},
 			{
 				IntentID:         "stale-2",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee-2",
 				ScopeID:          "scope-stale-2",
 				AcceptanceUnitID: "repo-stale-2",
@@ -97,7 +100,7 @@ func TestCodeCallProjectionRunnerSelectsAcceptanceUnitBeyondInitialBatchWindow(t
 			},
 			{
 				IntentID:         "accepted-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee-3",
 				ScopeID:          "scope-accepted",
 				AcceptanceUnitID: "repo-accepted",
@@ -108,15 +111,15 @@ func TestCodeCallProjectionRunnerSelectsAcceptanceUnitBeyondInitialBatchWindow(t
 			},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			if key.ScopeID == "scope-accepted" && key.AcceptanceUnitID == "repo-accepted" && key.SourceRunID == "run-accepted" {
 				return "gen-accepted", true
 			}
 			return "", false
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 2},
+		Config: RunnerConfig{BatchLimit: 2},
 	}
 
 	key, err := runner.selectAcceptanceUnitWork(context.Background())
@@ -166,15 +169,15 @@ func TestCodeCallProjectionRunnerScansAcceptanceUnitForCoveringRefreshBeyondDoma
 		now.Add(time.Millisecond),
 	)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{fileRow, refreshRow},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{fileRow, refreshRow},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {fileRow, refreshRow},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:          1,
 			AcceptanceScanLimit: 10,
 			PartitionCount:      partitionCount,
@@ -190,7 +193,7 @@ func TestCodeCallProjectionRunnerScansAcceptanceUnitForCoveringRefreshBeyondDoma
 	if err != nil {
 		t.Fatalf("selectAcceptanceUnitPartitionWorkWithStats() error = %v", err)
 	}
-	if result.Key != (SharedProjectionAcceptanceKey{}) {
+	if result.Key != (sharedintent.AcceptanceKey{}) {
 		t.Fatalf("selection = %#v, want file partition blocked by covering refresh outside initial page", result)
 	}
 	if got, want := reader.domainLimitRequests[0], 1; got != want {
@@ -230,8 +233,8 @@ func TestCodeCallProjectionRunnerUsesBoundedRefreshFenceLookup(t *testing.T) {
 		now.Add(time.Millisecond),
 	)
 	base := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{fileRow},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{fileRow},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {fileRow, refreshRow},
 		},
 	}
@@ -239,10 +242,10 @@ func TestCodeCallProjectionRunnerUsesBoundedRefreshFenceLookup(t *testing.T) {
 		fakeCodeCallIntentStore: base,
 		blockedByFence:          true,
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:          1,
 			AcceptanceScanLimit: 10,
 			PartitionCount:      partitionCount,
@@ -258,7 +261,7 @@ func TestCodeCallProjectionRunnerUsesBoundedRefreshFenceLookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("selectAcceptanceUnitPartitionWorkWithStats() error = %v", err)
 	}
-	if result.Key != (SharedProjectionAcceptanceKey{}) {
+	if result.Key != (sharedintent.AcceptanceKey{}) {
 		t.Fatalf("selection = %#v, want file partition blocked by covering refresh", result)
 	}
 	if len(reader.checkedRows) == 0 {
@@ -279,10 +282,10 @@ func TestCodeCallProjectionRunnerSkipsAcceptanceUnitUntilCanonicalNodesCommitted
 
 	now := time.Date(2026, time.April, 17, 12, 0, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "accepted-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -293,18 +296,18 @@ func TestCodeCallProjectionRunnerSkipsAcceptanceUnitUntilCanonicalNodesCommitted
 			},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader:    reader,
 		AcceptedGen:     acceptedGenerationFixed("gen-1", true),
 		ReadinessLookup: readinessLookupFixed(false, false),
-		Config:          CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config:          RunnerConfig{BatchLimit: 10},
 	}
 
 	key, err := runner.selectAcceptanceUnitWork(context.Background())
 	if err != nil {
 		t.Fatalf("selectAcceptanceUnitWork() error = %v", err)
 	}
-	if key != (SharedProjectionAcceptanceKey{}) {
+	if key != (sharedintent.AcceptanceKey{}) {
 		t.Fatalf("key = %#v, want zero value while canonical node readiness is missing", key)
 	}
 }
@@ -314,10 +317,10 @@ func TestCodeCallProjectionRunnerUsesCanonicalNodeReadiness(t *testing.T) {
 
 	now := time.Date(2026, time.April, 17, 12, 15, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "accepted-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -328,13 +331,13 @@ func TestCodeCallProjectionRunnerUsesCanonicalNodeReadiness(t *testing.T) {
 			},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		ReadinessLookup: func(_ GraphProjectionPhaseKey, phase GraphProjectionPhase) (bool, bool) {
-			return phase == GraphProjectionPhaseCanonicalNodesCommitted, true
+		ReadinessLookup: func(_ gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
+			return phase == gpphase.PhaseCanonicalNodesCommitted, true
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	key, err := runner.selectAcceptanceUnitWork(context.Background())
@@ -351,10 +354,10 @@ func TestCodeCallProjectionRunnerSelectsReadyAcceptanceUnitWhenEarlierUnitIsBloc
 
 	now := time.Date(2026, time.April, 17, 12, 30, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "blocked-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->blocked",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-blocked",
@@ -365,7 +368,7 @@ func TestCodeCallProjectionRunnerSelectsReadyAcceptanceUnitWhenEarlierUnitIsBloc
 			},
 			{
 				IntentID:         "ready-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->ready",
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-ready",
@@ -376,9 +379,9 @@ func TestCodeCallProjectionRunnerSelectsReadyAcceptanceUnitWhenEarlierUnitIsBloc
 			},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			switch key.AcceptanceUnitID {
 			case "repo-blocked":
 				return "gen-1", true
@@ -388,16 +391,16 @@ func TestCodeCallProjectionRunnerSelectsReadyAcceptanceUnitWhenEarlierUnitIsBloc
 				return "", false
 			}
 		},
-		ReadinessLookup: func(key GraphProjectionPhaseKey, phase GraphProjectionPhase) (bool, bool) {
-			if phase != GraphProjectionPhaseCanonicalNodesCommitted {
-				t.Fatalf("phase = %q, want %q", phase, GraphProjectionPhaseCanonicalNodesCommitted)
+		ReadinessLookup: func(key gpphase.PhaseKey, phase gpphase.Phase) (bool, bool) {
+			if phase != gpphase.PhaseCanonicalNodesCommitted {
+				t.Fatalf("phase = %q, want %q", phase, gpphase.PhaseCanonicalNodesCommitted)
 			}
 			if key.AcceptanceUnitID == "repo-ready" {
 				return true, true
 			}
 			return false, false
 		},
-		Config: CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config: RunnerConfig{BatchLimit: 10},
 	}
 
 	key, err := runner.selectAcceptanceUnitWork(context.Background())

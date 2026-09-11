@@ -263,6 +263,14 @@ func deltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
 	return sharedintent.DeltaScopeRepositorySet(repositoryIDs)
 }
 
+// uniqueRepositoryIDs forwards to [sharedintent.UniqueRepositoryIDs]. Kept
+// for the root's repo_dependency_projection_runner.go, which has not moved
+// out yet (issue #6061); [projection] (code/call/projection) calls
+// sharedintent.UniqueRepositoryIDs directly.
+func uniqueRepositoryIDs(rows []SharedProjectionIntentRow) []string {
+	return sharedintent.UniqueRepositoryIDs(rows)
+}
+
 // applyRepoRefreshDeltaScope forwards to
 // [sharedintent.ApplyRepoRefreshDeltaScope], which carries the full rule and
 // why the two obvious alternatives lose edges (#6216).

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"time"
 
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallProjectionRunnerSelectsPartitionCandidatesWithoutDomainScan(t *testing.T) {
@@ -20,11 +22,11 @@ func TestCodeCallProjectionRunnerSelectsPartitionCandidatesWithoutDomainScan(t *
 	partitionID := mustPartitionForKey(t, partitionKey, 8)
 	reader := &fakePartitionCandidateIntentStore{
 		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{
-			pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			pendingByAcceptance: map[string][]sharedintent.Row{
 				"scope-a|repo-a|run-1": {
 					{
 						IntentID:         "candidate-1",
-						ProjectionDomain: DomainCodeCalls,
+						ProjectionDomain: reducercontract.DomainCodeCalls,
 						PartitionKey:     partitionKey,
 						ScopeID:          "scope-a",
 						AcceptanceUnitID: "repo-a",
@@ -36,10 +38,10 @@ func TestCodeCallProjectionRunnerSelectsPartitionCandidatesWithoutDomainScan(t *
 				},
 			},
 		},
-		partitionRows: []SharedProjectionIntentRow{
+		partitionRows: []sharedintent.Row{
 			{
 				IntentID:         "candidate-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     partitionKey,
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -50,10 +52,10 @@ func TestCodeCallProjectionRunnerSelectsPartitionCandidatesWithoutDomainScan(t *
 			},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:     10,
 			PartitionCount: 8,
 		},
@@ -77,7 +79,7 @@ func TestCodeCallProjectionRunnerSelectsPartitionCandidatesWithoutDomainScan(t *
 	if len(reader.domainLimitRequests) != 0 {
 		t.Fatalf("domainLimitRequests = %v, want no global domain scan", reader.domainLimitRequests)
 	}
-	if got, want := reader.partitionRequests, []partitionCandidateRequest{{domain: DomainCodeCalls, partitionID: partitionID, partitionCount: 8, limit: 10}}; !equalPartitionCandidateRequests(got, want) {
+	if got, want := reader.partitionRequests, []partitionCandidateRequest{{domain: reducercontract.DomainCodeCalls, partitionID: partitionID, partitionCount: 8, limit: 10}}; !equalPartitionCandidateRequests(got, want) {
 		t.Fatalf("partitionRequests = %#v, want %#v", got, want)
 	}
 }
@@ -90,11 +92,11 @@ func TestCodeCallProjectionRunnerReadsUnhashedPendingRowsWithoutDomainScan(t *te
 	partitionID := mustPartitionForKey(t, partitionKey, 8)
 	reader := &fakePartitionCandidateIntentStore{
 		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{
-			pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			pendingByAcceptance: map[string][]sharedintent.Row{
 				"scope-a|repo-a|run-1": {
 					{
 						IntentID:         "legacy-unhashed",
-						ProjectionDomain: DomainCodeCalls,
+						ProjectionDomain: reducercontract.DomainCodeCalls,
 						PartitionKey:     partitionKey,
 						ScopeID:          "scope-a",
 						AcceptanceUnitID: "repo-a",
@@ -106,10 +108,10 @@ func TestCodeCallProjectionRunnerReadsUnhashedPendingRowsWithoutDomainScan(t *te
 				},
 			},
 		},
-		legacyRows: []SharedProjectionIntentRow{
+		legacyRows: []sharedintent.Row{
 			{
 				IntentID:         "legacy-unhashed",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     partitionKey,
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -120,10 +122,10 @@ func TestCodeCallProjectionRunnerReadsUnhashedPendingRowsWithoutDomainScan(t *te
 			},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:     10,
 			PartitionCount: 8,
 		},
@@ -147,7 +149,7 @@ func TestCodeCallProjectionRunnerReadsUnhashedPendingRowsWithoutDomainScan(t *te
 	if len(reader.domainLimitRequests) != 0 {
 		t.Fatalf("domainLimitRequests = %v, want no global domain scan", reader.domainLimitRequests)
 	}
-	if got, want := reader.legacyRequests, []legacyCandidateRequest{{domain: DomainCodeCalls, limit: 250000}}; !equalLegacyCandidateRequests(got, want) {
+	if got, want := reader.legacyRequests, []legacyCandidateRequest{{domain: reducercontract.DomainCodeCalls, limit: 250000}}; !equalLegacyCandidateRequests(got, want) {
 		t.Fatalf("legacyRequests = %#v, want %#v", got, want)
 	}
 }
@@ -158,10 +160,10 @@ func TestCodeCallProjectionRunnerEmptyPartitionDoesNotFallbackToDomainScan(t *te
 	now := time.Date(2026, time.June, 16, 8, 45, 0, 0, time.UTC)
 	reader := &fakePartitionCandidateIntentStore{
 		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{
-			pendingByDomain: []SharedProjectionIntentRow{
+			pendingByDomain: []sharedintent.Row{
 				{
 					IntentID:         "other-partition",
-					ProjectionDomain: DomainCodeCalls,
+					ProjectionDomain: reducercontract.DomainCodeCalls,
 					PartitionKey:     "code-calls:v1:files:repo-a:src/other.go",
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -173,10 +175,10 @@ func TestCodeCallProjectionRunnerEmptyPartitionDoesNotFallbackToDomainScan(t *te
 			},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:     10,
 			PartitionCount: 8,
 		},
@@ -191,7 +193,7 @@ func TestCodeCallProjectionRunnerEmptyPartitionDoesNotFallbackToDomainScan(t *te
 	if err != nil {
 		t.Fatalf("selectAcceptanceUnitPartitionWorkWithStats() error = %v", err)
 	}
-	if result.Key != (SharedProjectionAcceptanceKey{}) {
+	if result.Key != (sharedintent.AcceptanceKey{}) {
 		t.Fatalf("Key = %#v, want empty miss", result.Key)
 	}
 	if got, want := len(reader.partitionRequests), 1; got != want {
@@ -223,19 +225,19 @@ func TestCodeCallProjectionRunnerIndexedCandidateFenceSpansAcceptanceUnit(t *tes
 	)
 	reader := &fakePartitionCandidateIntentStore{
 		fakeCodeCallIntentStore: &fakeCodeCallIntentStore{
-			pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+			pendingByAcceptance: map[string][]sharedintent.Row{
 				"scope-a|repo-a|run-1": {wholeRow, fileRow},
 			},
 			leaseGranted: true,
 		},
-		partitionRows: []SharedProjectionIntentRow{wholeRow, fileRow},
+		partitionRows: []sharedintent.Row{wholeRow, fileRow},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:     10,
 			PartitionCount: partitionCount,
 		},
@@ -273,8 +275,8 @@ type legacyCandidateRequest struct {
 
 type fakePartitionCandidateIntentStore struct {
 	*fakeCodeCallIntentStore
-	partitionRows     []SharedProjectionIntentRow
-	legacyRows        []SharedProjectionIntentRow
+	partitionRows     []sharedintent.Row
+	legacyRows        []sharedintent.Row
 	partitionRequests []partitionCandidateRequest
 	legacyRequests    []legacyCandidateRequest
 }
@@ -285,7 +287,7 @@ func (f *fakePartitionCandidateIntentStore) ListPendingDomainPartitionIntents(
 	partitionID int,
 	partitionCount int,
 	limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	f.partitionRequests = append(f.partitionRequests, partitionCandidateRequest{
 		domain:         domain,
 		partitionID:    partitionID,
@@ -293,7 +295,7 @@ func (f *fakePartitionCandidateIntentStore) ListPendingDomainPartitionIntents(
 		limit:          limit,
 	})
 
-	rows := make([]SharedProjectionIntentRow, 0, len(f.partitionRows))
+	rows := make([]sharedintent.Row, 0, len(f.partitionRows))
 	for _, row := range f.partitionRows {
 		if row.CompletedAt != nil || row.ProjectionDomain != domain {
 			continue
@@ -319,13 +321,13 @@ func (f *fakePartitionCandidateIntentStore) ListPendingDomainUnhashedIntents(
 	_ context.Context,
 	domain string,
 	limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	f.legacyRequests = append(f.legacyRequests, legacyCandidateRequest{
 		domain: domain,
 		limit:  limit,
 	})
 
-	rows := make([]SharedProjectionIntentRow, 0, len(f.legacyRows))
+	rows := make([]sharedintent.Row, 0, len(f.legacyRows))
 	for _, row := range f.legacyRows {
 		if row.CompletedAt != nil || row.ProjectionDomain != domain {
 			continue

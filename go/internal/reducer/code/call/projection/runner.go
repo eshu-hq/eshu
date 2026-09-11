@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:dirgate // code-call projection runner stays in root (#6609): it needs the root lease and shared-projection machinery that sharedintent/doc.go pins here
+package projection
 
 import (
 	"context"
@@ -16,6 +16,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -23,81 +27,81 @@ const (
 	maxCodeCallPollInterval = 5 * time.Second
 )
 
-// DefaultCodeCallProjectionLeaseOwnerPrefix is the default human-readable
+// DefaultLeaseOwnerPrefix is the default human-readable
 // label prepended to the production reducer's process-unique code-call owner.
-const DefaultCodeCallProjectionLeaseOwnerPrefix = "code-call-projection-runner"
+const DefaultLeaseOwnerPrefix = "code-call-projection-runner"
 
-// DefaultCodeCallAcceptanceScanLimit bounds how many pending code-call intents
+// DefaultAcceptanceScanLimit bounds how many pending code-call intents
 // the runner may scan or load for one authoritative acceptance unit. The runner
 // must see the complete unit before retracting and rewriting repo-wide CALLS
 // edges; this guard prevents silent partial graph truth while allowing large
 // real repositories to exceed the normal per-cycle batch size. The value
 // lives in [codecall.AcceptanceScanLimit] so full-refresh file scoping shares it.
-const DefaultCodeCallAcceptanceScanLimit = codecall.AcceptanceScanLimit
+const DefaultAcceptanceScanLimit = codecall.AcceptanceScanLimit
 
-// CodeCallProjectionIntentReader reads code-call intents by domain and bounded
+// IntentReader reads code-call intents by domain and bounded
 // acceptance unit.
-type CodeCallProjectionIntentReader interface {
-	ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]SharedProjectionIntentRow, error)
-	ListPendingAcceptanceUnitIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string, limit int) ([]SharedProjectionIntentRow, error)
+type IntentReader interface {
+	ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]sharedintent.Row, error)
+	ListPendingAcceptanceUnitIntents(ctx context.Context, key sharedintent.AcceptanceKey, domain string, limit int) ([]sharedintent.Row, error)
 	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error
 }
 
-// CodeCallProjectionPartitionIntentReader reads pending code-call rows for one
+// PartitionIntentReader reads pending code-call rows for one
 // selected partition without scanning unrelated acceptance-unit partitions.
-type CodeCallProjectionPartitionIntentReader interface {
+type PartitionIntentReader interface {
 	ListPendingAcceptanceUnitPartitionIntents(
 		ctx context.Context,
-		key SharedProjectionAcceptanceKey,
+		key sharedintent.AcceptanceKey,
 		domain string,
 		partitionKey string,
 		limit int,
-	) ([]SharedProjectionIntentRow, error)
+	) ([]sharedintent.Row, error)
 }
 
-// CodeCallProjectionHistoryLookup checks whether an acceptance unit has ever
+// HistoryLookup checks whether an acceptance unit has ever
 // completed code-call projection before. Runners use it only to skip proven
 // first-projection no-op retractions; absence or errors keep the conservative
 // retract-before-write path.
-type CodeCallProjectionHistoryLookup interface {
-	HasCompletedAcceptanceUnitDomainIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string) (bool, error)
+type HistoryLookup interface {
+	HasCompletedAcceptanceUnitDomainIntents(ctx context.Context, key sharedintent.AcceptanceKey, domain string) (bool, error)
 }
 
-// CodeCallProjectionCurrentRunHistoryLookup checks whether the selected source
+// CurrentRunHistoryLookup checks whether the selected source
 // run has already completed at least one code-call projection chunk.
-type CodeCallProjectionCurrentRunHistoryLookup interface {
-	HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx context.Context, key SharedProjectionAcceptanceKey, domain string) (bool, error)
+type CurrentRunHistoryLookup interface {
+	HasCompletedAcceptanceUnitSourceRunDomainIntents(ctx context.Context, key sharedintent.AcceptanceKey, domain string) (bool, error)
 }
 
-// CodeCallProjectionCurrentRunPartitionHistoryLookup checks whether the
+// CurrentRunPartitionHistoryLookup checks whether the
 // selected partition for a source run has already completed.
-type CodeCallProjectionCurrentRunPartitionHistoryLookup interface {
+type CurrentRunPartitionHistoryLookup interface {
 	HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
 		ctx context.Context,
-		key SharedProjectionAcceptanceKey,
+		key sharedintent.AcceptanceKey,
 		partitionKey string,
 		domain string,
 	) (bool, error)
 }
 
-// CodeCallProjectionCurrentRunRefreshHistoryLookup checks whether a completed
+// CurrentRunRefreshHistoryLookup checks whether a completed
 // repo-refresh intent from the selected source run already covers a file slice.
-type CodeCallProjectionCurrentRunRefreshHistoryLookup interface {
+type CurrentRunRefreshHistoryLookup interface {
 	HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(
 		ctx context.Context,
-		key SharedProjectionAcceptanceKey,
+		key sharedintent.AcceptanceKey,
 		filePaths []string,
 		domain string,
 	) (bool, error)
 }
 
-// CodeCallProjectionRefreshFenceLookup checks whether a pending code-call row
+// RefreshFenceLookup checks whether a pending code-call row
 // is blocked by an ordering fence without loading the whole acceptance unit.
-type CodeCallProjectionRefreshFenceLookup interface {
+type RefreshFenceLookup interface {
 	CodeCallProjectionRowBlockedByRepoFence(
 		ctx context.Context,
-		key SharedProjectionAcceptanceKey,
-		row SharedProjectionIntentRow,
+		key sharedintent.AcceptanceKey,
+		row sharedintent.Row,
 		domain string,
 	) (bool, error)
 }
@@ -108,8 +112,8 @@ type ReducerGraphDrain interface {
 	HasActiveReducerGraphWork(ctx context.Context) (bool, error)
 }
 
-// CodeCallProjectionRunnerConfig configures the controlled code-calls lane.
-type CodeCallProjectionRunnerConfig struct {
+// RunnerConfig configures the controlled code-calls lane.
+type RunnerConfig struct {
 	LeaseOwner          string
 	PollInterval        time.Duration
 	LeaseTTL            time.Duration
@@ -119,35 +123,35 @@ type CodeCallProjectionRunnerConfig struct {
 	Workers             int
 }
 
-func (c CodeCallProjectionRunnerConfig) pollInterval() time.Duration {
+func (c RunnerConfig) pollInterval() time.Duration {
 	if c.PollInterval <= 0 {
-		return defaultSharedPollInterval
+		return worker.DefaultPollInterval
 	}
 	return c.PollInterval
 }
 
-func (c CodeCallProjectionRunnerConfig) leaseTTL() time.Duration {
+func (c RunnerConfig) leaseTTL() time.Duration {
 	if c.LeaseTTL <= 0 {
-		return defaultLeaseTTL
+		return worker.DefaultLeaseTTL
 	}
 	return c.LeaseTTL
 }
 
-func (c CodeCallProjectionRunnerConfig) batchLimit() int {
+func (c RunnerConfig) batchLimit() int {
 	if c.BatchLimit <= 0 {
-		return defaultBatchLimit
+		return worker.DefaultBatchLimit
 	}
 	return c.BatchLimit
 }
 
-func (c CodeCallProjectionRunnerConfig) partitionCount() int {
+func (c RunnerConfig) partitionCount() int {
 	if c.PartitionCount <= 0 {
 		return 1
 	}
 	return c.PartitionCount
 }
 
-func (c CodeCallProjectionRunnerConfig) workers() int {
+func (c RunnerConfig) workers() int {
 	if c.Workers <= 0 {
 		return 1
 	}
@@ -157,9 +161,9 @@ func (c CodeCallProjectionRunnerConfig) workers() int {
 	return c.Workers
 }
 
-func (c CodeCallProjectionRunnerConfig) acceptanceScanLimit() int {
+func (c RunnerConfig) acceptanceScanLimit() int {
 	if c.AcceptanceScanLimit <= 0 {
-		return DefaultCodeCallAcceptanceScanLimit
+		return DefaultAcceptanceScanLimit
 	}
 	if c.AcceptanceScanLimit < c.batchLimit() {
 		return c.batchLimit()
@@ -167,24 +171,24 @@ func (c CodeCallProjectionRunnerConfig) acceptanceScanLimit() int {
 	return c.AcceptanceScanLimit
 }
 
-func (c CodeCallProjectionRunnerConfig) leaseOwner() string {
+func (c RunnerConfig) leaseOwner() string {
 	if c.LeaseOwner == "" {
-		return DefaultCodeCallProjectionLeaseOwnerPrefix
+		return DefaultLeaseOwnerPrefix
 	}
 	return c.LeaseOwner
 }
 
-// CodeCallProjectionRunner processes code-call shared intents one repo/run at a time.
-type CodeCallProjectionRunner struct {
-	IntentReader        CodeCallProjectionIntentReader
-	LeaseManager        PartitionLeaseManager
-	EdgeWriter          SharedProjectionEdgeWriter
-	AcceptedGen         AcceptedGenerationLookup
-	AcceptedGenPrefetch AcceptedGenerationPrefetch
-	ReadinessLookup     GraphProjectionReadinessLookup
-	ReadinessPrefetch   GraphProjectionReadinessPrefetch
+// Runner processes code-call shared intents one repo/run at a time.
+type Runner struct {
+	IntentReader        IntentReader
+	LeaseManager        sharedintent.PartitionLeaseManager
+	EdgeWriter          sharedintent.EdgeWriter
+	AcceptedGen         sharedintent.AcceptedGenerationLookup
+	AcceptedGenPrefetch sharedintent.AcceptedGenerationPrefetch
+	ReadinessLookup     gpphase.ReadinessLookup
+	ReadinessPrefetch   gpphase.ReadinessPrefetch
 	ReducerGraphDrain   ReducerGraphDrain
-	Config              CodeCallProjectionRunnerConfig
+	Config              RunnerConfig
 	Wait                func(context.Context, time.Duration) error
 
 	Tracer      trace.Tracer
@@ -193,7 +197,7 @@ type CodeCallProjectionRunner struct {
 }
 
 // Run drains code-call work until the context is canceled.
-func (r *CodeCallProjectionRunner) Run(ctx context.Context) error {
+func (r *Runner) Run(ctx context.Context) error {
 	if err := r.validate(); err != nil {
 		return err
 	}
@@ -242,7 +246,7 @@ func (r *CodeCallProjectionRunner) Run(ctx context.Context) error {
 	}
 }
 
-func (r *CodeCallProjectionRunner) runOneCycle(ctx context.Context) (PartitionProcessResult, error) {
+func (r *Runner) runOneCycle(ctx context.Context) (worker.PartitionProcessResult, error) {
 	now := time.Now().UTC()
 	if r.Config.workers() <= 1 {
 		return r.runOneCycleSequential(ctx, now)
@@ -250,18 +254,18 @@ func (r *CodeCallProjectionRunner) runOneCycle(ctx context.Context) (PartitionPr
 	return r.runOneCycleConcurrent(ctx, now)
 }
 
-func (r *CodeCallProjectionRunner) processOnce(ctx context.Context, now time.Time) (result PartitionProcessResult, retErr error) {
+func (r *Runner) processOnce(ctx context.Context, now time.Time) (result worker.PartitionProcessResult, retErr error) {
 	return r.processPartitionOnce(ctx, now, 0, r.Config.partitionCount())
 }
 
-func (r *CodeCallProjectionRunner) runOneCycleSequential(ctx context.Context, now time.Time) (PartitionProcessResult, error) {
-	var cycleResult PartitionProcessResult
+func (r *Runner) runOneCycleSequential(ctx context.Context, now time.Time) (worker.PartitionProcessResult, error) {
+	var cycleResult worker.PartitionProcessResult
 	for partitionID := 0; partitionID < r.Config.partitionCount(); partitionID++ {
 		if ctx.Err() != nil {
 			return cycleResult, nil
 		}
 		result, err := r.processPartitionOnce(ctx, now, partitionID, r.Config.partitionCount())
-		mergePartitionProcessResult(&cycleResult, result)
+		worker.MergePartitionProcessResult(&cycleResult, result)
 		if err != nil {
 			return cycleResult, err
 		}
@@ -269,7 +273,7 @@ func (r *CodeCallProjectionRunner) runOneCycleSequential(ctx context.Context, no
 	return cycleResult, nil
 }
 
-func (r *CodeCallProjectionRunner) runOneCycleConcurrent(ctx context.Context, now time.Time) (PartitionProcessResult, error) {
+func (r *Runner) runOneCycleConcurrent(ctx context.Context, now time.Time) (worker.PartitionProcessResult, error) {
 	partitionCount := r.Config.partitionCount()
 	work := make(chan int, partitionCount)
 	for partitionID := 0; partitionID < partitionCount; partitionID++ {
@@ -280,7 +284,7 @@ func (r *CodeCallProjectionRunner) runOneCycleConcurrent(ctx context.Context, no
 	var (
 		wg          sync.WaitGroup
 		mu          sync.Mutex
-		cycleResult PartitionProcessResult
+		cycleResult worker.PartitionProcessResult
 		errs        []error
 	)
 	for i := 0; i < r.Config.workers(); i++ {
@@ -293,7 +297,7 @@ func (r *CodeCallProjectionRunner) runOneCycleConcurrent(ctx context.Context, no
 				}
 				result, err := r.processPartitionOnce(ctx, now, partitionID, partitionCount)
 				mu.Lock()
-				mergePartitionProcessResult(&cycleResult, result)
+				worker.MergePartitionProcessResult(&cycleResult, result)
 				if err != nil {
 					errs = append(errs, err)
 				}
@@ -305,24 +309,24 @@ func (r *CodeCallProjectionRunner) runOneCycleConcurrent(ctx context.Context, no
 	return cycleResult, errors.Join(errs...)
 }
 
-func (r *CodeCallProjectionRunner) processPartitionOnce(
+func (r *Runner) processPartitionOnce(
 	ctx context.Context,
 	now time.Time,
 	partitionID int,
 	partitionCount int,
-) (result PartitionProcessResult, retErr error) {
+) (result worker.PartitionProcessResult, retErr error) {
 	cycleStart := time.Now()
-	acceptanceTelemetry := sharedAcceptanceTelemetry{
+	acceptanceTelemetry := worker.AcceptanceTelemetry{
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
 	}
 	if r.ReducerGraphDrain != nil {
 		active, err := r.ReducerGraphDrain.HasActiveReducerGraphWork(ctx)
 		if err != nil {
-			return PartitionProcessResult{}, fmt.Errorf("check reducer graph drain: %w", err)
+			return worker.PartitionProcessResult{}, fmt.Errorf("check reducer graph drain: %w", err)
 		}
 		if active {
-			result := PartitionProcessResult{BlockedReadiness: 1}
+			result := worker.PartitionProcessResult{BlockedReadiness: 1}
 			r.recordCodeCallTiming(ctx, result)
 			return result, nil
 		}
@@ -331,7 +335,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 	claimStart := time.Now()
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
 		ctx,
-		DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 		partitionID,
 		partitionCount,
 		r.Config.leaseOwner(),
@@ -343,10 +347,10 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 		))
 	}
 	if err != nil {
-		return PartitionProcessResult{}, fmt.Errorf("claim code call lease: %w", err)
+		return worker.PartitionProcessResult{}, fmt.Errorf("claim code call lease: %w", err)
 	}
 	if !claimed {
-		return PartitionProcessResult{LeaseAcquired: false}, nil
+		return worker.PartitionProcessResult{LeaseAcquired: false}, nil
 	}
 	leaseClaimDuration := time.Since(claimStart).Seconds()
 
@@ -363,19 +367,19 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 				retErr = errors.Join(retErr, fmt.Errorf("heartbeat code call lease: %w", heartbeatErr))
 			}
 		}
-		_ = r.LeaseManager.ReleasePartitionLease(releaseCtx, DomainCodeCalls, partitionID, partitionCount, r.Config.leaseOwner())
+		_ = r.LeaseManager.ReleasePartitionLease(releaseCtx, reducercontract.DomainCodeCalls, partitionID, partitionCount, r.Config.leaseOwner())
 	}()
 	ctx = leaseCtx
 
 	selection, err := r.selectAcceptanceUnitPartitionWorkWithStats(ctx, now, partitionID, partitionCount)
 	if err != nil {
-		return PartitionProcessResult{
+		return worker.PartitionProcessResult{
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseClaimDuration,
 		}, err
 	}
-	if selection.Key == (SharedProjectionAcceptanceKey{}) {
-		result := PartitionProcessResult{
+	if selection.Key == (sharedintent.AcceptanceKey{}) {
+		result := worker.PartitionProcessResult{
 			LeaseAcquired:               true,
 			BlockedReadiness:            selection.BlockedReadiness,
 			MaxBlockedIntentWaitSeconds: selection.MaxBlockedIntentWaitSeconds,
@@ -389,7 +393,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 
 	rows, err := r.loadAcceptanceUnitPartitionIntents(ctx, selection.Key, selection.PartitionKey)
 	if err != nil {
-		return PartitionProcessResult{
+		return worker.PartitionProcessResult{
 			LeaseAcquired:             true,
 			LeaseClaimDurationSeconds: leaseClaimDuration,
 			SelectionDurationSeconds:  selection.SelectionDurationSeconds,
@@ -400,7 +404,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 	if r.AcceptedGenPrefetch != nil {
 		resolvedLookup, err := r.AcceptedGenPrefetch(ctx, rows)
 		if err != nil {
-			return PartitionProcessResult{
+			return worker.PartitionProcessResult{
 				LeaseAcquired:             true,
 				LeaseClaimDurationSeconds: leaseClaimDuration,
 				SelectionDurationSeconds:  selection.SelectionDurationSeconds,
@@ -409,10 +413,10 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 		lookup = resolvedLookup
 	}
 
-	active, staleIDs := FilterAuthoritativeIntents(rows, lookup)
-	acceptanceTelemetry.RecordStaleIntents(ctx, "code_call_projection", DomainCodeCalls, len(staleIDs))
+	active, staleIDs := worker.FilterAuthoritativeIntents(rows, lookup)
+	acceptanceTelemetry.RecordStaleIntents(ctx, "code_call_projection", reducercontract.DomainCodeCalls, len(staleIDs))
 	if len(active) == 0 && len(staleIDs) == 0 {
-		result := PartitionProcessResult{
+		result := worker.PartitionProcessResult{
 			LeaseAcquired:               true,
 			BlockedReadiness:            selection.BlockedReadiness,
 			MaxBlockedIntentWaitSeconds: selection.MaxBlockedIntentWaitSeconds,
@@ -424,7 +428,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 		return result, nil
 	}
 
-	result = PartitionProcessResult{
+	result = worker.PartitionProcessResult{
 		LeaseAcquired:               true,
 		BlockedReadiness:            selection.BlockedReadiness,
 		MaxBlockedIntentWaitSeconds: selection.MaxBlockedIntentWaitSeconds,
@@ -472,7 +476,7 @@ func (r *CodeCallProjectionRunner) processPartitionOnce(
 	}
 
 	result.ProcessedIntents = len(processedIDs)
-	result.MaxIntentWaitSeconds = maxSharedIntentWaitSeconds(now, rows)
+	result.MaxIntentWaitSeconds = worker.MaxIntentWaitSeconds(now, rows)
 	result.ProcessingDurationSeconds = time.Since(processingStart).Seconds()
 	if len(active) > 0 {
 		if err := r.recordCodeCallCycle(

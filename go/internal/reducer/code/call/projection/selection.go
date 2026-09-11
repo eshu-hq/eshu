@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:dirgate // code-call projection runner stays in root (#6609): it needs the root lease and shared-projection machinery that sharedintent/doc.go pins here
+package projection
 
 import (
 	"context"
@@ -10,17 +10,21 @@ import (
 	"sort"
 	"time"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 type codeCallSelectionResult struct {
-	Key                         SharedProjectionAcceptanceKey
+	Key                         sharedintent.AcceptanceKey
 	PartitionKey                string
 	BlockedReadiness            int
 	MaxBlockedIntentWaitSeconds float64
 	SelectionDurationSeconds    float64
-	SelectionPhases             SelectionPhaseDurations
+	SelectionPhases             worker.SelectionPhaseDurations
 }
 
 type acceptedGenerationCacheEntry struct {
@@ -33,26 +37,26 @@ type readinessCacheEntry struct {
 	found bool
 }
 
-func (r *CodeCallProjectionRunner) selectAcceptanceUnitWork(ctx context.Context) (SharedProjectionAcceptanceKey, error) {
+func (r *Runner) selectAcceptanceUnitWork(ctx context.Context) (sharedintent.AcceptanceKey, error) {
 	result, err := r.selectAcceptanceUnitWorkWithStats(ctx, time.Now().UTC())
 	return result.Key, err
 }
 
-func (r *CodeCallProjectionRunner) selectAcceptanceUnitWorkWithStats(
+func (r *Runner) selectAcceptanceUnitWorkWithStats(
 	ctx context.Context,
 	now time.Time,
 ) (codeCallSelectionResult, error) {
 	return r.selectAcceptanceUnitPartitionWorkWithStats(ctx, now, 0, 1)
 }
 
-func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
+func (r *Runner) selectAcceptanceUnitPartitionWorkWithStats(
 	ctx context.Context,
 	now time.Time,
 	partitionID int,
 	partitionCount int,
 ) (codeCallSelectionResult, error) {
 	start := time.Now()
-	acceptanceTelemetry := sharedAcceptanceTelemetry{
+	acceptanceTelemetry := worker.AcceptanceTelemetry{
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
 	}
@@ -62,16 +66,16 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 		scanLimit = acceptanceScanLimit
 	}
 
-	acceptedGenerationsByKey := make(map[SharedProjectionAcceptanceKey]acceptedGenerationCacheEntry)
-	readinessByKey := make(map[GraphProjectionPhaseKey]readinessCacheEntry)
-	acceptanceRowsByKey := make(map[SharedProjectionAcceptanceKey][]SharedProjectionIntentRow)
-	selectionPhases := SelectionPhaseDurations{}
+	acceptedGenerationsByKey := make(map[sharedintent.AcceptanceKey]acceptedGenerationCacheEntry)
+	readinessByKey := make(map[gpphase.PhaseKey]readinessCacheEntry)
+	acceptanceRowsByKey := make(map[sharedintent.AcceptanceKey][]sharedintent.Row)
+	selectionPhases := worker.SelectionPhaseDurations{}
 	for {
 		candidateLoadStart := time.Now()
 		pending, err := r.listPendingPartitionCandidates(ctx, partitionID, partitionCount, scanLimit)
 		selectionPhases.CandidateLoadSeconds += time.Since(candidateLoadStart).Seconds()
 		if err != nil {
-			acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+			acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 				Runner:   "code_call_projection",
 				Result:   "error",
 				Duration: time.Since(start).Seconds(),
@@ -80,7 +84,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 			return codeCallSelectionResult{}, fmt.Errorf("list pending code call intents: %w", err)
 		}
 		if len(pending) == 0 {
-			acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+			acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 				Runner:   "code_call_projection",
 				Result:   "miss",
 				Duration: time.Since(start).Seconds(),
@@ -91,10 +95,10 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 			}, nil
 		}
 
-		phase, gated := sharedProjectionReadinessPhase(DomainCodeCalls)
-		acceptedByKey := make(map[SharedProjectionAcceptanceKey]string, len(pending))
-		missingAcceptedRows := make([]SharedProjectionIntentRow, 0, len(pending))
-		seen := make(map[SharedProjectionAcceptanceKey]struct{}, len(pending))
+		phase, gated := worker.ReadinessPhase(reducercontract.DomainCodeCalls)
+		acceptedByKey := make(map[sharedintent.AcceptanceKey]string, len(pending))
+		missingAcceptedRows := make([]sharedintent.Row, 0, len(pending))
+		seen := make(map[sharedintent.AcceptanceKey]struct{}, len(pending))
 		for _, row := range pending {
 			key, ok := row.AcceptanceKey()
 			if !ok {
@@ -123,7 +127,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				resolvedLookup, err := r.AcceptedGenPrefetch(ctx, missingAcceptedRows)
 				selectionPhases.AcceptancePrefetchSeconds += time.Since(prefetchStart).Seconds()
 				if err != nil {
-					acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+					acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 						Runner:   "code_call_projection",
 						Result:   "error",
 						Duration: time.Since(start).Seconds(),
@@ -148,12 +152,12 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 
 		readinessLookup := r.ReadinessLookup
 		if gated && r.ReadinessPrefetch != nil {
-			readinessKeys := make([]GraphProjectionPhaseKey, 0, len(acceptedByKey))
+			readinessKeys := make([]gpphase.PhaseKey, 0, len(acceptedByKey))
 			for key, acceptedGeneration := range acceptedByKey {
-				readinessKey, ok := graphProjectionPhaseKeyForAcceptance(
+				readinessKey, ok := worker.GraphProjectionPhaseKeyForAcceptance(
 					key,
 					acceptedGeneration,
-					GraphProjectionKeyspaceCodeEntitiesUID,
+					gpphase.KeyspaceCodeEntitiesUID,
 				)
 				if !ok {
 					continue
@@ -168,7 +172,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				resolvedLookup, err := r.ReadinessPrefetch(ctx, readinessKeys, phase)
 				selectionPhases.ReadinessPrefetchSeconds += time.Since(readinessPrefetchStart).Seconds()
 				if err != nil {
-					acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+					acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 						Runner:   "code_call_projection",
 						Result:   "error",
 						Duration: time.Since(start).Seconds(),
@@ -201,10 +205,10 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				continue
 			}
 			if gated && (readinessLookup != nil || len(readinessByKey) > 0) {
-				readinessKey, ok := graphProjectionPhaseKeyForAcceptance(
+				readinessKey, ok := worker.GraphProjectionPhaseKeyForAcceptance(
 					key,
 					acceptedGeneration,
-					GraphProjectionKeyspaceCodeEntitiesUID,
+					gpphase.KeyspaceCodeEntitiesUID,
 				)
 				if !ok {
 					continue
@@ -223,7 +227,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				}
 				if !readiness.found || !readiness.ready {
 					blockedCount++
-					if wait := maxSharedIntentWaitSeconds(now, []SharedProjectionIntentRow{row}); wait > maxBlockedWait {
+					if wait := worker.MaxIntentWaitSeconds(now, []sharedintent.Row{row}); wait > maxBlockedWait {
 						maxBlockedWait = wait
 					}
 					continue
@@ -242,7 +246,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 			)
 			selectionPhases.RefreshFenceCheckSeconds += time.Since(fenceStart).Seconds()
 			if err != nil {
-				acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+				acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 					Runner:   "code_call_projection",
 					Result:   "error",
 					Duration: time.Since(start).Seconds(),
@@ -254,7 +258,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				continue
 			}
 
-			acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+			acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 				Runner:   "code_call_projection",
 				Result:   "hit",
 				Duration: time.Since(start).Seconds(),
@@ -275,13 +279,13 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 				"code call projection skipped acceptance units until canonical node readiness is committed",
 				slog.Int("blocked_count", blockedCount),
 				slog.Float64("blocked_intent_wait_seconds", maxBlockedWait),
-				log.Domain(DomainCodeCalls),
+				log.Domain(reducercontract.DomainCodeCalls),
 				telemetry.PhaseAttr(telemetry.PhaseShared),
 			)
 		}
 
 		if len(pending) < scanLimit {
-			acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+			acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 				Runner:   "code_call_projection",
 				Result:   "miss",
 				Duration: time.Since(start).Seconds(),
@@ -294,7 +298,7 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 			}, nil
 		}
 		if scanLimit >= acceptanceScanLimit {
-			acceptanceTelemetry.RecordLookup(ctx, sharedAcceptanceLookupEvent{
+			acceptanceTelemetry.RecordLookup(ctx, worker.AcceptanceLookupEvent{
 				Runner:   "code_call_projection",
 				Result:   "error",
 				Duration: time.Since(start).Seconds(),
@@ -317,37 +321,37 @@ func (r *CodeCallProjectionRunner) selectAcceptanceUnitPartitionWorkWithStats(
 	}
 }
 
-func (r *CodeCallProjectionRunner) listPendingPartitionCandidates(
+func (r *Runner) listPendingPartitionCandidates(
 	ctx context.Context,
 	partitionID int,
 	partitionCount int,
 	limit int,
-) ([]SharedProjectionIntentRow, error) {
-	if reader, ok := r.IntentReader.(CodeCallProjectionPartitionCandidateReader); ok {
-		rows, err := reader.ListPendingDomainPartitionIntents(ctx, DomainCodeCalls, partitionID, partitionCount, limit)
+) ([]sharedintent.Row, error) {
+	if reader, ok := r.IntentReader.(PartitionCandidateReader); ok {
+		rows, err := reader.ListPendingDomainPartitionIntents(ctx, reducercontract.DomainCodeCalls, partitionID, partitionCount, limit)
 		if err != nil {
 			return nil, err
 		}
 		return r.appendUnhashedPartitionCandidates(ctx, rows, partitionID, partitionCount, limit)
 	}
-	return r.IntentReader.ListPendingDomainIntents(ctx, DomainCodeCalls, limit)
+	return r.IntentReader.ListPendingDomainIntents(ctx, reducercontract.DomainCodeCalls, limit)
 }
 
-func (r *CodeCallProjectionRunner) appendUnhashedPartitionCandidates(
+func (r *Runner) appendUnhashedPartitionCandidates(
 	ctx context.Context,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	partitionID int,
 	partitionCount int,
 	limit int,
-) ([]SharedProjectionIntentRow, error) {
-	reader, ok := r.IntentReader.(CodeCallProjectionUnhashedCandidateReader)
+) ([]sharedintent.Row, error) {
+	reader, ok := r.IntentReader.(UnhashedCandidateReader)
 	if !ok {
 		return rows, nil
 	}
 
 	legacyRows, err := reader.ListPendingDomainUnhashedIntents(
 		ctx,
-		DomainCodeCalls,
+		reducercontract.DomainCodeCalls,
 		r.Config.acceptanceScanLimit(),
 	)
 	if err != nil {
@@ -373,12 +377,12 @@ func (r *CodeCallProjectionRunner) appendUnhashedPartitionCandidates(
 	return rows, nil
 }
 
-func (r *CodeCallProjectionRunner) codeCallProjectionRowBlockedByRepoFence(
+func (r *Runner) codeCallProjectionRowBlockedByRepoFence(
 	ctx context.Context,
-	row SharedProjectionIntentRow,
-	pending []SharedProjectionIntentRow,
+	row sharedintent.Row,
+	pending []sharedintent.Row,
 	rowIndex int,
-	acceptanceRowsByKey map[SharedProjectionAcceptanceKey][]SharedProjectionIntentRow,
+	acceptanceRowsByKey map[sharedintent.AcceptanceKey][]sharedintent.Row,
 ) (bool, error) {
 	if codeCallProjectionRowBlockedByRepoFence(row, pending, rowIndex) {
 		return true, nil
@@ -391,8 +395,8 @@ func (r *CodeCallProjectionRunner) codeCallProjectionRowBlockedByRepoFence(
 			row.IntentID,
 		)
 	}
-	if lookup, ok := r.IntentReader.(CodeCallProjectionRefreshFenceLookup); ok {
-		blocked, err := lookup.CodeCallProjectionRowBlockedByRepoFence(ctx, key, row, DomainCodeCalls)
+	if lookup, ok := r.IntentReader.(RefreshFenceLookup); ok {
+		blocked, err := lookup.CodeCallProjectionRowBlockedByRepoFence(ctx, key, row, reducercontract.DomainCodeCalls)
 		if err != nil {
 			return false, fmt.Errorf("check code call refresh fence: %w", err)
 		}
@@ -423,8 +427,8 @@ func (r *CodeCallProjectionRunner) codeCallProjectionRowBlockedByRepoFence(
 }
 
 func codeCallProjectionRowBlockedByRepoFence(
-	row SharedProjectionIntentRow,
-	pending []SharedProjectionIntentRow,
+	row sharedintent.Row,
+	pending []sharedintent.Row,
 	rowIndex int,
 ) bool {
 	repositoryID := codeCallProjectionRowRepository(row)
@@ -462,7 +466,7 @@ func codeCallProjectionRowBlockedByRepoFence(
 	return false
 }
 
-func codeCallProjectionSameAcceptanceUnit(a SharedProjectionIntentRow, b SharedProjectionIntentRow) bool {
+func codeCallProjectionSameAcceptanceUnit(a sharedintent.Row, b sharedintent.Row) bool {
 	return a.ScopeID == b.ScopeID &&
 		a.AcceptanceUnitID == b.AcceptanceUnitID &&
 		a.SourceRunID == b.SourceRunID

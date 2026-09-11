@@ -326,6 +326,12 @@ linters:
       - path: 'internal/reducer/code/call/materialization/handler\.go'
         linters:
           - funlen
+      - path: 'internal/reducer/code/call/projection/runner\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/code/call/projection/selection\.go'
+        linters:
+          - funlen
       - path: 'cmd/api/wiring\.go'
         linters:
           - funlen

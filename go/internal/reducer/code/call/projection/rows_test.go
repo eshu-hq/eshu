@@ -1,25 +1,30 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
 	"strconv"
 	"testing"
 	"time"
+
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntentsReturnsCappedChunk(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeCodeCallIntentStore{
-		acceptanceResponder: func(_ SharedProjectionAcceptanceKey, limit int) ([]SharedProjectionIntentRow, error) {
-			rows := make([]SharedProjectionIntentRow, limit)
+		acceptanceResponder: func(_ sharedintent.AcceptanceKey, limit int) ([]sharedintent.Row, error) {
+			rows := make([]sharedintent.Row, limit)
 			for i := range rows {
-				rows[i] = SharedProjectionIntentRow{
+				rows[i] = sharedintent.Row{
 					IntentID:         "intent",
-					ProjectionDomain: DomainCodeCalls,
+					ProjectionDomain: reducercontract.DomainCodeCalls,
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
 					RepositoryID:     "repo-a",
@@ -30,15 +35,15 @@ func TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntentsReturnsCappedChunk(
 			return rows, nil
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:          100,
 			AcceptanceScanLimit: 1_000,
 		},
 	}
 
-	got, err := runner.loadAllAcceptanceUnitIntents(context.Background(), SharedProjectionAcceptanceKey{
+	got, err := runner.loadAllAcceptanceUnitIntents(context.Background(), sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
@@ -61,11 +66,11 @@ func TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntentsAllowsLargeConfigur
 	t.Parallel()
 
 	const rowCount = 10_001
-	rows := make([]SharedProjectionIntentRow, rowCount)
+	rows := make([]sharedintent.Row, rowCount)
 	for i := range rows {
-		rows[i] = SharedProjectionIntentRow{
+		rows[i] = sharedintent.Row{
 			IntentID:         "intent-" + strconv.Itoa(i),
-			ProjectionDomain: DomainCodeCalls,
+			ProjectionDomain: reducercontract.DomainCodeCalls,
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			RepositoryID:     "repo-a",
@@ -75,19 +80,19 @@ func TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntentsAllowsLargeConfigur
 		}
 	}
 	reader := &fakeCodeCallIntentStore{
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": rows,
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:          100,
 			AcceptanceScanLimit: 20_000,
 		},
 	}
 
-	got, err := runner.loadAllAcceptanceUnitIntents(context.Background(), SharedProjectionAcceptanceKey{
+	got, err := runner.loadAllAcceptanceUnitIntents(context.Background(), sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
@@ -107,12 +112,12 @@ func TestCodeCallProjectionRunnerLoadsSelectedPartitionDirectly(t *testing.T) {
 	t.Parallel()
 
 	const targetRows = 120
-	key := SharedProjectionAcceptanceKey{
+	key := sharedintent.AcceptanceKey{
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
 		SourceRunID:      "run-1",
 	}
-	rows := make([]SharedProjectionIntentRow, 0, 320)
+	rows := make([]sharedintent.Row, 0, 320)
 	for i := 0; i < 200; i++ {
 		row := codeCallProjectionTestRow("other-"+strconv.Itoa(i), "gen-1", time.Date(2026, time.April, 27, 9, 0, 0, i, time.UTC))
 		row.PartitionKey = "code-calls:v1:files:repo-a:other"
@@ -124,12 +129,12 @@ func TestCodeCallProjectionRunnerLoadsSelectedPartitionDirectly(t *testing.T) {
 		rows = append(rows, row)
 	}
 	baseReader := &fakeCodeCallIntentStore{
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{"scope-a|repo-a|run-1": rows},
+		pendingByAcceptance: map[string][]sharedintent.Row{"scope-a|repo-a|run-1": rows},
 	}
 	reader := &partitionAwareCodeCallIntentStore{fakeCodeCallIntentStore: baseReader}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:          50,
 			AcceptanceScanLimit: 500,
 		},
@@ -162,17 +167,17 @@ type partitionAwareCodeCallIntentStore struct {
 
 func (p *partitionAwareCodeCallIntentStore) ListPendingAcceptanceUnitPartitionIntents(
 	_ context.Context,
-	key SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	_ string,
 	partitionKey string,
 	limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	p.partitionLimitRequests = append(p.partitionLimitRequests, limit)
 	sourceRows := p.pendingByAcceptance[key.ScopeID+"|"+key.AcceptanceUnitID+"|"+key.SourceRunID]
-	rows := make([]SharedProjectionIntentRow, 0, len(sourceRows))
+	rows := make([]sharedintent.Row, 0, len(sourceRows))
 	for _, row := range sourceRows {
 		if row.CompletedAt != nil || row.PartitionKey != partitionKey {
 			continue
@@ -189,8 +194,8 @@ func TestCodeCallProjectionRunnerRetractRepoPreservesDeltaFileScope(t *testing.T
 	t.Parallel()
 
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{EdgeWriter: writer}
-	rows := []SharedProjectionIntentRow{
+	runner := Runner{EdgeWriter: writer}
+	rows := []sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
@@ -199,7 +204,7 @@ func TestCodeCallProjectionRunnerRetractRepoPreservesDeltaFileScope(t *testing.T
 				"delta_file_paths":  []string{"/repo/src/changed.go"},
 				"caller_entity_id":  "caller",
 				"callee_entity_id":  "callee",
-				"evidence_source":   codeCallEvidenceSource,
+				"evidence_source":   codecall.EvidenceSource,
 				"relationship_type": "CALLS",
 			},
 		},
@@ -233,8 +238,8 @@ func TestCodeCallProjectionRunnerRetractRepoPreservesDeletedOnlyDeltaFileScope(t
 	t.Parallel()
 
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{EdgeWriter: writer}
-	rows := []SharedProjectionIntentRow{
+	runner := Runner{EdgeWriter: writer}
+	rows := []sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
@@ -267,7 +272,7 @@ func TestCodeCallProjectionRunnerRetractRepoPreservesDeletedOnlyDeltaFileScope(t
 func TestBuildCodeCallRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	t.Parallel()
 
-	rows := buildCodeCallRetractRows([]SharedProjectionIntentRow{
+	rows := buildCodeCallRetractRows([]sharedintent.Row{
 		{
 			RepositoryID: "repo-a",
 			Payload: map[string]any{
@@ -283,7 +288,7 @@ func TestBuildCodeCallRetractRowsKeepsMalformedDeltaScoped(t *testing.T) {
 	if got, ok := payload["delta_projection"].(bool); !ok || !got {
 		t.Fatalf("delta_projection = %#v, want true", payload["delta_projection"])
 	}
-	if gotPaths := semanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(payload, "delta_file_paths"); len(gotPaths) != 0 {
 		t.Fatalf("delta_file_paths = %#v, want empty malformed delta scope", gotPaths)
 	}
 }

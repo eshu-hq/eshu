@@ -1,26 +1,30 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
 	"sort"
 	"sync"
 	"time"
+
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 type fakeCodeCallIntentStore struct {
 	mu                      sync.Mutex
-	pendingByDomain         []SharedProjectionIntentRow
-	pendingByAcceptance     map[string][]SharedProjectionIntentRow
+	pendingByDomain         []sharedintent.Row
+	pendingByAcceptance     map[string][]sharedintent.Row
 	marked                  []string
 	leaseGranted            bool
 	claims                  int
 	afterClaim              func(int)
 	domainLimitRequests     []int
 	acceptanceLimitRequests []int
-	acceptanceResponder     func(key SharedProjectionAcceptanceKey, limit int) ([]SharedProjectionIntentRow, error)
+	acceptanceResponder     func(key sharedintent.AcceptanceKey, limit int) ([]sharedintent.Row, error)
 }
 
 type historyAwareCodeCallIntentStore struct {
@@ -49,7 +53,7 @@ func (s staticReducerGraphDrain) HasActiveReducerGraphWork(context.Context) (boo
 
 func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitDomainIntents(
 	context.Context,
-	SharedProjectionAcceptanceKey,
+	sharedintent.AcceptanceKey,
 	string,
 ) (bool, error) {
 	if h.historyErr != nil {
@@ -60,7 +64,7 @@ func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitDomainIntent
 
 func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunDomainIntents(
 	context.Context,
-	SharedProjectionAcceptanceKey,
+	sharedintent.AcceptanceKey,
 	string,
 ) (bool, error) {
 	if h.historyErr != nil {
@@ -71,7 +75,7 @@ func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunDom
 
 func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
 	_ context.Context,
-	_ SharedProjectionAcceptanceKey,
+	_ sharedintent.AcceptanceKey,
 	partitionKey string,
 	_ string,
 ) (bool, error) {
@@ -86,7 +90,7 @@ func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunPar
 
 func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(
 	_ context.Context,
-	_ SharedProjectionAcceptanceKey,
+	_ sharedintent.AcceptanceKey,
 	filePaths []string,
 	_ string,
 ) (bool, error) {
@@ -106,18 +110,18 @@ func (h *historyAwareCodeCallIntentStore) HasCompletedAcceptanceUnitSourceRunRef
 
 func (f *fenceAwareCodeCallIntentStore) CodeCallProjectionRowBlockedByRepoFence(
 	_ context.Context,
-	_ SharedProjectionAcceptanceKey,
-	row SharedProjectionIntentRow,
+	_ sharedintent.AcceptanceKey,
+	row sharedintent.Row,
 	_ string,
 ) (bool, error) {
 	f.checkedRows = append(f.checkedRows, row.IntentID)
 	return f.blockedByFence, nil
 }
 
-func codeCallProjectionTestRow(intentID, generationID string, createdAt time.Time) SharedProjectionIntentRow {
-	return SharedProjectionIntentRow{
+func codeCallProjectionTestRow(intentID, generationID string, createdAt time.Time) sharedintent.Row {
+	return sharedintent.Row{
 		IntentID:         intentID,
-		ProjectionDomain: DomainCodeCalls,
+		ProjectionDomain: reducercontract.DomainCodeCalls,
 		PartitionKey:     "caller->callee",
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
@@ -128,18 +132,18 @@ func codeCallProjectionTestRow(intentID, generationID string, createdAt time.Tim
 			"repo_id":          "repo-a",
 			"caller_entity_id": "caller",
 			"callee_entity_id": "callee",
-			"evidence_source":  codeCallEvidenceSource,
+			"evidence_source":  codecall.EvidenceSource,
 		},
 		CreatedAt: createdAt,
 	}
 }
 
-func (f *fakeCodeCallIntentStore) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (f *fakeCodeCallIntentStore) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]sharedintent.Row, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.domainLimitRequests = append(f.domainLimitRequests, limit)
-	rows := make([]SharedProjectionIntentRow, 0, len(f.pendingByDomain))
+	rows := make([]sharedintent.Row, 0, len(f.pendingByDomain))
 	for _, row := range f.pendingByDomain {
 		if row.CompletedAt != nil {
 			continue
@@ -158,7 +162,7 @@ func (f *fakeCodeCallIntentStore) ListPendingDomainIntents(_ context.Context, _ 
 	return rows, nil
 }
 
-func (f *fakeCodeCallIntentStore) ListPendingAcceptanceUnitIntents(_ context.Context, key SharedProjectionAcceptanceKey, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (f *fakeCodeCallIntentStore) ListPendingAcceptanceUnitIntents(_ context.Context, key sharedintent.AcceptanceKey, _ string, limit int) ([]sharedintent.Row, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -171,7 +175,7 @@ func (f *fakeCodeCallIntentStore) ListPendingAcceptanceUnitIntents(_ context.Con
 	if !ok && f.pendingByAcceptance == nil {
 		sourceRows = f.pendingByDomain
 	}
-	rows := make([]SharedProjectionIntentRow, 0, len(sourceRows))
+	rows := make([]sharedintent.Row, 0, len(sourceRows))
 	for _, row := range sourceRows {
 		if row.CompletedAt != nil {
 			continue
@@ -242,24 +246,24 @@ type recordingCodeCallProjectionEdgeWriter struct {
 }
 
 type recordedProjectionCall struct {
-	rows           []SharedProjectionIntentRow
+	rows           []sharedintent.Row
 	evidenceSource string
 }
 
-func (r *recordingCodeCallProjectionEdgeWriter) RetractEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, evidenceSource string) error {
+func (r *recordingCodeCallProjectionEdgeWriter) RetractEdges(_ context.Context, _ string, rows []sharedintent.Row, evidenceSource string) error {
 	r.retractCalls = append(r.retractCalls, recordedProjectionCall{
-		rows:           append([]SharedProjectionIntentRow(nil), rows...),
+		rows:           append([]sharedintent.Row(nil), rows...),
 		evidenceSource: evidenceSource,
 	})
 	return nil
 }
 
-func (r *recordingCodeCallProjectionEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, evidenceSource string) (SharedProjectionWriteReport, error) {
+func (r *recordingCodeCallProjectionEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, evidenceSource string) (sharedintent.WriteReport, error) {
 	r.writeCalls = append(r.writeCalls, recordedProjectionCall{
-		rows:           append([]SharedProjectionIntentRow(nil), rows...),
+		rows:           append([]sharedintent.Row(nil), rows...),
 		evidenceSource: evidenceSource,
 	})
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 type flakyCodeCallProjectionEdgeWriter struct {
@@ -269,7 +273,7 @@ type flakyCodeCallProjectionEdgeWriter struct {
 	writeFailures   int
 }
 
-func (r *flakyCodeCallProjectionEdgeWriter) RetractEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) error {
+func (r *flakyCodeCallProjectionEdgeWriter) RetractEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) error {
 	if r.retractFailures > 0 {
 		r.retractFailures--
 		return r.err
@@ -277,10 +281,10 @@ func (r *flakyCodeCallProjectionEdgeWriter) RetractEdges(ctx context.Context, do
 	return r.recordingCodeCallProjectionEdgeWriter.RetractEdges(ctx, domain, rows, evidenceSource)
 }
 
-func (r *flakyCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) (SharedProjectionWriteReport, error) {
+func (r *flakyCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (sharedintent.WriteReport, error) {
 	if r.writeFailures > 0 {
 		r.writeFailures--
-		return SharedProjectionWriteReport{}, r.err
+		return sharedintent.WriteReport{}, r.err
 	}
 	return r.recordingCodeCallProjectionEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
 }
@@ -290,11 +294,11 @@ type blockingCodeCallProjectionEdgeWriter struct {
 	release <-chan struct{}
 }
 
-func (r *blockingCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) (SharedProjectionWriteReport, error) {
+func (r *blockingCodeCallProjectionEdgeWriter) WriteEdges(ctx context.Context, domain string, rows []sharedintent.Row, evidenceSource string) (sharedintent.WriteReport, error) {
 	select {
 	case <-r.release:
 	case <-ctx.Done():
-		return SharedProjectionWriteReport{}, ctx.Err()
+		return sharedintent.WriteReport{}, ctx.Err()
 	}
 	return r.recordingCodeCallProjectionEdgeWriter.WriteEdges(ctx, domain, rows, evidenceSource)
 }

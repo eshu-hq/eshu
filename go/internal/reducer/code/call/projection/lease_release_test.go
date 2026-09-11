@@ -1,13 +1,42 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 )
+
+// ctxCheckingLeaseManager is a local copy of the reducer root's own test
+// double (shared_projection_worker_lease_heartbeat_test.go): it records
+// whether the context passed to ReleasePartitionLease was already
+// cancelled, the way a real sql.DB.ExecContext call would observe and fail
+// fast on a dead context. Go test files cannot share unexported symbols
+// across a package boundary (issue #6061).
+type ctxCheckingLeaseManager struct {
+	mu            sync.Mutex
+	claimResult   bool
+	released      bool
+	releaseCtxErr error
+}
+
+func (l *ctxCheckingLeaseManager) ClaimPartitionLease(_ context.Context, _ string, _, _ int, _ string, _ time.Duration) (bool, error) {
+	return l.claimResult, nil
+}
+
+func (l *ctxCheckingLeaseManager) ReleasePartitionLease(ctx context.Context, _ string, _, _ int, _ string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.released = true
+	l.releaseCtxErr = ctx.Err()
+	if l.releaseCtxErr != nil {
+		return l.releaseCtxErr
+	}
+	return nil
+}
 
 // TestCodeCallProjectionRunnerReleasesLeaseWithLiveContext proves an empty
 // code-call partition releases its lease after stopping the heartbeat. The
@@ -18,12 +47,12 @@ func TestCodeCallProjectionRunnerReleasesLeaseWithLiveContext(t *testing.T) {
 
 	reader := &fakeCodeCallIntentStore{}
 	lease := &ctxCheckingLeaseManager{claimResult: true}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: lease,
 		EdgeWriter:   &recordingCodeCallProjectionEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			LeaseTTL:       30 * time.Second,
 			BatchLimit:     10,
 			PartitionCount: 1,

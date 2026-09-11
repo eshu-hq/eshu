@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
 	"slices"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallProjectionRunnerReusesRefreshFenceRowsAcrossWidenedCandidateWindows(t *testing.T) {
@@ -36,15 +40,15 @@ func TestCodeCallProjectionRunnerReusesRefreshFenceRowsAcrossWidenedCandidateWin
 		now.Add(2*time.Millisecond),
 	)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{blockedRow, readyRow},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{blockedRow, readyRow},
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {blockedRow, readyRow, refreshRow},
 		},
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:          1,
 			AcceptanceScanLimit: 10,
 			PartitionCount:      1,
@@ -76,10 +80,10 @@ func TestCodeCallProjectionRunnerReusesReadinessAcrossWidenedCandidateWindows(t 
 
 	now := time.Date(2026, time.June, 16, 10, 30, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "blocked-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->blocked",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-blocked",
@@ -90,7 +94,7 @@ func TestCodeCallProjectionRunnerReusesReadinessAcrossWidenedCandidateWindows(t 
 			},
 			{
 				IntentID:         "ready-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->ready",
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-ready",
@@ -103,11 +107,11 @@ func TestCodeCallProjectionRunnerReusesReadinessAcrossWidenedCandidateWindows(t 
 	}
 	var acceptedPrefetchCalls [][]string
 	var readinessPrefetchCalls [][]string
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
-		AcceptedGenPrefetch: func(_ context.Context, rows []SharedProjectionIntentRow) (AcceptedGenerationLookup, error) {
+		AcceptedGenPrefetch: func(_ context.Context, rows []sharedintent.Row) (sharedintent.AcceptedGenerationLookup, error) {
 			acceptedPrefetchCalls = append(acceptedPrefetchCalls, acceptanceUnitIDs(rows))
-			return func(key SharedProjectionAcceptanceKey) (string, bool) {
+			return func(key sharedintent.AcceptanceKey) (string, bool) {
 				switch key.AcceptanceUnitID {
 				case "repo-blocked":
 					return "gen-1", true
@@ -118,20 +122,20 @@ func TestCodeCallProjectionRunnerReusesReadinessAcrossWidenedCandidateWindows(t 
 				}
 			}, nil
 		},
-		ReadinessPrefetch: func(_ context.Context, keys []GraphProjectionPhaseKey, phase GraphProjectionPhase) (GraphProjectionReadinessLookup, error) {
-			if phase != GraphProjectionPhaseCanonicalNodesCommitted {
-				t.Fatalf("phase = %q, want %q", phase, GraphProjectionPhaseCanonicalNodesCommitted)
+		ReadinessPrefetch: func(_ context.Context, keys []gpphase.PhaseKey, phase gpphase.Phase) (gpphase.ReadinessLookup, error) {
+			if phase != gpphase.PhaseCanonicalNodesCommitted {
+				t.Fatalf("phase = %q, want %q", phase, gpphase.PhaseCanonicalNodesCommitted)
 			}
 			unitIDs := make([]string, 0, len(keys))
 			for _, key := range keys {
 				unitIDs = append(unitIDs, key.AcceptanceUnitID)
 			}
 			readinessPrefetchCalls = append(readinessPrefetchCalls, unitIDs)
-			return func(key GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool) {
+			return func(key gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 				return key.AcceptanceUnitID == "repo-ready", true
 			}, nil
 		},
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			BatchLimit:          1,
 			AcceptanceScanLimit: 10,
 		},
@@ -152,7 +156,7 @@ func TestCodeCallProjectionRunnerReusesReadinessAcrossWidenedCandidateWindows(t 
 	}
 }
 
-func acceptanceUnitIDs(rows []SharedProjectionIntentRow) []string {
+func acceptanceUnitIDs(rows []sharedintent.Row) []string {
 	unitIDs := make([]string, 0, len(rows))
 	for _, row := range rows {
 		unitIDs = append(unitIDs, row.AcceptanceUnitID)

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"bytes"
@@ -12,6 +12,8 @@ import (
 
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -28,14 +30,14 @@ func TestCodeCallProjectionRunnerRecordCycleUsesAcceptanceLogKeys(t *testing.T) 
 	if err != nil {
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		Logger:      logger,
 		Instruments: instruments,
 	}
 
 	err = runner.recordCodeCallCycle(
 		context.Background(),
-		SharedProjectionAcceptanceKey{
+		sharedintent.AcceptanceKey{
 			ScopeID:          "scope-a",
 			AcceptanceUnitID: "repo-a",
 			SourceRunID:      "run-1",
@@ -44,14 +46,14 @@ func TestCodeCallProjectionRunnerRecordCycleUsesAcceptanceLogKeys(t *testing.T) 
 		2,
 		1,
 		time.Now().Add(-250*time.Millisecond),
-		PartitionProcessResult{
+		worker.PartitionProcessResult{
 			MaxIntentWaitSeconds:         12.5,
 			ProcessingDurationSeconds:    0.25,
 			RetractDurationSeconds:       0.10,
 			WriteDurationSeconds:         0.12,
 			MarkCompletedDurationSeconds: 0.03,
 			SelectionDurationSeconds:     0.05,
-			SelectionPhases: SelectionPhaseDurations{
+			SelectionPhases: worker.SelectionPhaseDurations{
 				CandidateLoadSeconds:      0.01,
 				AcceptancePrefetchSeconds: 0.02,
 				ReadinessPrefetchSeconds:  0.03,
@@ -103,4 +105,19 @@ func TestCodeCallProjectionRunnerRecordCycleUsesAcceptanceLogKeys(t *testing.T) 
 	assertFloatLogValue(t, entry, "selection_acceptance_prefetch_duration_seconds", 0.02)
 	assertFloatLogValue(t, entry, "selection_readiness_prefetch_duration_seconds", 0.03)
 	assertFloatLogValue(t, entry, "selection_refresh_fence_duration_seconds", 0.04)
+}
+
+// assertFloatLogValue is a local copy of the reducer root's own test helper
+// (repo_dependency_projection_replay_test.go). Go test files cannot share
+// unexported symbols across a package boundary (issue #6061).
+func assertFloatLogValue(t *testing.T, entry map[string]any, key string, want float64) {
+	t.Helper()
+
+	got, ok := entry[key]
+	if !ok {
+		t.Fatalf("missing log key %q in entry %v", key, entry)
+	}
+	if got != want {
+		t.Fatalf("%s = %v, want %v", key, got, want)
+	}
 }

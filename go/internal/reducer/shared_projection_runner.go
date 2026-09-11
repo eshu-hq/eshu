@@ -10,7 +10,6 @@ import (
 // The default* constants are root spellings of [worker]'s exported defaults.
 const (
 	defaultBatchLimit         = worker.DefaultBatchLimit
-	defaultLeaseTTL           = worker.DefaultLeaseTTL
 	defaultSharedPollInterval = worker.DefaultPollInterval
 	defaultEvidenceSource     = worker.DefaultEvidenceSource
 )
@@ -32,9 +31,3 @@ type SharedProjectionRunnerConfig = worker.RunnerConfig
 // SharedProjectionRunner is the root spelling of
 // [worker.Runner].
 type SharedProjectionRunner = worker.Runner
-
-// mergePartitionProcessResult forwards to
-// [worker.MergePartitionProcessResult].
-func mergePartitionProcessResult(total *PartitionProcessResult, result PartitionProcessResult) {
-	worker.MergePartitionProcessResult(total, result)
-}

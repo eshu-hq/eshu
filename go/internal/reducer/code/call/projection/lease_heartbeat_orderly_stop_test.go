@@ -1,70 +1,58 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-// TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation
-// is the ProcessPartitionOnce half of this file; the code-call half moved to
-// [projection] (code/call/projection/lease_heartbeat_orderly_stop_test.go)
-// with the runner (issue #6061).
-func TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation(t *testing.T) {
+// TestCodeCallProjectionRunnerOrderlyStopDoesNotMisreportInFlightRenewalCancellation
+// is the code-call half of the reducer root's former
+// lease_heartbeat_orderly_stop_test.go, which split when the runner moved
+// out of root (issue #6061): the ProcessPartitionOnce half stays with its
+// subject.
+func TestCodeCallProjectionRunnerOrderlyStopDoesNotMisreportInFlightRenewalCancellation(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 7, 12, 0, 0, 0, time.UTC)
-	reader := &stubSharedIntentReader{pending: []SharedProjectionIntentRow{
-		{
-			IntentID:         "intent-shared-cancel",
-			ProjectionDomain: "platform_infra",
-			PartitionKey:     "pk-a",
-			ScopeID:          "scope-a",
-			AcceptanceUnitID: "repo-a",
-			RepositoryID:     "repo-a",
-			SourceRunID:      "run-1",
-			GenerationID:     "gen-1",
-			Payload:          map[string]any{"platform_id": "p1", "action": "upsert"},
-			CreatedAt:        now,
-		},
-	}}
+	row := codeCallProjectionTestRow("intent-code-call-cancel", "gen-1", now)
+	reader := &fakeCodeCallIntentStore{
+		pendingByDomain:     []sharedintent.Row{row},
+		pendingByAcceptance: map[string][]sharedintent.Row{"scope-a|repo-a|run-1": {row}},
+	}
 	leases := newInFlightCancellationLeaseManager()
-	cfg := PartitionProcessorConfig{
-		Domain:         "platform_infra",
-		PartitionID:    0,
-		PartitionCount: 1,
-		LeaseOwner:     "worker-1",
-		LeaseTTL:       2 * time.Millisecond,
-		BatchLimit:     10,
+	runner := Runner{
+		IntentReader: reader,
+		LeaseManager: leases,
+		EdgeWriter:   waitForLeaseRenewalWriter{renewalStarted: leases.renewalStarted},
+		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
+		ReadinessLookup: func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
+			return true, true
+		},
+		Config: RunnerConfig{
+			LeaseTTL:   2 * time.Millisecond,
+			BatchLimit: 10,
+		},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	result, err := ProcessPartitionOnce(
-		ctx,
-		now,
-		cfg,
-		leases,
-		reader,
-		waitForLeaseRenewalWriter{renewalStarted: leases.renewalStarted},
-		acceptedGenerationFixed("gen-1", true),
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+	result, err := runner.processOnce(ctx, now)
 	if err != nil {
-		t.Fatalf("ProcessPartitionOnce() error = %v, want nil after orderly stop cancels an in-flight renewal", err)
+		t.Fatalf("processOnce() error = %v, want nil after orderly stop cancels an in-flight renewal", err)
 	}
 	if !result.LeaseAcquired {
 		t.Fatal("LeaseAcquired = false, want true")
+	}
+	if got, want := len(reader.marked), 1; got != want {
+		t.Fatalf("completed intents = %d, want %d", got, want)
 	}
 	if !leases.wasReleased() {
 		t.Fatal("partition lease was not released")
@@ -134,7 +122,7 @@ type waitForLeaseRenewalWriter struct {
 func (w waitForLeaseRenewalWriter) RetractEdges(
 	context.Context,
 	string,
-	[]SharedProjectionIntentRow,
+	[]sharedintent.Row,
 	string,
 ) error {
 	return nil
@@ -143,13 +131,13 @@ func (w waitForLeaseRenewalWriter) RetractEdges(
 func (w waitForLeaseRenewalWriter) WriteEdges(
 	ctx context.Context,
 	_ string,
-	_ []SharedProjectionIntentRow,
+	_ []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	select {
 	case <-w.renewalStarted:
-		return SharedProjectionWriteReport{}, nil
+		return sharedintent.WriteReport{}, nil
 	case <-ctx.Done():
-		return SharedProjectionWriteReport{}, ctx.Err()
+		return sharedintent.WriteReport{}, ctx.Err()
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:dirgate // code-call projection runner stays in root (#6609): it needs the root lease and shared-projection machinery that sharedintent/doc.go pins here
+package projection
 
 import (
 	"context"
@@ -10,19 +10,22 @@ import (
 	"strings"
 	"time"
 
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-func (r *CodeCallProjectionRunner) loadAllAcceptanceUnitIntents(ctx context.Context, key SharedProjectionAcceptanceKey) ([]SharedProjectionIntentRow, error) {
+func (r *Runner) loadAllAcceptanceUnitIntents(ctx context.Context, key sharedintent.AcceptanceKey) ([]sharedintent.Row, error) {
 	return r.loadAcceptanceUnitRows(ctx, key)
 }
 
-func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionIntents(
+func (r *Runner) loadAcceptanceUnitPartitionIntents(
 	ctx context.Context,
-	key SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	partitionKey string,
-) ([]SharedProjectionIntentRow, error) {
-	if reader, ok := r.IntentReader.(CodeCallProjectionPartitionIntentReader); ok {
+) ([]sharedintent.Row, error) {
+	if reader, ok := r.IntentReader.(PartitionIntentReader); ok {
 		return r.loadAcceptanceUnitPartitionRows(ctx, reader, key, partitionKey)
 	}
 	rows, err := r.loadAcceptanceUnitRows(ctx, key)
@@ -32,19 +35,19 @@ func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionIntents(
 	return codeCallProjectionRowsForPartition(rows, partitionKey), nil
 }
 
-func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionRows(
+func (r *Runner) loadAcceptanceUnitPartitionRows(
 	ctx context.Context,
-	reader CodeCallProjectionPartitionIntentReader,
-	key SharedProjectionAcceptanceKey,
+	reader PartitionIntentReader,
+	key sharedintent.AcceptanceKey,
 	partitionKey string,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	limit := r.Config.batchLimit()
 	acceptanceScanLimit := r.Config.acceptanceScanLimit()
 	if limit > acceptanceScanLimit {
 		limit = acceptanceScanLimit
 	}
 	for {
-		rows, err := reader.ListPendingAcceptanceUnitPartitionIntents(ctx, key, DomainCodeCalls, partitionKey, limit)
+		rows, err := reader.ListPendingAcceptanceUnitPartitionIntents(ctx, key, reducercontract.DomainCodeCalls, partitionKey, limit)
 		if err != nil {
 			return nil, fmt.Errorf("list pending code call partition intents: %w", err)
 		}
@@ -62,17 +65,17 @@ func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionRows(
 	}
 }
 
-func (r *CodeCallProjectionRunner) loadAcceptanceUnitRows(
+func (r *Runner) loadAcceptanceUnitRows(
 	ctx context.Context,
-	key SharedProjectionAcceptanceKey,
-) ([]SharedProjectionIntentRow, error) {
+	key sharedintent.AcceptanceKey,
+) ([]sharedintent.Row, error) {
 	limit := r.Config.batchLimit()
 	acceptanceScanLimit := r.Config.acceptanceScanLimit()
 	if limit > acceptanceScanLimit {
 		limit = acceptanceScanLimit
 	}
 	for {
-		rows, err := r.IntentReader.ListPendingAcceptanceUnitIntents(ctx, key, DomainCodeCalls, limit)
+		rows, err := r.IntentReader.ListPendingAcceptanceUnitIntents(ctx, key, reducercontract.DomainCodeCalls, limit)
 		if err != nil {
 			return nil, fmt.Errorf("list pending code call acceptance intents: %w", err)
 		}
@@ -90,33 +93,33 @@ func (r *CodeCallProjectionRunner) loadAcceptanceUnitRows(
 	}
 }
 
-func (r *CodeCallProjectionRunner) retractRepo(ctx context.Context, rows []SharedProjectionIntentRow) error {
+func (r *Runner) retractRepo(ctx context.Context, rows []sharedintent.Row) error {
 	retractRows := buildCodeCallRetractRows(rows)
 	for _, evidenceSource := range codeCallEvidenceSources() {
-		if err := r.EdgeWriter.RetractEdges(ctx, DomainCodeCalls, retractRows, evidenceSource); err != nil {
+		if err := r.EdgeWriter.RetractEdges(ctx, reducercontract.DomainCodeCalls, retractRows, evidenceSource); err != nil {
 			return fmt.Errorf("retract code call edges for %s: %w", evidenceSource, err)
 		}
 	}
 	return nil
 }
 
-func (r *CodeCallProjectionRunner) shouldSkipCodeCallRetract(
+func (r *Runner) shouldSkipCodeCallRetract(
 	ctx context.Context,
-	key SharedProjectionAcceptanceKey,
+	key sharedintent.AcceptanceKey,
 	partitionKey string,
-	active []SharedProjectionIntentRow,
+	active []sharedintent.Row,
 	staleIDs []string,
 ) (bool, error) {
 	if len(staleIDs) > 0 {
 		return false, nil
 	}
-	partitionHistory, ok := r.IntentReader.(CodeCallProjectionCurrentRunPartitionHistoryLookup)
+	partitionHistory, ok := r.IntentReader.(CurrentRunPartitionHistoryLookup)
 	if ok {
 		hasCurrent, err := partitionHistory.HasCompletedAcceptanceUnitSourceRunPartitionDomainIntents(
 			ctx,
 			key,
 			partitionKey,
-			DomainCodeCalls,
+			reducercontract.DomainCodeCalls,
 		)
 		if err != nil {
 			return false, fmt.Errorf("check completed current code call projection partition history: %w", err)
@@ -126,14 +129,14 @@ func (r *CodeCallProjectionRunner) shouldSkipCodeCallRetract(
 		}
 	}
 	if codeCallProjectionPartitionKindForKey(partitionKey) == codeCallProjectionPartitionFile {
-		refreshHistory, ok := r.IntentReader.(CodeCallProjectionCurrentRunRefreshHistoryLookup)
+		refreshHistory, ok := r.IntentReader.(CurrentRunRefreshHistoryLookup)
 		if ok {
 			filePaths := codeCallProjectionFilePaths(active)
 			hasRefresh, err := refreshHistory.HasCompletedAcceptanceUnitSourceRunRefreshDomainIntents(
 				ctx,
 				key,
 				filePaths,
-				DomainCodeCalls,
+				reducercontract.DomainCodeCalls,
 			)
 			if err != nil {
 				return false, fmt.Errorf("check completed current code call refresh history: %w", err)
@@ -143,18 +146,18 @@ func (r *CodeCallProjectionRunner) shouldSkipCodeCallRetract(
 			}
 		}
 	}
-	history, ok := r.IntentReader.(CodeCallProjectionHistoryLookup)
+	history, ok := r.IntentReader.(HistoryLookup)
 	if !ok {
 		return false, nil
 	}
-	hasCompleted, err := history.HasCompletedAcceptanceUnitDomainIntents(ctx, key, DomainCodeCalls)
+	hasCompleted, err := history.HasCompletedAcceptanceUnitDomainIntents(ctx, key, reducercontract.DomainCodeCalls)
 	if err != nil {
 		return false, fmt.Errorf("check completed code call projection history: %w", err)
 	}
 	return !hasCompleted, nil
 }
 
-func (r *CodeCallProjectionRunner) writeActiveRows(ctx context.Context, rows []SharedProjectionIntentRow) (int, int, error) {
+func (r *Runner) writeActiveRows(ctx context.Context, rows []sharedintent.Row) (int, int, error) {
 	groups := groupCodeCallUpsertRows(rows)
 	if len(groups) == 0 {
 		return 0, 0, nil
@@ -179,7 +182,7 @@ func (r *CodeCallProjectionRunner) writeActiveRows(ctx context.Context, rows []S
 		// behaviour for this path, not a new loss -- but it IS a remaining gap,
 		// and the compile-forced report is what makes it visible instead of
 		// implicit. Wiring the sink here needs this handler's own proof.
-		if _, err := r.EdgeWriter.WriteEdges(ctx, DomainCodeCalls, group, source); err != nil {
+		if _, err := r.EdgeWriter.WriteEdges(ctx, reducercontract.DomainCodeCalls, group, source); err != nil {
 			return 0, 0, fmt.Errorf("write code call edges for %s: %w", source, err)
 		}
 		writtenRows += len(group)
@@ -188,7 +191,7 @@ func (r *CodeCallProjectionRunner) writeActiveRows(ctx context.Context, rows []S
 	return writtenRows, len(sources), nil
 }
 
-func (r *CodeCallProjectionRunner) wait(ctx context.Context, interval time.Duration) error {
+func (r *Runner) wait(ctx context.Context, interval time.Duration) error {
 	if r.Wait != nil {
 		return r.Wait(ctx, interval)
 	}
@@ -216,11 +219,11 @@ func codeCallPollBackoff(base time.Duration, consecutiveEmpty int) time.Duration
 }
 
 func codeCallEvidenceSources() []string {
-	return []string{codeCallEvidenceSource, pythonMetaclassEvidenceSource}
+	return []string{codecall.EvidenceSource, codecall.PythonMetaclassEvidenceSource}
 }
 
-func buildCodeCallRetractRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
-	repositoryIDs := uniqueRepositoryIDs(rows)
+func buildCodeCallRetractRows(rows []sharedintent.Row) []sharedintent.Row {
+	repositoryIDs := sharedintent.UniqueRepositoryIDs(rows)
 	if len(repositoryIDs) == 0 {
 		return nil
 	}
@@ -231,14 +234,14 @@ func buildCodeCallRetractRows(rows []SharedProjectionIntentRow) []SharedProjecti
 	return buildCodeCallRepoRetractRows(repositoryIDs)
 }
 
-func buildCodeCallRepoRetractRows(repositoryIDs []string) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
+func buildCodeCallRepoRetractRows(repositoryIDs []string) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		repositoryID = strings.TrimSpace(repositoryID)
 		if repositoryID == "" {
 			continue
 		}
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			RepositoryID: repositoryID,
 			Payload:      map[string]any{"repo_id": repositoryID},
 		})
@@ -246,11 +249,11 @@ func buildCodeCallRepoRetractRows(repositoryIDs []string) []SharedProjectionInte
 	return rows
 }
 
-func codeCallProjectionFilePaths(rows []SharedProjectionIntentRow) []string {
+func codeCallProjectionFilePaths(rows []sharedintent.Row) []string {
 	seen := make(map[string]struct{})
 	filePaths := make([]string, 0, len(rows))
 	for _, row := range rows {
-		for _, filePath := range semanticPayloadStringSlice(row.Payload, "delta_file_paths") {
+		for _, filePath := range payloadcore.SemanticPayloadStringSlice(row.Payload, "delta_file_paths") {
 			if _, ok := seen[filePath]; ok {
 				continue
 			}
@@ -265,11 +268,11 @@ func codeCallProjectionFilePaths(rows []SharedProjectionIntentRow) []string {
 func buildCodeCallDeltaRetractRows(
 	repositoryIDs []string,
 	deltaFilePathsByRepoID map[string][]string,
-) []SharedProjectionIntentRow {
-	rows := make([]SharedProjectionIntentRow, 0, len(repositoryIDs))
+) []sharedintent.Row {
+	rows := make([]sharedintent.Row, 0, len(repositoryIDs))
 	for _, repositoryID := range repositoryIDs {
 		filePaths := deltaFilePathsByRepoID[repositoryID]
-		rows = append(rows, SharedProjectionIntentRow{
+		rows = append(rows, sharedintent.Row{
 			RepositoryID: repositoryID,
 			Payload: map[string]any{
 				"repo_id":          repositoryID,
@@ -282,16 +285,16 @@ func buildCodeCallDeltaRetractRows(
 	return rows
 }
 
-func codeCallDeltaFilePathsByRepoIDFromRows(rows []SharedProjectionIntentRow) (map[string][]string, bool) {
+func codeCallDeltaFilePathsByRepoIDFromRows(rows []sharedintent.Row) (map[string][]string, bool) {
 	seenByRepoID := make(map[string]map[string]struct{})
 	hasDeltaScope := false
 	for _, row := range rows {
 		repositoryID := strings.TrimSpace(row.RepositoryID)
-		if repositoryID == "" || !codeCallPayloadBool(row.Payload, "delta_projection") {
+		if repositoryID == "" || !codecall.PayloadBool(row.Payload, "delta_projection") {
 			continue
 		}
 		hasDeltaScope = true
-		for _, filePath := range semanticPayloadStringSlice(row.Payload, "delta_file_paths") {
+		for _, filePath := range payloadcore.SemanticPayloadStringSlice(row.Payload, "delta_file_paths") {
 			seen := seenByRepoID[repositoryID]
 			if seen == nil {
 				seen = make(map[string]struct{})
@@ -316,8 +319,8 @@ func codeCallDeltaFilePathsByRepoIDFromRows(rows []SharedProjectionIntentRow) (m
 	return pathsByRepoID, hasDeltaScope
 }
 
-func groupCodeCallUpsertRows(rows []SharedProjectionIntentRow) map[string][]SharedProjectionIntentRow {
-	groups := make(map[string][]SharedProjectionIntentRow)
+func groupCodeCallUpsertRows(rows []sharedintent.Row) map[string][]sharedintent.Row {
+	groups := make(map[string][]sharedintent.Row)
 	for _, row := range rows {
 		if !isCodeCallEdgeRow(row) {
 			continue
@@ -328,12 +331,7 @@ func groupCodeCallUpsertRows(rows []SharedProjectionIntentRow) map[string][]Shar
 	return groups
 }
 
-// uniqueRepositoryIDs forwards to [sharedintent.UniqueRepositoryIDs].
-func uniqueRepositoryIDs(rows []SharedProjectionIntentRow) []string {
-	return sharedintent.UniqueRepositoryIDs(rows)
-}
-
-func acceptedGenerationID(rows []SharedProjectionIntentRow) string {
+func acceptedGenerationID(rows []sharedintent.Row) string {
 	for _, row := range rows {
 		if generationID := strings.TrimSpace(row.GenerationID); generationID != "" {
 			return generationID
@@ -342,7 +340,7 @@ func acceptedGenerationID(rows []SharedProjectionIntentRow) string {
 	return ""
 }
 
-func isCodeCallEdgeRow(row SharedProjectionIntentRow) bool {
+func isCodeCallEdgeRow(row sharedintent.Row) bool {
 	if row.Payload == nil {
 		return false
 	}
@@ -355,17 +353,17 @@ func isCodeCallEdgeRow(row SharedProjectionIntentRow) bool {
 	return codeCallRowPayloadString(row, "caller_entity_id") != "" && codeCallRowPayloadString(row, "callee_entity_id") != ""
 }
 
-func codeCallRowEvidenceSource(row SharedProjectionIntentRow) string {
+func codeCallRowEvidenceSource(row sharedintent.Row) string {
 	if source := strings.TrimSpace(codeCallRowPayloadString(row, "evidence_source")); source != "" {
 		return source
 	}
 	if codeCallRowPayloadString(row, "relationship_type") == "USES_METACLASS" {
-		return pythonMetaclassEvidenceSource
+		return codecall.PythonMetaclassEvidenceSource
 	}
-	return codeCallEvidenceSource
+	return codecall.EvidenceSource
 }
 
-func codeCallRowPayloadString(row SharedProjectionIntentRow, key string) string {
+func codeCallRowPayloadString(row sharedintent.Row, key string) string {
 	if row.Payload == nil {
 		return ""
 	}

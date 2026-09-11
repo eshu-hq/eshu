@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"bytes"
@@ -11,6 +11,10 @@ import (
 	"testing"
 	"time"
 
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -19,10 +23,10 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 
 	now := time.Date(2026, time.April, 16, 12, 0, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "refresh-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "repo:repo-a",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -34,7 +38,7 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 			},
 			{
 				IntentID:         "edge-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -45,13 +49,13 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 					"repo_id":          "repo-a",
 					"caller_entity_id": "caller",
 					"callee_entity_id": "callee",
-					"evidence_source":  codeCallEvidenceSource,
+					"evidence_source":  codecall.EvidenceSource,
 				},
 				CreatedAt: now.Add(time.Second),
 			},
 			{
 				IntentID:         "meta-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "child->meta",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -63,13 +67,13 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 					"source_entity_id":  "child",
 					"target_entity_id":  "meta",
 					"relationship_type": "USES_METACLASS",
-					"evidence_source":   pythonMetaclassEvidenceSource,
+					"evidence_source":   codecall.PythonMetaclassEvidenceSource,
 				},
 				CreatedAt: now.Add(2 * time.Second),
 			},
 			{
 				IntentID:         "stale-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "stale",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -80,11 +84,11 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 				CreatedAt:        now.Add(-time.Second),
 			},
 		},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {
 				{
 					IntentID:         "stale-1",
-					ProjectionDomain: DomainCodeCalls,
+					ProjectionDomain: reducercontract.DomainCodeCalls,
 					PartitionKey:     "stale",
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -96,7 +100,7 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 				},
 				{
 					IntentID:         "refresh-1",
-					ProjectionDomain: DomainCodeCalls,
+					ProjectionDomain: reducercontract.DomainCodeCalls,
 					PartitionKey:     "repo:repo-a",
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -108,7 +112,7 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 				},
 				{
 					IntentID:         "edge-1",
-					ProjectionDomain: DomainCodeCalls,
+					ProjectionDomain: reducercontract.DomainCodeCalls,
 					PartitionKey:     "caller->callee",
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -119,13 +123,13 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 						"repo_id":          "repo-a",
 						"caller_entity_id": "caller",
 						"callee_entity_id": "callee",
-						"evidence_source":  codeCallEvidenceSource,
+						"evidence_source":  codecall.EvidenceSource,
 					},
 					CreatedAt: now.Add(time.Second),
 				},
 				{
 					IntentID:         "meta-1",
-					ProjectionDomain: DomainCodeCalls,
+					ProjectionDomain: reducercontract.DomainCodeCalls,
 					PartitionKey:     "child->meta",
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -137,7 +141,7 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 						"source_entity_id":  "child",
 						"target_entity_id":  "meta",
 						"relationship_type": "USES_METACLASS",
-						"evidence_source":   pythonMetaclassEvidenceSource,
+						"evidence_source":   codecall.PythonMetaclassEvidenceSource,
 					},
 					CreatedAt: now.Add(2 * time.Second),
 				},
@@ -146,14 +150,14 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 		leaseGranted: true,
 	}
 	writer := &recordingCodeCallProjectionEdgeWriter{}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		Config: CodeCallProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
+		Config: RunnerConfig{PollInterval: 10 * time.Millisecond},
 	}
 
 	result, err := runner.processOnce(context.Background(), now)
@@ -169,10 +173,10 @@ func TestCodeCallProjectionRunnerProcessesRepoAtomically(t *testing.T) {
 	if len(writer.retractCalls) != 2 {
 		t.Fatalf("len(retractCalls) = %d, want 2 evidence-source retracts", len(writer.retractCalls))
 	}
-	if got, want := writer.retractCalls[0].evidenceSource, codeCallEvidenceSource; got != want {
+	if got, want := writer.retractCalls[0].evidenceSource, codecall.EvidenceSource; got != want {
 		t.Fatalf("retractCalls[0].evidenceSource = %q, want %q", got, want)
 	}
-	if got, want := writer.retractCalls[1].evidenceSource, pythonMetaclassEvidenceSource; got != want {
+	if got, want := writer.retractCalls[1].evidenceSource, codecall.PythonMetaclassEvidenceSource; got != want {
 		t.Fatalf("retractCalls[1].evidenceSource = %q, want %q", got, want)
 	}
 	if len(writer.writeCalls) != 2 {
@@ -193,13 +197,13 @@ func TestCodeCallProjectionRunnerWaitsForReducerGraphDrainBeforeLease(t *testing
 	t.Parallel()
 
 	reader := &fakeCodeCallIntentStore{leaseGranted: true}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader:      reader,
 		LeaseManager:      reader,
 		EdgeWriter:        &recordingCodeCallProjectionEdgeWriter{},
-		AcceptedGen:       func(SharedProjectionAcceptanceKey) (string, bool) { return "", false },
+		AcceptedGen:       func(sharedintent.AcceptanceKey) (string, bool) { return "", false },
 		ReducerGraphDrain: staticReducerGraphDrain{active: true},
-		Config:            CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config:            RunnerConfig{BatchLimit: 10},
 	}
 
 	result, err := runner.processOnce(context.Background(), time.Now().UTC())
@@ -219,10 +223,10 @@ func TestCodeCallProjectionRunnerProcessOnceReportsReadinessBlockedWait(t *testi
 
 	now := time.Date(2026, time.April, 28, 15, 0, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "blocked-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -240,13 +244,13 @@ func TestCodeCallProjectionRunnerProcessOnceReportsReadinessBlockedWait(t *testi
 		t.Fatalf("NewBootstrap() error = %v", err)
 	}
 	logger := telemetry.NewLoggerWithWriter(bootstrap, "reducer", "reducer", &buf)
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader:    reader,
 		LeaseManager:    reader,
 		EdgeWriter:      &recordingCodeCallProjectionEdgeWriter{},
 		AcceptedGen:     acceptedGenerationFixed("gen-1", true),
 		ReadinessLookup: readinessLookupFixed(false, false),
-		Config:          CodeCallProjectionRunnerConfig{BatchLimit: 10},
+		Config:          RunnerConfig{BatchLimit: 10},
 		Logger:          logger,
 	}
 
@@ -282,10 +286,10 @@ func TestCodeCallProjectionRunnerProcessOnceHeartbeatsLeaseDuringLongWrite(t *te
 	now := time.Date(2026, time.April, 23, 17, 0, 0, 0, time.UTC)
 	release := make(chan struct{})
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "edge-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -296,16 +300,16 @@ func TestCodeCallProjectionRunnerProcessOnceHeartbeatsLeaseDuringLongWrite(t *te
 					"repo_id":          "repo-a",
 					"caller_entity_id": "caller",
 					"callee_entity_id": "callee",
-					"evidence_source":  codeCallEvidenceSource,
+					"evidence_source":  codecall.EvidenceSource,
 				},
 				CreatedAt: now,
 			},
 		},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {
 				{
 					IntentID:         "edge-1",
-					ProjectionDomain: DomainCodeCalls,
+					ProjectionDomain: reducercontract.DomainCodeCalls,
 					PartitionKey:     "caller->callee",
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -316,7 +320,7 @@ func TestCodeCallProjectionRunnerProcessOnceHeartbeatsLeaseDuringLongWrite(t *te
 						"repo_id":          "repo-a",
 						"caller_entity_id": "caller",
 						"callee_entity_id": "callee",
-						"evidence_source":  codeCallEvidenceSource,
+						"evidence_source":  codecall.EvidenceSource,
 					},
 					CreatedAt: now,
 				},
@@ -333,17 +337,17 @@ func TestCodeCallProjectionRunnerProcessOnceHeartbeatsLeaseDuringLongWrite(t *te
 		recordingCodeCallProjectionEdgeWriter: recordingCodeCallProjectionEdgeWriter{},
 		release:                               release,
 	}
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		ReadinessLookup: func(_ GraphProjectionPhaseKey, _ GraphProjectionPhase) (bool, bool) {
+		ReadinessLookup: func(_ gpphase.PhaseKey, _ gpphase.Phase) (bool, bool) {
 			return true, true
 		},
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			LeaseTTL:   10 * time.Millisecond,
 			BatchLimit: 10,
 		},
@@ -372,10 +376,10 @@ func TestCodeCallProjectionRunnerRunContinuesAfterCycleError(t *testing.T) {
 
 	now := time.Date(2026, time.April, 17, 9, 0, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "edge-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -386,16 +390,16 @@ func TestCodeCallProjectionRunnerRunContinuesAfterCycleError(t *testing.T) {
 					"repo_id":          "repo-a",
 					"caller_entity_id": "caller",
 					"callee_entity_id": "callee",
-					"evidence_source":  codeCallEvidenceSource,
+					"evidence_source":  codecall.EvidenceSource,
 				},
 				CreatedAt: now,
 			},
 		},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{
+		pendingByAcceptance: map[string][]sharedintent.Row{
 			"scope-a|repo-a|run-1": {
 				{
 					IntentID:         "edge-1",
-					ProjectionDomain: DomainCodeCalls,
+					ProjectionDomain: reducercontract.DomainCodeCalls,
 					PartitionKey:     "caller->callee",
 					ScopeID:          "scope-a",
 					AcceptanceUnitID: "repo-a",
@@ -406,7 +410,7 @@ func TestCodeCallProjectionRunnerRunContinuesAfterCycleError(t *testing.T) {
 						"repo_id":          "repo-a",
 						"caller_entity_id": "caller",
 						"callee_entity_id": "callee",
-						"evidence_source":  codeCallEvidenceSource,
+						"evidence_source":  codecall.EvidenceSource,
 					},
 					CreatedAt: now,
 				},
@@ -423,14 +427,14 @@ func TestCodeCallProjectionRunnerRunContinuesAfterCycleError(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: reader,
 		EdgeWriter:   writer,
-		AcceptedGen: func(key SharedProjectionAcceptanceKey) (string, bool) {
+		AcceptedGen: func(key sharedintent.AcceptanceKey) (string, bool) {
 			return "gen-1", key.ScopeID == "scope-a" && key.AcceptanceUnitID == "repo-a" && key.SourceRunID == "run-1"
 		},
-		Config: CodeCallProjectionRunnerConfig{PollInterval: 10 * time.Millisecond},
+		Config: RunnerConfig{PollInterval: 10 * time.Millisecond},
 		Wait: func(_ context.Context, interval time.Duration) error {
 			waits = append(waits, interval)
 			if len(waits) == 1 {

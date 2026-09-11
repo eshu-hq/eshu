@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package projection
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallProjectionRunnerUsesBasePollIntervalWhileReadinessBlocked(t *testing.T) {
@@ -14,10 +17,10 @@ func TestCodeCallProjectionRunnerUsesBasePollIntervalWhileReadinessBlocked(t *te
 
 	now := time.Date(2026, time.April, 28, 17, 0, 0, 0, time.UTC)
 	reader := &fakeCodeCallIntentStore{
-		pendingByDomain: []SharedProjectionIntentRow{
+		pendingByDomain: []sharedintent.Row{
 			{
 				IntentID:         "blocked-1",
-				ProjectionDomain: DomainCodeCalls,
+				ProjectionDomain: reducercontract.DomainCodeCalls,
 				PartitionKey:     "caller->callee",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -31,13 +34,13 @@ func TestCodeCallProjectionRunnerUsesBasePollIntervalWhileReadinessBlocked(t *te
 	}
 
 	var waits []time.Duration
-	runner := CodeCallProjectionRunner{
+	runner := Runner{
 		IntentReader:    reader,
 		LeaseManager:    reader,
 		EdgeWriter:      &recordingCodeCallProjectionEdgeWriter{},
 		AcceptedGen:     acceptedGenerationFixed("gen-1", true),
 		ReadinessLookup: readinessLookupFixed(false, false),
-		Config: CodeCallProjectionRunnerConfig{
+		Config: RunnerConfig{
 			PollInterval: 500 * time.Millisecond,
 			BatchLimit:   10,
 		},
