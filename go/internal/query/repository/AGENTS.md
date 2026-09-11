@@ -35,5 +35,5 @@ Run focused `repository` tests, then root `query`, `queryplan`, `mcp`,
 ## Common changes
 
 - Add a handler method with its route in `Mount`, gate on the family's
-  capability, and update the matching root `openapi_paths_repositories*.go`
-  fragment in the same change (the fragments stay in the query root).
+  capability, and update the matching fragment under `openapi/paths/repository/`
+  in the same change.

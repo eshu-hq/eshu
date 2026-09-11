@@ -3,10 +3,6 @@
 
 package supplychain
 
-import (
-	"github.com/eshu-hq/eshu/go/internal/query/openapi/schema"
-)
-
 const impactFindings = `
     "/api/v0/supply-chain/impact/findings": {
       "get": {
@@ -92,7 +88,7 @@ const impactFindings = `
                           "kubernetes_runtime_probe": {"type": "object", "description": "Bounded per-digest Kubernetes RUNS_IMAGE probe metadata. candidate_limit is this finding digest's page-weighted authorized-ref budget: every non-empty digest occurrence receives at least one slot from the fixed 200-reference serialized-page cap, and repeated findings share the budget deterministically. workload_refs_truncated is null for scoped callers; for all-scopes callers true means authorized current refs exceeded that budget, false means the raw graph query exhausted within the budget, and null means the graph candidate sentinel was reached but authorization did not prove an authorized overflow.", "properties": {"candidate_limit": {"type": "integer", "minimum": 1, "maximum": 200}, "workload_refs_truncated": {"type": "boolean", "nullable": true}}, "required": ["candidate_limit", "workload_refs_truncated"]},
                           "ci_declared_artifact_digest": {"type": "string", "description": "The matched cicd_run_correlation deployment's OWN declared artifact digest (issue #5469), baked by the reducer only when that deployment matched through a STRONG identity branch (its own artifact_digest equalled subject_digest, or its own image_ref equalled image_ref) rather than the weak repository+environment+operational-anchor branch (#5426). This can genuinely differ from subject_digest: a deployment can match via image reference while its own declared digest contradicts the finding's subject digest (a moved tag), and that disagreement is exactly what version_resolution_corroboration discloses. A contradicting value here is never eligible to become version_resolution_tier's winner (review finding R1) -- it is disclosed as corroboration only. Never a copy of subject_digest — omitted, not borrowed, when no strong-branch match exists."},
                           "ci_declared_image_ref": {"type": "string", "description": "The matched cicd_run_correlation deployment's OWN declared image reference (issue #5469), baked under the same strong-branch-only rule as ci_declared_artifact_digest. Omitted when no strong-branch match exists."},
-                          "runtime_context": ` + schema.SupplyChainRuntimeContext + `,
+                          "runtime_context": ` + RuntimeContext + `,
                           "catalog_entity_refs": {"type": "array", "items": {"type": "string"}, "description": "Reducer-admitted service-catalog entity references attached to the finding evidence path. These are catalog anchors and do not become service_ids unless the reducer fact carries an explicit service_id."},
                           "catalog_owner_refs": {"type": "array", "items": {"type": "string"}, "description": "Reducer-admitted service-catalog owners attached to the finding evidence path. These preserve ownership context without inventing service or workload identity."},
                           "dependency_path": {"type": "array", "items": {"type": "string"}},

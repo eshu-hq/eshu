@@ -11,9 +11,9 @@
 // The tenant identity reads/mutations live in identity/, the provider-config
 // reads/mutations in provider/config/, the Postgres store in store/, and the
 // shared audit/permission glue in audit/. Those leaves import this package,
-// never the reverse. The OpenAPI fragments documenting the admin routes stay
-// in the query root (openapi_paths_auth_admin_*.go), where
-// scripts/verify-openapi.sh requires every family's fragments to live. Thin
+// never the reverse. The OpenAPI fragments documenting the admin routes live
+// in openapi/paths/auth/, which scripts/verify-openapi.sh scans recursively
+// along with the rest of the nested fragment tree. Thin
 // aliases and forwarders in the root admin_alias.go keep every other caller
 // compiling unchanged.
 package admin

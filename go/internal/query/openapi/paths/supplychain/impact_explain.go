@@ -3,10 +3,6 @@
 
 package supplychain
 
-import (
-	"github.com/eshu-hq/eshu/go/internal/query/openapi/schema"
-)
-
 const impactExplain = `
     "/api/v0/supply-chain/impact/explain": {
       "get": {
@@ -45,7 +41,7 @@ const impactExplain = `
                       "properties": {
                         "kubernetes_runtime_workload_refs": {"type": "array", "items": {"type": "object", "properties": {"workload_uid": {"type": "string"}, "cluster_id": {"type": "string"}, "namespace": {"type": "string"}, "name": {"type": "string"}}, "required": ["workload_uid"]}},
                         "kubernetes_runtime_probe": {"type": "object", "description": "The page-weighted digest probe budget and nullable truncation state from the list finding contract; a single explanation keeps the full 200-reference cap.", "properties": {"candidate_limit": {"type": "integer", "minimum": 1, "maximum": 200}, "workload_refs_truncated": {"type": "boolean", "nullable": true}}, "required": ["candidate_limit", "workload_refs_truncated"]},
-                        "runtime_context": ` + schema.SupplyChainRuntimeContext + `
+                        "runtime_context": ` + RuntimeContext + `
                       },
                       "additionalProperties": true
                     },

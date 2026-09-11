@@ -19,16 +19,12 @@ Layout:
   limit / observed-count / truncation shape) and
   `ImpactRuntimeTopologyLimits`, which composes three copies of it for
   instances, platform edges, and provisioned platforms.
-- `impact_k8s_resource_limits.go` — `ImpactK8sResourceLimits`, the
-  completeness-metadata fragment for merged and deduplicated
-  `k8s_resources` rows.
-- `supply_chain_runtime_context.go` — `SupplyChainRuntimeContext`, the
-  read-time-resolved runtime context fragment shared by the supply-chain
-  findings-list and impact-explain responses.
+- `evidence_boundaries.go` — `EvidenceBoundaries`, consumed by the `impact`,
+  `repository` and `search` leaves.
 
-Today `openapi/components_workload_session.go` consumes
-`ImpactRuntimeTopologyLimits`, and `openapi/paths/supplychain/impact_findings.go`
-and `impact_explain.go` consume `SupplyChainRuntimeContext`. A new fragment
+Today `openapi/components_workload_session.go` and `openapi/paths/impact/routes.go`
+both consume `ImpactRuntimeTopologyLimits` — a parent and a leaf, which is
+exactly the case this package exists for. A new fragment
 belongs here only when it has a consumer in `openapi` (or one of its
 `components_*.go` files) AND a consumer in some `paths/<leaf>` package — a
 fragment used by a single leaf belongs in that leaf instead, and a fragment

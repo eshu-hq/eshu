@@ -15,8 +15,8 @@
 // own — the one file in this package where that is true. Those three stay
 // unexported because nothing outside this package reads them.
 //
-// impact_findings.go and impact_explain.go import openapi/schema for the
-// SupplyChainRuntimeContext fragment shared with the components block; no
+// impact_findings.go and impact_explain.go share the RuntimeContext fragment
+// declared in this package's runtime_context.go; no
 // other file in this package imports it. This package MUST NOT import the
 // openapi parent. At 16 files it is the largest leaf under paths/ and
 // closest to the 40-non-test-file directory cap the dirgate linter

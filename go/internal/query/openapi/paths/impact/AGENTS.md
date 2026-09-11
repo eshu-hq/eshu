@@ -17,7 +17,7 @@ This leaf owns the change- and blast-radius-impact OpenAPI fragments
   touching either constant; adding `deploymentConfigInfluence` to
   `openapi/spec.go`'s concatenation as well would duplicate the route.
 - `routes.go` and `deployment_config_influence.go` depend on
-  `openapi/schema` for `schema.ImpactK8sResourceLimits`; `routes.go` also
+  this package's own `K8sResourceLimits`; `routes.go` also
   uses `schema.ImpactRuntimeTopologyLimits` and
   `schema.EvidenceBoundaries`. Reuse those imports for new routes needing
   the same shapes rather than inlining a copy.

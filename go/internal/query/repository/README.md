@@ -13,7 +13,7 @@ keeps its `Neo4j`, `Content`, `CICDRunCorrelations`,
 `ServiceCatalogCorrelations`, `Freshness`, `Profile`, and `Logger`
 dependencies; `cmd/api` and `cmd/mcp-server` wire it through the root
 `query.RepositoryHandler` alias unchanged. The OpenAPI fragments
-documenting the repository routes stay in the query root beside `openapi/spec.go`
+documenting the repository routes live in `openapi/paths/repository/`
 (the B2 precedent for family moves): the census co-move assumed room the
 40-file cap does not have once the catalog method files and the semantic
 trio the census missed are counted, so the fragments stay where the spec

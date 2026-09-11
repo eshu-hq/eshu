@@ -18,8 +18,8 @@ Layout:
   `/api/v0/impact/trace-resource-to-code`, and
   `/api/v0/impact/explain-dependency-path`.
 
-`routes.go` and `deployment_config_influence.go` import `openapi/schema`
-for `schema.ImpactK8sResourceLimits`; `routes.go` additionally uses
+`routes.go` and `deployment_config_influence.go` use `K8sResourceLimits`
+from this package's own `k8s_resource_limits.go`; `routes.go` additionally uses
 `schema.ImpactRuntimeTopologyLimits` and `schema.EvidenceBoundaries`.
 `contract.go`, `exposure.go`, and `rest.go` are self-contained.
 

@@ -7,9 +7,9 @@
 // hostname decoders, the service query enrichment, the service-story
 // dossier/overview/evidence-graph/supply-chain/trace-path shaping, and the
 // family's capability row. The OpenAPI fragments documenting the service
-// routes stay in the query root (openapi_paths_service_*.go), where
-// scripts/verify-openapi.sh requires every family's fragments to live;
-// the root spec assembly consumes them directly.
+// routes live in openapi/paths/service/, which scripts/verify-openapi.sh
+// scans recursively; openapi/spec.go assembles them into the published
+// document.
 //
 // The root package keeps the *ContentReader route methods
 // (service_story_target_support.go,

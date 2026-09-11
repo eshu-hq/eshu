@@ -16,9 +16,8 @@ envelope, supply-chain enrichment, investigation, workload resolution). The
 `platform_impact.context_overview` capability strings and the
 `TruthBasisHybrid` envelope basis travel with the family; the shared
 capability matrix row stays in the query root. The OpenAPI fragments
-documenting the entity routes stay in the query root
-(`openapi/paths/search/entities.go`), where scripts/verify-openapi.sh requires
-every family's fragments to live.
+documenting the entity routes live in `openapi/paths/search/entities.go`,
+which scripts/verify-openapi.sh reaches by scanning that tree recursively.
 
 The `EntityHandler` struct keeps its `Neo4j`, `Content`,
 `CICDRunCorrelations`, `ContainerImageIdentities`, `SBOMAttachments`,

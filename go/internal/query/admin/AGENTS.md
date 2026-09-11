@@ -12,9 +12,9 @@ provider-config surfaces in their nested leaves.
 
 - Do not add routes here for other families. New families get their own
   leaf; only the root `APIRouter` wires them.
-- The OpenAPI fragments for these routes stay in the query root
-  (`openapi_paths_auth_admin_*.go`); `verify-openapi.sh` requires every
-  family's fragments at the top level.
+- The OpenAPI fragments for these routes live in `openapi/paths/auth/`
+  (`admin_mutations.go`, `admin_provider_configs.go`, `setup.go`);
+  `verify-openapi.sh` scans that tree recursively.
 - `queryplan` manifests: the admin family has no entries. Keep it zero.
 
 ## Import Direction

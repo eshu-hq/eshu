@@ -39,9 +39,9 @@ Run focused `entity` tests, then root `query`, `queryplan`, `mcp`,
 ## Common changes
 
 - Add a handler method with its route in `Mount`, gate on the family's
-  capability, and update the matching `openapi/paths/search/entities.go` fragment
-  in the query root in the same change (scripts/verify-openapi.sh only
-  scans the root `openapi_paths_*.go` files; fragments must stay there).
+  capability, and update the matching `openapi/paths/search/entities.go`
+  fragment in the same change (scripts/verify-openapi.sh scans the nested
+  fragment tree recursively).
 - A new cross-family workload-context consumer belongs on the exported
   `FetchWorkloadContextForOperation` seam with a queryplan audit entry, not
   on a new unexported back-channel.
