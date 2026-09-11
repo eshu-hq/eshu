@@ -21,9 +21,17 @@ that type here too, or that the code you are writing does not belong in this
 package. Adding the import defeats the entire reason this package exists and
 re-blocks 47 files.
 
-**Keep it plain data and pure functions.** No queue handle, no graph handle, no
-worker, no lease, no `context.Context`, no I/O. The current dependency set is
-the standard library plus `payloadcore` for one string coercion. A new
+**Keep it plain data, pure functions, and port shapes.** No queue handle, no
+graph handle, no worker, no lease loop, no I/O implementation. `ports.go`
+declares interfaces whose METHODS take `context.Context` (`EdgeWriter`,
+`PartitionLeaseManager`) because that is the shape callers need — but this
+package implements none of them and performs no I/O itself. A symbol belongs
+here only when it is data, a port interface/function type, or a pure function
+over `Row`; the worker, runner, readiness, lease-heartbeat and
+batch-selection machinery that CALLS these ports stays at the reducer root
+(moving to `intents/shared/worker` as issue #6061 proceeds). The dependency
+set is the standard library plus `payloadcore` (string coercion) and
+`contract` (the `Domain*` constants the repo-wide-retract set reads). A new
 dependency is a design change to be justified in the PR, not a convenience.
 
 **Do not change `StableIntentID`'s derivation.** It is a persisted contract in

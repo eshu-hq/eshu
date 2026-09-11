@@ -201,18 +201,7 @@ func graphProjectionPhaseKeyForIntent(
 	return graphProjectionPhaseKeyForAcceptance(acceptanceKey, generationID, keyspace)
 }
 
-// RowsForPartition returns intent rows whose partition key belongs to one
-// worker partition.
+// RowsForPartition forwards to [sharedintent.RowsForPartition].
 func RowsForPartition(rows []SharedProjectionIntentRow, partitionID, partitionCount int) []SharedProjectionIntentRow {
-	var result []SharedProjectionIntentRow
-	for _, row := range rows {
-		p, err := PartitionForKey(row.PartitionKey, partitionCount)
-		if err != nil {
-			continue
-		}
-		if p == partitionID {
-			result = append(result, row)
-		}
-	}
-	return result
+	return sharedintent.RowsForPartition(rows, partitionID, partitionCount)
 }

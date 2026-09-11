@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -52,58 +51,21 @@ const (
 	retractViaRefreshKey = sharedintent.RetractViaRefreshKey
 )
 
-// domainHasRepoWideRetract reports whether a domain owns its retract at the
-// repository (or whole-repo delta) level rather than per partition. These domains
-// emit per-edge partition keys, so their edges spread across partitions; the
-// generic worker would otherwise issue the same scope-wide retract once per
-// partition and wipe sibling partitions' just-written edges within a cycle
-// (#2910). The retract suppression (#2898) routes the single retract through a
-// per-repo refresh intent and fences per-edge writes behind it.
-//
-// The retract the refresh owns may be repo-wide (delete every edge for the repo)
-// or file-scoped (delete only the changed files' edges on a delta generation):
-// inheritance_edges, sql_relationships, and rationale_edges retract repo-wide by
-// default and file-scoped under a delta, while the three symbol→runtime domains
-// always retract repo-wide. The fence mechanism is identical either way — the refresh
-// intent owns the single retract and the per-edge writes are deferred until it
-// commits — because the refresh carries whichever delta scope the materializer
-// attached. Repo-keyed domains (platform_infra, workload_dependency, …) keep one
-// partition per repo, so they do not spread and are intentionally excluded.
-// The set is written down once, here, because a second copy of it lives in
-// another package: storage/cypher's wholeScopeRetractDomains table splits these
-// same domains into the narrowed and un-narrowed halves of the whole-scope
-// retract. A domain added to the fence but missed there gets a
-// whole-repository DELETE bound to the batch-wide repository list, which is the
-// #6166 over-delete, and nothing in that package's tests would iterate over it.
-// The predicate and RepoWideRetractDomains read this one map so
-// TestWholeScopeRetractDomainsCoversFencedSet compares the two sets rather than
-// two hand-typed lists that happen to agree today.
-var repoWideRetractDomains = map[string]struct{}{
-	DomainHandlesRoute:       {},
-	DomainRunsIn:             {},
-	DomainInvokesCloudAction: {},
-	DomainInheritanceEdges:   {},
-	DomainSQLRelationships:   {},
-	DomainShellExec:          {},
-	DomainRationaleEdges:     {},
-}
-
+// domainHasRepoWideRetract forwards to [sharedintent.DomainHasRepoWideRetract].
+// See that function for which domains are fenced and why: these domains emit
+// per-edge partition keys, so their edges spread across partitions, and the
+// retract suppression (#2898/#2910) routes their single repo-wide retract
+// through a per-repo refresh intent instead of reissuing it once per
+// partition. A second copy of the fenced set lives in
+// internal/storage/cypher's wholeScopeRetractDomains table; a domain added
+// here but missed there gets the #6166 over-delete.
 func domainHasRepoWideRetract(domain string) bool {
-	_, fenced := repoWideRetractDomains[domain]
-	return fenced
+	return sharedintent.DomainHasRepoWideRetract(domain)
 }
 
-// RepoWideRetractDomains returns every domain whose retract the per-repo refresh
-// intent owns, sorted, so another package can check its own handling of that set
-// against this one instead of re-enumerating it. It reads the same map
-// domainHasRepoWideRetract does, so the two cannot disagree.
+// RepoWideRetractDomains forwards to [sharedintent.RepoWideRetractDomains].
 func RepoWideRetractDomains() []string {
-	domains := make([]string, 0, len(repoWideRetractDomains))
-	for domain := range repoWideRetractDomains {
-		domains = append(domains, domain)
-	}
-	sort.Strings(domains)
-	return domains
+	return sharedintent.RepoWideRetractDomains()
 }
 
 // repoWideRetractRefreshPartitionKey is the whole-scope partition key the per-repo
@@ -116,23 +78,14 @@ func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
 	return sharedintent.RepoWideRetractRefreshPartitionKey(domain, repoID)
 }
 
-// isRepoRefreshRow reports whether a row is a per-repo refresh intent.
+// isRepoRefreshRow forwards to [sharedintent.IsRepoRefreshRow].
 func isRepoRefreshRow(row SharedProjectionIntentRow) bool {
-	return payloadStr(row.Payload, "intent_type") == RepoRefreshIntentType
+	return sharedintent.IsRepoRefreshRow(row)
 }
 
-// markRowsRetractViaRefresh stamps the retract_via_refresh marker on every
-// per-edge row so the worker fences them behind their paired repo refresh intent.
-// It is applied at emission, right where the refresh intents are built, so the
-// marker and the refresh intent are always emitted together.
+// markRowsRetractViaRefresh forwards to [sharedintent.MarkRowsRetractViaRefresh].
 func markRowsRetractViaRefresh(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
-	for i := range rows {
-		if rows[i].Payload == nil {
-			rows[i].Payload = map[string]any{}
-		}
-		rows[i].Payload[retractViaRefreshKey] = true
-	}
-	return rows
+	return sharedintent.MarkRowsRetractViaRefresh(rows)
 }
 
 // rowUsesRefreshFence reports whether a per-edge row opted into the repo-wide
@@ -143,19 +96,9 @@ func rowUsesRefreshFence(row SharedProjectionIntentRow) bool {
 	return payloadcore.PayloadBool(row.Payload, retractViaRefreshKey)
 }
 
-// splitRepoRefreshRows separates per-repo refresh rows from per-edge rows,
-// preserving order. A refresh row carries no edge target, so callers exempt it
-// from the endpoint-presence (terminal) gate that would otherwise drain it with
-// no edge and never run its repo-wide retract.
+// splitRepoRefreshRows forwards to [sharedintent.SplitRepoRefreshRows].
 func splitRepoRefreshRows(rows []SharedProjectionIntentRow) (refresh, edge []SharedProjectionIntentRow) {
-	for _, row := range rows {
-		if isRepoRefreshRow(row) {
-			refresh = append(refresh, row)
-			continue
-		}
-		edge = append(edge, row)
-	}
-	return refresh, edge
+	return sharedintent.SplitRepoRefreshRows(rows)
 }
 
 // SharedProjectionRefreshFenceLookup reports whether a repo's whole-scope

@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func (r *CodeCallProjectionRunner) loadAllAcceptanceUnitIntents(ctx context.Context, key SharedProjectionAcceptanceKey) ([]SharedProjectionIntentRow, error) {
@@ -326,22 +328,9 @@ func groupCodeCallUpsertRows(rows []SharedProjectionIntentRow) map[string][]Shar
 	return groups
 }
 
+// uniqueRepositoryIDs forwards to [sharedintent.UniqueRepositoryIDs].
 func uniqueRepositoryIDs(rows []SharedProjectionIntentRow) []string {
-	seen := make(map[string]struct{}, len(rows))
-	repositoryIDs := make([]string, 0, len(rows))
-	for _, row := range rows {
-		repositoryID := strings.TrimSpace(row.RepositoryID)
-		if repositoryID == "" {
-			continue
-		}
-		if _, ok := seen[repositoryID]; ok {
-			continue
-		}
-		seen[repositoryID] = struct{}{}
-		repositoryIDs = append(repositoryIDs, repositoryID)
-	}
-	sort.Strings(repositoryIDs)
-	return repositoryIDs
+	return sharedintent.UniqueRepositoryIDs(rows)
 }
 
 func acceptedGenerationID(rows []SharedProjectionIntentRow) string {

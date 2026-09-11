@@ -14,12 +14,19 @@ are referenced by 47 non-test root files spanning roughly 23 domains.
 ## Ownership boundary
 
 **Owns:** the intent row and input shapes, the identity derivation, the
-acceptance-key shape and the method that reads it off a row.
+acceptance-key shape and the method that reads it off a row; the port shapes
+the worker substrate and a canonical edge writer share (`EdgeWriter`,
+`PartitionLeaseManager`, `AcceptedGenerationLookup`/`Prefetch`, the unroutable
+report); and the pure row/partition helpers that only classify or filter a
+`Row` slice — partition hashing, upsert filtering, repo-refresh row detection
+and splitting, and the repo-wide-retract domain set.
 
 **Does not own:** anything that runs. The worker, runner, readiness,
-lease-heartbeat, unroutable-quarantine and batch-selection machinery — 11
-non-test files, roughly 7000 lines — stays in `shared_projection.go` at the
-root. Issue #6061 pins it there, and no family needs it.
+lease-heartbeat, unroutable-quarantine and batch-selection machinery stays at
+the reducer root (moving to `intents/shared/worker` as issue #6061 proceeds).
+A symbol belongs here when it is data, a port interface, or a pure function
+over `Row`; it belongs with the machinery when it calls out to a lease
+manager, a reader, or an edge writer.
 
 ## Exported surface
 
@@ -31,18 +38,34 @@ root. Issue #6061 pins it there, and no family needs it.
 | `StableIntentID` | SHA256 over the sorted identity fields |
 | `AcceptanceKey` | the bounded-unit freshness slice |
 | `Row.AcceptanceKey()` | reads that slice off a row, reporting whether one exists |
+| `EdgeWriter` | writes/retracts canonical edges for one domain |
+| `WriteReport` / `UnroutableRow` | what an edge write could not route |
+| `UnroutableReasonMissingRequiredField` / `UnroutableReasonNoStatementForType` | bounded unroutable reasons |
+| `PartitionLeaseManager` | claims/releases a worker partition lease |
+| `AcceptedGenerationLookup` / `AcceptedGenerationPrefetch` | accepted-generation resolution for a batch |
+| `PartitionHashForKey` / `PartitionForKey` | stable partition assignment for a key |
+| `RowsForPartition` | filters rows to one worker partition |
+| `RowRepoID` | the repo id a row's readiness/presence gates key on |
+| `CarriesNoEdge` | reports a control row with no edge to write |
+| `FilterUpsertRows` | drops non-upsert (control) rows before a write |
+| `UniqueRepositoryIDs` | distinct, sorted repository ids in a row set |
+| `IsRepoRefreshRow` / `SplitRepoRefreshRows` | per-repo refresh row detection/split |
+| `MarkRowsRetractViaRefresh` | stamps the retract-via-refresh marker at emission |
+| `DomainHasRepoWideRetract` / `RepoWideRetractDomains` | the repo-wide-retract domain set (#2898/#2910) |
 
-The reducer root keeps aliases under the original names — `SharedProjectionIntentRow`,
-`SharedProjectionIntentInput`, `SharedProjectionAcceptanceKey` — and a forwarder
-for `BuildSharedProjectionIntent`, so callers in `internal/storage/postgres`,
-`internal/ifa/materializededges` and `internal/replay/offlinetier` reach these
-through the root and were untouched by the hoist.
+The reducer root keeps aliases and forwarders under the original names
+(`SharedProjectionIntentRow`, `SharedProjectionEdgeWriter`,
+`PartitionLeaseManager`, `PartitionForKey`, `RowsForPartition`,
+`CarriesNoEdge`, `RepoWideRetractDomains`, and the unexported row-helper
+spellings), so callers inside and outside the reducer root were untouched by
+the hoist.
 
 ## Dependencies
 
-The standard library, plus `internal/reducer/payloadcore` for one string
-coercion. `payloadcore` imports no reducer root either, so the chain is
-leaf-to-leaf with no cycle.
+The standard library, plus `internal/reducer/payloadcore` for string
+coercion and `internal/reducer/contract` for the `Domain*` constants the
+repo-wide-retract set reads. Neither imports the reducer root, so the chain
+is leaf-to-leaf with no cycle.
 
 **This package must never import `internal/reducer`**, directly or
 transitively. Adding that import defeats the entire reason the package exists

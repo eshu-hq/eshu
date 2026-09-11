@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // workloadMaterializationRepoReadinessKey builds the deterministic per-repo
@@ -69,11 +71,7 @@ func sharedProjectionReadinessKeyForRow(
 // phase row under (the APIEndpointRow/WorkloadRow RepoID), so consumer and
 // publisher reconstruct an identical key.
 func sharedProjectionRowRepoID(row SharedProjectionIntentRow) string {
-	repoID := payloadStr(row.Payload, "repo_id")
-	if repoID == "" {
-		repoID = strings.TrimSpace(row.RepositoryID)
-	}
-	return repoID
+	return sharedintent.RowRepoID(row)
 }
 
 // filterRowsByReadiness partitions a domain's pending intent rows into three
@@ -219,40 +217,12 @@ func maxSharedIntentWaitSeconds(now time.Time, rows []SharedProjectionIntentRow)
 	return maxWait
 }
 
-// CarriesNoEdge reports whether a shared-projection row exists to drive a
-// retract or another control action rather than to write an edge of its own.
-// A repo refresh intent is the canonical case: its whole job is to issue one
-// repo-wide retract, and it has no endpoints a write statement could match.
-//
-// filterUpsertRows already keeps these rows out of the write phase (they carry
-// action="refresh"). Canonical edge writers consult this predicate as well so
-// the two layers agree on what "no edge to write" means: a control row must
-// never be counted as an unroutable edge, because that is the signal #5984
-// uses to refuse to complete an intent, and a false one there would wedge a
-// partition on work that was correct all along.
+// CarriesNoEdge is the root spelling of [sharedintent.CarriesNoEdge].
 func CarriesNoEdge(row SharedProjectionIntentRow) bool {
-	if isRepoRefreshRow(row) {
-		return true
-	}
-	action, ok := row.Payload["action"]
-	if !ok {
-		return false
-	}
-	s, isStr := action.(string)
-	return isStr && s != "upsert"
+	return sharedintent.CarriesNoEdge(row)
 }
 
-// filterUpsertRows returns rows whose payload action is "upsert" or absent.
+// filterUpsertRows forwards to [sharedintent.FilterUpsertRows].
 func filterUpsertRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
-	var result []SharedProjectionIntentRow
-	for _, row := range rows {
-		action, ok := row.Payload["action"]
-		if ok {
-			if s, isStr := action.(string); isStr && s != "upsert" {
-				continue
-			}
-		}
-		result = append(result, row)
-	}
-	return result
+	return sharedintent.FilterUpsertRows(rows)
 }
