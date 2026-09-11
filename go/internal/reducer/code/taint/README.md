@@ -181,8 +181,8 @@ package that owns the code moved.
 **Exported-stutter drop addendum (issue #6061, PR #6645):** the package clause
 changed from `codetaint` to `taint` in the move PR, but every exported
 identifier still repeated the `Code`/`CodeTaint`/`CodeInterproc` package-name
-stutter (for example `taint.EvidenceWriter` -> `taint.EvidenceWriter`,
-`taint.InterprocEvidenceWriter` -> `taint.InterprocEvidenceWriter`), which
+stutter (for example `taint.CodeTaintEvidenceWriter` -> `taint.EvidenceWriter`,
+`taint.CodeInterprocEvidenceWriter` -> `taint.InterprocEvidenceWriter`), which
 `docs/internal/naming.md`'s no-package-name-stutter rule bans and its
 move-leaves-names-better rule requires a move to fix.
 This addendum drops that stutter, following the sibling `code/value` package's
