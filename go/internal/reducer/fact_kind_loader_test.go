@@ -102,7 +102,7 @@ func TestSemanticEntityMaterializationHandlerUsesKindFilteredFactLoader(t *testi
 	}
 	writer := &recordingSemanticEntityWriter{result: semantic.EntityWriteResult{CanonicalWrites: 1}}
 	publisher := &recordingSemanticEntityPhasePublisher{}
-	handler := semantic.EntityMaterializationHandler{
+	handler := semantic.Handler{
 		FactLoader:           loader,
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },

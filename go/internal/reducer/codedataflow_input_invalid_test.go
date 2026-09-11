@@ -150,7 +150,7 @@ func TestDecodeCodeInterprocEvidenceQuarantinesMissingEndpoint(t *testing.T) {
 // function-summary family's durable identity requirement: a
 // "code_function_summary" fact missing its required function_id key must
 // dead-letter as input_invalid rather than being silently skipped by
-// the summary handler's ExtractCodeFunctionSummaryEffectsWithQuarantine
+// the summary handler's ExtractEffects
 // path (the pre-migration postgres loader silently skipped it via an
 // `if id == "" { continue }` guard with no operator-visible signal).
 func TestDecodeCodeFunctionSummaryQuarantinesMissingFunctionID(t *testing.T) {

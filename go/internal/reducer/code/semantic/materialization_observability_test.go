@@ -44,7 +44,7 @@ func TestSemanticEntityMaterializationHandlerLogsStageTiming(t *testing.T) {
 		result: EntityWriteResult{CanonicalWrites: 1},
 	}
 
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader: loader,
 		Writer:     writer,
 	}

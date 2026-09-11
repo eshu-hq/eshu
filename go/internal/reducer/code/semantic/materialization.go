@@ -55,10 +55,10 @@ type EntityWriter interface {
 	WriteSemanticEntities(context.Context, EntityWrite) (EntityWriteResult, error)
 }
 
-// EntityMaterializationHandler reduces one semantic-entity follow-up
+// Handler reduces one semantic-entity follow-up
 // into canonical graph writes. It loads parser facts, extracts canonical
 // semantic rows, and writes them through the Neo4j adapter.
-type EntityMaterializationHandler struct {
+type Handler struct {
 	FactLoader           factload.FactLoader
 	Writer               EntityWriter
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
@@ -67,7 +67,7 @@ type EntityMaterializationHandler struct {
 }
 
 // Handle executes the semantic-entity materialization path.
-func (h EntityMaterializationHandler) Handle(
+func (h Handler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
 ) (reducercontract.Result, error) {
@@ -222,7 +222,7 @@ func logSemanticEntityMaterializationCompleted(
 	)
 }
 
-func (h EntityMaterializationHandler) shouldSkipSemanticRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
+func (h Handler) shouldSkipSemanticRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -233,7 +233,7 @@ func (h EntityMaterializationHandler) shouldSkipSemanticRetract(ctx context.Cont
 	return !hasPrior, nil
 }
 
-func (h EntityMaterializationHandler) publishSemanticGraphPhases(
+func (h Handler) publishSemanticGraphPhases(
 	ctx context.Context,
 	generationID string,
 	envelopes []facts.Envelope,

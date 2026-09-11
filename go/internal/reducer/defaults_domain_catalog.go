@@ -89,7 +89,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				PlatformGraphLocker:        handlers.PlatformGraphLocker,
 			}
 		case DomainSemanticEntityMaterialization:
-			semanticHandler := semantic.EntityMaterializationHandler{
+			semanticHandler := semantic.Handler{
 				FactLoader:           handlers.FactLoader,
 				Writer:               handlers.SemanticEntityWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,

@@ -5,8 +5,8 @@
 # every array declaration this file assigns into.
 
 # Non-vacuous: ShellExecIntentWriter is a declared dependency
-# (go/internal/reducer/shell_exec_materialization.go:33) and Handle calls
-# UpsertIntents on it (:87), so a lock on shared_projection_intents blocks a
+# (go/internal/reducer/code/shell/handler.go) and Handle calls
+# UpsertIntents on it, so a lock on shared_projection_intents blocks a
 # write this family actually performs.
 IFA_FAMILY_BLOCKER_KIND[shell_exec]="shared_intent_lock"
 IFA_FAMILY_WAIT_STAGE[shell_exec]="handler"
@@ -41,6 +41,6 @@ IFA_FAMILY_RETRY_BASELINE_VAR[shell_exec]="baseline_shell_exec_retried"
 # through DRIVE_FN/CASSETTE_VAR above.
 IFA_FAMILY_FAULT_SHARED_DRIVE[shell_exec]="0"
 
-IFA_FAMILY_HANDLER_GO_FILE[shell_exec]="go/internal/reducer/shell_exec_materialization.go"
+IFA_FAMILY_HANDLER_GO_FILE[shell_exec]="go/internal/reducer/code/shell/handler.go"
 
 IFA_FAMILY_NAMES+=(shell_exec)

@@ -3,7 +3,7 @@
 
 // Package shell reduces parser command-call evidence into durable
 // shared-projection intents for Function-[:EXECUTES_SHELL]->ShellCommand
-// (issue #6061). [ExecMaterializationHandler.Handle] extracts canonical rows
+// (issue #6061). [Handler.Handle] extracts canonical rows
 // through [ExtractExecRows], reusing the SQL-relationship family's delta
 // scope and repo-ID merge ([sqlrelationship.BuildDeltaScope],
 // [sqlrelationship.MergeRepositoryIDs]) rather than duplicating them: both

@@ -35,7 +35,7 @@ func TestCodeFunctionSummaryHandlerQuarantinesMalformedFact(t *testing.T) {
 	}
 
 	writer := &recordingCodeFunctionSummaryWriter{}
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader: stubSummaryFactLoader{envelopes: []facts.Envelope{malformed, valid}},
 		Writer: writer,
 	}
@@ -80,7 +80,7 @@ func TestCodeFunctionSummaryHandlerQuarantinesMalformedSourceFact(t *testing.T) 
 
 	summaryWriter := &recordingCodeFunctionSummaryWriter{}
 	srcWriter := &recordingCodeFunctionSourceWriter{}
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader:       stubSummaryFactLoader{},
 		Writer:       summaryWriter,
 		SourceLoader: stubSourceFactLoader{envelopes: []facts.Envelope{malformedSource}},

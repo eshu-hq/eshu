@@ -13,5 +13,5 @@ package:
 
 - `registry_additive_domains.go` and `defaults_additive_domains_incident_code.go`:
   the composition root wires `summary.Definition()` and
-  `summary.MaterializationHandler` into `DefaultHandlers`/`Registry`, so this
+  `summary.Handler` into `DefaultHandlers`/`Registry`, so this
   wiring cannot sit below root.

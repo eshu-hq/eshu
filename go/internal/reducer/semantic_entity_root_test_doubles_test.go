@@ -42,7 +42,7 @@ func (w *recordingSemanticEntityWriter) WriteSemanticEntities(
 }
 
 // recordingSemanticEntityPhasePublisher is a gpphase.PhasePublisher double
-// that records every publish call. semantic.EntityMaterializationHandler.PhasePublisher
+// that records every publish call. semantic.Handler.PhasePublisher
 // is gpphase.PhasePublisher directly (not a distinct named type), so this
 // double satisfies it without any adapter.
 type recordingSemanticEntityPhasePublisher struct {
@@ -61,7 +61,7 @@ func (p *recordingSemanticEntityPhasePublisher) PublishGraphProjectionPhases(_ c
 // double, using the reducer root's own GraphProjectionPhaseRepair type. It is
 // wired directly into root handlers under test (e.g.
 // WorkloadMaterializationHandler) that still take the root's full repair
-// queue interface, not into semantic.EntityMaterializationHandler
+// queue interface, not into semantic.Handler
 // (which takes its own local, narrower interface and is reached only through
 // semanticEntityRepairQueueAdapter).
 type recordingSemanticEntityRepairQueue struct {

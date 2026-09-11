@@ -352,8 +352,8 @@ type CodeFunctionGraphIDWriter = summary.GraphIDWriter
 type ValueFlowFixpointProjector = summary.ValueFlowFixpointProjector
 
 // CodeFunctionSummaryMaterializationHandler is the root spelling of
-// [summary.MaterializationHandler].
-type CodeFunctionSummaryMaterializationHandler = summary.MaterializationHandler
+// [summary.Handler].
+type CodeFunctionSummaryMaterializationHandler = summary.Handler
 
 // codeFunctionSummaryDomainDefinition forwards to [summary.Definition].
 func codeFunctionSummaryDomainDefinition() DomainDefinition {

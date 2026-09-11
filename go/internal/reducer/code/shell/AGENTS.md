@@ -47,7 +47,7 @@ durable intent too.
   `sqlrelationship` directly — this package already sits below it in the
   dependency graph, so there is no cycle to work around.
 - Exporting a new unexported helper "just in case" a future caller needs it.
-  `ExecMaterializationHandler`, `ExecIntentWriter`, `ExtractExecRows`,
+  `Handler`, `IntentWriter`, `ExtractExecRows`,
   `LoadMaterializationFacts`, `BuildSharedIntentRows`, and
   `BuildRefreshIntents` are exported because the reducer root's compat
   forwarders and cross-domain sibling test tables need them; nothing else in

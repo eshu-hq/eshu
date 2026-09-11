@@ -43,8 +43,8 @@ func DecodeCodeDataflowFunction(env facts.Envelope) (codedataflowv1.DataflowFunc
 // returning a self-classifying *factDecodeError when the payload is missing
 // its required function_id identity field or is otherwise malformed. It is
 // the single decode site for this kind: the reducer handler's
-// ExtractCodeFunctionSummaryEffectsWithQuarantine /
-// ExtractCodeFunctionGraphIDsWithQuarantine extractors decode through here
+// ExtractEffects /
+// ExtractGraphIDs extractors decode through here
 // (over the raw envelopes postgres LoadCodeFunctionSummaryFacts /
 // LoadCodeFunctionGraphIDFacts return), so a code_function_summary fact
 // missing function_id dead-letters as input_invalid via
@@ -63,7 +63,7 @@ func DecodeCodeFunctionSummary(env facts.Envelope) (codedataflowv1.FunctionSumma
 // returning a self-classifying *factDecodeError when the payload is missing a
 // required field (function_id, kind) or is otherwise malformed. It is the
 // single decode site for this kind: the reducer handler's
-// ExtractCodeFunctionSourcesWithQuarantine extractor decodes through here
+// ExtractSources extractor decodes through here
 // (over the raw envelopes postgres LoadCodeFunctionSourceFacts returns), so a
 // code_function_source fact missing function_id/kind dead-letters as
 // input_invalid rather than being silently skipped.

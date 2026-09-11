@@ -1968,13 +1968,13 @@ postgres loaders (`code_taint_evidence_loader.go`,
 reducer handlers decode them through the typed contracts seam via the
 `*WithQuarantine` extractors (`ExtractCodeTaintEvidenceRowsWithQuarantine`,
 `ExtractCodeInterprocEvidenceRowsWithQuarantine`,
-`ExtractCodeFunctionSummaryEffectsWithQuarantine`,
-`ExtractCodeFunctionGraphIDsWithQuarantine`,
-`ExtractCodeFunctionSourcesWithQuarantine`), matching the Wave 4f S1
+`ExtractEffects`,
+`ExtractGraphIDs`,
+`ExtractSources`), matching the Wave 4f S1
 (`code/call/extract.go`) and Wave 4e documentation
 (`ExtractDocumentationEdgeRowsWithQuarantine`) precedent: the storage adapter
 owns the SQL fetch, the reducer owns the typed decode AND the input_invalid
-dead-letter. Also converts `shell_exec_materialization.go`'s and
+dead-letter. Also converts `code/shell/handler.go`'s and
 `sqlrelationship/sql_relationship_delta_scope.go`'s `file`/`repository` identity
 reads to Wave 4f S1's `decodeCodegraphFile`/`decodeCodegraphRepository`.
 

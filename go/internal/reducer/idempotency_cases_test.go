@@ -289,7 +289,7 @@ func semanticEntityReplayCase() idempotencyReplayCase {
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
 			writer := &recordingSemanticEntityWriter{result: semantic.EntityWriteResult{CanonicalWrites: 1}}
-			handler := semantic.EntityMaterializationHandler{
+			handler := semantic.Handler{
 				FactLoader: &stubFactLoader{envelopes: fencedFacts(semanticEntityReplayFacts())},
 				Writer:     writer,
 			}

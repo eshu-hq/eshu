@@ -11,6 +11,7 @@ directory owns no runtime behavior. Each child is its own Go package:
 | `value/` | `value` | Value-flow fixpoint program assembly, component cache, cloud-sink loading, backfill state marker |
 | `shell/` | `shell` | Shell-exec fact extraction, materialization, and shared-intent row construction for `Function-[:EXECUTES_SHELL]->ShellCommand` |
 | `function/` | `function` (documentation namespace; see `code/function/README.md`) | Parents `function/summary/`, the durable value-flow function-summary persistence family |
+| `semantic/` | `semantic` | Turns `content_entity` facts into canonical semantic-entity graph nodes (Annotation, Typedef, Component, Function, and related node kinds) |
 
 `codeintel` (code-root reachability projection) is planned for `intel/` and
 still lives at `go/internal/reducer/codeintel` until its relocation lands.

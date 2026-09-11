@@ -26,21 +26,21 @@ import (
 
 const evidenceSource = "reducer/shell-exec"
 
-// ExecIntentWriter persists durable shared-projection intents for shell
+// IntentWriter persists durable shared-projection intents for shell
 // execution edge materialization.
-type ExecIntentWriter interface {
+type IntentWriter interface {
 	UpsertIntents(ctx context.Context, rows []sharedintent.Row) error
 }
 
-// ExecMaterializationHandler reduces parser command-call evidence into
+// Handler reduces parser command-call evidence into
 // durable shared-projection intents for Function-[:EXECUTES_SHELL]->ShellCommand.
-type ExecMaterializationHandler struct {
+type Handler struct {
 	FactLoader   factload.FactLoader
-	IntentWriter ExecIntentWriter
+	IntentWriter IntentWriter
 }
 
 // Handle executes shell execution materialization.
-func (h ExecMaterializationHandler) Handle(
+func (h Handler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
 ) (reducercontract.Result, error) {
@@ -117,11 +117,20 @@ func (h ExecMaterializationHandler) Handle(
 	}, nil
 }
 
-// MaterializationFactKinds is the single source for the kind set
-// LoadMaterializationFacts requests. Exported: the reducer root's
-// factload_materialization_bench_test.go corpus-coverage guard reads it
-// through the shellExecMaterializationFactKinds compat forwarder.
-var MaterializationFactKinds = []string{factload.FactKindRepository, factload.FactKindFile}
+// materializationFactKinds is the single source for the kind set
+// MaterializationFactKinds/LoadMaterializationFacts requests.
+var materializationFactKinds = []string{factload.FactKindRepository, factload.FactKindFile}
+
+// MaterializationFactKinds returns the fact kinds shell-exec materialization
+// requests, as a fresh copy so a caller cannot mutate the package's backing
+// slice. Exported: the reducer root's factload_materialization_bench_test.go
+// corpus-coverage guard reads it through the shellExecMaterializationFactKinds
+// compat forwarder.
+func MaterializationFactKinds() []string {
+	out := make([]string, len(materializationFactKinds))
+	copy(out, materializationFactKinds)
+	return out
+}
 
 // LoadMaterializationFacts loads the fact kinds shell-exec materialization
 // needs for one scope generation.
@@ -131,7 +140,7 @@ func LoadMaterializationFacts(
 	scopeID string,
 	generationID string,
 ) ([]facts.Envelope, error) {
-	return factload.LoadFactsForKinds(ctx, loader, scopeID, generationID, MaterializationFactKinds)
+	return factload.LoadFactsForKinds(ctx, loader, scopeID, generationID, materializationFactKinds)
 }
 
 // ExtractExecRows builds canonical shell execution edge rows from file
@@ -145,8 +154,8 @@ func LoadMaterializationFacts(
 // whose payload is missing a required identity field is skipped, matching this
 // function's pre-existing "skip and continue" shape for an absent/blank
 // repo_id or parsed_file_data (the same "skip, do not join under an empty
-// identity" contract dependency/imports' identity decode establishes for the
-// same fact kinds).
+// identity" contract code_import_repo_edge_identity.go's decode establishes
+// for the same fact kinds).
 func ExtractExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	if len(envelopes) == 0 {
 		return nil, nil

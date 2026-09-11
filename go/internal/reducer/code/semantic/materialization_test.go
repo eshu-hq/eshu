@@ -511,7 +511,7 @@ func TestSemanticEntityMaterializationHandlerWritesAndRetracts(t *testing.T) {
 		},
 	}
 
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader: loader,
 		Writer:     writer,
 	}
@@ -572,7 +572,7 @@ func TestSemanticEntityMaterializationHandlerSkipsRetractForFirstGeneration(t *t
 		},
 	}
 	writer := &recordingSemanticEntityWriter{}
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader: loader,
 		Writer:     writer,
 		PriorGenerationCheck: func(_ context.Context, scopeID, generationID string) (bool, error) {
@@ -640,7 +640,7 @@ func TestSemanticEntityMaterializationHandlerRetractsWhenPriorGenerationExists(t
 			t.Parallel()
 
 			writer := &recordingSemanticEntityWriter{}
-			handler := EntityMaterializationHandler{
+			handler := Handler{
 				FactLoader: loader,
 				Writer:     writer,
 				PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
@@ -692,7 +692,7 @@ func TestSemanticEntityMaterializationHandlerRetractsForRetriedFirstGeneration(t
 		},
 	}
 	writer := &recordingSemanticEntityWriter{}
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader: loader,
 		Writer:     writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
@@ -751,7 +751,7 @@ func TestSemanticEntityMaterializationHandlerRetractsWhenNoTargetRowsRemain(t *t
 		result: EntityWriteResult{},
 	}
 
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader: loader,
 		Writer:     writer,
 	}
@@ -823,7 +823,7 @@ func TestSemanticEntityMaterializationPublishesSemanticNodesCommitted(t *testing
 	}
 	publisher := &recordingSemanticEntityPhasePublisher{}
 
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader:     loader,
 		Writer:         writer,
 		PhasePublisher: publisher,
@@ -926,7 +926,7 @@ func TestSemanticEntityMaterializationHandlerFiltersToTargetRepo(t *testing.T) {
 	}
 	publisher := &recordingSemanticEntityPhasePublisher{}
 
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader:     loader,
 		Writer:         writer,
 		PhasePublisher: publisher,
@@ -1039,7 +1039,7 @@ func TestSemanticEntityMaterializationHandlerResolvesLegacyEntityKeyToTargetRepo
 	}
 	publisher := &recordingSemanticEntityPhasePublisher{}
 
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader:     loader,
 		Writer:         writer,
 		PhasePublisher: publisher,
@@ -1113,7 +1113,7 @@ func TestSemanticEntityMaterializationEnqueuesRepairWhenPublishFails(t *testing.
 	}
 	repairQueue := &recordingSemanticEntityRepairQueue{}
 
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader:     loader,
 		Writer:         writer,
 		PhasePublisher: publisher,

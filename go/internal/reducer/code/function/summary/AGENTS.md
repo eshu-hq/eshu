@@ -24,7 +24,7 @@ Ownership boundary sections for exactly what this package owns versus what
   `internal/reducer`: the root imports it (via the code-function-summary
   stanza of `compat_decode.go` and `defaults_additive_domains_incident_code.go`'s
   wiring), never the reverse.
-- **`internal/parser/summary` is always imported as `flow`, never bare
+- **`internal/parser/summary` is always imported as `parsed`, never bare
   `summary`.** This package's own name is `summary`; importing the parser
   package unaliased would either collide or force every call site to
   self-reference as `summary.summary.X`.
@@ -52,7 +52,7 @@ builder in the moved handler tests.
 - Reintroducing a root-local copy of `codeFunctionSummaryEffects`,
   `codeFunctionGraphID`, or `codeFunctionSource` — they are unexported and
   package-local on purpose; the reducer root reaches this family only
-  through `Definition`, `MaterializationHandler`, and the `Extract*`
+  through `Definition`, `Handler`, and the `Extract*`
   functions.
 
 ## Do not change without ADR review
@@ -60,4 +60,4 @@ builder in the moved handler tests.
 - The separate quarantine-discard rule for the graph-id view (it must not
   double-count the summary-effects view's quarantines on
   `input_invalid_facts`).
-- The fixpoint-projector-runs-last ordering in `MaterializationHandler.Handle`.
+- The fixpoint-projector-runs-last ordering in `Handler.Handle`.

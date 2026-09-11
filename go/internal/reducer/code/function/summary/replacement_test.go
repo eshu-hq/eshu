@@ -8,24 +8,24 @@ import (
 	"testing"
 	"time"
 
-	flow "github.com/eshu-hq/eshu/go/internal/parser/summary"
+	parsed "github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
 func TestCodeFunctionSummaryHandlerReplacesFullSnapshotPruningMissingFunctions(t *testing.T) {
 	t.Parallel()
 
-	keepID := flow.FunctionID("repo-1\x1fpkg\x1f\x1fkeep")
-	staleID := flow.FunctionID("repo-1\x1fpkg\x1f\x1fstale")
-	otherRepoID := flow.FunctionID("repo-2\x1fpkg\x1f\x1fkeep")
-	previous := flow.NewStore()
-	previous.Upsert(map[flow.FunctionID]flow.Effects{
+	keepID := parsed.FunctionID("repo-1\x1fpkg\x1f\x1fkeep")
+	staleID := parsed.FunctionID("repo-1\x1fpkg\x1f\x1fstale")
+	otherRepoID := parsed.FunctionID("repo-2\x1fpkg\x1f\x1fkeep")
+	previous := parsed.NewStore()
+	previous.Upsert(map[parsed.FunctionID]parsed.Effects{
 		keepID:      {ParamToReturn: []int{0}},
-		staleID:     {ParamToSink: []flow.ParamSink{{Param: 0, SinkKind: "sql"}}},
+		staleID:     {ParamToSink: []parsed.ParamSink{{Param: 0, SinkKind: "sql"}}},
 		otherRepoID: {SourceToReturn: []string{"http_request"}},
 	})
 	writer := &recordingCodeFunctionSummaryWriter{previous: previous.Snapshot()}
-	handler := MaterializationHandler{
-		Loader: stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
+	handler := Handler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[parsed.FunctionID]parsed.Effects{
 			keepID: {ParamToReturn: []int{0}},
 		}},
 		Writer: writer,
@@ -42,7 +42,7 @@ func TestCodeFunctionSummaryHandlerReplacesFullSnapshotPruningMissingFunctions(t
 	if writer.replaceRepo != "repo-1" {
 		t.Fatalf("replace repo = %q, want repo-1", writer.replaceRepo)
 	}
-	got := flow.Load(writer.replaceSnapshot)
+	got := parsed.Load(writer.replaceSnapshot)
 	if _, ok := got.Version(keepID); !ok {
 		t.Fatalf("replace snapshot missing current function %q", keepID)
 	}
@@ -57,16 +57,16 @@ func TestCodeFunctionSummaryHandlerReplacesFullSnapshotPruningMissingFunctions(t
 func TestCodeFunctionSummaryHandlerPreservesDeltaNoDeleteBehavior(t *testing.T) {
 	t.Parallel()
 
-	changedID := flow.FunctionID("repo-1\x1fpkg\x1f\x1fchanged")
-	unchangedID := flow.FunctionID("repo-1\x1fpkg\x1f\x1funchanged")
-	previous := flow.NewStore()
-	previous.Upsert(map[flow.FunctionID]flow.Effects{
+	changedID := parsed.FunctionID("repo-1\x1fpkg\x1f\x1fchanged")
+	unchangedID := parsed.FunctionID("repo-1\x1fpkg\x1f\x1funchanged")
+	previous := parsed.NewStore()
+	previous.Upsert(map[parsed.FunctionID]parsed.Effects{
 		changedID:   {ParamToReturn: []int{0}},
-		unchangedID: {ParamToSink: []flow.ParamSink{{Param: 0, SinkKind: "sql"}}},
+		unchangedID: {ParamToSink: []parsed.ParamSink{{Param: 0, SinkKind: "sql"}}},
 	})
 	writer := &recordingCodeFunctionSummaryWriter{previous: previous.Snapshot()}
-	handler := MaterializationHandler{
-		Loader: stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
+	handler := Handler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[parsed.FunctionID]parsed.Effects{
 			changedID: {ParamToReturn: []int{1}},
 		}},
 		Writer: writer,
@@ -80,7 +80,7 @@ func TestCodeFunctionSummaryHandlerPreservesDeltaNoDeleteBehavior(t *testing.T) 
 	if writer.upsertCalls != 1 || writer.replaceCalls != 0 {
 		t.Fatalf("writer calls = upsert %d replace %d, want upsert only", writer.upsertCalls, writer.replaceCalls)
 	}
-	if _, ok := flow.Load(writer.snapshot).Version(unchangedID); !ok {
+	if _, ok := parsed.Load(writer.snapshot).Version(unchangedID); !ok {
 		t.Fatalf("delta upsert dropped unchanged function %q", unchangedID)
 	}
 }
@@ -88,12 +88,12 @@ func TestCodeFunctionSummaryHandlerPreservesDeltaNoDeleteBehavior(t *testing.T) 
 func TestCodeFunctionSummaryHandlerReplacesEmptyFullSnapshot(t *testing.T) {
 	t.Parallel()
 
-	previous := flow.NewStore()
-	previous.Upsert(map[flow.FunctionID]flow.Effects{
+	previous := parsed.NewStore()
+	previous.Upsert(map[parsed.FunctionID]parsed.Effects{
 		"repo-1\x1fpkg\x1f\x1fstale": {ParamToReturn: []int{0}},
 	})
 	writer := &recordingCodeFunctionSummaryWriter{previous: previous.Snapshot()}
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader: stubCodeFunctionSummaryLoader{},
 		Writer: writer,
 		Now:    func() time.Time { return time.Date(2026, time.June, 18, 2, 0, 0, 0, time.UTC) },
@@ -114,7 +114,7 @@ func TestCodeFunctionSummaryHandlerReplacesCompanionStoresOnEmptyFullSnapshot(t 
 
 	sourceWriter := &recordingCodeFunctionSourceWriter{}
 	graphIDWriter := &recordingCodeFunctionGraphIDWriter{}
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader:        stubCodeFunctionSummaryLoader{},
 		Writer:        &recordingCodeFunctionSummaryWriter{},
 		SourceLoader:  stubCodeFunctionSourceLoader{},

@@ -10,7 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
-	flow "github.com/eshu-hq/eshu/go/internal/parser/summary"
+	parsed "github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
@@ -20,8 +20,8 @@ import (
 // typed contracts seam. The graphIDs field lets a test attach a graph_uid to a
 // function id so the graph-id view (which reads the same facts) resolves it.
 type stubCodeFunctionSummaryLoader struct {
-	effects  map[flow.FunctionID]flow.Effects
-	graphIDs map[flow.FunctionID]string
+	effects  map[parsed.FunctionID]parsed.Effects
+	graphIDs map[parsed.FunctionID]string
 }
 
 func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryFacts(
@@ -34,7 +34,7 @@ func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryFacts(
 // effects (union'd with graphIDs so a graph-id-only function still emits a
 // fact), carrying the reconstructed effect lists a real payload would hold.
 func (l stubCodeFunctionSummaryLoader) summaryEnvelopes() []facts.Envelope {
-	ids := make(map[flow.FunctionID]struct{})
+	ids := make(map[parsed.FunctionID]struct{})
 	for id := range l.effects {
 		ids[id] = struct{}{}
 	}
@@ -89,18 +89,18 @@ type recordingCodeFunctionSummaryWriter struct {
 	calls           int
 	upsertCalls     int
 	replaceCalls    int
-	previous        flow.Snapshot
-	snapshot        flow.Snapshot
-	replaceSnapshot flow.Snapshot
+	previous        parsed.Snapshot
+	snapshot        parsed.Snapshot
+	replaceSnapshot parsed.Snapshot
 	replaceRepo     string
 	updatedAt       time.Time
 }
 
-func (w *recordingCodeFunctionSummaryWriter) LoadSnapshot(context.Context) (flow.Snapshot, error) {
+func (w *recordingCodeFunctionSummaryWriter) LoadSnapshot(context.Context) (parsed.Snapshot, error) {
 	return w.previous, nil
 }
 
-func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, snap flow.Snapshot, updatedAt time.Time) error {
+func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, snap parsed.Snapshot, updatedAt time.Time) error {
 	w.calls++
 	w.upsertCalls++
 	w.snapshot = snap
@@ -111,7 +111,7 @@ func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, s
 func (w *recordingCodeFunctionSummaryWriter) ReplaceSnapshot(
 	_ context.Context,
 	repo string,
-	snap flow.Snapshot,
+	snap parsed.Snapshot,
 	updatedAt time.Time,
 ) error {
 	w.calls++
@@ -132,18 +132,18 @@ func codeFunctionSummaryIntent() reducercontract.Intent {
 }
 
 // TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot proves the handler
-// loads the raw Effects, recomputes content versions through flow.Store, and
+// loads the raw Effects, recomputes content versions through parsed.Store, and
 // upserts a versioned snapshot.
 func TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot(t *testing.T) {
 	t.Parallel()
 
-	loader := stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
-		flow.FunctionID("repo-1\x1fpkg\x1f\x1fview"):  {SourceToReturn: []string{"http_request"}},
-		flow.FunctionID("repo-1\x1fpkg\x1f\x1fquery"): {ParamToSink: []flow.ParamSink{{Param: 0, SinkKind: "sql"}}},
+	loader := stubCodeFunctionSummaryLoader{effects: map[parsed.FunctionID]parsed.Effects{
+		parsed.FunctionID("repo-1\x1fpkg\x1f\x1fview"):  {SourceToReturn: []string{"http_request"}},
+		parsed.FunctionID("repo-1\x1fpkg\x1f\x1fquery"): {ParamToSink: []parsed.ParamSink{{Param: 0, SinkKind: "sql"}}},
 	}}
 	writer := &recordingCodeFunctionSummaryWriter{}
 	at := time.Date(2026, time.June, 18, 0, 0, 0, 0, time.UTC)
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader: loader,
 		Writer: writer,
 		Now:    func() time.Time { return at },
@@ -175,18 +175,18 @@ func TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot(t *testing.T) {
 func TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot(t *testing.T) {
 	t.Parallel()
 
-	callerID := flow.FunctionID("repo-1\x1fpkg\x1f\x1fhandler")
-	calleeID := flow.FunctionID("repo-1\x1fpkg\x1f\x1fvalidate")
-	previousStore := flow.NewStore()
-	previousStore.Upsert(map[flow.FunctionID]flow.Effects{
-		calleeID: {ParamToSink: []flow.ParamSink{{Param: 0, SinkKind: "authz"}}},
-		callerID: {ParamToCallArg: []flow.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}}},
+	callerID := parsed.FunctionID("repo-1\x1fpkg\x1f\x1fhandler")
+	calleeID := parsed.FunctionID("repo-1\x1fpkg\x1f\x1fvalidate")
+	previousStore := parsed.NewStore()
+	previousStore.Upsert(map[parsed.FunctionID]parsed.Effects{
+		calleeID: {ParamToSink: []parsed.ParamSink{{Param: 0, SinkKind: "authz"}}},
+		callerID: {ParamToCallArg: []parsed.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}}},
 	})
 	writer := &recordingCodeFunctionSummaryWriter{previous: previousStore.Snapshot()}
-	handler := MaterializationHandler{
-		Loader: stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
+	handler := Handler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[parsed.FunctionID]parsed.Effects{
 			callerID: {
-				ParamToCallArg: []flow.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}},
+				ParamToCallArg: []parsed.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}},
 				SourceToReturn: []string{"http_request"},
 			},
 		}},
@@ -200,7 +200,7 @@ func TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot(t *testing.T
 	if len(writer.snapshot.Functions) != 2 {
 		t.Fatalf("snapshot functions = %d, want previous callee plus updated caller", len(writer.snapshot.Functions))
 	}
-	if _, ok := flow.Load(writer.snapshot).Version(calleeID); !ok {
+	if _, ok := parsed.Load(writer.snapshot).Version(calleeID); !ok {
 		t.Fatalf("snapshot dropped unchanged callee %q", calleeID)
 	}
 }
@@ -210,7 +210,7 @@ func TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot(t *testing.T
 func TestCodeFunctionSummaryHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader: stubCodeFunctionSummaryLoader{},
 		Writer: &recordingCodeFunctionSummaryWriter{},
 	}
@@ -267,7 +267,7 @@ func (w *recordingCodeFunctionSourceWriter) ReplaceSources(
 func TestCodeFunctionSummaryHandlerPersistsSourcesWhenWired(t *testing.T) {
 	t.Parallel()
 	srcWriter := &recordingCodeFunctionSourceWriter{}
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader: stubCodeFunctionSummaryLoader{},
 		Writer: &recordingCodeFunctionSummaryWriter{},
 		SourceLoader: stubCodeFunctionSourceLoader{sources: []interproc.Source{
@@ -290,8 +290,8 @@ func TestCodeFunctionSummaryHandlerPersistsSourcesWhenWired(t *testing.T) {
 func TestCodeFunctionSummaryHandlerReplacesEmptySourceSnapshot(t *testing.T) {
 	t.Parallel()
 	srcWriter := &recordingCodeFunctionSourceWriter{}
-	handler := MaterializationHandler{
-		Loader: stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
+	handler := Handler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[parsed.FunctionID]parsed.Effects{
 			"repo-1\x1fpkg\x1f\x1fhandle": {ParamToReturn: []int{0}},
 		}},
 		Writer:       &recordingCodeFunctionSummaryWriter{},
@@ -314,7 +314,7 @@ func TestCodeFunctionSummaryHandlerReplacesEmptySourceSnapshot(t *testing.T) {
 // is skipped (no panic) when the optional source loader/writer are absent.
 func TestCodeFunctionSummaryHandlerSkipsSourcesWhenUnwired(t *testing.T) {
 	t.Parallel()
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader: stubCodeFunctionSummaryLoader{},
 		Writer: &recordingCodeFunctionSummaryWriter{},
 	}
@@ -329,7 +329,7 @@ func TestCodeFunctionSummaryHandlerSkipsSourcesWhenUnwired(t *testing.T) {
 // empty-string uid is emitted as a present-but-empty graph_uid so the
 // unresolved-id-clears-stale-mapping behavior is preserved.
 type stubCodeFunctionGraphIDLoader struct {
-	ids map[flow.FunctionID]string
+	ids map[parsed.FunctionID]string
 }
 
 func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDFacts(context.Context, string, string) ([]facts.Envelope, error) {
@@ -351,13 +351,13 @@ func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDFacts(context.Cont
 type recordingCodeFunctionGraphIDWriter struct {
 	calls int
 	repos []string
-	sets  []map[flow.FunctionID]string
+	sets  []map[parsed.FunctionID]string
 }
 
 func (w *recordingCodeFunctionGraphIDWriter) ReplaceGraphIDs(
 	_ context.Context,
 	repo string,
-	ids map[flow.FunctionID]string,
+	ids map[parsed.FunctionID]string,
 	_ time.Time,
 ) error {
 	w.calls++
@@ -371,10 +371,10 @@ func (w *recordingCodeFunctionGraphIDWriter) ReplaceGraphIDs(
 func TestCodeFunctionSummaryHandlerPersistsGraphIDsWhenWired(t *testing.T) {
 	t.Parallel()
 	gidWriter := &recordingCodeFunctionGraphIDWriter{}
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader:        stubCodeFunctionSummaryLoader{},
 		Writer:        &recordingCodeFunctionSummaryWriter{},
-		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[flow.FunctionID]string{"repo-1\x1fpkg\x1f\x1fview": "uid-view"}},
+		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[parsed.FunctionID]string{"repo-1\x1fpkg\x1f\x1fview": "uid-view"}},
 		GraphIDWriter: gidWriter,
 	}
 	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
@@ -391,12 +391,12 @@ func TestCodeFunctionSummaryHandlerPersistsGraphIDsWhenWired(t *testing.T) {
 func TestCodeFunctionSummaryHandlerReplacesUnresolvedGraphIDs(t *testing.T) {
 	t.Parallel()
 	gidWriter := &recordingCodeFunctionGraphIDWriter{}
-	handler := MaterializationHandler{
-		Loader: stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
+	handler := Handler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[parsed.FunctionID]parsed.Effects{
 			"repo-1\x1fpkg\x1f\x1fview": {ParamToReturn: []int{0}},
 		}},
 		Writer: &recordingCodeFunctionSummaryWriter{},
-		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[flow.FunctionID]string{
+		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[parsed.FunctionID]string{
 			"repo-1\x1fpkg\x1f\x1fview": "",
 		}},
 		GraphIDWriter: gidWriter,
@@ -440,7 +440,7 @@ func TestCodeFunctionSummaryHandlerProjectsFixpointAfterPersistence(t *testing.T
 	projector := &recordingValueFlowFixpointProjector{
 		result: value.FixpointProjectionResult{FindingCount: 1, GraphRows: 1},
 	}
-	handler := MaterializationHandler{
+	handler := Handler{
 		Loader:                  stubCodeFunctionSummaryLoader{},
 		Writer:                  &recordingCodeFunctionSummaryWriter{},
 		ValueFlowFixpointWriter: projector,

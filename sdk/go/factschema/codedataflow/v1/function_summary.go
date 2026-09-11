@@ -15,7 +15,7 @@ package v1
 // (go/internal/storage/postgres/code_function_summary_loader.go
 // codeFunctionSummaryEffectsFromPayload) reconstructs summary.Effects from
 // this payload, keyed by FunctionID, so the interprocedural fixpoint
-// (go/internal/reducer/code_function_summary_materialization.go) can persist
+// (go/internal/reducer/code/function/summary/handler.go) can persist
 // and reload prior summaries across generations.
 //
 // FunctionID is REQUIRED: it is the durable, generation-independent identity

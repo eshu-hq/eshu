@@ -422,17 +422,17 @@ func codeCallPayloadBool(payload map[string]any, key string) bool {
 // cross-domain proofs and the factload benchmark) unchanged. Each entry is
 // deleted once its last caller names [shell] directly.
 
-// ShellExecIntentWriter is the root spelling of [shell.ExecIntentWriter].
-type ShellExecIntentWriter = shell.ExecIntentWriter
+// ShellExecIntentWriter is the root spelling of [shell.IntentWriter].
+type ShellExecIntentWriter = shell.IntentWriter
 
 // shellExecMaterializationFactKinds is the root spelling of
 // [shell.MaterializationFactKinds]. The reducer root's
 // factload_materialization_bench_test.go corpus-coverage guard reads it.
-var shellExecMaterializationFactKinds = shell.MaterializationFactKinds
+var shellExecMaterializationFactKinds = shell.MaterializationFactKinds()
 
 // ShellExecMaterializationHandler is the root spelling of
-// [shell.ExecMaterializationHandler].
-type ShellExecMaterializationHandler = shell.ExecMaterializationHandler
+// [shell.Handler].
+type ShellExecMaterializationHandler = shell.Handler
 
 // ExtractShellExecRows forwards to [shell.ExtractExecRows].
 func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {

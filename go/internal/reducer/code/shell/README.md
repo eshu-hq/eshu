@@ -6,7 +6,7 @@ Reduces parser command-call evidence into durable shared-projection intents
 for `Function-[:EXECUTES_SHELL]->ShellCommand` (issue #6061). It records
 command-construction presence only — never raw command text or arguments.
 
-`ExecMaterializationHandler.Handle` loads `repository`/`file` facts, extracts
+`Handler.Handle` loads `repository`/`file` facts, extracts
 canonical edge rows through `ExtractExecRows`, and reuses the SQL-relationship
 family's delta scope and repo-ID merge (`sqlrelationship.BuildDeltaScope`,
 `sqlrelationship.MergeRepositoryIDs`) rather than duplicating them: both
@@ -20,7 +20,7 @@ and per-repo-refresh intent rows, matching the `sqlrelationship` and
 ## Ownership boundary
 
 **Owns:** shell-exec fact extraction (`ExtractExecRows`), materialization
-(`ExecMaterializationHandler`), and shared-intent row construction
+(`Handler`), and shared-intent row construction
 (`BuildSharedIntentRows`, `BuildRefreshIntents`).
 
 **Does not own:** the SQL-relationship delta scope this package reuses
@@ -32,12 +32,12 @@ the intents this package emits (reducer root).
 
 | symbol | what it is |
 |---|---|
-| `ExecMaterializationHandler` / `ExecIntentWriter` | the domain handler and the durable-intent write port it requires |
+| `Handler` / `IntentWriter` | the domain handler and the durable-intent write port it requires |
 | `ExtractExecRows` | pure extraction: parser file facts -> canonical shell-exec edge rows |
 | `LoadMaterializationFacts` / `MaterializationFactKinds` | the scoped fact-kind loader for `repository`/`file`, and the kind set it requests |
 | `BuildSharedIntentRows` / `BuildRefreshIntents` | the per-edge and per-repo-refresh shared-projection intent builders |
 
-The reducer root wires `ExecMaterializationHandler` in
+The reducer root wires `Handler` in
 `defaults_domain_catalog.go` and declares the `ShellExecIntentWriter` field on
 `DefaultHandlers` (`defaults.go`), keeping the `reducer.ShellExecIntentWriter`/
 `reducer.ShellExecMaterializationHandler` spellings through the shell-exec
@@ -97,8 +97,8 @@ materialization, and shared-intent row construction out of the reducer root
 into this new package, without changing any field, exported behavior, wire
 string, or call order. `ShellExec*` exported identifiers dropped the `Shell`
 prefix per `docs/internal/naming.md` (`ExtractShellExecRows` ->
-`ExtractExecRows`, `ShellExecIntentWriter` -> `ExecIntentWriter`,
-`ShellExecMaterializationHandler` -> `ExecMaterializationHandler`); the
+`ExtractExecRows`, `ShellExecIntentWriter` -> `IntentWriter`,
+`ShellExecMaterializationHandler` -> `Handler`); the
 reducer root keeps every one of these spellings through the shell-exec stanza
 of `compat_projection.go`, so no external caller needed a source change.
 Measured from `go/`, with `GOROOT` unset: `go build ./...`, `go vet

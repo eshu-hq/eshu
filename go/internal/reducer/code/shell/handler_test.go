@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
-func TestExtractExecRowsFromEmbeddedCommand(t *testing.T) {
+func TestExtractShellExecRowsFromEmbeddedCommand(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
@@ -77,11 +77,11 @@ func TestExtractExecRowsFromEmbeddedCommand(t *testing.T) {
 	}
 }
 
-func TestExecMaterializationHandlerEmitsRefreshAndEdgeIntents(t *testing.T) {
+func TestShellExecHandlerEmitsRefreshAndEdgeIntents(t *testing.T) {
 	t.Parallel()
 
 	writer := &stubIntentWriter{}
-	handler := ExecMaterializationHandler{
+	handler := Handler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			shellRepositoryEnvelope(),
 			{

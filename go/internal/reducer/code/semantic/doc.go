@@ -6,7 +6,7 @@
 // Module, ImplBlock, Protocol, ProtocolImplementation, Variable, and
 // callable Function semantic nodes, and writes them into the graph backend.
 //
-// The family owns one handler, [EntityMaterializationHandler], and
+// The family owns one handler, [Handler], and
 // the extraction pipeline behind it: [ExtractEntityRows] and
 // [ExtractEntityRowsForRepo] filter a generation's content_entity
 // facts down to the entity types and per-language callable heuristics that
@@ -30,7 +30,7 @@
 // reducer/factload, reducer/gpphase, reducer/payloadcore, internal/facts and
 // pkg/log, and never
 // the parent internal/reducer package. The dependency runs the other way —
-// the root's handler catalog constructs [EntityMaterializationHandler]
+// the root's handler catalog constructs [Handler]
 // and wires its FactLoader, Writer,
 // PriorGenerationCheck and PhasePublisher, and its RepairQueue when the root
 // repair queue is present. See AGENTS.md in this
@@ -54,7 +54,7 @@
 // execution covered by eshu_dp_reducer_executions_total and
 // eshu_dp_reducer_run_duration_seconds, under the reducer.run span. The
 // domain is an attribute on those metrics rather than a span of its own.
-// [EntityMaterializationHandler.Handle] additionally emits a
+// [Handler.Handle] additionally emits a
 // "semantic entity materialization completed" structured log carrying
 // fact_count, repo_count, row_count, skip_retract, delta_projection,
 // delta_file_count, and the per-stage wall-time fields named in that log

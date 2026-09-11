@@ -6,7 +6,7 @@
 // through a flow.Store, and upserts the resulting snapshot (issue #6061).
 // The upsert is idempotent on FunctionID, so re-running a generation
 // converges rather than duplicating. When the optional source and graph-id
-// loader/writers are wired, [MaterializationHandler.Handle] also persists
+// loader/writers are wired, [Handler.Handle] also persists
 // that generation's param-level taint sources and the FunctionID->uid map,
 // which the cross-repo value-flow fixpoint needs alongside the summaries.
 // When the optional fixpoint projector is wired it runs after those durable
@@ -14,11 +14,11 @@
 //
 // This package's own name collides with its central dependency,
 // internal/parser/summary (FunctionID, Effects, Snapshot, Store): every file
-// aliases that import as flow, so flow.FunctionID/flow.Effects/flow.Snapshot
-// read without a self-referential "summary.summary".
+// aliases that import as parsed, so parsed.FunctionID/parsed.Effects/
+// parsed.Snapshot read without a self-referential "summary.summary".
 //
 // The reducer root imports this package as summary. It wires
-// [Definition] and [MaterializationHandler] in
+// [Definition] and [Handler] in
 // defaults_additive_domains_incident_code.go and keeps the exported
 // CodeFunctionSummary*/CodeFunctionSource*/CodeFunctionGraphID* spellings
 // through the code-function-summary stanza of compat_decode.go and

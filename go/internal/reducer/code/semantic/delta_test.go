@@ -48,7 +48,7 @@ func TestSemanticEntityMaterializationHandlerScopesDeltaRetractToFiles(t *testin
 		},
 	}
 	writer := &recordingSemanticEntityWriter{result: EntityWriteResult{CanonicalWrites: 1}}
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader:           loader,
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
@@ -101,7 +101,7 @@ func TestSemanticEntityMaterializationHandlerScopesDeletedOnlyDeltaRetract(t *te
 		},
 	}
 	writer := &recordingSemanticEntityWriter{}
-	handler := EntityMaterializationHandler{
+	handler := Handler{
 		FactLoader:           loader,
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },

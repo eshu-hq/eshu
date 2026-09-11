@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
-	flow "github.com/eshu-hq/eshu/go/internal/parser/summary"
+	parsed "github.com/eshu-hq/eshu/go/internal/parser/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
@@ -43,8 +43,8 @@ func Definition() reducercontract.DomainDefinition {
 
 // Loader loads the raw code_function_summary fact envelopes for one scope
 // generation. The handler decodes them through the typed contracts seam
-// (ExtractCodeFunctionSummaryEffectsWithQuarantine /
-// ExtractCodeFunctionGraphIDsWithQuarantine) so a fact missing its required
+// (ExtractEffects /
+// ExtractGraphIDs) so a fact missing its required
 // function_id dead-letters as an input_invalid quarantine rather than being
 // silently dropped (Contract System v1 Wave 4f S2, issue #4754). The
 // FunctionID->Effects and FunctionID->graph-uid views both derive from these
@@ -60,14 +60,14 @@ type Loader interface {
 // Writer persists a resolved function-summary snapshot to the durable store.
 // It is satisfied by postgres.FunctionSummaryStore.
 type Writer interface {
-	LoadSnapshot(ctx context.Context) (flow.Snapshot, error)
-	UpsertSnapshot(ctx context.Context, snap flow.Snapshot, updatedAt time.Time) error
-	ReplaceSnapshot(ctx context.Context, repo string, snap flow.Snapshot, updatedAt time.Time) error
+	LoadSnapshot(ctx context.Context) (parsed.Snapshot, error)
+	UpsertSnapshot(ctx context.Context, snap parsed.Snapshot, updatedAt time.Time) error
+	ReplaceSnapshot(ctx context.Context, repo string, snap parsed.Snapshot, updatedAt time.Time) error
 }
 
 // SourceLoader loads the raw code_function_source fact envelopes for one
 // scope generation. The handler decodes them through the typed contracts
-// seam (ExtractCodeFunctionSourcesWithQuarantine) so a fact missing a
+// seam (ExtractSources) so a fact missing a
 // required function_id/kind dead-letters as an input_invalid quarantine.
 type SourceLoader interface {
 	LoadCodeFunctionSourceFacts(
@@ -99,7 +99,7 @@ type GraphIDLoader interface {
 // GraphIDWriter persists the FunctionID->graph-uid map. It is satisfied by
 // postgres.FunctionGraphIDStore.
 type GraphIDWriter interface {
-	ReplaceGraphIDs(ctx context.Context, repo string, ids map[flow.FunctionID]string, updatedAt time.Time) error
+	ReplaceGraphIDs(ctx context.Context, repo string, ids map[parsed.FunctionID]string, updatedAt time.Time) error
 }
 
 // ValueFlowFixpointProjector projects durable cross-repo value-flow findings
@@ -108,9 +108,9 @@ type ValueFlowFixpointProjector interface {
 	ProjectValueFlowFixpointEvidence(ctx context.Context, scopeID, generationID string) (value.FixpointProjectionResult, error)
 }
 
-// MaterializationHandler persists one generation's function summaries: it
+// Handler persists one generation's function summaries: it
 // loads the raw Effects, recomputes their content versions through a
-// flow.Store, and upserts the resulting snapshot. The upsert is idempotent
+// parsed.Store, and upserts the resulting snapshot. The upsert is idempotent
 // on FunctionID, so re-running a generation converges rather than
 // duplicating. When the optional source and graph-id loader/writers are
 // wired it also persists that generation's param-level taint sources and the
@@ -118,7 +118,7 @@ type ValueFlowFixpointProjector interface {
 // summaries. When the optional fixpoint projector is wired it runs after
 // those durable writes complete, so graph projection cannot race ahead of
 // persistence.
-type MaterializationHandler struct {
+type Handler struct {
 	Loader                  Loader
 	Writer                  Writer
 	SourceLoader            SourceLoader
@@ -131,7 +131,7 @@ type MaterializationHandler struct {
 }
 
 // Handle executes one function-summary persistence intent.
-func (h MaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != reducercontract.DomainCodeFunctionSummary {
 		return reducercontract.Result{}, fmt.Errorf("code function summary handler does not accept domain %q", intent.Domain)
 	}
@@ -146,7 +146,7 @@ func (h MaterializationHandler) Handle(ctx context.Context, intent reducercontra
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load code function summaries: %w", err)
 	}
-	effects, summaryQuarantined, err := ExtractCodeFunctionSummaryEffectsWithQuarantine(summaryFacts)
+	effects, summaryQuarantined, err := ExtractEffects(summaryFacts)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("decode code function summaries: %w", err)
 	}
@@ -170,7 +170,7 @@ func (h MaterializationHandler) Handle(ctx context.Context, intent reducercontra
 	if fullSnapshot {
 		current = codeFunctionSummarySnapshotWithoutRepo(current, repo)
 	}
-	store := flow.Load(current)
+	store := parsed.Load(current)
 	store.Upsert(effects)
 	snap := store.Snapshot()
 
@@ -194,7 +194,7 @@ func (h MaterializationHandler) Handle(ctx context.Context, intent reducercontra
 		if err != nil {
 			return reducercontract.Result{}, fmt.Errorf("load code function sources: %w", err)
 		}
-		sources, sourceQuarantined, err := ExtractCodeFunctionSourcesWithQuarantine(sourceFacts)
+		sources, sourceQuarantined, err := ExtractSources(sourceFacts)
 		if err != nil {
 			return reducercontract.Result{}, fmt.Errorf("decode code function sources: %w", err)
 		}
@@ -218,7 +218,7 @@ func (h MaterializationHandler) Handle(ctx context.Context, intent reducercontra
 		// are discarded here to avoid double-counting one malformed fact on
 		// the input_invalid counter; a residual FATAL decode error still
 		// propagates and fails the intent.
-		ids, _, err := ExtractCodeFunctionGraphIDsWithQuarantine(graphIDFacts)
+		ids, _, err := ExtractGraphIDs(graphIDFacts)
 		if err != nil {
 			return reducercontract.Result{}, fmt.Errorf("decode code function graph ids: %w", err)
 		}
@@ -269,7 +269,7 @@ func (h MaterializationHandler) Handle(ctx context.Context, intent reducercontra
 }
 
 // now returns the handler clock, defaulting to time.Now when unset.
-func (h MaterializationHandler) now() time.Time {
+func (h Handler) now() time.Time {
 	if h.Now != nil {
 		return h.Now()
 	}
@@ -277,7 +277,7 @@ func (h MaterializationHandler) now() time.Time {
 }
 
 func codeFunctionSourceRepos(
-	effects map[flow.FunctionID]flow.Effects,
+	effects map[parsed.FunctionID]parsed.Effects,
 	sources []interproc.Source,
 	requiredRepo string,
 ) []string {
@@ -314,8 +314,8 @@ func codeFunctionSourcesForRepo(repo string, sources []interproc.Source) []inter
 }
 
 func codeFunctionGraphIDRepos(
-	effects map[flow.FunctionID]flow.Effects,
-	ids map[flow.FunctionID]string,
+	effects map[parsed.FunctionID]parsed.Effects,
+	ids map[parsed.FunctionID]string,
 	requiredRepo string,
 ) []string {
 	seen := make(map[string]struct{})
@@ -340,8 +340,8 @@ func codeFunctionGraphIDRepos(
 	return repos
 }
 
-func codeFunctionGraphIDsForRepo(repo string, ids map[flow.FunctionID]string) map[flow.FunctionID]string {
-	out := make(map[flow.FunctionID]string)
+func codeFunctionGraphIDsForRepo(repo string, ids map[parsed.FunctionID]string) map[parsed.FunctionID]string {
+	out := make(map[parsed.FunctionID]string)
 	for fnID, uid := range ids {
 		if durableFunctionRepo(string(fnID)) == repo {
 			out[fnID] = uid
@@ -363,11 +363,11 @@ func codeFunctionSummaryFullSnapshot(intent reducercontract.Intent) (bool, strin
 	return fullSnapshot, strings.TrimSpace(repo)
 }
 
-func codeFunctionSummarySnapshotWithoutRepo(snap flow.Snapshot, repo string) flow.Snapshot {
+func codeFunctionSummarySnapshotWithoutRepo(snap parsed.Snapshot, repo string) parsed.Snapshot {
 	if repo == "" || len(snap.Functions) == 0 {
 		return snap
 	}
-	out := flow.Snapshot{Functions: make([]flow.SnapshotFunction, 0, len(snap.Functions))}
+	out := parsed.Snapshot{Functions: make([]parsed.SnapshotFunction, 0, len(snap.Functions))}
 	for _, fn := range snap.Functions {
 		if durableFunctionRepo(string(fn.ID)) == repo {
 			continue
@@ -377,8 +377,8 @@ func codeFunctionSummarySnapshotWithoutRepo(snap flow.Snapshot, repo string) flo
 	return out
 }
 
-func codeFunctionSummarySnapshotForRepo(snap flow.Snapshot, repo string) flow.Snapshot {
-	out := flow.Snapshot{}
+func codeFunctionSummarySnapshotForRepo(snap parsed.Snapshot, repo string) parsed.Snapshot {
+	out := parsed.Snapshot{}
 	if repo == "" || len(snap.Functions) == 0 {
 		return out
 	}

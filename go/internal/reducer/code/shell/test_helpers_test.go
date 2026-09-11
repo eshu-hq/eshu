@@ -42,7 +42,7 @@ func isRepoRefreshRow(row sharedintent.Row) bool {
 }
 
 // stubIntentWriter captures the durable shared-projection intents
-// ExecMaterializationHandler emits, so handler tests assert on emitted
+// Handler emits, so handler tests assert on emitted
 // intents instead of direct edge writes (#2868).
 type stubIntentWriter struct {
 	rows []sharedintent.Row

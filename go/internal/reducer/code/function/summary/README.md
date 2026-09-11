@@ -3,7 +3,7 @@
 ## Purpose
 
 Persists one generation's durable value-flow function summaries (issue
-#6061). `MaterializationHandler.Handle` loads the raw `code_function_summary`
+#6061). `Handler.Handle` loads the raw `code_function_summary`
 Effects, recomputes their content versions through a `flow.Store`, and
 upserts the resulting snapshot. The upsert is idempotent on `FunctionID`, so
 re-running a generation converges rather than duplicating.
@@ -18,10 +18,10 @@ ahead of persistence.
 ## Ownership boundary
 
 **Owns:** function-summary/source/graph-id fact decoding
-(`ExtractCodeFunctionSummaryEffectsWithQuarantine`,
-`ExtractCodeFunctionGraphIDsWithQuarantine`,
-`ExtractCodeFunctionSourcesWithQuarantine`), the materialization handler
-(`MaterializationHandler`), and its additive domain definition
+(`ExtractEffects`,
+`ExtractGraphIDs`,
+`ExtractSources`), the materialization handler
+(`Handler`), and its additive domain definition
 (`Definition`).
 
 **Does not own:** the value-flow fixpoint solver and its cache
@@ -33,14 +33,14 @@ calls after summary/source/graph-id persistence completes.
 | symbol | what it is |
 |---|---|
 | `Definition` | the additive domain definition for `code_function_summary` |
-| `MaterializationHandler` | the domain handler |
+| `Handler` | the domain handler |
 | `Loader` / `Writer` | the required summary fact-loader/durable-snapshot-writer ports |
 | `SourceLoader` / `SourceWriter` | the optional param-level taint-source ports |
 | `GraphIDLoader` / `GraphIDWriter` | the optional `FunctionID`->graph-uid ports |
 | `ValueFlowFixpointProjector` | the optional post-persistence fixpoint-projection port |
-| `ExtractCodeFunctionSummaryEffectsWithQuarantine` / `ExtractCodeFunctionGraphIDsWithQuarantine` / `ExtractCodeFunctionSourcesWithQuarantine` | the typed-decode extraction seams, each returning its per-fact `factdecode.QuarantinedFact` batch |
+| `ExtractEffects` / `ExtractGraphIDs` / `ExtractSources` | the typed-decode extraction seams, each returning its per-fact `factdecode.QuarantinedFact` batch |
 
-The reducer root wires `Definition()` and `MaterializationHandler` in
+The reducer root wires `Definition()` and `Handler` in
 `defaults_additive_domains_incident_code.go`, and keeps the
 `reducer.CodeFunctionSummary*`/`CodeFunctionSource*`/`CodeFunctionGraphID*`/
 `ValueFlowFixpointProjector` spellings through the code-function-summary
@@ -51,11 +51,11 @@ satisfied by.
 ## Dependencies
 
 `internal/facts` (`Envelope`), `internal/parser/interproc` (`Source`,
-`Port`, `Slot`), `internal/parser/summary` (aliased `flow` — `FunctionID`,
+`Port`, `Slot`), `internal/parser/summary` (aliased `parsed` — `FunctionID`,
 `Effects`, `Snapshot`, `Store`, `ParamSink`, `CallArgFlow`; the alias exists
 because this package's own name is also `summary`),
-`internal/reducer/code/value` (aliased `valueflow` —
-`ValueFlowFixpointProjectionResult`, the fixpoint projector's result type),
+`internal/reducer/code/value` (unaliased —
+`FixpointProjectionResult`, the fixpoint projector's result type),
 `internal/reducer/contract` (`Intent`, `Result`, `DomainDefinition`,
 `OwnershipShape`, `DomainCodeFunctionSummary`), `internal/reducer/factdecode`
 (`QuarantinedFact`, `PartitionDecodeFailures`, `RecordQuarantinedFacts`,
@@ -82,8 +82,8 @@ No dedicated metric instrument. `Handle` emits one structured log,
   the `\x1f`-delimited `FunctionID` prefix; a mismatch signals a
   misrouted/misscoped intent, not a partial write.
 - **The graph-id view's quarantines are discarded, not double-counted.**
-  `ExtractCodeFunctionGraphIDsWithQuarantine` reads the SAME
-  `code_function_summary` facts `ExtractCodeFunctionSummaryEffectsWithQuarantine`
+  `ExtractGraphIDs` reads the SAME
+  `code_function_summary` facts `ExtractEffects`
   already quarantined; `Handle` only records the summary-effects view's
   quarantines on `input_invalid_facts`.
 - **The fixpoint projector runs LAST, after every durable write.** Ordering
@@ -104,7 +104,7 @@ string, or call order. `CodeFunctionSummary*`/`CodeFunctionSource*`/
 `CodeFunctionGraphID*` exported identifiers dropped their prefix per
 `docs/internal/naming.md` (for example `CodeFunctionSummaryLoader` ->
 `Loader`, `CodeFunctionSummaryMaterializationHandler` ->
-`MaterializationHandler`); `codeFunctionSummaryDomainDefinition` became the
+`Handler`); `codeFunctionSummaryDomainDefinition` became the
 exported `Definition`. The reducer root keeps every one of the prior
 spellings through the code-function-summary stanza of `compat_decode.go`, so
 no external caller needed a source change. Measured from `go/`, with

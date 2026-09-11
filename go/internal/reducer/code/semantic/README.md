@@ -44,7 +44,7 @@ domain.
 
 | symbol | file | what it does |
 |---|---|---|
-| `EntityMaterializationHandler` | `materialization.go` | the reducer handler the runtime registers for `semantic_entity_materialization` |
+| `Handler` | `materialization.go` | the reducer handler the runtime registers for `semantic_entity_materialization` |
 | `EntityWriter` | `materialization.go` | the canonical graph-write sink the handler writes through |
 | `EntityRow` | `materialization.go` | one canonical semantic-entity row |
 | `EntityWrite` / `EntityWriteResult` | `materialization.go` | the write request/outcome shape the handler and writer exchange |
@@ -61,7 +61,7 @@ Imports point strictly downward. This package reaches `reducer/contract`
 `reducer/payloadcore`, `internal/facts` and `pkg/log`, and it never imports
 the parent `internal/reducer` package. The dependency runs the other way: the
 root's handler catalog (`defaults_domain_catalog.go`) constructs
-`EntityMaterializationHandler` and wires its `FactLoader`, `Writer`,
+`Handler` and wires its `FactLoader`, `Writer`,
 `PriorGenerationCheck` and `PhasePublisher` fields, plus `RepairQueue` when the
 root repair queue is present (`defaults_domain_catalog.go:91-106`).
 
@@ -111,7 +111,7 @@ the span carries no domain attribute either, so isolate this family through
 the domain-tagged metrics and the structured log below rather than by
 filtering traces.
 
-`EntityMaterializationHandler.Handle` emits one "semantic entity
+`Handler.Handle` emits one "semantic entity
 materialization completed" structured log per execution, carrying
 `fact_count`, `repo_count`, `row_count`, `skip_retract`,
 `delta_projection`, `delta_file_count`, and the
@@ -126,7 +126,7 @@ without changing its behavior. Every hunk in the moved production files is
 package-clause, identity, or import requalification: the exported
 `SemanticEntity*` identifiers dropped that prefix per
 `docs/internal/naming.md` (`SemanticEntityMaterializationHandler` ->
-`EntityMaterializationHandler`, `SemanticEntityRow` -> `EntityRow`,
+`Handler`, `SemanticEntityRow` -> `EntityRow`,
 `SemanticEntityWrite`/`SemanticEntityWriteResult` ->
 `EntityWrite`/`EntityWriteResult`, `SemanticEntityWriter` -> `EntityWriter`,
 `ExtractSemanticEntityRows`/`ExtractSemanticEntityRowsForRepo` ->
@@ -169,7 +169,7 @@ are the same before and after the move.
   the shared-payload-delta stanza of `compat_decode.go`. Do not reintroduce a
   local copy — call the shared-tier function they forward to.
 - **`GraphProjectionPhaseRepairQueue` here is narrower than the root's.** It
-  declares only `Enqueue`, the one method `EntityMaterializationHandler`
+  declares only `Enqueue`, the one method `Handler`
   calls, not the root's full `Enqueue`/`ListDue`/`Delete`/`MarkFailed` set
   the repair runner needs. Narrowing the method set is not enough on its own:
   a wider implementation satisfies this interface only if its `Enqueue` takes

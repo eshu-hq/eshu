@@ -12,22 +12,22 @@ import (
 // semanticEntityMaterializationHandler finds the DomainSemanticEntityMaterialization
 // definition implementedDefaultDomainDefinitions built and returns its handler,
 // failing the test if the domain or its handler type is missing.
-func semanticEntityMaterializationHandler(t *testing.T, definitions []DomainDefinition) semantic.EntityMaterializationHandler {
+func semanticEntityMaterializationHandler(t *testing.T, definitions []DomainDefinition) semantic.Handler {
 	t.Helper()
 
 	for _, def := range definitions {
 		if def.Domain != DomainSemanticEntityMaterialization {
 			continue
 		}
-		handler, ok := def.Handler.(semantic.EntityMaterializationHandler)
+		handler, ok := def.Handler.(semantic.Handler)
 		if !ok {
-			t.Fatalf("DomainSemanticEntityMaterialization handler type = %T, want semantic.EntityMaterializationHandler", def.Handler)
+			t.Fatalf("DomainSemanticEntityMaterialization handler type = %T, want semantic.Handler", def.Handler)
 		}
 		return handler
 	}
 
 	t.Fatal("implementedDefaultDomainDefinitions() did not return a DomainSemanticEntityMaterialization definition")
-	return semantic.EntityMaterializationHandler{}
+	return semantic.Handler{}
 }
 
 // TestImplementedDefaultDomainDefinitionsLeavesSemanticEntityRepairQueueNilWithoutRootQueue

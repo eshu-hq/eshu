@@ -9,8 +9,8 @@ runtime code to `doc.go`; add it to the child package that owns it.
   the children never import the reducer root. From the reducer tree,
   `summary/` imports the shared tier (`contract`, `factdecode`,
   `schemadecode`, `payloadcore`) plus the sibling leaf `code/value` (for
-  `ValueFlowFixpointProjectionResult`); outside `internal/reducer`, it
-  imports `internal/parser/summary` (aliased `flow`, since the package name
+  `FixpointProjectionResult`); outside `internal/reducer`, it
+  imports `internal/parser/summary` (aliased `parsed`, since the package name
   collides with this package's own `summary`) and `internal/parser/interproc`.
 - A new child here is a named destination in
   `docs/internal/design/reducer-target-tree.md`, never a new top-level
