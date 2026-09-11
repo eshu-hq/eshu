@@ -171,7 +171,7 @@ does not move with this family. Root-side callers —
 `internal/storage/postgres/code_interproc_evidence_loader.go`,
 `internal/backendconformance/corpus_value_flow*.go`, and (at the time of
 this move) the reducer root's own `code_function_summary_materialization.go`
-— kept their existing `reducer.` spelling through the value-flow stanza of
+(since moved to `code/function/summary/handler.go`) — kept their existing `reducer.` spelling through the value-flow stanza of
 `compat_projection.go`'s type aliases and forwarding functions, so none
 needed a source change. Measured from `go/`, with `GOROOT` unset and
 `GOCACHE` pointed at this worktree: `go build ./...`, `go vet ./...`,

@@ -104,9 +104,9 @@ func embeddedSQLQuerySources(envelopes []facts.Envelope) []sqlEmbeddedQuerySourc
 // by (name, line) so a per-file embedded-code scanner can resolve the entity ID
 // of the enclosing function for one embedded_line-carrying record. Exported
 // (rather than kept package-private, as most of this file's helpers are)
-// because the shell_exec family, which has not moved out of the reducer root
-// yet, resolves its own embedded_shell_commands records through this exact
-// same name+line index (shell_exec_materialization.go, issue #6061).
+// because the shell family (reducer/code/shell) resolves its own
+// embedded_shell_commands records through this exact same name+line index
+// (code/shell/handler.go, issue #6061).
 func EmbeddedSQLFunctionIDsByNameLine(parsedFileData map[string]any) map[string]string {
 	out := make(map[string]string)
 	for _, fn := range mapSlice(parsedFileData["functions"]) {

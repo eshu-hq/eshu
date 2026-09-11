@@ -42,10 +42,10 @@ validation — that lives in the parent `factschema` package (`decode.go`,
 `decode_codedataflow.go`). It does not own graph projection, evidence-row
 extraction, or postgres loading; `go/internal/reducer`
 (`factschema_decode_codedataflow.go`, `code/taint/evidence_typed_decode.go`,
-`code_function_summary_typed_decode.go`,
+`code/function/summary/decode.go`,
 `code/taint/evidence_materialization.go`,
 `code/taint/interproc_evidence_materialization.go`,
-`code_function_summary_materialization.go`) and
+`code/function/summary/handler.go`) and
 `go/internal/storage/postgres` (the `Load*` loader files) consume the decoded
 structs but live outside this module. It does not own the git collector
 emitters that build these payloads

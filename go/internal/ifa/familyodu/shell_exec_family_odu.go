@@ -38,7 +38,7 @@ import (
 // materialized_edges_shell_exec.go guard and its tests moved to
 // go/internal/ifa/materializededges because they exercise this Odù and
 // independently reproduce its canonical-id/target-hash literals against the
-// real content.CanonicalEntityID and shellExecTargetID algorithms, and that
+// real content.CanonicalEntityID and shellCommandTargetID algorithms, and that
 // package can only do so by reading these identifiers from here, not a
 // second copy of them -- a stale copy of a reference-side identity like this
 // would fail open (compare equal to itself, never to production truth).
@@ -97,8 +97,8 @@ const (
 	ShellExecFamilySilentFunctionUID  = "content-entity:e_0bde1f6623cb"
 
 	// ShellExecFamilyDeployTarget1/2 are the ShellCommand target uids
-	// edge_writer_shell_exec.go's buildShellExecRowMap/shellExecTargetID
-	// derives: sha256(repo_id, source_path, function_entity_id, line_number,
+	// edge_writer_shell_exec.go's buildShellExecRowMap and the reducer's
+	// shellCommandTargetID (code/shell/handler.go) derive: sha256(repo_id, source_path, function_entity_id, line_number,
 	// api), each field NUL-terminated, hex-encoded and prefixed
 	// "shell-command:". source_path here is parsed_file_data.path (the full
 	// local-path-prefixed path), NOT the file fact's relative_path:

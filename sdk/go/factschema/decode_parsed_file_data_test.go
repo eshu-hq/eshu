@@ -11,7 +11,7 @@ import (
 // TestDecodeParsedFileDataGomodState_TypedReadSet proves the gomod_state inner
 // key of a parsed_file_data map decodes into the typed codegraphv1.GomodState
 // struct, exposing the state and module_path fields the cross-repo-export
-// reducer reads (code/call/cross_repo_export.go) while
+// reducer reads (code/call/shared/go_index.go) while
 // preserving every other producer field in the open Attributes pass-through so
 // the accessor never drops go.mod/go.sum evidence.
 func TestDecodeParsedFileDataGomodState_TypedReadSet(t *testing.T) {
@@ -75,7 +75,7 @@ func TestDecodeParsedFileDataGomodState_Absent(t *testing.T) {
 // TestDecodeParsedFileDataSCIPFunctionCalls_TypedEdges proves the
 // function_calls_scip inner key decodes into a typed []SCIPFunctionCall
 // carrying every edge field the SCIP code-call extractor reads
-// (code/call/index_rows.go): caller/callee symbol, file, line,
+// (code/call/rows.go): caller/callee symbol, file, line,
 // name, and ref_line. The int line fields survive the JSON float64 shape a
 // Postgres JSONB round trip produces.
 func TestDecodeParsedFileDataSCIPFunctionCalls_TypedEdges(t *testing.T) {

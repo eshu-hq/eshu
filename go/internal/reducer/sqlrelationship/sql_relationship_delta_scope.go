@@ -15,9 +15,9 @@ import (
 // DeltaScope is the delta-generation scope this family's materialization
 // derives from a batch's "repository" facts. RepositoryIDs and
 // FilePathsByRepoID are exported (rather than kept package-private, as most of
-// this file's helpers are) because the shell_exec family, which has not moved
-// out of the reducer root yet, reuses this exact delta scope for its own
-// materialization (shell_exec_materialization.go) — see BuildDeltaScope.
+// this file's helpers are) because the shell family (reducer/code/shell)
+// reuses this exact delta scope for its own materialization
+// (code/shell/handler.go) — see BuildDeltaScope.
 type DeltaScope struct {
 	RepositoryIDs     []string
 	FilePathsByRepoID map[string][]string

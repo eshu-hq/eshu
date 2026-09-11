@@ -15,8 +15,8 @@ removed (a declaration self-read as a call to itself — see
 `go/internal/parser/dart/calls.go`). Row writing is unchanged: every row,
 self-loop or not, is still returned and written. The pass only tallies
 self-loops per `lang` (carried onto each row by `appendCodeCallRow` in
-`go/internal/reducer/code/call/index_rows.go`, through `copyOptionalCodeCallField`
-in `go/internal/reducer/code/call/path_helpers.go`) and logs the tally once if any were
+`go/internal/reducer/code/call/rows.go`, through `shared.CopyOptionalField`
+in `go/internal/reducer/code/call/shared/paths.go`) and logs the tally once if any were
 found.
 
 Performance Evidence: the added work is a single extra `range` over the

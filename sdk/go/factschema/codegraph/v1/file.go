@@ -40,7 +40,7 @@ package v1
 type File struct {
 	// RepoID is the owning repository's canonical id. Required: it is the join
 	// key every code-graph-core reducer handler groups file facts by
-	// (collectCodeCallRepositoryIDs, BuildCodeImportRepoDependencyIntents). A
+	// (shared.CollectRepositoryIDs, BuildCodeImportRepoDependencyIntents). A
 	// fact missing repo_id cannot be attributed to any repository and MUST
 	// dead-letter rather than silently join under an empty-string repo id.
 	RepoID string `json:"repo_id"`

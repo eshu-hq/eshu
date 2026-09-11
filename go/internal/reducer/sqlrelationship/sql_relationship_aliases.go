@@ -144,11 +144,9 @@ func copyPayload(m map[string]any) map[string]any {
 }
 
 // codeCallInt returns the first value convertible to int, or 0 if none is.
-// Duplicated from the reducer root's codeCallInt (code/call/path_helpers.go)
-// rather than imported: that helper is owned by the code_call family, which
-// has not moved out of root yet, so this package cannot import it without
-// violating the "never import the reducer root" rule (issue #6061). It is a
-// five-branch type switch with no reducer-specific behavior, so a local copy
+// Duplicated from code/call/shared.PayloadInt (code/call/shared/paths.go)
+// rather than imported, so this edge family takes no dependency on the
+// code-call packages (issue #6061). It is a five-branch type switch with no reducer-specific behavior, so a local copy
 // carries no drift risk worth a shared package for.
 func codeCallInt(values ...any) int {
 	for _, value := range values {
@@ -225,11 +223,9 @@ var (
 
 // codeCallDeltaRelativePathsFromRepository returns the deduplicated union of a
 // decoded codegraphv1.Repository's DeltaRelativePaths and
-// DeltaDeletedRelativePaths. Duplicated from the reducer root's
-// code/call/intents.go rather than imported: that helper is
-// owned by the code_call family, which has not moved out of root yet, so this
-// package cannot import it without violating the "never import the reducer
-// root" rule (issue #6061). It operates only on the SDK-owned
+// DeltaDeletedRelativePaths. Duplicated from code/call/intents.go rather than
+// imported, so this edge family takes no dependency on the code-call packages
+// (issue #6061). It operates only on the SDK-owned
 // codegraphv1.Repository type, so a local copy carries no drift risk worth a
 // shared package for.
 func codeCallDeltaRelativePathsFromRepository(repository codegraphv1.Repository) []string {

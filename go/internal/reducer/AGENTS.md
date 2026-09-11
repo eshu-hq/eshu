@@ -77,9 +77,9 @@ before touching any file in this directory.
   handler may call a Neo4j or NornicDB driver directly.
 - **`JavaScript` dynamic-call alias parsing is indexed once per function** —
   `BuildEntityIndex` caches static alias metadata
-  (`code/call/index.go:64`) and
-  `resolveDynamicJavaScriptCalleeEntityID` reuses that cache
-  (`code/call/dynamic_javascript.go:49`). Do not move that
+  (`code/call/shared/javascript_aliases.go`) and
+  `javascript.ResolveDynamicCallee` reuses that cache
+  (`code/call/javascript/dynamic.go`). Do not move that
   work back into the per-call loop; generated JS bundles make that
   multiplicative. Cache negative scans too; a source with no static aliases
   must not be sent through the regex pass once per call.
@@ -2065,9 +2065,9 @@ gate mechanism.
 No-Regression Evidence (#4750 S1, parsed_file_data inner-key typing): the
 code-graph-core reducer now reads two closed-shape parsed_file_data inner keys
 through typed factschema accessors instead of raw map lookups —
-`dead_code_file_root_kinds` (`resolveFileRootCodeCallCallerID`) and
+`dead_code_file_root_kinds` (`javascript.FileRootCallerID`) and
 `gomod_state.module_path` (`goModuleDeclaredPath`), wrapped in
-`code/call/parsed_file_data.go`. `File.ParsedFileData` stays an OPEN
+`code/call/shared/parsed_file_data.go`. `File.ParsedFileData` stays an OPEN
 `map[string]any` (the aws_resource.Attributes open-object precedent), so the
 `file.v1.schema.json` wire schema is unchanged (no major bump) and the graph
 rows for valid facts stay byte-identical. Byte-identity is proven three ways:
@@ -2082,7 +2082,7 @@ byte-identical. The two migrated read sites are cold relative to the SCIP and
 generic per-edge inner loops, and the SCIP consumer
 (`extractSCIPCodeCallRows`) was left reading raw on purpose: its output rows
 copy raw edge values verbatim with present/absent semantics
-(`copyOptionalCodeCallField`) an `omitempty` typed struct cannot reproduce
+(`shared.CopyOptionalField`) an `omitempty` typed struct cannot reproduce
 byte-identically, so per the byte-identity-non-negotiable guardrail it keeps its
 raw read while the typed `codegraphv1.SCIPFunctionCall` struct is delivered as
 the authoritative contract shape (round-trip-proven in

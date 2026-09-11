@@ -44,8 +44,9 @@ consumed by `content/shape.Materialize` via `contentEntityBuckets`
 Resolution does **not** happen in the parser (confirmed by ADR #2222 §2). The
 parser emits raw call rows plus untyped resolution *hints*; the callee `uid` is
 bound later in the reducer's ordered fallback dispatch
-(`go/internal/reducer/code/call/resolver.go` and the
-`code/call/*_resolver.go` family). The succeeding branch is mapped to a
+(`go/internal/reducer/code/call/resolution.go` and
+`code/call/languages.go`, which dispatch to the
+`code/call/<language>/resolver.go` leaves). The succeeding branch is mapped to a
 closed `resolution_method` and a derived `confidence` by `codeprovenance`
 (`go/internal/codeprovenance/codeprovenance.go`), per ADR #2222.
 

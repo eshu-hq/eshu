@@ -28,8 +28,8 @@ Eshu already has a SCIP ingestion path:
 - `go/internal/collector/git_snapshot_scip.go` groups selected files by
   language and package/workspace root, runs bounded indexer workers, parses
   SCIP output, and merges only SCIP call facts into native parser payloads.
-- `go/internal/reducer/code/call/index.go` and
-  `code/call/symbol_index.go` materialize SCIP rows with
+- `go/internal/reducer/code/call/rows.go` and
+  `code/call/shared/symbol_index.go` materialize SCIP rows with
   `resolution_method=scip` and do not collapse them into generic inferred
   relationships.
 

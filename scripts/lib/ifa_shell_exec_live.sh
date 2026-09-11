@@ -31,8 +31,8 @@ ifa_shell_exec_drive() {
 # count-only assertion is not enough here -- a regression that stopped
 # collapsing the duplicate would still produce "some edges".
 #
-# The target uid is the sha256 edge_writer_shell_exec.go's shellExecTargetID
-# derives over (repo_id, source_path, function_entity_id, line_number, api),
+# The target uid is the sha256 the reducer's shellCommandTargetID
+# (go/internal/reducer/code/shell/handler.go) derives over (repo_id, source_path, function_entity_id, line_number, api),
 # so an identity drift in any of those five inputs changes the multiset and
 # fails here rather than netting out.
 ifa_shell_exec_assert() {

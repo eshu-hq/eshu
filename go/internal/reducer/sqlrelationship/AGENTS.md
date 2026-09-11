@@ -31,9 +31,7 @@ the full ownership boundary and exported surface.
   API for unrelated new callers:**
   - `DeltaScope`, `BuildDeltaScope`, `MergeRepositoryIDs`,
     `EmbeddedSQLFunctionIDsByNameLine`, and `EmbeddedSQLFunctionKey` are used
-    by the reducer root's `shell_exec` family
-    (`shell_exec_materialization.go`, `shell_exec_intents.go`), which has not
-    moved out of root yet.
+    by the shell family (`code/shell/handler.go`, `code/shell/intents.go`).
   - `BuildRefreshIntents` is used outside this package only by
     `sibling_edge_intent_delta_gate_test.go`, which drives it alongside
     `inheritance` through one shared table — nothing in `shell_exec`'s own
@@ -102,7 +100,7 @@ target resolution, and update the golden-corpus expected-edges fixture at
 
 Adding a field to the delta-scope shape: change `DeltaScope`
 (`sql_relationship_delta_scope.go`) and check both this package's own
-callers and `shell_exec_materialization.go`/`shell_exec_intents.go` (root)
+callers and `code/shell/handler.go`/`code/shell/intents.go`
 for the same field.
 
 ## Failure modes to avoid

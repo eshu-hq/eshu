@@ -67,9 +67,10 @@ and the generated
 `sdk/go/factschema/codegraph/v1` package. No dependency on the reducer root,
 and none of the root's other family subpackages.
 
-Two small pure helpers are duplicated from the reducer root rather than
-imported, because their owning family (`code_call`) has not moved out of
-root yet: `codeCallInt` (a five-branch numeric type switch) and
+Two small pure helpers are duplicated from `code/call` rather than imported,
+so this edge family takes no dependency on the code-call packages:
+`codeCallInt` (a five-branch numeric type switch, from
+`code/call/shared.PayloadInt`) and
 `codeCallDeltaRelativePathsFromRepository` (a `codegraphv1.Repository`
 field union) — see the comments on `sql_relationship_aliases.go`'s
 `codeCallInt` and `codeCallDeltaRelativePathsFromRepository`.
@@ -86,9 +87,8 @@ root's own worker code, not this package.
 
 ### Cross-family reuse
 
-The `shell_exec` family (`shell_exec_materialization.go`,
-`shell_exec_intents.go`), which has not moved out of the reducer root yet,
-reuses three pieces of this package's machinery rather than duplicating them:
+The shell family (`code/shell`: `handler.go`, `intents.go`) reuses three
+pieces of this package's machinery rather than duplicating them:
 `BuildDeltaScope`/`DeltaScope` and `MergeRepositoryIDs` (both families derive
 the same per-repository `delta_generation`/`delta_relative_paths` shape from
 the same `repository` facts), and
@@ -99,11 +99,11 @@ even though nothing inside this package's own `Handle` path calls them
 through the exported name.
 
 `BuildRefreshIntents` is exported for a different reason and is not part of
-that reuse. `shell_exec` owns its own `buildShellExecRefreshIntents`
-(`shell_exec_intents.go:82`); the only caller outside this package is the
+that reuse. `code/shell` owns its own `shell.BuildRefreshIntents`
+(`code/shell/intents.go`); the only caller outside this package is the
 shared table in `sibling_edge_intent_delta_gate_test.go`, which drives this
 family and `inheritance` through the same assertions. Counting it as
-production reuse would suggest a dependency `shell_exec` does not have.
+production reuse would suggest a dependency `code/shell` does not have.
 
 ### Root-side test doubles this package's move required
 

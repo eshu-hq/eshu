@@ -61,7 +61,7 @@ DELETE rel`
 //  1. EXECUTES_SHELL is ShellCommand's ONLY edge type, created ONLY by the
 //     DomainShellExec upsert (batchCanonicalShellExecUpsertCypher); no other
 //     production writer links a ShellCommand.
-//  2. The ShellCommand uid is repo-scoped (shellExecTargetID embeds repo_id), so
+//  2. The ShellCommand uid is repo-scoped (the reducer's shellCommandTargetID embeds repo_id), so
 //     every node belongs to exactly one repo.
 //  3. DomainShellExec is partition-leased by acceptance_unit (repo), so all
 //     same-repo shell-exec upserts AND retracts -- including foreign-evidence-

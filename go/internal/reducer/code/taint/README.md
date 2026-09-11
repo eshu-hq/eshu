@@ -154,8 +154,9 @@ later moved to `value` under #6609) are locally redeclared with the identical
 method set rather than imported, so every existing concrete implementation
 still satisfies them with no new indirection. `DerefInt`/`DerefStringTrimmed`
 were hoisted to `payloadcore` (alongside the existing `DerefBool`/
-`DerefString`) because both this package and the root-staying
-`code_function_summary_typed_decode.go` needed them. Every outward caller —
+`DerefString`) because both this package and the function-summary decoder
+(then the root's `code_function_summary_typed_decode.go`, now
+`code/function/summary/decode.go`) needed them. Every outward caller —
 `cmd/reducer` (`canonical_graph_writers.go`,
 `code_value_flow_stale_cleanup_wiring.go`, `value_flow_wiring.go`),
 `internal/reducer` root (`defaults_handlers.go`,
