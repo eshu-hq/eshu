@@ -1,0 +1,31 @@
+go/internal/query/service/story_supply_chain_scope.go
+  s_f6a79aa2bc39c6::t_b50710f7943549 44-45
+  s_f6a79aa2bc39c6::t_08a2e8c16a3a24 202-206
+  s_f6a79aa2bc39c6::t_fb29a219bc61be 96-100
+  s_f6a79aa2bc39c6::t_6c765523813c36 178-182
+  s_f6a79aa2bc39c6::t_4675fbc2d5a187 57-67
+  s_f6a79aa2bc39c6::t_ad0d8ac9ab17d0 20-22,24-30,32-37,40-43
+  s_f6a79aa2bc39c6::t_f599acddfe97cb 115-120
+  s_f6a79aa2bc39c6::t_c028071bd2c3cb 142-148
+go/internal/query/service/query_enrichment.go
+  s_f6a79aa2bc39c6::t_1de9cc07cd9879 16-21,23-30,32-41
+go/internal/query/service/story_target_support_refs.go
+  s_f6a79aa2bc39c6::t_3800fa3f7f8bce 12-19
+  s_f6a79aa2bc39c6::t_2e5002bdb0d852 61-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bbe63aec642e54fa56532cc490ddcab8fab195d7",
+  "prompts": {},
+  "sessions": {
+    "s_f6a79aa2bc39c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1b90b00-dcbf-4bb6-8e68-08bc29b6bfaf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
