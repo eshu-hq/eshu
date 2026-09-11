@@ -12,7 +12,54 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
+
+// Span attributes recording one scoped tag-history page's grant filtering
+// (#6564). They are counts and a boolean only, never digests or repository
+// ids, so they stay bounded.
+const (
+	spanAttrTagHistoryGrantFiltered        = "eshu.query.tag_history.grant_filtered"
+	spanAttrTagHistoryKeptCount            = "eshu.query.tag_history.grant_kept_count"
+	spanAttrTagHistoryUngrantedCount       = "eshu.query.tag_history.withheld_ungranted_count"
+	spanAttrTagHistoryUnattributedCount    = "eshu.query.tag_history.withheld_unattributed_count"
+	spanAttrTagHistoryPreviousBlankedCount = "eshu.query.tag_history.previous_digest_blanked_count"
+)
+
+// Bounded disposition values for the scoped-rows counter
+// (eshu_dp_query_container_image_tag_history_scoped_rows_total).
+const (
+	tagHistoryDispositionKept                  = "kept"
+	tagHistoryDispositionWithheldUngranted     = "withheld_ungranted"
+	tagHistoryDispositionWithheldUnattributed  = "withheld_unattributed"
+	tagHistoryDispositionPreviousDigestBlanked = "previous_digest_blanked"
+)
+
+// tagHistoryGrantCounts tallies what one scoped page's grant filter did.
+// withheldUngranted rows had BUILT_FROM edges, none to a granted repository;
+// withheldUnattributed rows had no BUILT_FROM edge at all, which is the
+// coverage cost an operator watches to see how much history a scoped caller
+// cannot reach.
+type tagHistoryGrantCounts struct {
+	kept                  int
+	withheldUngranted     int
+	withheldUnattributed  int
+	previousDigestBlanked int
+}
+
+// annotateSpan writes the bounded filter counts onto the handler span.
+func (c tagHistoryGrantCounts) annotateSpan(span trace.Span) {
+	if span == nil {
+		return
+	}
+	span.SetAttributes(
+		attribute.Bool(spanAttrTagHistoryGrantFiltered, true),
+		attribute.Int(spanAttrTagHistoryKeptCount, c.kept),
+		attribute.Int(spanAttrTagHistoryUngrantedCount, c.withheldUngranted),
+		attribute.Int(spanAttrTagHistoryUnattributedCount, c.withheldUnattributed),
+		attribute.Int(spanAttrTagHistoryPreviousBlankedCount, c.previousDigestBlanked),
+	)
+}
 
 // tagHistoryQueryMeterName scopes the lazily registered tag-history
 // instruments to this package, mirroring cloudResourceListMeterName in
@@ -25,6 +72,7 @@ var (
 	tagHistoryQueryInstrumentsOnce sync.Once
 	tagHistoryDuration             metric.Float64Histogram
 	tagHistoryErrors               metric.Int64Counter
+	tagHistoryScopedRows           metric.Int64Counter
 )
 
 // tagHistoryBuckets bound the tag-history handler latency histogram. The read
@@ -70,7 +118,48 @@ func initTagHistoryQueryInstruments() {
 		if err != nil {
 			tagHistoryErrors = nil
 		}
+		tagHistoryScopedRows, err = meter.Int64Counter(
+			"eshu_dp_query_container_image_tag_history_scoped_rows_total",
+			metric.WithDescription("Container image tag history rows a scoped caller's BUILT_FROM grant filter kept, withheld, or blanked, by disposition"),
+		)
+		if err != nil {
+			tagHistoryScopedRows = nil
+		}
 	})
+}
+
+// recordTagHistoryScopedRows adds one scoped page's grant-filter outcome to the
+// scoped-rows counter. The disposition label is bounded to kept,
+// withheld_ungranted, withheld_unattributed, and previous_digest_blanked, so an
+// operator can separate rows another tenant owns from rows no BUILT_FROM edge
+// attributes to anyone -- the coverage cost of binding tag history through
+// BUILT_FROM (#6564). Zero counts are skipped rather than recorded as zero
+// increments.
+func recordTagHistoryScopedRows(ctx context.Context, counts tagHistoryGrantCounts) {
+	initTagHistoryQueryInstruments()
+	if tagHistoryScopedRows == nil {
+		return
+	}
+	for _, entry := range []struct {
+		disposition string
+		value       int
+	}{
+		{tagHistoryDispositionKept, counts.kept},
+		{tagHistoryDispositionWithheldUngranted, counts.withheldUngranted},
+		{tagHistoryDispositionWithheldUnattributed, counts.withheldUnattributed},
+		{tagHistoryDispositionPreviousDigestBlanked, counts.previousDigestBlanked},
+	} {
+		if entry.value == 0 {
+			continue
+		}
+		tagHistoryScopedRows.Add(
+			ctx, int64(entry.value),
+			metric.WithAttributes(
+				attribute.String("disposition", entry.disposition),
+				attribute.String("service.namespace", telemetry.DefaultServiceNamespace),
+			),
+		)
+	}
 }
 
 // recordTagHistoryDuration observes one tag-history handler invocation. The

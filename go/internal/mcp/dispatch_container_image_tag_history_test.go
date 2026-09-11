@@ -95,14 +95,12 @@ func TestResolveRouteMapsContainerImageTagHistoryToBoundedQuery(t *testing.T) {
 // repository_id/tag args compose the image_ref anchor server-side, and the
 // bounded, ordered tag_history rows come back through the canonical envelope.
 //
-// This mirrors the shape of dispatch_container_image_identity_authz_test.go
-// (proving a real AuthContext-carrying dispatch), but does not exercise a
-// scoped-bearer-token round trip: GET /api/v0/images/tag-history follows
-// GET /api/v0/images' own precedent (see openapi/paths/supply/chain/images.go) of not
-// carrying the "x-scoped-token-support" marker, so it is not part of the
-// scoped-token allowlist today. That is a deliberate, documented decision for
-// this change, not an oversight; see the executor's completion report for
-// #5459 for the reasoning it followed.
+// This dispatch carries no AuthContext, so it exercises the unscoped path. The
+// scoped path (#6564: rows bound to the caller's grant through
+// ContainerImage-[:BUILT_FROM]->Repository) is proven by the handler tests in
+// go/internal/query/tag_history_grant_test.go, and the route's scoped-token
+// admission by the "x-scoped-token-support" marker round trip in
+// TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware.
 func TestDispatchToolListContainerImageTagHistoryReturnsOrderedRows(t *testing.T) {
 	t.Parallel()
 

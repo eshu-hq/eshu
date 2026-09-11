@@ -259,9 +259,17 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: "df54140253a6bb42f6e2607bf49e8b8c5a0563f5a097c03a91c8ef911621309c"
+          source_sha256: "852284d7226c2888a26356ba57675ae2d86127938e647356fb9205393c5b2996"
           key_bound: single_key
           max_results: 201
+      - symbol: "(*TagHistoryHandler).lookupBuiltFromRepositories"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: "411a4dcd9128c2b293e5abf8f1b957cc669f3e9f672164872cfb099051b1ee49"
+          key_bound: bounded_key_batch
+          max_keys: 400
+          max_results: 400
   - file: impact/handler.go
     calls:
       - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 3c3efdeafb018a235d55ed2b2cabf6959f484d8d7972beae169e70be1543d803, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}

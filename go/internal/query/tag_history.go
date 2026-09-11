@@ -4,8 +4,10 @@
 package query
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +73,17 @@ const tagHistoryCypher = `
 //     back-dated observation arriving after a later one is not reflected.
 //     True per-event history and a last_observed_at companion are tracked as
 //     follow-up work, not implemented here.
+//
+// A scoped caller's page is bound to its repository grant through
+// ContainerImage-[:BUILT_FROM]->Repository (#6564), because the observation
+// node itself carries no source-repository key: one extra single-clause read
+// resolves the page's digests to their BUILT_FROM repositories and a Go join
+// keeps a row only when its resolved_digest's image is built from a granted
+// repository, blanking an ungranted previous_digest. Observations whose image
+// has no BUILT_FROM edge are withheld from scoped callers. Filtering applies to
+// each fetched page, so truncated and next_cursor follow the unfiltered window.
+// Unscoped and all-scope callers keep the single-statement read. See
+// tagHistoryBuiltFromCypher and filterTagHistoryForGrant below.
 type TagHistoryHandler struct {
 	Neo4j   GraphQuery
 	Profile QueryProfile
@@ -158,6 +171,29 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	page := tagHistoryPage{
+		limit:        limit,
+		offset:       offset,
+		imageRef:     imageRef,
+		repositoryID: repositoryID,
+		tag:          tag,
+	}
+
+	// A scoped caller binds through its repository grant (#6564). Resolving
+	// git-repository-scope grants to their canonical repository ids lets a
+	// scope-only token match the Repository.id a BUILT_FROM edge lands on.
+	// Unscoped and all-scope callers get the unfiltered single-statement read.
+	access := repositoryAccessFilterFromContext(r.Context()).WithCanonicalScopeRepositories()
+	page.grantFiltered = access.Scoped()
+	if access.Empty() {
+		// No grant can be BUILT_FROM-bound to any observation: answer an empty
+		// page without a graph read, as every grant-bound sibling route does.
+		tagHistoryGrantCounts{}.annotateSpan(span)
+		recordTagHistoryDuration(r.Context(), start, "ok")
+		h.writeTagHistoryPage(w, r, page)
+		return
+	}
+
 	params := map[string]any{
 		"image_ref": imageRef,
 		"offset":    offset,
@@ -166,54 +202,108 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 
 	rows, err := h.Neo4j.Run(r.Context(), tagHistoryCypher, params)
 	if err != nil {
-		// "query_error" would be the wrong outcome label for a bounded
-		// backend-unavailable/backend-timeout sentinel, so the guard runs
-		// before that telemetry. It still records under the existing
-		// "backend_unavailable" outcome the h.Neo4j == nil branch above uses,
-		// so a live graph outage or timeout keeps producing a handler-level
-		// datapoint instead of silently emitting none.
-		if WriteGraphReadError(w, r, err, tagHistoryCapability) {
-			recordTagHistoryError(r.Context(), "backend_unavailable")
-			recordTagHistoryDuration(r.Context(), start, "backend_unavailable")
-			return
-		}
-		recordTagHistoryError(r.Context(), "query_error")
-		recordTagHistoryDuration(r.Context(), start, "query_error")
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
+		writeTagHistoryReadError(w, r, start, err)
 		return
 	}
 
-	truncated := len(rows) > limit
-	if truncated {
+	// truncated and next_cursor are computed from the raw limit+1 read BEFORE
+	// any grant filter, the contract the change-surface route documents in
+	// impact_change_surface_traversal.go: a scoped page can hold fewer than
+	// limit rows while still reporting truncation, rather than presenting a
+	// grant-shortened page as the end of the history.
+	page.truncated = len(rows) > limit
+	if page.truncated {
 		rows = rows[:limit]
 	}
 
-	history := make([]TagHistoryRow, 0, len(rows))
+	page.history = make([]TagHistoryRow, 0, len(rows))
 	for _, row := range rows {
-		history = append(history, tagHistoryRowFromGraph(row))
+		page.history = append(page.history, tagHistoryRowFromGraph(row))
 	}
 
-	body := map[string]any{
-		"tag_history":   history,
-		"count":         len(history),
-		"limit":         limit,
-		"offset":        offset,
-		"truncated":     truncated,
-		"image_ref":     imageRef,
-		"repository_id": repositoryID,
-		"tag":           tag,
-	}
-	if truncated {
-		body["next_cursor"] = map[string]any{"offset": offset + limit}
+	if access.Scoped() {
+		edges := map[string][]string{}
+		if digests := tagHistoryGrantDigests(page.history); len(digests) > 0 {
+			edges, err = h.lookupBuiltFromRepositories(r.Context(), digests)
+			if err != nil {
+				// Fail closed: never fall back to the unfiltered page.
+				writeTagHistoryReadError(w, r, start, err)
+				return
+			}
+		}
+		var counts tagHistoryGrantCounts
+		page.history, counts = filterTagHistoryForGrant(page.history, edges, access)
+		counts.annotateSpan(span)
+		recordTagHistoryScopedRows(r.Context(), counts)
 	}
 
 	recordTagHistoryDuration(r.Context(), start, "ok")
+	h.writeTagHistoryPage(w, r, page)
+}
+
+// tagHistoryPage is one response page before serialization.
+type tagHistoryPage struct {
+	history       []TagHistoryRow
+	limit         int
+	offset        int
+	truncated     bool
+	imageRef      string
+	repositoryID  string
+	tag           string
+	grantFiltered bool
+}
+
+// writeTagHistoryPage serializes page. grant_filtered is present only for a
+// scoped caller, whose truth reason also discloses the BUILT_FROM coverage cost
+// and the per-page filtering the pagination fields follow.
+func (h *TagHistoryHandler) writeTagHistoryPage(w http.ResponseWriter, r *http.Request, page tagHistoryPage) {
+	history := page.history
+	if history == nil {
+		history = []TagHistoryRow{}
+	}
+	body := map[string]any{
+		"tag_history":   history,
+		"count":         len(history),
+		"limit":         page.limit,
+		"offset":        page.offset,
+		"truncated":     page.truncated,
+		"image_ref":     page.imageRef,
+		"repository_id": page.repositoryID,
+		"tag":           page.tag,
+	}
+	if page.truncated {
+		body["next_cursor"] = map[string]any{"offset": page.offset + page.limit}
+	}
+	reason := "resolved from bounded container image tag-observation history anchored on image_ref"
+	if page.grantFiltered {
+		body["grant_filtered"] = true
+		reason = tagHistoryScopedTruthReason
+	}
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
 		tagHistoryCapability,
 		TruthBasisAuthoritativeGraph,
-		"resolved from bounded container image tag-observation history anchored on image_ref",
+		reason,
 	))
+}
+
+// writeTagHistoryReadError writes the response for a failed graph read, shared
+// by the tag read and the scoped BUILT_FROM lookup.
+//
+// "query_error" would be the wrong outcome label for a bounded
+// backend-unavailable/backend-timeout sentinel, so the guard runs before that
+// telemetry. It still records under the existing "backend_unavailable" outcome
+// the h.Neo4j == nil branch uses, so a live graph outage or timeout keeps
+// producing a handler-level datapoint instead of silently emitting none.
+func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time.Time, err error) {
+	if WriteGraphReadError(w, r, err, tagHistoryCapability) {
+		recordTagHistoryError(r.Context(), "backend_unavailable")
+		recordTagHistoryDuration(r.Context(), start, "backend_unavailable")
+		return
+	}
+	recordTagHistoryError(r.Context(), "query_error")
+	recordTagHistoryDuration(r.Context(), start, "query_error")
+	WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
 }
 
 // tagHistoryBounds parses and validates the required limit and optional
@@ -269,4 +359,119 @@ func composeOCIImageRef(repositoryID, tag string) string {
 		return strings.TrimPrefix(repositoryID, "oci-registry://") + ":" + tag
 	}
 	return ""
+}
+
+// tagHistoryBuiltFromCypher resolves which Repository nodes each digest on one
+// fetched page was built from, so a scoped caller's page can be bound to its
+// repository grant (#6564). The observation node carries no source-repository
+// key; the only path to a code repository is resolved_digest joined to
+// ContainerImage.digest and then the reducer's
+// ContainerImage-[:BUILT_FROM]->Repository edge
+// (canonicalProvenanceBuiltFromCypher, go/internal/storage/cypher).
+//
+// The join runs in Go on purpose: a two-MATCH grant join returned zero rows on
+// the pinned NornicDB and on upstream v1.3.1 for a seed whose answer was two
+// rows, while this single-clause read returned exactly the seeded edges on
+// both (docs/internal/evidence/6564-tag-history-grant-binding.md).
+//
+// Anchor: the container_image_digest index. Keys: the page's distinct
+// non-empty resolved and previous digests, at most 2*limit (400). Output: one
+// row per BUILT_FROM edge on those digests. No LIMIT: truncating could drop a
+// granted edge and silently withhold a row the caller is entitled to.
+const tagHistoryBuiltFromCypher = `
+	MATCH (i:ContainerImage)-[:BUILT_FROM]->(repo:Repository)
+	WHERE i.digest IN $digests
+	RETURN i.digest AS digest, repo.id AS repository_id
+`
+
+// tagHistoryScopedTruthReason is the truth-envelope reason a scoped caller
+// receives: it discloses the BUILT_FROM coverage cost and the per-page
+// filtering the pagination fields follow.
+const tagHistoryScopedTruthReason = "resolved from bounded container image tag-observation history anchored on image_ref, " +
+	"bound to the caller's repository grant through ContainerImage-[:BUILT_FROM]->Repository: a row is kept only when " +
+	"the image at its resolved_digest is BUILT_FROM a granted repository, previous_digest is blanked unless that image is " +
+	"also BUILT_FROM a granted repository, and observations whose image has no BUILT_FROM edge are withheld; filtering " +
+	"applies to each fetched page, so count can be below limit while truncated and next_cursor advance over the unfiltered window"
+
+// tagHistoryGrantDigests returns the page's distinct non-empty resolved and
+// previous digests, sorted so the lookup's parameters are deterministic.
+func tagHistoryGrantDigests(rows []TagHistoryRow) []string {
+	seen := make(map[string]struct{}, 2*len(rows))
+	for _, row := range rows {
+		if row.ResolvedDigest != "" {
+			seen[row.ResolvedDigest] = struct{}{}
+		}
+		if row.PreviousDigest != "" {
+			seen[row.PreviousDigest] = struct{}{}
+		}
+	}
+	digests := make([]string, 0, len(seen))
+	for digest := range seen {
+		digests = append(digests, digest)
+	}
+	sort.Strings(digests)
+	return digests
+}
+
+// lookupBuiltFromRepositories runs tagHistoryBuiltFromCypher for digests and
+// returns each digest's BUILT_FROM repository ids. A digest absent from the
+// map has no BUILT_FROM edge.
+func (h *TagHistoryHandler) lookupBuiltFromRepositories(ctx context.Context, digests []string) (map[string][]string, error) {
+	rows, err := h.Neo4j.Run(ctx, tagHistoryBuiltFromCypher, map[string]any{"digests": digests})
+	if err != nil {
+		return nil, err
+	}
+	edges := make(map[string][]string, len(digests))
+	for _, row := range rows {
+		digest := StringVal(row, "digest")
+		repositoryID := StringVal(row, "repository_id")
+		if digest == "" || repositoryID == "" {
+			continue
+		}
+		edges[digest] = append(edges[digest], repositoryID)
+	}
+	return edges, nil
+}
+
+// tagHistoryAnyRepositoryGranted reports whether at least one repository an
+// image was built from is in the caller's grant.
+func tagHistoryAnyRepositoryGranted(repositoryIDs []string, access repositoryAccessFilter) bool {
+	for _, repositoryID := range repositoryIDs {
+		if access.AllowsRepositoryID(repositoryID) {
+			return true
+		}
+	}
+	return false
+}
+
+// filterTagHistoryForGrant keeps a row only when the image at its
+// resolved_digest is BUILT_FROM at least one granted repository, and blanks
+// previous_digest unless that digest's image is also BUILT_FROM a granted
+// repository, so a scoped caller never learns another tenant's digest. Row
+// order is preserved.
+func filterTagHistoryForGrant(
+	rows []TagHistoryRow,
+	edges map[string][]string,
+	access repositoryAccessFilter,
+) ([]TagHistoryRow, tagHistoryGrantCounts) {
+	var counts tagHistoryGrantCounts
+	kept := make([]TagHistoryRow, 0, len(rows))
+	for _, row := range rows {
+		repositoryIDs, attributed := edges[row.ResolvedDigest]
+		if !attributed {
+			counts.withheldUnattributed++
+			continue
+		}
+		if !tagHistoryAnyRepositoryGranted(repositoryIDs, access) {
+			counts.withheldUngranted++
+			continue
+		}
+		if row.PreviousDigest != "" && !tagHistoryAnyRepositoryGranted(edges[row.PreviousDigest], access) {
+			row.PreviousDigest = ""
+			counts.previousDigestBlanked++
+		}
+		kept = append(kept, row)
+	}
+	counts.kept = len(kept)
+	return kept, counts
 }

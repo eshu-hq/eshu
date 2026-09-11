@@ -125,23 +125,6 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"POST /api/v0/impact/explain-dependency-path": {},
 	"POST /api/v0/impact/trace-exposure-path":     {},
 	"POST /api/v0/impact/trace-resource-to-code":  {},
-	// #5459 tag/digest mutation-history read. The ContainerImageTagObservation
-	// nodes it returns are keyed by the OCI registry repository_id
-	// (oci-registry://...), not a code repository_id, and carry no edge to the
-	// source code repo that the grant model (AllowedRepositoryIDs /
-	// repositoryAccessFilterFromContext) filters on. This used to point at
-	// #5457 for that linkage, which is stale: #5457 closed on 2026-07-23, and
-	// the PUBLISHES/BUILT_FROM edges it built do not by themselves hand this
-	// route a grant selector, because BUILT_FROM hangs off ContainerImage
-	// rather than the observation node and only some images carry one. #6564
-	// is the open design issue that replaces the pointer: decide whether
-	// joining the observation's resolved_digest to ContainerImage.digest and
-	// following BUILT_FROM covers enough images to bind a grant honestly, or
-	// record the route as shared-key-only instead. Until that is settled the
-	// route fails closed (scoped and browser-session callers 403, disclosed in
-	// list_container_image_tag_history's tool description) and is tracked here
-	// rather than allowlisted.
-	"GET /api/v0/images/tag-history": {},
 }
 
 // IsPendingRowFilteringRoute reports whether r targets a #5167 Group B route:

@@ -24,6 +24,7 @@ func resetTagHistoryInstrumentsForTest() {
 	tagHistoryQueryInstrumentsOnce = sync.Once{}
 	tagHistoryDuration = nil
 	tagHistoryErrors = nil
+	tagHistoryScopedRows = nil
 }
 
 // withTagHistoryMetricReader installs a process-global manual-reader meter
