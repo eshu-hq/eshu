@@ -95,32 +95,52 @@ compile-contract failure is the red phase for the path and API move.
 
 ## Final verification
 
-All commands below completed with exit 0 after the final production edit. The
-focused leaf and root guards were also rerun against the exact current review
-base and the rebased branch:
+Commit `8addb85f8` carries the last production edit (the import-alias
+follow-up); later commits change only this note. On that commit these commands
+completed with exit 0 under go1.27.1 darwin/arm64:
 
-- The focused `TestBuildReducerIntent` guard passed 1 of 1 tests.
-- The exact root fan-out parity and documented-probe-count guard passed 2 of 2
+- The focused `TestBuildReducerIntent` guard in
+  `./internal/projector/package/source` passed 1 of 1 tests.
+- The root `TestAppendScopeGenerationReducerIntentsFanOutParity` and
+  `TestReducerIntentProbeCountMatchesDocumentedCount` guards passed 2 of 2
   tests.
-- At current review base `8ff548233`,
-  `go test ./internal/projector/packagesource ./internal/projector -count=1`
-  passed for both the original leaf and root dispatcher.
 - `go test ./internal/projector/... -count=1` passed.
 - `go test -race ./internal/projector/package/source ./internal/projector -count=1`
   passed.
-- The hosted [offline replay job](https://github.com/eshu-hq/eshu/actions/runs/34544679430/job/103094619762)
-  ran `bash scripts/verify-replay-tier.sh` against real NornicDB on production
-  diff commit `0fb98eedd54f8f985eac9c165f78e62433cd6197`. The live replay tier passed
-  in 272 seconds, and the follow-on SQL-table blast-radius proof passed every
-  UNION branch in 37 seconds.
-- The hosted [B-7 NornicDB corpus job](https://github.com/eshu-hq/eshu/actions/runs/34544679436/job/103094619643)
-  ran `bash scripts/verify-golden-corpus-gate.sh` on the same production diff.
-  It reported `561 pass, 0 required-fail, 1 advisory-warn` and
+- `go build ./...` and `go vet ./...` passed for the whole module.
+- `bash scripts/verify-moved-file-refs.sh` reported 3 vacated Go paths against
+  base `2b01f131a` and no dangling references.
+
+At current review base `2b01f131a`, in a throwaway detached worktree with the
+same toolchain,
+`go test ./internal/projector/packagesource ./internal/projector -count=1`
+passed. The original `TestBuildPackageSourceCorrelationReducerIntent` leaf
+guard and the same two root guards each passed.
+
+Hosted backend proof ran on production diff commit
+`0fb98eedd54f8f985eac9c165f78e62433cd6197`, before the rebase and the
+import-alias follow-up:
+
+- The [offline replay job](https://github.com/eshu-hq/eshu/actions/runs/34544679430/job/103094619762)
+  ran `bash scripts/verify-replay-tier.sh` against real NornicDB. The live
+  replay tier passed in 272 seconds, and the follow-on SQL-table blast-radius
+  proof passed every UNION branch in 37 seconds.
+- The [B-7 NornicDB corpus job](https://github.com/eshu-hq/eshu/actions/runs/34544679436/job/103094619643)
+  ran `bash scripts/verify-golden-corpus-gate.sh`. It reported
+  `561 pass, 0 required-fail, 1 advisory-warn` and
   `PASS: B-7 golden corpus gate green` in 213 seconds against a 1,800-second
   ceiling. The advisory was maintenance-drain timing at 32 seconds against a
   30-second advisory ceiling; it did not affect correctness or the blocking
-  gate result. This evidence-only follow-up does not change production code,
-  fixtures, cassettes, or the B-12 snapshot exercised by those jobs.
+  gate result.
+
+Since `0fb98ee`, the only production change is the import identifier in
+`scope_generation_intents.go`. It does not touch fixtures, cassettes, or the
+B-12 snapshot. CI reruns both jobs on every PR head, and the PR description
+cites those runs for the pushed head.
+
+The move commit's patch is unchanged by the rebase, and the follow-up touches
+none of the files behind these structural checks, so they still hold:
+
 - A normalized diff of the executable function body between the base file and
   `package/source/reducer_intent.go`, substituting only the exported symbol,
   was empty.
@@ -134,8 +154,9 @@ base and the rebased branch:
   four intentional root-ownership annotations; the naming-exempt ledger and
   generated grandfather map were unchanged.
 
-No-Regression Evidence: the base and final production trees passed the same
-focused leaf and root guards under Go 1.26.6 on Linux/amd64. Leaf input shapes
+No-Regression Evidence: the review base `2b01f131a` and the production tree at
+`8addb85f8` passed the same focused leaf and root guards under go1.27.1
+darwin/arm64. Leaf input shapes
 cover source-hint priority over an earlier identity, earliest-fact selection
 within each kind, package-identity fallback, source-system fallback, and an
 empty lookup. Root parity returns the complete multi-domain intent slice and
