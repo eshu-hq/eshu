@@ -10,26 +10,18 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 const maxSharedSelectionScanLimit = 10_000
 
-// SharedProjectionEdgeWriter writes and retracts canonical graph edges for one
-// shared projection domain.
-type SharedProjectionEdgeWriter interface {
-	RetractEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) error
-	// WriteEdges reports the rows it could not route alongside any error, so
-	// the caller that owns intent completion can record a loss the write
-	// itself cannot see the consequence of (#5984).
-	WriteEdges(ctx context.Context, domain string, rows []SharedProjectionIntentRow, evidenceSource string) (SharedProjectionWriteReport, error)
-}
+// SharedProjectionEdgeWriter is the root spelling of [sharedintent.EdgeWriter].
+type SharedProjectionEdgeWriter = sharedintent.EdgeWriter
 
-// PartitionLeaseManager manages partition leases for shared projection workers.
-type PartitionLeaseManager interface {
-	ClaimPartitionLease(ctx context.Context, domain string, partitionID, partitionCount int, leaseOwner string, leaseTTL time.Duration) (bool, error)
-	ReleasePartitionLease(ctx context.Context, domain string, partitionID, partitionCount int, leaseOwner string) error
-}
+// PartitionLeaseManager is the root spelling of
+// [sharedintent.PartitionLeaseManager].
+type PartitionLeaseManager = sharedintent.PartitionLeaseManager
 
 // SharedIntentReader reads and marks shared projection intents.
 type SharedIntentReader interface {
@@ -37,14 +29,13 @@ type SharedIntentReader interface {
 	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error
 }
 
-// AcceptedGenerationLookup returns the accepted generation for one bounded
-// acceptance key. Returns empty string and false when no accepted generation is
-// known.
-type AcceptedGenerationLookup func(key SharedProjectionAcceptanceKey) (string, bool)
+// AcceptedGenerationLookup is the root spelling of
+// [sharedintent.AcceptedGenerationLookup].
+type AcceptedGenerationLookup = sharedintent.AcceptedGenerationLookup
 
-// AcceptedGenerationPrefetch batches acceptance resolution for a set of
-// intents and returns an in-memory lookup closure for the current cycle.
-type AcceptedGenerationPrefetch func(ctx context.Context, intents []SharedProjectionIntentRow) (AcceptedGenerationLookup, error)
+// AcceptedGenerationPrefetch is the root spelling of
+// [sharedintent.AcceptedGenerationPrefetch].
+type AcceptedGenerationPrefetch = sharedintent.AcceptedGenerationPrefetch
 
 // PartitionBatchResult holds the result of selecting one partition batch.
 type PartitionBatchResult struct {

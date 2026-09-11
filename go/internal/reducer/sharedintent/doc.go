@@ -30,11 +30,18 @@
 // subpackage: three symbols from one file blocked 47 non-test files across
 // roughly 23 domains.
 //
-// This package therefore holds only plain data and pure functions. It imports
-// `payloadcore` for one string coercion and otherwise nothing but the standard
-// library, and it must never import the reducer root. The worker, runner,
+// This package therefore holds only plain data, pure functions, and the port
+// shapes those pure functions and the worker substrate share: [EdgeWriter],
+// [PartitionLeaseManager], [AcceptedGenerationLookup]/[AcceptedGenerationPrefetch],
+// and the unroutable-row report the writer returns. A port belongs here when it
+// is an interface, function type, or plain data the WriteEdges signature drags
+// along — not when it is the machinery that implements or calls it. It imports
+// `payloadcore` for one string coercion and `contract` for the `Domain*`
+// constants the row helpers read, and otherwise nothing but the standard
+// library; it must never import the reducer root. The worker, runner,
 // readiness, lease-heartbeat and batch-selection machinery deliberately stay in
-// the root: they are the reducer's concurrency core, not a shape a family needs.
+// the root's intents/shared/worker package: they are the reducer's concurrency
+// core, not a shape a family needs.
 //
 // The root keeps aliases under the original names — SharedProjectionIntentRow,
 // SharedProjectionIntentInput, SharedProjectionAcceptanceKey — and a forwarder
