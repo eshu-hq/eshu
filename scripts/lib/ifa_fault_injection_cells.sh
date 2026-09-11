@@ -197,7 +197,8 @@ cell_restartbackend() {
 	ifa_det_start_bg "${log_dir}" "reducer-restartbackend" reducer_pid \
 		env "ESHU_IFA_FAULT_SCRIPT=${fault_restart_script}" "${tagged_bin_dir}/eshu-reducer"
 	ifa_fault_watch_restart_sentinel "${restart_sentinel}" "${FAULT_COMPOSE_PROJECT}" "${compose_file}" \
-		"${restart_result}" "${RESTART_SENTINEL_WAIT_TIMEOUT}" &
+		"${restart_result}" "${RESTART_SENTINEL_WAIT_TIMEOUT}" \
+		>"${log_dir}/restart-watcher.log" 2>&1 &
 	watcher_pid=$!
 	bg_pids+=("${watcher_pid}")
 	run_drain_gate restartbackend

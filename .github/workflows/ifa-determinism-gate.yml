@@ -315,10 +315,7 @@ on:
       # and the Docker gate that proves real recovery (zero dead letters, graph
       # identical to the fault-free baseline). A change to any of these must
       # re-run the fault matrix.
-      - 'go/internal/storage/cypher/fault_executor.go'
-      - 'go/internal/storage/cypher/fault_executor_off.go'
-      - 'go/internal/storage/cypher/fault_executor_marker.go'
-      - 'go/internal/storage/cypher/fault_executor_classification_test.go'
+      - 'go/internal/storage/cypher/fault_executor*.go'
       - 'go/internal/replay/faultreplay/**'
       - 'go/cmd/reducer/ifa_fault_wiring.go'
       - 'go/cmd/reducer/ifa_fault_wiring_off.go'
@@ -670,7 +667,9 @@ jobs:
   fault-injection:
     name: fault-injection (shard ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
+    env:
+      FAULT_COMPOSE_PROJECT: eshu-ifa-fault-injection-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
     strategy:
       fail-fast: false
       matrix:
@@ -714,12 +713,44 @@ jobs:
           # Same headless rationale as determinism-matrix above (#6505): this
           # job builds the same image and serves no UI from it.
           NORNICDB_HEADLESS: "true"
-        run: bash scripts/verify-ifa-fault-injection.sh --shard "${IFA_FAULT_SHARD}/4"
+        run: bash scripts/verify-ifa-fault-injection.sh --keep --shard "${IFA_FAULT_SHARD}/4"
 
-      - name: Dump service logs on failure
+      - name: Verify fault-injection diagnostic completeness
         if: failure()
-        run: docker compose -f docker-compose.yaml logs --tail=200 || true
+        run: |
+          shopt -s nullglob
+          completeness=(/tmp/ifa-fault-injection.*/diagnostics-complete)
+          [[ ${#completeness[@]} -eq 1 && -s "${completeness[0]}" ]]
+
+      - name: Upload fault-injection diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ifa-fault-injection-shard-${{ matrix.shard }}-attempt-${{ github.run_attempt }}-failure
+          path: |
+            /tmp/ifa-fault-injection.*/graph-baseline.dump
+            /tmp/ifa-fault-injection.*/graph-restartbackend.dump
+            /tmp/ifa-fault-injection.*/graph-restartbackend-failure.dump
+            /tmp/ifa-fault-injection.*/graph-manifest.tsv
+            /tmp/ifa-fault-injection.*/work-items.csv
+            /tmp/ifa-fault-injection.*/gcp-facts.jsonl
+            /tmp/ifa-fault-injection.*/fault-restart-backend.json
+            /tmp/ifa-fault-injection.*/restart-watch-result
+            /tmp/ifa-fault-injection.*/fault-restart-backend.json.restart-sentinel.trigger.json
+            /tmp/ifa-fault-injection.*/backend-image.txt
+            /tmp/ifa-fault-injection.*/backend-labels.json
+            /tmp/ifa-fault-injection.*/backend-container.json
+            /tmp/ifa-fault-injection.*/backend-expected-revision.txt
+            /tmp/ifa-fault-injection.*/backend-actual-revision.txt
+            /tmp/ifa-fault-injection.*/nornicdb-environment.txt
+            /tmp/ifa-fault-injection.*/diagnostics-manifest.tsv
+            /tmp/ifa-fault-injection.*/diagnostics-complete
+            /tmp/ifa-fault-injection.*/current-cell
+            /tmp/ifa-fault-injection.*/**/*.error
+            /tmp/ifa-fault-injection.*/logs/*.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Tear down Docker services
         if: always()
-        run: docker compose -f docker-compose.yaml down -v || true
+        run: docker compose -p "${FAULT_COMPOSE_PROJECT}" -f docker-compose.yaml down -v || true

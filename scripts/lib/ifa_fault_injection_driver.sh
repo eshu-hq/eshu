@@ -182,15 +182,17 @@ assert_no_dead_letters() {
 	printf '%s: dead_letter rows: 0 (recovery converged)\n' "${cell}"
 }
 
-# capture_digest canonicalizes the post-drain graph and stores it in digests[cell].
+# capture_digest canonicalizes the post-drain graph once, retains those exact
+# bytes, and stores their SHA-256 in digests[cell].
 capture_digest() {
 	local cell="$1"
 	log "${cell}: canonicalize graph (ifa graph-dump)"
 	"${bin_dir}/eshu-ifa" graph-dump -out "${work_dir}/graph-${cell}.dump" \
 		|| die "${cell}: ifa graph-dump (canonical bytes) failed"
 	local d
-	d="$("${bin_dir}/eshu-ifa" graph-dump -digest | tr -d '[:space:]')"
-	[[ -n "${d}" ]] || die "${cell}: ifa graph-dump -digest returned empty output"
+	d="$(ifa_fault_sha256_file "${work_dir}/graph-${cell}.dump")" \
+		|| die "${cell}: could not hash retained canonical graph dump"
+	[[ -n "${d}" ]] || die "${cell}: retained canonical graph dump digest was empty"
 	digests[${cell}]="${d}"
 	printf '%s: digest: %s\n' "${cell}" "${d}"
 }
