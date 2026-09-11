@@ -4,8 +4,10 @@
 package query
 
 import (
-	"context"
 	"database/sql/driver"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -25,6 +27,13 @@ import (
 // accurate), never the reverse. Split into its own file rather than added to
 // language_query_metadata_test.go, which the addition would have pushed past
 // the repo's 500-line file cap.
+//
+// Driven through the mounted route (#6642) rather than the unexported
+// enrichLanguageResultsWithContentMetadata method directly: merged is exactly
+// what decides whether queryByLanguageWithSemanticFilter reports
+// TruthBasisHybrid instead of TruthBasisAuthoritativeGraph
+// (language_queries.go), so the wire truth envelope's basis is the same
+// observable proof the direct-call assertion was.
 func TestEnrichLanguageResultsWithContentMetadataReportsMergedEvenWhenGraphShadowsAllContentValues(t *testing.T) {
 	t.Parallel()
 
@@ -43,45 +52,61 @@ func TestEnrichLanguageResultsWithContentMetadataReportsMergedEvenWhenGraphShado
 		},
 	})
 
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "Logged",
-			"labels":     []string{"Class"},
-			"file_path":  "src/models.py",
-			"repo_id":    "repo-1",
-			"language":   "python",
-			"start_line": 4,
-			"end_line":   8,
-			"metadata": map[string]any{
-				"metaclass": "MetaLogger",
+	handler := &LanguageQueryHandler{
+		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
+			{
+				"entity_id":  "graph-1",
+				"name":       "Logged",
+				"labels":     []string{"Class"},
+				"file_path":  "src/models.py",
+				"repo_id":    "repo-1",
+				"language":   "python",
+				"start_line": int64(4),
+				"end_line":   int64(8),
+				"metaclass":  "MetaLogger",
 			},
-		},
+		}},
+		Content: NewContentReader(db),
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
+		strings.NewReader(`{"language":"python","entity_type":"class","query":"Logged","repo_id":"repo-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	envelope := decodeLanguageQueryEnvelope(t, rec)
+	if envelope.Truth == nil {
+		t.Fatalf("truth envelope missing, body = %s", rec.Body.String())
+	}
+	if envelope.Truth.Basis != TruthBasisHybrid {
+		t.Fatalf("truth.basis = %q, want %q (a matched, non-empty content payload was found, even though the graph value shadows it)", envelope.Truth.Basis, TruthBasisHybrid)
 	}
 
-	got, merged, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"python",
-		"Class",
-		"Logged",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
-	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
-	}
-	if !merged {
-		t.Fatalf("merged = %v, want true (a matched, non-empty content payload was found, even though the graph value shadows it)", merged)
-	}
-
-	metadata, ok := got[0]["metadata"].(map[string]any)
+	data, ok := envelope.Data.(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][metadata] type = %T, want map[string]any", got[0]["metadata"])
+		t.Fatalf("data type = %T, want map[string]any (body = %s)", envelope.Data, rec.Body.String())
 	}
-	if gotValue, want := metadata["metaclass"], "MetaLogger"; gotValue != want {
-		t.Fatalf("metadata[metaclass] = %#v, want %#v (the graph value must win over the shadowed content value)", gotValue, want)
+	results, ok := data["results"].([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("data.results = %#v, want exactly one result", data["results"])
+	}
+	result, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", results[0])
+	}
+	metadata, ok := result["metadata"].(map[string]any)
+	if !ok {
+		t.Fatalf("metadata = %#v, want map[string]any", result["metadata"])
+	}
+	if got, want := metadata["metaclass"], "MetaLogger"; got != want {
+		t.Fatalf("metadata[metaclass] = %#v, want %q (the graph value must win over the shadowed content value)", got, want)
 	}
 }

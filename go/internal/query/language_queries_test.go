@@ -9,97 +9,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"slices"
-	"strings"
 	"testing"
 )
-
-func TestBuildLanguageCypher_Function(t *testing.T) {
-	cypher, params := buildLanguageCypher("python", "Function", "my_func", "repo:123", 10)
-
-	if cypher == "" {
-		t.Fatal("expected non-empty cypher")
-	}
-	// Must contain the Function label.
-	if !searchString(cypher, "Function") {
-		t.Error("cypher should contain Function label")
-	}
-	// The canonical language leads the bound spelling list; no bare
-	// $language parameter is bound because no builder references one.
-	if got := boundCanonicalLanguage(t, params); got != "python" {
-		t.Errorf("bound canonical language = %v, want python", got)
-	}
-	if _, ok := params["language"]; ok {
-		t.Error("language param should not be bound; the builders reference $languages only")
-	}
-	if params["repo_id"] != "repo:123" {
-		t.Errorf("repo_id param = %v, want repo:123", params["repo_id"])
-	}
-	if params["query"] != "my_func" {
-		t.Errorf("query param = %v, want my_func", params["query"])
-	}
-	if params["limit"] != 10 {
-		t.Errorf("limit param = %v, want 10", params["limit"])
-	}
-	// Must filter by language.
-	if !searchString(cypher, "$language") {
-		t.Error("cypher should reference $language parameter")
-	}
-	// Must filter by repo.
-	if !searchString(cypher, "$repo_id") {
-		t.Error("cypher should reference $repo_id parameter")
-	}
-	// Must filter by name.
-	if !searchString(cypher, "$query") {
-		t.Error("cypher should reference $query parameter")
-	}
-	if !searchString(cypher, "e.type_annotation_count as type_annotation_count") {
-		t.Error("cypher should project type_annotation_count")
-	}
-	if !searchString(cypher, "e.type_annotation_kinds as type_annotation_kinds") {
-		t.Error("cypher should project type_annotation_kinds")
-	}
-}
-
-func TestBuildLanguageCypher_Repository(t *testing.T) {
-	cypher, params := buildLanguageCypher("go", "Repository", "", "", 25)
-
-	if !searchString(cypher, "Repository") {
-		t.Error("cypher should contain Repository label")
-	}
-	// The Repository builder binds the same spelling list as the other three,
-	// so a csharp or typescript query reaches c_sharp and tsx rows (#6546).
-	if !searchString(cypher, "f.language IN $languages") {
-		t.Error("cypher should filter on f.language IN $languages")
-	}
-	if searchString(cypher, "$language_title") {
-		t.Error("cypher must not carry the retired $language_title equality")
-	}
-	if got, ok := params["languages"].([]string); !ok || !slices.Contains(got, "go") {
-		t.Errorf("params[languages] = %#v, want a list carrying go", params["languages"])
-	}
-	if params["limit"] != 25 {
-		t.Errorf("limit param = %v, want 25", params["limit"])
-	}
-	// No repo_id or query filters when empty.
-	if _, ok := params["repo_id"]; ok {
-		t.Error("repo_id should not be set when empty")
-	}
-	if _, ok := params["query"]; ok {
-		t.Error("query should not be set when empty")
-	}
-}
-
-func TestBuildLanguageCypher_FunctionDoesNotDuplicateRepoNameAlias(t *testing.T) {
-	cypher, _ := buildLanguageCypher("python", "Function", "handler", "repo-1", 10)
-
-	if got, want := strings.Count(cypher, " as repo_name"), 1; got != want {
-		t.Fatalf("strings.Count(cypher, \" as repo_name\") = %d, want %d; cypher=%q", got, want, cypher)
-	}
-	if strings.Contains(cypher, "e.repo_name as repo_name") {
-		t.Fatalf("cypher = %q, must not alias entity repo_name onto the canonical repo_name column", cypher)
-	}
-}
 
 func TestHandleLanguageQuery_MissingLanguage(t *testing.T) {
 	h := &LanguageQueryHandler{}
@@ -466,33 +377,10 @@ func TestHandleLanguageQuery_ContentBackedEntityTypes(t *testing.T) {
 	}
 }
 
-func TestJoinKeys(t *testing.T) {
-	m := map[string]bool{"c": true, "a": true, "b": true}
-	got := joinKeys(m)
-	if got != "a, b, c" {
-		t.Errorf("joinKeys = %q, want %q", got, "a, b, c")
-	}
-}
-
-func TestSortStrings(t *testing.T) {
-	s := []string{"go", "c", "rust", "java", "dart"}
-	sortStrings(s)
-	for i := 1; i < len(s); i++ {
-		if s[i] < s[i-1] {
-			t.Errorf("not sorted at index %d: %v", i, s)
-		}
-	}
-}
-
-func TestBuildLanguageCypher_AllEntityTypes(t *testing.T) {
-	// Verify all entity types produce valid cypher.
-	for typeName, label := range graphBackedEntityTypes {
-		cypher, params := buildLanguageCypher("python", label, "", "", 10)
-		if cypher == "" {
-			t.Errorf("entity type %q produced empty cypher", typeName)
-		}
-		if got := boundCanonicalLanguage(t, params); got != "python" {
-			t.Errorf("entity type %q: bound canonical language = %v", typeName, got)
-		}
-	}
-}
+// TestBuildLanguageCypher_Function, TestBuildLanguageCypher_Repository,
+// TestBuildLanguageCypher_FunctionDoesNotDuplicateRepoNameAlias,
+// TestBuildLanguageCypher_AllEntityTypes, TestJoinKeys, and TestSortStrings
+// moved to language_query_cypher_builder_test.go (#6642): each calls
+// buildLanguageCypher, joinKeys, or sortStrings directly -- unexported
+// language-family free functions the mounted route does not observably
+// cover -- so they belong in a family-owned white-box test file.

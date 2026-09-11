@@ -112,12 +112,15 @@ func TestHandleLanguageQueryGenericFailureStaysStaticAndLogsFailureClass(t *test
 			logger := slog.New(slog.NewJSONHandler(&logBuf, nil))
 			handler := test.buildHandler(logger)
 
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query", strings.NewReader(test.body))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.handleLanguageQuery(rec, req)
+			mux.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusInternalServerError {
 				t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusInternalServerError, rec.Body.String())

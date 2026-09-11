@@ -6,9 +6,18 @@ package query
 import (
 	"context"
 	"database/sql/driver"
-	"reflect"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
+
+// TestEnrichLanguageResultsWithContentMetadataPromotesExistingPythonSemanticsWithoutContent,
+// TestEnrichLanguageResultsWithContentMetadataRustImplBlock, and
+// TestEnrichLanguageResultsWithContentMetadataPreservesPythonGraphMetadata
+// moved to language_query_metadata_promotion_test.go (#6642), rewritten onto
+// the mounted route so they travel with the language family.
 
 type mockLanguageQueryGraphReader struct {
 	rows []map[string]any
@@ -23,6 +32,41 @@ func (m *mockLanguageQueryGraphReader) RunSingle(context.Context, string, map[st
 		return nil, nil
 	}
 	return m.rows[0], nil
+}
+
+// languageQueryMetadataResult drives a language-query request through the
+// mounted route (#6642) and returns the decoded results[0] entry, so the
+// tests in this file assert on the same wire shape a caller sees rather than
+// calling the unexported enrichLanguageResultsWithContentMetadata method
+// directly.
+func languageQueryMetadataResult(t *testing.T, handler *LanguageQueryHandler, body string) map[string]any {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	results, ok := resp["results"].([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("results = %#v, want exactly one result", resp["results"])
+	}
+	result, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", results[0])
+	}
+	return result
 }
 
 func TestEnrichLanguageResultsWithContentMetadata(t *testing.T) {
@@ -43,37 +87,27 @@ func TestEnrichLanguageResultsWithContentMetadata(t *testing.T) {
 		},
 	})
 
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "handler",
-			"labels":     []string{"Function"},
-			"file_path":  "src/handler.py",
-			"repo_id":    "repo-1",
-			"language":   "python",
-			"start_line": 12,
-			"end_line":   20,
-		},
+	handler := &LanguageQueryHandler{
+		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
+			{
+				"entity_id":  "graph-1",
+				"name":       "handler",
+				"labels":     []string{"Function"},
+				"file_path":  "src/handler.py",
+				"repo_id":    "repo-1",
+				"language":   "python",
+				"start_line": int64(12),
+				"end_line":   int64(20),
+			},
+		}},
+		Content: NewContentReader(db),
 	}
+	result := languageQueryMetadataResult(t, handler,
+		`{"language":"python","entity_type":"function","query":"handler","repo_id":"repo-1"}`)
 
-	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"python",
-		"Function",
-		"handler",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
-	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
-	}
-
-	metadata, ok := got[0]["metadata"].(map[string]any)
+	metadata, ok := result["metadata"].(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][metadata] type = %T, want map[string]any", got[0]["metadata"])
+		t.Fatalf("results[0][metadata] type = %T, want map[string]any", result["metadata"])
 	}
 	if gotValue, want := metadata["async"], true; gotValue != want {
 		t.Fatalf("metadata[async] = %#v, want %#v", gotValue, want)
@@ -85,12 +119,12 @@ func TestEnrichLanguageResultsWithContentMetadata(t *testing.T) {
 	if len(decorators) != 1 || decorators[0] != "@route" {
 		t.Fatalf("metadata[decorators] = %#v, want [@route]", decorators)
 	}
-	if gotValue, want := got[0]["semantic_summary"], "Function handler is async and uses decorators @route."; gotValue != want {
+	if gotValue, want := result["semantic_summary"], "Function handler is async and uses decorators @route."; gotValue != want {
 		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", gotValue, want)
 	}
-	semanticProfile, ok := got[0]["semantic_profile"].(map[string]any)
+	semanticProfile, ok := result["semantic_profile"].(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", got[0]["semantic_profile"])
+		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", result["semantic_profile"])
 	}
 	if gotValue, want := semanticProfile["surface_kind"], "decorated_async_function"; gotValue != want {
 		t.Fatalf("semantic_profile[surface_kind] = %#v, want %#v", gotValue, want)
@@ -98,86 +132,22 @@ func TestEnrichLanguageResultsWithContentMetadata(t *testing.T) {
 	if gotValue, want := semanticProfile["async"], true; gotValue != want {
 		t.Fatalf("semantic_profile[async] = %#v, want %#v", gotValue, want)
 	}
-	decoratorValues, ok := semanticProfile["decorators"].([]string)
+	decoratorValues, ok := semanticProfile["decorators"].([]any)
 	if !ok {
-		t.Fatalf("semantic_profile[decorators] type = %T, want []string", semanticProfile["decorators"])
+		t.Fatalf("semantic_profile[decorators] type = %T, want []any", semanticProfile["decorators"])
 	}
 	if len(decoratorValues) != 1 || decoratorValues[0] != "@route" {
 		t.Fatalf("semantic_profile[decorators] = %#v, want [@route]", decoratorValues)
 	}
 }
 
-func TestEnrichLanguageResultsWithContentMetadataPromotesExistingPythonSemanticsWithoutContent(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: nil,
-		},
-	})
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "handler",
-			"labels":     []string{"Function"},
-			"file_path":  "src/handler.py",
-			"repo_id":    "repo-1",
-			"language":   "python",
-			"start_line": 12,
-			"end_line":   24,
-			"metadata": map[string]any{
-				"decorators":            []any{"@route"},
-				"async":                 true,
-				"type_annotation_count": 2,
-				"type_annotation_kinds": []any{"parameter", "return"},
-			},
-			"semantic_summary": "Function handler is async, uses decorators @route, and has parameter and return type annotations.",
-		},
-	}
-
-	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"python",
-		"Function",
-		"handler",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
-	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
-	}
-
-	pythonSemantics, ok := got[0]["python_semantics"].(map[string]any)
-	if !ok {
-		t.Fatalf("results[0][python_semantics] type = %T, want map[string]any", got[0]["python_semantics"])
-	}
-	if got, want := pythonSemantics["surface_kind"], "decorated_async_function"; got != want {
-		t.Fatalf("python_semantics[surface_kind] = %#v, want %#v", got, want)
-	}
-	if got, want := pythonSemantics["decorators"], []string{"@route"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("python_semantics[decorators] = %#v, want %#v", got, want)
-	}
-	if got, want := pythonSemantics["async"], true; got != want {
-		t.Fatalf("python_semantics[async] = %#v, want %#v", got, want)
-	}
-	if got, want := pythonSemantics["type_annotation_count"], 2; got != want {
-		t.Fatalf("python_semantics[type_annotation_count] = %#v, want %#v", got, want)
-	}
-	if got, want := pythonSemantics["type_annotation_kinds"], []string{"parameter", "return"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("python_semantics[type_annotation_kinds] = %#v, want %#v", got, want)
-	}
-	if got, want := got[0]["semantic_summary"], "Function handler is async, uses decorators @route, and has parameter and return type annotations."; got != want {
-		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", got, want)
-	}
-}
-
+// TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows covers the
+// merged=false boundary: the content row and graph row never overlap, so the
+// route must report TruthBasisAuthoritativeGraph (not TruthBasisHybrid) and
+// the result must carry no metadata/semantic_summary/semantic_profile at all
+// (#5761 P2-1). Driven through the mounted route (#6642): the truth
+// envelope's basis is the same observable proof the direct merged-return-value
+// assertion was.
 func TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T) {
 	t.Parallel()
 
@@ -196,49 +166,64 @@ func TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T
 		},
 	})
 
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "handler",
-			"labels":     []string{"Function"},
-			"file_path":  "src/handler.py",
-			"repo_id":    "repo-1",
-			"language":   "python",
-			"start_line": 12,
-			"end_line":   20,
-		},
+	handler := &LanguageQueryHandler{
+		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
+			{
+				"entity_id":  "graph-1",
+				"name":       "handler",
+				"labels":     []string{"Function"},
+				"file_path":  "src/handler.py",
+				"repo_id":    "repo-1",
+				"language":   "python",
+				"start_line": int64(12),
+				"end_line":   int64(20),
+			},
+		}},
+		Content: NewContentReader(db),
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 
-	got, merged, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"python",
-		"Function",
-		"handler",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
-	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
+		strings.NewReader(`{"language":"python","entity_type":"function","query":"handler","repo_id":"repo-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	// Graph rows and content rows are both present here, but no row's match
-	// key (file_path|label|name|start_line) matches the other's -- this is
-	// the merged=false boundary classifyAnswerTruth relies on to select
-	// TruthBasisAuthoritativeGraph (not TruthBasisHybrid) when graph and
-	// content simply never overlapped (#5761 P2-1).
-	if merged {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() merged = %v, want false", merged)
+	envelope := decodeLanguageQueryEnvelope(t, rec)
+	if envelope.Truth == nil {
+		t.Fatalf("truth envelope missing, body = %s", rec.Body.String())
 	}
-	if _, ok := got[0]["metadata"]; ok {
-		t.Fatalf("results[0][metadata] = %#v, want metadata to remain absent", got[0]["metadata"])
+	if envelope.Truth.Basis != TruthBasisAuthoritativeGraph {
+		t.Fatalf("truth.basis = %q, want %q (unmatched content rows must not merge)", envelope.Truth.Basis, TruthBasisAuthoritativeGraph)
 	}
-	if _, ok := got[0]["semantic_summary"]; ok {
-		t.Fatalf("results[0][semantic_summary] = %#v, want semantic summary to remain absent", got[0]["semantic_summary"])
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("data type = %T, want map[string]any (body = %s)", envelope.Data, rec.Body.String())
 	}
-	if _, ok := got[0]["semantic_profile"]; ok {
-		t.Fatalf("results[0][semantic_profile] = %#v, want semantic profile to remain absent", got[0]["semantic_profile"])
+	results, ok := data["results"].([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("data.results = %#v, want exactly the one graph hit (an unmatched content row must not drop it)", data["results"])
+	}
+	result, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", results[0])
+	}
+	if got, want := result["name"], "handler"; got != want {
+		t.Fatalf("results[0].name = %#v, want %q (the graph hit must survive unmatched enrichment)", got, want)
+	}
+	if got, want := result["file_path"], "src/handler.py"; got != want {
+		t.Fatalf("results[0].file_path = %#v, want %q", got, want)
+	}
+	for _, absent := range []string{"metadata", "semantic_summary", "semantic_profile"} {
+		if v, ok := result[absent]; ok {
+			t.Fatalf("results[0][%s] = %#v, want key absent (unmatched content rows must not merge)", absent, v)
+		}
 	}
 }
 
@@ -260,191 +245,39 @@ func TestEnrichLanguageResultsWithContentMetadataAnnotation(t *testing.T) {
 		},
 	})
 
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "Logged",
-			"labels":     []string{"Annotation"},
-			"file_path":  "src/Logged.java",
-			"repo_id":    "repo-1",
-			"language":   "java",
-			"start_line": 2,
-			"end_line":   2,
-		},
+	handler := &LanguageQueryHandler{
+		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
+			{
+				"entity_id":  "graph-1",
+				"name":       "Logged",
+				"labels":     []string{"Annotation"},
+				"file_path":  "src/Logged.java",
+				"repo_id":    "repo-1",
+				"language":   "java",
+				"start_line": int64(2),
+				"end_line":   int64(2),
+			},
+		}},
+		Content: NewContentReader(db),
 	}
+	result := languageQueryMetadataResult(t, handler,
+		`{"language":"java","entity_type":"annotation","query":"Logged","repo_id":"repo-1"}`)
 
-	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"java",
-		"Annotation",
-		"Logged",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
-	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
-	}
-
-	metadata, ok := got[0]["metadata"].(map[string]any)
+	metadata, ok := result["metadata"].(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][metadata] type = %T, want map[string]any", got[0]["metadata"])
+		t.Fatalf("results[0][metadata] type = %T, want map[string]any", result["metadata"])
 	}
 	if gotValue, want := metadata["kind"], "applied"; gotValue != want {
 		t.Fatalf("metadata[kind] = %#v, want %#v", gotValue, want)
 	}
-	if gotValue, want := got[0]["semantic_summary"], "Annotation Logged is applied to a method declaration."; gotValue != want {
+	if gotValue, want := result["semantic_summary"], "Annotation Logged is applied to a method declaration."; gotValue != want {
 		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", gotValue, want)
 	}
-	semanticProfile, ok := got[0]["semantic_profile"].(map[string]any)
+	semanticProfile, ok := result["semantic_profile"].(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", got[0]["semantic_profile"])
+		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", result["semantic_profile"])
 	}
 	if gotValue, want := semanticProfile["surface_kind"], "applied_annotation"; gotValue != want {
 		t.Fatalf("semantic_profile[surface_kind] = %#v, want %#v", gotValue, want)
-	}
-}
-
-func TestEnrichLanguageResultsWithContentMetadataRustImplBlock(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"impl-1", "repo-1", "src/point.rs", "ImplBlock", "Point",
-					int64(1), int64(18), "rust", "impl Display for Point {}", []byte(`{"kind":"trait_impl","trait":"Display","target":"Point"}`),
-				},
-			},
-		},
-	})
-
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "Point",
-			"labels":     []string{"ImplBlock"},
-			"file_path":  "src/point.rs",
-			"repo_id":    "repo-1",
-			"language":   "rust",
-			"start_line": 1,
-			"end_line":   18,
-		},
-	}
-
-	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"rust",
-		"ImplBlock",
-		"Point",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
-	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
-	}
-
-	metadata, ok := got[0]["metadata"].(map[string]any)
-	if !ok {
-		t.Fatalf("results[0][metadata] type = %T, want map[string]any", got[0]["metadata"])
-	}
-	if gotValue, want := metadata["kind"], "trait_impl"; gotValue != want {
-		t.Fatalf("metadata[kind] = %#v, want %#v", gotValue, want)
-	}
-	if gotValue, want := metadata["trait"], "Display"; gotValue != want {
-		t.Fatalf("metadata[trait] = %#v, want %#v", gotValue, want)
-	}
-	if gotValue, want := metadata["target"], "Point"; gotValue != want {
-		t.Fatalf("metadata[target] = %#v, want %#v", gotValue, want)
-	}
-	if gotValue, want := got[0]["semantic_summary"], "ImplBlock Point implements Display for Point."; gotValue != want {
-		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", gotValue, want)
-	}
-}
-
-func TestEnrichLanguageResultsWithContentMetadataPreservesPythonGraphMetadata(t *testing.T) {
-	t.Parallel()
-
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
-		{
-			columns: []string{
-				"entity_id", "repo_id", "relative_path", "entity_type", "entity_name",
-				"start_line", "end_line", "language", "source_cache", "metadata",
-			},
-			rows: [][]driver.Value{
-				{
-					"content-1", "repo-1", "src/models.py", "Class", "Logged",
-					int64(4), int64(8), "python", "class Logged(metaclass=FallbackMeta): pass", []byte(`{"decorators":["@tracked"],"metaclass":"FallbackMeta"}`),
-				},
-			},
-		},
-	})
-
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "Logged",
-			"labels":     []string{"Class"},
-			"file_path":  "src/models.py",
-			"repo_id":    "repo-1",
-			"language":   "python",
-			"start_line": 4,
-			"end_line":   8,
-			"metadata": map[string]any{
-				"metaclass": "MetaLogger",
-			},
-		},
-	}
-
-	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"python",
-		"Class",
-		"Logged",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
-	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
-	}
-
-	metadata, ok := got[0]["metadata"].(map[string]any)
-	if !ok {
-		t.Fatalf("results[0][metadata] type = %T, want map[string]any", got[0]["metadata"])
-	}
-	if gotValue, want := metadata["metaclass"], "MetaLogger"; gotValue != want {
-		t.Fatalf("metadata[metaclass] = %#v, want %#v", gotValue, want)
-	}
-	decorators, ok := metadata["decorators"].([]any)
-	if !ok {
-		t.Fatalf("metadata[decorators] type = %T, want []any", metadata["decorators"])
-	}
-	if len(decorators) != 1 || decorators[0] != "@tracked" {
-		t.Fatalf("metadata[decorators] = %#v, want [@tracked]", decorators)
-	}
-	if gotValue, want := got[0]["semantic_summary"], "Class Logged uses decorators @tracked and uses metaclass MetaLogger."; gotValue != want {
-		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", gotValue, want)
-	}
-	profile, ok := got[0]["semantic_profile"].(map[string]any)
-	if !ok {
-		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", got[0]["semantic_profile"])
-	}
-	if gotValue, want := profile["surface_kind"], "decorated_class"; gotValue != want {
-		t.Fatalf("semantic_profile[surface_kind] = %#v, want %#v", gotValue, want)
-	}
-	if gotValue, want := profile["metaclass"], "MetaLogger"; gotValue != want {
-		t.Fatalf("semantic_profile[metaclass] = %#v, want %#v", gotValue, want)
 	}
 }

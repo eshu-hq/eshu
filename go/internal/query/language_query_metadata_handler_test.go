@@ -130,7 +130,7 @@ func assertLanguageQueryContentIndexTruthEnvelope(t *testing.T, body []byte, wan
 	if !ok {
 		t.Fatalf("resp[data] type = %T, want map[string]any (body=%s)", resp["data"], body)
 	}
-	if got, want := data["source_backend"], "postgres_content_store"; got != want {
+	if got, want := data["source_backend"], languageQueryContentBackendWire; got != want {
 		t.Fatalf("data[source_backend] = %#v, want %#v", got, want)
 	}
 

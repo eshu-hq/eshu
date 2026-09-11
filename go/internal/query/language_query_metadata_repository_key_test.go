@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
@@ -46,7 +47,7 @@ type languageMetadataCollisionStore struct {
 
 func (s *languageMetadataCollisionStore) SearchEntitiesByLanguageAndTypeForAccess(
 	_ context.Context,
-	search languageEntitySearch,
+	search querycontract.LanguageEntitySearch,
 ) ([]EntityContent, error) {
 	rows := make([]EntityContent, 0, 2)
 	for _, repoID := range []string{codeGrantGrantedRepo, codeGrantOtherRepo} {
@@ -174,23 +175,7 @@ func TestLanguageQueryMetadataKeyFallsBackWhenNoRepositoryIsKnown(t *testing.T) 
 	}
 }
 
-// TestLanguageResultRepositoryMatchKeySeparatesRepositories is the unit-level statement of
-// the same rule, so a future reader can see the key contract without running a
-// route.
-func TestLanguageResultRepositoryMatchKeySeparatesRepositories(t *testing.T) {
-	t.Parallel()
-
-	left := languageResultRepositoryMatchKey(codeGrantGrantedRepo, languageMetadataSharedPath, "Function", languageMetadataSharedName, languageMetadataSharedStart)
-	right := languageResultRepositoryMatchKey(codeGrantOtherRepo, languageMetadataSharedPath, "Function", languageMetadataSharedName, languageMetadataSharedStart)
-	if left == right {
-		t.Fatalf("two repositories sharing path/label/name/start line produced the same key %q", left)
-	}
-	unattributedLeft := languageResultRepositoryMatchKey("", languageMetadataSharedPath, "Function", languageMetadataSharedName, languageMetadataSharedStart)
-	unattributedRight := languageResultRepositoryMatchKey("", languageMetadataSharedPath, "Function", languageMetadataSharedName, languageMetadataSharedStart)
-	if unattributedLeft != unattributedRight {
-		t.Fatal("two rows that both carry no repository must share a key")
-	}
-	if unattributedLeft == left {
-		t.Fatalf("a row with no repository shares key %q with one inside a repository", left)
-	}
-}
+// TestLanguageResultRepositoryMatchKeySeparatesRepositories moved to
+// language_query_repository_match_key_test.go (#6642): it calls
+// languageResultRepositoryMatchKey directly, a language-family-unexported
+// free function, so it belongs in a family-owned white-box test file.

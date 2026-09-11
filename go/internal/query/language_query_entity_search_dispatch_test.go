@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/relationships/story"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // searchEntitiesForGrant (codequery/relationships/story/resolution.go) and
@@ -32,25 +33,25 @@ func TestSearchEntitiesForGrantMatchesTheLanguageQueryRead(t *testing.T) {
 
 	for _, tc := range []struct {
 		name   string
-		search languageEntitySearch
+		search querycontract.LanguageEntitySearch
 	}{
 		{
 			name: "repo_id_named",
-			search: languageEntitySearch{
+			search: querycontract.LanguageEntitySearch{
 				RepoID: codeGrantGrantedRepo, Language: "go", EntityType: "Variable", Limit: 10,
 				AllowedRepositoryIDs: []string{codeGrantGrantedRepo},
 			},
 		},
 		{
 			name: "corpus_wide_with_grant",
-			search: languageEntitySearch{
+			search: querycontract.LanguageEntitySearch{
 				Language: "go", EntityType: "Variable", Limit: 10,
 				AllowedRepositoryIDs: []string{codeGrantGrantedRepo},
 			},
 		},
 		{
 			name: "corpus_wide_unscoped",
-			search: languageEntitySearch{
+			search: querycontract.LanguageEntitySearch{
 				Language: "go", EntityType: "Variable", Limit: 10,
 			},
 		},
@@ -86,11 +87,11 @@ func TestSearchEntitiesForGrantMatchesTheLanguageQueryRead(t *testing.T) {
 func TestSearchEntitiesForGrantRejectsANilStore(t *testing.T) {
 	t.Parallel()
 
-	if _, err := story.SearchEntitiesForGrant(t.Context(), nil, languageEntitySearch{EntityType: "Variable"}); err == nil {
+	if _, err := story.SearchEntitiesForGrant(t.Context(), nil, querycontract.LanguageEntitySearch{EntityType: "Variable"}); err == nil {
 		t.Fatal("a nil content store must be refused, not read")
 	}
 	if _, err := (&LanguageQueryHandler{}).
-		searchLanguageEntities(t.Context(), languageEntitySearch{EntityType: "Variable"}); err == nil {
+		searchLanguageEntities(t.Context(), querycontract.LanguageEntitySearch{EntityType: "Variable"}); err == nil {
 		t.Fatal("the handler read must refuse a nil content store too")
 	}
 }

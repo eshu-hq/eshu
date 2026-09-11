@@ -52,12 +52,15 @@ func TestHandleLanguageQueryMapsGraphReadAvailabilityErrors(t *testing.T) {
 						return nil, test.err
 					}},
 				}
+				mux := http.NewServeMux()
+				handler.Mount(mux)
+
 				req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query", strings.NewReader(branch.body))
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Accept", EnvelopeMIMEType)
 				rec := httptest.NewRecorder()
 
-				handler.handleLanguageQuery(rec, req)
+				mux.ServeHTTP(rec, req)
 
 				assertGraphReadSweepResponse(t, rec, test)
 			})
@@ -95,13 +98,16 @@ func TestHandleLanguageQueryContentBackedBranchMapsGraphReadAvailabilityErrors(t
 			handler := &LanguageQueryHandler{
 				Content: fakeErrLanguageQueryContentStore{err: test.err},
 			}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
 			req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
 				strings.NewReader(`{"language":"go","entity_type":"variable","query":"x"}`))
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Accept", EnvelopeMIMEType)
 			rec := httptest.NewRecorder()
 
-			handler.handleLanguageQuery(rec, req)
+			mux.ServeHTTP(rec, req)
 
 			assertGraphReadSweepResponse(t, rec, test)
 		})
@@ -128,6 +134,17 @@ func (f fakeErrLanguageQueryContentStore) SearchEntitiesByLanguageAndType(
 // pivots on when triaging a 503/504, so an empty or drifting value makes the
 // failure unattributable.
 //
+// languageQueryCapabilityWire and languageQueryContentBackendWire are the
+// wire values the language-query route publishes for its capability id and
+// its content-only source backend. The route-level tests in this package
+// assert them by literal rather than through the family's unexported
+// constants (#6642 seam); this single copy keeps the root sites from drifting
+// apart when a wire value changes.
+const (
+	languageQueryCapabilityWire     = "symbol_graph.language_entities"
+	languageQueryContentBackendWire = "postgres_content_store"
+)
+
 // symbol_graph.language_entities is a route-level capability minted for this
 // route (#5761), not a reused id. The route's own MCP tool,
 // execute_language_query, is already bound to five symbol_graph.* facets
@@ -145,15 +162,18 @@ func TestLanguageQueryCarriesLanguageEntitiesCapability(t *testing.T) {
 			return nil, ErrGraphUnavailable
 		}},
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
 		strings.NewReader(`{"language":"go","entity_type":"function","query":"x"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.handleLanguageQuery(rec, req)
+	mux.ServeHTTP(rec, req)
 
-	if want := `"capability":"symbol_graph.language_entities"`; !strings.Contains(rec.Body.String(), want) {
+	if want := `"capability":"` + languageQueryCapabilityWire + `"`; !strings.Contains(rec.Body.String(), want) {
 		t.Fatalf("body = %s, want %s", rec.Body.String(), want)
 	}
 }
@@ -176,12 +196,17 @@ func TestLanguageQueryCarriesLanguageEntitiesCapability(t *testing.T) {
 // the wrong reason. Do not add t.Parallel() here without giving
 // capabilityMatrix its own synchronization.
 func TestHandleLanguageQueryCapabilityGateReturns501WhenUnsupported(t *testing.T) {
-	original, ok := capabilityMatrix[languageQueryCapability]
+	// languageQueryCapability is an unexported family constant; the map key
+	// below is its wire value (languageQueryCapabilityWire) rather than a
+	// reference to the constant, so this test does not reach behind the
+	// language family's own package boundary.
+	const capability = languageQueryCapabilityWire
+	original, ok := capabilityMatrix[capability]
 	if !ok {
-		t.Fatalf("capabilityMatrix missing %q", languageQueryCapability)
+		t.Fatalf("capabilityMatrix missing %q", capability)
 	}
-	capabilityMatrix[languageQueryCapability] = capabilitySupport{}
-	t.Cleanup(func() { capabilityMatrix[languageQueryCapability] = original })
+	capabilityMatrix[capability] = capabilitySupport{}
+	t.Cleanup(func() { capabilityMatrix[capability] = original })
 
 	handler := &LanguageQueryHandler{
 		Neo4j: fakeGraphReader{run: func(context.Context, string, map[string]any) ([]map[string]any, error) {
@@ -189,13 +214,16 @@ func TestHandleLanguageQueryCapabilityGateReturns501WhenUnsupported(t *testing.T
 			return nil, nil
 		}},
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
 		strings.NewReader(`{"language":"go","entity_type":"function","query":"x"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.handleLanguageQuery(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusNotImplemented, rec.Body.String())
@@ -242,73 +270,8 @@ func TestOpenAPILanguageQueryDocuments501(t *testing.T) {
 	}
 }
 
-// TestOpenAPILanguageQueryResponseDocumentsSourceBackend is the #5761 P1-2
-// review-fix regression: writeLanguageQueryResult (language_queries.go) has
-// emitted a "source_backend" field on every response since #5761 landed, but
-// the OpenAPI LanguageQueryResponse schema (openapi_components.go) never
-// gained the matching property, so the live spec omitted a field the handler
-// actually returns on every call -- the same documented-vs-actual drift
-// TestOpenAPILanguageQueryDocuments501 above exists to catch, and the same
-// gap CodeSearchResponse, SymbolSearchResponse, and EntityContentSearchResponse
-// already close for their own "source_backend" fields.
-//
-// The enum assertion is the #5761 P2-1 review-fix regression: the property's
-// "enum" is asserted against the values sourceBackendForTruthBasis
-// (language_query_reasons.go) actually derives from every TruthBasis outcome
-// this route can produce, rather than a hand-frozen literal list, so a future
-// change to sourceBackendForTruthBasis that silently drifts from the
-// documented enum fails this test instead of only being caught by manual
-// inspection.
-func TestOpenAPILanguageQueryResponseDocumentsSourceBackend(t *testing.T) {
-	t.Parallel()
-
-	var spec map[string]any
-	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
-		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
-	}
-
-	schemas := querytestutil.MustMapField(t, querytestutil.MustMapField(t, spec, "components"), "schemas")
-	languageQueryResponse := querytestutil.MustMapField(t, schemas, "LanguageQueryResponse")
-	properties := querytestutil.MustMapField(t, languageQueryResponse, "properties")
-	sourceBackend, ok := properties["source_backend"].(map[string]any)
-	if !ok {
-		t.Fatalf("LanguageQueryResponse.properties.source_backend missing or wrong type: %#v", properties["source_backend"])
-	}
-	if got, want := sourceBackend["type"], "string"; got != want {
-		t.Fatalf("LanguageQueryResponse.properties.source_backend.type = %#v, want %#v", got, want)
-	}
-
-	rawEnum, ok := sourceBackend["enum"].([]any)
-	if !ok {
-		t.Fatalf("LanguageQueryResponse.properties.source_backend.enum missing or wrong type: %#v", sourceBackend["enum"])
-	}
-	gotEnum := make(map[string]bool, len(rawEnum))
-	for _, v := range rawEnum {
-		s, ok := v.(string)
-		if !ok {
-			t.Fatalf("LanguageQueryResponse.properties.source_backend.enum entry %#v is not a string", v)
-		}
-		gotEnum[s] = true
-	}
-
-	wantValues := []string{
-		sourceBackendForTruthBasis(TruthBasisAuthoritativeGraph),
-		sourceBackendForTruthBasis(TruthBasisHybrid),
-		sourceBackendForTruthBasis(TruthBasisContentIndex),
-		sourceBackendForTruthBasis(TruthBasisNoBackendRead),
-		sourceBackendForTruthBasis(TruthBasis("unrecognized_basis_for_test")),
-	}
-	wantEnum := make(map[string]bool, len(wantValues))
-	for _, v := range wantValues {
-		wantEnum[v] = true
-	}
-
-	if len(gotEnum) != len(wantEnum) {
-		t.Fatalf("LanguageQueryResponse.properties.source_backend.enum = %v, want %v", rawEnum, wantValues)
-	}
-	for v := range wantEnum {
-		if !gotEnum[v] {
-			t.Fatalf("LanguageQueryResponse.properties.source_backend.enum = %v, missing derived value %q", rawEnum, v)
-		}
-	}
-}
+// TestOpenAPILanguageQueryResponseDocumentsSourceBackend moved to
+// language_query_source_backend_test.go (#6642): it calls
+// sourceBackendForTruthBasis directly, a language-family-unexported free
+// function rather than the mounted route, so it belongs in a family-owned
+// white-box test file.

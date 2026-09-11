@@ -94,7 +94,7 @@ against the same store (`go test ./internal/query -tags
 live_nornicdb_language_imports_grant -run TestLiveNornicDB -count=1`, exit 0).
 
 The shipped text is frozen in
-`go/internal/query/auth_scoped_language_query_shipped_text_test.go::TestLanguageQueryUnscopedCypherTextIsFrozen`,
+`go/internal/query/language_query_cypher_shipped_text_test.go::TestLanguageQueryUnscopedCypherTextIsFrozen`,
 and the spelling list in
 `go/internal/query/language_registry_test.go::TestGraphLanguageSpellings`.
 
