@@ -165,9 +165,9 @@ the importer-migration child issue lands; until then no new `*_compat.go`,
 ever.
 
 Root arithmetic: 304 at first approval; 286 after the compat-consolidation
-PR; 274 after `packages/correlation`; 204 after `supplychain/core`; 157 at
+PR; 274 after `packages/correlation`; 204 after `supplychain/core`, which is
 the #6645 base; {{ROOT_AFTER}} after #6645 (dirgate row re-pinned
-157 -> {{ROOT_AFTER}} with the re-derived digest in the same PR).
+204 -> {{ROOT_AFTER}} with the re-derived digest in the same PR).
 
 `shared_projection*` was never spine. #6645 hoists it: port shapes and pure
 row helpers into `sharedintent` (H1, H2), phase repair and presence keys into
