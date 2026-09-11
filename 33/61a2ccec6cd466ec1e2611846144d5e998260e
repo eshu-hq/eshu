@@ -1,0 +1,38 @@
+scripts/lib/test-ifa-fault-injection-diagnostics-fake-docker.sh
+  s_4a0f86aa680964::t_8b8b5ff6d914dc 3-8,17
+go/internal/storage/cypher/fault-injection-restart-evidence.md
+  s_4a0f86aa680964::t_4e78859f074626 21-23
+  s_4a0f86aa680964::t_6d82220090a272 19-20
+scripts/test-verify-ifa-fault-injection.sh
+  s_4a0f86aa680964::t_8b8b5ff6d914dc 85,90,407-408
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  s_4a0f86aa680964::t_fef75bdd0ebe8d 243
+  s_4a0f86aa680964::t_4e78859f074626 71-73
+  s_4a0f86aa680964::t_4d76b85ccc026f 50-52,76-83,200,240-242,246
+  s_4a0f86aa680964::t_fb07df9c55f786 47-49,53-56,59,74,84-87,89-90,93,199,202,244-245,247-251,263-279
+  s_4a0f86aa680964::t_ef73df0a0df61d 75,88,91-92,239
+  s_4a0f86aa680964::t_0c98a96a3ae540 94
+.github/workflows/ifa-determinism-gate.yml
+  s_4a0f86aa680964::t_fb07df9c55f786 743-744
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_4a0f86aa680964::t_8b8b5ff6d914dc 266-269,361-362,406-407
+scripts/lib/test-ifa-fault-injection-diagnostics-hardening-cases.sh
+  s_4a0f86aa680964::t_fe98adb6800744 4-5,11-18,35-67,72,93
+  s_4a0f86aa680964::t_8b8b5ff6d914dc 1-3,6-10,19-34,68-71,73-92,94-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3361a2ccec6cd466ec1e2611846144d5e998260e",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
