@@ -153,7 +153,7 @@ admin_count="$(json_num "${admin}" repository_count)"
 # present (own_repo_present), whether the OTHER team's repo was present
 # (other_repo_present, which MUST be false), and the HTTP status of the
 # single-repository selector for the OTHER team's repo (other_repo_selector_status,
-# which MUST be 404 fail-closed).
+# which MUST be a non-disclosing 403 or 404).
 check_team() {
 	local file="$1" label="$2"
 	for surface in api mcp; do
