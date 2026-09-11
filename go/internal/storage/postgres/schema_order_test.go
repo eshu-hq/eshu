@@ -215,4 +215,11 @@ var orderedBootstrapDefinitionNames = []string{
 	// creates that name any more, so the drop converges an install from an
 	// earlier release once and is a no-op on every boot after it.
 	"drop_fact_records_identity_epoch_idx_legacy",
+	// migration 107 (#6540) carries the language/entity-type equality AND the
+	// ORDER BY of the language content read, so a filter matching no rows is a
+	// btree descent instead of an ordered walk of content_entities_path_idx to
+	// the end. Migration 104's (language, entity_type) key is a strict PREFIX of
+	// this one and is NOT taken by the planner under that ORDER BY ... LIMIT,
+	// which is why both indexes exist rather than one superseding the other.
+	"content_entities_language_type_path_idx",
 }

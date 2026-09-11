@@ -1,0 +1,159 @@
+-- Let the language/entity-type content read answer a filter that matches
+-- nothing with a btree descent instead of an ordered walk of the whole table
+-- (#6540), and give the page it returns its ORDER BY for free.
+--
+-- SearchEntitiesByLanguageAndTypeForAccess
+-- (go/internal/query/content_reader_entity_search.go) issues, for an unscoped
+-- caller:
+--
+--   SELECT ... FROM content_entities
+--   WHERE entity_type = $1 AND (language = $2)
+--   ORDER BY relative_path, start_line, entity_name
+--   LIMIT $3
+--
+-- WHAT WENT WRONG, at checkout 392351ffd where this was diagnosed. No index
+-- in this directory carried `language` at all -- 004 creates single-column
+-- btrees on repo_id, entity_type, relative_path, artifact_type,
+-- template_dialect and iac_relevant, 035 adds (repo_id, entity_id), 077 a
+-- K8sResource-partial index, and 062 a GIN trigram index on entity_name -- so
+-- `language` could only ever be a Filter, never an Index Cond.
+--
+-- THAT ENUMERATION IS NO LONGER COMPLETE for the tree this migration lands in.
+-- 104_content_entities_language_type_idx on (language, entity_type) merged
+-- after the diagnosis, so `language` IS an Index Cond today and the empty case
+-- is already short-circuited by the EXISTS gate #6540 added. What this index
+-- still buys is the ORDERING: 104 stops at (language, entity_type), so the
+-- ORDER BY relative_path, start_line, entity_name needs a Sort that this
+-- five-column key removes. See the evidence note's "Re-measured after the
+-- rebase" section for the numbers. The planner estimates `entity_type = $1 AND
+-- language = $2` by multiplying the two selectivities as though they were
+-- independent. On a 2,000,000-row seed it estimated 28,510 rows for a
+-- combination that has 0, concluded the LIMIT would fill early, costed the
+-- ordered walk of content_entities_path_idx at 1026, and then walked all
+-- 2,000,000 rows to return nothing:
+--
+--   Limit (cost=20.50..1026.08 rows=50) (actual time=2634.058..2634.060 rows=0)
+--     Buffers: shared hit=2013451
+--     -> Incremental Sort  Sort Key: relative_path, start_line, entity_name
+--          -> Index Scan using content_entities_path_idx
+--               Filter: entity_type = 'Function' AND language = 'hcl'
+--               Rows Removed by Filter: 2000000
+--
+-- The combination is not contrived: HCL has no function declarations, so
+-- (hcl, Function) is empty in any real corpus, and every such pair costs a
+-- full ordered walk per page for an empty answer.
+--
+-- WHAT THIS INDEX DOES. Its first two columns are the equality predicate and
+-- its last three are exactly the ORDER BY key, so the planner takes both: the
+-- filter becomes an Index Cond and the Sort node disappears.
+--
+--   Limit (actual time=0.009..0.009 rows=0)
+--     Buffers: shared hit=4
+--     -> Index Scan using content_entities_language_type_path_idx
+--          Index Cond: (language = 'hcl' AND entity_type = 'Function')
+--
+-- 2,013,451 buffers become 4.
+--
+-- MEASURED, five warm samples each, medians, same corpus and plan-cache state
+-- (PostgreSQL 16.9, 2,000,000 rows over 600 repositories, VACUUM ANALYZE,
+-- SET jit = off, max_parallel_workers_per_gather = 0, planner settings left at
+-- their defaults). Full ladder in
+-- docs/internal/evidence/6540-content-entities-language-type-index.md.
+--
+--   caller / filter                    before      after
+--   unscoped, zero-match               2590 ms     0.012 ms
+--   grant = 500 repositories, zero     2591 ms     0.012 ms
+--   grant = 1 repository, zero         22.4 ms     0.470 ms
+--   unscoped, MATCHING                 0.41 ms     0.040 ms
+--   grant = 500, MATCHING              0.45 ms     0.058 ms
+--   multi-variant (typescript OR tsx)  0.54 ms     0.537 ms
+--
+-- Across the six arms timed above it is a strict improvement and a regression
+-- on none; the matching case gets faster too, because removing the sort helps a
+-- page that does have rows. Two production shapes were not timed in that round.
+-- `entity_name ILIKE $n` HAS SINCE BEEN TIMED: this index is not used for it in
+-- either configuration -- 29.873 ms with no trigram index (bitmap on 104, ILIKE
+-- as a heap filter) and 0.571 ms once migration 062's trigram index is present.
+-- It neither helps nor harms that shape. grant=1 MATCHING remains untimed and
+-- the claim still does not cover it.
+--
+-- WHAT IT DOES NOT FIX. normalizedLanguageVariants returns two spellings for
+-- javascript, typescript and csharp, and the builder emits those as
+-- `(language = $2 OR language = $3)`. An OR cannot drive one ordered index
+-- scan, so those three languages keep today's plan -- unchanged at 0.537 ms
+-- here, neither helped nor harmed. Their zero-match case is still bounded
+-- because a BitmapOr over an empty set is cheap, but this index is not what
+-- bounds it. Fixing the OR would mean changing the builder to emit
+-- `language = ANY($n)`, which is a query-shape change with its own proof
+-- obligation and is deliberately not bundled here.
+--
+-- TWO ALTERNATIVES WERE MEASURED AND REJECTED, both named in #6540.
+--
+-- A plain (language, entity_type) index, 14 MB, is NOT taken by the planner
+-- for the unscoped read. With it present the plan is byte-identical to the
+-- baseline -- still content_entities_path_idx, still hit=2013451, still
+-- `Rows Removed by Filter: 2000000`, still ~2601 ms -- because it does not
+-- serve the ORDER BY, so any plan using it needs a sort that the
+-- (wrongly non-zero) row estimate makes look expensive next to a walk the
+-- LIMIT is expected to cut short. It does fix the grant arms (2591 ms ->
+-- 0.022 ms), which is why it looks attractive on a scoped workload; the
+-- unscoped caller is the one #6540 is about and it does nothing there.
+--
+-- An EXISTS pre-check before the ordered page read costs 603.9 ms on the
+-- baseline index set, because with no index on language it degrades to a
+-- Seq Scan (hit=119499, Rows Removed by Filter: 2000000). It would replace a
+-- 2590 ms empty answer with a 604 ms one while adding 0.007-0.018 ms and a
+-- round trip to every non-empty call. It is only cheap once an index like
+-- this one exists, at which point the extra statement earns nothing.
+--
+-- THAT SECOND REJECTION IS SUPERSEDED AND MUST NOT BE READ AS CURRENT. The
+-- EXISTS pre-check was not merely reconsidered -- it SHIPPED, as #6540 via
+-- #6599, and SearchEntitiesByLanguageAndTypeForAccess issues it on every call
+-- today. Its rejection rested on "no index on language", which migration 104
+-- removed. Measured on the current tree: with 104 present and this index
+-- ABSENT, the gated zero-match arm returns in 0.113 ms because the initplan
+-- takes an Index Only Scan on content_entities_language_type_idx and the
+-- ordered scan is never executed. The gate and this index are complementary:
+-- the gate fixes the empty case, this index removes the Sort from the
+-- non-empty one.
+--
+-- COST. 173 MB, built CONCURRENTLY in 3.1 s on that seed, against a 934 MB
+-- heap and 1,329 MB of existing indexes. content_entities is hot and
+-- continuously ingested, so the write path pays for one more btree:
+-- EXPLAIN (ANALYZE, BUFFERS, WAL) over 200,000-row inserts, arms alternated
+-- over two rounds, gives 3,389,323 and 3,311,186 WAL records without against
+-- 3,552,237 and 3,522,142 with -- +4.8% and +6.4%, about one extra WAL record
+-- per row. WAL BYTES are reported in the evidence note but are not the claim:
+-- full-page-image counts varied 11,906-30,360 between arms and moved the byte
+-- totals the opposite way, which is fpi noise, not a write saving. Seconds are
+-- not the claim either; the host was shared and under load 7-11 throughout.
+--
+-- THE ANSWER DOES NOT MOVE. Row sets were captured position by position with
+-- and without this index over six shapes -- single language, the multi-variant
+-- OR, hcl/Resource, a 500-repository grant, an `entity_name ILIKE` query, and
+-- the zero-match case -- 1,000 rows per arm: symmetric difference 0/0 and zero
+-- position mismatches.
+--
+-- REPLAY. This directory has no applied-migration ledger: BootstrapDefinitions
+-- enumerates every file under migrations/ and ApplyDefinitions Execs all of
+-- them, in filename order, on EVERY bootstrap (schema.go, pinned by
+-- TestApplyBootstrapExecutesDefinitionsInOrder). A migration is therefore a
+-- desired-state statement that must be a no-op once its state already holds.
+-- This file only creates, the name is new, and no file in this directory drops
+-- it, so a bootstrap over an install that already has the index does no index
+-- work. TestContentEntitiesLanguageTypeIndexIsCreatedOnceAndNeverDropped pins
+-- that statically, beside the same guard for 101/103.
+--
+-- CONCURRENTLY, so building it does not block the ingester's content writes,
+-- and alone in this file because the runner Execs each file as one simple-query
+-- string and Postgres treats a multi-statement string as an implicit
+-- transaction block, which CONCURRENTLY cannot run inside. That is also why it
+-- cannot join 004_content_store.sql. The usual objection to CONCURRENTLY --
+-- that a failed build leaves an INVALID index that IF NOT EXISTS then skips
+-- forever -- does not apply: the schema apply path drops invalid concurrent
+-- indexes by name before executing each definition
+-- (SQLDB.dropInvalidConcurrentIndexes, db.go) and runs each statement outside
+-- any transaction on a dedicated bootstrap connection, which CONCURRENTLY
+-- requires.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS content_entities_language_type_path_idx
+    ON content_entities (language, entity_type, relative_path, start_line, entity_name);
