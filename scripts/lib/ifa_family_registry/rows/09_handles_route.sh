@@ -6,7 +6,7 @@
 # file's own runs_in (#6000, 10_runs_in.sh) and invokes_cloud_action (#5997,
 # 11_invokes_cloud_action.sh) -- all three share ONE cassette/drive_fn
 # because their intent rows come from the
-# SAME production entry point, buildSymbolRuntimeIntentRows
+# SAME production entry point, materialization.BuildIntentRows
 # (go/internal/reducer/code/call/materialization/refresh.go:56), called inside
 # CodeCallMaterializationHandler.Handle -- the same handler code_calls
 # already covers (materialized_edge_family_blocker_shape_test.go:152-154's
@@ -38,7 +38,7 @@ IFA_FAMILY_SHARED_CELL[handles_route]=1
 IFA_FAMILY_DRIVE_FN[handles_route]="ifa_symbol_runtime_drive"
 IFA_FAMILY_ASSERT_FN[handles_route]="ifa_handles_route_assert"
 # SHARED cassette var across all three trio rows -- one cassette, one
-# builder pass (buildSymbolRuntimeIntentRows, cited above). NOT shared:
+# builder pass (materialization.BuildIntentRows, cited above). NOT shared:
 # assert_fn, expected_var, anchor.
 IFA_FAMILY_CASSETTE_VAR[handles_route]="symbol_runtime_cassette"
 IFA_FAMILY_EXPECTED_VAR[handles_route]="handles_route_expected_edges"
