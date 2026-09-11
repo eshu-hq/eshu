@@ -13,10 +13,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-const rationaleEvidenceSource = "reducer/rationale"
+// rationaleEvidenceSource is the root spelling of
+// [reducercontract.RationaleEvidenceSource].
+const rationaleEvidenceSource = reducercontract.RationaleEvidenceSource
 
 // RationaleEdgeIntentWriter persists durable shared-projection intents for
 // rationale EXPLAINS edge materialization (#2869). The promoted handler emits
