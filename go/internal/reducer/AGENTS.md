@@ -76,10 +76,10 @@ before touching any file in this directory.
 - **All canonical graph writes go through `internal/storage/cypher`** — no
   handler may call a Neo4j or NornicDB driver directly.
 - **`JavaScript` dynamic-call alias parsing is indexed once per function** —
-  `buildCodeEntityIndex` caches static alias metadata
-  (`code/call/index.go:53`) and
+  `BuildEntityIndex` caches static alias metadata
+  (`code/call/index.go:64`) and
   `resolveDynamicJavaScriptCalleeEntityID` reuses that cache
-  (`code/call/dynamic_javascript.go:42`). Do not move that
+  (`code/call/dynamic_javascript.go:49`). Do not move that
   work back into the per-call loop; generated JS bundles make that
   multiplicative. Cache negative scans too; a source with no static aliases
   must not be sent through the regex pass once per call.

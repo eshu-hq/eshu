@@ -32,8 +32,8 @@ evidence proves the local target. Static object registries are resolved only
 inside the containing function source, including destructured aliases and
 literal bracket keys; runtime-computed keys do not create edges. `JavaScript`
 static alias metadata is cached on the code entity index
-(`code/call/index.go:53`) and reused during dynamic call
-resolution (`code/call/dynamic_javascript.go:42`), so
+(`code/call/index.go:64`) and reused during dynamic call
+resolution (`code/call/dynamic_javascript.go:49`), so
 generated bundles with thousands of call sites do not re-parse the same
 containing function source for every call. Sources with no static aliases are
 cached too; a negative scan is still the proof that the reducer can skip the

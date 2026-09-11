@@ -25,12 +25,14 @@ need splitting before the families could separate.
   `internal/reducer`: the root imports it for `CodeEvidenceHandlers` wiring
   and the two handler constructions, never the reverse.
 - **`GraphQueryRunner` and `CodeValueFlowBackfillStateMarker` in
-  `graph_ports.go` are deliberately re-declared, not imported from root.**
-  Both interfaces are genuinely owned by root (shared with other
-  still-in-root families), so importing them would violate the rule above.
-  Go's structural typing makes the local declaration safe: do not "fix" this
-  by adding a root import, and do not delete the local declaration without
-  first hoisting the real one to a shared leaf package both sides import.
+  `graph_ports.go` are deliberately re-declared, not imported.**
+  `GraphQueryRunner` is owned by root (shared with other still-in-root
+  families), so importing it would violate the rule above. The marker's
+  owning declaration is `valueflow.BackfillStateMarker`, and `valueflow`
+  imports this package, so importing it back would be a cycle. Go's
+  structural typing makes both local declarations safe: do not "fix" either
+  with an import, and do not delete one without first moving the real
+  declaration to a leaf package both sides can import.
 - **The ledger record must happen strictly before the graph write**, in
   both `CodeTaintEvidenceMaterializationHandler.Handle` and
   `CodeInterprocEvidenceMaterializationHandler.Handle`. Reordering breaks the

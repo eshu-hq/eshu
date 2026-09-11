@@ -80,7 +80,7 @@ problem. `contract/` stays top-level (shared vocabulary, never a domain).
 |---|---|---|
 | `supplychain/` | `core` (new: destuttered short names INCLUDING `finding.go` + suppression story (`evaluation.go`, `decode.go`, `reasons.go`, `scope.go`) + `go_reachability*` 3, 70 — 67 at approval plus the 3 classifier files, see sequencing step 2), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 + `go_vulnerability_reachability*` 3 |
 | `packages/` | `correlation` (new: `consumption*`, `source*`, `publication.go`, `provenance_edges.go`, `writer*`, `payloads.go` + `security_alert_manifest_dependency_match.go`), `source` (2 files, renamed from `packagesourcecore` #6061) | — (family fully moved; nothing remains at root) |
-| `code/` | `call` (new, 46: 44 `code_call*` minus the handler and the 7 runners, plus `python_metaclass_materialization.go` and `parsed_file_data_typed.go`), `intel` (`codeintel`, 5; relocation held, see sequencing step 3), `taint` (`codetaint`, 11), `value` (`valueflow`, 8 + `code_value_flow_backfill_state_marker.go`) | `code_call*` 52, `code_value*` 2 (`code_import*` 6 lives in `repodependency/import`, not here) |
+| `code/` | `call` (new, 46: the 52 `code_call*` minus the handler and the 7 runners (44), plus `python_metaclass_materialization.go` and `parsed_file_data_typed.go`), `intel` (`codeintel`, 5; relocation held, see sequencing step 3), `taint` (`codetaint`, 11), `value` (`valueflow`, 8 + `code_value_flow_backfill_state_marker.go`) | `code_call*` 52, `code_value*` 2 (`code_import*` 6 lives in `repodependency/import`, not here) |
 | `cloud/` | `aws/s3/logging` (`s3logsto`, 3), `aws/s3/grants` (`s3grant`, 3), `aws/ec2/instance` (`ec2instance`, 5), `aws/ec2/blockkms` (`ec2blockkms`, 4), `aws/ec2/usesprofile` (`ec2usesprofile`, 3), `aws/rds/posture` (`rdsposture`, 3), `aws/runtime` (`awscloud`, 8), `aws/core` (new: `aws_*` 7), `gcp/core` (new: `gcp_*` 6), `azure/core` (new: `azure*` 3), `inventory` (`cloudinventory` 7, `cloudasset` 3), `exposure` (`internetexposure`, 5), `multicloud` (`multicloudruntimedrift`, 3), `observability` (`obscoverage`, 11) | `aws_*` 7, `gcp_*` 6, `azure*` 3 |
 | `iam/` | `can` (`iamcan`, 11), `policy` (`iampolicy`, 3), `escalation` (`iamescalation`, 6), `instanceprofile` (`iaminstprofile`, 3) | — (all four already subpackages) |
 | `workload/` | `materialization` (new: `workload_materialization*` 3 + handler), `deployable` (new: `deployable_unit*` 5), `repo` (new: `repo_workload.go`) | `workload_*` ~12, `deployable_unit*` 5 |
@@ -373,7 +373,9 @@ Correctness is proven by construction plus replay. Baseline `origin/main
 ./internal/replay/costcounting -count=1` green; B-7 golden-corpus gate 562
 pass / 0 required-fail / 0 advisory-warn (153s); B-12 replay-coverage gate
 437/437 satisfied, gaps=0 stale=0, report identical to main apart from the
-local `blocking` flag. Codegen, measured as a set difference with
+local `blocking` flag. Both runs were taken before the 27 file renames under
+`code/taint` and `code/value` (content-free git mvs) and before the rebase
+onto `2b01f131a`. Codegen, measured as a set difference with
 `go build -gcflags=-m ./internal/reducer/...` on both trees: the can-inline
 set lost nothing (LOST=0) and gained 11, which are the new root compat
 forwarders, all inlinable. Inlined call sites went 14079 -> 13892. Every

@@ -287,7 +287,7 @@ type ValueFlowFixpointProjectionResult = valueflow.ValueFlowFixpointProjectionRe
 // handles_route, runs_in, and invokes_cloud_action families, and the runner
 // needs the root lease and shared-projection machinery. The exported
 // forwarders keep the reducer.X spelling for callers outside this package; the
-// unexported spellings keep the runner files unchanged. Each entry is deleted
+// unexported spellings keep the runner files' call sites unchanged. Each entry is deleted
 // once its last caller names [codecall] directly.
 
 // ExtractCodeCallRows forwards to [codecall.ExtractRows].

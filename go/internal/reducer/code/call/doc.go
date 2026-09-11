@@ -12,9 +12,10 @@
 // ExtractAllRelationshipRowsWithIndex, BuildFileScopesByRepoID,
 // BuildRefreshIntentsWithDeltaFileScopes, and BuildSharedIntentRows here and
 // composes the result with the symbol-runtime families that stay in root. The
-// seven code_call_projection_* runner files also stay in root and read
-// PartitionKeyVersion, PayloadBool, and AcceptanceScanLimit through the
-// parent's compat_projection.go stanza. External callers keep the
+// seven code_call_projection_* runner files also stay in root: they read
+// PartitionKeyVersion, PayloadBool, and the evidence-source constants through
+// the parent's compat_projection.go stanza, and code_call_projection_runner.go
+// imports this package directly for AcceptanceScanLimit. External callers keep the
 // reducer.ExtractCodeCallRows and reducer.ExtractAllCodeRelationshipRows
 // spellings through that same stanza.
 //
@@ -24,9 +25,10 @@
 // once per materialization pass by BuildEntityIndex (or returned by
 // ExtractAllRelationshipRowsWithIndex) and is read-only after construction.
 //
-// Dependency rule: this package imports the shared tier (contract, factload,
-// factdecode, schemadecode, sharedintent, payloadcore) plus facts, the SDK
-// factschema, and the standard library. It never imports the parent reducer
+// Dependency rule: from the reducer tree this package imports only the shared
+// tier (contract, factload, factdecode, schemadecode, sharedintent,
+// payloadcore); outside it, facts, codeprovenance, the SDK factschema, and the
+// standard library. It never imports the parent reducer
 // package. File names carry no family prefix: the directory already says
 // code/call, so code_call_materialization_extract.go became extract.go and
 // code_call_language_dart_resolver.go became dart_resolver.go.

@@ -87,16 +87,14 @@ helpers), `internal/reducer/schemadecode` (the typed-payload decode seam),
 dependency on the reducer root, and none of the root's other family
 subpackages.
 
-Two root-owned interfaces this package's backfillers need
-(`GraphQueryRunner`, the graph read port; `CodeValueFlowBackfillStateMarker`,
-the durable per-source completion marker) are **locally redeclared** in
-`graph_ports.go` rather than imported: both are shared by other families
-still in the reducer root (`GraphQueryRunner` by five others, plus the
-sibling `valueflow` package's own separate local redeclaration;
-`CodeValueFlowBackfillStateMarker` by the `projected_source_edge_backfill`
-family too), so they are not this package's to own, and importing the root
-to reach them would violate the "a family never imports the reducer root"
-rule. Go interfaces are satisfied structurally, so the same concrete
+Two interfaces this package's backfillers need are **locally redeclared** in
+`graph_ports.go` rather than imported. `GraphQueryRunner` (the graph read
+port) is owned by the reducer root and shared by five other root families,
+plus the sibling `valueflow` package's own separate local redeclaration;
+importing the root to reach it would violate the "a family never imports the
+reducer root" rule. `CodeValueFlowBackfillStateMarker` (the durable
+per-source completion marker) mirrors `valueflow.BackfillStateMarker`, and
+`valueflow` imports this package, so importing it back would be a cycle. Go interfaces are satisfied structurally, so the same concrete
 implementations `cmd/reducer` wires into root's other families also satisfy
 these local declarations with no logic duplicated. `derefFloat64` is
 similarly kept as a small local unexported copy (root's version,
@@ -124,10 +122,11 @@ names, same emission sites, only the package that owns the code moved.
   superset of graph state; the anchored-delete retract on the next
   generation depends on that invariant (issue #4893).
 - **`GraphQueryRunner` and `CodeValueFlowBackfillStateMarker` are
-  intentionally re-declared here, not imported.** Do not "fix" this by
-  importing the reducer root — see Dependencies above. If a future move
-  hoists either to a shared leaf package, replace both declarations with an
-  import of that leaf, not with a root import.
+  intentionally re-declared here, not imported.** Do not "fix" either with
+  an import — see Dependencies above (a root import for the first, an import
+  cycle through `valueflow` for the second). If a future move puts either in
+  a leaf package both sides can import, replace that declaration with the
+  import.
 - **`ExtractCodeInterprocFixpointEvidenceRows` uses a separate uid
   namespace from `ExtractCodeInterprocEvidenceRows`** so a fixpoint-solved
   edge can never collide with (and silently overwrite) a direct-fact edge in
@@ -149,8 +148,9 @@ code_interproc_evidence materialization handlers, their loader/writer ports,
 typed decode + quarantine, row/edge projection, and projected-node/-edge
 ledgers plus backfillers out of the reducer root into this new package,
 without changing any field, exported behavior, or call order. The two
-root-owned interfaces the backfillers need (`GraphQueryRunner`,
-`CodeValueFlowBackfillStateMarker`) are locally redeclared with the identical
+interfaces the backfillers need (`GraphQueryRunner`,
+`CodeValueFlowBackfillStateMarker`, both root-owned at the time; the marker
+later moved to `valueflow` under #6609) are locally redeclared with the identical
 method set rather than imported, so every existing concrete implementation
 still satisfies them with no new indirection. `DerefInt`/`DerefStringTrimmed`
 were hoisted to `payloadcore` (alongside the existing `DerefBool`/

@@ -40,14 +40,18 @@ root needed (`extract.go`, `intents.go`, `index.go`, `dart_resolver.go`, ...).
 - Entity resolution for the symbol-runtime families: `EntityIndex`,
   `BuildEntityIndex`, `ResolveContainingEntityID`, `EndpointEntityType`,
   `PathKeys`, `PayloadInt`.
-- Runner vocabulary: `PartitionKeyVersion`, `PayloadBool`,
-  `RefreshPartitionKey`, `RefreshPartitionKeyForDelta`,
-  `WholeScopePartitionKey`, `AcceptanceScanLimit`,
-  `RepoRefreshEvidenceSource`, `EvidenceSource`,
+- Runner vocabulary (the root runner reads these through the compat stanza,
+  or directly for `AcceptanceScanLimit`): `PartitionKeyVersion`,
+  `PayloadBool`, `AcceptanceScanLimit`, `EvidenceSource`,
   `PythonMetaclassEvidenceSource`.
+- Named only by root tests: `RefreshPartitionKey`,
+  `RefreshPartitionKeyForDelta`, `WholeScopePartitionKey`,
+  `RepoRefreshEvidenceSource`. `ExtractPythonMetaclassRows` has no caller
+  outside this package; it was already exported before the move.
 
 ## Dependency rule
 
-One-way imports only: the shared tier (`contract`, `factload`, `factdecode`,
-`schemadecode`, `sharedintent`, `payloadcore`) plus `facts`, the SDK
-`factschema`, and the standard library. Never the parent reducer package.
+One-way imports only. From the reducer tree: the shared tier (`contract`,
+`factload`, `factdecode`, `schemadecode`, `sharedintent`, `payloadcore`).
+Outside it: `facts`, `codeprovenance`, the SDK `factschema`, and the standard
+library. Never the parent reducer package.

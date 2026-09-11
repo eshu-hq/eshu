@@ -106,7 +106,7 @@ type familyBlockerExpectation struct {
 // reflection cannot distinguish their shared handler from code_calls; their
 // runner_lease_hold proof is checked separately.
 var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectation{
-	// code/call/intents.go:116,219 tag rows
+	// code/call/intents.go:118,221 tag rows
 	// ProjectionDomain: DomainCodeCalls; code_call_materialization.go:218
 	// writes them via h.IntentWriter.UpsertIntents.
 	DomainCodeCalls: {routedDomain: DomainCodeCallMaterialization},

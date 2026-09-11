@@ -10,8 +10,8 @@ assembly, the in-process/durable weak-component cache, the evidence
 loader/projector pair, and the graph-backed cloud sink target loader (issue
 #6061). Moved out of the reducer root as its own package. See the README's
 Purpose and Ownership boundary sections for exactly what stays in root
-despite similar naming (`code_value_flow_stale_cleanup_runner.go`,
-`code/value/backfill_state_marker.go`).
+despite similar naming (`code_value_flow_stale_cleanup_runner.go`) and why
+`backfill_state_marker.go` lives here with no caller in this package.
 
 ## Read first
 
@@ -65,10 +65,11 @@ from the in-process cache's invalidation behavior.
 
 ## Failure modes to avoid
 
-- Adding a caller of `code/value/backfill_state_marker.go`'s
-  `CodeValueFlowBackfillStateMarker` from this package — despite the name
-  overlap, that interface belongs to the still-in-root
-  `projected_source_edge_backfill` family, not this one.
+- Treating `BackfillStateMarker` (`backfill_state_marker.go`) as part of the
+  fixpoint. It moved here under #6609 so the root could shed the file; its one
+  caller is the root's `projected_source_edge_backfill` family (through the
+  `CodeValueFlowBackfillStateMarker` alias), and `codetaint` keeps its own
+  structural copy because this package imports `codetaint`.
 - Wiring `ValueFlowProgramAssemblyRunner` into `cmd/reducer` without first
   checking whether production assembly should stay inline inside
   `ValueFlowFixpointEvidenceLoader.LoadCodeInterprocEvidence` instead — the

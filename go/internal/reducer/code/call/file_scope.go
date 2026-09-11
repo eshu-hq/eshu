@@ -36,10 +36,11 @@ type FileScopeBuildResult struct {
 	// file scope (no delta scope, but a set of file facts bounded enough to
 	// scope from).
 	FullRefreshScopedRepos int
-	// FullRefreshFallbackRepos counts repositories that attempted a
-	// full-refresh scope but could not build one safely (missing repo path,
-	// mixed paths, an unnormalizable relative path, or more files than
-	// AcceptanceScanLimit) and therefore fall back to an unscoped refresh.
+	// FullRefreshFallbackRepos counts non-delta repositories with a repository
+	// fact whose full-refresh scope could not be built safely (missing or mixed
+	// repo path, an unnormalizable relative path, no file facts, or more files
+	// than AcceptanceScanLimit), so they fall back to an unscoped refresh. A
+	// delta-generation repository whose delta scope is unusable is not counted.
 	FullRefreshFallbackRepos int
 }
 
@@ -52,9 +53,9 @@ type codeCallFullRefreshFileScopeState struct {
 // BuildFileScopesByRepoID builds the per-repository file scopes used to bound
 // code-call projection: it merges delta-generation file scopes with
 // full-refresh file scopes derived from "file" facts, preferring the delta
-// scope when a repository has both. A repository with neither a safe delta nor
-// full-refresh scope is counted in FullRefreshFallbackRepos and left out of
-// ScopesByRepoID, meaning its projection is not file-scoped.
+// scope when a repository has both. A repository with no usable scope is left
+// out of ScopesByRepoID, meaning its projection is not file-scoped; see
+// FullRefreshFallbackRepos for which of those it counts.
 func BuildFileScopesByRepoID(envelopes []facts.Envelope) FileScopeBuildResult {
 	deltaScopesByRepoID := buildCodeCallDeltaFileScopesByRepoID(envelopes)
 	fullScopesByRepoID, fallbackRepos := buildCodeCallFullRefreshFileScopesByRepoID(

@@ -31,10 +31,12 @@ loader (`GraphValueFlowCloudSinkTargetLoader`).
 
 **Does not own:** `code_value_flow_stale_cleanup_runner.go` (reducer root) —
 the generation-scoped stale-evidence sweep that only reaches `codetaint`'s
-writer/ledger surface and has no dependency on this package. Also does not
-own `code/value/backfill_state_marker.go` (reducer root) — despite the
-naming overlap, its only real caller is the still-in-root
-`projected_source_edge_backfill` family; nothing in this package uses it.
+writer/ledger surface and has no dependency on this package.
+
+**Owns but does not use:** `BackfillStateMarker` (`backfill_state_marker.go`),
+moved here from the reducer root under #6609. Its only caller is the root's
+`projected_source_edge_backfill` family, which names it through the
+`CodeValueFlowBackfillStateMarker` alias in `compat_projection.go`.
 Also does not own `CodeInterprocEvidenceMaterializationHandler` or the
 direct (non-fixpoint) `code_interproc_evidence`/`code_taint_evidence`
 handlers, ports, or ledgers — those are `codetaint`.

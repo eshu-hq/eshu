@@ -21,22 +21,24 @@ import (
 	codegraphv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codegraph/v1"
 )
 
-// PartitionKeyVersion prefixes every code-call partition key
-// (WholeScopePartitionKey and the file-scoped refresh keys). Bump it when the
-// partition key derivation changes so old and new keys never collide.
+// PartitionKeyVersion prefixes the code-call refresh partition keys
+// (WholeScopePartitionKey and the file-scoped refresh keys); an unscoped
+// per-edge intent is keyed by its caller->callee pair instead. Bump it when the
+// refresh key derivation changes so old and new keys never collide.
 const PartitionKeyVersion = "code-calls:v1"
 
 // RepoRefreshEvidenceSource is the evidence_source stamped on every per-repo
 // code-call refresh intent (action "refresh", intent_type "repo_refresh"). The
 // refresh intent owns the repo-wide CALLS retract that the per-edge code-call
-// intents are fenced behind, so the runner and its tests match on this value.
+// intents are fenced behind. The fences key on the action and intent_type
+// fields, not on this string; root runner tests assert it.
 const RepoRefreshEvidenceSource = "reducer/code-call-refresh"
 
 // EvidenceSource is the evidence_source stamped on per-edge code-call intents
 // built from parser call rows. The root handler passes it to
-// [BuildSharedIntentRows], and the root projection runner and the database
-// fences read it back from persisted payloads, so changing it is a data
-// migration.
+// [BuildSharedIntentRows], and the root projection runner reads it back from
+// persisted payloads to decide which evidence source it retracts and writes,
+// so changing it is a data migration.
 const EvidenceSource = "parser/code-calls"
 
 // PythonMetaclassEvidenceSource is the evidence_source stamped on per-edge

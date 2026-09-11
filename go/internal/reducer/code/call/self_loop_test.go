@@ -72,7 +72,7 @@ func TestExtractCodeCallRowsWritesGenuineSelfLoop(t *testing.T) {
 // TestExtractCodeCallRowsLogsSelfLoopTallyByLanguage proves the observe-only
 // telemetry added alongside the #5332 fix: a materialized self-loop row is
 // tallied and logged per language, without being dropped from the returned
-// rows (see recordCodeCallSelfLoopWritten in code_call_materialization_extract.go).
+// rows (see recordCodeCallSelfLoopWritten in extract.go).
 func TestExtractCodeCallRowsLogsSelfLoopTallyByLanguage(t *testing.T) {
 	var logs bytes.Buffer
 	previous := slog.Default()

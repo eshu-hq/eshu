@@ -7,9 +7,11 @@ runtime code to `doc.go`; add it to the child package that owns it.
 
 - Imports point strictly downward: the reducer root imports the children;
   the children never import the reducer root or each other's unexported
-  surface. `call/`, `taint/`, and `value/` import only the shared tier
-  (`contract`, `factload`, `factdecode`, `schemadecode`, `sharedintent`,
-  `payloadcore`) plus non-reducer packages.
+  surface. From the reducer tree, `call/` and `taint/` import only the shared
+  tier (`contract`, `factload`, `factdecode`, `schemadecode`, `sharedintent`,
+  `payloadcore`); `value/` imports `payloadcore` and the exported surface of
+  its sibling `taint/`. Everything else they import is outside
+  `internal/reducer`.
 - A new child here is a named destination in
   `docs/internal/design/reducer-target-tree.md`, never a new top-level
   reducer sibling. Amend the tree doc in the same PR.

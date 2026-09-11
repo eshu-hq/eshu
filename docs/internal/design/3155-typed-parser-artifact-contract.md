@@ -45,7 +45,7 @@ Resolution does **not** happen in the parser (confirmed by ADR #2222 §2). The
 parser emits raw call rows plus untyped resolution *hints*; the callee `uid` is
 bound later in the reducer's ordered fallback dispatch
 (`go/internal/reducer/code/call/resolver.go` and the
-`code_call_language_*_resolver.go` family). The succeeding branch is mapped to a
+`code/call/*_resolver.go` family). The succeeding branch is mapped to a
 closed `resolution_method` and a derived `confidence` by `codeprovenance`
 (`go/internal/codeprovenance/codeprovenance.go`), per ADR #2222.
 
@@ -216,7 +216,7 @@ The contract is additive and serialized through the unchanged buckets:
 | Consumer | Today reads | After this contract |
 | --- | --- | --- |
 | `content/shape.Materialize` (`materialize.go:206`) | bucket `map[string]any` rows | identical rows via `ToBucketRow()`; no key added or removed |
-| reducer call resolvers (`code_call_language_*_resolver.go`) | string hint keys (`inferred_obj_type`, `enclosing_class_contexts`) | same keys; adapters that adopt typed `ReceiverHint` emit byte-identical keys |
+| reducer call resolvers (`code/call/*_resolver.go`) | string hint keys (`inferred_obj_type`, `enclosing_class_contexts`) | same keys; adapters that adopt typed `ReceiverHint` emit byte-identical keys |
 | `codeprovenance` (`codeprovenance.go`) | reducer-selected branch → method | unchanged; may later read parser `ResolutionEvidence.Method` when present |
 | API/MCP relationship rows (`code_relationship_story_provenance.go`) | edge `resolution_method`/`confidence` | unchanged |
 

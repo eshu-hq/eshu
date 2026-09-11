@@ -25,12 +25,12 @@ type GraphQueryRunner interface {
 // markers for the taint/interproc ledger backfills so a partially failed
 // backfill re-runs on the next startup instead of being treated as done.
 //
-// Declared locally for the same reason as GraphQueryRunner above: the root's
-// CodeValueFlowBackfillStateMarker (code/value/backfill_state_marker.go)
-// is shared with the projected_source_edge_backfill family, which has not
-// moved out of root, so this package cannot import it. cmd/reducer wires the
-// same concrete Postgres-backed marker into both the root-staying caller and
-// this package's backfillers; structural typing makes that safe.
+// Declared locally rather than imported: the owning declaration is
+// valueflow.BackfillStateMarker (code/value/backfill_state_marker.go), and
+// valueflow imports this package, so importing it back would be a cycle.
+// cmd/reducer wires the same concrete Postgres-backed marker into the root's
+// projected_source_edge_backfill family and this package's backfillers;
+// structural typing makes that safe.
 type CodeValueFlowBackfillStateMarker interface {
 	IsComplete(ctx context.Context, key string) (bool, error)
 	MarkComplete(ctx context.Context, key string, at time.Time) error

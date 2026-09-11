@@ -15,8 +15,8 @@ anything else in or out.
   the same evidence_source strings. `PartitionKeyVersion`,
   `RepoRefreshEvidenceSource`, `EvidenceSource`, and
   `PythonMetaclassEvidenceSource` are persisted in shared-intent payloads
-  and read by the runner and the database fences; changing one is a data
-  migration, not a refactor.
+  and partition keys, and the root runner reads the evidence sources back;
+  changing one is a data migration, not a refactor.
 - `EntityIndex` is built once per pass and read-only afterward. Do not add
   mutation methods; the symbol-runtime builders in root share the same
   instance.

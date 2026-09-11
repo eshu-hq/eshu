@@ -52,10 +52,11 @@
 // edge without parameter evidence stays visible as no value-flow finding
 // rather than fabricating precision.
 //
-// This package does not own code_value_flow_stale_cleanup_runner.go or
-// code/value/backfill_state_marker.go, which stay in the reducer root:
-// the stale-cleanup runner only reaches codetaint's writer/ledger surface
-// (it has no dependency on anything in this package), and the backfill state
-// marker's only real caller is the still-in-root
-// projected_source_edge_backfill family.
+// BackfillStateMarker (backfill_state_marker.go) moved here from the reducer
+// root with the code/ tree move (#6609). Nothing in this package calls it; its
+// only caller is the root's projected_source_edge_backfill family, which names
+// it through the CodeValueFlowBackfillStateMarker alias. This package does not
+// own code_value_flow_stale_cleanup_runner.go, which stays in the reducer
+// root: it is a side runner that needs the root PartitionLeaseManager and only
+// reaches codetaint's writer/ledger surface.
 package valueflow

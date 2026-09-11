@@ -129,7 +129,7 @@ for the fixture, benchmark boundary, and completed live proof on the supported b
 through the ordered dispatch in `code/call/resolution.go`. Beyond
 the language-agnostic stages (same-file scope, import binding, repo-unique name),
 some languages register a dedicated `before_repo_fallback` resolver
-(`code_call_language_*_resolver.go`) that uses parser-emitted receiver-type or
+(`code/call/*_resolver.go`) that uses parser-emitted receiver-type or
 import evidence to bind a confident cross-file/cross-repo edge before the broad
 repo-unique-name guess.
 

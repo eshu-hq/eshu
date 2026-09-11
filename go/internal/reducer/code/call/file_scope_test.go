@@ -67,9 +67,9 @@ func TestBuildCodeCallFileScopesFallsBackWhenFullRefreshExceedsSafetyCap(t *test
 		})
 	}
 
-	ScopesByRepoID, fallbackRepos := buildCodeCallFullRefreshFileScopesByRepoIDWithLimit(envelopes, nil, 1)
-	if _, ok := ScopesByRepoID["repo-a"]; ok {
-		t.Fatalf("over-cap full-refresh file ownership produced scope: %#v", ScopesByRepoID["repo-a"])
+	scopesByRepoID, fallbackRepos := buildCodeCallFullRefreshFileScopesByRepoIDWithLimit(envelopes, nil, 1)
+	if _, ok := scopesByRepoID["repo-a"]; ok {
+		t.Fatalf("over-cap full-refresh file ownership produced scope: %#v", scopesByRepoID["repo-a"])
 	}
 	if got, want := fallbackRepos, 1; got != want {
 		t.Fatalf("fallbackRepos = %d, want %d", got, want)

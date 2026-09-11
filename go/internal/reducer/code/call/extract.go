@@ -127,11 +127,11 @@ func partitionCodegraphFileFacts(envelopes []facts.Envelope) ([]facts.Envelope, 
 
 		if _, err := schemadecode.DecodeCodegraphFile(env); err != nil {
 			// Every decode failure is recorded as a visible quarantine, never
-			// silently dropped. partitionDecodeFailures classifies a
+			// silently dropped. factdecode.PartitionDecodeFailures classifies a
 			// missing/null required field (repo_id, relative_path,
 			// parsed_file_data) as a quarantinable input_invalid; any other
 			// decode error (a type mismatch, or an unsupported schema major)
-			// is reported through codegraphDecodeQuarantine with the decode
+			// is reported through schemadecode.CodegraphDecodeQuarantine with the decode
 			// error's own classification, so the malformed fact still surfaces
 			// on the input_invalid counter and error log rather than vanishing.
 			// factschemaEnvelope normalizes the version-less spellings ("" and
