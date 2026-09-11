@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package language
 
 import (
 	"net/http"
@@ -16,11 +16,11 @@ import (
 // nil-Neo4j fallback or a content-store merge served the answer instead; this
 // keeps the reason honest for every outcome queryByLanguageWithSemanticFilter
 // can return.
-func languageQueryGraphBackedReason(basis TruthBasis) string {
+func languageQueryGraphBackedReason(basis querycontract.TruthBasis) string {
 	switch basis {
-	case TruthBasisContentIndex:
+	case querycontract.TruthBasisContentIndex:
 		return "no graph reader was configured for this entity type; the content-store fallback served the result"
-	case TruthBasisHybrid:
+	case querycontract.TruthBasisHybrid:
 		return "graph-only read served this entity type, enriched with content-store metadata"
 	default:
 		return reasonLanguageQueryGraphOnly
@@ -36,11 +36,11 @@ func languageQueryGraphBackedReason(basis TruthBasis) string {
 // with a reason stating "the serving source is not reported" -- that stopped
 // being true once the handler started threading the real basis back from the
 // helper, so the reason is now computed per-request instead of hardcoded.
-func languageQueryGraphFirstReason(basis TruthBasis, filterNote string) string {
+func languageQueryGraphFirstReason(basis querycontract.TruthBasis, filterNote string) string {
 	switch basis {
-	case TruthBasisContentIndex:
+	case querycontract.TruthBasisContentIndex:
 		return "graph-first content-fallback read" + filterNote + "; the graph read returned no rows (or no graph reader was configured), so the content-store fallback served the result"
-	case TruthBasisHybrid:
+	case querycontract.TruthBasisHybrid:
 		return "graph-first content-fallback read" + filterNote + "; the graph served the result, enriched with content-store metadata"
 	default:
 		return "graph-first content-fallback read" + filterNote + "; the graph served the result"
@@ -52,7 +52,7 @@ func languageQueryGraphFirstReason(basis TruthBasis, filterNote string) string {
 // source_backend field. It is derived rather than threaded as its own return
 // value because basis already distinguishes every outcome this route can
 // produce: TruthBasisAuthoritativeGraph, TruthBasisHybrid, and
-// TruthBasisContentIndex are the bases language_queries.go's reading dispatch
+// TruthBasisContentIndex are the bases handler.go's reading dispatch
 // branches pass in, and TruthBasisNoBackendRead is the one the empty-grant page
 // passes in without reading anything. The default arm returns the "unavailable"
 // sentinel (the same fallback code_relationship_story.go:301 uses for its own
@@ -62,15 +62,15 @@ func languageQueryGraphFirstReason(basis TruthBasis, filterNote string) string {
 // value on the wire if a future basis (e.g. TruthBasisSemanticFacts or
 // TruthBasisRuntimeState) ever reached this route without a matching case
 // added here.
-func sourceBackendForTruthBasis(basis TruthBasis) string {
+func SourceBackendForTruthBasis(basis querycontract.TruthBasis) string {
 	switch basis {
-	case TruthBasisAuthoritativeGraph:
+	case querycontract.TruthBasisAuthoritativeGraph:
 		return "graph"
-	case TruthBasisHybrid:
+	case querycontract.TruthBasisHybrid:
 		return "hybrid_graph_and_content"
-	case TruthBasisContentIndex:
+	case querycontract.TruthBasisContentIndex:
 		return "postgres_content_store"
-	case TruthBasisNoBackendRead:
+	case querycontract.TruthBasisNoBackendRead:
 		return noBackendReadSourceBackend
 	default:
 		return "unavailable"
@@ -92,10 +92,6 @@ func sourceBackendForTruthBasis(basis TruthBasis) string {
 // defensive fallback for a basis this route does not recognize. The public
 // source_backend table in docs/public/reference/language-query-dsl.md carries
 // both values as separate rows.
-//
-// noBackendReadSourceBackend forwards to
-// querycontract.NoBackendReadSourceBackend. The implementation moved to
-// querycontract for #6060; this alias keeps root callers unchanged.
 const noBackendReadSourceBackend = querycontract.NoBackendReadSourceBackend
 
 // writeLanguageQueryEmptyGrantResult writes the page a scoped caller with no
@@ -105,15 +101,15 @@ const noBackendReadSourceBackend = querycontract.NoBackendReadSourceBackend
 // dispatch branches and always names one of their observed bases; routing this
 // page through it would mean threading a basis no read produced through the
 // reading writer.
-func (h *LanguageQueryHandler) writeLanguageQueryEmptyGrantResult(
+func (h *Handler) writeLanguageQueryEmptyGrantResult(
 	w http.ResponseWriter,
 	r *http.Request,
 	language, entityType, query string,
 ) {
 	body := languageQueryResponseBody(language, entityType, query, []map[string]any{})
 	body["source_backend"] = noBackendReadSourceBackend
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
-		h.profile(), languageQueryCapability, TruthBasisNoBackendRead, reasonEmptyGrantNoBackendRead,
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
+		h.profile(), languageQueryCapability, querycontract.TruthBasisNoBackendRead, reasonEmptyGrantNoBackendRead,
 	))
 }
 

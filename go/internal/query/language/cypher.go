@@ -1,24 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package language
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // buildLanguageCypher is the unscoped form of the dispatcher below. It binds an
 // explicitly all-scopes filter rather than the zero value, whose Scoped() is
 // true and would render a grant condition against unbound parameters.
 func buildLanguageCypher(language, label, query, repoID string, limit int) (string, map[string]any) {
-	return buildLanguageCypherWithSemanticFilter(
+	return BuildCypherWithSemanticFilter(
 		language, label, query, repoID, limit, "", "",
-		repositoryAccessFilter{AllScopes: true},
+		querycontract.RepositoryAccessFilter{AllScopes: true},
 	)
 }
 
-// buildLanguageCypherWithSemanticFilter dispatches the route's four graph
+// BuildCypherWithSemanticFilter dispatches the route's four graph
 // builders. access is the caller's repository grant: each builder appends it to
 // the WHERE of the required MATCH that binds Repository -- the same WHERE that
 // already carries the optional `r.id = $repo_id` anchor -- so it lands ahead of
@@ -49,7 +51,16 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // same list now. The measurement behind the shape is in
 // docs/internal/evidence/6546-language-query-extension-filter.md and the live
 // proof in TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage.
-func buildLanguageCypherWithSemanticFilter(
+//
+// No-Regression Evidence: this move (#6642) does not change any Cypher text,
+// anchor, index dependency, or fan-out -- every statement below is
+// byte-identical to its pre-move source in package query's
+// language_query_cypher.go, verified by the queryplan source_sha256 pin (see
+// README.md) and the frozen-text tests that moved with this file
+// (cypher_shipped_text_test.go). No-Observability-Change: the span this
+// route emits (SpanQueryLanguageQuery) and its route/capability attributes
+// are unchanged; see handler.go.
+func BuildCypherWithSemanticFilter(
 	language,
 	label,
 	query,
@@ -57,7 +68,7 @@ func buildLanguageCypherWithSemanticFilter(
 	limit int,
 	semanticFilterKey string,
 	semanticFilterValue string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	language = canonicalLanguage(language)
 	// Only $languages and $limit are referenced by the builders below; the
@@ -89,7 +100,7 @@ func buildLanguageCypherWithSemanticFilter(
 
 // buildRepositoryCypher returns a query for repositories that contain files
 // in the given language, counted per repository.
-func buildRepositoryCypher(language, query, repoID string, limit int, access repositoryAccessFilter) (string, map[string]any) {
+func buildRepositoryCypher(language, query, repoID string, limit int, access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 	params := map[string]any{
 		"languages": graphLanguageSpellings(language),
 		"limit":     limit,
@@ -147,7 +158,7 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access rep
 // directory disappears from the answer. Anchoring at File keeps the last
 // CONTAINS hop out of the variable-length chain, so `d` binds to the directory
 // that directly holds each file, which is what `count(f)` has to mean.
-func buildDirectoryCypher(language, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
+func buildDirectoryCypher(language, query, repoID string, params map[string]any, access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 	params["languages"] = graphLanguageSpellings(language)
 
 	cypher := `
@@ -179,7 +190,7 @@ func buildDirectoryCypher(language, query, repoID string, params map[string]any,
 }
 
 // buildFileCypher returns a query for files in the given language.
-func buildFileCypher(language, query, repoID string, params map[string]any, access repositoryAccessFilter) (string, map[string]any) {
+func buildFileCypher(language, query, repoID string, params map[string]any, access querycontract.RepositoryAccessFilter) (string, map[string]any) {
 	params["languages"] = graphLanguageSpellings(language)
 
 	cypher := `
@@ -218,7 +229,7 @@ func buildEntityCypherWithSemanticFilter(
 	params map[string]any,
 	semanticFilterKey string,
 	semanticFilterValue string,
-	access repositoryAccessFilter,
+	access querycontract.RepositoryAccessFilter,
 ) (string, map[string]any) {
 	params["languages"] = graphLanguageSpellings(language)
 
@@ -256,7 +267,6 @@ func buildEntityCypherWithSemanticFilter(
 	return cypher, params
 }
 
-// buildLanguageResult converts a Neo4j result row into the response shape.
 // joinKeys returns a sorted comma-separated list of map keys.
 func joinKeys[V any](m map[string]V) string {
 	keys := make([]string, 0, len(m))

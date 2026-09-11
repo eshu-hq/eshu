@@ -374,13 +374,13 @@ source_coverage:
       - {symbol: "(GraphInfraResourceAggregateStore).CountInfraResources", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(GraphInfraResourceAggregateStore).InfraResourceInventory", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
       - {symbol: "(GraphInfraResourceAggregateStore).fillBuckets", count: 1, source_sha256: 1461164d77a8cb60bf9544641e88dab27a1215ba40e578550fd78a4fc7790d15, entry_ids: [QP-INFRA-RESOURCE-AGGREGATE]}
-  - file: language_queries.go
+  - file: language/handler.go
     calls:
-      - symbol: "(*LanguageQueryHandler).queryByLanguageWithSemanticFilter"
+      - symbol: "(*Handler).queryByLanguageWithSemanticFilter"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: e936532fc65ad638321e2de438896e1f0f007fa6ac4e11c6ae08316bff1f1c3c
+          source_sha256: 932e8ca9b473ca3f63d970657e55067a91ba641babd7a319763ea16cdfcfdb2a
           label: "Repository|Directory|File|Module|Function|Class|Struct|Enum|Union|Macro|TypeAnnotation|Annotation|Component|ImplBlock|Protocol|ProtocolImplementation|Variable|TerraformBackend|TerraformCheck|TerraformImport|TerraformLockProvider|TerraformModule|TerraformMovedBlock|TerraformRemovedBlock|TerragruntConfig|TerragruntDependency|SqlColumn|SqlFunction|SqlIndex|SqlMigration|SqlTable|SqlTrigger|SqlView|TypeAlias|Typedef"
           max_results: 200
   - file: neo4j.go

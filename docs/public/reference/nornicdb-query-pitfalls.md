@@ -862,7 +862,7 @@ A comma-separated pattern (`MATCH a, b`) behaves like two clauses here and is
 ### Eshu implications
 
 `buildLanguageCypherWithSemanticFilter`'s `Directory` branch
-(`go/internal/query/language_query_cypher.go`) emitted the broken shape, so
+(`go/internal/query/language/cypher.go`) emitted the broken shape, so
 `entity_type: "directory"` on `POST /api/v0/code/language-query` answered an
 empty `results` list on NornicDB for every caller, silently. **Fixed** in the
 #5167 batch 2a change: `buildDirectoryCypher` is now the single File-anchored

@@ -51,6 +51,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/language"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -225,7 +227,7 @@ func runLiveGrantCases(ctx context.Context, t *testing.T, driver neo4jdriver.Dri
 }
 
 // TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder covers all four dispatch
-// branches of buildLanguageCypherWithSemanticFilter that reach the graph,
+// branches of language.BuildCypherWithSemanticFilter that reach the graph,
 // Directory included -- the single-clause rewrite is what lets that branch
 // answer on this build at all. The shape it replaced, which still answers
 // nothing here, is pinned in
@@ -239,7 +241,7 @@ func TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder(t *testing.T) {
 
 	build := func(label string, limit int) func(repositoryAccessFilter) (string, map[string]any) {
 		return func(access repositoryAccessFilter) (string, map[string]any) {
-			return buildLanguageCypherWithSemanticFilter(
+			return language.BuildCypherWithSemanticFilter(
 				liveGrantLanguage, label, "", "", limit, "", "", access,
 			)
 		}
@@ -260,7 +262,7 @@ func TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder(t *testing.T) {
 		{
 			name: "buildEntityCypherWithSemanticFilter guard",
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
-				return buildLanguageCypherWithSemanticFilter(
+				return language.BuildCypherWithSemanticFilter(
 					liveGrantLanguage, "Function", "", "", 2, "semantic_kind", "guard", access,
 				)
 			},

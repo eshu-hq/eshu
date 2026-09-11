@@ -13,7 +13,7 @@ import (
 
 // TestEnrichLanguageResultsWithContentMetadataReportsMergedEvenWhenGraphShadowsAllContentValues
 // pins the #5761 P3-1 review-fix doc correction on
-// enrichLanguageResultsWithContentMetadata (language_query_metadata.go):
+// enrichLanguageResultsWithContentMetadata (language/metadata.go):
 // merged reports true whenever a matched row's content metadata was
 // non-empty, not "iff it actually wrote a content value that survives into
 // the final row." Here the content row's only key ("metaclass") is also
@@ -32,7 +32,7 @@ import (
 // enrichLanguageResultsWithContentMetadata method directly: merged is exactly
 // what decides whether queryByLanguageWithSemanticFilter reports
 // TruthBasisHybrid instead of TruthBasisAuthoritativeGraph
-// (language_queries.go), so the wire truth envelope's basis is the same
+// (language/handler.go), so the wire truth envelope's basis is the same
 // observable proof the direct-call assertion was.
 func TestEnrichLanguageResultsWithContentMetadataReportsMergedEvenWhenGraphShadowsAllContentValues(t *testing.T) {
 	t.Parallel()

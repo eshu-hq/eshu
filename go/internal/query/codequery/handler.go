@@ -28,7 +28,7 @@ type CodeHandler struct {
 	// when nil the handler serves the lexical content order unchanged.
 	HybridRanker codemodel.CodeResultReranker
 	// Logger is forwarded to the language-query sub-handler
-	// (LanguageQueryHandler.Logger) so a generic language-query failure
+	// (language.Handler.Logger) so a generic language-query failure
 	// records its unmodified cause to the operator log while the response
 	// body stays static. Nil is tolerated; logging is skipped.
 	Logger *slog.Logger
@@ -72,10 +72,10 @@ func (h *CodeHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/code/bundles", h.handleSearchBundles)
 
 	// Language-specific queries mount separately, from APIRouter.Mount via
-	// its own Language field (handler.go). LanguageQueryHandler stays in
-	// package query -- codequery cannot import it back without an import
-	// cycle -- so building and mounting it here is no longer possible once
-	// this family moves. See #6060.
+	// its own Language field (root handler.go). language.Handler lives in
+	// the sibling leaf go/internal/query/language, which imports this
+	// package, so building or mounting it here would be an import cycle.
+	// See #6060 and #6642.
 }
 
 func (h *CodeHandler) profile() QueryProfile {

@@ -17,7 +17,7 @@ import (
 // parameter names into the content-store fact payload (see
 // pythonParameterNames in internal/parser/python/language.go, which fills
 // the "args" key); enrichLanguageResultsWithContentMetadata
-// (language_query_metadata.go) merges that content metadata onto the
+// (language/metadata.go) merges that content metadata onto the
 // graph-backed function row. Existing coverage of this merge path
 // (TestEnrichLanguageResultsWithContentMetadata,
 // TestHandleLanguageQuery_TSXFunctionFragmentUsesGraphMetadataWithoutContent)

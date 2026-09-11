@@ -58,6 +58,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/language"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -126,7 +128,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 	} {
 		name := testCase.label + " " + testCase.language
 		t.Run(name, func(t *testing.T) {
-			cypher, params := buildLanguageCypherWithSemanticFilter(
+			cypher, params := language.BuildCypherWithSemanticFilter(
 				testCase.language, testCase.label, "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
 			)
 			rows := runLiveGrantStatement(ctx, t, driver, name, cypher, params)
@@ -149,7 +151,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 	} {
 		name := "Repository " + testCase.language
 		t.Run(name, func(t *testing.T) {
-			cypher, params := buildLanguageCypherWithSemanticFilter(
+			cypher, params := language.BuildCypherWithSemanticFilter(
 				testCase.language, "Repository", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
 			)
 			rows := runLiveGrantStatement(ctx, t, driver, name, cypher, params)
@@ -163,7 +165,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 	}
 
 	t.Run("Directory go", func(t *testing.T) {
-		cypher, params := buildLanguageCypherWithSemanticFilter(
+		cypher, params := language.BuildCypherWithSemanticFilter(
 			"go", "Directory", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
 		)
 		rows := runLiveGrantStatement(ctx, t, driver, "Directory go", cypher, params)
@@ -182,7 +184,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 	untaggedID := liveMixedUntaggedFunctionID()
 	t.Run("Function python reaches the untagged function through its file", func(t *testing.T) {
 		name := "Function " + liveMixedUntaggedLanguage
-		cypher, params := buildLanguageCypherWithSemanticFilter(
+		cypher, params := language.BuildCypherWithSemanticFilter(
 			liveMixedUntaggedLanguage, "Function", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
 		)
 		rows := runLiveGrantStatement(ctx, t, driver, name, cypher, params)
@@ -202,7 +204,7 @@ func TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage(t *testing.T) {
 		}
 	})
 	t.Run("Function go excludes the untagged function", func(t *testing.T) {
-		cypher, params := buildLanguageCypherWithSemanticFilter(
+		cypher, params := language.BuildCypherWithSemanticFilter(
 			"go", "Function", "", liveMixedRepo, 50, "", "", liveGrantUnscopedAccess(),
 		)
 		rows := runLiveGrantStatement(ctx, t, driver, "Function go", cypher, params)

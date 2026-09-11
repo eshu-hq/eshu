@@ -19,9 +19,9 @@ import (
 // already exercises the "graph read returns zero rows, content store serves
 // the whole answer" path for a graphFirstContentBackedEntityTypes member, but
 // it asserts nothing about truth.basis, truth.level, or source_backend.
-// language_queries.go's queryGraphFirstContentByLanguageWithSemanticFilter
+// language/handler.go's queryGraphFirstContentByLanguageWithSemanticFilter
 // returns TruthBasisContentIndex on that exact path
-// (language_queries.go:439); mutating that literal to TruthBasisHybrid left
+// (language/handler.go:446); mutating that literal to TruthBasisHybrid left
 // the whole package green because no test read the response's truth or
 // source_backend fields on this path. These two tests cover both graph-first
 // call sites that can take it: the graphFirstContentBackedEntityTypes

@@ -164,7 +164,7 @@ func TestHandleLanguageQueryContentBackedBranchReportsDerivedContentIndex(t *tes
 		t.Fatalf("truth.level = %q, want %q", envelope.Truth.Level, TruthLevelDerived)
 	}
 	// #5761 P2-2 review-fix regression: the contentBackedEntityTypes dispatch
-	// branch (language_queries.go) passes reasonLanguageQueryContentOnly
+	// branch (language/handler.go) passes reasonLanguageQueryContentOnly
 	// directly rather than computing it per-request, so it must be pinned by
 	// its exact string -- basis/level alone do not prove the branch used the
 	// right reason constant. The want value is a literal, not a reference to

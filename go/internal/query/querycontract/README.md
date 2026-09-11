@@ -25,7 +25,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | Entity-name search | `entity_name_search.go` | exported type aliases, unexported const and sentinel-error aliases |
 | Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |
 | Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases in `evidence_citation.go`, plus the exported `EvidenceCitationHandle` alias root already published in `evidence_citation_public.go` |
-| Language alias table and coverage maps | `language_registry.go` | unexported function forwarders |
+| Language alias table and coverage maps | `language/registry.go` | unexported function forwarders |
 | `ContentStore` read models (#6060) | `documentation_read_models.go`, `repository_read_models.go`, `repository_summary_read_models.go`, `k8s_select_candidate_projection.go` | 20 unexported type aliases in root, plus four exported ones |
 | `AnswerMetadata` attach helper | `answer_metadata.go` | exported type alias + wrapper in `answer_metadata_alias.go`; `AssertAnswerMetadata` pin in `impact/` test |
 | Edge-materialization coverage | `edge_materialization_coverage.go` | `impact/` callers and the root coverage test reference directly |
@@ -48,8 +48,9 @@ that reached into builder internals needs an accessor rather than an alias.
 Two related symbols deliberately did not move. `hydrateResolvedEntityRepoIdentity`
 stays in root because it carries a complete `MATCH`/`RETURN` statement, which
 `AGENTS.md` keeps out of this leaf; only the pure scrubber it calls moved.
-`supportedLanguages`, the accepted-language set, stays in root's
-`language_registry.go` and is still the file to edit when adding a language.
+`supportedLanguages`, the accepted-language set, now lives in the language
+leaf's `language/registry.go`, which is the file to edit when adding a
+language.
 
 The authorization seam emits Cypher *fragments* -- `WHERE` predicate text a
 caller splices into its own query -- and that is the one carve-out to the

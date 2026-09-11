@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package language
 
 import (
 	"context"
@@ -47,7 +47,7 @@ const languageQueryCapability = "symbol_graph.language_entities"
 // entity type) can likewise serve from either backend or merge both, so their
 // reason is computed per-request by languageQueryGraphFirstReason from the
 // TruthBasis queryGraphFirstContentByLanguageWithSemanticFilter actually
-// observed -- see language_query_reasons.go.
+// observed -- see reasons.go.
 const (
 	reasonLanguageQueryGraphOnly   = "graph-only read served this entity type"
 	reasonLanguageQueryContentOnly = "content-store read served this entity type"
@@ -64,26 +64,27 @@ const (
 	// its own grant, which it already knows. What stays unprobeable is the
 	// INDEX: neither answer says whether any repository, entity or row exists,
 	// because no backend was read to find out.
-	// reasonEmptyGrantNoBackendRead forwards to
-	// querycontract.ReasonEmptyGrantNoBackendRead. The implementation moved to
-	// querycontract for #6060; this alias keeps root callers unchanged.
 	reasonEmptyGrantNoBackendRead = querycontract.ReasonEmptyGrantNoBackendRead
 )
 
 // languageQueryMaxLimit bounds the caller-supplied limit before it reaches
-// any of the four language_query_cypher.go builders, all of which splice
-// params["limit"] verbatim into `LIMIT $limit` with no ceiling of their own.
-// Mirrors the sibling code_symbol.go symbolSearchMaxLimit (200) on the
-// nearest sibling route in this package.
+// any of the four cypher.go builders, all of which splice params["limit"]
+// verbatim into `LIMIT $limit` with no ceiling of their own. Mirrors the
+// sibling code_symbol.go symbolSearchMaxLimit (200) on the nearest sibling
+// route in package query.
 const languageQueryMaxLimit = 200
 
-// LanguageQueryHandler provides language-specific entity queries against the
-// graph and content store. Graph-backed entity types use Neo4j. Content-only
-// entity types use the Postgres content store.
-type LanguageQueryHandler struct {
-	Neo4j   GraphQuery
-	Content ContentStore
-	Profile QueryProfile
+// Handler provides language-specific entity queries against the graph and
+// content store. Graph-backed entity types use Neo4j. Content-only entity
+// types use the Postgres content store.
+//
+// Package query keeps this type available as LanguageQueryHandler through a
+// type alias in language_alias.go so existing wiring, callers, and tests
+// compile unchanged (#6642).
+type Handler struct {
+	Neo4j   querycontract.GraphQuery
+	Content querycontract.ContentStore
+	Profile querycontract.QueryProfile
 	// Logger records the unmodified cause behind a generic language-query
 	// failure (one that WriteGraphReadError does not recognize as a bounded
 	// graph-read sentinel) to the operator log, while the response body
@@ -100,12 +101,13 @@ type LanguageQueryHandler struct {
 // For symbol_graph.language_entities, production is the MOST PERMISSIVE
 // profile (every entity-type family is supported there), so this default is
 // fail-OPEN, not fail-closed -- do not repeat the "fail closed" framing here.
-// The identical CodeHandler.profile() (code.go) carries no such claim.
-func (h *LanguageQueryHandler) profile() QueryProfile {
+// The identical CodeHandler.profile() (package codequery) carries no such
+// claim.
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
-	return NormalizeQueryProfile(string(h.Profile))
+	return querycontract.NormalizeQueryProfile(string(h.Profile))
 }
 
 // logQueryFailure records the unmodified failure cause and a bounded
@@ -117,7 +119,7 @@ func (h *LanguageQueryHandler) profile() QueryProfile {
 // language_query.content_backed) so an operator can tell which entity-type
 // family is degraded without the response body carrying any backend detail.
 // A nil Logger is tolerated; logging is skipped.
-func (h *LanguageQueryHandler) logQueryFailure(ctx context.Context, failureClass, language, entityType string, err error) {
+func (h *Handler) logQueryFailure(ctx context.Context, failureClass, language, entityType string, err error) {
 	if h == nil || h.Logger == nil {
 		return
 	}
@@ -131,12 +133,12 @@ func (h *LanguageQueryHandler) logQueryFailure(ctx context.Context, failureClass
 }
 
 // Mount registers the language query endpoint on the given mux.
-func (h *LanguageQueryHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/code/language-query", h.handleLanguageQuery)
 }
 
 // handleLanguageQuery dispatches a language-specific entity query.
-func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleLanguageQuery(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(r, telemetry.SpanQueryLanguageQuery, "POST /api/v0/code/language-query", languageQueryCapability)
 	defer span.End()
 
@@ -147,17 +149,17 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 		RepoID     string `json:"repo_id"`
 		Limit      int    `json:"limit"`
 	}
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, err.Error())
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	if req.Language == "" {
-		WriteError(w, http.StatusBadRequest, "language is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "language is required")
 		return
 	}
 	if req.EntityType == "" {
-		WriteError(w, http.StatusBadRequest, "entity_type is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "entity_type is required")
 		return
 	}
 
@@ -165,14 +167,14 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 	req.EntityType = strings.ToLower(strings.TrimSpace(req.EntityType))
 
 	if !supportedLanguages[req.Language] {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf(
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf(
 			"unsupported language %q; supported: %s",
 			req.Language, joinKeys(supportedLanguages),
 		))
 		return
 	}
 
-	if capabilityUnsupported(h.profile(), languageQueryCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), languageQueryCapability) {
 		h.writeLanguageQueryUnsupportedCapability(w, r, "language query requires a supported query profile")
 		return
 	}
@@ -191,12 +193,12 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// #5167 batch 2a. This route is owned by LanguageQueryHandler, not
-	// CodeHandler, so req.RepoID used to reach both backends raw: never
-	// resolved through queryselector and never checked against the caller's
-	// grant. Both halves of the family's fix apply here through free functions
-	// rather than a second copy of the plumbing -- the selector is resolved and
-	// an ungranted one rejected with 400, then the grant the remaining reads
+	// #5167 batch 2a. This route is owned by Handler, not CodeHandler, so
+	// req.RepoID used to reach both backends raw: never resolved through
+	// queryselector and never checked against the caller's grant. Both
+	// halves of the family's fix apply here through free functions rather
+	// than a second copy of the plumbing -- the selector is resolved and an
+	// ungranted one rejected with 400, then the grant the remaining reads
 	// bind is resolved once for all four branches.
 	if !codequery.ApplyRepositorySelectorForAccess(w, r, h.Neo4j, h.Content, &req.RepoID, languageQueryCapability) {
 		return
@@ -221,11 +223,11 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 			grant,
 		)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, languageQueryCapability) {
+			if querycontract.WriteGraphReadError(w, r, err, languageQueryCapability) {
 				return
 			}
 			h.logQueryFailure(r.Context(), "language_query.guard", req.Language, req.EntityType, err)
-			WriteError(w, http.StatusInternalServerError, "language query failed")
+			querycontract.WriteError(w, http.StatusInternalServerError, "language query failed")
 			return
 		}
 
@@ -242,11 +244,11 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 					fmt.Sprintf("entity type %q requires a graph backend", req.EntityType))
 				return
 			}
-			if WriteGraphReadError(w, r, err, languageQueryCapability) {
+			if querycontract.WriteGraphReadError(w, r, err, languageQueryCapability) {
 				return
 			}
 			h.logQueryFailure(r.Context(), "language_query.graph_backed", req.Language, req.EntityType, err)
-			WriteError(w, http.StatusInternalServerError, "language query failed")
+			querycontract.WriteError(w, http.StatusInternalServerError, "language query failed")
 			return
 		}
 
@@ -266,11 +268,11 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 			grant,
 		)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, languageQueryCapability) {
+			if querycontract.WriteGraphReadError(w, r, err, languageQueryCapability) {
 				return
 			}
 			h.logQueryFailure(r.Context(), "language_query.graph_first_content_backed", req.Language, req.EntityType, err)
-			WriteError(w, http.StatusInternalServerError, "language query failed")
+			querycontract.WriteError(w, http.StatusInternalServerError, "language query failed")
 			return
 		}
 
@@ -282,88 +284,35 @@ func (h *LanguageQueryHandler) handleLanguageQuery(w http.ResponseWriter, r *htt
 	if label, ok := contentBackedEntityTypes[req.EntityType]; ok {
 		results, err := h.queryContentByLanguage(r.Context(), req.Language, label, req.Query, req.RepoID, req.Limit, grant)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, languageQueryCapability) {
+			if querycontract.WriteGraphReadError(w, r, err, languageQueryCapability) {
 				return
 			}
 			h.logQueryFailure(r.Context(), "language_query.content_backed", req.Language, req.EntityType, err)
-			WriteError(w, http.StatusInternalServerError, "language query failed")
+			querycontract.WriteError(w, http.StatusInternalServerError, "language query failed")
 			return
 		}
 
 		h.writeLanguageQueryResult(w, r, req.Language, req.EntityType, req.Query, results,
-			TruthBasisContentIndex, reasonLanguageQueryContentOnly)
+			querycontract.TruthBasisContentIndex, reasonLanguageQueryContentOnly)
 		return
 	}
 
 	writeLanguageQueryUnsupportedEntityType(w, req.EntityType)
 }
 
-// writeLanguageQueryUnsupportedCapability writes the 501 unsupported_capability
-// envelope this route uses for both of its unsupported cases: the
-// profile-level gate ahead of any read, and the graph-only entity kinds
-// (Repository, Directory, File -- the ones graphLabelToContentEntityType
-// cannot map) when no graph is configured. Both share the same envelope shape
-// (error code, capability, and current/required profile), but callers pass a
-// distinct message (#5761 P2-5): the profile-gate call site's message is
-// generically true at every profile, while under local_lightweight the
-// catalog publishes symbol_graph.language_entities as "supported" (with no
-// notes field to carry a caveat), so the graph-only-residue call site must
-// name the actual cause and the offending entity kind rather than reusing the
-// profile-gate wording -- otherwise the response would falsely suggest a
-// profile change could fix the request.
-func (h *LanguageQueryHandler) writeLanguageQueryUnsupportedCapability(w http.ResponseWriter, r *http.Request, message string) {
-	WriteContractError(
-		w,
-		r,
-		http.StatusNotImplemented,
-		message,
-		ErrorCodeUnsupportedCapability,
-		languageQueryCapability,
-		h.profile(),
-		requiredProfile(languageQueryCapability),
-	)
-}
-
-// writeLanguageQueryResult writes the success response for one dispatch branch
-// of handleLanguageQuery. Every branch returns the same body shape but differs
-// in both which truth basis it can honestly claim and which reason describes
-// how that basis was reached, so the envelope construction lives here rather
-// than being repeated four times. The basis and reason stay per-branch
-// arguments on purpose: keeping them at the call site is what lets a
-// per-branch regression test mutate exactly one dispatch path's basis (or
-// reason) and see only that branch's assertion fail. source_backend is
-// derived from basis (sourceBackendForTruthBasis) rather than threaded
-// separately, mirroring code_symbol.go's source_backend field.
-//
-// Callers pass req's fields individually because req is an anonymous struct
-// declared inside handleLanguageQuery and has no nameable type.
-func (h *LanguageQueryHandler) writeLanguageQueryResult(
-	w http.ResponseWriter,
-	r *http.Request,
-	language, entityType, query string,
-	results []map[string]any,
-	basis TruthBasis,
-	reason string,
-) {
-	body := languageQueryResponseBody(language, entityType, query, results)
-	body["source_backend"] = sourceBackendForTruthBasis(basis)
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(h.profile(), languageQueryCapability, basis, reason))
-}
-
-// languageQueryGrant is the pre-move spelling of
-// codequery.LanguageQueryGrant. The queryplan source_sha256 for
-// queryByLanguageWithSemanticFilter covers the grant parameter text, so the
-// alias keeps the moved signature byte-identical instead of re-freezing the
-// digest.
+// languageQueryGrant is the pre-move spelling of codequery.LanguageQueryGrant.
+// The queryplan source_sha256 for queryByLanguageWithSemanticFilter covers
+// the grant parameter text, so the alias keeps the moved signature
+// byte-identical instead of re-freezing the digest.
 type languageQueryGrant = codequery.LanguageQueryGrant
 
 // queryByLanguage builds and executes a language-specific Cypher query.
-func (h *LanguageQueryHandler) queryByLanguage(
+func (h *Handler) queryByLanguage(
 	ctx context.Context,
 	language, label, query, repoID string,
 	limit int,
 	grant languageQueryGrant,
-) ([]map[string]any, TruthBasis, error) {
+) ([]map[string]any, querycontract.TruthBasis, error) {
 	return h.queryByLanguageWithSemanticFilter(ctx, language, label, query, repoID, limit, "", "", grant)
 }
 
@@ -377,14 +326,14 @@ func (h *LanguageQueryHandler) queryByLanguage(
 // merged at least one content value into the graph rows, and
 // TruthBasisAuthoritativeGraph otherwise (a pure graph read with nothing for
 // the content store to add or no content reader configured).
-func (h *LanguageQueryHandler) queryByLanguageWithSemanticFilter(
+func (h *Handler) queryByLanguageWithSemanticFilter(
 	ctx context.Context,
 	language, label, query, repoID string,
 	limit int,
 	semanticFilterKey string,
 	semanticFilterValue string,
 	grant languageQueryGrant,
-) ([]map[string]any, TruthBasis, error) {
+) ([]map[string]any, querycontract.TruthBasis, error) {
 	if h == nil || !querycontract.GraphConfigured(h.Neo4j) {
 		contentLabel := graphLabelToContentEntityType(label)
 		if h == nil || contentLabel == "" {
@@ -394,10 +343,10 @@ func (h *LanguageQueryHandler) queryByLanguageWithSemanticFilter(
 		if err != nil {
 			return nil, "", err
 		}
-		return results, TruthBasisContentIndex, nil
+		return results, querycontract.TruthBasisContentIndex, nil
 	}
 
-	cypher, params := buildLanguageCypherWithSemanticFilter(
+	cypher, params := BuildCypherWithSemanticFilter(
 		language,
 		label,
 		query,
@@ -431,17 +380,17 @@ func (h *LanguageQueryHandler) queryByLanguageWithSemanticFilter(
 		return nil, "", err
 	}
 	if merged {
-		return results, TruthBasisHybrid, nil
+		return results, querycontract.TruthBasisHybrid, nil
 	}
-	return results, TruthBasisAuthoritativeGraph, nil
+	return results, querycontract.TruthBasisAuthoritativeGraph, nil
 }
 
-func (h *LanguageQueryHandler) queryGraphFirstContentByLanguage(
+func (h *Handler) queryGraphFirstContentByLanguage(
 	ctx context.Context,
 	language, label, query, repoID string,
 	limit int,
 	grant codequery.LanguageQueryGrant,
-) ([]map[string]any, TruthBasis, error) {
+) ([]map[string]any, querycontract.TruthBasis, error) {
 	return h.queryGraphFirstContentByLanguageWithSemanticFilter(ctx, language, label, label, query, repoID, limit, "", "", grant)
 }
 
@@ -459,19 +408,19 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguage(
 // both), but the "guard" entity type diverges: its graph read uses
 // label="Function" plus a semantic_kind=guard Cypher filter, while its
 // content fallback must query contentEntityType="guard" so
-// contentEntityTypeFilter (elixir_semantic_types.go) applies the matching
+// contentEntityTypeFilter (querycontract) applies the matching
 // entity_type=Function AND metadata->>semantic_kind=guard predicate. Before
 // #5761 F2, the guard call site passed label ("Function") to this fallback
 // too, so a graphless or zero-row guard read silently returned every
 // Function instead of only guard clauses.
-func (h *LanguageQueryHandler) queryGraphFirstContentByLanguageWithSemanticFilter(
+func (h *Handler) queryGraphFirstContentByLanguageWithSemanticFilter(
 	ctx context.Context,
 	language, label, contentEntityType, query, repoID string,
 	limit int,
 	semanticFilterKey string,
 	semanticFilterValue string,
 	grant languageQueryGrant,
-) ([]map[string]any, TruthBasis, error) {
+) ([]map[string]any, querycontract.TruthBasis, error) {
 	if querycontract.GraphConfigured(h.Neo4j) {
 		results, basis, err := h.queryByLanguageWithSemanticFilter(
 			ctx,
@@ -495,5 +444,5 @@ func (h *LanguageQueryHandler) queryGraphFirstContentByLanguageWithSemanticFilte
 	if err != nil {
 		return nil, "", err
 	}
-	return results, TruthBasisContentIndex, nil
+	return results, querycontract.TruthBasisContentIndex, nil
 }

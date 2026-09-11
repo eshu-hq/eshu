@@ -30,7 +30,7 @@ import (
 // four dispatch branches and asserts the response body is the static
 // message and never contains the private error text.
 //
-// P1-3: logQueryFailure (language_queries.go) and its four
+// P1-3: logQueryFailure (language/handler.go) and its four
 // "language_query.*" failure_class values had no test referencing them at
 // all -- early-returning the whole logger body, or renaming any of the four
 // constants to "WRONG", left the package green. This test captures a slog

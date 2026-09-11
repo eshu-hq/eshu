@@ -225,7 +225,8 @@ PARSER_SELECTOR_MATCHER_OUTPUT="${tmp_root}/parser-selector-matcher"
 . "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-documented-command-regressions.sh"
 
 query_missing_dsl_repo="$(init_repo query-missing-dsl)"
-printf 'package query\nfunc languageQueryEntityType() {}\n' >"${query_missing_dsl_repo}/go/internal/query/language_queries.go"
+mkdir -p "${query_missing_dsl_repo}/go/internal/query/language"
+printf 'package language\nfunc languageQueryEntityType() {}\n' >"${query_missing_dsl_repo}/go/internal/query/language/handler.go"
 printf '\nDocumented new query behavior.\n' >>"${query_missing_dsl_repo}/docs/public/languages/python.md"
 git -C "${query_missing_dsl_repo}" add .
 git -C "${query_missing_dsl_repo}" commit -q -m 'language query without dsl docs'

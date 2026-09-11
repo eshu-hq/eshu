@@ -1,27 +1,31 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package language
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// languageEntitySearch aliases querycontract.LanguageEntitySearch. The
-// implementation moved to querycontract for #6060; this alias keeps root
-// callers unchanged.
-type languageEntitySearch = querycontract.LanguageEntitySearch
+// EntitySearch aliases querycontract.LanguageEntitySearch. Package query's
+// content_reader_entity_search.go names this type as languageEntitySearch
+// through a forwarding alias in language_alias.go (#6642); this is the
+// leaf's canonical spelling, exported at its declaration because that root
+// file is the caller that needs it.
+type EntitySearch = querycontract.LanguageEntitySearch
 
 // languageEntityContentSearcher aliases
-// querycontract.LanguageEntityContentSearcher. *ContentReader implements it;
-// a store that does not gets the per-repository fallback in
-// searchLanguageEntities below, which is bound but issues one statement per
-// granted repository. The implementation moved to querycontract for #6060;
-// this alias keeps root callers unchanged.
+// querycontract.LanguageEntityContentSearcher. *ContentReader (package
+// query) implements it; a store that does not gets the per-repository
+// fallback in searchLanguageEntities below, which is bound but issues one
+// statement per granted repository. package query's language_alias.go keeps
+// the compile-time pin against *ContentReader, since ContentReader is a
+// later lane's family and this leaf never names it.
 type languageEntityContentSearcher = querycontract.LanguageEntityContentSearcher
 
 // enrichLanguageResultsWithContentMetadata merges Postgres content-index
@@ -40,7 +44,7 @@ type languageEntityContentSearcher = querycontract.LanguageEntityContentSearcher
 // safe either way -- this can only over-claim toward a hybrid/derived truth
 // basis when a plain graph read would have been equally accurate, never
 // launder a content-served answer as authoritative-graph-only (#5761 P1-1).
-func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
+func (h *Handler) enrichLanguageResultsWithContentMetadata(
 	ctx context.Context,
 	results []map[string]any,
 	language string,
@@ -60,7 +64,7 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 	}
 
 	for i := range results {
-		attachSemanticSummary(results[i])
+		entitysemantics.AttachSemanticSummary(results[i])
 	}
 
 	// #5167 batch 2a: this is a SECOND content read, issued after the graph
@@ -68,7 +72,7 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 	// merge-key map below, so a key collision would merge another tenant's
 	// metadata into a granted row. The grant closes the cross-tenant half; the
 	// repository in the key closes the within-grant half.
-	rows, err := h.searchLanguageEntities(ctx, languageEntitySearch{
+	rows, err := h.searchLanguageEntities(ctx, EntitySearch{
 		RepoID:               repoID,
 		Language:             language,
 		EntityType:           entityType,
@@ -98,17 +102,17 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 	for i := range results {
 		key := languageResultRepositoryMatchKey(
 			languageResultRepositoryID(results[i]),
-			StringVal(results[i], "file_path"),
+			querycontract.StringVal(results[i], "file_path"),
 			label,
-			StringVal(results[i], "name"),
-			IntVal(results[i], "start_line"),
+			querycontract.StringVal(results[i], "name"),
+			querycontract.IntVal(results[i], "start_line"),
 		)
 		metadata, ok := metadataByKey[key]
 		if !ok || len(metadata) == 0 {
 			continue
 		}
 		results[i]["metadata"] = mergeGraphFirstMetadata(results[i]["metadata"], metadata)
-		attachSemanticSummary(results[i])
+		entitysemantics.AttachSemanticSummary(results[i])
 		merged = true
 	}
 
@@ -116,13 +120,11 @@ func (h *LanguageQueryHandler) enrichLanguageResultsWithContentMetadata(
 }
 
 // languageResultMatchKey identifies one entity by where it sits in a file. It
-// is shared with the entity and code-search enrichments (entity_metadata.go,
-// search_metadata.go), which anchor their own reads differently, so this
-// route adds the repository through the wrapper below rather than changing the
-// shared shape.
+// is shared with the entity and code-search enrichments (root's
+// entity_metadata.go, search_metadata.go), which anchor their own reads
+// differently, so this route adds the repository through the wrapper below
+// rather than changing the shared shape.
 // languageResultMatchKey forwards to querycontract.LanguageResultMatchKey.
-// The implementation moved to querycontract for #6060; this wrapper keeps
-// root callers unchanged.
 func languageResultMatchKey(filePath string, entityType string, name string, startLine int) string {
 	return querycontract.LanguageResultMatchKey(filePath, entityType, name, startLine)
 }
@@ -155,10 +157,10 @@ func languageResultRepositoryMatchKey(repoID string, filePath string, entityType
 // fallback is there to keep the key correct if that mapping ever changes,
 // rather than to serve a live path.
 func languageResultRepositoryID(result map[string]any) string {
-	if repoID := StringVal(result, "repo_id"); repoID != "" {
+	if repoID := querycontract.StringVal(result, "repo_id"); repoID != "" {
 		return repoID
 	}
-	return StringVal(result, "id")
+	return querycontract.StringVal(result, "id")
 }
 
 func mergeGraphFirstMetadata(existing any, fallback map[string]any) map[string]any {
@@ -193,11 +195,11 @@ func mergeGraphFirstMetadata(existing any, fallback map[string]any) map[string]a
 // corpus-wide scoped search iterates the granted repositories rather than
 // asking for repository "", which the unrestricted statement answers with every
 // tenant's rows. That is the same fallback shape symbolNameFallbackEntities
-// (code_symbol.go) uses on POST /api/v0/code/symbols/search.
-func (h *LanguageQueryHandler) searchLanguageEntities(
+// (package codequery) uses on POST /api/v0/code/symbols/search.
+func (h *Handler) searchLanguageEntities(
 	ctx context.Context,
-	search languageEntitySearch,
-) ([]EntityContent, error) {
+	search EntitySearch,
+) ([]querycontract.EntityContent, error) {
 	if h == nil || h.Content == nil {
 		return nil, fmt.Errorf("content reader is required for %s queries", search.EntityType)
 	}
@@ -209,7 +211,7 @@ func (h *LanguageQueryHandler) searchLanguageEntities(
 			ctx, search.RepoID, search.Language, search.EntityType, search.Query, search.Limit,
 		)
 	}
-	entities := make([]EntityContent, 0, search.Limit)
+	entities := make([]querycontract.EntityContent, 0, search.Limit)
 	for _, repoID := range search.AllowedRepositoryIDs {
 		if len(entities) >= search.Limit {
 			break
@@ -227,13 +229,13 @@ func (h *LanguageQueryHandler) searchLanguageEntities(
 
 // queryContentByLanguage answers one dispatch branch entirely from the content
 // store, with the caller's grant bound at the read.
-func (h *LanguageQueryHandler) queryContentByLanguage(
+func (h *Handler) queryContentByLanguage(
 	ctx context.Context,
 	language, entityType, query, repoID string,
 	limit int,
 	grant codequery.LanguageQueryGrant,
 ) ([]map[string]any, error) {
-	rows, err := h.searchLanguageEntities(ctx, languageEntitySearch{
+	rows, err := h.searchLanguageEntities(ctx, EntitySearch{
 		RepoID:               repoID,
 		Language:             language,
 		EntityType:           entityType,
@@ -258,16 +260,9 @@ func (h *LanguageQueryHandler) queryContentByLanguage(
 			"end_line":   row.EndLine,
 			"metadata":   row.Metadata,
 		}
-		attachSemanticSummary(result)
+		entitysemantics.AttachSemanticSummary(result)
 		results = append(results, result)
 	}
 
 	return results, nil
 }
-
-// *ContentReader is the only production content store (cmd/api/wiring.go and
-// cmd/mcp-server/wiring.go both wire NewContentReader(db)), and the type
-// assertion in searchLanguageEntities silently falls back to the
-// one-repository-at-a-time path if it ever stops satisfying this interface.
-// This line fails `go build`, not only `go test`, the moment that happens.
-var _ languageEntityContentSearcher = (*ContentReader)(nil)

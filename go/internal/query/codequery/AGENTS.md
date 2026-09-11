@@ -8,7 +8,8 @@ Scope: the code-family query handlers, split out of root package `query`
 
 - This package owns `*CodeHandler`, its `Mount` route table, and the
   NornicDB/postgres readers behind `/api/v0/code/*`. It MUST NOT
-  construct `LanguageQueryHandler` (root-owned; would be a cycle) or
+  construct `language.Handler` (the `language` leaf imports this
+  package, so importing it back would be a cycle) or
   register capabilities (root owns the router and the contract
   matrix).
 - Root `code_alias.go` owns the `CodeHandler` alias; root

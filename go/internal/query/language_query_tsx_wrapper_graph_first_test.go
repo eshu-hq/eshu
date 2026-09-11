@@ -12,7 +12,7 @@ import (
 )
 
 // TestHandleLanguageQuery_TSXReactFCWrapperUsesContentBackedPath covers the
-// content-backed "variable" path (see language_query_entities.go): a TSX
+// content-backed "variable" path (see language/entities.go): a TSX
 // React.FC component-type-assertion variable's semantic summary derives from
 // EntityContent.Metadata, since "variable" no longer takes the graph-first
 // route.
@@ -83,7 +83,7 @@ func TestHandleLanguageQuery_TSXReactFCWrapperUsesContentBackedPath(t *testing.T
 }
 
 // TestHandleLanguageQuery_TSXReactFunctionComponentWrapperUsesContentBackedPath
-// covers the content-backed "variable" path (see language_query_entities.go):
+// covers the content-backed "variable" path (see language/entities.go):
 // a TSX React.FunctionComponent component-type-assertion variable's semantic
 // summary derives from EntityContent.Metadata, since "variable" no longer
 // takes the graph-first route.

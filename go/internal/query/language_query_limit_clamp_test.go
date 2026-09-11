@@ -30,7 +30,7 @@ func (m *capturingLanguageQueryGraphReader) RunSingle(context.Context, string, m
 // TestHandleLanguageQuery_ClampsOversizedLimitTo200 proves an oversized
 // caller-supplied limit never reaches the Cypher LIMIT clause unclamped
 // (#5761 follow-up): handleLanguageQuery only floors a non-positive limit to
-// 50 (language_queries.go), and all four language_query_cypher.go builders
+// 50 (language/handler.go), and all four language/cypher.go builders
 // splice params["limit"] straight into `LIMIT $limit` with no ceiling of
 // their own, so an unbounded request limit would otherwise reach Neo4j
 // verbatim.

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 // This file duplicates a handful of small #5167 code-family grant-test
@@ -31,9 +33,14 @@ import (
 // (the repo:// form queryselector.LooksCanonicalRepositoryID recognises), so
 // a route that takes a repository selector resolves them through the grant
 // rather than through a catalog or graph lookup the fakes do not implement.
+//
+// The values live in querytestutil (#6642): package language's own grant
+// tests need the identical ids and a _test.go symbol is not importable
+// across a package boundary. This stays a const so every existing call site
+// in this package (93+ files) compiles unchanged.
 const (
-	codeGrantGrantedRepo = "repo://tenant-a/granted-service"
-	codeGrantOtherRepo   = "repo://tenant-b/other-service"
+	codeGrantGrantedRepo = querytestutil.CodeGrantGrantedRepo
+	codeGrantOtherRepo   = querytestutil.CodeGrantOtherRepo
 )
 
 // codeGrantConsumerRepo is a second repository inside the caller's grant, so

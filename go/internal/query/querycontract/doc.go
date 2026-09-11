@@ -36,7 +36,8 @@
 // Content-index readiness covers ErrContentSubstringIndexesNotReady and
 // WriteContentSubstringIndexUnavailable. The language taxonomy covers
 // CanonicalLanguage, NormalizedLanguageVariants and CoverageLanguageMaps over
-// an unexported alias table; the accepted-language set stays in root.
+// an unexported alias table; the accepted-language set lives in the
+// language leaf (go/internal/query/language, registry.go).
 // ClearResolvedEntityRepoProjectionPlaceholders is the #6408 workaround that
 // blanks a projection expression a backend returned as literal text.
 //

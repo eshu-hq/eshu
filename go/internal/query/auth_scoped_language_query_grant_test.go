@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/codequery"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
@@ -23,8 +22,8 @@ import (
 // buildLanguageTypeEntityFilters (content_reader_entity_search.go), carried the
 // same `if repoID != "" { repo_id = $n }`-with-no-else shape the four batch-1
 // content builders had, so a scoped caller who omitted repo_id read the whole
-// content corpus. Its Cypher choke point, buildLanguageCypherWithSemanticFilter
-// (language_query_cypher.go), dispatches four builders that each carried
+// content corpus. Its Cypher choke point, language.BuildCypherWithSemanticFilter
+// (language/cypher.go), dispatches four builders that each carried
 // `AND r.id = $repo_id` under the same condition and nothing otherwise.
 //
 // LanguageQueryHandler is not CodeHandler, so none of the batch-1 selector
@@ -34,9 +33,14 @@ import (
 // (code_repository_selector.go) -- so both handlers resolve a selector and a
 // grant through one implementation.
 
+// languageGrantGrantedEntity and languageGrantUngrantedEntity forward to
+// querytestutil. The values, and the languageQueryGrantEntities generator
+// that names them, moved there for #6642 so package language's own
+// entity-search-dispatch tests can share the identical fixture; these consts
+// keep this file's callers unchanged.
 const (
-	languageGrantGrantedEntity   = "GrantedLanguageProbe"
-	languageGrantUngrantedEntity = "UngrantedLanguageProbe"
+	languageGrantGrantedEntity   = querytestutil.LanguageGrantGrantedEntity
+	languageGrantUngrantedEntity = querytestutil.LanguageGrantUngrantedEntity
 )
 
 // languageQueryPlainContentStore satisfies only the ContentStore port method,
@@ -54,39 +58,7 @@ func (s *languageQueryPlainContentStore) SearchEntitiesByLanguageAndType(
 	_ int,
 ) ([]EntityContent, error) {
 	s.askedRepoIDs = append(s.askedRepoIDs, repoID)
-	return languageQueryGrantEntities(repoID, nil, entityType), nil
-}
-
-// languageQueryGrantEntities mirrors buildLanguageTypeEntityFilters' real
-// contract: an explicit repo_id anchors the scan, a non-empty grant list
-// restricts it, and an empty grant list does not restrict it at all. Keeping
-// the fake faithful to the shipped SQL is what makes the leak assertions fail
-// when the handler stops binding the grant.
-func languageQueryGrantEntities(repoID string, allowedRepositoryIDs []string, entityType string) []EntityContent {
-	if entityType == "" {
-		entityType = "Variable"
-	}
-	entities := make([]EntityContent, 0, 2)
-	for _, candidate := range []string{codeGrantGrantedRepo, codeGrantOtherRepo} {
-		if !codeContentGrantAdmits(candidate, repoID, allowedRepositoryIDs) {
-			continue
-		}
-		name := languageGrantGrantedEntity
-		if candidate == codeGrantOtherRepo {
-			name = languageGrantUngrantedEntity
-		}
-		entities = append(entities, EntityContent{
-			EntityID:     candidate + "#" + name,
-			RepoID:       candidate,
-			RelativePath: "internal/auth/session.go",
-			EntityType:   entityType,
-			EntityName:   name,
-			Language:     "go",
-			StartLine:    10,
-			EndLine:      20,
-		})
-	}
-	return entities
+	return querytestutil.LanguageQueryGrantEntities(repoID, nil, entityType), nil
 }
 
 // languageQueryGraphSeeds is the two-tenant graph fixture every graph-backed
@@ -357,13 +329,9 @@ func TestLanguageQueryUngrantedRepositorySelectorIsRejected(t *testing.T) {
 	}
 }
 
-// unscopedLanguageQueryGrant is the grant an unscoped shared-key, admin, or
-// local caller carries: no restriction on either backend. It is what the
-// pre-existing language-query tests pass, so their assertions keep describing
-// the unscoped read.
-func unscopedLanguageQueryGrant() codequery.LanguageQueryGrant {
-	return codequery.LanguageQueryGrant{Access: repositoryAccessFilter{AllScopes: true}}
-}
+// unscopedLanguageQueryGrant moved to package language's
+// typescript_declaration_family_test.go (#6642): it is called only from
+// there today, and a _test.go symbol cannot cross a package boundary.
 
 // TestLanguageQuerySharedKeyRepoIDGoesThroughTheSelector covers the half of the
 // contract change that lands on callers who are NOT scoped tokens.

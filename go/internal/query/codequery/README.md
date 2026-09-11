@@ -18,10 +18,11 @@ surface. Exactly 40 non-test `.go` files (dirgate cap).
   readers, the contract capability matrix, and both cmd wirings.
 - `codemodel` (sibling leaf) owns the read-model builders, row
   decoders, and response shapers this family's handlers execute.
-- Language-specific queries are NOT here: `LanguageQueryHandler`
-  stays in root (this package cannot import root back without a
-  cycle) and mounts from `APIRouter.Mount` via its own `Language`
-  field. Both cmd wirings construct it with
+- Language-specific queries are NOT here: `language.Handler` lives in
+  the sibling leaf `go/internal/query/language` (root aliases it as
+  `LanguageQueryHandler`) and mounts from `APIRouter.Mount` via its own
+  `Language` field. That leaf imports this package, so this package must
+  not import it back. Both cmd wirings construct it with
   Neo4j/Content/Profile/Logger.
 - Tests that pin production Cypher bytes drive handlers over HTTP
   (`httptest` + `handleSearch`-style direct handler calls), never

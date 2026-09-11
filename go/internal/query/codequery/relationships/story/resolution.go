@@ -200,7 +200,7 @@ func ExactCandidatesPerRepository(
 //
 // It lives in the story leaf, and not beside the read it mirrors, for a gate
 // reason rather than a design one. Its twin is
-// LanguageQueryHandler.searchLanguageEntities in language_query_metadata.go,
+// language.Handler.searchLanguageEntities in language/metadata.go,
 // and the two dispatch identically.
 // scripts/verify-parser-relationship-kit.sh classifies every
 // go/internal/query/language*.go path as Language Query DSL source and fails
@@ -209,7 +209,7 @@ func ExactCandidatesPerRepository(
 // not by content, so even reducing the DSL read to a one-line call into a
 // shared helper would demand a DSL-doc update for a change the DSL contract
 // never saw. Keeping the story route's copy on this side of the line leaves
-// language_query_metadata.go byte-identical to main.
+// language/metadata.go byte-identical to main.
 //
 // The duplication that buys is real and deliberate, so it is pinned rather than
 // trusted: TestSearchEntitiesForGrantMatchesTheLanguageQueryRead drives both
@@ -253,7 +253,7 @@ func SearchEntitiesForGrant(
 	// them into a merge map by (repository, path, type, name, line) to attach
 	// metadata to rows the GRAPH returned, so narrowing the read would drop
 	// merges for every result whose name is not the query. Both are in
-	// language_query_metadata.go, where this function's byte-identical twin
+	// language/metadata.go, where this function's byte-identical twin
 	// lives; the parity test pins the two together, and editing that file also
 	// re-trips the parser-relationship-kit lane.
 	//

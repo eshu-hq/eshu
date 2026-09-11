@@ -5,6 +5,8 @@ package query
 
 import (
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestStringVal(t *testing.T) {
@@ -170,11 +172,10 @@ func contains(s, substr string) bool {
 	return len(s) >= len(substr) && searchString(s, substr)
 }
 
+// searchString forwards to querytestutil.SearchString. The implementation
+// moved there for #6642 so package language's own Cypher-text tests can
+// share the identical substring check; this wrapper keeps this package's
+// callers unchanged.
 func searchString(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
+	return querytestutil.SearchString(s, sub)
 }
