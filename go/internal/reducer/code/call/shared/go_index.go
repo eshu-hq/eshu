@@ -1,0 +1,293 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package shared
+
+import (
+	"path"
+	"strings"
+	"unicode"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// goModuleRoot pins one Go module to the repository directory it is rooted in,
+// so a file's package import path can be derived from its position under that
+// root. relativeDir is the module-root directory inside the repository (empty
+// for a repo-root module); modulePath is the declared go.mod module path.
+type goModuleRoot struct {
+	repositoryID string
+	relativeDir  string
+	modulePath   string
+}
+
+// buildGoCrossRepoExportIndex builds the durable cross-repo Go package-export
+// index. It is accuracy-first: a name resolves only when exactly one exported
+// top-level Go function exists for an import path across all repositories, and
+// the import path is anchored on a defining module's declared module path. Zero
+// or ambiguous candidates leave the name unresolvable.
+//
+// Identity is by import-path string, not module version: two ingested
+// repositories that declare the same go.mod module path (a fork or mirror) are
+// treated as one logical package. When both export the called name the result
+// is ambiguous (count > 1) and stays unresolved; when only one defines it, that
+// one resolves. This matches the per-repo resolver, which likewise has no
+// go.sum/version pinning to distinguish forks.
+func buildGoCrossRepoExportIndex(envelopes []facts.Envelope) map[string]map[string]goCrossRepoExportEntry {
+	moduleRoots := collectGoModuleRoots(envelopes)
+	if len(moduleRoots) == 0 {
+		return nil
+	}
+
+	candidates := make(map[string]map[string]map[string]goCrossRepoExportEntry)
+	for _, env := range envelopes {
+		if env.FactKind != "file" {
+			continue
+		}
+		fileData, ok := env.Payload["parsed_file_data"].(map[string]any)
+		if !ok {
+			continue
+		}
+		repositoryID := payloadcore.PayloadStr(env.Payload, "repo_id")
+		if repositoryID == "" {
+			continue
+		}
+		preferredPath := PreferredPath(payloadcore.AnyToString(fileData["path"]), payloadcore.PayloadStr(env.Payload, "relative_path"))
+		if !goSourceFile(fileData, preferredPath) {
+			continue
+		}
+		importPath := goImportPathForFile(moduleRoots, repositoryID, preferredPath)
+		if importPath == "" {
+			continue
+		}
+		recordGoExportedFunctions(candidates, fileData, repositoryID, importPath)
+	}
+
+	return finalizeGoCrossRepoExportIndex(candidates)
+}
+
+// collectGoModuleRoots extracts the module-root directory and declared module
+// path for every parsed go.mod fact, keyed per repository.
+func collectGoModuleRoots(envelopes []facts.Envelope) []goModuleRoot {
+	roots := make([]goModuleRoot, 0)
+	for _, env := range envelopes {
+		if env.FactKind != "file" {
+			continue
+		}
+		fileData, ok := env.Payload["parsed_file_data"].(map[string]any)
+		if !ok {
+			continue
+		}
+		repositoryID := payloadcore.PayloadStr(env.Payload, "repo_id")
+		if repositoryID == "" {
+			continue
+		}
+		modulePath := goModuleDeclaredPath(fileData)
+		if modulePath == "" {
+			continue
+		}
+		preferredPath := PreferredPath(payloadcore.AnyToString(fileData["path"]), payloadcore.PayloadStr(env.Payload, "relative_path"))
+		roots = append(roots, goModuleRoot{
+			repositoryID: repositoryID,
+			relativeDir:  DirectoryKey(preferredPath),
+			modulePath:   modulePath,
+		})
+	}
+	return roots
+}
+
+// goModuleDeclaredPath returns the declared module path of a parsed go.mod fact,
+// or empty when the fact is not a parsed Go module declaration.
+func goModuleDeclaredPath(fileData map[string]any) string {
+	if strings.TrimSpace(payloadcore.AnyToString(fileData["lang"])) != "gomod" {
+		return ""
+	}
+	if modulePath := strings.TrimSpace(parsedFileDataGomodModulePath(fileData)); modulePath != "" {
+		return modulePath
+	}
+	for _, row := range payloadcore.MapSlice(fileData["variables"]) {
+		if strings.TrimSpace(payloadcore.AnyToString(row["config_kind"])) != "module_declaration" {
+			continue
+		}
+		if value := strings.TrimSpace(payloadcore.AnyToString(row["value"])); value != "" {
+			return value
+		}
+		if name := strings.TrimSpace(payloadcore.AnyToString(row["name"])); name != "" {
+			return name
+		}
+	}
+	return ""
+}
+
+// goImportPathForFile resolves the Go package import path for a source file by
+// matching it to the deepest module root in its own repository that contains
+// the file. The deepest containing root wins so nested modules are honored.
+func goImportPathForFile(moduleRoots []goModuleRoot, repositoryID, filePath string) string {
+	fileDir := DirectoryKey(filePath)
+	if fileDir == "" {
+		return ""
+	}
+	best := ""
+	bestRootLen := -1
+	for _, root := range moduleRoots {
+		if root.repositoryID != repositoryID {
+			continue
+		}
+		rootDir := root.relativeDir
+		if rootDir == "." {
+			rootDir = ""
+		}
+		within, ok := goDirectoryWithin(rootDir, fileDir)
+		if !ok {
+			continue
+		}
+		if len(rootDir) <= bestRootLen {
+			continue
+		}
+		best = goImportPathJoin(root.modulePath, within)
+		bestRootLen = len(rootDir)
+	}
+	return best
+}
+
+// goDirectoryWithin reports whether fileDir is the module-root directory rootDir
+// or a subdirectory of it, returning the path of fileDir relative to rootDir.
+func goDirectoryWithin(rootDir, fileDir string) (string, bool) {
+	rootDir = NormalizePath(rootDir)
+	fileDir = NormalizePath(fileDir)
+	if rootDir == "" {
+		return fileDir, true
+	}
+	if fileDir == rootDir {
+		return "", true
+	}
+	prefix := rootDir + "/"
+	if strings.HasPrefix(fileDir, prefix) {
+		return strings.TrimPrefix(fileDir, prefix), true
+	}
+	return "", false
+}
+
+// recordGoExportedFunctions tallies every exported top-level Go function in
+// fileData under importPath. Methods (functions with a receiver or class
+// context) and unexported names are excluded from the export surface.
+func recordGoExportedFunctions(
+	candidates map[string]map[string]map[string]goCrossRepoExportEntry,
+	fileData map[string]any,
+	repositoryID string,
+	importPath string,
+) {
+	for _, item := range payloadcore.MapSlice(fileData["functions"]) {
+		if strings.TrimSpace(payloadcore.AnyToString(item["class_context"])) != "" {
+			continue
+		}
+		if strings.TrimSpace(payloadcore.AnyToString(item["receiver_type"])) != "" {
+			continue
+		}
+		name := strings.TrimSpace(payloadcore.AnyToString(item["name"]))
+		if !GoExportedName(name) {
+			continue
+		}
+		entityID := strings.TrimSpace(payloadcore.AnyToString(item["uid"]))
+		if entityID == "" {
+			continue
+		}
+		if _, ok := candidates[importPath]; !ok {
+			candidates[importPath] = make(map[string]map[string]goCrossRepoExportEntry)
+		}
+		if _, ok := candidates[importPath][name]; !ok {
+			candidates[importPath][name] = make(map[string]goCrossRepoExportEntry)
+		}
+		candidates[importPath][name][entityID] = goCrossRepoExportEntry{
+			EntityID:     entityID,
+			RepositoryID: repositoryID,
+		}
+	}
+}
+
+// finalizeGoCrossRepoExportIndex collapses the per-entity candidate tally into a
+// resolvable index. A name with exactly one distinct entity across all
+// repositories carries that entity; any name with more than one entity is kept
+// with its count so the resolver can detect ambiguity and refuse to guess.
+func finalizeGoCrossRepoExportIndex(
+	candidates map[string]map[string]map[string]goCrossRepoExportEntry,
+) map[string]map[string]goCrossRepoExportEntry {
+	if len(candidates) == 0 {
+		return nil
+	}
+	index := make(map[string]map[string]goCrossRepoExportEntry, len(candidates))
+	for importPath, names := range candidates {
+		index[importPath] = make(map[string]goCrossRepoExportEntry, len(names))
+		for name, entities := range names {
+			entry := goCrossRepoExportEntry{Count: len(entities)}
+			if len(entities) == 1 {
+				for _, only := range entities {
+					entry.EntityID = only.EntityID
+					entry.RepositoryID = only.RepositoryID
+				}
+			}
+			index[importPath][name] = entry
+		}
+	}
+	return index
+}
+
+// GoExportedName reports whether a Go identifier is exported, i.e. its first
+// rune is an uppercase letter. Unexported names are never part of the cross-repo
+// export surface.
+func GoExportedName(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	first := []rune(name)[0]
+	return unicode.IsUpper(first)
+}
+
+// goSourceFile reports whether a parsed file fact is Go source (not a go.mod
+// manifest), so only real package members feed the export index.
+func goSourceFile(fileData map[string]any, filePath string) bool {
+	if strings.TrimSpace(payloadcore.AnyToString(fileData["lang"])) == "go" {
+		return true
+	}
+	if strings.TrimSpace(payloadcore.AnyToString(fileData["lang"])) != "" {
+		return false
+	}
+	return strings.HasSuffix(strings.ToLower(NormalizePath(filePath)), ".go")
+}
+
+// goImportPathJoin joins a module path and a relative directory into a Go
+// package import path using slash semantics regardless of host separators.
+func goImportPathJoin(modulePath, relativeDir string) string {
+	relativeDir = NormalizePath(relativeDir)
+	if relativeDir == "" {
+		return modulePath
+	}
+	return path.Join(modulePath, relativeDir)
+}
+
+// addGoMethodReturnTypeCandidate records return types by repo and method name
+// so cross-repo packages do not make otherwise precise chains ambiguous.
+func addGoMethodReturnTypeCandidate(
+	candidates map[string]map[string]map[string]struct{},
+	repositoryID string,
+	item map[string]any,
+) {
+	repositoryID = strings.TrimSpace(repositoryID)
+	name := strings.TrimSpace(payloadcore.AnyToString(item["name"]))
+	receiverType := strings.TrimSpace(payloadcore.AnyToString(item["class_context"]))
+	returnType := strings.TrimSpace(payloadcore.AnyToString(item["return_type"]))
+	if repositoryID == "" || name == "" || receiverType == "" || returnType == "" {
+		return
+	}
+	if _, ok := candidates[repositoryID]; !ok {
+		candidates[repositoryID] = make(map[string]map[string]struct{})
+	}
+	key := receiverType + "." + name
+	if _, ok := candidates[repositoryID][key]; !ok {
+		candidates[repositoryID][key] = make(map[string]struct{})
+	}
+	candidates[repositoryID][key][returnType] = struct{}{}
+}
