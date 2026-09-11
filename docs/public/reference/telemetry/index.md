@@ -864,7 +864,7 @@ Verified by `TestRecordSharedProjectionPartitionMetrics_HistogramAndCounter`
 (emission and label correctness), `TestRecordSharedProjectionPartitionMetrics_SkipsZeroDuration`
 (no spurious zero-bucket emission), and
 `TestRecordSharedProjectionPartitionMetrics_CardinalityBounded`
-(forbidden label discipline) in `go/internal/reducer/shared_projection_runner_test.go`.
+(forbidden label discipline) in `go/internal/reducer/intents/shared/worker/telemetry_test.go`.
 
 No-Regression Evidence: both instruments record via two concurrency-safe OTEL
 calls (`Float64Histogram.Record`, `Int64Counter.Add`) inside the existing

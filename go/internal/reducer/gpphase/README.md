@@ -117,9 +117,12 @@ alias per constant — and thin forwarder functions for
 `publishEndpointPresence`, `publishIntentGraphPhaseWithRepair`,
 `publishGraphProjectionPhaseStatesWithRepair`,
 `GraphProjectionPhaseRepairsFromStates`, `apiEndpointRepoPathPresenceKey`,
-`handlesRouteEndpointPresenceKey`, `repoWorkloadPresenceKey`,
-`runsInRepoWorkloadPresenceKey`, and `workloadMaterializationRepoReadinessKey`
+`repoWorkloadPresenceKey`, and `workloadMaterializationRepoReadinessKey`
 — so every existing caller reaches these through the root unchanged.
+`HandlesRouteEndpointPresenceKey` and `RunsInRepoWorkloadPresenceKey` have no
+root forwarder: their only root caller (the symbol→runtime presence gate)
+moved to `internal/reducer/intents/shared/worker` in issue #6061's H5, and
+worker calls both directly.
 
 ## Dependencies
 

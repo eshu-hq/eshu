@@ -91,8 +91,12 @@ func publishAPIEndpointRepoPathPresence(
 	)
 }
 
-// handlesRouteEndpointPresenceKey and filterRowsByTargetPresence moved to
-// [worker] (issue #6061): the symbol→runtime presence gate that called them
-// (symbolRuntimePresenceGate, filterRowsByReadiness) moved there in H5, and
-// worker now calls [gpphase.HandlesRouteEndpointPresenceKey] and its own
+// handlesRouteEndpointPresenceKey (issue #6061's H3) already lived at
+// [gpphase.HandlesRouteEndpointPresenceKey]; this file kept only a thin root
+// forwarder under the old name. filterRowsByTargetPresence stayed here until
+// H5. Both this forwarder and filterRowsByTargetPresence were deleted in H5:
+// their only caller, the symbol→runtime presence gate
+// (symbolRuntimePresenceGate, filterRowsByReadiness), moved to
+// internal/reducer/intents/shared/worker, and worker calls
+// [gpphase.HandlesRouteEndpointPresenceKey] and its own local
 // filterRowsByTargetPresence directly instead of through a root forwarder.

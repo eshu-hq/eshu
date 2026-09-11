@@ -77,8 +77,9 @@ func publishRepoWorkloadPresence(
 	)
 }
 
-// runsInRepoWorkloadPresenceKey moved to [worker] (issue #6061): the
-// symbol→runtime presence gate that called it (symbolRuntimePresenceGate)
-// moved there in H5, and worker now calls
-// [gpphase.RunsInRepoWorkloadPresenceKey] directly instead of through a root
-// forwarder.
+// runsInRepoWorkloadPresenceKey (issue #6061's H3) already lived at
+// [gpphase.RunsInRepoWorkloadPresenceKey]; this file kept only a thin root
+// forwarder under the old name. That forwarder was deleted in H5: its only
+// caller, the symbol→runtime presence gate (symbolRuntimePresenceGate),
+// moved to internal/reducer/intents/shared/worker, and worker calls
+// [gpphase.RunsInRepoWorkloadPresenceKey] directly instead.

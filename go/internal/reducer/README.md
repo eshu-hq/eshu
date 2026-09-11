@@ -188,8 +188,10 @@ Core interfaces:
 - `BatchWorkSource`, `BatchWorkSink` — `service.go:43–51`
 - `Handler`, `HandlerFunc` — `registry.go:70–78`
 - `GraphProjectionPhasePublisher` — `graph_projection_phase.go:117`
-- `GraphProjectionPhaseRepairQueue` — `graph_projection_phase_repair.go:36`
-- `GraphProjectionPhaseStateLookup` — `graph_projection_phase_repair_runner.go:25`
+- `GraphProjectionPhaseRepairQueue` (alias of `gpphase.PhaseRepairQueue`) —
+  `graph_projection_phase_repair.go`
+- `StateLookup` (`internal/reducer/intents/phase/repair`, no root alias) —
+  `intents/phase/repair/runner.go`
 
 Exported constants:
 

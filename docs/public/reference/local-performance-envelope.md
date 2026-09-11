@@ -412,7 +412,7 @@ path would have, and same-key fencing across the hashed and unhashed lanes
 deduplicates by intent id.
 
 No-Regression Evidence: focused TDD proof in
-`go/internal/reducer/shared_projection_partition_candidate_test.go`. The new
+`go/internal/reducer/intents/shared/worker/partition_candidate_test.go`. The new
 tests first failed on `main` and pass after the selector change:
 `TestSelectPartitionBatchUsesIndexedPartitionCandidatesWhenReaderSupportsIt`
 (indexed predicate is used, the in-memory domain scan is not called),

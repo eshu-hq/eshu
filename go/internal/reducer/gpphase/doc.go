@@ -116,7 +116,10 @@
 // publishIntentGraphPhaseWithRepair,
 // publishGraphProjectionPhaseStatesWithRepair,
 // GraphProjectionPhaseRepairsFromStates, apiEndpointRepoPathPresenceKey,
-// handlesRouteEndpointPresenceKey, repoWorkloadPresenceKey,
-// runsInRepoWorkloadPresenceKey, and workloadMaterializationRepoReadinessKey
-// — so no caller changed when any of this moved.
+// repoWorkloadPresenceKey, and workloadMaterializationRepoReadinessKey — so
+// no caller changed when any of this moved. HandlesRouteEndpointPresenceKey
+// and RunsInRepoWorkloadPresenceKey have no root forwarder: their only root
+// caller (the symbolRuntimePresenceGate that fed the second presence gate)
+// moved to internal/reducer/intents/shared/worker in issue #6061's H5, and
+// worker calls both directly.
 package gpphase
