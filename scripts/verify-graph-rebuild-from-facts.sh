@@ -224,8 +224,19 @@ wait_for_service_exit() {
 # when they finally drained. Every one of those edges would have been reported
 # as missing.
 queue_active_count() {
+	# A `retrying` row with a future next_attempt_at is scheduled work, not
+	# finished work: fail-closed deferrals (e.g. deployable-unit correlation
+	# waiting for its relationship generation to activate, #6184) park here
+	# until an upstream phase lands, then run again. Counting only
+	# pending/claimed/running declares the queue drained while those retries
+	# are still in flight and fails the residual check on rows that would
+	# converge once visible. A retrying row whose next attempt is already due
+	# is picked up on the next worker poll, which the double-check below
+	# covers; a NULL next_attempt_at waits on the deadline rather than
+	# failing fast on an unknown schedule.
 	psql_scalar "SELECT
-	    (SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running'))
+	    (SELECT count(*) FROM fact_work_items WHERE status IN ('pending','claimed','running')
+	      OR (status = 'retrying' AND (next_attempt_at IS NULL OR next_attempt_at > now())))
 	  + (SELECT count(*) FROM shared_projection_intents WHERE completed_at IS NULL);"
 }
 
