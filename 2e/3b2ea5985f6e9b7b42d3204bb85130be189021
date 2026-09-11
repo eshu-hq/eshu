@@ -1,0 +1,159 @@
+.github/workflows/ifa-determinism-gate.yml
+  s_4a0f86aa680964::t_b01aa874f1109b 716,719,725-728,730-732,734,737-738,740,745,750-752
+  s_e8ab01ccdfa8e2::t_a9a980d4e644f9 717,724
+  s_4a0f86aa680964::t_83ffd88eb8acf7 671-672,718,720-722
+  s_4a0f86aa680964::t_244215a836ce01 723
+  s_4a0f86aa680964::t_f6221f5e0dae88 735-736,741
+  s_4a0f86aa680964::t_2b78502a892a35 749
+  s_4a0f86aa680964::t_2b4a7609a31c3a 318
+  s_4a0f86aa680964::t_1d33022a8a7ece 739,742,746-747,756
+  s_4a0f86aa680964::t_10c911bf15d7ca 748
+  s_4a0f86aa680964::t_26ca7d3ca5737f 670
+  s_4a0f86aa680964::t_04eb70b2a8f0c1 733
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_shapes_test.go
+  s_4a0f86aa680964::t_d20b711e2dd687 7-8,12-18,23-24,26-38,43-49,116-119,124-129,143-150,154-156,181
+  s_4a0f86aa680964::t_9cc4eb2473afcf 50-52,115
+  s_76eb48722aa6e6::t_86d964595537a6 182
+  s_4a0f86aa680964::t_f07685bba98338 98-101,139,171,173
+  s_4a0f86aa680964::t_8a6ae7d98311a8 19-22,77-93,141,165,167
+  s_4a0f86aa680964::t_820e53d50b3d7e 53-62,130,142,157-161
+  s_4a0f86aa680964::t_9840bc771ba192 63-76,94-97,102-114,132-138,140,162-164,168,170,174,177-180
+  s_4a0f86aa680964::t_7009972d2b0b07 120-123
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_test.go
+  s_4a0f86aa680964::t_b396176ddcba39 39,143,145,147,149-153
+  s_4a0f86aa680964::t_bf97d6e932f258 146
+  s_4a0f86aa680964::t_1e54e33748d9f8 43-44
+  s_4a0f86aa680964::t_8ee236173cef1f 37-38,48-49
+  s_4a0f86aa680964::t_89b833c9c41bb1 34-36,64-76,79,84,87-88,90-100
+  s_4a0f86aa680964::t_f007ea8b552f4b 78,80-82
+  s_4a0f86aa680964::t_3ffb9643ac4653 77,83,86,116,131,141
+  s_4a0f86aa680964::t_256a7ce8b3ac3c 89
+  s_4a0f86aa680964::t_f9ad8be51b4811 103-107
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_types_test.go
+  s_4a0f86aa680964::t_627621899e8567 205-218,220-221,222-224,231-250,251-253,263,265-268
+  s_4a0f86aa680964::t_57d16c98be15eb 351
+  s_4a0f86aa680964::t_64b7f0f42df797 400
+  s_4a0f86aa680964::t_cb249d7c0d3489 324-328,330-339,398-399,401
+  s_4a0f86aa680964::t_a0245935ccc1a6 28-36,38,161-163,170-179
+  s_4a0f86aa680964::t_64d82f09ad411c 1-27,37,39-134,140-160,164-169,180-204
+  s_4a0f86aa680964::t_3194abdeaa25e4 357-363
+  s_4a0f86aa680964::t_b8bf8861986a8e 269,270-290
+  s_4a0f86aa680964::t_5318b34e778d32 291-298,300-312,314-320,322-323
+  s_4a0f86aa680964::t_d9cabe5f554072 340,383,386-387,391-393,395-397
+  s_4a0f86aa680964::t_9ad494bcbef7c8 341-350,352-356
+  s_4a0f86aa680964::t_338fdd13e071c5 364-382
+  s_4a0f86aa680964::t_fe0e21aecc8928 394
+go/go.mod
+  s_4a0f86aa680964::t_f690a99f02213b 211
+go/internal/ifa/materializededges/materialized_edges_port_census_test.go
+  s_4a0f86aa680964::t_06a1d179cb0106 15,17-21,24,27,31,39-40,42,44,46-52,56-58
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_calls_test.go
+  s_4a0f86aa680964::t_7ee805354e2e1a 12-13
+  s_4a0f86aa680964::t_180e269bd15d55 1-11,14-53,55,57-65,83-245
+  s_4a0f86aa680964::t_e3a1c534381190 54,56,66-82
+go/internal/ifa/materializededges/materialized_edges_direct_family_blindness_test.go
+  s_4a0f86aa680964::t_d44d5946b8534e 79
+  s_4a0f86aa680964::t_cb38a9040caef5 106,108-109
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_roots_test.go
+  s_4a0f86aa680964::t_bc377cb27b38a6 1-91
+go/internal/reducer/materialized_edge_families.go
+  s_4a0f86aa680964::t_2eca6cd9931bcd 179,181-194
+scripts/test-verify-ifa-fault-injection.sh
+  s_4a0f86aa680964::t_817269d0ef1a6a 84,405-406
+specs/ci-gates.v1.yaml
+  s_4a0f86aa680964::t_2b4a7609a31c3a 3354
+go/internal/storage/cypher/README.md
+  s_4a0f86aa680964::t_206711639495ad 4-6
+docs/internal/ifa-fault-cell-catalog.md
+  s_4a0f86aa680964::t_4b9b21232009ef 37,40-41
+  s_4a0f86aa680964::t_c65403eb021f86 38-39
+scripts/lib/ifa_fault_injection_sources.sh
+  s_4a0f86aa680964::t_b01aa874f1109b 9-10
+scripts/lib/test-ifa-fault-injection-diagnostics-cases.sh
+  s_4a0f86aa680964::t_cc7fc4ee429dd7 193,407-410
+  s_4a0f86aa680964::t_bffa59c8fed2ca 70-91,93-117,423
+  s_4a0f86aa680964::t_df16c287f2db00 118-170,424-425
+  s_4a0f86aa680964::t_56d279cf43b1f3 51-69,422
+  s_4a0f86aa680964::t_2b78502a892a35 219-225,227-239,405-406,411-413,429
+  s_4a0f86aa680964::t_29a278d588dc11 171-172,176-178,180-192,194-216
+  s_4a0f86aa680964::t_8ee56e1e46a3d0 354,357,361-362,371-379,381-382,384-385,401,426-428
+  s_4a0f86aa680964::t_817269d0ef1a6a 1-50,339-344,346-347,349,352-353,364,367-370,383,388-389,391,418-421,433-434
+  s_4a0f86aa680964::t_10c911bf15d7ca 363
+  s_4a0f86aa680964::t_e3ba605fdaf5b6 365-366,380
+  s_4a0f86aa680964::t_f41392d5ff0817 226,247,269-338,392-398,414-417,431-432
+  s_4a0f86aa680964::t_ac640d9a7fb02d 350-351,355-356,360,390,399-400,402
+  s_4a0f86aa680964::t_50da5801dfa164 240-246,251-262,267-268,430
+  s_4a0f86aa680964::t_ab713269c2bd37 173-175,179,217-218
+  s_4a0f86aa680964::t_a90aae981fe563 348,386-387
+scripts/lib/ifa_fault_injection_diagnostics.sh
+  s_4a0f86aa680964::t_be4313fea37dcc 12,14,27-31,35
+  s_4a0f86aa680964::t_cc7fc4ee429dd7 44-46,57-58,60-70,100,102,256
+  s_4a0f86aa680964::t_e81fdac1a0bb69 149-151
+  s_4a0f86aa680964::t_04eb70b2a8f0c1 129-145,147-148,153-170,197,207-208,212-215,217
+  s_4a0f86aa680964::t_45f42aaa550b16 114,116-122,125,216,218-219
+  s_4a0f86aa680964::t_a0044d8c354d3a 152,173-190
+  s_4a0f86aa680964::t_dcd9d2fc74c89f 171-172
+  s_4a0f86aa680964::t_03a917566f217a 223
+  s_4a0f86aa680964::t_caa2cd9adc32e2 1-11,13,15-26,32-34,36-43,95-99,101,103-113,115,123-124,126-128,191-196,201,203-206,209-211,221-222,224-238,252-255,257-262,280-303
+  s_4a0f86aa680964::t_a904ccf411a177 198,220
+go/internal/storage/cypher/fault-injection-restart-evidence.md
+  s_4a0f86aa680964::t_238bfa04858505 1-17
+  s_4a0f86aa680964::t_a90aae981fe563 18
+go/internal/storage/cypher/fault_executor_restart_record_test.go
+  s_4a0f86aa680964::t_c04978e1572a5c 14,120-139
+  s_4a0f86aa680964::t_a9c6a757289df5 1-8,10-13,15-20,32-34,38-42,44-46,52-59,70-71,73-75,76-83,86-104,106-107,140-155
+go/internal/storage/cypher/fault_executor_marker.go
+  s_4a0f86aa680964::t_c032a23342b24c 137,146-237
+  s_4a0f86aa680964::t_a1d60b2229cd85 9-10,13,15-17
+  s_4a0f86aa680964::t_7719cbf69bcfb6 102-136,138-145
+scripts/lib/ifa_fault_shard.sh
+  s_4a0f86aa680964::t_10c911bf15d7ca 5-6
+  s_4a0f86aa680964::t_983132e9f3ee53 337
+scripts/lib/ifa_fault_injection_cells.sh
+  s_4a0f86aa680964::t_b01aa874f1109b 200-201
+go/internal/storage/cypher/fault_executor.go
+  s_4a0f86aa680964::t_7bc7a56f8b86cd 266-271,290-295
+scripts/verify-ifa-fault-injection.sh
+  s_4a0f86aa680964::t_464a2b7e7aedc3 231-232,234-235
+  s_4a0f86aa680964::t_4026c5d55eccf2 19-20
+  s_4a0f86aa680964::t_b01aa874f1109b 230,236
+  s_4a0f86aa680964::t_04eb70b2a8f0c1 233
+scripts/lib/ifa_fault_injection_driver.sh
+  s_4a0f86aa680964::t_b01aa874f1109b 185-186,193-195
+docs/public/reference/ci-gates.md
+  s_4a0f86aa680964::t_30467bf37eb2d2 110
+scripts/test-verify-moved-file-refs.sh
+  s_4a0f86aa680964::t_4c315ce3d21540 16-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2e3b2ea5985f6e9b7b42d3204bb85130be189021",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_76eb48722aa6e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c63352b-88be-4713-bba6-7be0c462d10d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}
