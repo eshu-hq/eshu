@@ -1,0 +1,93 @@
+go/internal/query/repository/readmodel/list_page.go
+  s_3aca14dc64f2a1::t_9573bcdc800ea4 4,14-16,19,24-25,27,29-30,36-37,39,42,47,58
+go/internal/query/repositoryartifacts/AGENTS.md
+  s_3aca14dc64f2a1::t_7a28ed6ddd66c1 12
+go/internal/query/repository/repository_tree.go
+  s_3aca14dc64f2a1::t_3940669ee29287 15
+go/internal/query/repository/README.md
+  s_3aca14dc64f2a1::t_fbb982f9f0c78e 58
+  s_3aca14dc64f2a1::t_45e8314f9cddd5 27-28
+go/internal/query/impacttrace/deployment_trace_enrichment_support.go
+  s_3aca14dc64f2a1::t_d8a0c2bc823bb2 12
+  s_3aca14dc64f2a1::t_ce0de2906ee2bd 110
+go/internal/query/repository/repository.go
+  s_3aca14dc64f2a1::t_b1b0419b14402d 14
+  s_3aca14dc64f2a1::t_3563db239666d6 135
+go/internal/query/repository/repository_content.go
+  s_3aca14dc64f2a1::t_5cb7b8a832656e 14
+go/internal/query/repository/repository_stats_limits.go
+  s_3aca14dc64f2a1::t_2bb462297d9879 122,126-127
+  s_3aca14dc64f2a1::t_9ba27d9a4e5a62 10
+  s_3aca14dc64f2a1::t_b4264200c3cec6 91
+go/internal/query/repositoryartifacts/README.md
+  s_3aca14dc64f2a1::t_10ddedba4588f8 18
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_3aca14dc64f2a1::t_3d2704bd5016b4 530
+  s_3aca14dc64f2a1::t_e7fddce97b6e4d 482
+go/internal/query/repository/readmodel/AGENTS.md
+  s_3aca14dc64f2a1::t_6fe0fb4edbbf34 1,6-7,10-30,34-36,39-51,55-69
+go/internal/query/repository/repository_branches.go
+  s_3aca14dc64f2a1::t_eac19dd2841efd 12
+  s_3aca14dc64f2a1::t_c528a99ac08774 67
+  s_3aca14dc64f2a1::t_3d85998f0e1541 35,39
+  s_3aca14dc64f2a1::t_2e483b25b2fe0f 74,76,80-81,83
+  s_3aca14dc64f2a1::t_4ee5d61b2764eb 94
+go/internal/query/repository/repository_language_inventory.go
+  s_3aca14dc64f2a1::t_cda783ae6fc05f 163,188,203,218
+  s_3aca14dc64f2a1::t_320320570444a5 12
+go/internal/query/repository/readmodel/refs.go
+  s_3aca14dc64f2a1::t_278d6ff5297e2f 4,13,16,22,33,42,45,78
+go/internal/query/repository/AGENTS.md
+  s_3aca14dc64f2a1::t_87ece1df2ce6c0 16
+go/internal/query/repository/readmodel/README.md
+  s_3aca14dc64f2a1::t_7c47865eb13d0a 5-25,31-35,45-96,104-106
+go/internal/query/repository/doc.go
+  s_3aca14dc64f2a1::t_3197f5dc0de832 15
+go/internal/query/repository/readmodel/refs_page.go
+  s_3aca14dc64f2a1::t_48706a79d440b4 4,15,19,21-22,24,37,39,47,50,60-61,76-77,85,97,99-101,107,113,129,133,144,147,162,166,172,174,180,183
+go/internal/query/repository/repository_branches_paging_test.go
+  s_3aca14dc64f2a1::t_bdce9b5a3069d6 329
+  s_3aca14dc64f2a1::t_dd335168c003d1 279
+  s_3aca14dc64f2a1::t_ebb7c2ff20cec0 284
+  s_3aca14dc64f2a1::t_f8e75b1deb4318 114
+  s_3aca14dc64f2a1::t_625e86d9e6de54 319
+  s_3aca14dc64f2a1::t_aa402dc22a9236 282
+  s_3aca14dc64f2a1::t_d8be9da3233760 16
+  s_3aca14dc64f2a1::t_7a937407846c35 98
+go/internal/query/repository/readmodel/doc.go
+  s_3aca14dc64f2a1::t_09e3149c10122d 4-10
+go/internal/query/repository/readmodel/name_lookup.go
+  s_3aca14dc64f2a1::t_9ebd9e6f842ff4 4
+go/internal/cli/reposelector/README.md
+  s_e8ab01ccdfa8e2::t_2cb6a8b981461a 81
+go/internal/query/evidence-notes.md
+  s_e8ab01ccdfa8e2::t_3ddb07e13e1f72 465
+go/internal/query/repository/catalog_test.go
+  s_e8ab01ccdfa8e2::t_3f2bace6f57a0e 336
+go/internal/query/repository/catalog_workload_environments.go
+  s_e8ab01ccdfa8e2::t_c68aeaedb1cf3a 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2931ffbe54aef9cbc849288a66b02e71cc453a7e",
+  "prompts": {},
+  "sessions": {
+    "s_3aca14dc64f2a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3b79176-f458-4831-a5d8-71892df9434c",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
