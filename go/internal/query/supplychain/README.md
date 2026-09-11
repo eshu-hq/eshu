@@ -140,6 +140,6 @@ package qualifier moved.
 
 ## Related docs
 
-- [HTTP API Reference](../../../../../docs/public/reference/http-api.md)
-- [Telemetry](../../../../../docs/public/reference/telemetry/index.md)
-- [Architecture](../../../../../docs/public/architecture.md)
+- [HTTP API Reference](../../../../docs/public/reference/http-api.md)
+- [Telemetry](../../../../docs/public/reference/telemetry/index.md)
+- [Architecture](../../../../docs/public/architecture.md)
