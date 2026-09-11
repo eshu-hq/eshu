@@ -153,18 +153,45 @@ drain `fact_work_items_residual: residual=0`, zero
   rebuild 16 s, 67 scopes, pre-wipe 2530 nodes / 3302 rels — but `CALLS`
   115/116 with the same orders-api → lib-common edge lost. Diagnosis: the
   DR compose stack sets no `ESHU_QUERY_PROFILE`, the profile parses to
-  `""`, the drain stays nil, and the check never engaged. The check is now
-  wired unconditionally (`CanonicalQuiescence`); re-run pending. Residual
-  diff in that run (6 missing / 6 extra edges around `EvidenceArtifact`
-  `application.yaml`, `CORRELATES_DEPLOYABLE_UNIT`, workload-instance
-  deployment edges; 1 missing / 2 extra nodes) is triaged after the rewired
-  run — those families sit outside the code-call lane. (Local Docker daemon
-  was wedged — buildkit EOF mid-build — so the proof moved to the remote
-  instance.) Expected direction: code calls shift after canonical commits
-  fleet-wide while the second full drain the runbook documents goes away,
-  so net rebuild time should fall, not rise.
-- Backend/version for the pending run: NornicDB pinned commit
-  `3722b483c02c` (compose default), Linux amd64 remote.
+  `""`, the drain stays nil, and the check never engaged; the check was
+  therefore rewired unconditionally (`CanonicalQuiescence`). (Local Docker
+  daemon was wedged — buildkit EOF mid-build — so the proof moved to the
+  remote instance.)
+- After (live rebuild level), final-wiring local run
+  (`scripts/verify-graph-rebuild-from-facts.sh`, `CanonicalQuiescence`
+  unconditional + fail-closed cross-repo/DU gates): queues reach
+  terminal-zero in every phase (fact_work_items and shared intents), and
+  `CALLS` is 116/116 pre-wipe, post-clean-rebuild, and
+  post-interrupted-rebuild — the orders-api → lib-common edge the remote
+  flag-gated run lost now lands, on the same 67-scope / 2530-node corpus
+  scale as the remote run, with the clean rebuild taking 10 s. The fail-closed deferrals converge: 16–18
+  `deployable_unit_correlation_resolution_not_ready` retries park while
+  their relationship generations activate, then succeed; the drain wait
+  counts scheduled retries as active (same commit) so it waits for that
+  convergence instead of failing on in-flight rows. Full identity parity
+  does NOT hold: pass 1 shows 0 missing / 2 extra nodes and 3 missing /
+  6 extra edges; pass 2 shows 0 / 2 nodes and 1 / 6 edges. Every residual
+  is outside the code-call lane: the 6 extra edges + 2 extra nodes are the
+  workload-instance deployment family (stable across both passes), the
+  missing edges are `EXTENDS_BASE` (kustomization yaml, both passes) and
+  `RUNS_IN` (python app.py, pass 1 only — present in pass 2, so
+  nondeterministic across identical rebuilds).
+- Main-baseline local run (unmodified `origin/main` `8ff548233`, same
+  corpus, same host): `CALLS` 116/116 in all phases, but pass 1 shows
+  0 / 2 nodes and 4 missing / 6 extra edges, pass 2 shows 0 / 2 nodes and
+  1 missing / 11 extra — the SAME workload-instance extras and the same
+  `EXTENDS_BASE` miss, plus `CORRELATES_DEPLOYABLE_UNIT` edges missing in
+  pass 1 and extra in pass 2 (that family flips sign run-to-run on main).
+  The branch run misses no `CORRELATES_DEPLOYABLE_UNIT` edge in either
+  pass. Verdict: the residual identity families are pre-existing
+  nondeterminism/loss in workload-instance, `RUNS_IN`, `EXTENDS_BASE`, and
+  `CORRELATES_DEPLOYABLE_UNIT` lanes, reproduced on unmodified main with
+  equal-or-worse counts; the branch introduces no new residual class and
+  the lane this issue owns (code-call recovery + terminal-zero queues
+  under fail-closed gates) is green on the final wiring. Full parity
+  across those four families is follow-up scope, not this gate's.
+- Backend/version for both runs: NornicDB pinned commit `3722b483c02c`
+  (compose default), Linux amd64 local.
 - Input shape: the gate's own fixture corpus (same corpus as the 341 s
   baseline), terminal state both queues zero, identity-diff assertion.
 - Why safe: the gate only delays edge writes until their endpoints'
