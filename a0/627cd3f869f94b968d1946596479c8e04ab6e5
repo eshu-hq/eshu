@@ -1,0 +1,23 @@
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_roots_test.go
+  s_4a0f86aa680964::t_2ed45c8c62c088 12,29,60-64,93-99,112
+  s_4a0f86aa680964::t_a7e32c0ec0bc63 100-105,107-109,111
+  s_4a0f86aa680964::t_2d976b3de388d1 87-91
+go/internal/ifa/materializededges/materialized_edges_direct_family_scan_types_test.go
+  s_4a0f86aa680964::t_2d976b3de388d1 161,172-186
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a0627cd3f869f94b968d1946596479c8e04ab6e5",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
