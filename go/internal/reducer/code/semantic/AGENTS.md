@@ -30,7 +30,7 @@ signal about where the symbol belongs, not a reason to reach upward:
   `GraphProjectionPhaseRepairQueue` alias `gpphase.PhaseRepair`/
   `gpphase.PhaseRepairQueue` as of issue #6061's H3) gets a structurally
   identical local declaration in `graph_ports.go`, following the pattern
-  `codetaint/graph_ports.go` established. Copy a function body byte-for-byte
+  `code/taint/graph_ports.go` established. Copy a function body byte-for-byte
   if you must copy at all — never re-derive it from memory. Unlike
   codetaint's ports, `GraphProjectionPhaseRepairQueue.Enqueue` takes a named
   struct parameter, so Go's exact-type-identity rule means neither the

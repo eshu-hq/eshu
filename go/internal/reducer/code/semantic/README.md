@@ -163,7 +163,7 @@ are the same before and after the move.
   shared-tier package (call the shared-tier function directly) or genuinely
   root-owned logic shared with families that have not moved yet (declare a
   structurally identical local port in `graph_ports.go`, following the
-  pattern `codetaint/graph_ports.go` established).
+  pattern `code/taint/graph_ports.go` established).
 - **`payloadMap`, `semanticPayloadString`, `semanticPayloadStringSlice`,
   `semanticQualifyDeltaPath`, `semanticDeltaPayloadBool`,
   `deltaScopeRepositorySet`, and `applyRepoRefreshDeltaScope` are not here.**
