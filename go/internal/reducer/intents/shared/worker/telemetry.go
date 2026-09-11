@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-func (r *SharedProjectionRunner) recordSharedProjectionTiming(
+func (r *Runner) recordSharedProjectionTiming(
 	ctx context.Context,
 	domain string,
 	result PartitionProcessResult,
@@ -50,10 +50,10 @@ func (r *SharedProjectionRunner) recordSharedProjectionTiming(
 			),
 		)
 	}
-	RecordSharedProjectionStepDurations(ctx, r.Instruments, domain, result)
+	RecordStepDurations(ctx, r.Instruments, domain, result)
 }
 
-func (r *SharedProjectionRunner) recordSharedProjectionCycle(
+func (r *Runner) recordSharedProjectionCycle(
 	ctx context.Context,
 	domain string,
 	duration float64,
@@ -102,7 +102,7 @@ func (r *SharedProjectionRunner) recordSharedProjectionCycle(
 // Called on every successful processPartitionWithTelemetry cycle, including
 // cycles that acquired the lease but found no work (zero ProcessedIntents)
 // so the histogram captures idle partition cost too.
-func (r *SharedProjectionRunner) recordSharedProjectionPartitionMetrics(
+func (r *Runner) recordSharedProjectionPartitionMetrics(
 	ctx context.Context,
 	domain string,
 	partitionID int,
@@ -133,11 +133,11 @@ func (r *SharedProjectionRunner) recordSharedProjectionPartitionMetrics(
 	}
 }
 
-// RecordSharedProjectionStepDurations is the root spelling of the
+// RecordStepDurations is the root spelling of the
 // shared-projection per-step (retract/write/mark_completed) duration
 // recorder that the code-call projection runner also calls (moved here from
 // the reducer root's recordSharedProjectionStepDurations, issue #6061).
-func RecordSharedProjectionStepDurations(
+func RecordStepDurations(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
 	domain string,

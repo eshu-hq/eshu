@@ -17,8 +17,8 @@ import (
 
 const maxSharedSelectionScanLimit = 10_000
 
-// SharedIntentReader reads and marks shared projection intents.
-type SharedIntentReader interface {
+// IntentReader reads and marks shared projection intents.
+type IntentReader interface {
 	ListPendingDomainIntents(ctx context.Context, domain string, limit int) ([]sharedintent.Row, error)
 	MarkIntentsCompleted(ctx context.Context, intentIDs []string, completedAt time.Time) error
 }
@@ -116,7 +116,7 @@ type PartitionProcessResult struct {
 // latest per repo/partition pair.
 func SelectPartitionBatch(
 	ctx context.Context,
-	reader SharedIntentReader,
+	reader IntentReader,
 	domain string,
 	partitionID, partitionCount int,
 	batchLimit int,
@@ -134,7 +134,7 @@ func SelectPartitionBatch(
 	// rows, so the scan never dilutes across partitions and cannot starve at the
 	// scan cap. Readers without the candidate interface keep the in-memory
 	// domain scan with its widen-and-cap behavior unchanged.
-	_, indexed := reader.(SharedProjectionPartitionCandidateReader)
+	_, indexed := reader.(PartitionCandidateReader)
 
 	scanLimit := batchLimit * max(partitionCount, 1) * 2
 	if scanLimit > maxSharedSelectionScanLimit {
@@ -242,14 +242,14 @@ func ProcessPartitionOnce(
 	now time.Time,
 	cfg PartitionProcessorConfig,
 	leaseManager sharedintent.PartitionLeaseManager,
-	reader SharedIntentReader,
+	reader IntentReader,
 	edgeWriter sharedintent.EdgeWriter,
 	acceptedGen sharedintent.AcceptedGenerationLookup,
 	prefetch sharedintent.AcceptedGenerationPrefetch,
 	readinessLookup gpphase.ReadinessLookup,
 	readinessPrefetch gpphase.ReadinessPrefetch,
 	endpointPresence gpphase.EndpointPresenceLookup,
-	refreshFence SharedProjectionRefreshFenceLookup,
+	refreshFence RefreshFenceLookup,
 	firstProjection FirstProjectionLookup,
 	unroutableWriter UnroutableWriter,
 ) (result PartitionProcessResult, retErr error) {
@@ -324,7 +324,7 @@ func ProcessPartitionOnce(
 		return PartitionProcessResult{
 			LeaseAcquired:               true,
 			BlockedReadiness:            batch.BlockedCount,
-			MaxBlockedIntentWaitSeconds: MaxSharedIntentWaitSeconds(now, batch.BlockedRows),
+			MaxBlockedIntentWaitSeconds: MaxIntentWaitSeconds(now, batch.BlockedRows),
 			LeaseClaimDurationSeconds:   leaseDuration,
 			SelectionDurationSeconds:    selectionDuration,
 			IndexedSelection:            batch.IndexedSelection,
@@ -393,8 +393,8 @@ func ProcessPartitionOnce(
 		StaleIntents:                 len(batch.StaleIDs),
 		BlockedReadiness:             batch.BlockedCount + deferred,
 		RefreshFenceDeferred:         deferred,
-		MaxIntentWaitSeconds:         MaxSharedIntentWaitSeconds(now, batch.LatestRows),
-		MaxBlockedIntentWaitSeconds:  MaxSharedIntentWaitSeconds(now, batch.BlockedRows),
+		MaxIntentWaitSeconds:         MaxIntentWaitSeconds(now, batch.LatestRows),
+		MaxBlockedIntentWaitSeconds:  MaxIntentWaitSeconds(now, batch.BlockedRows),
 		LeaseClaimDurationSeconds:    leaseDuration,
 		SelectionDurationSeconds:     selectionDuration,
 		ProcessingDurationSeconds:    processingDuration,

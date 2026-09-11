@@ -22,7 +22,7 @@ func filterRowsByReadiness(
 	return worker.FilterRowsByReadiness(ctx, domain, rows, readinessLookup, readinessPrefetch, endpointPresence)
 }
 
-// maxSharedIntentWaitSeconds forwards to [worker.MaxSharedIntentWaitSeconds].
+// maxSharedIntentWaitSeconds forwards to [worker.MaxIntentWaitSeconds].
 func maxSharedIntentWaitSeconds(now time.Time, rows []SharedProjectionIntentRow) float64 {
-	return worker.MaxSharedIntentWaitSeconds(now, rows)
+	return worker.MaxIntentWaitSeconds(now, rows)
 }

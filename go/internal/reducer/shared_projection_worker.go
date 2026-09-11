@@ -24,8 +24,8 @@ type SharedProjectionEdgeWriter = sharedintent.EdgeWriter
 // [sharedintent.PartitionLeaseManager].
 type PartitionLeaseManager = sharedintent.PartitionLeaseManager
 
-// SharedIntentReader is the root spelling of [worker.SharedIntentReader].
-type SharedIntentReader = worker.SharedIntentReader
+// SharedIntentReader is the root spelling of [worker.IntentReader].
+type SharedIntentReader = worker.IntentReader
 
 // AcceptedGenerationLookup is the root spelling of
 // [sharedintent.AcceptedGenerationLookup].

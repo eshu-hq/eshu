@@ -74,13 +74,13 @@ func TestSharedProjectionRunnerPassesRationaleEvidenceSourceToRetractAndWrite(t 
 		CreatedAt: time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC),
 	}}}
 	edges := &rationaleEvidenceCapturingWriter{}
-	runner := SharedProjectionRunner{
+	runner := Runner{
 		IntentReader:    reader,
 		LeaseManager:    &fakeLeaseManager{granted: true},
 		EdgeWriter:      edges,
 		AcceptedGen:     acceptedGenerationFixed("gen-1", true),
 		ReadinessLookup: readinessLookupFixed(true, true),
-		Config: SharedProjectionRunnerConfig{
+		Config: RunnerConfig{
 			PartitionCount: 1,
 			LeaseOwner:     "test-runner",
 		},

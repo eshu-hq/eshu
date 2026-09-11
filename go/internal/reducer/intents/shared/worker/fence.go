@@ -22,14 +22,14 @@ func RowUsesRefreshFence(row sharedintent.Row) bool {
 	return payloadcore.PayloadBool(row.Payload, sharedintent.RetractViaRefreshKey)
 }
 
-// SharedProjectionRefreshFenceLookup reports whether a repo's whole-scope
+// RefreshFenceLookup reports whether a repo's whole-scope
 // refresh partition has completed for the current generation. It is the durable
 // happens-before signal that lets a per-edge upsert row write only after the
 // single repo-wide retract for its generation has committed, even when
 // partitions are processed concurrently across workers or replicas (#2898,
 // #5554). Exact same-generation redelivery is idempotent because intent IDs are
 // deterministic and completed rows are not reopened by the durable upsert.
-type SharedProjectionRefreshFenceLookup interface {
+type RefreshFenceLookup interface {
 	HasCompletedAcceptanceUnitSourceRunGenerationPartitionDomainIntents(
 		ctx context.Context,
 		key sharedintent.AcceptanceKey,
@@ -88,7 +88,7 @@ func PlanRepoWideRetractWork(
 	ctx context.Context,
 	domain string,
 	rows []sharedintent.Row,
-	fence SharedProjectionRefreshFenceLookup,
+	fence RefreshFenceLookup,
 	firstProjection FirstProjectionLookup,
 	logger *slog.Logger,
 ) (RepoWideRetractPlan, error) {
@@ -207,7 +207,7 @@ func perEdgeRowReady(
 	ctx context.Context,
 	domain string,
 	row sharedintent.Row,
-	fence SharedProjectionRefreshFenceLookup,
+	fence RefreshFenceLookup,
 ) (bool, error) {
 	key, ok := row.AcceptanceKey()
 	if !ok {

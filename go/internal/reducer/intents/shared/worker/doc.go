@@ -13,7 +13,7 @@
 // the partition lease, [SelectPartitionBatch] a batch of ready intents,
 // retract/write their canonical edges through the caller-supplied
 // [sharedintent.EdgeWriter], mark the batch completed, release the lease.
-// [SharedProjectionRunner] loops [ProcessPartitionOnce] across every domain
+// [Runner] loops [ProcessPartitionOnce] across every domain
 // and partition, sequentially or with a bounded worker pool.
 //
 // # Why this is a leaf
@@ -44,20 +44,36 @@
 // repo_dependency_projection_*) and the shared-projection edge-materialization
 // handlers stay in the reducer root for now: they are a later hoist in issue
 // #6061's PR sequence. They call this package's exported surface —
-// [DefaultBatchLimit], [DefaultLeaseTTL], [DefaultSharedPollInterval],
+// [DefaultBatchLimit], [DefaultLeaseTTL], [DefaultPollInterval],
 // [DefaultEvidenceSource], [MergePartitionProcessResult],
-// [MaxSharedIntentWaitSeconds], [RecordSharedProjectionStepDurations],
-// [SharedAcceptanceTelemetry], [SharedAcceptanceLookupEvent],
-// [SharedProjectionReadinessPhase], and [GraphProjectionPhaseKeyForAcceptance]
+// [MaxIntentWaitSeconds], [RecordStepDurations],
+// [AcceptanceTelemetry], [AcceptanceLookupEvent],
+// [ReadinessPhase], and [GraphProjectionPhaseKeyForAcceptance]
 // — through thin root forwarders/aliases under their original unexported
 // spellings, so no call site in those still-root files changed.
 //
-// The root also keeps aliases and forwarders under the original exported
-// names for its own and cross-package callers: SharedProjectionRunner,
-// SharedProjectionRunnerConfig, DefaultSharedProjectionLeaseOwnerPrefix,
-// LoadSharedProjectionConfig, PartitionProcessorConfig, ProcessPartitionOnce,
-// SharedProjectionPartitionCandidateReader,
-// SharedProjectionUnhashedCandidateReader, LatestIntentsByRepoAndPartition,
+// The root also keeps aliases and forwarders under its original,
+// pre-#6061 exported spellings for its own and cross-package callers, each
+// pointing at this package's de-stuttered name: SharedProjectionRunner
+// ([Runner]), SharedProjectionRunnerConfig ([RunnerConfig]),
+// DefaultSharedProjectionLeaseOwnerPrefix ([DefaultLeaseOwnerPrefix]),
+// LoadSharedProjectionConfig ([LoadConfig]), PartitionProcessorConfig,
+// ProcessPartitionOnce, SharedProjectionPartitionCandidateReader
+// ([PartitionCandidateReader]), SharedProjectionUnhashedCandidateReader
+// ([UnhashedCandidateReader]), LatestIntentsByRepoAndPartition,
 // FilterAuthoritativeIntents, SelectionPhaseDurations, FirstProjectionLookup,
 // and SharedProjectionUnroutableWriter (aliased to [UnroutableWriter]).
+//
+// # Naming
+//
+// This package's own exported surface drops the Shared/SharedProjection
+// prefix that stuttered against its own intents/shared/worker path (e.g.
+// [Runner] not SharedProjectionRunner, [IntentReader] not SharedIntentReader,
+// [RecordStepDurations] not RecordSharedProjectionStepDurations). The three
+// names kept as-is — [LatestIntentsByRepoAndPartition],
+// [FilterAuthoritativeIntents], and repair.Repairer in the sibling
+// intents/phase/repair package — do not stutter against this path and are
+// unchanged. The root spellings above are unaffected: they are the
+// pre-existing public surface and stay byte-identical for every caller
+// outside the reducer.
 package worker

@@ -72,7 +72,7 @@ func FilterRowsByReadiness(
 	readinessPrefetch gpphase.ReadinessPrefetch,
 	endpointPresence gpphase.EndpointPresenceLookup,
 ) (readyRows, blockedRows, terminalRows []sharedintent.Row, err error) {
-	phase, gated := SharedProjectionReadinessPhase(domain)
+	phase, gated := ReadinessPhase(domain)
 	if !gated || len(rows) == 0 {
 		return rows, nil, nil, nil
 	}
@@ -229,11 +229,11 @@ func filterRowsByTargetPresence(
 	return present, absent, nil
 }
 
-// MaxSharedIntentWaitSeconds reports the longest time any row has waited
+// MaxIntentWaitSeconds reports the longest time any row has waited
 // since it was created, used for shared-projection latency telemetry (moved
 // here from the reducer root's maxSharedIntentWaitSeconds, issue #6061). The
 // code-call projection runner (still at the reducer root) also calls it.
-func MaxSharedIntentWaitSeconds(now time.Time, rows []sharedintent.Row) float64 {
+func MaxIntentWaitSeconds(now time.Time, rows []sharedintent.Row) float64 {
 	var maxWait float64
 	for _, row := range rows {
 		if row.CreatedAt.IsZero() {

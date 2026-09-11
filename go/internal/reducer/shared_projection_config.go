@@ -5,7 +5,7 @@ package reducer
 
 import worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
-// LoadSharedProjectionConfig forwards to [worker.LoadSharedProjectionConfig].
+// LoadSharedProjectionConfig forwards to [worker.LoadConfig].
 func LoadSharedProjectionConfig(getenv func(string) string) SharedProjectionRunnerConfig {
-	return worker.LoadSharedProjectionConfig(getenv)
+	return worker.LoadConfig(getenv)
 }

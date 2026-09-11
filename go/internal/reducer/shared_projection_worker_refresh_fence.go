@@ -91,8 +91,8 @@ func rowUsesRefreshFence(row SharedProjectionIntentRow) bool {
 }
 
 // SharedProjectionRefreshFenceLookup is the root spelling of
-// [worker.SharedProjectionRefreshFenceLookup].
-type SharedProjectionRefreshFenceLookup = worker.SharedProjectionRefreshFenceLookup
+// [worker.RefreshFenceLookup].
+type SharedProjectionRefreshFenceLookup = worker.RefreshFenceLookup
 
 // FirstProjectionLookup is the root spelling of [worker.FirstProjectionLookup].
 type FirstProjectionLookup = worker.FirstProjectionLookup

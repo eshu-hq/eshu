@@ -13,9 +13,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
-// SharedProjectionRunnerConfig holds configuration for the shared projection
+// RunnerConfig holds configuration for the shared projection
 // partition worker.
-type SharedProjectionRunnerConfig struct {
+type RunnerConfig struct {
 	PartitionCount int
 	PollInterval   time.Duration
 	LeaseTTL       time.Duration
@@ -25,44 +25,44 @@ type SharedProjectionRunnerConfig struct {
 	Workers        int // concurrent partition workers; 0 or 1 means sequential
 }
 
-func (c SharedProjectionRunnerConfig) partitionCount() int {
+func (c RunnerConfig) partitionCount() int {
 	if c.PartitionCount <= 0 {
 		return defaultPartitionCount
 	}
 	return c.PartitionCount
 }
 
-func (c SharedProjectionRunnerConfig) pollInterval() time.Duration {
+func (c RunnerConfig) pollInterval() time.Duration {
 	if c.PollInterval <= 0 {
-		return DefaultSharedPollInterval
+		return DefaultPollInterval
 	}
 	return c.PollInterval
 }
 
-func (c SharedProjectionRunnerConfig) leaseTTL() time.Duration {
+func (c RunnerConfig) leaseTTL() time.Duration {
 	if c.LeaseTTL <= 0 {
 		return DefaultLeaseTTL
 	}
 	return c.LeaseTTL
 }
 
-func (c SharedProjectionRunnerConfig) batchLimit() int {
+func (c RunnerConfig) batchLimit() int {
 	if c.BatchLimit <= 0 {
 		return DefaultBatchLimit
 	}
 	return c.BatchLimit
 }
 
-func (c SharedProjectionRunnerConfig) evidenceSource() string {
+func (c RunnerConfig) evidenceSource() string {
 	if c.EvidenceSource == "" {
 		return DefaultEvidenceSource
 	}
 	return c.EvidenceSource
 }
 
-func (c SharedProjectionRunnerConfig) leaseOwner() string {
+func (c RunnerConfig) leaseOwner() string {
 	if c.LeaseOwner == "" {
-		return DefaultSharedProjectionLeaseOwnerPrefix
+		return DefaultLeaseOwnerPrefix
 	}
 	return c.LeaseOwner
 }
@@ -87,11 +87,11 @@ func sharedProjectionDomainEvidenceSource(domain, fallback string) string {
 	}
 }
 
-// LoadSharedProjectionConfig parses shared projection env vars.
-func LoadSharedProjectionConfig(getenv func(string) string) SharedProjectionRunnerConfig {
-	return SharedProjectionRunnerConfig{
+// LoadConfig parses shared projection env vars.
+func LoadConfig(getenv func(string) string) RunnerConfig {
+	return RunnerConfig{
 		PartitionCount: intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_PARTITION_COUNT", defaultPartitionCount),
-		PollInterval:   durationFromEnv(getenv, "ESHU_SHARED_PROJECTION_POLL_INTERVAL", DefaultSharedPollInterval),
+		PollInterval:   durationFromEnv(getenv, "ESHU_SHARED_PROJECTION_POLL_INTERVAL", DefaultPollInterval),
 		LeaseTTL:       durationFromEnv(getenv, "ESHU_SHARED_PROJECTION_LEASE_TTL", DefaultLeaseTTL),
 		BatchLimit:     intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_BATCH_LIMIT", DefaultBatchLimit),
 		Workers:        intFromEnvDefault(getenv, "ESHU_SHARED_PROJECTION_WORKERS", defaultSharedProjectionWorkers()),

@@ -102,7 +102,7 @@ func resolveRetractWriteRows(
 	ctx context.Context,
 	cfg PartitionProcessorConfig,
 	batch PartitionBatchResult,
-	refreshFence SharedProjectionRefreshFenceLookup,
+	refreshFence RefreshFenceLookup,
 	firstProjection FirstProjectionLookup,
 ) (retractWriteRows, error) {
 	retractRows := batch.LatestRows

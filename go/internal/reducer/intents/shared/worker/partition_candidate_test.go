@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-// stubPartitionCandidateReader implements SharedIntentReader plus the indexed
+// stubPartitionCandidateReader implements IntentReader plus the indexed
 // and unhashed candidate reader interfaces. It records which selection path the
 // runner used so tests can prove the indexed predicate is preferred over the
 // in-memory domain scan.

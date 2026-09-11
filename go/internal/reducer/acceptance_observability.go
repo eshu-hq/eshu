@@ -6,9 +6,9 @@ package reducer
 import worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 
 // sharedAcceptanceLookupEvent is the root spelling of
-// [worker.SharedAcceptanceLookupEvent].
-type sharedAcceptanceLookupEvent = worker.SharedAcceptanceLookupEvent
+// [worker.AcceptanceLookupEvent].
+type sharedAcceptanceLookupEvent = worker.AcceptanceLookupEvent
 
 // sharedAcceptanceTelemetry is the root spelling of
-// [worker.SharedAcceptanceTelemetry].
-type sharedAcceptanceTelemetry = worker.SharedAcceptanceTelemetry
+// [worker.AcceptanceTelemetry].
+type sharedAcceptanceTelemetry = worker.AcceptanceTelemetry

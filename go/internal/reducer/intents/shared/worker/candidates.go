@@ -18,7 +18,7 @@ import (
 // scan window, used to decide whether the whole pending set has been seen.
 func loadPartitionRows(
 	ctx context.Context,
-	reader SharedIntentReader,
+	reader IntentReader,
 	domain string,
 	partitionID, partitionCount, scanLimit int,
 	indexed bool,
@@ -64,14 +64,14 @@ func scanCapError(domain string, partitionID, partitionCount int) error {
 	)
 }
 
-// SharedProjectionPartitionCandidateReader reads pending shared projection rows
+// PartitionCandidateReader reads pending shared projection rows
 // whose stored partition hash belongs to one leased worker partition. It lets
 // the generic shared projection runner select candidates with an indexed
 // partition predicate instead of scanning pending rows by domain and filtering
 // partition membership in memory. It is a selection optimization only; selected
 // work is still gated by acceptance generation and readiness before any graph
 // write.
-type SharedProjectionPartitionCandidateReader interface {
+type PartitionCandidateReader interface {
 	ListPendingDomainPartitionIntents(
 		ctx context.Context,
 		domain string,
@@ -81,11 +81,11 @@ type SharedProjectionPartitionCandidateReader interface {
 	) ([]sharedintent.Row, error)
 }
 
-// SharedProjectionUnhashedCandidateReader reads pending legacy shared projection
+// UnhashedCandidateReader reads pending legacy shared projection
 // rows that were inserted before partition_hash was stored. Those rows have a
 // NULL partition hash and must be partition-filtered in memory so a migration
 // window cannot silently strand pre-hash work.
-type SharedProjectionUnhashedCandidateReader interface {
+type UnhashedCandidateReader interface {
 	ListPendingDomainUnhashedIntents(
 		ctx context.Context,
 		domain string,
@@ -97,16 +97,16 @@ type SharedProjectionUnhashedCandidateReader interface {
 // an indexed partition predicate when reader supports it. It returns the
 // partition-scoped rows, the number of legacy unhashed rows that were
 // partition-matched in memory, and indexed=true when the indexed path was used.
-// When reader does not implement SharedProjectionPartitionCandidateReader it
+// When reader does not implement PartitionCandidateReader it
 // returns indexed=false and leaves selection to the legacy domain scan so
 // non-Postgres readers keep working unchanged.
 func sharedPartitionCandidates(
 	ctx context.Context,
-	reader SharedIntentReader,
+	reader IntentReader,
 	domain string,
 	partitionID, partitionCount, limit int,
 ) (rows []sharedintent.Row, unhashedMatched int, atLimit, indexed bool, err error) {
-	candidateReader, ok := reader.(SharedProjectionPartitionCandidateReader)
+	candidateReader, ok := reader.(PartitionCandidateReader)
 	if !ok {
 		return nil, 0, false, false, nil
 	}
@@ -133,12 +133,12 @@ func sharedPartitionCandidates(
 // (more legacy rows may remain in the database).
 func appendUnhashedSharedCandidates(
 	ctx context.Context,
-	reader SharedIntentReader,
+	reader IntentReader,
 	hashed []sharedintent.Row,
 	domain string,
 	partitionID, partitionCount, limit int,
 ) (merged []sharedintent.Row, matched int, atLimit bool, err error) {
-	unhashedReader, ok := reader.(SharedProjectionUnhashedCandidateReader)
+	unhashedReader, ok := reader.(UnhashedCandidateReader)
 	if !ok {
 		return hashed, 0, false, nil
 	}

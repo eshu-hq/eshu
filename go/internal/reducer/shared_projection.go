@@ -84,9 +84,9 @@ func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjec
 type SharedProjectionAcceptanceKey = sharedintent.AcceptanceKey
 
 // sharedProjectionReadinessPhase forwards to
-// [worker.SharedProjectionReadinessPhase].
+// [worker.ReadinessPhase].
 func sharedProjectionReadinessPhase(domain string) (GraphProjectionPhase, bool) {
-	return worker.SharedProjectionReadinessPhase(domain)
+	return worker.ReadinessPhase(domain)
 }
 
 // sharedProjectionReadinessKeyspace returns the graph-projection keyspace whose

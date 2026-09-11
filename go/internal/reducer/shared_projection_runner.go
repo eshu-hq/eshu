@@ -11,27 +11,27 @@ import (
 const (
 	defaultBatchLimit         = worker.DefaultBatchLimit
 	defaultLeaseTTL           = worker.DefaultLeaseTTL
-	defaultSharedPollInterval = worker.DefaultSharedPollInterval
+	defaultSharedPollInterval = worker.DefaultPollInterval
 	defaultEvidenceSource     = worker.DefaultEvidenceSource
 )
 
 // DefaultSharedProjectionLeaseOwnerPrefix is the root spelling of
-// [worker.DefaultSharedProjectionLeaseOwnerPrefix].
-const DefaultSharedProjectionLeaseOwnerPrefix = worker.DefaultSharedProjectionLeaseOwnerPrefix
+// [worker.DefaultLeaseOwnerPrefix].
+const DefaultSharedProjectionLeaseOwnerPrefix = worker.DefaultLeaseOwnerPrefix
 
 // sharedProjectionDomains is the root spelling of the shared projection
 // domain list the generic partition worker drains. It cannot be a type
 // alias (Go has no var/const alias across packages), so it copies
-// [worker.SharedProjectionDomains]'s result once at package init.
-var sharedProjectionDomains = worker.SharedProjectionDomains()
+// [worker.Domains]'s result once at package init.
+var sharedProjectionDomains = worker.Domains()
 
 // SharedProjectionRunnerConfig is the root spelling of
-// [worker.SharedProjectionRunnerConfig].
-type SharedProjectionRunnerConfig = worker.SharedProjectionRunnerConfig
+// [worker.RunnerConfig].
+type SharedProjectionRunnerConfig = worker.RunnerConfig
 
 // SharedProjectionRunner is the root spelling of
-// [worker.SharedProjectionRunner].
-type SharedProjectionRunner = worker.SharedProjectionRunner
+// [worker.Runner].
+type SharedProjectionRunner = worker.Runner
 
 // mergePartitionProcessResult forwards to
 // [worker.MergePartitionProcessResult].

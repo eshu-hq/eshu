@@ -40,7 +40,7 @@ directly). Renaming a symbol here breaks those aliases.
 Follow the root `AGENTS.md`'s "Add a new reducer domain" section for the
 handler side. To add the domain to the generic worker's drain set, add its
 `Domain` constant to `sharedProjectionDomains` in `runner.go`, and add a
-readiness-phase case in `SharedProjectionReadinessPhase` (`domains.go`) if
+readiness-phase case in `ReadinessPhase` (`domains.go`) if
 the domain must gate on a graph-projection phase before writing.
 
 ## Adding a repo-wide-retract domain

@@ -20,7 +20,7 @@ projection runners depend on it.
 
 **Owns:** `ProcessPartitionOnce` (claim lease, select batch, retract/write
 edges, mark completed, release lease), `SelectPartitionBatch`,
-`SharedProjectionRunner` (the long-lived polling loop across domains and
+`Runner` (the long-lived polling loop across domains and
 partitions), the lease heartbeat, the indexed/legacy partition candidate
 readers, batch dedup and authoritative-generation filtering, readiness and
 property-keyed presence gating (`filterRowsByReadiness`,
@@ -37,17 +37,23 @@ at the reducer root and call into this package.
 ## Exported surface
 
 See [doc.go](doc.go) for the full list. The headline entry points are
-`ProcessPartitionOnce`, `SelectPartitionBatch`, `SharedProjectionRunner`, and
-`LoadSharedProjectionConfig`. The reducer root keeps every currently-exported
-name as a type alias or thin forwarder, and newly exports (from what were
-root-unexported helpers) `DefaultBatchLimit`, `DefaultLeaseTTL`,
-`DefaultSharedPollInterval`, `DefaultEvidenceSource`,
-`MergePartitionProcessResult`, `MaxSharedIntentWaitSeconds`,
-`RecordSharedProjectionStepDurations`, `SharedAcceptanceTelemetry` (with
-`SharedAcceptanceLookupEvent`), `SharedProjectionReadinessPhase`, and
-`GraphProjectionPhaseKeyForAcceptance` so the still-root dedicated projection
-runners can reach them through a root forwarder under their original
-unexported spelling.
+`ProcessPartitionOnce`, `SelectPartitionBatch`, `Runner`, and
+`LoadConfig`. This package's own exported names drop the Shared/SharedProjection
+prefix that stuttered against its own `intents/shared/worker` path (issue
+#6061's naming pass): `Runner`, `RunnerConfig`, `LoadConfig`, `IntentReader`,
+`PartitionCandidateReader`, `UnhashedCandidateReader`, `RefreshFenceLookup`,
+`ReadinessPhase`, `Domains`, `AcceptanceTelemetry`, `AcceptanceLookupEvent`,
+`RecordStepDurations`, `MaxIntentWaitSeconds`, `DefaultPollInterval`, and
+`DefaultLeaseOwnerPrefix`. `LatestIntentsByRepoAndPartition` and
+`FilterAuthoritativeIntents` do not stutter and keep their names. The
+reducer root keeps every currently-exported name as a type alias or thin
+forwarder under its ORIGINAL (pre-#6061) spelling — e.g. `SharedProjectionRunner`
+aliases `Runner`, `LoadSharedProjectionConfig` forwards to `LoadConfig` — and
+also newly exports (from what were root-unexported helpers) `DefaultBatchLimit`,
+`DefaultLeaseTTL`, `DefaultEvidenceSource`, and
+`MergePartitionProcessResult`, `GraphProjectionPhaseKeyForAcceptance` so the
+still-root dedicated projection runners can reach them through a root
+forwarder under their original unexported spelling.
 
 ## Dependencies
 

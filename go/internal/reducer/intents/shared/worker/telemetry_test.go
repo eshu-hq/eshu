@@ -33,7 +33,7 @@ func TestRecordSharedProjectionPartitionMetrics_HistogramAndCounter(t *testing.T
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 
-	runner := SharedProjectionRunner{Instruments: inst}
+	runner := Runner{Instruments: inst}
 
 	const domain = reducercontract.DomainInheritanceEdges
 	const partitionID = 3
@@ -81,7 +81,7 @@ func TestRecordSharedProjectionPartitionMetrics_SkipsZeroDuration(t *testing.T) 
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 
-	runner := SharedProjectionRunner{Instruments: inst}
+	runner := Runner{Instruments: inst}
 
 	runner.recordSharedProjectionPartitionMetrics(
 		context.Background(),
@@ -121,7 +121,7 @@ func TestRecordSharedProjectionPartitionMetrics_CardinalityBounded(t *testing.T)
 		t.Fatalf("NewInstruments() error = %v", err)
 	}
 
-	runner := SharedProjectionRunner{Instruments: inst}
+	runner := Runner{Instruments: inst}
 	runner.recordSharedProjectionPartitionMetrics(
 		context.Background(),
 		reducercontract.DomainHandlesRoute,

@@ -11,12 +11,12 @@ import (
 )
 
 // recordSharedProjectionStepDurations forwards to
-// [worker.RecordSharedProjectionStepDurations].
+// [worker.RecordStepDurations].
 func recordSharedProjectionStepDurations(
 	ctx context.Context,
 	instruments *telemetry.Instruments,
 	domain string,
 	result PartitionProcessResult,
 ) {
-	worker.RecordSharedProjectionStepDurations(ctx, instruments, domain, result)
+	worker.RecordStepDurations(ctx, instruments, domain, result)
 }

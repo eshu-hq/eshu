@@ -13,27 +13,27 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// SharedAcceptanceLookupEvent is the root spelling of one accepted-generation
+// AcceptanceLookupEvent is the root spelling of one accepted-generation
 // lookup outcome (moved here from the reducer root's
 // sharedAcceptanceLookupEvent, issue #6061).
-type SharedAcceptanceLookupEvent struct {
+type AcceptanceLookupEvent struct {
 	Runner   string
 	Result   string
 	Duration float64
 	Err      error
 }
 
-// SharedAcceptanceTelemetry centralizes reducer acceptance metrics and logs
+// AcceptanceTelemetry centralizes reducer acceptance metrics and logs
 // so the Option B storage implementation can plug into one stable
 // observability contract (moved here from the reducer root's
 // sharedAcceptanceTelemetry, issue #6061). The code-call projection runner
 // and selection files (still at the reducer root) also use it.
-type SharedAcceptanceTelemetry struct {
+type AcceptanceTelemetry struct {
 	Instruments *telemetry.Instruments
 	Logger      *slog.Logger
 }
 
-func (t SharedAcceptanceTelemetry) RecordLookup(ctx context.Context, event SharedAcceptanceLookupEvent) {
+func (t AcceptanceTelemetry) RecordLookup(ctx context.Context, event AcceptanceLookupEvent) {
 	if t.Instruments != nil {
 		t.Instruments.SharedAcceptanceLookupDuration.Record(
 			ctx,
@@ -72,7 +72,7 @@ func (t SharedAcceptanceTelemetry) RecordLookup(ctx context.Context, event Share
 	)
 }
 
-func (t SharedAcceptanceTelemetry) RecordStaleIntents(ctx context.Context, runner string, domain string, staleCount int) {
+func (t AcceptanceTelemetry) RecordStaleIntents(ctx context.Context, runner string, domain string, staleCount int) {
 	if staleCount <= 0 {
 		return
 	}

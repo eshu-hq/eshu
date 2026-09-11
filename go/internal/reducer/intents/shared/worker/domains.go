@@ -11,12 +11,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-// SharedProjectionReadinessPhase is the root spelling of the shared
+// ReadinessPhase is the root spelling of the shared
 // projection domain-to-readiness-phase mapping (moved here from the reducer
 // root's sharedProjectionReadinessPhase, issue #6061). The code-call
 // projection runner and selection files (still at the reducer root) also
 // call it.
-func SharedProjectionReadinessPhase(domain string) (gpphase.Phase, bool) {
+func ReadinessPhase(domain string) (gpphase.Phase, bool) {
 	switch domain {
 	case reducercontract.DomainCodeCalls, reducercontract.DomainInvokesCloudAction, reducercontract.DomainInheritanceEdges, reducercontract.DomainSQLRelationships, reducercontract.DomainShellExec, reducercontract.DomainRationaleEdges:
 		// Functions commit at canonical-nodes. The CloudAction target is created

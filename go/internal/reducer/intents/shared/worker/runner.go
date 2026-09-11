@@ -22,9 +22,9 @@ import (
 
 const (
 	defaultPartitionCount = 8
-	// DefaultSharedPollInterval is the root spelling of the shared projection
+	// DefaultPollInterval is the root spelling of the shared projection
 	// runner's default poll interval.
-	DefaultSharedPollInterval = 500 * time.Millisecond
+	DefaultPollInterval = 500 * time.Millisecond
 	// DefaultLeaseTTL is the shared projection runner's default partition
 	// lease TTL.
 	DefaultLeaseTTL = 60 * time.Second
@@ -36,9 +36,9 @@ const (
 	maxSharedPollInterval = 5 * time.Second
 )
 
-// DefaultSharedProjectionLeaseOwnerPrefix is the default human-readable label
+// DefaultLeaseOwnerPrefix is the default human-readable label
 // prepended to the production reducer's process-unique shared projection owner.
-const DefaultSharedProjectionLeaseOwnerPrefix = "shared-projection-runner"
+const DefaultLeaseOwnerPrefix = "shared-projection-runner"
 
 // sharedProjectionDomains lists the shared projection domains processed
 // by the partition worker.
@@ -56,19 +56,19 @@ var sharedProjectionDomains = []string{
 	reducercontract.DomainSubmodulePinEdges,
 }
 
-// SharedProjectionDomains returns the shared projection domains the generic
+// Domains returns the shared projection domains the generic
 // partition worker drains (moved here from the reducer root's unexported
 // sharedProjectionDomains, issue #6061). The root keeps a var initialized
 // from this at package init, since Go has no var alias across packages.
-func SharedProjectionDomains() []string {
+func Domains() []string {
 	return sharedProjectionDomains
 }
 
-// SharedProjectionRunner processes shared projection intents across all
+// Runner processes shared projection intents across all
 // domains and partitions. It runs as a long-lived goroutine alongside the
 // main reducer claim/execute/ack loop.
-type SharedProjectionRunner struct {
-	IntentReader        SharedIntentReader
+type Runner struct {
+	IntentReader        IntentReader
 	LeaseManager        sharedintent.PartitionLeaseManager
 	EdgeWriter          sharedintent.EdgeWriter
 	AcceptedGen         sharedintent.AcceptedGenerationLookup
@@ -85,7 +85,7 @@ type SharedProjectionRunner struct {
 	// once via its refresh intent and per-edge writes are held until it completes
 	// (#2898/#2910). A nil lookup leaves those domains byte-identical to their
 	// pre-fix per-partition retract behavior.
-	RefreshFenceLookup SharedProjectionRefreshFenceLookup
+	RefreshFenceLookup RefreshFenceLookup
 	// FirstProjectionLookup lets a repo-wide-retract domain's refresh row skip its
 	// whole-scope retract when the scope has no generation other than the current
 	// one (#3624): with zero prior edges the retract is a guaranteed no-op, and on
@@ -102,7 +102,7 @@ type SharedProjectionRunner struct {
 	// write fails, because the intent is completed immediately afterwards and
 	// the durable row is then the only record.
 	UnroutableWriter UnroutableWriter
-	Config           SharedProjectionRunnerConfig
+	Config           RunnerConfig
 	Wait             func(context.Context, time.Duration) error
 
 	// Telemetry fields (optional)
@@ -116,7 +116,7 @@ type SharedProjectionRunner struct {
 // ProcessPartitionOnce for each combination. When no work is found, the
 // poll interval doubles on each consecutive empty cycle (up to 5s) to
 // avoid sustained high-frequency polling during idle periods.
-func (r *SharedProjectionRunner) Run(ctx context.Context) error {
+func (r *Runner) Run(ctx context.Context) error {
 	if err := r.validate(); err != nil {
 		return err
 	}
@@ -165,7 +165,7 @@ func (r *SharedProjectionRunner) Run(ctx context.Context) error {
 
 // runOneCycle iterates all domains and partitions, returning the aggregate
 // progress and readiness-blocking signal for the cycle.
-func (r *SharedProjectionRunner) runOneCycle(ctx context.Context) PartitionProcessResult {
+func (r *Runner) runOneCycle(ctx context.Context) PartitionProcessResult {
 	if r.Config.Workers <= 1 {
 		return r.runOneCycleSequential(ctx)
 	}
@@ -173,7 +173,7 @@ func (r *SharedProjectionRunner) runOneCycle(ctx context.Context) PartitionProce
 }
 
 // runOneCycleSequential processes partitions one at a time.
-func (r *SharedProjectionRunner) runOneCycleSequential(ctx context.Context) PartitionProcessResult {
+func (r *Runner) runOneCycleSequential(ctx context.Context) PartitionProcessResult {
 	now := time.Now().UTC()
 	partitionCount := r.Config.partitionCount()
 	var cycleResult PartitionProcessResult
@@ -208,7 +208,7 @@ type partitionWork struct {
 }
 
 // runOneCycleConcurrent processes partitions across N concurrent workers.
-func (r *SharedProjectionRunner) runOneCycleConcurrent(ctx context.Context) PartitionProcessResult {
+func (r *Runner) runOneCycleConcurrent(ctx context.Context) PartitionProcessResult {
 	now := time.Now().UTC()
 	partitionCount := r.Config.partitionCount()
 
@@ -272,7 +272,7 @@ func MergePartitionProcessResult(total *PartitionProcessResult, result Partition
 	}
 }
 
-func (r *SharedProjectionRunner) processPartitionWithTelemetry(
+func (r *Runner) processPartitionWithTelemetry(
 	ctx context.Context,
 	now time.Time,
 	domain string,
@@ -315,7 +315,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 	)
 
 	duration := time.Since(start).Seconds()
-	acceptanceTelemetry := SharedAcceptanceTelemetry{
+	acceptanceTelemetry := AcceptanceTelemetry{
 		Instruments: r.Instruments,
 		Logger:      r.Logger,
 	}
@@ -400,7 +400,7 @@ func (r *SharedProjectionRunner) processPartitionWithTelemetry(
 	return result, err
 }
 
-func (r *SharedProjectionRunner) validate() error {
+func (r *Runner) validate() error {
 	if r.IntentReader == nil {
 		return errors.New("shared projection runner: intent reader is required")
 	}
@@ -413,7 +413,7 @@ func (r *SharedProjectionRunner) validate() error {
 	return nil
 }
 
-func (r *SharedProjectionRunner) wait(ctx context.Context, interval time.Duration) error {
+func (r *Runner) wait(ctx context.Context, interval time.Duration) error {
 	if r.Wait != nil {
 		return r.Wait(ctx, interval)
 	}

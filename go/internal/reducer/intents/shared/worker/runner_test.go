@@ -119,12 +119,12 @@ func (f *fakeEdgeWriter) RetractEdges(_ context.Context, _ string, rows []shared
 func TestSharedProjectionRunnerConfigDefaults(t *testing.T) {
 	t.Parallel()
 
-	cfg := SharedProjectionRunnerConfig{}
+	cfg := RunnerConfig{}
 	if got := cfg.partitionCount(); got != defaultPartitionCount {
 		t.Fatalf("partitionCount() = %d, want %d", got, defaultPartitionCount)
 	}
-	if got := cfg.pollInterval(); got != DefaultSharedPollInterval {
-		t.Fatalf("pollInterval() = %v, want %v", got, DefaultSharedPollInterval)
+	if got := cfg.pollInterval(); got != DefaultPollInterval {
+		t.Fatalf("pollInterval() = %v, want %v", got, DefaultPollInterval)
 	}
 	if got := cfg.leaseTTL(); got != DefaultLeaseTTL {
 		t.Fatalf("leaseTTL() = %v, want %v", got, DefaultLeaseTTL)
@@ -132,20 +132,20 @@ func TestSharedProjectionRunnerConfigDefaults(t *testing.T) {
 	if got := cfg.batchLimit(); got != DefaultBatchLimit {
 		t.Fatalf("batchLimit() = %d, want %d", got, DefaultBatchLimit)
 	}
-	if got := cfg.leaseOwner(); got != DefaultSharedProjectionLeaseOwnerPrefix {
-		t.Fatalf("leaseOwner() = %q, want %q", got, DefaultSharedProjectionLeaseOwnerPrefix)
+	if got := cfg.leaseOwner(); got != DefaultLeaseOwnerPrefix {
+		t.Fatalf("leaseOwner() = %q, want %q", got, DefaultLeaseOwnerPrefix)
 	}
 }
 
 func TestSharedProjectionRunnerStopsOnCancelledContext(t *testing.T) {
 	t.Parallel()
 
-	runner := SharedProjectionRunner{
+	runner := Runner{
 		IntentReader: &fakeSharedIntentReader{},
 		LeaseManager: &fakeLeaseManager{granted: false},
 		EdgeWriter:   &fakeEdgeWriter{},
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: SharedProjectionRunnerConfig{
+		Config: RunnerConfig{
 			PollInterval: 10 * time.Millisecond,
 		},
 	}
@@ -181,12 +181,12 @@ func TestSharedProjectionRunnerProcessesPendingIntents(t *testing.T) {
 	leaseManager := &fakeLeaseManager{granted: true}
 	edgeWriter := &fakeEdgeWriter{}
 
-	runner := SharedProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: leaseManager,
 		EdgeWriter:   edgeWriter,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: SharedProjectionRunnerConfig{
+		Config: RunnerConfig{
 			PartitionCount: 1,
 			LeaseOwner:     "test-runner",
 			PollInterval:   10 * time.Millisecond,
@@ -214,12 +214,12 @@ func TestSharedProjectionRunnerIteratesAllDomains(t *testing.T) {
 	leaseManager := &fakeLeaseManager{granted: false}
 	edgeWriter := &fakeEdgeWriter{}
 
-	runner := SharedProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: leaseManager,
 		EdgeWriter:   edgeWriter,
 		AcceptedGen:  acceptedGenerationFixed("", false),
-		Config: SharedProjectionRunnerConfig{
+		Config: RunnerConfig{
 			PartitionCount: 2,
 			PollInterval:   10 * time.Millisecond,
 		},
@@ -245,19 +245,19 @@ func TestSharedProjectionRunnerValidation(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		runner SharedProjectionRunner
+		runner Runner
 	}{
 		{
 			name:   "nil intent reader",
-			runner: SharedProjectionRunner{LeaseManager: &fakeLeaseManager{}, EdgeWriter: &fakeEdgeWriter{}},
+			runner: Runner{LeaseManager: &fakeLeaseManager{}, EdgeWriter: &fakeEdgeWriter{}},
 		},
 		{
 			name:   "nil lease manager",
-			runner: SharedProjectionRunner{IntentReader: &fakeSharedIntentReader{}, EdgeWriter: &fakeEdgeWriter{}},
+			runner: Runner{IntentReader: &fakeSharedIntentReader{}, EdgeWriter: &fakeEdgeWriter{}},
 		},
 		{
 			name:   "nil edge writer",
-			runner: SharedProjectionRunner{IntentReader: &fakeSharedIntentReader{}, LeaseManager: &fakeLeaseManager{}},
+			runner: Runner{IntentReader: &fakeSharedIntentReader{}, LeaseManager: &fakeLeaseManager{}},
 		},
 	}
 	for _, tt := range tests {
@@ -352,12 +352,12 @@ func TestSharedProjectionRunnerProcessesNewDomainIntents(t *testing.T) {
 	leaseManager := &fakeLeaseManager{granted: true}
 	edgeWriter := &fakeEdgeWriter{}
 
-	runner := SharedProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: leaseManager,
 		EdgeWriter:   edgeWriter,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: SharedProjectionRunnerConfig{
+		Config: RunnerConfig{
 			PartitionCount: 1,
 			LeaseOwner:     "test-runner",
 			PollInterval:   10 * time.Millisecond,
@@ -408,12 +408,12 @@ func TestSharedProjectionRunnerWithTelemetry(t *testing.T) {
 	}
 	logger := slog.Default()
 
-	runner := SharedProjectionRunner{
+	runner := Runner{
 		IntentReader: reader,
 		LeaseManager: leaseManager,
 		EdgeWriter:   edgeWriter,
 		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		Config: SharedProjectionRunnerConfig{
+		Config: RunnerConfig{
 			PartitionCount: 1,
 			LeaseOwner:     "test-runner",
 			PollInterval:   10 * time.Millisecond,
@@ -446,7 +446,7 @@ func TestSharedProjectionRunnerRecordCycleLogsSubstepDurations(t *testing.T) {
 		t.Fatalf("NewBootstrap() error = %v", err)
 	}
 	logger := telemetry.NewLoggerWithWriter(bootstrap, "reducer", "reducer", &buf)
-	runner := SharedProjectionRunner{Logger: logger}
+	runner := Runner{Logger: logger}
 
 	runner.recordSharedProjectionCycle(
 		context.Background(),
