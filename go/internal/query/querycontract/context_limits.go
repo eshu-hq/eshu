@@ -84,7 +84,7 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	// fetchWorkloadContextForOperation (entity/entity_workload_context.go)
 	// appends "infrastructure_truncated" onto ctx["limitations"] when the
 	// repository's infrastructure-entity read hits
-	// repositoryInfrastructureEntityLimit (repository_infrastructure.go) --
+	// repositoryInfrastructureEntityLimit (repository/infrastructure.go) --
 	// the same class of bound, well below ContextStoryItemLimit, that the
 	// three flags above already exist to disclose. ContextPartialReasons
 	// (above) already surfaces it on

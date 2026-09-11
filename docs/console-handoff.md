@@ -139,9 +139,9 @@ these.
 
 | Endpoint | Handler / file | Shipped |
 |----------|---------------|---------|
-| `GET /api/v0/repositories/{id}/tree` | `repository.go` | yes |
-| `GET /api/v0/repositories/{id}/content` | `repository.go` | yes |
-| `GET /api/v0/repositories/{id}/branches` | `repository.go` | yes |
+| `GET /api/v0/repositories/{id}/tree` | `repository/handler.go` | yes |
+| `GET /api/v0/repositories/{id}/content` | `repository/handler.go` | yes |
+| `GET /api/v0/repositories/{id}/branches` | `repository/handler.go` | yes |
 | `GET /api/v0/metrics/timeseries` | `metrics.go` | yes |
 | `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}` | `supply_chain_vulnerability_detail_handler.go` | yes |
 | `POST /api/v0/impact/blast-radius` | `impact.go` (`findBlastRadius`) | yes |

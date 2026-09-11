@@ -31,7 +31,7 @@ const serviceEvidenceFileLimit = 5000
 // consumer repository reachable only through that hostname never enters the
 // merged consumer set -- source 0 of the enumeration on
 // loadConsumerRepositoryEnrichmentFromCandidates. The +1 mirrors
-// repositoryTreeFileLimit+1 in repository_tree.go.
+// repositoryTreeFileLimit+1 in repository/tree.go.
 func listServiceEvidenceFiles(ctx context.Context, reader ServiceEvidenceReader, repoID string) ([]querycontract.FileContent, bool, error) {
 	files, err := reader.ListRepoFiles(ctx, repoID, serviceEvidenceFileLimit+1)
 	if err != nil {

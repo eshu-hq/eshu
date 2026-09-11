@@ -313,7 +313,7 @@ func findModuleRoot(t *testing.T, start string) string {
 // next to its size-guard test, rather than with the AST machinery in
 // graph_read_error_capability_sweep_resolve_test.go.
 var capabilitySweepDocumentedExceptions = map[string]string{
-	"repository_freshness.status": "repository_freshness.go's repositoryFreshnessTruth builds its " +
+	"repository_freshness.status": "repository/freshness.go's repositoryFreshnessTruth builds its " +
 		"TruthEnvelope directly from Postgres runtime state rather than through " +
 		"capabilityMatrix/BuildTruthEnvelope, and says so in its doc comment; not a gap.",
 }

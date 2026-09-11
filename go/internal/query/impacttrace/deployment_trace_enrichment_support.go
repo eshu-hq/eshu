@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
+	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 )
 
 // This file hosts the accumulator and chain-evidence support behind the
@@ -107,7 +107,7 @@ func backfillConsumerRepositoryDisplayNames(
 		}
 	}
 
-	namesByID, err := repositoryreadmodel.QueryRepositoryNamesByID(ctx, graph, repoIDs)
+	namesByID, err := readmodel.QueryRepositoryNamesByID(ctx, graph, repoIDs)
 	if err != nil {
 		return err
 	}

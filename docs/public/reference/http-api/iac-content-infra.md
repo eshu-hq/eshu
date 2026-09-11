@@ -179,8 +179,8 @@ relationship counts that are each a single bounded, repo-anchored
 (IMPORTS anchors at the File source side), one per fixed type
 (`CALLS`/`IMPORTS`/`INHERITS`/`OVERRIDES`/`REFERENCES`); the per-label single
 ecosystem counts from `getEcosystemOverview`; and the narrow repo-anchored
-structural counts from `repository_context_counts.go` /
-`repository_story_counts.go`. Every query is bounded by a label or repository-id
+structural counts from `repository/context_counts.go` /
+`repository/story_counts.go`. Every query is bounded by a label or repository-id
 anchor. The graph may return at most 50,001 edge rows for the overflow check;
 the response remains bounded to `limit` hot entities, five integer relationship
 counts, and a small fixed ecosystem map. A fresh isolated NornicDB check showed

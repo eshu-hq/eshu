@@ -37,7 +37,7 @@ func (cr *ContentReader) RepositoryDeploymentEvidence(ctx context.Context, repoI
 	if cr == nil || cr.db == nil || repoID == "" {
 		return repositoryDeploymentEvidenceReadModel{}, nil
 	}
-	artifactLimit := repository.RepositoryDeploymentEvidenceArtifactLimit
+	artifactLimit := repository.DeploymentEvidenceArtifactLimit
 	rows, err := cr.db.QueryContext(ctx, repositoryDeploymentEvidenceReadModelSQL, repoID, artifactLimit+1)
 	if err != nil {
 		return repositoryDeploymentEvidenceReadModel{}, fmt.Errorf("query repository deployment evidence: %w", err)

@@ -20,7 +20,7 @@ import (
 //
 // `go test ./internal/query/repository` never links root package query:
 // this package cannot import it without an import cycle (root's
-// repository_alias.go already imports this package for the RepositoryHandler
+// repository_alias.go already imports this package for the Handler
 // compatibility alias, #6060), so root's init() functions never run in this
 // test binary. Without this TestMain every handler test here fails with the
 // capability gate's unsupported_capability 501 -- not because the handler is

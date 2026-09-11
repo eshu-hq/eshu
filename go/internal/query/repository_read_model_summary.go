@@ -14,7 +14,7 @@ import (
 
 // RepositoryReadModelSummary is the Postgres read-model fast path for a
 // repository's workload names, deployment-platform materialization count,
-// and dependency count -- the same fields repository_context.go otherwise
+// and dependency count -- the same fields repository/context.go otherwise
 // derives from per-field Neo4j graph counts in queryRepositoryContextCounts.
 //
 // It is an alias onto querycontract so the shared ContentStore double can

@@ -12,7 +12,7 @@ import (
 // implementation moved to internal/query/repository for #6060 (lane B B3);
 // this alias keeps the APIRouter wiring, the cmd/api and cmd/mcp-server
 // constructors, and every staying caller compiling unchanged.
-type RepositoryHandler = repository.RepositoryHandler
+type RepositoryHandler = repository.Handler
 
 // CatalogWorkloadIdentityEntry is a repository read-model workload handle
 // for the console catalog. Alias onto querycontract through the moved

@@ -128,17 +128,17 @@ func TestQueryMaxIndexedAtRejectsUnknownTableBeforeQuery(t *testing.T) {
 func TestRepositoryCoverageIndexedAtTableAllowsCoverageTables(t *testing.T) {
 	t.Parallel()
 
-	for _, table := range []string{repository.RepositoryCoverageContentFilesTable, repository.RepositoryCoverageContentEntitiesTable} {
+	for _, table := range []string{repository.CoverageContentFilesTable, repository.CoverageContentEntitiesTable} {
 		table := table
 		t.Run(table, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := repository.RepositoryCoverageIndexedAtTable(table)
+			got, err := repository.CoverageIndexedAtTable(table)
 			if err != nil {
-				t.Fatalf("repository.RepositoryCoverageIndexedAtTable(%q) error = %v, want nil", table, err)
+				t.Fatalf("repository.CoverageIndexedAtTable(%q) error = %v, want nil", table, err)
 			}
 			if got != table {
-				t.Fatalf("repository.RepositoryCoverageIndexedAtTable(%q) = %q, want same table", table, got)
+				t.Fatalf("repository.CoverageIndexedAtTable(%q) = %q, want same table", table, got)
 			}
 		})
 	}

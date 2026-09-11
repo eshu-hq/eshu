@@ -83,7 +83,7 @@ func TestHandleLanguageQueryMapsGraphReadAvailabilityErrors(t *testing.T) {
 // actually produce a bounded sentinel in production today -- the only two
 // producers of those sentinels are neo4j_read_policy.go:314 (deadline) and
 // neo4j_read_policy.go:320 (unavailable), both graph-read paths. There is no
-// content-store-only precedent; repository_content.go and
+// content-store-only precedent; repository/content.go and
 // entity_content_types.go's content fallbacks both guard graph reads, not
 // content-store reads. This test exists to pin WriteGraphReadError's own
 // contract (any bounded sentinel it is ever given must be mapped, regardless

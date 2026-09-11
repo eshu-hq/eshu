@@ -74,11 +74,11 @@ type CatalogWorkloadIdentityEntry = querycontract.CatalogWorkloadIdentityEntry
 // ListCatalog lists the workload catalog. It forwards to listCatalog; exported for
 // #6060 so the cross-family graph-read sweep tests in package query can name
 // it from outside this package.
-func (h *RepositoryHandler) ListCatalog(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ListCatalog(w http.ResponseWriter, r *http.Request) {
 	h.listCatalog(w, r)
 }
 
-func (h *RepositoryHandler) listCatalog(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listCatalog(w http.ResponseWriter, r *http.Request) {
 	limit := catalogLimitFromRequest(r)
 	response := catalogResponse{
 		Repositories: []catalogRepository{},
@@ -135,7 +135,7 @@ func (h *RepositoryHandler) listCatalog(w http.ResponseWriter, r *http.Request) 
 	querycontract.WriteSuccess(w, r, http.StatusOK, response, catalogTruth(h.profile(), querycontract.TruthBasisAuthoritativeGraph))
 }
 
-func (h *RepositoryHandler) listCatalogRepositoriesFromGraph(
+func (h *Handler) listCatalogRepositoriesFromGraph(
 	ctx context.Context,
 	limit int,
 ) ([]catalogRepository, bool, error) {
@@ -157,7 +157,7 @@ func (h *RepositoryHandler) listCatalogRepositoriesFromGraph(
 	return repositories, truncated, nil
 }
 
-func (h *RepositoryHandler) listCatalogRepositoriesFromContent(
+func (h *Handler) listCatalogRepositoriesFromContent(
 	ctx context.Context,
 	limit int,
 ) ([]catalogRepository, bool, error) {
@@ -176,7 +176,7 @@ func (h *RepositoryHandler) listCatalogRepositoriesFromContent(
 	return rows, truncated, nil
 }
 
-func (h *RepositoryHandler) listCatalogWorkloads(
+func (h *Handler) listCatalogWorkloads(
 	ctx context.Context,
 	limit int,
 ) ([]catalogWorkload, bool, error) {
@@ -192,14 +192,14 @@ func (h *RepositoryHandler) listCatalogWorkloads(
 	return merged, graphTruncated || identityTruncated || mergeTruncated, nil
 }
 
-func (h *RepositoryHandler) listCatalogWorkloadsFromGraph(
+func (h *Handler) listCatalogWorkloadsFromGraph(
 	ctx context.Context,
 	limit int,
 ) ([]catalogWorkload, bool, error) {
 	return h.assembleCatalogWorkloadsFromGraph(ctx, limit)
 }
 
-func (h *RepositoryHandler) listCatalogWorkloadIdentitiesFromContent(
+func (h *Handler) listCatalogWorkloadIdentitiesFromContent(
 	ctx context.Context,
 	limit int,
 ) ([]catalogWorkload, bool, error) {
@@ -237,7 +237,7 @@ func (h *RepositoryHandler) listCatalogWorkloadIdentitiesFromContent(
 // few-seconds SLA; extra workloads beyond that cap keep their zero values.
 // Failures are swallowed so the catalog endpoint never errors on a missing
 // or unavailable store.
-func (h *RepositoryHandler) enrichCatalogWorkloadsFromCorrelations(
+func (h *Handler) enrichCatalogWorkloadsFromCorrelations(
 	ctx context.Context,
 	workloads []catalogWorkload,
 ) []catalogWorkload {

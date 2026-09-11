@@ -84,7 +84,7 @@ shipped alongside them. The pattern other aggregates must follow lives at:
 
 - `go/internal/query/content_reader_language_inventory.go`
 - `go/internal/mcp/tools_repository_language.go`
-- `go/internal/query/repository.go` (route registration)
+- `go/internal/query/repository/handler.go` (route registration)
 - `go/internal/query/openapi_paths_repositories.go`
 
 ### Classification Buckets
@@ -104,7 +104,7 @@ shipped alongside them. The pattern other aggregates must follow lives at:
 | `count_repositories_by_language` / `GET /api/v0/repositories/by-language` | Postgres `content_files` aggregate | Worked example. |
 | `get_repository_language_inventory` / `GET /api/v0/repositories/language-inventory` | Postgres `content_files` aggregate | Worked example. |
 | `get_ecosystem_overview` / `GET /api/v0/ecosystem/overview` | Graph; single Cypher with composed `WITH` counts | Top-level repo / workload / platform / instance counts. |
-| `get_repo_context` / `GET /api/v0/repositories/{repo_id}/context` | Graph + Postgres read-model | Single repository scope; bounded counts via `go/internal/query/repository_context_counts.go`. |
+| `get_repo_context` / `GET /api/v0/repositories/{repo_id}/context` | Graph + Postgres read-model | Single repository scope; bounded counts via `go/internal/query/repository/context_counts.go`. |
 | `list_service_catalog_correlations` / `GET /api/v0/service-catalog/correlations` | Postgres `fact_records` | Filtered list per scope or provider; no aggregate question forces fan-out. |
 | `list_kubernetes_correlations` / `GET /api/v0/kubernetes/correlations` | Postgres `fact_records` | Filtered list per cluster, workload, namespace, image, or digest scope; no aggregate question forces fan-out. |
 | `list_observability_coverage_correlations` / `GET /api/v0/observability/coverage/correlations` | Postgres `fact_records` | Filtered list per scope, provider, coverage signal, observability object, target resource, or target service; no aggregate question forces fan-out. |

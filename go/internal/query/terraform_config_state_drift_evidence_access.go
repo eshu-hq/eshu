@@ -22,7 +22,7 @@ package query
 // data the caller legitimately needs to see the drift, so only the ungranted
 // scope_id key is removed from the atom's map, mirroring
 // blankDeploymentEvidenceEndpointIdentity's delete-the-key convention
-// (repository_deployment_evidence.go) over writing an empty-string sentinel
+// (repository/deployment_evidence.go) over writing an empty-string sentinel
 // that could be mistaken for missing data. An unscoped (admin) caller is
 // unaffected and always sees every atom's real scope_id.
 func filterTerraformConfigStateDriftEvidence(

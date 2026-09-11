@@ -93,7 +93,7 @@ func TestContainerImageIdentitiesSelectorMapsGraphReadAvailabilityErrors(t *test
 
 // TestGetRepositoryContentSelectorMapsGraphReadAvailabilityErrors covers
 // getRepositoryContent's resolveRepositoryPathSelector call
-// (repository_content.go via repository_selectors.go), a repository route
+// (repository/content.go via repository/selectors.go), a repository route
 // using the non-writing resolveRepositorySelectorExactForAccess variant that
 // the caller itself must guard.
 func TestGetRepositoryContentSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {

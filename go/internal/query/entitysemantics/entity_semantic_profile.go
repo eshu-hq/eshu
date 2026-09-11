@@ -75,7 +75,7 @@ func AttachSemanticSummary(result map[string]any) {
 // It is logic-identical to repository.BuildEntitySemanticProfile
 // (repository/semantic_profile.go), which lane B's B3 move (#6611) created
 // from the same root original; root's semantic_profile.go no longer exists.
-// Both copies are live -- repository's serves repository_semantics.go, this
+// Both copies are live -- repository's serves repository/semantics.go, this
 // one serves root's attachSemanticSummary -- so they can drift silently.
 // Keep them in lockstep, or hoist the shared core to querycontract with both
 // leaves forwarding, which is the pattern the rest of this lane uses. Tracked

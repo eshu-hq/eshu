@@ -78,7 +78,7 @@ its returned error, which the wrapper maps to the operator's exit code.
 
 - **`Resolve` reads one page and ignores `Total`.** The request is
   `GET /api/v0/repositories` with no `limit`, so the server's default page
-  size applies (100, see `go/internal/query/repository_list_page.go`) and the
+  size applies (100, see `go/internal/query/repository/readmodel/list_page.go`) and the
   decoded `Total` is never consulted. A repository past the first page
   resolves as `no matching repository`. This is pre-existing behaviour, moved
   verbatim; do not write a test asserting the listing is complete.

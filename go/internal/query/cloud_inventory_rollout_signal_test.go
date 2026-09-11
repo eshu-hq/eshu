@@ -200,7 +200,7 @@ func TestCloudInventoryHandlerAccountAliasNonInitialPageSkipsProbe(t *testing.T)
 // proves the probe's own failure never breaks the already-successful primary
 // read: a probe error must not turn a 200 into a 500. It must be reported as
 // a distinct warning flag, not swallowed silently -- mirroring the
-// content-store-coverage-error precedent in repository_stats.go.
+// content-store-coverage-error precedent in repository/stats.go.
 func TestCloudInventoryHandlerAccountAliasZeroResultsProbeErrorDegradesGracefully(t *testing.T) {
 	t.Parallel()
 

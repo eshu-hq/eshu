@@ -47,7 +47,7 @@ func TestGetRepositoryStatsExposesResultLimitsAndPartialReasons(t *testing.T) {
 	resp := serveRepositoryStats(t, handler, "/api/v0/repositories/repo-1/stats")
 
 	limits := querytestutil.MustMapField(t, resp, "result_limits")
-	if got, want := limits["limit"], float64(repository.RepositoryStatsItemLimit); got != want {
+	if got, want := limits["limit"], float64(repository.StatsItemLimit); got != want {
 		t.Fatalf("result_limits.limit = %#v, want %#v", got, want)
 	}
 	if got, want := StringVal(limits, "ordering"), "deterministic"; got != want {

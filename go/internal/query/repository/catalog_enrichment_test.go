@@ -56,7 +56,7 @@ func TestListCatalogEnrichesWorkloadsFromCorrelations(t *testing.T) {
 		},
 	}
 
-	handler := &RepositoryHandler{
+	handler := &Handler{
 		Neo4j:                      rows.reader(t, 0),
 		Profile:                    querycontract.ProfileLocalAuthoritative,
 		ServiceCatalogCorrelations: store,
@@ -133,7 +133,7 @@ func TestListCatalogSkipsCorrelationEnrichmentWhenStoreIsNil(t *testing.T) {
 	}
 
 	// ServiceCatalogCorrelations intentionally left nil — must not panic.
-	handler := &RepositoryHandler{Neo4j: rows.reader(t, 0), Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: rows.reader(t, 0), Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/catalog?limit=10", nil)
 	rec := httptest.NewRecorder()
 	handler.listCatalog(rec, req)

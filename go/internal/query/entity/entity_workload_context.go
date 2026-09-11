@@ -237,7 +237,7 @@ func (h *EntityHandler) FetchServiceReadModelWorkloadContext(ctx context.Context
 		// meaningless about a panel with no rows in it, and pairing it with
 		// repository.InfrastructureReadDegradedReason would put two limitations that
 		// assert mutually exclusive facts about the same read
-		// (repository_infrastructure_degrade.go) on one response: "more rows
+		// (repository/infrastructure_degrade.go) on one response: "more rows
 		// may exist" attached to an EMPTY infrastructure panel.
 		//
 		// The guard sits AFTER the graph attempt, not inside its error branch,

@@ -35,7 +35,7 @@ import (
 // infrastructureOverflowContentStore (context_story_limits_test.go): it
 // ignores the type list and limit arguments and returns every seeded row
 // unconditionally, so production's own
-// len(entities) > repository.RepositoryInfrastructureEntityLimit check -- not a
+// len(entities) > repository.InfrastructureEntityLimit check -- not a
 // client-side fake clamp -- decides truncation.
 type serviceReadModelInfrastructureOverflowContentStore struct {
 	querytestutil.FakePortContentStore
@@ -67,7 +67,7 @@ var _ querycontract.RepositoryReadModelSummaryStore = serviceReadModelInfrastruc
 // infrastructureTruncated plumbing there" left every existing test green.
 // This drives the real mounted route through that exact fallback path (no
 // graph Workload lookup ever matches, forcing FetchServiceReadModelWorkloadContext)
-// with a genuine repository.RepositoryInfrastructureEntityLimit+1-row overflow, and
+// with a genuine repository.InfrastructureEntityLimit+1-row overflow, and
 // proves "infrastructure_truncated" lands in the wire response's limitations.
 func TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated(t *testing.T) {
 	t.Parallel()
@@ -76,7 +76,7 @@ func TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated(t *t
 		FakePortContentStore: querytestutil.FakePortContentStore{
 			Repositories: []querycontract.RepositoryCatalogEntry{{ID: "repo-1", Name: "order-service"}},
 		},
-		infrastructureEntities: querytestutil.OverflowingInfrastructureEntities(repository.RepositoryInfrastructureEntityLimit + 1),
+		infrastructureEntities: querytestutil.OverflowingInfrastructureEntities(repository.InfrastructureEntityLimit + 1),
 		workloadNames:          []string{"order-service"},
 	}
 	// No runSingleByMatch/runByMatch entries at all: every graph lookup
@@ -112,7 +112,7 @@ func TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated(t *t
 	if !slices.Contains(limitations, "infrastructure_truncated") {
 		t.Fatalf(
 			"limitations = %v, want it to contain %q (a genuine %d-row infrastructure overflow through FetchServiceReadModelWorkloadContext)",
-			limitations, "infrastructure_truncated", repository.RepositoryInfrastructureEntityLimit+1,
+			limitations, "infrastructure_truncated", repository.InfrastructureEntityLimit+1,
 		)
 	}
 }

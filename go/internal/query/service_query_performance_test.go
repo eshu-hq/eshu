@@ -92,8 +92,8 @@ func TestQueryRepoAPISurfaceBoundsEndpointRowsAndKeepsAggregateCount(t *testing.
 	if graph.detailCalls != 1 {
 		t.Fatalf("detailCalls = %d, want 1", graph.detailCalls)
 	}
-	if limit := querycontract.IntVal(graph.detailParams, "limit"); limit != repository.RepositoryAPISurfaceEndpointLimit {
-		t.Fatalf("detail limit = %d, want %d", limit, repository.RepositoryAPISurfaceEndpointLimit)
+	if limit := querycontract.IntVal(graph.detailParams, "limit"); limit != repository.APISurfaceEndpointLimit {
+		t.Fatalf("detail limit = %d, want %d", limit, repository.APISurfaceEndpointLimit)
 	}
 }
 
@@ -170,7 +170,7 @@ func TestQueryRepoDeploymentEvidenceBoundsGraphDirections(t *testing.T) {
 		if !strings.Contains(cypher, "LIMIT $limit") {
 			t.Fatalf("cypher call %d = %q, want LIMIT $limit", i, cypher)
 		}
-		if got, want := querycontract.IntVal(reader.params[i], "limit"), repository.RepositoryDeploymentEvidenceArtifactLimit+1; got != want {
+		if got, want := querycontract.IntVal(reader.params[i], "limit"), repository.DeploymentEvidenceArtifactLimit+1; got != want {
 			t.Fatalf("params[%d].limit = %d, want %d", i, got, want)
 		}
 	}
@@ -200,7 +200,7 @@ func TestContentReaderRepositoryDeploymentEvidenceIsBoundedAtSQL(t *testing.T) {
 	if !strings.Contains(recorder.queries[0], "LIMIT $2") {
 		t.Fatalf("query = %q, want SQL row limit", recorder.queries[0])
 	}
-	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(repository.RepositoryDeploymentEvidenceArtifactLimit+1); got != want {
+	if got, want := numericDriverValue(t, recorder.args[0][1]), int64(repository.DeploymentEvidenceArtifactLimit+1); got != want {
 		t.Fatalf("deployment evidence limit = %d, want %d", got, want)
 	}
 }

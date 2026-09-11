@@ -26,7 +26,7 @@ RETURN count(r) AS count`},
 }
 
 // graphSummaryRepoEcosystemCounts are the repo-anchored structural counts. Each
-// reuses the narrow count shapes proven by repository_context_counts.go rather
+// reuses the narrow count shapes proven by repository/context_counts.go rather
 // than a broad OPTIONAL aggregation.
 var graphSummaryRepoEcosystemCounts = []struct {
 	field  string
@@ -46,7 +46,7 @@ RETURN count(DISTINCT dep) AS count`},
 
 // graphSummaryRepoLanguagesCypher returns the repo's languages ranked by file
 // count, reusing the repo-anchored file-language shape from
-// repository_story_counts.go.
+// repository/story_counts.go.
 const graphSummaryRepoLanguagesCypher = `MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)
 WHERE f.language IS NOT NULL
 RETURN f.language AS language, count(DISTINCT f) AS file_count

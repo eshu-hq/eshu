@@ -138,7 +138,7 @@ func TestGetRepositoryStatsReturnsEnvelopeWhenRequested(t *testing.T) {
 		t.Fatalf("file_count = %#v, want %#v", got, want)
 	}
 	coverage := querytestutil.MustMapField(t, data, "coverage")
-	if got, want := coverage["query_shape"], repository.RepositoryStatsContentCoverageShape; got != want {
+	if got, want := coverage["query_shape"], repository.StatsContentCoverageShape; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
 	}
 }

@@ -113,7 +113,7 @@ func (s nonFilteringInfrastructureContentStore) ListRepoEntitiesByTypes(_ contex
 // infrastructureTruncated=true from the content read must not survive into
 // limitations alongside repository.InfrastructureReadDegradedReason when the graph
 // fallback ALSO fails. The two reasons assert mutually exclusive facts about
-// the SAME read (repository_infrastructure_degrade.go,
+// the SAME read (repository/infrastructure_degrade.go,
 // repository.InfrastructureTruncatedReason's doc comment): a failed read has no rows to
 // bound, and a bounded read did not fail. Before this fix, the graph-read
 // error branch appended repository.InfrastructureReadDegradedReason but never reset
@@ -123,7 +123,7 @@ func (s nonFilteringInfrastructureContentStore) ListRepoEntitiesByTypes(_ contex
 func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testing.T) {
 	t.Parallel()
 
-	rawEntities := make([]EntityContent, repository.RepositoryInfrastructureEntityLimit+1)
+	rawEntities := make([]EntityContent, repository.InfrastructureEntityLimit+1)
 	for i := range rawEntities {
 		rawEntities[i] = EntityContent{
 			RepoID:       "repo-serverless-degrade",
@@ -203,7 +203,7 @@ func TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError(t *testin
 func TestGetServiceContextReadModelDropsTruncatedOnEmptyGraphFallbackPanel(t *testing.T) {
 	t.Parallel()
 
-	graphRows := make([]map[string]any, repository.RepositoryInfrastructureEntityLimit+1)
+	graphRows := make([]map[string]any, repository.InfrastructureEntityLimit+1)
 	for i := range graphRows {
 		graphRows[i] = map[string]any{
 			"type":      "Function",

@@ -1,0 +1,475 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package repository
+
+import (
+	"context"
+	"crypto/sha1" // #nosec G505 -- privacy-safe observation discriminator, not a security primitive
+	"encoding/hex"
+	"sort"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/repositoryidentity"
+)
+
+// DeploymentEvidenceArtifactLimit bounds the deployment-evidence
+// artifact rows one response carries. Exported for #6060 so the root
+// ContentReader deployment-evidence stayer can name it from outside this
+// package.
+const DeploymentEvidenceArtifactLimit = 50
+
+const repositoryDeploymentEvidenceArtifactLimit = DeploymentEvidenceArtifactLimit
+
+// deploymentEvidenceEndpointIdentitySuffixes is the full set of per-endpoint
+// repository identity keys a deployment-evidence artifact row can carry, for
+// either endpoint prefix ("source"/"target"). The graph path projects
+// _repo_name/_repo_remote_url/_repo_scope_id (canonical_id/scope_key are then
+// derived by attachRepositoryObservationIdentity); the read-model scan projects
+// the already-derived _repo_canonical_id/_repo_scope_key. Blanking all of them
+// on an unverifiable endpoint is safe regardless of which path built the row.
+var deploymentEvidenceEndpointIdentitySuffixes = []string{
+	"_repo_name",
+	"_repo_remote_url",
+	"_repo_scope_id",
+	"_repo_canonical_id",
+	"_repo_scope_key",
+}
+
+// blankDeploymentEvidenceEndpointIdentity strips every recovered repository
+// identity field for one endpoint ("source"/"target") of an evidence row so a
+// scoped caller cannot see the identity of a repository whose grant could not
+// be verified. It leaves the artifact's own evidence fields (path, kind,
+// relationship_type, ...) intact -- only the cross-repo endpoint identity is
+// removed.
+func blankDeploymentEvidenceEndpointIdentity(row map[string]any, endpoint string) {
+	for _, suffix := range deploymentEvidenceEndpointIdentitySuffixes {
+		delete(row, endpoint+suffix)
+	}
+}
+
+// redactDeploymentEvidenceRowForAccess enforces the caller's grant on both
+// repository endpoints of one deployment-evidence artifact and reports whether
+// the row may survive. Each artifact ties an anchor repository (the grant-
+// verified repo_id this evidence was queried for) to a second repository via
+// EVIDENCES_REPOSITORY_RELATIONSHIP, so the non-anchor endpoint can belong to a
+// different tenant. Per endpoint:
+//
+//   - repo_id present and outside the grant: a known cross-tenant repository --
+//     the whole row is DROPPED (return false).
+//   - repo_id empty: the grant cannot be verified, yet the read-model LATERAL
+//     join still recovers this endpoint's name / remote_url / scope_id (and the
+//     derived canonical_id / scope_key) from the relationship generation's
+//     source scope. Those recovered identity fields are BLANKED (deny-by-default
+//     on empty) so they never leak, and the row survives with its own evidence.
+//   - repo_id == anchorRepoID, or present and in-grant: the endpoint's identity
+//     stays intact (a fully-owned row is fully visible).
+func redactDeploymentEvidenceRowForAccess(row map[string]any, anchorRepoID string, access querycontract.RepositoryAccessFilter) bool {
+	for _, endpoint := range []string{"source", "target"} {
+		repoID := querycontract.StringVal(row, endpoint+"_repo_id")
+		switch {
+		case repoID == "":
+			blankDeploymentEvidenceEndpointIdentity(row, endpoint)
+		case repoID == anchorRepoID:
+			// Anchor endpoint: the grant-verified repo this evidence was queried
+			// for. Keep its identity.
+		case !access.AllowsRepositoryID(repoID):
+			return false
+		}
+	}
+	return true
+}
+
+// filterDeploymentEvidenceRowsForAccess binds every deployment-evidence
+// EvidenceArtifact row to the caller's grant (#5167 W3 P0 cross-tenant
+// disclosure): it drops rows naming a cross-tenant repository on a non-anchor
+// endpoint and blanks the recovered identity of any endpoint whose repo_id is
+// empty (unverifiable). It is the single shared choke point for that
+// EvidenceArtifact surface specifically -- queryRepoDeploymentEvidence's graph
+// path and loadRepositoryDeploymentEvidence's Postgres read-model path (the
+// production-primary path, since ImpactHandler/EntityHandler are wired with a
+// real ContentReader) both call it -- so every caller (service/workload/
+// repository context and story, plus the #5167 W3 impact routes) is bound
+// identically, closing the pre-existing leak through the already-allowlisted
+// GET /services/{name}/context and repository routes at the source.
+// buildGraphDeploymentEvidence's aggregates (source_repo_ids, target_repo_ids,
+// artifact_count, evidence_index) are all derived from the filtered/redacted
+// rows because this runs before the build.
+//
+// It is NOT the only path that contributes to a caller's deployment_evidence /
+// deployment_artifacts / infrastructure_overview output. When this
+// EvidenceArtifact set comes back empty for a repository (every artifact named
+// an out-of-grant endpoint, or none exist), loadServiceDeploymentEvidence and
+// the repository context/story handlers fall through to
+// artifacts.LoadDeploymentArtifactOverview, which fans out to a second, independent
+// cross-repository read: QueryRelatedRepositoryArtifactSources
+// (repositoryartifacts/repository_config_artifacts_loader.go) walks DEPENDS_ON/USES_MODULE/...
+// edges to related repositories and fetches their config/controller artifact
+// files. That fallback surface is bound by its own filter,
+// filterRepositoryArtifactSourcesForAccess, applied before any related
+// source's files are fetched (#5167 W3 P0, third round) -- not by this
+// function. The workflow/runtime/cloudformation artifact loaders reached from
+// the same fallback never leave the anchor repository, so they need no filter
+// of their own.
+func filterDeploymentEvidenceRowsForAccess(rows []map[string]any, anchorRepoID string, access querycontract.RepositoryAccessFilter) []map[string]any {
+	if !access.Scoped() {
+		return rows
+	}
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if redactDeploymentEvidenceRowForAccess(row, anchorRepoID, access) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+// queryRepoDeploymentEvidence reads compact graph evidence pointers for
+// repository relationships without embedding raw Postgres evidence payloads.
+func QueryRepoDeploymentEvidence(ctx context.Context, reader querycontract.GraphQuery, content querycontract.ContentStore, params map[string]any) (map[string]any, error) {
+	if readModel, err := LoadRepositoryDeploymentEvidence(ctx, content, querycontract.StringVal(params, "repo_id")); err != nil {
+		return nil, err
+	} else if readModel != nil {
+		return readModel, nil
+	}
+
+	outgoing, outgoingTruncated, err := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
+		MATCH (r:Repository {id: $repo_id})-[source_rel:HAS_DEPLOYMENT_EVIDENCE]->(artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(target:Repository)
+		RETURN 'outgoing' AS direction,
+		       artifact.id AS artifact_id,
+		       artifact.name AS name,
+		       artifact.domain AS domain,
+		       artifact.path AS path,
+		       artifact.evidence_kind AS evidence_kind,
+		       artifact.artifact_family AS artifact_family,
+		       artifact.extractor AS extractor,
+		       artifact.relationship_type AS relationship_type,
+		       artifact.resolved_id AS resolved_id,
+		       artifact.generation_id AS generation_id,
+		       artifact.confidence AS confidence,
+		       artifact.environment AS environment,
+		       artifact.runtime_platform_kind AS runtime_platform_kind,
+		       artifact.matched_alias AS matched_alias,
+		       artifact.matched_value AS matched_value,
+		       artifact.evidence_source AS evidence_source,
+		       artifact.start_line AS start_line,
+		       artifact.end_line AS end_line,
+		       artifact.commit_sha AS commit_sha,
+		       artifact.ref_value AS ref_value,
+		       artifact.ref_pinned AS ref_pinned,
+		       r.id AS source_repo_id,
+		       r.name AS source_repo_name,
+		       r.remote_url AS source_repo_remote_url,
+		       r.scope_id AS source_repo_scope_id,
+		       target.id AS target_repo_id,
+		       target.name AS target_repo_name,
+		       target.remote_url AS target_repo_remote_url,
+		       target.scope_id AS target_repo_scope_id
+		ORDER BY path, artifact_id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	incoming, incomingTruncated, err := queryRepoDeploymentEvidenceDirection(ctx, reader, params, `
+		MATCH (artifact:EvidenceArtifact)-[:EVIDENCES_REPOSITORY_RELATIONSHIP]->(r:Repository {id: $repo_id})
+		WITH artifact, r
+		MATCH (source:Repository)-[:HAS_DEPLOYMENT_EVIDENCE]->(artifact)
+		RETURN 'incoming' AS direction,
+		       artifact.id AS artifact_id,
+		       artifact.name AS name,
+		       artifact.domain AS domain,
+		       artifact.path AS path,
+		       artifact.evidence_kind AS evidence_kind,
+		       artifact.artifact_family AS artifact_family,
+		       artifact.extractor AS extractor,
+		       artifact.relationship_type AS relationship_type,
+		       artifact.resolved_id AS resolved_id,
+		       artifact.generation_id AS generation_id,
+		       artifact.confidence AS confidence,
+		       artifact.environment AS environment,
+		       artifact.runtime_platform_kind AS runtime_platform_kind,
+		       artifact.matched_alias AS matched_alias,
+		       artifact.matched_value AS matched_value,
+		       artifact.evidence_source AS evidence_source,
+		       artifact.start_line AS start_line,
+		       artifact.end_line AS end_line,
+		       artifact.commit_sha AS commit_sha,
+		       artifact.ref_value AS ref_value,
+		       artifact.ref_pinned AS ref_pinned,
+		       source.id AS source_repo_id,
+		       source.name AS source_repo_name,
+		       source.remote_url AS source_repo_remote_url,
+		       source.scope_id AS source_repo_scope_id,
+		       r.id AS target_repo_id,
+		       r.name AS target_repo_name,
+		       r.remote_url AS target_repo_remote_url,
+		       r.scope_id AS target_repo_scope_id
+		ORDER BY path, artifact_id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	rows := append(outgoing, incoming...)
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	// #5167 W3 P0: bind each cross-repo evidence artifact to the caller's grant
+	// before building the evidence map so a scoped caller never sees a
+	// cross-tenant repository on the non-anchor endpoint.
+	rows = filterDeploymentEvidenceRowsForAccess(rows, querycontract.StringVal(params, "repo_id"), querycontract.RepositoryAccessFilterFromContext(ctx))
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	result := buildGraphDeploymentEvidence(rows)
+	result["artifact_limit"] = repositoryDeploymentEvidenceArtifactLimit
+	result["artifacts_truncated"] = outgoingTruncated || incomingTruncated
+	return result, nil
+}
+
+// queryRepoDeploymentEvidenceDirection returns the artifact rows for one
+// direction (outgoing/incoming) of the deployment-evidence read, along with
+// whether the limit truncated the result. A non-nil err from the read --
+// including the bounded ErrGraphReadDeadline / ErrGraphUnavailable sentinels
+// -- is returned to the caller rather than being folded into the "no rows"
+// path (#5764): before this fix a deadlined or unavailable graph read was
+// silently indistinguishable from "no deployment evidence exists".
+func queryRepoDeploymentEvidenceDirection(ctx context.Context, reader querycontract.GraphQuery, params map[string]any, cypher string) ([]map[string]any, bool, error) {
+	queryParams := querycontract.CopyMap(params)
+	queryParams["limit"] = repositoryDeploymentEvidenceArtifactLimit + 1
+	rows, err := reader.Run(ctx, cypher+"\n\t\tLIMIT $limit", queryParams)
+	if err != nil {
+		return nil, false, err
+	}
+	if len(rows) == 0 {
+		return nil, false, nil
+	}
+	if len(rows) > repositoryDeploymentEvidenceArtifactLimit {
+		return rows[:repositoryDeploymentEvidenceArtifactLimit], true, nil
+	}
+	return rows, false, nil
+}
+
+// buildGraphDeploymentEvidence converts EvidenceArtifact graph rows into the
+// repository context contract and keeps Postgres drilldown keys explicit.
+func BuildGraphDeploymentEvidence(rows []map[string]any) map[string]any {
+	artifacts := make([]map[string]any, 0, len(rows))
+	var (
+		families          []string
+		evidenceKinds     []string
+		relationshipTypes []string
+		environments      []string
+		sourceRepoIDs     []string
+		targetRepoIDs     []string
+		ciArtifactCount   int
+	)
+	for _, row := range rows {
+		artifact := map[string]any{
+			"id":                querycontract.StringVal(row, "artifact_id"),
+			"direction":         querycontract.StringVal(row, "direction"),
+			"name":              querycontract.StringVal(row, "name"),
+			"domain":            querycontract.StringVal(row, "domain"),
+			"path":              querycontract.StringVal(row, "path"),
+			"evidence_kind":     querycontract.StringVal(row, "evidence_kind"),
+			"artifact_family":   querycontract.StringVal(row, "artifact_family"),
+			"extractor":         querycontract.StringVal(row, "extractor"),
+			"relationship_type": querycontract.StringVal(row, "relationship_type"),
+			"source_repo_id":    querycontract.StringVal(row, "source_repo_id"),
+			"source_repo_name":  querycontract.StringVal(row, "source_repo_name"),
+			"target_repo_id":    querycontract.StringVal(row, "target_repo_id"),
+			"target_repo_name":  querycontract.StringVal(row, "target_repo_name"),
+			"evidence_source":   querycontract.StringVal(row, "evidence_source"),
+		}
+		attachRepositoryObservationIdentity(artifact, row, "source")
+		attachRepositoryObservationIdentity(artifact, row, "target")
+		copyOptionalDeploymentEvidenceFields(artifact, row)
+		attachDeploymentEvidenceSourceLocation(artifact)
+
+		family := querycontract.StringVal(row, "artifact_family")
+		if family == "github_actions" || family == "jenkins" {
+			ciArtifactCount++
+		}
+		families = append(families, family)
+		evidenceKinds = append(evidenceKinds, querycontract.StringVal(row, "evidence_kind"))
+		relationshipTypes = append(relationshipTypes, querycontract.StringVal(row, "relationship_type"))
+		environments = append(environments, querycontract.StringVal(row, "environment"))
+		sourceRepoIDs = append(sourceRepoIDs, querycontract.StringVal(row, "source_repo_id"))
+		targetRepoIDs = append(targetRepoIDs, querycontract.StringVal(row, "target_repo_id"))
+		artifacts = append(artifacts, artifact)
+	}
+
+	sort.Slice(artifacts, func(i, j int) bool {
+		leftPath := querycontract.StringVal(artifacts[i], "path")
+		rightPath := querycontract.StringVal(artifacts[j], "path")
+		if leftPath != rightPath {
+			return leftPath < rightPath
+		}
+		return querycontract.StringVal(artifacts[i], "id") < querycontract.StringVal(artifacts[j], "id")
+	})
+
+	return map[string]any{
+		"truth_basis":        "graph",
+		"artifact_count":     len(artifacts),
+		"ci_artifact_count":  ciArtifactCount,
+		"environment_count":  len(querycontract.UniqueSortedStrings(environments)),
+		"artifacts":          artifacts,
+		"evidence_index":     buildDeploymentEvidenceIndex(artifacts),
+		"artifact_families":  querycontract.UniqueSortedStrings(families),
+		"evidence_kinds":     querycontract.UniqueSortedStrings(evidenceKinds),
+		"relationship_types": querycontract.UniqueSortedStrings(relationshipTypes),
+		"environments":       querycontract.UniqueSortedStrings(environments),
+		"source_repo_ids":    querycontract.UniqueSortedStrings(sourceRepoIDs),
+		"target_repo_ids":    querycontract.UniqueSortedStrings(targetRepoIDs),
+	}
+}
+
+func AttachRepositoryObservationIdentity(artifact, row map[string]any, endpoint string) {
+	if canonicalID := querycontract.StringVal(row, endpoint+"_repo_canonical_id"); canonicalID != "" {
+		artifact[endpoint+"_repo_canonical_id"] = canonicalID
+	}
+	if scopeKey := querycontract.StringVal(row, endpoint+"_repo_scope_key"); scopeKey != "" {
+		artifact[endpoint+"_repo_scope_key"] = scopeKey
+	}
+	remoteURL := querycontract.StringVal(row, endpoint+"_repo_remote_url")
+	if remoteURL != "" {
+		canonicalID, err := repositoryidentity.CanonicalRepositoryID(remoteURL, "")
+		if err == nil {
+			artifact[endpoint+"_repo_canonical_id"] = canonicalID
+		}
+	}
+	if scopeID := strings.TrimSpace(querycontract.StringVal(row, endpoint+"_repo_scope_id")); scopeID != "" {
+		sum := sha1.Sum([]byte(scopeID)) // #nosec G401 -- privacy-safe stable scope discriminator, not a security primitive
+		artifact[endpoint+"_repo_scope_key"] = "scope:s_" + hex.EncodeToString(sum[:])[:8]
+	}
+}
+
+type deploymentEvidenceIndexBucket struct {
+	artifactCount     int
+	resolvedIDs       []string
+	generationIDs     []string
+	evidenceKinds     []string
+	artifactFamilies  []string
+	relationshipTypes []string
+}
+
+// buildDeploymentEvidenceIndex keeps the deployment evidence drilldown path
+// visible without duplicating heavyweight evidence payloads from Postgres.
+func buildDeploymentEvidenceIndex(artifacts []map[string]any) map[string]any {
+	if len(artifacts) == 0 {
+		return nil
+	}
+	byRelationshipType := map[string]*deploymentEvidenceIndexBucket{}
+	byArtifactFamily := map[string]*deploymentEvidenceIndexBucket{}
+	byEvidenceKind := map[string]*deploymentEvidenceIndexBucket{}
+	for _, artifact := range artifacts {
+		addDeploymentEvidenceIndexBucket(byRelationshipType, querycontract.StringVal(artifact, "relationship_type"), artifact)
+		addDeploymentEvidenceIndexBucket(byArtifactFamily, querycontract.StringVal(artifact, "artifact_family"), artifact)
+		addDeploymentEvidenceIndexBucket(byEvidenceKind, querycontract.StringVal(artifact, "evidence_kind"), artifact)
+	}
+	return map[string]any{
+		"lookup_basis":       "resolved_id",
+		"relationship_types": finalizeDeploymentEvidenceIndex(byRelationshipType),
+		"artifact_families":  finalizeDeploymentEvidenceIndex(byArtifactFamily),
+		"evidence_kinds":     finalizeDeploymentEvidenceIndex(byEvidenceKind),
+	}
+}
+
+func addDeploymentEvidenceIndexBucket(buckets map[string]*deploymentEvidenceIndexBucket, key string, artifact map[string]any) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return
+	}
+	bucket := buckets[key]
+	if bucket == nil {
+		bucket = &deploymentEvidenceIndexBucket{}
+		buckets[key] = bucket
+	}
+	bucket.artifactCount++
+	bucket.resolvedIDs = append(bucket.resolvedIDs, querycontract.StringVal(artifact, "resolved_id"))
+	bucket.generationIDs = append(bucket.generationIDs, querycontract.StringVal(artifact, "generation_id"))
+	bucket.evidenceKinds = append(bucket.evidenceKinds, querycontract.StringVal(artifact, "evidence_kind"))
+	bucket.artifactFamilies = append(bucket.artifactFamilies, querycontract.StringVal(artifact, "artifact_family"))
+	bucket.relationshipTypes = append(bucket.relationshipTypes, querycontract.StringVal(artifact, "relationship_type"))
+}
+
+func finalizeDeploymentEvidenceIndex(buckets map[string]*deploymentEvidenceIndexBucket) map[string]any {
+	if len(buckets) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(buckets))
+	for key, bucket := range buckets {
+		out[key] = map[string]any{
+			"artifact_count":     bucket.artifactCount,
+			"resolved_ids":       querycontract.UniqueSortedStrings(bucket.resolvedIDs),
+			"generation_ids":     querycontract.UniqueSortedStrings(bucket.generationIDs),
+			"evidence_kinds":     querycontract.UniqueSortedStrings(bucket.evidenceKinds),
+			"artifact_families":  querycontract.UniqueSortedStrings(bucket.artifactFamilies),
+			"relationship_types": querycontract.UniqueSortedStrings(bucket.relationshipTypes),
+		}
+	}
+	return out
+}
+
+func copyOptionalDeploymentEvidenceFields(dst map[string]any, src map[string]any) {
+	if resolvedID := querycontract.StringVal(src, "resolved_id"); resolvedID != "" {
+		dst["resolved_id"] = resolvedID
+		dst["postgres_lookup_basis"] = "resolved_id"
+	}
+	if generationID := querycontract.StringVal(src, "generation_id"); generationID != "" {
+		dst["generation_id"] = generationID
+	}
+	if confidence := querycontract.FloatVal(src, "confidence"); confidence > 0 {
+		dst["confidence"] = confidence
+	}
+	if startLine := querycontract.FirstPositiveInt(src, "start_line", "line_number", "line_start", "line"); startLine > 0 {
+		dst["start_line"] = startLine
+	}
+	if endLine := querycontract.FirstPositiveInt(src, "end_line", "line_end"); endLine > 0 {
+		dst["end_line"] = endLine
+	}
+	if environment := querycontract.StringVal(src, "environment"); environment != "" {
+		dst["environment"] = environment
+	}
+	if runtimePlatformKind := querycontract.StringVal(src, "runtime_platform_kind"); runtimePlatformKind != "" {
+		dst["runtime_platform_kind"] = runtimePlatformKind
+	}
+	if matchedAlias := querycontract.StringVal(src, "matched_alias"); matchedAlias != "" {
+		dst["matched_alias"] = matchedAlias
+	}
+	if matchedValue := querycontract.StringVal(src, "matched_value"); matchedValue != "" {
+		dst["matched_value"] = matchedValue
+	}
+	if commitSHA := querycontract.StringVal(src, "commit_sha"); commitSHA != "" {
+		dst["commit_sha"] = commitSHA
+	}
+	// GitHub Actions @ref pin signal (issue #5372). ref_pinned is copied
+	// through together with ref_value -- and only when ref_value is
+	// present -- because ref_pinned:false is itself a real classification
+	// (a mutable branch/tag), not an absence marker; gating on ref_value's
+	// presence is what keeps a local ./ workflow (no ref_value node
+	// property at all) from getting a fabricated ref_pinned.
+	if refValue := querycontract.StringVal(src, "ref_value"); refValue != "" {
+		dst["ref_value"] = refValue
+		dst["ref_pinned"] = querycontract.BoolVal(src, "ref_pinned")
+	}
+}
+
+func attachDeploymentEvidenceSourceLocation(artifact map[string]any) {
+	repoID := querycontract.StringVal(artifact, "source_repo_id")
+	path := querycontract.StringVal(artifact, "path")
+	if repoID == "" || path == "" {
+		return
+	}
+	location := map[string]any{
+		"repo_id":   repoID,
+		"repo_name": querycontract.StringVal(artifact, "source_repo_name"),
+		"path":      path,
+	}
+	if startLine := querycontract.IntVal(artifact, "start_line"); startLine > 0 {
+		location["start_line"] = startLine
+	}
+	if endLine := querycontract.IntVal(artifact, "end_line"); endLine > 0 {
+		location["end_line"] = endLine
+	}
+	artifact["source_location"] = location
+}

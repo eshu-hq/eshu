@@ -15,7 +15,7 @@ responses.
 This package owns content-derived artifact reads, not handler orchestration
 and not graph reads. It imports only the standard library, `querycontract`,
 and content-parsing libraries. It never imports `repository`,
-`repositoryreadmodel`, or the query root. The `repository` package and a
+`repository/readmodel`, or the query root. The `repository` package and a
 handful of staying root stayers consume its exported loaders and
 predicates.
 

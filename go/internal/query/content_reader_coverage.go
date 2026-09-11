@@ -45,12 +45,12 @@ func (cr *ContentReader) RepositoryCoverage(ctx context.Context, repoID string) 
 		return RepositoryContentCoverage{}, fmt.Errorf("query entity count: %w", err)
 	}
 
-	fileIndexedAt, err := repository.QueryMaxIndexedAt(ctx, cr.db, repository.RepositoryCoverageContentFilesTable, repoID)
+	fileIndexedAt, err := repository.QueryMaxIndexedAt(ctx, cr.db, repository.CoverageContentFilesTable, repoID)
 	if err != nil {
 		span.RecordError(err)
 		return RepositoryContentCoverage{}, fmt.Errorf("query content file indexed_at: %w", err)
 	}
-	entityIndexedAt, err := repository.QueryMaxIndexedAt(ctx, cr.db, repository.RepositoryCoverageContentEntitiesTable, repoID)
+	entityIndexedAt, err := repository.QueryMaxIndexedAt(ctx, cr.db, repository.CoverageContentEntitiesTable, repoID)
 	if err != nil {
 		span.RecordError(err)
 		return RepositoryContentCoverage{}, fmt.Errorf("query content entity indexed_at: %w", err)

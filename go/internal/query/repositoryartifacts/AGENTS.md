@@ -9,7 +9,7 @@
 ## Invariants
 
 - Leaf package: standard library, `querycontract`, and content-parsing
-  libraries only. Never import `repository`, `repositoryreadmodel`, or the
+  libraries only. Never import `repository`, `repository/readmodel`, or the
   query root.
 - Artifact predicates feed access decisions (`filter...ForAccess` callers);
   keep the fail-closed behavior and bounded limits exactly as they are.

@@ -467,13 +467,13 @@ linters:
       - path: 'internal/query/language_query_entities\.go'
         linters:
           - funlen
-      - path: 'internal/query/repository/repository\.go'
+      - path: 'internal/query/repository/handler\.go'
         linters:
           - funlen
-      - path: 'internal/query/repository/repository_context\.go'
+      - path: 'internal/query/repository/context\.go'
         linters:
           - funlen
-      - path: 'internal/query/repository/repository_deployment_overview_story\.go'
+      - path: 'internal/query/repository/deployment_overview_story\.go'
         linters:
           - funlen
       - path: 'internal/query/repository/semantic_profile\.go'

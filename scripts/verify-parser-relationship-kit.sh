@@ -108,7 +108,7 @@ go/internal/mcp/language*.go) ;;
   case "$path" in
     *_test.go|*_bench_test.go) return 1 ;;
     # Repositories-by-language inventory handlers (for example
-    # content_reader_language_inventory.go and repository_language_inventory.go)
+    # content_reader_language_inventory.go and repository/language_inventory.go)
     # aggregate repository/file counts per language family for the
     # GET /api/v0/repositories/by-language and /language-inventory routes. They
     # only share the "language" filename token with the code-entity Language
@@ -118,7 +118,7 @@ go/internal/mcp/language*.go) ;;
     *language_inventory.go) return 1 ;;
     # content_reader_language.go is the same class: ListRepoFilesByLanguage is a
     # pushed-down files-by-language read for the repository-tree endpoint, called
-    # only from repository_tree.go, and its own doc comment notes the language
+    # only from repository/tree.go, and its own doc comment notes the language
     # match is "identical to the by-language inventory reads". execute_language
     # _query lives in go/internal/mcp and never reaches it, so a change here does
     # not change the DSL that language-query-dsl.md documents.
