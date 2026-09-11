@@ -44,14 +44,15 @@ const (
 	NonHotClassOperatorQuery   = "operator_query"
 	NonHotClassBackendMetadata = "backend_metadata"
 	// NonHotClassDegreeBounded is a single-anchor one-hop CALLS read with no
-	// statement LIMIT. The row count is the anchor's CALLS out-degree, so the
+	// statement LIMIT. The row count is the anchor's CALLS degree in the
+	// read's direction (out-degree outgoing, in-degree incoming), so the
 	// disposition carries the corpus-measured degree instead of a LIMIT it
 	// does not have (#6556, option b).
 	NonHotClassDegreeBounded = "degree_bounded"
 	// NonHotClassDepthBounded is a single-anchor variable-length CALLS
-	// traversal with no row LIMIT. Each hop still fans out by CALLS
-	// out-degree, so it carries the corpus-measured degree plus the
-	// code-enforced depth ceiling (#6556).
+	// traversal with no row LIMIT. Each hop still expands by CALLS degree
+	// in the read's direction, so it carries the corpus-measured degree
+	// plus the code-enforced depth ceiling (#6556).
 	NonHotClassDepthBounded = "depth_bounded"
 )
 
@@ -74,16 +75,17 @@ type NonHotDisposition struct {
 	Delegate     string `yaml:"delegate,omitempty"`
 	Policy       string `yaml:"policy,omitempty"`
 	Operation    string `yaml:"operation,omitempty"`
-	// MaxDegree bounds the anchor's CALLS out-degree for degree-bounded
-	// reads. It describes the reference corpus, not a production cap:
-	// these statements carry no LIMIT by accuracy design (#6556).
+	// MaxDegree bounds the anchor's CALLS degree in the read's direction for
+	// degree-bounded reads. It describes the reference corpus, not a
+	// production cap: these statements carry no LIMIT by accuracy design
+	// (#6556).
 	MaxDegree int `yaml:"max_degree,omitempty"`
 	// MaxDepth bounds a depth-bounded traversal's variable-length hop
 	// range. It must sit inside the handler's enforced clamp.
 	MaxDepth int `yaml:"max_depth,omitempty"`
 }
 
-// nonHotCorpusMaxCALLSOutDegree floors max_degree for degree-bounded CALLS
+// nonHotCorpusMaxCALLSDegree floors max_degree for degree-bounded CALLS
 // reads. Measured value 8: production parser (DefaultEngine.ParsePath) over
 // the 31 B-7 staged corpus fixtures
 // (scripts/lib/golden-corpus-fixtures.sh), restricted to CALLS-eligible call
@@ -96,7 +98,7 @@ type NonHotDisposition struct {
 // cannot exceed either upper bound, and one floor covers both read
 // directions. Re-measure with the same method when the staged corpus changes
 // and raise this floor; never lower an entry's max_degree to fit.
-const nonHotCorpusMaxCALLSOutDegree = 8
+const nonHotCorpusMaxCALLSDegree = 8
 
 // nonHotTransitiveMaxDepth ceilings max_depth for depth-bounded CALLS
 // traversals. It is the enforced clamp ceiling in
@@ -472,19 +474,19 @@ func validateNonHotDisposition(key string, disposition NonHotDisposition) []stri
 }
 
 // validateNonHotMaxDegree floors max_degree at the corpus-measured maximum
-// CALLS out-degree so a disposition cannot certify a fan-out below observed
-// reality. A max_degree under the floor is either a stale measurement (the
-// staged corpus grew — re-measure and raise the floor) or a number picked to
-// fit the entry (never the fix).
+// CALLS degree (both directions) so a disposition cannot certify a fan-out
+// below observed reality. A max_degree under the floor is either a stale
+// measurement (the staged corpus grew — re-measure and raise the floor) or
+// a number picked to fit the entry (never the fix).
 func validateNonHotMaxDegree(key, class string, maxDegree int) []string {
-	if maxDegree < nonHotCorpusMaxCALLSOutDegree {
+	if maxDegree < nonHotCorpusMaxCALLSDegree {
 		return []string{fmt.Sprintf(
 			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the B-7 staged corpus",
 			key,
 			class,
-			nonHotCorpusMaxCALLSOutDegree,
+			nonHotCorpusMaxCALLSDegree,
 			maxDegree,
-			nonHotCorpusMaxCALLSOutDegree,
+			nonHotCorpusMaxCALLSDegree,
 		)}
 	}
 	return nil
