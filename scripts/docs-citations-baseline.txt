@@ -596,7 +596,6 @@ LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/repo_de
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:189
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service.go:358
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/service_heartbeat.go:114
-LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/shared_projection_worker_lease_heartbeat.go:48
 LINE docs/public/observability/telemetry-coverage.md go/internal/reducer/tfconfigstate/terraform_config_state_drift.go:102
 LINE docs/public/observability/telemetry-coverage.md go/internal/searchdecaytelemetry/observer.go:31
 LINE docs/public/observability/telemetry-coverage.md go/internal/storage/cypher/phase_group_metadata.go:26
