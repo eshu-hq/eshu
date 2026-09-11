@@ -135,7 +135,7 @@ It now calls `extractAPISpecEvidenceWithoutRefs`, which is error-free because
 Round 10 found four files within 15 lines of the 500-line rule `CLAUDE.md` says
 to split *before* approaching: `service_evidence.go` 487,
 `deployment_trace_truncation_disclosure_test.go` 488,
-`openapi_paths_impact.go` 486, and the former
+`openapi/paths/impact/routes.go` 486, and the former
 `internal/mcp/tools_ecosystem.go` 485. The #6058 package move initially put the
 last file at `internal/mcp/ecosystem/tools.go` with 488 lines. Its approved
 change-surface split moved two definitions into
@@ -184,7 +184,7 @@ stale count can still merge silently.
 `service_evidence_types.go` is 211. `buildSpecFileResolver` also took its
 `context.Context` back to the first parameter position on the way across.
 
-Of the other two near-cap files, `openapi_paths_impact.go` remains recorded
+Of the other two near-cap files, `openapi/paths/impact/routes.go` remains recorded
 rather than split because its single-statement string builder would cut a wire
 contract in half. The new P1-1 regression went into
 `deployment_trace_repoid_tiebreak_test.go` (205 to 283) specifically to keep
@@ -200,7 +200,7 @@ round-1-to-9 one. `go/internal/query/AGENTS.md` stays at 1312: its existing
 
 ## Round 10 P3s
 
-- `openapi_paths_impact.go`'s `consumer_repositories_truncated` description said
+- `openapi/paths/impact/routes.go`'s `consumer_repositories_truncated` description said
   "either hostname filter applied before the cross-repository searches", which
   reads as exactly two and left source 3 unnamed while the markdown named all
   seven. It now names all three narrowings applied to the hostname set.

@@ -8,9 +8,9 @@
    aliases and wrappers plus `APIRouter`; existing callers keep the root API.
 3. `go/internal/query/querycontract/capability.go` and the root `contract_*`
    files — family registration and the canonical 139-capability order.
-4. `go/internal/query/openapi.go` and the `openapi_paths_*.go` files — how the
-   OpenAPI spec is assembled; any new or changed route must update the matching
-   fragment.
+4. `go/internal/query/openapi/` — how the spec is assembled. `openapi/spec.go`
+   concatenates exported constants from `openapi/paths/<family>/`, the
+   components block, and `openapi/schema/`; a changed route updates its fragment.
 5. `go/internal/telemetry/contract.go` — span name constants
    (`SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
    `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`,
@@ -46,9 +46,10 @@
   branch.
 
 - **OpenAPI fragments and handler behavior must agree** — the spec is a
-  concatenation of string literals in `openapi_paths_*.go` files. A handler
-  change that adds a field or changes a route must update the matching fragment
-  in the same PR, or the live spec diverges from actual behavior.
+  concatenation of string literals in `openapi/paths/<family>/`, assembled in
+  `openapi.Spec()` in published path order. A handler change that adds a field
+  or changes a route must update the matching fragment in the same PR, or the
+  live spec diverges from actual behavior.
 
 - **Repository tenant-isolation canary evidence** — #2048 filters repository
   list and selector reads from `AuthContext` before pagination, counts,
@@ -353,8 +354,8 @@
   and/or `Content ContentStore` fields, add a `Mount(mux *http.ServeMux)` method
   with explicit `mux.HandleFunc` calls, add the struct field to `APIRouter`
   (`handler.go:110`), call `Mount` in `APIRouter.Mount` (`handler.go:125`), wire
-  the concrete adapter in `cmd/api/wiring.go`'s `newRouter`, add a
-  `openapi_paths_*.go` fragment and reference it in `OpenAPISpec()`, update
+  the concrete adapter in `cmd/api/wiring.go`'s `newRouter`, add a fragment
+  under `openapi/paths/<family>/`, reference it in `openapi.Spec()`, update
   `docs/public/reference/http-api.md`. Run
   `go test ./cmd/api ./internal/query -count=1`. Why: missing any step leaves a
   route reachable but not documented, not gated, or not wired to the right
@@ -370,9 +371,9 @@
   `BuildTruthEnvelope` panics on unknown capability IDs at handler call time.
 
 - **Change a response shape** → update the handler method, the matching
-  `openapi_paths_*.go` string constant, and `docs/public/reference/http-api.md` in
-  the same PR. Why: the OpenAPI spec is a static string; it does not reflect from
-  Go structs automatically.
+  `openapi/paths/<family>/` string constant, and `docs/public/reference/http-api.md`
+  in the same PR. Why: the OpenAPI spec is a static string; it does not reflect
+  from Go structs automatically.
 
 - **Add a new graph query** → write the Cypher in the handler or a helper file
   named after the domain (`repository_*.go`, `code_*.go`); call

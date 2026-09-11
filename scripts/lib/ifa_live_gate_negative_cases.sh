@@ -99,7 +99,7 @@ ifa_live_gate_negative_seams=(
 	'sdk/go/factschema/aws/v1/resource.go'
 	'sdk/go/factschema/azure/v1/resource.go'
 	'go/internal/parser/registry.go'
-	'go/internal/query/openapi.go'
+	'go/internal/query/openapi/spec.go'
 	'go/internal/telemetry/instruments.go'
 	'go/internal/mcp/server.go'
 	'go/internal/ifa/saturation/saturation.go'

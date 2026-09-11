@@ -229,7 +229,7 @@ This section is history. Commits seven through ten put an admission sentence on
 four surfaces, and commit ten gave it the clause below, kept identical in all
 four: the OpenAPI operation description
 (`openAPIPathsFreshnessServiceChangedSince`,
-`go/internal/query/openapi_paths_service_changed_since.go`), the
+`go/internal/query/openapi/paths/freshness/service_changed_since.go`), the
 `get_service_changed_since` tool description
 (`go/internal/mcp/freshness/tools.go`),
 `docs/public/reference/http-api/status-admin.md`, and the tool's row in

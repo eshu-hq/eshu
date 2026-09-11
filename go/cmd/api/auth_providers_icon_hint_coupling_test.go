@@ -11,7 +11,7 @@ import "testing"
 // non-empty label — the console only renders a login picker entry for
 // those), iconHintForKind must return a value in the OpenAPI icon_hint enum
 // {"oidc", "saml", "github"}, never "". See PR #5365 review thread on
-// go/internal/query/openapi_paths_auth.go:62 (linuxdynasty, P2): the two
+// go/internal/query/openapi/paths/auth/routes.go (linuxdynasty, P2): the two
 // switches are hand-maintained in parallel and nothing else enforces they
 // stay in sync.
 //
@@ -23,7 +23,7 @@ import "testing"
 // "external_github"/"github" to displayLabelForKind's login-facing switch
 // required extending iconHintForKind's case AND this test's validIconHints
 // set AND the OpenAPI icon_hint/provider_kind enums
-// (openapi_paths_auth.go) AND the console TS type
+// (openapi/paths/auth/routes.go) AND the console TS type
 // (apps/console/src/api/authSession.ts) in the same change — this test is
 // the guard that would have failed loudly had any one of those four been
 // missed.

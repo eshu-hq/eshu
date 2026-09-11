@@ -85,7 +85,7 @@ shipped alongside them. The pattern other aggregates must follow lives at:
 - `go/internal/query/content_reader_language_inventory.go`
 - `go/internal/mcp/tools_repository_language.go`
 - `go/internal/query/repository/handler.go` (route registration)
-- `go/internal/query/openapi_paths_repositories.go`
+- `go/internal/query/openapi/paths/repository/routes.go`
 
 ### Classification Buckets
 

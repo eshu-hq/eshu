@@ -76,3 +76,21 @@ go/internal/query/codequery/route_query_proof_matrix_test.go:go/internal/reducer
 # records the citation line numbers as they stood at research time, which
 # repointing to the post-move destination would falsify.
 docs/internal/design/restructure-research.md:go/internal/reducer/shared_projection.go
+
+# Two dated CHANGELOG entries describing the OpenAPI surface as it stood when
+# each release shipped, before #6642 nested the fragments. A changelog records
+# what was true at a point in time; repointing these would claim the released
+# tree had a layout it did not have, which is worse than a stale path.
+CHANGELOG.md:go/internal/query/openapi_paths_terraform_config_state_drift.go
+
+# A dated report of the SSE content-type change, naming the file that edit
+# actually touched. Repointing it would attribute the edit to a path that did
+# not exist when the edit was made.
+.sse-report.md:go/internal/query/openapi_paths_ask.go
+
+# Not a pointer: this fixture WRITES a synthetic file at the historical flat
+# path into a throwaway tree, to prove verify-openapi.sh still scans that
+# layout after #6642 nested the real fragments. The test asserts the flat case
+# stays covered, so repointing it at the nested path would delete the only
+# coverage of the layout it exists to exercise.
+scripts/test-verify-openapi-subpackage.sh:go/internal/query/openapi_paths_supply_chain.go

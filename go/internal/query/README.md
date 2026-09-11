@@ -1251,9 +1251,9 @@ live in [evidence-notes.md](evidence-notes.md).
   sources; `PostgresIaCReachabilityStore` is the only shipped implementation.
 - `AdminStore` — implement this interface to redirect admin queue operations to
   a different storage layer.
-- OpenAPI fragments — add a new `openapi_paths_*.go` file and reference it in
-  `OpenAPISpec()` (`openapi.go:55`); the concatenation order determines the JSON
-  path order in the served schema.
+- OpenAPI fragments — add an exported string constant under
+  `openapi/paths/<family>/` and reference it in `openapi.Spec()`; that order is
+  the served JSON path order. Shared fragments go in `openapi/schema/`.
 
 Do not add `if graphBackend == "nornicdb"` branches in handler code. Backend
 dialect differences belong in `internal/storage/cypher` adapters behind the
@@ -1404,7 +1404,7 @@ poison `projection_bug` never drains via a scope-wide replay without force.
   -count=1`.
 - The OpenAPI spec is assembled from string fragments in Go source, not from
   runtime reflection. When a handler changes its request or response shape,
-  update the matching `openapi_paths_*.go` fragment in the same PR.
+  update the matching `openapi/paths/<family>/` fragment in the same PR.
 
 ## Related docs
 

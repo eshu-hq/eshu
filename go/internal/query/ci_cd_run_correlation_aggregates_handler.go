@@ -309,7 +309,7 @@ func isSupportedCICDRunCorrelationDimension(d CICDRunCorrelationInventoryDimensi
 
 // validateCICDRunCorrelationAggregateOutcome rejects unknown outcome filters
 // with a 400 so a typo does not silently return zero counts. Matches the
-// enum advertised by openapi_paths_cicd.go for the list endpoint and the
+// enum advertised by openapi/paths/cicd/routes.go for the list endpoint and the
 // new aggregate routes.
 func validateCICDRunCorrelationAggregateOutcome(w http.ResponseWriter, filter CICDRunCorrelationAggregateFilter) bool {
 	if filter.Outcome == "" || isSupportedCICDRunCorrelationOutcome(filter.Outcome) {

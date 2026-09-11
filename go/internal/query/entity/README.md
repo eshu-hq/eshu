@@ -17,7 +17,7 @@ envelope, supply-chain enrichment, investigation, workload resolution). The
 `TruthBasisHybrid` envelope basis travel with the family; the shared
 capability matrix row stays in the query root. The OpenAPI fragments
 documenting the entity routes stay in the query root
-(`openapi_paths_entities.go`), where scripts/verify-openapi.sh requires
+(`openapi/paths/search/entities.go`), where scripts/verify-openapi.sh requires
 every family's fragments to live.
 
 The `EntityHandler` struct keeps its `Neo4j`, `Content`,

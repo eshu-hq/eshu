@@ -50,7 +50,8 @@ GOEOF
 # subpackage of a scan dir was excluded, on the reasoning that a subpackage
 # owns both its routes and its OpenAPI fragments. Epic #6053's query split
 # (#6060) makes that false for a handler family, which takes its Mount() into
-# go/internal/query/<family>/ but must leave its openapi_paths_<family>.go
+# go/internal/query/<family>/ while its path fragment lives elsewhere -- in
+# the flat layout this fixture builds, an openapi_paths_<family>.go
 # fragment behind in package query, because OpenAPISpec() concatenates
 # unexported consts across a boundary a subdirectory cannot cross. A real
 # family route in a subpackage IS part of this surface and must be scanned;

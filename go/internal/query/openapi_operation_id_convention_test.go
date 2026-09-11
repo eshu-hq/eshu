@@ -16,7 +16,7 @@ import (
 // lowerCamelCase, and nothing in the Go build, vet, or test lanes objects if
 // one stops being -- a package-wide identifier rename swept
 // "investigateHardcodedSecrets" to "InvestigateHardcodedSecrets" in
-// openapi_paths_code_security.go while the whole suite stayed green (#6060).
+// openapi/paths/code/security.go while the whole suite stayed green (#6060).
 //
 // This asserts over the assembled spec rather than the source files, because
 // the assembled spec is what clients actually receive.

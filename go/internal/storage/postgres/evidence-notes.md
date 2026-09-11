@@ -803,7 +803,7 @@ No-Observability-Change: the new denial reuses the existing
 `LocalIdentityAuthMFARequired` status, which
 `LocalIdentityHandler` already maps to a governance-audit MFALifecycle
 `DecisionDenied` event and to the existing `mfa_required` value in the wire
-`status` enum (`openapi_components_auth.go`) — so the widened population reaching
+`status` enum (`openapi/components_local_identity.go`) — so the widened population reaching
 `mfa_required` is already observable through the current audit and wire
 contract, with no new metric, span, or wire field required. The one added
 operator signal is a distinct `slog.ErrorContext` line — `"local login
@@ -936,7 +936,7 @@ governance-audit event type (`governanceaudit.EventTypeIdentityAuthentication`,
 already used by login) with a distinct `reason_code` (`"must_change_password"`
 for the blocked-login denial, `"local_password_rotation_forced"` for a
 successful rotation), and a new value in the existing `status` enum
-(`LocalIdentitySessionResponse.status`, `openapi_components_auth.go`) that the
+(`LocalIdentitySessionResponse.status`, `openapi/components_local_identity.go`) that the
 console already knows how to render generically (it is the same response
 shape `mfa_required` already uses). No new `eshu_dp_*` metric, span name, or
 telemetry contract row: the rotation endpoint's writes (revoke, insert, clear
