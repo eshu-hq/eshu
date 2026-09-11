@@ -14,10 +14,12 @@ import (
 // cannot share unexported symbols across a package boundary. These are
 // therefore local copies of the fixture and the recording intent writer that
 // the root's cross-domain suites -- the fact-kind and fact-payload loader
-// gates, the idempotency cases, and the shell_exec materialization tests
-// (which reuse the SQL-relationship repository fixture) -- drive the
-// relocated handler through. Keep them in step with the family's own copies
-// in internal/reducer/sqlrelationship/sql_relationship_test_helpers_test.go
+// gates and the idempotency cases -- drive the relocated handler through.
+// The shell_exec materialization tests that used to reuse this fixture moved
+// to internal/reducer/code/shell under the same issue and keep their own
+// local copy (code/shell/test_helpers_test.go). Keep these in step with the
+// family's own copies in
+// internal/reducer/sqlrelationship/sql_relationship_test_helpers_test.go
 // and sql_relationship_materialization_test.go.
 
 // recordingSQLRelationshipIntentWriter captures the durable shared-projection
@@ -32,29 +34,6 @@ type recordingSQLRelationshipIntentWriter struct {
 func (w *recordingSQLRelationshipIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
 	w.rows = append(w.rows, rows...)
 	return nil
-}
-
-// refreshRows returns the per-repo refresh intents (the rows that own the
-// retract) the writer captured.
-func (w *recordingSQLRelationshipIntentWriter) refreshRows() []SharedProjectionIntentRow {
-	var out []SharedProjectionIntentRow
-	for _, row := range w.rows {
-		if isRepoRefreshRow(row) {
-			out = append(out, row)
-		}
-	}
-	return out
-}
-
-// edgeRows returns the write-only per-edge intents the writer captured.
-func (w *recordingSQLRelationshipIntentWriter) edgeRows() []SharedProjectionIntentRow {
-	var out []SharedProjectionIntentRow
-	for _, row := range w.rows {
-		if !isRepoRefreshRow(row) {
-			out = append(out, row)
-		}
-	}
-	return out
 }
 
 // sqlRelationshipRepositoryEnvelope returns the shared repo-123 repository

@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the projection and readiness families (iamcan, iamescalation, secretsiam, crossscope, valueflow, codecall)
+// This file is the reducer root's compatibility surface for the projection and readiness families (iamcan, iamescalation, secretsiam, crossscope, valueflow, codecall, shell)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -19,11 +19,13 @@ package reducer
 //   - value_flow_compat.go
 
 import (
+	"context"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	valueflow "github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
@@ -32,6 +34,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // Stanza: iam_can_compat.go (merged; do not recreate this file).
@@ -408,4 +411,68 @@ const codeCallPartitionKeyVersion = codecall.PartitionKeyVersion
 // code_call_projection_work.go runner file.
 func codeCallPayloadBool(payload map[string]any, key string) bool {
 	return codecall.PayloadBool(payload, key)
+}
+
+// Stanza: shell-exec family move (#6061; no prior compat file).
+// The shell-exec fact extraction, materialization, and shared-intent row
+// construction family moved to [shell] (go/internal/reducer/code/shell).
+// Every entry keeps the reducer.X spelling (exported) or the unexported
+// root call sites' spelling (the sibling delta-gate/retract-reachability
+// cross-domain proofs and the factload benchmark) unchanged. Each entry is
+// deleted once its last caller names [shell] directly.
+
+// ShellExecIntentWriter is the root spelling of [shell.ExecIntentWriter].
+type ShellExecIntentWriter = shell.ExecIntentWriter
+
+// shellExecMaterializationFactKinds is the root spelling of
+// [shell.MaterializationFactKinds]. The reducer root's
+// factload_materialization_bench_test.go corpus-coverage guard reads it.
+var shellExecMaterializationFactKinds = shell.MaterializationFactKinds
+
+// ShellExecMaterializationHandler is the root spelling of
+// [shell.ExecMaterializationHandler].
+type ShellExecMaterializationHandler = shell.ExecMaterializationHandler
+
+// ExtractShellExecRows forwards to [shell.ExtractExecRows].
+func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
+	return shell.ExtractExecRows(envelopes)
+}
+
+// loadShellExecMaterializationFacts forwards to
+// [shell.LoadMaterializationFacts]. The reducer root's
+// factload_materialization_bench_test.go benches it under this spelling.
+func loadShellExecMaterializationFacts(
+	ctx context.Context,
+	loader FactLoader,
+	scopeID string,
+	generationID string,
+) ([]facts.Envelope, error) {
+	return shell.LoadMaterializationFacts(ctx, loader, scopeID, generationID)
+}
+
+// buildShellExecRefreshIntents forwards to [shell.BuildRefreshIntents]. The
+// reducer root's sibling_edge_intent_delta_gate_test.go drives this
+// alongside inheritance.BuildRefreshIntents and sqlrelationship.BuildRefreshIntents
+// through one cross-domain table.
+func buildShellExecRefreshIntents(
+	deltaScope sqlrelationship.DeltaScope,
+	repoIDs []string,
+	contextByRepoID map[string]ProjectionContext,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	return shell.BuildRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)
+}
+
+// buildShellExecSharedIntentRows forwards to [shell.BuildSharedIntentRows].
+// The reducer root's sibling_edge_intent_retract_reachability_test.go drives
+// this alongside inheritance.BuildSharedIntentRows and
+// sqlrelationship.BuildSharedIntentRows through one cross-domain table.
+func buildShellExecSharedIntentRows(
+	edgeRows []map[string]any,
+	deltaScope sqlrelationship.DeltaScope,
+	repoIDs []string,
+	contextByRepoID map[string]ProjectionContext,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	return shell.BuildSharedIntentRows(edgeRows, deltaScope, repoIDs, contextByRepoID, createdAt)
 }

@@ -9,6 +9,7 @@ directory owns no runtime behavior. Each child is its own Go package:
 | `call/` | `call` (imported as `codecall`) | Code-call extraction, per-language resolvers, the code-entity index, and code-call shared-intent rows |
 | `taint/` | `codetaint` | Code taint and interprocedural evidence materialization and projected-edge backfills |
 | `value/` | `valueflow` | Value-flow fixpoint program assembly, component cache, cloud-sink loading, backfill state marker |
+| `shell/` | `shell` | Shell-exec fact extraction, materialization, and shared-intent row construction for `Function-[:EXECUTES_SHELL]->ShellCommand` |
 
 `codeintel` (code-root reachability projection) is planned for `intel/` and
 still lives at `go/internal/reducer/codeintel` until its relocation lands.
@@ -25,7 +26,7 @@ still lives at `go/internal/reducer/codeintel` until its relocation lands.
 - `code_value_flow_stale_cleanup_runner.go`: a side runner that needs the
   root `PartitionLeaseManager` and `Service.startSideRunners` wiring.
 - `code_import_*` (6): planned for `repodependency/import`, not here.
-- `code_function_summary_*` (2): awaits its own `value/` move.
+- `code_function_summary_*` (2): awaits its own `function/summary/` move.
 
 Each root stayer carries a justified `//nolint:dirgate` marker because its
 name collides with this `code/` subpackage under the dirgate naming rule.

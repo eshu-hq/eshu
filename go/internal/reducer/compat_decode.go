@@ -53,7 +53,6 @@ var (
 	decodeCodeInterprocEvidence      = schemadecode.DecodeCodeInterprocEvidence
 	decodeCodeTaintEvidence          = schemadecode.DecodeCodeTaintEvidence
 	decodeCodegraphFile              = schemadecode.DecodeCodegraphFile
-	decodeCodegraphRepository        = schemadecode.DecodeCodegraphRepository
 	decodeCodeownersOwnership        = schemadecode.DecodeCodeownersOwnership
 	decodeDocumentationDocument      = schemadecode.DecodeDocumentationDocument
 	decodeDocumentationEntityMention = schemadecode.DecodeDocumentationEntityMention

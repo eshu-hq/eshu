@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package shell
 
 import (
 	"context"
@@ -10,15 +10,17 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 )
 
-func TestExtractShellExecRowsFromEmbeddedCommand(t *testing.T) {
+func TestExtractExecRowsFromEmbeddedCommand(t *testing.T) {
 	t.Parallel()
 
 	envelopes := []facts.Envelope{
-		sqlRelationshipRepositoryEnvelope(false, nil),
+		shellRepositoryEnvelope(),
 		{
-			FactKind: factKindFile,
+			FactKind: factload.FactKindFile,
 			ScopeID:  "scope-db",
 			Payload: map[string]any{
 				"repo_id":       "repo-123",
@@ -46,7 +48,7 @@ func TestExtractShellExecRowsFromEmbeddedCommand(t *testing.T) {
 		},
 	}
 
-	repoIDs, rows := ExtractShellExecRows(envelopes)
+	repoIDs, rows := ExtractExecRows(envelopes)
 	if len(repoIDs) != 1 || repoIDs[0] != "repo-123" {
 		t.Fatalf("repoIDs = %v, want [repo-123]", repoIDs)
 	}
@@ -75,15 +77,15 @@ func TestExtractShellExecRowsFromEmbeddedCommand(t *testing.T) {
 	}
 }
 
-func TestShellExecHandlerEmitsRefreshAndEdgeIntents(t *testing.T) {
+func TestExecMaterializationHandlerEmitsRefreshAndEdgeIntents(t *testing.T) {
 	t.Parallel()
 
-	writer := &recordingSQLRelationshipIntentWriter{}
-	handler := ShellExecMaterializationHandler{
+	writer := &stubIntentWriter{}
+	handler := ExecMaterializationHandler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
-			sqlRelationshipRepositoryEnvelope(false, nil),
+			shellRepositoryEnvelope(),
 			{
-				FactKind: factKindFile,
+				FactKind: factload.FactKindFile,
 				ScopeID:  "scope-db",
 				Payload: map[string]any{
 					"repo_id":       "repo-123",
@@ -109,15 +111,15 @@ func TestShellExecHandlerEmitsRefreshAndEdgeIntents(t *testing.T) {
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-shell-1",
 		ScopeID:      "scope-db",
 		GenerationID: "gen-1",
 		SourceSystem: "git",
-		Domain:       DomainShellExecMaterialization,
+		Domain:       reducercontract.DomainShellExecMaterialization,
 		EnqueuedAt:   time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC),
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
@@ -130,16 +132,16 @@ func TestShellExecHandlerEmitsRefreshAndEdgeIntents(t *testing.T) {
 	if len(refresh) != 1 {
 		t.Fatalf("refresh rows = %d, want 1", len(refresh))
 	}
-	if got := refresh[0].ProjectionDomain; got != DomainShellExec {
-		t.Fatalf("refresh domain = %q, want %q", got, DomainShellExec)
+	if got := refresh[0].ProjectionDomain; got != reducercontract.DomainShellExec {
+		t.Fatalf("refresh domain = %q, want %q", got, reducercontract.DomainShellExec)
 	}
 
 	edges := writer.edgeRows()
 	if len(edges) != 1 {
 		t.Fatalf("edge rows = %d, want 1", len(edges))
 	}
-	if got := edges[0].ProjectionDomain; got != DomainShellExec {
-		t.Fatalf("edge domain = %q, want %q", got, DomainShellExec)
+	if got := edges[0].ProjectionDomain; got != reducercontract.DomainShellExec {
+		t.Fatalf("edge domain = %q, want %q", got, reducercontract.DomainShellExec)
 	}
 	if !rowUsesRefreshFence(edges[0]) {
 		t.Fatalf("edge intent %q not marked retract_via_refresh", edges[0].IntentID)
