@@ -479,7 +479,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: e7aa1c58096b58b7025678e1e59da2776f64d0b446f57b85f512e6481f561a95
+          source_sha256: 7b78da67ac9c221dc328c4d2b9daef75448701a7f9954a4b0dfe4da88cb75bd4
           label: "Repository"
           max_results: 501
       - symbol: "queryRepositoryTotal"
@@ -527,7 +527,7 @@ source_coverage:
   - file: repository/repository_infrastructure.go
     calls:
       - {symbol: "QueryRepoInfrastructureFromGraph", count: 1, non_hot: {class: keyed_support, source_sha256: d09e7f1eb124f415ad6abd42905a3e7e48abb2c57702c1012aaf7385377e09c6, key_bound: single_key, max_results: 5001}}
-  - file: repositoryreadmodel/repository_name_lookup.go
+  - file: repository/readmodel/name_lookup.go
     calls:
       - {symbol: "QueryRepositoryNamesByID", count: 1, non_hot: {class: keyed_support, source_sha256: 96b1fc38b8307772a7b6b848451158dcef14131d5f3838472fb4a845e002686c, key_bound: bounded_key_batch, max_keys: 100, max_results: 100}}
   - file: queryselector/selector.go

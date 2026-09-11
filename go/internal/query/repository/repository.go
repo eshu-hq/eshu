@@ -11,8 +11,8 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
-	readmodel "github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
 )
 
 var repositoryBaseCypher = fmt.Sprintf(`
@@ -132,7 +132,7 @@ func queryRepositoryTotal(ctx context.Context, graph querycontract.GraphQuery, a
 // partial_reasons slot, and a total field that reflects the true repository
 // count independent of page size.
 func (h *RepositoryHandler) listRepositories(w http.ResponseWriter, r *http.Request) {
-	page := readmodel.RepositoryListPageFromRequest(r)
+	page := readmodel.ListPageFromRequest(r)
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if h == nil {
 		querycontract.WriteSuccess(w, r, http.StatusOK, repositoryInventoryResponse([]map[string]any{}, page, false, 0), nil)

@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	readmodel "github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
+	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 )
 
 // getRepositoryBranches returns the source-backed refs the console branch
@@ -32,11 +32,11 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 		return
 	}
 
-	limit, ok := querycontract.ParseBoundedLimit(w, r, readmodel.RepositoryRefPageDefaultLimit, readmodel.RepositoryRefPageMaxLimit)
+	limit, ok := querycontract.ParseBoundedLimit(w, r, readmodel.RefPageDefaultLimit, readmodel.RefPageMaxLimit)
 	if !ok {
 		return
 	}
-	var cursor *readmodel.RepositoryRefPageCursor
+	var cursor *readmodel.RefPageCursor
 	if raw := querycontract.QueryParam(r, "cursor"); raw != "" {
 		decoded, err := readmodel.DecodeRepositoryRefPageCursor(raw, repoID)
 		if err != nil {
@@ -64,23 +64,23 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 	// cheap in memory, readmodel.ValidateSelectedRepositoryRef needs the full list, and
 	// default_branch must reflect the true default even on pages that no
 	// longer include it.
-	refs, err := readmodel.RepositoryRefs(ctx, h.Content, repoID)
+	refs, err := readmodel.Refs(ctx, h.Content, repoID)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository refs failed: %v", err))
 		return
 	}
 	if len(refs) > 0 {
 		// Re-sort by (kind, name) before paging: this is the exact comparator
-		// the cursor's keyset math uses (readmodel.RepositoryRefKeyLess), independent of
+		// the cursor's keyset math uses (readmodel.RefKeyLess), independent of
 		// is_default and independent of the store's collation-dependent name
-		// order (T3). readmodel.RepositoryRefsDefaultBranch and
+		// order (T3). readmodel.RefsDefaultBranch and
 		// readmodel.ValidateSelectedRepositoryRef scan by flag/name, not position, so
 		// re-sorting refs here does not affect them.
 		readmodel.SortRepositoryRefsForPaging(refs)
-		window, remainder, truncated, nextCursor := readmodel.RepositoryRefPageWindow(repoID, refs, cursor, limit)
-		branches, tags := readmodel.RepositoryRefWindowEntries(window)
+		window, remainder, truncated, nextCursor := readmodel.RefPageWindow(repoID, refs, cursor, limit)
+		branches, tags := readmodel.RefWindowEntries(window)
 		response := map[string]any{
-			"default_branch": readmodel.RepositoryRefsDefaultBranch(refs),
+			"default_branch": readmodel.RefsDefaultBranch(refs),
 			"branches":       branches,
 			"tags":           tags,
 			"truncated":      truncated,
@@ -91,7 +91,7 @@ func (h *RepositoryHandler) getRepositoryBranches(w http.ResponseWriter, r *http
 		// tags_truncated is deprecated in favor of truncated/next_cursor but
 		// keeps its original meaning: more tags exist beyond what tags[]
 		// carries in this page, derived from the exact in-memory remainder.
-		if readmodel.RepositoryRefsContainTag(remainder) {
+		if readmodel.RefsContainTag(remainder) {
 			response["tags_truncated"] = true
 		}
 		querycontract.WriteSuccess(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package repositoryreadmodel
+package readmodel
 
 import (
 	"context"
@@ -10,16 +10,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// querycontract.RepositoryRef is one source-backed repository branch/ref head. It is an
+// Ref is one source-backed repository branch/ref head. It is an
 // alias onto querycontract so the shared ContentStore double can name it from
 // outside this package (#6060).
-type RepositoryRef = querycontract.RepositoryRef
+type Ref = querycontract.RepositoryRef
 
 type repositoryRefLister interface {
 	ListRepositoryRefs(context.Context, string) ([]querycontract.RepositoryRef, error)
 }
 
-func RepositoryRefs(ctx context.Context, store querycontract.ContentStore, repoID string) ([]querycontract.RepositoryRef, error) {
+func Refs(ctx context.Context, store querycontract.ContentStore, repoID string) ([]querycontract.RepositoryRef, error) {
 	if store == nil {
 		return nil, nil
 	}
@@ -30,7 +30,7 @@ func RepositoryRefs(ctx context.Context, store querycontract.ContentStore, repoI
 	return lister.ListRepositoryRefs(ctx, repoID)
 }
 
-func RepositoryRefsDefaultBranch(refs []querycontract.RepositoryRef) string {
+func RefsDefaultBranch(refs []querycontract.RepositoryRef) string {
 	for _, ref := range refs {
 		if ref.Default {
 			return strings.TrimSpace(ref.Name)
@@ -39,10 +39,10 @@ func RepositoryRefsDefaultBranch(refs []querycontract.RepositoryRef) string {
 	return ""
 }
 
-// RepositoryRefEntry builds the wire entry for one repository ref.
+// RefEntry builds the wire entry for one repository ref.
 // includeDefault controls whether the is_default field appears;
 // branches always include it (legacy contract), tags never include it.
-func RepositoryRefEntry(ref querycontract.RepositoryRef, includeDefault bool) map[string]any {
+func RefEntry(ref querycontract.RepositoryRef, includeDefault bool) map[string]any {
 	entry := map[string]any{
 		"name":     ref.Name,
 		"kind":     ref.Kind,
@@ -75,7 +75,7 @@ func ValidateSelectedRepositoryRef(
 		return 0, "", nil
 	}
 
-	refs, err := RepositoryRefs(ctx, store, repoID)
+	refs, err := Refs(ctx, store, repoID)
 	if err != nil {
 		return 0, "", err
 	}

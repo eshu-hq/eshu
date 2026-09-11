@@ -47,7 +47,7 @@ const catalogWorkloadBaseCypher = `
 // populations: at ~500k-node scale that whole-graph aggregation timed the
 // catalog endpoint out regardless of the requested limit (issue #3389). Each
 // enrichment anchors on `(w:Workload) WHERE w.id IN $ids`, the bounded-id lookup
-// shape the query-plan gate enforces (see repository_name_lookup.go).
+// shape the query-plan gate enforces (see readmodel/name_lookup.go).
 // catalogWorkloadRepoCypher resolves each bounded workload's defining repository
 // through a single connected path anchored on the workload id set. The earlier
 // shape used two MATCH clauses -- `MATCH (w:Workload) WHERE w.id IN $ids` then a

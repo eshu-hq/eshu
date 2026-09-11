@@ -13,7 +13,7 @@
   package, so a root import here cycles, including from `_test.go` files in
   this package. Tests that need root doubles use `querytestutil`, never the
   root.
-- Import `repositoryartifacts` and `repositoryreadmodel`, never the reverse.
+- Import `repositoryartifacts` and `repository/readmodel`, never the reverse.
 - `RepositoryAccessFilter` values must be derived from the request's
   `AuthContext` via `querycontract.RepositoryAccessFilterFromContext`, never
   hand-built to widen access.

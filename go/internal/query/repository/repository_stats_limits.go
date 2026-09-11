@@ -7,7 +7,7 @@ import (
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	readmodel "github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
+	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 )
 
 // repositoryStatsItemLimit bounds the language and entity-type fan-out attached
@@ -88,7 +88,7 @@ func repositoryStatsPartialReasons(coverageMap map[string]any) []string {
 // deterministic by name then id, and the drilldown names the per-repository
 // stats tool plus the inventory self path. It is additive and preserves the
 // existing list truncated field.
-func repositoryInventoryResultLimits(page readmodel.RepositoryListPage, count int, truncated bool) map[string]any {
+func repositoryInventoryResultLimits(page readmodel.ListPage, count int, truncated bool) map[string]any {
 	return map[string]any{
 		"limit":            page.Limit,
 		"offset":           page.Offset,
@@ -119,12 +119,12 @@ func repositoryInventoryPartialReasons(truncated bool, repos []map[string]any) [
 // repositoryInventoryResponse wraps the bounded repository list page with the
 // additive result_limits drilldown block and explicit partial_reasons slot used
 // by the inventory (empty-selector) form of get_repository_stats. It preserves
-// the existing readmodel.RepositoryListResponse fields (repositories, count, limit,
+// the existing readmodel.ListResponse fields (repositories, count, limit,
 // offset, truncated) and adds total: the true repository count independent of
 // page size, so callers can distinguish the per-page count from the overall
 // dataset size.
-func repositoryInventoryResponse(repos []map[string]any, page readmodel.RepositoryListPage, truncated bool, total int) map[string]any {
-	response := readmodel.RepositoryListResponse(repos, page, truncated, total)
+func repositoryInventoryResponse(repos []map[string]any, page readmodel.ListPage, truncated bool, total int) map[string]any {
+	response := readmodel.ListResponse(repos, page, truncated, total)
 	response["result_limits"] = repositoryInventoryResultLimits(page, total, truncated)
 	response["partial_reasons"] = repositoryInventoryPartialReasons(truncated, repos)
 	return response

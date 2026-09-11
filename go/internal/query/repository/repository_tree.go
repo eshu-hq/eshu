@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	readmodel "github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
+	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 )
 
 // repositoryTreeFileLimit bounds the number of indexed files scanned when

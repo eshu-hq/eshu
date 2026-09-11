@@ -333,7 +333,7 @@ func TestCatalogWorkloadRepoCypherIsSingleChain(t *testing.T) {
 // endpoint out even at limit=5. Each enrichment MUST be bounded to the limited
 // workload id set returned by the base query and MUST anchor on the Workload
 // label with `WHERE w.id IN $ids`, mirroring the bounded-id lookups used
-// elsewhere (repository_name_lookup.go, entity_workload_context.go).
+// elsewhere (readmodel/name_lookup.go, entity_workload_context.go).
 func TestListCatalogBoundsEnrichmentQueriesToWorkloadIDs(t *testing.T) {
 	t.Parallel()
 

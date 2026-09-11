@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	readmodel "github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
+	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 )
 
 const (
@@ -160,7 +160,7 @@ func (h *RepositoryHandler) writeEmptyRepositoryLanguagePage(
 	r *http.Request,
 	language string,
 	languages []string,
-	page readmodel.RepositoryListPage,
+	page readmodel.ListPage,
 ) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"language":             language,
@@ -185,7 +185,7 @@ func (h *RepositoryHandler) writeEmptyRepositoryLanguagePage(
 func (h *RepositoryHandler) writeEmptyRepositoryLanguageInventoryPage(
 	w http.ResponseWriter,
 	r *http.Request,
-	page readmodel.RepositoryListPage,
+	page readmodel.ListPage,
 ) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"languages": []map[string]any{},
@@ -200,7 +200,7 @@ func (h *RepositoryHandler) writeEmptyRepositoryLanguageInventoryPage(
 	))
 }
 
-func repositoryLanguagePageFromRequest(r *http.Request, allowZeroLimit bool) readmodel.RepositoryListPage {
+func repositoryLanguagePageFromRequest(r *http.Request, allowZeroLimit bool) readmodel.ListPage {
 	limit := querycontract.QueryParamInt(r, "limit", repositoryLanguageDefaultLimit)
 	if limit < 0 {
 		limit = repositoryLanguageDefaultLimit
@@ -215,7 +215,7 @@ func repositoryLanguagePageFromRequest(r *http.Request, allowZeroLimit bool) rea
 	if offset < 0 {
 		offset = 0
 	}
-	return readmodel.RepositoryListPage{Limit: limit, Offset: offset}
+	return readmodel.ListPage{Limit: limit, Offset: offset}
 }
 
 func RepositoryLanguageFamily(language string) []string {

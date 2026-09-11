@@ -12,5 +12,5 @@
 // handlers live here. Read-model loaders the family shares with the staying
 // root package live in querycontract; file-content artifact readers live in
 // repositoryartifacts; ref resolution and page shaping live in
-// repositoryreadmodel.
+// repository/readmodel.
 package repository //nolint:dirgate // Lane-B B3 repository family for #6060: 41 non-test files vs the 40-file cap; the 41st is the deployment-evidence store split the 500-line file cap forced, and splitting a subpackage mid-move rechurns the queryplan file pins.

@@ -462,7 +462,7 @@ class as the uncorrelated `CloudResource` scan bounded in #3378.
 
 The fix passes the bounded workload id set (`$ids`) from the base query into
 each enrichment and anchors every enrichment on `(w:Workload) WHERE w.id IN
-$ids`, the indexed bounded-id lookup shape used by `repository_name_lookup.go`
+$ids`, the indexed bounded-id lookup shape used by `repository/readmodel/name_lookup.go`
 and `entity_workload_context.go` and backed by the `nornicdb_workload_id_lookup`
 index on `Workload.id`. An empty id set short-circuits all three graph round
 trips. The kept workloads, their joined repository/instance/environment facts,

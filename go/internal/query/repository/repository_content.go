@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	readmodel "github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
+	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 )
 
 // repositoryContentMaxBytes bounds the number of bytes returned by the

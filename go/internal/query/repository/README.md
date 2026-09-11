@@ -24,8 +24,8 @@ assembly already references them.
 This package owns handler orchestration for the repository routes. Story,
 context, and evidence shaping the family needs but that reads file content
 lives in `repositoryartifacts`; ref resolution and page shaping live in
-`repositoryreadmodel`; shared read-model loaders live in `querycontract`.
-This package imports `repositoryartifacts` and `repositoryreadmodel`, never
+`repository/readmodel`; shared read-model loaders live in `querycontract`.
+This package imports `repositoryartifacts` and `repository/readmodel`, never
 the reverse, and no package here imports the query root (the root cycles
 back through `handler.go` and `repository_alias.go`).
 
@@ -55,7 +55,7 @@ or `querycontract` (row-value decoders, shared bounds, ports).
 The package imports the Go standard library, `querycontract` (types, ports,
 envelopes, shared bounds), `queryselector` (selector resolution),
 `queryauth` (scoped-context checks), `impact`/`impacttrace` (deployment
-seams), `repositoryartifacts`, `repositoryreadmodel`, `querytestutil` in
+seams), `repositoryartifacts`, `repository/readmodel`, `querytestutil` in
 tests only, and the `telemetry`/`log` packages for the
 `repository_query.stage_*` events. It never imports the query root or graph
 drivers.

@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/repositoryreadmodel"
+	"github.com/eshu-hq/eshu/go/internal/query/repository/readmodel"
 )
 
 // buildPagedRefFixture returns refs in the exact store order (is_default
@@ -95,7 +95,7 @@ func TestGetRepositoryBranchesPagingFirstPageDefaultLimit(t *testing.T) {
 
 	branches := refNames(t, resp, "branches")
 	tags := refNames(t, resp, "tags")
-	if got, want := len(branches)+len(tags), repositoryreadmodel.RepositoryRefPageDefaultLimit; got != want {
+	if got, want := len(branches)+len(tags), readmodel.RefPageDefaultLimit; got != want {
 		t.Fatalf("total window = %d, want %d (default limit)", got, want)
 	}
 	if got, want := len(tags), 0; got != want {
@@ -111,7 +111,7 @@ func TestGetRepositoryBranchesPagingFirstPageDefaultLimit(t *testing.T) {
 	if !ok || nextCursorRaw == "" {
 		t.Fatal("next_cursor missing on a truncated first page")
 	}
-	decoded, err := repositoryreadmodel.DecodeRepositoryRefPageCursor(nextCursorRaw, "repo-1")
+	decoded, err := readmodel.DecodeRepositoryRefPageCursor(nextCursorRaw, "repo-1")
 	if err != nil {
 		t.Fatalf("decodeRepositoryRefPageCursor: %v", err)
 	}
@@ -276,12 +276,12 @@ func TestGetRepositoryBranchesPagingInvalidCursor(t *testing.T) {
 	// future version (3; the current version is 2 -- see the dedicated
 	// v1_cursor_rejected case below for the specific v1-deploy-boundary
 	// scenario).
-	badVersion := repositoryreadmodel.RepositoryRefPageCursor{Version: 3, RepoID: "repo-1", Kind: "branch", Name: "main"}
+	badVersion := readmodel.RefPageCursor{Version: 3, RepoID: "repo-1", Kind: "branch", Name: "main"}
 	badVersionCursor := marshalCursorForTest(t, badVersion)
 
-	wrongRepoCursor := repositoryreadmodel.EncodeRepositoryRefPageCursor("repo-other", querycontract.RepositoryRef{Name: "main", Kind: "branch", Default: true})
+	wrongRepoCursor := readmodel.EncodeRepositoryRefPageCursor("repo-other", querycontract.RepositoryRef{Name: "main", Kind: "branch", Default: true})
 
-	unknownKind := repositoryreadmodel.RepositoryRefPageCursor{Version: repositoryreadmodel.RepositoryRefPageCursorVersion, RepoID: "repo-1", Kind: "commit", Name: "x"}
+	unknownKind := readmodel.RefPageCursor{Version: readmodel.RefPageCursorVersion, RepoID: "repo-1", Kind: "commit", Name: "x"}
 	unknownKindCursor := marshalCursorForTest(t, unknownKind)
 
 	// T3 deploy-boundary case: a v1 cursor (issued before the is_default-key
@@ -316,7 +316,7 @@ func TestGetRepositoryBranchesPagingInvalidCursor(t *testing.T) {
 
 	// Sanity: a validly-encoded cursor for the right repo, right version,
 	// known kind does NOT 400.
-	validCursor := repositoryreadmodel.EncodeRepositoryRefPageCursor("repo-1", querycontract.RepositoryRef{Name: "main", Kind: "branch", Default: true})
+	validCursor := readmodel.EncodeRepositoryRefPageCursor("repo-1", querycontract.RepositoryRef{Name: "main", Kind: "branch", Default: true})
 	w := requestRepositoryBranches(t, newHandler(), "/api/v0/repositories/repo-1/branches?cursor="+validCursor)
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("valid cursor status = %d, want %d; body = %s", got, want, w.Body.String())
@@ -326,7 +326,7 @@ func TestGetRepositoryBranchesPagingInvalidCursor(t *testing.T) {
 // marshalCursorForTest base64url-encodes a hand-built cursor struct so tests
 // can construct structurally-valid-but-semantically-invalid cursors without
 // duplicating the production encoder's validation.
-func marshalCursorForTest(t *testing.T, cursor repositoryreadmodel.RepositoryRefPageCursor) string {
+func marshalCursorForTest(t *testing.T, cursor readmodel.RefPageCursor) string {
 	t.Helper()
 	raw, err := json.Marshal(cursor)
 	if err != nil {
