@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:dirgate // value-flow side runner stays in root (#6609): it needs the root PartitionLeaseManager and Service.startSideRunners wiring
+package cleanup
 
 import (
 	"context"
@@ -12,43 +12,44 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
 const (
-	defaultCodeValueFlowStaleCleanupPollInterval     = time.Hour
-	defaultCodeValueFlowStaleCleanupLeaseTTL         = 5 * time.Minute
-	defaultCodeValueFlowStaleCleanupScopeBatchLimit  = 100
-	defaultCodeValueFlowStaleCleanupDeleteBatchLimit = 500
+	defaultPollInterval     = time.Hour
+	defaultLeaseTTL         = 5 * time.Minute
+	defaultScopeBatchLimit  = 100
+	defaultDeleteBatchLimit = 500
 )
 
 const (
-	codeValueFlowStaleCleanupLeaseDomain         = "code_value_flow_stale_cleanup"
-	codeValueFlowStaleCleanupLeasePartitionID    = 0
-	codeValueFlowStaleCleanupLeasePartitionCount = 1
+	leaseDomain         = "code_value_flow_stale_cleanup"
+	leasePartitionID    = 0
+	leasePartitionCount = 1
 )
 
-// ErrCodeValueFlowCurrentGenerationsRequired reports missing active generation
-// lookup wiring for value-flow stale cleanup.
-var ErrCodeValueFlowCurrentGenerationsRequired = errors.New("code value-flow current generation reader is required")
+// ErrCurrentGenerationsRequired reports missing active generation lookup
+// wiring for value-flow stale cleanup.
+var ErrCurrentGenerationsRequired = errors.New("code value-flow current generation reader is required")
 
-// CodeValueFlowCurrentGeneration identifies one current source generation whose
+// CurrentGeneration identifies one current source generation whose
 // reducer-owned value-flow evidence may have stale graph rows from older
 // generations.
-type CodeValueFlowCurrentGeneration struct {
+type CurrentGeneration struct {
 	ScopeID      string
 	GenerationID string
 }
 
-// CodeValueFlowCurrentGenerationReader lists active repository-scope
-// generations for bounded stale value-flow evidence cleanup.
-type CodeValueFlowCurrentGenerationReader interface {
+// CurrentGenerationReader lists active repository-scope generations for
+// bounded stale value-flow evidence cleanup.
+type CurrentGenerationReader interface {
 	ListCurrentCodeValueFlowGenerations(
 		ctx context.Context,
 		afterScopeID string,
 		limit int,
-	) ([]CodeValueFlowCurrentGeneration, error)
+	) ([]CurrentGeneration, error)
 }
 
 // CodeTaintStaleEvidenceRetractor removes stale reducer-owned taint evidence
@@ -75,9 +76,8 @@ type CodeInterprocStaleEvidenceRetractor interface {
 	) error
 }
 
-// CodeValueFlowStaleCleanupRunnerConfig configures bounded value-flow graph
-// stale-evidence cleanup.
-type CodeValueFlowStaleCleanupRunnerConfig struct {
+// RunnerConfig configures bounded value-flow graph stale-evidence cleanup.
+type RunnerConfig struct {
 	PollInterval     time.Duration
 	LeaseOwner       string
 	LeaseTTL         time.Duration
@@ -85,37 +85,36 @@ type CodeValueFlowStaleCleanupRunnerConfig struct {
 	DeleteBatchLimit int
 }
 
-func (c CodeValueFlowStaleCleanupRunnerConfig) pollInterval() time.Duration {
+func (c RunnerConfig) pollInterval() time.Duration {
 	if c.PollInterval <= 0 {
-		return defaultCodeValueFlowStaleCleanupPollInterval
+		return defaultPollInterval
 	}
 	return c.PollInterval
 }
 
-func (c CodeValueFlowStaleCleanupRunnerConfig) leaseTTL() time.Duration {
+func (c RunnerConfig) leaseTTL() time.Duration {
 	if c.LeaseTTL <= 0 {
-		return defaultCodeValueFlowStaleCleanupLeaseTTL
+		return defaultLeaseTTL
 	}
 	return c.LeaseTTL
 }
 
-func (c CodeValueFlowStaleCleanupRunnerConfig) scopeBatchLimit() int {
+func (c RunnerConfig) scopeBatchLimit() int {
 	if c.ScopeBatchLimit <= 0 {
-		return defaultCodeValueFlowStaleCleanupScopeBatchLimit
+		return defaultScopeBatchLimit
 	}
 	return c.ScopeBatchLimit
 }
 
-func (c CodeValueFlowStaleCleanupRunnerConfig) deleteBatchLimit() int {
+func (c RunnerConfig) deleteBatchLimit() int {
 	if c.DeleteBatchLimit <= 0 {
-		return defaultCodeValueFlowStaleCleanupDeleteBatchLimit
+		return defaultDeleteBatchLimit
 	}
 	return c.DeleteBatchLimit
 }
 
-// CodeValueFlowStaleCleanupResult summarizes one bounded stale value-flow graph
-// cleanup cycle.
-type CodeValueFlowStaleCleanupResult struct {
+// Result summarizes one bounded stale value-flow graph cleanup cycle.
+type Result struct {
 	LeaseAcquired   bool
 	ScopesScanned   int
 	ScopesSkipped   int
@@ -125,18 +124,18 @@ type CodeValueFlowStaleCleanupResult struct {
 	Duration        time.Duration
 }
 
-// CodeValueFlowStaleCleanupRunner removes reducer-owned value-flow evidence
-// from older generations beside the normal reducer intent loop.
-type CodeValueFlowStaleCleanupRunner struct {
-	CurrentGenerations CodeValueFlowCurrentGenerationReader
+// Runner removes reducer-owned value-flow evidence from older generations
+// beside the normal reducer intent loop.
+type Runner struct {
+	CurrentGenerations CurrentGenerationReader
 	TaintEvidence      CodeTaintStaleEvidenceRetractor
 	TaintWriter        taint.CodeTaintEvidenceWriter
 	TaintLedger        taint.CodeTaintEvidenceProjectedNodeLedger
 	InterprocEvidence  CodeInterprocStaleEvidenceRetractor
 	InterprocWriter    taint.CodeInterprocEvidenceWriter
 	InterprocLedger    taint.CodeInterprocProjectedEdgeLedger
-	LeaseManager       PartitionLeaseManager
-	Config             CodeValueFlowStaleCleanupRunnerConfig
+	LeaseManager       sharedintent.PartitionLeaseManager
+	Config             RunnerConfig
 	Wait               func(context.Context, time.Duration) error
 
 	Logger *slog.Logger
@@ -145,7 +144,7 @@ type CodeValueFlowStaleCleanupRunner struct {
 }
 
 // Run scans active generation pages until the context is cancelled.
-func (r *CodeValueFlowStaleCleanupRunner) Run(ctx context.Context) error {
+func (r *Runner) Run(ctx context.Context) error {
 	if err := r.validate(); err != nil {
 		return err
 	}
@@ -158,7 +157,7 @@ func (r *CodeValueFlowStaleCleanupRunner) Run(ctx context.Context) error {
 		if err != nil {
 			r.recordFailure(ctx, err)
 			if waitErr := r.wait(ctx, r.Config.pollInterval()); waitErr != nil {
-				if codeValueFlowStaleCleanupContextDone(ctx, waitErr) {
+				if contextDone(ctx, waitErr) {
 					return nil
 				}
 				return fmt.Errorf("wait for code value-flow stale cleanup retry: %w", waitErr)
@@ -169,7 +168,7 @@ func (r *CodeValueFlowStaleCleanupRunner) Run(ctx context.Context) error {
 			continue
 		}
 		if waitErr := r.wait(ctx, r.Config.pollInterval()); waitErr != nil {
-			if codeValueFlowStaleCleanupContextDone(ctx, waitErr) {
+			if contextDone(ctx, waitErr) {
 				return nil
 			}
 			return fmt.Errorf("wait for code value-flow stale cleanup work: %w", waitErr)
@@ -178,45 +177,45 @@ func (r *CodeValueFlowStaleCleanupRunner) Run(ctx context.Context) error {
 }
 
 // RunOnce executes one bounded stale value-flow graph cleanup cycle.
-func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValueFlowStaleCleanupResult, error) {
+func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 	if err := r.validate(); err != nil {
-		return CodeValueFlowStaleCleanupResult{}, err
+		return Result{}, err
 	}
 	if r.LeaseManager != nil {
 		claimed, err := r.LeaseManager.ClaimPartitionLease(
 			ctx,
-			codeValueFlowStaleCleanupLeaseDomain,
-			codeValueFlowStaleCleanupLeasePartitionID,
-			codeValueFlowStaleCleanupLeasePartitionCount,
+			leaseDomain,
+			leasePartitionID,
+			leasePartitionCount,
 			r.Config.LeaseOwner,
 			r.Config.leaseTTL(),
 		)
 		if err != nil {
-			return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("claim code value-flow stale cleanup lease: %w", err)
+			return Result{}, fmt.Errorf("claim code value-flow stale cleanup lease: %w", err)
 		}
 		if !claimed {
-			return CodeValueFlowStaleCleanupResult{LeaseAcquired: false}, nil
+			return Result{LeaseAcquired: false}, nil
 		}
 		defer func() {
 			_ = r.LeaseManager.ReleasePartitionLease(
 				ctx,
-				codeValueFlowStaleCleanupLeaseDomain,
-				codeValueFlowStaleCleanupLeasePartitionID,
-				codeValueFlowStaleCleanupLeasePartitionCount,
+				leaseDomain,
+				leasePartitionID,
+				leasePartitionCount,
 				r.Config.LeaseOwner,
 			)
 		}()
 	}
 
 	start := time.Now()
-	result := CodeValueFlowStaleCleanupResult{LeaseAcquired: true}
+	result := Result{LeaseAcquired: true}
 	candidates, err := r.CurrentGenerations.ListCurrentCodeValueFlowGenerations(
 		ctx,
 		r.cursorScopeID,
 		r.Config.scopeBatchLimit(),
 	)
 	if err != nil {
-		return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("list current code value-flow generations: %w", err)
+		return Result{}, fmt.Errorf("list current code value-flow generations: %w", err)
 	}
 	if len(candidates) == 0 {
 		r.cursorScopeID = ""
@@ -239,18 +238,18 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 				ctx, taint.CodeTaintEvidenceSource(), scopeID, generationID, deleteLimit,
 			)
 			if err != nil {
-				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("list stale taint node uids: %w", err)
+				return Result{}, fmt.Errorf("list stale taint node uids: %w", err)
 			}
 			if err := r.TaintWriter.RetractStaleCodeTaintEvidenceByUIDs(
 				ctx, uids, scopeID, generationID, taint.CodeTaintEvidenceSource(),
 			); err != nil {
-				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code taint evidence by uids: %w", err)
+				return Result{}, fmt.Errorf("retract stale code taint evidence by uids: %w", err)
 			}
 			if len(uids) > 0 {
 				if err := r.TaintLedger.PruneStaleForUIDs(
 					ctx, taint.CodeTaintEvidenceSource(), scopeID, generationID, uids,
 				); err != nil {
-					return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale taint projected nodes for uids: %w", err)
+					return Result{}, fmt.Errorf("prune stale taint projected nodes for uids: %w", err)
 				}
 			}
 		} else {
@@ -261,7 +260,7 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 				taint.CodeTaintEvidenceSource(),
 				deleteLimit,
 			); err != nil {
-				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code taint evidence: %w", err)
+				return Result{}, fmt.Errorf("retract stale code taint evidence: %w", err)
 			}
 		}
 		result.TaintSweeps++
@@ -270,18 +269,18 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 				ctx, taint.CodeInterprocEvidenceSource(), scopeID, generationID, deleteLimit,
 			)
 			if err != nil {
-				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("list stale interproc source uids: %w", err)
+				return Result{}, fmt.Errorf("list stale interproc source uids: %w", err)
 			}
 			if err := r.InterprocWriter.RetractStaleCodeInterprocEvidenceByUIDs(
 				ctx, uids, scopeID, generationID, taint.CodeInterprocEvidenceSource(),
 			); err != nil {
-				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code interproc evidence by uids: %w", err)
+				return Result{}, fmt.Errorf("retract stale code interproc evidence by uids: %w", err)
 			}
 			if len(uids) > 0 {
 				if err := r.InterprocLedger.PruneStaleForUIDs(
 					ctx, taint.CodeInterprocEvidenceSource(), scopeID, generationID, uids,
 				); err != nil {
-					return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("prune stale interproc projected edges for uids: %w", err)
+					return Result{}, fmt.Errorf("prune stale interproc projected edges for uids: %w", err)
 				}
 			}
 		} else {
@@ -292,7 +291,7 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 				taint.CodeInterprocEvidenceSource(),
 				deleteLimit,
 			); err != nil {
-				return CodeValueFlowStaleCleanupResult{}, fmt.Errorf("retract stale code interproc evidence: %w", err)
+				return Result{}, fmt.Errorf("retract stale code interproc evidence: %w", err)
 			}
 		}
 		result.InterprocSweeps++
@@ -311,9 +310,9 @@ func (r *CodeValueFlowStaleCleanupRunner) RunOnce(ctx context.Context) (CodeValu
 	return result, nil
 }
 
-func (r *CodeValueFlowStaleCleanupRunner) validate() error {
+func (r *Runner) validate() error {
 	if r.CurrentGenerations == nil {
-		return ErrCodeValueFlowCurrentGenerationsRequired
+		return ErrCurrentGenerationsRequired
 	}
 	if r.TaintEvidence == nil && (r.TaintLedger == nil || r.TaintWriter == nil) {
 		return errors.New("code value-flow taint stale evidence retractor is required")
@@ -327,7 +326,7 @@ func (r *CodeValueFlowStaleCleanupRunner) validate() error {
 	return nil
 }
 
-func (r *CodeValueFlowStaleCleanupRunner) wait(ctx context.Context, d time.Duration) error {
+func (r *Runner) wait(ctx context.Context, d time.Duration) error {
 	if r.Wait != nil {
 		return r.Wait(ctx, d)
 	}
@@ -341,7 +340,7 @@ func (r *CodeValueFlowStaleCleanupRunner) wait(ctx context.Context, d time.Durat
 	}
 }
 
-func (r *CodeValueFlowStaleCleanupRunner) recordResult(ctx context.Context, result CodeValueFlowStaleCleanupResult) {
+func (r *Runner) recordResult(ctx context.Context, result Result) {
 	if r.Logger == nil {
 		return
 	}
@@ -359,7 +358,7 @@ func (r *CodeValueFlowStaleCleanupRunner) recordResult(ctx context.Context, resu
 	)
 }
 
-func (r *CodeValueFlowStaleCleanupRunner) recordFailure(ctx context.Context, err error) {
+func (r *Runner) recordFailure(ctx context.Context, err error) {
 	if r.Logger == nil {
 		return
 	}
@@ -372,7 +371,7 @@ func (r *CodeValueFlowStaleCleanupRunner) recordFailure(ctx context.Context, err
 	)
 }
 
-func codeValueFlowStaleCleanupContextDone(ctx context.Context, err error) bool {
+func contextDone(ctx context.Context, err error) bool {
 	return errors.Is(err, context.Canceled) ||
 		errors.Is(err, context.DeadlineExceeded) ||
 		ctx.Err() != nil

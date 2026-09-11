@@ -18,13 +18,14 @@ import (
 // code/taint/interproc_projected_edge_backfill_test.go). Before issue #6061 moved
 // the code_taint_evidence/code_interproc_evidence family out of this package,
 // a single set of unexported test doubles served both the family's own tests
-// and the root tests that exercise it through DefaultHandlers,
-// CodeValueFlowStaleCleanupRunner, ValueFlowFixpointEvidenceLoader/Projector,
-// and (for the fakeBackfillStateMarker/splitPipeKey/stringSlicesEqual
-// cluster) the sibling projected_source_edge_backfill family that also
-// stayed in root. Go test files cannot share unexported symbols across
-// packages, so the split needs its own copy on each side; keep the two in
-// sync by hand if either changes shape.
+// and the root tests that exercise it through DefaultHandlers and
+// ValueFlowFixpointEvidenceLoader/Projector, and (for the
+// fakeBackfillStateMarker/splitPipeKey/stringSlicesEqual cluster) the sibling
+// projected_source_edge_backfill family that also stayed in root. Go test
+// files cannot share unexported symbols across packages, so the split needs
+// its own copy on each side; keep the two in sync by hand if either changes
+// shape. The value-flow stale-cleanup runner's own copy of the interproc
+// ledger fake moved with it to code/value/cleanup/runner_test.go (#6061).
 
 // recordingCodeTaintEvidenceWriter satisfies taint.CodeTaintEvidenceWriter.
 type recordingCodeTaintEvidenceWriter struct {
@@ -266,98 +267,6 @@ func sampleCodeInterprocInput() taint.CodeInterprocEvidenceInput {
 		SinkFunctionName: "execQuery", Language: "go", SinkKind: "sql",
 		SourceKind: "http_request", Confidence: 0.7, Cloud: true,
 	}
-}
-
-// fakeCodeInterprocProjectedEdgeLedger satisfies
-// taint.CodeInterprocProjectedEdgeLedger and records calls for test
-// assertions.
-type fakeCodeInterprocProjectedEdgeLedger struct {
-	recordCalls            int
-	recordedUIDs           []string
-	recordedScope          string
-	recordedGeneration     string
-	recordedEvidenceSource string
-
-	listForScopesUIDs   []string
-	listForScopesErr    error
-	listForSourceUIDs   []string
-	listStaleUIDs       []string
-	pruneForScopesCalls int
-	pruneForSourceCalls int
-	pruneStaleCalls     int
-
-	// call order tracking
-	callOrder []string
-}
-
-func (f *fakeCodeInterprocProjectedEdgeLedger) RecordProjectedEdges(
-	_ context.Context,
-	evidenceSource, scopeID, generationID string,
-	sourceFunctionUIDs []string,
-	_ time.Time,
-) error {
-	f.recordCalls++
-	f.recordedUIDs = append(f.recordedUIDs, sourceFunctionUIDs...)
-	f.recordedScope = scopeID
-	f.recordedGeneration = generationID
-	f.recordedEvidenceSource = evidenceSource
-	f.callOrder = append(f.callOrder, "record")
-	return nil
-}
-
-func (f *fakeCodeInterprocProjectedEdgeLedger) ListSourceUIDsForScopes(
-	_ context.Context, evidenceSource string, scopeIDs []string,
-) ([]string, error) {
-	f.callOrder = append(f.callOrder, "list_for_scopes")
-	if f.listForScopesErr != nil {
-		return nil, f.listForScopesErr
-	}
-	return f.listForScopesUIDs, nil
-}
-
-func (f *fakeCodeInterprocProjectedEdgeLedger) ListSourceUIDsForSource(
-	_ context.Context, evidenceSource string,
-) ([]string, error) {
-	f.callOrder = append(f.callOrder, "list_for_source")
-	return f.listForSourceUIDs, nil
-}
-
-func (f *fakeCodeInterprocProjectedEdgeLedger) ListStaleSourceUIDs(
-	_ context.Context, evidenceSource, scopeID, currentGenerationID string, limit int,
-) ([]string, error) {
-	f.callOrder = append(f.callOrder, "list_stale")
-	return f.listStaleUIDs, nil
-}
-
-func (f *fakeCodeInterprocProjectedEdgeLedger) PruneForScopes(
-	_ context.Context, evidenceSource string, scopeIDs []string,
-) error {
-	f.pruneForScopesCalls++
-	f.callOrder = append(f.callOrder, "prune_for_scopes")
-	return nil
-}
-
-func (f *fakeCodeInterprocProjectedEdgeLedger) PruneForSource(
-	_ context.Context, evidenceSource string,
-) error {
-	f.pruneForSourceCalls++
-	f.callOrder = append(f.callOrder, "prune_for_source")
-	return nil
-}
-
-func (f *fakeCodeInterprocProjectedEdgeLedger) PruneStaleForUIDs(
-	_ context.Context, evidenceSource, scopeID, currentGenerationID string, uids []string,
-) error {
-	f.pruneStaleCalls++
-	f.callOrder = append(f.callOrder, "prune_stale_for_uids")
-	return nil
-}
-
-func (f *fakeCodeInterprocProjectedEdgeLedger) LedgerHasRowsForSource(
-	_ context.Context, evidenceSource string,
-) (bool, error) {
-	f.callOrder = append(f.callOrder, "has_rows")
-	return false, nil
 }
 
 // fakeBackfillStateMarker satisfies CodeValueFlowBackfillStateMarker (root's

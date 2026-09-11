@@ -20,6 +20,8 @@ package reducer
 //   - scoped_fact_loader_compat.go
 //   - shared_payload_delta_compat.go
 //   - codeowners-ownership family move (#6061; no prior compat file)
+//   - cross_scope_readiness_compat.go (relocated byte-identical from
+//     compat_projection.go to keep that bucket under the 500-line cap)
 
 import (
 	"context"
@@ -28,6 +30,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
@@ -400,3 +404,56 @@ func loadCodeownersOwnershipMaterializationFacts(
 ) ([]facts.Envelope, error) {
 	return owners.LoadMaterializationFacts(ctx, loader, scopeID, generationID)
 }
+
+// Stanza: cross_scope_readiness_compat.go (merged; do not recreate this
+// file). Relocated byte-identical from compat_projection.go (issue #6061
+// code/ subtree move) to keep that bucket under the 500-line cap.
+// This file is the transitional compatibility surface for the cross-scope
+// producer-readiness floor and dependency catalog that moved to [crossscope]
+// (issue #6061). Reducer-root call sites keep their current spelling; each
+// entry is deleted once its last caller has moved into a family subpackage.
+
+// CrossScopeDependency declares that a consumer reducer domain reads canonical
+// facts a producer domain writes in a DIFFERENT ingestion scope. The consumer's
+// cross-scope active-fact load can run before the producer has committed its
+// latest output, so producer completion must schedule the canonical consumer
+// again.
+type CrossScopeDependency = reducercontract.CrossScopeDependency
+
+// CrossScopeConsumerDomains forwards to [crossscope.ConsumerDomains].
+func CrossScopeConsumerDomains() []Domain {
+	return crossscope.ConsumerDomains()
+}
+
+// CrossScopeCompletionEdge is one producer-to-consumer fanout edge derived
+// from the cross-scope dependency catalog.
+type CrossScopeCompletionEdge = crossscope.CompletionEdge
+
+// CrossScopeCompletionEdges forwards to [crossscope.CompletionEdges].
+func CrossScopeCompletionEdges() []CrossScopeCompletionEdge {
+	return crossscope.CompletionEdges()
+}
+
+// crossScopeDependenciesForRegistration forwards to
+// [crossscope.DependenciesForRegistration].
+func crossScopeDependenciesForRegistration(domain Domain) []CrossScopeDependency {
+	return crossscope.DependenciesForRegistration(domain)
+}
+
+// CrossScopeProducerNotReadyFailureClass is the durable failure_class a
+// cross-scope consumer domain self-classifies with when a producer it declares
+// a CrossScopeDependency on has not yet activated its generation for the
+// relevant scope. See [crossscope.ProducerNotReadyFailureClass].
+const CrossScopeProducerNotReadyFailureClass = crossscope.ProducerNotReadyFailureClass
+
+// crossScopeProducerNotReadyError marks a cross-scope producer-readiness miss
+// as retryable. See [crossscope.ProducerNotReadyError].
+type crossScopeProducerNotReadyError = crossscope.ProducerNotReadyError
+
+// CrossScopeProducerReadiness answers whether the producer scopes a consumer
+// depends on have finished publishing. See [crossscope.ProducerReadiness].
+type CrossScopeProducerReadiness = crossscope.ProducerReadiness
+
+// CrossScopeProducerReadinessByDomain answers readiness for each producer
+// domain separately. See [crossscope.ProducerReadinessByDomain].
+type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain

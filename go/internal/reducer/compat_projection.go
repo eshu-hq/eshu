@@ -15,8 +15,11 @@ package reducer
 //   - iam_can_compat.go
 //   - iam_escalation_compat.go
 //   - secrets_iam_compat.go
-//   - cross_scope_readiness_compat.go
 //   - value_flow_compat.go
+//
+// cross_scope_readiness_compat.go relocated byte-identical to
+// compat_decode.go (issue #6061 code/ subtree move) to keep this bucket
+// under the 500-line cap; see that file's header for its stanza list.
 
 import (
 	"context"
@@ -28,8 +31,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
-	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
-	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -154,57 +156,6 @@ func secretsIAMGraphProjectionDomainDefinition() DomainDefinition {
 	return secretsiam.GraphProjectionDomainDefinition()
 }
 
-// Stanza: cross_scope_readiness_compat.go (merged; do not recreate this file).
-// This file is the transitional compatibility surface for the cross-scope
-// producer-readiness floor and dependency catalog that moved to [crossscope]
-// (issue #6061). Reducer-root call sites keep their current spelling; each
-// entry is deleted once its last caller has moved into a family subpackage.
-
-// CrossScopeDependency declares that a consumer reducer domain reads canonical
-// facts a producer domain writes in a DIFFERENT ingestion scope. The consumer's
-// cross-scope active-fact load can run before the producer has committed its
-// latest output, so producer completion must schedule the canonical consumer
-// again.
-type CrossScopeDependency = reducercontract.CrossScopeDependency
-
-// CrossScopeConsumerDomains forwards to [crossscope.ConsumerDomains].
-func CrossScopeConsumerDomains() []Domain {
-	return crossscope.ConsumerDomains()
-}
-
-// CrossScopeCompletionEdge is one producer-to-consumer fanout edge derived
-// from the cross-scope dependency catalog.
-type CrossScopeCompletionEdge = crossscope.CompletionEdge
-
-// CrossScopeCompletionEdges forwards to [crossscope.CompletionEdges].
-func CrossScopeCompletionEdges() []CrossScopeCompletionEdge {
-	return crossscope.CompletionEdges()
-}
-
-// crossScopeDependenciesForRegistration forwards to
-// [crossscope.DependenciesForRegistration].
-func crossScopeDependenciesForRegistration(domain Domain) []CrossScopeDependency {
-	return crossscope.DependenciesForRegistration(domain)
-}
-
-// CrossScopeProducerNotReadyFailureClass is the durable failure_class a
-// cross-scope consumer domain self-classifies with when a producer it declares
-// a CrossScopeDependency on has not yet activated its generation for the
-// relevant scope. See [crossscope.ProducerNotReadyFailureClass].
-const CrossScopeProducerNotReadyFailureClass = crossscope.ProducerNotReadyFailureClass
-
-// crossScopeProducerNotReadyError marks a cross-scope producer-readiness miss
-// as retryable. See [crossscope.ProducerNotReadyError].
-type crossScopeProducerNotReadyError = crossscope.ProducerNotReadyError
-
-// CrossScopeProducerReadiness answers whether the producer scopes a consumer
-// depends on have finished publishing. See [crossscope.ProducerReadiness].
-type CrossScopeProducerReadiness = crossscope.ProducerReadiness
-
-// CrossScopeProducerReadinessByDomain answers readiness for each producer
-// domain separately. See [crossscope.ProducerReadinessByDomain].
-type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
-
 // Stanza: value_flow_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the value-flow
 // fixpoint family that moved to [value] (issue #6061; relocated from
@@ -212,9 +163,13 @@ type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
 // issue). Reducer-root call sites keep their current spelling; each entry is
 // deleted once its last caller has moved into a family subpackage.
 //
-// code_value_flow_stale_cleanup_runner.go stays in root: it is a side runner
-// that needs the root PartitionLeaseManager and Service.startSideRunners
-// wiring, the same reason the code_call_projection_* runners stay.
+// code_value_flow_stale_cleanup_runner.go moved to [cleanup]
+// (go/internal/reducer/code/value/cleanup, issue #6061): its only production
+// blocker was the root PartitionLeaseManager, hoisted to
+// sharedintent.PartitionLeaseManager (H1). Its Service.startSideRunners
+// wiring case stays in root as code_value_flow_stale_cleanup_wiring_test.go,
+// with its own minimal fakes, because only the reducer root can construct
+// Service.
 // code_value_flow_backfill_state_marker.go moved to [value] as
 // [value.BackfillStateMarker] with the code/ tree move (#6609); its only
 // root caller, projected_source_edge_backfill.go, keeps the alias below.
@@ -222,6 +177,26 @@ type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
 // CodeValueFlowBackfillStateMarker is the root spelling of
 // [value.BackfillStateMarker].
 type CodeValueFlowBackfillStateMarker = value.BackfillStateMarker
+
+// CodeValueFlowStaleCleanupRunner is the root spelling of [cleanup.Runner].
+type CodeValueFlowStaleCleanupRunner = cleanup.Runner
+
+// CodeValueFlowStaleCleanupRunnerConfig is the root spelling of
+// [cleanup.RunnerConfig].
+type CodeValueFlowStaleCleanupRunnerConfig = cleanup.RunnerConfig
+
+// CodeValueFlowCurrentGeneration is the root spelling of
+// [cleanup.CurrentGeneration]. internal/storage/postgres' generation reader
+// returns it.
+type CodeValueFlowCurrentGeneration = cleanup.CurrentGeneration
+
+// CodeTaintStaleEvidenceRetractor is the root spelling of
+// [cleanup.CodeTaintStaleEvidenceRetractor].
+type CodeTaintStaleEvidenceRetractor = cleanup.CodeTaintStaleEvidenceRetractor
+
+// CodeInterprocStaleEvidenceRetractor is the root spelling of
+// [cleanup.CodeInterprocStaleEvidenceRetractor].
+type CodeInterprocStaleEvidenceRetractor = cleanup.CodeInterprocStaleEvidenceRetractor
 
 // GraphValueFlowCloudSinkTargetLoader loads graph-backed cloud sink edges for
 // the value-flow fixpoint. See [value.GraphCloudSinkTargetLoader].
