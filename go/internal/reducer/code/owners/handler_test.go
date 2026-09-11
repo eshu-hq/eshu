@@ -326,9 +326,9 @@ func TestExtractCodeownersOwnershipEdgeRowsFansOutOwnersPerRule(t *testing.T) {
 	envelopes := []facts.Envelope{
 		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*", []string{"@org/a", "@org/b"}, 0),
 	}
-	rows, quarantined, err := ExtractOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
+	rows, quarantined, err := ExtractEdgeRowsWithQuarantine(envelopes, "gen-1")
 	if err != nil {
-		t.Fatalf("ExtractOwnershipEdgeRowsWithQuarantine() error = %v", err)
+		t.Fatalf("ExtractEdgeRowsWithQuarantine() error = %v", err)
 	}
 	if len(quarantined) != 0 {
 		t.Fatalf("quarantined = %#v, want empty", quarantined)
@@ -367,9 +367,9 @@ func TestExtractCodeownersOwnershipEdgeRowsKeepsLastMatchOrdinalOnRepeatedRule(t
 		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*.go", []string{"@team-b"}, 1),
 		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*.go", []string{"@team-a"}, 2),
 	}
-	rows, quarantined, err := ExtractOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
+	rows, quarantined, err := ExtractEdgeRowsWithQuarantine(envelopes, "gen-1")
 	if err != nil {
-		t.Fatalf("ExtractOwnershipEdgeRowsWithQuarantine() error = %v", err)
+		t.Fatalf("ExtractEdgeRowsWithQuarantine() error = %v", err)
 	}
 	if len(quarantined) != 0 {
 		t.Fatalf("quarantined = %#v, want empty", quarantined)
@@ -411,9 +411,9 @@ func TestExtractCodeownersOwnershipEdgeRowsQuarantinesMissingRequiredField(t *te
 			},
 		},
 	}
-	rows, quarantined, err := ExtractOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
+	rows, quarantined, err := ExtractEdgeRowsWithQuarantine(envelopes, "gen-1")
 	if err != nil {
-		t.Fatalf("ExtractOwnershipEdgeRowsWithQuarantine() error = %v, want nil (quarantinable)", err)
+		t.Fatalf("ExtractEdgeRowsWithQuarantine() error = %v, want nil (quarantinable)", err)
 	}
 	if len(rows) != 0 {
 		t.Fatalf("rows = %#v, want empty", rows)

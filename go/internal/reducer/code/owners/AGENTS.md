@@ -35,7 +35,7 @@ Purpose and Ownership boundary sections for what this package owns.
 ## Common changes
 
 Adding a new codeowners edge field: extend the row map
-`ExtractOwnershipEdgeRowsWithQuarantine` builds in `handler.go`, then thread
+`ExtractEdgeRowsWithQuarantine` builds in `handler.go`, then thread
 it through `buildIntentRows`' payload if the field belongs on the durable
 edge write too.
 
@@ -48,7 +48,7 @@ edge write too.
   `order_index` instead of its highest — this breaks the last-match-wins
   precedence resolver.
 - Exporting a new unexported helper "just in case" a future caller needs it.
-  `Handler`, `ExtractOwnershipEdgeRowsWithQuarantine`,
+  `Handler`, `ExtractEdgeRowsWithQuarantine`,
   `LoadMaterializationFacts`, and `MaterializationFactKinds` are exported
   because the reducer root's compat forwarders and bench-test corpus guard
   need them; nothing else in this package has an external caller today.

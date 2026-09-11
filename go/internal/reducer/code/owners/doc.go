@@ -9,7 +9,7 @@
 // rides the shared-projection intent-queue path rather than the
 // canonical-projector entity path.
 //
-// [ExtractOwnershipEdgeRowsWithQuarantine] decodes every codeowners.ownership
+// [ExtractEdgeRowsWithQuarantine] decodes every codeowners.ownership
 // envelope and builds one DECLARES_CODEOWNER edge row per (pattern, owner)
 // pair, deduplicating repeated (repo, path, pattern, owner) keys onto the
 // highest order_index seen (GitHub's CODEOWNERS resolution is

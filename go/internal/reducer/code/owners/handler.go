@@ -67,7 +67,7 @@ func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (red
 	}
 
 	scope := buildDeltaScope(envelopes)
-	rows, quarantined, err := ExtractOwnershipEdgeRowsWithQuarantine(envelopes, intent.GenerationID)
+	rows, quarantined, err := ExtractEdgeRowsWithQuarantine(envelopes, intent.GenerationID)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("extract codeowners ownership edge rows: %w", err)
 	}
@@ -194,7 +194,7 @@ func collectRepositoryIDs(rows []map[string]any, scope deltaScope) []string {
 	return repositoryIDs
 }
 
-// ExtractOwnershipEdgeRowsWithQuarantine decodes every codeowners.ownership
+// ExtractEdgeRowsWithQuarantine decodes every codeowners.ownership
 // envelope through the sdk/go/factschema seam (schemadecode.
 // DecodeCodeownersOwnership) and builds one DECLARES_CODEOWNER edge row per
 // (pattern, owner) pair: a CODEOWNERS rule line with N owner tokens projects N
@@ -211,7 +211,7 @@ func collectRepositoryIDs(rows []map[string]any, scope deltaScope) []string {
 // downstream precedence resolver picks the highest surviving ordinal as the
 // effective owner, so freezing the first occurrence's ordinal would let a
 // stale, superseded rule line outrank the true last match.
-func ExtractOwnershipEdgeRowsWithQuarantine(
+func ExtractEdgeRowsWithQuarantine(
 	envelopes []facts.Envelope,
 	generationID string,
 ) ([]map[string]any, []factdecode.QuarantinedFact, error) {

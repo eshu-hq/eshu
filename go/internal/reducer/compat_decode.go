@@ -379,14 +379,14 @@ type CodeownersOwnershipEdgeMaterializationHandler = owners.Handler
 var codeownersMaterializationFactKinds = owners.MaterializationFactKinds()
 
 // ExtractCodeownersOwnershipEdgeRowsWithQuarantine forwards to
-// [owners.ExtractOwnershipEdgeRowsWithQuarantine]. internal/ifa/
+// [owners.ExtractEdgeRowsWithQuarantine]. internal/ifa/
 // materializededges calls this as
 // reducer.ExtractCodeownersOwnershipEdgeRowsWithQuarantine.
 func ExtractCodeownersOwnershipEdgeRowsWithQuarantine(
 	envelopes []facts.Envelope,
 	generationID string,
 ) ([]map[string]any, []quarantinedFact, error) {
-	return owners.ExtractOwnershipEdgeRowsWithQuarantine(envelopes, generationID)
+	return owners.ExtractEdgeRowsWithQuarantine(envelopes, generationID)
 }
 
 // loadCodeownersOwnershipMaterializationFacts forwards to

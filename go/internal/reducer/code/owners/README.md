@@ -7,7 +7,7 @@ directly-emitted `codeowners.ownership` facts (issue #5419 Phase 3, moved out
 of the reducer root under issue #6061).
 
 `Handler.Handle` loads `repository`/`codeowners.ownership` facts,
-extracts canonical rows through `ExtractOwnershipEdgeRowsWithQuarantine`, and
+extracts canonical rows through `ExtractEdgeRowsWithQuarantine`, and
 builds a `deltaScope` mirroring the inheritance family's: a CODEOWNERS file
 is repo-scoped like a source file, so a changed or deleted CODEOWNERS
 `source_path` retracts the prior generation's edges scoped to that path — with
@@ -18,7 +18,7 @@ locations forces a whole-repository retract instead (issue #5419 P1).
 ## Ownership boundary
 
 **Owns:** codeowners.ownership fact extraction
-(`ExtractOwnershipEdgeRowsWithQuarantine`), materialization (`Handler`), and
+(`ExtractEdgeRowsWithQuarantine`), materialization (`Handler`), and
 its delta-scope/retract-row construction.
 
 **Does not own:** the shared-projection worker/runner machinery that consumes
@@ -33,7 +33,7 @@ boundary).
 | symbol | what it is |
 |---|---|
 | `Handler` | the domain handler for `codeowners_ownership` intents |
-| `ExtractOwnershipEdgeRowsWithQuarantine` | pure extraction: fact envelopes -> canonical DECLARES_CODEOWNER edge rows, with per-fact quarantine |
+| `ExtractEdgeRowsWithQuarantine` | pure extraction: fact envelopes -> canonical DECLARES_CODEOWNER edge rows, with per-fact quarantine |
 | `LoadMaterializationFacts` / `MaterializationFactKinds` | the scoped fact-kind loader for `repository`/`codeowners.ownership`, and the kind set it requests |
 
 The reducer root wires `Handler` in `defaults_domain_catalog.go`, keeping the
@@ -94,7 +94,7 @@ wire string, or call order. `CodeownersOwnershipEdgeMaterializationHandler`
 dropped the `Codeowners`/`Ownership`/`EdgeMaterialization` stutter per
 `docs/internal/naming.md` (`CodeownersOwnershipEdgeMaterializationHandler` ->
 `Handler`, `ExtractCodeownersOwnershipEdgeRowsWithQuarantine` ->
-`ExtractOwnershipEdgeRowsWithQuarantine`); the reducer root keeps both
+`ExtractEdgeRowsWithQuarantine`); the reducer root keeps both
 spellings through the codeowners stanza of `compat_projection.go`, so no
 external caller needed a source change. Measured from `go/`, with `GOROOT`
 unset: `go build ./...`, `go vet ./internal/reducer/... ./cmd/reducer/...`,
