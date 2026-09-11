@@ -31,14 +31,14 @@ const PartitionKeyVersion = "code-calls:v1"
 // code-call refresh intent (action "refresh", intent_type "repo_refresh"). The
 // refresh intent owns the repo-wide CALLS retract that the per-edge code-call
 // intents are fenced behind. The fences key on the action and intent_type
-// fields, not on this string; root runner tests assert it.
+// fields, not on this string; root runner tests stamp it into fixtures.
 const RepoRefreshEvidenceSource = "reducer/code-call-refresh"
 
 // EvidenceSource is the evidence_source stamped on per-edge code-call intents
 // built from parser call rows. The root handler passes it to
 // [BuildSharedIntentRows], and the root projection runner reads it back from
-// persisted payloads to decide which evidence source it retracts and writes,
-// so changing it is a data migration.
+// persisted payloads to group the rows it writes (its retract always covers
+// this source), so changing it is a data migration.
 const EvidenceSource = "parser/code-calls"
 
 // PythonMetaclassEvidenceSource is the evidence_source stamped on per-edge
