@@ -23,7 +23,7 @@ type EndpointMeta struct {
 // EnrichRows attaches file and repository metadata to the relationship
 // core rows. The core read retains the split introduced for older
 // NornicDB builds that corrupted function-call projections after
-// OPTIONAL MATCH. The current v1.2.3 proof backend evaluates that shape
+// OPTIONAL MATCH. The current v1.3.1 proof backend evaluates that shape
 // correctly, but these index-anchored reads still preserve partial
 // File-without-Repository metadata and bounded enrichment. Results are
 // joined to the core rows by endpoint identity (coalesce(id, uid)).

@@ -1,6 +1,11 @@
 {
   "eshu_commit": "abc1234",
   "backend": "nornicdb",
+  "backend_image": "timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962",
+  "backend_platform": "linux/amd64",
+  "backend_runtime_image_id": "docker-pullable://timothyswt/nornicdb-cpu-bge@sha256:c0b5f73c55bd56a6764d1833665252b98a30b332248f0233f5f4eab4dc0d2ca1",
+  "backend_version": "NornicDB v1.3.1",
+  "backend_source_revision": "unavailable",
   "platform": "kubernetes",
   "kubernetes_version": "v1.34.8",
   "registry_token_count": 3,

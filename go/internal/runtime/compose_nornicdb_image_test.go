@@ -11,29 +11,28 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestNornicDBComposeDefaultPinsMergedPR290ExactSourceCommit(t *testing.T) {
+const nornicDBV131Image = "timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962"
+
+func TestNornicDBComposeDefaultPinsV131PublishedImage(t *testing.T) {
 	t.Parallel()
 
+	doc := readComposeDocument(t, "docker-compose.yaml")
+	service := requireComposeService(t, doc, "nornicdb")
+	if want := "${NORNICDB_IMAGE:-" + nornicDBV131Image + "}"; service.Image != want {
+		t.Fatalf("nornicdb image = %q, want immutable v1.3.1 default %q", service.Image, want)
+	}
 	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
-	oldDefault := "timothyswt/nornicdb-amd64-cpu:latest"
-	if strings.Contains(content, oldDefault) {
-		t.Fatalf("docker-compose.yaml still defaults to stale amd64-only image %q", oldDefault)
+	if want := "pull_policy: ${NORNICDB_PULL_POLICY:-missing}"; !strings.Contains(content, want) {
+		t.Fatalf("nornicdb service missing cache-safe immutable pull policy %q", want)
 	}
-
-	for _, want := range []string{
-		"image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr290:3722b483c02c}",
-		"pull_policy: ${NORNICDB_PULL_POLICY:-build}",
-		"context: https://github.com/orneryd/NornicDB.git#3722b483c02c38a8e046d198f8768f200f31023c",
-		"dockerfile: docker/Dockerfile.cpu-bge",
-		"org.opencontainers.image.revision: 3722b483c02c38a8e046d198f8768f200f31023c",
-	} {
-		if !strings.Contains(content, want) {
-			t.Fatalf("docker-compose.yaml missing exact merged NornicDB PR #290 pin %q", want)
-		}
+	var raw struct {
+		Services map[string]map[string]any `yaml:"services"`
 	}
-
-	if strings.Contains(content, "checksum=") {
-		t.Fatal("docker-compose.yaml must not require the BuildKit source.git.checksum query feature")
+	if err := yaml.Unmarshal([]byte(content), &raw); err != nil {
+		t.Fatalf("parse docker-compose.yaml for raw service keys: %v", err)
+	}
+	if build, ok := raw.Services["nornicdb"]["build"]; ok {
+		t.Fatalf("nornicdb default unexpectedly carries a source build: %#v", build)
 	}
 }
 
@@ -41,10 +40,14 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 	t.Parallel()
 
 	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
+	docs = strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"NORNICDB_IMAGE",
 		"NORNICDB_PULL_POLICY",
-		"pull policy `build`",
+		"pull policy `missing`",
+		"v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962",
+		"fresh graph volume",
+		"Never start an older NornicDB binary on a volume modified by v1.3.1",
 	} {
 		if !strings.Contains(docs, want) {
 			t.Fatalf("docker compose docs missing exact-source override guidance %q", want)
@@ -52,13 +55,13 @@ func TestNornicDBComposeDocumentsImageAndPullPolicyOverrides(t *testing.T) {
 	}
 }
 
-func TestNornicDBRuntimeReadmeTracksPR290SourceBuildDefault(t *testing.T) {
+func TestNornicDBRuntimeReadmeTracksV131PublishedDefault(t *testing.T) {
 	t.Parallel()
 
 	docs := readRepositoryFile(t, "../../..", "go/internal/runtime/README.md")
-	want := "Compose builds the exact orneryd/NornicDB#290 source commit"
+	want := "Compose pulls the immutable NornicDB v1.3.1 multi-architecture image"
 	if !strings.Contains(strings.Join(strings.Fields(docs), " "), want) {
-		t.Fatalf("runtime README missing current NornicDB source-build contract %q", want)
+		t.Fatalf("runtime README missing current NornicDB published-image contract %q", want)
 	}
 }
 
@@ -77,50 +80,21 @@ func TestNornicDBComposeDoesNotForceAmd64Platform(t *testing.T) {
 	}
 }
 
-// TestNornicDBComposeHeadlessBuildArgDefaultsFalse pins the #6505 fix:
-// docker-compose.yaml must thread the upstream Dockerfile.cpu-bge HEADLESS
-// build arg through, defaulting to false so local runs keep the full UI
-// build, while CI-only callers opt into the headless backend image via
-// NORNICDB_HEADLESS=true (the pinned source's UI stage fails tsc).
-func TestNornicDBComposeHeadlessBuildArgDefaultsFalse(t *testing.T) {
+func TestNornicDBDefaultNoLongerCarriesSourceBuildControls(t *testing.T) {
 	t.Parallel()
 
-	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
-	want := "HEADLESS: ${NORNICDB_HEADLESS:-false}"
-	if !strings.Contains(content, want) {
-		t.Fatalf("docker-compose.yaml must default the NornicDB UI build to full (local dev), want %q", want)
-	}
-
-	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
-	if !strings.Contains(docs, "NORNICDB_HEADLESS") {
-		t.Fatal("docker compose docs must document the NORNICDB_HEADLESS CI knob")
-	}
-}
-
-// TestNornicDBHeadlessEnvPresentInImageBuildingCIJobs pins the workflow half
-// of the #6505 fix: every CI job that builds the pinned backend from source
-// must set NORNICDB_HEADLESS, or a later edit silently re-arms the upstream
-// UI-stage flake (npm-ci-fallback TS2882). Counts are per-file assignment
-// literals (not the bare knob name, which prose mentions too): the three Ifa
-// jobs carry step-level env, e2e/golden-corpus/value-flow carry one job-level
-// env each, and frontend carries one workflow-level env covering its
-// backend-building jobs.
-func TestNornicDBHeadlessEnvPresentInImageBuildingCIJobs(t *testing.T) {
-	t.Parallel()
-
-	for _, want := range []struct {
-		file  string
-		count int
-	}{
-		{".github/workflows/ifa-determinism-gate.yml", 3},
-		{".github/workflows/e2e-tests.yml", 1},
-		{".github/workflows/golden-corpus-gate.yml", 1},
-		{".github/workflows/frontend.yml", 1},
-		{".github/workflows/value-flow-conformance-expectation.yml", 1},
+	for _, file := range []string{
+		"docker-compose.yaml",
+		"docs/public/run-locally/docker-compose.md",
+		".github/workflows/ifa-determinism-gate.yml",
+		".github/workflows/e2e-tests.yml",
+		".github/workflows/golden-corpus-gate.yml",
+		".github/workflows/frontend.yml",
+		".github/workflows/value-flow-conformance-expectation.yml",
 	} {
-		content := readRepositoryFile(t, "../../..", want.file)
-		if got := strings.Count(content, "NORNICDB_HEADLESS: \"true\""); got < want.count {
-			t.Fatalf("%s assigns NORNICDB_HEADLESS %d time(s), want at least %d (image-building CI jobs must stay headless, #6505)", want.file, got, want.count)
+		content := readRepositoryFile(t, "../../..", file)
+		if strings.Contains(content, "NORNICDB_HEADLESS") {
+			t.Fatalf("%s still carries NORNICDB_HEADLESS after the default moved from a source build to a published image", file)
 		}
 	}
 }
@@ -225,7 +199,7 @@ func TestNornicDBGraphSearchSplitDesignTracksImplementedStabilization(t *testing
 	normalizedDocs := strings.Join(strings.Fields(docs), " ")
 	for _, want := range []string{
 		"Phase-1 stabilization status:",
-		"Helm pins NornicDB `v1.2.3` by digest; Compose temporarily pins the exact orneryd/NornicDB#290 source commit",
+		"Compose, Helm, and the R-5 replay gate pin the same NornicDB `v1.3.1` multi-architecture image by digest",
 		"Runtime contract tests enforce the graph-only NornicDB controls",
 	} {
 		if !strings.Contains(normalizedDocs, want) {
@@ -252,11 +226,11 @@ var digestedImageRef = regexp.MustCompile(`^[^:@\s]+:[^@\s]+@sha256:[0-9a-f]{64}
 // TestHelmNornicDBImageMatchesReplayTierGate binds the chart's bundled NornicDB
 // default to the artifact the R-5 replay gate actually exercises.
 //
-// Before #6296 the chart's image had no gate coverage at all: the B-7
-// golden-corpus gate and the e2e workflows drive docker-compose.yaml, which
-// builds the orneryd/NornicDB#290 source commit, not the chart's published
-// image. Putting the chart and the replay gate on one build is what buys that
-// coverage — and nothing enforced it. scripts/test-verify-replay-tier.sh pins
+// Before #6296 the chart's image had no gate coverage at all: B-7 and the e2e
+// workflows then drove a Compose-only source build rather than the chart's
+// published image. Putting the chart and replay gate on one artifact bought
+// that coverage, and this test keeps the current v1.3.1 digest in lockstep.
+// scripts/test-verify-replay-tier.sh pins
 // the gate's own NORNICDB_IMAGE and TestNornicDBGraphSearchSplitDesignTracks-
 // ImplementedStabilization pins the design doc's prose, but either file could
 // move without the other and every existing test would stay green while the
@@ -283,6 +257,15 @@ func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
 	if !digestedImageRef.MatchString(chartRef) {
 		t.Fatalf("chart nornicdb image %q is not pinned by a full sha256 digest; a tag alone can be retargeted upstream without a repository change", chartRef)
 	}
+	if chartRef != nornicDBV131Image {
+		t.Fatalf("chart NornicDB image = %q, want validated v1.3.1 artifact %q", chartRef, nornicDBV131Image)
+	}
+
+	compose := readComposeDocument(t, "docker-compose.yaml")
+	composeRef := strings.TrimSuffix(strings.TrimPrefix(requireComposeService(t, compose, "nornicdb").Image, "${NORNICDB_IMAGE:-"), "}")
+	if composeRef != chartRef {
+		t.Fatalf("docker-compose.yaml defaults to %q but deploy/helm/eshu/values.yaml renders %q", composeRef, chartRef)
+	}
 
 	gateScript := readRepositoryFile(t, "../../..", "scripts/verify-replay-tier.sh")
 	gateMatch := replayTierImageAssignment.FindStringSubmatch(gateScript)
@@ -305,5 +288,22 @@ func TestHelmNornicDBImageMatchesReplayTierGate(t *testing.T) {
 	operatorDocs := readRepositoryFile(t, "../../..", "docs/public/deploy/kubernetes/helm-routing-and-storage-values.md")
 	if !strings.Contains(operatorDocs, tag) {
 		t.Fatalf("docs/public/deploy/kubernetes/helm-routing-and-storage-values.md does not name the chart's nornicdb.image.tag %q, so operators read a stale pin", tag)
+	}
+
+	governanceProof := readRepositoryFile(t, "../../..", "scripts/run-k8s-two-team-governance-proof.sh")
+	if !strings.Contains(governanceProof, `nornicdb_image="`+chartRef+`"`) {
+		t.Fatalf("scripts/run-k8s-two-team-governance-proof.sh does not deploy the lockstep NornicDB image %q", chartRef)
+	}
+
+	governanceYAML := readRepositoryFile(t, "../../..", "deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml")
+	var governanceValues map[string]any
+	if err := yaml.Unmarshal([]byte(governanceYAML), &governanceValues); err != nil {
+		t.Fatalf("parse governance-two-team-k8s.values.yaml: %v", err)
+	}
+	governanceImage := helmMap(helmMap(governanceValues["nornicdb"])["image"])
+	governanceRef, _ := governanceImage["repository"].(string)
+	governanceTag, _ := governanceImage["tag"].(string)
+	if governanceRef+":"+governanceTag != chartRef {
+		t.Fatalf("governance proof renders %q, want lockstep image %q", governanceRef+":"+governanceTag, chartRef)
 	}
 }

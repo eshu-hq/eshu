@@ -1,7 +1,7 @@
 # Helm values for the live Kubernetes two-team hosted governance cross-scope
 # denial proof (#1910). scripts/run-k8s-two-team-governance-proof.sh installs the
-# chart with these values into a unique namespace on a single-node cluster
-# (OrbStack), mounts an operator-managed scoped-token registry Secret into the
+# chart with these values into a unique namespace on a single-node cluster,
+# mounts an operator-managed scoped-token registry Secret into the
 # API and MCP server, and asserts cross-scope denial through the live surfaces.
 #
 # The driver overrides image.repository/tag/pullPolicy, contentStore.secretName,
@@ -20,12 +20,12 @@ nornicdb:
   enabled: true
   capabilities:
     relationshipMergePropertyIdentity: true
-  # The proof driver builds this tag from the exact docker-compose.yaml PR #290
-  # source checksum before installing the chart. Never pull a same-named image.
+  # Keep this exact published artifact aligned with Compose, Helm defaults, and
+  # the replay gate. The digest cannot be retargeted upstream.
   image:
-    repository: eshu-nornicdb-pr290
-    tag: 3722b483c02c
-    pullPolicy: Never
+    repository: timothyswt/nornicdb-cpu-bge
+    tag: "v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962"
+    pullPolicy: IfNotPresent
   resources:
     requests:
       cpu: 250m
@@ -56,6 +56,11 @@ neo4j:
 # Single-node proof: trim every workload to fit a laptop cluster.
 api:
   replicas: 1
+  # This proof authenticates with the static apiAuth Secret below. Generated
+  # local-admin bootstrap is a separate deployment path that requires an
+  # operator-managed data-encryption key, so keep it out of this scenario.
+  env:
+    ESHU_AUTH_BOOTSTRAP_MODE: disabled
   resources:
     requests:
       cpu: 100m

@@ -27,18 +27,17 @@ set -euo pipefail
 #       [--no-build]
 #
 # Environment overrides mirror the flags (K8S_GOV_*). Without --no-build, the
-# driver builds the chart image and exact pinned NornicDB image, then builds the
-# seed image from the chart image. With --no-build, the chart and pinned
-# NornicDB images must already exist on the cluster's Docker daemon (OrbStack
-# shares the daemon); the driver still builds the seed image from the chart
-# image.
+# driver builds the chart image, caches the exact published NornicDB artifact,
+# and builds the seed image from the chart image. With --no-build, the chart and
+# pinned NornicDB images must already be available to the cluster; the driver
+# still builds the seed image from the chart image.
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")/.." && pwd))"
 
 image_repo="${K8S_GOV_IMAGE_REPO:-eshu}"
 image_tag="${K8S_GOV_IMAGE_TAG:-local}"
 seed_image="${K8S_GOV_SEED_IMAGE:-eshu-gov-seed:local}"
-nornicdb_image="eshu-nornicdb-pr290:3722b483c02c"
+nornicdb_image="timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962"
 release="${K8S_GOV_RELEASE:-eshu}"
 ns_suffix="$(LC_ALL=C tr -dc 'a-z0-9' </dev/urandom 2>/dev/null | head -c 6 || echo "$$")"
 namespace="${K8S_GOV_NAMESPACE:-eshu-gov-proof-${ns_suffix}}"
@@ -76,6 +75,7 @@ command -v helm >/dev/null 2>&1 || die "helm is required"
 command -v docker >/dev/null 2>&1 || die "docker is required"
 command -v curl >/dev/null 2>&1 || die "curl is required"
 command -v rg >/dev/null 2>&1 || die "rg is required"
+command -v jq >/dev/null 2>&1 || die "jq is required"
 if command -v shasum >/dev/null 2>&1; then
 	sha256_cmd="shasum -a 256"
 elif command -v sha256sum >/dev/null 2>&1; then
@@ -95,6 +95,10 @@ manifests_lib="$(dirname "$0")/k8s-two-team-governance-manifests.sh"
 [[ -f "${manifests_lib}" ]] || die "manifests helper not found: ${manifests_lib}"
 # shellcheck source=scripts/k8s-two-team-governance-manifests.sh
 . "${manifests_lib}"
+provenance_lib="$(dirname "$0")/lib/k8s-two-team-governance-provenance.sh"
+[[ -f "${provenance_lib}" ]] || die "provenance helper not found: ${provenance_lib}"
+# shellcheck source=scripts/lib/k8s-two-team-governance-provenance.sh
+. "${provenance_lib}"
 
 if [[ -z "${artifacts_dir}" ]]; then
 	artifacts_dir="$(mktemp -d "${TMPDIR:-/tmp}/k8s-gov-artifacts.XXXXXX")"
@@ -125,15 +129,13 @@ sha256_hex() {
 kc() { kubectl -n "${namespace}" "$@"; }
 
 # ---------------------------------------------------------------------------
-# Phase 0: build the chart image and a seed image (fixtures baked in) so the
-# single-node cluster can pull locally (imagePullPolicy IfNotPresent / Never).
+# Phase 0: build the chart and seed images, and cache the immutable backend.
 # ---------------------------------------------------------------------------
 if [[ "${do_build}" == true ]]; then
 	printf '==> building chart image %s:%s\n' "${image_repo}" "${image_tag}"
 	docker build -t "${image_repo}:${image_tag}" -f "${repo_root}/Dockerfile" "${repo_root}" >/dev/null
-	printf '==> building exact relationship-identity backend %s\n' "${nornicdb_image}"
-	NORNICDB_IMAGE="${nornicdb_image}" NORNICDB_PULL_POLICY=build \
-		docker compose -f "${repo_root}/docker-compose.yaml" build nornicdb >/dev/null
+	printf '==> caching exact relationship-identity backend %s\n' "${nornicdb_image}"
+	docker pull "${nornicdb_image}" >/dev/null
 fi
 
 # Two generic fixture repositories (no tenant/provider/private data).
@@ -433,23 +435,7 @@ JSON
 # ---------------------------------------------------------------------------
 # Provenance (low-cardinality, port-only handle; no token/host/IP).
 # ---------------------------------------------------------------------------
-eshu_commit="$(git -C "${repo_root}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-# Capture the LIVE cluster's version. The node kubelet version is the
-# authoritative server version (kubectl version's first gitVersion is the client,
-# which can skew from the cluster). Strip the vendor suffix to a clean canary.
-k8s_version="$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.kubeletVersion}' 2>/dev/null | rg -o '^v[0-9][^[:space:]]*' | head -1 || echo unknown)"
-[[ -n "${k8s_version}" ]] || k8s_version="unknown"
-cat >"${artifacts_dir}/provenance.json" <<JSON
-{
-  "eshu_commit": "${eshu_commit}",
-  "backend": "nornicdb",
-  "platform": "kubernetes",
-  "kubernetes_version": "${k8s_version}",
-  "registry_token_count": 3,
-  "metrics_handle": ":9464/metrics",
-  "counts_and_states_only": true
-}
-JSON
+capture_k8s_governance_provenance "${repo_root}" "${artifacts_dir}" "${nornicdb_image}"
 
 printf 'captured live K8s proof artifacts to %s\n' "${artifacts_dir}"
 "${repo_root}/scripts/verify-k8s-two-team-governance-proof.sh" --artifacts "${artifacts_dir}"

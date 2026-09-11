@@ -169,60 +169,60 @@ classes. Provider-backed profiles additionally report redacted provider profile
 status. Compose adds no raw prompt, credential, endpoint, provider body, path,
 or document id to logs or metric labels.
 
-### Exact merged NornicDB #290 default
+### Immutable NornicDB v1.3.1 default
 
-The default Compose NornicDB service builds merged orneryd/NornicDB#290 from
-full squash commit
-`3722b483c02c38a8e046d198f8768f200f31023c`. That commit includes the
-same-UID commit-lock fix from #261 and the relationship `MERGE` property-identity
-fix from #290. Compose tags the local image
-`eshu-nornicdb-pr290:3722b483c02c`, records the full revision as an OCI image
-label, and uses the default pull policy `build`. This makes a clean machine
-build the proven source instead of trying to pull the local tag from a registry.
-The Git context uses the full 40-character commit fragment, so both older and
-newer Docker builders resolve the same immutable backend source without relying
-on the newer Git-context checksum query feature.
+The default Compose NornicDB service uses the published multi-architecture image
+`timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`.
+That exact artifact passes Eshu's restart fault cell without the cross-scope
+relationship corruption observed on the previous source-built backend. The
+default pull policy `missing` downloads the immutable artifact once and reuses
+it without requiring registry access on every start.
 
-Controlled backend comparisons retain the existing override contract. Set
-`NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` for an
-immutable published image, `never` for a prebuilt local tag, or `build` to build
-the exact source below under a different local tag. Leaving both unset uses the
-exact PR #290 source pin. Published-image and prebuilt-local comparisons must
-run `docker compose up` without `--build`; `--build` deliberately rebuilds the
-exact source and would defeat the image override.
+Controlled backend comparisons retain the image override contract. Set
+`NORNICDB_IMAGE` and `NORNICDB_PULL_POLICY` together: use `always` when a run
+must contact the registry, `missing` for an immutable cached image, or `never`
+for a prebuilt local tag. Compose no longer contains a NornicDB source-build
+stanza; build a local comparison image separately, then select it with
+`NORNICDB_IMAGE=<local-tag> NORNICDB_PULL_POLICY=never`.
 
-Leave `NORNICDB_PLATFORM` unset for normal local runs so the build uses the host
+Leave `NORNICDB_PLATFORM` unset for normal local runs so Docker selects the host
 architecture.
 
-`NORNICDB_HEADLESS=true` skips the pinned backend's UI stage via the upstream
-`Dockerfile.cpu-bge` `HEADLESS` build arg (the default `false` keeps the full
-UI build for development). CI-only callers set it because the pinned source's
-UI stage currently fails `tsc` (TS2882, #6505) and no Eshu gate serves the
-NornicDB UI; local runs leave it unset. Proof record:
-`docs/internal/evidence/6505-nornicdb-headless-ci.md`.
-
-Normal `docker compose up --build` builds the pinned backend and Eshu services.
-To cache the backend first, build the stack once and then start without
-rebuilding either image:
+Normal `docker compose up --build` builds the Eshu services and pulls NornicDB
+only when its immutable image is absent. To cache the backend before starting:
 
 ```bash
-docker compose build
-
-docker compose up -d --no-build
+docker compose pull nornicdb
+docker compose up -d --build
 ```
 
-Confirm the cached image carries the expected source revision before treating
+Confirm the configured digest and the backend's reported version before treating
 the stack as evidence:
 
 ```bash
-docker image inspect eshu-nornicdb-pr290:3722b483c02c \
-  --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+docker compose config --images | rg 'nornicdb-cpu-bge:v1.3.1@sha256:ac524899'
+docker compose exec nornicdb /app/nornicdb version
 ```
 
-The expected output is
-`3722b483c02c38a8e046d198f8768f200f31023c`. Replace this source pin
-only after a released NornicDB image containing #261 and #290 is pinned by
-digest and the bounded/full-corpus proof is repeated on that artifact.
+The version command must report `NornicDB v1.3.1`. The official image does not
+publish an OCI source-revision label, so absence of that optional metadata is
+not a provenance failure; the immutable image digest is the artifact identity.
+
+### Existing graph volumes
+
+Changing the default image does not make an existing graph volume safe to
+reuse automatically. For an upgrade, stop every Eshu graph writer, preserve a
+snapshot or copy of the old `nornicdb_data` volume, start v1.3.1 on a fresh
+graph volume, and follow [Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md)
+using the preserved Postgres fact store. Verify terminal queues and the
+required API/MCP graph truth before cutting traffic over.
+
+Roll back by restoring the preserved old volume or by rebuilding another fresh
+graph from Postgres facts. Never start an older NornicDB binary on a volume
+modified by v1.3.1 unless that exact reverse transition has separate storage
+compatibility proof. Operators that choose an in-place volume upgrade must
+first prove the exact old-image-to-v1.3.1 transition, restart/readback, and
+rollback against a disposable copy of their own volume.
 
 Eshu Compose sets these NornicDB graph-lane controls:
 

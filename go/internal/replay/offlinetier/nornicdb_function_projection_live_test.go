@@ -75,8 +75,8 @@ func functionProjectionSeed(ctx context.Context, t *testing.T, exec liveExecutor
 }
 
 // TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch requires the
-// corrected traversal-seeded OPTIONAL MATCH evaluator shipped in NornicDB
-// v1.2.3.
+// corrected traversal-seeded OPTIONAL MATCH evaluator first shipped before
+// NornicDB v1.3.1 and retained by the currently pinned artifact.
 func TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch(t *testing.T) {
 	if !liveTierEnabled() {
 		t.Skipf("set %s=1 to run the function-projection proof against a real NornicDB", liveTierEnv)
@@ -149,7 +149,7 @@ RETURN type(rel) AS type,
 // TestNornicDBChainedOptionalMatchPreservesExecutorBoundary pins the different
 // behavior of relationship-seeded and node-only chained OPTIONAL MATCH paths.
 //
-// NornicDB v1.2.3 evaluates the relationship-seeded second hop, but its
+// NornicDB v1.3.1 evaluates the relationship-seeded second hop, but its
 // node-only compound path still returns "sourceRepo.id". The positive and
 // negative assertions below pin that measured executor boundary.
 func TestNornicDBChainedOptionalMatchPreservesExecutorBoundary(t *testing.T) {
@@ -220,12 +220,12 @@ RETURN sourceFile.relative_path AS source_file_path,
 	}
 	gotRepoID, ok := nodeOnly[0]["source_repo_id"]
 	if !ok {
-		t.Fatal("node-only source_repo_id column is absent, want the v1.2.3 literal-placeholder negative control")
+		t.Fatal("node-only source_repo_id column is absent, want the v1.3.1 literal-placeholder negative control")
 	}
 	if gotRepoID == nil {
-		t.Fatal("node-only source_repo_id = nil, want the v1.2.3 literal placeholder sourceRepo.id")
+		t.Fatal("node-only source_repo_id = nil, want the v1.3.1 literal placeholder sourceRepo.id")
 	}
 	if gotRepoID != "sourceRepo.id" {
-		t.Errorf("node-only source_repo_id = %#v, want the v1.2.3 literal placeholder %q; if this becomes repo-1, the remaining backend defect is fixed and this boundary must be revisited", gotRepoID, "sourceRepo.id")
+		t.Errorf("node-only source_repo_id = %#v, want the v1.3.1 literal placeholder %q; if this becomes repo-1, the remaining backend defect is fixed and this boundary must be revisited", gotRepoID, "sourceRepo.id")
 	}
 }

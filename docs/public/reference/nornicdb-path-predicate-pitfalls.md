@@ -6,7 +6,7 @@ variable-length traversal can be bounded. Split out of
 long enough to read on their own, and both are load-bearing for the code-family
 routes that traverse `CALLS` and `INHERITS`.
 
-Everything here was measured against
+Everything here was measured against the then-pinned
 `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`. A different build may
 behave differently, and the live tests named in each section are what would say
 so.
@@ -16,7 +16,7 @@ so.
 [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md) records, under its
 variable-length anchoring entry, that a path whose BOTH endpoints are pre-bound
 in their own `MATCH` clauses works without a label on the path pattern. That was
-measured on v1.1.11 and is not true on the current pin, where the exact
+measured on v1.1.11 and was not true on the v1.2.3 pin, where the exact
 `buildNornicDBCallChainCypher` statement does not parse at all:
 
 ```text

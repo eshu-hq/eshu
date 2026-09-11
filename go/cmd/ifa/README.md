@@ -187,6 +187,13 @@ session.
   collateral comparison; that full-record comparison keeps documentation graph
   records exact without claiming a separate post-delta documentation assertion.
   Read-only: no schema DDL, no write.
+
+- `ifa assert-gcp-project-edge-scopes` - checks the fixed Ifa project fixture's
+  exact per-scope `GCP_*` edge counts and fails unless both `CloudResource`
+  endpoints belong to that scope's project. The fault gate runs it for the
+  baseline and backend-restart cells before comparing graph digests.
+  Organization, folder, and custom GCP scopes are outside this fixture-specific
+  command.
 - `ifa mutate-cassette -cassette FILE -out FILE -fact-kind KIND -kind
   missing-field|schema-major [-field F] [-schema-major V] [-count N]` -
   Ifá P3 failure-path-determinism fixture generator (ADR step 3a): loads

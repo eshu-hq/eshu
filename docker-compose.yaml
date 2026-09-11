@@ -1,27 +1,11 @@
 services:
   nornicdb:
-    # Exact merged-source default for the same-UID UNIQUE commit-lock fix in
-    # orneryd/NornicDB#261 and relationship MERGE property-identity fix in
-    # orneryd/NornicDB#290. Keep this full commit pin until a released image
-    # containing both fixes is pinned by digest and the Eshu
-    # performance/correctness proof is repeated on that artifact. The default
-    # build policy makes clean machines build this exact source. Controlled
-    # comparisons may set both NORNICDB_IMAGE and NORNICDB_PULL_POLICY explicitly.
-    image: ${NORNICDB_IMAGE:-eshu-nornicdb-pr290:3722b483c02c}
-    pull_policy: ${NORNICDB_PULL_POLICY:-build}
-    build:
-      context: https://github.com/orneryd/NornicDB.git#3722b483c02c38a8e046d198f8768f200f31023c
-      dockerfile: docker/Dockerfile.cpu-bge
-      args:
-        # Upstream's documented UI skip for its Dockerfile.cpu-bge HEADLESS
-        # path: the pinned source's UI stage currently fails tsc (TS2882,
-        # #6505) and no Eshu gate serves the NornicDB UI, so CI-only callers
-        # set NORNICDB_HEADLESS=true. The local default stays false to keep
-        # the full UI build for development.
-        HEADLESS: ${NORNICDB_HEADLESS:-false}
-      labels:
-        org.opencontainers.image.revision: 3722b483c02c38a8e046d198f8768f200f31023c
-        org.opencontainers.image.source: https://github.com/orneryd/NornicDB
+    # The default is the immutable multi-architecture NornicDB v1.3.1 image
+    # proven by Eshu's restart fault and graph-truth gate. The digest
+    # makes the cached artifact stable; `missing` avoids a registry dependency
+    # after the first pull. Controlled comparisons may override both variables.
+    image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962}
+    pull_policy: ${NORNICDB_PULL_POLICY:-missing}
     platform: ${NORNICDB_PLATFORM:-}
     ports:
       - "${NEO4J_HTTP_PORT:-7474}:7474"

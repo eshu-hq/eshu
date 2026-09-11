@@ -17,9 +17,9 @@ NornicDB source before patching.
 The same scoping note applies as on the companion page: entries below name
 `nornicdb-cpu-bge:v1.1.11` (`sha256:51b6174a…`) or a `NornicDB-New` fork
 checkout, measured when v1.1.11 was what `deploy/helm/eshu/values.yaml`
-shipped. #6296 moved the chart to `v1.2.3@sha256:4dfa887d…`, a build that
-self-reports version `1.2.2`, and these behaviors have not been re-measured on
-it. Treat an entry as a reason to check the digest you actually run, not as a
+shipped. The chart now pins `v1.3.1@sha256:ac524899…`; most historical
+behaviors below have not been re-measured on it. Treat an entry as a reason to
+check the digest you actually run, not as a
 statement about it.
 
 ## How To Use This Page
@@ -933,12 +933,12 @@ case and the relationship-seeded chained second-hop property case. The
 implementation began at upstream commit
 `883065cd744b835237f0a26bce0fd41883cd2b64` and was completed by
 `e4b84afef25282ee8747c66c8fddb8fdff836d28`; both are ancestors of NornicDB
-v1.2.3 commit `d9b76ae82334e6b23b847156eb81931781546b85`. Eshu's replay tier pins the
-published v1.2.3 multi-architecture image by digest and requires evaluated
+v1.2.3 commit `d9b76ae82334e6b23b847156eb81931781546b85`. Eshu's replay tier now pins
+the published v1.3.1 multi-architecture image by digest and requires evaluated
 `type(rel)`, `coalesce(...)`, and relationship-seeded chained second-hop
 property results.
 
-The node-only compound path is not fixed in v1.2.3: when a primary node `MATCH`
+The node-only compound path remains unfixed in v1.3.1: when a primary node `MATCH`
 is followed by two chained `OPTIONAL MATCH` clauses, the second-hop property
 still returns its literal expression (`sourceRepo.id` → `"sourceRepo.id"`).
 The replay tier retains this as a negative control, including an explicit null
@@ -987,7 +987,7 @@ for the historical before/after and the isolated executor characterization.
 The replay-tier tests
 `TestNornicDBFunctionProjectionEvaluatesAfterOptionalMatch` and
 `TestNornicDBChainedOptionalMatchPreservesExecutorBoundary` exercise the
-measured boundary directly against v1.2.3. They require evaluated values for
+measured boundary directly against v1.3.1. They require evaluated values for
 the relationship-seeded shapes and require the exact literal-placeholder
 negative control, never a missing or null column, for the node-only compound
 path.
@@ -1004,7 +1004,7 @@ Measured against the former PR #261 build while proving issue #5694:
 | two chained, read the SECOND one's variable | `r.id` — a plain property read | **`"r.id"`** |
 | two chained, no relationship bound anywhere | `r.id` | **`"r.id"`** |
 
-The v1.2.3 boundary separates the executor paths: relationship-seeded traversal
+The v1.3.1 boundary separates the executor paths: relationship-seeded traversal
 now evaluates both the function projections and the second chained property,
 while the node-only compound path still corrupts the second chained property.
 The function-call symptom above was therefore the narrower historical case;
@@ -1013,7 +1013,7 @@ plain property reads remain affected only on the measured node-only path.
 `go/internal/query/code_relationship_story_nornicdb.go` still pairs every
 second-hop column with its historical literal placeholder through
 `nornicDBStoryProjection`. Its production relationship-seeded query sees
-evaluated values on v1.2.3, so the guard is a no-op there; older or custom
+evaluated values on v1.3.1, so the guard is a no-op there; older or custom
 backends still fail closed instead of serving expression text. Removing that
 compatibility guard belongs with any measured query-shape consolidation, not
 with the backend-proof update.
@@ -1095,9 +1095,9 @@ it under-reports rather than empties.
 
 ### Fixed default and deployment order
 
-The default `docker-compose.yaml` source pin is now
-`eshu-nornicdb-pr290:3722b483c02c` at merged full revision
-`3722b483c02c38a8e046d198f8768f200f31023c`. The corrected backend includes
+The default `docker-compose.yaml` image is now the published NornicDB v1.3.1
+multi-architecture index pinned at `sha256:ac524899…`. The prior source-built proof
+used merged revision `3722b483c02c38a8e046d198f8768f200f31023c`. The corrected backend includes
 pattern properties in relationship `MERGE` identity for plain, batched, and
 explicit-transaction paths. The #5827 live proof starts with one legacy
 endpoint-only relationship and replays two same-pair assertions in both orders;
@@ -1113,7 +1113,7 @@ would preserve the silent collapse.
 
 Endpoint modeling remains useful when the distinguishing value is a domain
 entity in its own right. It is no longer required as a backend workaround on
-the corrected PR #290 build.
+the corrected v1.3.1 build.
 
 ### Historical impact on two shipped writers
 
