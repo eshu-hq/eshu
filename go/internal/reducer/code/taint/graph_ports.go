@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package codetaint
+package taint
 
 import (
 	"context"
@@ -26,8 +26,8 @@ type GraphQueryRunner interface {
 // backfill re-runs on the next startup instead of being treated as done.
 //
 // Declared locally rather than imported: the owning declaration is
-// valueflow.BackfillStateMarker (code/value/backfill_state_marker.go), and
-// valueflow imports this package, so importing it back would be a cycle.
+// value.BackfillStateMarker (code/value/backfill_state_marker.go), and
+// value imports this package, so importing it back would be a cycle.
 // cmd/reducer wires the same concrete Postgres-backed marker into the root's
 // projected_source_edge_backfill family and this package's backfillers;
 // structural typing makes that safe.

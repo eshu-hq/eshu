@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -13,8 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
 )
 
-func BenchmarkValueFlowFixpointFull(b *testing.B) {
-	program, versions := benchmarkValueFlowProgram(100, 100)
+func BenchmarkFixpointFull(b *testing.B) {
+	program, versions := benchmarkProgram(100, 100)
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_ = interproc.SolvePartitioned(program, interproc.DefaultLimits())
@@ -22,10 +22,10 @@ func BenchmarkValueFlowFixpointFull(b *testing.B) {
 	_ = versions
 }
 
-func BenchmarkValueFlowFixpointIncrementalCached(b *testing.B) {
-	program, versions := benchmarkValueFlowProgram(100, 100)
-	cache := NewValueFlowFixpointCache()
-	SolveValueFlowProgramIncremental(program, versions, cache, interproc.DefaultLimits())
+func BenchmarkFixpointIncrementalCached(b *testing.B) {
+	program, versions := benchmarkProgram(100, 100)
+	cache := NewFixpointCache()
+	SolveProgramIncremental(program, versions, cache, interproc.DefaultLimits())
 
 	changed := make(map[summary.FunctionID]string, len(versions))
 	for id, version := range versions {
@@ -36,15 +36,15 @@ func BenchmarkValueFlowFixpointIncrementalCached(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		changed[changedID] = fmt.Sprintf("v%d", i+2)
-		_, stats := SolveValueFlowProgramIncremental(program, changed, cache, interproc.DefaultLimits())
+		_, stats := SolveProgramIncremental(program, changed, cache, interproc.DefaultLimits())
 		if stats.RecomputedComponents != 1 {
 			b.Fatalf("RecomputedComponents = %d, want 1", stats.RecomputedComponents)
 		}
 	}
 }
 
-func BenchmarkValueFlowSnapshotFullAssemblySolve(b *testing.B) {
-	effects, sources, versions := benchmarkValueFlowSnapshot(100, 100)
+func BenchmarkSnapshotFullAssemblySolve(b *testing.B) {
+	effects, sources, versions := benchmarkSnapshot(100, 100)
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		program := valueflow.BuildProgram(effects, sources, nil)
@@ -53,16 +53,16 @@ func BenchmarkValueFlowSnapshotFullAssemblySolve(b *testing.B) {
 	_ = versions
 }
 
-func BenchmarkValueFlowSnapshotDurableRestartCached(b *testing.B) {
-	effects, sources, versions := benchmarkValueFlowSnapshot(100, 100)
-	store := newMemoryValueFlowFixpointComponentStore()
-	_, _, err := SolveValueFlowSnapshotIncrementalDurable(
+func BenchmarkSnapshotDurableRestartCached(b *testing.B) {
+	effects, sources, versions := benchmarkSnapshot(100, 100)
+	store := newMemoryFixpointComponentStore()
+	_, _, err := SolveSnapshotIncrementalDurable(
 		context.Background(),
 		effects,
 		versions,
 		sources,
 		nil,
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -78,13 +78,13 @@ func BenchmarkValueFlowSnapshotDurableRestartCached(b *testing.B) {
 			changed[id] = version
 		}
 		changed[changedID] = fmt.Sprintf("v%d", i+2)
-		_, stats, err := SolveValueFlowSnapshotIncrementalDurable(
+		_, stats, err := SolveSnapshotIncrementalDurable(
 			context.Background(),
 			effects,
 			changed,
 			sources,
 			nil,
-			NewValueFlowFixpointCache(),
+			NewFixpointCache(),
 			store,
 			interproc.DefaultLimits(),
 		)
@@ -100,7 +100,7 @@ func BenchmarkValueFlowSnapshotDurableRestartCached(b *testing.B) {
 	}
 }
 
-func benchmarkValueFlowProgram(components int, chainLength int) (interproc.Program, map[summary.FunctionID]string) {
+func benchmarkProgram(components int, chainLength int) (interproc.Program, map[summary.FunctionID]string) {
 	program := interproc.Program{
 		Edges:   make([]interproc.Edge, 0, components*(chainLength-1)),
 		Sources: make([]interproc.Source, 0, components),
@@ -126,7 +126,7 @@ func benchmarkValueFlowProgram(components int, chainLength int) (interproc.Progr
 	return program, versions
 }
 
-func benchmarkValueFlowSnapshot(
+func benchmarkSnapshot(
 	components int,
 	chainLength int,
 ) (map[summary.FunctionID]summary.Effects, []interproc.Source, map[summary.FunctionID]string) {

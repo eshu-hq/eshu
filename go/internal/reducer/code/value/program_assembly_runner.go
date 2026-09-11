@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -10,19 +10,19 @@ import (
 	"time"
 )
 
-// ValueFlowProgramInputLoader loads bounded value-flow Program assembly inputs.
-type ValueFlowProgramInputLoader interface {
-	LoadPendingValueFlowProgramInputs(ctx context.Context, limit int) ([]ValueFlowProgramInput, error)
+// ProgramInputLoader loads bounded value-flow Program assembly inputs.
+type ProgramInputLoader interface {
+	LoadPendingProgramInputs(ctx context.Context, limit int) ([]ProgramInput, error)
 }
 
-// ValueFlowProgramAssemblyRunnerConfig configures one value-flow Program
+// ProgramAssemblyRunnerConfig configures one value-flow Program
 // assembly cycle.
-type ValueFlowProgramAssemblyRunnerConfig struct {
+type ProgramAssemblyRunnerConfig struct {
 	BatchLimit int
 }
 
-// ValueFlowProgramAssemblyResult summarizes one loader/assembly cycle.
-type ValueFlowProgramAssemblyResult struct {
+// ProgramAssemblyResult summarizes one loader/assembly cycle.
+type ProgramAssemblyResult struct {
 	InputsProcessed            int
 	SummaryCount               int
 	CallEdgeCount              int
@@ -35,31 +35,31 @@ type ValueFlowProgramAssemblyResult struct {
 	DurationSeconds            float64
 }
 
-// ValueFlowProgramAssemblyRunner assembles value-flow Programs from active
+// ProgramAssemblyRunner assembles value-flow Programs from active
 // CALLS edges and persisted function summaries. It does not solve or write
 // graph evidence.
-type ValueFlowProgramAssemblyRunner struct {
-	InputLoader ValueFlowProgramInputLoader
-	Config      ValueFlowProgramAssemblyRunnerConfig
+type ProgramAssemblyRunner struct {
+	InputLoader ProgramInputLoader
+	Config      ProgramAssemblyRunnerConfig
 	Logger      *slog.Logger
 }
 
 // ProcessOnce loads and assembles one bounded batch of value-flow Programs.
-func (r ValueFlowProgramAssemblyRunner) ProcessOnce(ctx context.Context) (ValueFlowProgramAssemblyResult, error) {
+func (r ProgramAssemblyRunner) ProcessOnce(ctx context.Context) (ProgramAssemblyResult, error) {
 	if r.InputLoader == nil {
-		return ValueFlowProgramAssemblyResult{}, fmt.Errorf("value-flow program input loader is required")
+		return ProgramAssemblyResult{}, fmt.Errorf("value-flow program input loader is required")
 	}
 	start := time.Now()
-	inputs, err := r.InputLoader.LoadPendingValueFlowProgramInputs(ctx, r.batchLimit())
+	inputs, err := r.InputLoader.LoadPendingProgramInputs(ctx, r.batchLimit())
 	if err != nil {
-		return ValueFlowProgramAssemblyResult{}, fmt.Errorf("load value-flow program inputs: %w", err)
+		return ProgramAssemblyResult{}, fmt.Errorf("load value-flow program inputs: %w", err)
 	}
 
-	result := ValueFlowProgramAssemblyResult{
+	result := ProgramAssemblyResult{
 		InputsProcessed: len(inputs),
 	}
 	for _, input := range inputs {
-		_, stats := BuildValueFlowProgram(input)
+		_, stats := BuildProgram(input)
 		result.SummaryCount += stats.SummaryCount
 		result.CallEdgeCount += stats.CallEdgeCount
 		result.ProgramEdgeCount += stats.ProgramEdgeCount
@@ -88,7 +88,7 @@ func (r ValueFlowProgramAssemblyRunner) ProcessOnce(ctx context.Context) (ValueF
 	return result, nil
 }
 
-func (r ValueFlowProgramAssemblyRunner) batchLimit() int {
+func (r ProgramAssemblyRunner) batchLimit() int {
 	if r.Config.BatchLimit <= 0 {
 		return 10
 	}

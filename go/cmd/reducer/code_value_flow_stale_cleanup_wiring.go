@@ -5,16 +5,16 @@ package main
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 )
 
 func codeValueFlowStaleCleanupRunnerFor(
 	database postgres.ExecQueryer,
 	taintEvidence reducer.CodeTaintStaleEvidenceRetractor,
-	taintWriter codetaint.CodeTaintEvidenceWriter,
+	taintWriter taint.CodeTaintEvidenceWriter,
 	interprocEvidence reducer.CodeInterprocStaleEvidenceRetractor,
-	interprocWriter codetaint.CodeInterprocEvidenceWriter,
+	interprocWriter taint.CodeInterprocEvidenceWriter,
 	leaseManager reducer.PartitionLeaseManager,
 	cfg codeValueFlowStaleCleanupConfig,
 ) *reducer.CodeValueFlowStaleCleanupRunner {

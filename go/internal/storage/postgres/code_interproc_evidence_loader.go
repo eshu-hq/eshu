@@ -10,7 +10,7 @@ import (
 )
 
 // LoadCodeInterprocEvidenceFacts implements
-// codetaint.CodeInterprocEvidenceFactLoader by scanning the raw
+// taint.CodeInterprocEvidenceFactLoader by scanning the raw
 // code_interproc_evidence fact envelopes for one scope generation. The reducer
 // handler decodes them through the typed contracts seam
 // (ExtractCodeInterprocEvidenceRowsWithQuarantine) so a fact missing a required

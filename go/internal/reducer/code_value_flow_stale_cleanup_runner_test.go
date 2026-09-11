@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T) {
@@ -20,12 +20,12 @@ func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T)
 			{ScopeID: "scope-b", GenerationID: "gen-current-b"},
 		},
 	}
-	taint := &recordingCodeValueFlowTaintSweeper{}
+	taintSweeper := &recordingCodeValueFlowTaintSweeper{}
 	interproc := &recordingCodeValueFlowInterprocSweeper{}
 	leaseManager := &fakeCodeValueFlowLeaseManager{claimResults: []bool{true}}
 	runner := &CodeValueFlowStaleCleanupRunner{
 		CurrentGenerations: reader,
-		TaintEvidence:      taint,
+		TaintEvidence:      taintSweeper,
 		InterprocEvidence:  interproc,
 		LeaseManager:       leaseManager,
 		Config: CodeValueFlowStaleCleanupRunnerConfig{
@@ -55,21 +55,21 @@ func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T)
 	if !result.CursorExhausted {
 		t.Fatal("CursorExhausted = false, want true after a partial page")
 	}
-	if got := len(taint.calls); got != 2 {
-		t.Fatalf("taint calls = %d, want 2", got)
+	if got := len(taintSweeper.calls); got != 2 {
+		t.Fatalf("taintSweeper calls = %d, want 2", got)
 	}
 	if got := len(interproc.calls); got != 2 {
 		t.Fatalf("interproc calls = %d, want 2", got)
 	}
-	if call := taint.calls[0]; call.scopeID != "scope-a" ||
+	if call := taintSweeper.calls[0]; call.scopeID != "scope-a" ||
 		call.generationID != "gen-current-a" ||
-		call.evidenceSource != codetaint.CodeTaintEvidenceSource() ||
+		call.evidenceSource != taint.CodeTaintEvidenceSource() ||
 		call.limit != 50 {
-		t.Fatalf("first taint call = %+v, want current scope/generation/source/limit", call)
+		t.Fatalf("first taintSweeper call = %+v, want current scope/generation/source/limit", call)
 	}
 	if call := interproc.calls[1]; call.scopeID != "scope-b" ||
 		call.generationID != "gen-current-b" ||
-		call.evidenceSource != codetaint.CodeInterprocEvidenceSource() ||
+		call.evidenceSource != taint.CodeInterprocEvidenceSource() ||
 		call.limit != 50 {
 		t.Fatalf("second interproc call = %+v, want current scope/generation/source/limit", call)
 	}
@@ -85,12 +85,12 @@ func TestCodeValueFlowStaleCleanupRunnerSkipsWhenLeaseUnavailable(t *testing.T) 
 	reader := &fakeCodeValueFlowCurrentGenerationReader{
 		rows: []CodeValueFlowCurrentGeneration{{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
-	taint := &recordingCodeValueFlowTaintSweeper{}
+	taintSweeper := &recordingCodeValueFlowTaintSweeper{}
 	interproc := &recordingCodeValueFlowInterprocSweeper{}
 	leaseManager := &fakeCodeValueFlowLeaseManager{claimResults: []bool{false}}
 	runner := &CodeValueFlowStaleCleanupRunner{
 		CurrentGenerations: reader,
-		TaintEvidence:      taint,
+		TaintEvidence:      taintSweeper,
 		InterprocEvidence:  interproc,
 		LeaseManager:       leaseManager,
 		Config:             CodeValueFlowStaleCleanupRunnerConfig{LeaseOwner: "value-flow-owner"},
@@ -106,8 +106,8 @@ func TestCodeValueFlowStaleCleanupRunnerSkipsWhenLeaseUnavailable(t *testing.T) 
 	if len(reader.afterScopeIDs) != 0 {
 		t.Fatalf("reader calls = %d, want 0 without a lease", len(reader.afterScopeIDs))
 	}
-	if len(taint.calls) != 0 || len(interproc.calls) != 0 {
-		t.Fatalf("sweeper calls = %d/%d, want 0/0 without a lease", len(taint.calls), len(interproc.calls))
+	if len(taintSweeper.calls) != 0 || len(interproc.calls) != 0 {
+		t.Fatalf("sweeper calls = %d/%d, want 0/0 without a lease", len(taintSweeper.calls), len(interproc.calls))
 	}
 	if leaseManager.releaseCalls != 0 {
 		t.Fatalf("release calls = %d, want 0 without a claimed lease", leaseManager.releaseCalls)
@@ -125,11 +125,11 @@ func TestCodeValueFlowStaleCleanupRunnerCursorPagesWithoutWrappingHot(t *testing
 			{{ScopeID: "scope-a", GenerationID: "gen-a"}},
 		},
 	}
-	taint := &recordingCodeValueFlowTaintSweeper{}
+	taintSweeper := &recordingCodeValueFlowTaintSweeper{}
 	interproc := &recordingCodeValueFlowInterprocSweeper{}
 	runner := &CodeValueFlowStaleCleanupRunner{
 		CurrentGenerations: reader,
-		TaintEvidence:      taint,
+		TaintEvidence:      taintSweeper,
 		InterprocEvidence:  interproc,
 		Config: CodeValueFlowStaleCleanupRunnerConfig{
 			ScopeBatchLimit:  2,
@@ -182,12 +182,12 @@ func TestServiceStartsCodeValueFlowStaleCleanupRunner(t *testing.T) {
 	reader := &fakeCodeValueFlowCurrentGenerationReader{
 		rows: []CodeValueFlowCurrentGeneration{{ScopeID: "scope-a", GenerationID: "gen-a"}},
 	}
-	taint := &recordingCodeValueFlowTaintSweeper{}
+	taintSweeper := &recordingCodeValueFlowTaintSweeper{}
 	interproc := &recordingCodeValueFlowInterprocSweeper{}
 	started := make(chan struct{}, 1)
 	runner := &CodeValueFlowStaleCleanupRunner{
 		CurrentGenerations: reader,
-		TaintEvidence:      taint,
+		TaintEvidence:      taintSweeper,
 		InterprocEvidence:  interproc,
 		Config:             CodeValueFlowStaleCleanupRunnerConfig{PollInterval: time.Hour},
 		Wait: func(ctx context.Context, _ time.Duration) error {
@@ -206,10 +206,10 @@ func TestServiceStartsCodeValueFlowStaleCleanupRunner(t *testing.T) {
 	})
 
 	deadline := time.After(time.Second)
-	for taint.callCount() != 1 {
+	for taintSweeper.callCount() != 1 {
 		select {
 		case <-deadline:
-			t.Fatal("taint stale cleanup was not called")
+			t.Fatal("taintSweeper stale cleanup was not called")
 		default:
 			time.Sleep(10 * time.Millisecond)
 		}
@@ -374,7 +374,7 @@ func TestCodeValueFlowStaleCleanupRunnerLedgerDrivenInterprocSweep(t *testing.T)
 			{ScopeID: "scope-a", GenerationID: "gen-current-a"},
 		},
 	}
-	taint := &recordingCodeValueFlowTaintSweeper{}
+	taintSweeper := &recordingCodeValueFlowTaintSweeper{}
 	interprocWriter := &recordingCodeValueFlowInterprocSweeper{}
 	ledger := &fakeCodeInterprocProjectedEdgeLedger{
 		listStaleUIDs: []string{"uid-1", "uid-2"},
@@ -382,7 +382,7 @@ func TestCodeValueFlowStaleCleanupRunnerLedgerDrivenInterprocSweep(t *testing.T)
 	leaseManager := &fakeCodeValueFlowLeaseManager{claimResults: []bool{true}}
 	runner := &CodeValueFlowStaleCleanupRunner{
 		CurrentGenerations: reader,
-		TaintEvidence:      taint,
+		TaintEvidence:      taintSweeper,
 		InterprocWriter:    interprocWriter,
 		InterprocLedger:    ledger,
 		LeaseManager:       leaseManager,
@@ -426,14 +426,14 @@ func TestCodeValueFlowStaleCleanupRunnerLedgerEmptyUidsNoOp(t *testing.T) {
 			{ScopeID: "scope-a", GenerationID: "gen-current-a"},
 		},
 	}
-	taint := &recordingCodeValueFlowTaintSweeper{}
+	taintSweeper := &recordingCodeValueFlowTaintSweeper{}
 	interprocWriter := &recordingCodeValueFlowInterprocSweeper{}
 	ledger := &fakeCodeInterprocProjectedEdgeLedger{
 		listStaleUIDs: nil, // no stale uids
 	}
 	runner := &CodeValueFlowStaleCleanupRunner{
 		CurrentGenerations: reader,
-		TaintEvidence:      taint,
+		TaintEvidence:      taintSweeper,
 		InterprocWriter:    interprocWriter,
 		InterprocLedger:    ledger,
 		Config: CodeValueFlowStaleCleanupRunnerConfig{

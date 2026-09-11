@@ -8,16 +8,16 @@ domains: value-flow taint findings attached to their Function as
 projected as `TAINT_FLOWS_TO` edges between Function nodes (issue #6061).
 
 It bundles both families into one package instead of two siblings
-(`codetaint`/`codeinterproc`) because the two subjects are interleaved at the
+(`taint`/`interproc`) because the two subjects are interleaved at the
 file level, not the dependency level, so a clean split does not exist yet.
 There is no true import cycle between the families: no
 `code_interproc_*.go` file references any `CodeTaintEvidence*` symbol (the
 only hit is a doc comment cross-reference in
-`code/taint/interproc_evidence_materialization.go`). The sibling `valueflow`
+`code/taint/interproc_evidence_materialization.go`). The sibling `value`
 package's value-flow fixpoint solver (`code/value/fixpoint_evidence_loader.go`,
 a different family, not this one) imports this package for its evidence
 writer/ledger/uid-namespace surface — a one-directional leaf-to-leaf
-dependency, not a cycle, since this package never imports `valueflow` back.
+dependency, not a cycle, since this package never imports `value` back.
 The reducer root's `code_value_flow_stale_cleanup_runner.go` reaching into
 this package's exported symbols is a normal root-imports-leaf relationship.
 The real obstacle is that
@@ -43,8 +43,8 @@ both fact kinds, the row/edge projection functions, and the projected-node /
 projected-edge ledgers and their startup backfillers.
 
 **Does not own:** the value-flow fixpoint solver
-(`ValueFlowFixpointEvidenceLoader`/`ValueFlowFixpointEvidenceProjector` in
-the sibling `valueflow` package) — that is a different family (durable cross-repo summaries
+(`FixpointEvidenceLoader`/`FixpointEvidenceProjector` in
+the sibling `value` package) — that is a different family (durable cross-repo summaries
 solved into a `Program`) that happens to produce `CodeInterprocEvidenceInput`
 rows and calls through this package's `ExtractCodeInterprocFixpointEvidenceRows`
 and `SourceUIDsFromRows`/`UnresolvedCodeInterprocEndpointCount` exports. Also
@@ -90,11 +90,11 @@ subpackages.
 Two interfaces this package's backfillers need are **locally redeclared** in
 `graph_ports.go` rather than imported. `GraphQueryRunner` (the graph read
 port) is owned by the reducer root and shared by five other root families,
-plus the sibling `valueflow` package's own separate local redeclaration;
+plus the sibling `value` package's own separate local redeclaration;
 importing the root to reach it would violate the "a family never imports the
 reducer root" rule. `CodeValueFlowBackfillStateMarker` (the durable
-per-source completion marker) mirrors `valueflow.BackfillStateMarker`, and
-`valueflow` imports this package, so importing it back would be a cycle. Go interfaces are satisfied structurally, so the same concrete
+per-source completion marker) mirrors `value.BackfillStateMarker`, and
+`value` imports this package, so importing it back would be a cycle. Go interfaces are satisfied structurally, so the same concrete
 implementations `cmd/reducer` wires into root's other families also satisfy
 these local declarations with no logic duplicated. `derefFloat64` is
 similarly kept as a small local unexported copy (root's version,
@@ -124,7 +124,7 @@ names, same emission sites, only the package that owns the code moved.
 - **`GraphQueryRunner` and `CodeValueFlowBackfillStateMarker` are
   intentionally re-declared here, not imported.** Do not "fix" either with
   an import — see Dependencies above (a root import for the first, an import
-  cycle through `valueflow` for the second). If a future move puts either in
+  cycle through `value` for the second). If a future move puts either in
   a leaf package both sides can import, replace that declaration with the
   import.
 - **`ExtractCodeInterprocFixpointEvidenceRows` uses a separate uid
@@ -150,7 +150,7 @@ ledgers plus backfillers out of the reducer root into this new package,
 without changing any field, exported behavior, or call order. The two
 interfaces the backfillers need (`GraphQueryRunner`,
 `CodeValueFlowBackfillStateMarker`, both root-owned at the time; the marker
-later moved to `valueflow` under #6609) are locally redeclared with the identical
+later moved to `value` under #6609) are locally redeclared with the identical
 method set rather than imported, so every existing concrete implementation
 still satisfies them with no new indirection. `DerefInt`/`DerefStringTrimmed`
 were hoisted to `payloadcore` (alongside the existing `DerefBool`/
@@ -162,11 +162,11 @@ were hoisted to `payloadcore` (alongside the existing `DerefBool`/
 `defaults_additive_domains_incident_code.go`,
 `code_value_flow_stale_cleanup_runner.go`,
 `code/value/fixpoint_evidence_loader.go`, `match.go`) —
-was updated to the qualified `codetaint.` symbol in the same commit.
+was updated to the qualified `taint.` symbol in the same commit.
 Measured against baseline `86daa9eee` on `feat/6061-codetaint` (based on
 `feat/6061-generationcheck`): from `go/`, with `GOROOT` unset and `GOCACHE`
 pointed at this worktree, `go build ./...`, `go vet ./...`,
-`go test ./internal/reducer/... -count=1` (15 subpackages, codetaint's own
+`go test ./internal/reducer/... -count=1` (15 subpackages, taint's own
 suite included), and `go test ./cmd/reducer ./internal/storage/postgres
 ./internal/query -count=1` each exited 0 on the branch. `git diff --check`
 exited 0. Binary output was not compared and no such claim is made here.

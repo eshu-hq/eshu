@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package codetaint materializes the code_taint_evidence and
+// Package taint materializes the code_taint_evidence and
 // code_interproc_evidence reducer domains: value-flow taint findings
 // attached to their Function as CodeTaintEvidence graph nodes, and
 // cross-function value-flow findings projected as TAINT_FLOWS_TO edges
 // between Function nodes.
 //
 // The two families share one package rather than splitting into
-// codetaint/codeinterproc siblings (issue #6061) because they are genuinely
+// taint/interproc siblings (issue #6061) because they are genuinely
 // coupled, not just co-located: [CodeTaintEvidenceMaterializationHandler]
 // decodes through the same typed-contracts seam
 // (DecodeCodeTaintEvidenceInput/DecodeCodeInterprocEvidenceInput,
 // ExtractCodeTaintEvidenceRowsWithQuarantine/
 // ExtractCodeInterprocEvidenceRowsWithQuarantine) as
-// [CodeInterprocEvidenceMaterializationHandler], and the sibling valueflow
+// [CodeInterprocEvidenceMaterializationHandler], and the sibling value
 // package's value-flow fixpoint solver (code/value/fixpoint_evidence_loader.go)
 // composes [CodeInterprocEvidenceInput] and
 // [ExtractCodeInterprocFixpointEvidenceRows] directly. Moving either family
@@ -40,4 +40,4 @@
 // backfills that seed those ledgers from existing graph nodes/edges for
 // deployments that predate the ledger, count-guarded so a zero-taint graph
 // backfills for free.
-package codetaint
+package taint

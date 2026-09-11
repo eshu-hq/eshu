@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -13,22 +13,22 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
 )
 
-func TestValueFlowFixpointCacheRecomputesOnlyChangedComponent(t *testing.T) {
+func TestFixpointCacheRecomputesOnlyChangedComponent(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
 	leftSink := summary.NewFunctionID("repo-a", "pkg", "", "leftSink")
 	rightSource := summary.NewFunctionID("repo-b", "pkg", "", "rightSource")
 	rightSink := summary.NewFunctionID("repo-b", "pkg", "", "rightSink")
-	program := twoComponentValueFlowProgram(leftSource, leftSink, rightSource, rightSink)
-	cache := NewValueFlowFixpointCache()
+	program := twoComponentProgram(leftSource, leftSink, rightSource, rightSink)
+	cache := NewFixpointCache()
 
-	_, first := SolveValueFlowProgramIncremental(program, valueFlowVersions("v1", leftSource, leftSink, rightSource, rightSink), cache, interproc.DefaultLimits())
+	_, first := SolveProgramIncremental(program, valueFlowVersions("v1", leftSource, leftSink, rightSource, rightSink), cache, interproc.DefaultLimits())
 	if first.RecomputedComponents != 2 || first.ReusedComponents != 0 {
 		t.Fatalf("first stats = %+v, want two recomputed components", first)
 	}
 
-	_, second := SolveValueFlowProgramIncremental(program, map[summary.FunctionID]string{
+	_, second := SolveProgramIncremental(program, map[summary.FunctionID]string{
 		leftSource:  "v1",
 		leftSink:    "v1",
 		rightSource: "v2",
@@ -39,21 +39,21 @@ func TestValueFlowFixpointCacheRecomputesOnlyChangedComponent(t *testing.T) {
 	}
 }
 
-func TestValueFlowFixpointCacheMatchesFullSolve(t *testing.T) {
+func TestFixpointCacheMatchesFullSolve(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
 	leftSink := summary.NewFunctionID("repo-a", "pkg", "", "leftSink")
 	rightSource := summary.NewFunctionID("repo-b", "pkg", "", "rightSource")
 	rightSink := summary.NewFunctionID("repo-b", "pkg", "", "rightSink")
-	program := twoComponentValueFlowProgram(leftSource, leftSink, rightSource, rightSink)
+	program := twoComponentProgram(leftSource, leftSink, rightSource, rightSink)
 	versions := valueFlowVersions("v1", leftSource, leftSink, rightSource, rightSink)
 
 	for _, limits := range []interproc.Limits{
 		interproc.DefaultLimits(),
 		{MaxFindings: 1},
 	} {
-		got, stats := SolveValueFlowProgramIncremental(program, versions, NewValueFlowFixpointCache(), limits)
+		got, stats := SolveProgramIncremental(program, versions, NewFixpointCache(), limits)
 		want := interproc.SolvePartitioned(program, limits)
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("incremental result with limits %+v = %+v, want full solve %+v", limits, got, want)
@@ -64,22 +64,22 @@ func TestValueFlowFixpointCacheMatchesFullSolve(t *testing.T) {
 	}
 }
 
-func TestValueFlowFixpointDurableCacheSurvivesRestart(t *testing.T) {
+func TestFixpointDurableCacheSurvivesRestart(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
 	leftSink := summary.NewFunctionID("repo-a", "pkg", "", "leftSink")
 	rightSource := summary.NewFunctionID("repo-b", "pkg", "", "rightSource")
 	rightSink := summary.NewFunctionID("repo-b", "pkg", "", "rightSink")
-	program := twoComponentValueFlowProgram(leftSource, leftSink, rightSource, rightSink)
+	program := twoComponentProgram(leftSource, leftSink, rightSource, rightSink)
 	versions := valueFlowVersions("v1", leftSource, leftSink, rightSource, rightSink)
-	store := newMemoryValueFlowFixpointComponentStore()
+	store := newMemoryFixpointComponentStore()
 
-	_, first, err := SolveValueFlowProgramIncrementalDurable(
+	_, first, err := SolveProgramIncrementalDurable(
 		context.Background(),
 		program,
 		versions,
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -90,11 +90,11 @@ func TestValueFlowFixpointDurableCacheSurvivesRestart(t *testing.T) {
 		t.Fatalf("first stats = %+v, want two recomputed components", first)
 	}
 
-	_, second, err := SolveValueFlowProgramIncrementalDurable(
+	_, second, err := SolveProgramIncrementalDurable(
 		context.Background(),
 		program,
 		versions,
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -106,21 +106,21 @@ func TestValueFlowFixpointDurableCacheSurvivesRestart(t *testing.T) {
 	}
 }
 
-func TestValueFlowFixpointDurableCacheInvalidatesChangedFunctionVersion(t *testing.T) {
+func TestFixpointDurableCacheInvalidatesChangedFunctionVersion(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
 	leftSink := summary.NewFunctionID("repo-a", "pkg", "", "leftSink")
 	rightSource := summary.NewFunctionID("repo-b", "pkg", "", "rightSource")
 	rightSink := summary.NewFunctionID("repo-b", "pkg", "", "rightSink")
-	program := twoComponentValueFlowProgram(leftSource, leftSink, rightSource, rightSink)
-	store := newMemoryValueFlowFixpointComponentStore()
+	program := twoComponentProgram(leftSource, leftSink, rightSource, rightSink)
+	store := newMemoryFixpointComponentStore()
 
-	_, _, err := SolveValueFlowProgramIncrementalDurable(
+	_, _, err := SolveProgramIncrementalDurable(
 		context.Background(),
 		program,
 		valueFlowVersions("v1", leftSource, leftSink, rightSource, rightSink),
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -128,7 +128,7 @@ func TestValueFlowFixpointDurableCacheInvalidatesChangedFunctionVersion(t *testi
 		t.Fatalf("warm durable solve error = %v", err)
 	}
 
-	_, stats, err := SolveValueFlowProgramIncrementalDurable(
+	_, stats, err := SolveProgramIncrementalDurable(
 		context.Background(),
 		program,
 		map[summary.FunctionID]string{
@@ -137,7 +137,7 @@ func TestValueFlowFixpointDurableCacheInvalidatesChangedFunctionVersion(t *testi
 			rightSource: "v2",
 			rightSink:   "v1",
 		},
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -149,15 +149,15 @@ func TestValueFlowFixpointDurableCacheInvalidatesChangedFunctionVersion(t *testi
 	}
 }
 
-func TestValueFlowFixpointDurableCacheInvalidatesChangedComponentEdges(t *testing.T) {
+func TestFixpointDurableCacheInvalidatesChangedComponentEdges(t *testing.T) {
 	t.Parallel()
 
 	source := summary.NewFunctionID("repo-a", "pkg", "", "source")
 	sink := summary.NewFunctionID("repo-b", "pkg", "", "sink")
 	versions := valueFlowVersions("v1", source, sink)
-	store := newMemoryValueFlowFixpointComponentStore()
+	store := newMemoryFixpointComponentStore()
 
-	_, _, err := SolveValueFlowProgramIncrementalDurable(
+	_, _, err := SolveProgramIncrementalDurable(
 		context.Background(),
 		interproc.Program{
 			Edges:   []interproc.Edge{{From: valueFlowParamPort(source, 0), To: valueFlowParamPort(sink, 0)}},
@@ -165,7 +165,7 @@ func TestValueFlowFixpointDurableCacheInvalidatesChangedComponentEdges(t *testin
 			Sinks:   []interproc.Sink{{Port: valueFlowParamPort(sink, 0), Kind: "sql"}},
 		},
 		versions,
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -173,7 +173,7 @@ func TestValueFlowFixpointDurableCacheInvalidatesChangedComponentEdges(t *testin
 		t.Fatalf("warm durable solve error = %v", err)
 	}
 
-	result, stats, err := SolveValueFlowProgramIncrementalDurable(
+	result, stats, err := SolveProgramIncrementalDurable(
 		context.Background(),
 		interproc.Program{
 			Edges:   []interproc.Edge{{From: valueFlowParamPort(sink, 0), To: valueFlowParamPort(source, 0)}},
@@ -181,7 +181,7 @@ func TestValueFlowFixpointDurableCacheInvalidatesChangedComponentEdges(t *testin
 			Sinks:   []interproc.Sink{{Port: valueFlowParamPort(sink, 0), Kind: "sql"}},
 		},
 		versions,
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -196,28 +196,28 @@ func TestValueFlowFixpointDurableCacheInvalidatesChangedComponentEdges(t *testin
 	}
 }
 
-func TestValueFlowFixpointSnapshotDurableCacheAssemblesOnlyChangedComponent(t *testing.T) {
+func TestFixpointSnapshotDurableCacheAssemblesOnlyChangedComponent(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
 	leftSink := summary.NewFunctionID("repo-a", "pkg", "", "leftSink")
 	rightSource := summary.NewFunctionID("repo-b", "pkg", "", "rightSource")
 	rightSink := summary.NewFunctionID("repo-b", "pkg", "", "rightSink")
-	effects := twoComponentValueFlowEffects(leftSource, leftSink, rightSource, rightSink)
+	effects := twoComponentEffects(leftSource, leftSink, rightSource, rightSink)
 	sources := []interproc.Source{
 		{Port: valueFlowParamPort(leftSource, 0), Kind: "http_request"},
 		{Port: valueFlowParamPort(rightSource, 0), Kind: "http_request"},
 	}
 	versions := valueFlowVersions("v1", leftSource, leftSink, rightSource, rightSink)
-	store := newMemoryValueFlowFixpointComponentStore()
+	store := newMemoryFixpointComponentStore()
 
-	_, first, err := SolveValueFlowSnapshotIncrementalDurable(
+	_, first, err := SolveSnapshotIncrementalDurable(
 		context.Background(),
 		effects,
 		versions,
 		sources,
 		nil,
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -234,13 +234,13 @@ func TestValueFlowFixpointSnapshotDurableCacheAssemblesOnlyChangedComponent(t *t
 		rightSource: "v2",
 		rightSink:   "v1",
 	}
-	got, second, err := SolveValueFlowSnapshotIncrementalDurable(
+	got, second, err := SolveSnapshotIncrementalDurable(
 		context.Background(),
 		effects,
 		changed,
 		sources,
 		nil,
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.DefaultLimits(),
 	)
@@ -257,7 +257,7 @@ func TestValueFlowFixpointSnapshotDurableCacheAssemblesOnlyChangedComponent(t *t
 	}
 }
 
-func TestValueFlowFixpointDurableCacheStoresBoundedComponentResults(t *testing.T) {
+func TestFixpointDurableCacheStoresBoundedComponentResults(t *testing.T) {
 	t.Parallel()
 
 	sourceA := summary.NewFunctionID("repo-a", "pkg", "", "sourceA")
@@ -280,13 +280,13 @@ func TestValueFlowFixpointDurableCacheStoresBoundedComponentResults(t *testing.T
 			{Port: valueFlowParamPort(sinkB, 0), Kind: "command"},
 		},
 	}
-	store := newMemoryValueFlowFixpointComponentStore()
+	store := newMemoryFixpointComponentStore()
 
-	result, stats, err := SolveValueFlowProgramIncrementalDurable(
+	result, stats, err := SolveProgramIncrementalDurable(
 		context.Background(),
 		program,
 		valueFlowVersions("v1", sourceA, sourceB, sinkA, sinkB),
-		NewValueFlowFixpointCache(),
+		NewFixpointCache(),
 		store,
 		interproc.Limits{MaxFindings: 1},
 	)
@@ -309,7 +309,7 @@ func TestValueFlowFixpointDurableCacheStoresBoundedComponentResults(t *testing.T
 	}
 }
 
-func twoComponentValueFlowProgram(
+func twoComponentProgram(
 	leftSource summary.FunctionID,
 	leftSink summary.FunctionID,
 	rightSource summary.FunctionID,
@@ -331,7 +331,7 @@ func twoComponentValueFlowProgram(
 	}
 }
 
-func twoComponentValueFlowEffects(
+func twoComponentEffects(
 	leftSource summary.FunctionID,
 	leftSink summary.FunctionID,
 	rightSource summary.FunctionID,
@@ -365,15 +365,15 @@ func valueFlowParamPort(id summary.FunctionID, index int) interproc.Port {
 	return interproc.Port{Func: interproc.FunctionID(id), Slot: interproc.Slot{Kind: interproc.SlotParam, Index: index}}
 }
 
-type memoryValueFlowFixpointComponentStore struct {
+type memoryFixpointComponentStore struct {
 	entries map[string]interproc.Result
 }
 
-func newMemoryValueFlowFixpointComponentStore() *memoryValueFlowFixpointComponentStore {
-	return &memoryValueFlowFixpointComponentStore{entries: map[string]interproc.Result{}}
+func newMemoryFixpointComponentStore() *memoryFixpointComponentStore {
+	return &memoryFixpointComponentStore{entries: map[string]interproc.Result{}}
 }
 
-func (s *memoryValueFlowFixpointComponentStore) LoadValueFlowFixpointComponents(
+func (s *memoryFixpointComponentStore) LoadValueFlowFixpointComponents(
 	_ context.Context,
 	keys []string,
 ) (map[string]interproc.Result, error) {
@@ -386,7 +386,7 @@ func (s *memoryValueFlowFixpointComponentStore) LoadValueFlowFixpointComponents(
 	return out, nil
 }
 
-func (s *memoryValueFlowFixpointComponentStore) StoreValueFlowFixpointComponents(
+func (s *memoryFixpointComponentStore) StoreValueFlowFixpointComponents(
 	_ context.Context,
 	entries map[string]interproc.Result,
 ) error {

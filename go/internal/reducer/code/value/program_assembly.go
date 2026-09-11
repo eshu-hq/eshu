@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"sort"
@@ -11,16 +11,16 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
 )
 
-// ValueFlowProgramInput is the bounded in-memory snapshot used to assemble an
+// ProgramInput is the bounded in-memory snapshot used to assemble an
 // interprocedural value-flow Program from active CALLS evidence and persisted
 // function summaries.
-type ValueFlowProgramInput struct {
+type ProgramInput struct {
 	ScopeID      string
 	GenerationID string
 	RepositoryID string
 	SourceRunID  string
 	Summaries    map[summary.FunctionID]summary.Effects
-	CallEdges    []ValueFlowCallEdge
+	CallEdges    []CallEdge
 	Sources      []interproc.Source
 	Sinks        []interproc.Sink
 	// SkippedMissingIdentity carries loader-side skips where a completed CALLS
@@ -28,10 +28,10 @@ type ValueFlowProgramInput struct {
 	SkippedMissingIdentity int
 }
 
-// ValueFlowCallEdge is one active code-call edge with both graph entity IDs and
+// CallEdge is one active code-call edge with both graph entity IDs and
 // resolved summary identities. The graph IDs are diagnostic; Program assembly
 // uses the summary identities.
-type ValueFlowCallEdge struct {
+type CallEdge struct {
 	CallerEntityID   string
 	CalleeEntityID   string
 	CallerFunctionID summary.FunctionID
@@ -40,8 +40,8 @@ type ValueFlowCallEdge struct {
 	ResolutionMethod string
 }
 
-// ValueFlowProgramAssemblyStats reports bounded assembly outcomes.
-type ValueFlowProgramAssemblyStats struct {
+// ProgramAssemblyStats reports bounded assembly outcomes.
+type ProgramAssemblyStats struct {
 	SummaryCount                 int
 	CallEdgeCount                int
 	ProgramEdgeCount             int
@@ -53,13 +53,13 @@ type ValueFlowProgramAssemblyStats struct {
 	SkippedCallEdgeMissingCallee int
 }
 
-// BuildValueFlowProgram assembles a deterministic interproc.Program from
+// BuildProgram assembles a deterministic interproc.Program from
 // summaries whose call flows are confirmed by active CALLS edges. It does not
 // run the solver or write graph evidence.
-func BuildValueFlowProgram(input ValueFlowProgramInput) (interproc.Program, ValueFlowProgramAssemblyStats) {
+func BuildProgram(input ProgramInput) (interproc.Program, ProgramAssemblyStats) {
 	activeCalls := make(map[valueFlowFunctionPair]struct{}, len(input.CallEdges))
 	referenced := make(map[summary.FunctionID]struct{}, len(input.CallEdges)*2)
-	stats := ValueFlowProgramAssemblyStats{
+	stats := ProgramAssemblyStats{
 		SourceCount:              len(input.Sources),
 		SkippedCallEdgeMissingID: input.SkippedMissingIdentity,
 	}
@@ -81,19 +81,19 @@ func BuildValueFlowProgram(input ValueFlowProgramInput) (interproc.Program, Valu
 
 	filtered := make(map[summary.FunctionID]summary.Effects, len(referenced))
 	missingSummaries := make(map[summary.FunctionID]struct{})
-	for _, id := range sortedValueFlowFunctionIDs(referenced) {
+	for _, id := range sortedFunctionIDs(referenced) {
 		if _, ok := input.Summaries[id]; !ok {
 			missingSummaries[id] = struct{}{}
 			stats.SkippedMissingSummary++
 		}
 	}
-	for _, id := range sortedValueFlowFunctionIDs(referenced) {
+	for _, id := range sortedFunctionIDs(referenced) {
 		effects, ok := input.Summaries[id]
 		if !ok {
 			continue
 		}
 		stats.SummaryCount++
-		filtered[id] = filterValueFlowEffects(id, effects, input.Summaries, activeCalls, missingSummaries, &stats)
+		filtered[id] = filterEffects(id, effects, input.Summaries, activeCalls, missingSummaries, &stats)
 	}
 
 	program := valueflow.BuildProgram(filtered, input.Sources, input.Sinks)
@@ -107,13 +107,13 @@ type valueFlowFunctionPair struct {
 	callee summary.FunctionID
 }
 
-func filterValueFlowEffects(
+func filterEffects(
 	id summary.FunctionID,
 	effects summary.Effects,
 	summaries map[summary.FunctionID]summary.Effects,
 	activeCalls map[valueFlowFunctionPair]struct{},
 	missingSummaries map[summary.FunctionID]struct{},
-	stats *ValueFlowProgramAssemblyStats,
+	stats *ProgramAssemblyStats,
 ) summary.Effects {
 	filtered := effects
 	filtered.ParamToCallArg = nil
@@ -134,7 +134,7 @@ func filterValueFlowEffects(
 	return filtered
 }
 
-func sortedValueFlowFunctionIDs(ids map[summary.FunctionID]struct{}) []summary.FunctionID {
+func sortedFunctionIDs(ids map[summary.FunctionID]struct{}) []summary.FunctionID {
 	out := make([]summary.FunctionID, 0, len(ids))
 	for id := range ids {
 		out = append(out, id)

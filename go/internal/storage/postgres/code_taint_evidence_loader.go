@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// LoadCodeTaintEvidence implements codetaint.CodeTaintEvidenceLoader by
+// LoadCodeTaintEvidence implements taint.CodeTaintEvidenceLoader by
 // scanning the raw code_taint_evidence fact envelopes for one scope
 // generation. The reducer handler decodes them through the typed contracts
 // seam (ExtractCodeTaintEvidenceRowsWithQuarantine) so a fact missing its

@@ -28,7 +28,7 @@ need splitting before the families could separate.
   `graph_ports.go` are deliberately re-declared, not imported.**
   `GraphQueryRunner` is owned by root (shared with other still-in-root
   families), so importing it would violate the rule above. The marker's
-  owning declaration is `valueflow.BackfillStateMarker`, and `valueflow`
+  owning declaration is `value.BackfillStateMarker`, and `value`
   imports this package, so importing it back would be a cycle. Go's
   structural typing makes both local declarations safe: do not "fix" either
   with an import, and do not delete one without first moving the real
@@ -68,14 +68,14 @@ builders) plus the `fakeBackfillStateMarker`/`splitPipeKey`/
 cannot share unexported symbols across packages, and root's
 `defaults_code_taint_evidence_test.go` and the sibling
 `projected_source_edge_backfill_test.go` family still need these shapes. The
-sibling `valueflow` package keeps its OWN third hand-kept-in-sync copy
+sibling `value` package keeps its OWN third hand-kept-in-sync copy
 (`code/value/interproc_evidence_test_doubles_test.go`, scoped to just the
 `recordingCodeInterprocEvidenceWriter`/`stubCodeInterprocEvidenceLoader`/
 `sampleCodeInterprocInput` shapes its `code/value/fixpoint_evidence_loader_test.go`
 needs — it moved out of root in issue #6061 and, being a separate package,
 cannot reach either the root or this package's unexported test doubles). If
 you change a writer/loader interface's method set or a sample builder's
-fields here, update the root copy AND the `valueflow` copy in the same
+fields here, update the root copy AND the `value` copy in the same
 commit — nothing enforces any of them stay identical.
 
 ## Common changes
@@ -89,7 +89,7 @@ in the root test-helpers file above if a root test exercises the new field.
 
 ## Failure modes to avoid
 
-- Splitting this package into separate `codetaint`/`codeinterproc`
+- Splitting this package into separate `taint`/`interproc`
   siblings without first re-verifying the cross-family symbol usage in the
   README's Purpose section no longer holds — it held at move time (issue
   #6061) and is the reason the split did not happen then.

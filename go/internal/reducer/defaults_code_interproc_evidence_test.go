@@ -6,7 +6,7 @@ package reducer
 import (
 	"testing"
 
-	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 func TestImplementedDefaultDomainDefinitionsOmitsCodeInterprocWithoutWriter(t *testing.T) {
@@ -42,9 +42,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesCodeInterprocWhenWired(t *te
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(codetaint.CodeInterprocEvidenceMaterializationHandler)
+		handler, ok := def.Handler.(taint.CodeInterprocEvidenceMaterializationHandler)
 		if !ok {
-			t.Fatalf("code_interproc_evidence handler type = %T, want codetaint.CodeInterprocEvidenceMaterializationHandler", def.Handler)
+			t.Fatalf("code_interproc_evidence handler type = %T, want taint.CodeInterprocEvidenceMaterializationHandler", def.Handler)
 		}
 		if handler.Loader == nil || handler.Writer != writer {
 			t.Fatal("code_interproc_evidence handler Loader/Writer not wired")

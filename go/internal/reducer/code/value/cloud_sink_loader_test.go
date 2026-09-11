@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -39,7 +39,7 @@ func (g *recordingCloudSinkGraph) Run(
 	return append([]map[string]any(nil), g.rows...), nil
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testing.T) {
+func TestGraphCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
@@ -50,7 +50,7 @@ func TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testi
 			"sink_labels":  []string{"CloudResource"},
 		},
 	}}
-	loader := GraphValueFlowCloudSinkTargetLoader{Graph: graph}
+	loader := GraphCloudSinkTargetLoader{Graph: graph}
 
 	targets, err := loader.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
 	if err != nil {
@@ -86,7 +86,7 @@ func TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testi
 	}
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t *testing.T) {
+func TestGraphCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
@@ -102,7 +102,7 @@ func TestGraphValueFlowCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIa
 			"sink_labels":  []string{"TerraformResource"},
 		},
 	}}
-	loader := GraphValueFlowCloudSinkTargetLoader{Graph: graph}
+	loader := GraphCloudSinkTargetLoader{Graph: graph}
 
 	targets, err := loader.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"})
 	if err != nil {
@@ -119,7 +119,7 @@ func TestGraphValueFlowCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIa
 	}
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T) {
+func TestGraphCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T) {
 	t.Parallel()
 
 	first := summary.NewFunctionID("repo-a", "pkg", "", "first")
@@ -131,7 +131,7 @@ func TestGraphValueFlowCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T)
 			"sink_labels":  []string{"CloudResource"},
 		},
 	}}
-	loader := GraphValueFlowCloudSinkTargetLoader{Graph: graph}
+	loader := GraphCloudSinkTargetLoader{Graph: graph}
 
 	targets, err := loader.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{
 		first:  "uid-shared",
@@ -148,7 +148,7 @@ func TestGraphValueFlowCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T)
 	}
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
+func TestGraphCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
 	t.Parallel()
 
 	graphIDs := make(map[summary.FunctionID]string, valueFlowCloudSinkTargetBatchLimit+1)
@@ -156,7 +156,7 @@ func TestGraphValueFlowCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
 		graphIDs[summary.NewFunctionID("repo-a", "pkg", "", fmt.Sprintf("fn%d", i))] = fmt.Sprintf("uid-%d", i)
 	}
 	graph := &recordingCloudSinkGraph{}
-	loader := GraphValueFlowCloudSinkTargetLoader{Graph: graph}
+	loader := GraphCloudSinkTargetLoader{Graph: graph}
 
 	if _, err := loader.LoadCloudSinkTargets(context.Background(), graphIDs); err != nil {
 		t.Fatalf("LoadCloudSinkTargets returned error: %v", err)
@@ -175,10 +175,10 @@ func TestGraphValueFlowCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
 	}
 }
 
-func TestGraphValueFlowCloudSinkTargetLoaderEmptyAndNilGuards(t *testing.T) {
+func TestGraphCloudSinkTargetLoaderEmptyAndNilGuards(t *testing.T) {
 	t.Parallel()
 
-	loader := GraphValueFlowCloudSinkTargetLoader{Graph: &recordingCloudSinkGraph{}}
+	loader := GraphCloudSinkTargetLoader{Graph: &recordingCloudSinkGraph{}}
 	targets, err := loader.LoadCloudSinkTargets(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("empty graph id map returned error: %v", err)
@@ -187,7 +187,7 @@ func TestGraphValueFlowCloudSinkTargetLoaderEmptyAndNilGuards(t *testing.T) {
 		t.Fatalf("empty graph id map targets = %+v, want nil", targets)
 	}
 
-	nilGraph := GraphValueFlowCloudSinkTargetLoader{}
+	nilGraph := GraphCloudSinkTargetLoader{}
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
 	if _, err := nilGraph.LoadCloudSinkTargets(context.Background(), map[summary.FunctionID]string{fn: "uid-handler"}); err == nil {
 		t.Fatal("nil graph must error rather than silently drop cloud sinks")

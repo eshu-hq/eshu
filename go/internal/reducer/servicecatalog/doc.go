@@ -52,7 +52,7 @@
 // one-way dependency above. Go interfaces are structural, so a local
 // declaration with the same method set is satisfied by the same concrete
 // implementation root wires in, without duplicating any logic. The
-// codetaint package resolves the same problem the same way.
+// taint package resolves the same problem the same way.
 //
 // Telemetry: the correlation handler increments
 // eshu_dp_service_catalog_correlations_total (labeled by domain and outcome)

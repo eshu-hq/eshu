@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -10,24 +10,24 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
-func TestValueFlowProgramAssemblyRunnerAggregatesStatsWithoutWriting(t *testing.T) {
+func TestProgramAssemblyRunnerAggregatesStatsWithoutWriting(t *testing.T) {
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
 	callee := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Query")
-	loader := &recordingValueFlowProgramAssemblyLoader{
-		inputs: []ValueFlowProgramInput{{
+	loader := &recordingProgramAssemblyLoader{
+		inputs: []ProgramInput{{
 			Summaries: map[summary.FunctionID]summary.Effects{
 				caller: {ParamToCallArg: []summary.CallArgFlow{{Callee: callee, Param: 0, Arg: 1}}},
 				callee: {ParamToSink: []summary.ParamSink{{Param: 1, SinkKind: "sql"}}},
 			},
-			CallEdges: []ValueFlowCallEdge{{
+			CallEdges: []CallEdge{{
 				CallerFunctionID: caller,
 				CalleeFunctionID: callee,
 			}},
 		}},
 	}
-	runner := ValueFlowProgramAssemblyRunner{
+	runner := ProgramAssemblyRunner{
 		InputLoader: loader,
-		Config:      ValueFlowProgramAssemblyRunnerConfig{BatchLimit: 7},
+		Config:      ProgramAssemblyRunnerConfig{BatchLimit: 7},
 	}
 
 	result, err := runner.ProcessOnce(context.Background())
@@ -45,19 +45,19 @@ func TestValueFlowProgramAssemblyRunnerAggregatesStatsWithoutWriting(t *testing.
 	}
 }
 
-func TestValueFlowProgramAssemblyRunnerAggregatesMissingCalleeIdentity(t *testing.T) {
+func TestProgramAssemblyRunnerAggregatesMissingCalleeIdentity(t *testing.T) {
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
-	loader := &recordingValueFlowProgramAssemblyLoader{
-		inputs: []ValueFlowProgramInput{{
+	loader := &recordingProgramAssemblyLoader{
+		inputs: []ProgramInput{{
 			Summaries: map[summary.FunctionID]summary.Effects{
 				caller: {},
 			},
-			CallEdges: []ValueFlowCallEdge{{
+			CallEdges: []CallEdge{{
 				CallerFunctionID: caller,
 			}},
 		}},
 	}
-	runner := ValueFlowProgramAssemblyRunner{InputLoader: loader}
+	runner := ProgramAssemblyRunner{InputLoader: loader}
 
 	result, err := runner.ProcessOnce(context.Background())
 	if err != nil {
@@ -68,15 +68,15 @@ func TestValueFlowProgramAssemblyRunnerAggregatesMissingCalleeIdentity(t *testin
 	}
 }
 
-type recordingValueFlowProgramAssemblyLoader struct {
+type recordingProgramAssemblyLoader struct {
 	limit  int
-	inputs []ValueFlowProgramInput
+	inputs []ProgramInput
 }
 
-func (f *recordingValueFlowProgramAssemblyLoader) LoadPendingValueFlowProgramInputs(
+func (f *recordingProgramAssemblyLoader) LoadPendingProgramInputs(
 	_ context.Context,
 	limit int,
-) ([]ValueFlowProgramInput, error) {
+) ([]ProgramInput, error) {
 	f.limit = limit
 	return f.inputs, nil
 }

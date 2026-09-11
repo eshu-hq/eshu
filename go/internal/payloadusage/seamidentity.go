@@ -38,7 +38,7 @@ type seamIdentity struct {
 // recognizes them as one seam, and BuildManifest — which produces one
 // KindManifest per surviving seam — emits two entries for one fact kind.
 // This function makes the fact-kind-level merge explicit and identity-based
-// so it holds for every future family move (sbomattest, cicdrun, codetaint,
+// so it holds for every future family move (sbomattest, cicdrun, taint,
 // ...) regardless of what either surface happens to name its call site.
 //
 // Among colliding seams, the one with the MOST recorded usage is kept as the

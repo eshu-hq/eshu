@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// GraphValueFlowCloudSinkTargetLoader reads graph-backed cloud sink edges for
+// GraphCloudSinkTargetLoader reads graph-backed cloud sink edges for
 // functions already known to the value-flow fixpoint.
-type GraphValueFlowCloudSinkTargetLoader struct {
+type GraphCloudSinkTargetLoader struct {
 	Graph GraphQueryRunner
 }
 
@@ -26,10 +26,10 @@ const valueFlowCloudSinkTargetBatchLimit = 500
 // edges plus correlated principal permissions into function-level fixpoint
 // targets. The query is bounded by the durable Function.uid snapshot and follows
 // the materialized INVOKES_CLOUD_ACTION bridge before matching IAM reachability.
-func (l GraphValueFlowCloudSinkTargetLoader) LoadCloudSinkTargets(
+func (l GraphCloudSinkTargetLoader) LoadCloudSinkTargets(
 	ctx context.Context,
 	graphIDs map[summary.FunctionID]string,
-) ([]ValueFlowCloudSinkTarget, error) {
+) ([]CloudSinkTarget, error) {
 	if len(graphIDs) == 0 {
 		return nil, nil
 	}
@@ -44,7 +44,7 @@ func (l GraphValueFlowCloudSinkTargetLoader) LoadCloudSinkTargets(
 	var rows []map[string]any
 	for start := 0; start < len(functionUIDs); start += valueFlowCloudSinkTargetBatchLimit {
 		end := min(start+valueFlowCloudSinkTargetBatchLimit, len(functionUIDs))
-		chunkRows, err := l.Graph.Run(ctx, ValueFlowCloudSinkTargetsCypher, map[string]any{
+		chunkRows, err := l.Graph.Run(ctx, CloudSinkTargetsCypher, map[string]any{
 			"function_uids": functionUIDs[start:end],
 		})
 		if err != nil {
@@ -83,8 +83,8 @@ func functionIDsByGraphUID(graphIDs map[summary.FunctionID]string) (map[string]s
 func valueFlowCloudSinkTargetsFromRows(
 	rows []map[string]any,
 	functionByUID map[string]summary.FunctionID,
-) []ValueFlowCloudSinkTarget {
-	targets := make([]ValueFlowCloudSinkTarget, 0, len(rows))
+) []CloudSinkTarget {
+	targets := make([]CloudSinkTarget, 0, len(rows))
 	seen := map[string]struct{}{}
 	for _, row := range rows {
 		functionID := functionByUID[strings.TrimSpace(payloadcore.AnyToString(row["function_uid"]))]
@@ -100,7 +100,7 @@ func valueFlowCloudSinkTargetsFromRows(
 			continue
 		}
 		seen[key] = struct{}{}
-		targets = append(targets, ValueFlowCloudSinkTarget{
+		targets = append(targets, CloudSinkTarget{
 			FunctionID: functionID,
 			Kind:       string(spec.Kind),
 			Label:      spec.DisplayName,
@@ -171,7 +171,7 @@ func valueFlowScalarString(raw any) (string, bool) {
 	}
 }
 
-// ValueFlowCloudSinkTargetsCypher resolves which cloud resources a function's
+// CloudSinkTargetsCypher resolves which cloud resources a function's
 // cloud action can reach.
 //
 // It is exported so the backend-conformance corpus can pin its read case to this
@@ -179,7 +179,7 @@ func valueFlowScalarString(raw any) (string, bool) {
 // exists to detect this query returning zero rows on a non-conforming backend,
 // so any difference between the two means the case is proving something else.
 // See go/internal/backendconformance/corpus_value_flow.go.
-const ValueFlowCloudSinkTargetsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
+const CloudSinkTargetsCypher = `MATCH (fn:Function)-[:INVOKES_CLOUD_ACTION]->(action:CloudAction)
 WHERE fn.uid IN $function_uids
 MATCH (fn)-[:RUNS_IN]->(workload:Workload)
 WITH fn, action, collect(DISTINCT workload) AS workloads

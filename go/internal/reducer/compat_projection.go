@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the projection and readiness families (iamcan, iamescalation, secretsiam, crossscope, valueflow, codecall, shell)
+// This file is the reducer root's compatibility surface for the projection and readiness families (iamcan, iamescalation, secretsiam, crossscope, value, codecall, shell)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -26,7 +26,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
-	valueflow "github.com/eshu-hq/eshu/go/internal/reducer/code/value"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
@@ -206,81 +206,82 @@ type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
 
 // Stanza: value_flow_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the value-flow
-// fixpoint family that moved to [valueflow] (issue #6061). Reducer-root call
-// sites keep their current spelling; each entry is deleted once its last
-// caller has moved into a family subpackage.
+// fixpoint family that moved to [value] (issue #6061; relocated from
+// [valueflow] to code/value with the taint/value package-clause fix, same
+// issue). Reducer-root call sites keep their current spelling; each entry is
+// deleted once its last caller has moved into a family subpackage.
 //
 // code_value_flow_stale_cleanup_runner.go stays in root: it is a side runner
 // that needs the root PartitionLeaseManager and Service.startSideRunners
 // wiring, the same reason the code_call_projection_* runners stay.
-// code_value_flow_backfill_state_marker.go moved to [valueflow] as
-// [valueflow.BackfillStateMarker] with the code/ tree move (#6609); its only
+// code_value_flow_backfill_state_marker.go moved to [value] as
+// [value.BackfillStateMarker] with the code/ tree move (#6609); its only
 // root caller, projected_source_edge_backfill.go, keeps the alias below.
 
 // CodeValueFlowBackfillStateMarker is the root spelling of
-// [valueflow.BackfillStateMarker].
-type CodeValueFlowBackfillStateMarker = valueflow.BackfillStateMarker
+// [value.BackfillStateMarker].
+type CodeValueFlowBackfillStateMarker = value.BackfillStateMarker
 
 // GraphValueFlowCloudSinkTargetLoader loads graph-backed cloud sink edges for
-// the value-flow fixpoint. See [valueflow.GraphValueFlowCloudSinkTargetLoader].
-type GraphValueFlowCloudSinkTargetLoader = valueflow.GraphValueFlowCloudSinkTargetLoader
+// the value-flow fixpoint. See [value.GraphCloudSinkTargetLoader].
+type GraphValueFlowCloudSinkTargetLoader = value.GraphCloudSinkTargetLoader
 
 // ValueFlowCloudSinkTargetsCypher is the bounded Cypher query cloud sink
-// target loading runs. See [valueflow.ValueFlowCloudSinkTargetsCypher].
-const ValueFlowCloudSinkTargetsCypher = valueflow.ValueFlowCloudSinkTargetsCypher
+// target loading runs. See [value.CloudSinkTargetsCypher].
+const ValueFlowCloudSinkTargetsCypher = value.CloudSinkTargetsCypher
 
 // ValueFlowFixpointComponentStore is the durable weak-component cache store
-// port. See [valueflow.ValueFlowFixpointComponentStore].
-type ValueFlowFixpointComponentStore = valueflow.ValueFlowFixpointComponentStore
+// port. See [value.FixpointComponentStore].
+type ValueFlowFixpointComponentStore = value.FixpointComponentStore
 
-// NewValueFlowFixpointCache forwards to [valueflow.NewValueFlowFixpointCache].
-func NewValueFlowFixpointCache() *valueflow.ValueFlowFixpointCache {
-	return valueflow.NewValueFlowFixpointCache()
+// NewValueFlowFixpointCache forwards to [value.NewFixpointCache].
+func NewValueFlowFixpointCache() *value.FixpointCache {
+	return value.NewFixpointCache()
 }
 
 // ValueFlowProgramInput is the bounded in-memory snapshot used to assemble a
-// value-flow Program. See [valueflow.ValueFlowProgramInput].
-type ValueFlowProgramInput = valueflow.ValueFlowProgramInput
+// value-flow Program. See [value.ProgramInput].
+type ValueFlowProgramInput = value.ProgramInput
 
 // ValueFlowCallEdge is one active code-call edge used by Program assembly.
-// See [valueflow.ValueFlowCallEdge].
-type ValueFlowCallEdge = valueflow.ValueFlowCallEdge
+// See [value.CallEdge].
+type ValueFlowCallEdge = value.CallEdge
 
 // ValueFlowProgramAssemblyStats summarizes one Program assembly cycle. See
-// [valueflow.ValueFlowProgramAssemblyStats].
-type ValueFlowProgramAssemblyStats = valueflow.ValueFlowProgramAssemblyStats
+// [value.ProgramAssemblyStats].
+type ValueFlowProgramAssemblyStats = value.ProgramAssemblyStats
 
-// BuildValueFlowProgram forwards to [valueflow.BuildValueFlowProgram].
+// BuildValueFlowProgram forwards to [value.BuildProgram].
 func BuildValueFlowProgram(input ValueFlowProgramInput) (interproc.Program, ValueFlowProgramAssemblyStats) {
-	return valueflow.BuildValueFlowProgram(input)
+	return value.BuildProgram(input)
 }
 
 // FunctionSummarySnapshotLoader reloads durable value-flow summaries for the
-// cross-repo fixpoint. See [valueflow.FunctionSummarySnapshotLoader].
-type FunctionSummarySnapshotLoader = valueflow.FunctionSummarySnapshotLoader
+// cross-repo fixpoint. See [value.FunctionSummarySnapshotLoader].
+type FunctionSummarySnapshotLoader = value.FunctionSummarySnapshotLoader
 
 // FunctionSourceSnapshotLoader reloads durable value-flow source ports for
-// the cross-repo fixpoint. See [valueflow.FunctionSourceSnapshotLoader].
-type FunctionSourceSnapshotLoader = valueflow.FunctionSourceSnapshotLoader
+// the cross-repo fixpoint. See [value.FunctionSourceSnapshotLoader].
+type FunctionSourceSnapshotLoader = value.FunctionSourceSnapshotLoader
 
 // FunctionGraphIDSnapshotLoader reloads durable FunctionID->Function.uid
-// mappings. See [valueflow.FunctionGraphIDSnapshotLoader].
-type FunctionGraphIDSnapshotLoader = valueflow.FunctionGraphIDSnapshotLoader
+// mappings. See [value.FunctionGraphIDSnapshotLoader].
+type FunctionGraphIDSnapshotLoader = value.FunctionGraphIDSnapshotLoader
 
 // ValueFlowFixpointEvidenceLoader composes durable function summaries,
 // source ports, graph ids, and graph-backed cloud sink targets into the
 // existing code_interproc_evidence reducer input. See
-// [valueflow.ValueFlowFixpointEvidenceLoader].
-type ValueFlowFixpointEvidenceLoader = valueflow.ValueFlowFixpointEvidenceLoader
+// [value.FixpointEvidenceLoader].
+type ValueFlowFixpointEvidenceLoader = value.FixpointEvidenceLoader
 
 // ValueFlowFixpointEvidenceProjector writes summary-fixpoint findings as
-// TAINT_FLOWS_TO evidence. See [valueflow.ValueFlowFixpointEvidenceProjector].
-type ValueFlowFixpointEvidenceProjector = valueflow.ValueFlowFixpointEvidenceProjector
+// TAINT_FLOWS_TO evidence. See [value.FixpointEvidenceProjector].
+type ValueFlowFixpointEvidenceProjector = value.FixpointEvidenceProjector
 
 // ValueFlowFixpointProjectionResult records the visible outcome of a
 // post-summary fixpoint projection. See
-// [valueflow.ValueFlowFixpointProjectionResult].
-type ValueFlowFixpointProjectionResult = valueflow.ValueFlowFixpointProjectionResult
+// [value.FixpointProjectionResult].
+type ValueFlowFixpointProjectionResult = value.FixpointProjectionResult
 
 // Stanza: code-call family move (#6609; no prior compat file).
 // The code-call extraction, entity-index, resolver, and intent-building family

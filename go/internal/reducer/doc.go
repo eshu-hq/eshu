@@ -157,7 +157,7 @@
 // normalized ARM IDs resolve exactly in the same source generation.
 // Code function summary materialization persists generation-independent
 // value-flow summaries, param sources, and FunctionID-to-graph-uid mappings.
-// valueflow.ValueFlowProgramAssemblyRunner can assemble bounded Programs from active
+// value.ProgramAssemblyRunner can assemble bounded Programs from active
 // CALLS, persisted summaries, and durable param-source rows without solving or
 // writing graph evidence. Shell execution materialization consumes parser
 // command-call facts and projects Function-[:EXECUTES_SHELL]->ShellCommand using

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
-	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 // FunctionSummarySnapshotLoader reloads durable value-flow summaries for the
@@ -34,11 +34,11 @@ type FunctionGraphIDSnapshotLoader interface {
 	LoadGraphIDs(ctx context.Context) (map[summary.FunctionID]string, error)
 }
 
-// ValueFlowCloudSinkTarget is a graph-backed cloud sink attached to a Function.
+// CloudSinkTarget is a graph-backed cloud sink attached to a Function.
 // The function-level bridge is expanded onto observed parameter ports before the
 // interprocedural fixpoint runs so missing parameter evidence does not fabricate
 // value-flow precision.
-type ValueFlowCloudSinkTarget struct {
+type CloudSinkTarget struct {
 	FunctionID summary.FunctionID
 	Kind       string
 	Label      string
@@ -49,30 +49,30 @@ type ValueFlowCloudSinkTarget struct {
 // snapshot and bounds graph-backed lookup to functions already known to the
 // value-flow runtime.
 type FunctionCloudSinkTargetLoader interface {
-	LoadCloudSinkTargets(ctx context.Context, graphIDs map[summary.FunctionID]string) ([]ValueFlowCloudSinkTarget, error)
+	LoadCloudSinkTargets(ctx context.Context, graphIDs map[summary.FunctionID]string) ([]CloudSinkTarget, error)
 }
 
-// ValueFlowFixpointEvidenceLoader composes durable function summaries, source
+// FixpointEvidenceLoader composes durable function summaries, source
 // ports, graph ids, and graph-backed cloud sink targets into the existing
 // code_interproc_evidence reducer input.
-type ValueFlowFixpointEvidenceLoader struct {
+type FixpointEvidenceLoader struct {
 	SummarySnapshotLoader   FunctionSummarySnapshotLoader
 	SourceSnapshotLoader    FunctionSourceSnapshotLoader
 	GraphIDSnapshotLoader   FunctionGraphIDSnapshotLoader
 	CloudSinkSnapshotLoader FunctionCloudSinkTargetLoader
-	FixpointCache           *ValueFlowFixpointCache
-	FixpointComponentStore  ValueFlowFixpointComponentStore
+	FixpointCache           *FixpointCache
+	FixpointComponentStore  FixpointComponentStore
 	Logger                  *slog.Logger
 }
 
 // LoadCodeInterprocEvidence solves the cross-repo value-flow Program assembled
 // from persisted summaries and sources, then resolves finding endpoints through
 // the durable FunctionID->graph uid map.
-func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
+func (l FixpointEvidenceLoader) LoadCodeInterprocEvidence(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) ([]codetaint.CodeInterprocEvidenceInput, error) {
+) ([]taint.CodeInterprocEvidenceInput, error) {
 	effects, versions, err := l.loadEffects(ctx, scopeID, generationID)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 		return nil, nil
 	}
 
-	result, cacheStats, err := SolveValueFlowSnapshotIncrementalDurable(
+	result, cacheStats, err := SolveSnapshotIncrementalDurable(
 		ctx,
 		effects,
 		versions,
@@ -109,11 +109,11 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 	if err != nil {
 		return nil, fmt.Errorf("solve value-flow fixpoint: %w", err)
 	}
-	inputs := make([]codetaint.CodeInterprocEvidenceInput, 0, len(result.Findings))
+	inputs := make([]taint.CodeInterprocEvidenceInput, 0, len(result.Findings))
 	for _, finding := range result.Findings {
 		sourceID := summary.FunctionID(finding.SourceFunc)
 		sinkID := summary.FunctionID(finding.SinkFunc)
-		inputs = append(inputs, codetaint.CodeInterprocEvidenceInput{
+		inputs = append(inputs, taint.CodeInterprocEvidenceInput{
 			SourceFunctionUID:  graphIDs[sourceID],
 			SinkFunctionUID:    graphIDs[sinkID],
 			SourceFunctionName: functionName(sourceID),
@@ -141,13 +141,13 @@ func (l ValueFlowFixpointEvidenceLoader) LoadCodeInterprocEvidence(
 			"fixpoint_recomputed_components", cacheStats.RecomputedComponents,
 			"fixpoint_reused_components", cacheStats.ReusedComponents,
 			"fixpoint_durable_reused_components", cacheStats.DurableReused,
-			"unresolved_endpoint_count", codetaint.UnresolvedCodeInterprocEndpointCount(inputs),
+			"unresolved_endpoint_count", taint.UnresolvedCodeInterprocEndpointCount(inputs),
 		)
 	}
 	return inputs, nil
 }
 
-func (l ValueFlowFixpointEvidenceLoader) loadEffects(
+func (l FixpointEvidenceLoader) loadEffects(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
@@ -170,7 +170,7 @@ func (l ValueFlowFixpointEvidenceLoader) loadEffects(
 	return effects, versions, nil
 }
 
-func (l ValueFlowFixpointEvidenceLoader) loadSources(
+func (l FixpointEvidenceLoader) loadSources(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
@@ -186,7 +186,7 @@ func (l ValueFlowFixpointEvidenceLoader) loadSources(
 	return sources, nil
 }
 
-func (l ValueFlowFixpointEvidenceLoader) loadGraphIDs(
+func (l FixpointEvidenceLoader) loadGraphIDs(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
@@ -207,7 +207,7 @@ func (l ValueFlowFixpointEvidenceLoader) loadGraphIDs(
 	return graphIDs, nil
 }
 
-func (l ValueFlowFixpointEvidenceLoader) loadCloudSinks(
+func (l FixpointEvidenceLoader) loadCloudSinks(
 	ctx context.Context,
 	graphIDs map[summary.FunctionID]string,
 	effects map[summary.FunctionID]summary.Effects,
@@ -224,7 +224,7 @@ func (l ValueFlowFixpointEvidenceLoader) loadCloudSinks(
 }
 
 func expandCloudSinkTargets(
-	targets []ValueFlowCloudSinkTarget,
+	targets []CloudSinkTarget,
 	effects map[summary.FunctionID]summary.Effects,
 	sources []interproc.Source,
 ) []interproc.Sink {
@@ -362,20 +362,20 @@ func valueFlowTrailSlotKind(kind interproc.SlotKind) string {
 	}
 }
 
-// ValueFlowFixpointProjectionResult records the visible outcome of a post-summary
+// FixpointProjectionResult records the visible outcome of a post-summary
 // fixpoint projection.
-type ValueFlowFixpointProjectionResult struct {
+type FixpointProjectionResult struct {
 	FindingCount            int
 	GraphRows               int
 	UnresolvedEndpointCount int
 }
 
-// ValueFlowFixpointEvidenceProjector writes summary-fixpoint findings as
+// FixpointEvidenceProjector writes summary-fixpoint findings as
 // TAINT_FLOWS_TO evidence under a distinct evidence source and uid namespace.
-type ValueFlowFixpointEvidenceProjector struct {
-	Loader codetaint.CodeInterprocEvidenceLoader
-	Writer codetaint.CodeInterprocEvidenceWriter
-	Ledger codetaint.CodeInterprocProjectedEdgeLedger
+type FixpointEvidenceProjector struct {
+	Loader taint.CodeInterprocEvidenceLoader
+	Writer taint.CodeInterprocEvidenceWriter
+	Ledger taint.CodeInterprocProjectedEdgeLedger
 }
 
 // ProjectValueFlowFixpointEvidence retracts and rewrites the full fixpoint-owned
@@ -385,54 +385,54 @@ type ValueFlowFixpointEvidenceProjector struct {
 // When a Ledger is present, retraction enumerates source Function uids from the
 // ledger and uses anchored-delete; the ledger is recorded before the graph edge
 // write.
-func (p ValueFlowFixpointEvidenceProjector) ProjectValueFlowFixpointEvidence(
+func (p FixpointEvidenceProjector) ProjectValueFlowFixpointEvidence(
 	ctx context.Context,
 	scopeID string,
 	generationID string,
-) (ValueFlowFixpointProjectionResult, error) {
+) (FixpointProjectionResult, error) {
 	if p.Loader == nil || p.Writer == nil {
-		return ValueFlowFixpointProjectionResult{}, nil
+		return FixpointProjectionResult{}, nil
 	}
 	inputs, err := p.Loader.LoadCodeInterprocEvidence(ctx, scopeID, generationID)
 	if err != nil {
-		return ValueFlowFixpointProjectionResult{}, err
+		return FixpointProjectionResult{}, err
 	}
-	rows := codetaint.ExtractCodeInterprocFixpointEvidenceRows(inputs)
+	rows := taint.ExtractCodeInterprocFixpointEvidenceRows(inputs)
 	if p.Ledger != nil {
-		uids, err := p.Ledger.ListSourceUIDsForSource(ctx, codetaint.CodeInterprocFixpointEvidenceSource())
+		uids, err := p.Ledger.ListSourceUIDsForSource(ctx, taint.CodeInterprocFixpointEvidenceSource())
 		if err != nil {
-			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("list source uids for fixpoint retract: %w", err)
+			return FixpointProjectionResult{}, fmt.Errorf("list source uids for fixpoint retract: %w", err)
 		}
-		if err := p.Writer.RetractCodeInterprocEvidenceSourceByUIDs(ctx, uids, codetaint.CodeInterprocFixpointEvidenceSource()); err != nil {
-			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("retract value-flow fixpoint evidence by uids: %w", err)
+		if err := p.Writer.RetractCodeInterprocEvidenceSourceByUIDs(ctx, uids, taint.CodeInterprocFixpointEvidenceSource()); err != nil {
+			return FixpointProjectionResult{}, fmt.Errorf("retract value-flow fixpoint evidence by uids: %w", err)
 		}
-		if err := p.Ledger.PruneForSource(ctx, codetaint.CodeInterprocFixpointEvidenceSource()); err != nil {
-			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("prune fixpoint projected edges: %w", err)
+		if err := p.Ledger.PruneForSource(ctx, taint.CodeInterprocFixpointEvidenceSource()); err != nil {
+			return FixpointProjectionResult{}, fmt.Errorf("prune fixpoint projected edges: %w", err)
 		}
 	} else {
-		if err := p.Writer.RetractCodeInterprocEvidenceSource(ctx, codetaint.CodeInterprocFixpointEvidenceSource()); err != nil {
-			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("retract value-flow fixpoint evidence: %w", err)
+		if err := p.Writer.RetractCodeInterprocEvidenceSource(ctx, taint.CodeInterprocFixpointEvidenceSource()); err != nil {
+			return FixpointProjectionResult{}, fmt.Errorf("retract value-flow fixpoint evidence: %w", err)
 		}
 	}
 	if len(rows) > 0 {
 		if p.Ledger != nil {
-			uids := codetaint.SourceUIDsFromRows(rows)
+			uids := taint.SourceUIDsFromRows(rows)
 			if len(uids) > 0 {
 				if err := p.Ledger.RecordProjectedEdges(
-					ctx, codetaint.CodeInterprocFixpointEvidenceSource(), scopeID, generationID,
+					ctx, taint.CodeInterprocFixpointEvidenceSource(), scopeID, generationID,
 					uids, time.Now(),
 				); err != nil {
-					return ValueFlowFixpointProjectionResult{}, fmt.Errorf("record fixpoint projected edges: %w", err)
+					return FixpointProjectionResult{}, fmt.Errorf("record fixpoint projected edges: %w", err)
 				}
 			}
 		}
-		if err := p.Writer.WriteCodeInterprocEvidence(ctx, rows, scopeID, generationID, codetaint.CodeInterprocFixpointEvidenceSource()); err != nil {
-			return ValueFlowFixpointProjectionResult{}, fmt.Errorf("write value-flow fixpoint evidence: %w", err)
+		if err := p.Writer.WriteCodeInterprocEvidence(ctx, rows, scopeID, generationID, taint.CodeInterprocFixpointEvidenceSource()); err != nil {
+			return FixpointProjectionResult{}, fmt.Errorf("write value-flow fixpoint evidence: %w", err)
 		}
 	}
-	return ValueFlowFixpointProjectionResult{
+	return FixpointProjectionResult{
 		FindingCount:            len(inputs),
 		GraphRows:               len(rows),
-		UnresolvedEndpointCount: codetaint.UnresolvedCodeInterprocEndpointCount(inputs),
+		UnresolvedEndpointCount: taint.UnresolvedCodeInterprocEndpointCount(inputs),
 	}, nil
 }

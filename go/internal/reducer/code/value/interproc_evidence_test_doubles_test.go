@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
 
-	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 // recordingCodeInterprocEvidenceWriter satisfies
-// codetaint.CodeInterprocEvidenceWriter.
+// taint.CodeInterprocEvidenceWriter.
 //
 // This is a hand-kept-in-sync copy of the reducer root's own
 // recordingCodeInterprocEvidenceWriter (codedataflow_evidence_test_helpers_test.go)
-// and of codetaint's own equivalent test double: Go test files cannot share
+// and of taint's own equivalent test double: Go test files cannot share
 // unexported symbols across packages, and this package's
 // code/value/fixpoint_evidence_loader_test.go needs the same shape to drive
-// ValueFlowFixpointEvidenceProjector.Writer. If you change
-// codetaint.CodeInterprocEvidenceWriter's method set, update this copy in the
-// same commit (see codetaint/AGENTS.md's "Root-side test doubles" section for
+// FixpointEvidenceProjector.Writer. If you change
+// taint.CodeInterprocEvidenceWriter's method set, update this copy in the
+// same commit (see code/taint/AGENTS.md's "Root-side test doubles" section for
 // the same rule on the reducer-root copy).
 type recordingCodeInterprocEvidenceWriter struct {
 	writeCalls      int
@@ -105,22 +105,22 @@ func (w *recordingCodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence
 	return nil
 }
 
-// stubCodeInterprocEvidenceLoader satisfies codetaint.CodeInterprocEvidenceLoader
+// stubCodeInterprocEvidenceLoader satisfies taint.CodeInterprocEvidenceLoader
 // (LoadCodeInterprocEvidence only; this package's fixpoint projector never
 // needs the materialization handler's envelope-returning
 // CodeInterprocEvidenceFactLoader shape, unlike the reducer root's copy).
 type stubCodeInterprocEvidenceLoader struct {
-	inputs []codetaint.CodeInterprocEvidenceInput
+	inputs []taint.CodeInterprocEvidenceInput
 }
 
-func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]codetaint.CodeInterprocEvidenceInput, error) {
+func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]taint.CodeInterprocEvidenceInput, error) {
 	return l.inputs, nil
 }
 
 // sampleCodeInterprocInput mirrors the reducer root's sampleCodeInterprocInput
 // (codedataflow_evidence_test_helpers_test.go).
-func sampleCodeInterprocInput() codetaint.CodeInterprocEvidenceInput {
-	return codetaint.CodeInterprocEvidenceInput{
+func sampleCodeInterprocInput() taint.CodeInterprocEvidenceInput {
+	return taint.CodeInterprocEvidenceInput{
 		SourceFunctionUID: "func-source", SinkFunctionUID: "func-sink",
 		RelativePath: "src/handler.go", SourceFunctionName: "readRequest",
 		SinkFunctionName: "execQuery", Language: "go", SinkKind: "sql",

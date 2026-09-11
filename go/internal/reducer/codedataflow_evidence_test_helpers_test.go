@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 // This file holds the reducer root's own copies of test doubles the moved
-// codetaint package's tests also define
+// taint package's tests also define
 // (go/internal/reducer/code/taint/evidence_materialization_test.go,
 // code/taint/interproc_evidence_materialization_test.go, and
 // code/taint/interproc_projected_edge_backfill_test.go). Before issue #6061 moved
@@ -26,7 +26,7 @@ import (
 // packages, so the split needs its own copy on each side; keep the two in
 // sync by hand if either changes shape.
 
-// recordingCodeTaintEvidenceWriter satisfies codetaint.CodeTaintEvidenceWriter.
+// recordingCodeTaintEvidenceWriter satisfies taint.CodeTaintEvidenceWriter.
 type recordingCodeTaintEvidenceWriter struct {
 	writeCalls      int
 	writtenRows     []map[string]any
@@ -68,7 +68,7 @@ func (w *recordingCodeTaintEvidenceWriter) RetractStaleCodeTaintEvidenceByUIDs(
 	return nil
 }
 
-// stubCodeTaintEvidenceLoader satisfies codetaint.CodeTaintEvidenceLoader,
+// stubCodeTaintEvidenceLoader satisfies taint.CodeTaintEvidenceLoader,
 // returning raw code_taint_evidence envelopes for the handler to decode.
 type stubCodeTaintEvidenceLoader struct {
 	envelopes []facts.Envelope
@@ -79,8 +79,8 @@ func (l stubCodeTaintEvidenceLoader) LoadCodeTaintEvidence(context.Context, stri
 }
 
 // codeTaintEvidenceEnvelope builds a valid code_taint_evidence fact envelope
-// carrying the fields a sample codetaint.CodeTaintEvidenceInput decodes to.
-func codeTaintEvidenceEnvelope(in codetaint.CodeTaintEvidenceInput) facts.Envelope {
+// carrying the fields a sample taint.CodeTaintEvidenceInput decodes to.
+func codeTaintEvidenceEnvelope(in taint.CodeTaintEvidenceInput) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "taint:" + in.FunctionUID,
 		FactKind: facts.CodeTaintEvidenceFactKind,
@@ -110,8 +110,8 @@ func codeTaintEvidenceIntent() Intent {
 	}
 }
 
-func sampleCodeTaintInput() codetaint.CodeTaintEvidenceInput {
-	return codetaint.CodeTaintEvidenceInput{
+func sampleCodeTaintInput() taint.CodeTaintEvidenceInput {
+	return taint.CodeTaintEvidenceInput{
 		FunctionUID: "func-handle", FunctionName: "handle", RelativePath: "src/handler.go",
 		Language: "go", Kind: "TAINTED", SinkKind: "sql", SourceKind: "http_request",
 		Binding: "q", SourceLine: 4, SinkLine: 5, Confidence: 0.8, GuardReason: "allowed",
@@ -119,7 +119,7 @@ func sampleCodeTaintInput() codetaint.CodeTaintEvidenceInput {
 }
 
 // recordingCodeInterprocEvidenceWriter satisfies
-// codetaint.CodeInterprocEvidenceWriter.
+// taint.CodeInterprocEvidenceWriter.
 type recordingCodeInterprocEvidenceWriter struct {
 	writeCalls      int
 	writtenRows     []map[string]any
@@ -205,15 +205,15 @@ func (w *recordingCodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence
 }
 
 // stubCodeInterprocEvidenceLoader satisfies BOTH the fixpoint projector's
-// typed codetaint.CodeInterprocEvidenceLoader (returning inputs) and the
-// materialization handler's codetaint.CodeInterprocEvidenceFactLoader
+// typed taint.CodeInterprocEvidenceLoader (returning inputs) and the
+// materialization handler's taint.CodeInterprocEvidenceFactLoader
 // (returning envelopes built from the same inputs), so the one stub serves
 // both call contexts.
 type stubCodeInterprocEvidenceLoader struct {
-	inputs []codetaint.CodeInterprocEvidenceInput
+	inputs []taint.CodeInterprocEvidenceInput
 }
 
-func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]codetaint.CodeInterprocEvidenceInput, error) {
+func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]taint.CodeInterprocEvidenceInput, error) {
 	return l.inputs, nil
 }
 
@@ -226,9 +226,9 @@ func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidenceFacts(context.
 }
 
 // codeInterprocEvidenceEnvelope builds a valid code_interproc_evidence fact
-// envelope carrying the fields a sample codetaint.CodeInterprocEvidenceInput
+// envelope carrying the fields a sample taint.CodeInterprocEvidenceInput
 // decodes to.
-func codeInterprocEvidenceEnvelope(in codetaint.CodeInterprocEvidenceInput) facts.Envelope {
+func codeInterprocEvidenceEnvelope(in taint.CodeInterprocEvidenceInput) facts.Envelope {
 	payload := map[string]any{
 		"source_function_uid":  in.SourceFunctionUID,
 		"sink_function_uid":    in.SinkFunctionUID,
@@ -259,8 +259,8 @@ func codeInterprocEvidenceIntent() Intent {
 	}
 }
 
-func sampleCodeInterprocInput() codetaint.CodeInterprocEvidenceInput {
-	return codetaint.CodeInterprocEvidenceInput{
+func sampleCodeInterprocInput() taint.CodeInterprocEvidenceInput {
+	return taint.CodeInterprocEvidenceInput{
 		SourceFunctionUID: "func-source", SinkFunctionUID: "func-sink",
 		RelativePath: "src/handler.go", SourceFunctionName: "readRequest",
 		SinkFunctionName: "execQuery", Language: "go", SinkKind: "sql",
@@ -269,7 +269,7 @@ func sampleCodeInterprocInput() codetaint.CodeInterprocEvidenceInput {
 }
 
 // fakeCodeInterprocProjectedEdgeLedger satisfies
-// codetaint.CodeInterprocProjectedEdgeLedger and records calls for test
+// taint.CodeInterprocProjectedEdgeLedger and records calls for test
 // assertions.
 type fakeCodeInterprocProjectedEdgeLedger struct {
 	recordCalls            int
@@ -362,7 +362,7 @@ func (f *fakeCodeInterprocProjectedEdgeLedger) LedgerHasRowsForSource(
 
 // fakeBackfillStateMarker satisfies CodeValueFlowBackfillStateMarker (root's
 // own copy — compat_projection.go, shared by this file's
-// projected_source_edge_backfill_test.go and codetaint's own copy of this
+// projected_source_edge_backfill_test.go and taint's own copy of this
 // same fake in code/taint/interproc_projected_edge_backfill_test.go).
 type fakeBackfillStateMarker struct {
 	complete     map[string]bool

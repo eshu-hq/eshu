@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	flow "github.com/eshu-hq/eshu/go/internal/parser/summary"
-	valueflow "github.com/eshu-hq/eshu/go/internal/reducer/code/value"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
@@ -417,14 +417,14 @@ type recordingValueFlowFixpointProjector struct {
 	calls        int
 	scopeID      string
 	generationID string
-	result       valueflow.ValueFlowFixpointProjectionResult
+	result       value.FixpointProjectionResult
 }
 
 func (p *recordingValueFlowFixpointProjector) ProjectValueFlowFixpointEvidence(
 	_ context.Context,
 	scopeID string,
 	generationID string,
-) (valueflow.ValueFlowFixpointProjectionResult, error) {
+) (value.FixpointProjectionResult, error) {
 	p.calls++
 	p.scopeID = scopeID
 	p.generationID = generationID
@@ -438,7 +438,7 @@ func TestCodeFunctionSummaryHandlerProjectsFixpointAfterPersistence(t *testing.T
 	t.Parallel()
 
 	projector := &recordingValueFlowFixpointProjector{
-		result: valueflow.ValueFlowFixpointProjectionResult{FindingCount: 1, GraphRows: 1},
+		result: value.FixpointProjectionResult{FindingCount: 1, GraphRows: 1},
 	}
 	handler := MaterializationHandler{
 		Loader:                  stubCodeFunctionSummaryLoader{},

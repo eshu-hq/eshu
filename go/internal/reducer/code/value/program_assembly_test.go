@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"testing"
@@ -10,12 +10,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
-func TestBuildValueFlowProgramFiltersSummaryCallFlowsThroughActiveCalls(t *testing.T) {
+func TestBuildProgramFiltersSummaryCallFlowsThroughActiveCalls(t *testing.T) {
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
 	callee := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Query")
 	unconfirmed := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Unused")
 
-	program, stats := BuildValueFlowProgram(ValueFlowProgramInput{
+	program, stats := BuildProgram(ProgramInput{
 		Summaries: map[summary.FunctionID]summary.Effects{
 			caller: {
 				ParamToCallArg: []summary.CallArgFlow{
@@ -30,7 +30,7 @@ func TestBuildValueFlowProgramFiltersSummaryCallFlowsThroughActiveCalls(t *testi
 				ParamToSink: []summary.ParamSink{{Param: 0, SinkKind: "exec"}},
 			},
 		},
-		CallEdges: []ValueFlowCallEdge{{
+		CallEdges: []CallEdge{{
 			CallerFunctionID: caller,
 			CalleeFunctionID: callee,
 		}},
@@ -57,17 +57,17 @@ func TestBuildValueFlowProgramFiltersSummaryCallFlowsThroughActiveCalls(t *testi
 	}
 }
 
-func TestBuildValueFlowProgramCountsMissingSummary(t *testing.T) {
+func TestBuildProgramCountsMissingSummary(t *testing.T) {
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
 	callee := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Query")
 
-	_, stats := BuildValueFlowProgram(ValueFlowProgramInput{
+	_, stats := BuildProgram(ProgramInput{
 		Summaries: map[summary.FunctionID]summary.Effects{
 			caller: {
 				ParamToCallArg: []summary.CallArgFlow{{Callee: callee, Param: 0, Arg: 0}},
 			},
 		},
-		CallEdges: []ValueFlowCallEdge{{
+		CallEdges: []CallEdge{{
 			CallerFunctionID: caller,
 			CalleeFunctionID: callee,
 		}},

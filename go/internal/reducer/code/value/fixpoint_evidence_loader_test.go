@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/exposure"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
-	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 type stubFunctionSummarySnapshotLoader struct {
@@ -38,14 +38,14 @@ func (l stubFunctionGraphIDSnapshotLoader) LoadGraphIDs(context.Context) (map[su
 }
 
 type stubFunctionCloudSinkTargetLoader struct {
-	targets []ValueFlowCloudSinkTarget
+	targets []CloudSinkTarget
 	ids     map[summary.FunctionID]string
 }
 
 func (l *stubFunctionCloudSinkTargetLoader) LoadCloudSinkTargets(
 	_ context.Context,
 	ids map[summary.FunctionID]string,
-) ([]ValueFlowCloudSinkTarget, error) {
+) ([]CloudSinkTarget, error) {
 	l.ids = ids
 	return l.targets, nil
 }
@@ -85,10 +85,10 @@ func httpRequestSource(id summary.FunctionID) interproc.Source {
 	}
 }
 
-// TestValueFlowFixpointEvidenceLoaderProjectsCloudSinks proves graph-backed
+// TestFixpointEvidenceLoaderProjectsCloudSinks proves graph-backed
 // cloud sinks are loaded after FunctionID graph ids and participate in the same
 // partitioned fixpoint as summary-derived sinks.
-func TestValueFlowFixpointEvidenceLoaderProjectsCloudSinks(t *testing.T) {
+func TestFixpointEvidenceLoaderProjectsCloudSinks(t *testing.T) {
 	t.Parallel()
 
 	sourceFn := summary.NewFunctionID("repo-a", "pkg", "", "handle")
@@ -101,12 +101,12 @@ func TestValueFlowFixpointEvidenceLoaderProjectsCloudSinks(t *testing.T) {
 			ParamToReturn: []int{0},
 		},
 	}
-	cloudTargets := &stubFunctionCloudSinkTargetLoader{targets: []ValueFlowCloudSinkTarget{{
+	cloudTargets := &stubFunctionCloudSinkTargetLoader{targets: []CloudSinkTarget{{
 		FunctionID: sinkFn,
 		Kind:       string(exposure.SinkIAMPrivilegedAction),
 		Label:      "IAM role assumption",
 	}}}
-	loader := ValueFlowFixpointEvidenceLoader{
+	loader := FixpointEvidenceLoader{
 		SummarySnapshotLoader:   stubFunctionSummarySnapshotLoader{snapshot: summarySnapshotFromEffects(effects)},
 		SourceSnapshotLoader:    stubFunctionSourceSnapshotLoader{sources: []interproc.Source{httpRequestSource(sourceFn)}},
 		GraphIDSnapshotLoader:   stubFunctionGraphIDSnapshotLoader{ids: map[summary.FunctionID]string{sourceFn: "uid-source", sinkFn: "uid-cloud-fn"}},
@@ -135,20 +135,20 @@ func TestValueFlowFixpointEvidenceLoaderProjectsCloudSinks(t *testing.T) {
 	}
 }
 
-// TestValueFlowFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts keeps
+// TestFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts keeps
 // function-level cloud bridge edges from fabricating value-flow precision when
 // the summary store has no observed parameter port for that function.
-func TestValueFlowFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts(t *testing.T) {
+func TestFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts(t *testing.T) {
 	t.Parallel()
 
 	sourceFn := summary.NewFunctionID("repo-a", "pkg", "", "handle")
 	sinkFn := summary.NewFunctionID("repo-b", "pkg", "", "cloudAction")
-	cloudTargets := &stubFunctionCloudSinkTargetLoader{targets: []ValueFlowCloudSinkTarget{{
+	cloudTargets := &stubFunctionCloudSinkTargetLoader{targets: []CloudSinkTarget{{
 		FunctionID: sinkFn,
 		Kind:       string(exposure.SinkIAMPrivilegedAction),
 		Label:      "IAM role assumption",
 	}}}
-	loader := ValueFlowFixpointEvidenceLoader{
+	loader := FixpointEvidenceLoader{
 		SummarySnapshotLoader:   stubFunctionSummarySnapshotLoader{snapshot: summarySnapshotFromEffects(map[summary.FunctionID]summary.Effects{})},
 		SourceSnapshotLoader:    stubFunctionSourceSnapshotLoader{sources: []interproc.Source{httpRequestSource(sourceFn)}},
 		GraphIDSnapshotLoader:   stubFunctionGraphIDSnapshotLoader{ids: map[summary.FunctionID]string{sourceFn: "uid-source", sinkFn: "uid-cloud-fn"}},
@@ -164,13 +164,13 @@ func TestValueFlowFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts(t 
 	}
 }
 
-// TestValueFlowFixpointEvidenceLoaderSkipsGraphWorkWithoutSources proves an
+// TestFixpointEvidenceLoaderSkipsGraphWorkWithoutSources proves an
 // empty source snapshot exits before graph id or graph-backed cloud sink reads.
-func TestValueFlowFixpointEvidenceLoaderSkipsGraphWorkWithoutSources(t *testing.T) {
+func TestFixpointEvidenceLoaderSkipsGraphWorkWithoutSources(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
-	loader := ValueFlowFixpointEvidenceLoader{
+	loader := FixpointEvidenceLoader{
 		SummarySnapshotLoader: stubFunctionSummarySnapshotLoader{snapshot: summarySnapshotFromEffects(map[summary.FunctionID]summary.Effects{
 			fn: {ParamToReturn: []int{0}},
 		})},
@@ -186,14 +186,14 @@ func TestValueFlowFixpointEvidenceLoaderSkipsGraphWorkWithoutSources(t *testing.
 	}
 }
 
-// TestValueFlowFixpointEvidenceLoaderProjectsDurableInputs proves durable
+// TestFixpointEvidenceLoaderProjectsDurableInputs proves durable
 // summaries, sources, and graph ids are composed into reducer-ready
 // TAINT_FLOWS_TO evidence.
-func TestValueFlowFixpointEvidenceLoaderProjectsDurableInputs(t *testing.T) {
+func TestFixpointEvidenceLoaderProjectsDurableInputs(t *testing.T) {
 	t.Parallel()
 
 	sourceFn, sinkFn, effects := crossRepoFixpointEffects()
-	loader := ValueFlowFixpointEvidenceLoader{
+	loader := FixpointEvidenceLoader{
 		SummarySnapshotLoader: stubFunctionSummarySnapshotLoader{snapshot: summarySnapshotFromEffects(effects)},
 		SourceSnapshotLoader:  stubFunctionSourceSnapshotLoader{sources: []interproc.Source{httpRequestSource(sourceFn)}},
 		GraphIDSnapshotLoader: stubFunctionGraphIDSnapshotLoader{ids: map[summary.FunctionID]string{
@@ -230,13 +230,13 @@ func TestValueFlowFixpointEvidenceLoaderProjectsDurableInputs(t *testing.T) {
 	}
 }
 
-// TestValueFlowFixpointEvidenceLoaderSurfacesMissingGraphUIDs proves unresolved
+// TestFixpointEvidenceLoaderSurfacesMissingGraphUIDs proves unresolved
 // graph ids remain visible as skipped findings instead of fabricating edges.
-func TestValueFlowFixpointEvidenceLoaderSurfacesMissingGraphUIDs(t *testing.T) {
+func TestFixpointEvidenceLoaderSurfacesMissingGraphUIDs(t *testing.T) {
 	t.Parallel()
 
 	sourceFn, sinkFn, effects := crossRepoFixpointEffects()
-	loader := ValueFlowFixpointEvidenceLoader{
+	loader := FixpointEvidenceLoader{
 		SummarySnapshotLoader: stubFunctionSummarySnapshotLoader{snapshot: summarySnapshotFromEffects(effects)},
 		SourceSnapshotLoader:  stubFunctionSourceSnapshotLoader{sources: []interproc.Source{httpRequestSource(sourceFn)}},
 		GraphIDSnapshotLoader: stubFunctionGraphIDSnapshotLoader{ids: map[summary.FunctionID]string{
@@ -251,7 +251,7 @@ func TestValueFlowFixpointEvidenceLoaderSurfacesMissingGraphUIDs(t *testing.T) {
 	if len(inputs) != 1 || inputs[0].SourceFunctionUID != "" || inputs[0].SinkFunctionUID != "uid-sink" {
 		t.Fatalf("missing source uid not surfaced as unresolved input: %+v", inputs)
 	}
-	if rows := codetaint.ExtractCodeInterprocEvidenceRows(inputs); len(rows) != 0 {
+	if rows := taint.ExtractCodeInterprocEvidenceRows(inputs); len(rows) != 0 {
 		t.Fatalf("unresolved finding projected %d graph rows, want 0", len(rows))
 	}
 }
@@ -262,8 +262,8 @@ func TestExtractCodeInterprocFixpointEvidenceRowsUsesSeparateUIDNamespace(t *tes
 	t.Parallel()
 
 	input := sampleCodeInterprocInput()
-	direct := codetaint.ExtractCodeInterprocEvidenceRows([]codetaint.CodeInterprocEvidenceInput{input})
-	fixpoint := codetaint.ExtractCodeInterprocFixpointEvidenceRows([]codetaint.CodeInterprocEvidenceInput{input})
+	direct := taint.ExtractCodeInterprocEvidenceRows([]taint.CodeInterprocEvidenceInput{input})
+	fixpoint := taint.ExtractCodeInterprocFixpointEvidenceRows([]taint.CodeInterprocEvidenceInput{input})
 	if len(direct) != 1 || len(fixpoint) != 1 {
 		t.Fatalf("rows missing: direct=%+v fixpoint=%+v", direct, fixpoint)
 	}
@@ -272,15 +272,15 @@ func TestExtractCodeInterprocFixpointEvidenceRowsUsesSeparateUIDNamespace(t *tes
 	}
 }
 
-// TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence proves
+// TestFixpointEvidenceProjectorRetractsGlobalFixpointEvidence proves
 // summary-driven projection retracts the full fixpoint-owned evidence source
 // before writing the global solve, rather than scope-stamping stale rows.
-func TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence(t *testing.T) {
+func TestFixpointEvidenceProjectorRetractsGlobalFixpointEvidence(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
-	projector := ValueFlowFixpointEvidenceProjector{
-		Loader: stubCodeInterprocEvidenceLoader{inputs: []codetaint.CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+	projector := FixpointEvidenceProjector{
+		Loader: stubCodeInterprocEvidenceLoader{inputs: []taint.CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
 		Writer: writer,
 	}
 
@@ -288,13 +288,13 @@ func TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence(t *tes
 	if err != nil {
 		t.Fatalf("ProjectValueFlowFixpointEvidence returned error: %v", err)
 	}
-	if writer.globalRetracts != 1 || writer.globalEvidence != codetaint.CodeInterprocFixpointEvidenceSource() {
+	if writer.globalRetracts != 1 || writer.globalEvidence != taint.CodeInterprocFixpointEvidenceSource() {
 		t.Fatalf("global retract evidence = %q calls=%d, want fixpoint source", writer.globalEvidence, writer.globalRetracts)
 	}
 	if writer.retractCalls != 0 || len(writer.retractScopeIDs) != 0 {
 		t.Fatalf("scoped retract used for global fixpoint solve: %+v", writer)
 	}
-	if writer.writeCalls != 1 || writer.writeEvidence != codetaint.CodeInterprocFixpointEvidenceSource() {
+	if writer.writeCalls != 1 || writer.writeEvidence != taint.CodeInterprocFixpointEvidenceSource() {
 		t.Fatalf("write evidence = %q calls=%d, want fixpoint source", writer.writeEvidence, writer.writeCalls)
 	}
 	if result.GraphRows != 1 || result.FindingCount != 1 || result.UnresolvedEndpointCount != 0 {

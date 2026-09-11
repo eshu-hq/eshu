@@ -5,32 +5,32 @@
 Solves the cross-repo value-flow fixpoint that produces the
 `reducer/code-interproc-fixpoint` `TAINT_FLOWS_TO` evidence source: a
 distinct, generation-independent evidence stream kept separate from the
-direct `code_interproc_evidence` rows `codetaint` materializes per
+direct `code_interproc_evidence` rows `taint` materializes per
 generation (issue #6061).
 
-`ValueFlowFixpointEvidenceLoader` composes durable function summaries, param
+`FixpointEvidenceLoader` composes durable function summaries, param
 sources, the `FunctionID`->graph-uid map, and graph-backed cloud sink
 targets into an `interproc.Program`, solves it (optionally through a durable
 component store so a restart or second replica reuses unchanged weak
 components), and resolves finding endpoints through the graph-uid map.
-`ValueFlowFixpointEvidenceProjector` then retracts and rewrites the full
+`FixpointEvidenceProjector` then retracts and rewrites the full
 fixpoint-owned evidence source, using a separate uid namespace
-(`codetaint.ExtractCodeInterprocFixpointEvidenceRows`) so a fixpoint-solved
+(`taint.ExtractCodeInterprocFixpointEvidenceRows`) so a fixpoint-solved
 edge can never collide with a direct-fact edge in the graph writer's
 `MERGE`.
 
 ## Ownership boundary
 
 **Owns:** the value-flow fixpoint solver and its snapshot/durable-restart
-path (`ValueFlowFixpointCache`, `SolveValueFlowSnapshotIncrementalDurable`),
+path (`FixpointCache`, `SolveSnapshotIncrementalDurable`),
 Program assembly from active CALLS/summaries/sources
-(`BuildValueFlowProgram`, `ValueFlowProgramAssemblyRunner`), the
-evidence-loading/projection pair (`ValueFlowFixpointEvidenceLoader`/
-`ValueFlowFixpointEvidenceProjector`), and the graph-backed cloud sink target
-loader (`GraphValueFlowCloudSinkTargetLoader`).
+(`BuildProgram`, `ProgramAssemblyRunner`), the
+evidence-loading/projection pair (`FixpointEvidenceLoader`/
+`FixpointEvidenceProjector`), and the graph-backed cloud sink target
+loader (`GraphCloudSinkTargetLoader`).
 
 **Does not own:** `code_value_flow_stale_cleanup_runner.go` (reducer root) —
-the generation-scoped stale-evidence sweep that only reaches `codetaint`'s
+the generation-scoped stale-evidence sweep that only reaches `taint`'s
 writer/ledger surface and has no dependency on this package.
 
 **Owns but does not use:** `BackfillStateMarker` (`backfill_state_marker.go`),
@@ -39,31 +39,31 @@ moved here from the reducer root under #6609. Its only caller is the root's
 `CodeValueFlowBackfillStateMarker` alias in `compat_projection.go`.
 Also does not own `CodeInterprocEvidenceMaterializationHandler` or the
 direct (non-fixpoint) `code_interproc_evidence`/`code_taint_evidence`
-handlers, ports, or ledgers — those are `codetaint`.
+handlers, ports, or ledgers — those are `taint`.
 
 ## Exported surface
 
 | symbol | what it is |
 |---|---|
-| `ValueFlowFixpointEvidenceLoader` / `ValueFlowFixpointEvidenceProjector` | compose durable summaries/sources/graph-ids/cloud-sinks into a solved Program, then retract+rewrite the fixpoint evidence source |
-| `ValueFlowFixpointProjectionResult` | the projector's outcome (finding/graph-row/unresolved-endpoint counts); reducer root's `CodeFunctionSummaryMaterializationHandler` names it through its own `ValueFlowFixpointProjector` interface |
+| `FixpointEvidenceLoader` / `FixpointEvidenceProjector` | compose durable summaries/sources/graph-ids/cloud-sinks into a solved Program, then retract+rewrite the fixpoint evidence source |
+| `FixpointProjectionResult` | the projector's outcome (finding/graph-row/unresolved-endpoint counts); `code/function/summary`'s `MaterializationHandler` names it through its own `ValueFlowFixpointProjector` interface |
 | `FunctionSummarySnapshotLoader` / `FunctionSourceSnapshotLoader` / `FunctionGraphIDSnapshotLoader` / `FunctionCloudSinkTargetLoader` | the loader's four input ports |
-| `ValueFlowFixpointCache` / `NewValueFlowFixpointCache` / `ValueFlowFixpointCacheStats` | the in-process weak-component cache and its stats |
-| `ValueFlowFixpointComponentStore` | the durable component-cache store port (Postgres-backed in production) |
-| `SolveValueFlowProgramIncremental` / `SolveValueFlowProgramIncrementalDurable` / `SolveValueFlowSnapshotIncrementalDurable` | the three solve entry points (in-memory only, in-memory+durable store, and durable-snapshot-partitioned) |
-| `BuildValueFlowProgram` / `ValueFlowProgramInput` / `ValueFlowCallEdge` / `ValueFlowProgramAssemblyStats` | pure Program assembly from active CALLS + persisted summaries |
-| `ValueFlowProgramInputLoader` / `ValueFlowProgramAssemblyRunner` / `ValueFlowProgramAssemblyRunnerConfig` / `ValueFlowProgramAssemblyResult` | a bounded batch-loader runner over `BuildValueFlowProgram`, not yet wired into `cmd/reducer`'s production path |
-| `GraphValueFlowCloudSinkTargetLoader` / `ValueFlowCloudSinkTargetsCypher` / `ValueFlowCloudSinkTarget` | the graph-backed cloud sink target loader and its pinned Cypher (backend-conformance corpus asserts on it by equality) |
+| `FixpointCache` / `NewFixpointCache` / `FixpointCacheStats` | the in-process weak-component cache and its stats |
+| `FixpointComponentStore` | the durable component-cache store port (Postgres-backed in production) |
+| `SolveProgramIncremental` / `SolveProgramIncrementalDurable` / `SolveSnapshotIncrementalDurable` | the three solve entry points (in-memory only, in-memory+durable store, and durable-snapshot-partitioned) |
+| `BuildProgram` / `ProgramInput` / `CallEdge` / `ProgramAssemblyStats` | pure Program assembly from active CALLS + persisted summaries |
+| `ProgramInputLoader` / `ProgramAssemblyRunner` / `ProgramAssemblyRunnerConfig` / `ProgramAssemblyResult` | a bounded batch-loader runner over `BuildProgram`, not yet wired into `cmd/reducer`'s production path |
+| `GraphCloudSinkTargetLoader` / `CloudSinkTargetsCypher` / `CloudSinkTarget` | the graph-backed cloud sink target loader and its pinned Cypher (backend-conformance corpus asserts on it by equality) |
 | `GraphQueryRunner` | locally-declared port (see Dependencies) |
 
-The reducer root wires `ValueFlowFixpointEvidenceProjector` in
-`cmd/reducer/value_flow_wiring.go` (`newValueFlowFixpointProjector`), and
-`CodeFunctionSummaryMaterializationHandler`
-(`code_function_summary_materialization.go`) calls it through the root's own
-`ValueFlowFixpointProjector` interface after summaries, sources, and graph
-ids are durably persisted, so graph projection cannot race ahead of that
-write. `internal/storage/postgres/value_flow_program_loader.go` and
-`code_interproc_evidence_loader.go` construct the concrete durable
+The reducer root wires `FixpointEvidenceProjector` (through the root spelling
+`ValueFlowFixpointEvidenceProjector`) in `cmd/reducer/value_flow_wiring.go`
+(`newValueFlowFixpointProjector`), and `code/function/summary`'s
+`MaterializationHandler` (`code/function/summary/handler.go`) calls it
+through that package's own `ValueFlowFixpointProjector` interface after
+summaries, sources, and graph ids are durably persisted, so graph projection
+cannot race ahead of that write. `internal/storage/postgres/value_flow_program_loader.go`
+and `code_interproc_evidence_loader.go` construct the concrete durable
 loaders/component store this package's types compose.
 
 ## Dependencies
@@ -88,25 +88,25 @@ importing the root to reach it would violate the "a family never imports the
 reducer root" rule. Go interfaces are satisfied structurally, so the same
 concrete implementation `cmd/reducer` wires into root's other families also
 satisfies this local declaration with no logic duplicated — see
-`codetaint/graph_ports.go` for the identical precedent.
+`code/taint/graph_ports.go` for the identical precedent.
 
 ## Telemetry
 
-No dedicated metric instrument. `ValueFlowFixpointEvidenceLoader.LoadCodeInterprocEvidence`
+No dedicated metric instrument. `FixpointEvidenceLoader.LoadCodeInterprocEvidence`
 emits one structured log, `"value-flow fixpoint evidence loaded"`, with
 `scope_id`, `generation_id`, `summary_count`, `source_count`,
 `cloud_sink_count`, `finding_count`, `overflow_count`,
 `fixpoint_component_count`, `fixpoint_assembled_components`,
 `fixpoint_recomputed_components`, `fixpoint_reused_components`,
 `fixpoint_durable_reused_components`, and `unresolved_endpoint_count`.
-`ValueFlowProgramAssemblyRunner.ProcessOnce` emits `"value-flow program
+`ProgramAssemblyRunner.ProcessOnce` emits `"value-flow program
 assembly completed"` with `input_count`, `summary_count`,
 `call_edge_count`, `program_edge_count`, `source_count`, `sink_count`,
 `skipped_missing_identity`, `skipped_missing_summary`,
 `skipped_unconfirmed_call_flow`, and `duration_seconds`. Both are logged
 only when a `Logger` is wired and (for the assembly runner) only when at
 least one input was processed. The projector's graph write/retract calls go
-through `codetaint`'s writer (`internal/storage/cypher.CodeInterprocEvidenceWriter`,
+through `taint`'s writer (`internal/storage/cypher.CodeInterprocEvidenceWriter`,
 wired by `cmd/reducer`'s `canonical_graph_writers.go`), which dispatches
 through the shared `InstrumentedExecutor` every canonical/reducer-owned
 Neo4j writer uses (`observed_service_wiring.go`). That records
@@ -124,8 +124,8 @@ graph writes. Verified against `go/internal/telemetry/instruments.go` (no
 - **`GraphQueryRunner` is intentionally re-declared here, not imported.**
   Do not "fix" this by importing the reducer root — see Dependencies above.
 - **The fixpoint uid namespace must stay separate from the direct
-  `code_interproc_evidence` namespace.** `ValueFlowFixpointEvidenceProjector`
-  calls `codetaint.ExtractCodeInterprocFixpointEvidenceRows`, not
+  `code_interproc_evidence` namespace.** `FixpointEvidenceProjector`
+  calls `taint.ExtractCodeInterprocFixpointEvidenceRows`, not
   `ExtractCodeInterprocEvidenceRows`; unifying them would let a
   fixpoint-solved edge collide with (and silently overwrite) a direct-fact
   edge in the graph writer's `MERGE`.
@@ -134,13 +134,21 @@ graph writes. Verified against `go/internal/telemetry/instruments.go` (no
   `ProjectValueFlowFixpointEvidence` retracts by evidence source (or, when a
   `Ledger` is wired, by the ledger's enumerated source uids) rather than a
   triggering scope's last-stamped rows — see the doc comment on
-  `ProjectValueFlowFixpointEvidence`.
+  `ProjectValueFlowFixpointEvidence`. This method name keeps its
+  `ValueFlow` infix on purpose: `code/function/summary`'s
+  `ValueFlowFixpointProjector` interface requires it verbatim, so renaming it
+  here would break that structural-typing contract.
 - **The ledger record must happen before the graph write**, when a `Ledger`
-  is wired, mirroring `codetaint`'s own invariant (issue #4893).
-- **`ValueFlowProgramAssemblyRunner` is not production-wired.** It exists as
-  a bounded batch-loader driver over `BuildValueFlowProgram` but nothing in
+  is wired, mirroring `taint`'s own invariant (issue #4893).
+- **`ProgramAssemblyRunner` is not production-wired.** It exists as
+  a bounded batch-loader driver over `BuildProgram` but nothing in
   `cmd/reducer` constructs one yet; do not assume it runs in production
   without checking the wiring first.
+- **`LoadValueFlowFixpointComponents`/`StoreValueFlowFixpointComponents`
+  (on `FixpointComponentStore`) also keep their `ValueFlow` infix on
+  purpose**, matching `internal/storage/postgres.ValueFlowFixpointComponentStore`'s
+  method names (an external, structurally-satisfying implementer this
+  package does not own).
 
 ## Related docs
 
@@ -161,18 +169,36 @@ with a direct `payloadcore.AnyToString` call, since the forwarder itself
 does not move with this family. Root-side callers —
 `cmd/reducer/value_flow_wiring.go`, `internal/storage/postgres/value_flow_program_loader.go`,
 `internal/storage/postgres/code_interproc_evidence_loader.go`,
-`internal/backendconformance/corpus_value_flow*.go`, and the reducer root's
-own `code_function_summary_materialization.go` — keep their existing
-`reducer.` spelling through the value-flow stanza of `compat_correlation.go`'s type aliases and
-forwarding functions, so none needed a source change. Measured from `go/`,
-with `GOROOT` unset and `GOCACHE` pointed at this worktree: `go build ./...`,
-`go vet ./...`, `go test ./internal/reducer/... -count=1` (30 subpackages,
-this package's own suite included), `go test ./cmd/reducer
-./internal/storage/postgres ./internal/query -count=1`, and `go test
-./internal/backendconformance ./internal/replay/costcounting
-./internal/projector/... -count=1` each exited 0 on the branch. `git diff
---check` exited 0. Binary output was not compared and no such claim is made
-here.
+`internal/backendconformance/corpus_value_flow*.go`, and (at the time of
+this move) the reducer root's own `code_function_summary_materialization.go`
+— kept their existing `reducer.` spelling through the value-flow stanza of
+`compat_projection.go`'s type aliases and forwarding functions, so none
+needed a source change. Measured from `go/`, with `GOROOT` unset and
+`GOCACHE` pointed at this worktree: `go build ./...`, `go vet ./...`,
+`go test ./internal/reducer/... -count=1` (30 subpackages, this package's
+own suite included), `go test ./cmd/reducer ./internal/storage/postgres
+./internal/query -count=1`, and `go test ./internal/backendconformance
+./internal/replay/costcounting ./internal/projector/... -count=1` each
+exited 0 on the branch. `git diff --check` exited 0. Binary output was not
+compared and no such claim is made here.
+
+**Package-clause rename addendum (same issue #6061):** the package clause
+changed from `valueflow` to `value`, and every exported `ValueFlow*`
+identifier dropped that prefix (for example `ValueFlowFixpointCache` ->
+`FixpointCache`, `BuildValueFlowProgram` -> `BuildProgram`), except the two
+noted under Gotchas above that keep it to satisfy an external structural
+contract (`code/function/summary`'s `ValueFlowFixpointProjector` interface
+and `postgres.ValueFlowFixpointComponentStore`'s method names). The reducer
+root keeps every one of the prior `ValueFlow*` spellings through the
+value-flow stanza of `compat_projection.go`, so no root caller needed a
+source change; the two direct importers (`code/function/summary` and
+`compat_projection.go` itself) were updated to the new names and dropped
+their now-needless `valueflow` import alias. Wire strings, domains, entity
+keys, evidence sources, and telemetry names are unchanged. Measured from
+`go/`, with `GOROOT` unset: `go build ./...`, `go vet ./internal/reducer/...
+./cmd/reducer/... ./internal/storage/...`, and `go test ./internal/reducer/...
+./cmd/reducer/... ./internal/storage/cypher/... ./internal/replay/...
+-count=1` all exited 0 on this branch. `git diff --check` exited 0.
 
 No-Observability-Change: this move adds no queue domain, worker, lease,
 graph or Postgres operation, runtime setting, metric instrument, metric

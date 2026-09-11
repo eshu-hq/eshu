@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	flow "github.com/eshu-hq/eshu/go/internal/parser/summary"
-	valueflow "github.com/eshu-hq/eshu/go/internal/reducer/code/value"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -105,7 +105,7 @@ type GraphIDWriter interface {
 // ValueFlowFixpointProjector projects durable cross-repo value-flow findings
 // after summaries, sources, and graph ids have been persisted.
 type ValueFlowFixpointProjector interface {
-	ProjectValueFlowFixpointEvidence(ctx context.Context, scopeID, generationID string) (valueflow.ValueFlowFixpointProjectionResult, error)
+	ProjectValueFlowFixpointEvidence(ctx context.Context, scopeID, generationID string) (value.FixpointProjectionResult, error)
 }
 
 // MaterializationHandler persists one generation's function summaries: it
@@ -230,7 +230,7 @@ func (h MaterializationHandler) Handle(ctx context.Context, intent reducercontra
 		graphIDCount = len(ids)
 	}
 
-	fixpoint := valueflow.ValueFlowFixpointProjectionResult{}
+	fixpoint := value.FixpointProjectionResult{}
 	if h.ValueFlowFixpointWriter != nil {
 		var err error
 		fixpoint, err = h.ValueFlowFixpointWriter.ProjectValueFlowFixpointEvidence(ctx, intent.ScopeID, intent.GenerationID)

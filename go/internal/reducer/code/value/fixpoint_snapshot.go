@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package valueflow
+package value
 
 import (
 	"context"
@@ -19,42 +19,42 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
 )
 
-// SolveValueFlowSnapshotIncrementalDurable partitions durable summary/source/
+// SolveSnapshotIncrementalDurable partitions durable summary/source/
 // sink state before program assembly, then assembles and solves only components
 // missing from the in-process and durable component caches.
-func SolveValueFlowSnapshotIncrementalDurable(
+func SolveSnapshotIncrementalDurable(
 	ctx context.Context,
 	effects map[summary.FunctionID]summary.Effects,
 	versions map[summary.FunctionID]string,
 	sources []interproc.Source,
 	sinks []interproc.Sink,
-	cache *ValueFlowFixpointCache,
-	store ValueFlowFixpointComponentStore,
+	cache *FixpointCache,
+	store FixpointComponentStore,
 	limits interproc.Limits,
-) (interproc.Result, ValueFlowFixpointCacheStats, error) {
+) (interproc.Result, FixpointCacheStats, error) {
 	if cache == nil && store == nil {
 		program := valueflow.BuildProgram(effects, sources, sinks)
-		components := partitionValueFlowProgram(program)
-		return interproc.SolvePartitioned(program, limits), ValueFlowFixpointCacheStats{
+		components := partitionProgram(program)
+		return interproc.SolvePartitioned(program, limits), FixpointCacheStats{
 			ComponentCount:      len(components),
 			AssembledComponents: len(components),
 		}, nil
 	}
 	if cache == nil {
-		cache = NewValueFlowFixpointCache()
+		cache = NewFixpointCache()
 	}
 
-	components := partitionValueFlowSnapshot(effects, versions, sources, sinks)
+	components := partitionSnapshot(effects, versions, sources, sinks)
 	keyed := make([]valueFlowComponentProgram, 0, len(components))
 	for _, component := range components {
 		keyed = append(keyed, valueFlowComponentProgram{key: component.key})
 	}
-	durableReused, err := hydrateValueFlowFixpointCache(ctx, keyed, cache, store)
+	durableReused, err := hydrateFixpointCache(ctx, keyed, cache, store)
 	if err != nil {
-		return interproc.Result{}, ValueFlowFixpointCacheStats{}, err
+		return interproc.Result{}, FixpointCacheStats{}, err
 	}
 
-	stats := ValueFlowFixpointCacheStats{
+	stats := FixpointCacheStats{
 		ComponentCount: len(components),
 		DurableReused:  durableReused,
 	}
@@ -76,7 +76,7 @@ func SolveValueFlowSnapshotIncrementalDurable(
 			}
 			program := components[i].program(effects)
 			assembled[i] = true
-			result := boundedValueFlowComponentResult(
+			result := boundedComponentResult(
 				interproc.Solve(program, interproc.Limits{MaxFindings: math.MaxInt}),
 				limits,
 			)
@@ -110,11 +110,11 @@ func SolveValueFlowSnapshotIncrementalDurable(
 		}
 		if len(entries) > 0 {
 			if err := store.StoreValueFlowFixpointComponents(ctx, entries); err != nil {
-				return interproc.Result{}, ValueFlowFixpointCacheStats{}, err
+				return interproc.Result{}, FixpointCacheStats{}, err
 			}
 		}
 	}
-	return capValueFlowFindingsWithOverflow(findings, limits, overflow), stats, nil
+	return capFindingsWithOverflow(findings, limits, overflow), stats, nil
 }
 
 type valueFlowSnapshotComponent struct {
@@ -134,13 +134,13 @@ func (c valueFlowSnapshotComponent) program(effects map[summary.FunctionID]summa
 	return valueflow.BuildProgram(componentEffects, c.sources, c.sinks)
 }
 
-func partitionValueFlowSnapshot(
+func partitionSnapshot(
 	effects map[summary.FunctionID]summary.Effects,
 	versions map[summary.FunctionID]string,
 	sources []interproc.Source,
 	sinks []interproc.Sink,
 ) []valueFlowSnapshotComponent {
-	uf := newValueFlowUnionFind()
+	uf := newUnionFind()
 	addFunction := func(id summary.FunctionID) {
 		if id != "" {
 			uf.add(valueFlowFunctionPort(id))
@@ -216,7 +216,7 @@ func partitionValueFlowSnapshot(
 	for root := range byRoot {
 		roots = append(roots, root)
 	}
-	sortValueFlowPorts(roots)
+	sortPorts(roots)
 
 	out := make([]valueFlowSnapshotComponent, 0, len(roots))
 	for _, root := range roots {
@@ -243,25 +243,25 @@ func valueFlowSnapshotComponentKey(
 		b.WriteString(versions[id])
 		b.WriteByte('\n')
 	}
-	for _, edge := range sortedValueFlowEdges(valueFlowSnapshotComponentEdges(component, effects)) {
+	for _, edge := range sortedEdges(valueFlowSnapshotComponentEdges(component, effects)) {
 		b.WriteString("edge:")
-		writeValueFlowPort(&b, edge.From)
+		writePort(&b, edge.From)
 		b.WriteString("->")
-		writeValueFlowPort(&b, edge.To)
+		writePort(&b, edge.To)
 		b.WriteByte('\n')
 	}
-	for _, source := range sortedValueFlowSources(component.sources) {
+	for _, source := range sortedSources(component.sources) {
 		b.WriteString("source:")
-		writeValueFlowPort(&b, source.Port)
+		writePort(&b, source.Port)
 		b.WriteByte('|')
 		b.WriteString(source.Kind)
 		b.WriteByte('|')
 		b.WriteString(source.Label)
 		b.WriteByte('\n')
 	}
-	for _, sink := range sortedValueFlowSinks(valueFlowSnapshotComponentSinks(component, effects)) {
+	for _, sink := range sortedSinks(valueFlowSnapshotComponentSinks(component, effects)) {
 		b.WriteString("sink:")
-		writeValueFlowPort(&b, sink.Port)
+		writePort(&b, sink.Port)
 		b.WriteByte('|')
 		b.WriteString(sink.Kind)
 		b.WriteByte('|')
@@ -332,6 +332,6 @@ func valueFlowReturnPort(id summary.FunctionID) interproc.Port {
 	return interproc.Port{Func: interproc.FunctionID(id), Slot: interproc.Slot{Kind: interproc.SlotReturn}}
 }
 
-func sortValueFlowPorts(ports []interproc.Port) {
+func sortPorts(ports []interproc.Port) {
 	sort.Slice(ports, func(i, j int) bool { return valueFlowPortLess(ports[i], ports[j]) })
 }

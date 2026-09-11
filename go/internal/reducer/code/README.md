@@ -7,8 +7,8 @@ directory owns no runtime behavior. Each child is its own Go package:
 | Child | Package | Owns |
 | --- | --- | --- |
 | `call/` | `call` (imported as `codecall`) | Code-call extraction, per-language resolvers, the code-entity index, and code-call shared-intent rows |
-| `taint/` | `codetaint` | Code taint and interprocedural evidence materialization and projected-edge backfills |
-| `value/` | `valueflow` | Value-flow fixpoint program assembly, component cache, cloud-sink loading, backfill state marker |
+| `taint/` | `taint` | Code taint and interprocedural evidence materialization and projected-edge backfills |
+| `value/` | `value` | Value-flow fixpoint program assembly, component cache, cloud-sink loading, backfill state marker |
 | `shell/` | `shell` | Shell-exec fact extraction, materialization, and shared-intent row construction for `Function-[:EXECUTES_SHELL]->ShellCommand` |
 | `function/` | `function` (documentation namespace; see `code/function/README.md`) | Parents `function/summary/`, the durable value-flow function-summary persistence family |
 
