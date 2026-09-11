@@ -20,8 +20,10 @@
 //
 //   - The cloud-sink catalog (sink_catalog.go): the closed set of sink kinds and
 //     the graph relationship + target label that qualifies a node as reaching
-//     each kind. SinkCatalogVersion content-hashes the catalog so a curated edit
-//     trips downstream re-evaluation (the taintModelVersion discipline).
+//     each kind. SinkCatalogVersion content-hashes the catalog, Provenance
+//     included, so every curated edit is a deliberate, pinned version bump that
+//     a findings cache can key on (the taintModelVersion discipline). No
+//     runtime consumer keys on it yet.
 //
 //   - The taint-source catalog (source_catalog.go): the closed set of
 //     untrusted-input entry points, classified from the parser's existing

@@ -36,21 +36,15 @@ bounded tracer (a later slice, in `internal/query`) consumes these catalogs.
   tracer reports it `unresolved`.
 - **Conservative predicates** — a missing target property fails the predicate
   (`predicatesSatisfied`). Never treat absence as a match.
-- **Three Provenance paths are knowingly stale — do NOT repoint any of them on
-  their own.** `sink_catalog.go`'s `Kind: SinkIAMPrivilegedAction` /
-  `Relationship: "CAN_ESCALATE_TO"` spec -- three specs share that Kind, so the
-  relationship is what identifies it -- cites
-  `reducer/iam_escalation_materialization.go`, which #6061 moved to
-  `reducer/iamescalation/`. `sink_catalog.go`'s `Kind: SinkInternetEndpoint`
-  spec cites `reducer/security_group_reachability.go`, which #6061 moved to
-  `reducer/secgroup/`. `hashSinkSpecs` serializes `Provenance` into
-  `SinkCatalogVersion`, so correcting either string invalidates every cached
-  reachability finding. All three stale paths -- these two and the
-  `SinkSQLTable` / `QUERIES_TABLE` spec's -- are tracked in #6547, and the fix
-  belongs in a change that bumps the catalog version deliberately, with this
-  package's owner.
 - **Provenance required** — every graph-backed spec cites the reducer/graph file
-  that authors its edge, verified against the real materializer.
+  that authors its edge, verified against the real materializer. Paths are
+  relative to `go/internal/`, and `TestSinkCatalogProvenancePathsExist` fails
+  when any cited `.go` file does not exist. A reducer package move that strands
+  a path therefore fails this package's tests; repoint the string to the file
+  that now holds the cited edge (if a family was split, the half with the edge,
+  not the half that kept the filename) and re-pin `sinkCatalogVersionGolden`.
+  `hashSinkSpecs` serializes `Provenance`, so every repoint is a version bump.
+  #6547 did the last one, for three paths #6061 stranded.
 - **Deterministic content hash** — `SinkCatalogVersion` sorts before hashing so
   reordering equivalent entries does not churn the version, but any field change
   does. `sinkCatalogVersionGolden` is pinned; bump it deliberately.
