@@ -10,7 +10,7 @@
 // routes.go rather than joined again in openapi/spec.go; do not add a
 // second, separate concatenation of it there or the route doubles in the
 // published document. Routes and deploymentConfigInfluence both import
-// openapi/schema for schema.ImpactK8sResourceLimits; Routes also uses
+// K8sResourceLimits from this package's k8s_resource_limits.go; Routes also uses
 // schema.ImpactRuntimeTopologyLimits and schema.EvidenceBoundaries.
 //
 // This package holds route-fragment data only, no handler logic. It MUST

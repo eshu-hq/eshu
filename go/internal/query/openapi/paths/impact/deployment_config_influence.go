@@ -3,10 +3,6 @@
 
 package impact
 
-import (
-	"github.com/eshu-hq/eshu/go/internal/query/openapi/schema"
-)
-
 const deploymentConfigInfluence = `
     "/api/v0/impact/deployment-config-influence": {
       "post": {
@@ -75,7 +71,7 @@ const deploymentConfigInfluence = `
                         "ordering": {"type": "array", "items": {"type": "string"}}
                       }
                     },
-` + schema.ImpactK8sResourceLimits + `
+` + K8sResourceLimits + `
                     "coverage": {
                       "type": "object",
                       "properties": {

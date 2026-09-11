@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package schema
+package impact
 
-// ImpactK8sResourceLimits is the shared OpenAPI schema fragment spliced into
+// K8sResourceLimits is the shared OpenAPI schema fragment spliced into
 // every path fragment that references it, so those routes document one
 // identical shape rather than drifting copies.
-const ImpactK8sResourceLimits = `
+const K8sResourceLimits = `
                     "k8s_resource_limits": {
                       "type": "object",
                       "description": "Deterministic bound and sentinel completeness metadata for k8s_resources after content and deployment-source rows are merged and deduplicated.",

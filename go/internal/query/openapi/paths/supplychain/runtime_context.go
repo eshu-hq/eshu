@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package schema
+package supplychain
 
-// SupplyChainRuntimeContext keeps the list and explain response
+// RuntimeContext keeps the list and explain response
 // contracts identical without relying on permissive additional properties.
-const SupplyChainRuntimeContext = `{
+const RuntimeContext = `{
   "type": "object",
   "description": "Read-time-resolved runtime context (#5746). Workloads, services, deployments, and catalog refs are current repository mappings. Environment corroboration additionally confirms already-visible finding environment names against current accepted correlations for the finding's exact subject digest, mirroring the reducer's strong digest match across builder/deployer repository seams; it is artifact deployment context, not repository ownership. Populated on findings list and impact explain responses; the transformed investigation packet omits it. truth_basis is always read_time_resolved. The workload_id/service_id/environment filters use current active repository mappings (#5747); stale baked values cannot satisfy them.",
   "properties": {

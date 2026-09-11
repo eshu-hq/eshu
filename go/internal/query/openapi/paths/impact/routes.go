@@ -229,7 +229,7 @@ const Routes = `
                     "uncorrelated_cloud_resources": {"type": "array", "description": "CloudResource candidates from bounded free-text or deployment-config evidence that do not have a materialized workload-to-cloud relationship. All candidates expose candidate_status and missing_relationship. Deployment-config candidates are globally ordered by name and canonical ID before the response bound is applied. Deployment-config candidates expose match_basis; free-text candidate_status can be uncorrelated, ambiguous_anchor, stale_anchor, or weak_anchor.", "items": {"type": "object"}},
                     "uncorrelated_cloud_resources_truncated": {"type": "boolean", "description": "Present and true when candidate discovery was incomplete because the returned list was capped or deployment-config evidence or anchor input was truncated; additional candidates may exist even when no rows were returned."},
                     "k8s_resources": {"type": "array", "items": {"type": "object"}},
-` + schema.ImpactK8sResourceLimits + `
+` + K8sResourceLimits + `
                     "image_refs": {"type": "array", "items": {"type": "string"}},
                     "image_registry_truth": {"type": "array", "items": {"type": "object"}},
                     "k8s_relationships": {"type": "array", "items": {"type": "object"}},

@@ -29,8 +29,8 @@ Layout:
 - `suppression_mutation.go` — `suppressionMutation`: operator-authored
   vulnerability suppressions.
 
-`impact_findings.go` and `impact_explain.go` import `openapi/schema` for
-`SupplyChainRuntimeContext`, the read-time-resolved runtime context fragment
+`impact_findings.go` and `impact_explain.go` both reference `RuntimeContext`
+from this package's `runtime_context.go`, the read-time-resolved fragment
 also consumed elsewhere in the components block — see
 `openapi/schema/README.md` for why that fragment lives outside this
 package. No other file here imports `openapi/schema`.
