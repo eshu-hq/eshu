@@ -47,15 +47,15 @@ import (
 // source-grep tests in cmd/reducer/neo4j_wiring_test.go.
 //
 // SelectPartitionBatch's real implementation moved to
-// intents/shared/worker/worker.go (issue #6061); this file's own
+// intents/shared/worker/process.go (issue #6061); this file's own
 // SelectPartitionBatch is now a thin forwarder, so the assertion reads the
 // worker package's source instead.
 func TestSelectPartitionBatchFiltersBeforeDeduping(t *testing.T) {
 	t.Parallel()
 
-	src, err := os.ReadFile("intents/shared/worker/worker.go")
+	src, err := os.ReadFile("intents/shared/worker/process.go")
 	if err != nil {
-		t.Fatalf("read intents/shared/worker/worker.go: %v", err)
+		t.Fatalf("read intents/shared/worker/process.go: %v", err)
 	}
 
 	body := selectPartitionBatchBody(t, string(src))
