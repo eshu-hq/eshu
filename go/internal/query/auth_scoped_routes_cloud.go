@@ -163,7 +163,7 @@ func scopedRelationshipEdgesRoute(r *http.Request) bool {
 
 // scopedRepositoriesByLanguageRoute reports whether the request targets the
 // by-language repository readback. listRepositoriesByLanguage
-// (repository_language_inventory.go) binds content_files.repo_id to
+// (repository/language_inventory.go) binds content_files.repo_id to
 // AllowedRepositoryIDs/AllowedScopeIDs when scoped (ContentReader,
 // content_reader_language_inventory.go) and returns an empty page without a
 // query for an empty-grant scoped caller.
@@ -173,7 +173,7 @@ func scopedRepositoriesByLanguageRoute(r *http.Request) bool {
 
 // scopedRepositoryLanguageInventoryRoute reports whether the request targets
 // the aggregate language inventory. getRepositoryLanguageInventory
-// (repository_language_inventory.go) binds content_files.repo_id to
+// (repository/language_inventory.go) binds content_files.repo_id to
 // AllowedRepositoryIDs/AllowedScopeIDs when scoped (ContentReader,
 // content_reader_language_inventory.go) and returns an empty page without a
 // query for an empty-grant scoped caller.

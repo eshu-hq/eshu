@@ -113,7 +113,7 @@ func (s nonFilteringInfrastructureContentStore) ListRepoEntitiesByTypes(_ contex
 // infrastructureTruncated=true from the content read must not survive into
 // limitations alongside repository.InfrastructureReadDegradedReason when the graph
 // fallback ALSO fails. The two reasons assert mutually exclusive facts about
-// the SAME read (repository_infrastructure_degrade.go,
+// the SAME read (repository/infrastructure_degrade.go,
 // repository.InfrastructureTruncatedReason's doc comment): a failed read has no rows to
 // bound, and a bounded read did not fail. Before this fix, the graph-read
 // error branch appended repository.InfrastructureReadDegradedReason but never reset

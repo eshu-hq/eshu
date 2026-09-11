@@ -13,20 +13,20 @@
 identity and page-shaping reads for the repository handler family.
 
 - `ListPage`, `ListPageFromRequest`, `ListResponse`, `PageRepositoryMaps` —
-  bounded list-page shaping. Callers: `repository/repository.go`,
-  `repository/repository_stats_limits.go`,
-  `repository/repository_language_inventory.go`.
+  bounded list-page shaping. Callers: `repository/handler.go`,
+  `repository/stats_limits.go`,
+  `repository/language_inventory.go`.
 - `QueryRepositoryNamesByID` — graph name lookup by repository id. Callers:
   `impacttrace/deployment_trace_enrichment_support.go`.
 - `Ref`, `Refs`, `RefsDefaultBranch`, `RefEntry`,
   `ValidateSelectedRepositoryRef` — ref/branch resolution. Callers:
-  `repository/repository_branches.go`, `repository/repository_content.go`,
-  `repository/repository_tree.go`.
+  `repository/branches.go`, `repository/content.go`,
+  `repository/tree.go`.
 - `RefPageCursor`, `EncodeRepositoryRefPageCursor`/
   `DecodeRepositoryRefPageCursor`, `RefSortKey`, `RefKeyLess`,
   `SortRepositoryRefsForPaging`, `RefPageWindow`, `RefWindowEntries`,
   `RefsContainTag` — the cursor-paged branches/tags stream (#5503). Callers:
-  `repository/repository_branches.go`.
+  `repository/branches.go`.
 
 ## Invariants
 

@@ -152,7 +152,7 @@ func (s *limitCapturingContentStore) ListRepoEntitiesByTypes(_ context.Context, 
 // about what the STORE returned. But that same design leaves the PROBE itself
 // -- the +1 that makes overflow detectable in the first place -- with no
 // coverage: reverting repositoryInfrastructureEntityLimit+1 back to
-// repositoryInfrastructureEntityLimit in repository_infrastructure.go
+// repositoryInfrastructureEntityLimit in infrastructure.go
 // reintroduces the exact silent-cap bug this fix exists to close, and every
 // other test in this package still passes, because none of them observe the
 // requested limit, only the returned truncated bool. This test closes that

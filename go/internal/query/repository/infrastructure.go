@@ -168,7 +168,7 @@ func QueryRepoInfrastructureFromContent(ctx context.Context, content querycontra
 // truncating, so a HEALTHY read that lands past the bound (more rows exist
 // beyond it) is disclosed on either path. The
 // read requests repositoryInfrastructureEntityLimit+1 rows (P3 review
-// follow-up, matching repository_deployment_evidence.go's
+// follow-up, matching deployment_evidence.go's
 // queryRepoDeploymentEvidenceDirection idiom) so the returned bool reports
 // EXACT truncation (len(rows) > limit) instead of the ambiguous
 // len(rows) == limit check, which cannot distinguish "exactly limit entities

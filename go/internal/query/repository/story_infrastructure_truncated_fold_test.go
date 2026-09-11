@@ -24,7 +24,7 @@ import (
 // answer_metadata.partial_reasons but never flipped "truncated" itself, the
 // same affirmative-false-claim shape #5764 exists to remove from the story
 // rows themselves. This proves the chosen fix: getRepositoryStory
-// (repository.go) now ORs the infrastructure panel's own truncation into the
+// (handler.go) now ORs the infrastructure panel's own truncation into the
 // top-level field. The fake graph reader returns few workload rows (well
 // under repositoryStoryStringRowLimit, so storyRowsTruncatedReason must NOT
 // fire) but repositoryInfrastructureEntityLimit+1 infrastructure rows (the

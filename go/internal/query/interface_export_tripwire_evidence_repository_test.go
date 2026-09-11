@@ -185,7 +185,7 @@ func (s *fakeRepositoryRelationshipReadModelTripwireStore) RepositoryRelationshi
 // content.(repositoryRelationshipReadModelStore) assertion resolves to a
 // real implementer rather than silently falling back to the three separate
 // Neo4j queries (queryRepoDependencies, queryRepoRelationshipOverview,
-// queryRepoConsumers) repository_context.go uses when this read model is
+// queryRepoConsumers) repository/context.go uses when this read model is
 // unavailable.
 func TestLoadRepositoryRelationshipReadModelUsesReadModelFastPath(t *testing.T) {
 	t.Parallel()

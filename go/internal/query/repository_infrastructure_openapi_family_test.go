@@ -62,7 +62,7 @@ var repositoryInfrastructureDescriptionPattern = regexp.MustCompile(
 // family token is derived from the type name itself
 // (repositoryInfrastructureTypeFamily), with one documented alias
 // (K8s -> Kubernetes). The three prose copies this cannot reach --
-// repository_infrastructure.go's doc comment,
+// repository/infrastructure.go's doc comment,
 // docs/public/reference/http-api/repositories-ingesters-bundles.md, and
 // docs/public/reference/telemetry/graph-read-safety.md -- stay a known,
 // disclosed gap; grep them by hand when this list changes (#5764 round-9

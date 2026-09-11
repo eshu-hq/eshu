@@ -16,7 +16,7 @@ import (
 // RepositoryRelationshipReadModel is the Postgres read-model fast path for a
 // repository's resolved relationship rows and derived consumers, hydrated
 // from resolved_relationships so API reads avoid the incoming-fanout graph
-// traversal repository_context.go otherwise runs as three separate Neo4j
+// traversal repository/context.go otherwise runs as three separate Neo4j
 // queries (queryRepoDependencies, queryRepoRelationshipOverview,
 // queryRepoConsumers).
 //

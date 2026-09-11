@@ -94,7 +94,7 @@ type ContentStore interface {
 	// identical to the pre-#5167 query). When allScopes is false, rows MUST be
 	// restricted to allowedRepositoryIDs/allowedScopeIDs so a scoped caller
 	// never observes another tenant's repository or language coverage; the
-	// query handler (repository_language_inventory.go) short-circuits to an
+	// query handler (repository/language_inventory.go) short-circuits to an
 	// empty page before calling these methods at all when a scoped caller
 	// holds no grants, matching the #5137 LiveActivityStore precedent.
 	CountRepositoriesByLanguage(

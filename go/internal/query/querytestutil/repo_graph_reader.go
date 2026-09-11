@@ -128,14 +128,14 @@ func StoryEnvelopeGraphRows(
 }
 
 // StoryWorkloadNamesCypherFragment uniquely identifies
-// queryRepositoryStoryWorkloadNames's Cypher (repository_story_counts.go)
+// queryRepositoryStoryWorkloadNames's Cypher (repository/story_counts.go)
 // among every other graph read issued by getRepositoryStory. It moved here
 // for #6060 lane B B3 because the infrastructure-truncated fold test moved to
 // the repository family package while the rows-truncated test stays in root.
 const StoryWorkloadNamesCypherFragment = "RETURN DISTINCT w.name AS workload_name"
 
 // InfrastructureGraphReadCypherFragment uniquely identifies
-// queryRepoInfrastructureFromGraph's Cypher (repository_infrastructure.go)
+// queryRepoInfrastructureFromGraph's Cypher (repository/infrastructure.go)
 // among every other graph read issued by getRepositoryContext/getRepositoryStory.
 // It moved here for #6060 lane B B3 because the infrastructure-truncated fold
 // test moved to the repository family package while seven sibling tests stay

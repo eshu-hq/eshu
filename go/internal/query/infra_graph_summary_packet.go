@@ -264,7 +264,7 @@ func (h *InfraHandler) graphSummaryRelationshipCounts(ctx context.Context, param
 }
 
 // graphSummaryRepoEcosystemMap returns the repo-anchored structural counts using
-// the same narrow count shapes proven by repository_context_counts.go.
+// the same narrow count shapes proven by repository/context_counts.go.
 func (h *InfraHandler) graphSummaryRepoEcosystemMap(ctx context.Context, params map[string]any) (map[string]any, error) {
 	ecosystem := make(map[string]any, len(graphSummaryRepoEcosystemCounts)+1)
 	for _, entry := range graphSummaryRepoEcosystemCounts {

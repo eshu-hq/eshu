@@ -97,7 +97,7 @@ func postImpactEvidence(t *testing.T, path, body string, auth *AuthContext) stri
 
 // TestTraceDeploymentChainScopedFiltersCrossTenantDeploymentEvidence is the
 // #5167 W3 P0 mutation-check: removing filterDeploymentEvidenceRowsForAccess in
-// repository_deployment_evidence.go (or repository_deployment_evidence_read_model.go)
+// repository/deployment_evidence.go (or repository_deployment_evidence_read_model.go)
 // makes trace_deployment_chain serialize repo-b's deployment_evidence artifact
 // (and its artifact_lineage/provenance derivatives) to a caller granted only
 // repo-a. The all-scope control proves the row genuinely flows when unfiltered,

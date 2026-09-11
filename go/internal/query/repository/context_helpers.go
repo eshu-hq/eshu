@@ -306,7 +306,7 @@ func repositoryRelationshipEndpointAllowed(repoID, anchorRepoID string, access q
 // predicate to the FAR endpoint, and the deployable-unit merge
 // (mergeRepositoryDeployableUnitRelationships) folds in graph rows through the
 // unfiltered inner queryRepoRelationshipOverviewDirection. Filtering the merged
-// read model here, before repository_context.go derives any result[] field from
+// read model here, before context.go derives any result[] field from
 // it, closes all three emit sites at once: relationship_overview and the
 // legacy dependencies both derive from the filtered Relationships (anchor-aware
 // -- the grant-verified anchor endpoint stays, the far endpoint must be in

@@ -19,7 +19,7 @@ import (
 // relationships[].target_id/target_name and relationship_overview) and an
 // INCOMING DEPENDS_ON from repo-b (leaks via consumers[].id/name and
 // relationship_overview). Neither the read-model SQL nor the emit sites in
-// repository_context.go filter the related endpoint by grant (#5167 W3 P0,
+// repository/context.go filter the related endpoint by grant (#5167 W3 P0,
 // fourth vector).
 func crossTenantRelationshipReadModel() RepositoryRelationshipReadModel {
 	return RepositoryRelationshipReadModel{
@@ -56,7 +56,7 @@ func crossTenantRelationshipReadModel() RepositoryRelationshipReadModel {
 // returns ONE cross-tenant CORRELATES_DEPLOYABLE_UNIT supplement edge (repo-a ->
 // repo-c) from queryRepoDeployableUnitRelationshipOverview, which calls the
 // UNFILTERED inner queryRepoRelationshipOverviewDirection and is merged into the
-// read model at repository_context.go. Every other graph query returns no rows.
+// read model at repository/context.go. Every other graph query returns no rows.
 func crossTenantDeployableUnitSupplementGraph(t *testing.T) fakeRepoGraphReader {
 	t.Helper()
 	return fakeRepoGraphReader{

@@ -44,7 +44,7 @@ func BuildRepositoryStoryResponse(
 // both the top-level limitations field and the answer metadata. storyRowsTruncated
 // (P1 review follow-up to #5764) reports whether the workload_names/
 // platform_types/languages graph reads landed past
-// repositoryStoryStringRowLimit, OR'd by the caller (repository.go, P3 review
+// repositoryStoryStringRowLimit, OR'd by the caller (handler.go, P3 review
 // follow-up) with the infrastructure panel's own truncation so either bound
 // being exceeded sets the response's top-level "truncated" field; this makes
 // attachAnswerMetadata's BuildAnswerMetadata (which reads data["truncated"]

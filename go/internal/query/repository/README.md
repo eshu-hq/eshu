@@ -27,7 +27,7 @@ lives in `repositoryartifacts`; ref resolution and page shaping live in
 `repository/readmodel`; shared read-model loaders live in `querycontract`.
 This package imports `repositoryartifacts` and `repository/readmodel`, never
 the reverse, and no package here imports the query root (the root cycles
-back through `handler.go` and `repository_alias.go`).
+back through root `handler.go` and `repository_alias.go`).
 
 The staying root package keeps thin aliases and forwarders
 (`repository_alias.go`, `repository_compat.go`) plus the ContentReader

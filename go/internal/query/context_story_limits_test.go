@@ -284,7 +284,7 @@ func requireContextResultLimits(t *testing.T, data map[string]any, wantTool, wan
 // ListRepoEntitiesByTypes -- all safe no-op reads, since this test seeds no
 // files, entities, or hostnames for them to find -- and overrides ONLY
 // ListRepoEntitiesByTypes, the type-filtered read
-// queryRepoInfrastructureFromContent (repository_infrastructure.go) actually
+// queryRepoInfrastructureFromContent (repository/infrastructure.go) actually
 // calls (P1 review follow-up to #5764; the untyped ListRepoEntities is no
 // longer on this path). Unlike fakePortContentStore's own
 // ListRepoEntitiesByTypes (which self-clamps to the caller's limit, mirroring

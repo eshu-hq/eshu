@@ -19,7 +19,7 @@ import (
 )
 
 // TestGetRepositoryContextInfrastructureDegradeAttributesFailure covers
-// repository_infrastructure.go's queryRepoInfrastructureFromGraph
+// repository/infrastructure.go's queryRepoInfrastructureFromGraph
 // (#5764 site 4, ATTRIBUTED-DEGRADE): infrastructure is a genuine auxiliary
 // panel, so a bounded graph-read failure keeps the 200 response but must make
 // the degradation visible rather than silently returning an empty

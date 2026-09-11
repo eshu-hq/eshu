@@ -25,7 +25,7 @@ const (
 // response renders as a bounded empty page without a query, mirroring the
 // #5137 LiveActivityStore precedent. A scoped caller WITH grants only ever
 // sees repositories/counts intersected with AllowedRepositoryIDs/
-// AllowedScopeIDs (repository_language_inventory.go passes the grant through
+// AllowedScopeIDs (language_inventory.go passes the grant through
 // to querycontract.ContentStore; see its interface doc comment in ports.go).
 // ListRepositoriesByLanguage lists repositories by language. It forwards to
 // listRepositoriesByLanguage; exported for #6060 so root tests in package

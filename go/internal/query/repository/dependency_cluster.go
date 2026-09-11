@@ -51,7 +51,7 @@ type repositoryDependencyEdge struct {
 // distribution. The direction is what matters here.
 //
 // The guard against someone removing these labels is the focused string tests
-// in repository_dependency_cluster_test.go (:151 and :176), which assert
+// in dependency_cluster_test.go (:151 and :176), which assert
 // "(s:Repository)-[:DEPENDS_ON]->(t:Repository)" verbatim. The queryplan
 // validator's unlabeledMatchPattern check does NOT gate this query:
 // validateCypherEntry runs only for registered manifest entries, and

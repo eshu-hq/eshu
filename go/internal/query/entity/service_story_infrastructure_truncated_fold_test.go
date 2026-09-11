@@ -36,7 +36,7 @@ import (
 // stayed false even though the infrastructure evidence was clipped. This
 // mirrors the already-fixed repository-story sibling
 // (TestGetRepositoryStoryInfrastructureTruncatedSetsTopLevelTruncated,
-// repository_story_infrastructure_truncated_fold_test.go): the fake graph
+// repository/story_infrastructure_truncated_fold_test.go): the fake graph
 // reader returns repositoryInfrastructureEntityLimit+1 infrastructure rows so
 // this test isolates the infrastructure-only truncation source, and drives
 // the real handler through its mounted route rather than a helper.

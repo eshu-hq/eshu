@@ -12,7 +12,7 @@ import (
 )
 
 // repositoryContextCountCypherFragment uniquely identifies the summary-count
-// queries (repository_context_counts.go) among every other graph read issued
+// queries (repository/context_counts.go) among every other graph read issued
 // by getRepositoryContext/getRepositoryStory. queryRepositoryFileCount runs
 // first in both queryRepositoryContextCounts and
 // queryRepositoryStoryGraphSummary and aborts the whole aggregate on error,
@@ -23,7 +23,7 @@ import (
 const repositoryContextCountCypherFragment = "RETURN count(DISTINCT f) AS count"
 
 // TestGetRepositoryContextSummaryCountsMapsGraphReadAvailabilityErrors covers
-// repository_context_counts.go's queryRepositoryContextCount, reached from
+// repository/context_counts.go's queryRepositoryContextCount, reached from
 // getRepositoryContext's "summary_counts" stage (#5764 site 1). Before the
 // fix, a bounded graph-read error there was indistinguishable from a
 // genuine-zero count: queryRepositoryContextCount folded `err != nil` into
@@ -67,7 +67,7 @@ func TestGetRepositoryContextSummaryCountsMapsGraphReadAvailabilityErrors(t *tes
 }
 
 // TestGetRepositoryStoryGraphSummaryMapsGraphReadAvailabilityErrors covers
-// repository_story_counts.go's queryRepositoryFileCount (via
+// repository/story_counts.go's queryRepositoryFileCount (via
 // queryRepositoryStoryGraphSummary, which runs it first and aborts the whole
 // summary on error), reached from getRepositoryStory's "graph_summary" stage
 // (#5764 site 2). The fake below matches
@@ -108,7 +108,7 @@ func TestGetRepositoryStoryGraphSummaryMapsGraphReadAvailabilityErrors(t *testin
 }
 
 // TestGetRepositoryStoryStringRowsMapsGraphReadAvailabilityErrors covers
-// repository_story_counts.go's queryRepositoryStoryStringRows itself (#5764
+// repository/story_counts.go's queryRepositoryStoryStringRows itself (#5764
 // site 2), distinct from the shared queryRepositoryFileCount path exercised by
 // TestGetRepositoryStoryGraphSummaryMapsGraphReadAvailabilityErrors above: the
 // file-count query succeeds here, isolating the languages string-rows read
@@ -146,7 +146,7 @@ func TestGetRepositoryStoryStringRowsMapsGraphReadAvailabilityErrors(t *testing.
 }
 
 // TestGetRepositoryContextDeploymentEvidenceMapsGraphReadAvailabilityErrors
-// covers repository_deployment_evidence.go's queryRepoDeploymentEvidenceDirection
+// covers repository/deployment_evidence.go's queryRepoDeploymentEvidenceDirection
 // (#5764 site 3), reached from getRepositoryContext's "deployment_evidence"
 // stage. Before the fix, queryRepoDeploymentEvidenceDirection always swallowed
 // its reader.Run error into a "no truncation, no rows" return, so

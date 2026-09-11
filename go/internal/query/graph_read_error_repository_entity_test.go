@@ -12,7 +12,7 @@ import (
 )
 
 // TestGetRepositoryStoryMapsGraphReadAvailabilityErrors covers
-// repository.go's getRepositoryStory repository_lookup RunSingle guard.
+// repository/handler.go's getRepositoryStory repository_lookup RunSingle guard.
 func TestGetRepositoryStoryMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {

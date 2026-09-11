@@ -31,7 +31,7 @@ const cloudInventoryWarningFlagRolloutGap = "account_alias_rollout_gap"
 // succeeded by the time this check runs, so a failure here degrades the
 // response (the disambiguation signal is simply absent) rather than failing
 // the whole request -- mirroring the existing content-store-coverage-error
-// precedent in repository_stats.go, which reports a distinct missing_evidence
+// precedent in repository/stats.go, which reports a distinct missing_evidence
 // value instead of aborting a request whose primary answer is already known.
 const cloudInventoryWarningFlagRolloutGapCheckFailed = "account_alias_rollout_gap_check_failed"
 

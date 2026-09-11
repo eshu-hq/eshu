@@ -19,19 +19,19 @@ import "context"
 // hit this bound on the graph-fallback path -- the read-model path in
 // repository_read_model_summary.go is unbounded (P1 review follow-up to
 // #5764): the story's workload_count and
-// platform_count fields (repository.go's "graph_summary" stage log,
-// repository_story.go's "%d workload(s) and %d platform signal(s)" narrative,
+// platform_count fields (handler.go's "graph_summary" stage log,
+// story.go's "%d workload(s) and %d platform signal(s)" narrative,
 // and buildRepositoryStory's own narrative sentence) are len() of these
 // bounded lists, NOT separate count() queries -- only file_count and
 // dependency_count come from the separate exact counts in
-// repository_context_counts.go. So a healthy read that lands on this bound
+// context_counts.go. So a healthy read that lands on this bound
 // must be disclosed the same way repositoryInfrastructureEntityLimit is
 // (storyRowsTruncatedReason below), or the story silently reports a
 // truncated list's length as if it were the exact total.
 const repositoryStoryStringRowLimit = 500
 
 // storyRowsTruncatedReason is the shared limitations/partial_reasons value
-// getRepositoryStory (repository.go) appends when a HEALTHY
+// getRepositoryStory (handler.go) appends when a HEALTHY
 // queryRepositoryStoryStringRows read (workload_names, platform_types, or
 // languages) landed past repositoryStoryStringRowLimit and was capped in Go
 // (P1 review follow-up to #5764). Mirrors infrastructureTruncatedReason's
@@ -191,7 +191,7 @@ func queryRepositoryStoryLanguages(
 // This bound is reachable for real repositories -- unlike the legacy
 // defensive-backstop framing this constant once carried, the story's
 // workload_count/platform_count fields are len() of these bounded lists, not
-// separate count() queries (repository_story_counts.go's
+// separate count() queries (story_counts.go's
 // repositoryStoryStringRowLimit doc comment) -- so a caller that discards the
 // truncated bool silently reports a truncated list's length as exact.
 //

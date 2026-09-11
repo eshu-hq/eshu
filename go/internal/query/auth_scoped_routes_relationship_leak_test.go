@@ -59,7 +59,7 @@ const crossTenantDependencyRepo = "repo-b"
 // leak on the /services/{name}/context and /workloads/{id}/context routes: a
 // scoped caller granted only repo-a, whose service is backed by repo-a, must
 // never see cross-tenant repo-b's name/id in dependencies[]. Removing the grant
-// filter from queryRepoDependencies (repository_context_helpers.go) turns the
+// filter from queryRepoDependencies (repository/context_helpers.go) turns the
 // scoped assertions red; the all-scope control proves the row genuinely flows
 // when unfiltered.
 func TestServiceAndWorkloadContextScopedFiltersCrossTenantDependency(t *testing.T) {

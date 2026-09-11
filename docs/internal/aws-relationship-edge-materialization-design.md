@@ -35,7 +35,7 @@ A deep read of the pipeline established two facts that shape the whole design:
    `AwsResource` node label, uniqueness constraint, or uid index in
    `go/internal/graph/schema.go`. The query layer references a `CloudResource`
    label speculatively (`internal/query/impact_resource_investigation.go`,
-   `repository_infrastructure.go`), but no writer ever creates it.
+   `repository/infrastructure.go`), but no writer ever creates it.
 
 The literal #805 ask — "materialize relationship facts as edges **between the
 canonical AWS resource nodes**" — therefore has an unstated hard prerequisite:

@@ -245,7 +245,7 @@ expect_pass "${language_inventory_repo}"
 
 # content_reader_language.go is the same class as the inventory handlers:
 # ListRepoFilesByLanguage is a pushed-down files-by-language read for the
-# repository-tree endpoint, called only from repository_tree.go, and
+# repository-tree endpoint, called only from repository/tree.go, and
 # execute_language_query never reaches it. It must NOT require a
 # language-query-dsl.md update either. Paired with query_missing_dsl_repo
 # above, which still expect_fails, so the carve-out is proven narrow rather
