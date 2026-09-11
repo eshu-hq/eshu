@@ -24,7 +24,7 @@ import (
 // FetchWorkloadContextForOperation (entity_workload_context.go) appends
 // repository.InfrastructureTruncatedReason to the workload context's "limitations", and
 // buildServiceIdentity/the dossier whitelist loop
-// (service_story_dossier.go's enrichServiceStoryDossierResponseWithContext)
+// (story_dossier.go's enrichServiceStoryDossierResponseWithContext)
 // copy that reason into answer_metadata.partial_reasons -- but before this
 // fix buildServiceResultLimitsWithContext computed result_limits.truncated
 // from endpoint/upstream/dependent/consumer counts only, never looking at

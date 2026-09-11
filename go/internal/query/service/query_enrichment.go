@@ -116,7 +116,7 @@ func EnrichServiceQueryContextWithOptions(
 		// provisioning_source_chains, so its truncated bool is the one
 		// disclosure signal all three fields need -- carried on
 		// workloadContext as *_truncated so BuildServiceDownstreamConsumers
-		// and buildServiceResultLimitsWithContext (service_story_dossier.go)
+		// and buildServiceResultLimitsWithContext (story_dossier.go)
 		// can report truncated: true even though every one of these lists
 		// stays well under serviceStoryItemLimit (50) on the default
 		// indirect-evidence search limit (25).

@@ -55,7 +55,7 @@ type mirroredServiceCorrelation struct {
 // the same shape grantMirroringChangedSince carries for the sibling route: the
 // fake does not merely record the filter it was handed, it applies the SAME
 // intersection listServiceCatalogCorrelationsQuery applies
-// (service_catalog_correlations.go, the $6 and $13/$14 arms), so a handler that
+// (catalog_correlations.go, the $6 and $13/$14 arms), so a handler that
 // stops passing the caller's grant resolves the other tenant's service here
 // exactly as it would in Postgres, and the assertions below fail.
 //
@@ -76,7 +76,7 @@ func (g *grantMirroringServiceOwnership) ListServiceCatalogCorrelations(
 ) ([]ServiceCatalogCorrelationRow, error) {
 	g.touched = true
 
-	// service_catalog_correlations.go: the same two guards, in the same order,
+	// catalog_correlations.go: the same two guards, in the same order,
 	// with the same messages the shipped store returns.
 	if !filter.HasScope() {
 		return nil, fmt.Errorf("scope_id, entity_ref, repository_id, service_id, workload_id, or owner_ref is required")

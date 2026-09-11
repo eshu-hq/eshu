@@ -17,7 +17,7 @@ flowchart LR
   A["Postgres content store\n(already indexed file text)"] --> B["contentrefs.Hostnames\ncontentrefs.ServiceNames"]
   B --> C["storage/postgres\ncontent_writer_references.go"]
   C --> D["Postgres reference\nlookup tables"]
-  D --> E["query/service_evidence.go\ncross-repo hostname queries"]
+  D --> E["query/service/query_evidence.go\ncross-repo hostname queries"]
 ```
 
 ## Ownership boundary

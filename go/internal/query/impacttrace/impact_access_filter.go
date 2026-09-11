@@ -90,7 +90,7 @@ type ProvisioningRepositoryCandidate struct {
 // fifth vector). queryProvisioningRepositoryCandidates anchors on the service's
 // own grant-verified repo and returns the FAR related repository with no grant
 // predicate, so a scoped caller must not see a cross-tenant candidate. Every
-// downstream field service_query_enrichment.go derives from these candidates
+// downstream field query_enrichment.go derives from these candidates
 // (dependents, consumer_repositories, provisioning_source_chains) is bound once
 // here, covering all three and every route that runs the enrichment
 // (service/workload context and story, /investigations/services/{name}, and

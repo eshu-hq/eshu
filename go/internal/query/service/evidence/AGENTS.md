@@ -16,15 +16,15 @@ holds every exported symbol.
   loosely-parsed YAML/JSON spec document without panicking on shape.
   Callers: the rest of this file's own extractors.
 - `OpenAPIRefFilePath` — resolves a `$ref` against its carrying spec file's
-  directory. Callers: `service/service_evidence_types.go`
+  directory. Callers: `service/query_evidence_types.go`
   (`buildSpecFileResolver`).
 - `ExtractDocsRoutes`, `LooksLikeDocsRoute` — sorted, de-duplicated
   docs-like route references quoted in content. Callers:
-  `service/service_docs_routes.go` (`extractDocsRoutes` wrapper),
+  `service/docs_routes.go` (`extractDocsRoutes` wrapper),
   `repository/repository_narrative_enrichment.go`.
 - `ExtractAPISpecEvidence`, `ExtractAPISpecEvidenceWithoutRefs` — summarize
   one candidate API spec file, with or without `$ref` resolution. Callers:
-  `service/service_evidence.go` (`extractAPISpecEvidence` wrapper),
+  `service/query_evidence.go` (`extractAPISpecEvidence` wrapper),
   `repository/repository_narrative_enrichment.go`.
 
 ## Invariants

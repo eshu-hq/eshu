@@ -286,9 +286,9 @@ func TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed(t *testing.
 // is the round-2 regression test for the same defect class the eshu-code-review
 // gate caught after TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed
 // landed: get_service_story's remaining container_image_identity boundary was
-// ALSO false. response["code_to_runtime_trace"] (service_story_overview.go:22,
+// ALSO false. response["code_to_runtime_trace"] (story_overview.go:25,
 // buildServiceCodeToRuntimeTrace) includes an image_package segment
-// (service_story_trace_path.go:94-121, serviceTraceImagePackageSegment) that
+// (story_trace_path.go:104-131, serviceTraceImagePackageSegment) that
 // embeds container-image-identity evidence — repository_id, identity_id,
 // identity_outcome, identity_strength, identity_evidence_fact_ids — read back
 // from workloadContext["supply_chain_evidence"]["image_package"]

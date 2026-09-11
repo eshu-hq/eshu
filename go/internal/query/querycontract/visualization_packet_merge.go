@@ -111,8 +111,8 @@ func firstVisualizationString(values []string) string {
 	return values[0]
 }
 
-// firstNonEmptyVisualizationString is a small, self-contained copy of root
-// package query's firstNonEmptyString (service_story_dossier.go). See
+// firstNonEmptyVisualizationString is a small, self-contained copy of this
+// package's FirstNonEmptyString (story_row_helpers.go). See
 // visualization_packet.go's cloneTruthEnvelope/appendVisualizationReason
 // comment for why this is a duplicate rather than an alias.
 func firstNonEmptyVisualizationString(values ...string) string {

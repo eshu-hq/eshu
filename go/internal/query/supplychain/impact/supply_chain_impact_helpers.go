@@ -142,9 +142,9 @@ func compactStrings(values []string) []string {
 }
 
 // firstNonEmptyString returns the first non-blank value.
-// Family-local copy of root package query's firstNonEmptyString
-// (service_story_dossier.go); see compactStrings for why it is copied.
-// MUST stay behavior-identical to its root source.
+// Family-local copy of querycontract.FirstNonEmptyString
+// (querycontract/story_row_helpers.go); see compactStrings for why it is
+// copied. MUST stay behavior-identical to its source.
 func firstNonEmptyString(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

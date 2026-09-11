@@ -12,7 +12,7 @@ import (
 )
 
 // TestBuildSpecFileResolverTreatsFragmentOnlyRefAsNoExternalFile is a PR #5933
-// review fix (Copilot, service_evidence_types.go:69). openAPIRefFilePath
+// review fix (Copilot, query_evidence_types.go:69). openAPIRefFilePath
 // returns "" for a fragment-only $ref such as "#/components/schemas/Widget"
 // (no external file, just an in-document JSON pointer). Before this fix,
 // buildSpecFileResolver's closure did not check for that empty result and

@@ -488,7 +488,7 @@ linters:
       - path: 'internal/query/repository/semantic_profile\.go'
         linters:
           - funlen
-      - path: 'internal/query/service/service_query_enrichment\.go'
+      - path: 'internal/query/service/query_enrichment\.go'
         linters:
           - funlen
       - path: 'internal/query/supplychain/supply_chain_impact_findings_handler\.go'

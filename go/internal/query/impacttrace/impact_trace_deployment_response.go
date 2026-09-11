@@ -70,7 +70,7 @@ func buildDeploymentTraceFields(serviceName string, workloadContext map[string]a
 	f.consumerRepositories = querycontract.MapSliceValue(workloadContext, "consumer_repositories")
 	f.provisioningSourceChains = querycontract.MapSliceValue(workloadContext, "provisioning_source_chains")
 	// #5720 round-2 P1-1: threads queryProvisioningRepositoryCandidates's
-	// truncated bool (set on workloadContext by service_query_enrichment.go)
+	// truncated bool (set on workloadContext by query_enrichment.go)
 	// onto the trace-deployment-chain response, mirroring
 	// uncorrelatedCloudResourcesTruncated below. That is exact for
 	// dependentsTruncated and provisioningSourceChainsTruncated. PR #5933

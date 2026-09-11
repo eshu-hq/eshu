@@ -82,7 +82,7 @@ buckets, `missing_environment` tallies, and compare-handler messages are
 | Path | Semantics |
 | --- | --- |
 | Graph joins (USES edge, exact match) | Case-sensitive string equality on the Cypher property. See documented follow-on below. |
-| Canonical alias compare | `environment.Canonical()` — trim+lowercase+alias. Used by `compare_evidence.go`, `service_contract_helpers.go`. |
+| Canonical alias compare | `environment.Canonical()` — trim+lowercase+alias. Used by `compare_evidence.go`, `service/contract_helpers.go`. |
 | EqualFold compare | Case-insensitive string equality, **not alias-aware** (`"production"` ≠ `"prod"`). Used by `deployment_config_influence.go:250` for row filtering. Follow-on, not migrated in this PR. |
 | Exact selector match | Case-sensitive equality (`i.environment = $environment`). Used by `service_workload_resolution.go:292-293` Cypher filters. A caller passing an alias (`"production"`) does not match a canonicalized graph value (`"prod"`). Follow-on, not migrated in this PR. |
 | Artifact-path token detection | Normalized (lowercase) token lookup via `environment.IsKnownToken`. |
@@ -104,8 +104,8 @@ not invent environment truth.
 | Consumer | Before | After | Classification |
 | --- | --- | --- | --- |
 | `canonicalEnvironmentName` (query/compare_evidence.go) | Inline alias loop | `environment.Canonical()` | Output-preserving |
-| `environmentAliases` (query/service_hostname_evidence.go) | Package-level var | `environment.Aliases()` | Output-preserving |
-| `canonicalEnvironmentAlias` (query/service_contract_helpers.go) | Calls `detectEnvironmentAliases` | Same logic, shared data | Output-preserving |
+| `environmentAliases` (query/querycontract/hostname_environment.go) | Package-level var | `environment.Aliases()` | Output-preserving |
+| `canonicalEnvironmentAlias` (query/service/contract_helpers.go) | Calls `detectEnvironmentAliases` | Same logic, shared data | Output-preserving |
 | `isKnownEnvironmentToken` (reducer/crossrepo/cross_repo_evidence_artifacts.go) | Inline switch | `environment.IsKnownToken()` | Output-preserving |
 | `isDeploymentEnvironmentToken` (query/repository_deployment_evidence_read_model.go) | Inline switch | `environment.IsKnownToken()` | Output-preserving |
 | `namespaceEnvironmentFallback` (reducer/projection_helpers.go) | Original-case return | `environment.Canonical()` return | Expected-delta: canonical case |

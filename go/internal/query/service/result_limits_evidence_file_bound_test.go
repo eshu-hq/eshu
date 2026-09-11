@@ -10,10 +10,10 @@ import (
 )
 
 // TestBuildServiceResultLimitsNamesTheEvidenceFileReadBound is a PR #5933
-// review fix (Codex, service_story_dossier.go:308).
+// review fix (Codex, story_dossier.go:308).
 // consumer_repositories_truncated can fire purely because the service
 // repository's own indexed-file list hit serviceEvidenceFileLimit
-// (service_evidence_types.go) -- a bound entirely separate from the 25-row
+// (query_evidence_types.go) -- a bound entirely separate from the 25-row
 // downstream_read_limit fan-out bound in the same block -- so a service with
 // fewer than 25 dependents/consumers can still report truncated: true for
 // that reason alone. Before this fix, result_limits exposed only

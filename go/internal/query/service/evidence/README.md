@@ -44,8 +44,8 @@ Baseline `origin/main` at the move vs this branch: `go test
 ./internal/query/...` passes with 0 failures; the extractor behavior is
 pinned by the root `query` and `repository` service-evidence, docs-routes,
 and narrative-enrichment suites, all exercising this leaf through its four
-importers (`service/service_evidence.go`, `service/service_docs_routes.go`,
-`service/service_evidence_types.go`,
+importers (`service/query_evidence.go`, `service/docs_routes.go`,
+`service/query_evidence_types.go`,
 `repository/repository_narrative_enrichment.go`) unchanged. The `#5720`
 round-10 resolver error semantics (read failure is an error, absent file is
 empty-with-nil-error) are covered by those suites and preserved verbatim.

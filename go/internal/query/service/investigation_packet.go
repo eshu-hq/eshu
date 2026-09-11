@@ -338,7 +338,7 @@ func serviceInvestigationCoverage(
 	// DefaultIndirectEvidenceSearchLimit (25) -- so a 40-dependent service
 	// reported "25 graph dependent(s)" with truncated: false, identical to the
 	// pre-fix behavior. The three *_truncated signals
-	// service/service_query_enrichment.go sets from
+	// service/query_enrichment.go sets from
 	// impacttrace.QueryProvisioningRepositoryCandidates are the only thing
 	// that makes that bound observable on this route.
 	upstreamTruncated := querycontract.BoolVal(workloadContext, "dependents_truncated") ||
@@ -352,11 +352,11 @@ func serviceInvestigationCoverage(
 		"evidence_family_count":            len(evidenceFamilies),
 		"result_limit":                     serviceStoryItemLimit,
 		"downstream_read_limit":            querycontract.BoundedTraceEnrichmentLimit(0),
-		// PR #5933 review fix (Codex, service_story_dossier.go:308 sibling):
+		// PR #5933 review fix (Codex, story_dossier.go:308 sibling):
 		// consumer_repositories_truncated (folded into upstreamTruncated
 		// above) can fire purely because the service repository's own
 		// indexed-file list hit serviceEvidenceFileLimit
-		// (service_evidence_types.go), a bound with no relation to
+		// (query_evidence_types.go), a bound with no relation to
 		// downstream_read_limit. Naming it here keeps this route's coverage
 		// summary honest about which bound fired, matching
 		// buildServiceResultLimitsWithContext's evidence_file_read_limit.

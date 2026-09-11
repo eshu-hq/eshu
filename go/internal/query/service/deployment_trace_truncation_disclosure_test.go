@@ -90,7 +90,7 @@ func TestQueryProvisioningRepositoryCandidatesDisclosesTruncation(t *testing.T) 
 }
 
 // TestBuildServiceDownstreamConsumersDisclosesUpstreamTruncation proves
-// BuildServiceDownstreamConsumers (service_story_dossier.go) reports
+// BuildServiceDownstreamConsumers (story_dossier.go) reports
 // truncated: true when the workload context carries a truncated signal from
 // the provisioning-candidate read, even though neither returned list is long
 // enough to exceed serviceStoryItemLimit (50) on its own -- the #5720

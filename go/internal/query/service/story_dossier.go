@@ -311,7 +311,7 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	// #5720 round-2 P1-1: same disclosure gap as BuildServiceDownstreamConsumers
 	// above -- the count-vs-serviceStoryItemLimit comparisons below can never
 	// fire on the default (25-row) indirect-evidence search limit, so the
-	// upstream *_truncated signals from service_query_enrichment.go are
+	// upstream *_truncated signals from query_enrichment.go are
 	// required to make a genuinely truncated read observable here.
 	upstreamTruncated := querycontract.BoolVal(workloadContext, "dependents_truncated") ||
 		querycontract.BoolVal(workloadContext, "consumer_repositories_truncated") ||
@@ -337,7 +337,7 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 		// provisioning_source_chains_truncated (pure candidatesTruncated),
 		// but consumer_repositories_truncated can now fire purely because the
 		// service repository's own indexed-file list hit
-		// serviceEvidenceFileLimit (service_evidence_types.go) -- a
+		// serviceEvidenceFileLimit (query_evidence_types.go) -- a
 		// 5,000-file bound with no relation to the 25-row fan-out, and one
 		// that can trip while graph_dependent_count/content_consumer_count
 		// both sit far under downstream_read_limit. Naming this second bound

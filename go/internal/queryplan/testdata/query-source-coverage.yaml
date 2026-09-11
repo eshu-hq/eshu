@@ -543,10 +543,10 @@ source_coverage:
     calls:
       - {symbol: "(GraphIAMGrantPostureStore).grantFlagCount", count: 1, non_hot: {class: keyed_support, source_sha256: aa2b4e233dbffc10c242654baec35ea14159689dd512524f8749dac337b7177f, key_bound: single_key, max_results: 1}}
       - {symbol: "(GraphIAMGrantPostureStore).groupedGrantCounts", count: 1, non_hot: {class: keyed_support, source_sha256: f452b7566e34debd3b7ff94eb21b4fc429e6908d11eadf7829d0ece682727245, key_bound: single_key, max_results: 32}}
-  - file: service/service_ingress_posture.go
+  - file: service/ingress_posture.go
     calls:
       - {symbol: "ingressPostureEdgeSet", count: 1, non_hot: {class: keyed_support, source_sha256: d10f641a0405f691b7f4235796b2f644cf0c12730314390fd7805c0fe87f1554, key_bound: bounded_key_batch, max_keys: 50, max_results: 50}}
-  - file: service/service_story_overview.go
+  - file: service/story_overview.go
     calls:
       - {symbol: "buildServiceDocumentationOverview", count: 1, non_hot: {class: keyed_support, source_sha256: 9fb48f96e392b7fcc0852fd80db9276460680b53f23a840f245bd804675dc3aa, key_bound: single_key, max_results: 1}}
   - file: entity/service_workload_resolution.go
