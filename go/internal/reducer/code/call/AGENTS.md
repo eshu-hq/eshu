@@ -1,8 +1,8 @@
 # call — agent instructions (issue #6061, #6609)
 
 This directory is the code-call dispatcher. The handler and the symbol-runtime
-builders moved to the sibling `materialization/` package (issue #6061); the
-seven code_call_projection_* runner files still stay in the reducer root.
+builders moved to the sibling `materialization/` package and the projection
+runner to the sibling `projection/` package (issue #6061).
 Read `doc.go` before moving anything else in or out. The entity-index
 substrate and per-language resolvers live in `shared/` and the language
 leaves (`golang/`, `java/`, `jvm/`, `kotlin/`, `groovy/`, `javascript/`,
@@ -14,9 +14,10 @@ leaves (`golang/`, `java/`, `jvm/`, `kotlin/`, `groovy/`, `javascript/`,
 - Never import the parent reducer package. If a change here needs root
   logic, the logic is either shared (hoist it to the shared tier) or the
   caller belongs in root (keep it there and call down into this package).
-  The seven code_call_projection_* runner files are the worked example: they
-  need the root lease and shared-projection machinery, so they stay in root
-  and import this package directly.
+  The code-call projection runner was the worked example: it needed the
+  lease and shared-projection machinery, which were hoisted to the shared
+  tier (`intents/shared/worker`, `sharedintent`), so it now lives in the
+  sibling `projection/` package and imports this package directly.
 - Behavior-preserving by default: the same rows, the same partition keys,
   the same evidence_source strings. `PartitionKeyVersion`,
   `RepoRefreshEvidenceSource`, `EvidenceSource`, and

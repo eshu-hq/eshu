@@ -22,11 +22,10 @@
 // which calls ExtractAllRelationshipRowsWithIndex, BuildFileScopesByRepoID,
 // BuildRefreshIntentsWithDeltaFileScopes, and BuildSharedIntentRows here and
 // composes the result with the symbol-runtime builders that moved with it
-// (materialization.BuildIntentRows). The seven code_call_projection_* runner
-// files still stay in root: they read PartitionKeyVersion, PayloadBool, and
-// the evidence-source constants through the parent's compat_projection.go
-// stanza, and code_call_projection_runner.go imports this package directly
-// for AcceptanceScanLimit. External callers keep the reducer.ExtractCodeCallRows
+// (materialization.BuildIntentRows). [projection] (code/call/projection)
+// holds the code-call projection runner, which imports this package directly
+// for PartitionKeyVersion, PayloadBool, the evidence-source constants, and
+// AcceptanceScanLimit. External callers keep the reducer.ExtractCodeCallRows
 // and reducer.ExtractAllCodeRelationshipRows spellings through that same
 // stanza.
 //
