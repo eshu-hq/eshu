@@ -11,12 +11,8 @@ const grandfatheredNonHotBaseline = "220989280718f206e53fade8670c3b240d44a9b0"
 // typed non-hot audit or hot-path registration.
 var grandfatheredNonHotSourceDigests = map[string]string{
 	"codequery/handler.go:(*CodeHandler).runComplexityQuery":                                 "53fef37f7217c6b4e6aa26423fd1be4540f9e50cf8d0c0f0b5ce6f815635eaab",
-	"codequery/callers.go:(*CodeHandler).nornicDBCallChainOneHopRows":                        "072603251b05d2e63cb29ed1deea87714e3b523d8e00f3e039a4b4143027c2a0",
-	"codequery/callers.go:(*CodeHandler).callChainCandidateOneHopRows":                       "99714e60377715f1dd262e87d498648e808a367669fb4918c6048774e2ff7096",
 	"codequery/registry_bundles.go:(*CodeHandler).handleSearchBundles":                       "70b0ca335b4a3d9ee3e34bc09e34a10d34b4704e1c9e366988eaf3408b26d76a",
 	"codequery/relationship_handlers.go:(*CodeHandler).relationshipsGraphRow":                "5f06c0388917b255ecb9def87df274ec737d074f574a9c2d0a4e76981d3dee7d",
-	"codequery/relationship_handlers.go:(*CodeHandler).transitiveRelationshipsGraphRow":      "3f078d6a49d10c2ca70b7e44d53f73b30465cd7a8e32d885ef48cccb3e99b909",
-	"codequery/transitive_walk.go:(*CodeHandler).nornicDBTransitiveOneHopRows":               "79be400046fa15ea5feb891b6bfa334e23f61b90e34d411a3e924d7f120c37c6",
 	"codequery/entity_labels.go:(*CodeHandler).nornicDBRelationshipEntityLabel":              "4309eda090298bffc0b957cebf4116c9c23225f4aec7121bc1e1f4ab5363f63f",
 	"codequery/route_handlers.go:(*CodeHandler).routeToCallerEndpointRows":                   "b5cc5518d6e426f40f7d99b9ff04040b611d3ec3c181e68891d1cdea484516ce",
 	"codequery/route_handlers.go:(*CodeHandler).routeToCallerHandlerLabel":                   "09b8ea96446aeae203f178584e3bf1bb3cbab358b0c6166474457c79e8f19f14",
