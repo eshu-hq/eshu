@@ -23,7 +23,7 @@ No-Regression Evidence: `go test ./internal/parser/golang -run
 'TestDefaultEngineParsePathNextJS' -count=1` prove Go `net/http` route entries still emit exact handlers,
 including mixed-case `ServeMux` local variables, and JavaScript-family Next.js
 route entries emit only for exact app-router handler exports or named
-`pages/api` defaults. `go test ./internal/reducer -run
+`pages/api` defaults. `go test ./internal/reducer ./internal/reducer/code/call/materialization -run
 'TestFrameworkAPIEndpointSignalsPreserveRouteEntryMethodPairs|TestFrameworkAPIEndpointSignalsPreferNextJSRouteEntries|HandlesRoute|APIEndpoint'
 -count=1` proves endpoint extraction consumes paired `route_entries` before
 falling back to legacy flattened lists, including the Next.js handler-entry path.
@@ -44,7 +44,7 @@ No-Regression Evidence: `go test ./internal/parser -run
 -count=1` proves Gin, Echo, Chi, Fiber, and `net/http` route entries emit only
 constructor-proven, literal path/method, identifier-handler registrations, while
 dynamic paths, unknown receivers, closures, method values, middleware chains,
-and adapter wrappers stay non-emitting. `go test ./internal/reducer -run
+and adapter wrappers stay non-emitting. `go test ./internal/reducer ./internal/reducer/code/call/materialization -run
 'TestBuildHandlesRouteIntentRows(EmitsGoFrameworkRouteMatches|EmitsExactSameFileMatch|SkipsUnknownHandler|SkipsAmbiguousHandler|SkipsEntryWithoutHandler|SkipsFrameworkWithoutRouteEntries)|TestFrameworkAPIEndpointSignalsPreserveRouteEntryMethodPairs'
 -count=1` proves the parser-owned route entries produce exact
 `HANDLES_ROUTE` intents only when the handler resolves to one Function entity.
@@ -75,7 +75,7 @@ emits exact route entries for literal ASP.NET Core MVC/Web API attributes and
 literal minimal API `Map*` registrations, while dynamic paths, tokenized
 controller/action route names, `[NonAction]` methods, convention-only
 controllers, inline lambdas, and non-identifier handlers stay non-emitting.
-`go test ./internal/reducer -run
+`go test ./internal/reducer ./internal/reducer/code/call/materialization -run
 'Test(BuildHandlesRouteIntentRows|FrameworkAPIEndpointSignals)' -count=1`
 proves those route entries produce endpoint signals and exact `HANDLES_ROUTE`
 intents only when the handler resolves to one Function entity.

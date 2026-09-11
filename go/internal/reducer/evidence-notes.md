@@ -134,7 +134,7 @@ got past code-call materialization after #3122, emitted 139,352 `code_calls`
 shared intents, then OOM-killed the reducer before any `code_calls` intents
 completed. The root cause was the selector's refresh-fence fallback loading the
 whole `(scope_id, acceptance_unit_id, source_run_id, code_calls)` pending row
-set through `ListPendingAcceptanceUnitIntents`. `go test ./internal/reducer
+set through `ListPendingAcceptanceUnitIntents`. `go test ./internal/reducer/code/call/projection
 -run TestCodeCallProjectionRunnerUsesBoundedRefreshFenceLookup -count=1`
 failed before the runner used a bounded fence lookup, then passed after stores
 that implement `CodeCallProjectionRefreshFenceLookup` answer the fence question

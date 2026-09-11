@@ -41,7 +41,7 @@ unchanged and authoritative: among phase-ready rows it still decides
 present(project) vs absent(terminal), so a non-deployed/route-only repo never
 silently projects a wrong edge.
 
-No-Regression Evidence: `go test ./internal/reducer -run
+No-Regression Evidence: `go test ./internal/reducer ./internal/reducer/code/call/materialization -run
 'RepoReadiness|FilterRowsByReadiness|WorkloadMaterializationHandler|HandlesRoute|RunsIn'
 -count=1` — `TestWorkloadMaterializationRepoReadinessKeyRoundTrips` proves the
 publisher and consumer keys are byte-equal for the same `(scope, repo,

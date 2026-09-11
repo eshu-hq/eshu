@@ -24,7 +24,7 @@ full post-change path used before endpoint-signal merge.
 No-Regression Evidence: `go test ./internal/parser -run
 'TestDefaultEngineParsePathGo(EmitsDeadCodeRegistrationRoots|EmitsMixedCaseServeMuxRouteEntry|IgnoresUnknownHandleFuncReceivers)'
 -count=1` proves Go `net/http` route entries still emit exact handlers, including
-mixed-case `ServeMux` local variables. `go test ./internal/reducer -run
+mixed-case `ServeMux` local variables. `go test ./internal/reducer ./internal/reducer/code/call/materialization -run
 'TestFrameworkAPIEndpointSignalsPreserveRouteEntryMethodPairs|HandlesRoute|APIEndpoint'
 -count=1` proves endpoint extraction consumes paired `route_entries` before
 falling back to legacy flattened lists, so `/payments` does not inherit `GET`

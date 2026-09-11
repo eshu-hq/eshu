@@ -20,7 +20,7 @@ a wrong or ambiguous controller emits no edge. Tests cover both the same-file
 lookup and the conventional cross-file Laravel layout, where `routes/routes.php`
 resolves `app/Http/Controllers/UserController.php` through the repository-unique
 candidate map; the B-7 fixture uses that cross-file layout too. Focused proof:
-`go test ./internal/reducer -run 'TestBuild(HandlesRoute|RunsIn)IntentRows(EmitsPHPLaravel|DoesNot(ResolvePHPLaravelNamespacedAtJoinedRoute|ResolveLaravelControllerFQN|ShortenLaravelControllerNamespace|BareMatchWrongLaravelController))' -count=1`
+`go test ./internal/reducer/code/call/materialization -run 'TestBuild(HandlesRoute|RunsIn)IntentRows(EmitsPHPLaravel|DoesNot(ResolvePHPLaravelNamespacedAtJoinedRoute|ResolveLaravelControllerFQN|ShortenLaravelControllerNamespace|BareMatchWrongLaravelController))' -count=1`
 and `go test ./internal/query -run '^TestRouteQueryProofMatrix$/^(php_laravel|php_symfony)$' -count=1`.
 
 No-Observability-Change: the change only selects an existing exact Function

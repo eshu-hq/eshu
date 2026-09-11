@@ -77,7 +77,7 @@ After the fix, the focused reducer proof passes under the race detector:
 
 ```bash
 cd go
-go test ./internal/reducer -race -count=1 -v \
+go test ./internal/reducer ./internal/reducer/code/call/projection -race -count=1 -v \
   -run 'Test(CodeCallProjectionRunnerOrderlyStopDoesNotMisreportInFlightRenewalCancellation|ProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation|RepoDependencyLeaseHeartbeatRecordsExplicitRejectionDespiteConcurrentStop|RepoDependencyProjectionRunnerQuarantinesHeartbeatLossBeforeSuccess|RepoDependencyProjectionRunnerOrderlyHeartbeatStopNeverQuarantines)$'
 ```
 

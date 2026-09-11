@@ -59,7 +59,7 @@ preserved while construction becomes separately queryable. It carries
 resolution, and is deduplicated per caller→type pair regardless of how many
 construction sites exist.
 
-No-Regression Evidence: `go test ./internal/reducer ./internal/reducer/code/call ./internal/reducer/code/call/shared -run 'Instantiates|CodeCall' -count=1`
+No-Regression Evidence: `go test ./internal/reducer ./internal/reducer/code/call ./internal/reducer/code/call/materialization ./internal/reducer/code/call/projection ./internal/reducer/code/call/shared -run 'Instantiates|CodeCall' -count=1`
 and `go test ./internal/storage/cypher -run 'Instantiates|CodeCall|RetractCodeCall' -count=1`
 fail before the edge exists and pass after. The change adds one bounded helper
 call per constructor-call row inside the existing code-call pass (one endpoint

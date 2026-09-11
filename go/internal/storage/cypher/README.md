@@ -1701,7 +1701,7 @@ leaving the shared id-keyed `CloudAction` node in place.
 No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
 ./internal/graph -count=1` plus the focused
 `go test ./internal/storage/cypher -run 'InvokesCloudAction' -count=1` and
-`go test ./internal/reducer -run 'InvokesCloudAction' -count=1` passes; the
+`go test ./internal/reducer/code/call/materialization -run 'InvokesCloudAction' -count=1` passes; the
 edge-writer and reducer tests fail before the new dispatch/producer exist.
 Cardinality is bounded at most one edge per `(Function, catalog-action)` that is
 provably invoked: the reducer deduplicates by `(function uid, action)` and the
