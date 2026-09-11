@@ -94,7 +94,12 @@ func TestHandleLanguageQueryUnconfiguredReaderServesContentBackedEntityType(t *t
 	if !ok {
 		t.Fatalf("data type = %T, want map[string]any", env.Data)
 	}
-	if got, want := data["source_backend"], sourceBackendForTruthBasis(TruthBasisContentIndex); got != want {
+	// sourceBackendForTruthBasis is an unexported language-family free
+	// function; "postgres_content_store" is its documented
+	// TruthBasisContentIndex mapping (language_query_reasons.go), asserted by
+	// literal value rather than by reference to keep this route-level test
+	// off the family's unexported surface (#6642).
+	if got, want := data["source_backend"], "postgres_content_store"; got != want {
 		t.Fatalf("data.source_backend = %#v, want %#v", got, want)
 	}
 	if got, want := content.lastEntityType, "Function"; got != want {

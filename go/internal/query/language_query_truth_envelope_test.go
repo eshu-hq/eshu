@@ -63,13 +63,16 @@ func TestHandleLanguageQueryGraphBackedBranchDemotesUnderLocalLightweight(t *tes
 			return []map[string]any{{"entity_id": "e1", "name": "Foo"}}, nil
 		}},
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
 		strings.NewReader(`{"language":"go","entity_type":"function","query":"Foo"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.handleLanguageQuery(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	envelope := decodeLanguageQueryEnvelope(t, rec)
 	if envelope.Truth == nil {
@@ -97,13 +100,16 @@ func TestHandleLanguageQueryGraphBackedBranchExactUnderAuthoritativeProfile(t *t
 			return []map[string]any{{"entity_id": "e1", "name": "Foo"}}, nil
 		}},
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
 		strings.NewReader(`{"language":"go","entity_type":"function","query":"Foo"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.handleLanguageQuery(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	envelope := decodeLanguageQueryEnvelope(t, rec)
 	if envelope.Truth == nil {
@@ -136,13 +142,16 @@ func TestHandleLanguageQueryContentBackedBranchReportsDerivedContentIndex(t *tes
 		}},
 	}
 	handler := &LanguageQueryHandler{Content: content}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
 		strings.NewReader(`{"language":"typescript","entity_type":"variable","query":"config"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 
-	handler.handleLanguageQuery(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	envelope := decodeLanguageQueryEnvelope(t, rec)
 	if envelope.Truth == nil {
@@ -187,7 +196,9 @@ func TestHandleLanguageQueryPlainRequestGetsUnwrappedBody(t *testing.T) {
 	// Deliberately no Accept: application/eshu.envelope+json header.
 	rec := httptest.NewRecorder()
 
-	handler.handleLanguageQuery(rec, req)
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+	mux.ServeHTTP(rec, req)
 
 	var plain map[string]any
 	if err := json.Unmarshal(rec.Body.Bytes(), &plain); err != nil {

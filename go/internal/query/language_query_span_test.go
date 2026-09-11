@@ -38,12 +38,15 @@ func TestHandleLanguageQueryEmitsLanguageQuerySpan(t *testing.T) {
 			{"entity_id": "e1", "name": "Foo"},
 		}},
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
 		strings.NewReader(`{"language":"go","entity_type":"function","query":"Foo"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.handleLanguageQuery(rec, req)
+	mux.ServeHTTP(rec, req)
 
 	spans := recorder.Ended()
 	if got, want := len(spans), 1; got != want {
@@ -59,7 +62,11 @@ func TestHandleLanguageQueryEmitsLanguageQuerySpan(t *testing.T) {
 	if got, want := attributes["http.route"], "POST /api/v0/code/language-query"; got != want {
 		t.Fatalf("span attribute http.route = %#v, want %#v", got, want)
 	}
-	if got, want := attributes["eshu.capability"], languageQueryCapability; got != want {
+	// languageQueryCapability is an unexported family constant; asserted here
+	// by its literal value ("symbol_graph.language_entities") rather than by
+	// reference, matching the convention the sibling capability assertions in
+	// language_query_graph_error_test.go already use.
+	if got, want := attributes["eshu.capability"], "symbol_graph.language_entities"; got != want {
 		t.Fatalf("span attribute eshu.capability = %#v, want %#v", got, want)
 	}
 }

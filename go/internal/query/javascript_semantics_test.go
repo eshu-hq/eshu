@@ -5,7 +5,6 @@ package query
 
 import (
 	"bytes"
-	"context"
 	"database/sql/driver"
 	"encoding/json"
 	"net/http"
@@ -96,6 +95,11 @@ func TestAttachJavaScriptSemanticsReturnsOriginalWhenEmpty(t *testing.T) {
 	}
 }
 
+// TestEnrichLanguageResultsWithContentMetadataJavaScriptMethod drives the
+// content-metadata merge through the mounted route (#6642) rather than
+// calling the unexported enrichLanguageResultsWithContentMetadata method
+// directly: the merged semantic_summary/semantic_profile fields it proves are
+// visible on the wire, so the route observably covers the same assertion.
 func TestEnrichLanguageResultsWithContentMetadataJavaScriptMethod(t *testing.T) {
 	t.Parallel()
 
@@ -114,40 +118,54 @@ func TestEnrichLanguageResultsWithContentMetadataJavaScriptMethod(t *testing.T) 
 		},
 	})
 
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "getTab",
-			"labels":     []string{"Function"},
-			"file_path":  "src/app.js",
-			"repo_id":    "repo-1",
-			"language":   "javascript",
-			"start_line": 10,
-			"end_line":   24,
-		},
+	handler := &LanguageQueryHandler{
+		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
+			{
+				"entity_id":  "graph-1",
+				"name":       "getTab",
+				"labels":     []string{"Function"},
+				"file_path":  "src/app.js",
+				"repo_id":    "repo-1",
+				"language":   "javascript",
+				"start_line": int64(10),
+				"end_line":   int64(24),
+			},
+		}},
+		Content: NewContentReader(db),
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 
-	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"javascript",
-		"Function",
-		"getTab",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/language-query",
+		bytes.NewBufferString(`{"language":"javascript","entity_type":"function","query":"getTab","repo_id":"repo-1"}`),
 	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	results, ok := resp["results"].([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("results = %#v, want one merged function", resp["results"])
+	}
+	result, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", results[0])
 	}
 
-	if gotValue, want := got[0]["semantic_summary"], "Function getTab has JavaScript method kind getter and is documented as \"Returns the active tab.\"."; gotValue != want {
+	if gotValue, want := result["semantic_summary"], "Function getTab has JavaScript method kind getter and is documented as \"Returns the active tab.\"."; gotValue != want {
 		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", gotValue, want)
 	}
-	semanticProfile, ok := got[0]["semantic_profile"].(map[string]any)
+	semanticProfile, ok := result["semantic_profile"].(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", got[0]["semantic_profile"])
+		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", result["semantic_profile"])
 	}
 	if gotValue, want := semanticProfile["surface_kind"], "javascript_method"; gotValue != want {
 		t.Fatalf("semantic_profile[surface_kind] = %#v, want %#v", gotValue, want)
@@ -216,6 +234,11 @@ func TestHandleLanguageQueryJavaScriptMethodUsesGraphMetadataWithoutContent(t *t
 	}
 }
 
+// TestEnrichLanguageResultsWithContentMetadataPreservesGraphJavaScriptFields
+// drives the same merge through the mounted route (#6642): the graph row
+// already carries its own metadata/semantic_summary/semantic_profile, and the
+// assertion is that those graph-owned values win over the content fallback --
+// visible on the wire, so no direct method call is needed.
 func TestEnrichLanguageResultsWithContentMetadataPreservesGraphJavaScriptFields(t *testing.T) {
 	t.Parallel()
 
@@ -234,48 +257,53 @@ func TestEnrichLanguageResultsWithContentMetadataPreservesGraphJavaScriptFields(
 		},
 	})
 
-	handler := &LanguageQueryHandler{Content: NewContentReader(db)}
-	graphResults := []map[string]any{
-		{
-			"entity_id":  "graph-1",
-			"name":       "getTab",
-			"labels":     []string{"Function"},
-			"file_path":  "src/app.js",
-			"repo_id":    "repo-1",
-			"language":   "javascript",
-			"start_line": 10,
-			"end_line":   24,
-			"metadata": map[string]any{
+	handler := &LanguageQueryHandler{
+		Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{
+			{
+				"entity_id":   "graph-1",
+				"name":        "getTab",
+				"labels":      []string{"Function"},
+				"file_path":   "src/app.js",
+				"repo_id":     "repo-1",
+				"language":    "javascript",
+				"start_line":  int64(10),
+				"end_line":    int64(24),
 				"docstring":   "Graph-owned doc.",
 				"method_kind": "getter",
 			},
-			"semantic_summary": "Function getTab has JavaScript method kind getter and is documented as \"Graph-owned doc.\".",
-			"semantic_profile": map[string]any{
-				"surface_kind": "javascript_method",
-				"method_kind":  "getter",
-				"docstring":    "Graph-owned doc.",
-				"signals":      []string{"method_kind", "docstring"},
-			},
-		},
+		}},
+		Content: NewContentReader(db),
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 
-	got, _, err := handler.enrichLanguageResultsWithContentMetadata(
-		context.Background(),
-		graphResults,
-		"javascript",
-		"Function",
-		"getTab",
-		"repo-1",
-		10,
-		unscopedLanguageQueryGrant(),
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/code/language-query",
+		bytes.NewBufferString(`{"language":"javascript","entity_type":"function","query":"getTab","repo_id":"repo-1"}`),
 	)
-	if err != nil {
-		t.Fatalf("enrichLanguageResultsWithContentMetadata() error = %v, want nil", err)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
+	}
+	results, ok := resp["results"].([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("results = %#v, want one merged function", resp["results"])
+	}
+	result, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", results[0])
 	}
 
-	metadata, ok := got[0]["metadata"].(map[string]any)
+	metadata, ok := result["metadata"].(map[string]any)
 	if !ok {
-		t.Fatalf("metadata type = %T, want map[string]any", got[0]["metadata"])
+		t.Fatalf("metadata type = %T, want map[string]any", result["metadata"])
 	}
 	if gotValue, want := metadata["docstring"], "Graph-owned doc."; gotValue != want {
 		t.Fatalf("metadata[docstring] = %#v, want %#v", gotValue, want)
@@ -283,7 +311,7 @@ func TestEnrichLanguageResultsWithContentMetadataPreservesGraphJavaScriptFields(
 	if gotValue, want := metadata["method_kind"], "getter"; gotValue != want {
 		t.Fatalf("metadata[method_kind] = %#v, want %#v", gotValue, want)
 	}
-	if gotValue, want := got[0]["semantic_summary"], "Function getTab has JavaScript method kind getter and is documented as \"Graph-owned doc.\"."; gotValue != want {
+	if gotValue, want := result["semantic_summary"], "Function getTab has JavaScript method kind getter and is documented as \"Graph-owned doc.\"."; gotValue != want {
 		t.Fatalf("semantic_summary = %#v, want %#v", gotValue, want)
 	}
 }

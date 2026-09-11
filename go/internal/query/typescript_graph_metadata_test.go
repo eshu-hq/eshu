@@ -12,6 +12,12 @@ import (
 	"testing"
 )
 
+// TestHandleLanguageQueryProjectsTypeScriptGraphMetadata is driven through
+// the mounted route (#6642) rather than calling the unexported
+// queryByLanguageWithSemanticFilter method directly: the fake reader's
+// assertion on the Cypher text is the same either way (Neo4j.Run is called
+// from inside the method regardless of entry point), and the merged
+// semantic_summary/semantic_profile fields it proves are visible on the wire.
 func TestHandleLanguageQueryProjectsTypeScriptGraphMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -55,30 +61,37 @@ func TestHandleLanguageQueryProjectsTypeScriptGraphMetadata(t *testing.T) {
 			},
 		},
 	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
 
-	results, _, err := handler.queryByLanguageWithSemanticFilter(
-		context.Background(),
-		"typescript",
-		"TypeAlias",
-		"ReadonlyMap",
-		"repo-1",
-		10,
-		"",
-		"",
-		unscopedLanguageQueryGrant(),
-	)
-	if err != nil {
-		t.Fatalf("queryByLanguageWithSemanticFilter() error = %v, want nil", err)
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/code/language-query",
+		strings.NewReader(`{"language":"typescript","entity_type":"type_alias","query":"ReadonlyMap","repo_id":"repo-1"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if got, want := rec.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d body=%s", got, want, rec.Body.String())
 	}
-	if got, want := len(results), 1; got != want {
-		t.Fatalf("len(results) = %d, want %d", got, want)
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil", err)
 	}
-	if got, want := results[0]["semantic_summary"], "TypeAlias ReadonlyMap is a mapped type and declares type parameters T."; got != want {
+	results, ok := resp["results"].([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("results = %#v, want one result", resp["results"])
+	}
+	result, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", results[0])
+	}
+	if got, want := result["semantic_summary"], "TypeAlias ReadonlyMap is a mapped type and declares type parameters T."; got != want {
 		t.Fatalf("results[0][semantic_summary] = %#v, want %#v", got, want)
 	}
-	profile, ok := results[0]["semantic_profile"].(map[string]any)
+	profile, ok := result["semantic_profile"].(map[string]any)
 	if !ok {
-		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", results[0]["semantic_profile"])
+		t.Fatalf("results[0][semantic_profile] type = %T, want map[string]any", result["semantic_profile"])
 	}
 	if got, want := profile["surface_kind"], "mapped_type_alias"; got != want {
 		t.Fatalf("semantic_profile[surface_kind] = %#v, want %#v", got, want)
