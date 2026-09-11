@@ -4,132 +4,180 @@
 package materializededges
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
-// TestPackageLevelTemplateShapesAreVisibleToTheCypherScan holds
-// collectStringValues to the declaration shapes a Cypher template is actually
-// written in (#6181).
-//
-// TestDirectMaterializedEdgePortsMatchTheExecutedCypher claims something total:
-// EVERY reducer port reaching a relationship MERGE is a declared direct family.
-// That claim is only as wide as the set of declarations the scan can resolve,
-// and the scan resolved a package-level const or var only when it was a bare
-// string literal or a `+` concatenation. A template grouped into a
-// `map[string]string{...}`, a slice, or a struct field — which is how templates
-// in go/internal/storage/cypher are routinely grouped — was invisible, so a
-// port merging a relationship through one passed.
-//
-// This test is over the shapes rather than over the production package on
-// purpose. The production tree happens to hold no MERGE in a composite literal
-// today, so a fixture derived from it would pass with the hole open; that is
-// exactly how the hole survived. Each case here is a shape a future writer may
-// use, and the negative case keeps the resolver from being widened into
-// something that reports text where there is none.
-func TestPackageLevelTemplateShapesAreVisibleToTheCypherScan(t *testing.T) {
+// TestExternalMethodCallDoesNotReachSameNamedPackageMethod proves that call
+// targets are resolved by receiver, not only by their bare selector name.
+func TestExternalMethodCallDoesNotReachSameNamedPackageMethod(t *testing.T) {
 	t.Parallel()
 
-	const merge = "MERGE (a)-[rel:REVIEW_PROBE_FLOWS_TO]->(b)"
+	const source = `package cypher
 
-	for _, tc := range []struct {
-		name string
-		decl string
-		want bool
-	}{
-		{
-			name: "bare const",
-			decl: "const tmpl = `" + merge + "`",
-			want: true,
-		},
-		{
-			name: "concatenation",
-			decl: "const tmpl = \"MERGE (a)-\" + \"[rel:REVIEW_PROBE_FLOWS_TO]->(b)\"",
-			want: true,
-		},
-		{
-			name: "map literal",
-			decl: "var tmpl = map[string]string{\"upsert\": `" + merge + "`}",
-			want: true,
-		},
-		{
-			name: "slice literal",
-			decl: "var tmpl = []string{`" + merge + "`}",
-			want: true,
-		},
-		{
-			name: "struct literal field",
-			decl: "var tmpl = struct{ Upsert string }{Upsert: `" + merge + "`}",
-			want: true,
-		},
-		{
-			name: "slice of structs",
-			decl: "var tmpl = []struct{ Upsert string }{{Upsert: `" + merge + "`}}",
-			want: true,
-		},
-		{
-			name: "map key",
-			decl: "var tmpl = map[string]int{`" + merge + "`: 1}",
-			want: true,
-		},
-		{
-			name: "composite literal with no string text",
-			decl: "var tmpl = map[string]int{}",
-			want: false,
-		},
-		{
-			name: "non-string const",
-			decl: "const tmpl = 3",
-			want: false,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+import (
+	"context"
+	"os"
+)
 
-			values := stringValuesFromSource(t, tc.decl)
-			value, resolved := values["tmpl"]
-			if !tc.want {
-				if resolved {
-					if _, merges := relationshipMergeLine(value); merges {
-						t.Fatalf("%s resolved to relationship-merging text %q; the resolver invented Cypher that is not there", tc.name, value)
-					}
-				}
-				return
-			}
-			if !resolved {
-				t.Fatalf("collectStringValues did not resolve tmpl from %q; a MERGE written this way is invisible to the scan and the port that reaches it passes undeclared", tc.decl)
-			}
-			line, merges := relationshipMergeLine(value)
-			if !merges {
-				t.Fatalf("tmpl resolved to %q, which relationshipMergeLine does not read as a relationship MERGE", value)
-			}
-			if line != merge {
-				t.Errorf("evidence line is %q, want %q; a joined-together value reports a run-on instead of the real source line", line, merge)
-			}
-		})
-	}
+const relationshipTemplate = "MERGE (a)-[rel:REVIEW_PROBE_FLOWS_TO]->(b)"
+const aliasedRelationshipTemplate = relationshipTemplate
+
+type CanonicalNodeWriter struct{}
+
+func (CanonicalNodeWriter) Write() {
+	_ = relationshipTemplate
 }
 
-// stringValuesFromSource parses decl as a package-level declaration and returns
-// what collectStringValues resolves from it.
-func stringValuesFromSource(t *testing.T, decl string) map[string]string {
-	t.Helper()
+func ExternalWrite() {
+	temporary, _ := os.CreateTemp("", "trigger")
+	defer temporary.Close()
+	_, _ = temporary.Write(nil)
+}
 
-	file, err := parser.ParseFile(token.NewFileSet(), "shape.go", "package cypher\n\n"+decl+"\n", parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatalf("parse %q: %v", decl, err)
+func AliasedWrite() {
+	_ = aliasedRelationshipTemplate
+}
+
+type localWriter struct{}
+
+func (writer localWriter) LocalWrite() {
+	writer.writeEdges()
+}
+
+func (localWriter) writeEdges() {
+	packageEdgeHelper()
+}
+
+func LocalValueWrite() {
+	other := localWriter{}
+	other.writeEdges()
+}
+
+func LocalPointerWrite() {
+	other := &localWriter{}
+	other.writeEdges()
+}
+
+type BackpressureObserver interface {
+	ObserveBackpressureWait()
+}
+
+type localObserver struct{}
+
+func (localObserver) ObserveBackpressureWait() {
+	packageEdgeHelper()
+}
+
+func LocalInterfaceWrite(observer BackpressureObserver) {
+	observer.ObserveBackpressureWait()
+}
+
+type Statement struct{ Query string }
+
+type Executor interface {
+	Execute(context.Context, Statement) error
+}
+
+type localExecutor struct{}
+
+func (localExecutor) Execute(context.Context, Statement) error {
+	packageEdgeHelper()
+	return nil
+}
+
+func TerminalBoundaryNodeOnly(ctx context.Context, executor Executor) {
+	_ = executor.Execute(ctx, Statement{Query: "MATCH (n) RETURN n"})
+}
+
+func ReachableDynamic(callback func()) {
+	callback()
+}
+
+func ReachableIndexedDynamic(callbacks []func()) {
+	callbacks[0]()
+}
+
+func NodeOnlyWithUnreachableDynamic() {
+	_ = 1
+}
+
+func unusedDynamic(callback func()) {
+	callback()
+}
+
+func ShadowedNodeOnly() {
+	relationshipTemplate := "MATCH (n) RETURN n"
+	_ = relationshipTemplate
+}
+
+func packageEdgeHelper() {
+	_ = relationshipTemplate
+}
+`
+	dir := t.TempDir()
+	const module = "module example.com/cypherscan\n\ngo 1.26.6\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(module), 0o600); err != nil {
+		t.Fatalf("write scan fixture module: %v", err)
 	}
-	out := map[string]string{}
-	for _, d := range file.Decls {
-		gen, ok := d.(*ast.GenDecl)
-		if !ok {
-			continue
-		}
-		collectStringValues(gen, out)
+	if err := os.WriteFile(filepath.Join(dir, "writer.go"), []byte(source), 0o600); err != nil {
+		t.Fatalf("write scan fixture: %v", err)
 	}
-	return out
+
+	classifications := classifyCypherPorts(
+		parseCypherPackage(t, dir),
+		map[string]struct{}{
+			"AliasedWrite":                   {},
+			"ExternalWrite":                  {},
+			"LocalInterfaceWrite":            {},
+			"LocalPointerWrite":              {},
+			"LocalValueWrite":                {},
+			"LocalWrite":                     {},
+			"NodeOnlyWithUnreachableDynamic": {},
+			"ReachableDynamic":               {},
+			"ReachableIndexedDynamic":        {},
+			"ShadowedNodeOnly":               {},
+			"TerminalBoundaryNodeOnly":       {},
+		},
+	)
+	byPort := make(map[string]cypherPortClassification, len(classifications))
+	for _, classification := range classifications {
+		byPort[classification.Port] = classification
+	}
+	if got := byPort["ExternalWrite"]; got.WritesEdges {
+		t.Errorf("ExternalWrite reaches relationship Cypher through os.File.Write: %q", got.Evidence)
+	}
+	if got := byPort["AliasedWrite"]; !got.WritesEdges {
+		t.Error("AliasedWrite did not resolve the package constant alias to relationship Cypher")
+	}
+	if got := byPort["LocalWrite"]; !got.WritesEdges {
+		t.Error("LocalWrite did not reach the same-receiver writeEdges helper")
+	}
+	if got := byPort["LocalValueWrite"]; !got.WritesEdges {
+		t.Error("LocalValueWrite did not reach writeEdges through a local value receiver")
+	}
+	if got := byPort["LocalPointerWrite"]; !got.WritesEdges {
+		t.Error("LocalPointerWrite did not reach writeEdges through a local pointer receiver")
+	}
+	if got := byPort["LocalInterfaceWrite"]; !got.WritesEdges {
+		t.Error("LocalInterfaceWrite did not follow the package-local implementation of an otherwise terminal interface seam")
+	}
+	if got := byPort["TerminalBoundaryNodeOnly"]; got.WritesEdges || len(got.UnknownRefs) != 0 {
+		t.Errorf("TerminalBoundaryNodeOnly followed the explicit Executor.Execute boundary: %+v", got)
+	}
+	if got := byPort["ReachableDynamic"]; len(got.UnknownRefs) == 0 {
+		t.Error("ReachableDynamic was classified without reporting its reachable function-value call")
+	}
+	if got := byPort["ReachableIndexedDynamic"]; len(got.UnknownRefs) == 0 {
+		t.Error("ReachableIndexedDynamic was classified without reporting its indexed function-value call")
+	}
+	if got := byPort["NodeOnlyWithUnreachableDynamic"]; len(got.UnknownRefs) != 0 {
+		t.Errorf("NodeOnlyWithUnreachableDynamic was poisoned by an unreachable function-value call: %v", got.UnknownRefs)
+	}
+	if got := byPort["ShadowedNodeOnly"]; got.WritesEdges {
+		t.Errorf("ShadowedNodeOnly bound a local shadow to the package relationship template: %q", got.Evidence)
+	}
 }
 
 // TestRelationshipMergeReadsNestedNodePatternParens holds the
@@ -240,13 +288,17 @@ func TestRelationshipMergeReadsNestedNodePatternParens(t *testing.T) {
 func TestNestedNodePatternMergeIsVisibleThroughAPortDeclaration(t *testing.T) {
 	t.Parallel()
 
-	const decl = "const tmpl = `MERGE (n:Label {id: coalesce($a, $b)})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)`"
-	values := stringValuesFromSource(t, decl)
-	value, resolved := values["tmpl"]
-	if !resolved {
-		t.Fatalf("collectStringValues did not resolve tmpl from %q", decl)
-	}
-	if _, merges := relationshipMergeLine(value); !merges {
-		t.Errorf("a port reaching %q is classified node-only, so its family never enters the enumeration and no ledger row is ever missing for it", value)
+	const source = `package cypher
+
+const nestedRelationship = "MERGE (n:Label {id: coalesce($a, $b)})-[rel:REVIEW_PROBE_FLOWS_TO]->(m)"
+
+func NestedWrite() { _ = nestedRelationship }
+`
+	classifications := classifyCypherPorts(
+		parseCypherPackage(t, writeCypherScanFixture(t, source)),
+		map[string]struct{}{"NestedWrite": {}},
+	)
+	if len(classifications) != 1 || !classifications[0].WritesEdges {
+		t.Fatalf("NestedWrite classification = %+v, want one relationship-writing port", classifications)
 	}
 }
