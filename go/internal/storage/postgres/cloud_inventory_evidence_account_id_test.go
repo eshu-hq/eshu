@@ -18,7 +18,7 @@ import (
 // field -- aws_resource.account_id, gcp_cloud_resource.project_id,
 // azure_cloud_resource.subscription_id (sdk/go/factschema/{aws,gcp,azure}/v1)
 // -- into CloudInventoryRecord.AccountID. This is the field the shared
-// admission path (go/internal/reducer/cloud_inventory_admission.go) persists
+// admission path (go/internal/reducer/cloudinventory/cloud_inventory_admission.go) persists
 // onto the canonical reducer_cloud_resource_identity payload as a uniform
 // "account_id" key, which the readback's account_id/project_id/subscription_id
 // selectors filter directly (go/internal/query/cloud_inventory_read_model.go).

@@ -12,7 +12,7 @@ import (
 
 // TestCloudInventoryPreFixPayloadRolloutWindowLive is the #5238 rollout-window
 // regression demanded by review: cloudInventoryAdmissionFactID
-// (go/internal/reducer/cloud_inventory_admission_writer.go) hashes
+// (go/internal/reducer/cloudinventory/cloud_inventory_admission_writer.go) hashes
 // {scope_id, generation_id, cloud_resource_uid} -- AccountID is never part of
 // that identity, so a scope's ALREADY-ADMITTED, currently-active generation
 // (admitted by the reducer code that predates this fix) keeps its existing
@@ -87,7 +87,7 @@ func TestCloudInventoryPreFixPayloadRolloutWindowLive(t *testing.T) {
 // seedCloudInventoryPreFixPayloadLiveCorpus seeds one canonical
 // reducer_cloud_resource_identity row whose payload has NO "account_id" key --
 // the exact shape cloudInventoryAdmissionBasePayload
-// (go/internal/reducer/cloud_inventory_admission_writer.go) produced before
+// (go/internal/reducer/cloudinventory/cloud_inventory_admission_writer.go) produced before
 // this fix added that field. cloudInventoryAdmissionFactID never included
 // AccountID in its identity hash, so this is not a hypothetical: it is
 // literally what every already-admitted, still-active generation looks like

@@ -28,7 +28,7 @@ import (
 // payload map with StringVal/BoolVal/IntVal/StringSliceVal and never
 // distinguished a missing package_id from an intentionally empty one; the
 // switch to the typed seam is deliberately output-preserving for every real
-// fact (the writer in go/internal/reducer/package_correlation_writer.go
+// fact (the writer in go/internal/reducer/packages/correlation/writer.go
 // always stamps package_id) while now classifying the previously-unchecked
 // missing-identity case instead of returning a wrong-looking all-empty row.
 //

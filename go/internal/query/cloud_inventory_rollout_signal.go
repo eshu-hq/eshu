@@ -19,7 +19,7 @@ import (
 // provider/access scope whose payload predates the #5238 account_id rollout
 // (admitted by the reducer code before that fix landed, so its payload
 // carries no "account_id" key at all -- see
-// go/internal/reducer/cloud_inventory_admission_writer.go and the "Rollout
+// go/internal/reducer/cloudinventory/cloud_inventory_admission_writer.go and the "Rollout
 // window" note in docs/public/reference/http-api.md). Without this flag, a
 // genuine "no such account" zero-row response is byte-identical to "this
 // account's data has not been re-admitted since deploy yet", and an operator

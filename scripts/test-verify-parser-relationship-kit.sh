@@ -216,6 +216,28 @@ git -C "${relationship_complete_repo}" add .
 git -C "${relationship_complete_repo}" commit -q -m 'relationship with docs and tests'
 expect_pass "${relationship_complete_repo}"
 
+relationship_comment_only_repo="$(init_repo relationship-comment-only)"
+printf 'package relationships\n\n// Evidence points at the original reducer path.\nfunc Evidence() {}\n' \
+  >"${relationship_comment_only_repo}/go/internal/relationships/gcp_evidence.go"
+git -C "${relationship_comment_only_repo}" add .
+git -C "${relationship_comment_only_repo}" commit -q -m 'relationship source baseline'
+printf 'package relationships\n\n// Evidence points at the current reducer path.\nfunc Evidence() {}\n' \
+  >"${relationship_comment_only_repo}/go/internal/relationships/gcp_evidence.go"
+git -C "${relationship_comment_only_repo}" add .
+git -C "${relationship_comment_only_repo}" commit -q -m 'relationship comment-only correction'
+expect_pass "${relationship_comment_only_repo}"
+
+relationship_code_only_repo="$(init_repo relationship-code-only)"
+printf 'package relationships\n\nfunc Evidence() {}\n' \
+  >"${relationship_code_only_repo}/go/internal/relationships/gcp_evidence.go"
+git -C "${relationship_code_only_repo}" add .
+git -C "${relationship_code_only_repo}" commit -q -m 'relationship source baseline'
+printf 'package relationships\n\nfunc Evidence() { println("changed") }\n' \
+  >"${relationship_code_only_repo}/go/internal/relationships/gcp_evidence.go"
+git -C "${relationship_code_only_repo}" add .
+git -C "${relationship_code_only_repo}" commit -q -m 'relationship code change without proof'
+expect_fail "${relationship_code_only_repo}"
+
 # shellcheck source=scripts/lib/parser_documented_test_commands.sh
 . "${repo_root}/scripts/lib/parser_documented_test_commands.sh"
 PARSER_SELECTOR_MATCHER_OUTPUT="${tmp_root}/parser-selector-matcher"

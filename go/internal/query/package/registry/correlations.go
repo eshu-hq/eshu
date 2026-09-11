@@ -20,7 +20,7 @@ import (
 // all three package correlation kinds together"). Governance landed in full
 // (#5461): sdk/go/factschema/reducerderived/v1/package_correlations.go holds
 // the typed structs, the generated JSON Schemas exist under
-// sdk/go/factschema/schema/, and go/internal/reducer/package_correlation_writer.go
+// sdk/go/factschema/schema/, and go/internal/reducer/packages/correlation/writer.go
 // is the typed writer. decodePackageRegistryCorrelationRow below decodes each
 // kind through the typed factschema seam
 // (factschema_decode_package_correlations.go) rather than a raw payload map

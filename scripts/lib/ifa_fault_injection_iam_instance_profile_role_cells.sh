@@ -44,8 +44,8 @@
 # write: ACCESS EXCLUSIVE on fact_records blocks readers, and the claim/ack
 # path never touches that table, so the row stays claimed while the handler
 # is held. The handler struct embeds FactLoader
-# (go/internal/reducer/iam_instance_profile_role_materialization.go:57) and Handle
-# refuses to run without it (:85) before passing it to the extraction path (:114) -- the pre-write window the lock needs, measured for codeowners at
+# (go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go:78) and Handle
+# refuses to run without it (:106) before passing it to the extraction path (:135) -- the pre-write window the lock needs, measured for codeowners at
 # 14s of visibly-waiting backends and re-proven by this family's own kill cell
 # below rather than assumed from the sibling.
 #

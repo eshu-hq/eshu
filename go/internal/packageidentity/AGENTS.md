@@ -6,7 +6,7 @@
 2. `identity.go` - canonical package identity normalization rules.
 3. `go/internal/collector/packageregistry/README.md` - collector fact emission
    consumer.
-4. `go/internal/reducer/package_consumption_correlation.go` - reducer-owned
+4. `go/internal/reducer/packages/correlation/consumption.go` - reducer-owned
    package consumption matching consumer.
 
 ## Invariants

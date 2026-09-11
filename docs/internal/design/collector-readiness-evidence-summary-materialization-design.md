@@ -24,7 +24,7 @@ collector-readiness and status surfaces) and move the aggregate **off the
 synchronous read path** into a reducer-owned materialized summary, refreshed by a
 **lease-guarded periodic atomic resweep**. This mirrors the #3389 supply-chain
 impact winners maintainer
-(`go/internal/reducer/supply_chain_impact_winners_maintainer.go`,
+(`go/internal/reducer/supplychain/core/winners_maintainer.go`,
 `docs/internal/design/supply-chain-impact-canonical-dedup-materialization-design.md`).
 
 ### Options considered
