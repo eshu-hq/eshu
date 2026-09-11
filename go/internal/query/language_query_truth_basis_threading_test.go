@@ -144,7 +144,7 @@ func TestHandleLanguageQueryGraphBackedBranchFallsBackToContentIndexWhenNeo4jNil
 	if got, want := envelope.Truth.Reason, "no graph reader was configured for this entity type; the content-store fallback served the result"; got != want {
 		t.Fatalf("truth.reason = %q, want %q", got, want)
 	}
-	if want := `"source_backend":"postgres_content_store"`; !strings.Contains(rec.Body.String(), want) {
+	if want := `"source_backend":"` + languageQueryContentBackendWire + `"`; !strings.Contains(rec.Body.String(), want) {
 		t.Fatalf("body = %s, want %s", rec.Body.String(), want)
 	}
 }

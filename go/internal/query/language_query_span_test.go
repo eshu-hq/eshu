@@ -63,10 +63,10 @@ func TestHandleLanguageQueryEmitsLanguageQuerySpan(t *testing.T) {
 		t.Fatalf("span attribute http.route = %#v, want %#v", got, want)
 	}
 	// languageQueryCapability is an unexported family constant; asserted here
-	// by its literal value ("symbol_graph.language_entities") rather than by
-	// reference, matching the convention the sibling capability assertions in
-	// language_query_graph_error_test.go already use.
-	if got, want := attributes["eshu.capability"], "symbol_graph.language_entities"; got != want {
+	// by its wire value (languageQueryCapabilityWire, shared with the sibling
+	// capability assertions in language_query_graph_error_test.go) rather
+	// than by reference.
+	if got, want := attributes["eshu.capability"], languageQueryCapabilityWire; got != want {
 		t.Fatalf("span attribute eshu.capability = %#v, want %#v", got, want)
 	}
 }

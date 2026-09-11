@@ -99,7 +99,7 @@ func TestHandleLanguageQueryUnconfiguredReaderServesContentBackedEntityType(t *t
 	// TruthBasisContentIndex mapping (language_query_reasons.go), asserted by
 	// literal value rather than by reference to keep this route-level test
 	// off the family's unexported surface (#6642).
-	if got, want := data["source_backend"], "postgres_content_store"; got != want {
+	if got, want := data["source_backend"], languageQueryContentBackendWire; got != want {
 		t.Fatalf("data.source_backend = %#v, want %#v", got, want)
 	}
 	if got, want := content.lastEntityType, "Function"; got != want {
@@ -138,7 +138,7 @@ func TestHandleLanguageQueryUnconfiguredReaderReturns501ForGraphOnlyEntityType(t
 	if want := `"code":"unsupported_capability"`; !strings.Contains(w.Body.String(), want) {
 		t.Fatalf("body = %s, want to contain %s", w.Body.String(), want)
 	}
-	if want := `"capability":"symbol_graph.language_entities"`; !strings.Contains(w.Body.String(), want) {
+	if want := `"capability":"` + languageQueryCapabilityWire + `"`; !strings.Contains(w.Body.String(), want) {
 		t.Fatalf("body = %s, want to contain %s", w.Body.String(), want)
 	}
 	// P2-5: this residue 501 must name the actual cause (a graph-only entity

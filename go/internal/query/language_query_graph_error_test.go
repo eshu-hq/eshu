@@ -134,6 +134,17 @@ func (f fakeErrLanguageQueryContentStore) SearchEntitiesByLanguageAndType(
 // pivots on when triaging a 503/504, so an empty or drifting value makes the
 // failure unattributable.
 //
+// languageQueryCapabilityWire and languageQueryContentBackendWire are the
+// wire values the language-query route publishes for its capability id and
+// its content-only source backend. The route-level tests in this package
+// assert them by literal rather than through the family's unexported
+// constants (#6642 seam); this single copy keeps the root sites from drifting
+// apart when a wire value changes.
+const (
+	languageQueryCapabilityWire     = "symbol_graph.language_entities"
+	languageQueryContentBackendWire = "postgres_content_store"
+)
+
 // symbol_graph.language_entities is a route-level capability minted for this
 // route (#5761), not a reused id. The route's own MCP tool,
 // execute_language_query, is already bound to five symbol_graph.* facets
@@ -162,7 +173,7 @@ func TestLanguageQueryCarriesLanguageEntitiesCapability(t *testing.T) {
 
 	mux.ServeHTTP(rec, req)
 
-	if want := `"capability":"symbol_graph.language_entities"`; !strings.Contains(rec.Body.String(), want) {
+	if want := `"capability":"` + languageQueryCapabilityWire + `"`; !strings.Contains(rec.Body.String(), want) {
 		t.Fatalf("body = %s, want %s", rec.Body.String(), want)
 	}
 }
@@ -186,10 +197,10 @@ func TestLanguageQueryCarriesLanguageEntitiesCapability(t *testing.T) {
 // capabilityMatrix its own synchronization.
 func TestHandleLanguageQueryCapabilityGateReturns501WhenUnsupported(t *testing.T) {
 	// languageQueryCapability is an unexported family constant; the map key
-	// below is its literal value ("symbol_graph.language_entities") rather
-	// than a reference to the constant, so this test does not reach behind
-	// the language family's own package boundary.
-	const capability = "symbol_graph.language_entities"
+	// below is its wire value (languageQueryCapabilityWire) rather than a
+	// reference to the constant, so this test does not reach behind the
+	// language family's own package boundary.
+	const capability = languageQueryCapabilityWire
 	original, ok := capabilityMatrix[capability]
 	if !ok {
 		t.Fatalf("capabilityMatrix missing %q", capability)

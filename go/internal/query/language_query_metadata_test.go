@@ -202,9 +202,27 @@ func TestEnrichLanguageResultsWithContentMetadataSkipsUnmatchedRows(t *testing.T
 	if envelope.Truth.Basis != TruthBasisAuthoritativeGraph {
 		t.Fatalf("truth.basis = %q, want %q (unmatched content rows must not merge)", envelope.Truth.Basis, TruthBasisAuthoritativeGraph)
 	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("data type = %T, want map[string]any (body = %s)", envelope.Data, rec.Body.String())
+	}
+	results, ok := data["results"].([]any)
+	if !ok || len(results) != 1 {
+		t.Fatalf("data.results = %#v, want exactly the one graph hit (an unmatched content row must not drop it)", data["results"])
+	}
+	result, ok := results[0].(map[string]any)
+	if !ok {
+		t.Fatalf("result type = %T, want map[string]any", results[0])
+	}
+	if got, want := result["name"], "handler"; got != want {
+		t.Fatalf("results[0].name = %#v, want %q (the graph hit must survive unmatched enrichment)", got, want)
+	}
+	if got, want := result["file_path"], "src/handler.py"; got != want {
+		t.Fatalf("results[0].file_path = %#v, want %q", got, want)
+	}
 	for _, absent := range []string{"metadata", "semantic_summary", "semantic_profile"} {
-		if want := `"` + absent + `"`; strings.Contains(rec.Body.String(), want) {
-			t.Fatalf("body = %s, want %s to remain absent", rec.Body.String(), want)
+		if v, ok := result[absent]; ok {
+			t.Fatalf("results[0][%s] = %#v, want key absent (unmatched content rows must not merge)", absent, v)
 		}
 	}
 }
