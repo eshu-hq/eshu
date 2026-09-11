@@ -95,12 +95,12 @@ here as `scope_test.go` using `queryauth.AuthContext`/
 No-Regression Evidence: baseline `origin/main` vs this branch -- `go test
 ./internal/query/...` and `go test ./internal/query/workitem/` pass, and their
 combined test-name union carries every pre-move name from the `go test
-./internal/query/ -list '.*'` baseline (2878 names, no duplicate, no drop);
+./internal/query/ -list '.*'` baseline (2815 names, no duplicate, no drop);
 the only addition is `TestWorkItemEvidenceCapabilityLockstep`
 (`capability_lockstep_work_item_test.go`, root package `query`), the drift
 guard the capability-lockstep review finding added, bringing the union to
-2879; `go list -deps ./internal/query/workitem` names no `internal/query`
-(root) dependency; the `internal/query` dirgate ledger row drops 502 -> 495
+2816; `go list -deps ./internal/query/workitem` names no `internal/query`
+(root) dependency; the `internal/query` dirgate ledger row drops 490 -> 483
 (eight non-test files left, one alias file arrived; the new lockstep test
 file does not move this count, since dirgate excludes `*_test.go`).
 

@@ -72,3 +72,18 @@ const workItemEvidenceCapability = workitem.EvidenceCapability
 // EvidenceFactKinds because service_story_target_support.go is the caller
 // that needs this unexported root spelling. See #6642.
 var workItemEvidenceFactKinds = workitem.EvidenceFactKinds
+
+// The seven evidence-state labels keep their pre-move root spellings so any
+// caller that still reads query.WorkItemEvidenceState* compiles unchanged
+// (none is checked in today; the forwards honor the "root keeps every
+// pre-move spelling" contract of this move). Their home is workitem/, as
+// workitem.EvidenceState*. See #6642.
+const (
+	WorkItemEvidenceStateExactProviderFact     = workitem.EvidenceStateExactProviderFact
+	WorkItemEvidenceStateUnsupportedLinkType   = workitem.EvidenceStateUnsupportedLinkType
+	WorkItemEvidenceStateMissingEvidence       = workitem.EvidenceStateMissingEvidence
+	WorkItemEvidenceStateStaleEvidence         = workitem.EvidenceStateStaleEvidence
+	WorkItemEvidenceStatePermissionHidden      = workitem.EvidenceStatePermissionHidden
+	WorkItemEvidenceStateRejectedUnsafePayload = workitem.EvidenceStateRejectedUnsafePayload
+	WorkItemEvidenceStateMetadataWarning       = workitem.EvidenceStateMetadataWarning
+)
