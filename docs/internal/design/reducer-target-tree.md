@@ -354,12 +354,14 @@ emits nothing; its coverage row cites the unchanged writer-path trio
 No-Regression Evidence: #6645 is package relocation plus identifier renames,
 so there is no runtime delta to measure. Correctness is proven by
 construction plus replay. Baseline `origin/main` `{{BASE_SHA}}`, go1.27.1
-darwin/arm64, from `go/`: `go build ./...` exit 0; `go vet
-./internal/reducer/... ./cmd/reducer/...` clean; `go test
+darwin/arm64, from `go/`: `go build ./...` exit 0; `go vet ./...` (whole
+module, tests included) clean; `go test
 ./internal/reducer/... ./cmd/reducer/... ./internal/storage/postgres/...
 ./internal/replay/... -count=1` green ({{PKG_OK}} packages ok); the test
-function inventory against the base lost 0 and gained 0 (moves keep test
-names); B-7 golden-corpus gate {{B7}}; B-12 replay-coverage gate {{B12}}.
+function inventory against the base is {{INV}}: moves keep test names, and
+the one gain is the E1 regression test
+`TestExtractCodeCallRowsCrossRepoExportSkipsCallerWithoutRepositoryID`;
+B-7 golden-corpus gate {{B7}}; B-12 replay-coverage gate {{B12}}.
 The real `ExtractRows` benchmarks, before and after on the same machine,
 interleaved, n=12 per side: {{BENCH}}. `go build -gcflags=-m` reports all 10
 `EntityIndex` read-only accessors inlinable, and the language leaves inline
