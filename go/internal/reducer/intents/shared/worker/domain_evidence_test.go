@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package worker
 
 import (
 	"testing"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
 )
 
@@ -21,11 +22,11 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 		domain string
 		want   string
 	}{
-		{DomainInheritanceEdges, inheritance.EvidenceSource},
-		{DomainRationaleEdges, rationaleEvidenceSource},
-		{DomainHandlesRoute, fallback},
-		{DomainRunsIn, fallback},
-		{DomainWorkloadDependency, fallback},
+		{reducercontract.DomainInheritanceEdges, inheritance.EvidenceSource},
+		{reducercontract.DomainRationaleEdges, reducercontract.RationaleEvidenceSource},
+		{reducercontract.DomainHandlesRoute, fallback},
+		{reducercontract.DomainRunsIn, fallback},
+		{reducercontract.DomainWorkloadDependency, fallback},
 	}
 	for _, tc := range cases {
 		tc := tc
@@ -36,7 +37,7 @@ func TestSharedProjectionDomainEvidenceSource(t *testing.T) {
 			}
 		})
 	}
-	if inheritance.EvidenceSource == fallback || rationaleEvidenceSource == fallback {
+	if inheritance.EvidenceSource == fallback || reducercontract.RationaleEvidenceSource == fallback {
 		t.Fatal("dedicated evidence sources must differ from the runner global to exercise the fix")
 	}
 }

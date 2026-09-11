@@ -4,8 +4,7 @@
 package reducer
 
 import (
-	"context"
-
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -39,6 +38,14 @@ type SharedProjectionWriteReport = sharedintent.WriteReport
 // Implementations MUST be idempotent: a cycle that crashes between this write
 // and MarkIntentsCompleted re-runs the whole batch, so an ON CONFLICT DO
 // NOTHING upsert keyed on the intent id is the expected shape.
-type SharedProjectionUnroutableWriter interface {
-	WriteUnroutableIntents(ctx context.Context, rows []SharedProjectionUnroutableRow) error
+type SharedProjectionUnroutableWriter = worker.UnroutableWriter
+
+// CarriesNoEdge is the root spelling of [sharedintent.CarriesNoEdge].
+func CarriesNoEdge(row SharedProjectionIntentRow) bool {
+	return sharedintent.CarriesNoEdge(row)
+}
+
+// filterUpsertRows forwards to [sharedintent.FilterUpsertRows].
+func filterUpsertRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
+	return sharedintent.FilterUpsertRows(rows)
 }

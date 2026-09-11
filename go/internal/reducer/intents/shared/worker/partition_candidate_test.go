@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package worker
 
 import (
 	"context"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // stubPartitionCandidateReader implements SharedIntentReader plus the indexed
@@ -14,16 +17,16 @@ import (
 // runner used so tests can prove the indexed predicate is preferred over the
 // in-memory domain scan.
 type stubPartitionCandidateReader struct {
-	hashed          []SharedProjectionIntentRow
-	unhashed        []SharedProjectionIntentRow
-	legacyResponder func(limit int) []SharedProjectionIntentRow
+	hashed          []sharedintent.Row
+	unhashed        []sharedintent.Row
+	legacyResponder func(limit int) []sharedintent.Row
 	completedIDs    []string
 	indexedCalls    int
 	legacyCalls     int
 	unhashedCalls   int
 }
 
-func (s *stubPartitionCandidateReader) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (s *stubPartitionCandidateReader) ListPendingDomainIntents(_ context.Context, _ string, limit int) ([]sharedintent.Row, error) {
 	s.legacyCalls++
 	if s.legacyResponder != nil {
 		return s.legacyResponder(limit), nil
@@ -35,24 +38,24 @@ func (s *stubPartitionCandidateReader) ListPendingDomainPartitionIntents(
 	_ context.Context,
 	_ string,
 	partitionID, partitionCount, limit int,
-) ([]SharedProjectionIntentRow, error) {
+) ([]sharedintent.Row, error) {
 	s.indexedCalls++
 	// Mimic the indexed Postgres predicate: only rows whose stable partition
 	// hash belongs to the leased partition are returned, bounded by limit.
-	matched := RowsForPartition(s.hashed, partitionID, partitionCount)
+	matched := sharedintent.RowsForPartition(s.hashed, partitionID, partitionCount)
 	if limit > 0 && len(matched) > limit {
 		matched = matched[:limit]
 	}
 	return matched, nil
 }
 
-func (s *stubPartitionCandidateReader) ListPendingDomainUnhashedIntents(_ context.Context, _ string, limit int) ([]SharedProjectionIntentRow, error) {
+func (s *stubPartitionCandidateReader) ListPendingDomainUnhashedIntents(_ context.Context, _ string, limit int) ([]sharedintent.Row, error) {
 	s.unhashedCalls++
 	rows := s.unhashed
 	if limit > 0 && len(rows) > limit {
 		rows = rows[:limit]
 	}
-	return append([]SharedProjectionIntentRow(nil), rows...), nil
+	return append([]sharedintent.Row(nil), rows...), nil
 }
 
 func (s *stubPartitionCandidateReader) MarkIntentsCompleted(_ context.Context, intentIDs []string, _ time.Time) error {
@@ -67,10 +70,10 @@ func TestSelectPartitionBatchUsesIndexedPartitionCandidatesWhenReaderSupportsIt(
 	partitionCount := 2
 	target := 1
 	reader := &stubPartitionCandidateReader{
-		hashed: []SharedProjectionIntentRow{
+		hashed: []sharedintent.Row{
 			{
 				IntentID:         "target-1",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, target, partitionCount, "indexed"),
 				ScopeID:          "scope-target",
 				AcceptanceUnitID: "repo-target",
@@ -83,7 +86,7 @@ func TestSelectPartitionBatchUsesIndexedPartitionCandidatesWhenReaderSupportsIt(
 	}
 
 	batch, err := SelectPartitionBatch(
-		context.Background(), reader, DomainWorkloadDependency,
+		context.Background(), reader, reducercontract.DomainWorkloadDependency,
 		target, partitionCount, 1,
 		acceptedGenerationFixed("gen-target", true),
 		nil, nil, nil, nil,
@@ -115,10 +118,10 @@ func TestSelectPartitionBatchDoesNotHitScanCapWithIndexedSelection(t *testing.T)
 	// which forces the in-memory scan to the cap and errors. The indexed path
 	// must never call it, so the buried target-partition row is found cheaply.
 	reader := &stubPartitionCandidateReader{
-		hashed: []SharedProjectionIntentRow{
+		hashed: []sharedintent.Row{
 			{
 				IntentID:         "buried-target",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, target, partitionCount, "buried"),
 				ScopeID:          "scope-target",
 				AcceptanceUnitID: "repo-target",
@@ -128,12 +131,12 @@ func TestSelectPartitionBatchDoesNotHitScanCapWithIndexedSelection(t *testing.T)
 				CreatedAt:        t0,
 			},
 		},
-		legacyResponder: func(limit int) []SharedProjectionIntentRow {
-			rows := make([]SharedProjectionIntentRow, limit)
+		legacyResponder: func(limit int) []sharedintent.Row {
+			rows := make([]sharedintent.Row, limit)
 			for i := range rows {
-				rows[i] = SharedProjectionIntentRow{
+				rows[i] = sharedintent.Row{
 					IntentID:         "head",
-					ProjectionDomain: DomainWorkloadDependency,
+					ProjectionDomain: reducercontract.DomainWorkloadDependency,
 					PartitionKey:     partitionKeyForTestPartition(t, 0, partitionCount, "cap"),
 					ScopeID:          "scope-head",
 					AcceptanceUnitID: "repo-head",
@@ -147,7 +150,7 @@ func TestSelectPartitionBatchDoesNotHitScanCapWithIndexedSelection(t *testing.T)
 	}
 
 	batch, err := SelectPartitionBatch(
-		context.Background(), reader, DomainWorkloadDependency,
+		context.Background(), reader, reducercontract.DomainWorkloadDependency,
 		target, partitionCount, 1,
 		acceptedGenerationFixed("gen-target", true),
 		nil, nil, nil, nil,
@@ -170,10 +173,10 @@ func TestSelectPartitionBatchMergesUnhashedFallbackForIndexedReader(t *testing.T
 	partitionCount := 2
 	target := 1
 	reader := &stubPartitionCandidateReader{
-		hashed: []SharedProjectionIntentRow{
+		hashed: []sharedintent.Row{
 			{
 				IntentID:         "hashed-a",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, target, partitionCount, "hashed-a"),
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -183,10 +186,10 @@ func TestSelectPartitionBatchMergesUnhashedFallbackForIndexedReader(t *testing.T
 				CreatedAt:        t0.Add(time.Second),
 			},
 		},
-		unhashed: []SharedProjectionIntentRow{
+		unhashed: []sharedintent.Row{
 			{
 				IntentID:         "legacy-b",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, target, partitionCount, "legacy-b"),
 				ScopeID:          "scope-b",
 				AcceptanceUnitID: "repo-b",
@@ -199,7 +202,7 @@ func TestSelectPartitionBatchMergesUnhashedFallbackForIndexedReader(t *testing.T
 	}
 
 	batch, err := SelectPartitionBatch(
-		context.Background(), reader, DomainWorkloadDependency,
+		context.Background(), reader, reducercontract.DomainWorkloadDependency,
 		target, partitionCount, 10,
 		acceptedGenerationFixed("gen-target", true),
 		nil, nil, nil, nil,
@@ -232,7 +235,7 @@ func TestAppendUnhashedSharedCandidatesCountsRowsSurvivingTruncation(t *testing.
 	// limit, one of the two unhashed rows is dropped. The reported matched count
 	// must reflect only the unhashed row that survives, not the pre-truncation
 	// total, so the unhashed_fallback_rows signal does not overstate drain.
-	hashed := []SharedProjectionIntentRow{
+	hashed := []sharedintent.Row{
 		{
 			IntentID:     "hashed-a",
 			PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "hashed-a"),
@@ -240,7 +243,7 @@ func TestAppendUnhashedSharedCandidatesCountsRowsSurvivingTruncation(t *testing.
 		},
 	}
 	reader := &stubPartitionCandidateReader{
-		unhashed: []SharedProjectionIntentRow{
+		unhashed: []sharedintent.Row{
 			{
 				IntentID:     "legacy-b",
 				PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "legacy-b"),
@@ -255,7 +258,7 @@ func TestAppendUnhashedSharedCandidatesCountsRowsSurvivingTruncation(t *testing.
 	}
 
 	merged, matched, atLimit, err := appendUnhashedSharedCandidates(
-		context.Background(), reader, hashed, DomainWorkloadDependency, target, partitionCount, 2,
+		context.Background(), reader, hashed, reducercontract.DomainWorkloadDependency, target, partitionCount, 2,
 	)
 	if err != nil {
 		t.Fatalf("appendUnhashedSharedCandidates() error = %v", err)
@@ -281,7 +284,7 @@ func TestSharedPartitionCandidatesReportsAtLimitFromCandidateWindows(t *testing.
 	partitionCount := 2
 	target := 1
 	reader := &stubPartitionCandidateReader{
-		unhashed: []SharedProjectionIntentRow{
+		unhashed: []sharedintent.Row{
 			{IntentID: "u1", PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "u1"), CreatedAt: t0},
 			{IntentID: "u2", PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "u2"), CreatedAt: t0.Add(time.Second)},
 		},
@@ -290,7 +293,7 @@ func TestSharedPartitionCandidatesReportsAtLimitFromCandidateWindows(t *testing.
 	// limit == available unhashed rows: the window is full, so more legacy rows
 	// may remain in the database and atLimit must be true.
 	_, _, atLimitFull, indexed, err := sharedPartitionCandidates(
-		context.Background(), reader, DomainWorkloadDependency, target, partitionCount, 2,
+		context.Background(), reader, reducercontract.DomainWorkloadDependency, target, partitionCount, 2,
 	)
 	if err != nil {
 		t.Fatalf("sharedPartitionCandidates() error = %v", err)
@@ -304,7 +307,7 @@ func TestSharedPartitionCandidatesReportsAtLimitFromCandidateWindows(t *testing.
 
 	// limit larger than available: the window is not full, atLimit is false.
 	_, _, atLimitPartial, _, err := sharedPartitionCandidates(
-		context.Background(), reader, DomainWorkloadDependency, target, partitionCount, 10,
+		context.Background(), reader, reducercontract.DomainWorkloadDependency, target, partitionCount, 10,
 	)
 	if err != nil {
 		t.Fatalf("sharedPartitionCandidates() error = %v", err)
@@ -334,7 +337,7 @@ func TestAppendUnhashedSharedCandidatesRefreshFirstAcrossMerge(t *testing.T) {
 	target := 1
 
 	// Three upsert edges with older timestamps go into the hashed lane.
-	hashed := []SharedProjectionIntentRow{
+	hashed := []sharedintent.Row{
 		{
 			IntentID:     "edge-1",
 			PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "edge-1"),
@@ -351,18 +354,18 @@ func TestAppendUnhashedSharedCandidatesRefreshFirstAcrossMerge(t *testing.T) {
 
 	// The refresh intent has a later timestamp and lives in the unhashed lane.
 	reader := &stubPartitionCandidateReader{
-		unhashed: []SharedProjectionIntentRow{
+		unhashed: []sharedintent.Row{
 			{
 				IntentID:     "refresh-later",
 				PartitionKey: partitionKeyForTestPartition(t, target, partitionCount, "refresh-later"),
 				CreatedAt:    refreshTime,
-				Payload:      map[string]any{"action": repoRefreshAction, "intent_type": RepoRefreshIntentType},
+				Payload:      map[string]any{"action": sharedintent.RepoRefreshAction, "intent_type": sharedintent.RepoRefreshIntentType},
 			},
 		},
 	}
 
 	merged, matched, _, err := appendUnhashedSharedCandidates(
-		context.Background(), reader, hashed, DomainWorkloadDependency, target, partitionCount, 10,
+		context.Background(), reader, hashed, reducercontract.DomainWorkloadDependency, target, partitionCount, 10,
 	)
 	if err != nil {
 		t.Fatalf("appendUnhashedSharedCandidates() error = %v", err)
@@ -386,10 +389,10 @@ func TestSelectPartitionBatchKeepsLegacyScanWhenReaderUnsupported(t *testing.T) 
 	partitionCount := 2
 	target := 1
 	reader := &stubSharedIntentReader{
-		pending: []SharedProjectionIntentRow{
+		pending: []sharedintent.Row{
 			{
 				IntentID:         "legacy-target",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     partitionKeyForTestPartition(t, target, partitionCount, "legacy"),
 				ScopeID:          "scope-target",
 				AcceptanceUnitID: "repo-target",
@@ -402,7 +405,7 @@ func TestSelectPartitionBatchKeepsLegacyScanWhenReaderUnsupported(t *testing.T) 
 	}
 
 	batch, err := SelectPartitionBatch(
-		context.Background(), reader, DomainWorkloadDependency,
+		context.Background(), reader, reducercontract.DomainWorkloadDependency,
 		target, partitionCount, 1,
 		acceptedGenerationFixed("gen-target", true),
 		nil, nil, nil, nil,

@@ -5,7 +5,6 @@ package reducer
 
 import (
 	"context"
-	"sort"
 	"strings"
 	"time"
 
@@ -92,75 +91,8 @@ func publishAPIEndpointRepoPathPresence(
 	)
 }
 
-// handlesRouteEndpointPresenceKey forwards to
-// [gpphase.HandlesRouteEndpointPresenceKey].
-func handlesRouteEndpointPresenceKey(row SharedProjectionIntentRow) string {
-	return gpphase.HandlesRouteEndpointPresenceKey(row)
-}
-
-// filterRowsByTargetPresence splits phase-ready symbol→runtime rows into the rows
-// whose target is committed (present) and the rows whose target is absent. It
-// backs both the handles_route endpoint-presence gate (#2809) and the runs_in
-// repo-workload-presence gate (#2855): the caller supplies the presence keyspace
-// and a per-row key function so the same bounded MissingUIDs lookup (ONE call
-// over the distinct synthesized uids, never an N+1 per-row probe) serves either
-// domain. A nil lookup disables the gate and returns every input row as present,
-// so the gated path stays byte-identical to its pre-gate behavior when presence
-// is unwired. The caller treats the absent set as TERMINAL (complete, no edge),
-// not deferred: the phase gate already proves the repo's targets have all
-// committed, so an absent target will never appear.
-func filterRowsByTargetPresence(
-	ctx context.Context,
-	rows []SharedProjectionIntentRow,
-	presence EndpointPresenceLookup,
-	keyspace GraphProjectionKeyspace,
-	keyFor func(SharedProjectionIntentRow) string,
-) (present, absent []SharedProjectionIntentRow, err error) {
-	if presence == nil || len(rows) == 0 {
-		return rows, nil, nil
-	}
-
-	keyByRow := make([]string, len(rows))
-	seen := make(map[string]struct{}, len(rows))
-	uids := make([]string, 0, len(rows))
-	for i, row := range rows {
-		key := keyFor(row)
-		keyByRow[i] = key
-		if key == "" {
-			continue
-		}
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		uids = append(uids, key)
-	}
-	sort.Strings(uids)
-
-	missing, err := presence.MissingUIDs(ctx, keyspace, uids)
-	if err != nil {
-		return nil, nil, err
-	}
-	missingSet := make(map[string]struct{}, len(missing))
-	for _, uid := range missing {
-		missingSet[uid] = struct{}{}
-	}
-
-	present = make([]SharedProjectionIntentRow, 0, len(rows))
-	absent = make([]SharedProjectionIntentRow, 0)
-	for i, row := range rows {
-		key := keyByRow[i]
-		// A row with no derivable (repo_id, path) cannot be proven present and
-		// cannot anchor a MERGE either, so it joins the absent (terminal) set.
-		if key == "" {
-			absent = append(absent, row)
-			continue
-		}
-		if _, isMissing := missingSet[key]; isMissing {
-			absent = append(absent, row)
-			continue
-		}
-		present = append(present, row)
-	}
-	return present, absent, nil
-}
+// handlesRouteEndpointPresenceKey and filterRowsByTargetPresence moved to
+// [worker] (issue #6061): the symbol→runtime presence gate that called them
+// (symbolRuntimePresenceGate, filterRowsByReadiness) moved there in H5, and
+// worker now calls [gpphase.HandlesRouteEndpointPresenceKey] and its own
+// filterRowsByTargetPresence directly instead of through a root forwarder.

@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package worker
 
 import (
 	"context"
 	"errors"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // fakeFirstProjectionLookup is a test double for FirstProjectionLookup that
 // records every (scopeID, currentGenerationID) probe so tests can assert the
 // memoization guarantee (#3624): a scope is probed at most once per
-// planRepoWideRetractWork call regardless of how many refresh rows share it.
+// PlanRepoWideRetractWork call regardless of how many refresh rows share it.
 type fakeFirstProjectionLookup struct {
 	hasPrior map[string]bool // keyed by scopeID
 	err      error
@@ -31,11 +34,11 @@ func (f *fakeFirstProjectionLookup) ScopeHasPriorGeneration(
 	return f.hasPrior[scopeID], nil
 }
 
-func firstProjectionRefreshRow(t *testing.T, repoID, scopeID, generationID string, created time.Time) SharedProjectionIntentRow {
+func firstProjectionRefreshRow(t *testing.T, repoID, scopeID, generationID string, created time.Time) sharedintent.Row {
 	t.Helper()
-	return BuildSharedProjectionIntent(SharedProjectionIntentInput{
-		ProjectionDomain: DomainHandlesRoute,
-		PartitionKey:     repoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID),
+	return sharedintent.Build(sharedintent.Input{
+		ProjectionDomain: reducercontract.DomainHandlesRoute,
+		PartitionKey:     sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainHandlesRoute, repoID),
 		ScopeID:          scopeID,
 		AcceptanceUnitID: repoID,
 		RepositoryID:     repoID,
@@ -43,8 +46,8 @@ func firstProjectionRefreshRow(t *testing.T, repoID, scopeID, generationID strin
 		GenerationID:     generationID,
 		Payload: map[string]any{
 			"repo_id":     repoID,
-			"intent_type": RepoRefreshIntentType,
-			"action":      repoRefreshAction,
+			"intent_type": sharedintent.RepoRefreshIntentType,
+			"action":      sharedintent.RepoRefreshAction,
 		},
 		CreatedAt: created,
 	})
@@ -61,15 +64,15 @@ func TestPlanRepoWideRetractWorkReIngestStillRetracts(t *testing.T) {
 	row := firstProjectionRefreshRow(t, "repo-a", "scope-a", "gen-2", now)
 	lookup := &fakeFirstProjectionLookup{hasPrior: map[string]bool{"scope-a": true}}
 
-	plan, err := planRepoWideRetractWork(context.Background(), DomainHandlesRoute, []SharedProjectionIntentRow{row}, nil, lookup, nil)
+	plan, err := PlanRepoWideRetractWork(context.Background(), reducercontract.DomainHandlesRoute, []sharedintent.Row{row}, nil, lookup, nil)
 	if err != nil {
-		t.Fatalf("planRepoWideRetractWork: %v", err)
+		t.Fatalf("PlanRepoWideRetractWork: %v", err)
 	}
-	if len(plan.retractRows) != 1 {
-		t.Fatalf("retractRows = %d, want 1 (re-ingest must still retract)", len(plan.retractRows))
+	if len(plan.RetractRows) != 1 {
+		t.Fatalf("retractRows = %d, want 1 (re-ingest must still retract)", len(plan.RetractRows))
 	}
-	if len(plan.completedRows) != 1 {
-		t.Fatalf("completedRows = %d, want 1", len(plan.completedRows))
+	if len(plan.CompletedRows) != 1 {
+		t.Fatalf("completedRows = %d, want 1", len(plan.CompletedRows))
 	}
 }
 
@@ -84,15 +87,15 @@ func TestPlanRepoWideRetractWorkSkipsFirstProjectionRetract(t *testing.T) {
 	row := firstProjectionRefreshRow(t, "repo-a", "scope-a", "gen-1", now)
 	lookup := &fakeFirstProjectionLookup{hasPrior: map[string]bool{"scope-a": false}}
 
-	plan, err := planRepoWideRetractWork(context.Background(), DomainHandlesRoute, []SharedProjectionIntentRow{row}, nil, lookup, nil)
+	plan, err := PlanRepoWideRetractWork(context.Background(), reducercontract.DomainHandlesRoute, []sharedintent.Row{row}, nil, lookup, nil)
 	if err != nil {
-		t.Fatalf("planRepoWideRetractWork: %v", err)
+		t.Fatalf("PlanRepoWideRetractWork: %v", err)
 	}
-	if len(plan.retractRows) != 0 {
-		t.Fatalf("retractRows = %d, want 0 (first projection has nothing to retract)", len(plan.retractRows))
+	if len(plan.RetractRows) != 0 {
+		t.Fatalf("retractRows = %d, want 0 (first projection has nothing to retract)", len(plan.RetractRows))
 	}
-	if len(plan.completedRows) != 1 {
-		t.Fatalf("completedRows = %d, want 1 (fence must still open)", len(plan.completedRows))
+	if len(plan.CompletedRows) != 1 {
+		t.Fatalf("completedRows = %d, want 1 (fence must still open)", len(plan.CompletedRows))
 	}
 }
 
@@ -105,12 +108,12 @@ func TestPlanRepoWideRetractWorkNilFirstProjectionPreservesLegacyBehavior(t *tes
 	now := time.Date(2026, time.July, 5, 12, 0, 0, 0, time.UTC)
 	row := firstProjectionRefreshRow(t, "repo-a", "scope-a", "gen-1", now)
 
-	plan, err := planRepoWideRetractWork(context.Background(), DomainHandlesRoute, []SharedProjectionIntentRow{row}, nil, nil, nil)
+	plan, err := PlanRepoWideRetractWork(context.Background(), reducercontract.DomainHandlesRoute, []sharedintent.Row{row}, nil, nil, nil)
 	if err != nil {
-		t.Fatalf("planRepoWideRetractWork: %v", err)
+		t.Fatalf("PlanRepoWideRetractWork: %v", err)
 	}
-	if len(plan.retractRows) != 1 {
-		t.Fatalf("retractRows = %d, want 1 (nil lookup disables the skip)", len(plan.retractRows))
+	if len(plan.RetractRows) != 1 {
+		t.Fatalf("retractRows = %d, want 1 (nil lookup disables the skip)", len(plan.RetractRows))
 	}
 }
 
@@ -125,15 +128,15 @@ func TestPlanRepoWideRetractWorkMemoizesPerScope(t *testing.T) {
 	rowB := firstProjectionRefreshRow(t, "repo-b", "scope-a", "gen-1", now.Add(time.Second))
 	lookup := &fakeFirstProjectionLookup{hasPrior: map[string]bool{"scope-a": false}}
 
-	plan, err := planRepoWideRetractWork(context.Background(), DomainHandlesRoute, []SharedProjectionIntentRow{rowA, rowB}, nil, lookup, nil)
+	plan, err := PlanRepoWideRetractWork(context.Background(), reducercontract.DomainHandlesRoute, []sharedintent.Row{rowA, rowB}, nil, lookup, nil)
 	if err != nil {
-		t.Fatalf("planRepoWideRetractWork: %v", err)
+		t.Fatalf("PlanRepoWideRetractWork: %v", err)
 	}
-	if len(plan.retractRows) != 0 {
-		t.Fatalf("retractRows = %d, want 0", len(plan.retractRows))
+	if len(plan.RetractRows) != 0 {
+		t.Fatalf("retractRows = %d, want 0", len(plan.RetractRows))
 	}
-	if len(plan.completedRows) != 2 {
-		t.Fatalf("completedRows = %d, want 2", len(plan.completedRows))
+	if len(plan.CompletedRows) != 2 {
+		t.Fatalf("completedRows = %d, want 2", len(plan.CompletedRows))
 	}
 	if got := len(lookup.calls); got != 1 {
 		t.Fatalf("lookup probed %d times, want 1 (memoize per scope); calls=%v", got, lookup.calls)
@@ -151,11 +154,11 @@ func TestPlanRepoWideRetractWorkPropagatesProbeError(t *testing.T) {
 	wantErr := errors.New("db unavailable")
 	lookup := &fakeFirstProjectionLookup{err: wantErr}
 
-	_, err := planRepoWideRetractWork(context.Background(), DomainHandlesRoute, []SharedProjectionIntentRow{row}, nil, lookup, nil)
+	_, err := PlanRepoWideRetractWork(context.Background(), reducercontract.DomainHandlesRoute, []sharedintent.Row{row}, nil, lookup, nil)
 	if err == nil {
-		t.Fatal("planRepoWideRetractWork error = nil, want propagated probe error")
+		t.Fatal("PlanRepoWideRetractWork error = nil, want propagated probe error")
 	}
 	if !errors.Is(err, wantErr) {
-		t.Fatalf("planRepoWideRetractWork error = %v, want wrapping %v", err, wantErr)
+		t.Fatalf("PlanRepoWideRetractWork error = %v, want wrapping %v", err, wantErr)
 	}
 }

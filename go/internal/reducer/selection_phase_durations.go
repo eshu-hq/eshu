@@ -3,11 +3,8 @@
 
 package reducer
 
-// SelectionPhaseDurations records bounded selector subphase timings for
-// shared-projection runners that need to diagnose candidate-page outliers.
-type SelectionPhaseDurations struct {
-	CandidateLoadSeconds      float64
-	AcceptancePrefetchSeconds float64
-	ReadinessPrefetchSeconds  float64
-	RefreshFenceCheckSeconds  float64
-}
+import worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
+// SelectionPhaseDurations is the root spelling of
+// [worker.SelectionPhaseDurations].
+type SelectionPhaseDurations = worker.SelectionPhaseDurations

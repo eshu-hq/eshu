@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package worker
 
 import (
 	"bytes"
@@ -15,20 +15,31 @@ import (
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// acceptedGenerationFixed returns an AcceptedGenerationLookup that always
+// answers (generationID, ok) regardless of the key, for tests that don't
+// exercise acceptance-key routing.
+func acceptedGenerationFixed(generationID string, ok bool) sharedintent.AcceptedGenerationLookup {
+	return func(sharedintent.AcceptanceKey) (string, bool) {
+		return generationID, ok
+	}
+}
+
 type fakeSharedIntentReader struct {
 	mu      sync.Mutex
-	intents []SharedProjectionIntentRow
+	intents []sharedintent.Row
 	marked  []string
 }
 
-func (f *fakeSharedIntentReader) ListPendingDomainIntents(_ context.Context, domain string, limit int) ([]SharedProjectionIntentRow, error) {
+func (f *fakeSharedIntentReader) ListPendingDomainIntents(_ context.Context, domain string, limit int) ([]sharedintent.Row, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	var result []SharedProjectionIntentRow
+	var result []sharedintent.Row
 	for _, row := range f.intents {
 		if row.ProjectionDomain == domain && row.CompletedAt == nil {
 			result = append(result, row)
@@ -79,7 +90,7 @@ type fakeEdgeWriter struct {
 	mu        sync.Mutex
 	writes    int
 	retracts  int
-	writeRows []SharedProjectionIntentRow
+	writeRows []sharedintent.Row
 	// writeErr, when non-nil, is returned by WriteEdges instead of a
 	// successful write -- used to simulate a graph-executor-seam failure
 	// (e.g. the ifafaultinjection fail-graph-write-once-then-succeed fault)
@@ -87,18 +98,18 @@ type fakeEdgeWriter struct {
 	writeErr error
 }
 
-func (f *fakeEdgeWriter) WriteEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) (SharedProjectionWriteReport, error) {
+func (f *fakeEdgeWriter) WriteEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) (sharedintent.WriteReport, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.writes++
 	if f.writeErr != nil {
-		return SharedProjectionWriteReport{}, f.writeErr
+		return sharedintent.WriteReport{}, f.writeErr
 	}
 	f.writeRows = append(f.writeRows, rows...)
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
-func (f *fakeEdgeWriter) RetractEdges(_ context.Context, _ string, rows []SharedProjectionIntentRow, _ string) error {
+func (f *fakeEdgeWriter) RetractEdges(_ context.Context, _ string, rows []sharedintent.Row, _ string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.retracts++
@@ -112,14 +123,14 @@ func TestSharedProjectionRunnerConfigDefaults(t *testing.T) {
 	if got := cfg.partitionCount(); got != defaultPartitionCount {
 		t.Fatalf("partitionCount() = %d, want %d", got, defaultPartitionCount)
 	}
-	if got := cfg.pollInterval(); got != defaultSharedPollInterval {
-		t.Fatalf("pollInterval() = %v, want %v", got, defaultSharedPollInterval)
+	if got := cfg.pollInterval(); got != DefaultSharedPollInterval {
+		t.Fatalf("pollInterval() = %v, want %v", got, DefaultSharedPollInterval)
 	}
-	if got := cfg.leaseTTL(); got != defaultLeaseTTL {
-		t.Fatalf("leaseTTL() = %v, want %v", got, defaultLeaseTTL)
+	if got := cfg.leaseTTL(); got != DefaultLeaseTTL {
+		t.Fatalf("leaseTTL() = %v, want %v", got, DefaultLeaseTTL)
 	}
-	if got := cfg.batchLimit(); got != defaultBatchLimit {
-		t.Fatalf("batchLimit() = %d, want %d", got, defaultBatchLimit)
+	if got := cfg.batchLimit(); got != DefaultBatchLimit {
+		t.Fatalf("batchLimit() = %d, want %d", got, DefaultBatchLimit)
 	}
 	if got := cfg.leaseOwner(); got != DefaultSharedProjectionLeaseOwnerPrefix {
 		t.Fatalf("leaseOwner() = %q, want %q", got, DefaultSharedProjectionLeaseOwnerPrefix)
@@ -152,10 +163,10 @@ func TestSharedProjectionRunnerProcessesPendingIntents(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeSharedIntentReader{
-		intents: []SharedProjectionIntentRow{
+		intents: []sharedintent.Row{
 			{
 				IntentID:         "intent-1",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     "platform:eks-prod",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -264,17 +275,17 @@ func TestSharedProjectionDomainsIncludesAllExpected(t *testing.T) {
 	t.Parallel()
 
 	expected := map[string]bool{
-		DomainWorkloadDependency:       false,
-		DomainInheritanceEdges:         false,
-		DomainDocumentationEdges:       false,
-		DomainRationaleEdges:           false,
-		DomainSQLRelationships:         false,
-		DomainShellExec:                false,
-		DomainHandlesRoute:             false,
-		DomainRunsIn:                   false,
-		DomainInvokesCloudAction:       false,
-		DomainCodeownersOwnershipEdges: false,
-		DomainSubmodulePinEdges:        false,
+		reducercontract.DomainWorkloadDependency:       false,
+		reducercontract.DomainInheritanceEdges:         false,
+		reducercontract.DomainDocumentationEdges:       false,
+		reducercontract.DomainRationaleEdges:           false,
+		reducercontract.DomainSQLRelationships:         false,
+		reducercontract.DomainShellExec:                false,
+		reducercontract.DomainHandlesRoute:             false,
+		reducercontract.DomainRunsIn:                   false,
+		reducercontract.DomainInvokesCloudAction:       false,
+		reducercontract.DomainCodeownersOwnershipEdges: false,
+		reducercontract.DomainSubmodulePinEdges:        false,
 	}
 
 	for _, domain := range sharedProjectionDomains {
@@ -299,10 +310,10 @@ func TestSharedProjectionRunnerProcessesNewDomainIntents(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeSharedIntentReader{
-		intents: []SharedProjectionIntentRow{
+		intents: []sharedintent.Row{
 			{
 				IntentID:         "intent-inh-1",
-				ProjectionDomain: DomainInheritanceEdges,
+				ProjectionDomain: reducercontract.DomainInheritanceEdges,
 				PartitionKey:     "child->parent",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -320,7 +331,7 @@ func TestSharedProjectionRunnerProcessesNewDomainIntents(t *testing.T) {
 			},
 			{
 				IntentID:         "intent-sql-1",
-				ProjectionDomain: DomainSQLRelationships,
+				ProjectionDomain: reducercontract.DomainSQLRelationships,
 				PartitionKey:     "view->table",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -371,10 +382,10 @@ func TestSharedProjectionRunnerWithTelemetry(t *testing.T) {
 	t.Parallel()
 
 	reader := &fakeSharedIntentReader{
-		intents: []SharedProjectionIntentRow{
+		intents: []sharedintent.Row{
 			{
 				IntentID:         "intent-1",
-				ProjectionDomain: DomainWorkloadDependency,
+				ProjectionDomain: reducercontract.DomainWorkloadDependency,
 				PartitionKey:     "platform:eks-prod",
 				ScopeID:          "scope-a",
 				AcceptanceUnitID: "repo-a",
@@ -439,7 +450,7 @@ func TestSharedProjectionRunnerRecordCycleLogsSubstepDurations(t *testing.T) {
 
 	runner.recordSharedProjectionCycle(
 		context.Background(),
-		DomainSQLRelationships,
+		reducercontract.DomainSQLRelationships,
 		0.40,
 		PartitionProcessResult{
 			MaxIntentWaitSeconds:         8.0,

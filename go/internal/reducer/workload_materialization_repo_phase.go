@@ -11,7 +11,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
+
+// workloadMaterializationRepoReadinessKey forwards to
+// [gpphase.WorkloadMaterializationRepoReadinessKey].
+func workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID string) GraphProjectionPhaseKey {
+	return gpphase.WorkloadMaterializationRepoReadinessKey(scopeID, repoID, generationID)
+}
 
 // repoReadinessPhaseStates builds one workload-materialization phase-state row
 // per distinct repo, keyed by the deterministic per-repo readiness key (#2891)

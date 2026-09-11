@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package worker
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -48,7 +49,7 @@ func sharedProjectionLeaseHeartbeatInterval(leaseTTL time.Duration) time.Duratio
 func startSharedProjectionLeaseHeartbeat(
 	ctx context.Context,
 	cfg PartitionProcessorConfig,
-	leaseManager PartitionLeaseManager,
+	leaseManager sharedintent.PartitionLeaseManager,
 	instruments *telemetry.Instruments,
 	logger *slog.Logger,
 ) (context.Context, sharedProjectionLeaseHeartbeatStop) {

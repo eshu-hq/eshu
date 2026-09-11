@@ -1,14 +1,26 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package worker
 
 import (
 	"context"
 	"reflect"
 	"testing"
 	"time"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
+
+// readinessLookupFixed returns a gpphase.ReadinessLookup that always answers
+// (ready, ok) regardless of the key and phase.
+func readinessLookupFixed(ready, ok bool) gpphase.ReadinessLookup {
+	return func(gpphase.PhaseKey, gpphase.Phase) (bool, bool) {
+		return ready, ok
+	}
+}
 
 type rationaleEvidenceCapturingWriter struct {
 	retractSources []string
@@ -18,10 +30,10 @@ type rationaleEvidenceCapturingWriter struct {
 func (w *rationaleEvidenceCapturingWriter) RetractEdges(
 	_ context.Context,
 	domain string,
-	_ []SharedProjectionIntentRow,
+	_ []sharedintent.Row,
 	evidenceSource string,
 ) error {
-	if domain == DomainRationaleEdges {
+	if domain == reducercontract.DomainRationaleEdges {
 		w.retractSources = append(w.retractSources, evidenceSource)
 	}
 	return nil
@@ -30,21 +42,21 @@ func (w *rationaleEvidenceCapturingWriter) RetractEdges(
 func (w *rationaleEvidenceCapturingWriter) WriteEdges(
 	_ context.Context,
 	domain string,
-	_ []SharedProjectionIntentRow,
+	_ []sharedintent.Row,
 	evidenceSource string,
-) (SharedProjectionWriteReport, error) {
-	if domain == DomainRationaleEdges {
+) (sharedintent.WriteReport, error) {
+	if domain == reducercontract.DomainRationaleEdges {
 		w.writeSources = append(w.writeSources, evidenceSource)
 	}
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func TestSharedProjectionRunnerPassesRationaleEvidenceSourceToRetractAndWrite(t *testing.T) {
 	t.Parallel()
 
-	reader := &fakeSharedIntentReader{intents: []SharedProjectionIntentRow{{
+	reader := &fakeSharedIntentReader{intents: []sharedintent.Row{{
 		IntentID:         "rationale-intent-1",
-		ProjectionDomain: DomainRationaleEdges,
+		ProjectionDomain: reducercontract.DomainRationaleEdges,
 		PartitionKey:     "rationale:edge:1",
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: "repo-a",
@@ -78,7 +90,7 @@ func TestSharedProjectionRunnerPassesRationaleEvidenceSourceToRetractAndWrite(t 
 	if got, want := result.ProcessedIntents, 1; got != want {
 		t.Fatalf("ProcessedIntents = %d, want %d", got, want)
 	}
-	wantSources := []string{rationaleEvidenceSource}
+	wantSources := []string{reducercontract.RationaleEvidenceSource}
 	if !reflect.DeepEqual(edges.retractSources, wantSources) {
 		t.Fatalf("retract evidence sources = %#v, want %#v", edges.retractSources, wantSources)
 	}

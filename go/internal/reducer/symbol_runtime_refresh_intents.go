@@ -8,7 +8,13 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
+
+// sharedProjectionRowRepoID forwards to [sharedintent.RowRepoID].
+func sharedProjectionRowRepoID(row SharedProjectionIntentRow) string {
+	return sharedintent.RowRepoID(row)
+}
 
 // ExtractSymbolRuntimeIntentRows builds every symbol->runtime shared-projection
 // intent row -- handles_route, runs_in, and invokes_cloud_action -- from

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package worker
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -34,7 +35,7 @@ func TestRecordSharedProjectionPartitionMetrics_HistogramAndCounter(t *testing.T
 
 	runner := SharedProjectionRunner{Instruments: inst}
 
-	const domain = DomainInheritanceEdges
+	const domain = reducercontract.DomainInheritanceEdges
 	const partitionID = 3
 	const durationSeconds = 0.42
 
@@ -84,7 +85,7 @@ func TestRecordSharedProjectionPartitionMetrics_SkipsZeroDuration(t *testing.T) 
 
 	runner.recordSharedProjectionPartitionMetrics(
 		context.Background(),
-		DomainSQLRelationships,
+		reducercontract.DomainSQLRelationships,
 		0,
 		0.0, // zero duration — must be skipped
 		PartitionProcessResult{ProcessedIntents: 0},
@@ -123,7 +124,7 @@ func TestRecordSharedProjectionPartitionMetrics_CardinalityBounded(t *testing.T)
 	runner := SharedProjectionRunner{Instruments: inst}
 	runner.recordSharedProjectionPartitionMetrics(
 		context.Background(),
-		DomainHandlesRoute,
+		reducercontract.DomainHandlesRoute,
 		5,
 		0.10,
 		PartitionProcessResult{ProcessedIntents: 3},

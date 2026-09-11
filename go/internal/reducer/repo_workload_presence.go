@@ -77,8 +77,8 @@ func publishRepoWorkloadPresence(
 	)
 }
 
-// runsInRepoWorkloadPresenceKey forwards to
-// [gpphase.RunsInRepoWorkloadPresenceKey].
-func runsInRepoWorkloadPresenceKey(row SharedProjectionIntentRow) string {
-	return gpphase.RunsInRepoWorkloadPresenceKey(row)
-}
+// runsInRepoWorkloadPresenceKey moved to [worker] (issue #6061): the
+// symbol→runtime presence gate that called it (symbolRuntimePresenceGate)
+// moved there in H5, and worker now calls
+// [gpphase.RunsInRepoWorkloadPresenceKey] directly instead of through a root
+// forwarder.
