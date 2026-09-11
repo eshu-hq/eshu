@@ -448,7 +448,7 @@ func (h *EntityHandler) GetServiceContext(w http.ResponseWriter, r *http.Request
 		querycontract.WriteError(w, http.StatusNotFound, "service not found")
 		return
 	}
-	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.ServiceQueryEnrichmentOptions{
+	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.QueryEnrichmentOptions{
 		IncludeRelatedModuleUsage: true,
 		Logger:                    h.Logger,
 		Operation:                 "service_context",

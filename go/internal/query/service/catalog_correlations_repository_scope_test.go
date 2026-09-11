@@ -62,7 +62,7 @@ func TestServiceCatalogListCorrelationsExplainsRepositoryScopedEvidence(t *testi
 			},
 		},
 	}
-	handler := &ServiceCatalogHandler{
+	handler := &CatalogHandler{
 		Content:      serviceSelectorReadModelContentStore(),
 		Correlations: store,
 	}
@@ -82,9 +82,9 @@ func TestServiceCatalogListCorrelationsExplainsRepositoryScopedEvidence(t *testi
 	}
 
 	var resp struct {
-		Correlations []ServiceCatalogCorrelationResult `json:"correlations"`
-		Count        int                               `json:"count"`
-		Missing      []ServiceCatalogMissingEvidence   `json:"missing_evidence"`
+		Correlations []CatalogCorrelationResult `json:"correlations"`
+		Count        int                        `json:"count"`
+		Missing      []CatalogMissingEvidence   `json:"missing_evidence"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)

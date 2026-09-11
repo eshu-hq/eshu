@@ -15,20 +15,20 @@ import (
 
 func LoadServiceQueryEvidence(
 	ctx context.Context,
-	reader ServiceEvidenceReader,
+	reader EvidenceReader,
 	repoID string,
 	serviceName string,
-) (ServiceQueryEvidence, error) {
+) (QueryEvidence, error) {
 	if reader == nil || repoID == "" {
-		return ServiceQueryEvidence{}, nil
+		return QueryEvidence{}, nil
 	}
 
 	files, filesTruncated, err := listServiceEvidenceFiles(ctx, reader, repoID)
 	if err != nil {
-		return ServiceQueryEvidence{}, err
+		return QueryEvidence{}, err
 	}
 
-	collected := ServiceQueryEvidence{filesTruncated: filesTruncated}
+	collected := QueryEvidence{filesTruncated: filesTruncated}
 	seenHostnames := map[string]struct{}{}
 	seenEntrypointCandidates := map[string]struct{}{}
 	seenEnvironments := map[string]struct{}{}
@@ -45,7 +45,7 @@ func LoadServiceQueryEvidence(
 		if strings.TrimSpace(hydrated.Content) == "" {
 			fileContent, err := reader.GetFileContent(ctx, repoID, file.RelativePath)
 			if err != nil {
-				return ServiceQueryEvidence{}, fmt.Errorf("get service evidence file %q: %w", file.RelativePath, err)
+				return QueryEvidence{}, fmt.Errorf("get service evidence file %q: %w", file.RelativePath, err)
 			}
 			if fileContent == nil {
 				continue
@@ -65,7 +65,7 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenEntrypointCandidates[key] = struct{}{}
-			collected.EntrypointCandidates = append(collected.EntrypointCandidates, ServiceEntrypointCandidateEvidence{
+			collected.EntrypointCandidates = append(collected.EntrypointCandidates, EntrypointCandidateEvidence{
 				Candidate:      candidate.Value,
 				Classification: candidate.Classification,
 				RelativePath:   hydrated.RelativePath,
@@ -81,7 +81,7 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenHostnames[hostname] = struct{}{}
-			collected.Hostnames = append(collected.Hostnames, ServiceHostnameEvidence{
+			collected.Hostnames = append(collected.Hostnames, HostnameEvidence{
 				Hostname:     hostname,
 				Environment:  environment,
 				RelativePath: hydrated.RelativePath,
@@ -94,7 +94,7 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenEnvironments[environment] = struct{}{}
-			collected.Environments = append(collected.Environments, ServiceEnvironmentEvidence{
+			collected.Environments = append(collected.Environments, EnvironmentEvidence{
 				Environment:  environment,
 				RelativePath: hydrated.RelativePath,
 				Reason:       "path_or_content_environment_signal",
@@ -106,7 +106,7 @@ func LoadServiceQueryEvidence(
 				continue
 			}
 			seenDocsRoutes[route] = struct{}{}
-			collected.DocsRoutes = append(collected.DocsRoutes, ServiceDocsRouteEvidence{
+			collected.DocsRoutes = append(collected.DocsRoutes, DocsRouteEvidence{
 				Route:        route,
 				RelativePath: hydrated.RelativePath,
 				Reason:       "docs_route_reference",
@@ -115,7 +115,7 @@ func LoadServiceQueryEvidence(
 
 		spec, ok, err := extractAPISpecEvidence(hydrated, buildSpecFileResolver(ctx, reader, repoID))
 		if err != nil {
-			return ServiceQueryEvidence{}, fmt.Errorf("extract api spec evidence %q: %w", hydrated.RelativePath, err)
+			return QueryEvidence{}, fmt.Errorf("extract api spec evidence %q: %w", hydrated.RelativePath, err)
 		}
 		if ok {
 			key := spec.RelativePath
@@ -169,6 +169,6 @@ func isServiceEvidenceCandidate(file querycontract.FileContent, normalizedServic
 // external `$ref` path entries through resolver first. The implementation
 // moved to the service/evidence leaf for #6060; this wrapper keeps root
 // callers unchanged.
-func extractAPISpecEvidence(file querycontract.FileContent, resolver specFileResolver) (ServiceAPISpecEvidence, bool, error) {
+func extractAPISpecEvidence(file querycontract.FileContent, resolver specFileResolver) (APISpecEvidence, bool, error) {
 	return evidence.ExtractAPISpecEvidence(file, resolver)
 }

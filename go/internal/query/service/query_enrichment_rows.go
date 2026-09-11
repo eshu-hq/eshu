@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func buildServiceHostnameRows(rows []ServiceHostnameEvidence) []map[string]any {
+func buildServiceHostnameRows(rows []HostnameEvidence) []map[string]any {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -26,7 +26,7 @@ func buildServiceHostnameRows(rows []ServiceHostnameEvidence) []map[string]any {
 	return result
 }
 
-func buildServiceEntrypointCandidateRows(rows []ServiceEntrypointCandidateEvidence) []map[string]any {
+func buildServiceEntrypointCandidateRows(rows []EntrypointCandidateEvidence) []map[string]any {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -42,7 +42,7 @@ func buildServiceEntrypointCandidateRows(rows []ServiceEntrypointCandidateEviden
 	return result
 }
 
-func buildServiceAPISurface(evidence ServiceQueryEvidence) map[string]any {
+func buildServiceAPISurface(evidence QueryEvidence) map[string]any {
 	if len(evidence.APISpecs) == 0 && len(evidence.DocsRoutes) == 0 && len(evidence.FrameworkRoutes) == 0 {
 		return nil
 	}
@@ -183,7 +183,7 @@ func frameworkRouteEndpoints(fr FrameworkRouteEvidence) []frameworkRouteEndpoint
 	return endpoints
 }
 
-func serviceEvidenceHostnames(evidence ServiceQueryEvidence) []string {
+func serviceEvidenceHostnames(evidence QueryEvidence) []string {
 	values := make([]string, 0, len(evidence.Hostnames)+len(evidence.APISpecs))
 	for _, row := range evidence.Hostnames {
 		values = append(values, row.Hostname)
@@ -194,7 +194,7 @@ func serviceEvidenceHostnames(evidence ServiceQueryEvidence) []string {
 	return querycontract.UniqueSortedStrings(values)
 }
 
-func serviceEvidenceDocsRoutes(evidence ServiceQueryEvidence) []string {
+func serviceEvidenceDocsRoutes(evidence QueryEvidence) []string {
 	values := make([]string, 0, len(evidence.DocsRoutes)+len(evidence.APISpecs))
 	for _, row := range evidence.DocsRoutes {
 		values = append(values, row.Route)
@@ -205,7 +205,7 @@ func serviceEvidenceDocsRoutes(evidence ServiceQueryEvidence) []string {
 	return querycontract.UniqueSortedStrings(values)
 }
 
-func serviceEvidenceEnvironmentNames(rows []ServiceEnvironmentEvidence) []string {
+func serviceEvidenceEnvironmentNames(rows []EnvironmentEvidence) []string {
 	values := make([]string, 0, len(rows))
 	for _, row := range rows {
 		values = append(values, row.Environment)

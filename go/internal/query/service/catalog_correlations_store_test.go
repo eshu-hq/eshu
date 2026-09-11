@@ -38,7 +38,7 @@ func TestPostgresServiceCatalogCorrelationsResolveCandidateRepositoryIDs(t *test
 	})
 	store := NewPostgresServiceCatalogCorrelationStore(db)
 
-	rows, err := store.ListServiceCatalogCorrelations(context.Background(), ServiceCatalogCorrelationFilter{
+	rows, err := store.ListServiceCatalogCorrelations(context.Background(), CatalogCorrelationFilter{
 		RepositoryID: "repository:r_payments",
 		Limit:        10,
 	})
@@ -169,7 +169,7 @@ func TestPostgresServiceCatalogCorrelationsSelectTheStatementByOutsideGrant(t *t
 			})
 			store := NewPostgresServiceCatalogCorrelationStore(db)
 
-			if _, err := store.ListServiceCatalogCorrelations(context.Background(), ServiceCatalogCorrelationFilter{
+			if _, err := store.ListServiceCatalogCorrelations(context.Background(), CatalogCorrelationFilter{
 				ServiceID:            "component:default/api",
 				AllowedRepositoryIDs: []string{"repository:r_alpha"},
 				OutsideGrant:         tc.outsideGrant,
@@ -198,7 +198,7 @@ func TestPostgresServiceCatalogCorrelationsRejectAnOutsideGrantReadWithNoGrant(t
 	db, recorder := openServiceCatalogRecordingDB(t, nil)
 	store := NewPostgresServiceCatalogCorrelationStore(db)
 
-	_, err := store.ListServiceCatalogCorrelations(context.Background(), ServiceCatalogCorrelationFilter{
+	_, err := store.ListServiceCatalogCorrelations(context.Background(), CatalogCorrelationFilter{
 		ServiceID:    "component:default/api",
 		OutsideGrant: true,
 		Limit:        1,

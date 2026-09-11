@@ -11,11 +11,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/service/evidence"
 )
 
-// ServiceEvidenceReader is the content-store surface service evidence
+// EvidenceReader is the content-store surface service evidence
 // extraction reads through: the bounded repository file listing every evidence
 // field below is derived from, and the single-file read that both hydrates a
 // listing row with no inline content and resolves an OpenAPI `$ref`.
-type ServiceEvidenceReader interface {
+type EvidenceReader interface {
 	ListRepoFiles(ctx context.Context, repoID string, limit int) ([]querycontract.FileContent, error)
 	GetFileContent(ctx context.Context, repoID, relativePath string) (*querycontract.FileContent, error)
 }
@@ -32,7 +32,7 @@ const serviceEvidenceFileLimit = 5000
 // merged consumer set -- source 0 of the enumeration on
 // loadConsumerRepositoryEnrichmentFromCandidates. The +1 mirrors
 // repositoryTreeFileLimit+1 in repository/tree.go.
-func listServiceEvidenceFiles(ctx context.Context, reader ServiceEvidenceReader, repoID string) ([]querycontract.FileContent, bool, error) {
+func listServiceEvidenceFiles(ctx context.Context, reader EvidenceReader, repoID string) ([]querycontract.FileContent, bool, error) {
 	files, err := reader.ListRepoFiles(ctx, repoID, serviceEvidenceFileLimit+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("list service evidence files: %w", err)
@@ -49,8 +49,8 @@ func listServiceEvidenceFiles(ctx context.Context, reader ServiceEvidenceReader,
 type specFileResolver = querycontract.SpecFileResolver
 
 // buildSpecFileResolver creates a specFileResolver closure that reads
-// referenced files through the ServiceEvidenceReader.
-func buildSpecFileResolver(ctx context.Context, reader ServiceEvidenceReader, repoID string) specFileResolver {
+// referenced files through the EvidenceReader.
+func buildSpecFileResolver(ctx context.Context, reader EvidenceReader, repoID string) specFileResolver {
 	return func(baseRelativePath, ref string) (string, error) {
 		if reader == nil || ref == "" {
 			return "", nil
@@ -77,15 +77,15 @@ func buildSpecFileResolver(ctx context.Context, reader ServiceEvidenceReader, re
 	}
 }
 
-// ServiceQueryEvidence groups content-derived service evidence before it is
+// QueryEvidence groups content-derived service evidence before it is
 // shaped into service context, service story, or deployment trace responses.
-type ServiceQueryEvidence struct {
-	Hostnames            []ServiceHostnameEvidence            `json:"hostnames,omitempty"`
-	Environments         []ServiceEnvironmentEvidence         `json:"environments,omitempty"`
-	DocsRoutes           []ServiceDocsRouteEvidence           `json:"docs_routes,omitempty"`
-	APISpecs             []ServiceAPISpecEvidence             `json:"api_specs,omitempty"`
-	FrameworkRoutes      []FrameworkRouteEvidence             `json:"framework_routes,omitempty"`
-	EntrypointCandidates []ServiceEntrypointCandidateEvidence `json:"entrypoint_candidates,omitempty"`
+type QueryEvidence struct {
+	Hostnames            []HostnameEvidence            `json:"hostnames,omitempty"`
+	Environments         []EnvironmentEvidence         `json:"environments,omitempty"`
+	DocsRoutes           []DocsRouteEvidence           `json:"docs_routes,omitempty"`
+	APISpecs             []APISpecEvidence             `json:"api_specs,omitempty"`
+	FrameworkRoutes      []FrameworkRouteEvidence      `json:"framework_routes,omitempty"`
+	EntrypointCandidates []EntrypointCandidateEvidence `json:"entrypoint_candidates,omitempty"`
 
 	// filesTruncated reports that the repository file list this evidence was
 	// extracted from came back full at serviceEvidenceFileLimit, so every field
@@ -100,48 +100,48 @@ type ServiceQueryEvidence struct {
 	filesTruncated bool
 }
 
-// ServiceHostnameEvidence is exact hostname evidence that may become a public
+// HostnameEvidence is exact hostname evidence that may become a public
 // service entrypoint.
-type ServiceHostnameEvidence struct {
+type HostnameEvidence struct {
 	Hostname     string `json:"hostname"`
 	Environment  string `json:"environment,omitempty"`
 	RelativePath string `json:"relative_path"`
 	Reason       string `json:"reason"`
 }
 
-// ServiceEnvironmentEvidence captures an environment signal from service
+// EnvironmentEvidence captures an environment signal from service
 // content paths, file bodies, or exact hostname evidence.
-type ServiceEnvironmentEvidence struct {
+type EnvironmentEvidence struct {
 	Environment  string `json:"environment"`
 	RelativePath string `json:"relative_path"`
 	Reason       string `json:"reason"`
 }
 
-// ServiceDocsRouteEvidence captures documented internal docs/spec routes.
-type ServiceDocsRouteEvidence struct {
+// DocsRouteEvidence captures documented internal docs/spec routes.
+type DocsRouteEvidence struct {
 	Route        string `json:"route"`
 	RelativePath string `json:"relative_path"`
 	Reason       string `json:"reason"`
 }
 
-// ServiceEntrypointCandidateEvidence preserves hostname-shaped candidates that
+// EntrypointCandidateEvidence preserves hostname-shaped candidates that
 // are rejected or ambiguous and therefore must not become public entrypoints.
-type ServiceEntrypointCandidateEvidence struct {
+type EntrypointCandidateEvidence struct {
 	Candidate      string `json:"candidate"`
 	Classification string `json:"classification"`
 	RelativePath   string `json:"relative_path"`
 	Reason         string `json:"reason"`
 }
 
-// ServiceAPISpecEvidence summarizes one API spec file and its parsed routes,
+// APISpecEvidence summarizes one API spec file and its parsed routes,
 // server hostnames, and operation IDs when available. It is an alias onto
 // querycontract so the moved repository handler family can name it from
 // outside this package (#6060, lane B B3).
-type ServiceAPISpecEvidence = querycontract.ServiceAPISpecEvidence
+type APISpecEvidence = querycontract.ServiceAPISpecEvidence
 
-// ServiceAPIEndpointEvidence captures one API endpoint path from an API spec.
-// Alias onto querycontract; see ServiceAPISpecEvidence.
-type ServiceAPIEndpointEvidence = querycontract.ServiceAPIEndpointEvidence
+// APIEndpointEvidence captures one API endpoint path from an API spec.
+// Alias onto querycontract; see APISpecEvidence.
+type APIEndpointEvidence = querycontract.ServiceAPIEndpointEvidence
 
 // FrameworkRouteEvidence captures one framework route's handler evidence.
 type FrameworkRouteEvidence = querycontract.FrameworkRouteEvidence

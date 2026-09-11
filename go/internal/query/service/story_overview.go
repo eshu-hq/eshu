@@ -32,7 +32,7 @@ func BuildServiceStoryResponse(serviceName string, workloadContext map[string]an
 		response["ci_cd_evidence"] = ciCDEvidence
 	}
 	enrichServiceStoryDossierResponseWithContext(response, buildCtx)
-	response["investigation"] = buildServiceInvestigationPacketWithContext(serviceName, buildCtx, ServiceInvestigationOptions{})
+	response["investigation"] = buildServiceInvestigationPacketWithContext(serviceName, buildCtx, InvestigationOptions{})
 	querycontract.AttachEvidenceBoundaries(response, "get_service_story")
 	return querycontract.AttachAnswerMetadata(response)
 }
@@ -304,7 +304,7 @@ func buildServiceDocumentationOverview(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	workloadContext map[string]any,
-	evidence ServiceQueryEvidence,
+	evidence QueryEvidence,
 ) map[string]any {
 	repoID := querycontract.SafeStr(workloadContext, "repo_id")
 	repoName := querycontract.SafeStr(workloadContext, "repo_name")

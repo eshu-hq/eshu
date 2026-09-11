@@ -17,7 +17,7 @@ import (
 func TestServiceCatalogListCorrelationsRequiresScopeAndLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &ServiceCatalogHandler{Correlations: &querytestutil.RecordingServiceCatalogCorrelationStore{}}
+	handler := &CatalogHandler{Correlations: &querytestutil.RecordingServiceCatalogCorrelationStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -65,7 +65,7 @@ func TestServiceCatalogListCorrelationsUsesBoundedStore(t *testing.T) {
 			{CorrelationID: "catalog-correlation-2", EntityRef: "component:default/catalog-only"},
 		},
 	}
-	handler := &ServiceCatalogHandler{Correlations: store}
+	handler := &CatalogHandler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -91,11 +91,11 @@ func TestServiceCatalogListCorrelationsUsesBoundedStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Correlations []ServiceCatalogCorrelationResult `json:"correlations"`
-		Count        int                               `json:"count"`
-		Limit        int                               `json:"limit"`
-		Truncated    bool                              `json:"truncated"`
-		NextCursor   map[string]string                 `json:"next_cursor"`
+		Correlations []CatalogCorrelationResult `json:"correlations"`
+		Count        int                        `json:"count"`
+		Limit        int                        `json:"limit"`
+		Truncated    bool                       `json:"truncated"`
+		NextCursor   map[string]string          `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -145,7 +145,7 @@ func TestServiceCatalogListCorrelationsReportsMissingEvidenceForRepositoryScope(
 	t.Parallel()
 
 	store := &querytestutil.RecordingServiceCatalogCorrelationStore{}
-	handler := &ServiceCatalogHandler{
+	handler := &CatalogHandler{
 		Content:      serviceSelectorReadModelContentStore(),
 		Correlations: store,
 	}
@@ -164,10 +164,10 @@ func TestServiceCatalogListCorrelationsReportsMissingEvidenceForRepositoryScope(
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	var resp struct {
-		Correlations    []ServiceCatalogCorrelationResult `json:"correlations"`
-		Missing         []ServiceCatalogMissingEvidence   `json:"missing_evidence"`
-		Count           int                               `json:"count"`
-		EvidenceSummary ServiceCatalogEvidenceSummary     `json:"evidence_summary"`
+		Correlations    []CatalogCorrelationResult `json:"correlations"`
+		Missing         []CatalogMissingEvidence   `json:"missing_evidence"`
+		Count           int                        `json:"count"`
+		EvidenceSummary CatalogEvidenceSummary     `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -193,7 +193,7 @@ func TestServiceCatalogListCorrelationsExplainsLocalOnlyDescriptorEvidence(t *te
 	t.Parallel()
 
 	store := &querytestutil.RecordingServiceCatalogCorrelationStore{
-		DescriptorRows: []ServiceCatalogLocalDescriptorEvidenceRow{{
+		DescriptorRows: []CatalogLocalDescriptorEvidenceRow{{
 			FactID:    "catalog-fact-1",
 			FactKind:  "service_catalog.entity",
 			Provider:  "backstage",
@@ -201,7 +201,7 @@ func TestServiceCatalogListCorrelationsExplainsLocalOnlyDescriptorEvidence(t *te
 			SourceURI: "file://repo/catalog-info.yaml",
 		}},
 	}
-	handler := &ServiceCatalogHandler{Correlations: store}
+	handler := &CatalogHandler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -221,8 +221,8 @@ func TestServiceCatalogListCorrelationsExplainsLocalOnlyDescriptorEvidence(t *te
 	}
 
 	var resp struct {
-		Correlations    []ServiceCatalogCorrelationResult `json:"correlations"`
-		EvidenceSummary ServiceCatalogEvidenceSummary     `json:"evidence_summary"`
+		Correlations    []CatalogCorrelationResult `json:"correlations"`
+		EvidenceSummary CatalogEvidenceSummary     `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -250,9 +250,9 @@ func TestServiceCatalogListCorrelationsExplainsLocalOnlyDescriptorEvidence(t *te
 func TestServiceCatalogListCorrelationsBoundsLocalDescriptorEvidenceCount(t *testing.T) {
 	t.Parallel()
 
-	descriptorRows := make([]ServiceCatalogLocalDescriptorEvidenceRow, 0, serviceCatalogLocalDescriptorEvidenceLimit+1)
+	descriptorRows := make([]CatalogLocalDescriptorEvidenceRow, 0, serviceCatalogLocalDescriptorEvidenceLimit+1)
 	for i := range serviceCatalogLocalDescriptorEvidenceLimit + 1 {
-		descriptorRows = append(descriptorRows, ServiceCatalogLocalDescriptorEvidenceRow{
+		descriptorRows = append(descriptorRows, CatalogLocalDescriptorEvidenceRow{
 			FactID:    "catalog-fact-" + string(rune('a'+i)),
 			FactKind:  "service_catalog.entity",
 			Provider:  "backstage",
@@ -261,7 +261,7 @@ func TestServiceCatalogListCorrelationsBoundsLocalDescriptorEvidenceCount(t *tes
 		})
 	}
 	store := &querytestutil.RecordingServiceCatalogCorrelationStore{DescriptorRows: descriptorRows}
-	handler := &ServiceCatalogHandler{Correlations: store}
+	handler := &CatalogHandler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -277,7 +277,7 @@ func TestServiceCatalogListCorrelationsBoundsLocalDescriptorEvidenceCount(t *tes
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	var resp struct {
-		EvidenceSummary ServiceCatalogEvidenceSummary `json:"evidence_summary"`
+		EvidenceSummary CatalogEvidenceSummary `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -304,7 +304,7 @@ func TestServiceCatalogListCorrelationsExplainsExternalCatalogMatch(t *testing.T
 			Outcome:       "exact",
 			Reason:        "catalog repository id matches canonical repository identity",
 		}},
-		DescriptorRows: []ServiceCatalogLocalDescriptorEvidenceRow{{
+		DescriptorRows: []CatalogLocalDescriptorEvidenceRow{{
 			FactID:    "catalog-fact-1",
 			FactKind:  "service_catalog.repository_link",
 			Provider:  "backstage",
@@ -312,7 +312,7 @@ func TestServiceCatalogListCorrelationsExplainsExternalCatalogMatch(t *testing.T
 			SourceURI: "file://repo/catalog-info.yaml",
 		}},
 	}
-	handler := &ServiceCatalogHandler{Correlations: store}
+	handler := &CatalogHandler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -329,8 +329,8 @@ func TestServiceCatalogListCorrelationsExplainsExternalCatalogMatch(t *testing.T
 	}
 
 	var resp struct {
-		Count           int                           `json:"count"`
-		EvidenceSummary ServiceCatalogEvidenceSummary `json:"evidence_summary"`
+		Count           int                    `json:"count"`
+		EvidenceSummary CatalogEvidenceSummary `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -357,7 +357,7 @@ func TestServiceCatalogListCorrelationsExplainsAmbiguousLocalDescriptor(t *testi
 			Outcome:       "ambiguous",
 			Reason:        "repo-local catalog descriptor scope matches multiple active repository facts",
 		}},
-		DescriptorRows: []ServiceCatalogLocalDescriptorEvidenceRow{{
+		DescriptorRows: []CatalogLocalDescriptorEvidenceRow{{
 			FactID:    "catalog-fact-1",
 			FactKind:  "service_catalog.entity",
 			Provider:  "backstage",
@@ -365,7 +365,7 @@ func TestServiceCatalogListCorrelationsExplainsAmbiguousLocalDescriptor(t *testi
 			SourceURI: "file://repo/catalog-info.yaml",
 		}},
 	}
-	handler := &ServiceCatalogHandler{Correlations: store}
+	handler := &CatalogHandler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -382,7 +382,7 @@ func TestServiceCatalogListCorrelationsExplainsAmbiguousLocalDescriptor(t *testi
 	}
 
 	var resp struct {
-		EvidenceSummary ServiceCatalogEvidenceSummary `json:"evidence_summary"`
+		EvidenceSummary CatalogEvidenceSummary `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -402,7 +402,7 @@ func TestServiceCatalogListCorrelationsExplainsNoEvidence(t *testing.T) {
 	t.Parallel()
 
 	store := &querytestutil.RecordingServiceCatalogCorrelationStore{}
-	handler := &ServiceCatalogHandler{Correlations: store}
+	handler := &CatalogHandler{Correlations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -419,7 +419,7 @@ func TestServiceCatalogListCorrelationsExplainsNoEvidence(t *testing.T) {
 	}
 
 	var resp struct {
-		EvidenceSummary ServiceCatalogEvidenceSummary `json:"evidence_summary"`
+		EvidenceSummary CatalogEvidenceSummary `json:"evidence_summary"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -436,9 +436,9 @@ func TestServiceCatalogListCorrelationsExplainsNoEvidence(t *testing.T) {
 }
 
 func serviceCatalogCorrelationResultsByID(
-	rows []ServiceCatalogCorrelationResult,
-) map[string]ServiceCatalogCorrelationResult {
-	out := make(map[string]ServiceCatalogCorrelationResult, len(rows))
+	rows []CatalogCorrelationResult,
+) map[string]CatalogCorrelationResult {
+	out := make(map[string]CatalogCorrelationResult, len(rows))
 	for _, row := range rows {
 		out[row.CorrelationID] = row
 	}

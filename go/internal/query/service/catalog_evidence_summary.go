@@ -16,29 +16,29 @@ const (
 	serviceCatalogGitRepositoryScopePrefix     = "git-repository-scope:"
 )
 
-// ServiceCatalogEvidenceSummary explains catalog evidence separate from
+// CatalogEvidenceSummary explains catalog evidence separate from
 // reducer-owned correlation rows.
-type ServiceCatalogEvidenceSummary struct {
-	LocalDescriptors            ServiceCatalogLocalDescriptorEvidence `json:"local_descriptors"`
-	ExternalCatalogConfirmation ServiceCatalogExternalCatalogEvidence `json:"external_catalog_confirmation"`
-	Reason                      string                                `json:"reason,omitempty"`
+type CatalogEvidenceSummary struct {
+	LocalDescriptors            CatalogLocalDescriptorEvidence `json:"local_descriptors"`
+	ExternalCatalogConfirmation CatalogExternalCatalogEvidence `json:"external_catalog_confirmation"`
+	Reason                      string                         `json:"reason,omitempty"`
 }
 
-// ServiceCatalogLocalDescriptorEvidence summarizes repo-local catalog source
+// CatalogLocalDescriptorEvidence summarizes repo-local catalog source
 // facts observed in the active repository generation.
-type ServiceCatalogLocalDescriptorEvidence struct {
-	State      string                                      `json:"state"`
-	Count      int                                         `json:"count"`
-	Providers  []string                                    `json:"providers,omitempty"`
-	SourceURIs []string                                    `json:"source_uris,omitempty"`
-	Facts      []ServiceCatalogLocalDescriptorEvidenceFact `json:"facts,omitempty"`
-	Truncated  bool                                        `json:"truncated,omitempty"`
-	Reason     string                                      `json:"reason,omitempty"`
+type CatalogLocalDescriptorEvidence struct {
+	State      string                               `json:"state"`
+	Count      int                                  `json:"count"`
+	Providers  []string                             `json:"providers,omitempty"`
+	SourceURIs []string                             `json:"source_uris,omitempty"`
+	Facts      []CatalogLocalDescriptorEvidenceFact `json:"facts,omitempty"`
+	Truncated  bool                                 `json:"truncated,omitempty"`
+	Reason     string                               `json:"reason,omitempty"`
 }
 
-// ServiceCatalogLocalDescriptorEvidenceFact is one bounded local descriptor
+// CatalogLocalDescriptorEvidenceFact is one bounded local descriptor
 // fact reference in a service-catalog evidence summary.
-type ServiceCatalogLocalDescriptorEvidenceFact struct {
+type CatalogLocalDescriptorEvidenceFact struct {
 	FactID    string `json:"fact_id"`
 	FactKind  string `json:"fact_kind"`
 	Provider  string `json:"provider,omitempty"`
@@ -46,41 +46,41 @@ type ServiceCatalogLocalDescriptorEvidenceFact struct {
 	SourceURI string `json:"source_uri,omitempty"`
 }
 
-// ServiceCatalogExternalCatalogEvidence summarizes whether the current page
+// CatalogExternalCatalogEvidence summarizes whether the current page
 // contains reducer correlation rows corroborated beyond repo-local descriptor
 // scope evidence.
-type ServiceCatalogExternalCatalogEvidence struct {
+type CatalogExternalCatalogEvidence struct {
 	State     string `json:"state"`
 	Count     int    `json:"count"`
 	Truncated bool   `json:"truncated,omitempty"`
 	Reason    string `json:"reason,omitempty"`
 }
 
-// ServiceCatalogLocalDescriptorEvidenceRow is one active source fact that
+// CatalogLocalDescriptorEvidenceRow is one active source fact that
 // proves a repository contains service-catalog descriptor evidence. Its
 // canonical home is querycontract with its Filter/Row siblings; this alias
 // keeps the family spelling unchanged.
-type ServiceCatalogLocalDescriptorEvidenceRow = querycontract.ServiceCatalogLocalDescriptorEvidenceRow
+type CatalogLocalDescriptorEvidenceRow = querycontract.ServiceCatalogLocalDescriptorEvidenceRow
 
-// ServiceCatalogLocalDescriptorEvidenceStore optionally adds repo-local
+// CatalogLocalDescriptorEvidenceStore optionally adds repo-local
 // descriptor evidence to a service-catalog correlation store.
-type ServiceCatalogLocalDescriptorEvidenceStore interface {
+type CatalogLocalDescriptorEvidenceStore interface {
 	ListServiceCatalogLocalDescriptorEvidence(
 		context.Context,
 		string,
 		int,
-	) ([]ServiceCatalogLocalDescriptorEvidenceRow, error)
+	) ([]CatalogLocalDescriptorEvidenceRow, error)
 }
 
-func (h *ServiceCatalogHandler) serviceCatalogEvidenceSummary(
+func (h *CatalogHandler) serviceCatalogEvidenceSummary(
 	ctx context.Context,
 	repositoryID string,
-	correlations []ServiceCatalogCorrelationResult,
+	correlations []CatalogCorrelationResult,
 	correlationTruncated bool,
-) ServiceCatalogEvidenceSummary {
+) CatalogEvidenceSummary {
 	local := h.serviceCatalogLocalDescriptorEvidence(ctx, repositoryID)
 	external := serviceCatalogExternalCatalogEvidence(correlations, correlationTruncated, local)
-	summary := ServiceCatalogEvidenceSummary{
+	summary := CatalogEvidenceSummary{
 		LocalDescriptors:            local,
 		ExternalCatalogConfirmation: external,
 	}
@@ -90,19 +90,19 @@ func (h *ServiceCatalogHandler) serviceCatalogEvidenceSummary(
 	return summary
 }
 
-func (h *ServiceCatalogHandler) serviceCatalogLocalDescriptorEvidence(
+func (h *CatalogHandler) serviceCatalogLocalDescriptorEvidence(
 	ctx context.Context,
 	repositoryID string,
-) ServiceCatalogLocalDescriptorEvidence {
+) CatalogLocalDescriptorEvidence {
 	if repositoryID == "" {
-		return ServiceCatalogLocalDescriptorEvidence{
+		return CatalogLocalDescriptorEvidence{
 			State:  "not_checked",
 			Reason: "repository_scope_required",
 		}
 	}
-	reader, ok := h.Correlations.(ServiceCatalogLocalDescriptorEvidenceStore)
+	reader, ok := h.Correlations.(CatalogLocalDescriptorEvidenceStore)
 	if !ok {
-		return ServiceCatalogLocalDescriptorEvidence{
+		return CatalogLocalDescriptorEvidence{
 			State:  "unavailable",
 			Reason: "local_descriptor_store_unavailable",
 		}
@@ -113,7 +113,7 @@ func (h *ServiceCatalogHandler) serviceCatalogLocalDescriptorEvidence(
 		serviceCatalogLocalDescriptorEvidenceLimit+1,
 	)
 	if err != nil {
-		return ServiceCatalogLocalDescriptorEvidence{
+		return CatalogLocalDescriptorEvidence{
 			State:  "unavailable",
 			Reason: "local_descriptor_read_failed",
 		}
@@ -122,10 +122,10 @@ func (h *ServiceCatalogHandler) serviceCatalogLocalDescriptorEvidence(
 }
 
 func serviceCatalogLocalDescriptorEvidenceFromRows(
-	rows []ServiceCatalogLocalDescriptorEvidenceRow,
-) ServiceCatalogLocalDescriptorEvidence {
+	rows []CatalogLocalDescriptorEvidenceRow,
+) CatalogLocalDescriptorEvidence {
 	if len(rows) == 0 {
-		return ServiceCatalogLocalDescriptorEvidence{State: "absent"}
+		return CatalogLocalDescriptorEvidence{State: "absent"}
 	}
 
 	truncated := len(rows) > serviceCatalogLocalDescriptorEvidenceLimit
@@ -136,7 +136,7 @@ func serviceCatalogLocalDescriptorEvidenceFromRows(
 
 	providerSet := map[string]struct{}{}
 	sourceURISet := map[string]struct{}{}
-	facts := make([]ServiceCatalogLocalDescriptorEvidenceFact, 0, len(rows))
+	facts := make([]CatalogLocalDescriptorEvidenceFact, 0, len(rows))
 	for _, row := range rows {
 		if row.Provider != "" {
 			providerSet[row.Provider] = struct{}{}
@@ -144,10 +144,10 @@ func serviceCatalogLocalDescriptorEvidenceFromRows(
 		if row.SourceURI != "" {
 			sourceURISet[row.SourceURI] = struct{}{}
 		}
-		facts = append(facts, ServiceCatalogLocalDescriptorEvidenceFact(row))
+		facts = append(facts, CatalogLocalDescriptorEvidenceFact(row))
 	}
 
-	return ServiceCatalogLocalDescriptorEvidence{
+	return CatalogLocalDescriptorEvidence{
 		State:      "present",
 		Count:      count,
 		Providers:  sortedServiceCatalogEvidenceKeys(providerSet),
@@ -158,10 +158,10 @@ func serviceCatalogLocalDescriptorEvidenceFromRows(
 }
 
 func serviceCatalogExternalCatalogEvidence(
-	correlations []ServiceCatalogCorrelationResult,
+	correlations []CatalogCorrelationResult,
 	correlationTruncated bool,
-	local ServiceCatalogLocalDescriptorEvidence,
-) ServiceCatalogExternalCatalogEvidence {
+	local CatalogLocalDescriptorEvidence,
+) CatalogExternalCatalogEvidence {
 	externalCount := 0
 	localCorrelationCount := 0
 	ambiguousLocal := false
@@ -184,7 +184,7 @@ func serviceCatalogExternalCatalogEvidence(
 		}
 	}
 	if externalCount > 0 {
-		return ServiceCatalogExternalCatalogEvidence{
+		return CatalogExternalCatalogEvidence{
 			State:     "present",
 			Count:     externalCount,
 			Truncated: correlationTruncated,
@@ -206,7 +206,7 @@ func serviceCatalogExternalCatalogEvidence(
 	case local.State == "not_checked":
 		reason = "repository_scope_required"
 	}
-	return ServiceCatalogExternalCatalogEvidence{
+	return CatalogExternalCatalogEvidence{
 		State:     "missing",
 		Count:     0,
 		Truncated: correlationTruncated,
@@ -215,7 +215,7 @@ func serviceCatalogExternalCatalogEvidence(
 }
 
 func serviceCatalogCorrelationFromRepoLocalDescriptor(
-	correlation ServiceCatalogCorrelationResult,
+	correlation CatalogCorrelationResult,
 ) bool {
 	return strings.HasPrefix(correlation.Reason, "repo-local catalog descriptor scope")
 }

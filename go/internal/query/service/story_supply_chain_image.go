@@ -18,20 +18,20 @@ import (
 // working through the exported homes. Bodies are unchanged modulo package
 // qualifiers and the export renames below.
 
-// ServiceStorySupplyChainImagePackage returns the image package the supply
+// StorySupplyChainImagePackage returns the image package the supply
 // chain enricher attached to the workload context, if any. Pinned by the
 // staying service-story seam (service_story_seam.go) and the code-to-runtime
 // trace path in this package.
-func ServiceStorySupplyChainImagePackage(workloadContext map[string]any) map[string]any {
+func StorySupplyChainImagePackage(workloadContext map[string]any) map[string]any {
 	return querycontract.MapValue(querycontract.MapValue(workloadContext, "supply_chain_evidence"), "image_package")
 }
 
-// ServiceStoryMatchedImageRef extracts a container image reference from a
+// StoryMatchedImageRef extracts a container image reference from a
 // deployment-evidence row when the row's kind marks it as image-shaped.
 // Pinned by the staying deployment-image collector
 // (service_story_supply_chain.go) and the code-to-runtime trace path in
 // this package.
-func ServiceStoryMatchedImageRef(row map[string]any) string {
+func StoryMatchedImageRef(row map[string]any) string {
 	value := strings.TrimSpace(querycontract.StringVal(row, "matched_value"))
 	if value == "" {
 		return ""

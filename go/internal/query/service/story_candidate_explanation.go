@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-// ServiceStoryContainerImageCandidateState carries the OCI collector target
+// StoryContainerImageCandidateState carries the OCI collector target
 // state behind a deployment image candidate explanation. The implementation
 // moved from root's container_image_candidate_explanation.go for #6060 so a
 // handler-family subpackage can explain a candidate without importing root.
-type ServiceStoryContainerImageCandidateState struct {
+type StoryContainerImageCandidateState struct {
 	ScopeID          string
 	ScopeStatus      string
 	GenerationID     string
@@ -22,31 +22,31 @@ type ServiceStoryContainerImageCandidateState struct {
 	WarningDigest    string
 }
 
-// ServiceStoryContainerImageCandidateReason explains why a deployment image
+// StoryContainerImageCandidateReason explains why a deployment image
 // candidate has no canonical container image identity, returning the
 // machine-readable reason, the collector scope, and the operator action. The
 // implementation moved from root's container_image_candidate_explanation.go
-// for #6060; see ServiceStoryContainerImageCandidateState.
-func ServiceStoryContainerImageCandidateReason(
+// for #6060; see StoryContainerImageCandidateState.
+func StoryContainerImageCandidateReason(
 	repositoryID string,
-	state ServiceStoryContainerImageCandidateState,
+	state StoryContainerImageCandidateState,
 ) (string, string, string) {
 	if state.ScopeID == "" && state.WorkStatus == "" && state.WarningCode == "" {
 		return "oci_registry_target_outside_scope",
 			"outside_configured_targets",
 			"add an OCI registry collector target for " + repositoryID
 	}
-	if ServiceStoryContainerImageCandidateWorkFailed(state.WorkStatus) {
+	if StoryContainerImageCandidateWorkFailed(state.WorkStatus) {
 		return "oci_registry_target_unreadable",
 			"configured_unreadable",
-			ServiceStoryUnreadableOCIRegistryAction(repositoryID, state.FailureClass)
+			StoryUnreadableOCIRegistryAction(repositoryID, state.FailureClass)
 	}
 	if state.GenerationStatus == "failed" || state.ScopeStatus == "failed" {
 		return "oci_registry_target_unreadable",
 			"configured_unreadable",
-			ServiceStoryUnreadableOCIRegistryAction(repositoryID, state.FailureClass)
+			StoryUnreadableOCIRegistryAction(repositoryID, state.FailureClass)
 	}
-	if ServiceStoryContainerImageCandidateWorkPending(state.WorkStatus) ||
+	if StoryContainerImageCandidateWorkPending(state.WorkStatus) ||
 		state.GenerationStatus == "pending" ||
 		state.ScopeStatus == "pending" {
 		return "oci_registry_target_collection_pending",
@@ -61,7 +61,7 @@ func ServiceStoryContainerImageCandidateReason(
 	if state.FailureClass != "" && state.WorkStatus != "completed" {
 		return "oci_registry_target_unreadable",
 			"configured_unreadable",
-			ServiceStoryUnreadableOCIRegistryAction(repositoryID, state.FailureClass)
+			StoryUnreadableOCIRegistryAction(repositoryID, state.FailureClass)
 	}
 	if state.ScopeID != "" || state.WorkStatus == "completed" || state.WarningCode != "" {
 		return "container_image_identity_scanned_missing",
@@ -73,10 +73,10 @@ func ServiceStoryContainerImageCandidateReason(
 		"verify OCI registry collector coverage and reducer image identity facts for this deployment image reference"
 }
 
-// ServiceStoryContainerImageCandidateWorkFailed reports whether an OCI
+// StoryContainerImageCandidateWorkFailed reports whether an OCI
 // collector work status is a failure state. See
-// ServiceStoryContainerImageCandidateState for the move note.
-func ServiceStoryContainerImageCandidateWorkFailed(status string) bool {
+// StoryContainerImageCandidateState for the move note.
+func StoryContainerImageCandidateWorkFailed(status string) bool {
 	switch strings.TrimSpace(status) {
 	case "failed_retryable", "failed_terminal":
 		return true
@@ -85,10 +85,10 @@ func ServiceStoryContainerImageCandidateWorkFailed(status string) bool {
 	}
 }
 
-// ServiceStoryContainerImageCandidateWorkPending reports whether an OCI
+// StoryContainerImageCandidateWorkPending reports whether an OCI
 // collector work status is a pending state. See
-// ServiceStoryContainerImageCandidateState for the move note.
-func ServiceStoryContainerImageCandidateWorkPending(status string) bool {
+// StoryContainerImageCandidateState for the move note.
+func StoryContainerImageCandidateWorkPending(status string) bool {
 	switch strings.TrimSpace(status) {
 	case "pending", "claimed", "expired":
 		return true
@@ -97,10 +97,10 @@ func ServiceStoryContainerImageCandidateWorkPending(status string) bool {
 	}
 }
 
-// ServiceStoryUnreadableOCIRegistryAction builds the operator action for an
+// StoryUnreadableOCIRegistryAction builds the operator action for an
 // unreadable OCI registry collector target. See
-// ServiceStoryContainerImageCandidateState for the move note.
-func ServiceStoryUnreadableOCIRegistryAction(repositoryID string, failureClass string) string {
+// StoryContainerImageCandidateState for the move note.
+func StoryUnreadableOCIRegistryAction(repositoryID string, failureClass string) string {
 	action := "fix the configured OCI registry collector target for " + repositoryID
 	if failureClass = strings.TrimSpace(failureClass); failureClass != "" {
 		action += "; current failure class is " + failureClass

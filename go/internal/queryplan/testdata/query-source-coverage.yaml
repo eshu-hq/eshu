@@ -214,7 +214,7 @@ source_coverage:
           max_results: 101
   - file: entity/entity_workload_context.go
     calls:
-      - {symbol: "(*EntityHandler).FetchWorkloadContextForOperation", count: 1, source_sha256: c377c08c0b8fb6fe5326ddc087ae49e3c063e987127fac19f2e0d13ea5f0e051, entry_ids: [QP-SVC-CONTEXT]}
+      - {symbol: "(*EntityHandler).FetchWorkloadContextForOperation", count: 1, source_sha256: 36f52c93aed8fde5f87eca4f9fc09159e259f2393c4cbdb811f88b319881d080, entry_ids: [QP-SVC-CONTEXT]}
       - {symbol: "(*EntityHandler).FetchWorkloadRepositoryForAccess", count: 1, non_hot: {class: keyed_support, source_sha256: 87a9da1664717e9f9cd828f4f746f2b80420b778e5a5dbf1a920b338adf3b6bf, key_bound: single_key, max_results: 51}}
   - file: entity/entity_workload_platform.go
     calls:
@@ -548,7 +548,7 @@ source_coverage:
       - {symbol: "ingressPostureEdgeSet", count: 1, non_hot: {class: keyed_support, source_sha256: d10f641a0405f691b7f4235796b2f644cf0c12730314390fd7805c0fe87f1554, key_bound: bounded_key_batch, max_keys: 50, max_results: 50}}
   - file: service/story_overview.go
     calls:
-      - {symbol: "buildServiceDocumentationOverview", count: 1, non_hot: {class: keyed_support, source_sha256: 9fb48f96e392b7fcc0852fd80db9276460680b53f23a840f245bd804675dc3aa, key_bound: single_key, max_results: 1}}
+      - {symbol: "buildServiceDocumentationOverview", count: 1, non_hot: {class: keyed_support, source_sha256: 775aec42406be8f0c44ecc88625950d801d21a42b80790373dc568b1f3b83556, key_bound: single_key, max_results: 1}}
   - file: entity/service_workload_resolution.go
     calls:
       - symbol: "(*EntityHandler).hydrateServiceWorkloadCandidateRepoNames"

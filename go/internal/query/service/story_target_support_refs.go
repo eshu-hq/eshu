@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func ServiceStorySupportTargetRefs(filter querycontract.ServiceStoryTargetSupportFilter) []querycontract.DocumentationTargetRef {
+func StorySupportTargetRefs(filter querycontract.ServiceStoryTargetSupportFilter) []querycontract.DocumentationTargetRef {
 	scope := querycontract.DocumentationTargetScopeFromValues(
 		filter.Repository,
 		filter.TargetKind,
@@ -50,7 +50,7 @@ func serviceStorySupportTargetRefAliases(ref querycontract.DocumentationTargetRe
 	}
 }
 
-func ServiceStorySupportPayloadMatchesTargetRefs(payload map[string]any, refs []querycontract.DocumentationTargetRef) bool {
+func StorySupportPayloadMatchesTargetRefs(payload map[string]any, refs []querycontract.DocumentationTargetRef) bool {
 	for _, ref := range refs {
 		if serviceStorySupportPayloadMatchesTargetRef(payload, ref) {
 			return true

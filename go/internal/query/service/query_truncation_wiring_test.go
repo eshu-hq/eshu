@@ -308,7 +308,7 @@ func enrichWithProvisioningCandidateRows(
 		graph,
 		querytestutil.FakePortContentStore{},
 		workloadContext,
-		ServiceQueryEnrichmentOptions{
+		QueryEnrichmentOptions{
 			IncludeRelatedModuleUsage: true,
 			Operation:                 "service_context",
 		},

@@ -273,7 +273,7 @@ func TestServiceInvestigationCoverageDisclosesProvisioningReadTruncation(t *test
 	}
 	coverageFor := func(t *testing.T, extra map[string]any) map[string]any {
 		t.Helper()
-		packet := BuildServiceInvestigationPacket("orders-api", investigationContext(extra), ServiceInvestigationOptions{})
+		packet := BuildServiceInvestigationPacket("orders-api", investigationContext(extra), InvestigationOptions{})
 		return querycontract.MapValue(packet, "coverage_summary")
 	}
 

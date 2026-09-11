@@ -22,7 +22,7 @@ func TestServiceCatalogScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testing.T
 	t.Parallel()
 
 	store := &failingServiceCatalogCorrelationStore{}
-	handler := &ServiceCatalogHandler{
+	handler := &CatalogHandler{
 		Content:      serviceSelectorReadModelContentStore(),
 		Correlations: store,
 		Profile:      querycontract.ProfileProduction,
@@ -70,7 +70,7 @@ func TestServiceCatalogScopedRepositorySelectorDeniesOutOfGrantWithoutStoreRead(
 	t.Parallel()
 
 	store := &failingServiceCatalogCorrelationStore{}
-	handler := &ServiceCatalogHandler{
+	handler := &CatalogHandler{
 		Content:      serviceSelectorReadModelContentStore(),
 		Correlations: store,
 		Profile:      querycontract.ProfileProduction,
@@ -115,7 +115,7 @@ func TestServiceCatalogHandlerPassesScopedGrants(t *testing.T) {
 			Outcome:       "exact",
 		}},
 	}
-	handler := &ServiceCatalogHandler{
+	handler := &CatalogHandler{
 		Content:      serviceSelectorReadModelContentStore(),
 		Correlations: store,
 		Profile:      querycontract.ProfileProduction,
@@ -179,8 +179,8 @@ type failingServiceCatalogCorrelationStore struct {
 
 func (s *failingServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 	context.Context,
-	ServiceCatalogCorrelationFilter,
-) ([]ServiceCatalogCorrelationRow, error) {
+	CatalogCorrelationFilter,
+) ([]CatalogCorrelationRow, error) {
 	s.called = true
 	return nil, errors.New("broad service catalog correlation read")
 }
@@ -189,7 +189,7 @@ func (s *failingServiceCatalogCorrelationStore) ListServiceCatalogLocalDescripto
 	context.Context,
 	string,
 	int,
-) ([]ServiceCatalogLocalDescriptorEvidenceRow, error) {
+) ([]CatalogLocalDescriptorEvidenceRow, error) {
 	s.called = true
 	return nil, errors.New("broad service catalog descriptor read")
 }

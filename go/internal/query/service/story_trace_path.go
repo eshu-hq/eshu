@@ -93,16 +93,16 @@ func serviceTraceCICDSegment(workloadContext map[string]any) map[string]any {
 	)
 }
 
-// ServiceTraceImagePackageSegment renders the image-package segment of the
+// TraceImagePackageSegment renders the image-package segment of the
 // code-to-runtime trace. Exported for the staying root supply-chain tests,
 // which pin the segment directly; the trace builder keeps the package-local
 // spelling.
-func ServiceTraceImagePackageSegment(workloadContext map[string]any) map[string]any {
+func TraceImagePackageSegment(workloadContext map[string]any) map[string]any {
 	return serviceTraceImagePackageSegment(workloadContext)
 }
 
 func serviceTraceImagePackageSegment(workloadContext map[string]any) map[string]any {
-	if supplyChain := ServiceStorySupplyChainImagePackage(workloadContext); len(supplyChain) > 0 {
+	if supplyChain := StorySupplyChainImagePackage(workloadContext); len(supplyChain) > 0 {
 		evidence := querycontract.MapSliceValue(supplyChain, "evidence")
 		missing := querycontract.StringSliceVal(supplyChain, "missing_evidence")
 		segment := serviceTraceSegment("image_package", "container_image_identity_and_sbom_attachment", "exact", evidence)
@@ -142,7 +142,7 @@ func serviceTraceImagePackageRows(row map[string]any) []map[string]any {
 			rows = append(rows, serviceTraceImagePackageRow(row, key, value))
 		}
 	}
-	if value := ServiceStoryMatchedImageRef(row); value != "" {
+	if value := StoryMatchedImageRef(row); value != "" {
 		rows = append(rows, serviceTraceImagePackageRow(row, "matched_value", value))
 	}
 	return rows

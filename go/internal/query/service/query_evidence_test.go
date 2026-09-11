@@ -267,7 +267,7 @@ paths:
 	}
 
 	// Find the parsed spec (the main openapi file)
-	var spec *ServiceAPISpecEvidence
+	var spec *APISpecEvidence
 	for i := range evidence.APISpecs {
 		if evidence.APISpecs[i].Parsed && evidence.APISpecs[i].RelativePath == "specs/index.yaml" {
 			spec = &evidence.APISpecs[i]
@@ -331,7 +331,7 @@ post:
 		t.Fatalf("LoadServiceQueryEvidence() error = %v", err)
 	}
 
-	var spec *ServiceAPISpecEvidence
+	var spec *APISpecEvidence
 	for i := range evidence.APISpecs {
 		if evidence.APISpecs[i].Parsed && evidence.APISpecs[i].RelativePath == "specs/openapi.yaml" {
 			spec = &evidence.APISpecs[i]
@@ -398,7 +398,7 @@ post:
 		t.Fatalf("LoadServiceQueryEvidence() error = %v", err)
 	}
 
-	var spec *ServiceAPISpecEvidence
+	var spec *APISpecEvidence
 	for i := range evidence.APISpecs {
 		if evidence.APISpecs[i].Parsed && evidence.APISpecs[i].RelativePath == "specs/index.yaml" {
 			spec = &evidence.APISpecs[i]

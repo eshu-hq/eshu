@@ -143,7 +143,7 @@ commands. The
 exact or derived artifact digests and image references are bridge evidence,
 ambiguous artifact outcomes stay ambiguous, and provider-only runs report the
 artifact/image bridge as missing instead of manufacturing deployment truth.
-`ServiceCatalogHandler` (`service/catalog.go:22`) reads reducer-owned service
+`CatalogHandler` (`service/catalog.go:22`) reads reducer-owned service
 catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus
 `limit`, and it keeps catalog declarations provenance-only until reducer

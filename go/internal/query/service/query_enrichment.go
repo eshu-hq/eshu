@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-type ServiceQueryEnrichmentOptions struct {
+type QueryEnrichmentOptions struct {
 	DirectOnly                bool
 	IncludeRelatedModuleUsage bool
 	MaxDepth                  int
@@ -26,7 +26,7 @@ func EnrichServiceQueryContextWithOptions(
 	graph querycontract.GraphQuery,
 	content querycontract.ContentStore,
 	workloadContext map[string]any,
-	opts ServiceQueryEnrichmentOptions,
+	opts QueryEnrichmentOptions,
 ) error {
 	delete(workloadContext, "entry_points")
 	if len(workloadContext) == 0 {

@@ -43,7 +43,7 @@ func TestServiceInvestigationCoverageNamesTheEvidenceFileReadBound(t *testing.T)
 		"name":      "orders-api",
 		"repo_id":   "repository:orders",
 		"repo_name": "orders-api",
-	}, ServiceInvestigationOptions{})
+	}, InvestigationOptions{})
 	coverage := querycontract.MapValue(packet, "coverage_summary")
 	if got, want := querycontract.IntVal(coverage, "evidence_file_read_limit"), serviceEvidenceFileLimit; got != want {
 		t.Fatalf("coverage_summary[evidence_file_read_limit] = %d, want %d", got, want)

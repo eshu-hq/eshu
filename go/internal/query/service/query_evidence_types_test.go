@@ -63,7 +63,7 @@ func TestBuildSpecFileResolverStillReadsAFileScopedRef(t *testing.T) {
 	}
 }
 
-// countingSpecFileReader is a minimal ServiceEvidenceReader that records how
+// countingSpecFileReader is a minimal EvidenceReader that records how
 // many times GetFileContent is called, so a test can prove a call was (or was
 // not) made without depending on its error text.
 type countingSpecFileReader struct {

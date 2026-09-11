@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func buildServiceEntrypoints(workloadContext map[string]any, evidence ServiceQueryEvidence) []map[string]any {
+func buildServiceEntrypoints(workloadContext map[string]any, evidence QueryEvidence) []map[string]any {
 	entrypoints := make([]map[string]any, 0, len(evidence.DocsRoutes)+len(evidence.Hostnames))
 	for _, row := range evidence.DocsRoutes {
 		entrypoints = append(entrypoints, map[string]any{

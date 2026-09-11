@@ -18,15 +18,15 @@ const (
 	serviceCatalogCorrelationsCapability = "service_catalog.correlations.list"
 )
 
-// ServiceCatalogHandler exposes reducer-owned service catalog correlation reads.
-type ServiceCatalogHandler struct {
+// CatalogHandler exposes reducer-owned service catalog correlation reads.
+type CatalogHandler struct {
 	Content      querycontract.ContentStore
-	Correlations ServiceCatalogCorrelationStore
+	Correlations CatalogCorrelationStore
 	Profile      querycontract.QueryProfile
 }
 
-// ServiceCatalogCorrelationResult is one reducer-owned catalog correlation row.
-type ServiceCatalogCorrelationResult struct {
+// CatalogCorrelationResult is one reducer-owned catalog correlation row.
+type CatalogCorrelationResult struct {
 	CorrelationID          string   `json:"correlation_id"`
 	Provider               string   `json:"provider,omitempty"`
 	EntityRef              string   `json:"entity_ref,omitempty"`
@@ -48,26 +48,26 @@ type ServiceCatalogCorrelationResult struct {
 	RequiredAnchorKeys     []string `json:"required_anchor_keys,omitempty"`
 }
 
-// ServiceCatalogMissingEvidence explains why an anchored service-catalog read
+// CatalogMissingEvidence explains why an anchored service-catalog read
 // could not return a matching reducer correlation row.
-type ServiceCatalogMissingEvidence struct {
+type CatalogMissingEvidence struct {
 	Class  string `json:"class"`
 	Reason string `json:"reason"`
 }
 
 // Mount registers service catalog query routes.
-func (h *ServiceCatalogHandler) Mount(mux *http.ServeMux) {
+func (h *CatalogHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/service-catalog/correlations", h.listCorrelations)
 }
 
-func (h *ServiceCatalogHandler) profile() querycontract.QueryProfile {
+func (h *CatalogHandler) profile() querycontract.QueryProfile {
 	if h == nil || h.Profile == "" {
 		return querycontract.ProfileProduction
 	}
 	return h.Profile
 }
 
-func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.Request) {
+func (h *CatalogHandler) listCorrelations(w http.ResponseWriter, r *http.Request) {
 	r, span := queryspan.StartHandlerSpanWith(
 		queryspan.HandlerTracer(),
 		r,
@@ -94,7 +94,7 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	filter := ServiceCatalogCorrelationFilter{
+	filter := CatalogCorrelationFilter{
 		ScopeID:            querycontract.QueryParam(r, "scope_id"),
 		Provider:           querycontract.QueryParam(r, "provider"),
 		EntityRef:          querycontract.QueryParam(r, "entity_ref"),
@@ -153,9 +153,9 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 	if truncated {
 		rows = rows[:limit]
 	}
-	results := make([]ServiceCatalogCorrelationResult, 0, len(rows))
+	results := make([]CatalogCorrelationResult, 0, len(rows))
 	for _, row := range rows {
-		results = append(results, ServiceCatalogCorrelationResult(row))
+		results = append(results, CatalogCorrelationResult(row))
 	}
 	body := map[string]any{
 		"correlations":     results,
@@ -180,22 +180,22 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 	))
 }
 
-func (h *ServiceCatalogHandler) writeEmptyServiceCatalogCorrelationPage(
+func (h *CatalogHandler) writeEmptyServiceCatalogCorrelationPage(
 	w http.ResponseWriter,
 	r *http.Request,
 	limit int,
 ) {
 	body := map[string]any{
-		"correlations": []ServiceCatalogCorrelationResult{},
+		"correlations": []CatalogCorrelationResult{},
 		"count":        0,
 		"limit":        limit,
 		"truncated":    false,
-		"evidence_summary": ServiceCatalogEvidenceSummary{
-			LocalDescriptors: ServiceCatalogLocalDescriptorEvidence{
+		"evidence_summary": CatalogEvidenceSummary{
+			LocalDescriptors: CatalogLocalDescriptorEvidence{
 				State:  "not_checked",
 				Reason: "repository_scope_required",
 			},
-			ExternalCatalogConfirmation: ServiceCatalogExternalCatalogEvidence{
+			ExternalCatalogConfirmation: CatalogExternalCatalogEvidence{
 				State:  "missing",
 				Reason: "repository_scope_required",
 			},
@@ -225,9 +225,9 @@ func requiredServiceCatalogCorrelationLimit(w http.ResponseWriter, r *http.Reque
 }
 
 func serviceCatalogCorrelationFilterWithRepositoryAccess(
-	filter ServiceCatalogCorrelationFilter,
+	filter CatalogCorrelationFilter,
 	access querycontract.RepositoryAccessFilter,
-) ServiceCatalogCorrelationFilter {
+) CatalogCorrelationFilter {
 	if !access.Scoped() {
 		return filter
 	}
@@ -237,15 +237,15 @@ func serviceCatalogCorrelationFilterWithRepositoryAccess(
 }
 
 func serviceCatalogMissingEvidence(
-	filter ServiceCatalogCorrelationFilter,
+	filter CatalogCorrelationFilter,
 	resultCount int,
-) []ServiceCatalogMissingEvidence {
+) []CatalogMissingEvidence {
 	if resultCount > 0 || filter.AfterCorrelationID != "" || filter.Outcome != "" || filter.DriftStatus != "" {
 		return nil
 	}
-	missing := make([]ServiceCatalogMissingEvidence, 0, 3)
+	missing := make([]CatalogMissingEvidence, 0, 3)
 	appendMissing := func(class, reason string) {
-		missing = append(missing, ServiceCatalogMissingEvidence{Class: class, Reason: reason})
+		missing = append(missing, CatalogMissingEvidence{Class: class, Reason: reason})
 	}
 	if filter.RepositoryID != "" {
 		appendMissing(

@@ -67,14 +67,14 @@ docs: "/docs"
 		t.Fatalf("hostnames = %#v, want %#v", gotHostnames, wantHostnames)
 	}
 
-	if got, want := evidence.DocsRoutes, []ServiceDocsRouteEvidence{
+	if got, want := evidence.DocsRoutes, []DocsRouteEvidence{
 		{Route: "/docs", RelativePath: "deploy/prod/ingress.yaml", Reason: "docs_route_reference"},
 	}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("docs_routes = %#v, want %#v", got, want)
 	}
 
 	gotCandidates := evidence.EntrypointCandidates
-	wantCandidates := []ServiceEntrypointCandidateEvidence{
+	wantCandidates := []EntrypointCandidateEvidence{
 		{
 			Candidate:      "app.config.retry.count",
 			Classification: "rejected_config_key",

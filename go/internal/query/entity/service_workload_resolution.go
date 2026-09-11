@@ -22,7 +22,7 @@ const ServiceWorkloadCandidateLimit = 10
 // ServiceWorkloadSelector selects service workloads by identity. Its home is
 // service/ (B4); this alias keeps the moved resolution file spelling the
 // established name. See #6060.
-type ServiceWorkloadSelector = service.ServiceWorkloadSelector
+type ServiceWorkloadSelector = service.WorkloadSelector
 
 // ServiceWorkloadCandidate is one service-workload candidate row. Exported as the result element of QueryServiceWorkloadCandidates; see #6060.
 type ServiceWorkloadCandidate struct {

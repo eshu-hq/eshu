@@ -14,11 +14,11 @@ import (
 func TestBuildServiceAPISurfaceIncludesEndpointDetails(t *testing.T) {
 	t.Parallel()
 
-	surface := buildServiceAPISurface(ServiceQueryEvidence{
-		DocsRoutes: []ServiceDocsRouteEvidence{
+	surface := buildServiceAPISurface(QueryEvidence{
+		DocsRoutes: []DocsRouteEvidence{
 			{Route: "/_specs", RelativePath: "server/spec.js", Reason: "docs_route_reference"},
 		},
-		APISpecs: []ServiceAPISpecEvidence{
+		APISpecs: []APISpecEvidence{
 			{
 				RelativePath:     "specs/index.yaml",
 				Format:           "yaml",
@@ -29,7 +29,7 @@ func TestBuildServiceAPISurfaceIncludesEndpointDetails(t *testing.T) {
 				MethodCount:      3,
 				OperationIDCount: 3,
 				Hostnames:        []string{"sample-service-api.qa.example.test"},
-				Endpoints: []ServiceAPIEndpointEvidence{
+				Endpoints: []APIEndpointEvidence{
 					{Path: "/v3/search", Methods: []string{"get", "post"}, OperationIDs: []string{"search", "postSearch"}},
 					{Path: "/v3/listing/{id}", Methods: []string{"get"}, OperationIDs: []string{"getListing"}},
 				},
@@ -52,7 +52,7 @@ func TestBuildServiceAPISurfaceIncludesEndpointDetails(t *testing.T) {
 func TestBuildServiceAPISurfaceMergesFrameworkRoutes(t *testing.T) {
 	t.Parallel()
 
-	surface := buildServiceAPISurface(ServiceQueryEvidence{
+	surface := buildServiceAPISurface(QueryEvidence{
 		FrameworkRoutes: []FrameworkRouteEvidence{
 			{
 				Framework:    "hapi",
@@ -115,8 +115,8 @@ func TestBuildServiceAPISurfaceMergesFrameworkRoutes(t *testing.T) {
 func TestBuildServiceAPISurfaceCombinesSpecAndFrameworkRoutes(t *testing.T) {
 	t.Parallel()
 
-	surface := buildServiceAPISurface(ServiceQueryEvidence{
-		APISpecs: []ServiceAPISpecEvidence{
+	surface := buildServiceAPISurface(QueryEvidence{
+		APISpecs: []APISpecEvidence{
 			{
 				RelativePath:  "specs/index.yaml",
 				Format:        "yaml",
@@ -124,7 +124,7 @@ func TestBuildServiceAPISurfaceCombinesSpecAndFrameworkRoutes(t *testing.T) {
 				SpecVersion:   "3.0.3",
 				EndpointCount: 1,
 				MethodCount:   1,
-				Endpoints: []ServiceAPIEndpointEvidence{
+				Endpoints: []APIEndpointEvidence{
 					{Path: "/health", Methods: []string{"get"}},
 				},
 			},
@@ -169,8 +169,8 @@ func TestBuildServiceEntrypointsSeparatesPublicAndInternalSignals(t *testing.T) 
 	}
 	entrypoints := buildServiceEntrypoints(
 		workloadContext,
-		ServiceQueryEvidence{
-			Hostnames: []ServiceHostnameEvidence{
+		QueryEvidence{
+			Hostnames: []HostnameEvidence{
 				{
 					Hostname:     "sample-service-api.qa.example.test",
 					Environment:  "qa",
@@ -178,7 +178,7 @@ func TestBuildServiceEntrypointsSeparatesPublicAndInternalSignals(t *testing.T) 
 					Reason:       "content_hostname_reference",
 				},
 			},
-			DocsRoutes: []ServiceDocsRouteEvidence{
+			DocsRoutes: []DocsRouteEvidence{
 				{
 					Route:        "/_specs",
 					RelativePath: "server/spec.js",

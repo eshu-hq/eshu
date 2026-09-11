@@ -15,11 +15,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
-// ServiceCatalogCorrelationFactKind is the fact kind carrying durable
+// CatalogCorrelationFactKind is the fact kind carrying durable
 // service-catalog correlation rows. Exported for the staying root
 // supply-chain anchor test, which pins the cross-family evidence path;
 // production readers keep the package-local spelling.
-const ServiceCatalogCorrelationFactKind = serviceCatalogCorrelationFactKind
+const CatalogCorrelationFactKind = serviceCatalogCorrelationFactKind
 
 const serviceCatalogCorrelationFactKind = "reducer_service_catalog_correlation"
 
@@ -33,21 +33,21 @@ var ErrServiceCatalogOutsideGrantNeedsAGrant = errors.New(
 	"outside-grant reads require an allowed repository or scope grant",
 )
 
-// ServiceCatalogCorrelationStore reads reducer-owned service catalog
+// CatalogCorrelationStore reads reducer-owned service catalog
 // correlations. See querycontract.ServiceCatalogCorrelationStore: the port
 // moved there for #6060 lane A L2 because the moved codeowners family needs
 // it without importing root, and this alias keeps every staying caller
 // compiling unchanged.
-type ServiceCatalogCorrelationStore = querycontract.ServiceCatalogCorrelationStore
+type CatalogCorrelationStore = querycontract.ServiceCatalogCorrelationStore
 
-// ServiceCatalogCorrelationFilter bounds catalog reads to a concrete catalog
+// CatalogCorrelationFilter bounds catalog reads to a concrete catalog
 // entity, repository, service, workload, owner, or ingestion scope. See
 // querycontract.ServiceCatalogCorrelationFilter.
-type ServiceCatalogCorrelationFilter = querycontract.ServiceCatalogCorrelationFilter
+type CatalogCorrelationFilter = querycontract.ServiceCatalogCorrelationFilter
 
-// ServiceCatalogCorrelationRow is one durable service-catalog correlation
+// CatalogCorrelationRow is one durable service-catalog correlation
 // fact. See querycontract.ServiceCatalogCorrelationRow.
-type ServiceCatalogCorrelationRow = querycontract.ServiceCatalogCorrelationRow
+type CatalogCorrelationRow = querycontract.ServiceCatalogCorrelationRow
 
 type serviceCatalogCorrelationQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
@@ -71,8 +71,8 @@ func NewPostgresServiceCatalogCorrelationStore(
 // service-catalog correlation facts.
 func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 	ctx context.Context,
-	filter ServiceCatalogCorrelationFilter,
-) ([]ServiceCatalogCorrelationRow, error) {
+	filter CatalogCorrelationFilter,
+) ([]CatalogCorrelationRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("service catalog correlation database is required")
 	}
@@ -114,7 +114,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogCorrelations(
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]ServiceCatalogCorrelationRow, 0, filter.Limit)
+	out := make([]CatalogCorrelationRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
 		var payloadBytes []byte
@@ -139,7 +139,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogLocalDescripto
 	ctx context.Context,
 	repositoryID string,
 	limit int,
-) ([]ServiceCatalogLocalDescriptorEvidenceRow, error) {
+) ([]CatalogLocalDescriptorEvidenceRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("service catalog correlation database is required")
 	}
@@ -162,7 +162,7 @@ func (s PostgresServiceCatalogCorrelationStore) ListServiceCatalogLocalDescripto
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]ServiceCatalogLocalDescriptorEvidenceRow, 0, limit)
+	out := make([]CatalogLocalDescriptorEvidenceRow, 0, limit)
 	for rows.Next() {
 		var factID string
 		var factKind string
@@ -316,12 +316,12 @@ LIMIT $3
 func decodeServiceCatalogCorrelationRow(
 	factID string,
 	payloadBytes []byte,
-) (ServiceCatalogCorrelationRow, error) {
+) (CatalogCorrelationRow, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return ServiceCatalogCorrelationRow{}, fmt.Errorf("decode service catalog correlation: %w", err)
+		return CatalogCorrelationRow{}, fmt.Errorf("decode service catalog correlation: %w", err)
 	}
-	return ServiceCatalogCorrelationRow{
+	return CatalogCorrelationRow{
 		CorrelationID:          factID,
 		Provider:               querycontract.StringVal(payload, "provider"),
 		EntityRef:              querycontract.StringVal(payload, "entity_ref"),
@@ -349,12 +349,12 @@ func decodeServiceCatalogLocalDescriptorEvidenceRow(
 	factKind string,
 	sourceURI string,
 	payloadBytes []byte,
-) (ServiceCatalogLocalDescriptorEvidenceRow, error) {
+) (CatalogLocalDescriptorEvidenceRow, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return ServiceCatalogLocalDescriptorEvidenceRow{}, fmt.Errorf("decode service catalog local descriptor evidence: %w", err)
+		return CatalogLocalDescriptorEvidenceRow{}, fmt.Errorf("decode service catalog local descriptor evidence: %w", err)
 	}
-	return ServiceCatalogLocalDescriptorEvidenceRow{
+	return CatalogLocalDescriptorEvidenceRow{
 		FactID:    factID,
 		FactKind:  factKind,
 		Provider:  querycontract.StringVal(payload, "provider"),

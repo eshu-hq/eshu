@@ -12,9 +12,9 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// ServiceQueryStageTimer emits per-stage service read timings so slow graph or
+// QueryStageTimer emits per-stage service read timings so slow graph or
 // content hydration paths can be diagnosed even when the client times out.
-type ServiceQueryStageTimer struct {
+type QueryStageTimer struct {
 	logger    *slog.Logger
 	operation string
 	service   string
@@ -32,8 +32,8 @@ func StartServiceQueryStage(
 	service string,
 	repoID string,
 	stage string,
-) ServiceQueryStageTimer {
-	timer := ServiceQueryStageTimer{
+) QueryStageTimer {
+	timer := QueryStageTimer{
 		logger:    logger,
 		operation: operation,
 		service:   service,
@@ -56,7 +56,7 @@ func StartServiceQueryStage(
 
 // Done emits the completion event with duration and caller-supplied row/result
 // attributes.
-func (t ServiceQueryStageTimer) Done(ctx context.Context, attrs ...slog.Attr) {
+func (t QueryStageTimer) Done(ctx context.Context, attrs ...slog.Attr) {
 	if t.logger == nil {
 		return
 	}

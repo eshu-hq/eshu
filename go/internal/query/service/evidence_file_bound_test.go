@@ -87,7 +87,7 @@ func (r limitHonoringServiceEvidenceReader) GetFileContent(
 // rounds 7 and 8 used to justify disclosing source 2 and the hostname affinity
 // narrowing, but this read
 // could not reach any flag at all: no over-fetch probe, no length check, and no
-// truncated field on ServiceQueryEvidence.
+// truncated field on QueryEvidence.
 //
 // The two subtests seed the same corpus one file apart, so the only variable is
 // which side of the bound the hostname-bearing file lands on.

@@ -51,7 +51,7 @@ func TestServiceStorySupplyChainEvidenceExplainsRepoOnlyImageCandidate(t *testin
 	if got := len(imageStore.filters); got != 0 {
 		t.Fatalf("image identity store calls = %d, want no lookup for repo-only image candidate", got)
 	}
-	segment := service.ServiceTraceImagePackageSegment(ctx)
+	segment := service.TraceImagePackageSegment(ctx)
 	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
@@ -117,7 +117,7 @@ func TestServiceStorySupplyChainEvidenceExplainsOCIRegistryTargetOutsideScope(t 
 	if got := len(sbomStore.filters); got != 0 {
 		t.Fatalf("SBOM attachment store calls = %d, want none without image identity", got)
 	}
-	segment := service.ServiceTraceImagePackageSegment(ctx)
+	segment := service.TraceImagePackageSegment(ctx)
 	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
@@ -151,25 +151,25 @@ func TestServiceStoryContainerImageCandidateReasonHandlesPendingAndCompletedRetr
 	t.Parallel()
 
 	repositoryID := "oci-registry://registry.example.com/team/api"
-	reason, collectorScope, _ := service.ServiceStoryContainerImageCandidateReason(
+	reason, collectorScope, _ := service.StoryContainerImageCandidateReason(
 		repositoryID,
-		service.ServiceStoryContainerImageCandidateState{ScopeID: repositoryID, ScopeStatus: "pending"},
+		service.StoryContainerImageCandidateState{ScopeID: repositoryID, ScopeStatus: "pending"},
 	)
 	if reason != "oci_registry_target_collection_pending" || collectorScope != "configured_pending" {
 		t.Fatalf("pending scope reason = (%q, %q), want configured pending", reason, collectorScope)
 	}
 
-	reason, collectorScope, _ = service.ServiceStoryContainerImageCandidateReason(
+	reason, collectorScope, _ = service.StoryContainerImageCandidateReason(
 		repositoryID,
-		service.ServiceStoryContainerImageCandidateState{ScopeID: repositoryID},
+		service.StoryContainerImageCandidateState{ScopeID: repositoryID},
 	)
 	if reason != "oci_registry_target_collection_pending" || collectorScope != "configured_pending" {
 		t.Fatalf("configured scope without generation reason = (%q, %q), want configured pending", reason, collectorScope)
 	}
 
-	reason, collectorScope, _ = service.ServiceStoryContainerImageCandidateReason(
+	reason, collectorScope, _ = service.StoryContainerImageCandidateReason(
 		repositoryID,
-		service.ServiceStoryContainerImageCandidateState{
+		service.StoryContainerImageCandidateState{
 			ScopeID:          repositoryID,
 			GenerationID:     "gen-failed",
 			GenerationStatus: "failed",
@@ -179,9 +179,9 @@ func TestServiceStoryContainerImageCandidateReasonHandlesPendingAndCompletedRetr
 		t.Fatalf("failed generation reason = (%q, %q), want configured unreadable", reason, collectorScope)
 	}
 
-	reason, collectorScope, _ = service.ServiceStoryContainerImageCandidateReason(
+	reason, collectorScope, _ = service.StoryContainerImageCandidateReason(
 		repositoryID,
-		service.ServiceStoryContainerImageCandidateState{
+		service.StoryContainerImageCandidateState{
 			ScopeID:      repositoryID,
 			WorkStatus:   "completed",
 			FailureClass: "registry_auth_denied",

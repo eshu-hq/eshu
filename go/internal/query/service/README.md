@@ -3,7 +3,7 @@
 ## Purpose
 
 `service` holds the service-handler family (Issue #6060, lane B): the
-`ServiceCatalogHandler` HTTP surface (`GET
+`CatalogHandler` HTTP surface (`GET
 /api/v0/service-catalog/correlations` plus the local-descriptor evidence
 reads behind it), every pure helper behind the service context, story,
 investigation, evidence, hostname, ingress-posture, and deployment-evidence
@@ -14,7 +14,7 @@ fragments documenting the service routes stay in the query root
 (`openapi_paths_service_*.go`), where scripts/verify-openapi.sh requires
 every family's fragments to live.
 
-The `ServiceCatalogHandler` struct keeps its `Content`, `Correlations`,
+The `CatalogHandler` struct keeps its `Content`, `Correlations`,
 and `Profile` dependencies; `cmd/api` and `cmd/mcp-server` wire it through
 the root `query.ServiceCatalogHandler` alias unchanged.
 
@@ -79,6 +79,21 @@ the documented export renames. Emitted Cypher text is byte-identical, pinned
 by the queryplan production-binding tests (green) and the per-symbol
 source_sha256 audits in `query-source-coverage.yaml` (2 legacy non_hot rows
 converted to typed audits, digests verified).
+
+No-Regression Evidence (#6642 rule 4): the export destutter renamed 43
+identifiers and nothing else. Every SQL and Cypher literal in this package is
+byte-identical to the pre-rename commit; the one queryplan digest that moved
+with the rename (`buildServiceDocumentationOverview`) did so only because
+the recorded function text names a renamed identifier, and
+`go test ./internal/queryplan/` is green on the re-pinned rows.
+`go test ./internal/query/... -count=1` and
+`./cmd/api ./cmd/mcp-server ./internal/mcp` pass on the renamed tree,
+including the route-serves-data anti-poison suite; no benchmark delta is
+claimed because no query changed shape.
+
+No-Observability-Change (#6642 rule 4): the rename touches no span, metric,
+or log name; `service_query.stage_*` events, `QueryStageTimer`'s output and
+the tracer scope are unchanged.
 
 No-Observability-Change (#6060 lane-B B4): no new runtime behavior, so no
 new spans, metrics, or logs. The existing `service_query.stage_*`

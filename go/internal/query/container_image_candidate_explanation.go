@@ -14,7 +14,7 @@ import (
 // containerImageCandidateExplanationState carries the OCI collector target
 // state behind a deployment image candidate explanation. The implementation
 // moved to service for #6060; this alias keeps root callers unchanged.
-type containerImageCandidateExplanationState = service.ServiceStoryContainerImageCandidateState
+type containerImageCandidateExplanationState = service.StoryContainerImageCandidateState
 
 // ExplainContainerImageCandidate explains why a deployment image candidate has
 // no canonical container image identity without fabricating digest or SBOM
@@ -26,12 +26,12 @@ func (s PostgresContainerImageIdentityStore) ExplainContainerImageCandidate(
 	if s.DB == nil {
 		return nil, fmt.Errorf("container image identity database is required")
 	}
-	parts, ok := service.ServiceStoryParseImageCandidate(imageRef)
+	parts, ok := service.StoryParseImageCandidate(imageRef)
 	if !ok {
-		return service.ServiceStoryGenericImageCandidateMissingDetail(imageRef, "container_image_identity_missing"), nil
+		return service.StoryGenericImageCandidateMissingDetail(imageRef, "container_image_identity_missing"), nil
 	}
 	if parts.Tag == "" && parts.Digest == "" {
-		detail, _ := service.ServiceStoryRepoOnlyImageCandidateDetail(imageRef)
+		detail, _ := service.StoryRepoOnlyImageCandidateDetail(imageRef)
 		return detail, nil
 	}
 
@@ -121,7 +121,7 @@ func serviceStoryContainerImageCandidateExplanation(
 	state containerImageCandidateExplanationState,
 ) map[string]any {
 	reason, collectorScope, action := serviceStoryContainerImageCandidateReason(parts.RepositoryID, state)
-	detail := service.ServiceStoryBaseImageCandidateDetail(parts, reason, map[string]any{
+	detail := service.StoryBaseImageCandidateDetail(parts, reason, map[string]any{
 		"collector_scope": collectorScope,
 		"operator_action": action,
 	})
@@ -143,7 +143,7 @@ func serviceStoryContainerImageCandidateReason(
 	repositoryID string,
 	state containerImageCandidateExplanationState,
 ) (string, string, string) {
-	return service.ServiceStoryContainerImageCandidateReason(repositoryID, state)
+	return service.StoryContainerImageCandidateReason(repositoryID, state)
 }
 
 func addNonEmptyString(row map[string]any, key string, value string) {

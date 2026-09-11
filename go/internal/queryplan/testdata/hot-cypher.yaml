@@ -211,7 +211,7 @@ entries:
     source:
       file: go/internal/query/entity/entity_workload_context.go
       symbol: (*EntityHandler).FetchWorkloadContextForOperation
-      source_sha256: c377c08c0b8fb6fe5326ddc087ae49e3c063e987127fac19f2e0d13ea5f0e051
+      source_sha256: 36f52c93aed8fde5f87eca4f9fc09159e259f2393c4cbdb811f88b319881d080
       line_hint: 54
     required_anchors:
       - label: Workload

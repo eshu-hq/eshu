@@ -20,10 +20,10 @@ import (
 // home. Bodies are unchanged modulo package qualifiers and the export renames
 // below.
 
-// ServiceInvestigationOptions tunes the service investigation packet.
+// InvestigationOptions tunes the service investigation packet.
 // Pinned by the staying investigation route (service_investigation.go) via
 // the root alias, and by the service-story overview in this package.
-type ServiceInvestigationOptions struct {
+type InvestigationOptions struct {
 	Environment string
 	Intent      string
 	Question    string
@@ -35,7 +35,7 @@ type ServiceInvestigationOptions struct {
 func BuildServiceInvestigationPacket(
 	serviceName string,
 	workloadContext map[string]any,
-	opts ServiceInvestigationOptions,
+	opts InvestigationOptions,
 ) map[string]any {
 	return buildServiceInvestigationPacketWithContext(serviceName, newServiceStoryBuildContext(workloadContext), opts)
 }
@@ -43,7 +43,7 @@ func BuildServiceInvestigationPacket(
 func buildServiceInvestigationPacketWithContext(
 	serviceName string,
 	buildCtx serviceStoryBuildContext,
-	opts ServiceInvestigationOptions,
+	opts InvestigationOptions,
 ) map[string]any {
 	workloadContext := buildCtx.workloadContext
 	serviceName = canonicalServiceName(serviceName, workloadContext)

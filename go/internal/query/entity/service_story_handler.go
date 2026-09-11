@@ -17,7 +17,7 @@ import (
 // GetServiceStory serves the service-story route. Exported so the staying service-context authz test keeps driving the handler; see #6060.
 func (h *EntityHandler) GetServiceStory(w http.ResponseWriter, r *http.Request) {
 	serviceName := querycontract.PathParam(r, "service_name")
-	data, truth, status, errEnv := h.BuildServiceStoryEnvelope(r.Context(), service.ServiceWorkloadSelector{
+	data, truth, status, errEnv := h.BuildServiceStoryEnvelope(r.Context(), service.WorkloadSelector{
 		ServiceName: serviceName,
 		ServiceID:   querycontract.QueryParam(r, "service_id"),
 		Repository:  querycontract.QueryParam(r, "repo"),

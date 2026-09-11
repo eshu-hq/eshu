@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package service holds the service-handler family (Issue #6060, lane B):
-// the ServiceCatalogHandler HTTP surface plus every pure helper behind the
+// the CatalogHandler HTTP surface plus every pure helper behind the
 // service context/story/investigation reads, the service evidence and
 // hostname decoders, the service query enrichment, the service-story
 // dossier/overview/evidence-graph/supply-chain/trace-path shaping, and the

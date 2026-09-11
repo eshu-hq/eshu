@@ -17,7 +17,7 @@ type containerImageCandidateExplainer interface {
 	ExplainContainerImageCandidate(context.Context, string) (map[string]any, error)
 }
 
-type ServiceStoryImageCandidateParts struct {
+type StoryImageCandidateParts struct {
 	ImageRef     string
 	Repository   string
 	RepositoryID string
@@ -25,36 +25,36 @@ type ServiceStoryImageCandidateParts struct {
 	Digest       string
 }
 
-func ServiceStoryRepoOnlyImageCandidateDetail(imageRef string) (map[string]any, bool) {
-	parts, ok := ServiceStoryParseImageCandidate(imageRef)
+func StoryRepoOnlyImageCandidateDetail(imageRef string) (map[string]any, bool) {
+	parts, ok := StoryParseImageCandidate(imageRef)
 	if !ok || parts.Tag != "" || parts.Digest != "" {
 		return nil, false
 	}
-	return ServiceStoryBaseImageCandidateDetail(parts, "deployment_image_reference_repo_only", map[string]any{
+	return StoryBaseImageCandidateDetail(parts, "deployment_image_reference_repo_only", map[string]any{
 		"collector_scope": "candidate_only",
 		"operator_action": "add a tag or digest to the deployment image reference before expecting OCI identity or SBOM evidence",
 	}), true
 }
 
-func ServiceStoryImageCandidateMissingExplanation(
+func StoryImageCandidateMissingExplanation(
 	ctx context.Context,
 	store supplychain.ContainerImageIdentityStore,
 	imageRef string,
 	fallbackReason string,
 ) (map[string]any, string, error) {
 	if fallbackReason != "container_image_identity_missing" {
-		return ServiceStoryGenericImageCandidateMissingDetail(imageRef, fallbackReason), "", nil
+		return StoryGenericImageCandidateMissingDetail(imageRef, fallbackReason), "", nil
 	}
 	explainer, ok := store.(containerImageCandidateExplainer)
 	if !ok {
-		return ServiceStoryGenericImageCandidateMissingDetail(imageRef, fallbackReason), "", nil
+		return StoryGenericImageCandidateMissingDetail(imageRef, fallbackReason), "", nil
 	}
 	detail, err := explainer.ExplainContainerImageCandidate(ctx, imageRef)
 	if err != nil {
 		return nil, "", fmt.Errorf("explain service story image candidate: %w", err)
 	}
 	if len(detail) == 0 {
-		return ServiceStoryGenericImageCandidateMissingDetail(imageRef, fallbackReason), "", nil
+		return StoryGenericImageCandidateMissingDetail(imageRef, fallbackReason), "", nil
 	}
 	reason := strings.TrimSpace(querycontract.StringVal(detail, "reason"))
 	if reason == "" {
@@ -64,8 +64,8 @@ func ServiceStoryImageCandidateMissingExplanation(
 	return detail, reason, nil
 }
 
-func ServiceStoryGenericImageCandidateMissingDetail(imageRef string, reason string) map[string]any {
-	parts, ok := ServiceStoryParseImageCandidate(imageRef)
+func StoryGenericImageCandidateMissingDetail(imageRef string, reason string) map[string]any {
+	parts, ok := StoryParseImageCandidate(imageRef)
 	if !ok {
 		return map[string]any{
 			"candidate_image_ref": strings.TrimSpace(imageRef),
@@ -73,12 +73,12 @@ func ServiceStoryGenericImageCandidateMissingDetail(imageRef string, reason stri
 			"operator_action":     "verify OCI registry collector coverage and reducer image identity facts for this deployment image reference",
 		}
 	}
-	return ServiceStoryBaseImageCandidateDetail(parts, reason, map[string]any{
+	return StoryBaseImageCandidateDetail(parts, reason, map[string]any{
 		"operator_action": "verify OCI registry collector coverage and reducer image identity facts for this deployment image reference",
 	})
 }
 
-func ServiceStorySBOMMissingExplanation(
+func StorySBOMMissingExplanation(
 	imageRef string,
 	identity supplychain.ContainerImageIdentityRow,
 	reason string,
@@ -99,10 +99,10 @@ func ServiceStorySBOMMissingExplanation(
 	return detail
 }
 
-func ServiceStoryParseImageCandidate(raw string) (ServiceStoryImageCandidateParts, bool) {
+func StoryParseImageCandidate(raw string) (StoryImageCandidateParts, bool) {
 	imageRef := strings.TrimSpace(raw)
 	if imageRef == "" {
-		return ServiceStoryImageCandidateParts{}, false
+		return StoryImageCandidateParts{}, false
 	}
 	repository := imageRef
 	digest := ""
@@ -116,10 +116,10 @@ func ServiceStoryParseImageCandidate(raw string) (ServiceStoryImageCandidatePart
 	}
 	repository = serviceStoryRegistryImageRepository(repository)
 	if repository == "" {
-		return ServiceStoryImageCandidateParts{}, false
+		return StoryImageCandidateParts{}, false
 	}
 	repository = strings.ToLower(strings.Trim(repository, "/"))
-	return ServiceStoryImageCandidateParts{
+	return StoryImageCandidateParts{
 		ImageRef:     imageRef,
 		Repository:   repository,
 		RepositoryID: "oci-registry://" + repository,
@@ -128,8 +128,8 @@ func ServiceStoryParseImageCandidate(raw string) (ServiceStoryImageCandidatePart
 	}, true
 }
 
-func ServiceStoryBaseImageCandidateDetail(
-	parts ServiceStoryImageCandidateParts,
+func StoryBaseImageCandidateDetail(
+	parts StoryImageCandidateParts,
 	reason string,
 	extra map[string]any,
 ) map[string]any {
@@ -147,7 +147,7 @@ func ServiceStoryBaseImageCandidateDetail(
 	return detail
 }
 
-func ServiceStoryUniqueMissingDetails(rows []map[string]any) []map[string]any {
+func StoryUniqueMissingDetails(rows []map[string]any) []map[string]any {
 	if len(rows) == 0 {
 		return nil
 	}
