@@ -16,7 +16,7 @@ import (
 // story_collection_helpers.go.
 //
 // They live here rather than in package query for the same reason the row
-// decoders in rowvalue.go do: a family subpackage cannot import the root
+// decoders in querycontract/rowvalue do: a family subpackage cannot import the root
 // package back without an import cycle, because root names family symbols in
 // its compatibility aliases. These helpers carry no dependency on anything
 // beyond the standard library -- no driver type, no handler, no store -- so

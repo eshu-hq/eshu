@@ -20,12 +20,13 @@ import "fmt"
 // import cycle, because root names family symbols in its compatibility
 // aliases. A call to StringVal alone appeared in 195 of the 866 non-test root
 // files when this comment was written, so leaving these in root would block
-// every family move. Package query keeps forwarding wrappers under the original
-// names, so its own callers and the 28 files outside it that call StringVal,
-// BoolVal, IntVal or StringSliceVal -- 5 non-test and 23 test -- all compile
-// unchanged. FloatVal is newer and has no exported forwarder of its own:
-// package query reaches it through the unexported relationshipFloatVal, which
-// eleven call sites in eight root files already named.
+// every family move. Package querycontract and package query both keep
+// forwarding wrappers under the original names, so their own callers and the 28
+// files outside them that call StringVal, BoolVal, IntVal or StringSliceVal --
+// 5 non-test and 23 test -- all compile unchanged. FloatVal is the exception:
+// package query has no exported wrapper for it and reaches it through two
+// unexported ones instead, floatVal in compare.go and relationshipFloatVal in
+// repository_compat.go, named by 14 call sites across 5 root files.
 
 // StringVal safely extracts a string from a map value. A missing key or a nil
 // yields "". A present value of some other type is rendered with %v rather

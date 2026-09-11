@@ -42,7 +42,17 @@ family, not here.
 
 ## Compatibility
 
-`querycontract` and package `query` both keep forwarding wrappers under the
-original names, so existing callers compile unchanged. At the time of the move
-`StringVal` alone had 235 qualified call sites and the five helpers were named
-in 285 files.
+`querycontract` keeps forwarding wrappers for all five names, so existing
+callers compile unchanged. At the time of the move `StringVal` alone had 235
+qualified call sites and the five helpers were named in 285 files.
+
+Package `query` forwards only four of them — `StringVal`, `BoolVal`, `IntVal`
+and `StringSliceVal`, in `neo4j.go`. It has no exported `FloatVal`; it reaches
+this one through two unexported wrappers, `floatVal` in `compare.go` and
+`relationshipFloatVal` in `repository_compat.go`.
+
+Every one of those wrappers inlines away, including the ones `querycontract`
+added when these functions moved here. The exception is `StringVal` itself,
+whose `%v` fallback puts its body over the inliner's cost budget — it did so in
+its old home too, so the move changed nothing. The measured costs are in
+[the parent README](../README.md#performance).
