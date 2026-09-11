@@ -25,7 +25,7 @@ func Resolvers() []shared.Resolver {
 
 func resolveGroovyClassQualifiedCallee(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {
 	for _, candidateName := range groovyClassQualifiedCandidateNames(ctx.Call) {
-		entityID := ctx.Index.UniqueNameByRepo[ctx.RepositoryID][candidateName]
+		entityID := ctx.Index.UniqueNameByRepo(ctx.RepositoryID, candidateName)
 		if entityID == "" {
 			continue
 		}

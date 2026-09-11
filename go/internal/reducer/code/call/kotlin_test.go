@@ -87,9 +87,8 @@ fun helper(): String = "top-level"
 	}
 	if got := shared.ResolveSameFileCalleeEntityID(entityIndex, callerPath, "Worker.kt", calls[0]); got == "" {
 		t.Fatalf(
-			"resolved same-file callee: %q (candidates=%v, names=%v)",
+			"resolved same-file callee: %q (names=%v)",
 			got,
-			entityIndex.UniqueNameByPath,
 			shared.ExactCandidateNames(calls[0], "kotlin"),
 		)
 	}

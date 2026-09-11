@@ -41,13 +41,13 @@ wiring stay in `code/call`.
 
 ## EntityIndex accessors
 
-`EntityIndex`'s language-specific lookup fields stay unexported so the
-read-only invariant survives the package boundary. A language leaf reads them
-through: `EntityFileByID`, `UniqueNameByRepoDir`, `GoMethodReturnTypes`,
-`GoExportByImportPath`, `JavaScriptAliasesByPath`, `PythonClassBasesByRepo`,
-`RustTraitMethodsByRepo`, `SpansByPath`, `TypeScriptInterfaceMethodsByRepo`.
-`UniqueNameByPath` and `UniqueNameByRepo` are exported fields (unchanged from
-before the split). Every accessor call inlines
+`EntityIndex`'s lookup fields are all unexported so the read-only invariant
+survives the package boundary. A language leaf reads them through:
+`EntityFileByID`, `UniqueNameByPath`, `UniqueNameByRepo`, `UniqueNameByRepoDir`,
+`GoMethodReturnTypes`, `GoExportByImportPath`, `HasGoExports`,
+`JavaScriptAliasesByPath`, `PythonClassBasesByRepo`, `RustTraitMethodsByRepo`,
+`SpansByPath`, `TypeScriptInterfaceMethodsByRepo`, and (for tests)
+`RepositoryImportPathsByRepo`. Every accessor call inlines
 (`go build -gcflags=-m` reports `inlining call to shared.EntityIndex.<Accessor>`
 at every call site), so the accessor indirection costs nothing on the
 resolution hot path — verified by a before/after benchmark on

@@ -110,7 +110,7 @@ func resolveReexportedCrossFileCallee(
 				continue
 			}
 			for _, targetPath := range codeCallImportSourceCandidates(reexportPath, "", entry.source, language) {
-				if entityID := index.UniqueNameByPath[targetPath][originalName]; entityID != "" {
+				if entityID := index.UniqueNameByPath(targetPath, originalName); entityID != "" {
 					return entityID, index.entityFileByID[entityID]
 				}
 			}

@@ -94,7 +94,7 @@ func resolveReceiverCandidate(ctx shared.ResolveContext, candidateName string) s
 			return entityID
 		}
 	}
-	return ctx.Index.UniqueNameByRepo[ctx.RepositoryID][candidateName]
+	return ctx.Index.UniqueNameByRepo(ctx.RepositoryID, candidateName)
 }
 
 // resolveImportedReceiverCallee resolves a receiver-typed call to the unique
@@ -115,7 +115,7 @@ func resolveImportedReceiverCallee(
 	var resolvedEntityID string
 	for _, candidateName := range receiverCandidateNames(ctx.Call, declaredType) {
 		for _, path := range paths {
-			entityID := ctx.Index.UniqueNameByPath[path][candidateName]
+			entityID := ctx.Index.UniqueNameByPath(path, candidateName)
 			if entityID == "" || entityID == resolvedEntityID {
 				continue
 			}

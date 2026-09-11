@@ -117,7 +117,7 @@ func resolvePythonClassMethod(ctx shared.ResolveContext, className string, metho
 	if ctx.RepositoryID == "" || className == "" || method == "" {
 		return ""
 	}
-	return ctx.Index.UniqueNameByRepo[ctx.RepositoryID][className+"."+method]
+	return ctx.Index.UniqueNameByRepo(ctx.RepositoryID, className+"."+method)
 }
 
 func pythonClassBaseCandidateNames(base string) []string {

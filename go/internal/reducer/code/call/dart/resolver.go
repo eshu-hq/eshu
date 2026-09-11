@@ -36,7 +36,7 @@ func resolveDartImportCallee(ctx shared.ResolveContext) (string, string, codepro
 
 	var resolvedEntityID string
 	for _, importedPath := range dartMatchedImportPaths(ctx, paths) {
-		entityID := ctx.Index.UniqueNameByPath[importedPath][callName]
+		entityID := ctx.Index.UniqueNameByPath(importedPath, callName)
 		if entityID == "" || entityID == resolvedEntityID {
 			continue
 		}

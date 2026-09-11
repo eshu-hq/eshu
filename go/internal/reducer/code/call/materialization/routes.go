@@ -164,13 +164,13 @@ func resolveHandlesRouteFunction(
 	candidateNames := handlesRouteHandlerCandidateNames(framework, handler)
 	for _, pathKey := range pathKeys {
 		for _, candidateName := range candidateNames {
-			if entityID := index.UniqueNameByPath[pathKey][candidateName]; entityID != "" {
+			if entityID := index.UniqueNameByPath(pathKey, candidateName); entityID != "" {
 				return entityID, codeprovenance.MethodSameFile
 			}
 		}
 	}
 	for _, candidateName := range candidateNames {
-		if entityID := index.UniqueNameByRepo[repositoryID][candidateName]; entityID != "" {
+		if entityID := index.UniqueNameByRepo(repositoryID, candidateName); entityID != "" {
 			return entityID, codeprovenance.MethodRepoUniqueName
 		}
 	}

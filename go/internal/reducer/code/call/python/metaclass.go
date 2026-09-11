@@ -133,7 +133,7 @@ func resolvePythonClassEntityID(
 		return ""
 	}
 	for _, pathKey := range shared.PathKeys(rawPath, relativePath) {
-		if entityID := index.UniqueNameByPath[pathKey][sourceName]; entityID != "" {
+		if entityID := index.UniqueNameByPath(pathKey, sourceName); entityID != "" {
 			return entityID
 		}
 	}
@@ -159,12 +159,12 @@ func resolvePythonMetaclassEntityID(
 		return entityID, shared.PreferredPath(rawPath, relativePath)
 	}
 	for _, name := range shared.ExactCandidateNames(callLike, "python") {
-		if entityID := index.UniqueNameByRepo[repositoryID][name]; entityID != "" {
+		if entityID := index.UniqueNameByRepo(repositoryID, name); entityID != "" {
 			return entityID, index.EntityFileByID(entityID)
 		}
 	}
 	for _, name := range shared.BroadCandidateNames(callLike, "python") {
-		if entityID := index.UniqueNameByRepo[repositoryID][name]; entityID != "" {
+		if entityID := index.UniqueNameByRepo(repositoryID, name); entityID != "" {
 			return entityID, index.EntityFileByID(entityID)
 		}
 	}

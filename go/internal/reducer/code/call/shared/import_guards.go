@@ -37,7 +37,7 @@ func resolvePythonImportedRepositorySymbolTarget(
 	if !codeCallPythonImportSourceCanContainPath(rawPath, relativePath, importSource, path) {
 		return "", ""
 	}
-	entityID := index.UniqueNameByPath[path][symbolName]
+	entityID := index.UniqueNameByPath(path, symbolName)
 	if entityID == "" {
 		return "", ""
 	}
@@ -88,7 +88,7 @@ func resolvePythonImportedSourceCandidateTarget(
 		target.importSource,
 		language,
 	) {
-		entityID := index.UniqueNameByPath[path][target.symbolName]
+		entityID := index.UniqueNameByPath(path, target.symbolName)
 		if entityID != "" {
 			matches[entityID] = struct{}{}
 		}

@@ -43,7 +43,7 @@ func resolvePerlPackageImportCallee(ctx shared.ResolveContext) (string, string, 
 			continue
 		}
 		for _, candidateName := range perlImportedFunctionCandidateNames(packageName, methodName) {
-			entityID := ctx.Index.UniqueNameByPath[path][candidateName]
+			entityID := ctx.Index.UniqueNameByPath(path, candidateName)
 			if entityID == "" || entityID == resolvedEntityID {
 				continue
 			}

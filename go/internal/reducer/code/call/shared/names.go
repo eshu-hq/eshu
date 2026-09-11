@@ -21,7 +21,7 @@ func ResolveSameFileCalleeEntityID(
 	language := CallLanguage(call, rawPath, relativePath)
 	for _, name := range ExactCandidateNames(call, language) {
 		for _, pathKey := range PathKeys(rawPath, relativePath) {
-			if entityID := index.UniqueNameByPath[pathKey][name]; entityID != "" {
+			if entityID := index.UniqueNameByPath(pathKey, name); entityID != "" {
 				return entityID
 			}
 		}
@@ -31,7 +31,7 @@ func ResolveSameFileCalleeEntityID(
 	}
 	for _, name := range BroadCandidateNames(call, language) {
 		for _, pathKey := range PathKeys(rawPath, relativePath) {
-			if entityID := index.UniqueNameByPath[pathKey][name]; entityID != "" {
+			if entityID := index.UniqueNameByPath(pathKey, name); entityID != "" {
 				return entityID
 			}
 		}

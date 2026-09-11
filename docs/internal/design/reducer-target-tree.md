@@ -363,7 +363,7 @@ the one gain is the E1 regression test
 `TestExtractCodeCallRowsCrossRepoExportSkipsCallerWithoutRepositoryID`;
 B-7 golden-corpus gate 562 pass / 0 required-fail / 0 advisory-warn (139s), matching the base; B-12 replay-coverage gate `--blocking` PASS with byte-identical report and reference-doc rewrites.
 The real `ExtractRows` benchmarks, before and after on the same machine,
-interleaved, n=12 per side: `ExtractCodeCallRowsLargeJavaScriptDynamicCalls` 5.344 -> 5.275 ms/op (-1.29%, p=0.033, inside noise and not claimed as a speedup) and `ExtractCodeCallRowsRepositoryImportBarrier` 6.459 -> 6.481 ms/op (~, p=0.551); B/op +0.86% and +0.01%, allocs/op +0.04% and +0.00%. `go build -gcflags=-m` reports all 10
+interleaved, n=12 per side: `ExtractCodeCallRowsLargeJavaScriptDynamicCalls` 5.344 -> 5.275 ms/op (-1.29%, p=0.033, inside noise and not claimed as a speedup) and `ExtractCodeCallRowsRepositoryImportBarrier` 6.459 -> 6.481 ms/op (~, p=0.551); B/op +0.86% and +0.01%, allocs/op +0.04% and +0.00%. `go build -gcflags=-m` reports all 13
 `EntityIndex` read-only accessors inlinable, and the language leaves inline
 them at their call sites, so decision 3 costs nothing measurable. No caller,
 query, queue, worker, lease, or storage contract changed.

@@ -53,8 +53,8 @@ func BuildEntityIndex(envelopes []facts.Envelope) EntityIndex {
 		entitiesByPathLine:      make(map[string]string),
 		spansByPath:             make(map[string][]FunctionSpan),
 		containersByPath:        make(map[string][]FunctionSpan),
-		UniqueNameByPath:        make(map[string]map[string]string),
-		UniqueNameByRepo:        make(map[string]map[string]string),
+		uniqueNameByPath:        make(map[string]map[string]string),
+		uniqueNameByRepo:        make(map[string]map[string]string),
 		uniqueNameByRepoDir:     make(map[string]map[string]map[string]string),
 		constructorByPath:       make(map[string]map[string]string),
 		goMethodReturnTypes:     make(map[string]map[string]string),
@@ -258,24 +258,24 @@ func finalizeEntityIndex(index *EntityIndex, candidates *entityIndexCandidates, 
 	}
 
 	for pathKey, names := range candidates.nameCandidates {
-		index.UniqueNameByPath[pathKey] = make(map[string]string, len(names))
+		index.uniqueNameByPath[pathKey] = make(map[string]string, len(names))
 		for name, entityIDs := range names {
 			if len(entityIDs) != 1 {
 				continue
 			}
 			for entityID := range entityIDs {
-				index.UniqueNameByPath[pathKey][name] = entityID
+				index.uniqueNameByPath[pathKey][name] = entityID
 			}
 		}
 	}
 	for repositoryID, names := range candidates.repoNameCandidates {
-		index.UniqueNameByRepo[repositoryID] = make(map[string]string, len(names))
+		index.uniqueNameByRepo[repositoryID] = make(map[string]string, len(names))
 		for name, entityIDs := range names {
 			if len(entityIDs) != 1 {
 				continue
 			}
 			for entityID := range entityIDs {
-				index.UniqueNameByRepo[repositoryID][name] = entityID
+				index.uniqueNameByRepo[repositoryID][name] = entityID
 			}
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 func TestResolveGenericCalleeUsesLanguageResolverBeforeRepoUniqueName(t *testing.T) {
@@ -30,12 +31,13 @@ func TestResolveGenericCalleeUsesLanguageResolverBeforeRepoUniqueName(t *testing
 		},
 	}
 
-	index := shared.EntityIndex{
-		UniqueNameByRepo: map[string]map[string]string{
-			"repo-1": {
-				"Target": "repo-unique-target",
-			},
-		},
+	// A real repo-unique "Target" competes with the language resolver, so the
+	// test proves resolver precedence rather than an empty fallback.
+	index := shared.BuildEntityIndex([]facts.Envelope{
+		goSourceFileEnvelope("repo-1", "target/target.go", "Target", "repo-unique-target"),
+	})
+	if got := index.UniqueNameByRepo("repo-1", "Target"); got != "repo-unique-target" {
+		t.Fatalf("fixture repo-unique Target = %q, want repo-unique-target", got)
 	}
 	call := map[string]any{
 		"lang": "fixture",

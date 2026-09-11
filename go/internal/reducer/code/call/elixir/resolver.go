@@ -33,7 +33,7 @@ func resolveElixirAliasImportCallee(ctx shared.ResolveContext) (string, string, 
 	if moduleName == "" || len(ctx.RepositoryImports[moduleName]) == 0 {
 		return "", "", ""
 	}
-	entityID := ctx.Index.UniqueNameByRepo[ctx.RepositoryID][moduleName+"."+methodName]
+	entityID := ctx.Index.UniqueNameByRepo(ctx.RepositoryID, moduleName+"."+methodName)
 	if entityID == "" {
 		return "", "", ""
 	}

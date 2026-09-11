@@ -242,7 +242,7 @@ func ResolveImportedCrossFileCallee(
 				paths,
 			)
 			if matchedPath != "" {
-				if entityID := index.UniqueNameByPath[matchedPath][target.symbolName]; entityID != "" {
+				if entityID := index.UniqueNameByPath(matchedPath, target.symbolName); entityID != "" {
 					return entityID, index.entityFileByID[entityID]
 				}
 			}

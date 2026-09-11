@@ -16,16 +16,16 @@ type EntityIndex struct {
 	entitiesByPathLine map[string]string
 	spansByPath        map[string][]FunctionSpan
 	containersByPath   map[string][]FunctionSpan
-	// UniqueNameByPath maps a normalized file path key to the function/type
+	// uniqueNameByPath maps a normalized file path key to the function/type
 	// names that resolve to exactly one entity within that path. A name absent
 	// from the inner map was ambiguous (declared more than once) in that file
 	// and must not be resolved from it.
-	UniqueNameByPath map[string]map[string]string
-	// UniqueNameByRepo maps a repository ID to the function/type names that
+	uniqueNameByPath map[string]map[string]string
+	// uniqueNameByRepo maps a repository ID to the function/type names that
 	// resolve to exactly one entity across the whole repository. A name absent
 	// from the inner map was ambiguous repository-wide and must not be
 	// resolved from it.
-	UniqueNameByRepo                 map[string]map[string]string
+	uniqueNameByRepo                 map[string]map[string]string
 	uniqueNameByRepoDir              map[string]map[string]map[string]string
 	constructorByPath                map[string]map[string]string
 	goMethodReturnTypes              map[string]map[string]string
@@ -160,4 +160,20 @@ func (idx EntityIndex) TypeScriptInterfaceMethodsByRepo(repositoryID, interfaceN
 // [RepositoryImportPathsForResolution].
 func (idx EntityIndex) RepositoryImportPathsByRepo(repositoryID string) []string {
 	return idx.repositoryImportPathsByRepo[repositoryID]
+}
+
+// UniqueNameByPath returns the entity ID of the function or type named name
+// when that name is unique within the file keyed by pathKey, or "" when the
+// name is absent or ambiguous there. It is the read-only view of the per-path
+// unique-name index BuildEntityIndex fills.
+func (idx EntityIndex) UniqueNameByPath(pathKey, name string) string {
+	return idx.uniqueNameByPath[pathKey][name]
+}
+
+// UniqueNameByRepo returns the entity ID of the function or type named name
+// when that name is unique within repositoryID, or "" when the name is absent
+// or ambiguous there. It is the read-only view of the per-repository
+// unique-name index BuildEntityIndex fills.
+func (idx EntityIndex) UniqueNameByRepo(repositoryID, name string) string {
+	return idx.uniqueNameByRepo[repositoryID][name]
 }

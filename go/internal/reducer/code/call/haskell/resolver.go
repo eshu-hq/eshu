@@ -39,7 +39,7 @@ func resolveHaskellQualifiedImportCallee(ctx shared.ResolveContext) (string, str
 		if path == "" {
 			continue
 		}
-		entityID := ctx.Index.UniqueNameByPath[path][methodName]
+		entityID := ctx.Index.UniqueNameByPath(path, methodName)
 		if entityID == "" || entityID == resolvedEntityID {
 			continue
 		}

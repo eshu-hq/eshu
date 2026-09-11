@@ -147,7 +147,7 @@ func resolveSameFileJavaScriptDynamicTarget(
 	candidates := []string{target, shared.TrailingName(target)}
 	for _, pathKey := range shared.PathKeys(rawPath, relativePath) {
 		for _, candidate := range candidates {
-			if entityID := index.UniqueNameByPath[pathKey][candidate]; entityID != "" {
+			if entityID := index.UniqueNameByPath(pathKey, candidate); entityID != "" {
 				return entityID
 			}
 		}

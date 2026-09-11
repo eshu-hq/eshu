@@ -107,13 +107,13 @@ func resolveGenericCallee(
 		return "", "", ""
 	}
 	for _, name := range shared.ExactCandidateNames(call, language) {
-		if entityID := index.UniqueNameByRepo[repositoryID][name]; entityID != "" {
+		if entityID := index.UniqueNameByRepo(repositoryID, name); entityID != "" {
 			return entityID, index.EntityFileByID(entityID), codeprovenance.MethodRepoUniqueName
 		}
 	}
 	if !shared.HasQualifiedScope(call, language) {
 		for _, name := range shared.BroadCandidateNames(call, language) {
-			if entityID := index.UniqueNameByRepo[repositoryID][name]; entityID != "" {
+			if entityID := index.UniqueNameByRepo(repositoryID, name); entityID != "" {
 				return entityID, index.EntityFileByID(entityID), codeprovenance.MethodRepoUniqueName
 			}
 		}

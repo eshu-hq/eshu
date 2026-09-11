@@ -61,7 +61,7 @@ func resolveGoMethodReturnChainCalleeEntityID(
 	if returnType == "" {
 		return ""
 	}
-	if entityID := index.UniqueNameByRepo[repositoryID][returnType+"."+name]; entityID != "" {
+	if entityID := index.UniqueNameByRepo(repositoryID, returnType+"."+name); entityID != "" {
 		return entityID
 	}
 	return ""
