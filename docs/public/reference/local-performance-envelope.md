@@ -929,7 +929,7 @@ row count, decision and skip tallies, and stage durations.
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
 -run 'TestSemanticEntity.*Delta|TestSemanticEntityMaterializationHandlerScopesDeltaRetractToFiles|TestSemanticEntityWriterRejectsDeltaRetractWithoutFilePaths'
--count=1` failed before `SemanticEntityWrite` carried file-delta scope, then
+-count=1` failed before `semantic.EntityWrite` (then `SemanticEntityWrite`) carried file-delta scope, then
 passed after delta semantic materialization supplied qualified changed/deleted
 file paths and the Cypher writer required those paths before retracting. The
 focused shape uses no live graph backend: reducer fakes cover one changed file

@@ -46,10 +46,10 @@ internal/storage/postgres' generation reader both still name them that way.
 
 ## Dependencies
 
-`internal/reducer/code/taint` (`CodeTaintEvidenceWriter`,
-`CodeTaintEvidenceProjectedNodeLedger`, `CodeInterprocEvidenceWriter`,
-`CodeInterprocProjectedEdgeLedger`, `CodeTaintEvidenceSource`,
-`CodeInterprocEvidenceSource`), `internal/reducer/sharedintent`
+`internal/reducer/code/taint` (`EvidenceWriter`,
+`ProjectedNodeLedger`, `InterprocEvidenceWriter`,
+`InterprocProjectedEdgeLedger`, `EvidenceSource`,
+`InterprocEvidenceSource`), `internal/reducer/sharedintent`
 (`PartitionLeaseManager`), and `internal/telemetry`
 (`PhaseAttr`/`FailureClassAttr`). No dependency on the reducer root.
 

@@ -1966,8 +1966,8 @@ postgres loaders (`code_taint_evidence_loader.go`,
 `code_interproc_evidence_loader.go`, `code_function_summary_loader.go`,
 `code_function_source_loader.go`) now return the RAW fact envelopes and the
 reducer handlers decode them through the typed contracts seam via the
-`*WithQuarantine` extractors (`ExtractCodeTaintEvidenceRowsWithQuarantine`,
-`ExtractCodeInterprocEvidenceRowsWithQuarantine`,
+`*WithQuarantine` extractors (`taint.ExtractEvidenceRowsWithQuarantine`,
+`taint.ExtractInterprocEvidenceRowsWithQuarantine`,
 `ExtractEffects`,
 `ExtractGraphIDs`,
 `ExtractSources`), matching the Wave 4f S1
@@ -1994,11 +1994,11 @@ production-path proof is `TestCodeTaintEvidenceHandlerQuarantinesMalformedFact`,
 `TestCodeFunctionSummaryHandlerQuarantinesMalformedSourceFact` — each feeds a
 malformed fact through the ACTUAL loader -> handler path and asserts
 `SubSignals["input_invalid_facts"] == 1` while a valid sibling still projects.
-A P0 was ruled out: `ExtractCodeTaintEvidenceRows`/`ExtractCodeInterprocEvidenceRows`
+A P0 was ruled out: `taint.ExtractEvidenceRows`/`taint.ExtractInterprocEvidenceRows`
 already `continue` on an empty uid, so a decode-failed fact never wrote an
 empty-key graph node even before this dead-letter wiring landed. The interproc
-handler reads a NEW `CodeInterprocEvidenceFactLoader` (envelopes) distinct from
-the fixpoint projector's `CodeInterprocEvidenceLoader` (typed inputs from an
+handler reads a NEW `taint.InterprocEvidenceFactLoader` (envelopes) distinct from
+the fixpoint projector's `taint.InterprocEvidenceLoader` (typed inputs from an
 in-memory solve, no raw decode) so the projector path is untouched. The
 graph-id view reads the SAME `code_function_summary` facts the summary-effects
 view already quarantines, so its quarantines are discarded to avoid

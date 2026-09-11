@@ -17,12 +17,12 @@ import (
 // (not imported from) that collector package to respect the collector/reducer
 // package ownership boundary (docs/internal/agent-guide.md#ownership-boundaries);
 // the two values MUST stay in lockstep. Unlike CODEOWNERS (three recognized
-// candidate locations, see codeownersOwnershipCandidatePaths), git honors
+// candidate locations, see candidatePaths in code/owners/scope.go), git honors
 // exactly one ".gitmodules" location per repository, so no candidate list is
 // needed here.
 const submodulePinGitmodulesRelativePath = ".gitmodules"
 
-// submodulePinDeltaScope mirrors codeownersOwnershipDeltaScope, simplified for
+// submodulePinDeltaScope mirrors code/owners' deltaScope, simplified for
 // the single-source-location shape of submodule.pin: a repository whose delta
 // touched ".gitmodules" (changed or deleted) is recorded in
 // gitmodulesTouchedRepoIDs so its PINS_SUBMODULE edges get a whole-repository
@@ -108,12 +108,12 @@ func submodulePinDeltaTouchesGitmodules(payload map[string]any) bool {
 
 // buildSubmodulePinRetractRows builds the shared-projection retract rows for
 // the given repositories. Outside a delta generation, every repository gets a
-// whole-repository retract row, matching buildCodeownersOwnershipRetractRows.
+// whole-repository retract row, matching code/owners' buildRetractRows.
 // Inside a delta generation, only repositories whose delta touched
 // ".gitmodules" get a whole-repository retract row; every other repository is
 // skipped entirely (its submodule.pin facts could not have changed this
 // generation, so there is nothing to retract). This is simpler than
-// CODEOWNERS' delta-aware split (buildCodeownersOwnershipDeltaAwareRetractRows):
+// CODEOWNERS' delta-aware split (code/owners' buildDeltaAwareRetractRows):
 // CODEOWNERS needs a path-scoped fallback retract because any of three
 // candidate locations could be the prior winner, but submodule.pin has only
 // one recognized source location, so an untouched ".gitmodules" means the
