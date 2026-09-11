@@ -47,7 +47,7 @@ var symbolRuntimeGuardClock = time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
 // dropping both the other two domains' rows and this domain's own
 // repo-wide refresh row (payload["action"] == "refresh") -- mirroring the
 // production filterUpsertRows gate
-// (go/internal/reducer/shared_projection_readiness.go:245-258) a live
+// (go/internal/reducer/sharedintent/rows.go) a live
 // backend applies before ever reaching a write statement.
 func symbolRuntimeUpsertRows(envelopes []facts.Envelope, domain string) []reducer.SharedProjectionIntentRow {
 	all := reducer.ExtractSymbolRuntimeIntentRows(envelopes, symbolRuntimeGuardGenerationID, symbolRuntimeGuardClock)

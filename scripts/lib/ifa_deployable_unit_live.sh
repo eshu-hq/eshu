@@ -193,7 +193,7 @@ ifa_deployable_unit_live_drain() {
 # (writeDeployableUnitAdmissionDecisions), then (3) graph_projection_phase_state
 # (publishIntentGraphPhase). It has NO IntentWriter field and never calls
 # UpsertIntents. DomainDeployableUnitEdges is also absent from
-# sharedProjectionDomains (go/internal/reducer/shared_projection_runner.go);
+# sharedProjectionDomains (go/internal/reducer/intents/shared/worker/runner.go);
 # the only `INSERT INTO shared_projection_intents` in the repository is
 # go/internal/storage/postgres/shared_intents_upsert.go, reachable only
 # through UpsertIntents. This family therefore NEVER writes a row to

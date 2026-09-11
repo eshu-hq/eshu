@@ -39,7 +39,7 @@ Two costs could move: the Go-side collector, and the Cypher `DELETE` whose
 Same batch, both collectors, so the two figures are directly comparable.
 Input shape is the batch the non-delta branch actually sees: 100 rows, one
 whole-scope refresh row per repository, 100 distinct repository ids. 100 is
-`defaultBatchLimit` in `go/internal/reducer/shared_projection_runner.go:24`,
+`defaultBatchLimit` in `go/internal/reducer/intents/shared/worker/runner.go`,
 the shared-projection batch size these retracts drain at.
 
 VERIFIED — run on this branch after rebasing onto `origin/main` (`9b05dcf116`),

@@ -76,7 +76,7 @@ than there are entries here.
    line, not fact_work_items attempt_count: sql_relationship_
    materialization's graph writes ride the async shared-projection
    intent path, which has no attempt_count column (see
-   go/internal/reducer/shared_projection_runner.go's
+   go/internal/reducer/shared_projection_runner_partition_error_test.go's
    TestSharedProjectionRunnerLogsPartitionProcessingError).
    Runs by default since #5974. It was held out for months on the belief
    that the fault did not fire in CI; it always did, and the assertion was

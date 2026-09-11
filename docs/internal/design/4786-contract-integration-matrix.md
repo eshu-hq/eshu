@@ -90,7 +90,7 @@ are `source-fact IN`, `intent-row OUT`, or `reducer-derived governed`.
 | Bucket | Current count | Evidence | Disposition |
 |---|---:|---|---|
 | Source-fact reads IN | 397 | Representative source-fact payload helpers are the `payloadStr` reads in `go/internal/reducer/candidate_loader.go` and `go/internal/reducer/infrastructure_platform_extractor.go`, `supplyChainConsumptionFromEnvelope` in `go/internal/reducer/supplychain/core/match.go`, and `ExtractMetaclassRowsWithIndex` in `go/internal/reducer/code/call/python/metaclass.go` | W2f owns the residual reducer source-fact decode wave |
-| Intent-row reads OUT | 22 | Intent payload reads are in `go/internal/reducer/shared_projection.go`, `go/internal/reducer/shared_projection_readiness.go`, `go/internal/reducer/code/call/projection/rows.go`, and `go/internal/reducer/code/call/materialization/cloud_actions.go` | Out of #4786/W1/W2 source-contract scope |
+| Intent-row reads OUT | 22 | Intent payload reads are in `go/internal/reducer/intents/shared/worker/readiness.go`, `go/internal/reducer/code/call/projection/rows.go`, and `go/internal/reducer/code/call/materialization/cloud_actions.go` | Out of #4786/W1/W2 source-contract scope |
 | Reducer-derived reads governed | 66 | Derived payload readers include `go/internal/reducer/package_correlation_writer.go`, `go/internal/reducer/sbom_attestation_attachment_index.go`, `go/internal/reducer/code/semantic/materialization_helpers.go`, and `go/internal/reducer/container_image_identity_provenance.go` | Governed by ADR #4784 and W1h/#4810 |
 
 The original epic seed called this roughly 399 reducer raw reads. The current

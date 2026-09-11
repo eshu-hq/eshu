@@ -390,7 +390,7 @@ accounts, and credentials remain operator-local.
 
 The dedicated code-call runner already selected pending rows through the indexed
 `partition_hash` predicate, but the generic shared projection runner
-(`SelectPartitionBatch` in `go/internal/reducer/shared_projection_worker.go`)
+(`SelectPartitionBatch` in `go/internal/reducer/intents/shared/worker/process.go`)
 still scanned pending rows by domain and filtered partition membership in
 memory. Under a high-cardinality shared domain a leased partition's work could
 sit behind a full `maxSharedSelectionScanLimit` (10,000-row) head slice of other

@@ -159,7 +159,7 @@ ifa_deployable_unit_wait_for_kill_isolation() {
 #   1. shared_projection_intents (the code_calls-style default): this handler
 #      has no IntentWriter and never touches that table at all
 #      (DomainDeployableUnitEdges is absent from sharedProjectionDomains,
-#      go/internal/reducer/shared_projection_runner.go), so the lock never
+#      go/internal/reducer/intents/shared/worker/runner.go), so the lock never
 #      engaged -- Handle ran to completion and marked the claimed
 #      fact_work_items row 'succeeded' before kill -9 landed. Failed in CI:
 #      "drain did not reach the snapshot's residual bound".
