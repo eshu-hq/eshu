@@ -8,7 +8,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
-	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -30,17 +29,6 @@ func (f *stubFactLoader) ListFacts(_ context.Context, _, _ string) ([]facts.Enve
 	return f.envelopes, nil
 }
 
-// rowUsesRefreshFence reports whether a per-edge row carries the marker that
-// lets the worker fence it behind its paired repo refresh intent.
-func rowUsesRefreshFence(row sharedintent.Row) bool {
-	return payloadcore.PayloadBool(row.Payload, sharedintent.RetractViaRefreshKey)
-}
-
-// isRepoRefreshRow reports whether a row is a per-repo refresh intent.
-func isRepoRefreshRow(row sharedintent.Row) bool {
-	return payloadcore.PayloadStr(row.Payload, "intent_type") == sharedintent.RepoRefreshIntentType
-}
-
 // stubIntentWriter captures the durable shared-projection intents
 // Handler emits, so handler tests assert on emitted
 // intents instead of direct edge writes (#2868).
@@ -58,7 +46,7 @@ func (w *stubIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.
 func (w *stubIntentWriter) refreshRows() []sharedintent.Row {
 	var out []sharedintent.Row
 	for _, row := range w.rows {
-		if isRepoRefreshRow(row) {
+		if sharedintent.IsRepoRefreshRow(row) {
 			out = append(out, row)
 		}
 	}
@@ -69,7 +57,7 @@ func (w *stubIntentWriter) refreshRows() []sharedintent.Row {
 func (w *stubIntentWriter) edgeRows() []sharedintent.Row {
 	var out []sharedintent.Row
 	for _, row := range w.rows {
-		if !isRepoRefreshRow(row) {
+		if !sharedintent.IsRepoRefreshRow(row) {
 			out = append(out, row)
 		}
 	}

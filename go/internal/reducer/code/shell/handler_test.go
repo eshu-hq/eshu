@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
@@ -143,7 +145,7 @@ func TestShellExecHandlerEmitsRefreshAndEdgeIntents(t *testing.T) {
 	if got := edges[0].ProjectionDomain; got != reducercontract.DomainShellExec {
 		t.Fatalf("edge domain = %q, want %q", got, reducercontract.DomainShellExec)
 	}
-	if !rowUsesRefreshFence(edges[0]) {
+	if !worker.RowUsesRefreshFence(edges[0]) {
 		t.Fatalf("edge intent %q not marked retract_via_refresh", edges[0].IntentID)
 	}
 }
