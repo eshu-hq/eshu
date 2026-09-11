@@ -15,7 +15,7 @@
 # IFA_FAMILY_DRIVE_FN/IFA_FAMILY_CASSETTE_VAR -- one cassette, one builder
 # pass): the trio's rows
 # all come from reducer.ExtractSymbolRuntimeIntentRows
-# (go/internal/reducer/symbol_runtime_refresh_intents.go), which is called
+# (go/internal/reducer/code/call/materialization/refresh.go), which is called
 # inside CodeCallMaterializationHandler.Handle, so driving the cassette once
 # produces all three families' edges together.
 #

@@ -12,7 +12,7 @@ its result is recorded here rather than only in a PR description.
 
 All three families' rows are built by `buildSymbolRuntimeIntentRows` INSIDE
 `CodeCallMaterializationHandler.Handle` -- the same handler the `code_calls`
-family already covers (`go/internal/reducer/symbol_runtime_refresh_intents.go:66`).
+family already covers (`go/internal/reducer/code/call/materialization/refresh.go`).
 That single fact rules out both handler-stage and runner-stage forms of the
 `shared_intent_lock` blocker used by `code_calls`, `rationale_edges`,
 `inheritance_edges`, and `shell_exec`:
@@ -203,7 +203,7 @@ the `handles_route` expected-edges fixture's own `note` field both point
 back to this section).
 
 The intent-level dedupe key is `functionID + "\x00" + repositoryID + "\x00"
-+ routePath + "\x00" + httpMethod` (`go/internal/reducer/handles_route_intents.go:80`)
++ routePath + "\x00" + httpMethod` (`go/internal/reducer/code/call/materialization/routes.go`)
 -- it includes `http_method`, so GET and POST on the same path produce TWO
 distinct intent rows, each with its own `PartitionKey =
 functionID+"->"+repositoryID+":"+routePath` (`handles_route_intents.go:101`),

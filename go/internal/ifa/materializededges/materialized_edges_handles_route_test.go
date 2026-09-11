@@ -29,7 +29,7 @@ func handlesRouteTestRow(functionID, repoID, path, httpMethod string) reducer.Sh
 // TestHandlesRouteRowsToExpectedEdgesCollapsesMethodDedupe is the required
 // offline proof of the GET+POST same-path collapse: production's own
 // intent-level dedupe key includes http_method
-// (go/internal/reducer/handles_route_intents.go:80), so two intent rows on
+// (go/internal/reducer/code/call/materialization/routes.go), so two intent rows on
 // the same (function, repo, path) but different methods both exist as
 // distinct SharedProjectionIntentRows -- but the graph-write MERGE identity
 // is only the (Function, HANDLES_ROUTE, Endpoint) node pair, so both rows

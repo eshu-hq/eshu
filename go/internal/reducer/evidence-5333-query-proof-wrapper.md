@@ -1,6 +1,6 @@
 # Evidence: #5333 HANDLES_ROUTE query-proof wrapper
 
-Scope: `go/internal/reducer/handles_route_intents.go` — the sole production
+Scope: `go/internal/reducer/code/call/materialization/routes.go` — the sole production
 change in PR #5362 is the exported function
 `BuildHandlesRouteIntentRowsForQueryProof`.
 

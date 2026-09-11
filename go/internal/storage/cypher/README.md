@@ -1683,7 +1683,7 @@ as edge properties, not as new instrumentation.
 `canonical_invokes_cloud_action_edges.go` projects
 `Function-[:INVOKES_CLOUD_ACTION]->CloudAction` for the `invokes_cloud_action`
 shared-projection domain. The reducer
-(`go/internal/reducer/invokes_cloud_action_intents.go`) emits an intent only when
+(`go/internal/reducer/code/call/materialization/cloud_actions.go`) emits an intent only when
 a Go AWS SDK call site carries a non-empty `receiver_sdk_service`, its method
 maps to an action via the explicit `cloudActionByServiceMethod` table, that
 action is in the closed CAN_PERFORM catalog, and the call's containing entity is

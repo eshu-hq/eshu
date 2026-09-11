@@ -35,7 +35,7 @@ Primary proof:
 - `go/internal/parser/java/java_comprehensive_route_fixture_test.go::TestDefaultEngineParsePathJavaComprehensiveRouteFixtures`
 - `go/internal/parser/java/java_reflection_test.go`
 - `go/internal/reducer/code/call/java_reflection_test.go`
-- `go/internal/reducer/handles_route_java_test.go`
+- `go/internal/reducer/code/call/materialization/routes_java_test.go`
 - `go/internal/query/codequery/deadcode/java_roots_test.go`
 - `go/internal/query/codequery/route_to_caller_java_test.go::TestHandleRouteToCallerResolvesJavaSpringHandler`
 
