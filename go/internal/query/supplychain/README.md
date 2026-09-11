@@ -26,11 +26,11 @@ family).
 | sbom-attachment aggregate routes | `sbomAttestationAttachmentAggregateRoutes` |
 
 Three runtime-evidence probes enrich impact findings before they are
-served: the cloud probe (`supply_chain_impact_cloud_runtime_probe.go`),
-the Kubernetes probe (`supply_chain_impact_kubernetes_runtime_probe.go`
+served: the cloud probe (`cloud_runtime_probe.go`),
+the Kubernetes probe (`kubernetes_runtime_probe.go`
 plus the fairness fan-out in
-`supply_chain_impact_kubernetes_runtime_probe_fair.go`), and the runtime
-context applier (`supply_chain_impact_runtime_context_probe.go`). All
+`kubernetes_runtime_probe_fair.go`), and the runtime
+context applier (`runtime_context_probe.go`). All
 three promote a finding to `runtime_confirmed` only on current,
 caller-authorized evidence; a nil inventory store disables its tier.
 

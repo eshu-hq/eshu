@@ -16,11 +16,11 @@ package impact
 //   - SupplyChainRuntimeContext, SupplyChainRuntimeContextResult,
 //     SupplyChainRuntimeEnvironmentEvidenceProbe,
 //     SupplyChainRuntimeEnvironmentCandidate: from
-//     supply_chain_impact_runtime_context_probe.go.
+//     runtime_context_probe.go.
 //   - KubernetesRuntimeWorkloadRef: from
-//     supply_chain_impact_kubernetes_runtime_probe.go.
+//     kubernetes_runtime_probe.go.
 //   - KubernetesRuntimeProbeMetadata: from
-//     supply_chain_impact_kubernetes_runtime_probe_fair.go.
+//     kubernetes_runtime_probe_fair.go.
 
 // SupplyChainRuntimeContext is one repository's read-time-resolved runtime
 // context: the workloads, services, deployments, environments, and catalog
@@ -100,7 +100,7 @@ type KubernetesRuntimeProbeMetadata struct {
 // digest/environment pair that must be revalidated against current accepted
 // CI/CD correlation facts before it can enter read-time runtime_context.
 // Relocated from root package query's
-// supply_chain_impact_runtime_context_probe.go (#6060 lane A): the moved
+// runtime_context_probe.go (#6060 lane A): the moved
 // runtime-environment store names it and this package must not import root,
 // so the declaration lives here and root keeps a `type X = impact.X` alias
 // (see root supply_chain_impact_alias.go).

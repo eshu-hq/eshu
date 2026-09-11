@@ -77,7 +77,7 @@ unrelated to array encoding.
 An earlier version of this note claimed the failures were confined to files
 containing no `pgarray` reference. That was wrong, and it is recorded here
 rather than quietly corrected: the plan test above contains eleven, and
-`supply_chain_suppression_paths_performance_live_test.go` contains three. The
+`suppression_paths_performance_live_test.go` contains three. The
 head-vs-main differential above is the claim that actually holds, and it is
 stronger than the one it replaces — it does not depend on guessing which files
 matter.

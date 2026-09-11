@@ -260,7 +260,7 @@ func TestSupplyChainListAndExplainMapDriverlessKubernetesGraphUnavailable(t *tes
 // is the third instance of the same shape as codex P1-A: buildSupplyChainImpactFindingResult's
 // SupplyChainImpactFindingResult(row) conversion carries row.RuntimeContext
 // straight through to the runtime_context response field
-// (supply_chain_impact_result.go), but only the list route called
+// (result.go), but only the list route called
 // applySupplyChainRuntimeContext before assembling results -- explain
 // unconditionally reported no runtime_context even for a finding whose
 // repository DOES currently resolve to real workload/service context.
@@ -408,7 +408,7 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 // The graph double for the parity tests above is querytestutil's shared
 // FakeCloudRuntimeGraph. The inventory twin below stays local: its signatures
 // name hub family types querytestutil cannot import (see its doc). The hub
-// copy in supply_chain_impact_cloud_runtime_probe_test.go is authoritative;
+// copy in cloud_runtime_probe_test.go is authoritative;
 // keep both behavior-identical.
 
 // stubCloudInventory is a CloudResourceCurrentInventoryFilter stub: it returns
@@ -474,7 +474,7 @@ func cloudResourceGraphRow(uid, digest, arn string) map[string]any {
 // The graph double for the parity tests above is querytestutil's shared
 // FakeKubernetesRuntimeGraph. The workload-inventory twin below stays local:
 // its signatures name hub family types querytestutil cannot import. The hub
-// copy in supply_chain_impact_kubernetes_runtime_probe_test.go is
+// copy in kubernetes_runtime_probe_test.go is
 // authoritative; keep both behavior-identical.
 
 type stubKubernetesWorkloadInventory struct {

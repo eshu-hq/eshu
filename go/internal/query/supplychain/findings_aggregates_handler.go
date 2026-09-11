@@ -16,7 +16,7 @@ const SupplyChainImpactAggregateCapability = "supply_chain.impact_findings.aggre
 
 // supplyChainImpactAggregateRoutes registers the cheap-summary aggregate routes
 // alongside the existing impact findings list route. Mount is the file-local
-// installer; the SupplyChainHandler.Mount in supply_chain.go invokes it.
+// installer; the SupplyChainHandler.Mount in handler.go invokes it.
 func (h *SupplyChainHandler) supplyChainImpactAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings/count", h.countImpactFindings)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/inventory", h.impactInventory)

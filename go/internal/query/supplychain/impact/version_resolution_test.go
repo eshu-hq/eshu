@@ -202,7 +202,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 				// EvidencePath carries the CI hop -- deployment_truth_tier
 				// would report provenance_ci_declared for this row (see
 				// rowHasCIDeclaredDeploymentEvidence,
-				// supply_chain_impact_result.go), but the reducer's weak
+				// result.go), but the reducer's weak
 				// repository+environment+operational-anchor branch (#5426)
 				// never confirmed digest or image-ref identity, so it baked
 				// neither CIDeclaredArtifactDigest nor CIDeclaredImageRef

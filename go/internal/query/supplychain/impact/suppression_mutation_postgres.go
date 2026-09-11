@@ -16,7 +16,7 @@ import (
 
 // VulnerabilitySuppressionMutationResult identifies the durable generation
 // containing an operator suppression. Relocated from root package query's
-// supply_chain_suppression_mutation.go (#6060 lane A): the moved Postgres
+// suppression_mutation.go (#6060 lane A): the moved Postgres
 // mutation store returns it and this package must not import root, so the
 // declaration lives here and root keeps a `type X = impact.X` alias (see
 // root supply_chain_impact_alias.go).

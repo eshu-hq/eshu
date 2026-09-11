@@ -15,7 +15,7 @@ const ContainerImageIdentityAggregateCapability = "supply_chain.container_image_
 
 // containerImageIdentityAggregateRoutes registers the cheap-summary aggregate
 // routes alongside the existing identity list route. The
-// SupplyChainHandler.Mount in supply_chain.go invokes it.
+// SupplyChainHandler.Mount in handler.go invokes it.
 func (h *SupplyChainHandler) containerImageIdentityAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities/count", h.countContainerImageIdentities)
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities/inventory", h.containerImageIdentityInventory)
@@ -238,7 +238,7 @@ func containerImageIdentityAggregateSourceBridge(
 // validateContainerImageIdentityAggregateOutcome rejects unknown outcome
 // filters with a 400 so a typo like `outcome=exact-digest` does not silently
 // return zero counts. Mirrors the same guard on the list endpoint
-// (supply_chain.go), which enumerates only `exact_digest` and `tag_resolved`
+// (handler.go), which enumerates only `exact_digest` and `tag_resolved`
 // — the same values advertised in OpenAPI for these aggregate routes.
 func validateContainerImageIdentityAggregateOutcome(w http.ResponseWriter, filter ContainerImageIdentityAggregateFilter) bool {
 	if filter.Outcome == "" || isSupportedContainerImageIdentityOutcome(filter.Outcome) {

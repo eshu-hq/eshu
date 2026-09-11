@@ -56,7 +56,7 @@ func highestPlaceholder(t *testing.T, query string) int {
 // helper is updated with it.
 //
 // Both queries are checked because they take the SAME slice
-// (supply_chain_impact_findings_queries.go:129), so a placeholder added to
+// (findings_queries.go:129), so a placeholder added to
 // either one alone is a real defect.
 func TestSupplyChainRuntimeFilterListArgsMatchQueryPlaceholders(t *testing.T) {
 	t.Parallel()
@@ -148,7 +148,7 @@ func productionQueryArgCount(t *testing.T, file, fnName string) int {
 func TestListSupplyChainImpactFindingsBindsEveryPlaceholder(t *testing.T) {
 	t.Parallel()
 
-	got := productionQueryArgCount(t, "impact/supply_chain_impact_findings.go", "ListSupplyChainImpactFindings")
+	got := productionQueryArgCount(t, "impact/findings.go", "ListSupplyChainImpactFindings")
 
 	for name, query := range map[string]string{
 		"list direct":       impact.ListSupplyChainImpactFindingsQuery,

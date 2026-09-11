@@ -16,7 +16,7 @@ const SecurityAlertReconciliationAggregateCapability = "supply_chain.security_al
 
 // securityAlertReconciliationAggregateRoutes registers the cheap-summary
 // aggregate routes alongside the existing reconciliation list route. The
-// SupplyChainHandler.Mount in supply_chain.go invokes it.
+// SupplyChainHandler.Mount in handler.go invokes it.
 func (h *SupplyChainHandler) securityAlertReconciliationAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations/count", h.countSecurityAlertReconciliations)
 	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations/inventory", h.securityAlertReconciliationInventory)

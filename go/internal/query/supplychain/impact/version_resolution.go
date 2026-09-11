@@ -107,7 +107,7 @@ func supplyChainVersionResolutionClaim(
 		//
 		// A row whose only CI/CD evidence matched through the weak branch
 		// still drives deployment_truth_tier=provenance_ci_declared (see
-		// rowHasCIDeclaredDeploymentEvidence, supply_chain_impact_result.go)
+		// rowHasCIDeclaredDeploymentEvidence, result.go)
 		// but makes no version/digest claim here, so it falls through to
 		// config_only instead of fabricating one -- or is omitted entirely
 		// if config_only itself has no claim either (no ObservedVersion,
@@ -217,7 +217,7 @@ func supplyChainVersionResolutionAgreement(
 //
 // This is read-time only: it classifies fields the row already carries (no
 // new graph or Postgres query), mirroring how supplyChainDeploymentTruthTier
-// (supply_chain_impact_result.go) classifies the same row for
+// (result.go) classifies the same row for
 // deployment_truth_tier. A finding with no eligible version/digest evidence
 // at all -- not even a config-materialized one -- returns ("", nil).
 func supplyChainVersionResolution(

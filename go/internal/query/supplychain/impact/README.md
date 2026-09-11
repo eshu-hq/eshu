@@ -30,10 +30,10 @@ evidence to rows — those stay in root package `query` until the hub
 PR3 (see below).
 
 Root package `query` keeps the handlers
-(`supply_chain_impact_*_handler.go`, `supply_chain_security_alerts.go`,
+(`supply_chain_impact_*_handler.go`, `security_alerts.go`,
 the investigation-packet files), the capability matrix rows
 (`contract_supply_chain.go`), the `SupplyChainHandler` struct, the
-probes (`*_probe.go`, `supply_chain_impact_scope.go`), and the
+probes (`*_probe.go`, `findings_scope.go`), and the
 compatibility alias file (`supply_chain_impact_alias.go`) with the
 store types, constructors, and read-model types `cmd/api`,
 `cmd/mcp-server`, `internal/serviceintelhttp`, and `internal/cli`
@@ -180,12 +180,12 @@ only their package qualifier changed).
   the store rejects anchorless reads before running SQL, and the
   handlers reject them before reaching the store. The page limit is
   bounded by `supplyChainImpactFindingMaxLimit` (family-local copy —
-  keep byte-identical to root's `supply_chain.go` value).
+  keep byte-identical to root's `handler.go` value).
 - A dropped decode contribution is a dead-lettered malformed fact
   (`input_invalid`), not missing data. The typed wrappers drop
   rather than zero-fill; reducer-derived kinds with no sdk struct yet
   stay on the raw path per the #4784 ADR note in
-  `supply_chain_impact_decode_helpers.go`.
+  `decode_helpers.go`.
 - `ReadinessState*`, `EvidenceFamily*`, `MissingEvidence*`,
   `UnsupportedTargetKind*`, and `FreshnessLabel*` are closed
   vocabularies pinned by readiness tests on both sides of the move;

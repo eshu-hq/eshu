@@ -503,7 +503,7 @@ entries:
     backend: postgres
     query_kind: sql_read_model
     source:
-      file: go/internal/query/supplychain/impact/supply_chain_impact_readiness_postgres_query.go
+      file: go/internal/query/supplychain/impact/readiness_postgres_query.go
       symbol: ListSupplyChainImpactReadinessQuery
       line_hint: 6
     caveats:

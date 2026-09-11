@@ -329,7 +329,7 @@ downgrades to `evidence_incomplete` and records `advisory_cache_stale`.
 Per-source entries in `readiness.source_snapshots[]` are surfaced for
 operator visibility only, because the readiness store currently aggregates
 those entries globally (see the `vulnerability_source_snapshot` CTE in
-`go/internal/query/supply_chain_impact_readiness_postgres.go`) rather than
+`go/internal/query/supplychain/impact/readiness_postgres.go`) rather than
 filtering by the requested scope. Field names (`observed_dependency_facts`,
 `advisory_facts`, `package_registry_facts`) reflect the
 `evidence_sources[].fact_count` semantics — counts of source facts, not
