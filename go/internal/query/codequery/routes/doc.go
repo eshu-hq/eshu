@@ -21,7 +21,7 @@
 // handler receiver).
 //
 // Import discipline: this package may import the same dependency-neutral
-// leaves codequery uses (chain, querycontract, querygraphrows) but NEVER
+// leaves codequery uses (chain, querycontract, rows) but NEVER
 // package codequery itself and NEVER root package query -- both would
 // create an import cycle (codequery calls this leaf, and root aliases
 // codequery).

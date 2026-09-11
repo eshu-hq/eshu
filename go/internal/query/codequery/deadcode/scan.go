@@ -6,8 +6,8 @@ package deadcode
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 // BuildDeadCodeGraphCypherForLabel builds the graph-fallback candidate scan for
@@ -54,7 +54,7 @@ func BuildDeadCodeGraphCypherForLabel(
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-	` + querygraphrows.GraphSemanticMetadataProjection() + `
+	` + rows.GraphSemanticMetadataProjection() + `
 		ORDER BY f.relative_path, e.name, coalesce(e.uid, e.id)
 		SKIP $skip
 		LIMIT $limit

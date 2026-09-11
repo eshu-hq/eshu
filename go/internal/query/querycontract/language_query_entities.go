@@ -195,7 +195,7 @@ func ElixirGraphSemanticEntityType(entityType string) (string, string, string, b
 }
 
 // GraphResultMetadata projects the optional semantic-metadata columns
-// GraphSemanticMetadataProjection (querygraphrows) selects into the
+// GraphSemanticMetadataProjection (rows) selects into the
 // "metadata" field of a language-query or entity result row, omitting keys
 // whose value is absent or empty. The implementation moved from root's
 // language_query_entities.go for #6060 so a handler-family subpackage can

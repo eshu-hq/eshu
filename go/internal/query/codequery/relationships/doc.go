@@ -19,7 +19,7 @@
 // label resolution, node patterns, and the inheritance grant filter.
 //
 // Import discipline: this package may import the same dependency-neutral
-// leaves codequery uses (querycontract, querygraphrows, queryselector)
+// leaves codequery uses (querycontract, rows, queryselector)
 // but NEVER package codequery itself and NEVER root package query --
 // both would create an import cycle (codequery calls this leaf, and
 // root aliases codequery).

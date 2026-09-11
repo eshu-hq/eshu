@@ -17,7 +17,7 @@ reports. Does not own the repository-selector resolution or the language-query
 grant type (`codequery`), the content-model types or capability registry
 (`querycontract`), the semantic-summary attachment
 (`entitysemantics`), or the shared semantic-metadata Cypher fragment
-(`querygraphrows`) -- those are separate leaves this package calls into.
+(`rows`) -- those are separate leaves this package calls into.
 Does not own `*ContentReader` (package query, a later lane's family): this
 package reaches it only through the `querycontract.ContentStore` and
 `querycontract.LanguageEntityContentSearcher` port interfaces.

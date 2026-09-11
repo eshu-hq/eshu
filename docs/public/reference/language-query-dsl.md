@@ -339,7 +339,7 @@ content-backed map (`GraphFirstContentBackedEntityTypes`, with
 `internal/query/language`'s `entities.go` keeping a same-value alias) is
 canonical there too since the #6060 entity move; no mapping entry changed. The
 Cypher projection fragment those reads splice into their statements lives in
-`internal/query/querygraphrows`, which is separate because it also decodes
+`internal/query/graph/rows`, which is separate because it also decodes
 graph-driver row types that the dependency-neutral contract package may not
 import. The one-sentence `semantic_summary` and the `semantic_profile` block
 are rendered in `internal/query/entitysemantics`.

@@ -16,7 +16,7 @@
 // that still name this family's surface.
 //
 // Import discipline: this package may import dependency-neutral leaves --
-// codemodel, querycontract, queryauth, queryspan, querygraphrows,
+// codemodel, querycontract, queryauth, queryspan, rows,
 // queryselector, querytestutil, contentread, entitysemantics, codeshaping,
 // codeprovenance, facts, parser, reducer, the internal/search* ranking
 // packages, telemetry -- but NEVER root package query itself, which would

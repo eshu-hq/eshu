@@ -107,7 +107,7 @@ linters:
             - "!**/internal/query/codequery/visualization/packet.go"
             - "!**/internal/query/codequery/responses.go"
             - "!**/internal/query/impact/exposure_path_mapping.go"
-            - "!**/internal/query/querygraphrows/graph_row_shape.go"
+            - "!**/internal/query/graph/rows/shape.go"
           deny:
             - pkg: github.com/neo4j/neo4j-go-driver
               desc: query owns handlers and read surfaces; reach the graph through a port or an existing driver-owning file, not a new direct driver import

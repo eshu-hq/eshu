@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 // EntityLabels lists the code-entity labels the NornicDB relationship
@@ -137,7 +137,7 @@ func MetadataCypher(predicate string, entityLabel string, entityIDProperty strin
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + querygraphrows.GraphSemanticMetadataProjection() + `
+` + rows.GraphSemanticMetadataProjection() + `
 		LIMIT 2
 	`
 }
@@ -205,7 +205,7 @@ func NornicDBInheritancePathInGrant(raw any, access querycontract.RepositoryAcce
 // AllowsRepositoryID refuses "" for a scoped caller, so an unreadable
 // element fails closed rather than being skipped.
 func NornicDBPathNodeRepoID(node any) string {
-	props, ok := querygraphrows.GraphPathNodeProps(node)
+	props, ok := rows.GraphPathNodeProps(node)
 	if !ok {
 		return ""
 	}

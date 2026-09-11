@@ -8,7 +8,7 @@ import (
 
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
+	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 )
 
 // TestCodeEntityLabelAllowedGatesInterpolatedLabel guards the #5287 fix: only a
@@ -62,17 +62,17 @@ func TestRouteToCallerEntityFromChainDecodesBothBackends(t *testing.T) {
 		},
 	}
 	for name, chain := range cases {
-		got := querygraphrows.RouteToCallerEntityFromChain(chain)
+		got := rows.RouteToCallerEntityFromChain(chain)
 		for k, v := range want {
 			if got[k] != v {
 				t.Errorf("%s: entity[%q] = %#v, want %#v", name, k, got[k], v)
 			}
 		}
 	}
-	if querygraphrows.RouteToCallerEntityFromChain([]any{}) != nil {
+	if rows.RouteToCallerEntityFromChain([]any{}) != nil {
 		t.Error("empty chain should decode to nil")
 	}
-	if querygraphrows.RouteToCallerEntityFromChain(nil) != nil {
+	if rows.RouteToCallerEntityFromChain(nil) != nil {
 		t.Error("non-list chain should decode to nil")
 	}
 }
@@ -82,7 +82,7 @@ func TestRouteToCallerEntityFromChainDecodesBothBackends(t *testing.T) {
 func TestRouteToCallerEntityFromChainPrefersUidAndRelativePath(t *testing.T) {
 	t.Parallel()
 
-	got := querygraphrows.RouteToCallerEntityFromChain([]any{
+	got := rows.RouteToCallerEntityFromChain([]any{
 		map[string]any{"uid": "u-1", "relative_path": "pkg/app.py"},
 	})
 	if got["entity_id"] != "u-1" {

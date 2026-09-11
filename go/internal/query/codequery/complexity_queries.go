@@ -11,8 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 const (
@@ -155,7 +155,7 @@ func complexityCandidateProjection() string {
 		       count(DISTINCT outgoingRel) as outgoing_count,
 		       count(DISTINCT incomingRel) as incoming_count,
 		       count(DISTINCT outgoingRel) + count(DISTINCT incomingRel) as total_relationships,
-` + querygraphrows.GraphSemanticMetadataProjection()
+` + rows.GraphSemanticMetadataProjection()
 }
 
 // complexityListAnchor picks the clause that binds the Repository side of the
@@ -221,17 +221,17 @@ func (h *CodeHandler) listMostComplexFunctions(
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + querygraphrows.GraphSemanticMetadataProjection() + `,
+` + rows.GraphSemanticMetadataProjection() + `,
 		       coalesce(e.cyclomatic_complexity, 0) as complexity
 		ORDER BY complexity DESC, e.name, e.id
 		LIMIT $limit
 	`
-	rows, err := h.Neo4j.Run(ctx, cypher, params)
+	records, err := h.Neo4j.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, 0, false, err
 	}
-	results := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
+	results := make([]map[string]any, 0, len(records))
+	for _, row := range records {
 		result := map[string]any{
 			"entity_id":  StringVal(row, "id"),
 			"name":       StringVal(row, "name"),

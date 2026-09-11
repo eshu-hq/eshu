@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package querygraphrows
+package rows
 
 import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"

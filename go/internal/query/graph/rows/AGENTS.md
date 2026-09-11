@@ -1,4 +1,4 @@
-# Agent instructions: querygraphrows
+# Agent instructions: rows
 
 Read `doc.go` and `README.md` first.
 
@@ -23,8 +23,9 @@ Read `doc.go` and `README.md` first.
 
 Its literal contains no `MATCH`/`RETURN`/etc. keyword, so `#6060`'s
 `query-literals.py` tree-wide check does not track it. Grep every caller of
-`GraphSemanticMetadataProjection` (root's `language_query_entities.go` forwarder
-and the code-family readers) and confirm the column list they build around it
+`GraphSemanticMetadataProjection` (`language/entities.go`'s
+`graphSemanticMetadataProjection` forwarder and the code-family readers in
+`codequery`, `codequery/deadcode`, `codequery/relationships`, and `entity`) and confirm the column list they build around it
 still lines up.
 
 ## Verification
