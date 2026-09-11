@@ -84,7 +84,7 @@ type SupplyChainImpactExplanationResult struct {
 	Version              SupplyChainImpactVersionExplanation    `json:"version"`
 	DependencyChain      *SupplyChainImpactDependencyChain      `json:"dependency_chain,omitempty"`
 	Anchors              SupplyChainImpactExplanationAnchors    `json:"anchors"`
-	ImpactPath           []SupplyChainImpactPathHop             `json:"impact_path,omitempty"`
+	Path                 []SupplyChainImpactPathHop             `json:"impact_path,omitempty"`
 	Evidence             []SupplyChainImpactEvidenceFactSummary `json:"evidence"`
 	Readiness            SupplyChainImpactReadinessEnvelope     `json:"readiness"`
 	MissingEvidence      []string                               `json:"missing_evidence,omitempty"`
@@ -222,7 +222,7 @@ func BuildSupplyChainImpactExplanation(
 		Version:              version,
 		DependencyChain:      dependencyChain,
 		Anchors:              anchors,
-		ImpactPath:           impactPath,
+		Path:                 impactPath,
 		Evidence:             summarizeSupplyChainEvidenceFacts(row.EvidenceFacts),
 		Readiness:            readiness,
 		MissingEvidence:      missing,

@@ -18,7 +18,7 @@ type securityAlertProviderRepositoryScopeStore interface {
 	SecurityAlertProviderRepositoryScopes(context.Context, string) ([]string, error)
 }
 
-func (h *SupplyChainHandler) resolveSupplyChainRepositorySelector(
+func (h *Handler) resolveSupplyChainRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	selector string,
@@ -43,7 +43,7 @@ func (h *SupplyChainHandler) resolveSupplyChainRepositorySelector(
 	return repoID, true
 }
 
-func (h *SupplyChainHandler) resolveSupplyChainSecurityAlertRepositorySelector(
+func (h *Handler) resolveSupplyChainSecurityAlertRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	selector string,
@@ -85,7 +85,7 @@ func (h *SupplyChainHandler) resolveSupplyChainSecurityAlertRepositorySelector(
 	return repoID, SecurityAlertRepositoryScopeIDs(repoID, nil), true
 }
 
-func (h *SupplyChainHandler) securityAlertRepositoryScopeIDsForCatalog(
+func (h *Handler) securityAlertRepositoryScopeIDsForCatalog(
 	w http.ResponseWriter,
 	r *http.Request,
 	selector string,
@@ -113,7 +113,7 @@ func (h *SupplyChainHandler) securityAlertRepositoryScopeIDsForCatalog(
 	return SecurityAlertRepositoryScopeIDs(repositoryID, scopes), true
 }
 
-func (h *SupplyChainHandler) securityAlertRepositoryScopesForNames(
+func (h *Handler) securityAlertRepositoryScopesForNames(
 	ctx context.Context,
 	repositoryID string,
 	entries []querycontract.RepositoryCatalogEntry,
@@ -134,7 +134,7 @@ func (h *SupplyChainHandler) securityAlertRepositoryScopesForNames(
 	return scopes, nil
 }
 
-func (h *SupplyChainHandler) securityAlertProviderScopeStore() securityAlertProviderRepositoryScopeStore {
+func (h *Handler) securityAlertProviderScopeStore() securityAlertProviderRepositoryScopeStore {
 	if h == nil {
 		return nil
 	}

@@ -77,7 +77,7 @@ type SBOMAttestationAttachmentResult struct {
 	SourceConfidence                     string            `json:"source_confidence,omitempty"`
 }
 
-func (h *SupplyChainHandler) listSBOMAttachments(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listSBOMAttachments(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySBOMAttestationAttachments,

@@ -139,7 +139,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 		}},
 	},
 
-	// SupplyChainHandler.listImpactFindings -> h.ImpactFindings
+	// Handler.listImpactFindings -> h.ImpactFindings
 	// (PostgresSupplyChainImpactFindingStore): both the legacy and winners
 	// queries bind fact_kind = $1 to "reducer_supply_chain_impact_finding"
 	// (go/internal/query/supplychain/impact/findings_queries.go::SupplyChainImpactFindingFactKind).
@@ -149,7 +149,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// served by the same read.
 	"GET /api/v0/supply-chain/impact/findings": {
 		RegistrationFile: "go/internal/query/supplychain/handler.go",
-		HandlerStruct:    "SupplyChainHandler",
+		HandlerStruct:    "Handler",
 		StructFile:       "go/internal/query/supplychain/handler.go",
 		Method:           "listImpactFindings",
 		MethodFile:       "go/internal/query/supplychain/findings_handler.go",

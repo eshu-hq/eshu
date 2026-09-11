@@ -27,12 +27,12 @@ func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *test
 		},
 	}
 	advisoryStore := &recordingAdvisoryEvidenceStore{
-		rows: []advisory.AdvisoryEvidenceRow{{
-			AdvisoryKey: "CVE-2026-0001",
+		rows: []advisory.EvidenceRow{{
+			Key:         "CVE-2026-0001",
 			CanonicalID: "CVE-2026-0001",
 			CVEIDs:      []string{"CVE-2026-0001"},
 			GHSAIDs:     []string{"GHSA-aaaa-bbbb-cccc"},
-			AffectedPackages: []advisory.AdvisoryAffectedPackage{{
+			AffectedPackages: []advisory.AffectedPackage{{
 				PackageID: "pkg:npm/example",
 			}},
 		}},
@@ -58,7 +58,7 @@ func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *test
 	if got, want := advisoryStore.lastFilter.RepositoryID, "repo://example/api"; got != want {
 		t.Fatalf("advisory RepositoryID = %q, want %q", got, want)
 	}
-	if advisoryStore.lastFilter.CVEID != "" || advisoryStore.lastFilter.AdvisoryID != "" || advisoryStore.lastFilter.PackageID != "" {
+	if advisoryStore.lastFilter.CVEID != "" || advisoryStore.lastFilter.ID != "" || advisoryStore.lastFilter.PackageID != "" {
 		t.Fatalf("advisory source filters = %#v, want repository scope delegated to read model", advisoryStore.lastFilter)
 	}
 	if got, want := advisoryStore.lastFilter.Limit, 11; got != want {
@@ -66,8 +66,8 @@ func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *test
 	}
 
 	var resp struct {
-		Advisories []advisory.AdvisoryEvidenceRow `json:"advisories"`
-		Scope      map[string]string              `json:"scope"`
+		Advisories []advisory.EvidenceRow `json:"advisories"`
+		Scope      map[string]string      `json:"scope"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -75,7 +75,7 @@ func TestSupplyChainListAdvisoryEvidenceResolvesRepositoryScopedFindings(t *test
 	if got := len(resp.Advisories); got != 1 {
 		t.Fatalf("len(advisories) = %d, want 1", got)
 	}
-	if got, want := resp.Advisories[0].AdvisoryKey, "CVE-2026-0001"; got != want {
+	if got, want := resp.Advisories[0].Key, "CVE-2026-0001"; got != want {
 		t.Fatalf("advisory key = %q, want %q", got, want)
 	}
 	if got, want := resp.Scope["repository_id"], "repo://example/api"; got != want {
@@ -122,13 +122,13 @@ func TestSupplyChainListAdvisoryEvidenceRejectsUnknownRepositorySelectorBeforeRe
 func TestPageAdvisoryEvidenceRowsTrustsImpactScopeForAdvisoryAliases(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisory.AdvisoryEvidenceRow{{
-		AdvisoryKey: "CVE-2026-0001",
+	rows := []advisory.EvidenceRow{{
+		Key:         "CVE-2026-0001",
 		CanonicalID: "CVE-2026-0001",
 		CVEIDs:      []string{"CVE-2026-0001"},
 	}}
-	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.AdvisoryEvidenceFilter{
-		AdvisoryID:   "GHSA-aaaa-bbbb-cccc",
+	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.EvidenceFilter{
+		ID:           "GHSA-aaaa-bbbb-cccc",
 		RepositoryID: "repo://example/api",
 		Limit:        10,
 	})

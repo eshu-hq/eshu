@@ -12,35 +12,35 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const SupplyChainImpactAggregateCapability = "supply_chain.impact_findings.aggregate"
+const ImpactAggregateCapability = "supply_chain.impact_findings.aggregate"
 
 // supplyChainImpactAggregateRoutes registers the cheap-summary aggregate routes
 // alongside the existing impact findings list route. Mount is the file-local
-// installer; the SupplyChainHandler.Mount in handler.go invokes it.
-func (h *SupplyChainHandler) supplyChainImpactAggregateRoutes(mux *http.ServeMux) {
+// installer; the Handler.Mount in handler.go invokes it.
+func (h *Handler) supplyChainImpactAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings/count", h.countImpactFindings)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/inventory", h.impactInventory)
 }
 
-func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) countImpactFindings(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySupplyChainImpactAggregate,
 		"GET /api/v0/supply-chain/impact/findings/count",
-		SupplyChainImpactAggregateCapability,
+		ImpactAggregateCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), SupplyChainImpactAggregateCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), ImpactAggregateCapability) {
 		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"supply-chain impact aggregates require the Postgres reducer read model",
 			querycontract.ErrorCodeUnsupportedCapability,
-			SupplyChainImpactAggregateCapability,
+			ImpactAggregateCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactAggregateCapability),
+			querycontract.RequiredProfile(ImpactAggregateCapability),
 		)
 		return
 	}
@@ -51,13 +51,13 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 			http.StatusServiceUnavailable,
 			"supply-chain impact aggregates require the Postgres reducer read model",
 			querycontract.ErrorCodeBackendUnavailable,
-			SupplyChainImpactAggregateCapability,
+			ImpactAggregateCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactAggregateCapability),
+			querycontract.RequiredProfile(ImpactAggregateCapability),
 		)
 		return
 	}
-	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ImpactFindingsScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.FindingsScannerFilters()) {
 		return
 	}
 
@@ -92,31 +92,31 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 		"scope":              supplyChainImpactAggregateScope(filter),
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactAggregateCapability,
+		ImpactAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned impact facts; severity buckets derived from CVSS score",
 	))
 }
 
-func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySupplyChainImpactAggregate,
 		"GET /api/v0/supply-chain/impact/inventory",
-		SupplyChainImpactAggregateCapability,
+		ImpactAggregateCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), SupplyChainImpactAggregateCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), ImpactAggregateCapability) {
 		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"supply-chain impact aggregates require the Postgres reducer read model",
 			querycontract.ErrorCodeUnsupportedCapability,
-			SupplyChainImpactAggregateCapability,
+			ImpactAggregateCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactAggregateCapability),
+			querycontract.RequiredProfile(ImpactAggregateCapability),
 		)
 		return
 	}
@@ -127,13 +127,13 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 			http.StatusServiceUnavailable,
 			"supply-chain impact aggregates require the Postgres reducer read model",
 			querycontract.ErrorCodeBackendUnavailable,
-			SupplyChainImpactAggregateCapability,
+			ImpactAggregateCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactAggregateCapability),
+			querycontract.RequiredProfile(ImpactAggregateCapability),
 		)
 		return
 	}
-	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ImpactFindingsScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.FindingsScannerFilters()) {
 		return
 	}
 
@@ -188,18 +188,18 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactAggregateCapability,
+		ImpactAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned impact facts; one grouped bucket per row, ordered by count desc",
 	))
 }
 
-func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
+func (h *Handler) supplyChainImpactAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	access querycontract.RepositoryAccessFilter,
 ) (impact.SupplyChainImpactAggregateFilter, bool) {
-	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, SupplyChainImpactAggregateCapability)
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, ImpactAggregateCapability)
 	if !ok {
 		return impact.SupplyChainImpactAggregateFilter{}, false
 	}

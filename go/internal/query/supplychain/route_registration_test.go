@@ -23,7 +23,7 @@ import (
 func serveSupplyChainRoute(t *testing.T, method, target, body string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	handler := &SupplyChainHandler{Profile: querycontract.ProfileProduction}
+	handler := &Handler{Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

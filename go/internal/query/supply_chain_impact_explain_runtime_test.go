@@ -224,7 +224,7 @@ func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *test
 	if !containsString(got.Finding.MissingEvidence, impact.ServiceCatalogAnchorMissingReason) {
 		t.Fatalf("Finding.MissingEvidence = %#v, want %s", got.Finding.MissingEvidence, impact.ServiceCatalogAnchorMissingReason)
 	}
-	assertImpactPathHopMissingReason(t, got.ImpactPath, "service", impact.ServiceCatalogAnchorMissingReason)
+	assertImpactPathHopMissingReason(t, got.Path, "service", impact.ServiceCatalogAnchorMissingReason)
 }
 
 func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testing.T) {

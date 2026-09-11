@@ -15,13 +15,13 @@ const ContainerImageIdentityAggregateCapability = "supply_chain.container_image_
 
 // containerImageIdentityAggregateRoutes registers the cheap-summary aggregate
 // routes alongside the existing identity list route. The
-// SupplyChainHandler.Mount in handler.go invokes it.
-func (h *SupplyChainHandler) containerImageIdentityAggregateRoutes(mux *http.ServeMux) {
+// Handler.Mount in handler.go invokes it.
+func (h *Handler) containerImageIdentityAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities/count", h.countContainerImageIdentities)
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities/inventory", h.containerImageIdentityInventory)
 }
 
-func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) countContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryContainerImageIdentityAggregate,
@@ -93,7 +93,7 @@ func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter
 	))
 }
 
-func (h *SupplyChainHandler) containerImageIdentityInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) containerImageIdentityInventory(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryContainerImageIdentityAggregate,

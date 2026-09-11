@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryContainerImageIdentities,

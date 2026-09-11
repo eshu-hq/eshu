@@ -20,7 +20,7 @@ import (
 // selector under the caller's scoped grants. Out-of-grant selectors return a
 // not-found response without reading the reducer impact or readiness stores,
 // so a scoped caller cannot probe whether an unauthorized repository exists.
-func (h *SupplyChainHandler) resolveSupplyChainImpactRepositorySelector(
+func (h *Handler) resolveSupplyChainImpactRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	selector string,
@@ -34,7 +34,7 @@ func (h *SupplyChainHandler) resolveSupplyChainImpactRepositorySelector(
 // a scoped token grants no repositories. It mirrors the populated response
 // shape but performs no store reads, and reports readiness as unavailable so a
 // caller cannot misread zero findings as a clean "no vulnerabilities" answer.
-func (h *SupplyChainHandler) writeEmptyImpactFindingsPage(
+func (h *Handler) writeEmptyImpactFindingsPage(
 	w http.ResponseWriter,
 	r *http.Request,
 	limit int,
@@ -50,7 +50,7 @@ func (h *SupplyChainHandler) writeEmptyImpactFindingsPage(
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactFindingsCapability,
+		ImpactFindingsCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; readiness cannot be classified without an authorized scope",
 	))
@@ -63,13 +63,13 @@ func (h *SupplyChainHandler) writeEmptyImpactFindingsPage(
 // evidence" outcome so a caller cannot distinguish an empty grant from a
 // scope that legitimately has no findings, and readiness is reported
 // unavailable rather than falsely clean.
-func (h *SupplyChainHandler) writeEmptyImpactExplanation(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) writeEmptyImpactExplanation(w http.ResponseWriter, r *http.Request) {
 	filter := impact.SupplyChainImpactExplanationFilter{}
 	readiness := impact.BuildSupplyChainImpactReadinessUnavailable(impact.SupplyChainImpactTargetScope{}, nil, false)
 	body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactExplanationCapability,
+		ImpactExplanationCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; readiness cannot be classified without an authorized scope",
 	))
@@ -77,7 +77,7 @@ func (h *SupplyChainHandler) writeEmptyImpactExplanation(w http.ResponseWriter, 
 
 // writeEmptyImpactCount returns the zero-count aggregate shape for an
 // empty-grant scoped token without reading the aggregate store.
-func (h *SupplyChainHandler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"total_findings":     0,
 		"affected_findings":  0,
@@ -91,7 +91,7 @@ func (h *SupplyChainHandler) writeEmptyImpactCount(w http.ResponseWriter, r *htt
 		"scope":              map[string]string{},
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactAggregateCapability,
+		ImpactAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; aggregate totals are zero",
 	))
@@ -99,7 +99,7 @@ func (h *SupplyChainHandler) writeEmptyImpactCount(w http.ResponseWriter, r *htt
 
 // writeEmptyImpactInventory returns the empty inventory page for an empty-grant
 // scoped token without reading the aggregate store.
-func (h *SupplyChainHandler) writeEmptyImpactInventory(
+func (h *Handler) writeEmptyImpactInventory(
 	w http.ResponseWriter,
 	r *http.Request,
 	dimension impact.SupplyChainImpactInventoryDimension,
@@ -118,7 +118,7 @@ func (h *SupplyChainHandler) writeEmptyImpactInventory(
 		"scope":             map[string]string{},
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactAggregateCapability,
+		ImpactAggregateCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; inventory buckets are empty",
 	))

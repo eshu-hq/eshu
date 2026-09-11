@@ -13,7 +13,7 @@ import (
 )
 
 type advisoryEvidenceAccumulator struct {
-	row             AdvisoryEvidenceRow
+	row             EvidenceRow
 	cveIDs          map[string]struct{}
 	ghsaIDs         map[string]struct{}
 	osvIDs          map[string]struct{}
@@ -29,7 +29,7 @@ type advisoryEvidenceAccumulator struct {
 // BuildAdvisoryEvidenceRows groups scanned source-fact rows into canonical
 // advisory evidence rows. Exported for the staying root evidence tests and
 // the Postgres evidence store in this package.
-func BuildAdvisoryEvidenceRows(facts []AdvisoryEvidenceFactRow) []AdvisoryEvidenceRow {
+func BuildAdvisoryEvidenceRows(facts []EvidenceFactRow) []EvidenceRow {
 	groups := map[string]*advisoryEvidenceAccumulator{}
 	for _, fact := range facts {
 		key := CanonicalAdvisoryKey(fact.Payload)
@@ -43,20 +43,20 @@ func BuildAdvisoryEvidenceRows(facts []AdvisoryEvidenceFactRow) []AdvisoryEviden
 		}
 		acc.addFact(fact)
 	}
-	out := make([]AdvisoryEvidenceRow, 0, len(groups))
+	out := make([]EvidenceRow, 0, len(groups))
 	for _, acc := range groups {
 		out = append(out, acc.finish())
 	}
 	sort.Slice(out, func(i, j int) bool {
-		return out[i].AdvisoryKey < out[j].AdvisoryKey
+		return out[i].Key < out[j].Key
 	})
 	return out
 }
 
 func newAdvisoryEvidenceAccumulator(key string) *advisoryEvidenceAccumulator {
 	return &advisoryEvidenceAccumulator{
-		row: AdvisoryEvidenceRow{
-			AdvisoryKey:     key,
+		row: EvidenceRow{
+			Key:             key,
 			CanonicalID:     key,
 			SourceFreshness: advisoryEvidenceFreshnessCurrent,
 		},
@@ -73,7 +73,7 @@ func newAdvisoryEvidenceAccumulator(key string) *advisoryEvidenceAccumulator {
 	}
 }
 
-func (a *advisoryEvidenceAccumulator) addFact(fact AdvisoryEvidenceFactRow) {
+func (a *advisoryEvidenceAccumulator) addFact(fact EvidenceFactRow) {
 	payload := fact.Payload
 	source := querycontract.StringVal(payload, "source")
 	advisoryID := querycontract.StringVal(payload, "advisory_id")
@@ -110,7 +110,7 @@ func (a *advisoryEvidenceAccumulator) addFact(fact AdvisoryEvidenceFactRow) {
 			// fabricate a zero-valued EPSS observation from an unusable fact.
 			return
 		}
-		a.row.EPSS = append(a.row.EPSS, AdvisoryEPSSObservation{
+		a.row.EPSS = append(a.row.EPSS, EPSSObservation{
 			Source:      source,
 			CVEID:       score.CVEID,
 			Probability: derefString(score.Probability),
@@ -125,7 +125,7 @@ func (a *advisoryEvidenceAccumulator) addFact(fact AdvisoryEvidenceFactRow) {
 			// fabricate a zero-valued KEV observation from an unusable fact.
 			return
 		}
-		a.row.KEV = append(a.row.KEV, AdvisoryKEVObservation{
+		a.row.KEV = append(a.row.KEV, KEVObservation{
 			Source:                     source,
 			CVEID:                      kev.CVEID,
 			DateAdded:                  derefString(kev.DateAdded),
@@ -139,9 +139,9 @@ func (a *advisoryEvidenceAccumulator) addFact(fact AdvisoryEvidenceFactRow) {
 		// vulnerability.reference has no sdk/go/factschema struct yet (not
 		// part of the vulnerability/v1 family), so this kind stays on the raw
 		// payload path until a future W1 change adds one.
-		a.row.References = append(a.row.References, AdvisoryReferenceEvidence{
+		a.row.References = append(a.row.References, ReferenceEvidence{
 			Source:        source,
-			AdvisoryID:    advisoryID,
+			ID:            advisoryID,
 			CVEID:         cveID,
 			ReferenceType: querycontract.StringVal(payload, "reference_type"),
 			URL:           querycontract.StringVal(payload, "url"),
@@ -179,7 +179,7 @@ func (a *advisoryEvidenceAccumulator) addID(value string) {
 }
 
 func (a *advisoryEvidenceAccumulator) addSourceEvidence(
-	fact AdvisoryEvidenceFactRow,
+	fact EvidenceFactRow,
 	source string,
 	advisoryID string,
 	cveID string,
@@ -192,11 +192,11 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 		// fabricate a zero-valued source-evidence row from an unusable fact.
 		return
 	}
-	evidence := AdvisorySourceEvidence{
-		Source:     source,
-		AdvisoryID: advisoryID,
-		CVEID:      cveID,
-		GHSAID:     ghsaID,
+	evidence := SourceEvidence{
+		Source: source,
+		ID:     advisoryID,
+		CVEID:  cveID,
+		GHSAID: ghsaID,
 		// TODO(#4795 struct gap): vulnerability/v1.CVE (sdk/go/factschema)
 		// has no Aliases field yet; OSV-sourced vulnerability.cve facts carry
 		// a real "aliases" list
@@ -233,7 +233,7 @@ func (a *advisoryEvidenceAccumulator) addSourceEvidence(
 }
 
 func (a *advisoryEvidenceAccumulator) addAffectedPackage(
-	fact AdvisoryEvidenceFactRow,
+	fact EvidenceFactRow,
 	source string,
 	advisoryID string,
 	cveID string,
@@ -246,9 +246,9 @@ func (a *advisoryEvidenceAccumulator) addAffectedPackage(
 		// fabricate a zero-valued affected-package row from an unusable fact.
 		return
 	}
-	affected := AdvisoryAffectedPackage{
+	affected := AffectedPackage{
 		Source:        source,
-		AdvisoryID:    advisoryID,
+		ID:            advisoryID,
 		CVEID:         cveID,
 		GHSAID:        ghsaID,
 		Ecosystem:     derefString(typedPackage.Ecosystem),
@@ -277,9 +277,9 @@ func (a *advisoryEvidenceAccumulator) addAffectedPackage(
 	}
 }
 
-func (a *advisoryEvidenceAccumulator) addAffectedProduct(fact AdvisoryEvidenceFactRow, source string, cveID string) {
+func (a *advisoryEvidenceAccumulator) addAffectedProduct(fact EvidenceFactRow, source string, cveID string) {
 	payload := fact.Payload
-	a.row.AffectedProducts = append(a.row.AffectedProducts, AdvisoryAffectedProduct{
+	a.row.AffectedProducts = append(a.row.AffectedProducts, AffectedProduct{
 		Source:                      source,
 		CVEID:                       cveID,
 		Criteria:                    querycontract.StringVal(payload, "criteria"),
@@ -297,7 +297,7 @@ func (a *advisoryEvidenceAccumulator) addAffectedProduct(fact AdvisoryEvidenceFa
 	})
 }
 
-func (a *advisoryEvidenceAccumulator) finish() AdvisoryEvidenceRow {
+func (a *advisoryEvidenceAccumulator) finish() EvidenceRow {
 	a.row.CVEIDs = SetToSortedSlice(a.cveIDs)
 	a.row.GHSAIDs = SetToSortedSlice(a.ghsaIDs)
 	a.row.OSVIDs = SetToSortedSlice(a.osvIDs)
@@ -305,7 +305,7 @@ func (a *advisoryEvidenceAccumulator) finish() AdvisoryEvidenceRow {
 	a.row.EvidenceFactIDs = SetToSortedSlice(a.evidenceFactIDs)
 	a.row.SourceConfidence = sourceConfidenceLabel(a.confidences)
 	sortAdvisoryEvidence(&a.row)
-	a.row.SourceDisagreements = []AdvisorySourceDisagreement{
+	a.row.SourceDisagreements = []SourceDisagreement{
 		disagreement("severity", a.severityValues),
 		disagreement("withdrawn_status", a.withdrawnValues),
 		disagreement("fixed_versions", a.fixedValues),
@@ -389,7 +389,7 @@ func normalizeAdvisoryDisplayID(value string) string {
 	return trimmed
 }
 
-func severitySignature(value AdvisorySourceEvidence) string {
+func severitySignature(value SourceEvidence) string {
 	switch {
 	case value.SeverityLabel != "":
 		return strings.TrimSpace(fmt.Sprintf("%s %.1f %s", value.SeverityLabel, value.CVSSScore, value.CVSSVector))
@@ -406,7 +406,7 @@ func severitySignature(value AdvisorySourceEvidence) string {
 	}
 }
 
-func affectedRangeSignature(value AdvisoryAffectedPackage) string {
+func affectedRangeSignature(value AffectedPackage) string {
 	if value.AffectedRange != "" {
 		return value.AffectedRange
 	}
@@ -416,7 +416,7 @@ func affectedRangeSignature(value AdvisoryAffectedPackage) string {
 	return ""
 }
 
-func disagreement(field string, values map[string]string) AdvisorySourceDisagreement {
+func disagreement(field string, values map[string]string) SourceDisagreement {
 	unique := map[string]struct{}{}
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {
@@ -424,12 +424,12 @@ func disagreement(field string, values map[string]string) AdvisorySourceDisagree
 		}
 	}
 	if len(unique) < 2 {
-		return AdvisorySourceDisagreement{}
+		return SourceDisagreement{}
 	}
-	out := AdvisorySourceDisagreement{Field: field}
+	out := SourceDisagreement{Field: field}
 	for source, value := range values {
 		if strings.TrimSpace(value) != "" {
-			out.Values = append(out.Values, AdvisoryDisagreementValue{Source: source, Value: value})
+			out.Values = append(out.Values, DisagreementValue{Source: source, Value: value})
 		}
 	}
 	sort.Slice(out.Values, func(i, j int) bool {
@@ -441,8 +441,8 @@ func disagreement(field string, values map[string]string) AdvisorySourceDisagree
 	return out
 }
 
-func compactDisagreements(values []AdvisorySourceDisagreement) []AdvisorySourceDisagreement {
-	out := make([]AdvisorySourceDisagreement, 0, len(values))
+func compactDisagreements(values []SourceDisagreement) []SourceDisagreement {
+	out := make([]SourceDisagreement, 0, len(values))
 	for _, value := range values {
 		if value.Field != "" && len(value.Values) > 0 {
 			out = append(out, value)

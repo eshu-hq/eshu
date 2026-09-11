@@ -37,7 +37,7 @@ func TestApplySupplyChainRuntimeContextThreadsScopedGrants(t *testing.T) {
 	t.Parallel()
 
 	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{}}
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 	access := querycontract.RepositoryAccessFilter{
 		AllowedRepositoryIDs: []string{"repository:r_217415d9"},
 		AllowedScopeIDs:      []string{"scope:5747:tenant-a"},
@@ -64,7 +64,7 @@ func TestSupplyChainImpactRuntimeContextHandlerThreadsScopeOnlyGrant(t *testing.
 			"repository:r_217415d9": {ServiceIDs: []string{"service:5747:allowed"}},
 		},
 	}
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	req := httptest.NewRequest(
@@ -104,7 +104,7 @@ func TestApplySupplyChainRuntimeContextResolvesWorkloadsServicesEnvironments(t *
 			CatalogOwnerRefs:  []string{"group:owners"},
 		},
 	}}
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
@@ -163,7 +163,7 @@ func TestApplySupplyChainRuntimeContextKeepsRepeatedDigestEvidenceWithinRowPlan(
 		},
 	}
 	rows := []impact.SupplyChainImpactFindingRow{first, second}
-	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
 		querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -194,7 +194,7 @@ func TestApplySupplyChainRuntimeContextKeepsRepeatedDigestEvidenceWithinRowPlan(
 func TestApplySupplyChainRuntimeContextCapsRepeatedDigestPageEvidenceAtCandidateBudget(t *testing.T) {
 	t.Parallel()
 
-	const rowCount = SupplyChainImpactFindingMaxLimit
+	const rowCount = ImpactFindingMaxLimit
 	const repositoryID = "repository:r_repeated_digest_budget"
 	rows := make([]impact.SupplyChainImpactFindingRow, rowCount)
 	confirmed := make(map[string]string, rowCount)
@@ -212,7 +212,7 @@ func TestApplySupplyChainRuntimeContextCapsRepeatedDigestPageEvidenceAtCandidate
 			rows[0].SubjectDigest: confirmed,
 		},
 	}
-	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
 		querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -247,7 +247,7 @@ func TestApplySupplyChainRuntimeContextHonestEmptyForRepoWithNoWorkloads(t *test
 	// the context is present and labeled, with empty lists — not an error,
 	// not a silently-missing field a caller could misread as "never scanned".
 	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{}}
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
@@ -271,7 +271,7 @@ func TestApplySupplyChainRuntimeContextSkipsFindingWithNoRepositoryAnchor(t *tes
 	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{
 		"repository:r_217415d9": {WorkloadIDs: []string{"workload:x"}},
 	}}
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 
 	row := osPackageFindingRowForRuntimeContext()
 	row.RepositoryID = ""
@@ -292,7 +292,7 @@ func TestApplySupplyChainRuntimeContextPropagatesReaderError(t *testing.T) {
 
 	wantErr := errors.New("postgres: connection reset")
 	store := &querytestutil.FakeRuntimeContextFindingStore{Err: wantErr}
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
 	err := handler.applySupplyChainRuntimeContext(context.Background(), rows, querycontract.RepositoryAccessFilter{AllScopes: true})
@@ -312,7 +312,7 @@ func TestApplySupplyChainRuntimeContextDeterministicOrdering(t *testing.T) {
 			Environments:  []string{"staging", "production"},
 		},
 	}}
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
@@ -347,7 +347,7 @@ func TestApplySupplyChainRuntimeContextStoreWithoutReaderIsNoOp(t *testing.T) {
 	// A handler whose store does not implement the runtime-context reader
 	// (legacy store or a test double) leaves rows untouched rather than
 	// erroring — the feature degrades to the pre-#5746 response shape.
-	handler := &SupplyChainHandler{ImpactFindings: findingsOnlyStore{}}
+	handler := &Handler{ImpactFindings: findingsOnlyStore{}}
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)

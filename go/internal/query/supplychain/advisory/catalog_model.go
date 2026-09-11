@@ -12,26 +12,26 @@ const (
 	// gates the catalog handler on it (#6060 lane A keeps registration and
 	// routing in root).
 	AdvisoryCatalogCapability = "supply_chain.advisory_catalog.list"
-	// AdvisoryCatalogMaxLimit bounds one catalog page so an unscoped browse
+	// CatalogMaxLimit bounds one catalog page so an unscoped browse
 	// of the whole intelligence catalog stays cheap and cancellable.
 	// Exported for the staying root catalog handler's limit check and the
 	// root catalog tests.
-	AdvisoryCatalogMaxLimit = 200
+	CatalogMaxLimit = 200
 )
 
-// AdvisoryCatalogStore reads a browsable, summary-only page of canonical
+// CatalogStore reads a browsable, summary-only page of canonical
 // vulnerability advisories from active vulnerability source facts. Unlike
-// AdvisoryEvidenceStore, it does not require an advisory, package, repository,
+// EvidenceStore, it does not require an advisory, package, repository,
 // service, or workload anchor: it lists the known CVE-intelligence catalog so
 // the console can browse advisories that are not yet reachable in any service.
-type AdvisoryCatalogStore interface {
-	ListAdvisoryCatalog(context.Context, AdvisoryCatalogFilter) (AdvisoryCatalogPage, error)
+type CatalogStore interface {
+	ListAdvisoryCatalog(context.Context, CatalogFilter) (CatalogPage, error)
 }
 
-// AdvisoryCatalogFilter bounds a catalog browse. All filters are optional; an
+// CatalogFilter bounds a catalog browse. All filters are optional; an
 // empty filter lists the full catalog ordered by descending CVSS then advisory
 // key. Limit is the page size plus one used to detect truncation.
-type AdvisoryCatalogFilter struct {
+type CatalogFilter struct {
 	// Severity matches the canonical severity label (case-insensitive), e.g.
 	// CRITICAL, HIGH, MEDIUM, LOW.
 	Severity string
@@ -52,17 +52,17 @@ type AdvisoryCatalogFilter struct {
 	Limit int
 }
 
-// AdvisoryCatalogPage is one bounded page of catalog rows.
-type AdvisoryCatalogPage struct {
-	Rows []AdvisoryCatalogRow
+// CatalogPage is one bounded page of catalog rows.
+type CatalogPage struct {
+	Rows []CatalogRow
 }
 
-// AdvisoryCatalogRow is one canonical advisory summarized for catalog browsing.
+// CatalogRow is one canonical advisory summarized for catalog browsing.
 // It is source intelligence only: it does not imply repository, image,
 // workload, or deployment impact. Drill into the existing advisory detail
 // surface for full source evidence.
-type AdvisoryCatalogRow struct {
-	AdvisoryKey   string   `json:"advisory_key"`
+type CatalogRow struct {
+	Key           string   `json:"advisory_key"`
 	CanonicalID   string   `json:"canonical_id"`
 	CVEID         string   `json:"cve_id,omitempty"`
 	GHSAID        string   `json:"ghsa_id,omitempty"`

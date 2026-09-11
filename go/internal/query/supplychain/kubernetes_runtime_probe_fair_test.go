@@ -102,8 +102,8 @@ func TestKubernetesRuntimeProbeBalancedQuotas(t *testing.T) {
 				}
 				total += plan.Quota
 			}
-			if total != SupplyChainKubernetesRuntimeProbeMaxResults {
-				t.Fatalf("quota total = %d, want %d", total, SupplyChainKubernetesRuntimeProbeMaxResults)
+			if total != KubernetesRuntimeProbeMaxResults {
+				t.Fatalf("quota total = %d, want %d", total, KubernetesRuntimeProbeMaxResults)
 			}
 		})
 	}
@@ -112,7 +112,7 @@ func TestKubernetesRuntimeProbeBalancedQuotas(t *testing.T) {
 func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testing.T) {
 	t.Parallel()
 
-	digests := make([]string, SupplyChainKubernetesRuntimeProbeMaxResults)
+	digests := make([]string, KubernetesRuntimeProbeMaxResults)
 	rows := make([]impact.SupplyChainImpactFindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	matches := make([]KubernetesRuntimeWorkloadMatch, 0, len(digests)+1)
@@ -122,7 +122,7 @@ func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testi
 		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
 		count := 1
 		if i == 0 {
-			count = SupplyChainKubernetesRuntimeProbeMaxResults + 1
+			count = KubernetesRuntimeProbeMaxResults + 1
 		}
 		for j := 0; j < count; j++ {
 			uid := fmt.Sprintf("workload-%03d-%03d", i, j)
@@ -132,13 +132,13 @@ func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testi
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows, barrier: make(chan struct{})}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
-	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
+	handler := &Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 
 	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
-	if got := graph.maximum.Load(); got <= 1 || got > SupplyChainKubernetesRuntimeProbeMaxConcurrency {
-		t.Fatalf("maximum graph concurrency = %d, want > 1 and <= %d", got, SupplyChainKubernetesRuntimeProbeMaxConcurrency)
+	if got := graph.maximum.Load(); got <= 1 || got > KubernetesRuntimeProbeMaxConcurrency {
+		t.Fatalf("maximum graph concurrency = %d, want > 1 and <= %d", got, KubernetesRuntimeProbeMaxConcurrency)
 	}
 	if got := len(graph.snapshotCalls()); got != len(digests) {
 		t.Fatalf("graph calls = %d, want %d", got, len(digests))
@@ -159,8 +159,8 @@ func TestApplyKubernetesRuntimeEvidenceHotDigestCannotStarveColdDigests(t *testi
 			t.Fatalf("cold row %d metadata = %#v, want truncated=false", i, metadata)
 		}
 	}
-	if len(inventory.candidates) > SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("Postgres candidates = %d, want <= %d", len(inventory.candidates), SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if len(inventory.candidates) > KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("Postgres candidates = %d, want <= %d", len(inventory.candidates), KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 }
 
@@ -173,7 +173,7 @@ func TestApplyKubernetesRuntimeEvidenceBoundsRepeatedDigestRefsAcrossPage(t *tes
 	for i := range rows {
 		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%02d", i), SubjectDigest: digest}
 	}
-	graphRows := make([]map[string]any, SupplyChainKubernetesRuntimeProbeMaxResults+1)
+	graphRows := make([]map[string]any, KubernetesRuntimeProbeMaxResults+1)
 	matches := make([]KubernetesRuntimeWorkloadMatch, len(graphRows))
 	for i := range graphRows {
 		uid := fmt.Sprintf("workload-%03d", i)
@@ -182,7 +182,7 @@ func TestApplyKubernetesRuntimeEvidenceBoundsRepeatedDigestRefsAcrossPage(t *tes
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(
+	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(
 		context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
@@ -201,8 +201,8 @@ func TestApplyKubernetesRuntimeEvidenceBoundsRepeatedDigestRefsAcrossPage(t *tes
 			t.Fatalf("row %d metadata = %#v, want truncated=true", i, row.KubernetesRuntimeProbe)
 		}
 	}
-	if totalRefs > SupplyChainKubernetesRuntimeProbeMaxResults {
-		t.Fatalf("serialized page refs = %d, want <= %d", totalRefs, SupplyChainKubernetesRuntimeProbeMaxResults)
+	if totalRefs > KubernetesRuntimeProbeMaxResults {
+		t.Fatalf("serialized page refs = %d, want <= %d", totalRefs, KubernetesRuntimeProbeMaxResults)
 	}
 	calls := graph.snapshotCalls()
 	if len(calls) != 1 || calls[0].Limit != 5 {
@@ -214,7 +214,7 @@ func TestApplyKubernetesRuntimeEvidenceMaxPageRetainsOneRefPerFinding(t *testing
 	t.Parallel()
 
 	digest := "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-	rows := make([]impact.SupplyChainImpactFindingRow, SupplyChainKubernetesRuntimeProbeMaxResults)
+	rows := make([]impact.SupplyChainImpactFindingRow, KubernetesRuntimeProbeMaxResults)
 	for i := range rows {
 		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
 	}
@@ -228,7 +228,7 @@ func TestApplyKubernetesRuntimeEvidenceMaxPageRetainsOneRefPerFinding(t *testing
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(
+	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(
 		context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows,
 	); err != nil {
 		t.Fatalf("apply error = %v", err)
@@ -267,7 +267,7 @@ func TestApplyKubernetesRuntimeEvidenceScopedMetadataDoesNotDiscloseTruncation(t
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows}
 	inventory := &stubKubernetesWorkloadInventory{}
 	access := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{"repository:allowed"}, AllowedScopeIDs: []string{"scope:allowed"}}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), access, rows); err != nil {
+	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), access, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	candidateCount := 0
@@ -280,7 +280,7 @@ func TestApplyKubernetesRuntimeEvidenceScopedMetadataDoesNotDiscloseTruncation(t
 		}
 		candidateCount += row.KubernetesRuntimeProbe.CandidateLimit
 	}
-	if candidateCount != SupplyChainKubernetesRuntimeProbeMaxResults || len(inventory.candidates) > SupplyChainKubernetesRuntimeProbeMaxResults {
+	if candidateCount != KubernetesRuntimeProbeMaxResults || len(inventory.candidates) > KubernetesRuntimeProbeMaxResults {
 		t.Fatalf("candidate limits sum=%d Postgres candidates=%d, want sum=200 and candidates<=200", candidateCount, len(inventory.candidates))
 	}
 	for _, call := range graph.snapshotCalls() {
@@ -301,7 +301,7 @@ func TestApplyKubernetesRuntimeEvidenceSingleDigestKeepsAllScopesSentinel(t *tes
 	t.Parallel()
 
 	digest := "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	graphRows := make([]map[string]any, SupplyChainKubernetesRuntimeProbeMaxResults+1)
+	graphRows := make([]map[string]any, KubernetesRuntimeProbeMaxResults+1)
 	matches := make([]KubernetesRuntimeWorkloadMatch, len(graphRows))
 	for i := range graphRows {
 		uid := fmt.Sprintf("workload-%03d", i)
@@ -311,17 +311,17 @@ func TestApplyKubernetesRuntimeEvidenceSingleDigestKeepsAllScopesSentinel(t *tes
 	graph := &fairKubernetesRuntimeGraph{rows: map[string][]map[string]any{digest: graphRows}}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "finding", SubjectDigest: digest}}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
+	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
-	if got := len(inventory.candidates); got != SupplyChainKubernetesRuntimeProbeMaxResults+1 {
-		t.Fatalf("Postgres candidates = %d, want %d including sentinel", got, SupplyChainKubernetesRuntimeProbeMaxResults+1)
+	if got := len(inventory.candidates); got != KubernetesRuntimeProbeMaxResults+1 {
+		t.Fatalf("Postgres candidates = %d, want %d including sentinel", got, KubernetesRuntimeProbeMaxResults+1)
 	}
-	if got := len(rows[0].KubernetesRuntimeWorkloadRefs); got != SupplyChainKubernetesRuntimeProbeMaxResults {
-		t.Fatalf("public refs = %d, want %d", got, SupplyChainKubernetesRuntimeProbeMaxResults)
+	if got := len(rows[0].KubernetesRuntimeWorkloadRefs); got != KubernetesRuntimeProbeMaxResults {
+		t.Fatalf("public refs = %d, want %d", got, KubernetesRuntimeProbeMaxResults)
 	}
 	metadata := rows[0].KubernetesRuntimeProbe
-	if metadata == nil || metadata.CandidateLimit != SupplyChainKubernetesRuntimeProbeMaxResults || metadata.WorkloadRefsTruncated == nil || !*metadata.WorkloadRefsTruncated {
+	if metadata == nil || metadata.CandidateLimit != KubernetesRuntimeProbeMaxResults || metadata.WorkloadRefsTruncated == nil || !*metadata.WorkloadRefsTruncated {
 		t.Fatalf("metadata = %#v, want candidate_limit=200 truncated=true", metadata)
 	}
 }
@@ -341,7 +341,7 @@ func TestApplyKubernetesRuntimeEvidenceFirstErrorCancelsWithoutPartialAttachment
 	wantErr := errors.New("graph unavailable")
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows, errorDigest: digests[0], err: wantErr}
 	inventory := &stubKubernetesWorkloadInventory{}
-	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows)
+	err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows)
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("apply error = %v, want %v", err, wantErr)
 	}
@@ -369,7 +369,7 @@ func TestApplyKubernetesRuntimeEvidenceCanceledParentAttachesNothing(t *testing.
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "finding", SubjectDigest: digest}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(ctx, querycontract.RepositoryAccessFilter{AllScopes: true}, rows)
+	err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(ctx, querycontract.RepositoryAccessFilter{AllScopes: true}, rows)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("apply error = %v, want context.Canceled", err)
 	}
@@ -399,7 +399,7 @@ func TestApplyKubernetesRuntimeEvidenceDeterministicAuthorizedTrim(t *testing.T)
 	}
 	graph := &fairKubernetesRuntimeGraph{rows: graphRows}
 	inventory := &stubKubernetesWorkloadInventory{rows: matches}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
+	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	for i, row := range rows {

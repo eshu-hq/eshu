@@ -12,7 +12,7 @@ import (
 )
 
 // supplyChainImpactPacketResponder implements
-// supplychain.SupplyChainImpactPacketResponder from the lane-B packet
+// supplychain.ImpactPacketResponder from the lane-B packet
 // envelope. It lives in root because the envelope types
 // (InvestigationEvidencePacket, PacketBounds, the refusal composer) live
 // here; the hub passes only leaf values and the live request, so bounds
@@ -25,7 +25,7 @@ type supplyChainImpactPacketResponder struct{}
 
 // NewSupplyChainImpactPacketResponder builds the lane-B packet responder
 // cmd wiring injects into the supply-chain hub handler.
-func NewSupplyChainImpactPacketResponder() supplychain.SupplyChainImpactPacketResponder {
+func NewSupplyChainImpactPacketResponder() supplychain.ImpactPacketResponder {
 	return supplyChainImpactPacketResponder{}
 }
 

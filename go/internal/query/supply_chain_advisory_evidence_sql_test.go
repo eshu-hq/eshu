@@ -76,10 +76,10 @@ func TestAdvisoryEvidenceQueryUsesIndexableJSONBPredicates(t *testing.T) {
 func TestAdvisoryEvidenceLookupIDsStaySeparateFromPackageScope(t *testing.T) {
 	t.Parallel()
 
-	got := advisory.AdvisoryEvidenceLookupIDs(advisory.AdvisoryEvidenceFilter{
-		CVEID:      " cve-2026-0002 ",
-		AdvisoryID: " GHSA-aaaa-bbbb-cccc ",
-		PackageID:  "pkg:npm/example",
+	got := advisory.EvidenceLookupIDs(advisory.EvidenceFilter{
+		CVEID:     " cve-2026-0002 ",
+		ID:        " GHSA-aaaa-bbbb-cccc ",
+		PackageID: "pkg:npm/example",
 	})
 	if joined := strings.Join(got, ","); joined != "CVE-2026-0002,GHSA-aaaa-bbbb-cccc" {
 		t.Fatalf("advisoryEvidenceLookupIDs() = %#v, want only normalized advisory ids", got)

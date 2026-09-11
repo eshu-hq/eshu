@@ -2,7 +2,7 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package supplychain implements the supply-chain query hub: the
-// SupplyChainHandler HTTP surface and the read-model ports it serves.
+// Handler HTTP surface and the read-model ports it serves.
 //
 // The handler exposes nineteen routes over reducer-owned supply-chain truth:
 // the vulnerability-scanner read contract, SBOM attestation attachments
@@ -31,7 +31,7 @@
 // on current, caller-authorized evidence; a nil inventory store disables
 // its probe tier rather than surfacing unauthorized or stale evidence. The
 // impact packet route composes through the injected
-// SupplyChainImpactPacketResponder, which root provides from the lane-B
+// ImpactPacketResponder, which root provides from the lane-B
 // packet envelope: the hub never imports the packet types directly.
 //
 // Capability registration stays in root package query

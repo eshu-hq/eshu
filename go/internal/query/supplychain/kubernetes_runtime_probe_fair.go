@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	SupplyChainKubernetesRuntimeProbeMaxConcurrency         = 32
-	SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = 400
+	KubernetesRuntimeProbeMaxConcurrency         = 32
+	KubernetesRuntimeProbeMaxAllScopesCandidates = 400
 )
 
 // KubernetesRuntimeProbeMetadata moved to internal/query/supplychain/impact
@@ -46,8 +46,8 @@ type kubernetesRuntimeProbeFanout struct {
 
 func planKubernetesRuntimeProbeQueries(digests []string, allScopes bool) []kubernetesRuntimeProbePlan {
 	digests = UniqueSortedNonEmpty(digests)
-	if len(digests) > SupplyChainCloudRuntimeProbeMaxDigests {
-		digests = digests[:SupplyChainCloudRuntimeProbeMaxDigests]
+	if len(digests) > CloudRuntimeProbeMaxDigests {
+		digests = digests[:CloudRuntimeProbeMaxDigests]
 	}
 	occurrences := make(map[string]int, len(digests))
 	for _, digest := range digests {
@@ -57,10 +57,10 @@ func planKubernetesRuntimeProbeQueries(digests []string, allScopes bool) []kuber
 }
 
 func planKubernetesRuntimeProbeQueriesForRows(rows []impact.SupplyChainImpactFindingRow, allScopes bool) []kubernetesRuntimeProbePlan {
-	occurrences := make(map[string]int, min(len(rows), SupplyChainKubernetesRuntimeProbeMaxResults))
+	occurrences := make(map[string]int, min(len(rows), KubernetesRuntimeProbeMaxResults))
 	plannedRows := 0
 	for _, row := range rows {
-		if plannedRows >= SupplyChainKubernetesRuntimeProbeMaxResults {
+		if plannedRows >= KubernetesRuntimeProbeMaxResults {
 			break
 		}
 		digest := strings.TrimSpace(row.SubjectDigest)
@@ -84,8 +84,8 @@ func planKubernetesRuntimeProbeQueriesByOccurrence(occurrences map[string]int, a
 		totalOccurrences += count
 	}
 	sort.Strings(digests)
-	if len(digests) > SupplyChainCloudRuntimeProbeMaxDigests {
-		digests = digests[:SupplyChainCloudRuntimeProbeMaxDigests]
+	if len(digests) > CloudRuntimeProbeMaxDigests {
+		digests = digests[:CloudRuntimeProbeMaxDigests]
 	}
 	if len(digests) == 0 || totalOccurrences == 0 {
 		return nil
@@ -96,7 +96,7 @@ func planKubernetesRuntimeProbeQueriesByOccurrence(occurrences map[string]int, a
 		quotas[digest] = 1
 		usedSlots += occurrences[digest]
 	}
-	remainingSlots := max(0, SupplyChainKubernetesRuntimeProbeMaxResults-usedSlots)
+	remainingSlots := max(0, KubernetesRuntimeProbeMaxResults-usedSlots)
 	for remainingSlots > 0 {
 		allocated := false
 		for _, digest := range digests {
@@ -137,7 +137,7 @@ func queryKubernetesRuntimeCandidates(
 	if len(plans) == 0 {
 		return kubernetesRuntimeProbeFanout{}, nil
 	}
-	concurrencyLimit := min(len(plans), SupplyChainKubernetesRuntimeProbeMaxConcurrency)
+	concurrencyLimit := min(len(plans), KubernetesRuntimeProbeMaxConcurrency)
 	result := kubernetesRuntimeProbeFanout{
 		slots: make([]kubernetesRuntimeProbeSlot, len(plans)),
 	}
@@ -167,10 +167,10 @@ func queryKubernetesRuntimeCandidates(
 				plan := plans[index]
 				current := active.Add(1)
 				updateKubernetesRuntimeProbeMaximum(&maximum, current)
-				graphRows, err := graph.Run(workerCtx, SupplyChainKubernetesRuntimeProbeCypher, map[string]any{
+				graphRows, err := graph.Run(workerCtx, KubernetesRuntimeProbeCypher, map[string]any{
 					"subject_digests": []string{plan.Digest},
-					"evidence_source": SupplyChainKubernetesRuntimeEvidenceSource,
-					"resolution_mode": SupplyChainKubernetesRuntimeResolutionMode,
+					"evidence_source": KubernetesRuntimeEvidenceSource,
+					"resolution_mode": KubernetesRuntimeResolutionMode,
 					"limit":           plan.QueryLimit,
 				})
 				active.Add(-1)

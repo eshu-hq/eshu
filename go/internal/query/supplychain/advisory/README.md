@@ -35,20 +35,20 @@ binary.
 
 ## Exported surface
 
-The store ports `AdvisoryCatalogStore` and `AdvisoryEvidenceStore`, the
+The store ports `CatalogStore` and `EvidenceStore`, the
 Postgres implementations and their constructors, the values crossing those
-ports (`AdvisoryCatalogFilter`, `AdvisoryCatalogPage`, `AdvisoryCatalogRow`,
-`AdvisoryEvidenceFilter`, `AdvisoryEvidenceRow` and its evidence structs),
+ports (`CatalogFilter`, `CatalogPage`, `CatalogRow`,
+`EvidenceFilter`, `EvidenceRow` and its evidence structs),
 the grouping entry point `BuildAdvisoryEvidenceRows` with its fact-row and
-key helpers (`AdvisoryEvidenceFactRow`, `CanonicalAdvisoryKey`,
-`PageAdvisoryEvidenceRows`, `AdvisoryEvidenceLookupIDs`,
+key helpers (`EvidenceFactRow`, `CanonicalAdvisoryKey`,
+`PageAdvisoryEvidenceRows`, `EvidenceLookupIDs`,
 `NormalizeAdvisoryEvidenceFilter`, `NormalizeAdvisoryCatalogFilter`,
-`AdvisoryEvidenceFactCapacity`), the SQL texts (`ListAdvisoryCatalogQuery`,
+`EvidenceFactCapacity`), the SQL texts (`ListAdvisoryCatalogQuery`,
 `ListAdvisoryEvidenceQuery`), the capability and bound constants
 (`AdvisoryCatalogCapability`, `AdvisoryEvidenceCapability`,
-`AdvisoryCatalogMaxLimit`, `AdvisoryEvidenceMaxLimit`,
-`AdvisoryEvidenceMaxFactRows`), and the shared seams other root read
-models reuse (`AdvisoryEvidenceQueryer`, `FormatNullTime`,
+`CatalogMaxLimit`, `EvidenceMaxLimit`,
+`EvidenceMaxFactRows`), and the shared seams other root read
+models reuse (`EvidenceQueryer`, `FormatNullTime`,
 `SetToSortedSlice`). Every export names a staying root caller; see
 `AGENTS.md` for the per-symbol list. See `doc.go` for the godoc-rendered
 contract.
@@ -110,7 +110,7 @@ their package qualifier changed).
   reverse import cycles.
 - The capability is registered in ROOT (`contract_supply_chain.go`), not
   here — root owns the router and always links into production.
-- `AdvisoryEvidenceFilter` must carry an anchor (`HasScope`); the store
+- `EvidenceFilter` must carry an anchor (`HasScope`); the store
   rejects anchorless reads before running SQL, and the handler rejects
   them before reaching the store.
 - A dropped `Sources` entry is a dead-lettered malformed fact
@@ -118,8 +118,8 @@ their package qualifier changed).
   rather than zero-fill; see the struct-completeness note in
   `factschema_decode_advisory.go` for which fields stay on the raw path
   and why.
-- `AdvisoryEvidenceMaxFactRows` bounds the scanned fact rows behind one
-  page; `AdvisoryEvidenceMaxLimit + 1` is the wire limit the pagination
+- `EvidenceMaxFactRows` bounds the scanned fact rows behind one
+  page; `EvidenceMaxLimit + 1` is the wire limit the pagination
   tests pin. Do not conflate the two.
 - The catalog's bounded single-pass SQL shape (#3389) is pinned by root
   catalog tests: per-kind `UNION ALL` legs, one `GROUP BY`, no

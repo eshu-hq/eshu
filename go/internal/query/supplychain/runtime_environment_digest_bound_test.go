@@ -28,7 +28,7 @@ func TestApplySupplyChainRuntimeContextDoesNotBorrowMismatchedDigestEvidenceForR
 		},
 	}
 	rows := []impact.SupplyChainImpactFindingRow{row}
-	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
 		querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -77,7 +77,7 @@ func TestApplySupplyChainRuntimeContextCapsOneRepositoryEnvironmentEvidenceAtPag
 		ByDigest: map[string]map[string]string{row.SubjectDigest: confirmed},
 	}
 	rows := []impact.SupplyChainImpactFindingRow{row}
-	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
 		querycontract.RepositoryAccessFilter{AllScopes: true},

@@ -144,7 +144,7 @@ func TestProbeSupplyChainCloudRuntimeResourcesRecordsTruthfulCounts(t *testing.T
 			queryHandlerTracer = provider.Tracer("supply-chain-cloud-runtime-probe-test")
 			t.Cleanup(func() { queryHandlerTracer = previousTracer })
 
-			handler := &SupplyChainHandler{CloudResourceInventory: tt.inventory}
+			handler := &Handler{CloudResourceInventory: tt.inventory}
 			_, err := handler.probeSupplyChainCloudRuntimeResources(
 				context.Background(),
 				querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -192,7 +192,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePromotesRunningDigest(t *testing.T)
 		currentAuthorized: map[string]struct{}{uid: {}},
 		rowsByDigest:      graph.RowsByDigest,
 	}
-	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
+	handler := &Handler{Neo4j: graph, CloudResourceInventory: inventory}
 
 	rows := []impact.SupplyChainImpactFindingRow{
 		{FindingID: "f-running", SubjectDigest: runningDigest, EvidencePath: []string{cloudRuntimeProbeTestCICDFactKind}},
@@ -236,7 +236,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceExcludesStaleOrUnauthorized(t *test
 		currentAuthorized: map[string]struct{}{},
 		rowsByDigest:      graph.RowsByDigest,
 	}
-	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
+	handler := &Handler{Neo4j: graph, CloudResourceInventory: inventory}
 
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest, EvidencePath: []string{cloudRuntimeProbeTestCICDFactKind}}}
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
@@ -270,7 +270,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceScopedCallerGetsAuthorized(t *testi
 		currentAuthorized: map[string]struct{}{uid: {}},
 		rowsByDigest:      graph.RowsByDigest,
 	}
-	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
+	handler := &Handler{Neo4j: graph, CloudResourceInventory: inventory}
 
 	scoped := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{"repository:r_granted"}}
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: runningDigest}}
@@ -297,7 +297,7 @@ func TestApplySupplyChainCloudRuntimeEvidenceDoesNotReadGraph(t *testing.T) {
 			digest: {cloudResourceGraphRow(uid, digest, "arn:example:compute:::resource/graph-free")},
 		},
 	}
-	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
+	handler := &Handler{Neo4j: graph, CloudResourceInventory: inventory}
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
@@ -317,7 +317,7 @@ func TestApplySupplyChainCloudRuntimeEvidencePropagatesLedgerError(t *testing.T)
 		err:          errors.New("ledger unavailable"),
 		rowsByDigest: graph.RowsByDigest,
 	}
-	handler := &SupplyChainHandler{Neo4j: graph, CloudResourceInventory: inventory}
+	handler := &Handler{Neo4j: graph, CloudResourceInventory: inventory}
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 
 	if err := handler.applySupplyChainCloudRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err == nil {
@@ -330,12 +330,12 @@ func TestApplySupplyChainCloudRuntimeEvidenceNilStoresAreNoOp(t *testing.T) {
 
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: "sha256:cc"}}
 	// Nil graph remains safe because runtime evidence resolves from Postgres.
-	if err := (&SupplyChainHandler{CloudResourceInventory: &stubCloudInventory{}}).
+	if err := (&Handler{CloudResourceInventory: &stubCloudInventory{}}).
 		applySupplyChainCloudRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("nil graph error = %v, want nil", err)
 	}
 	// Nil inventory filter (disables the runtime tier rather than surfacing unauthorized evidence).
-	if err := (&SupplyChainHandler{Neo4j: &querytestutil.FakeCloudRuntimeGraph{}}).
+	if err := (&Handler{Neo4j: &querytestutil.FakeCloudRuntimeGraph{}}).
 		applySupplyChainCloudRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("nil inventory error = %v, want nil", err)
 	}

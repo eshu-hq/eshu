@@ -16,13 +16,13 @@ const SecurityAlertReconciliationAggregateCapability = "supply_chain.security_al
 
 // securityAlertReconciliationAggregateRoutes registers the cheap-summary
 // aggregate routes alongside the existing reconciliation list route. The
-// SupplyChainHandler.Mount in handler.go invokes it.
-func (h *SupplyChainHandler) securityAlertReconciliationAggregateRoutes(mux *http.ServeMux) {
+// Handler.Mount in handler.go invokes it.
+func (h *Handler) securityAlertReconciliationAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations/count", h.countSecurityAlertReconciliations)
 	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations/inventory", h.securityAlertReconciliationInventory)
 }
 
-func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) countSecurityAlertReconciliations(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySecurityAlertReconciliationAggregate,
@@ -94,7 +94,7 @@ func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWr
 	))
 }
 
-func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySecurityAlertReconciliationAggregate,
@@ -186,7 +186,7 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 	))
 }
 
-func (h *SupplyChainHandler) securityAlertReconciliationAggregateFilterFromRequest(
+func (h *Handler) securityAlertReconciliationAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	access querycontract.RepositoryAccessFilter,

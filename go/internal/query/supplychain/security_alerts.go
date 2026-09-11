@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-func (h *SupplyChainHandler) listSecurityAlertReconciliations(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listSecurityAlertReconciliations(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySupplyChainSecurityAlerts,

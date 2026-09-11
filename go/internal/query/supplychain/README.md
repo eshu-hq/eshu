@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Owns the `SupplyChainHandler` HTTP surface: nineteen routes over
+Owns the `Handler` HTTP surface: nineteen routes over
 reducer-owned supply-chain truth, served from Postgres read models and the
 graph (eleven in `Mount`, plus a count/inventory pair per aggregate
 family).
@@ -64,8 +64,8 @@ them; the capability, limit, and probe-budget constants the staying
 contract matrix, staying stores, and staying tests read; the shared
 seams staying root files reuse (`UniqueSortedNonEmpty`,
 `SecurityAlertRepositoryScopeIDs`,
-`SupplyChainCloudRuntimeProbePerDigestLimit`); and the
-`SupplyChainImpactPacketResponder` port root implements from the lane-B
+`CloudRuntimeProbePerDigestLimit`); and the
+`ImpactPacketResponder` port root implements from the lane-B
 packet envelope. See `doc.go` for the godoc-rendered contract.
 
 ## Dependencies
@@ -134,7 +134,7 @@ package qualifier moved.
 - The probes never surface unauthorized or stale evidence: nil inventory
   disables the tier, and eligibility runs inside the bound, not after.
 - The packet route never touches lane-B packet types directly; it
-  composes through `SupplyChainImpactPacketResponder`, which root
+  composes through `ImpactPacketResponder`, which root
   injects. If lane-B moves the envelope to a leaf, this seam collapses
   back to direct calls.
 

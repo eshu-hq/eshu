@@ -27,7 +27,7 @@ import (
 // Struct-completeness note: two of the wrappers below (CVE, AffectedPackage)
 // are deliberately partial. vulnerability/v1.CVE and
 // vulnerability/v1.AffectedPackage do not yet declare every field the
-// query-side AdvisorySourceEvidence/AdvisoryAffectedPackage response models
+// query-side SourceEvidence/AffectedPackage response models
 // read from real collector payloads (for example CVE has no Aliases,
 // Severity, CVSSVectorV2/V3/V4, or CVSSMetrics field; AffectedPackage has no
 // ParsedAffectedRange field, and its typed AffectedRanges field is a
@@ -116,7 +116,7 @@ func decodeVulnerabilityAffectedPackage(in supplyChainFactDecodeInput) (vulnerab
 // decodeVulnerabilityEPSSScore decodes one vulnerability.epss_score fact row
 // into the typed struct. A missing required field (cve_id) yields a
 // self-classifying *decode.Error. This kind decodes losslessly: every
-// field the query-side AdvisoryEPSSObservation reads (probability,
+// field the query-side EPSSObservation reads (probability,
 // percentile, score_date) is declared on vulnerabilityv1.EPSSScore.
 func decodeVulnerabilityEPSSScore(in supplyChainFactDecodeInput) (vulnerabilityv1.EPSSScore, error) {
 	score, err := factschema.DecodeVulnerabilityEPSSScore(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityEPSSScore, in.SchemaVersion, in.Payload))
@@ -129,7 +129,7 @@ func decodeVulnerabilityEPSSScore(in supplyChainFactDecodeInput) (vulnerabilityv
 // decodeVulnerabilityKnownExploited decodes one vulnerability.known_exploited
 // fact row into the typed struct. A missing required field (cve_id) yields a
 // self-classifying *decode.Error. This kind decodes losslessly: every
-// field the query-side AdvisoryKEVObservation reads is declared on
+// field the query-side KEVObservation reads is declared on
 // vulnerabilityv1.KnownExploited.
 func decodeVulnerabilityKnownExploited(in supplyChainFactDecodeInput) (vulnerabilityv1.KnownExploited, error) {
 	kev, err := factschema.DecodeVulnerabilityKnownExploited(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityKnownExploited, in.SchemaVersion, in.Payload))

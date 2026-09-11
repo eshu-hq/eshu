@@ -21,7 +21,7 @@ import (
 // `go test ./internal/query/supplychain` never links root package query:
 // this package cannot import it without an import cycle (root's
 // supply_chain_hub_alias.go already imports this package for the
-// SupplyChainHandler compatibility alias, #6060), so root's init()
+// Handler compatibility alias, #6060), so root's init()
 // functions never run in this test binary. Without this TestMain, every
 // handler test in this package fails with the capability gate's
 // unsupported_capability 501 -- not because the handler is broken, but
@@ -48,11 +48,11 @@ func TestMain(m *testing.M) {
 			Support:    AuthoritativeExactSupport(),
 		},
 		querycontract.CapabilityRegistration{
-			Capability: SupplyChainImpactFindingsCapability,
+			Capability: ImpactFindingsCapability,
 			Support:    AuthoritativeExactSupport(),
 		},
 		querycontract.CapabilityRegistration{
-			Capability: SupplyChainImpactExplanationCapability,
+			Capability: ImpactExplanationCapability,
 			Support:    AuthoritativeExactSupport(),
 		},
 		querycontract.CapabilityRegistration{
@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 			Support:    AuthoritativeExactSupport(),
 		},
 		querycontract.CapabilityRegistration{
-			Capability: SupplyChainImpactAggregateCapability,
+			Capability: ImpactAggregateCapability,
 			Support:    AuthoritativeExactSupport(),
 		},
 		querycontract.CapabilityRegistration{

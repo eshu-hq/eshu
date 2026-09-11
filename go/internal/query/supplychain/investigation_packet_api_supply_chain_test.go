@@ -20,7 +20,7 @@ import (
 func TestGetImpactPacketWithoutResponderFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	handler := &SupplyChainHandler{Profile: querycontract.ProfileProduction}
+	handler := &Handler{Profile: querycontract.ProfileProduction}
 	req := httptest.NewRequest(http.MethodGet,
 		"/api/v0/investigations/supply-chain/impact/packet?finding_id=finding-1", nil)
 	rec := httptest.NewRecorder()

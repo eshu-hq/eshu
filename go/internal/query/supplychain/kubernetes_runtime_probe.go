@@ -14,20 +14,20 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const SupplyChainKubernetesRuntimeProbeMaxResults = 200
+const KubernetesRuntimeProbeMaxResults = 200
 
 const (
-	SupplyChainKubernetesRuntimeEvidenceSource = "reducer/kubernetes-correlation"
-	SupplyChainKubernetesRuntimeResolutionMode = "digest"
+	KubernetesRuntimeEvidenceSource = "reducer/kubernetes-correlation"
+	KubernetesRuntimeResolutionMode = "digest"
 )
 
-// SupplyChainKubernetesRuntimeProbeCypher performs one bounded single-digest
+// KubernetesRuntimeProbeCypher performs one bounded single-digest
 // graph read over the three canonical digest-addressed OCI labels. The caller
 // runs one copy per digest through a fixed worker pool. The CALL wrapper and
 // per-label branches are required by the pinned NornicDB compatibility contract:
 // a label disjunction matches zero rows and a top-level UNION loses later rows
 // when its first branch is empty.
-const SupplyChainKubernetesRuntimeProbeCypher = `CALL {
+const KubernetesRuntimeProbeCypher = `CALL {
   UNWIND $subject_digests AS candidate_digest
   MATCH (img:ContainerImage {digest: candidate_digest})<-[rel:RUNS_IMAGE]-(w:KubernetesWorkload)
   WHERE rel.evidence_source = $evidence_source
@@ -96,7 +96,7 @@ type KubernetesWorkloadCurrentInventoryFilter interface {
 	) ([]KubernetesRuntimeWorkloadMatch, error)
 }
 
-func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
+func (h *Handler) applySupplyChainKubernetesRuntimeEvidence(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
 	rows []impact.SupplyChainImpactFindingRow,
@@ -122,7 +122,7 @@ func (h *SupplyChainHandler) applySupplyChainKubernetesRuntimeEvidence(
 	span.SetAttributes(
 		attribute.Int("eshu.subject_digest_count", len(plans)),
 		attribute.Int("eshu.kubernetes_runtime_query_count", len(plans)),
-		attribute.Int("eshu.kubernetes_runtime_concurrency_limit", min(len(plans), SupplyChainKubernetesRuntimeProbeMaxConcurrency)),
+		attribute.Int("eshu.kubernetes_runtime_concurrency_limit", min(len(plans), KubernetesRuntimeProbeMaxConcurrency)),
 		attribute.Int("eshu.kubernetes_runtime_max_concurrency", 0),
 		attribute.Int("eshu.graph_candidate_count", 0),
 		attribute.Int("eshu.kubernetes_runtime_candidate_limit", plannedCandidateLimit),

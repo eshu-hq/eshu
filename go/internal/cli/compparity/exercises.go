@@ -108,7 +108,7 @@ func supportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
 			Services:      []string{"service:checkout"},
 			SBOMDocuments: []string{"sbom:checkout"},
 		},
-		ImpactPath: []query.SupplyChainImpactPathHop{
+		Path: []query.SupplyChainImpactPathHop{
 			{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 			{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
 			{Hop: "image", Status: "present"},

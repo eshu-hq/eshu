@@ -21,12 +21,12 @@ import (
 // callers.
 
 // SupplyChainHandler exposes reducer-owned supply-chain read models. See
-// supplychain.SupplyChainHandler.
-type SupplyChainHandler = supplychain.SupplyChainHandler
+// supplychain.Handler.
+type SupplyChainHandler = supplychain.Handler
 
 // SupplyChainImpactPacketResponder composes and writes the impact
-// investigation packet. See supplychain.SupplyChainImpactPacketResponder.
-type SupplyChainImpactPacketResponder = supplychain.SupplyChainImpactPacketResponder
+// investigation packet. See supplychain.ImpactPacketResponder.
+type SupplyChainImpactPacketResponder = supplychain.ImpactPacketResponder
 
 // Container-image identity port and values. See the supplychain package.
 type (
@@ -100,11 +100,11 @@ type (
 const (
 	SBOMAttestationAttachmentsCapability             = supplychain.SBOMAttestationAttachmentsCapability
 	VulnerabilityScannerReadContractCapability       = supplychain.VulnerabilityScannerReadContractCapability
-	SupplyChainImpactFindingsCapability              = supplychain.SupplyChainImpactFindingsCapability
-	SupplyChainImpactExplanationCapability           = supplychain.SupplyChainImpactExplanationCapability
+	SupplyChainImpactFindingsCapability              = supplychain.ImpactFindingsCapability
+	SupplyChainImpactExplanationCapability           = supplychain.ImpactExplanationCapability
 	ContainerImageIdentitiesCapability               = supplychain.ContainerImageIdentitiesCapability
 	SecurityAlertReconciliationsCapability           = supplychain.SecurityAlertReconciliationsCapability
-	SupplyChainImpactAggregateCapability             = supplychain.SupplyChainImpactAggregateCapability
+	SupplyChainImpactAggregateCapability             = supplychain.ImpactAggregateCapability
 	SecurityAlertReconciliationAggregateCapability   = supplychain.SecurityAlertReconciliationAggregateCapability
 	ContainerImageIdentityAggregateCapability        = supplychain.ContainerImageIdentityAggregateCapability
 	SBOMAttestationAttachmentAggregateCapability     = supplychain.SBOMAttestationAttachmentAggregateCapability
@@ -122,11 +122,11 @@ const (
 	SBOMAttestationAttachmentAggregateMaxLimit              = supplychain.SBOMAttestationAttachmentAggregateMaxLimit
 	SecurityAlertReconciliationAggregateMaxLimit            = supplychain.SecurityAlertReconciliationAggregateMaxLimit
 	SBOMAttestationWarningSummaryPreviewMaxCount            = supplychain.SBOMAttestationWarningSummaryPreviewMaxCount
-	SupplyChainCloudRuntimeProbeMaxResults                  = supplychain.SupplyChainCloudRuntimeProbeMaxResults
-	SupplyChainCloudRuntimeProbeMaxDigests                  = supplychain.SupplyChainCloudRuntimeProbeMaxDigests
-	SupplyChainKubernetesRuntimeProbeMaxResults             = supplychain.SupplyChainKubernetesRuntimeProbeMaxResults
-	SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates
-	SupplyChainKubernetesRuntimeProbeCypher                 = supplychain.SupplyChainKubernetesRuntimeProbeCypher
+	SupplyChainCloudRuntimeProbeMaxResults                  = supplychain.CloudRuntimeProbeMaxResults
+	SupplyChainCloudRuntimeProbeMaxDigests                  = supplychain.CloudRuntimeProbeMaxDigests
+	SupplyChainKubernetesRuntimeProbeMaxResults             = supplychain.KubernetesRuntimeProbeMaxResults
+	SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates
+	SupplyChainKubernetesRuntimeProbeCypher                 = supplychain.KubernetesRuntimeProbeCypher
 	ContainerImageIdentityInventoryByOutcome                = supplychain.ContainerImageIdentityInventoryByOutcome
 	ContainerImageIdentityInventoryByIdentityStrength       = supplychain.ContainerImageIdentityInventoryByIdentityStrength
 	ContainerImageIdentityInventoryByRepository             = supplychain.ContainerImageIdentityInventoryByRepository
@@ -148,11 +148,11 @@ const (
 const (
 	vulnerabilityScannerReadContractCapability = supplychain.VulnerabilityScannerReadContractCapability
 	sbomAttestationAttachmentsCapability       = supplychain.SBOMAttestationAttachmentsCapability
-	supplyChainImpactFindingsCapability        = supplychain.SupplyChainImpactFindingsCapability
-	supplyChainImpactExplanationCapability     = supplychain.SupplyChainImpactExplanationCapability
+	supplyChainImpactFindingsCapability        = supplychain.ImpactFindingsCapability
+	supplyChainImpactExplanationCapability     = supplychain.ImpactExplanationCapability
 	containerImageIdentitiesCapability         = supplychain.ContainerImageIdentitiesCapability
 	securityAlertReconciliationsCapability     = supplychain.SecurityAlertReconciliationsCapability
-	supplyChainImpactAggregateCapability       = supplychain.SupplyChainImpactAggregateCapability
+	supplyChainImpactAggregateCapability       = supplychain.ImpactAggregateCapability
 	// Staying callers: contract_supply_chain.go capability matrix.
 	securityAlertReconciliationAggregateCapability = supplychain.SecurityAlertReconciliationAggregateCapability
 	containerImageIdentityAggregateCapability      = supplychain.ContainerImageIdentityAggregateCapability
@@ -162,23 +162,23 @@ const (
 	containerImageIdentityMaxLimit    = supplychain.ContainerImageIdentityMaxLimit
 	// Staying callers: the Postgres store limit checks.
 
-	supplyChainCloudRuntimeProbeMaxResults = supplychain.SupplyChainCloudRuntimeProbeMaxResults
+	supplyChainCloudRuntimeProbeMaxResults = supplychain.CloudRuntimeProbeMaxResults
 	// Staying callers: cloud_resource_list_store.go owner-ledger budget.
-	supplyChainKubernetesRuntimeProbeMaxResults             = supplychain.SupplyChainKubernetesRuntimeProbeMaxResults
-	supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates
+	supplyChainKubernetesRuntimeProbeMaxResults             = supplychain.KubernetesRuntimeProbeMaxResults
+	supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates
 	// Staying callers: kubernetes_runtime_workload_store.go candidate budget.
-	supplyChainKubernetesRuntimeProbeMaxConcurrency = supplychain.SupplyChainKubernetesRuntimeProbeMaxConcurrency
-	supplyChainKubernetesRuntimeProbeCypher         = supplychain.SupplyChainKubernetesRuntimeProbeCypher
+	supplyChainKubernetesRuntimeProbeMaxConcurrency = supplychain.KubernetesRuntimeProbeMaxConcurrency
+	supplyChainKubernetesRuntimeProbeCypher         = supplychain.KubernetesRuntimeProbeCypher
 	// Staying callers: queryplan_production_binding_test.go, which pins
 	// the exact Cypher. (The probe unit/perf tests moved to the hub and
 	// use the exported hub name directly, as does the digest-starvation
 	// live test for the per-digest floor, so the fan-out-bound and
 	// per-digest-floor forwards are deleted; the candidate-cap and plan
 	// forwards for the moved runtime-context tests are deleted too.)
-	supplyChainImpactFindingMaxLimit = supplychain.SupplyChainImpactFindingMaxLimit
+	supplyChainImpactFindingMaxLimit = supplychain.ImpactFindingMaxLimit
 	// Staying callers: the findings limit tests, which pin the page bound.
-	supplyChainKubernetesRuntimeEvidenceSource = supplychain.SupplyChainKubernetesRuntimeEvidenceSource
-	supplyChainKubernetesRuntimeResolutionMode = supplychain.SupplyChainKubernetesRuntimeResolutionMode
+	supplyChainKubernetesRuntimeEvidenceSource = supplychain.KubernetesRuntimeEvidenceSource
+	supplyChainKubernetesRuntimeResolutionMode = supplychain.KubernetesRuntimeResolutionMode
 	// Staying callers: queryplan_profile_params_test.go, which pins the
 	// probe's evidence-source contract.
 
@@ -242,9 +242,9 @@ func uniqueSortedNonEmpty(values []string) []string {
 // supplyChainCloudRuntimeProbePerDigestLimit shares the owner-ledger row
 // budget across a page's digests. Staying callers:
 // cloud_resource_list_store.go and staying cloud tests. See
-// supplychain.SupplyChainCloudRuntimeProbePerDigestLimit.
+// supplychain.CloudRuntimeProbePerDigestLimit.
 func supplyChainCloudRuntimeProbePerDigestLimit(digestCount int) int {
-	return supplychain.SupplyChainCloudRuntimeProbePerDigestLimit(digestCount)
+	return supplychain.CloudRuntimeProbePerDigestLimit(digestCount)
 }
 
 // boundedSBOMWarningSummaries bounds one attachment's warning summaries.
@@ -292,8 +292,8 @@ func sbomAttestationAttachmentAggregateScope(filter SBOMAttestationAttachmentAgg
 }
 
 // SupplyChainRuntimeEnvironmentPlan is one finding's runtime-environment
-// probe plan. See supplychain.SupplyChainRuntimeEnvironmentPlan.
-type SupplyChainRuntimeEnvironmentPlan = supplychain.SupplyChainRuntimeEnvironmentPlan
+// probe plan. See supplychain.RuntimeEnvironmentPlan.
+type SupplyChainRuntimeEnvironmentPlan = supplychain.RuntimeEnvironmentPlan
 
 // The staying Postgres implementations satisfy the hub ports through these
 // assertions: wiring assigns the concrete stores to hub-typed handler

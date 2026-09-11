@@ -24,7 +24,7 @@ import (
 // reachability remains the separate supply-chain impact findings surface.
 //
 // GET /api/v0/supply-chain/advisories
-func (h *SupplyChainHandler) listAdvisoryCatalog(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listAdvisoryCatalog(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryAdvisoryCatalog,
@@ -71,7 +71,7 @@ func (h *SupplyChainHandler) listAdvisoryCatalog(w http.ResponseWriter, r *http.
 		)
 		return
 	}
-	filter := advisory.AdvisoryCatalogFilter{
+	filter := advisory.CatalogFilter{
 		Severity:         querycontract.QueryParam(r, "severity"),
 		Ecosystem:        querycontract.QueryParam(r, "ecosystem"),
 		Query:            querycontract.QueryParam(r, "q"),
@@ -101,7 +101,7 @@ func (h *SupplyChainHandler) listAdvisoryCatalog(w http.ResponseWriter, r *http.
 		last := rows[len(rows)-1]
 		body["next_cursor"] = map[string]any{
 			"after_cvss":         last.CVSSScore,
-			"after_advisory_key": last.AdvisoryKey,
+			"after_advisory_key": last.Key,
 		}
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
@@ -114,7 +114,7 @@ func (h *SupplyChainHandler) listAdvisoryCatalog(w http.ResponseWriter, r *http.
 
 // advisoryCatalogResponseScope echoes the applied catalog filters so callers can
 // confirm the browse scope and detect dropped filters.
-func advisoryCatalogResponseScope(filter advisory.AdvisoryCatalogFilter) map[string]any {
+func advisoryCatalogResponseScope(filter advisory.CatalogFilter) map[string]any {
 	scope := map[string]any{}
 	if filter.Severity != "" {
 		scope["severity"] = filter.Severity
@@ -140,8 +140,8 @@ func requiredAdvisoryCatalogLimit(w http.ResponseWriter, r *http.Request) (int, 
 		return 0, false
 	}
 	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > advisory.AdvisoryCatalogMaxLimit {
-		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", advisory.AdvisoryCatalogMaxLimit))
+	if err != nil || limit <= 0 || limit > advisory.CatalogMaxLimit {
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", advisory.CatalogMaxLimit))
 		return 0, false
 	}
 	return limit, true

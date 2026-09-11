@@ -58,7 +58,7 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 			row.SubjectDigest: {"production": "deploy_event"},
 		},
 	}
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 	rows := []impact.SupplyChainImpactFindingRow{row}
 
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
@@ -83,7 +83,7 @@ func TestApplySupplyChainRuntimeContextDoesNotDefaultUnconfirmedRepositoryEnviro
 		"repository:r_217415d9": {Environments: []string{"production"}},
 	}}
 	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
-	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
 		querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -108,7 +108,7 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 	rows := []impact.SupplyChainImpactFindingRow{row}
 	rows[0].Environments = []string{"production"}
 
-	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
 		querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -126,7 +126,7 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 func TestPlanSupplyChainRuntimeEnvironmentCandidatesSharesPageBudgetFairly(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]impact.SupplyChainImpactFindingRow, SupplyChainImpactFindingMaxLimit)
+	rows := make([]impact.SupplyChainImpactFindingRow, ImpactFindingMaxLimit)
 	for i := range rows {
 		rows[i] = impact.SupplyChainImpactFindingRow{
 			FindingID:     "finding-" + strconv.Itoa(i),
@@ -135,7 +135,7 @@ func TestPlanSupplyChainRuntimeEnvironmentCandidatesSharesPageBudgetFairly(t *te
 		}
 	}
 	candidates, plans := PlanSupplyChainRuntimeEnvironmentCandidates(rows, nil)
-	if got, want := len(candidates), SupplyChainImpactFindingMaxLimit; got != want {
+	if got, want := len(candidates), ImpactFindingMaxLimit; got != want {
 		t.Fatalf("SQL candidates = %d, want %d", got, want)
 	}
 	for rowIndex, plan := range plans {
@@ -181,7 +181,7 @@ func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *t
 		ByDigest: map[string]map[string]string{row.SubjectDigest: sourceEvidence},
 	}
 	rows := []impact.SupplyChainImpactFindingRow{row}
-	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
 		querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -215,7 +215,7 @@ func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing
 		},
 	}
 	rows := []impact.SupplyChainImpactFindingRow{row}
-	if err := (&SupplyChainHandler{ImpactFindings: store}).applySupplyChainRuntimeContext(
+	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
 		querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -252,7 +252,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 			finding.SubjectDigest: {"production": "deploy_event"},
 		},
 	}
-	handler := &SupplyChainHandler{
+	handler := &Handler{
 		ImpactFindings: contextStore,
 		ImpactExplanations: &evidenceExplanationStore{
 			row: impact.SupplyChainImpactExplanationRow{Finding: finding},

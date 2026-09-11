@@ -61,7 +61,7 @@ type VulnerabilitySuppressionMutationResponse struct {
 	Status        string `json:"status"`
 }
 
-func (h *SupplyChainHandler) createVulnerabilitySuppression(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) createVulnerabilitySuppression(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryVulnerabilitySuppressionMutation,

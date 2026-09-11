@@ -52,9 +52,9 @@ type supplyChainImpactRuntimeEnvironmentReader interface {
 	) (map[string]map[string]string, error)
 }
 
-const MaxSupplyChainRuntimeEnvironmentCandidates = SupplyChainImpactFindingMaxLimit
+const MaxSupplyChainRuntimeEnvironmentCandidates = ImpactFindingMaxLimit
 
-type SupplyChainRuntimeEnvironmentPlan struct {
+type RuntimeEnvironmentPlan struct {
 	candidates []impact.SupplyChainRuntimeEnvironmentCandidate
 	metadata   *impact.SupplyChainRuntimeEnvironmentEvidenceProbe
 }
@@ -79,7 +79,7 @@ type SupplyChainRuntimeEnvironmentPlan struct {
 // matching the cloud-runtime probe's fail-loud contract. Scoped access is
 // forwarded to the reader so response hydration and runtime filters cannot
 // disagree about which current facts the caller may observe.
-func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
+func (h *Handler) applySupplyChainRuntimeContext(
 	ctx context.Context,
 	rows []impact.SupplyChainImpactFindingRow,
 	access querycontract.RepositoryAccessFilter,
@@ -122,7 +122,7 @@ func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 		return err
 	}
 	byDigest := map[string]map[string]string{}
-	environmentPlans := make([]SupplyChainRuntimeEnvironmentPlan, len(rows))
+	environmentPlans := make([]RuntimeEnvironmentPlan, len(rows))
 	if environmentReader, ok := h.ImpactFindings.(supplyChainImpactRuntimeEnvironmentReader); ok && environmentReader != nil {
 		candidates, plans := PlanSupplyChainRuntimeEnvironmentCandidates(rows, byRepo)
 		environmentPlans = plans
@@ -168,7 +168,7 @@ func (h *SupplyChainHandler) applySupplyChainRuntimeContext(
 }
 
 func supplyChainRuntimeEnvironmentEvidenceForPlan(
-	plan SupplyChainRuntimeEnvironmentPlan,
+	plan RuntimeEnvironmentPlan,
 	byDigest map[string]map[string]string,
 ) map[string]string {
 	var out map[string]string
@@ -187,8 +187,8 @@ func supplyChainRuntimeEnvironmentEvidenceForPlan(
 func PlanSupplyChainRuntimeEnvironmentCandidates(
 	rows []impact.SupplyChainImpactFindingRow,
 	byRepo map[string]impact.SupplyChainRuntimeContext,
-) ([]impact.SupplyChainRuntimeEnvironmentCandidate, []SupplyChainRuntimeEnvironmentPlan) {
-	plans := make([]SupplyChainRuntimeEnvironmentPlan, len(rows))
+) ([]impact.SupplyChainRuntimeEnvironmentCandidate, []RuntimeEnvironmentPlan) {
+	plans := make([]RuntimeEnvironmentPlan, len(rows))
 	available := make([][]impact.SupplyChainRuntimeEnvironmentCandidate, len(rows))
 	for rowIndex, row := range rows {
 		digest := strings.TrimSpace(row.SubjectDigest)

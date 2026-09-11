@@ -17,12 +17,12 @@ import (
 // advisory evidence queryer seam so the catalog and detail read models share one
 // Postgres connection contract.
 type PostgresAdvisoryCatalogStore struct {
-	DB AdvisoryEvidenceQueryer
+	DB EvidenceQueryer
 }
 
 // NewPostgresAdvisoryCatalogStore creates the Postgres-backed catalog read
 // model.
-func NewPostgresAdvisoryCatalogStore(db AdvisoryEvidenceQueryer) PostgresAdvisoryCatalogStore {
+func NewPostgresAdvisoryCatalogStore(db EvidenceQueryer) PostgresAdvisoryCatalogStore {
 	return PostgresAdvisoryCatalogStore{DB: db}
 }
 
@@ -31,14 +31,14 @@ func NewPostgresAdvisoryCatalogStore(db AdvisoryEvidenceQueryer) PostgresAdvisor
 // by the page limit, and cancellable through the request context.
 func (s PostgresAdvisoryCatalogStore) ListAdvisoryCatalog(
 	ctx context.Context,
-	filter AdvisoryCatalogFilter,
-) (AdvisoryCatalogPage, error) {
+	filter CatalogFilter,
+) (CatalogPage, error) {
 	filter = NormalizeAdvisoryCatalogFilter(filter)
 	if s.DB == nil {
-		return AdvisoryCatalogPage{}, fmt.Errorf("advisory catalog database is required")
+		return CatalogPage{}, fmt.Errorf("advisory catalog database is required")
 	}
-	if filter.Limit <= 0 || filter.Limit > AdvisoryCatalogMaxLimit+1 {
-		return AdvisoryCatalogPage{}, fmt.Errorf("limit must be between 1 and %d for internal pagination", AdvisoryCatalogMaxLimit+1)
+	if filter.Limit <= 0 || filter.Limit > CatalogMaxLimit+1 {
+		return CatalogPage{}, fmt.Errorf("limit must be between 1 and %d for internal pagination", CatalogMaxLimit+1)
 	}
 	rows, err := s.DB.QueryContext(
 		ctx,
@@ -52,11 +52,11 @@ func (s PostgresAdvisoryCatalogStore) ListAdvisoryCatalog(
 		filter.Limit,
 	)
 	if err != nil {
-		return AdvisoryCatalogPage{}, fmt.Errorf("list advisory catalog: %w", err)
+		return CatalogPage{}, fmt.Errorf("list advisory catalog: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	page := AdvisoryCatalogPage{Rows: make([]AdvisoryCatalogRow, 0, filter.Limit)}
+	page := CatalogPage{Rows: make([]CatalogRow, 0, filter.Limit)}
 	for rows.Next() {
 		var (
 			advisoryKey   string
@@ -82,10 +82,10 @@ func (s PostgresAdvisoryCatalogStore) ListAdvisoryCatalog(
 			&packageIDs,
 			&kev,
 		); err != nil {
-			return AdvisoryCatalogPage{}, fmt.Errorf("list advisory catalog: %w", err)
+			return CatalogPage{}, fmt.Errorf("list advisory catalog: %w", err)
 		}
-		page.Rows = append(page.Rows, AdvisoryCatalogRow{
-			AdvisoryKey:   advisoryKey,
+		page.Rows = append(page.Rows, CatalogRow{
+			Key:           advisoryKey,
 			CanonicalID:   advisoryKey,
 			CVEID:         strings.TrimSpace(cveID.String),
 			GHSAID:        strings.TrimSpace(ghsaID.String),
@@ -99,7 +99,7 @@ func (s PostgresAdvisoryCatalogStore) ListAdvisoryCatalog(
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return AdvisoryCatalogPage{}, fmt.Errorf("list advisory catalog: %w", err)
+		return CatalogPage{}, fmt.Errorf("list advisory catalog: %w", err)
 	}
 	return page, nil
 }
@@ -109,7 +109,7 @@ func (s PostgresAdvisoryCatalogStore) ListAdvisoryCatalog(
 // the SQL owns case folding; the advisory key cursor is upper-cased to match
 // the canonical key projection. Exported for the staying root catalog
 // handler path and the root catalog tests.
-func NormalizeAdvisoryCatalogFilter(filter AdvisoryCatalogFilter) AdvisoryCatalogFilter {
+func NormalizeAdvisoryCatalogFilter(filter CatalogFilter) CatalogFilter {
 	filter.Severity = strings.TrimSpace(filter.Severity)
 	filter.Ecosystem = strings.TrimSpace(filter.Ecosystem)
 	filter.Query = strings.TrimSpace(filter.Query)

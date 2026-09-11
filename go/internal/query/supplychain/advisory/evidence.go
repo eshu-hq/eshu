@@ -11,30 +11,30 @@ import "context"
 // handlers on it (#6060 lane A keeps registration and routing in root).
 const AdvisoryEvidenceCapability = "supply_chain.advisory_evidence.list"
 
-// AdvisoryEvidenceMaxLimit bounds one evidence page. Exported for the
+// EvidenceMaxLimit bounds one evidence page. Exported for the
 // staying root evidence handler's limit check and the root evidence tests.
-const AdvisoryEvidenceMaxLimit = 200
+const EvidenceMaxLimit = 200
 
-// AdvisoryEvidenceMaxFactRows bounds the scanned fact rows behind one
+// EvidenceMaxFactRows bounds the scanned fact rows behind one
 // evidence page. Exported for the root evidence tests.
-const AdvisoryEvidenceMaxFactRows = 5000
+const EvidenceMaxFactRows = 5000
 
 const (
 	advisoryEvidenceFreshnessCurrent = "active"
 )
 
-// AdvisoryEvidenceStore reads source-only vulnerability advisory evidence.
-type AdvisoryEvidenceStore interface {
-	ListAdvisoryEvidence(context.Context, AdvisoryEvidenceFilter) ([]AdvisoryEvidenceRow, error)
+// EvidenceStore reads source-only vulnerability advisory evidence.
+type EvidenceStore interface {
+	ListAdvisoryEvidence(context.Context, EvidenceFilter) ([]EvidenceRow, error)
 }
 
-// AdvisoryEvidenceFilter bounds source-evidence reads to an advisory, CVE,
+// EvidenceFilter bounds source-evidence reads to an advisory, CVE,
 // package, repository, service, or workload anchor. Repository, service, and
 // workload anchors derive advisory lookups only from reducer-owned impact
 // findings; provider-alert-only rows are not advisory evidence anchors.
-type AdvisoryEvidenceFilter struct {
+type EvidenceFilter struct {
 	CVEID            string
-	AdvisoryID       string
+	ID               string
 	PackageID        string
 	RepositoryID     string
 	ServiceID        string
@@ -54,34 +54,34 @@ type AdvisoryEvidenceFilter struct {
 	AllowedSourceRepositoryIDs []string
 }
 
-// AdvisoryEvidenceRow is one canonical advisory identity with source-specific
+// EvidenceRow is one canonical advisory identity with source-specific
 // evidence attached. It is source evidence only and does not imply repository,
 // image, workload, or package impact.
-type AdvisoryEvidenceRow struct {
-	AdvisoryKey         string                       `json:"advisory_key"`
-	CanonicalID         string                       `json:"canonical_id"`
-	CVEIDs              []string                     `json:"cve_ids,omitempty"`
-	GHSAIDs             []string                     `json:"ghsa_ids,omitempty"`
-	OSVIDs              []string                     `json:"osv_ids,omitempty"`
-	SourceIDs           []string                     `json:"source_ids,omitempty"`
-	Sources             []AdvisorySourceEvidence     `json:"sources,omitempty"`
-	AffectedPackages    []AdvisoryAffectedPackage    `json:"affected_packages,omitempty"`
-	AffectedProducts    []AdvisoryAffectedProduct    `json:"affected_products,omitempty"`
-	EPSS                []AdvisoryEPSSObservation    `json:"epss,omitempty"`
-	KEV                 []AdvisoryKEVObservation     `json:"kev,omitempty"`
-	References          []AdvisoryReferenceEvidence  `json:"references,omitempty"`
-	SourceDisagreements []AdvisorySourceDisagreement `json:"source_disagreements,omitempty"`
-	EvidenceFactIDs     []string                     `json:"evidence_fact_ids,omitempty"`
-	LatestObservedAt    string                       `json:"latest_observed_at,omitempty"`
-	SourceFreshness     string                       `json:"source_freshness,omitempty"`
-	SourceConfidence    string                       `json:"source_confidence,omitempty"`
+type EvidenceRow struct {
+	Key                 string               `json:"advisory_key"`
+	CanonicalID         string               `json:"canonical_id"`
+	CVEIDs              []string             `json:"cve_ids,omitempty"`
+	GHSAIDs             []string             `json:"ghsa_ids,omitempty"`
+	OSVIDs              []string             `json:"osv_ids,omitempty"`
+	SourceIDs           []string             `json:"source_ids,omitempty"`
+	Sources             []SourceEvidence     `json:"sources,omitempty"`
+	AffectedPackages    []AffectedPackage    `json:"affected_packages,omitempty"`
+	AffectedProducts    []AffectedProduct    `json:"affected_products,omitempty"`
+	EPSS                []EPSSObservation    `json:"epss,omitempty"`
+	KEV                 []KEVObservation     `json:"kev,omitempty"`
+	References          []ReferenceEvidence  `json:"references,omitempty"`
+	SourceDisagreements []SourceDisagreement `json:"source_disagreements,omitempty"`
+	EvidenceFactIDs     []string             `json:"evidence_fact_ids,omitempty"`
+	LatestObservedAt    string               `json:"latest_observed_at,omitempty"`
+	SourceFreshness     string               `json:"source_freshness,omitempty"`
+	SourceConfidence    string               `json:"source_confidence,omitempty"`
 }
 
-// AdvisorySourceEvidence preserves one source-reported advisory identity,
+// SourceEvidence preserves one source-reported advisory identity,
 // severity, weakness, and withdrawal observation.
-type AdvisorySourceEvidence struct {
+type SourceEvidence struct {
 	Source        string              `json:"source"`
-	AdvisoryID    string              `json:"advisory_id,omitempty"`
+	ID            string              `json:"advisory_id,omitempty"`
 	CVEID         string              `json:"cve_id,omitempty"`
 	GHSAID        string              `json:"ghsa_id,omitempty"`
 	Aliases       []string            `json:"aliases,omitempty"`
@@ -100,11 +100,11 @@ type AdvisorySourceEvidence struct {
 	SourceFactIDs []string            `json:"source_fact_ids,omitempty"`
 }
 
-// AdvisoryAffectedPackage preserves package-native affected range and fixed
+// AffectedPackage preserves package-native affected range and fixed
 // version evidence from OSV, GHSA, GLAD, or vendor package advisories.
-type AdvisoryAffectedPackage struct {
+type AffectedPackage struct {
 	Source              string           `json:"source"`
-	AdvisoryID          string           `json:"advisory_id,omitempty"`
+	ID                  string           `json:"advisory_id,omitempty"`
 	CVEID               string           `json:"cve_id,omitempty"`
 	GHSAID              string           `json:"ghsa_id,omitempty"`
 	Ecosystem           string           `json:"ecosystem,omitempty"`
@@ -118,8 +118,8 @@ type AdvisoryAffectedPackage struct {
 	SourceFactID        string           `json:"source_fact_id,omitempty"`
 }
 
-// AdvisoryAffectedProduct preserves NVD product/CPE applicability evidence.
-type AdvisoryAffectedProduct struct {
+// AffectedProduct preserves NVD product/CPE applicability evidence.
+type AffectedProduct struct {
 	Source                      string `json:"source"`
 	CVEID                       string `json:"cve_id,omitempty"`
 	Criteria                    string `json:"criteria,omitempty"`
@@ -136,8 +136,8 @@ type AdvisoryAffectedProduct struct {
 	SourceFactID                string `json:"source_fact_id,omitempty"`
 }
 
-// AdvisoryEPSSObservation preserves one FIRST EPSS score observation.
-type AdvisoryEPSSObservation struct {
+// EPSSObservation preserves one FIRST EPSS score observation.
+type EPSSObservation struct {
 	Source      string `json:"source"`
 	CVEID       string `json:"cve_id,omitempty"`
 	Probability string `json:"probability,omitempty"`
@@ -146,8 +146,8 @@ type AdvisoryEPSSObservation struct {
 	FactID      string `json:"fact_id,omitempty"`
 }
 
-// AdvisoryKEVObservation preserves one CISA KEV known-exploited observation.
-type AdvisoryKEVObservation struct {
+// KEVObservation preserves one CISA KEV known-exploited observation.
+type KEVObservation struct {
 	Source                     string   `json:"source"`
 	CVEID                      string   `json:"cve_id,omitempty"`
 	DateAdded                  string   `json:"date_added,omitempty"`
@@ -158,25 +158,25 @@ type AdvisoryKEVObservation struct {
 	FactID                     string   `json:"fact_id,omitempty"`
 }
 
-// AdvisoryReferenceEvidence preserves one sanitized source reference URL.
-type AdvisoryReferenceEvidence struct {
+// ReferenceEvidence preserves one sanitized source reference URL.
+type ReferenceEvidence struct {
 	Source        string `json:"source"`
-	AdvisoryID    string `json:"advisory_id,omitempty"`
+	ID            string `json:"advisory_id,omitempty"`
 	CVEID         string `json:"cve_id,omitempty"`
 	ReferenceType string `json:"reference_type,omitempty"`
 	URL           string `json:"url,omitempty"`
 	FactID        string `json:"fact_id,omitempty"`
 }
 
-// AdvisorySourceDisagreement records a source-level disagreement without
+// SourceDisagreement records a source-level disagreement without
 // selecting a winner.
-type AdvisorySourceDisagreement struct {
-	Field  string                      `json:"field"`
-	Values []AdvisoryDisagreementValue `json:"values"`
+type SourceDisagreement struct {
+	Field  string              `json:"field"`
+	Values []DisagreementValue `json:"values"`
 }
 
-// AdvisoryDisagreementValue is one source/value pair inside a disagreement.
-type AdvisoryDisagreementValue struct {
+// DisagreementValue is one source/value pair inside a disagreement.
+type DisagreementValue struct {
 	Source string `json:"source"`
 	Value  string `json:"value"`
 }

@@ -13,7 +13,7 @@ import (
 
 type scannerFilterSet map[string]struct{}
 
-func ImpactFindingsScannerFilters() scannerFilterSet {
+func FindingsScannerFilters() scannerFilterSet {
 	return scannerFilterSet{
 		"advisory_id": {}, "cve_id": {}, "ecosystem": {}, "environment": {},
 		"ghsa_id": {}, "impact_status": {}, "osv_id": {}, "package_id": {},
@@ -22,7 +22,7 @@ func ImpactFindingsScannerFilters() scannerFilterSet {
 	}
 }
 
-func ImpactExplanationScannerFilters() scannerFilterSet {
+func ExplanationScannerFilters() scannerFilterSet {
 	return scannerFilterSet{
 		"advisory_id": {}, "cve_id": {}, "finding_id": {}, "package_id": {},
 		"image_ref": {}, "repository_id": {}, "service_id": {}, "subject_digest": {},

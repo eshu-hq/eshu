@@ -21,19 +21,19 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// SupplyChainCloudRuntimeProbeMaxDigests bounds the runtime-image probe: at most
+// CloudRuntimeProbeMaxDigests bounds the runtime-image probe: at most
 // this many distinct subject digests are matched against owner-ledger rows in
 // one read, so a large findings page can never issue an unbounded IN-list query.
 // A page returning more distinct digests than this is capped; the
 // excess simply does not gain a runtime tier (a bounded, documented limit, not a
 // silent wrong answer).
-const SupplyChainCloudRuntimeProbeMaxDigests = 200
+const CloudRuntimeProbeMaxDigests = 200
 
-// SupplyChainCloudRuntimeProbeMaxResults is the owner-ledger row budget for one
+// CloudRuntimeProbeMaxResults is the owner-ledger row budget for one
 // findings page. It is no longer the bound the query applies:
-// SupplyChainCloudRuntimeProbePerDigestLimit divides this budget across the
+// CloudRuntimeProbePerDigestLimit divides this budget across the
 // digests on the page, floored at
-// SupplyChainCloudRuntimeProbePerDigestMinResults, and the query applies that
+// CloudRuntimeProbePerDigestMinResults, and the query applies that
 // per-digest number inside a CROSS JOIN LATERAL -- one bounded, ordered index
 // scan per digest (#5789).
 //
@@ -53,9 +53,9 @@ const SupplyChainCloudRuntimeProbeMaxDigests = 200
 // them. It no longer loses the promotion itself, because runtime_confirmed
 // needs one current, authorized resource and every requested digest now gets
 // its own share.
-const SupplyChainCloudRuntimeProbeMaxResults = 200
+const CloudRuntimeProbeMaxResults = 200
 
-// SupplyChainCloudRuntimeProbePerDigestMinResults is the floor under the
+// CloudRuntimeProbePerDigestMinResults is the floor under the
 // owner-ledger rows considered FOR EACH subject digest. The per-digest bound
 // replaces the total-row cap above as the query's actual bound (#5789); this
 // constant is the smallest that bound may shrink to, however crowded the page.
@@ -72,15 +72,15 @@ const SupplyChainCloudRuntimeProbeMaxResults = 200
 // only that at least one current, authorized resource runs the digest, so a
 // bounded sample answers it -- while total work stays bounded and deterministic
 // at len(digests) x this value, itself capped by
-// SupplyChainCloudRuntimeProbeMaxDigests.
-const SupplyChainCloudRuntimeProbePerDigestMinResults = 10
+// CloudRuntimeProbeMaxDigests.
+const CloudRuntimeProbePerDigestMinResults = 10
 
-// SupplyChainCloudRuntimeProbePerDigestLimit returns the per-digest bound for a
+// CloudRuntimeProbePerDigestLimit returns the per-digest bound for a
 // page of digestCount digests: the total budget shared evenly, with a floor.
 //
 // A flat per-digest number would have fixed starvation while quietly narrowing
 // the single-digest case -- one digest used to yield up to
-// SupplyChainCloudRuntimeProbeMaxResults resource refs as evidence, and a flat
+// CloudRuntimeProbeMaxResults resource refs as evidence, and a flat
 // 10 would have cut that to 10 for every caller, a user-visible reduction this
 // issue never asked for.
 //
@@ -94,13 +94,13 @@ const SupplyChainCloudRuntimeProbePerDigestMinResults = 10
 // 200-digest page one row each, and a page's digest count must not decide
 // whether a finding gets any runtime evidence at all. The worst case grows from
 // 200 rows to 2000, bounded and stated rather than incidental (Copilot review).
-func SupplyChainCloudRuntimeProbePerDigestLimit(digestCount int) int {
+func CloudRuntimeProbePerDigestLimit(digestCount int) int {
 	if digestCount <= 0 {
-		return SupplyChainCloudRuntimeProbePerDigestMinResults
+		return CloudRuntimeProbePerDigestMinResults
 	}
-	share := SupplyChainCloudRuntimeProbeMaxResults / digestCount
-	if share < SupplyChainCloudRuntimeProbePerDigestMinResults {
-		return SupplyChainCloudRuntimeProbePerDigestMinResults
+	share := CloudRuntimeProbeMaxResults / digestCount
+	if share < CloudRuntimeProbePerDigestMinResults {
+		return CloudRuntimeProbePerDigestMinResults
 	}
 	return share
 }
@@ -123,7 +123,7 @@ func SupplyChainCloudRuntimeProbePerDigestLimit(digestCount int) int {
 // CI-declared/config. A ledger error is returned to the caller rather
 // than swallowed, so a probe failure never silently downgrades a
 // runtime_confirmed finding to a false config_only.
-func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
+func (h *Handler) probeSupplyChainCloudRuntimeResources(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
 	digests []string,
@@ -136,8 +136,8 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 		return nil, nil
 	}
 	deduped := UniqueSortedNonEmpty(digests)
-	if len(deduped) > SupplyChainCloudRuntimeProbeMaxDigests {
-		deduped = deduped[:SupplyChainCloudRuntimeProbeMaxDigests]
+	if len(deduped) > CloudRuntimeProbeMaxDigests {
+		deduped = deduped[:CloudRuntimeProbeMaxDigests]
 	}
 	if len(deduped) == 0 {
 		return nil, nil
@@ -217,7 +217,7 @@ func (h *SupplyChainHandler) probeSupplyChainCloudRuntimeResources(
 // probe error is propagated so the read fails loudly as a bounded internal
 // query error rather than serving a false config_only tier for a vulnerability
 // that is actually running.
-func (h *SupplyChainHandler) applySupplyChainCloudRuntimeEvidence(
+func (h *Handler) applySupplyChainCloudRuntimeEvidence(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
 	rows []impact.SupplyChainImpactFindingRow,

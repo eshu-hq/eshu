@@ -55,8 +55,8 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 			graphRows[digest] = append(graphRows[digest], kubernetesRuntimeLiveGraphRow(candidate))
 		}
 	}
-	if got := len(allCandidates); got != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("seed candidates = %d, want all-scopes bound %d", got, supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if got := len(allCandidates); got != supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("seed candidates = %d, want all-scopes bound %d", got, supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 	seedKubernetesRuntimeLiveCandidates(t, ctx, db, allCandidates)
 
@@ -65,8 +65,8 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 	for _, plan := range plans {
 		plannedCandidates += plan.QueryLimit
 	}
-	if plannedCandidates != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("planned candidates = %d, want bounded %d", plannedCandidates, supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if plannedCandidates != supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("planned candidates = %d, want bounded %d", plannedCandidates, supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 
 	handler := &SupplyChainHandler{
