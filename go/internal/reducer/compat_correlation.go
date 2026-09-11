@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the correlation families (servicecatalog, cicdrun, crossrepo, sbomattest)
+// This file is the reducer root's compatibility surface for the correlation families (servicecatalog, cicdrun, crossrepo, sbomattest, supplychain)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -400,11 +400,11 @@ func ComponentEvidenceTupleEqual(a, b ComponentEvidence) bool {
 	return sbomattest.ComponentEvidenceTupleEqual(a, b)
 }
 
-// sbomAttestationAttachmentFactKind lives in intent.go, aliased directly from
-// [reducercontract.SBOMAttestationAttachmentFactKind] rather than forwarded
-// through sbomattest -- see that file's alias block, mirroring
-// containerImageIdentityFactKind's identical shape for the same reason
-// (#6431).
+// sbomAttestationAttachmentFactKind is not aliased in root any more: the moved
+// sbomattest family names [reducercontract.SBOMAttestationAttachmentFactKind]
+// directly, and the intent.go alias this comment used to point at was removed
+// once the last in-root caller moved (#6061). containerImageIdentityFactKind in
+// intent.go keeps the same direct-from-contract shape (#6431).
 
 // Stanza: supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
 // This file is the transitional compatibility surface for the supply-chain
