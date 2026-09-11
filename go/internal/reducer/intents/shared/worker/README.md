@@ -23,9 +23,9 @@ edges, mark completed, release lease), `SelectPartitionBatch`,
 `Runner` (the long-lived polling loop across domains and
 partitions), the lease heartbeat, the indexed/legacy partition candidate
 readers, batch dedup and authoritative-generation filtering, readiness and
-property-keyed presence gating (`filterRowsByReadiness`,
+property-keyed presence gating (`FilterRowsByReadiness`,
 `filterRowsByTargetPresence`), the repo-wide-retract fence
-(`planRepoWideRetractWork` and its helpers), the runner's env-var
+(`PlanRepoWideRetractWork` and its helpers), the runner's env-var
 configuration, and its telemetry.
 
 **Does not own:** intent row shape and identity (`sharedintent`), readiness

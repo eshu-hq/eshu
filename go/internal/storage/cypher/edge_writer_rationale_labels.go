@@ -132,7 +132,7 @@ const (
 //
 // Granularity is per RetractEdges BATCH, not per repository. The reducer
 // selects intents by partition-hash bucket (defaultPartitionCount=8) up to
-// defaultBatchLimit (100) rows, planRepoWideRetractWork routes every
+// defaultBatchLimit (100) rows, worker.PlanRepoWideRetractWork routes every
 // non-skipped refresh row into one retract set, and the worker makes a single
 // RetractEdges call for it -- so one probe and at most one DELETE cover every
 // repository in that batch, binding all of their ids in $repo_ids at once.

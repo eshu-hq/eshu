@@ -97,7 +97,7 @@ func (w *EdgeWriter) RetractEdges(
 		// (#6166). DomainCodeCalls is in NEITHER half of
 		// wholeScopeRetractDomains, and absent from
 		// sharedintent.DomainHasRepoWideRetract, so its rows never pass through
-		// planRepoWideRetractWork at all; they are synthesised by
+		// worker.PlanRepoWideRetractWork at all; they are synthesised by
 		// buildCodeCallRepoRetractRows (reducer/code/call/projection/rows.go),
 		// which emits a bare {"repo_id": ...} payload with no intent_type.
 		// Requiring the refresh intent_type here empties repoIDs and the

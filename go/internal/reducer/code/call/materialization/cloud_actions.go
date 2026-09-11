@@ -196,7 +196,7 @@ func buildInvokesCloudActionIntentRows(
 				"function_id": functionID,
 				"repo_id":     repositoryID,
 				// The cloud action lives under "cloud_action", NOT "action": the
-				// shared-projection worker's filterUpsertRows treats payload["action"]
+				// sharedintent.FilterUpsertRows (the shared-projection worker's upsert gate) treats payload["action"]
 				// as the upsert/refresh/delete discriminator and drops any row whose
 				// action is not "upsert". Storing the cloud action ("s3:putobject")
 				// under "action" silently dropped every INVOKES_CLOUD_ACTION upsert,

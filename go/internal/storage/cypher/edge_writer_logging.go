@@ -242,7 +242,7 @@ func sharedEdgeStatementSummaries(stmts []Statement) []string {
 // silent.
 //
 // Today no production emitter can produce such a row (every per-edge intent
-// builder stamps retract_via_refresh unconditionally, and planRepoWideRetractWork
+// builder stamps retract_via_refresh unconditionally, and worker.PlanRepoWideRetractWork
 // routes a marked row to the write path), which is what
 // TestSiblingProductionIntentsNeverReachRetractAsUnmarkedRows and its rationale
 // sibling pin. This log is the safety net for the day that stops being true:

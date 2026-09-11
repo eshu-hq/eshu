@@ -108,10 +108,10 @@ duplicated, or wrong winner is a failure (I1–I5 first).
 
 Reuse the shared-projection runner the reducer already runs:
 
-- `reducer.SharedProjectionRunner` (`shared_projection_runner.go`): a dedicated,
+- `reducer.SharedProjectionRunner` (`intents/shared/worker/runner.go`): a dedicated,
   long-lived goroutine alongside the claim/execute/ack loop, polling
   shared-projection domains, partitioned, lease-coordinated.
-- `PartitionLeaseManager` (`shared_projection_worker.go`): heartbeat TTL lease;
+- `PartitionLeaseManager` (`sharedintent/ports.go`): heartbeat TTL lease;
   exactly one worker owns a partition at a time.
 - Winner upsert mirrors `canonicalReducerFactInsertQuery` style
   (`workload_identity_writer.go`) — `ON CONFLICT … DO UPDATE`.

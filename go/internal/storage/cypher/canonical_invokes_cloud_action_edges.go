@@ -50,7 +50,7 @@ func buildInvokesCloudActionRowMap(
 	functionID := payloadString(payload, "function_id")
 	// The cloud action is carried under "cloud_action" (not "action"), so it does
 	// not collide with the shared-projection upsert/refresh discriminator that
-	// filterUpsertRows reads from payload["action"]. The Cypher param stays
+	// sharedintent.FilterUpsertRows reads from payload["action"]. The Cypher param stays
 	// "action" because it sets the CloudAction node + edge action property.
 	action := payloadString(payload, "cloud_action")
 	actionID := payloadString(payload, "action_id")

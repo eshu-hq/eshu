@@ -69,11 +69,11 @@ root repair queue is present (`defaults_domain_catalog.go:91-106`).
 declared locally in `graph_ports.go` rather than reusing `gpphase`'s
 `PhaseRepairQueue`/`PhaseRepair` directly (the root's own
 `GraphProjectionPhaseRepairQueue`/`GraphProjectionPhaseRepair` spellings,
-still declared at `graph_projection_phase_repair.go`, are themselves now
+declared in the root's `compat_correlation.go` bucket, are themselves now
 aliases to those two `gpphase` types as of issue #6061's H3): the concrete
 repair queue this package's `RepairQueue` field is wired to at runtime is
-built and typed at the reducer root (`graph_projection_phase_repair_runner.go`,
-`workload_materialization_handler.go`, `workload_materialization_repo_phase.go`).
+drained by `intents/phase/repair/runner.go` and typed at the reducer root
+(`workload_materialization_handler.go`, `workload_materialization_repo_phase.go`).
 Unlike the codetaint ports this pattern follows, this interface's `Enqueue`
 method takes a named struct parameter, and Go requires exact type identity
 for that, not just a matching method set — a queue built against the

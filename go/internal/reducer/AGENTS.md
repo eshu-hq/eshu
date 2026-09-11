@@ -43,11 +43,11 @@ before touching any file in this directory.
   captures the retry. Do not skip enqueueing to the repair queue when a
   publish fails.
 - **Shared projection intent IDs are stable SHA256 hashes** —
-  `shared_projection.go:62–74`; changing the default identity fields breaks
+  `sharedintent.Build` (`sharedintent/intent.go`, root spelling `BuildSharedProjectionIntent`); changing the default identity fields breaks
   in-flight idempotency. `IdentityKey` is a narrow override for domains that
   must store several rows under one durable `PartitionKey` without collapsing
   their `intent_id`s; audit every caller before using it.
-- **Edge domains gate on readiness phases** — `sharedProjectionReadinessPhase`;
+- **Edge domains gate on readiness phases** — `worker.ReadinessPhase` (`intents/shared/worker/domains.go`);
   `code_calls`, `inheritance_edges`, `sql_relationships`, and `rationale_edges`
   gate on `canonical_nodes_committed` because their targets are canonical or
   created inline. `semantic_nodes_committed` can stall them forever (#2867-#2869).
@@ -138,16 +138,16 @@ before touching any file in this directory.
 
 1. Add the constant to `gpphase/keyspace.go` (keyspace) or `gpphase/phasekey.go` (phase) — see `gpphase/README.md`. Add a `GraphProjectionKeyspace*`/`GraphProjectionPhase*` alias in `graph_projection_phase.go` only if root callers need the old spelling.
 2. Verify the new constant does not conflict with existing keyspace usage in
-   `shared_projection.go:91–99`.
+   `worker.ReadinessPhase` and `worker.ReadinessKeyspace` (`intents/shared/worker/domains.go`).
 3. Update `internal/storage/postgres` schema DDL if a new readiness row
    shape is needed.
-4. Update `sharedProjectionReadinessPhase` in `shared_projection.go` if the
+4. Update `worker.ReadinessPhase` in `intents/shared/worker/domains.go` if the
    new phase gates a shared-projection domain.
 
 ### Change shared projection runner config
 
-- Env var parsing lives in `LoadSharedProjectionConfig`
-  (`shared_projection_runner.go:476`); constants live in `cmd/reducer/config.go`.
+- Env var parsing lives in `worker.LoadConfig`
+  (`intents/shared/worker/config.go`; the root keeps the `LoadSharedProjectionConfig` spelling); constants live in `cmd/reducer/config.go`.
 - Update both the runner config and the README config table in the same PR.
 
 ## Failure modes
@@ -2173,8 +2173,8 @@ completion logs).
 - The `BuildSharedProjectionIntent` SHA256 identity function.
 - The `GraphProjectionPhaseRepairQueue` contract (removing it breaks
   the non-atomic write/publish recovery path).
-- The ordering of phases in `sharedProjectionReadinessPhase`
-  (`shared_projection.go:91–99`).
+- The ordering of phases in `worker.ReadinessPhase`
+  (`intents/shared/worker/domains.go`).
 
 ## #4771 — docker-compose runtime signal repair (evidence)
 

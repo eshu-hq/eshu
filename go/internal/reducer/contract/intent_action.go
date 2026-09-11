@@ -3,7 +3,7 @@
 
 package contract
 
-// Shared-projection intent actions. filterUpsertRows
+// Shared-projection intent actions. sharedintent.FilterUpsertRows
 // (go/internal/reducer/sharedintent/rows.go) keeps only rows whose
 // payload action is IntentActionUpsert; IntentActionRetract rows drive the
 // repo-wide retract path. Used by the code-call, inheritance, rationale, SQL,

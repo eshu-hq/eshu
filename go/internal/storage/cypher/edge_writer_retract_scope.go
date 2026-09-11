@@ -68,7 +68,7 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // branches of inheritance, rationale, SQL relationships and shell exec.
 //
 // #6166: those four non-delta branches used to bind the batch-wide
-// collectRepoIDs. planRepoWideRetractWork routes unmarked legacy per-edge rows
+// collectRepoIDs. worker.PlanRepoWideRetractWork routes unmarked legacy per-edge rows
 // into the retract alongside the refresh rows
 // (reducer/shared_projection_worker_refresh_fence.go), so one such row handed
 // its repository a whole-repository DELETE that erased its edges across every
@@ -95,7 +95,7 @@ func collectRepoIDs(rows []reducer.SharedProjectionIntentRow) []string {
 // Both conditions are load-bearing, and the intent_type one is the subtle one.
 // "Lacks delta_projection" is NOT the same as "is a whole-scope refresh": a
 // batch can also carry unmarked legacy per-edge rows, which
-// planRepoWideRetractWork deliberately routes into retractRows so they drain
+// worker.PlanRepoWideRetractWork deliberately routes into retractRows so they drain
 // instead of deferring forever (shared_projection_worker_refresh_fence.go), and
 // ProcessPartitionOnce passes every row as retractRows when no refresh fence is
 // configured at all. Those rows carry no delta_projection either. Sweeping them
@@ -381,7 +381,7 @@ func buildDocumentationDeltaRetractStatements(
 // collectWholeScopeRefreshRepoIDs, so a batch whose rows carry no refresh
 // intent_type contributes no repository id, and the whole-repository DELETE is
 // skipped rather than run over the batch-wide list. Their retract rows come
-// from planRepoWideRetractWork, which also routes unmarked legacy per-edge rows
+// from worker.PlanRepoWideRetractWork, which also routes unmarked legacy per-edge rows
 // into the retract; binding one of those to a whole-repository DELETE erases a
 // repository's edges across every file while only this batch's rows get
 // rewritten.
@@ -398,7 +398,7 @@ func buildDocumentationDeltaRetractStatements(
 //
 // DomainCodeCalls is deliberately in NEITHER half. It looks like a narrowed
 // sibling and is not one: it is absent from domainHasRepoWideRetract, its rows
-// never pass through planRepoWideRetractWork, and requiring the refresh
+// never pass through worker.PlanRepoWideRetractWork, and requiring the refresh
 // intent_type on them empties repoIDs and stops the code-call retract running
 // at all. Read the note at its branch in RetractEdges before adding it here for
 // symmetry.
