@@ -13,8 +13,8 @@ through (issue #6061).
 It exists so this machinery can live outside the reducer root without
 importing it. The root imports the families that need this substrate, so
 this package staying in the root package was the single largest blocker to
-splitting those families into subpackages: 23-plus domains and 7 dedicated
-projection runners depend on it.
+splitting those families into subpackages: 23-plus domains and the dedicated
+projection runners (code-call and repo-dependency) depend on it.
 
 ## Ownership boundary
 
