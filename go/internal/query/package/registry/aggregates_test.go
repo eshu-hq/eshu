@@ -139,8 +139,8 @@ func TestPackageRegistryPackageInventoryReturnsBuckets(t *testing.T) {
 
 	store := &stubPackageRegistryAggregateStore{
 		inventory: []InventoryRow{
-			{Dimension: PackageRegistryInventoryByEcosystem, Value: "npm", Count: 50},
-			{Dimension: PackageRegistryInventoryByEcosystem, Value: "pypi", Count: 30},
+			{Dimension: InventoryByEcosystem, Value: "npm", Count: 50},
+			{Dimension: InventoryByEcosystem, Value: "pypi", Count: 30},
 		},
 	}
 	handler := &Handler{Aggregates: store}
@@ -154,7 +154,7 @@ func TestPackageRegistryPackageInventoryReturnsBuckets(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if store.lastDimension != PackageRegistryInventoryByEcosystem {
+	if store.lastDimension != InventoryByEcosystem {
 		t.Fatalf("dimension = %q, want ecosystem", store.lastDimension)
 	}
 	if store.lastLimit != 11 {
@@ -185,7 +185,7 @@ func TestPackageRegistryAggregateInventoryReportsTruncated(t *testing.T) {
 	rows := make([]InventoryRow, 6)
 	for i := range rows {
 		rows[i] = InventoryRow{
-			Dimension: PackageRegistryInventoryByRegistry,
+			Dimension: InventoryByRegistry,
 			Value:     "registry",
 			Count:     i,
 		}
@@ -356,7 +356,7 @@ func TestPackageRegistryAggregateInventoryNullsNextOffsetAtCeiling(t *testing.T)
 	rows := make([]InventoryRow, 6)
 	for i := range rows {
 		rows[i] = InventoryRow{
-			Dimension: PackageRegistryInventoryByEcosystem,
+			Dimension: InventoryByEcosystem,
 			Value:     "npm",
 			Count:     i,
 		}
@@ -420,11 +420,11 @@ func TestPackageRegistryInventoryGroupExpressionEnumIsClosed(t *testing.T) {
 	t.Parallel()
 
 	cases := []InventoryDimension{
-		PackageRegistryInventoryByEcosystem,
-		PackageRegistryInventoryByRegistry,
-		PackageRegistryInventoryByNamespace,
-		PackageRegistryInventoryByPackageManager,
-		PackageRegistryInventoryByVisibility,
+		InventoryByEcosystem,
+		InventoryByRegistry,
+		InventoryByNamespace,
+		InventoryByPackageManager,
+		InventoryByVisibility,
 	}
 	for _, dim := range cases {
 		if _, err := packageRegistryInventoryGroupExpression(dim); err != nil {

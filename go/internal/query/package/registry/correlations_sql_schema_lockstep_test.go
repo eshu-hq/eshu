@@ -48,7 +48,7 @@ func TestPackageRegistryCorrelationSQLProjectedFieldsAreSchemaDeclared(t *testin
 
 	// Fields listPackageRegistryCorrelationsQuery's WHERE clause reads
 	// straight off fact.payload as a raw JSONB operator
-	// (package_registry_correlations.go).
+	// (correlations.go).
 	sourceFields := []string{
 		"package_id",
 		"repository_id",

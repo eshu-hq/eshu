@@ -21,7 +21,7 @@ import (
 
 // TestPackageRegistryDependencyChainsSelectorMapsGraphReadAvailabilityErrors
 // covers listDependencyChains's resolveRepositorySelectorForRequestWithAccess
-// call (package_registry_dependency_chains_handler.go), a direct caller of the
+// call (package/registry/dependency_chains_handler.go), a direct caller of the
 // writing variant.
 func TestPackageRegistryDependencyChainsSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()

@@ -102,7 +102,7 @@ func TestGraphPackageRegistryAggregateStoreInventoryShapeIsHotPathEligible(t *te
 	rows, err := store.PackageRegistryPackageInventory(
 		context.Background(),
 		AggregateFilter{Ecosystem: "npm"},
-		PackageRegistryInventoryByRegistry,
+		InventoryByRegistry,
 		11,
 		0,
 	)
@@ -145,11 +145,11 @@ func TestGraphPackageRegistryAggregateStoreNormalizesEmptyStringBuckets(t *testi
 		dimension     InventoryDimension
 		propertyMatch string
 	}{
-		{"namespace", PackageRegistryInventoryByNamespace, "p.namespace"},
-		{"ecosystem", PackageRegistryInventoryByEcosystem, "p.ecosystem"},
-		{"registry", PackageRegistryInventoryByRegistry, "p.registry"},
-		{"package_manager", PackageRegistryInventoryByPackageManager, "p.package_manager"},
-		{"visibility", PackageRegistryInventoryByVisibility, "p.visibility"},
+		{"namespace", InventoryByNamespace, "p.namespace"},
+		{"ecosystem", InventoryByEcosystem, "p.ecosystem"},
+		{"registry", InventoryByRegistry, "p.registry"},
+		{"package_manager", InventoryByPackageManager, "p.package_manager"},
+		{"visibility", InventoryByVisibility, "p.visibility"},
 	} {
 		kind := kind
 		t.Run(kind.name, func(t *testing.T) {

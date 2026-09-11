@@ -37,7 +37,7 @@ import (
 // and reducer_package_publication_correlation are NO LONGER in that ungoverned
 // set (#5461): their sdk/go/factschema/reducerderived/v1 structs, generated
 // JSON Schemas, and typed reducer writer landed, and the query-side read site
-// (package_registry_correlations.go) now decodes them through the typed seam
+// (package/registry/correlations.go) now decodes them through the typed seam
 // in factschema_decode_package_correlations.go.
 //
 // supplyChainFactDecodeInput carries one scanned evidence-fact row into a

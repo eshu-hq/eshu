@@ -56,7 +56,7 @@ diagnose entity-map reads through the existing `query.entity_map` handler span,
 graph query spans, HTTP status/error body, truth envelope, `coverage.depth`,
 `coverage.limit`, relationship filters, returned relationship counts, and
 truncation metadata.
-`PackageRegistryHandler` (`package_registry.go:21`) keeps package-registry
+`PackageRegistryHandler` (`package/registry/handler.go`) keeps package-registry
 reads bounded: package and version identity lookups require a package,
 ecosystem, or version anchor, dependency lookup requires `package_id` or
 `version_id` plus `limit`, and correlation lookup requires `package_id` or
@@ -585,9 +585,9 @@ is introduced; the `coverage_signal` metric dimension and
 `eshu_dp_observability_coverage_correlations_total` counter were already added
 by the issue #391 PR1 reducer slice.
 
-`PackageRegistryHandler` (`package_registry.go`) exposes cheap-summary
+`PackageRegistryHandler` (`package/registry/handler.go`) exposes cheap-summary
 aggregates over the graph (:Package) corpus through a separate graph-backed
-aggregate read model (`package_registry_aggregates.go`). This is the first
+aggregate read model (`package/registry/aggregates.go`). This is the first
 **graph-backed** aggregate (previous aggregates ride on Postgres
 `fact_records`); the Reader uses the `GraphQuery` port — the same interface
 the existing list handler reads — so handler tests can inject an in-memory

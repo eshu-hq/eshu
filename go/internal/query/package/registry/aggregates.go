@@ -39,22 +39,22 @@ type AggregateStore interface {
 type InventoryDimension string
 
 const (
-	// PackageRegistryInventoryByEcosystem groups by (:Package).ecosystem.
+	// InventoryByEcosystem groups by (:Package).ecosystem.
 	// Backed by the long-standing `package_ecosystem` index.
-	PackageRegistryInventoryByEcosystem InventoryDimension = "ecosystem"
-	// PackageRegistryInventoryByRegistry groups by (:Package).registry.
+	InventoryByEcosystem InventoryDimension = "ecosystem"
+	// InventoryByRegistry groups by (:Package).registry.
 	// Requires the `package_registry` index added in this PR.
-	PackageRegistryInventoryByRegistry InventoryDimension = "registry"
-	// PackageRegistryInventoryByNamespace groups by (:Package).namespace.
+	InventoryByRegistry InventoryDimension = "registry"
+	// InventoryByNamespace groups by (:Package).namespace.
 	// Requires the `package_namespace` index added in this PR.
-	PackageRegistryInventoryByNamespace InventoryDimension = "namespace"
-	// PackageRegistryInventoryByPackageManager groups by
+	InventoryByNamespace InventoryDimension = "namespace"
+	// InventoryByPackageManager groups by
 	// (:Package).package_manager. Requires the `package_package_manager`
 	// index added in this PR.
-	PackageRegistryInventoryByPackageManager InventoryDimension = "package_manager"
-	// PackageRegistryInventoryByVisibility groups by (:Package).visibility.
+	InventoryByPackageManager InventoryDimension = "package_manager"
+	// InventoryByVisibility groups by (:Package).visibility.
 	// Requires the `package_visibility` index added in this PR.
-	PackageRegistryInventoryByVisibility InventoryDimension = "visibility"
+	InventoryByVisibility InventoryDimension = "visibility"
 )
 
 // AggregateMaxLimit caps inventory result pages. The store's
@@ -120,7 +120,7 @@ func NewGraphAggregateStore(graph querycontract.GraphQuery) GraphAggregateStore 
 //	[SKIP $offset] LIMIT $limit
 //
 // The optional scope filters use the `coalesce`-free `($x = '' OR p.x = $x)`
-// pattern that the existing list handler relies on (package_registry.go).
+// pattern that the existing list handler relies on (handler.go).
 // Each filter property is indexed after this PR's schema migration, so the
 // planner can pick the most selective anchor.
 
@@ -308,15 +308,15 @@ func packageRegistryInventoryGroupExpression(
 	dimension InventoryDimension,
 ) (string, error) {
 	switch dimension {
-	case PackageRegistryInventoryByEcosystem:
+	case InventoryByEcosystem:
 		return "p.ecosystem", nil
-	case PackageRegistryInventoryByRegistry:
+	case InventoryByRegistry:
 		return "p.registry", nil
-	case PackageRegistryInventoryByNamespace:
+	case InventoryByNamespace:
 		return "p.namespace", nil
-	case PackageRegistryInventoryByPackageManager:
+	case InventoryByPackageManager:
 		return "p.package_manager", nil
-	case PackageRegistryInventoryByVisibility:
+	case InventoryByVisibility:
 		return "p.visibility", nil
 	default:
 		return "", fmt.Errorf("unsupported package registry inventory dimension: %q", dimension)

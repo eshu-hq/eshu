@@ -43,7 +43,7 @@ own tests get the same registrations from `main_test.go`'s `TestMain` instead
   their names across the #6642 Part D destutter: `Package` here names the
   data (a package dependency chain), not the enclosing `registry` package,
   so it is not a stutter under naming.md rule 4.
-- `DependenciesCypher` -- exported (unlike this file's other Cypher
+- `DependenciesCypher` -- exported (unlike cypher.go's other Cypher
   builders) because `go/internal/query/queryplan_legacy_production_binding_test.go`
   drives the real production statement through the query-plan comparison it
   runs for every handler family; see Gotchas below.
@@ -118,7 +118,7 @@ packages it depends on.
 
 ## No-Regression Evidence
 
-Baseline `020757ad6` (pre-move HEAD) vs this branch: a name-for-name test-list
+No-Regression Evidence (#6642 rename): baseline `020757ad6` (pre-move HEAD) vs this branch: a name-for-name test-list
 union (`go test ./internal/query/packagereg/... -list '.*'` at the baseline,
 `go test ./internal/query/package/registry/... -list '.*'` on this branch)
 matches exactly. `go test ./internal/query/... -count=1` and
@@ -138,7 +138,7 @@ the same change, the way every earlier query rename repointed that registry.
 
 ## No-Observability-Change
 
-This package emits the same spans it always did. `handler_tracing.go` holds
+No-Observability-Change (#6642 rename): this package emits the same spans it always did. `handler_tracing.go` holds
 a package-local `packageregTracer = queryspan.HandlerTracer()` and a
 `startQueryHandlerSpan` that forwards to `queryspan.StartHandlerSpanWith`, so
 the tracer scope name and every span attribute are unchanged from before the
@@ -220,11 +220,10 @@ The slice-comparison and SQL-lockstep helpers (`slice_test_helpers_test.go`,
 `sql_lockstep_helpers_test.go`) are copies for a different reason: Go never
 compiles a package's `_test.go` files into anything another package can
 import, so a test helper cannot be shared across packages at all.
-`sql_lockstep_helpers_test.go`'s `documentationSchemaDir` walks one
-directory further up than root's copy to reach the repo root
-(`internal/query/package/registry/<file>` sits one level deeper than
-`internal/query/<file>`); it walked one level further again with this move's
-extra `package/` nesting.
+`sql_lockstep_helpers_test.go`'s `documentationSchemaDir` walks two
+directories further up than root's copy to reach the repo root
+(`internal/query/package/registry/<file>` sits two levels deeper than
+`internal/query/<file>`).
 
 Both are small and self-contained, so neither carries real drift risk.
 
@@ -246,7 +245,7 @@ tests exercise root's middleware directly and never call `Handler`.
 From `go/`:
 
 ```
-go test ./internal/query/... ./cmd/api ./cmd/mcp-server -count=1
+go test ./internal/query/... ./cmd/api ./cmd/mcp-server ./internal/mcp -count=1
 go test ./internal/query/package/registry -count=1 -v
 go test ./internal/queryplan/ -count=1
 go vet ./...

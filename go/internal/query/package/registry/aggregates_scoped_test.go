@@ -95,7 +95,7 @@ func TestPackageRegistryAggregateCountScopedPrivateFilterReturnsEmptyWithoutStor
 func TestPackageRegistryAggregateInventoryScopedForcesPublicVisibilityAndDegeneratesGroupByVisibility(t *testing.T) {
 	t.Parallel()
 	store := &stubPackageRegistryAggregateStore{
-		inventory: []InventoryRow{{Dimension: PackageRegistryInventoryByVisibility, Value: "public", Count: 5}},
+		inventory: []InventoryRow{{Dimension: InventoryByVisibility, Value: "public", Count: 5}},
 	}
 	handler := &Handler{Aggregates: store, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()

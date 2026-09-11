@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// These two tests moved back from internal/query/package/registry with the rest of
+// These two tests moved back from the package-registry leaf (then internal/query/packagereg) with the rest of
 // the package-registry handler family's tests (#6060), because they exercise
 // AuthMiddlewareWithScopedTokens's route allowlist directly against a stub
 // terminal handler -- neither calls PackageRegistryHandler or Mount, so they

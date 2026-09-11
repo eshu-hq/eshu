@@ -193,8 +193,8 @@
   ordering and paging. Empty grants return empty pages without broad fact
   reads.
 
-- **Package registry reads stay anchored** — `PackageRegistryHandler` in
-  `package_registry.go` must require `limit` plus a route-specific anchor
+- **Package registry reads stay anchored** — `registry.Handler` in
+  `package/registry/handler.go` must require `limit` plus a route-specific anchor
   before graph reads: package lookups use `package_id` or `ecosystem`, version
   lookups use `package_id`, and dependency lookups use `package_id` or
   `version_id`. Do not add whole-graph package scans, and do not present

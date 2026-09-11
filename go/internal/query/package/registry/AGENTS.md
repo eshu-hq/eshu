@@ -77,7 +77,7 @@ existing pattern).
 From `go/`:
 
 ```
-go test ./internal/query/... ./cmd/api ./cmd/mcp-server -count=1
+go test ./internal/query/... ./cmd/api ./cmd/mcp-server ./internal/mcp -count=1
 go test ./internal/query/package/registry -count=1 -v
 go test ./internal/queryplan/ -count=1
 go vet ./...

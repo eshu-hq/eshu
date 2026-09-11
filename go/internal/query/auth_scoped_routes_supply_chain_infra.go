@@ -208,7 +208,7 @@ func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 // precedent already exposes to scoped tokens), and private/unknown rows
 // require a bounded LIMIT-1 correlation-grant probe reusing the exact
 // predicate the already-shipped scoped correlations route exposes
-// (package_registry_correlations.go, including the
+// (package/registry/correlations.go, including the
 // candidate_repository_ids ?| branch) before ever being returned; a probe
 // miss returns the same empty page as a nonexistent package (no existence
 // oracle). The aggregate routes (count, inventory) instead force

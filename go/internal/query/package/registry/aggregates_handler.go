@@ -15,7 +15,7 @@ const packageRegistryAggregateCapability = "package_registry.packages.aggregate"
 
 // packageRegistryAggregateRoutes registers the cheap-summary aggregate routes
 // alongside the existing package registry list routes. Mount in
-// package_registry.go invokes it.
+// handler.go invokes it.
 func (h *Handler) packageRegistryAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/package-registry/packages/count", h.countPackageRegistryPackages)
 	mux.HandleFunc("GET /api/v0/package-registry/packages/inventory", h.packageRegistryPackageInventory)
@@ -133,7 +133,7 @@ func (h *Handler) packageRegistryPackageInventory(w http.ResponseWriter, r *http
 
 	dimension := InventoryDimension(querycontract.QueryParam(r, "group_by"))
 	if dimension == "" {
-		dimension = PackageRegistryInventoryByEcosystem
+		dimension = InventoryByEcosystem
 	}
 	if !isSupportedPackageRegistryInventoryDimension(dimension) {
 		querycontract.WriteError(w, http.StatusBadRequest, "group_by must be one of ecosystem, registry, namespace, package_manager, visibility")
@@ -233,11 +233,11 @@ func packageRegistryAggregateScope(filter AggregateFilter) map[string]string {
 
 func isSupportedPackageRegistryInventoryDimension(d InventoryDimension) bool {
 	switch d {
-	case PackageRegistryInventoryByEcosystem,
-		PackageRegistryInventoryByRegistry,
-		PackageRegistryInventoryByNamespace,
-		PackageRegistryInventoryByPackageManager,
-		PackageRegistryInventoryByVisibility:
+	case InventoryByEcosystem,
+		InventoryByRegistry,
+		InventoryByNamespace,
+		InventoryByPackageManager,
+		InventoryByVisibility:
 		return true
 	default:
 		return false
