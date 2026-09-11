@@ -202,7 +202,7 @@ func TestAuthMiddlewareRestrictedCredentialsCannotEnterWholeGraphConsoleRoutes(t
 
 	// POST /api/v0/visualizations/derive is deliberately absent from this
 	// table (#5167 task 4): VisualizationHandler holds no graph, content, or
-	// store reference (visualization_packet_handler.go) -- it only reshapes
+	// store reference (visualization/handler.go) -- it only reshapes
 	// the caller-supplied source_response the restricted caller already
 	// possesses, so it was moved into scopedHTTPRouteSupportsTenantFilter and
 	// a restricted credential is now expected to reach it, not be denied.

@@ -1,53 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package visualization
 
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
-func freshTruth() *TruthEnvelope {
-	return &TruthEnvelope{
-		Level:     TruthLevelExact,
-		Basis:     TruthBasisAuthoritativeGraph,
-		Freshness: TruthFreshness{State: FreshnessFresh},
-	}
-}
-
-// storyResponseWithUpstream builds a service-story dossier response whose
-// upstream rows reference the given source repo ids. Order of the rows is the
-// caller's responsibility so tests can shuffle it.
-func storyResponseWithUpstream(sourceRepoIDs []string) map[string]any {
-	upstream := make([]map[string]any, 0, len(sourceRepoIDs))
-	for _, id := range sourceRepoIDs {
-		upstream = append(upstream, map[string]any{
-			"source":            "repo-" + id,
-			"source_repo_id":    id,
-			"target_repo_id":    "svc-repo",
-			"relationship_type": "DEPENDS_ON",
-			"confidence":        0.9,
-		})
-	}
-	return map[string]any{
-		"service_identity": map[string]any{
-			"service_id":   "svc-1",
-			"service_name": "payments",
-			"repo_id":      "svc-repo",
-		},
-		"evidence_graph": map[string]any{
-			"nodes": []map[string]any{
-				{"id": "svc-repo", "label": "payments-repo", "kind": "repository", "category": "service"},
-			},
-			"edges": []map[string]any{},
-		},
-		"upstream_dependencies": upstream,
-		"downstream_consumers":  map[string]any{},
-	}
-}
-
-func nodeIDSet(packet VisualizationPacket) []string {
+func nodeIDSet(packet Packet) []string {
 	ids := make([]string, 0, len(packet.Nodes))
 	for _, node := range packet.Nodes {
 		ids = append(ids, node.ID)
@@ -59,8 +24,8 @@ func TestServiceStoryVisualizationDeterministicOrdering(t *testing.T) {
 	forward := []string{"r3", "r1", "r5", "r2", "r4"}
 	reverse := []string{"r4", "r2", "r5", "r1", "r3"}
 
-	packetA := BuildServiceStoryVisualizationPacket(storyResponseWithUpstream(forward), freshTruth())
-	packetB := BuildServiceStoryVisualizationPacket(storyResponseWithUpstream(reverse), freshTruth())
+	packetA := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream(forward), querytestutil.FreshTruth())
+	packetB := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream(reverse), querytestutil.FreshTruth())
 
 	idsA := nodeIDSet(packetA)
 	idsB := nodeIDSet(packetB)
@@ -86,9 +51,9 @@ func TestServiceStoryVisualizationDeterministicOrdering(t *testing.T) {
 }
 
 func TestServiceStoryVisualizationStableIDsAcrossRuns(t *testing.T) {
-	resp := storyResponseWithUpstream([]string{"r1", "r2"})
-	first := BuildServiceStoryVisualizationPacket(resp, freshTruth())
-	second := BuildServiceStoryVisualizationPacket(storyResponseWithUpstream([]string{"r2", "r1"}), freshTruth())
+	resp := querytestutil.StoryResponseWithUpstream([]string{"r1", "r2"})
+	first := BuildServiceStoryPacket(resp, querytestutil.FreshTruth())
+	second := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream([]string{"r2", "r1"}), querytestutil.FreshTruth())
 	if fmt.Sprint(nodeIDSet(first)) != fmt.Sprint(nodeIDSet(second)) {
 		t.Fatalf("stable IDs differ across runs")
 	}
@@ -98,14 +63,14 @@ func TestServiceStoryVisualizationTruncatesNodes(t *testing.T) {
 	// The response yields 2 fixed nodes (service anchor + the svc-repo
 	// evidence-graph node), so MaxNodes-1 distinct upstream repos push the
 	// total to MaxNodes+1 and force exactly one node to be dropped.
-	ids := make([]string, 0, VisualizationMaxNodes)
-	for i := 0; i < VisualizationMaxNodes-1; i++ {
+	ids := make([]string, 0, MaxNodes)
+	for i := 0; i < MaxNodes-1; i++ {
 		ids = append(ids, fmt.Sprintf("repo-%04d", i))
 	}
-	packet := BuildServiceStoryVisualizationPacket(storyResponseWithUpstream(ids), freshTruth())
+	packet := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream(ids), querytestutil.FreshTruth())
 
-	if len(packet.Nodes) != VisualizationMaxNodes {
-		t.Fatalf("expected %d nodes after truncation, got %d", VisualizationMaxNodes, len(packet.Nodes))
+	if len(packet.Nodes) != MaxNodes {
+		t.Fatalf("expected %d nodes after truncation, got %d", MaxNodes, len(packet.Nodes))
 	}
 	if !packet.Truncation.Truncated {
 		t.Fatalf("expected truncation marker set")
@@ -116,7 +81,7 @@ func TestServiceStoryVisualizationTruncatesNodes(t *testing.T) {
 	if len(packet.Truncation.DroppedNodeIDs) != 1 {
 		t.Fatalf("expected 1 dropped node id recorded, got %d", len(packet.Truncation.DroppedNodeIDs))
 	}
-	if packet.Limits.NodeCount != VisualizationMaxNodes {
+	if packet.Limits.NodeCount != MaxNodes {
 		t.Fatalf("limits node count mismatch: %d", packet.Limits.NodeCount)
 	}
 	// No edge may dangle: every edge endpoint must be a retained node.
@@ -144,7 +109,7 @@ func TestServiceStoryVisualizationPrivacyInvariant(t *testing.T) {
 		},
 		"downstream_consumers": map[string]any{},
 	}
-	packet := BuildServiceStoryVisualizationPacket(resp, freshTruth())
+	packet := BuildServiceStoryPacket(resp, querytestutil.FreshTruth())
 	checkedRepository := false
 	for _, node := range packet.Nodes {
 		// Labels fall back to the id the response carried; never to a fabricated name.
@@ -239,11 +204,11 @@ func TestServiceStoryVisualizationReconcilesCanonicalRepositoryObservations(t *t
 		"downstream_consumers":  map[string]any{},
 	}
 
-	packet := BuildServiceStoryVisualizationPacket(response, freshTruth())
+	packet := BuildServiceStoryPacket(response, querytestutil.FreshTruth())
 
 	serviceNodes := 0
 	canonicalRepositories := 0
-	var canonicalNode VisualizationNode
+	var canonicalNode Node
 	for _, node := range packet.Nodes {
 		if node.Role == "workload" && node.Type == "service" {
 			serviceNodes++
@@ -284,7 +249,7 @@ func TestServiceStoryVisualizationDoesNotMergeEqualLabelsWithoutCanonicalKey(t *
 		},
 	}
 
-	packet := BuildServiceStoryVisualizationPacket(response, freshTruth())
+	packet := BuildServiceStoryPacket(response, querytestutil.FreshTruth())
 	observations := 0
 	for _, node := range packet.Nodes {
 		if node.Label == "iac-eks-argocd" {
@@ -300,11 +265,11 @@ func TestServiceStoryVisualizationDoesNotMergeEqualLabelsWithoutCanonicalKey(t *
 }
 
 func TestServiceStoryVisualizationUnsupported(t *testing.T) {
-	packet := BuildServiceStoryVisualizationPacket(map[string]any{}, freshTruth())
+	packet := BuildServiceStoryPacket(map[string]any{}, querytestutil.FreshTruth())
 	if packet.Supported {
 		t.Fatalf("expected unsupported packet for empty response")
 	}
-	if packet.View != VisualizationViewUnsupported {
+	if packet.View != ViewUnsupported {
 		t.Fatalf("expected unsupported view, got %q", packet.View)
 	}
 	if len(packet.RecommendedNextCalls) == 0 {
@@ -315,27 +280,11 @@ func TestServiceStoryVisualizationUnsupported(t *testing.T) {
 	}
 }
 
-func citationResponse(entityIDs []string) evidenceCitationResponse {
-	citations := make([]evidenceCitation, 0, len(entityIDs))
-	for i, id := range entityIDs {
-		citations = append(citations, evidenceCitation{
-			CitationID:     "citation:" + id,
-			Rank:           i + 1,
-			Kind:           "entity",
-			EvidenceFamily: "source",
-			EntityID:       id,
-			EntityName:     "name-" + id,
-			Excerpt:        "secret excerpt body",
-		})
-	}
-	return evidenceCitationResponse{Question: "why?", Citations: citations}
-}
-
 func TestEvidenceCitationVisualizationDeterministicOrdering(t *testing.T) {
-	forward := citationResponse([]string{"e3", "e1", "e2"})
-	reverse := citationResponse([]string{"e2", "e3", "e1"})
-	packetA := BuildEvidenceCitationVisualizationPacket(forward, freshTruth())
-	packetB := BuildEvidenceCitationVisualizationPacket(reverse, freshTruth())
+	forward := querytestutil.CitationResponse([]string{"e3", "e1", "e2"})
+	reverse := querytestutil.CitationResponse([]string{"e2", "e3", "e1"})
+	packetA := BuildEvidenceCitationPacket(forward, querytestutil.FreshTruth())
+	packetB := BuildEvidenceCitationPacket(reverse, querytestutil.FreshTruth())
 	if fmt.Sprint(nodeIDSet(packetA)) != fmt.Sprint(nodeIDSet(packetB)) {
 		t.Fatalf("citation node IDs not order independent")
 	}
@@ -347,8 +296,8 @@ func TestEvidenceCitationVisualizationDeterministicOrdering(t *testing.T) {
 }
 
 func TestEvidenceCitationVisualizationPrivacyInvariant(t *testing.T) {
-	resp := citationResponse([]string{"e1"})
-	packet := BuildEvidenceCitationVisualizationPacket(resp, freshTruth())
+	resp := querytestutil.CitationResponse([]string{"e1"})
+	packet := BuildEvidenceCitationPacket(resp, querytestutil.FreshTruth())
 	if len(packet.Nodes) != 1 {
 		t.Fatalf("expected 1 node, got %d", len(packet.Nodes))
 	}
@@ -366,13 +315,13 @@ func TestEvidenceCitationVisualizationPrivacyInvariant(t *testing.T) {
 }
 
 func TestEvidenceCitationVisualizationTruncates(t *testing.T) {
-	ids := make([]string, 0, VisualizationMaxNodes+5)
-	for i := 0; i < VisualizationMaxNodes+5; i++ {
+	ids := make([]string, 0, MaxNodes+5)
+	for i := 0; i < MaxNodes+5; i++ {
 		ids = append(ids, fmt.Sprintf("e%04d", i))
 	}
-	packet := BuildEvidenceCitationVisualizationPacket(citationResponse(ids), freshTruth())
-	if len(packet.Nodes) != VisualizationMaxNodes {
-		t.Fatalf("expected %d nodes, got %d", VisualizationMaxNodes, len(packet.Nodes))
+	packet := BuildEvidenceCitationPacket(querytestutil.CitationResponse(ids), querytestutil.FreshTruth())
+	if len(packet.Nodes) != MaxNodes {
+		t.Fatalf("expected %d nodes, got %d", MaxNodes, len(packet.Nodes))
 	}
 	if !packet.Truncation.Truncated {
 		t.Fatalf("expected truncation marker")
@@ -383,7 +332,7 @@ func TestEvidenceCitationVisualizationTruncates(t *testing.T) {
 }
 
 func TestEvidenceCitationVisualizationUnsupported(t *testing.T) {
-	packet := BuildEvidenceCitationVisualizationPacket(evidenceCitationResponse{}, freshTruth())
+	packet := BuildEvidenceCitationPacket(querycontract.EvidenceCitationResponse{}, querytestutil.FreshTruth())
 	if packet.Supported {
 		t.Fatalf("expected unsupported packet for empty citations")
 	}
@@ -392,27 +341,9 @@ func TestEvidenceCitationVisualizationUnsupported(t *testing.T) {
 	}
 }
 
-func incidentResponse(slots []IncidentEvidenceSlot) IncidentContextResponse {
-	path := make([]IncidentContextEvidenceEdge, 0, len(slots))
-	for _, slot := range slots {
-		path = append(path, IncidentContextEvidenceEdge{
-			Slot:       slot,
-			TruthLabel: IncidentTruthExact,
-		})
-	}
-	return IncidentContextResponse{
-		Incident: IncidentContextIncident{
-			Provider:           "pagerduty",
-			ProviderIncidentID: "INC-1",
-			Title:              "payments outage",
-		},
-		EvidencePath: path,
-	}
-}
-
 func TestIncidentVisualizationDeterministicAndTruthLabels(t *testing.T) {
-	slots := []IncidentEvidenceSlot{IncidentSlotIncident, IncidentSlotService, IncidentSlotDeployable}
-	packet := BuildIncidentContextVisualizationPacket(incidentResponse(slots), freshTruth())
+	slots := []model.IncidentEvidenceSlot{model.IncidentSlotIncident, model.IncidentSlotService, model.IncidentSlotDeployable}
+	packet := BuildIncidentContextPacket(querytestutil.IncidentResponse(slots), querytestutil.FreshTruth())
 
 	if len(packet.Nodes) != len(slots)+1 {
 		t.Fatalf("expected incident anchor + %d slot nodes, got %d", len(slots), len(packet.Nodes))
@@ -426,7 +357,7 @@ func TestIncidentVisualizationDeterministicAndTruthLabels(t *testing.T) {
 	foundSlotTruth := false
 	for _, node := range packet.Nodes {
 		if node.Type == "evidence_slot" {
-			if node.TruthLabel != string(IncidentTruthExact) {
+			if node.TruthLabel != string(model.IncidentTruthExact) {
 				t.Fatalf("slot truth label not carried from source: %q", node.TruthLabel)
 			}
 			foundSlotTruth = true
@@ -439,14 +370,14 @@ func TestIncidentVisualizationDeterministicAndTruthLabels(t *testing.T) {
 		t.Fatalf("expected evidence-path edges")
 	}
 	for _, edge := range packet.Edges {
-		if edge.TruthLabel != string(IncidentTruthExact) {
+		if edge.TruthLabel != string(model.IncidentTruthExact) {
 			t.Fatalf("edge truth label not carried from source: %q", edge.TruthLabel)
 		}
 	}
 }
 
 func TestIncidentVisualizationUnsupported(t *testing.T) {
-	packet := BuildIncidentContextVisualizationPacket(IncidentContextResponse{}, freshTruth())
+	packet := BuildIncidentContextPacket(model.IncidentContextResponse{}, querytestutil.FreshTruth())
 	if packet.Supported {
 		t.Fatalf("expected unsupported packet with no evidence path")
 	}
@@ -456,11 +387,11 @@ func TestIncidentVisualizationUnsupported(t *testing.T) {
 }
 
 func TestVisualizationPacketPreservesTruth(t *testing.T) {
-	packet := BuildServiceStoryVisualizationPacket(storyResponseWithUpstream([]string{"r1"}), freshTruth())
+	packet := BuildServiceStoryPacket(querytestutil.StoryResponseWithUpstream([]string{"r1"}), querytestutil.FreshTruth())
 	if packet.Truth == nil {
 		t.Fatalf("expected truth envelope preserved")
 	}
-	if packet.Truth.Level != TruthLevelExact || packet.Truth.Basis != TruthBasisAuthoritativeGraph {
+	if packet.Truth.Level != querycontract.TruthLevelExact || packet.Truth.Basis != querycontract.TruthBasisAuthoritativeGraph {
 		t.Fatalf("truth envelope not copied verbatim: %+v", packet.Truth)
 	}
 }

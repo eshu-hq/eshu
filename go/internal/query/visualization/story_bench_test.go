@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package visualization
 
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func BenchmarkBuildServiceStoryVisualizationPacketRetainedShape(b *testing.B) {
 	response := benchmarkServiceStoryPacketResponse()
-	truth := freshTruth()
+	truth := querytestutil.FreshTruth()
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		_ = BuildServiceStoryVisualizationPacket(response, truth)
+		_ = BuildServiceStoryPacket(response, truth)
 	}
 }
 

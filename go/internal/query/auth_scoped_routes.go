@@ -289,7 +289,7 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 
 // scopedVisualizationDeriveRoute matches POST /api/v0/visualizations/derive.
 // #5167 task 4: VisualizationHandler holds no graph/content/store reference
-// (visualization_packet_handler.go) -- it only reshapes the caller-supplied
+// (visualization/handler.go) -- it only reshapes the caller-supplied
 // source_response, so there is no tenant data to filter.
 //
 // Both scopedHTTPRouteSupportsTenantFilter above and

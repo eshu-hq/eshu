@@ -32,7 +32,7 @@ envelope stays `derived`. No graph or content read.
 ## Committed reproducible evidence
 
 **Deterministic ordering, truncation caps, and privacy invariants across all
-three source response kinds** — `go/internal/query/visualization_packet_test.go`:
+three source response kinds** — `go/internal/query/visualization/packet_test.go`:
 `TestServiceStoryVisualizationDeterministicOrdering`,
 `TestServiceStoryVisualizationStableIDsAcrossRuns`,
 `TestServiceStoryVisualizationTruncatesNodes`,
@@ -48,7 +48,7 @@ three source response kinds** — `go/internal/query/visualization_packet_test.g
 response's truth level rather than downgrading or upgrading it). Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run 'TestServiceStoryVisualization|TestEvidenceCitationVisualization|TestIncidentVisualization|TestVisualizationPacketPreservesTruth' -count=1
+cd go && go test ./internal/query/visualization -run 'TestServiceStoryVisualization|TestEvidenceCitationVisualization|TestIncidentVisualization|TestVisualizationPacketPreservesTruth' -count=1
 ```
 
 **Route-level packet derivation and canonical merge behavior** —
@@ -58,12 +58,12 @@ cd go && go test ./internal/query -run 'TestServiceStoryVisualization|TestEviden
 `TestVisualizationDeriveRouteReturnsUnsupportedPacketForEmptyKnownView`,
 `TestVisualizationDeriveRouteRejectsUnknownView`, and
 `TestOpenAPISpecIncludesVisualizationDeriveRoute`; and
-`go/internal/query/visualization_packet_merge_test.go`:
+`go/internal/query/visualization/merge_test.go`:
 `TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent` and
 `TestServiceStoryVisualizationCarriesKnownSourceDroppedEdgeCount`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run 'TestVisualizationDeriveRoute|TestOpenAPISpecIncludesVisualizationDeriveRoute|TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent|TestServiceStoryVisualizationCarriesKnownSourceDroppedEdgeCount' -count=1
+cd go && go test ./internal/query ./internal/query/visualization -run 'TestVisualizationDeriveRoute|TestOpenAPISpecIncludesVisualizationDeriveRoute|TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent|TestServiceStoryVisualizationCarriesKnownSourceDroppedEdgeCount' -count=1
 ```
 
 ## Notes

@@ -7,9 +7,9 @@ transforms a story, evidence-citation, or incident-context response the caller
 already received into stable nodes and edges, with truth/freshness metadata,
 payload limits, and explicit truncation.
 
-The implementation lives in `go/internal/query/visualization_packet.go`
-(types and limits), `go/internal/query/visualization_packet_story.go`
-(service-story builder), and `go/internal/query/visualization_packet_evidence.go`
+The implementation lives in `go/internal/query/visualization/packet.go`
+(types and limits), `go/internal/query/visualization/story.go`
+(service-story builder), and `go/internal/query/visualization/evidence.go`
 (evidence-citation and incident-context builders). It is a sibling of the
 [Answer Packet Contract](answer-packets.md): it reuses the same `TruthEnvelope`
 and freshness language and the same
@@ -67,13 +67,13 @@ rows and assert the output node IDs and ordering are identical.
 
 ## Payload limits and truncation
 
-Nodes and edges are sorted by stable ID and bounded by `VisualizationMaxNodes`
-(60) and `VisualizationMaxEdges` (120). When a packet exceeds the bound:
+Nodes and edges are sorted by stable ID and bounded by `visualization.MaxNodes`
+(60) and `visualization.MaxEdges` (120). When a packet exceeds the bound:
 
-- nodes beyond `VisualizationMaxNodes` are dropped, sorted by ID, and recorded in
+- nodes beyond `MaxNodes` are dropped, sorted by ID, and recorded in
   `truncation.dropped_node_ids` with `truncation.dropped_node_count`;
 - any edge whose endpoint was dropped is itself dropped (no edge dangles), and
-  edges beyond `VisualizationMaxEdges` are dropped, both counted in
+  edges beyond `MaxEdges` are dropped, both counted in
   `truncation.dropped_edge_count`;
 - `truncation.truncated` is set and a human-readable limitation is appended.
 

@@ -175,13 +175,6 @@ func loadServiceStoryTargetSupport(
 	return service.LoadServiceStoryTargetSupport(ctx, content, workloadContext)
 }
 
-// firstNonEmptyString returns the first non-blank value. The implementation
-// lives in querycontract; this wrapper keeps the staying visualization,
-// workload, and supply-chain stayers calling the package-local name.
-func firstNonEmptyString(values ...string) string {
-	return querycontract.FirstNonEmptyString(values...)
-}
-
 // containsString reports whether values holds candidate. The implementation
 // lives in querycontract; this wrapper keeps the staying replatforming
 // stayer calling the package-local name.

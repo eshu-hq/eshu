@@ -47,4 +47,4 @@
 // today and turns into a cycle the moment it adopts a fake from here. Do not
 // read a green build as permission. AGENTS.md carries the measured three-row
 // table behind this.
-package querytestutil
+package querytestutil //nolint:dirgate // #6642 Part A pushed this package's non-test file count to 41 by hoisting the visualization-packet fixtures four tests across two packages share (visualizationfixtures.go); each helper here still has exactly one owning file, so splitting further would fragment cohesive fixture groups rather than reduce sprawl.
