@@ -116,10 +116,12 @@ itself did not change.
 Go constraints force this, and they are worth keeping apart.
 
 `derefString`/`derefBool` (`package_registry_correlation_deref.go`) are
-production code. Root has the same two as `workItemDerefString`/
-`workItemDerefBool`, but they are unexported, and an unexported symbol cannot
-be called across a package boundary. Root exports no equivalent to wrap, and
-the root pair cannot move here because many root decode files still call them.
+production code. Root has the same helper, `derefString` (named
+`workItemDerefString` before #6642 destuttered it; its `derefBool` twin was
+dropped in the same move), but it is unexported, and an unexported symbol
+cannot be called across a package boundary. Root exports no equivalent to
+wrap, and it cannot move here because `factschema_decode_supplychain.go`
+still calls it.
 
 The slice-comparison and SQL-lockstep helpers
 (`package_registry_slice_test_helpers_test.go`,

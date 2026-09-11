@@ -19,7 +19,7 @@ import (
 // lane A). Each wraps the matching
 // sdk/go/factschema Decode* seam and, on a classified *factschema.DecodeError
 // (a missing/null required identity field), returns a *queryDecodeError
-// (defined in factschema_decode_workitem.go, reused here rather than
+// (defined in factschema_decode_shared.go, reused here rather than
 // forked) so the caller can drop the fact's contribution instead of
 // fabricating a zero-valued row.
 //
@@ -44,7 +44,7 @@ import (
 // decode wrapper. Bundling FactID, SchemaVersion, and Payload into a single
 // parameter keeps each wrapper's one-argument shape, matching the
 // payload-usage manifest gate's seam parser convention (see
-// factschema_decode_workitem.go's workItemDecodeInput).
+// internal/query/workitem/factschema_decode.go's workItemDecodeInput).
 type supplyChainFactDecodeInput struct {
 	FactID        string
 	SchemaVersion string
@@ -183,7 +183,7 @@ func decodeSupplyChainComponentEvidence(fact impact.SupplyChainImpactEvidenceFac
 		return supplyChainComponentEvidence{
 			Matched:       true,
 			DocumentID:    document.DocumentID,
-			SubjectDigest: workItemDerefString(document.SubjectDigest),
+			SubjectDigest: derefString(document.SubjectDigest),
 		}
 	case factschema.FactKindSBOMComponent:
 		component, err := decodeSBOMComponent(in)
@@ -192,10 +192,10 @@ func decodeSupplyChainComponentEvidence(fact impact.SupplyChainImpactEvidenceFac
 		}
 		return supplyChainComponentEvidence{
 			Matched:      true,
-			Version:      workItemDerefString(component.Version),
-			PURL:         workItemDerefString(component.PURL),
+			Version:      derefString(component.Version),
+			PURL:         derefString(component.PURL),
 			DocumentID:   component.DocumentID,
-			LockfilePath: workItemDerefString(component.LockfilePath),
+			LockfilePath: derefString(component.LockfilePath),
 		}
 	case factschema.FactKindPackageRegistryPackageDependency:
 		dependency, err := decodePackageRegistryPackageDependency(in)
@@ -204,8 +204,8 @@ func decodeSupplyChainComponentEvidence(fact impact.SupplyChainImpactEvidenceFac
 		}
 		return supplyChainComponentEvidence{
 			Matched:         true,
-			Version:         workItemDerefString(dependency.Version),
-			DependencyRange: workItemDerefString(dependency.DependencyRange),
+			Version:         derefString(dependency.Version),
+			DependencyRange: derefString(dependency.DependencyRange),
 		}
 	case factschema.FactKindServiceCatalogEntity:
 		entity, err := decodeServiceCatalogEntity(in)
@@ -221,7 +221,7 @@ func decodeSupplyChainComponentEvidence(fact impact.SupplyChainImpactEvidenceFac
 		return supplyChainComponentEvidence{
 			Matched:   true,
 			EntityRef: ownership.EntityRef,
-			OwnerRef:  workItemDerefString(ownership.OwnerRef),
+			OwnerRef:  derefString(ownership.OwnerRef),
 		}
 	case factschema.FactKindServiceCatalogRepositoryLink:
 		link, err := decodeServiceCatalogRepositoryLink(in)

@@ -46,9 +46,10 @@ import (
 // supplyChainFactDecodeInput carries one scanned evidence-fact row into a
 // decode wrapper. Bundling FactID, SchemaVersion, and Payload into a single
 // parameter keeps each wrapper's one-argument shape, matching the
-// payload-usage manifest gate's seam parser convention (see root package
-// query's factschema_decode_workitem.go's workItemDecodeInput). The name
-// keeps root's: this family is the supply-chain advisory leaf.
+// payload-usage manifest gate's seam parser convention (see
+// internal/query/workitem/factschema_decode.go's workItemDecodeInput). The name
+// keeps root's pre-#6642 spelling: this family is the supply-chain advisory
+// leaf.
 type supplyChainFactDecodeInput struct {
 	FactID        string
 	SchemaVersion string
@@ -57,7 +58,7 @@ type supplyChainFactDecodeInput struct {
 
 // supplyChainDefaultSchemaMajorVersion is the schema version this file
 // assumes when a row carries none, matching root package query's
-// queryDefaultSchemaMajorVersion (factschema_decode_workitem.go). It is a
+// queryDefaultSchemaMajorVersion (factschema_decode_shared.go). It is a
 // major-1 version because every in-tree vulnerability source-fact emitter
 // stamps a concrete major-1 version; the Decode seam dispatches on the major
 // component only. Kept as this family's own copy rather than an import: the

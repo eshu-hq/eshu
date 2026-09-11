@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
 
 // Scoped-token authorization helpers for the source-only work-item evidence
 // read route (GET /api/v0/work-items/evidence).
@@ -25,22 +29,22 @@ import "net/http"
 // empty-grant scoped token without reading the work-item evidence store. The
 // shape mirrors the populated list response so a scoped caller cannot
 // distinguish an empty grant from a genuinely empty work-item corpus.
-func (h *WorkItemHandler) writeEmptyWorkItemEvidencePage(
+func (h *Handler) writeEmptyWorkItemEvidencePage(
 	w http.ResponseWriter,
 	r *http.Request,
 	limit int,
 ) {
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"evidence":         []WorkItemEvidenceRow{},
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"evidence":         []EvidenceRow{},
 		"count":            0,
 		"limit":            limit,
 		"truncated":        false,
 		"missing_evidence": true,
-		"states":           []string{WorkItemEvidenceStateMissingEvidence},
-	}, BuildTruthEnvelope(
+		"states":           []string{EvidenceStateMissingEvidence},
+	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		workItemEvidenceCapability,
-		TruthBasisSemanticFacts,
+		EvidenceCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"scoped token grants authorize no repositories; no work-item evidence is attributable to a granted repository link",
 	))
 }

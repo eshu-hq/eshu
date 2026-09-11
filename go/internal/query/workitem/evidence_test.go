@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
 import (
 	"context"
@@ -19,23 +19,23 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// recordingWorkItemEvidenceStore is a fake WorkItemEvidenceStore that already
+// recordingWorkItemEvidenceStore is a fake EvidenceStore that already
 // holds decoded rows (it has no raw-fact/decode-drop concept; see
 // TestBuildWorkItemEvidencePageDerivesTruncationFromFetchedFactsNotDecodedRows
-// for that scenario). It mirrors PostgresWorkItemEvidenceStore's pagination
+// for that scenario). It mirrors PostgresEvidenceStore's pagination
 // contract for an all-decode-succeeds fetch: filter.Limit is the "+1"
 // lookahead fetch bound, so the visible window is filter.Limit-1 rows.
 type recordingWorkItemEvidenceStore struct {
-	rows       []WorkItemEvidenceRow
-	lastFilter WorkItemEvidenceFilter
+	rows       []EvidenceRow
+	lastFilter EvidenceFilter
 }
 
 func (s *recordingWorkItemEvidenceStore) ListWorkItemEvidence(
 	_ context.Context,
-	filter WorkItemEvidenceFilter,
-) (WorkItemEvidencePage, error) {
+	filter EvidenceFilter,
+) (EvidencePage, error) {
 	s.lastFilter = filter
-	rows := append([]WorkItemEvidenceRow(nil), s.rows...)
+	rows := append([]EvidenceRow(nil), s.rows...)
 	visibleLimit := filter.Limit - 1
 	if visibleLimit < 0 {
 		visibleLimit = 0
@@ -44,7 +44,7 @@ func (s *recordingWorkItemEvidenceStore) ListWorkItemEvidence(
 	if truncated {
 		rows = rows[:visibleLimit]
 	}
-	page := WorkItemEvidencePage{Rows: rows, Truncated: truncated}
+	page := EvidencePage{Rows: rows, Truncated: truncated}
 	if truncated && len(rows) > 0 {
 		page.NextCursorFactID = rows[len(rows)-1].FactID
 	}
@@ -64,7 +64,7 @@ func (unusedWorkItemEvidenceQueryer) QueryContext(
 func TestWorkItemListEvidenceRequiresScopeAndLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &WorkItemHandler{Evidence: &recordingWorkItemEvidenceStore{}}
+	handler := &Handler{Evidence: &recordingWorkItemEvidenceStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -91,7 +91,7 @@ func TestWorkItemListEvidenceUsesBoundedStoreAndCursor(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingWorkItemEvidenceStore{
-		rows: []WorkItemEvidenceRow{
+		rows: []EvidenceRow{
 			{
 				FactID:             "fact-1",
 				FactKind:           "work_item.external_link",
@@ -103,12 +103,12 @@ func TestWorkItemListEvidenceUsesBoundedStoreAndCursor(t *testing.T) {
 				URLPresent:         true,
 				URLRedacted:        true,
 				AnchorClass:        "github_pull_request",
-				EvidenceState:      WorkItemEvidenceStateExactProviderFact,
+				EvidenceState:      EvidenceStateExactProviderFact,
 			},
 			{FactID: "fact-2", FactKind: "work_item.record", WorkItemKey: "OPS-123"},
 		},
 	}
-	handler := &WorkItemHandler{Evidence: store}
+	handler := &Handler{Evidence: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -137,13 +137,13 @@ func TestWorkItemListEvidenceUsesBoundedStoreAndCursor(t *testing.T) {
 	}
 
 	var resp struct {
-		Evidence        []WorkItemEvidenceRow `json:"evidence"`
-		Count           int                   `json:"count"`
-		Limit           int                   `json:"limit"`
-		Truncated       bool                  `json:"truncated"`
-		MissingEvidence bool                  `json:"missing_evidence"`
-		States          []string              `json:"states"`
-		NextCursor      map[string]string     `json:"next_cursor"`
+		Evidence        []EvidenceRow     `json:"evidence"`
+		Count           int               `json:"count"`
+		Limit           int               `json:"limit"`
+		Truncated       bool              `json:"truncated"`
+		MissingEvidence bool              `json:"missing_evidence"`
+		States          []string          `json:"states"`
+		NextCursor      map[string]string `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -168,7 +168,7 @@ func TestWorkItemListEvidenceUsesBoundedStoreAndCursor(t *testing.T) {
 func TestWorkItemEvidenceEmptyResultReportsMissingEvidence(t *testing.T) {
 	t.Parallel()
 
-	handler := &WorkItemHandler{Evidence: &recordingWorkItemEvidenceStore{}}
+	handler := &Handler{Evidence: &recordingWorkItemEvidenceStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -194,7 +194,7 @@ func TestWorkItemEvidenceEmptyResultReportsMissingEvidence(t *testing.T) {
 	if !resp.MissingEvidence {
 		t.Fatal("missing_evidence = false, want true")
 	}
-	if got, want := strings.Join(resp.States, ","), WorkItemEvidenceStateMissingEvidence; got != want {
+	if got, want := strings.Join(resp.States, ","), EvidenceStateMissingEvidence; got != want {
 		t.Fatalf("states = %q, want %q", got, want)
 	}
 }
@@ -203,7 +203,7 @@ func TestNormalizeWorkItemEvidenceFilterBoundsLimitAndFreshness(t *testing.T) {
 	t.Parallel()
 
 	cutoff := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
-	got := normalizeWorkItemEvidenceFilter(WorkItemEvidenceFilter{
+	got := normalizeWorkItemEvidenceFilter(EvidenceFilter{
 		ScopeID:            " jira:site:example ",
 		ProjectKey:         " ops ",
 		WorkItemKey:        " ops-123 ",
@@ -239,8 +239,8 @@ func TestNormalizeWorkItemEvidenceFilterBoundsLimitAndFreshness(t *testing.T) {
 func TestPostgresWorkItemEvidenceStoreRejectsUnboundedFilter(t *testing.T) {
 	t.Parallel()
 
-	store := NewPostgresWorkItemEvidenceStore(unusedWorkItemEvidenceQueryer{})
-	_, err := store.ListWorkItemEvidence(context.Background(), WorkItemEvidenceFilter{Limit: 10})
+	store := NewPostgresEvidenceStore(unusedWorkItemEvidenceQueryer{})
+	_, err := store.ListWorkItemEvidence(context.Background(), EvidenceFilter{Limit: 10})
 	if err == nil {
 		t.Fatal("ListWorkItemEvidence() error = nil, want scope error")
 	}
@@ -259,20 +259,20 @@ func TestWorkItemEvidenceFactKindsMatchRegistrySet(t *testing.T) {
 	// trips this guard instead of silently drifting. metadata_warning is now
 	// surfaced with its own contract fields (#4887), so it is part of the set.
 	want := slices.Clone(facts.WorkItemFactKinds())
-	got := slices.Clone(workItemEvidenceFactKinds)
+	got := slices.Clone(EvidenceFactKinds)
 	slices.Sort(want)
 	slices.Sort(got)
 	if !slices.Equal(got, want) {
-		t.Fatalf("workItemEvidenceFactKinds = %v, want facts.WorkItemFactKinds() = %v", got, want)
+		t.Fatalf("EvidenceFactKinds = %v, want facts.WorkItemFactKinds() = %v", got, want)
 	}
 	if slices.Contains(got, "work_item.coverage_warning") {
-		t.Fatal("workItemEvidenceFactKinds still lists the phantom work_item.coverage_warning (no emitter, no registry row)")
+		t.Fatal("EvidenceFactKinds still lists the phantom work_item.coverage_warning (no emitter, no registry row)")
 	}
 	if !slices.Contains(got, "work_item.issue_type_metadata") {
-		t.Fatal("workItemEvidenceFactKinds missing registered read-surface kind \"work_item.issue_type_metadata\"")
+		t.Fatal("EvidenceFactKinds missing registered read-surface kind \"work_item.issue_type_metadata\"")
 	}
 	if !slices.Contains(got, facts.WorkItemMetadataWarningFactKind) {
-		t.Fatalf("workItemEvidenceFactKinds missing registered read-surface kind %q (#4887 surfaces it with metadata_type/warning_reason)", facts.WorkItemMetadataWarningFactKind)
+		t.Fatalf("EvidenceFactKinds missing registered read-surface kind %q (#4887 surfaces it with metadata_type/warning_reason)", facts.WorkItemMetadataWarningFactKind)
 	}
 }
 
@@ -320,7 +320,7 @@ func TestWorkItemEvidenceSurfacesIssueTypeMetadataAndIncludesMetadataWarning(t *
 	// metadata_warning now surfaces on the read surface with its own contract
 	// fields (see TestWorkItemEvidenceSurfacesMetadataWarningWithWarningState),
 	// so the read set must include it.
-	if !slices.Contains(workItemEvidenceFactKinds, facts.WorkItemMetadataWarningFactKind) {
+	if !slices.Contains(EvidenceFactKinds, facts.WorkItemMetadataWarningFactKind) {
 		t.Fatalf("read set must include %s (#4887 surfaces it with metadata_type/warning_reason/provider_id_fingerprint)", facts.WorkItemMetadataWarningFactKind)
 	}
 }
@@ -380,8 +380,8 @@ func TestWorkItemEvidenceSurfacesMetadataWarningWithWarningState(t *testing.T) {
 	if warning.ProviderIDFingerprint != "sha256:deadbeef" {
 		t.Fatalf("metadata_warning ProviderIDFingerprint = %q, want sha256:deadbeef", warning.ProviderIDFingerprint)
 	}
-	if warning.EvidenceState != WorkItemEvidenceStateMetadataWarning {
-		t.Fatalf("metadata_warning EvidenceState = %q, want %q (collection warning, not permission_hidden or exact_provider_fact)", warning.EvidenceState, WorkItemEvidenceStateMetadataWarning)
+	if warning.EvidenceState != EvidenceStateMetadataWarning {
+		t.Fatalf("metadata_warning EvidenceState = %q, want %q (collection warning, not permission_hidden or exact_provider_fact)", warning.EvidenceState, EvidenceStateMetadataWarning)
 	}
 }
 
@@ -415,15 +415,15 @@ func TestWorkItemEvidenceRowsClassifyStatesWithoutPrivatePayloads(t *testing.T) 
 				"provider":              "jira_cloud",
 				"provider_work_item_id": "10124",
 				"work_item_key":         "OPS-124",
-				"evidence_state":        WorkItemEvidenceStatePermissionHidden,
+				"evidence_state":        EvidenceStatePermissionHidden,
 			},
 		},
 	})
 
-	if got, want := rows[0].EvidenceState, WorkItemEvidenceStateUnsupportedLinkType; got != want {
+	if got, want := rows[0].EvidenceState, EvidenceStateUnsupportedLinkType; got != want {
 		t.Fatalf("unsupported link state = %q, want %q", got, want)
 	}
-	if got, want := rows[1].EvidenceState, WorkItemEvidenceStatePermissionHidden; got != want {
+	if got, want := rows[1].EvidenceState, EvidenceStatePermissionHidden; got != want {
 		t.Fatalf("permission state = %q, want %q", got, want)
 	}
 	if rows[0].RawURL != "" {
@@ -437,12 +437,12 @@ func TestWorkItemEvidenceRowsClassifyStatesWithoutPrivatePayloads(t *testing.T) 
 func TestWorkItemEvidenceSpanAttributesSummarizeBoundedCounts(t *testing.T) {
 	t.Parallel()
 
-	attrs := workItemEvidenceSpanAttributes([]WorkItemEvidenceRow{
-		{EvidenceState: WorkItemEvidenceStateStaleEvidence},
-		{EvidenceState: WorkItemEvidenceStatePermissionHidden},
-		{EvidenceState: WorkItemEvidenceStateRejectedUnsafePayload},
-		{EvidenceState: WorkItemEvidenceStateUnsupportedLinkType},
-		{EvidenceState: WorkItemEvidenceStateMetadataWarning},
+	attrs := workItemEvidenceSpanAttributes([]EvidenceRow{
+		{EvidenceState: EvidenceStateStaleEvidence},
+		{EvidenceState: EvidenceStatePermissionHidden},
+		{EvidenceState: EvidenceStateRejectedUnsafePayload},
+		{EvidenceState: EvidenceStateUnsupportedLinkType},
+		{EvidenceState: EvidenceStateMetadataWarning},
 	}, true)
 	got := map[string]string{}
 	for _, attr := range attrs {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
 import (
 	"fmt"
@@ -9,46 +9,51 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// WorkItemHandler exposes source-only work-item evidence read surfaces.
-type WorkItemHandler struct {
-	Evidence WorkItemEvidenceStore
-	Profile  QueryProfile
+// Handler exposes source-only work-item evidence read surfaces.
+//
+// Package query keeps this type available as WorkItemHandler through a type
+// alias in work_item_alias.go so existing wiring, callers, and tests compile
+// unchanged (#6642).
+type Handler struct {
+	Evidence EvidenceStore
+	Profile  querycontract.QueryProfile
 }
 
 // Mount registers work-item evidence routes.
-func (h *WorkItemHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/work-items/evidence", h.listWorkItemEvidence)
 }
 
-func (h *WorkItemHandler) profile() QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil || h.Profile == "" {
-		return ProfileProduction
+		return querycontract.ProfileProduction
 	}
 	return h.Profile
 }
 
-func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listWorkItemEvidence(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryWorkItemEvidence,
 		"GET /api/v0/work-items/evidence",
-		workItemEvidenceCapability,
+		EvidenceCapability,
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), workItemEvidenceCapability) {
-		WriteContractError(
+	if querycontract.CapabilityUnsupported(h.profile(), EvidenceCapability) {
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"work-item evidence requires active work-item source facts",
-			ErrorCodeUnsupportedCapability,
-			workItemEvidenceCapability,
+			querycontract.ErrorCodeUnsupportedCapability,
+			EvidenceCapability,
 			h.profile(),
-			requiredProfile(workItemEvidenceCapability),
+			querycontract.RequiredProfile(EvidenceCapability),
 		)
 		return
 	}
@@ -62,7 +67,7 @@ func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Re
 	// scoped caller observes only work items whose durable repository link is
 	// granted. Shared, admin, and local callers carry no grant set and keep the
 	// unscoped read path.
-	access := repositoryAccessFilterFromContext(r.Context())
+	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
 	if access.Empty() {
 		h.writeEmptyWorkItemEvidencePage(w, r, limit)
 		return
@@ -71,39 +76,39 @@ func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	filter := normalizeWorkItemEvidenceFilter(WorkItemEvidenceFilter{
-		ScopeID:              QueryParam(r, "scope_id"),
-		ProjectKey:           QueryParam(r, "project_key"),
-		WorkItemKey:          QueryParam(r, "work_item_key"),
-		ProviderWorkItemID:   QueryParam(r, "provider_work_item_id"),
-		ExternalURL:          QueryParam(r, "external_url"),
-		URLFingerprint:       QueryParam(r, "url_fingerprint"),
+	filter := normalizeWorkItemEvidenceFilter(EvidenceFilter{
+		ScopeID:              querycontract.QueryParam(r, "scope_id"),
+		ProjectKey:           querycontract.QueryParam(r, "project_key"),
+		WorkItemKey:          querycontract.QueryParam(r, "work_item_key"),
+		ProviderWorkItemID:   querycontract.QueryParam(r, "provider_work_item_id"),
+		ExternalURL:          querycontract.QueryParam(r, "external_url"),
+		URLFingerprint:       querycontract.QueryParam(r, "url_fingerprint"),
 		ObservedAfter:        observedAfter,
-		AfterFactID:          QueryParam(r, "after_fact_id"),
+		AfterFactID:          querycontract.QueryParam(r, "after_fact_id"),
 		Limit:                limit + 1,
 		AllowedRepositoryIDs: access.RepositorySearchIDs(),
 	})
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "scope_id, project_key, work_item_key, provider_work_item_id, external_url, url_fingerprint, or observed_after is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "scope_id, project_key, work_item_key, provider_work_item_id, external_url, url_fingerprint, or observed_after is required")
 		return
 	}
 	if h.Evidence == nil {
-		WriteContractError(
+		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusServiceUnavailable,
 			"work-item evidence requires active work-item source facts",
-			ErrorCodeBackendUnavailable,
-			workItemEvidenceCapability,
+			querycontract.ErrorCodeBackendUnavailable,
+			EvidenceCapability,
 			h.profile(),
-			requiredProfile(workItemEvidenceCapability),
+			querycontract.RequiredProfile(EvidenceCapability),
 		)
 		return
 	}
 
 	page, err := h.Evidence.ListWorkItemEvidence(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	// Truncated and the next cursor come from page (derived from the raw
@@ -124,36 +129,36 @@ func (h *WorkItemHandler) listWorkItemEvidence(w http.ResponseWriter, r *http.Re
 	if truncated {
 		body["next_cursor"] = map[string]string{"after_fact_id": page.NextCursorFactID}
 	}
-	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		workItemEvidenceCapability,
-		TruthBasisSemanticFacts,
+		EvidenceCapability,
+		querycontract.TruthBasisSemanticFacts,
 		"resolved from active work-item source facts; Jira evidence remains source-only and does not verify pull request, commit, deployment, incident, runtime artifact, image, version, or service identity",
 	))
 }
 
 func requiredWorkItemEvidenceLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
-	raw := QueryParam(r, "limit")
+	raw := querycontract.QueryParam(r, "limit")
 	if raw == "" {
-		WriteError(w, http.StatusBadRequest, "limit is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "limit is required")
 		return 0, false
 	}
 	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > workItemEvidenceMaxLimit {
-		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", workItemEvidenceMaxLimit))
+	if err != nil || limit <= 0 || limit > evidenceMaxLimit {
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", evidenceMaxLimit))
 		return 0, false
 	}
 	return limit, true
 }
 
 func parseOptionalWorkItemEvidenceTime(w http.ResponseWriter, r *http.Request, key string) (time.Time, bool) {
-	raw := QueryParam(r, key)
+	raw := querycontract.QueryParam(r, key)
 	if raw == "" {
 		return time.Time{}, true
 	}
 	parsed, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		WriteError(w, http.StatusBadRequest, key+" must be RFC3339")
+		querycontract.WriteError(w, http.StatusBadRequest, key+" must be RFC3339")
 		return time.Time{}, false
 	}
 	return parsed.UTC(), true

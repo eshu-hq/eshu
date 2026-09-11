@@ -41,8 +41,8 @@ import (
 // packageCorrelationDecodeInput carries one scanned package correlation fact
 // row into a decode wrapper. Bundling FactID, SchemaVersion, and Payload into
 // a single parameter keeps each wrapper's one-argument shape, matching the
-// payload-usage manifest gate's seam parser convention (see root package
-// query's factschema_decode_workitem.go's workItemDecodeInput).
+// payload-usage manifest gate's seam parser convention (see
+// internal/query/workitem/factschema_decode.go's workItemDecodeInput).
 type packageCorrelationDecodeInput struct {
 	FactID        string
 	SchemaVersion string
@@ -51,7 +51,7 @@ type packageCorrelationDecodeInput struct {
 
 // packageCorrelationDefaultSchemaMajorVersion is the schema version this file
 // assumes when a row carries none, matching root package query's
-// queryDefaultSchemaMajorVersion (factschema_decode_workitem.go). It is a
+// queryDefaultSchemaMajorVersion (factschema_decode_shared.go). It is a
 // major-1 version because every migrated package correlation fact kind is at
 // schema major 1 today; the Decode seam dispatches on the major component
 // only. Kept as this family's own copy rather than an import: the root

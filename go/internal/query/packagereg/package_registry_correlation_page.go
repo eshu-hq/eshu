@@ -21,8 +21,9 @@ type packageRegistryCorrelationFactRow struct {
 // NextCursorCorrelationID derived from the RAW fetched fact count/fact_id
 // sequence -- never from len(Rows) -- so a malformed or unsupported-version
 // fact inside the visible window cannot make a truncated page report itself
-// complete or corrupt the forward cursor. Mirrors WorkItemEvidencePage's
-// #4733 fix for the same failure class.
+// complete or corrupt the forward cursor. Mirrors
+// internal/query/workitem.EvidencePage's #4733 fix for the same failure
+// class.
 type PackageRegistryCorrelationPage struct {
 	// Rows is every fact in the visible window (the caller's requested Limit
 	// facts of the fetch) that decoded successfully, in fetch order. It may be

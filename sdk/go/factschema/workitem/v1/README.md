@@ -16,9 +16,10 @@ validated.
 
 Unlike most families in this module, no reducer or projector domain consumes
 `work_item.*` payloads. The only decode site is the query read-model layer:
-`go/internal/query/work_item_evidence_store.go` /
-`work_item_evidence.go` (8 of the 9 kinds, `GET /api/v0/work-items/evidence`
-and MCP `list_work_item_evidence`) and
+`go/internal/query/workitem/store.go` /
+`workitem/evidence.go` (8 of the 9 kinds, `GET /api/v0/work-items/evidence`
+and MCP `list_work_item_evidence`; moved from root's
+`work_item_evidence_store.go`/`work_item_evidence.go` in #6642) and
 `go/internal/query/incident_context_review_store.go` (4 kinds, incident
 context review). The #4573 payload-usage manifest gate's `QueryDir` input
 covers this seam the same way `ProjectorDir` covers the projector's
@@ -107,15 +108,18 @@ emission side stays redacted; they are unchanged by this migration.
 ## Manifest-gate blind spot
 
 Some work-item payload fields are read only by raw-SQL-JSONB queries in
-`go/internal/query` (`work_item_evidence_sql.go`,
+`go/internal/query` (`workitem/sql.go`,
 `incident_context_review_sql.go`), which the #4573 payload-usage manifest
-gate's decode-seam scan cannot see on its own. The query-side seam file
-(`go/internal/query/factschema_decode_workitem.go`) and the `QueryDir` gate
-input close this gap for the typed-decode call sites; the
+gate's decode-seam scan cannot see on its own -- that raw-SQL path is the
+actual blind spot. The query-side seam file,
+`go/internal/query/workitem/factschema_decode.go` (moved from root's
+`factschema_decode_workitem.go` in #6642), is the opposite of blind: it
+deliberately keeps the `factschema_decode` name because the gate's
+`QueryDir` input discovers query-layer decoders by globbing
+`factschema_decode*.go` recursively, so this file is scanned every time. The
 `go/internal/storage/postgres` lockstep test
-(`work_item_sql_schema_lockstep_test.go`) closes it for the raw
-`payload->>'field'` SQL reads, mirroring the incident/vulnerability
-precedent.
+(`work_item_sql_schema_lockstep_test.go`) closes the raw-SQL gap for the
+`payload->>'field'` reads, mirroring the incident/vulnerability precedent.
 
 ## Ownership boundary
 

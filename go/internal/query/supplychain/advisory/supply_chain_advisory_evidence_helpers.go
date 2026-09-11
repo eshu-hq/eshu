@@ -112,9 +112,10 @@ func stringMapSliceVal(payload map[string]any, key string) []map[string]string {
 }
 
 // derefString returns the value a *string points at, or "" when it is nil.
-// Copied from root package query's workItemDerefString
-// (factschema_decode_workitem.go): many root decode files call it, so the
-// #6060 family move cannot take it, and an unexported root symbol cannot be
+// Copied from root package query's derefString
+// (factschema_decode_shared.go, named workItemDerefString there before
+// #6642 destuttered it): root decode files still call it, so the #6060
+// family move could not take it, and an unexported root symbol cannot be
 // called across a package boundary. Named for what it does here rather than
 // the root file it came from: nothing in this package is work-item-shaped
 // (same rationale as packagereg's derefString).

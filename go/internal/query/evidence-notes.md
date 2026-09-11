@@ -136,8 +136,8 @@ remote-link types, missing evidence, stale evidence, permission-hidden rows, or
 rejected unsafe payloads. It does not verify pull-request, commit, deployment,
 runtime artifact, image, version, service, or incident truth.
 
-No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
-'TestWorkItem|TestOpenAPIIncludesWorkItemEvidenceRoute|TestResolveRouteMapsWorkItemEvidenceToBoundedQuery'
+No-Regression Evidence: `go test ./internal/query ./internal/query/workitem
+./internal/mcp -run 'TestWorkItem|TestOpenAPIIncludesWorkItemEvidenceRoute|TestResolveRouteMapsWorkItemEvidenceToBoundedQuery'
 -count=1` proves required scopes and limits, URL fingerprinting, cursor
 pagination, active fact SQL predicates, OpenAPI exposure, and MCP dispatch.
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
 import (
 	"context"
@@ -14,6 +14,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // failingWorkItemEvidenceStore proves the scoped empty-grant path never reads
@@ -24,92 +27,29 @@ type failingWorkItemEvidenceStore struct {
 
 func (s *failingWorkItemEvidenceStore) ListWorkItemEvidence(
 	context.Context,
-	WorkItemEvidenceFilter,
-) (WorkItemEvidencePage, error) {
+	EvidenceFilter,
+) (EvidencePage, error) {
 	s.called = true
-	return WorkItemEvidencePage{}, errors.New("broad work-item evidence read")
+	return EvidencePage{}, errors.New("broad work-item evidence read")
 }
 
-func TestAuthMiddlewareWithScopedTokensAllowsWorkItemEvidenceRoute(t *testing.T) {
-	t.Parallel()
-
-	resolver := &fakeScopedTokenResolver{
-		context: AuthContext{
-			Mode:                 AuthModeScoped,
-			TenantID:             "tenant-a",
-			WorkspaceID:          "workspace-a",
-			AllowedRepositoryIDs: []string{"repo-team-a"},
-		},
-		ok: true,
-	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, ok := AuthContextFromContext(r.Context()); !ok {
-			t.Fatal("AuthContextFromContext() ok = false, want true")
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/work-items/evidence?work_item_key=OPS-123&limit=10", nil)
-	req.Header.Set("Authorization", "Bearer scoped-token")
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, req)
-
-	if got, want := rec.Code, http.StatusNoContent; got != want {
-		t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-	}
-}
-
-func TestAuthMiddlewareWithScopedTokensRejectsAdjacentWorkItemRoutes(t *testing.T) {
-	t.Parallel()
-
-	resolver := &fakeScopedTokenResolver{
-		context: AuthContext{
-			Mode:                 AuthModeScoped,
-			TenantID:             "tenant-a",
-			WorkspaceID:          "workspace-a",
-			AllowedRepositoryIDs: []string{"repo-team-a"},
-		},
-		ok: true,
-	}
-	handler := AuthMiddlewareWithScopedTokens("", resolver, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
-	for _, tc := range []struct {
-		name   string
-		method string
-		target string
-	}{
-		// The admin work-items query stays admin-only; scoped tokens never reach it.
-		{name: "admin-query", method: http.MethodPost, target: "/api/v0/admin/work-items/query"},
-		// A sibling work-item sub-resource path is not the gated evidence route.
-		{name: "sibling", method: http.MethodGet, target: "/api/v0/work-items/evidence/explain?limit=10"},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			req := httptest.NewRequest(tc.method, tc.target, nil)
-			req.Header.Set("Authorization", "Bearer scoped-token")
-			rec := httptest.NewRecorder()
-			handler.ServeHTTP(rec, req)
-
-			if got, want := rec.Code, http.StatusForbidden; got != want {
-				t.Fatalf("status = %d, want %d; body = %s", got, want, rec.Body.String())
-			}
-		})
-	}
-}
+// TestAuthMiddlewareWithScopedTokensAllowsWorkItemEvidenceRoute and
+// TestAuthMiddlewareWithScopedTokensRejectsAdjacentWorkItemRoutes stay in
+// package query (auth_scoped_routes_work_item_test.go): they exercise root's
+// own AuthMiddlewareWithScopedTokens and the root-native fakeScopedTokenResolver
+// fixture, not this package's Handler (#6642).
 
 func TestWorkItemEvidenceScopedEmptyGrantReturnsEmptyWithoutStoreRead(t *testing.T) {
 	t.Parallel()
 
 	store := &failingWorkItemEvidenceStore{}
-	handler := &WorkItemHandler{Evidence: store, Profile: ProfileProduction}
+	handler := &Handler{Evidence: store, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/work-items/evidence?work_item_key=OPS-123&limit=10", nil)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:        AuthModeScoped,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:        queryauth.AuthModeScoped,
 		TenantID:    "tenant-a",
 		WorkspaceID: "workspace-a",
 	}))
@@ -129,16 +69,16 @@ func TestWorkItemEvidenceScopedHandlerPassesGrantSet(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingWorkItemEvidenceStore{
-		rows: []WorkItemEvidenceRow{
+		rows: []EvidenceRow{
 			{FactID: "fact-1", FactKind: "work_item.external_link", LinkedRepositoryID: "repo://example/api"},
 		},
 	}
-	handler := &WorkItemHandler{Evidence: store, Profile: ProfileProduction}
+	handler := &Handler{Evidence: store, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	auth := AuthContext{
-		Mode:                 AuthModeScoped,
+	auth := queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo://example/api"},
@@ -149,7 +89,7 @@ func TestWorkItemEvidenceScopedHandlerPassesGrantSet(t *testing.T) {
 	wantGrants := []string{"git-repository-scope:example/api", "repo://example/api"}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/work-items/evidence?work_item_key=OPS-123&limit=10", nil)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), auth))
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), auth))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -165,17 +105,17 @@ func TestWorkItemEvidenceScopedSharedTokenUnchanged(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingWorkItemEvidenceStore{
-		rows: []WorkItemEvidenceRow{
+		rows: []EvidenceRow{
 			{FactID: "fact-1", FactKind: "work_item.record", WorkItemKey: "OPS-123"},
 		},
 	}
-	handler := &WorkItemHandler{Evidence: store, Profile: ProfileProduction}
+	handler := &Handler{Evidence: store, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/work-items/evidence?work_item_key=OPS-123&limit=10", nil)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:      AuthModeShared,
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:      queryauth.AuthModeShared,
 		TenantID:  "tenant-a",
 		AllScopes: true,
 	}))
@@ -230,14 +170,17 @@ func (q *argCapturingWorkItemQueryer) QueryContext(
 	return nil, errors.New("stop after capturing args")
 }
 
+// TestWorkItemEvidenceStoreBindsMultiRepoGrantArrayBeforeLimit is a
+// PostgresEvidenceStore proof, not a root-fixture test: it uses only family
+// symbols, so it moves here alongside the store test files.
 func TestWorkItemEvidenceStoreBindsMultiRepoGrantArrayBeforeLimit(t *testing.T) {
 	t.Parallel()
 
 	queryer := &argCapturingWorkItemQueryer{}
-	store := NewPostgresWorkItemEvidenceStore(queryer)
+	store := NewPostgresEvidenceStore(queryer)
 
 	grants := []string{"repo://example/api", "repo://example/web"}
-	_, err := store.ListWorkItemEvidence(context.Background(), WorkItemEvidenceFilter{
+	_, err := store.ListWorkItemEvidence(context.Background(), EvidenceFilter{
 		WorkItemKey:          "OPS-123",
 		Limit:                11,
 		AllowedRepositoryIDs: grants,

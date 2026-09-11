@@ -1040,7 +1040,7 @@ filtering is tracked as a follow-up.
   (`query.infra_resource_search`) on infrastructure search (`infra.go`);
   `telemetry.SpanQueryWorkItemEvidence`
   (`query.work_item_evidence`) on source-only work-item evidence reads
-  (`work_item_evidence_handler.go`).
+  (`internal/query/workitem/handler.go`).
   Per-query spans `neo4j.query` and `postgres.query` on every graph and content
   read.
 - Metrics: `eshu_dp_neo4j_query_duration_seconds` and

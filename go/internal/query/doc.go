@@ -274,8 +274,9 @@
 // as not-found with no existence disclosure. Shared, admin, and local callers
 // skip the authorizer.
 //
-// WorkItemHandler, WorkItemEvidenceFilter, and WorkItemEvidenceRow expose
-// Jira/work-item source facts directly for ticket-first prompts. They require a
+// WorkItemHandler, WorkItemEvidenceFilter, and WorkItemEvidenceRow (aliases
+// into internal/query/workitem, #6642) expose Jira/work-item source facts
+// directly for ticket-first prompts. They require a
 // bounded scope anchor plus an explicit limit, sanitize external URLs to
 // fingerprints, and return missing, stale, permission-hidden, unsupported-link,
 // and rejected-payload states without promoting Jira-only URLs into

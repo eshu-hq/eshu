@@ -241,7 +241,7 @@ var factKindSchemaFile = map[string]string{ // #nosec G101 -- fact-kind identifi
 	"FactKindGCPIAMPermissionPolicy":               "gcp_iam_permission_policy.v1.schema.json",
 	"FactKindKubernetesServiceAccountTokenPosture": "k8s_service_account_token_posture.v1.schema.json",
 	// work_item family (Wave 4d): the eight kinds a QUERY-side decode seam
-	// wrapper actually decodes (go/internal/query/factschema_decode_workitem.go).
+	// wrapper actually decodes (go/internal/query/workitem/factschema_decode.go).
 	// work_item is read straight from Postgres by the query evidence read model —
 	// no reducer or projector domain consumes it — so its decode site is the
 	// query layer, gated via QueryDir. work_item.issue_type_metadata is typed in

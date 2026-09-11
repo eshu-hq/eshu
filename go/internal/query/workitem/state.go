@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
 import (
 	"slices"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -16,7 +17,7 @@ import (
 // read surface: mapping one decoded fact to its truth label, validating a
 // caller-supplied state, summarizing the states in a page, and shaping the
 // per-state span counters. The evidence-state constants themselves live with
-// the rest of the read-surface contract in work_item_evidence.go.
+// the rest of the read-surface contract in evidence.go.
 
 // workItemEvidenceState classifies one fact row into its evidence state. The
 // order of checks is load-bearing: a work_item.metadata_warning is a
@@ -29,60 +30,60 @@ import (
 func workItemEvidenceState(fact workItemEvidenceFactRow) string {
 	payload := fact.Payload
 	if fact.FactKind == "work_item.metadata_warning" {
-		return WorkItemEvidenceStateMetadataWarning
+		return EvidenceStateMetadataWarning
 	}
-	if state := strings.TrimSpace(StringVal(payload, "evidence_state")); knownWorkItemEvidenceState(state) {
+	if state := strings.TrimSpace(querycontract.StringVal(payload, "evidence_state")); knownWorkItemEvidenceState(state) {
 		return state
 	}
-	if BoolVal(payload, "permission_hidden") ||
-		StringVal(payload, "failure_class") == "permission_hidden" ||
-		StringVal(payload, "visibility_state") == "permission_hidden" {
-		return WorkItemEvidenceStatePermissionHidden
+	if querycontract.BoolVal(payload, "permission_hidden") ||
+		querycontract.StringVal(payload, "failure_class") == "permission_hidden" ||
+		querycontract.StringVal(payload, "visibility_state") == "permission_hidden" {
+		return EvidenceStatePermissionHidden
 	}
-	if StringVal(payload, "source_freshness") == "stale" ||
-		StringVal(payload, "freshness_state") == "stale" {
-		return WorkItemEvidenceStateStaleEvidence
+	if querycontract.StringVal(payload, "source_freshness") == "stale" ||
+		querycontract.StringVal(payload, "freshness_state") == "stale" {
+		return EvidenceStateStaleEvidence
 	}
 	if fact.FactKind == "work_item.external_link" {
-		state := strings.TrimSpace(StringVal(payload, "provider_support_state"))
+		state := strings.TrimSpace(querycontract.StringVal(payload, "provider_support_state"))
 		switch {
 		case strings.Contains(state, "unsupported"):
-			return WorkItemEvidenceStateUnsupportedLinkType
+			return EvidenceStateUnsupportedLinkType
 		case strings.Contains(state, "rejected"):
-			return WorkItemEvidenceStateRejectedUnsafePayload
+			return EvidenceStateRejectedUnsafePayload
 		}
 	}
-	if StringVal(payload, "warning_reason") == "rejected_unsafe_payload" {
-		return WorkItemEvidenceStateRejectedUnsafePayload
+	if querycontract.StringVal(payload, "warning_reason") == "rejected_unsafe_payload" {
+		return EvidenceStateRejectedUnsafePayload
 	}
-	return WorkItemEvidenceStateExactProviderFact
+	return EvidenceStateExactProviderFact
 }
 
 // knownWorkItemEvidenceState reports whether a state token is one of the
 // bounded evidence states the read surface promotes.
 func knownWorkItemEvidenceState(state string) bool {
 	return slices.Contains([]string{
-		WorkItemEvidenceStateExactProviderFact,
-		WorkItemEvidenceStateUnsupportedLinkType,
-		WorkItemEvidenceStateMissingEvidence,
-		WorkItemEvidenceStateStaleEvidence,
-		WorkItemEvidenceStatePermissionHidden,
-		WorkItemEvidenceStateRejectedUnsafePayload,
-		WorkItemEvidenceStateMetadataWarning,
+		EvidenceStateExactProviderFact,
+		EvidenceStateUnsupportedLinkType,
+		EvidenceStateMissingEvidence,
+		EvidenceStateStaleEvidence,
+		EvidenceStatePermissionHidden,
+		EvidenceStateRejectedUnsafePayload,
+		EvidenceStateMetadataWarning,
 	}, state)
 }
 
 // summarizeWorkItemEvidenceStates returns the sorted distinct evidence states
 // present in a page of rows, or the missing-evidence state for an empty page.
-func summarizeWorkItemEvidenceStates(rows []WorkItemEvidenceRow) []string {
+func summarizeWorkItemEvidenceStates(rows []EvidenceRow) []string {
 	if len(rows) == 0 {
-		return []string{WorkItemEvidenceStateMissingEvidence}
+		return []string{EvidenceStateMissingEvidence}
 	}
 	seen := map[string]struct{}{}
 	for _, row := range rows {
 		state := strings.TrimSpace(row.EvidenceState)
 		if state == "" {
-			state = WorkItemEvidenceStateExactProviderFact
+			state = EvidenceStateExactProviderFact
 		}
 		seen[state] = struct{}{}
 	}
@@ -94,18 +95,18 @@ func summarizeWorkItemEvidenceStates(rows []WorkItemEvidenceRow) []string {
 // (stale, permission-hidden, rejected-unsafe-payload, unsupported-link-type,
 // metadata-warning) plus result/missing counts; exact_provider_fact is the
 // baseline and is not broken out.
-func workItemEvidenceSpanAttributes(rows []WorkItemEvidenceRow, truncated bool) []attribute.KeyValue {
+func workItemEvidenceSpanAttributes(rows []EvidenceRow, truncated bool) []attribute.KeyValue {
 	counts := map[string]int{
-		WorkItemEvidenceStateStaleEvidence:         0,
-		WorkItemEvidenceStatePermissionHidden:      0,
-		WorkItemEvidenceStateRejectedUnsafePayload: 0,
-		WorkItemEvidenceStateUnsupportedLinkType:   0,
-		WorkItemEvidenceStateMetadataWarning:       0,
+		EvidenceStateStaleEvidence:         0,
+		EvidenceStatePermissionHidden:      0,
+		EvidenceStateRejectedUnsafePayload: 0,
+		EvidenceStateUnsupportedLinkType:   0,
+		EvidenceStateMetadataWarning:       0,
 	}
 	for _, row := range rows {
 		state := strings.TrimSpace(row.EvidenceState)
 		if state == "" {
-			state = WorkItemEvidenceStateExactProviderFact
+			state = EvidenceStateExactProviderFact
 		}
 		if _, ok := counts[state]; ok {
 			counts[state]++
@@ -118,11 +119,11 @@ func workItemEvidenceSpanAttributes(rows []WorkItemEvidenceRow, truncated bool) 
 	return []attribute.KeyValue{
 		attribute.Int(telemetry.SpanAttrWorkItemEvidenceQueryCount, 1),
 		attribute.Int(telemetry.SpanAttrWorkItemEvidenceResultCount, len(rows)),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceStaleCount, counts[WorkItemEvidenceStateStaleEvidence]),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidencePermissionHiddenCount, counts[WorkItemEvidenceStatePermissionHidden]),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceRejectedUnsafePayloadCount, counts[WorkItemEvidenceStateRejectedUnsafePayload]),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceUnsupportedLinkTypeCount, counts[WorkItemEvidenceStateUnsupportedLinkType]),
-		attribute.Int(telemetry.SpanAttrWorkItemEvidenceMetadataWarningCount, counts[WorkItemEvidenceStateMetadataWarning]),
+		attribute.Int(telemetry.SpanAttrWorkItemEvidenceStaleCount, counts[EvidenceStateStaleEvidence]),
+		attribute.Int(telemetry.SpanAttrWorkItemEvidencePermissionHiddenCount, counts[EvidenceStatePermissionHidden]),
+		attribute.Int(telemetry.SpanAttrWorkItemEvidenceRejectedUnsafePayloadCount, counts[EvidenceStateRejectedUnsafePayload]),
+		attribute.Int(telemetry.SpanAttrWorkItemEvidenceUnsupportedLinkTypeCount, counts[EvidenceStateUnsupportedLinkType]),
+		attribute.Int(telemetry.SpanAttrWorkItemEvidenceMetadataWarningCount, counts[EvidenceStateMetadataWarning]),
 		attribute.Int(telemetry.SpanAttrWorkItemEvidenceMissingCount, missingCount),
 		attribute.Bool(telemetry.SpanAttrWorkItemEvidenceTruncated, truncated),
 	}

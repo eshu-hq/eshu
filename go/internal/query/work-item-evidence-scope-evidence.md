@@ -22,8 +22,9 @@ Scoped enforcement (issue #2142):
   tenant-filtered; the admin `POST /api/v0/admin/work-items/query` route stays
   admin-only.
 - **Empty grant.** A scoped token with no grants returns the bounded
-  zero-evidence page (`writeEmptyWorkItemEvidencePage`) without a store read.
-- **Predicate.** `listWorkItemEvidenceQuery` intersects each fact's
+  zero-evidence page (`writeEmptyWorkItemEvidencePage`, now
+  `internal/query/workitem/scope.go`, #6642) without a store read.
+- **Predicate.** `listWorkItemEvidenceQuery` (now `internal/query/workitem/sql.go`) intersects each fact's
   `linked_repository_id` with the grant array (`$9`) before `ORDER BY`/`LIMIT`:
   `cardinality($9) = 0 OR fact.payload->>'linked_repository_id' = ANY($9)`. An
   empty array (shared/admin/local) keeps the unscoped all-rows branch; a
@@ -39,14 +40,17 @@ Scoped enforcement (issue #2142):
   existing `query.work_item_evidence` span and result counters.
 
 No-Regression Evidence:
-`go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/mcp -count=1`
+`go test ./cmd/api ./cmd/mcp-server ./internal/query ./internal/query/workitem ./internal/mcp -count=1`
 covers the suites. The focused proof is
-`go test ./internal/query ./internal/mcp -run 'WorkItemEvidence|ScopedTokensAllowsWorkItem|ScopedTokensRejectsAdjacentWorkItem|DispatchToolWorkItemEvidence' -count=1`,
+`go test ./internal/query ./internal/query/workitem ./internal/mcp -run 'WorkItemEvidence|ScopedTokensAllowsWorkItem|ScopedTokensRejectsAdjacentWorkItem|DispatchToolWorkItemEvidence' -count=1`,
 which fails if the gate stops allowing the route, the empty grant reads the
 store, the handler stops forwarding the grant set, the SQL predicate drops the
 `linked_repository_id` intersection or its placement before `ORDER BY`/`LIMIT`,
-or API/MCP parity regresses. `go test ./internal/query -race -run 'WorkItemEvidence'`
-proves the scoped path is race-clean.
+or API/MCP parity regresses. `go test ./internal/query ./internal/query/workitem -race -run 'WorkItemEvidence'`
+proves the scoped path is race-clean. The handler/store tests moved to
+`internal/query/workitem` in #6642; the two root
+`TestAuthMiddlewareWithScopedTokens*WorkItem*` route-gate tests stayed in
+package query (`auth_scoped_routes_work_item_test.go`).
 
 No-Observability-Change: the change adds no new read model, graph query, reducer
 lane, worker, queue, metric, span, or log contract. The grant predicate is a

@@ -23,7 +23,7 @@ import (
 // evidence store reads. Each wraps the contracts-module Decode* seam and, on a
 // classified *factschema.DecodeError, returns a *queryDecodeError so the
 // caller drops the row (an input_invalid read-model outcome) instead of
-// silently defaulting every field to "" — see factschema_decode_workitem.go
+// silently defaulting every field to "" — see factschema_decode_shared.go
 // for the template this mirrors.
 //
 // incident.lifecycle_event and change.record have no reducer decode call (see
