@@ -166,8 +166,8 @@ ever.
 
 Root arithmetic: 304 at first approval; 286 after the compat-consolidation
 PR; 274 after `packages/correlation`; 204 after `supplychain/core`, which is
-the #6645 base; {{ROOT_AFTER}} after #6645 (dirgate row re-pinned
-204 -> {{ROOT_AFTER}} with the re-derived digest in the same PR).
+the #6645 base; 122 after #6645 (dirgate row re-pinned
+204 -> 122 with the re-derived digest in the same PR).
 
 `shared_projection*` was never spine. #6645 hoists it: port shapes and pure
 row helpers into `sharedintent` (H1, H2), phase repair and presence keys into
@@ -353,17 +353,17 @@ emits nothing; its coverage row cites the unchanged writer-path trio
 
 No-Regression Evidence: #6645 is package relocation plus identifier renames,
 so there is no runtime delta to measure. Correctness is proven by
-construction plus replay. Baseline `origin/main` `{{BASE_SHA}}`, go1.27.1
+construction plus replay. Baseline `origin/main` `e2aebec8c`, go1.27.1
 darwin/arm64, from `go/`: `go build ./...` exit 0; `go vet ./...` (whole
 module, tests included) clean; `go test
 ./internal/reducer/... ./cmd/reducer/... ./internal/storage/postgres/...
-./internal/replay/... -count=1` green ({{PKG_OK}} packages ok); the test
-function inventory against the base is {{INV}}: moves keep test names, and
+./internal/replay/... -count=1` green (84 packages ok); the test
+function inventory against the base is lost 0, gained 1 (6918 test names against 6917 at the base, from `go test -list`): moves keep test names, and
 the one gain is the E1 regression test
 `TestExtractCodeCallRowsCrossRepoExportSkipsCallerWithoutRepositoryID`;
-B-7 golden-corpus gate {{B7}}; B-12 replay-coverage gate {{B12}}.
+B-7 golden-corpus gate 562 pass / 0 required-fail / 0 advisory-warn (139s), matching the base; B-12 replay-coverage gate `--blocking` PASS with byte-identical report and reference-doc rewrites.
 The real `ExtractRows` benchmarks, before and after on the same machine,
-interleaved, n=12 per side: {{BENCH}}. `go build -gcflags=-m` reports all 10
+interleaved, n=12 per side: `ExtractCodeCallRowsLargeJavaScriptDynamicCalls` 5.344 -> 5.275 ms/op (-1.29%, p=0.033, inside noise and not claimed as a speedup) and `ExtractCodeCallRowsRepositoryImportBarrier` 6.459 -> 6.481 ms/op (~, p=0.551); B/op +0.86% and +0.01%, allocs/op +0.04% and +0.00%. `go build -gcflags=-m` reports all 10
 `EntityIndex` read-only accessors inlinable, and the language leaves inline
 them at their call sites, so decision 3 costs nothing measurable. No caller,
 query, queue, worker, lease, or storage contract changed.
