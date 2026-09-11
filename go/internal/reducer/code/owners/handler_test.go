@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package owners
 
 import (
 	"context"
@@ -10,24 +10,39 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
 )
 
-// recordingCodeownersOwnershipEdgeWriter is a SharedProjectionEdgeWriter fake
+// stubFactLoader is a minimal factload.FactLoader double, following the
+// reducer root's stubFactLoader (workload_materialization_handler_test.go).
+type stubFactLoader struct {
+	envelopes []facts.Envelope
+	calls     int
+}
+
+func (f *stubFactLoader) ListFacts(_ context.Context, _, _ string) ([]facts.Envelope, error) {
+	f.calls++
+	return f.envelopes, nil
+}
+
+// recordingCodeownersOwnershipEdgeWriter is a sharedintent.EdgeWriter fake
 // that records every retract/write call, mirroring
 // recordingDocumentationEdgeWriter (documentation_edge_materialization_test.go).
 type recordingCodeownersOwnershipEdgeWriter struct {
 	retractDomain string
-	retractRows   []SharedProjectionIntentRow
+	retractRows   []sharedintent.Row
 	writeDomain   string
-	writeRows     []SharedProjectionIntentRow
+	writeRows     []sharedintent.Row
 }
 
 func (r *recordingCodeownersOwnershipEdgeWriter) RetractEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
 ) error {
 	r.retractDomain = domain
@@ -38,12 +53,12 @@ func (r *recordingCodeownersOwnershipEdgeWriter) RetractEdges(
 func (r *recordingCodeownersOwnershipEdgeWriter) WriteEdges(
 	_ context.Context,
 	domain string,
-	rows []SharedProjectionIntentRow,
+	rows []sharedintent.Row,
 	_ string,
-) (SharedProjectionWriteReport, error) {
+) (sharedintent.WriteReport, error) {
 	r.writeDomain = domain
 	r.writeRows = append(r.writeRows, rows...)
-	return SharedProjectionWriteReport{}, nil
+	return sharedintent.WriteReport{}, nil
 }
 
 func codeownersOwnershipEnvelope(repoID, sourcePath, pattern string, owners []string, orderIndex int) facts.Envelope {
@@ -58,22 +73,22 @@ func codeownersOwnershipEnvelope(repoID, sourcePath, pattern string, owners []st
 		panic(err)
 	}
 	return facts.Envelope{
-		FactKind: factKindCodeownersOwnership,
+		FactKind: factload.FactKindCodeownersOwnership,
 		Payload:  payload,
 	}
 }
 
-func codeownersOwnershipIntent(scopeID, generationID string) Intent {
+func codeownersOwnershipIntent(scopeID, generationID string) reducercontract.Intent {
 	now := time.Date(2026, time.July, 21, 12, 0, 0, 0, time.UTC)
-	return Intent{
+	return reducercontract.Intent{
 		IntentID:     "intent-codeowners-" + scopeID + "-" + generationID,
 		ScopeID:      scopeID,
 		GenerationID: generationID,
 		SourceSystem: "git",
-		Domain:       DomainCodeownersOwnership,
+		Domain:       reducercontract.DomainCodeownersOwnership,
 		EnqueuedAt:   now,
 		AvailableAt:  now,
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	}
 }
 
@@ -81,7 +96,7 @@ func TestCodeownersOwnershipHandlerBuildsOneEdgePerPatternOwner(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingCodeownersOwnershipEdgeWriter{}
-	handler := CodeownersOwnershipEdgeMaterializationHandler{
+	handler := Handler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			codeownersOwnershipEnvelope("repo-1", ".github/CODEOWNERS", "*.go", []string{"@org/backend", "@org/platform"}, 0),
 			codeownersOwnershipEnvelope("repo-1", ".github/CODEOWNERS", "*.md", []string{"@org/docs"}, 1),
@@ -105,8 +120,8 @@ func TestCodeownersOwnershipHandlerBuildsOneEdgePerPatternOwner(t *testing.T) {
 
 	wantOwnerRefs := map[string]bool{"@org/backend": false, "@org/platform": false, "@org/docs": false}
 	for _, row := range writer.writeRows {
-		if row.ProjectionDomain != DomainCodeownersOwnershipEdges {
-			t.Errorf("ProjectionDomain = %q, want %q", row.ProjectionDomain, DomainCodeownersOwnershipEdges)
+		if row.ProjectionDomain != reducercontract.DomainCodeownersOwnershipEdges {
+			t.Errorf("ProjectionDomain = %q, want %q", row.ProjectionDomain, reducercontract.DomainCodeownersOwnershipEdges)
 		}
 		if row.RepositoryID != "repo-1" {
 			t.Errorf("RepositoryID = %q, want repo-1", row.RepositoryID)
@@ -161,10 +176,10 @@ func TestCodeownersOwnershipHandlerDeletedFileRetractsWithoutWrites(t *testing.T
 	t.Parallel()
 
 	writer := &recordingCodeownersOwnershipEdgeWriter{}
-	handler := CodeownersOwnershipEdgeMaterializationHandler{
+	handler := Handler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":                      "repo-1",
 					"local_path":                   "/repo",
@@ -192,8 +207,8 @@ func TestCodeownersOwnershipHandlerDeletedFileRetractsWithoutWrites(t *testing.T
 	if len(writer.writeRows) != 0 {
 		t.Fatalf("writeRows len = %d, want 0", len(writer.writeRows))
 	}
-	if writer.retractDomain != DomainCodeownersOwnershipEdges {
-		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, DomainCodeownersOwnershipEdges)
+	if writer.retractDomain != reducercontract.DomainCodeownersOwnershipEdges {
+		t.Fatalf("retractDomain = %q, want %q", writer.retractDomain, reducercontract.DomainCodeownersOwnershipEdges)
 	}
 	if len(writer.retractRows) != 1 {
 		t.Fatalf("retractRows len = %d, want 1", len(writer.retractRows))
@@ -218,10 +233,10 @@ func TestCodeownersOwnershipHandlerChangedCandidateForcesWholeRepoRetract(t *tes
 	t.Parallel()
 
 	writer := &recordingCodeownersOwnershipEdgeWriter{}
-	handler := CodeownersOwnershipEdgeMaterializationHandler{
+	handler := Handler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":              "repo-1",
 					"local_path":           "/repo",
@@ -265,10 +280,10 @@ func TestCodeownersOwnershipHandlerNonCandidateDeltaKeepsPathScopedRetract(t *te
 	t.Parallel()
 
 	writer := &recordingCodeownersOwnershipEdgeWriter{}
-	handler := CodeownersOwnershipEdgeMaterializationHandler{
+	handler := Handler{
 		FactLoader: &stubFactLoader{envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":              "repo-1",
 					"local_path":           "/repo",
@@ -311,9 +326,9 @@ func TestExtractCodeownersOwnershipEdgeRowsFansOutOwnersPerRule(t *testing.T) {
 	envelopes := []facts.Envelope{
 		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*", []string{"@org/a", "@org/b"}, 0),
 	}
-	rows, quarantined, err := ExtractCodeownersOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
+	rows, quarantined, err := ExtractOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
 	if err != nil {
-		t.Fatalf("ExtractCodeownersOwnershipEdgeRowsWithQuarantine() error = %v", err)
+		t.Fatalf("ExtractOwnershipEdgeRowsWithQuarantine() error = %v", err)
 	}
 	if len(quarantined) != 0 {
 		t.Fatalf("quarantined = %#v, want empty", quarantined)
@@ -328,8 +343,8 @@ func TestExtractCodeownersOwnershipEdgeRowsFansOutOwnersPerRule(t *testing.T) {
 		if row["order_index"] != 0 {
 			t.Errorf("order_index = %#v, want 0", row["order_index"])
 		}
-		if row["action"] != IntentActionUpsert {
-			t.Errorf("action = %#v, want %q", row["action"], IntentActionUpsert)
+		if row["action"] != reducercontract.IntentActionUpsert {
+			t.Errorf("action = %#v, want %q", row["action"], reducercontract.IntentActionUpsert)
 		}
 	}
 }
@@ -352,9 +367,9 @@ func TestExtractCodeownersOwnershipEdgeRowsKeepsLastMatchOrdinalOnRepeatedRule(t
 		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*.go", []string{"@team-b"}, 1),
 		codeownersOwnershipEnvelope("repo-1", "CODEOWNERS", "*.go", []string{"@team-a"}, 2),
 	}
-	rows, quarantined, err := ExtractCodeownersOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
+	rows, quarantined, err := ExtractOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
 	if err != nil {
-		t.Fatalf("ExtractCodeownersOwnershipEdgeRowsWithQuarantine() error = %v", err)
+		t.Fatalf("ExtractOwnershipEdgeRowsWithQuarantine() error = %v", err)
 	}
 	if len(quarantined) != 0 {
 		t.Fatalf("quarantined = %#v, want empty", quarantined)
@@ -385,7 +400,7 @@ func TestExtractCodeownersOwnershipEdgeRowsQuarantinesMissingRequiredField(t *te
 
 	envelopes := []facts.Envelope{
 		{
-			FactKind: factKindCodeownersOwnership,
+			FactKind: factload.FactKindCodeownersOwnership,
 			FactID:   "fact-bad-1",
 			Payload: map[string]any{
 				"source_path": "CODEOWNERS",
@@ -396,9 +411,9 @@ func TestExtractCodeownersOwnershipEdgeRowsQuarantinesMissingRequiredField(t *te
 			},
 		},
 	}
-	rows, quarantined, err := ExtractCodeownersOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
+	rows, quarantined, err := ExtractOwnershipEdgeRowsWithQuarantine(envelopes, "gen-1")
 	if err != nil {
-		t.Fatalf("ExtractCodeownersOwnershipEdgeRowsWithQuarantine() error = %v, want nil (quarantinable)", err)
+		t.Fatalf("ExtractOwnershipEdgeRowsWithQuarantine() error = %v, want nil (quarantinable)", err)
 	}
 	if len(rows) != 0 {
 		t.Fatalf("rows = %#v, want empty", rows)

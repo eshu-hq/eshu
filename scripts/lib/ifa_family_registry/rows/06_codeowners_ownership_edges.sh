@@ -106,7 +106,7 @@ IFA_FAMILY_CELL_KIND[codeowners_ownership_edges]="custom"
 # + custom. Kept because it is the file every other field here is derived from,
 # and because a family that later moves to generic dispatch needs it present
 # rather than remembered. Not dead by accident -- dead on purpose, said out loud.
-IFA_FAMILY_HANDLER_GO_FILE[codeowners_ownership_edges]="go/internal/reducer/codeowners_ownership_materialization.go"
+IFA_FAMILY_HANDLER_GO_FILE[codeowners_ownership_edges]="go/internal/reducer/code/owners/handler.go"
 
 # NOT in drive_all_cassettes: #6160 gave this family its own scoped baseline plus two recovery cells, which drive its cassette themselves.
 IFA_FAMILY_FAULT_SHARED_DRIVE[codeowners_ownership_edges]="0"

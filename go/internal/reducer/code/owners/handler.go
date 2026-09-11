@@ -1,0 +1,284 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package owners
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	log "github.com/eshu-hq/eshu/go/pkg/log"
+)
+
+const evidenceSource = "reducer/codeowners"
+
+// Handler projects Repository-[:DECLARES_CODEOWNER]->CodeownerTeam edges from
+// directly-emitted codeowners.ownership facts (issue #5419 Phase 3). It
+// mirrors the documentation-edge family: codeowners.ownership is a
+// direct-emitted fact (not a parser entity), so the reducer consumes it and
+// rides the shared-projection intent-queue path rather than the
+// canonical-projector entity path.
+type Handler struct {
+	FactLoader           factload.FactLoader
+	EdgeWriter           sharedintent.EdgeWriter
+	PriorGenerationCheck reducercontract.PriorGenerationCheck
+	// Instruments records the eshu_dp_reducer_input_invalid_facts_total counter
+	// for a codeowners.ownership fact quarantined by the typed decode seam. A
+	// nil Instruments is a no-op: the counter is skipped but the quarantine
+	// still surfaces through Result.SubSignals and the structured error log.
+	Instruments *telemetry.Instruments
+}
+
+// Handle executes the codeowners ownership edge materialization path.
+func (h Handler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainCodeownersOwnership {
+		return reducercontract.Result{}, fmt.Errorf(
+			"codeowners ownership materialization handler does not accept domain %q",
+			intent.Domain,
+		)
+	}
+	if h.FactLoader == nil {
+		return reducercontract.Result{}, fmt.Errorf("codeowners ownership materialization fact loader is required")
+	}
+	if h.EdgeWriter == nil {
+		return reducercontract.Result{}, fmt.Errorf("codeowners ownership materialization edge writer is required")
+	}
+
+	slog.InfoContext(
+		ctx, "codeowners ownership materialization started",
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		log.Domain(string(intent.Domain)),
+	)
+
+	envelopes, err := LoadMaterializationFacts(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID)
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("load facts for codeowners ownership materialization: %w", err)
+	}
+
+	scope := buildDeltaScope(envelopes)
+	rows, quarantined, err := ExtractOwnershipEdgeRowsWithQuarantine(envelopes, intent.GenerationID)
+	if err != nil {
+		return reducercontract.Result{}, fmt.Errorf("extract codeowners ownership edge rows: %w", err)
+	}
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainCodeownersOwnership, intent.ScopeID, intent.GenerationID, quarantined)
+
+	repositoryIDs := collectRepositoryIDs(rows, scope)
+
+	skipRetract, err := h.shouldSkipRetract(ctx, intent)
+	if err != nil {
+		return reducercontract.Result{}, err
+	}
+	if !skipRetract {
+		retractRows := buildRetractRows(repositoryIDs, scope)
+		if err := h.retractEdges(ctx, retractRows); err != nil {
+			return reducercontract.Result{}, err
+		}
+	}
+
+	writeRows := buildIntentRows(rows)
+	if len(writeRows) > 0 {
+		if _, err := h.EdgeWriter.WriteEdges(
+			ctx,
+			reducercontract.DomainCodeownersOwnershipEdges,
+			writeRows,
+			evidenceSource,
+		); err != nil {
+			return reducercontract.Result{}, fmt.Errorf("write canonical codeowners ownership edges: %w", err)
+		}
+	}
+
+	slog.InfoContext(
+		ctx, "codeowners ownership materialization completed",
+		log.ScopeID(intent.ScopeID),
+		log.GenerationID(intent.GenerationID),
+		slog.Int("edge_count", len(writeRows)),
+	)
+
+	return reducercontract.Result{
+		IntentID:        intent.IntentID,
+		Domain:          reducercontract.DomainCodeownersOwnership,
+		Status:          reducercontract.ResultStatusSucceeded,
+		EvidenceSummary: fmt.Sprintf("materialized %d canonical codeowners ownership edges", len(writeRows)),
+		CanonicalWrites: len(writeRows),
+		SubSignals:      factdecode.InputInvalidSubSignals(inputInvalidCount),
+	}, nil
+}
+
+// retractEdges issues the codeowners ownership retract in up to two
+// homogeneous batches: rows with a nil Payload get a whole-repository
+// retract, rows carrying a delta_projection Payload get the ordinary
+// path-scoped delta retract. Splitting is required because the storage-layer
+// dispatch (cypher.EdgeWriter.RetractEdges) picks exactly one Cypher shape
+// per call based on whether ANY row in the batch carries delta scope
+// (cypher.collectDeltaFilePaths); a single batch mixing both row shapes would
+// silently apply the path-scoped shape to a repository that actually needs
+// the whole-repository sweep. In practice one codeowners intent covers
+// exactly one repository (scope is built per-repo), so this split is a
+// defensive no-op today, but it keeps the generic multi-repository
+// repositoryIDs plumbing correct if that ever changes.
+func (h Handler) retractEdges(
+	ctx context.Context,
+	retractRows []sharedintent.Row,
+) error {
+	var wholeRepoRows, deltaScopedRows []sharedintent.Row
+	for _, row := range retractRows {
+		if row.Payload == nil {
+			wholeRepoRows = append(wholeRepoRows, row)
+			continue
+		}
+		deltaScopedRows = append(deltaScopedRows, row)
+	}
+	if len(wholeRepoRows) > 0 {
+		if err := h.EdgeWriter.RetractEdges(
+			ctx, reducercontract.DomainCodeownersOwnershipEdges, wholeRepoRows, evidenceSource,
+		); err != nil {
+			return fmt.Errorf("retract canonical codeowners ownership edges (whole-repo): %w", err)
+		}
+	}
+	if len(deltaScopedRows) > 0 {
+		if err := h.EdgeWriter.RetractEdges(
+			ctx, reducercontract.DomainCodeownersOwnershipEdges, deltaScopedRows, evidenceSource,
+		); err != nil {
+			return fmt.Errorf("retract canonical codeowners ownership edges (delta-scoped): %w", err)
+		}
+	}
+	return nil
+}
+
+func (h Handler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
+	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
+		return false, nil
+	}
+	hasPrior, err := h.PriorGenerationCheck(ctx, intent.ScopeID, intent.GenerationID)
+	if err != nil {
+		return false, fmt.Errorf("check prior generation for codeowners ownership retract: %w", err)
+	}
+	return !hasPrior, nil
+}
+
+// collectRepositoryIDs collects every repository the retract must cover:
+// every repo a written row targets, plus every repo the delta scope names (so
+// a repo whose CODEOWNERS file was deleted — producing zero rows — still gets
+// its stale edges swept).
+func collectRepositoryIDs(rows []map[string]any, scope deltaScope) []string {
+	seen := make(map[string]struct{})
+	var repositoryIDs []string
+	add := func(repositoryID string) {
+		repositoryID = strings.TrimSpace(repositoryID)
+		if repositoryID == "" {
+			return
+		}
+		if _, ok := seen[repositoryID]; ok {
+			return
+		}
+		seen[repositoryID] = struct{}{}
+		repositoryIDs = append(repositoryIDs, repositoryID)
+	}
+	for _, row := range rows {
+		add(payloadcore.AnyToString(row["repo_id"]))
+	}
+	for _, repositoryID := range scope.repositoryIDs {
+		add(repositoryID)
+	}
+	return repositoryIDs
+}
+
+// ExtractOwnershipEdgeRowsWithQuarantine decodes every codeowners.ownership
+// envelope through the sdk/go/factschema seam (schemadecode.
+// DecodeCodeownersOwnership) and builds one DECLARES_CODEOWNER edge row per
+// (pattern, owner) pair: a CODEOWNERS rule line with N owner tokens projects N
+// edges, since ownership is declared per-owner, not per-line. A fact missing a
+// required field (repo_id, source_path, pattern, owners, order_index) is
+// quarantined per-fact via factdecode.PartitionDecodeFailures rather than
+// dropped silently; an unsupported schema major is escalated to a fatal error
+// for durable triage (see factdecode.PartitionDecodeFailures).
+//
+// A repeated (repo, path, pattern, owner) key — the same owner listed again
+// on a later rule line for the same pattern — collapses into a single row,
+// but that row MUST keep the highest (latest) order_index it saw, never the
+// first. GitHub's CODEOWNERS resolution is last-match-wins, and the
+// downstream precedence resolver picks the highest surviving ordinal as the
+// effective owner, so freezing the first occurrence's ordinal would let a
+// stale, superseded rule line outrank the true last match.
+func ExtractOwnershipEdgeRowsWithQuarantine(
+	envelopes []facts.Envelope,
+	generationID string,
+) ([]map[string]any, []factdecode.QuarantinedFact, error) {
+	rows := make([]map[string]any, 0)
+	var quarantined []factdecode.QuarantinedFact
+	rowIndexByKey := make(map[string]int)
+	for _, env := range envelopes {
+		if env.FactKind != factload.FactKindCodeownersOwnership || env.IsTombstone {
+			continue
+		}
+		ownership, err := schemadecode.DecodeCodeownersOwnership(env)
+		if err != nil {
+			q, isQuarantine, fatal := factdecode.PartitionDecodeFailures(env, err)
+			if fatal != nil {
+				return nil, nil, fatal
+			}
+			if isQuarantine {
+				quarantined = append(quarantined, q)
+			}
+			continue
+		}
+
+		repoID := strings.TrimSpace(ownership.RepoID)
+		sourcePath := strings.TrimSpace(ownership.SourcePath)
+		pattern := strings.TrimSpace(ownership.Pattern)
+		if repoID == "" || sourcePath == "" || pattern == "" {
+			continue
+		}
+
+		for _, owner := range ownership.Owners {
+			ownerRef := strings.TrimSpace(owner)
+			if ownerRef == "" {
+				continue
+			}
+			key := repoID + "|" + sourcePath + "|" + pattern + "|" + ownerRef
+			if idx, dup := rowIndexByKey[key]; dup {
+				if existingOrderIndex, ok := rows[idx]["order_index"].(int); ok && ownership.OrderIndex > existingOrderIndex {
+					rows[idx]["order_index"] = ownership.OrderIndex
+				}
+				continue
+			}
+			rowIndexByKey[key] = len(rows)
+
+			rows = append(rows, map[string]any{
+				"repo_id":       repoID,
+				"owner_ref":     ownerRef,
+				"pattern":       pattern,
+				"source_path":   sourcePath,
+				"order_index":   ownership.OrderIndex,
+				"generation_id": generationID,
+				"action":        reducercontract.IntentActionUpsert,
+			})
+		}
+	}
+	return rows, quarantined, nil
+}
+
+func buildIntentRows(rows []map[string]any) []sharedintent.Row {
+	intents := make([]sharedintent.Row, 0, len(rows))
+	for _, row := range rows {
+		intents = append(intents, sharedintent.Row{
+			ProjectionDomain: reducercontract.DomainCodeownersOwnershipEdges,
+			PartitionKey: payloadcore.AnyToString(row["repo_id"]) + "->" + payloadcore.AnyToString(row["source_path"]) +
+				"->" + payloadcore.AnyToString(row["pattern"]) + "->" + payloadcore.AnyToString(row["owner_ref"]),
+			RepositoryID: payloadcore.AnyToString(row["repo_id"]),
+			Payload:      payloadcore.CopyPayload(row),
+		})
+	}
+	return intents
+}
