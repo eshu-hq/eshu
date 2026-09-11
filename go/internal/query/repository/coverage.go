@@ -200,6 +200,13 @@ func QueryMaxIndexedAt(ctx context.Context, db *sql.DB, table string, repoID str
 	return indexedAt.Time.UTC(), nil
 }
 
+// CoverageIndexedAtTable validates table against the closed set of
+// coverage tables QueryMaxIndexedAt is allowed to query
+// (repositoryCoverageContentFilesTable, repositoryCoverageContentEntitiesTable)
+// and returns it unchanged when it matches. table is interpolated into a
+// raw SQL identifier, so this allowlist check is what keeps that query safe
+// from an unexpected or attacker-controlled table name; an unrecognized
+// table returns an error instead of the table name.
 func CoverageIndexedAtTable(table string) (string, error) {
 	switch table {
 	case repositoryCoverageContentFilesTable, repositoryCoverageContentEntitiesTable:

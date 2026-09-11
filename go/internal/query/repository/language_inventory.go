@@ -218,6 +218,14 @@ func repositoryLanguagePageFromRequest(r *http.Request, allowZeroLimit bool) rea
 	return readmodel.ListPage{Limit: limit, Offset: offset}
 }
 
+// LanguageFamily expands a user-facing `?language=` selector into the set
+// of file-classifier language tags that satisfy it: an aliased selector
+// (ts/js/terraform) maps to every tag in its family (e.g. "ts" ->
+// typescript+tsx), a blank or whitespace-only selector returns nil (no
+// filter), and any other value is normalized (trimmed, lowercased) and
+// returned as its own single-element family. Exported for the #6060 root
+// test suite; production code should call repositoryLanguageFamily, the
+// in-package wrapper.
 func LanguageFamily(language string) []string {
 	normalized := strings.ToLower(strings.TrimSpace(language))
 	switch normalized {

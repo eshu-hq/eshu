@@ -10,17 +10,32 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// Paging bounds for the repository list route. ListPageFromRequest clamps
+// an out-of-range or unset `limit`/`offset` query parameter to these values
+// rather than rejecting the request.
 const (
+	// ListDefaultLimit is the page size used when the request omits `limit`
+	// or supplies a non-positive value.
 	ListDefaultLimit = 100
-	ListMaxLimit     = 500
-	ListMaxOffset    = 10000
+	// ListMaxLimit is the largest page size a caller may request; a larger
+	// `limit` is clamped down to it.
+	ListMaxLimit = 500
+	// ListMaxOffset is the largest `offset` a caller may request; a larger
+	// offset is clamped down to it rather than paging past it.
+	ListMaxOffset = 10000
 )
 
+// ListPage is the resolved limit/offset window for one repository list
+// request, after ListPageFromRequest has clamped both to their bounds.
 type ListPage struct {
 	Limit  int
 	Offset int
 }
 
+// ListPageFromRequest parses the `limit` and `offset` query parameters off
+// r and clamps each to its bound (ListDefaultLimit/ListMaxLimit for limit,
+// 0/ListMaxOffset for offset). A missing, non-positive, or over-limit value
+// never errors; it silently resolves to the nearest in-range value.
 func ListPageFromRequest(r *http.Request) ListPage {
 	limit := querycontract.QueryParamInt(r, "limit", ListDefaultLimit)
 	if limit <= 0 {
@@ -55,6 +70,11 @@ func ListResponse(repos []map[string]any, page ListPage, truncated bool, total i
 	}
 }
 
+// PageRepositoryMaps sorts repos by (name, id) for stable pagination, then
+// slices out the window page describes. It returns the sliced page and
+// whether repos held more rows past that window (truncated). repos is
+// sorted in place; page.Offset at or past len(repos) returns an empty page,
+// never an error.
 func PageRepositoryMaps(repos []map[string]any, page ListPage) ([]map[string]any, bool) {
 	sort.SliceStable(repos, func(i, j int) bool {
 		leftName, rightName := querycontract.StringVal(repos[i], "name"), querycontract.StringVal(repos[j], "name")

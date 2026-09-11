@@ -19,6 +19,11 @@ type repositoryRefLister interface {
 	ListRepositoryRefs(context.Context, string) ([]querycontract.RepositoryRef, error)
 }
 
+// Refs lists every source-backed branch/tag ref store has recorded for
+// repoID, unpaged: callers that need the true default branch or a scan by
+// ref name/SHA (RefsDefaultBranch, ValidateSelectedRepositoryRef) need the
+// full list, not a page of it. It returns (nil, nil), not an error, when
+// store is nil or does not implement repositoryRefLister.
 func Refs(ctx context.Context, store querycontract.ContentStore, repoID string) ([]querycontract.RepositoryRef, error) {
 	if store == nil {
 		return nil, nil
@@ -30,6 +35,10 @@ func Refs(ctx context.Context, store querycontract.ContentStore, repoID string) 
 	return lister.ListRepositoryRefs(ctx, repoID)
 }
 
+// RefsDefaultBranch returns the trimmed name of the ref in refs marked
+// Default, or "" when refs carries no default (an empty or all-tag list).
+// It scans by the Default flag, not position, so callers may reorder refs
+// (for paging, for example) without affecting the result.
 func RefsDefaultBranch(refs []querycontract.RepositoryRef) string {
 	for _, ref := range refs {
 		if ref.Default {
@@ -60,6 +69,16 @@ func RefEntry(ref querycontract.RepositoryRef, includeDefault bool) map[string]a
 	return entry
 }
 
+// ValidateSelectedRepositoryRef checks that requestedRef (a branch/tag name
+// or commit SHA) names a ref indexed at indexedCommit. It returns
+// (0, "", nil) when the request selects nothing (requestedRef is blank) or
+// already names indexedCommit directly; otherwise it fetches store's full
+// ref list via Refs and matches requestedRef against each ref's Name or
+// HeadSHA. A match whose HeadSHA differs from indexedCommit, or no match at
+// all, is a caller-facing failure: it returns a non-zero HTTP status
+// (404 unmatched, 409 matched-but-stale or ref metadata unavailable) plus a
+// message, with a nil error — the error return is reserved for the
+// underlying Refs lookup failing.
 func ValidateSelectedRepositoryRef(
 	ctx context.Context,
 	store querycontract.ContentStore,
