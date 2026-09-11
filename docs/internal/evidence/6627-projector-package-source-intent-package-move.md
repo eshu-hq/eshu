@@ -135,8 +135,8 @@ import-alias follow-up:
 
 Since `0fb98ee`, the only production change is the import identifier in
 `scope_generation_intents.go`. It does not touch fixtures, cassettes, or the
-B-12 snapshot. CI reruns both jobs on every PR head, and the PR description
-cites those runs for the pushed head.
+B-12 snapshot. CI reruns both jobs on every PR head; their results for the
+pushed head are in that head's check runs.
 
 The move commit's patch is unchanged by the rebase, and the follow-up touches
 none of the files behind these structural checks, so they still hold:
