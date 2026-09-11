@@ -1,0 +1,69 @@
+go/internal/query/codequery/routes/doc.go
+  s_b56e6dd1c067c2::t_3fe179941c86e5 24
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_b56e6dd1c067c2::t_dfdb092f1bd7fd 32
+go/internal/query/codequery/relationships/doc.go
+  s_b56e6dd1c067c2::t_d1c888c0030cca 22
+go/internal/query/language/AGENTS.md
+  s_b56e6dd1c067c2::t_455b617eb66151 27
+go/internal/query/graph/rows/README.md
+  s_b56e6dd1c067c2::t_79926f3beb269d 49-64
+docs/public/reference/language-query-dsl.md
+  s_b56e6dd1c067c2::t_13d4cd512102be 342
+go/internal/query/querycontract/language_query_entities.go
+  s_b56e6dd1c067c2::t_6f7862653c1830 198
+go/internal/query/graph/rows/AGENTS.md
+  s_b56e6dd1c067c2::t_dbe10ad8384514 1
+go/internal/query/codequery/routes/graph.go
+  s_b56e6dd1c067c2::t_27a440ba2e4f23 158,162-163
+  s_b56e6dd1c067c2::t_91d8fe8929297d 13,164
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_b56e6dd1c067c2::t_c1d9ecf6d671e2 57
+  s_b56e6dd1c067c2::t_06642bb70e1004 159
+  s_b56e6dd1c067c2::t_d31aad0487f0e7 184
+go/internal/query/language/README.md
+  s_b56e6dd1c067c2::t_8a1babb5b5daf0 20
+go/internal/query/graph/rows/doc.go
+  s_b56e6dd1c067c2::t_346f16e257a4bb 26
+  s_b56e6dd1c067c2::t_51807746d9b439 4-6
+go/internal/query/graph/rows/graph_row_shape.go
+  s_b56e6dd1c067c2::t_4fdb765719e0eb 4
+go/internal/query/codequery/doc.go
+  s_b56e6dd1c067c2::t_7b0db50a5d6c71 19
+go/internal/query/language/doc.go
+  s_b56e6dd1c067c2::t_d6b2bf75911087 28
+go/.golangci.yml
+  s_b56e6dd1c067c2::t_44b4b26a81f535 110
+go/internal/query/codequery/deadcode/doc.go
+  s_b56e6dd1c067c2::t_243e15bce18f7d 23
+go/internal/query/codequery/complexity_queries.go
+  s_b56e6dd1c067c2::t_293996971b3d82 14,158,224
+go/internal/query/codequery/deadcode/scan.go
+  s_b56e6dd1c067c2::t_80b437a0f81d21 9,57
+go/internal/query/codequery/relationships/identity.go
+  s_b56e6dd1c067c2::t_24911c171b94ee 10,140,208
+go/internal/query/codequery/route_to_caller_nornicdb_test.go
+  s_b56e6dd1c067c2::t_4e7e1702a9092c 11,65,72,75,85
+go/internal/query/entity/entity.go
+  s_b56e6dd1c067c2::t_b0cf545c668262 13,141,334
+go/internal/query/entity_name_cross_store_differential_live_test.go
+  s_b56e6dd1c067c2::t_951aef1ad72700 19,334,352
+go/internal/query/language/entities.go
+  s_b56e6dd1c067c2::t_0514be4abe3dca 11,79,82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "efb9a312e1f4b3c41f21fe88c50ae6c55ed7373b",
+  "prompts": {},
+  "sessions": {
+    "s_b56e6dd1c067c2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee749f3f-9428-4398-b2c3-1a5434fe2f00",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
