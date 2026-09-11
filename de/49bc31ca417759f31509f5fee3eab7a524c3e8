@@ -1,0 +1,27 @@
+go/internal/query/language_query_graph_error_test.go
+  s_e8ab01ccdfa8e2::t_9c4c239d5770a2 137-147,176,200-203
+go/internal/query/language_query_graphless_reader_test.go
+  s_e8ab01ccdfa8e2::t_41c235831d47b3 102,141
+go/internal/query/language_query_metadata_handler_test.go
+  s_e8ab01ccdfa8e2::t_833f9249341ec1 133
+go/internal/query/language_query_metadata_test.go
+  s_e8ab01ccdfa8e2::t_c245819a8d791c 209-226,228-229
+go/internal/query/language_query_truth_basis_threading_test.go
+  s_e8ab01ccdfa8e2::t_2139168329958a 147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "de49bc31ca417759f31509f5fee3eab7a524c3e8",
+  "prompts": {},
+  "sessions": {
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
