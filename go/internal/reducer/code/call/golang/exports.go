@@ -20,6 +20,9 @@ func resolveGoCrossRepoExportCalleeEntityID(
 	fileData map[string]any,
 	call map[string]any,
 ) string {
+	if !index.HasGoExports() || repositoryID == "" {
+		return ""
+	}
 	fullName := strings.TrimSpace(payloadcore.AnyToString(call["full_name"]))
 	name := strings.TrimSpace(payloadcore.AnyToString(call["name"]))
 	qualifier, ok := goPackageQualifier(fullName, name)

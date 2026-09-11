@@ -113,6 +113,13 @@ func (idx EntityIndex) GoExportByImportPath(importPath, name string) (goCrossRep
 	return candidate, ok
 }
 
+// HasGoExports reports whether the index holds any Go cross-repo export
+// entry, so the Go resolver can skip its per-call import walk when there is
+// nothing to join against.
+func (idx EntityIndex) HasGoExports() bool {
+	return len(idx.goExportByImportPath) > 0
+}
+
 // JavaScriptAliasesByPath returns the cached static-alias spans recorded for
 // pathKey, in ascending line order.
 func (idx EntityIndex) JavaScriptAliasesByPath(pathKey string) []javaScriptStaticAliasSpan {

@@ -472,3 +472,58 @@ func TestExtractCodeCallRowsCrossRepoExportIsReprojectionStable(t *testing.T) {
 		t.Fatalf("resolved callee id = %q, want the durable repo-a uid", first)
 	}
 }
+
+// TestExtractCodeCallRowsCrossRepoExportSkipsCallerWithoutRepositoryID proves a
+// Go package-qualified call from a file fact that carries no repo_id never
+// resolves through the cross-repo export index. Without a caller repository the
+// "callee lives in a different repository" check means nothing, so no
+// cross_repo_export_package edge may be written (#6645 early review E1: the
+// golang leaf move had dropped this guard).
+func TestExtractCodeCallRowsCrossRepoExportSkipsCallerWithoutRepositoryID(t *testing.T) {
+	t.Parallel()
+
+	envelopes := []facts.Envelope{
+		{FactKind: "repository", Payload: map[string]any{"repo_id": "repo-a"}},
+		goModFileEnvelope("repo-a", "go.mod", "github.com/org/repoa"),
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "repo-a",
+			"relative_path": "pkg/process.go",
+			"parsed_file_data": map[string]any{
+				"path": "pkg/process.go",
+				"functions": []any{
+					map[string]any{"name": "Process", "line_number": 3, "end_line": 5, "uid": "content-entity:repoa-process"},
+				},
+			},
+		}},
+		{FactKind: "file", Payload: map[string]any{
+			"repo_id":       "",
+			"relative_path": "cmd/main.go",
+			"parsed_file_data": map[string]any{
+				"path": "cmd/main.go",
+				"functions": []any{
+					map[string]any{"name": "main", "line_number": 5, "end_line": 7, "uid": "content-entity:unowned-main"},
+				},
+				"imports": []any{
+					map[string]any{"name": "github.com/org/repoa/pkg", "lang": "go", "line_number": 3},
+				},
+				"function_calls": []any{
+					map[string]any{
+						"name":                     "Process",
+						"full_name":                "pkg.Process",
+						"receiver_identifier":      "pkg",
+						"receiver_is_import_alias": true,
+						"line_number":              6,
+						"lang":                     "go",
+					},
+				},
+			},
+		}},
+	}
+
+	_, rows := ExtractRows(envelopes)
+	for _, row := range rows {
+		if payloadcore.AnyToString(row["callee_entity_id"]) == "content-entity:repoa-process" {
+			t.Fatalf("caller with empty repo_id resolved a cross-repo export: %#v", row)
+		}
+	}
+}
