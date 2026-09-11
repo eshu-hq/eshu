@@ -17,8 +17,8 @@ to the plain scope/generation-scoped retractor ports.
 
 **Owns:** the bounded stale-evidence cleanup cycle (`Runner`), its
 cursor-paging cycle (`Run`), and the port interfaces it depends on
-(`CurrentGenerationReader`, `CodeTaintStaleEvidenceRetractor`,
-`CodeInterprocStaleEvidenceRetractor`).
+(`CurrentGenerationReader`, `TaintStaleEvidenceRetractor`,
+`InterprocStaleEvidenceRetractor`).
 
 **Does not own:** the taint/interproc evidence writer and ledger ports
 (`code/taint`), the partition lease manager (`sharedintent`), or the
@@ -32,15 +32,15 @@ cursor-paging cycle (`Run`), and the port interfaces it depends on
 | `Runner` / `RunnerConfig` | the side-runner cycle and its tunables |
 | `Result` | one cleanup cycle's outcome |
 | `CurrentGeneration` / `CurrentGenerationReader` | one active scope/generation, and the port that lists a bounded page of them |
-| `CodeTaintStaleEvidenceRetractor` / `CodeInterprocStaleEvidenceRetractor` | the plain (non-ledger) stale-evidence retract ports |
+| `TaintStaleEvidenceRetractor` / `InterprocStaleEvidenceRetractor` | the plain (non-ledger) stale-evidence retract ports |
 | `ErrCurrentGenerationsRequired` | the validation error when `CurrentGenerations` is unwired |
 
 The reducer root wires `Runner` on `Service.CodeValueFlowStaleCleanupRunner`,
 keeping the `reducer.CodeValueFlowStaleCleanupRunner`/
 `reducer.CodeValueFlowStaleCleanupRunnerConfig`/
 `reducer.CodeValueFlowCurrentGeneration`/
-`reducer.CodeTaintStaleEvidenceRetractor`/
-`reducer.CodeInterprocStaleEvidenceRetractor` spellings through the
+`reducer.TaintStaleEvidenceRetractor`/
+`reducer.InterprocStaleEvidenceRetractor` spellings through the
 value-flow stanza of `compat_projection.go`, since cmd/reducer's wiring and
 internal/storage/postgres' generation reader both still name them that way.
 
@@ -98,7 +98,7 @@ exported behavior, wire string, or call order.
 `CurrentGenerationReader`, `ErrCodeValueFlowCurrentGenerationsRequired` ->
 `ErrCurrentGenerationsRequired`); the reducer root keeps every spelling with
 an external caller (`Runner`, `RunnerConfig`, `CurrentGeneration`,
-`CodeTaintStaleEvidenceRetractor`, `CodeInterprocStaleEvidenceRetractor`)
+`TaintStaleEvidenceRetractor`, `InterprocStaleEvidenceRetractor`)
 through the value-flow stanza of `compat_projection.go`, so no external
 caller needed a source change. Measured from `go/`, with `GOROOT` unset: `go
 build ./...`, `go vet ./internal/reducer/... ./cmd/reducer/...`, and `go test

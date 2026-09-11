@@ -52,9 +52,9 @@ type CurrentGenerationReader interface {
 	) ([]CurrentGeneration, error)
 }
 
-// CodeTaintStaleEvidenceRetractor removes stale reducer-owned taint evidence
+// TaintStaleEvidenceRetractor removes stale reducer-owned taint evidence
 // for one current scope generation.
-type CodeTaintStaleEvidenceRetractor interface {
+type TaintStaleEvidenceRetractor interface {
 	RetractStaleCodeTaintEvidence(
 		ctx context.Context,
 		scopeID string,
@@ -64,9 +64,9 @@ type CodeTaintStaleEvidenceRetractor interface {
 	) error
 }
 
-// CodeInterprocStaleEvidenceRetractor removes stale reducer-owned interproc
+// InterprocStaleEvidenceRetractor removes stale reducer-owned interproc
 // value-flow evidence for one current scope generation.
-type CodeInterprocStaleEvidenceRetractor interface {
+type InterprocStaleEvidenceRetractor interface {
 	RetractStaleCodeInterprocEvidence(
 		ctx context.Context,
 		scopeID string,
@@ -128,10 +128,10 @@ type Result struct {
 // beside the normal reducer intent loop.
 type Runner struct {
 	CurrentGenerations CurrentGenerationReader
-	TaintEvidence      CodeTaintStaleEvidenceRetractor
+	TaintEvidence      TaintStaleEvidenceRetractor
 	TaintWriter        taint.CodeTaintEvidenceWriter
 	TaintLedger        taint.CodeTaintEvidenceProjectedNodeLedger
-	InterprocEvidence  CodeInterprocStaleEvidenceRetractor
+	InterprocEvidence  InterprocStaleEvidenceRetractor
 	InterprocWriter    taint.CodeInterprocEvidenceWriter
 	InterprocLedger    taint.CodeInterprocProjectedEdgeLedger
 	LeaseManager       sharedintent.PartitionLeaseManager

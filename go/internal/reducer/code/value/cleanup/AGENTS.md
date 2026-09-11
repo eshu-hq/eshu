@@ -33,7 +33,7 @@ what this package owns and reuses from `code/taint` and `sharedintent`.
 ## Common changes
 
 Adding a new evidence family to the cleanup sweep: add its retractor port
-(mirroring `CodeTaintStaleEvidenceRetractor`), a ledger-driven field pair on
+(mirroring `TaintStaleEvidenceRetractor`), a ledger-driven field pair on
 `Runner` if it needs the anchored by-UIDs path, and thread both through
 `RunOnce`'s per-candidate loop alongside the existing taint/interproc sweeps.
 
@@ -41,8 +41,8 @@ Adding a new evidence family to the cleanup sweep: add its retractor port
 
 - Exporting a new unexported helper "just in case" a future caller needs it.
   `Runner`, `RunnerConfig`, `Result`, `CurrentGeneration`,
-  `CurrentGenerationReader`, `CodeTaintStaleEvidenceRetractor`,
-  `CodeInterprocStaleEvidenceRetractor`, and `ErrCurrentGenerationsRequired`
+  `CurrentGenerationReader`, `TaintStaleEvidenceRetractor`,
+  `InterprocStaleEvidenceRetractor`, and `ErrCurrentGenerationsRequired`
   are exported because the reducer root's compat forwarders and external
   wiring need them; nothing else in this package has an external caller
   today.

@@ -191,12 +191,12 @@ type CodeValueFlowStaleCleanupRunnerConfig = cleanup.RunnerConfig
 type CodeValueFlowCurrentGeneration = cleanup.CurrentGeneration
 
 // CodeTaintStaleEvidenceRetractor is the root spelling of
-// [cleanup.CodeTaintStaleEvidenceRetractor].
-type CodeTaintStaleEvidenceRetractor = cleanup.CodeTaintStaleEvidenceRetractor
+// [cleanup.TaintStaleEvidenceRetractor].
+type CodeTaintStaleEvidenceRetractor = cleanup.TaintStaleEvidenceRetractor
 
 // CodeInterprocStaleEvidenceRetractor is the root spelling of
-// [cleanup.CodeInterprocStaleEvidenceRetractor].
-type CodeInterprocStaleEvidenceRetractor = cleanup.CodeInterprocStaleEvidenceRetractor
+// [cleanup.InterprocStaleEvidenceRetractor].
+type CodeInterprocStaleEvidenceRetractor = cleanup.InterprocStaleEvidenceRetractor
 
 // GraphValueFlowCloudSinkTargetLoader loads graph-backed cloud sink edges for
 // the value-flow fixpoint. See [value.GraphCloudSinkTargetLoader].
