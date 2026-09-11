@@ -512,7 +512,7 @@ on:
       - 'scripts/lib/ifa_rationale_live.sh'
       - 'sdk/go/factschema/codegraph/v1/repository.go'
       - 'go/internal/ifa/symbol_runtime_family_odu.go'
-      - 'go/internal/reducer/symbol_runtime*.go'
+      - 'go/internal/reducer/code/call/materialization/*.go'
       - 'scripts/lib/ifa_symbol_runtime_live.sh'
       - 'scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh'
       - 'go/internal/ifa/sql_relationship_odu*.go'

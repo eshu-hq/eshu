@@ -5,7 +5,7 @@
 # RunMaterializedEdgeCoverage enumerates the required surfaces from
 # reducer.MaterializedEdgeFamilies() — the drift-proof registry of reducer
 # domains that write graph edges through the ordering-safe shared-projection
-# intent path (go/internal/reducer/shared_projection.go's allProjectionDomains)
+# intent path (go/internal/reducer/contract/domain.go's ProjectionDomains)
 # — and reports any family with no entry here as UNCOVERED unless a matching
 # `waivers:` row names a tracked child issue.
 #

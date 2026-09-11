@@ -20,7 +20,7 @@
 IFA_FAMILY_BLOCKER_KIND[handles_route]="runner_lease_hold"
 # wait_stage=runner, not handler: this family's intent rows are tagged
 # ProjectionDomain=DomainHandlesRoute="handles_route"
-# (go/internal/reducer/shared_projection.go:30,
+# (go/internal/reducer/contract/domain.go:176,
 # go/internal/reducer/code/call/materialization/routes.go:106) -- the
 # shared_projection_intents.projection_domain column, which is exactly what
 # wait_stage=runner polls (ifa_family_registry.sh's wait_stage doc comment).

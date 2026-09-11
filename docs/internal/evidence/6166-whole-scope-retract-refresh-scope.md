@@ -11,8 +11,8 @@ that list comes back empty.
 
 `collectWholeScopeRefreshRepoIDs` keeps only rows stamped
 `reducer.RepoRefreshIntentType` and not delta-scoped. The difference matters
-because `planRepoWideRetractWork`
-(`go/internal/reducer/shared_projection_worker_refresh_fence.go`) routes two
+because `planRepoWideRetractWork` (now `worker.PlanRepoWideRetractWork` in
+`go/internal/reducer/intents/shared/worker/fence.go`) routes two
 kinds of row into the retract for these four domains: per-repository refresh
 rows, which are asking for a whole-repository `DELETE`, and unmarked legacy
 per-edge rows, which are asking for a write. Under the old collector one
@@ -155,8 +155,9 @@ emitter changes, not a behaviour change today. Pinned by:
   negatively (an unmarked bystander is not swept into it).
 
 **Concurrency.** A whole-scope retract is keyed by
-`repoWideRetractRefreshPartitionKey`
-(`go/internal/reducer/shared_projection_worker_refresh_fence.go`), and a
+`repoWideRetractRefreshPartitionKey` (now
+`sharedintent.RepoWideRetractRefreshPartitionKey` in
+`go/internal/reducer/sharedintent/refresh.go`), and a
 whole-scope key hashes to exactly one partition. One partition lease owns a
 repository's repo-wide retract, so a repository's retract cannot race itself no
 matter how many workers or replicas are running. This change does not touch

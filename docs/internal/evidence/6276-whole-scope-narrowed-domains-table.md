@@ -19,8 +19,8 @@ comments and left the loop passing on its own list.
 
 ## Why re-deriving it gives the wrong answer
 
-`domainHasRepoWideRetract`
-(`go/internal/reducer/shared_projection_worker_refresh_fence.go`) returns
+`domainHasRepoWideRetract` (now `sharedintent.DomainHasRepoWideRetract` in
+`go/internal/reducer/sharedintent/refresh.go`) returns
 true for **seven** domains, not four. The other three — `handles_route`,
 `runs_in`, `invokes_cloud_action` — are fenced but not narrowed: they fall
 through to `buildRetractStatement` with the batch-wide repo-id list. A fifth

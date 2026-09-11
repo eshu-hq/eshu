@@ -17,7 +17,7 @@
 IFA_FAMILY_PIN_BLOCKER_KIND="runner_lease_hold"
 # wait_stage=runner: this family's intent rows are tagged
 # ProjectionDomain=DomainHandlesRoute="handles_route"
-# (go/internal/reducer/shared_projection.go:30,
+# (go/internal/reducer/contract/domain.go:176,
 # go/internal/reducer/code/call/materialization/routes.go:106) -- the
 # shared_projection_intents.projection_domain column, not a
 # fact_work_items.domain value.

@@ -69,3 +69,10 @@ go/internal/storage/postgres/migrations/088_reducer_work_item_reopened_at.sql:go
 # lane. The cited path is inside a comment; the repoint is deferred to whichever
 # query-lane PR next touches this file.
 go/internal/query/codequery/route_query_proof_matrix_test.go:go/internal/reducer/handles_route_intents.go
+
+# restructure-research.md is an explicitly dated 2026-08-11 measurement
+# snapshot ("Counts are a snapshot, not a contract") of the pre-restructure
+# citation inventory that justified this whole #6053/#6061 move -- its table
+# records the citation line numbers as they stood at research time, which
+# repointing to the post-move destination would falsify.
+docs/internal/design/restructure-research.md:go/internal/reducer/shared_projection.go

@@ -15,7 +15,7 @@ is explicitly `none`.
   `reducer_cloud_asset_resolution` exempt until it gains a production consumer:
   `docs/internal/design/4784-reducer-derived-fact-governance.md:98`.
 - Out of scope: reducer intent rows (`go/internal/storage/postgres/shared_intents.go:40`),
-  shared followup trigger facts (`go/internal/reducer/shared_projection.go:246`),
+  shared followup trigger facts (`go/internal/reducer/sharedintent/refresh.go`),
   replay cassette and parser-fixture producers folded into #4797
   (`go/internal/replay/cassette/source.go:1`, `go/internal/replay/parserfixture/source.go:1`).
 

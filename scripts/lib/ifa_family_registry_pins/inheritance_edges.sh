@@ -23,7 +23,7 @@ IFA_FAMILY_PIN_WAIT_STAGE="handler"
 # go/internal/reducer/intent.go:62 --
 # `DomainInheritanceMaterialization Domain = "inheritance_materialization"`.
 # NOT "inheritance_edges": that is the second-stage ProjectionDomain label
-# (go/internal/reducer/shared_projection.go:21), which is also this family's
+# (go/internal/reducer/contract/domain.go:168), which is also this family's
 # registry name. wait_stage=handler polls fact_work_items, so the first-stage
 # string is the correct one.
 IFA_FAMILY_PIN_WAIT_KEY="inheritance_materialization"
