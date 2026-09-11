@@ -30,7 +30,7 @@ const openAPIPathsAdmin = `
       "post": {
         "tags": ["admin"],
         "summary": "Recover wedged generations",
-        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every active scope holding an active generation, which is what a graph rebuild after a Postgres restore needs. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts. In the same transaction it clears the dedup state for exactly those generations - succeeded reducer work items, completed shared projection intents, and graph projection phase rows - because all three outlive a graph wipe and would otherwise tell the pipeline the work is already done, leaving the rebuild stuck at source-local structure.",
+        "description": "Operator escape hatch for generations that wedge active without advancing past canonical-nodes-committed, and the disaster-recovery entry point for rebuilding the graph from preserved Postgres facts. Durably re-enqueues projector work through the same Go work queue refinalize uses (re-driving reduce -> readiness -> projection over existing facts, no re-clone) and records the action in the admin_replay_requests ledger. Send either scope_ids or all_scopes, never both. all_scopes re-enqueues every active scope holding an active generation, which is what a graph rebuild after a Postgres restore needs. Requires an explicit reason and idempotency_key and an admin (all-scopes) token. Duplicate delivery of the same idempotency_key returns the prior outcome (duplicate=true) instead of re-enqueuing; a key reused across the two modes conflicts. In the same transaction it clears the dedup state for exactly those generations - succeeded reducer work items, completed shared projection intents, graph projection phase rows, and active relationship generations - because all four outlive a graph wipe and would otherwise tell the pipeline the work is already done, leaving the rebuild stuck at source-local structure.",
         "requestBody": {
           "required": true,
           "content": {
@@ -61,8 +61,8 @@ const openAPIPathsAdmin = `
                   "oneOf": [
                     {
                       "type": "object",
-                      "description": "Recovery performed by this call. Alongside status, enqueued, and scope_ids it reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer. After a graph wipe all three counters should be non-zero; three zeros mean the rebuild will restore source-local structure and nothing else.",
-                      "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "idempotency_key", "duplicate"],
+                      "description": "Recovery performed by this call. Alongside status, enqueued, and scope_ids it reports the dedup state cleared so the re-projection rebuilds the whole graph rather than only its source-local layer. After a graph wipe all four counters should be non-zero; four zeros mean the rebuild will restore source-local structure and nothing else.",
+                      "required": ["status", "enqueued", "scope_ids", "reducer_work_deleted", "shared_intents_reopened", "readiness_phases_cleared", "generations_retired", "idempotency_key", "duplicate"],
                       "properties": {
                         "status": {"type": "string", "enum": ["recovered"]},
                         "enqueued": {"type": "integer", "description": "Scope generations re-enqueued for projection."},
@@ -70,13 +70,14 @@ const openAPIPathsAdmin = `
                         "reducer_work_deleted": {"type": "integer", "description": "Succeeded reducer work items removed so the re-projection's enqueue is not deduplicated away."},
                         "shared_intents_reopened": {"type": "integer", "description": "Shared projection intents whose completed_at was cleared so the partition workers drain them again."},
                         "readiness_phases_cleared": {"type": "integer", "description": "Graph projection phase rows removed, because they outlive a graph wipe and would otherwise assert canonical nodes are committed for an empty graph."},
+                        "generations_retired": {"type": "integer", "description": "Active relationship generations superseded so the re-projection never consumes the prior wave's resolved rows as current truth."},
                         "idempotency_key": {"type": "string"},
                         "duplicate": {"type": "boolean", "enum": [false]}
                       }
                     },
                     {
                       "type": "object",
-                      "description": "Idempotent replay: this key already completed, and nothing was re-enqueued. The three dedup counters are absent because the admin_replay_requests ledger does not persist them, so a retry issued after the original response was lost cannot report what that recovery cleared. Read the counters from the original response, or from the projector queue and shared-intent backlog directly.",
+                      "description": "Idempotent replay: this key already completed, and nothing was re-enqueued. The four dedup counters are absent because the admin_replay_requests ledger does not persist them, so a retry issued after the original response was lost cannot report what that recovery cleared. Read the counters from the original response, or from the projector queue and shared-intent backlog directly.",
                       "required": ["status", "enqueued", "scope_ids", "idempotency_key", "duplicate"],
                       "properties": {
                         "status": {"type": "string", "enum": ["recovered"]},

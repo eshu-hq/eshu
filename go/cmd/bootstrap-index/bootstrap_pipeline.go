@@ -178,6 +178,32 @@ func runPipelined(
 		return projectorErr
 	}
 
+	// Covering backfill (#6184). Projector Ack activates each scope's new
+	// generation as it completes, concurrently with the backfill above: a
+	// scope whose activation lands after that pass's snapshot keeps no
+	// backward-evidence phase for the rest of the run, and the fail-closed
+	// cross-repo resolution gate defers its items with nothing left in the
+	// run to publish the phase. Re-running the backfill now — after the
+	// projector has drained, so every activation from this run's collection
+	// is visible — covers exactly those generations before the reopen/drain
+	// sequence below consumes them. The partition memo gate makes the repeat
+	// cheap: partitions whose evidence is unchanged skip their fact loads,
+	// so this pass only derives evidence for newly activated generations.
+	coveringBackfillStart := time.Now()
+	recordPhaseStart(telemetry.BootstrapPhaseRelationshipBackfillPostDrain)
+	if err := cd.committer.BackfillAllRelationshipEvidence(ctx, tracer, instruments); err != nil {
+		recordPhase(telemetry.BootstrapPhaseRelationshipBackfillPostDrain, coveringBackfillStart)
+		if logger != nil {
+			logger.ErrorContext(
+				ctx, "deferred relationship covering backfill failed",
+				log.Err(err),
+				telemetry.FailureClassAttr("backfill_deferred_failure"),
+			)
+		}
+		return fmt.Errorf("deferred covering backfill fatal: %w", err)
+	}
+	recordPhase(telemetry.BootstrapPhaseRelationshipBackfillPostDrain, coveringBackfillStart)
+
 	iacStart := time.Now()
 	if err := cd.committer.MaterializeIaCReachability(ctx, tracer, instruments); err != nil {
 		recordPhase(telemetry.BootstrapPhaseIaCReachability, iacStart)
@@ -195,7 +221,9 @@ func runPipelined(
 	// Reopen only the deployment_mapping items that already succeeded with the
 	// cross-repo readiness gate closed. Items still pending or claimed will
 	// naturally see the gate open when they run (backward_evidence is already
-	// committed by BackfillAllRelationshipEvidence above). A small number of
+	// committed by the initial backfill above and the post-drain covering
+	// backfill, which between them cover every generation activated by this
+	// run's collection). A small number of
 	// in-flight items may succeed between now and the reopen pass — those
 	// stragglers are NOT automatically replayed today and require manual admin
 	// replay or a future automated straggler-replay mechanism.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
+//nolint:filelength // The #6184 quiescence gate threads through runSerial/processOnce control flow, which cannot leave this file without restructuring the hot loop; the structural runner split is tracked by #6061.
 package reducer
 
 import (
@@ -46,8 +47,14 @@ type RepoDependencyProjectionRunner struct {
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
 	AcceptedGen                     AcceptedGenerationLookup
 	AcceptedGenPrefetch             AcceptedGenerationPrefetch
-	Config                          RepoDependencyProjectionRunnerConfig
-	Wait                            func(context.Context, time.Duration) error
+	// CanonicalQuiescence holds the lane until every code scope's active
+	// generation has committed canonical nodes (#6184). The lane's artifact
+	// and edge writes MATCH Repository nodes from both the source and
+	// target repos, so an intent drained before either side commits is lost
+	// silently. Nil preserves the pre-#6184 behavior.
+	CanonicalQuiescence CanonicalCodeQuiescenceChecker
+	Config              RepoDependencyProjectionRunnerConfig
+	Wait                func(context.Context, time.Duration) error
 
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
@@ -70,7 +77,7 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 		}
 
 		cycleStart := time.Now()
-		didWork, err := r.runOneCycle(ctx)
+		result, err := r.runOneCycle(ctx)
 		if err != nil {
 			consecutiveEmpty++
 			r.recordRepoDependencyCycleFailure(ctx, err, time.Since(cycleStart).Seconds())
@@ -86,8 +93,23 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 			}
 			continue
 		}
-		if didWork {
+		if result.ProcessedIntents > 0 {
 			consecutiveEmpty = 0
+			continue
+		}
+		// A quiescence-blocked cycle is neither work nor idleness: the lane
+		// is held shut by the canonical-code gate, so reset the empty
+		// backoff and re-poll at the base interval instead of backing off
+		// into a sleep that delays post-quiescence recovery. Mirrors the
+		// code-call lane's BlockedReadiness branch.
+		if result.BlockedReadiness > 0 {
+			consecutiveEmpty = 0
+			if err := r.wait(ctx, r.Config.pollInterval()); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+					return nil
+				}
+				return fmt.Errorf("wait for repo dependency readiness: %w", err)
+			}
 			continue
 		}
 
@@ -101,18 +123,30 @@ func (r *RepoDependencyProjectionRunner) runSerial(ctx context.Context) error {
 	}
 }
 
-func (r *RepoDependencyProjectionRunner) runOneCycle(ctx context.Context) (bool, error) {
+func (r *RepoDependencyProjectionRunner) runOneCycle(ctx context.Context) (PartitionProcessResult, error) {
 	result, err := r.processOnce(ctx, time.Now().UTC())
 	if err != nil {
-		return true, err
+		return PartitionProcessResult{}, err
 	}
-	return result.ProcessedIntents > 0, nil
+	return result, nil
 }
 
 func (r *RepoDependencyProjectionRunner) processOnce(ctx context.Context, now time.Time) (PartitionProcessResult, error) {
 	cycleStart := time.Now()
 	claimStart := time.Now()
 	result := PartitionProcessResult{}
+	// #6184: hold the whole lane while any code scope's canonical nodes are
+	// uncommitted, before claiming the lease. See CanonicalCodeQuiescenceChecker.
+	if r.CanonicalQuiescence != nil {
+		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
+		if err != nil {
+			return PartitionProcessResult{}, fmt.Errorf("check canonical code quiescence: %w", err)
+		}
+		if uncommitted {
+			r.recordRepoDependencyQuiescenceBlocked(ctx, cycleStart)
+			return PartitionProcessResult{BlockedReadiness: 1}, nil
+		}
+	}
 	claimed, err := r.LeaseManager.ClaimPartitionLease(
 		ctx,
 		DomainRepoDependency,

@@ -33,6 +33,13 @@ import "strings"
 // them by evidence_source — the same property retractRepoRunsOnEdgesCypher
 // scopes its DELETE on. Do not treat membership here as "every RUNS_ON edge in
 // the graph": it is the subset this family stamped.
+// Writer precedence is deterministic by construction, not by schedule: the
+// workload upsert assigns the stamp only ON CREATE and never touches it ON
+// MATCH, so the cross-repo write always wins when this lane writes (confidence
+// and reason still refresh; the gate compares edge identity, not those
+// properties). An unconditional workload stamp SET made the family edge
+// last-writer-wins and flaked the exact-set gate whenever workload
+// materialization cycled after this lane (#6184).
 //
 // Do not read retractRepoDependencyEdgesCypher as this family's retract. It
 // names DEPENDS_ON alone and looks authoritative, but its only user,

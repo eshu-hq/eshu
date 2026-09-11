@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/recovery"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
 // TestAffectedGenerationsQueryAllScopesDropsTheClauseEntirely pins the #4594
@@ -73,7 +74,7 @@ func TestAffectedGenerationsQueryExplicitScopesBindsTheScopeList(t *testing.T) {
 }
 
 // TestResetQueriesBindTheSameGenerationSet is the cross-statement agreement
-// proof. All three resets must act on exactly the generations the caller read,
+// proof. All four resets must act on exactly the generations the caller read,
 // and on the same ones as each other; if one drifted, a rebuild could delete a
 // domain's work without reopening the intents that rebuild it, and the graph
 // would come back short in a way no single statement's test would catch.
@@ -93,6 +94,7 @@ func TestResetQueriesBindTheSameGenerationSet(t *testing.T) {
 		"delete succeeded reducer work":    deleteSucceededReducerWorkTemplate,
 		"reopen shared projection intents": reopenSharedIntentsTemplate,
 		"clear readiness phase state":      clearReadinessPhaseStateTemplate,
+		"retire resolution generations":    retireResolutionGenerationsTemplate,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -106,8 +108,12 @@ func TestResetQueriesBindTheSameGenerationSet(t *testing.T) {
 			if !strings.Contains(query, "unnest($1::text[], $2::text[])") {
 				t.Fatalf("%s does not bind the materialized generation arrays\n%s", name, query)
 			}
-			if !strings.Contains(query, "(scope_id, generation_id) IN (") {
-				t.Fatalf("%s lost its (scope_id, generation_id) pairing, so it could match a "+
+			// relationship_generations names its scope column `scope`, every other
+			// reset target names it `scope_id`: both spellings carry the same
+			// pairing, so both are accepted.
+			if !strings.Contains(query, "(scope_id, generation_id) IN (") &&
+				!strings.Contains(query, "(scope, generation_id) IN (") {
+				t.Fatalf("%s lost its (scope, generation_id) pairing, so it could match a "+
 					"generation belonging to another scope\n%s", name, query)
 			}
 			if strings.Contains(query, "%!s(MISSING)") || strings.Contains(query, "%s") {
@@ -193,5 +199,91 @@ func TestResetQueriesTouchOnlyTerminalState(t *testing.T) {
 	if !strings.Contains(sharedReopen, "completed_at IS NOT NULL") {
 		t.Fatalf("shared intent reopen dropped its completed_at IS NOT NULL guard, so its "+
 			"reported count would mean 'matched' rather than 'reopened'\n%s", sharedReopen)
+	}
+}
+
+// TestResetRetiresResolutionGenerations is the #6184 regression: the phase
+// wipe alone leaves relationship_generations active, so the re-projection's
+// by-repos resolved read serves the prior wave's rows as current truth and
+// deployable-unit correlation succeeds reduced. Retirement must stay scoped
+// to active rows of the refinalized pairs: superseding anything else would
+// strand generations this refinalize never re-resolves.
+func TestResetRetiresResolutionGenerations(t *testing.T) {
+	t.Parallel()
+
+	var generations Generations
+	generations.Append("scope-a", "gen-a")
+
+	retire, _ := buildResetQuery(retireResolutionGenerationsTemplate, generations)
+	if !strings.HasPrefix(strings.TrimSpace(retire), "UPDATE relationship_generations") {
+		t.Fatalf("generations must be retired with UPDATE, not deleted; resolution "+
+			"re-activates the same pair by upsert\n%s", retire)
+	}
+	if !strings.Contains(retire, "status = 'active'") {
+		t.Fatalf("generation retirement is not scoped to active rows\n%s", retire)
+	}
+	if !strings.Contains(retire, "SET status = 'superseded'") {
+		t.Fatalf("generation retirement does not supersede\n%s", retire)
+	}
+}
+
+// TestResetSparesBackwardEvidencePhases is the #6184 companion: the spared
+// keyspace attests Postgres evidence-fact completeness, which a graph-only
+// rebuild preserves. Wiping it strands re-resolution in deferral because the
+// ingestion fan-in that publishes it never re-runs on a projection-only
+// rebuild, while the wiped graph-write phases are republished as each phase
+// commits.
+func TestResetSparesBackwardEvidencePhases(t *testing.T) {
+	t.Parallel()
+
+	var generations Generations
+	generations.Append("scope-a", "gen-a")
+
+	clear, _ := buildResetQuery(clearReadinessPhaseStateTemplate, generations)
+	// Pinned to the constant, not a copied literal: a drift makes this gate
+	// silently stop sparing, which is why the exclusion is asserted against
+	// gpphase rather than re-stating the string.
+	if !strings.Contains(clear, "keyspace <> '"+string(gpphase.KeyspaceCrossRepoEvidence)+"'") {
+		t.Fatalf("phase wipe does not spare the backward-evidence keyspace %q; the "+
+			"re-projection's resolution would defer forever on phases nothing "+
+			"republishes", string(gpphase.KeyspaceCrossRepoEvidence))
+	}
+}
+
+// TestResetRetirementGuardsAgainstLiveReducerLeases is the Codex #6184 P1
+// hermetic pin for the atomic half of the in-flight reducer fence. Retirement
+// must commit only when no reducer row holds a live lease on the refinalized
+// pairs, in the same statement: a drain-wait poll alone leaves the
+// poll-to-commit window open for a claim landing between the last poll and the
+// UPDATE. Asserted against the shipped constant, not a copied literal, and the
+// arg reuse ($1/$2 re-unnested) is asserted too: a guard binding a different
+// set than the outer IN retires would fence the wrong generations.
+func TestResetRetirementGuardsAgainstLiveReducerLeases(t *testing.T) {
+	t.Parallel()
+
+	var generations Generations
+	generations.Append("scope-a", "gen-a")
+
+	retire, args := buildResetQuery(retireResolutionGenerationsTemplate, generations)
+	if !strings.Contains(retire, "NOT EXISTS") {
+		t.Fatalf("generation retirement lost its live-lease guard; a resolver claimed before "+
+			"refinalize would get its generation retired mid-flight, then re-activate it stale\n%s", retire)
+	}
+	for _, want := range []string{
+		"fact_work_items",
+		"stage = 'reducer'",
+		"'claimed'",
+		"'running'",
+		"claim_until > now()",
+		"unnest($1::text[], $2::text[])",
+	} {
+		if !strings.Contains(retire, want) {
+			t.Fatalf("generation retirement guard does not pin %q; the fence would admit "+
+				"stale in-flight resolution\n%s", want, retire)
+		}
+	}
+	if len(args) != 2 {
+		t.Fatalf("retirement binds %d args, want 2: the guard must reuse the outer "+
+			"generation arrays, not bind its own set", len(args))
 	}
 }

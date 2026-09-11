@@ -11,7 +11,7 @@ supposed to be: restore Postgres, wipe the graph, `POST
 source-local structure — repositories, files, functions, classes, directories —
 and stopped there. Everything a reducer domain owns stayed missing.
 
-The cause is that three pieces of Postgres state survive a graph wipe, and each
+The cause is that four pieces of Postgres state survive a graph wipe, and each
 one independently tells the pipeline the work is already finished:
 
 | State | Why it blocks the rebuild |
@@ -19,8 +19,12 @@ one independently tells the pipeline the work is already finished:
 | Succeeded reducer `fact_work_items` | The re-projection re-derives the same intent ids, and the enqueue is `ON CONFLICT (work_item_id) DO NOTHING`. Every one collides and is dropped. |
 | `shared_projection_intents` with `completed_at` set | Partition workers drain only `completed_at IS NULL`, and the upsert's `COALESCE` refuses to reopen a completed row. |
 | `graph_projection_phase_state` rows | They assert canonical nodes are committed. After a wipe that is false, and the edge Cypher is `MATCH`-only — so admitted work matches nothing, writes nothing, and still acks `succeeded`. |
+| Active `relationship_generations` | The phase wipe does not touch them, so the re-projection's resolved read keeps serving the prior wave's rows as current truth. |
 
-The third is the dangerous one: it fails silently and reports success.
+The third is the dangerous one: it fails silently and reports success. The
+fourth gets a fence of its own (see `refinalize.go`): retirement commits only
+over drained reducer leases, so a running resolver cannot re-activate its
+generation stale.
 
 ## What it does not do
 
@@ -36,8 +40,15 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   once, first, inside its transaction.
 - `Generations` — that set, held as two index-aligned arrays. Build it with
   `Append`; `Args` hands it to a statement.
-- `Apply(ctx, tx, generations) (Counts, error)` — runs the three resets inside
+- `Apply(ctx, tx, generations) (Counts, error)` — runs the four resets inside
   the caller's transaction, against the set it was given.
+- `ReadAffectedGenerations`, `EnqueueProjectorWork`, `WaitForReducerDrain`,
+  `AssertRetirementFenced` — the ordered coordination prelude the caller runs
+  in its transaction before `Apply`: read the set once, wait out in-flight
+  reducer leases (bounded), re-enqueue projector work, then confirm the
+  retirement actually committed. `InflightReducersError` is the abort signal.
+  `Queryer`/`Rows` are narrow local interfaces so this package never imports
+  its caller.
 - `Counts` — how many rows each reset touched, surfaced to the operator in the
   `recover-generations` response.
 - `Execer` — the narrow `ExecContext` surface, declared here so the dependency
@@ -49,6 +60,17 @@ refinalize is rebuilding, so ordinary indexing pays nothing for it.
   and running rows hold live leases a rebuild must not yank; `dead_letter` and
   `failed` belong to the replay endpoint and contributed nothing to the pre-wipe
   graph.
+- **Retire only over drained reducers.** The generation retirement carries an
+  atomic live-lease guard: it commits only when no reducer row holds a live
+  lease (`claimed`/`running` with `claim_until > now()`) on the refinalized
+  pairs. A resolver that claimed before the refinalize would otherwise get its
+  generation retired mid-flight, then re-activate it with stale rows while its
+  success ack dedupes the re-emitted intent (Codex #6184 P1). The caller waits
+  out the drain first and aborts past its bound; the guard closes the
+  poll-to-commit window in the same statement. Expired leases are reclaimable,
+  not in-flight: whoever reclaims such a row resolves post-retirement, which is
+  the legitimate re-projection direction, so crashed workers never wedge
+  recovery.
 - **Delete, do not reset to pending.** A pending row is claimable before the
   projector re-run that owns its inputs has committed anything, which is the same
   silent-incompleteness defect this package exists to fix. Reset-to-pending also

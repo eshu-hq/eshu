@@ -29,8 +29,16 @@ skip retraction only when the same partition has already completed, so other
 file partitions still retract their owned delta file paths. In
 local-authoritative NornicDB runs it can receive a `ReducerGraphDrain`; when
 active reducer graph domains remain, the runner records a blocked cycle and
-waits before claiming a code-call partition. The gate only schedules work. It
-does not change which rows become `CALLS`, `REFERENCES`, or `USES_METACLASS`.
+waits before claiming a code-call partition. It waits the same way while any
+code scope's active generation still lacks its `canonical_nodes_committed`
+phase (#6184): the per-intent readiness gate only covers the caller's
+acceptance unit, so a cross-repository edge drained before the callee
+repository commits MATCHes nothing and is marked completed anyway. That
+quiescence half is wired unconditionally (`CanonicalQuiescence`), not behind
+the drain flag, because the loss happens on every backend and query profile —
+the DR gate stack itself runs a non-authoritative profile with the drain off.
+The gate only schedules work. It does not change which rows become `CALLS`,
+`REFERENCES`, or `USES_METACLASS`.
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/storage/postgres
 -run 'TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope|TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition|TestCodeCallProjectionRunnerSkipsRetractForCurrentRunChunkAfterFirstChunk|TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainIntents'

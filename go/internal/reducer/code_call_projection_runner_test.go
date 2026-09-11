@@ -214,6 +214,90 @@ func TestCodeCallProjectionRunnerWaitsForReducerGraphDrainBeforeLease(t *testing
 	}
 }
 
+// TestCodeCallProjectionRunnerWaitsForCanonicalCodeQuiescence is the #6184
+// regression: the per-intent readiness gate only covers the caller's
+// acceptance unit, so a cross-repository edge drained before the callee
+// repository's canonical nodes commit MATCHes nothing and is lost silently.
+// The lane must report BlockedReadiness (and claim no lease) while any code
+// scope's active generation still lacks its canonical-nodes phase.
+func TestCodeCallProjectionRunnerWaitsForCanonicalCodeQuiescence(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeCodeCallIntentStore{leaseGranted: true}
+	runner := CodeCallProjectionRunner{
+		IntentReader:      reader,
+		LeaseManager:      reader,
+		EdgeWriter:        &recordingCodeCallProjectionEdgeWriter{},
+		AcceptedGen:       func(SharedProjectionAcceptanceKey) (string, bool) { return "", false },
+		ReducerGraphDrain: staticReducerGraphDrain{uncommittedCanonical: true},
+		Config:            CodeCallProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	result, err := runner.processOnce(context.Background(), time.Now().UTC())
+	if err != nil {
+		t.Fatalf("processOnce() error = %v, want nil", err)
+	}
+	if result.BlockedReadiness != 1 {
+		t.Fatalf("BlockedReadiness = %d, want 1", result.BlockedReadiness)
+	}
+	if got := reader.claimsCount(); got != 0 {
+		t.Fatalf("lease claims = %d, want 0 while canonical code scopes are uncommitted", got)
+	}
+}
+
+// TestCodeCallProjectionRunnerQuiescenceWithoutDrain is the #6184 remote-gate
+// regression: the DR compose stack runs a non-local-authoritative profile,
+// so ReducerGraphDrain is nil there. The quiescence gate must still hold the
+// lane through the unconditionally wired CanonicalQuiescence checker —
+// otherwise the cross-repo edge loss recurs exactly where it is measured.
+func TestCodeCallProjectionRunnerQuiescenceWithoutDrain(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeCodeCallIntentStore{leaseGranted: true}
+	runner := CodeCallProjectionRunner{
+		IntentReader:        reader,
+		LeaseManager:        reader,
+		EdgeWriter:          &recordingCodeCallProjectionEdgeWriter{},
+		AcceptedGen:         func(SharedProjectionAcceptanceKey) (string, bool) { return "", false },
+		ReducerGraphDrain:   nil,
+		CanonicalQuiescence: staticReducerGraphDrain{uncommittedCanonical: true},
+		Config:              CodeCallProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	result, err := runner.processOnce(context.Background(), time.Now().UTC())
+	if err != nil {
+		t.Fatalf("processOnce() error = %v, want nil", err)
+	}
+	if result.BlockedReadiness != 1 {
+		t.Fatalf("BlockedReadiness = %d, want 1", result.BlockedReadiness)
+	}
+	if got := reader.claimsCount(); got != 0 {
+		t.Fatalf("lease claims = %d, want 0 while canonical code scopes are uncommitted", got)
+	}
+}
+
+func TestCodeCallProjectionRunnerQuiescenceCheckErrorFailsCycle(t *testing.T) {
+	t.Parallel()
+
+	reader := &fakeCodeCallIntentStore{leaseGranted: true}
+	runner := CodeCallProjectionRunner{
+		IntentReader:      reader,
+		LeaseManager:      reader,
+		EdgeWriter:        &recordingCodeCallProjectionEdgeWriter{},
+		AcceptedGen:       func(SharedProjectionAcceptanceKey) (string, bool) { return "", false },
+		ReducerGraphDrain: staticReducerGraphDrain{uncommittedErr: errors.New("test quiescence check failure")},
+		Config:            CodeCallProjectionRunnerConfig{BatchLimit: 10},
+	}
+
+	_, err := runner.processOnce(context.Background(), time.Now().UTC())
+	if err == nil {
+		t.Fatal("processOnce() error = nil, want quiescence check failure")
+	}
+	if got := reader.claimsCount(); got != 0 {
+		t.Fatalf("lease claims = %d, want 0 when the quiescence check fails", got)
+	}
+}
+
 func TestCodeCallProjectionRunnerProcessOnceReportsReadinessBlockedWait(t *testing.T) {
 	t.Parallel()
 

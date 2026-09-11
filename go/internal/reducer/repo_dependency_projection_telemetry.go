@@ -61,6 +61,33 @@ func (r *RepoDependencyProjectionRunner) recordRepoDependencyCycle(
 	}
 }
 
+// recordRepoDependencyQuiescenceBlocked leaves operator-visible evidence for
+// a cycle held shut by the canonical-code quiescence gate (#6184), mirroring
+// the code-call lane's recordCodeCallTiming on its blocked path. It records
+// the same per-cycle instruments as a completed cycle -- so a lane held shut
+// for hours shows a steady series instead of a gap that reads as a dead
+// lane -- with a distinct log line naming the gate, since no write ran.
+func (r *RepoDependencyProjectionRunner) recordRepoDependencyQuiescenceBlocked(
+	ctx context.Context,
+	startedAt time.Time,
+) {
+	duration := time.Since(startedAt).Seconds()
+	if r.Instruments != nil {
+		attrs := metric.WithAttributes(telemetry.AttrDomain(DomainRepoDependency))
+		r.Instruments.CanonicalWriteDuration.Record(ctx, duration, attrs)
+		r.Instruments.CanonicalWrites.Add(ctx, 0, attrs)
+	}
+	if r.Logger != nil {
+		r.Logger.InfoContext(
+			ctx,
+			"repo dependency projection cycle blocked on canonical-code quiescence",
+			slog.Int("blocked_readiness", 1),
+			slog.Float64("duration_seconds", duration),
+			telemetry.PhaseAttr(telemetry.PhaseReduction),
+		)
+	}
+}
+
 func recordRepoDependencyStepDurations(
 	ctx context.Context,
 	instruments *telemetry.Instruments,

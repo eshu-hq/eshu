@@ -163,6 +163,9 @@ func TestRunPipelinedEmitsBootstrapPhaseTimings(t *testing.T) {
 		telemetry.BootstrapPhaseCollection,
 		telemetry.BootstrapPhaseRelationshipBackfill,
 		telemetry.BootstrapPhaseProjection,
+		// The #6184 covering pass re-runs the backfill after the projector
+		// drains, so its own phase point must be present on the success path.
+		telemetry.BootstrapPhaseRelationshipBackfillPostDrain,
 		telemetry.BootstrapPhaseIaCReachability,
 		telemetry.BootstrapPhaseDeploymentReopen,
 		telemetry.BootstrapPhaseConfigStateDrift,

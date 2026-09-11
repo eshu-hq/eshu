@@ -108,79 +108,60 @@ WHERE status IN ('dead_letter', 'failed')
   %s
 `
 
-// refinalizeScopeProjectionsQuery re-enqueues projector work by inserting one
-// pending work item per generation in the set the refinalize already
-// materialized. $1 is the timestamp; $2 and $3 are the index-aligned scope-id
-// and generation-id arrays. It reads no table, which is the point: see
-// refinalizeAffectedGenerations.
-//
-// ON CONFLICT (work_item_id) DO UPDATE is what makes the rebuild restartable.
-// The work_item_id is derived from scope_id and generation_id, so a second
-// rebuild over the same generations resets the same rows to pending instead of
-// inserting duplicates. An interrupted rebuild is re-runnable with the same
-// command.
-const refinalizeScopeProjectionsQuery = `
-INSERT INTO fact_work_items (
-    work_item_id,
-    scope_id,
-    generation_id,
-    stage,
-    domain,
-    status,
-    attempt_count,
-    lease_owner,
-    claim_until,
-    visible_at,
-    last_attempt_at,
-    next_attempt_at,
-    failure_class,
-    failure_message,
-    failure_details,
-    payload,
-    created_at,
-    updated_at
-)
-SELECT
-    'refinalize_' || scope.scope_id || '_' || scope.generation_id,
-    scope.scope_id,
-    scope.generation_id,
-    'projector',
-    'source_local',
-    'pending',
-    0,
-    NULL,
-    NULL,
-    $1,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    '{}'::jsonb,
-    $1,
-    $1
-FROM unnest($2::text[], $3::text[]) AS scope(scope_id, generation_id)
-ON CONFLICT (work_item_id) DO UPDATE
-SET status = 'pending',
-    attempt_count = 0,
-    lease_owner = NULL,
-    claim_until = NULL,
-    visible_at = EXCLUDED.visible_at,
-    failure_class = NULL,
-    failure_message = NULL,
-    failure_details = NULL,
-    updated_at = EXCLUDED.updated_at
-RETURNING scope_id
-`
-
 // RecoveryStore implements recovery.ReplayStore over Postgres.
 type RecoveryStore struct {
 	db ExecQueryer
+
+	// refinalizeDrainTimeout bounds the in-flight reducer drain wait in
+	// RefinalizeScopeProjections; refinalizeDrainPoll is the poll interval.
+	// Zero means the rebuildreset defaults apply. They are set with
+	// RecoveryStoreOption so existing constructors keep working.
+	refinalizeDrainTimeout time.Duration
+	refinalizeDrainPoll    time.Duration
+}
+
+// rebuildresetQueryer adapts Transaction to rebuildreset.Queryer. The row
+// interfaces already match, so only the entrypoint needs adapting.
+type rebuildresetQueryer struct {
+	Transaction
+}
+
+// QueryContext implements rebuildreset.Queryer.
+func (q rebuildresetQueryer) QueryContext(ctx context.Context, query string, args ...any) (rebuildreset.Rows, error) {
+	return q.Transaction.QueryContext(ctx, query, args...)
+}
+
+// RecoveryStoreOption tunes a RecoveryStore. The zero store (no options) is
+// valid and uses the documented defaults.
+type RecoveryStoreOption func(*RecoveryStore)
+
+// WithRefinalizeDrainTimeout bounds how long RefinalizeScopeProjections waits
+// for in-flight reducer work to drain before it aborts the refinalize instead
+// of retiring generations under running resolvers. Non-positive keeps the
+// default. Tests use a short timeout to prove the abort without sleeping.
+func WithRefinalizeDrainTimeout(d time.Duration) RecoveryStoreOption {
+	return func(s *RecoveryStore) {
+		s.refinalizeDrainTimeout = d
+	}
+}
+
+// WithRefinalizeDrainPollInterval sets the poll interval of the in-flight
+// reducer drain wait. Non-positive keeps the default.
+func WithRefinalizeDrainPollInterval(d time.Duration) RecoveryStoreOption {
+	return func(s *RecoveryStore) {
+		s.refinalizeDrainPoll = d
+	}
 }
 
 // NewRecoveryStore constructs a Postgres-backed recovery store.
-func NewRecoveryStore(db ExecQueryer) RecoveryStore {
-	return RecoveryStore{db: db}
+func NewRecoveryStore(db ExecQueryer, opts ...RecoveryStoreOption) RecoveryStore {
+	s := RecoveryStore{db: db}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&s)
+		}
+	}
+	return s
 }
 
 // replayPredicate is the dynamic WHERE tail (after the terminal-status clause)
@@ -400,18 +381,35 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		}
 	}()
 
-	generations, err := refinalizeAffectedGenerations(ctx, tx, filter)
+	// Coordination (read once, drain-wait, enqueue, fence check) lives in
+	// rebuildreset; the drain wait runs after the authoritative read and
+	// before any write so a resolver that claimed first cannot get its
+	// generation retired mid-flight (Codex #6184 P1).
+	rq := rebuildresetQueryer{Transaction: tx}
+
+	generations, err := rebuildreset.ReadAffectedGenerations(ctx, rq, filter)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
-	scopeIDs, err := refinalizeEnqueueProjectorWork(ctx, tx, generations, now)
+	if err := rebuildreset.WaitForReducerDrain(ctx, rq, generations, s.refinalizeDrainTimeout, s.refinalizeDrainPoll); err != nil {
+		return recovery.RefinalizeResult{}, err
+	}
+
+	scopeIDs, err := rebuildreset.EnqueueProjectorWork(ctx, rq, generations, now)
 	if err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
 	counts, err := rebuildreset.Apply(ctx, tx, generations)
 	if err != nil {
+		return recovery.RefinalizeResult{}, err
+	}
+
+	// Zero retired with live leases outstanding means the atomic guard
+	// tripped; zero with none is the convergent re-run. See
+	// rebuildreset.AssertRetirementFenced.
+	if err := rebuildreset.AssertRetirementFenced(ctx, rq, generations, counts.GenerationsRetired); err != nil {
 		return recovery.RefinalizeResult{}, err
 	}
 
@@ -426,74 +424,6 @@ func (s RecoveryStore) RefinalizeScopeProjections(
 		ReducerWorkDeleted:     counts.ReducerWorkDeleted,
 		SharedIntentsReopened:  counts.SharedIntentsReopened,
 		ReadinessPhasesCleared: counts.ReadinessPhasesCleared,
+		GenerationsRetired:     counts.GenerationsRetired,
 	}, nil
-}
-
-// refinalizeAffectedGenerations reads the (scope_id, generation_id) set this
-// refinalize covers, once, so the enqueue and the three resets bind the same
-// rows. Re-deriving the set per statement would give each one its own READ
-// COMMITTED snapshot, and an ingester activating a generation mid-refinalize
-// could then leave the enqueue rebuilding G1 while a reset cleared G2.
-//
-// It takes no row locks: a concurrent activation wins and falls outside this
-// refinalize, which is cheaper than putting an ingester behind a rebuild.
-func refinalizeAffectedGenerations(
-	ctx context.Context,
-	tx Transaction,
-	filter recovery.RefinalizeFilter,
-) (rebuildreset.Generations, error) {
-	query, args := rebuildreset.AffectedGenerationsQuery(filter)
-
-	rows, err := tx.QueryContext(ctx, query, args...)
-	if err != nil {
-		return rebuildreset.Generations{}, fmt.Errorf("refinalize affected generations: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var generations rebuildreset.Generations
-	for rows.Next() {
-		var scopeID, generationID string
-		if scanErr := rows.Scan(&scopeID, &generationID); scanErr != nil {
-			return rebuildreset.Generations{}, fmt.Errorf("refinalize affected generations: %w", scanErr)
-		}
-		generations.Append(scopeID, generationID)
-	}
-	if err := rows.Err(); err != nil {
-		return rebuildreset.Generations{}, fmt.Errorf("refinalize affected generations: %w", err)
-	}
-
-	return generations, nil
-}
-
-// refinalizeEnqueueProjectorWork runs the projector re-enqueue and returns the
-// scope IDs it queued. The rows are fully consumed and closed before the reset
-// statements run, because database/sql forbids a second statement on a
-// transaction while its Rows are open.
-func refinalizeEnqueueProjectorWork(
-	ctx context.Context,
-	tx Transaction,
-	generations rebuildreset.Generations,
-	now time.Time,
-) ([]string, error) {
-	args := append([]any{now.UTC()}, generations.Args()...)
-
-	rows, err := tx.QueryContext(ctx, refinalizeScopeProjectionsQuery, args...)
-	if err != nil {
-		return nil, fmt.Errorf("refinalize scope projections: %w", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	var scopeIDs []string
-	for rows.Next() {
-		var id string
-		if scanErr := rows.Scan(&id); scanErr != nil {
-			return nil, fmt.Errorf("refinalize scope projections: %w", scanErr)
-		}
-		scopeIDs = append(scopeIDs, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("refinalize scope projections: %w", err)
-	}
-
-	return scopeIDs, nil
 }

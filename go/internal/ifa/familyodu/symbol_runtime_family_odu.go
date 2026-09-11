@@ -64,11 +64,13 @@ import (
 //     ignoring the file fact's uid field verbatim, so a mismatch here would
 //     make the live MERGE a silent no-op even though this pure Odù's
 //     extraction still succeeds);
-//   - two shared_followup facts, one per domain family
+//   - three shared_followup facts, one per domain family
 //     (workload_materialization drives the :Endpoint/:Workload write,
-//     code_call_materialization drives HANDLES_ROUTE/RUNS_IN/
-//     INVOKES_CLOUD_ACTION) -- without both, a live gate cannot enqueue
-//     either handler at all.
+//     deployment_mapping drives the cross-repo resolution whose activation
+//     the workload write gates on (#6184), code_call_materialization drives
+//     HANDLES_ROUTE/RUNS_IN/INVOKES_CLOUD_ACTION) -- without all three, a
+//     live gate cannot enqueue every handler, and the workload write would
+//     defer forever waiting on a resolution that never runs.
 const (
 	// SymbolRuntimeFamilyOduName is this Odù's catalog name.
 	SymbolRuntimeFamilyOduName      = "odu:ifa-symbol-runtime-family"
@@ -218,7 +220,7 @@ func InvokesCloudActionFamilyExpectedEdgesPath(repoRoot string) string {
 // SymbolRuntimeFamilyOdu carries one repository, one Dockerfile file plus one
 // Jenkinsfile file (the live-admission-passing workload signal pair), one
 // server file (route entries + function calls + functions), three
-// content_entity Function facts, and two shared_followup facts -- wired so
+// content_entity Function facts, and three shared_followup facts -- wired so
 // reducer.ExtractSymbolRuntimeIntentRows derives exactly
 // four HANDLES_ROUTE upsert rows (GET+POST /widgets, GET /healthz -- three
 // route entries, but /widgets' two methods share one intent-level dedupe
@@ -258,6 +260,7 @@ func SymbolRuntimeFamilyOdu() CatalogOdu {
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyHealthFunctionName, SymbolRuntimeFamilyHealthFunctionUID, SymbolRuntimeFamilyHealthFunctionLine),
 			symbolRuntimeFamilyFunctionEntity(SymbolRuntimeFamilyCallerFunctionName, SymbolRuntimeFamilyCallerFunctionUID, SymbolRuntimeFamilyCallerFunctionLine),
 			symbolRuntimeFamilyFollowupFact("workload_materialization", "workload:"+repoName),
+			symbolRuntimeFamilyFollowupFact("deployment_mapping", "deployment:"+repoName),
 			symbolRuntimeFamilyFollowupFact("code_call_materialization", "code-call:"+repoName),
 		},
 	}
@@ -267,7 +270,7 @@ func SymbolRuntimeFamilyOdu() CatalogOdu {
 			"Dockerfile which DockerfileRulePack rejects) and a server.go file (three net_http route entries: GET /widgets and POST /widgets both via " +
 			"HandleWidgets -- proving the method-collapse live -- plus GET /healthz via the distinct handler HandleHealth; plus two function_calls on InvokeAWS: " +
 			"one (s3, PutObject) catalog hit and one (widget, Frobnicate) non-catalog miss), three content_entity Function facts, " +
-			"and two shared_followup facts (workload_materialization, code_call_materialization) -- driving exactly 2 HANDLES_ROUTE edges, 2 RUNS_IN edges, " +
+			"and three shared_followup facts (workload_materialization, deployment_mapping, code_call_materialization) -- driving exactly 2 HANDLES_ROUTE edges, 2 RUNS_IN edges, " +
 			"1 INVOKES_CLOUD_ACTION edge, one admitted Workload, and two Endpoints.",
 	}
 }
@@ -443,11 +446,14 @@ func symbolRuntimeFamilyFileFact(file codegraphv1.File) facts.Envelope {
 // reducer.ExtractSymbolRuntimeIntentRows nor
 // reducer.ExtractWorkloadCandidates reads this fact kind, so it is inert for
 // the pure vacuity guards but included for fidelity with the live-drive
-// cassette and the real collector's own emission shape. TWO of these are
+// cassette and the real collector's own emission shape. THREE of these are
 // required (one per domain family): without the workload_materialization
 // followup the live handler never commits the :Endpoint/:Workload nodes
-// HANDLES_ROUTE/RUNS_IN depend on; without code_call_materialization the
-// handler that builds all three domains' intents never runs at all.
+// HANDLES_ROUTE/RUNS_IN depend on; without deployment_mapping no
+// cross-repo resolution ever activates for the scope, so the workload write
+// keeps deferring on its fail-closed readiness gate (#6184); without
+// code_call_materialization the handler that builds all three domains'
+// intents never runs at all.
 func symbolRuntimeFamilyFollowupFact(domain, entityKey string) facts.Envelope {
 	return symbolRuntimeFamilyEnvelope(
 		SharedFollowupFactKind,

@@ -241,10 +241,9 @@ ifa_det_build_bin "${bin_dir}" ifa "${build_tags}" || die "build ifa failed"
 ifa_det_build_bin "${bin_dir}" projector "${build_tags}" || die "build projector failed"
 ifa_det_build_bin "${bin_dir}" reducer "${build_tags}" || die "build reducer failed"
 ifa_det_build_bin "${bin_dir}" golden-corpus-gate "${build_tags}" || die "build golden-corpus-gate failed"
-# Sixth binary (#5993): deployable_unit_edges' standalone cell needs a
-# bootstrap-index maintenance pass (backfills relationship evidence AND
-# reopens crossScopeCorrelationReopenDomains in one pass) -- neither the
-# shared N-loop cells nor any other family's live cell needs this binary.
+# Sixth binary (#5993): the deployable-unit standalone cell and the shared
+# N-loop (symbol-runtime trio's deployment_mapping, #6184) need a
+# bootstrap-index maintenance pass (backward-evidence backfill + reopen).
 ifa_det_build_bin "${bin_dir}" bootstrap-index "${build_tags}" || die "build bootstrap-index failed"
 
 # Generate the synth-multiscope cassette ONCE, before the cell loop, so every
@@ -367,6 +366,8 @@ for n in "${worker_counts[@]}"; do
 	[[ -n "${work_items}" && "${work_items}" -gt 0 ]] \
 		|| die "N=${n}: eshu-ifa drive committed but enqueued 0 fact_work_items rows (vacuous drain proof)"
 	printf 'N=%s fact_work_items enqueued (demo-org + synth-multiscope + SQL family + code-call family + documentation family + rationale family + codeowners family): %s\n' "${n}" "${work_items}"
+
+	ifa_det_run_n_loop_maintenance_pass "${n}" "${bin_dir}" "${log_dir}"
 
 	log "N=${n}: drain projector + reducer (gate polls to the B-12 residual bound)"
 	bg_pids=()

@@ -15,6 +15,58 @@ func (r *CodeCallProjectionRunner) loadAllAcceptanceUnitIntents(ctx context.Cont
 	return r.loadAcceptanceUnitRows(ctx, key)
 }
 
+// CanonicalCodeQuiescenceChecker is the narrow half of ReducerGraphDrain that
+// carries no backend or profile precondition: it reports whether any code
+// scope's active generation still lacks its canonical-nodes phase. The
+// cross-repository CALLS loss it prevents happens on every backend and query
+// profile (MATCH-only write plus caller-only readiness key), while the
+// contention half of ReducerGraphDrain is NornicDB-local-authoritative only —
+// so the runner takes this checker as a separate, unconditionally wired
+// dependency. A nil checker preserves the pre-#6184 behavior.
+type CanonicalCodeQuiescenceChecker interface {
+	HasUncommittedCanonicalCodeScopes(ctx context.Context) (bool, error)
+}
+
+// projectionLaneBlocked reports whether code-call projection must stay parked
+// before claiming a partition lease. It combines the reducer graph-drain
+// check (active graph-writing domains, NornicDB-local-authoritative only)
+// with the canonical-code quiescence check (#6184): the per-intent readiness
+// gate only covers the caller's acceptance unit, so a cross-repository edge
+// drained before the callee repository's canonical nodes commit MATCHes
+// nothing and is marked completed anyway. The quiescence half is consulted
+// through the flag-gated drain when present and through the unconditionally
+// wired CanonicalQuiescence checker otherwise — exactly one of them runs per
+// cycle, never both — because the loss happens on every backend and profile
+// while the contention check does not apply to them. The whole lane therefore
+// waits until every code scope's active generation has committed canonical
+// nodes. Scopes whose active generation committed only non-git facts never
+// block (non-code scopes: the drain query releases them); a generation with
+// no facts at all still holds while its emission is in flight.
+func (r *CodeCallProjectionRunner) projectionLaneBlocked(ctx context.Context) (bool, error) {
+	if r.ReducerGraphDrain != nil {
+		active, err := r.ReducerGraphDrain.HasActiveReducerGraphWork(ctx)
+		if err != nil {
+			return false, fmt.Errorf("check reducer graph drain: %w", err)
+		}
+		if active {
+			return true, nil
+		}
+		uncommitted, err := r.ReducerGraphDrain.HasUncommittedCanonicalCodeScopes(ctx)
+		if err != nil {
+			return false, fmt.Errorf("check canonical code quiescence: %w", err)
+		}
+		return uncommitted, nil
+	}
+	if r.CanonicalQuiescence != nil {
+		uncommitted, err := r.CanonicalQuiescence.HasUncommittedCanonicalCodeScopes(ctx)
+		if err != nil {
+			return false, fmt.Errorf("check canonical code quiescence: %w", err)
+		}
+		return uncommitted, nil
+	}
+	return false, nil
+}
+
 func (r *CodeCallProjectionRunner) loadAcceptanceUnitPartitionIntents(
 	ctx context.Context,
 	key SharedProjectionAcceptanceKey,

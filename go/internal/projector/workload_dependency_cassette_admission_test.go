@@ -47,12 +47,20 @@ func TestWorkloadDependencyCassetteProductionAdmission(t *testing.T) {
 	for _, repoID := range wantWorkloadRepoIDs {
 		wantWorkloadRepos[repoID] = struct{}{}
 	}
+	// Every workload-bearing scope carries a deployment_mapping follow-up, mirroring
+	// production (which emits one per repo snapshot): under the fail-closed
+	// readiness contract the resolver that activates a scope's relationship
+	// generation rides the deployment_mapping item, so a workload-bearing scope
+	// without one strands its workload_materialization items at the drain
+	// (#6184). Orphan-source carries one for the rejected stale-evidence path;
+	// orphan-target has no workload candidates and needs none.
 	wantIntentsByRepo := map[string]map[reducer.Domain]string{
 		"repo-ifa-workload-dependency-source": {
 			reducer.DomainDeploymentMapping:       "workload:workload-dependency-source",
 			reducer.DomainWorkloadMaterialization: "workload:workload-dependency-source",
 		},
 		"repo-ifa-workload-dependency-target": {
+			reducer.DomainDeploymentMapping:       "workload:workload-dependency-target",
 			reducer.DomainWorkloadMaterialization: "workload:workload-dependency-target",
 		},
 		"repo-ifa-workload-dependency-multi-source": {
@@ -60,6 +68,7 @@ func TestWorkloadDependencyCassetteProductionAdmission(t *testing.T) {
 			reducer.DomainWorkloadMaterialization: "workload:workload-dependency-multi-source",
 		},
 		"repo-ifa-workload-dependency-multi-target": {
+			reducer.DomainDeploymentMapping:       "workload:workload-dependency-multi-target",
 			reducer.DomainWorkloadMaterialization: "workload:workload-dependency-multi-target",
 		},
 		"repo-ifa-workload-dependency-orphan-source": {

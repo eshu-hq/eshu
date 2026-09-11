@@ -115,6 +115,15 @@ func (q *sqlDrainQuerier) Counts(ctx context.Context) (DrainCounts, error) {
 // It always returns the last observed counts so the caller can report the residual
 // even on a timeout. ok reports whether both populated and drained held.
 //
+// allowReadinessDeferred is the pre-maintenance mode (#6184): the poll also
+// passes when the pipeline is quiescent except for readiness deferrals -- no
+// live, dead-letter, or failed fact rows and no pending completion events,
+// with nonterminal shared intents reported but not blocking. The fail-closed
+// readiness gates keep gated work retrying until the maintenance pass opens
+// them, so a strict bound can never pass before maintenance runs; the
+// post-maintenance drain stays strict and re-checks everything this mode
+// tolerates.
+//
 // progress and progressEvery are the periodic-residual fix for #6149 follow-up
 // item 7: before this, the drain's residual was only ever reported at the
 // bound (runDrains's post-return diagnostic), so "still draining" and
@@ -137,6 +146,7 @@ func pollUntilDrained(
 	timeout, poll time.Duration,
 	progress io.Writer,
 	progressEvery time.Duration,
+	allowReadinessDeferred bool,
 ) (counts DrainCounts, ok bool, err error) {
 	deadline := time.Now().Add(timeout)
 	populated := expectedPopulatedDomains <= 0
@@ -152,6 +162,9 @@ func pollUntilDrained(
 			populated = true
 		}
 		if populated && counts.Drained(a) {
+			return counts, true, nil
+		}
+		if populated && allowReadinessDeferred && preMaintenanceQuiescent(ctx, q, counts) {
 			return counts, true, nil
 		}
 		if progressEnabled && time.Since(lastProgress) >= progressEvery {
@@ -173,6 +186,67 @@ func pollUntilDrained(
 		case <-time.After(poll):
 		}
 	}
+}
+
+// preMaintenanceQuiescent reports whether the poll may stop for a
+// pre-maintenance drain: no live, dead-letter, or failed fact rows and no
+// pending completion events. Readiness-deferred rows and nonterminal shared
+// intents are the expected pre-maintenance state -- gated work retrying until
+// the maintenance pass opens its gates, plus the downstream intents waiting
+// on it -- so they do not block. A breakdown read failure is not quiescence:
+// the poll keeps waiting and the timeout verdict degrades the message, never
+// the other way round.
+func preMaintenanceQuiescent(ctx context.Context, q drainQuerier, counts DrainCounts) bool {
+	if counts.CrossScopeCompletionEventsNonterminal != 0 {
+		return false
+	}
+	rows, err := q.ResidualBreakdown(ctx)
+	if err != nil {
+		return false
+	}
+	_, quiescent := preMaintenanceQuiescence(counts, rows)
+	return quiescent
+}
+
+// preMaintenanceQuiescence is the pure predicate behind preMaintenanceQuiescent
+// plus the message the pre-maintenance verdict reports. Shared-intent
+// nonterminals are reported, not blocking: they are either gated-work
+// downstream or about-to-be-consumed rows, and the post-maintenance strict
+// drain re-checks every one of them.
+func preMaintenanceQuiescence(counts DrainCounts, rows []residualRow) (string, bool) {
+	live, deferred, deadLetter, failed := classifyResidualRows(rows)
+	quiescent := live == 0 && deadLetter == 0 && failed == 0 &&
+		counts.CrossScopeCompletionEventsNonterminal == 0
+	msg := fmt.Sprintf("pre-maintenance quiescence: live=%d readiness-deferred=%d dead_letter=%d failed=%d "+
+		"shared-required-nonterminal=%d completion-events=%d (deferred rows converge after the maintenance pass; the post-maintenance drain stays strict)",
+		live, deferred, deadLetter, failed,
+		counts.SharedIntentsRequiredNonterminal, counts.CrossScopeCompletionEventsNonterminal)
+	return msg, quiescent
+}
+
+// classifyResidualRows splits residual groups into live work versus readiness
+// deferrals, with terminal rows counted separately. Shared with
+// formatResidualBreakdown so the poll predicate and the timeout message can
+// never disagree about which row is which.
+func classifyResidualRows(rows []residualRow) (live, deferred, deadLetter, failed int64) {
+	for _, row := range rows {
+		switch {
+		case row.Status == "dead_letter":
+			deadLetter += row.Count
+		// `failed` is terminal, same as dead_letter. Postgres already draws this
+		// line: the outstanding-work count in generation_lifecycle_sql.go is
+		// `status IN ('pending','claimed','running','retrying')`, which excludes
+		// it. Counting a failed row as live would report a stuck pipeline as a
+		// busy one and send the reader looking for progress that is not coming.
+		case row.Status == "failed":
+			failed += row.Count
+		case readinessDeferredFailureClasses[row.FailureClass]:
+			deferred += row.Count
+		default:
+			live += row.Count
+		}
+	}
+	return live, deferred, deadLetter, failed
 }
 
 // residualRow is one (domain, status, failure_class) group of work items left
@@ -268,6 +342,13 @@ var readinessDeferredFailureClasses = map[string]bool{
 	// reports "the pipeline just needed longer" for a queue that is actually
 	// blocked on a precondition.
 	"aws_relationship_ec2_instance_nodes_not_ready": true,
+	// #6184: fail-closed cross-repo resolution deferrals. Without these
+	// entries the breakdown reports readiness-deferred=0 for a queue that is
+	// entirely waiting on backward-evidence publication, sending the reader
+	// looking for stuck live work that is not there.
+	"cross_repo_backward_evidence_not_ready":           true,
+	"deployable_unit_correlation_resolution_not_ready": true,
+	"workload_materialization_resolution_not_ready":    true,
 }
 
 // formatResidualBreakdown renders the residual rows as one line for the drain
@@ -283,24 +364,9 @@ func formatResidualBreakdown(rows []residualRow) string {
 		return ""
 	}
 
-	var live, deferred, deadLetter, failed int64
+	live, deferred, deadLetter, failed := classifyResidualRows(rows)
 	details := make([]string, 0, len(rows))
 	for _, row := range rows {
-		switch {
-		case row.Status == "dead_letter":
-			deadLetter += row.Count
-		// `failed` is terminal, same as dead_letter. Postgres already draws this
-		// line: the outstanding-work count in generation_lifecycle_sql.go is
-		// `status IN ('pending','claimed','running','retrying')`, which excludes
-		// it. Counting a failed row as live would report a stuck pipeline as a
-		// busy one and send the reader looking for progress that is not coming.
-		case row.Status == "failed":
-			failed += row.Count
-		case readinessDeferredFailureClasses[row.FailureClass]:
-			deferred += row.Count
-		default:
-			live += row.Count
-		}
 		details = append(details, fmt.Sprintf("%s=%d", residualGroupLabel(row), row.Count))
 	}
 

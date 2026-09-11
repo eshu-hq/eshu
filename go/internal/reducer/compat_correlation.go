@@ -293,6 +293,10 @@ type AssertionLoader = crossrepo.AssertionLoader
 // Alias for [crossrepo.ResolutionPersister].
 type ResolutionPersister = crossrepo.ResolutionPersister
 
+// ScopeRepositoryReader lists a scope generation's git repository IDs.
+// Alias for [crossrepo.ScopeRepositoryReader].
+type ScopeRepositoryReader = crossrepo.ScopeRepositoryReader
+
 // RepoDependencyIntentWriter persists durable repo-dependency projection
 // intents. Alias for [crossrepo.RepoDependencyIntentWriter].
 type RepoDependencyIntentWriter = crossrepo.RepoDependencyIntentWriter

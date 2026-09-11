@@ -135,6 +135,12 @@ type fakeCommitter struct {
 	// (#4271 review follow-up).
 	backfillStarted chan struct{}
 	backfillRelease chan struct{}
+	// backfillGateOnce arms the backfillStarted/backfillRelease gate for the
+	// FIRST BackfillAllRelationshipEvidence call only. runPipelined runs a
+	// post-drain covering backfill after the initial one (#6184); re-closing
+	// backfillStarted on the second call would panic, and the gate's purpose
+	// (observing one call in flight) is served by the first call.
+	backfillGateOnce sync.Once
 }
 
 func (f *fakeCommitter) CommitScopeGeneration(
@@ -156,8 +162,10 @@ func (f *fakeCommitter) BackfillAllRelationshipEvidence(
 	_ *telemetry.Instruments,
 ) error {
 	if f.backfillStarted != nil && f.backfillRelease != nil {
-		close(f.backfillStarted)
-		<-f.backfillRelease
+		f.backfillGateOnce.Do(func() {
+			close(f.backfillStarted)
+			<-f.backfillRelease
+		})
 	}
 	if f.backfillDelay > 0 {
 		time.Sleep(f.backfillDelay)
@@ -233,6 +241,75 @@ func (f *fakeCommitter) snapshotCalls() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]string(nil), f.calls...)
+}
+
+// coveringBackfillOrderProbe wraps fakeCommitter to observe WHEN each
+// BackfillAllRelationshipEvidence call is entered relative to projector
+// quiescence. runPipelined calls the backfill sequentially on one goroutine,
+// so enters/secondEnterAfterQuiesce need no lock: the test reads them after
+// runPipelined returns, which happens-after every write.
+type coveringBackfillOrderProbe struct {
+	*fakeCommitter
+	// projectorQuiesced is closed by the projection runner when its work
+	// returns, i.e. strictly before the projector goroutine drains (Ack still
+	// follows). A covering backfill entered after <-errc therefore always
+	// observes it closed; one entered before the drain observes it open.
+	projectorQuiesced chan struct{}
+	enters            int
+	// secondEnterAfterQuiesce records whether the second backfill call
+	// observed projector quiescence on entry.
+	secondEnterAfterQuiesce bool
+	// failSecondErr, when non-nil, fails the second backfill call.
+	failSecondErr error
+}
+
+func (p *coveringBackfillOrderProbe) BackfillAllRelationshipEvidence(
+	ctx context.Context,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+) error {
+	p.enters++
+	if p.enters == 2 {
+		select {
+		case <-p.projectorQuiesced:
+			p.secondEnterAfterQuiesce = true
+		default:
+		}
+		if p.failSecondErr != nil {
+			// Record the call before failing it: the covering pass ran,
+			// it just did not succeed.
+			p.mu.Lock()
+			p.calls = append(p.calls, "backfill")
+			p.backfillCalls++
+			p.mu.Unlock()
+			return p.failSecondErr
+		}
+	}
+	return p.fakeCommitter.BackfillAllRelationshipEvidence(ctx, tracer, instruments)
+}
+
+// drainOrderSignalingRunner sleeps like delayedProjectionRunner, then closes
+// done exactly once when its work returns (before the sink Ack that completes
+// the projector drain).
+type drainOrderSignalingRunner struct {
+	delay time.Duration
+	done  chan struct{}
+	once  sync.Once
+}
+
+func (r *drainOrderSignalingRunner) Project(
+	ctx context.Context,
+	_ scope.IngestionScope,
+	_ scope.ScopeGeneration,
+	_ []facts.Envelope,
+) (projector.Result, error) {
+	select {
+	case <-ctx.Done():
+		return projector.Result{}, ctx.Err()
+	case <-time.After(r.delay):
+	}
+	r.once.Do(func() { close(r.done) })
+	return projector.Result{}, nil
 }
 
 type fakeWorkSource struct {

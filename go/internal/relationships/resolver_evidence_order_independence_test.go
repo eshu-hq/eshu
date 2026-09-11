@@ -4,6 +4,8 @@
 package relationships
 
 import (
+	"fmt"
+	"math"
 	"reflect"
 	"testing"
 )
@@ -31,14 +33,10 @@ import (
 // content-addressed. That touches projected graph truth and the golden snapshot,
 // so it is deliberately a separate change from #4594.
 //
-// It is skipped rather than left red. A permanently failing test turns every
-// future run of this package red, which trains people to ignore it and blocks
-// unrelated work — the opposite of a useful pin. Delete the t.Skip line to run
-// it: it fails today with a diff of the two previews, and it passes when the
-// ordering fix lands. That one-line edit is the proof step.
+// It runs un-skipped since #6184: aggregateCandidate sorts its facts by a
+// content key before accumulating, so forward and reversed inputs must agree.
 func TestAggregateCandidateEvidencePreviewIsOrderIndependent(t *testing.T) {
 	t.Parallel()
-	t.Skip("known-failing pin for cross-run resolver nondeterminism; delete this line to verify the fix")
 
 	key := entityTriple{
 		SourceEntityID:   "repo:source",
@@ -79,6 +77,102 @@ func TestAggregateCandidateEvidencePreviewIsOrderIndependent(t *testing.T) {
 	if !reflect.DeepEqual(forward, reversed) {
 		t.Fatalf("aggregateCandidate is not a pure function of its fact set:\nforward:  %+v\nreversed: %+v",
 			forward, reversed)
+	}
+}
+
+// TestAggregateCandidateRationaleAndRepoOrderIndependent closes the F1 gap
+// from the #6184 review: rationale join order and first-non-empty repo IDs
+// are order-sensitive accumulations that live outside Details, so two facts
+// identical on every preview-relevant field but differing in rationale or
+// repo IDs must still aggregate identically in both input orders.
+func TestAggregateCandidateRationaleAndRepoOrderIndependent(t *testing.T) {
+	t.Parallel()
+
+	key := entityTriple{
+		SourceEntityID:   "repo:source",
+		TargetEntityID:   "repo:target",
+		RelationshipType: RelationshipType("DEPENDS_ON"),
+	}
+	twin := func(rationale, srcRepo, tgtRepo string) EvidenceFact {
+		return EvidenceFact{
+			EvidenceKind:     EvidenceKind("PACKAGE_MANIFEST"),
+			RelationshipType: RelationshipType("DEPENDS_ON"),
+			SourceRepoID:     srcRepo,
+			TargetRepoID:     tgtRepo,
+			SourceEntityID:   "repo:source",
+			TargetEntityID:   "repo:target",
+			Confidence:       0.65,
+			Rationale:        rationale,
+			Details: map[string]any{
+				"path":          "package.json",
+				"matched_value": "d",
+			},
+		}
+	}
+	forward := []EvidenceFact{
+		twin("first rationale", "repo:a", "repo:x"),
+		twin("second rationale", "repo:b", "repo:y"),
+	}
+	reversed := []EvidenceFact{forward[1], forward[0]}
+
+	gotForward := aggregateCandidate(key, forward)
+	gotReversed := aggregateCandidate(key, reversed)
+	if !reflect.DeepEqual(gotForward, gotReversed) {
+		t.Fatalf("aggregateCandidate depends on input order for rationale/repo twins:\nforward:  %+v\nreversed: %+v",
+			gotForward, gotReversed)
+	}
+}
+
+// TestAggregateCandidateNaNConfidenceOrderIndependent closes the codex P2
+// from the #6184 review: the raw-confidence tie-break compares unclamped
+// values with !=, which is always true for NaN, but NaN > x is always false,
+// so a NaN fact short-circuits to arrival order without consulting the
+// deeper content keys (Details, rationale, repo IDs). Two facts that differ
+// only past the NaN must still aggregate identically in both input orders.
+func TestAggregateCandidateNaNConfidenceOrderIndependent(t *testing.T) {
+	t.Parallel()
+
+	key := entityTriple{
+		SourceEntityID:   "repo:source",
+		TargetEntityID:   "repo:target",
+		RelationshipType: RelationshipType("DEPENDS_ON"),
+	}
+	twin := func(confidence float64, rationale, srcRepo string) EvidenceFact {
+		return EvidenceFact{
+			EvidenceKind:     EvidenceKind("PACKAGE_MANIFEST"),
+			RelationshipType: RelationshipType("DEPENDS_ON"),
+			SourceRepoID:     srcRepo,
+			TargetRepoID:     "repo:target",
+			SourceEntityID:   "repo:source",
+			TargetEntityID:   "repo:target",
+			Confidence:       confidence,
+			Rationale:        rationale,
+			Details: map[string]any{
+				"path":          "package.json",
+				"matched_value": "d",
+			},
+		}
+	}
+	// NaN clamps to 0, tying with the 0.0 fact on clamped confidence, kind,
+	// path, and matched value; rationale and repo differ past the raw
+	// tie-break. A NaN/NaN pair exercises the same short-circuit with no
+	// magnitude on either side.
+	forward := []EvidenceFact{
+		twin(math.NaN(), "nan rationale", "repo:nan"),
+		twin(0, "zero rationale", "repo:zero"),
+		twin(math.NaN(), "second nan rationale", "repo:nan2"),
+	}
+	reversed := []EvidenceFact{forward[2], forward[1], forward[0]}
+
+	gotForward := aggregateCandidate(key, forward)
+	gotReversed := aggregateCandidate(key, reversed)
+	// %#v, not reflect.DeepEqual: DeepEqual(NaN, NaN) is always false, so
+	// the preview's unclamped NaN confidences would fail a DeepEqual even
+	// for identical orderings. %#v prints NaN deterministically, so this
+	// still proves the aggregation is a pure function of the fact set.
+	if fmt.Sprintf("%#v", gotForward) != fmt.Sprintf("%#v", gotReversed) {
+		t.Fatalf("aggregateCandidate depends on input order for NaN-confidence facts:\nforward:  %+v\nreversed: %+v",
+			gotForward, gotReversed)
 	}
 }
 
