@@ -1,8 +1,12 @@
 # call — agent instructions (issue #6061, #6609)
 
-This directory is the code-call family. The handler and the projection
+This directory is the code-call dispatcher. The handler and the projection
 runner deliberately stay in the reducer root; read `doc.go` before moving
-anything else in or out.
+anything else in or out. The entity-index substrate and per-language
+resolvers live in `shared/` and the language leaves (`golang/`, `java/`,
+`jvm/`, `kotlin/`, `groovy/`, `javascript/`, `typescript/`, `python/`,
+`dart/`, `elixir/`, `haskell/`, `perl/`, `rust/`, `swift/`); each leaf has its
+own scoped `AGENTS.md`.
 
 ## Invariants
 
@@ -17,9 +21,18 @@ anything else in or out.
   `PythonMetaclassEvidenceSource` are persisted in shared-intent payloads
   and partition keys, and the root runner reads the evidence sources back;
   changing one is a data migration, not a refactor.
-- `EntityIndex` is built once per pass and read-only afterward. Do not add
-  mutation methods; the symbol-runtime builders in root share the same
-  instance.
+- `shared.EntityIndex` is built once per pass and read-only afterward. Do not
+  add mutation methods; the symbol-runtime builders in root share the same
+  instance. Its language-specific fields stay unexported — read them through
+  the accessor methods on `shared.EntityIndex`, never by adding new exported
+  fields.
+- No leaf (`golang/`, `java/`, ...) imports this package (`call`), and
+  `shared/` imports no leaf. `languages.go` is the only file that imports
+  every leaf; it wires each leaf's exported `Resolvers` list into
+  `codeCallLanguageResolvers` under the language key(s) parser output uses.
+  There is no `init()`-time registration left in this family — adding a
+  language means adding its leaf plus one entry in `languages.go`'s map, not
+  a blank import.
 - Test doubles stay package-local. Root tests that need a helper from here
   keep their own twin (see `reducerTestRelativePath` in the parent's
   `handles_route_java_test.go`).

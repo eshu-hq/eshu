@@ -6,6 +6,7 @@ package call
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 
@@ -82,10 +83,10 @@ func TestExtractCodeCallRowsQuarantinesFileMissingRepoID(t *testing.T) {
 
 	envelopes := []facts.Envelope{malformed, valid}
 	validEnvelopes, quarantined := partitionCodegraphFileFacts(envelopes)
-	repositoryIDs := collectCodeCallRepositoryIDs(validEnvelopes)
-	entityIndex := BuildEntityIndex(validEnvelopes)
-	repositoryImports := collectCodeCallRepositoryImports(validEnvelopes)
-	reexportIndex := buildCodeCallReexportIndex(validEnvelopes)
+	repositoryIDs := shared.CollectRepositoryIDs(validEnvelopes)
+	entityIndex := shared.BuildEntityIndex(validEnvelopes)
+	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
+	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
 	_, rows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 
@@ -172,10 +173,10 @@ func TestExtractCodeCallRowsQuarantinesFileMissingRelativePath(t *testing.T) {
 
 	envelopes := []facts.Envelope{malformed, valid}
 	validEnvelopes, quarantined := partitionCodegraphFileFacts(envelopes)
-	repositoryIDs := collectCodeCallRepositoryIDs(validEnvelopes)
-	entityIndex := BuildEntityIndex(validEnvelopes)
-	repositoryImports := collectCodeCallRepositoryImports(validEnvelopes)
-	reexportIndex := buildCodeCallReexportIndex(validEnvelopes)
+	repositoryIDs := shared.CollectRepositoryIDs(validEnvelopes)
+	entityIndex := shared.BuildEntityIndex(validEnvelopes)
+	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
+	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
 	_, rows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 
@@ -312,10 +313,10 @@ func TestExtractCodeCallRowsQuarantinesFileNonObjectParsedFileData(t *testing.T)
 
 	envelopes := []facts.Envelope{malformed, valid}
 	validEnvelopes, quarantined := partitionCodegraphFileFacts(envelopes)
-	repositoryIDs := collectCodeCallRepositoryIDs(validEnvelopes)
-	entityIndex := BuildEntityIndex(validEnvelopes)
-	repositoryImports := collectCodeCallRepositoryImports(validEnvelopes)
-	reexportIndex := buildCodeCallReexportIndex(validEnvelopes)
+	repositoryIDs := shared.CollectRepositoryIDs(validEnvelopes)
+	entityIndex := shared.BuildEntityIndex(validEnvelopes)
+	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
+	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
 	_, rows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 

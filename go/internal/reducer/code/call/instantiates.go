@@ -5,6 +5,7 @@ package call
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
@@ -27,7 +28,7 @@ func appendInstantiatesRow(
 	rows []map[string]any,
 	seenRows map[string]struct{},
 	repositoryID string,
-	entityIndex EntityIndex,
+	entityIndex shared.EntityIndex,
 	callerID string,
 	calleeID string,
 	callerFilePath string,
@@ -38,7 +39,7 @@ func appendInstantiatesRow(
 	if payloadcore.AnyToString(edge["call_kind"]) != "constructor_call" {
 		return rows
 	}
-	calleeType := EndpointEntityType(entityIndex, repositoryID, calleeID)
+	calleeType := shared.EndpointEntityType(entityIndex, repositoryID, calleeID)
 	if _, ok := instantiatesTargetTypes[calleeType]; !ok {
 		return rows
 	}
@@ -52,7 +53,7 @@ func appendInstantiatesRow(
 	row := map[string]any{
 		"repo_id":            repositoryID,
 		"caller_entity_id":   callerID,
-		"caller_entity_type": EndpointEntityType(entityIndex, repositoryID, callerID),
+		"caller_entity_type": shared.EndpointEntityType(entityIndex, repositoryID, callerID),
 		"callee_entity_id":   calleeID,
 		"callee_entity_type": calleeType,
 		"caller_file":        callerFilePath,
@@ -62,7 +63,7 @@ func appendInstantiatesRow(
 		"resolution_method":  codeprovenance.MethodTypeInferred,
 		"action":             reducercontract.IntentActionUpsert,
 	}
-	copyOptionalCodeCallField(row, edge, "full_name")
-	copyOptionalCodeCallField(row, edge, "call_kind")
+	shared.CopyOptionalField(row, edge, "full_name")
+	shared.CopyOptionalField(row, edge, "call_kind")
 	return append(rows, row)
 }

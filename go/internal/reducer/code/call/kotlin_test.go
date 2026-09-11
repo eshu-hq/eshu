@@ -10,6 +10,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 )
 
 func TestExtractCodeCallRowsResolvesKotlinThisReceiverCallsUsingClassContext(t *testing.T) {
@@ -79,17 +80,17 @@ fun helper(): String = "top-level"
 		},
 	}
 
-	entityIndex := BuildEntityIndex(envelopes)
+	entityIndex := shared.BuildEntityIndex(envelopes)
 	calls, ok := callerPayload["function_calls"].([]map[string]any)
 	if !ok || len(calls) != 1 {
 		t.Fatalf("function_calls = %#v, want exactly one Kotlin call", callerPayload["function_calls"])
 	}
-	if got := resolveSameFileCalleeEntityID(entityIndex, callerPath, "Worker.kt", calls[0]); got == "" {
+	if got := shared.ResolveSameFileCalleeEntityID(entityIndex, callerPath, "Worker.kt", calls[0]); got == "" {
 		t.Fatalf(
 			"resolved same-file callee: %q (candidates=%v, names=%v)",
 			got,
 			entityIndex.UniqueNameByPath,
-			codeCallExactCandidateNames(calls[0], "kotlin"),
+			shared.ExactCandidateNames(calls[0], "kotlin"),
 		)
 	}
 

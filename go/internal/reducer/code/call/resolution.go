@@ -3,7 +3,12 @@
 
 package call
 
-import "github.com/eshu-hq/eshu/go/internal/codeprovenance"
+import (
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/javascript"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+
+	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
+)
 
 // resolveGenericCallee resolves a parser-emitted call/reference to a callee
 // entity by an ordered fallback dispatch. It returns the callee entity id, the
@@ -12,29 +17,29 @@ import "github.com/eshu-hq/eshu/go/internal/codeprovenance"
 // was resolved; it never gates resolution. An unresolved call returns empty
 // strings and an empty method.
 func resolveGenericCallee(
-	index EntityIndex,
+	index shared.EntityIndex,
 	repositoryID string,
 	repositoryImports map[string][]string,
-	reexportIndex codeCallReexportIndex,
+	reexportIndex shared.ReexportIndex,
 	rawPath string,
 	relativePath string,
 	fileData map[string]any,
 	call map[string]any,
 ) (string, string, codeprovenance.Method) {
-	language := codeCallLanguage(call, rawPath, relativePath)
-	ctx := codeCallResolveContext{
-		index:             index,
-		repositoryID:      repositoryID,
-		repositoryImports: repositoryImports,
-		reexportIndex:     reexportIndex,
-		rawPath:           rawPath,
-		relativePath:      relativePath,
-		fileData:          fileData,
-		call:              call,
-		language:          language,
+	language := shared.CallLanguage(call, rawPath, relativePath)
+	ctx := shared.ResolveContext{
+		Index:             index,
+		RepositoryID:      repositoryID,
+		RepositoryImports: repositoryImports,
+		ReexportIndex:     reexportIndex,
+		RawPath:           rawPath,
+		RelativePath:      relativePath,
+		FileData:          fileData,
+		Call:              call,
+		Language:          language,
 	}
-	if codeCallPrefersImportedQualifiedTarget(call, language) {
-		if entityID, calleeFile := resolveImportedCrossFileCallee(
+	if shared.PrefersImportedQualifiedTarget(call, language) {
+		if entityID, calleeFile := shared.ResolveImportedCrossFileCallee(
 			index,
 			repositoryImports,
 			reexportIndex,
@@ -47,22 +52,22 @@ func resolveGenericCallee(
 			return entityID, calleeFile, codeprovenance.MethodImportBinding
 		}
 	}
-	if entityID, calleeFile, method := resolveCodeSymbolCallee(index, call); entityID != "" {
+	if entityID, calleeFile, method := shared.ResolveSymbolCallee(index, call); entityID != "" {
 		return entityID, calleeFile, method
 	}
 
-	callLine := PayloadInt(call["line_number"], call["ref_line"])
+	callLine := shared.PayloadInt(call["line_number"], call["ref_line"])
 	if entityID := resolveSameFileScopedCalleeEntityID(index, rawPath, relativePath, call, callLine); entityID != "" {
-		return entityID, codeCallPreferredPath(rawPath, relativePath), codeprovenance.MethodSameFile
+		return entityID, shared.PreferredPath(rawPath, relativePath), codeprovenance.MethodSameFile
 	}
-	if entityID := resolveDynamicJavaScriptCalleeEntityID(index, rawPath, relativePath, fileData, call); entityID != "" {
-		return entityID, codeCallPreferredPath(rawPath, relativePath), codeprovenance.MethodTypeInferred
+	if entityID := javascript.ResolveDynamicCallee(index, rawPath, relativePath, fileData, call); entityID != "" {
+		return entityID, shared.PreferredPath(rawPath, relativePath), codeprovenance.MethodTypeInferred
 	}
-	if entityID := resolveSameFileCalleeEntityID(index, rawPath, relativePath, call); entityID != "" {
-		return entityID, codeCallPreferredPath(rawPath, relativePath), codeprovenance.MethodSameFile
+	if entityID := shared.ResolveSameFileCalleeEntityID(index, rawPath, relativePath, call); entityID != "" {
+		return entityID, shared.PreferredPath(rawPath, relativePath), codeprovenance.MethodSameFile
 	}
-	if codeCallPrefersImportedTargetBeforeRepoFallback(call, language) {
-		if entityID, calleeFile := resolveImportedCrossFileCallee(
+	if shared.PrefersImportedTargetBeforeRepoFallback(call, language) {
+		if entityID, calleeFile := shared.ResolveImportedCrossFileCallee(
 			index,
 			repositoryImports,
 			reexportIndex,
@@ -78,14 +83,14 @@ func resolveGenericCallee(
 
 	if entityID, calleeFile, method := resolveLanguageSpecificCallee(
 		ctx,
-		codeCallLanguageResolverPhaseBeforeRepoFallback,
+		shared.PhaseBeforeRepoFallback,
 	); entityID != "" {
 		return entityID, calleeFile, method
 	}
-	if codeCallPrefersImportedTargetBeforeRepoFallback(call, language) &&
-		codeCallHasRepositoryImportedTargetBinding(
+	if shared.PrefersImportedTargetBeforeRepoFallback(call, language) &&
+		shared.HasRepositoryImportedTargetBinding(
 			repositoryImports,
-			codeCallRepositoryImportPathsForResolution(index, repositoryID, repositoryImports),
+			shared.RepositoryImportPathsForResolution(index, repositoryID, repositoryImports),
 			rawPath,
 			relativePath,
 			fileData,
@@ -94,34 +99,34 @@ func resolveGenericCallee(
 		return "", "", ""
 	}
 	if language == "python" &&
-		codeCallPrefersImportedTargetBeforeRepoFallback(call, language) &&
-		codeCallHasExplicitImportedTarget(fileData, call) {
+		shared.PrefersImportedTargetBeforeRepoFallback(call, language) &&
+		shared.HasExplicitImportedTarget(fileData, call) {
 		return "", "", ""
 	}
 	if codeCallLanguageResolverBlocksRepoFallback(ctx) {
 		return "", "", ""
 	}
-	for _, name := range codeCallExactCandidateNames(call, language) {
+	for _, name := range shared.ExactCandidateNames(call, language) {
 		if entityID := index.UniqueNameByRepo[repositoryID][name]; entityID != "" {
-			return entityID, index.entityFileByID[entityID], codeprovenance.MethodRepoUniqueName
+			return entityID, index.EntityFileByID(entityID), codeprovenance.MethodRepoUniqueName
 		}
 	}
-	if !codeCallHasQualifiedScope(call, language) {
-		for _, name := range codeCallBroadCandidateNames(call, language) {
+	if !shared.HasQualifiedScope(call, language) {
+		for _, name := range shared.BroadCandidateNames(call, language) {
 			if entityID := index.UniqueNameByRepo[repositoryID][name]; entityID != "" {
-				return entityID, index.entityFileByID[entityID], codeprovenance.MethodRepoUniqueName
+				return entityID, index.EntityFileByID(entityID), codeprovenance.MethodRepoUniqueName
 			}
 		}
 	}
 
 	if entityID, calleeFile, method := resolveLanguageSpecificCallee(
 		ctx,
-		codeCallLanguageResolverPhaseAfterRepoFallback,
+		shared.PhaseAfterRepoFallback,
 	); entityID != "" {
 		return entityID, calleeFile, method
 	}
 
-	entityID, calleeFile := resolveImportedCrossFileCallee(
+	entityID, calleeFile := shared.ResolveImportedCrossFileCallee(
 		index,
 		repositoryImports,
 		reexportIndex,

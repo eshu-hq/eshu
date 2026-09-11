@@ -6,6 +6,8 @@ package call
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 )
 
@@ -14,12 +16,12 @@ func TestResolveGenericCalleeUsesLanguageResolverBeforeRepoUniqueName(t *testing
 	t.Cleanup(func() {
 		codeCallLanguageResolvers = previous
 	})
-	codeCallLanguageResolvers = map[string][]codeCallLanguageResolver{
+	codeCallLanguageResolvers = map[string][]shared.Resolver{
 		"fixture": {
 			{
-				phase: codeCallLanguageResolverPhaseBeforeRepoFallback,
-				resolve: func(ctx codeCallResolveContext) (string, string, codeprovenance.Method) {
-					if ctx.callName() != "Target" {
+				Phase: shared.PhaseBeforeRepoFallback,
+				Resolve: func(ctx shared.ResolveContext) (string, string, codeprovenance.Method) {
+					if ctx.CallName() != "Target" {
 						return "", "", ""
 					}
 					return "fixture-target", "fixture/target.fixture", codeprovenance.MethodTypeInferred
@@ -28,15 +30,11 @@ func TestResolveGenericCalleeUsesLanguageResolverBeforeRepoUniqueName(t *testing
 		},
 	}
 
-	index := EntityIndex{
+	index := shared.EntityIndex{
 		UniqueNameByRepo: map[string]map[string]string{
 			"repo-1": {
 				"Target": "repo-unique-target",
 			},
-		},
-		entityFileByID: map[string]string{
-			"fixture-target":     "fixture/target.fixture",
-			"repo-unique-target": "fallback/target.fixture",
 		},
 	}
 	call := map[string]any{
@@ -48,7 +46,7 @@ func TestResolveGenericCalleeUsesLanguageResolverBeforeRepoUniqueName(t *testing
 		index,
 		"repo-1",
 		nil,
-		codeCallReexportIndex{},
+		shared.ReexportIndex{},
 		"caller.fixture",
 		"caller.fixture",
 		map[string]any{"lang": "fixture"},

@@ -1,11 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package call holds the code-call family: code-call row extraction from
-// parser file facts, the per-language call resolvers, the code-entity index
-// they share, Python metaclass edge extraction, and the shared-intent rows
-// and refresh-partition keys the code-call projection runner consumes (issue
-// #6061, moved under #6609).
+// Package call holds the code-call dispatcher: row extraction from parser
+// file facts, generic resolution dispatch, explicit per-language resolver
+// wiring, Python metaclass edge extraction (delegated to
+// code/call/python), and the shared-intent rows and refresh-partition keys
+// the code-call projection runner consumes (issue #6061, moved under #6609,
+// nested by language under #6609's follow-up language-nesting decision).
+//
+// The entity-index substrate lives in code/call/shared, and each parser
+// language's call resolver lives in its own leaf package under code/call
+// (code/call/golang, code/call/java, code/call/javascript, and so on).
+// languages.go wires each leaf's exported resolver list into
+// codeCallLanguageResolvers under the language key(s) parser output uses;
+// there is no init()-time registration left in this family. No leaf imports
+// this package, and code/call/shared imports no leaf.
 //
 // The reducer root imports this package as codecall. The root keeps the
 // CodeCallMaterializationHandler (code_call_materialization.go), which calls
@@ -19,17 +28,20 @@
 // reducer.ExtractCodeCallRows and reducer.ExtractAllCodeRelationshipRows
 // spellings through that same stanza.
 //
-// EntityIndex is the shared substrate: the resolvers, the materialization
+// shared.EntityIndex is the shared substrate: the resolvers, the materialization
 // helpers, and the root's handles_route, runs_in, invokes_cloud_action, and
 // symbol-runtime builders all resolve code entities through it. It is built
-// once per materialization pass by BuildEntityIndex (or returned by
-// ExtractAllRelationshipRowsWithIndex) and is read-only after construction.
+// once per materialization pass by shared.BuildEntityIndex (or returned by
+// ExtractAllRelationshipRowsWithIndex) and is read-only after construction;
+// its language-specific fields stay unexported and are read through accessor
+// methods so the invariant survives the package boundary.
 //
-// Dependency rule: from the reducer tree this package imports only the shared
-// tier (contract, factload, factdecode, schemadecode, sharedintent,
-// payloadcore); outside it, facts, codeprovenance, the SDK factschema, and the
-// standard library. It never imports the parent reducer
-// package. File names carry no family prefix: the directory already says
-// code/call, so code_call_materialization_extract.go became extract.go and
-// code_call_language_dart_resolver.go became dart_resolver.go.
-package call //nolint:dirgate // code-call family for #6061/#6609: 47 non-test files vs the 40-file cap; the owner chose a single code/call leaf (a separate substrate package was rejected), and EntityIndex is shared by the resolvers, the materialization helpers, and python_metaclass.go, so splitting the directory would cut that substrate across a package boundary.
+// Dependency rule: from the reducer tree this package imports code/call/shared
+// and the code/call language leaves, plus the shared tier (contract, factload,
+// factdecode, schemadecode, sharedintent, payloadcore); outside it, facts,
+// codeprovenance, the SDK factschema, and the standard library. It never
+// imports the parent reducer package. File names carry no family prefix: the
+// directory already says code/call, so code_call_materialization_extract.go
+// became extract.go and code_call_language_dart_resolver.go became
+// dart/resolver.go under its language leaf.
+package call

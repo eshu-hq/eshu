@@ -5,7 +5,6 @@ package call
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"testing"
 
@@ -29,41 +28,17 @@ func TestExtractAllCodeRelationshipRowsCachesRepositoryImportPaths(t *testing.T)
 	}
 
 	_, _, _, _, index, _ := ExtractAllRelationshipRowsWithIndex(envelopes)
-	got := append([]string(nil), index.repositoryImportPathsByRepo["repo-cache"]...)
+	got := append([]string(nil), index.RepositoryImportPathsByRepo("repo-cache")...)
 	want := []string{"src/alpha.ts", "src/beta.ts", "src/shared.ts"}
 	sort.Strings(got)
 	sort.Strings(want)
-	if !reflect.DeepEqual(got, want) {
+	if len(got) != len(want) {
 		t.Fatalf("cached repository import paths = %#v, want %#v", got, want)
 	}
-}
-
-func TestCodeCallRepositoryImportPathsForResolutionFallsBackWithoutCache(t *testing.T) {
-	t.Parallel()
-
-	repositoryImports := map[string][]string{
-		"alpha": {"src/alpha.ts", "src/shared.ts"},
-		"beta":  {"src/beta.ts", "src/shared.ts"},
-	}
-	got := codeCallRepositoryImportPathsForResolution(
-		EntityIndex{},
-		"repo-cache",
-		repositoryImports,
-	)
-	want := codeCallRepositoryImportPaths(repositoryImports)
-	sort.Strings(got)
-	sort.Strings(want)
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("fallback repository import paths = %#v, want %#v", got, want)
-	}
-}
-
-func TestCodeCallRepositoryImportPathsForResolutionSkipsEmptyImports(t *testing.T) {
-	t.Parallel()
-
-	got := codeCallRepositoryImportPathsForResolution(EntityIndex{}, "repo-cache", nil)
-	if got != nil {
-		t.Fatalf("empty repository import paths = %#v, want nil", got)
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("cached repository import paths = %#v, want %#v", got, want)
+		}
 	}
 }
 

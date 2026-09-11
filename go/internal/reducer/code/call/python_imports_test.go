@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestExtractCodeCallRowsResolvesPythonModuleAndFromImports(t *testing.T) {
@@ -104,15 +106,15 @@ func TestExtractCodeCallRowsResolvesPythonModuleAndFromImports(t *testing.T) {
 		},
 	}
 
-	entityIndex := BuildEntityIndex(envelopes)
-	repositoryImports := collectCodeCallRepositoryImports(envelopes)
-	callerID := ResolveContainingEntityID(entityIndex, callerPath, "module_a.py", 6)
+	entityIndex := shared.BuildEntityIndex(envelopes)
+	repositoryImports := shared.CollectRepositoryImports(envelopes)
+	callerID := shared.ResolveContainingEntityID(entityIndex, callerPath, "module_a.py", 6)
 	if callerID == "" {
 		t.Fatal("callerID = \"\", want non-empty")
 	}
 	fileData := envelopes[1].Payload["parsed_file_data"].(map[string]any)
-	importTargets := codeCallImportedTargets(
-		mapSlice(fileData["imports"]),
+	importTargets := shared.ImportedTargets(
+		payloadcore.MapSlice(fileData["imports"]),
 		map[string]any{
 			"name":      "helper",
 			"full_name": "mb.helper",
@@ -121,26 +123,26 @@ func TestExtractCodeCallRowsResolvesPythonModuleAndFromImports(t *testing.T) {
 	if len(importTargets) != 1 {
 		t.Fatalf("len(importTargets) = %d, want 1", len(importTargets))
 	}
-	if got, want := importTargets[0].symbolName, "helper"; got != want {
-		t.Fatalf("importTargets[0].symbolName = %#v, want %#v", got, want)
+	if got, want := importTargets[0].SymbolName, "helper"; got != want {
+		t.Fatalf("importTargets[0].SymbolName = %#v, want %#v", got, want)
 	}
-	if got, want := importTargets[0].importSource, "./module_b"; got != want {
-		t.Fatalf("importTargets[0].importSource = %#v, want %#v", got, want)
+	if got, want := importTargets[0].ImportSource, "./module_b"; got != want {
+		t.Fatalf("importTargets[0].ImportSource = %#v, want %#v", got, want)
 	}
-	if got := codeCallMatchImportedPath(
+	if got := shared.MatchImportedPath(
 		callerPath,
 		"module_a.py",
-		importTargets[0].importSource,
+		importTargets[0].ImportSource,
 		"python",
-		repositoryImports["repo-python"][importTargets[0].symbolName],
+		repositoryImports["repo-python"][importTargets[0].SymbolName],
 	); got == "" {
-		t.Fatal("codeCallMatchImportedPath() = \"\", want non-empty")
+		t.Fatal("shared.MatchImportedPath() = \"\", want non-empty")
 	}
 	calleeID, calleeFile, _ := resolveGenericCallee(
 		entityIndex,
 		"repo-python",
 		repositoryImports["repo-python"],
-		codeCallReexportIndex{},
+		shared.ReexportIndex{},
 		callerPath,
 		"module_a.py",
 		fileData,

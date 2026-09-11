@@ -59,7 +59,7 @@ func stampGeneration(envelopes []facts.Envelope, generationID string) []facts.En
 			continue
 		}
 		fileData["generation_id"] = generationID
-		for _, fn := range mapSlice(fileData["functions"]) {
+		for _, fn := range payloadcore.MapSlice(fileData["functions"]) {
 			fn["generation_id"] = generationID
 			fn["fact_id"] = "fact:" + generationID + ":" + payloadcore.AnyToString(fn["uid"])
 		}

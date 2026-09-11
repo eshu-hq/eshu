@@ -6,6 +6,9 @@ package call
 import (
 	"fmt"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/java"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/javascript"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 
@@ -14,24 +17,24 @@ import (
 
 func extractSCIPCodeCallRows(
 	repositoryID string,
-	entityIndex EntityIndex,
+	entityIndex shared.EntityIndex,
 	seenRows map[string]struct{},
 	fileData map[string]any,
 ) []map[string]any {
 	rows := make([]map[string]any, 0)
-	for _, edge := range mapSlice(fileData["function_calls_scip"]) {
-		callerID := resolveCodeEntityID(entityIndex, edge["caller_file"], edge["caller_line"])
-		calleeID := resolveCodeEntityID(entityIndex, edge["callee_file"], edge["callee_line"])
+	for _, edge := range payloadcore.MapSlice(fileData["function_calls_scip"]) {
+		callerID := shared.ResolveEntityID(entityIndex, edge["caller_file"], edge["caller_line"])
+		calleeID := shared.ResolveEntityID(entityIndex, edge["callee_file"], edge["callee_line"])
 		calleeFile := payloadcore.AnyToString(edge["callee_file"])
 		resolutionMethod := codeprovenance.MethodSCIP
 		if calleeID == "" {
-			calleeID, calleeFile, resolutionMethod = resolveCodeSymbolCallee(entityIndex, edge)
+			calleeID, calleeFile, resolutionMethod = shared.ResolveSymbolCallee(entityIndex, edge)
 		}
 		if callerID == "" || calleeID == "" {
 			continue
 		}
 
-		key := repositoryID + "|" + callerID + "|" + calleeID + "|" + fmt.Sprintf("%d", PayloadInt(edge["ref_line"]))
+		key := repositoryID + "|" + callerID + "|" + calleeID + "|" + fmt.Sprintf("%d", shared.PayloadInt(edge["ref_line"]))
 		if _, exists := seenRows[key]; exists {
 			continue
 		}
@@ -40,13 +43,13 @@ func extractSCIPCodeCallRows(
 		row := map[string]any{
 			"repo_id":          repositoryID,
 			"caller_entity_id": callerID,
-			"caller_entity_type": EndpointEntityType(
+			"caller_entity_type": shared.EndpointEntityType(
 				entityIndex,
 				repositoryID,
 				callerID,
 			),
 			"callee_entity_id": calleeID,
-			"callee_entity_type": EndpointEntityType(
+			"callee_entity_type": shared.EndpointEntityType(
 				entityIndex,
 				repositoryID,
 				calleeID,
@@ -54,14 +57,14 @@ func extractSCIPCodeCallRows(
 			"resolution_method": resolutionMethod,
 			"action":            reducercontract.IntentActionUpsert,
 		}
-		copyOptionalCodeCallField(row, edge, "caller_symbol")
-		copyOptionalCodeCallField(row, edge, "callee_symbol")
-		copyOptionalCodeCallField(row, edge, "caller_file")
-		copyOptionalCodeCallField(row, edge, "callee_file")
+		shared.CopyOptionalField(row, edge, "caller_symbol")
+		shared.CopyOptionalField(row, edge, "callee_symbol")
+		shared.CopyOptionalField(row, edge, "caller_file")
+		shared.CopyOptionalField(row, edge, "callee_file")
 		if calleeFile != "" {
 			row["callee_file"] = calleeFile
 		}
-		copyOptionalCodeCallField(row, edge, "ref_line")
+		shared.CopyOptionalField(row, edge, "ref_line")
 		rows = append(rows, row)
 	}
 	return rows
@@ -71,22 +74,22 @@ func extractGenericCodeCallRows(
 	repositoryID string,
 	relativePath string,
 	rawPath string,
-	entityIndex EntityIndex,
+	entityIndex shared.EntityIndex,
 	repositoryImports map[string][]string,
-	reexportIndex codeCallReexportIndex,
+	reexportIndex shared.ReexportIndex,
 	seenRows map[string]struct{},
 	fileData map[string]any,
 ) []map[string]any {
 	rows := make([]map[string]any, 0)
-	callerFilePath := codeCallPreferredPath(rawPath, relativePath)
-	for _, edge := range mapSlice(fileData["function_calls"]) {
-		callLine := PayloadInt(edge["line_number"], edge["ref_line"])
+	callerFilePath := shared.PreferredPath(rawPath, relativePath)
+	for _, edge := range payloadcore.MapSlice(fileData["function_calls"]) {
+		callLine := shared.PayloadInt(edge["line_number"], edge["ref_line"])
 		if callLine <= 0 {
 			continue
 		}
-		callerID := ResolveContainingEntityID(entityIndex, rawPath, relativePath, callLine)
+		callerID := shared.ResolveContainingEntityID(entityIndex, rawPath, relativePath, callLine)
 		if callerID == "" {
-			callerID = resolveFileRootCodeCallCallerID(repositoryID, relativePath, fileData)
+			callerID = javascript.FileRootCallerID(repositoryID, relativePath, fileData)
 		}
 		calleeID, calleeFilePath, resolutionMethod := resolveGenericCallee(
 			entityIndex,
@@ -102,13 +105,13 @@ func extractGenericCodeCallRows(
 			continue
 		}
 		if callerID == "" {
-			callerID = resolveJavaScriptTopLevelReferenceCallerID(repositoryID, callerFilePath, edge)
+			callerID = javascript.TopLevelReferenceCallerID(repositoryID, callerFilePath, edge)
 		}
 		if callerID == "" {
-			callerID = resolveJavaMetadataFileRootCallerID(repositoryID, callerFilePath, edge)
+			callerID = java.MetadataFileRootCallerID(repositoryID, callerFilePath, edge)
 		}
 		if callerID == "" {
-			callerID = resolveSameFileTopLevelCodeCallCallerID(
+			callerID = javascript.SameFileTopLevelCallerID(
 				repositoryID,
 				callerFilePath,
 				calleeFilePath,
@@ -121,7 +124,7 @@ func extractGenericCodeCallRows(
 
 		rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, resolutionMethod, edge)
 		rows = appendInstantiatesRow(rows, seenRows, repositoryID, entityIndex, callerID, calleeID, callerFilePath, calleeFilePath, callLine, edge)
-		if constructorID := resolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
+		if constructorID := shared.ResolveConstructorMethodCalleeID(entityIndex, calleeFilePath, edge); constructorID != "" {
 			rows = appendCodeCallRow(rows, seenRows, repositoryID, entityIndex, callerID, constructorID, callerFilePath, calleeFilePath, callLine, codeprovenance.MethodTypeInferred, edge)
 		}
 	}
@@ -129,7 +132,7 @@ func extractGenericCodeCallRows(
 }
 
 func resolveSameFileScopedCalleeEntityID(
-	index EntityIndex,
+	index shared.EntityIndex,
 	rawPath string,
 	relativePath string,
 	call map[string]any,
@@ -138,35 +141,35 @@ func resolveSameFileScopedCalleeEntityID(
 	if line <= 0 {
 		return ""
 	}
-	language := codeCallLanguage(call, rawPath, relativePath)
-	callNames := codeCallExactCandidateNames(call, language)
-	if !codeCallPrefersImportedQualifiedTarget(call, language) {
-		callNames = append(callNames, codeCallBroadCandidateNames(call, language)...)
+	language := shared.CallLanguage(call, rawPath, relativePath)
+	callNames := shared.ExactCandidateNames(call, language)
+	if !shared.PrefersImportedQualifiedTarget(call, language) {
+		callNames = append(callNames, shared.BroadCandidateNames(call, language)...)
 	}
-	for _, pathKey := range PathKeys(rawPath, relativePath) {
-		caller := codeFunctionSpan{}
-		for _, span := range index.spansByPath[pathKey] {
-			if line >= span.startLine && line <= span.endLine &&
-				(caller.entityID == "" || spanWidth(span) < spanWidth(caller)) {
+	for _, pathKey := range shared.PathKeys(rawPath, relativePath) {
+		caller := shared.FunctionSpan{}
+		for _, span := range index.SpansByPath(pathKey) {
+			if line >= span.StartLine && line <= span.EndLine &&
+				(caller.EntityID == "" || shared.SpanWidth(span) < shared.SpanWidth(caller)) {
 				caller = span
 			}
 		}
-		if caller.entityID == "" {
+		if caller.EntityID == "" {
 			continue
 		}
 
 		match := ""
-		for _, span := range index.spansByPath[pathKey] {
-			if span.entityID == caller.entityID ||
-				span.startLine < caller.startLine ||
-				span.endLine > caller.endLine ||
-				!codeCallSpanMatchesAnyName(span, callNames) {
+		for _, span := range index.SpansByPath(pathKey) {
+			if span.EntityID == caller.EntityID ||
+				span.StartLine < caller.StartLine ||
+				span.EndLine > caller.EndLine ||
+				!shared.SpanMatchesAnyName(span, callNames) {
 				continue
 			}
 			if match != "" {
 				return ""
 			}
-			match = span.entityID
+			match = span.EntityID
 		}
 		if match != "" {
 			return match
@@ -179,7 +182,7 @@ func appendCodeCallRow(
 	rows []map[string]any,
 	seenRows map[string]struct{},
 	repositoryID string,
-	entityIndex EntityIndex,
+	entityIndex shared.EntityIndex,
 	callerID string,
 	calleeID string,
 	callerFilePath string,
@@ -198,9 +201,9 @@ func appendCodeCallRow(
 	row := map[string]any{
 		"repo_id":            repositoryID,
 		"caller_entity_id":   callerID,
-		"caller_entity_type": EndpointEntityType(entityIndex, repositoryID, callerID),
+		"caller_entity_type": shared.EndpointEntityType(entityIndex, repositoryID, callerID),
 		"callee_entity_id":   calleeID,
-		"callee_entity_type": EndpointEntityType(entityIndex, repositoryID, calleeID),
+		"callee_entity_type": shared.EndpointEntityType(entityIndex, repositoryID, calleeID),
 		"caller_file":        callerFilePath,
 		"callee_file":        calleeFilePath,
 		"ref_line":           callLine,
@@ -213,9 +216,9 @@ func appendCodeCallRow(
 	// can attribute a written self-loop (caller_entity_id == callee_entity_id
 	// — a genuinely recursive function, not a defect to filter: see #5332)
 	// to the source language without re-deriving it from file paths.
-	copyOptionalCodeCallField(row, edge, "lang")
-	copyOptionalCodeCallField(row, edge, "full_name")
-	copyOptionalCodeCallField(row, edge, "call_kind")
+	shared.CopyOptionalField(row, edge, "lang")
+	shared.CopyOptionalField(row, edge, "full_name")
+	shared.CopyOptionalField(row, edge, "call_kind")
 	if relationshipType != "" {
 		row["relationship_type"] = relationshipType
 	}

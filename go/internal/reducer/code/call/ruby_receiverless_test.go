@@ -92,7 +92,7 @@ end
 
 func reducerTestAssignEntityUIDs(parsed map[string]any) {
 	for _, bucket := range []string{"functions", "classes", "modules"} {
-		for _, item := range mapSlice(parsed[bucket]) {
+		for _, item := range payloadcore.MapSlice(parsed[bucket]) {
 			if payloadcore.AnyToString(item["uid"]) != "" {
 				continue
 			}
@@ -104,7 +104,7 @@ func reducerTestAssignEntityUIDs(parsed map[string]any) {
 func reducerTestEntityName(parsed map[string]any, entityID any) string {
 	id, _ := entityID.(string)
 	for _, bucket := range []string{"functions", "classes", "modules"} {
-		for _, item := range mapSlice(parsed[bucket]) {
+		for _, item := range payloadcore.MapSlice(parsed[bucket]) {
 			if item["uid"] == id {
 				return payloadcore.AnyToString(item["name"])
 			}

@@ -42,7 +42,8 @@ const RepoRefreshEvidenceSource = "reducer/code-call-refresh"
 const EvidenceSource = "parser/code-calls"
 
 // PythonMetaclassEvidenceSource is the evidence_source stamped on per-edge
-// intents built from Python metaclass rows (see [ExtractPythonMetaclassRows]).
+// intents built from Python metaclass rows (see
+// [github.com/eshu-hq/eshu/go/internal/reducer/code/call/python.ExtractMetaclassRows]).
 // It is persisted like [EvidenceSource] and read back by the root runner.
 const PythonMetaclassEvidenceSource = "parser/python-metaclass"
 

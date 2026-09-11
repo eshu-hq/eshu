@@ -6,6 +6,7 @@ package call
 import (
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -107,10 +108,10 @@ func TestExtractCodeCallRowsProducesRowsForPersistedVersionlessFacts(t *testing.
 	}
 
 	validEnvelopes, quarantined := partitionCodegraphFileFacts(envelopes)
-	repositoryIDs := collectCodeCallRepositoryIDs(validEnvelopes)
-	entityIndex := BuildEntityIndex(validEnvelopes)
-	repositoryImports := collectCodeCallRepositoryImports(validEnvelopes)
-	reexportIndex := buildCodeCallReexportIndex(validEnvelopes)
+	repositoryIDs := shared.CollectRepositoryIDs(validEnvelopes)
+	entityIndex := shared.BuildEntityIndex(validEnvelopes)
+	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
+	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
 	_, rows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 

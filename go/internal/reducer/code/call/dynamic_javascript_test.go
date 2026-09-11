@@ -12,6 +12,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/javascript"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 )
 
 func TestExtractCodeCallRowsResolvesJavaScriptRegistryDestructuredAlias(t *testing.T) {
@@ -108,11 +110,11 @@ func BenchmarkResolveDynamicJavaScriptCalleeAnonymousFunctionSource(b *testing.B
 	functions := fileData["functions"].([]any)
 	functions[1].(map[string]any)["uid"] = ""
 	call := fileData["function_calls"].([]any)[0].(map[string]any)
-	index := BuildEntityIndex(envelopes)
+	index := shared.BuildEntityIndex(envelopes)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		entityID := resolveDynamicJavaScriptCalleeEntityID(
+		entityID := javascript.ResolveDynamicCallee(
 			index,
 			"bundle.js",
 			"bundle.js",
@@ -129,11 +131,11 @@ func BenchmarkResolveDynamicJavaScriptCalleeNoAliasFunctionSource(b *testing.B) 
 	envelopes := largeJavaScriptNoAliasCallEnvelopes(500)
 	fileData := envelopes[1].Payload["parsed_file_data"].(map[string]any)
 	call := fileData["function_calls"].([]any)[0].(map[string]any)
-	index := BuildEntityIndex(envelopes)
+	index := shared.BuildEntityIndex(envelopes)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		entityID := resolveDynamicJavaScriptCalleeEntityID(
+		entityID := javascript.ResolveDynamicCallee(
 			index,
 			"bundle.js",
 			"bundle.js",

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -207,8 +207,8 @@ func ExtractExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 		functionIDs := sqlrelationship.EmbeddedSQLFunctionIDsByNameLine(parsedFileData)
 		for _, command := range payloadcore.MapSlice(parsedFileData["embedded_shell_commands"]) {
 			functionName := payloadcore.AnyToString(command["function_name"])
-			functionLine := call.PayloadInt(command["function_line_number"])
-			lineNumber := call.PayloadInt(command["line_number"])
+			functionLine := shared.PayloadInt(command["function_line_number"])
+			lineNumber := shared.PayloadInt(command["line_number"])
 			api := payloadcore.AnyToString(command["api"])
 			if functionName == "" || functionLine <= 0 || lineNumber <= 0 || api == "" {
 				continue

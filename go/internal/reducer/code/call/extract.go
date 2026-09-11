@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"sort"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/python"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
@@ -18,7 +20,7 @@ import (
 // ExtractAllRelationshipRows builds both code-call and metaclass edge rows
 // from a single entity index pass. This eliminates the duplicate
 // BuildEntityIndex call that occurs when ExtractRows and
-// ExtractPythonMetaclassRows are called separately.
+// python.ExtractMetaclassRows are called separately.
 func ExtractAllRelationshipRows(envelopes []facts.Envelope) (
 	codeCallRepoIDs []string,
 	codeCallRows []map[string]any,
@@ -50,26 +52,26 @@ func ExtractAllRelationshipRowsWithIndex(envelopes []facts.Envelope) (
 	codeCallRows []map[string]any,
 	metaclassRepoIDs []string,
 	metaclassRows []map[string]any,
-	entityIndex EntityIndex,
+	entityIndex shared.EntityIndex,
 	quarantined []factdecode.QuarantinedFact,
 ) {
 	if len(envelopes) == 0 {
-		return nil, nil, nil, nil, EntityIndex{}, nil
+		return nil, nil, nil, nil, shared.EntityIndex{}, nil
 	}
 
 	validEnvelopes, quarantined := partitionCodegraphFileFacts(envelopes)
 
-	repositoryIDs := collectCodeCallRepositoryIDs(validEnvelopes)
+	repositoryIDs := shared.CollectRepositoryIDs(validEnvelopes)
 	if len(repositoryIDs) == 0 {
-		return nil, nil, nil, nil, EntityIndex{}, quarantined
+		return nil, nil, nil, nil, shared.EntityIndex{}, quarantined
 	}
 
-	entityIndex = BuildEntityIndex(validEnvelopes)
-	repositoryImports := collectCodeCallRepositoryImports(validEnvelopes)
-	reexportIndex := buildCodeCallReexportIndex(validEnvelopes)
+	entityIndex = shared.BuildEntityIndex(validEnvelopes)
+	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
+	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 
 	ccRepoIDs, ccRows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
-	mcRepoIDs, mcRows := extractPythonMetaclassRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports)
+	mcRepoIDs, mcRows := python.ExtractMetaclassRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports)
 	return ccRepoIDs, ccRows, mcRepoIDs, mcRows, entityIndex, quarantined
 }
 
@@ -85,14 +87,14 @@ func ExtractRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
 	}
 
 	validEnvelopes, _ := partitionCodegraphFileFacts(envelopes)
-	repositoryIDs := collectCodeCallRepositoryIDs(validEnvelopes)
+	repositoryIDs := shared.CollectRepositoryIDs(validEnvelopes)
 	if len(repositoryIDs) == 0 {
 		return nil, nil
 	}
 
-	entityIndex := BuildEntityIndex(validEnvelopes)
-	repositoryImports := collectCodeCallRepositoryImports(validEnvelopes)
-	reexportIndex := buildCodeCallReexportIndex(validEnvelopes)
+	entityIndex := shared.BuildEntityIndex(validEnvelopes)
+	repositoryImports := shared.CollectRepositoryImports(validEnvelopes)
+	reexportIndex := shared.BuildReexportIndex(validEnvelopes)
 	repoIDs, rows := extractCodeCallRowsWithIndex(validEnvelopes, repositoryIDs, entityIndex, repositoryImports, reexportIndex)
 	return repoIDs, rows
 }
@@ -165,11 +167,11 @@ func partitionCodegraphFileFacts(envelopes []facts.Envelope) ([]facts.Envelope, 
 func extractCodeCallRowsWithIndex(
 	envelopes []facts.Envelope,
 	repositoryIDs []string,
-	entityIndex EntityIndex,
+	entityIndex shared.EntityIndex,
 	repositoryImports map[string]map[string][]string,
-	reexportIndex codeCallReexportIndex,
+	reexportIndex shared.ReexportIndex,
 ) ([]string, []map[string]any) {
-	cacheCodeCallRepositoryImportPaths(&entityIndex, repositoryImports)
+	shared.CacheRepositoryImportPaths(&entityIndex, repositoryImports)
 	seenRows := make(map[string]struct{})
 	rows := make([]map[string]any, 0)
 
@@ -261,27 +263,4 @@ func recordCodeCallSelfLoopWritten(rows []map[string]any) {
 		"total", total,
 		"by_lang", tally,
 	)
-}
-
-func collectCodeCallRepositoryIDs(envelopes []facts.Envelope) []string {
-	repositorySet := make(map[string]struct{})
-	for _, env := range envelopes {
-		switch env.FactKind {
-		case "repository", "file":
-			repositoryID := payloadcore.PayloadStr(env.Payload, "repo_id")
-			if repositoryID == "" {
-				repositoryID = payloadcore.PayloadStr(env.Payload, "graph_id")
-			}
-			if repositoryID != "" {
-				repositorySet[repositoryID] = struct{}{}
-			}
-		}
-	}
-
-	repositoryIDs := make([]string, 0, len(repositorySet))
-	for repositoryID := range repositorySet {
-		repositoryIDs = append(repositoryIDs, repositoryID)
-	}
-	sort.Strings(repositoryIDs)
-	return repositoryIDs
 }

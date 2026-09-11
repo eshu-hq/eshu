@@ -25,6 +25,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
@@ -310,13 +311,13 @@ func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
 	return codecall.ExtractAllRelationshipRows(envelopes)
 }
 
-// codeEntityIndex is [codecall.EntityIndex] for the root handles_route,
+// codeEntityIndex is [shared.EntityIndex] for the root handles_route,
 // runs_in, invokes_cloud_action, and symbol-runtime builders.
-type codeEntityIndex = codecall.EntityIndex
+type codeEntityIndex = shared.EntityIndex
 
-// buildCodeEntityIndex forwards to [codecall.BuildEntityIndex].
+// buildCodeEntityIndex forwards to [shared.BuildEntityIndex].
 func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
-	return codecall.BuildEntityIndex(envelopes)
+	return shared.BuildEntityIndex(envelopes)
 }
 
 // extractAllCodeRelationshipRowsWithIndex forwards to
@@ -365,29 +366,29 @@ func buildCodeCallFileScopesByRepoID(envelopes []facts.Envelope) codecall.FileSc
 	return codecall.BuildFileScopesByRepoID(envelopes)
 }
 
-// codeCallReferencedSymbolKeys forwards to [codecall.ReferencedSymbolKeys].
+// codeCallReferencedSymbolKeys forwards to [shared.ReferencedSymbolKeys].
 func codeCallReferencedSymbolKeys(envelopes []facts.Envelope) []string {
-	return codecall.ReferencedSymbolKeys(envelopes)
+	return shared.ReferencedSymbolKeys(envelopes)
 }
 
-// resolveContainingCodeEntityID forwards to [codecall.ResolveContainingEntityID].
+// resolveContainingCodeEntityID forwards to [shared.ResolveContainingEntityID].
 func resolveContainingCodeEntityID(index codeEntityIndex, rawPath string, relativePath string, line int) string {
-	return codecall.ResolveContainingEntityID(index, rawPath, relativePath, line)
+	return shared.ResolveContainingEntityID(index, rawPath, relativePath, line)
 }
 
-// codeCallEndpointEntityType forwards to [codecall.EndpointEntityType].
+// codeCallEndpointEntityType forwards to [shared.EndpointEntityType].
 func codeCallEndpointEntityType(index codeEntityIndex, repositoryID string, entityID string) string {
-	return codecall.EndpointEntityType(index, repositoryID, entityID)
+	return shared.EndpointEntityType(index, repositoryID, entityID)
 }
 
-// codeCallPathKeys forwards to [codecall.PathKeys].
+// codeCallPathKeys forwards to [shared.PathKeys].
 func codeCallPathKeys(rawPath string, relativePath string) []string {
-	return codecall.PathKeys(rawPath, relativePath)
+	return shared.PathKeys(rawPath, relativePath)
 }
 
-// codeCallInt forwards to [codecall.PayloadInt].
+// codeCallInt forwards to [shared.PayloadInt].
 func codeCallInt(values ...any) int {
-	return codecall.PayloadInt(values...)
+	return shared.PayloadInt(values...)
 }
 
 // mapSlice forwards to [payloadcore.MapSlice], the owner the moved family

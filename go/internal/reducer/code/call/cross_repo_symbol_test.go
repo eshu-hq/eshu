@@ -168,35 +168,6 @@ func TestExtractCodeCallRowsSkipsAmbiguousCrossRepoSymbol(t *testing.T) {
 	}
 }
 
-func TestCodeCallDefinitionSymbolKeysIgnoreGenerationFields(t *testing.T) {
-	t.Parallel()
-
-	first := map[string]any{
-		"uid":           "uid:generation-a",
-		"fact_id":       "fact:generation-a",
-		"generation_id": "generation-a",
-		"scip_symbol":   "scip-go gomod example.com/lib request().",
-	}
-	second := map[string]any{
-		"uid":           "uid:generation-b",
-		"fact_id":       "fact:generation-b",
-		"generation_id": "generation-b",
-		"scip_symbol":   "scip-go gomod example.com/lib request().",
-	}
-
-	firstKeys := codeCallDefinitionSymbolKeys(first)
-	secondKeys := codeCallDefinitionSymbolKeys(second)
-	if len(firstKeys) != 1 || len(secondKeys) != 1 {
-		t.Fatalf("symbol key counts = %d/%d, want 1/1", len(firstKeys), len(secondKeys))
-	}
-	if firstKeys[0].key != secondKeys[0].key {
-		t.Fatalf("symbol keys differ across generation fields: %q vs %q", firstKeys[0].key, secondKeys[0].key)
-	}
-	if firstKeys[0].method != codeprovenance.MethodSCIP {
-		t.Fatalf("method = %q, want %q", firstKeys[0].method, codeprovenance.MethodSCIP)
-	}
-}
-
 func codeCallRowForCallee(t *testing.T, rows []map[string]any, calleeID string) map[string]any {
 	t.Helper()
 	for _, row := range rows {
