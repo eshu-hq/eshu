@@ -1,0 +1,45 @@
+go/internal/storage/cypher/README.md
+  s_4a0f86aa680964::t_afdbeb8605d2eb 700-701
+go/internal/storage/cypher/fault-injection-restart-evidence.md
+  s_4a0f86aa680964::t_3c4f4ab1f9e71a 34-55
+  s_4a0f86aa680964::t_6c5e7e3d969043 58,62,77-93
+go/internal/storage/cypher/evidence-6142-backend-restart-transient-classification.md
+  s_4a0f86aa680964::t_40c282a112e843 14-40,99,202-204,232,287-288,292
+  s_4a0f86aa680964::t_754c9ef252c141 112,158,257-260,282-285
+  s_4a0f86aa680964::t_b3e89f17acbbe3 256
+go/internal/storage/cypher/retrying_executor.go
+  s_4a0f86aa680964::t_429b1a402343f8 368,379
+  s_4a0f86aa680964::t_668d8e88fa07c0 374-375
+  s_4a0f86aa680964::t_7cd55b00158463 65-66,342
+  s_4a0f86aa680964::t_556122e4ebe26a 33-37,338-339,365,369,372-373,376-378,380
+  s_4a0f86aa680964::t_1d65f253c567da 343
+  s_4a0f86aa680964::t_941df5433ea8a7 366
+  s_4a0f86aa680964::t_ad05f69aff62e6 381
+  s_4a0f86aa680964::t_caf40ec6cf34b4 346
+go/internal/storage/cypher/retrying_executor_backend_closing_test.go
+  s_4a0f86aa680964::t_179aea65178c42 165
+  s_4a0f86aa680964::t_63adbeae647608 117-137
+  s_4a0f86aa680964::t_acad2c6587342a 242-253,255-261,268,271,290
+  s_4a0f86aa680964::t_7cd55b00158463 115-116
+  s_4a0f86aa680964::t_a5a9e2e1736968 254
+  s_4a0f86aa680964::t_4635fc301b5ade 82-86,171
+  s_4a0f86aa680964::t_4c8bcc9b27976c 222-241
+  s_4a0f86aa680964::t_56d927acad03ef 13,15,138-164,166-167,278-289
+  s_4a0f86aa680964::t_50204ff712e4b7 291
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "78ba8ca4f9b9a6a152d711397b00d5141eba6280",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
