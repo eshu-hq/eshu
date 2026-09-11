@@ -5,7 +5,7 @@
 Serves the package-registry read surface: package and version identity
 lookups, package-native dependency edges, reducer-derived ownership/
 consumption/publication correlations, dependency chains, and graph
-aggregate/inventory counts. All routes hang off `PackageRegistryHandler.Mount`.
+aggregate/inventory counts. All routes hang off `Handler.Mount`.
 
 ## Ownership boundary
 
@@ -29,17 +29,120 @@ own tests get the same registrations from `main_test.go`'s `TestMain` instead
 
 ## Exported surface
 
-- `PackageRegistryHandler` and `Mount` -- the HTTP entry point.
-- `PackageRegistryCorrelationStore`, `PackageRegistryAggregateStore` -- the
-  two storage ports the handler depends on, plus their production
-  implementations `PostgresPackageRegistryCorrelationStore` and
-  `GraphPackageRegistryAggregateStore` and their `New*` constructors.
-- `PackageRegistryCorrelationRow`, `PackageRegistryCorrelationFilter`,
-  `PackageRegistryCorrelationPage`, and the aggregate/inventory result types.
-- `PackageRegistryDependenciesCypher` -- exported (unlike this file's other
-  Cypher builders) because `go/internal/query/queryplan_legacy_production_binding_test.go`
+- `Handler` and `Mount` -- the HTTP entry point.
+- `CorrelationStore`, `AggregateStore` -- the two storage ports the handler
+  depends on, plus their production implementations
+  `PostgresCorrelationStore` and `GraphAggregateStore` and their `New*`
+  constructors.
+- `CorrelationRow`, `CorrelationFilter`, `CorrelationPage`, and the
+  aggregate/inventory result types (`AggregateFilter`, `AggregateCount`,
+  `InventoryDimension`, `InventoryRow`).
+- `PackageResult`, `VersionResult`, `DependencyResult`, `IdentityIssue` --
+  the package/version/dependency response and identity-issue shapes.
+- `PackageDependencyChain*` and `ResolvePackageDependencyChains` -- kept
+  their names across the #6642 Part D destutter: `Package` here names the
+  data (a package dependency chain), not the enclosing `registry` package,
+  so it is not a stutter under naming.md rule 4.
+- `DependenciesCypher` -- exported (unlike this file's other Cypher
+  builders) because `go/internal/query/queryplan_legacy_production_binding_test.go`
   drives the real production statement through the query-plan comparison it
   runs for every handler family; see Gotchas below.
+
+## Move evidence (#6642 Part D)
+
+This package nested here verbatim from the flat `internal/query/packagereg`
+leaf (#6060), splitting it into a directory per `docs/internal/naming.md`
+rules 2 and 4: `package/` holds no Go files of its own (a pure directory
+level, needing no doc trio), and `registry/` is this package. Every
+`package_registry_X.go` file dropped its directory-name-stutter prefix
+(`X.go`); `package_registry.go` became `handler.go` because `X` there was
+empty; `package_registry_test.go` became `handler_test.go` -- its test
+companion pairing, not the mechanical `test.go` the bare prefix-strip would
+have produced (which the Go toolchain would not have recognized as a test
+file at all, since it must match `*_test.go` with a non-empty prefix). Files
+that never carried the prefix (`doc.go`, `main_test.go`, `handler_tracing.go`,
+`factschema_decode_package_correlations.go`) kept their names.
+
+Every exported identifier leading with `PackageRegistry` dropped that word
+(`PackageRegistryHandler` -> `Handler`, `PackageRegistryCorrelationStore` ->
+`CorrelationStore`, `PackageRegistryCorrelationFilter` -> `CorrelationFilter`,
+`PackageRegistryCorrelationRow` -> `CorrelationRow`,
+`PackageRegistryCorrelationQueryer` -> `CorrelationQueryer`,
+`PackageRegistryCorrelationResult` -> `CorrelationResult`,
+`PackageRegistryCorrelationPage` -> `CorrelationPage`,
+`PackageRegistryDependenciesCypher` -> `DependenciesCypher`,
+`PackageRegistryIdentityIssue` -> `IdentityIssue`,
+`PackageRegistryPackageResult` -> `PackageResult`,
+`PackageRegistryVersionResult` -> `VersionResult`,
+`PackageRegistryDependencyResult` -> `DependencyResult`,
+`PackageRegistryAggregateStore` -> `AggregateStore`,
+`PackageRegistryInventoryDimension` -> `InventoryDimension`,
+`PackageRegistryAggregateMaxLimit` -> `AggregateMaxLimit`,
+`PackageRegistryAggregateFilter` -> `AggregateFilter`,
+`PackageRegistryAggregateCount` -> `AggregateCount`,
+`PackageRegistryInventoryRow` -> `InventoryRow`), plus the two names that
+carried a second leading word ahead of the stutter
+(`PostgresPackageRegistryCorrelationStore` -> `PostgresCorrelationStore`,
+`NewPostgresPackageRegistryCorrelationStore` -> `NewPostgresCorrelationStore`,
+`GraphPackageRegistryAggregateStore` -> `GraphAggregateStore`,
+`NewGraphPackageRegistryAggregateStore` -> `NewGraphAggregateStore`).
+`PackageDependencyChain*` and `ResolvePackageDependencyChains` kept their
+names (see Exported surface). Unexported identifiers, and every method name
+(receiver types changed; the methods themselves were never part of this
+rename), were left exactly as they were. No new leading `Registry` stutter
+was introduced by any of the drops.
+
+Root's `package_registry_alias.go` now aliases every pre-move exported
+spelling to this package's destuttered names (`type PackageRegistryHandler =
+registry.Handler`, and so on); `cmd/api` and `cmd/mcp-server` compile
+unchanged. The two other importers,
+`go/internal/query/package_registry_family_test_doubles_test.go` and
+`go/internal/query/queryplan_legacy_production_binding_test.go`, were
+repointed to the new import path and qualifier and the destuttered names.
+The `go/internal/queryplan/testdata/query-source-coverage.yaml` and
+`testdata/hot-cypher.yaml` manifests were re-pinned: file paths moved, the
+`(*PackageRegistryHandler).*` and `(GraphPackageRegistryAggregateStore).*`
+symbol strings became `(*Handler).*` and `(GraphAggregateStore).*`, and their
+`source_sha256` digests were re-derived because the receiver type name
+literally appears in the hashed function text (`func` keyword through the
+closing brace); `scoped_access.go`'s three plain-function entries
+(`packageRegistryAnchorVisibility`, `packageRegistryNameAnchorCandidates`,
+`packageRegistryVersionAnchorPackageID`) kept their original digests
+unchanged, since their bodies never named a renamed type -- only their
+file-path field changed. `DependenciesCypher`'s digest was re-derived the
+same way. No
+Cypher text, response shape, pagination bound, or capability behavior
+changed. No production-file rename this move required touched the
+`querycontract`/`queryauth`/`decode`/`queryselector`/`queryspan` leaf
+packages it depends on.
+
+## No-Regression Evidence
+
+Baseline `020757ad6` (pre-move HEAD) vs this branch: a name-for-name test-list
+union (`go test ./internal/query/packagereg/... -list '.*'` at the baseline,
+`go test ./internal/query/package/registry/... -list '.*'` on this branch)
+matches exactly. `go test ./internal/query/... -count=1` and
+`go test ./cmd/api ./cmd/mcp-server -count=1` pass; `go/internal/queryplan`'s
+manifests were re-pinned and `go test ./internal/queryplan/ -count=1` passes.
+The `git diff origin/main --stat -- testdata/golden testdata/cassettes` is
+empty: this move touches no Cypher text, queue behavior, or projection
+output. `go list -deps ./internal/query/package/registry` does not include
+`internal/query` -- the leaf still does not import the root.
+
+`go test ./internal/mcp -count=1` passes: the `internal/mcp` route-serves-data
+registry entry for `GET /api/v0/package-registry/packages`
+(`go/internal/mcp/route_serves_data_registry_routes_2.go`) had its path
+strings and handler struct name repointed to
+`go/internal/query/package/registry/{handler.go,cypher.go}` and `Handler` in
+the same change, the way every earlier query rename repointed that registry.
+
+## No-Observability-Change
+
+This package emits the same spans it always did. `handler_tracing.go` holds
+a package-local `packageregTracer = queryspan.HandlerTracer()` and a
+`startQueryHandlerSpan` that forwards to `queryspan.StartHandlerSpanWith`, so
+the tracer scope name and every span attribute are unchanged from before the
+move. No metric was added, renamed, or removed, and no log key changed.
 
 ## Dependencies
 
@@ -62,26 +165,17 @@ The Go standard library, `database/sql`, `go/internal/storage/postgres/pgarray`,
 It does **not** import root package `query`: that import would cycle, since
 root imports this package for the compatibility aliases above.
 
-## Telemetry
-
-Spans: every handler starts a span via `startQueryHandlerSpan`
-(`handler_tracing.go`), forwarding to `queryspan.StartHandlerSpanWith` under
-the unchanged `eshu/go/internal/query` instrumentation-scope name, so
-existing span queries and dashboards are unaffected by the move.
-
-No new metrics or logs were added by the move itself.
-
 ## Gotchas / invariants
 
 **`main_test.go`'s `TestMain` is not redundant with root's capability
-registrations.** `go test ./internal/query/packagereg` never runs root package
-`query`'s `init()` functions (the import would cycle), so without `TestMain`
-registering the same six capabilities directly with `querycontract`, every
-handler test in this package fails with the capability gate's
-`unsupported_capability` 501 -- not because the handler is broken, but because
-nothing ever registered a capability for it to check against. Production is
-unaffected: root always links into the real binary and always runs its own
-`init()`s. Keep `TestMain`'s values in sync with
+registrations.** `go test ./internal/query/package/registry` never runs root
+package `query`'s `init()` functions (the import would cycle), so without
+`TestMain` registering the same six capabilities directly with
+`querycontract`, every handler test in this package fails with the
+capability gate's `unsupported_capability` 501 -- not because the handler is
+broken, but because nothing ever registered a capability for it to check
+against. Production is unaffected: root always links into the real binary
+and always runs its own `init()`s. Keep `TestMain`'s values in sync with
 `contract_package_registry.go` and `contract_capability_matrix.go`'s
 `baseCapabilityMatrix` if either changes.
 
@@ -94,18 +188,17 @@ breaks the seam a test relies on.
 
 **Collector-readiness ordering: a non-empty page never consults the probe.**
 `attachCollectorListReadiness`/`collectorListReadiness`
-(`package_registry_collector_readiness.go`) mirror root's
-`collector_list_readiness.go` exactly. A nil store yields no envelope. A page
-with `resultsReturned > 0` is classified `ready_with_results` WITHOUT calling
-the configured-collector probe: returned rows are themselves proof the
-collector ran, so a failing or stale probe must never downgrade an
-already-evidenced page. The probe runs only for an empty page, to
-disambiguate `not_configured` from `ready_zero_results`; a probe error there
-yields `readiness_unavailable` so the page is never dropped. Getting this
-order wrong (checking the probe first) is a real behavior regression, not a
-style choice.
+(`collector_readiness.go`) mirror root's `collector_list_readiness.go`
+exactly. A nil store yields no envelope. A page with `resultsReturned > 0` is
+classified `ready_with_results` WITHOUT calling the configured-collector
+probe: returned rows are themselves proof the collector ran, so a failing or
+stale probe must never downgrade an already-evidenced page. The probe runs
+only for an empty page, to disambiguate `not_configured` from
+`ready_zero_results`; a probe error there yields `readiness_unavailable` so
+the page is never dropped. Getting this order wrong (checking the probe
+first) is a real behavior regression, not a style choice.
 
-**`PackageRegistryDependenciesCypher` is pinned in the queryplan manifest.**
+**`DependenciesCypher` is pinned in the queryplan manifest.**
 `go/internal/queryplan/testdata/hot-cypher.yaml`'s `QP-SC-PKGREG-DEPS` entry
 carries a `source_sha256` over this function's source text. Any edit --
 including a rename -- fails `TestLegacyQueryplanManifestBindsProductionQueries`
@@ -115,7 +208,7 @@ itself did not change.
 **Some helpers are local copies of root helpers, not forks.** Two separate
 Go constraints force this, and they are worth keeping apart.
 
-`derefString`/`derefBool` (`package_registry_correlation_deref.go`) are
+`derefString`/`derefBool` (`correlation_deref.go`) are
 production code. Root has the same helper, `derefString` (named
 `workItemDerefString` before #6642 destuttered it; its `derefBool` twin was
 dropped in the same move), but it is unexported, and an unexported symbol
@@ -123,11 +216,15 @@ cannot be called across a package boundary. Root exports no equivalent to
 wrap, and it cannot move here because `factschema_decode_supplychain.go`
 still calls it.
 
-The slice-comparison and SQL-lockstep helpers
-(`package_registry_slice_test_helpers_test.go`,
-`package_registry_sql_lockstep_helpers_test.go`) are copies for a different
-reason: Go never compiles a package's `_test.go` files into anything another
-package can import, so a test helper cannot be shared across packages at all.
+The slice-comparison and SQL-lockstep helpers (`slice_test_helpers_test.go`,
+`sql_lockstep_helpers_test.go`) are copies for a different reason: Go never
+compiles a package's `_test.go` files into anything another package can
+import, so a test helper cannot be shared across packages at all.
+`sql_lockstep_helpers_test.go`'s `documentationSchemaDir` walks one
+directory further up than root's copy to reach the repo root
+(`internal/query/package/registry/<file>` sits one level deeper than
+`internal/query/<file>`); it walked one level further again with this move's
+extra `package/` nesting.
 
 Both are small and self-contained, so neither carries real drift risk.
 
@@ -137,53 +234,27 @@ NornicDB-live test drives `NewNeo4jReader`, which wraps root's shared
 read-retry policy and has no leaf package this family could import without
 cycling back through root; extracting it is a larger, cross-family change out
 of scope for this move. The two `AuthMiddlewareWithScopedTokens` route-allowlist
-tests exercise root's middleware directly and never call
-`PackageRegistryHandler`.
+tests exercise root's middleware directly and never call `Handler`.
 
 ## Related docs
 
 - [Cypher performance](../../../../docs/public/reference/cypher-performance.md)
 - [HTTP API reference](../../../../docs/public/reference/http-api.md)
 
-## Performance and observability evidence
+## Verification
 
-No-Regression Evidence: this package is a relocation of the package-registry
-handler family out of `go/internal/query`'s flat root (#6060). No query text
-changed, so there is no before/after latency to report and none is claimed.
+From `go/`:
 
-- Baseline and after: `origin/main` (1f0e1e172) versus this branch. The emitted
-  Cypher is byte-identical across the move. Verified two ways rather than
-  asserted: the string literals in `package_registry_cypher.go` were diffed
-  against their pre-move originals and match exactly, and the anchor census is
-  unchanged at `MATCH (p:Package` x11, `MATCH (d:PackageDependency` x2,
-  `MATCH (v:PackageVersion` x1. The only Go-level delta in that file is the
-  rename of `packageRegistryDependenciesCypher` to its exported form, which the
-  `queryplan` manifest records with a new `source_sha256` because the digest
-  covers the identifier as well as the body.
-- Backend and version: unchanged. This package selects no backend and issues no
-  DDL; it reads through `querycontract.GraphQuery`, exactly as the same code did
-  from root.
-- Input shape and row counts: unchanged, and both aggregate reads carry a bound
-  the code enforces. `PackageRegistryPackageInventory` is capped at
-  `PackageRegistryAggregateMaxLimit+1` (501) by the store's own limit check plus
-  `SKIP $offset LIMIT $limit` in the query template.
-  `CountPackageRegistryPackages` is a single-row `count(p)` plus a group-by whose
-  cardinality is bounded by the closed 13-value `packageidentity.Ecosystem` enum
-  (registered `max_results: 32`). Both are recorded as typed `non_hot`
-  dispositions in `go/internal/queryplan/testdata/query-source-coverage.yaml`.
-- Terminal queue counts: not applicable. This package enqueues nothing and owns
-  no worker, lease, or batch path.
+```
+go test ./internal/query/... ./cmd/api ./cmd/mcp-server -count=1
+go test ./internal/query/package/registry -count=1 -v
+go test ./internal/queryplan/ -count=1
+go vet ./...
+```
 
-No-Observability-Change: the spans, metrics and logs an operator sees are
-the same ones root emitted. `handler_tracing.go` here holds a package-local
-`packageregTracer = queryspan.HandlerTracer()` and a `startQueryHandlerSpan`
-that forwards to `queryspan.StartHandlerSpanWith`, so the tracer scope name and
-every span attribute are unchanged from root's helper. No metric was added,
-renamed or removed, and no log key changed.
-
-Why the change is safe: `go test ./internal/mcp -count=1` passes, which is the
-load-bearing proof — every external `query.<Type>` reference still resolves
-through root's forwarders with no caller edited. The B-7 golden corpus and the
-B-12 snapshot are untouched (`git diff --name-only origin/main..HEAD --
-testdata/` returns nothing), so projected graph truth and query response shapes
-are unchanged by construction rather than by assertion.
+`cmd/api`/`cmd/mcp-server` are included because `Handler`'s compatibility
+alias is exactly the surface an accidental unexported-symbol dependency would
+break silently; `internal/queryplan` is included because this move's file
+renames and receiver-type renames re-pin two query-plan manifests.
+`internal/mcp` is included because its route-serves-data registry names
+this package's files by path and its handler by struct name.
