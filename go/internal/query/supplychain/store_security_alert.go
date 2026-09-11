@@ -203,8 +203,8 @@ type SecurityAlertMissingEvidence struct {
 }
 
 // SecurityAlertReconciliationAnchorRequiredMessage is the anchorless-read
-// rejection text both the handlers and the staying store report, so a scoped
+// rejection text both the handlers and the store report, so a scoped
 // caller gets one message whichever layer rejects first. It lives in the hub
-// with the handlers; the staying store
-// (security_alert_reconciliation.go) reads it through root's forward.
+// with the handlers; the store (supplychain/alerts/store.go) imports it
+// directly.
 const SecurityAlertReconciliationAnchorRequiredMessage = "repository_id, provider, package_id, cve_id, or ghsa_id is required; provider_state and reconciliation_status are filters only"

@@ -432,7 +432,7 @@ No-Observability-Change: aggregate profile and suppression parity only adds pred
 
 The same handler exposes cheap-summary aggregates over the reducer-owned
 provider security alert reconciliations through a separate Postgres aggregate
-read model (`security_alert_reconciliation_aggregates.go`).
+read model (`supplychain/alerts/aggregates.go`).
 `CountSecurityAlertReconciliations` answers total / per-reconciliation-status /
 per-provider / per-provider-state questions over an optional repository id or
 selector, provider, package, CVE, GHSA, provider-state, or
@@ -451,7 +451,7 @@ package_id + reconciliation_status; scope_id + package_id +
 reconciliation_status; provider + provider_state + reconciliation_status;
 cve_ids GIN; ghsa_ids GIN); no graph migration is needed.
 
-No-Regression Evidence: `go test ./internal/query -run
+No-Regression Evidence: `go test ./internal/query ./internal/query/supplychain/alerts -run
 'TestSecurityAlertReconciliationAggregate|TestSecurityAlertReconciliationInventoryGroupExpression|TestNextSecurityAlertReconciliationAggregateOffset|TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors|TestSecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias'
 -count=1` proves: 503 envelope when the store is missing, totals envelope shape
 with the three rollup maps, grouped inventory shape, truncation marker plus

@@ -5,6 +5,7 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/alerts"
 )
 
 // This file preserves the root package query surface cmd/api,
@@ -157,9 +158,8 @@ const (
 	containerImageIdentityAggregateCapability      = supplychain.ContainerImageIdentityAggregateCapability
 	sbomAttestationAttachmentAggregateCapability   = supplychain.SBOMAttestationAttachmentAggregateCapability
 
-	sbomAttestationAttachmentMaxLimit   = supplychain.SBOMAttestationAttachmentMaxLimit
-	containerImageIdentityMaxLimit      = supplychain.ContainerImageIdentityMaxLimit
-	securityAlertReconciliationMaxLimit = supplychain.SecurityAlertReconciliationMaxLimit
+	sbomAttestationAttachmentMaxLimit = supplychain.SBOMAttestationAttachmentMaxLimit
+	containerImageIdentityMaxLimit    = supplychain.ContainerImageIdentityMaxLimit
 	// Staying callers: the Postgres store limit checks.
 
 	supplyChainCloudRuntimeProbeMaxResults = supplychain.SupplyChainCloudRuntimeProbeMaxResults
@@ -182,11 +182,52 @@ const (
 	// Staying callers: queryplan_profile_params_test.go, which pins the
 	// probe's evidence-source contract.
 
-	securityAlertReconciliationAnchorRequiredMessage = supplychain.SecurityAlertReconciliationAnchorRequiredMessage
-	// Staying callers: security_alert_reconciliation.go store error.
 	sbomAttestationWarningSummaryPreviewMaxCount = supplychain.SBOMAttestationWarningSummaryPreviewMaxCount
 	// Staying callers: sbom_attestation_attachment_rows.go decode wrappers.
 )
+
+// stringMapVal stringifies a map payload field. Its home is
+// supplychain/alerts/ (StringMapVal); this forward keeps
+// sbom_attestation_attachments.go and sbom_attestation_attachment_rows.go
+// spelling the unqualified name unchanged. See #6642.
+func stringMapVal(payload map[string]any, key string) map[string]string {
+	return alerts.StringMapVal(payload, key)
+}
+
+// PostgresSecurityAlertReconciliationStore reads active provider alert
+// reconciliation facts from Postgres. Its home is supplychain/alerts/
+// (PostgresStore); this alias keeps the cmd/api and cmd/mcp-server wiring
+// spelling query.PostgresSecurityAlertReconciliationStore unchanged. See
+// #6642.
+type PostgresSecurityAlertReconciliationStore = alerts.PostgresStore
+
+// NewPostgresSecurityAlertReconciliationStore creates the Postgres-backed
+// provider alert reconciliation read model. Its home is supplychain/alerts/
+// (NewPostgresStore); this forwarder keeps cmd/api and cmd/mcp-server wiring
+// calling query.NewPostgresSecurityAlertReconciliationStore unchanged, passing
+// the *sql.DB main always passed (it satisfies alerts.Queryer). See #6642.
+func NewPostgresSecurityAlertReconciliationStore(db alerts.Queryer) PostgresSecurityAlertReconciliationStore {
+	return alerts.NewPostgresStore(db)
+}
+
+// PostgresSecurityAlertReconciliationAggregateStore reads aggregate counts
+// directly from reducer-owned reconciliation facts. Its home is
+// supplychain/alerts/ (PostgresAggregateStore); this alias keeps the cmd/api
+// and cmd/mcp-server wiring spelling
+// query.PostgresSecurityAlertReconciliationAggregateStore unchanged. See
+// #6642.
+type PostgresSecurityAlertReconciliationAggregateStore = alerts.PostgresAggregateStore
+
+// NewPostgresSecurityAlertReconciliationAggregateStore creates the
+// Postgres-backed aggregate store. Its home is supplychain/alerts/
+// (NewPostgresAggregateStore); this forwarder keeps cmd/api and
+// cmd/mcp-server wiring calling
+// query.NewPostgresSecurityAlertReconciliationAggregateStore unchanged,
+// passing the *sql.DB main always passed (it satisfies
+// alerts.AggregateQueryer). See #6642.
+func NewPostgresSecurityAlertReconciliationAggregateStore(db alerts.AggregateQueryer) PostgresSecurityAlertReconciliationAggregateStore {
+	return alerts.NewPostgresAggregateStore(db)
+}
 
 // Shared seams the staying files reuse. Each names its staying callers;
 // hub-internal callers use the exported hub names directly.
@@ -196,15 +237,6 @@ const (
 // staying tests. See supplychain.UniqueSortedNonEmpty.
 func uniqueSortedNonEmpty(values []string) []string {
 	return supplychain.UniqueSortedNonEmpty(values)
-}
-
-// securityAlertRepositoryScopeIDs prepends the repository id to the scope
-// set, trimmed, deduped, and sorted. Staying callers:
-// security_alert_reconciliation.go,
-// security_alert_reconciliation_aggregates.go. See
-// supplychain.SecurityAlertRepositoryScopeIDs.
-func securityAlertRepositoryScopeIDs(repositoryID string, scopeIDs []string) []string {
-	return supplychain.SecurityAlertRepositoryScopeIDs(repositoryID, scopeIDs)
 }
 
 // supplyChainCloudRuntimeProbePerDigestLimit shares the owner-ledger row
@@ -267,13 +299,11 @@ type SupplyChainRuntimeEnvironmentPlan = supplychain.SupplyChainRuntimeEnvironme
 // assertions: wiring assigns the concrete stores to hub-typed handler
 // fields, and any port drift fails here rather than at a call site.
 var (
-	_ ContainerImageIdentityStore               = PostgresContainerImageIdentityStore{}
-	_ ContainerImageIdentityAggregateStore      = PostgresContainerImageIdentityAggregateStore{}
-	_ SBOMAttestationAttachmentStore            = PostgresSBOMAttestationAttachmentStore{}
-	_ SBOMAttestationAttachmentAggregateStore   = PostgresSBOMAttestationAttachmentAggregateStore{}
-	_ SecurityAlertReconciliationStore          = PostgresSecurityAlertReconciliationStore{}
-	_ SecurityAlertReconciliationAggregateStore = PostgresSecurityAlertReconciliationAggregateStore{}
-	_ CloudResourceCurrentInventoryFilter       = (*PostgresCloudResourceListStore)(nil)
-	_ CloudResourceRuntimeDigestResolver        = (*PostgresCloudResourceListStore)(nil)
-	_ KubernetesWorkloadCurrentInventoryFilter  = (*PostgresKubernetesRuntimeWorkloadStore)(nil)
+	_ ContainerImageIdentityStore              = PostgresContainerImageIdentityStore{}
+	_ ContainerImageIdentityAggregateStore     = PostgresContainerImageIdentityAggregateStore{}
+	_ SBOMAttestationAttachmentStore           = PostgresSBOMAttestationAttachmentStore{}
+	_ SBOMAttestationAttachmentAggregateStore  = PostgresSBOMAttestationAttachmentAggregateStore{}
+	_ CloudResourceCurrentInventoryFilter      = (*PostgresCloudResourceListStore)(nil)
+	_ CloudResourceRuntimeDigestResolver       = (*PostgresCloudResourceListStore)(nil)
+	_ KubernetesWorkloadCurrentInventoryFilter = (*PostgresKubernetesRuntimeWorkloadStore)(nil)
 )

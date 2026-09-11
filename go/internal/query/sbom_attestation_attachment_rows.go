@@ -56,7 +56,7 @@ func boundedSBOMWarningSummariesFromAny(values []any) ([]string, int, bool) {
 // (maxSBOMAttachmentSLSAMaterialRows), so this only decodes what was
 // persisted; truncation is reported by the caller comparing against the
 // separately persisted full count. Each material's digest map is decoded via
-// the existing stringMapVal(payload, key) helper (security_alert_reconciliation.go).
+// the existing stringMapVal(payload, key) helper (supplychain/alerts/store.go).
 func slsaMaterialRowsFromPayload(raw any) []SLSAMaterialRow {
 	values, ok := raw.([]any)
 	if !ok {

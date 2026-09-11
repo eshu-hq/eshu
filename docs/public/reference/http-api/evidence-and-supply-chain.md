@@ -1449,7 +1449,7 @@ Use `/api/v0/supply-chain/impact/findings` for reducer-owned impact findings.
 Provider `severity` is returned inside `provider_alert`; it is not the same as
 the impact `severity` scanner filter.
 
-No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/mcp -run 'TestBuildSecurityAlertReconciliationsExplains(TriageOutcomes|AmbiguousOwnedEvidence)|Test(DecodeSecurityAlertReconciliationRowPreservesTriageDetails|SupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails|OpenAPISpecIncludesSecurityAlertReconciliations)|TestSecurityAlertReconciliationToolAdvertisesTriageFields' -count=1` failed before reconciliation rows carried structured triage details, then passed after provider-only, stale, unsupported, ambiguous, and matched rows exposed stable reason codes and missing-evidence details across reducer, HTTP, OpenAPI, and MCP.
+No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/query/supplychain/alerts ./internal/mcp -run 'TestBuildSecurityAlertReconciliationsExplains(TriageOutcomes|AmbiguousOwnedEvidence)|Test(DecodeSecurityAlertReconciliationRowPreservesTriageDetails|SupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails|OpenAPISpecIncludesSecurityAlertReconciliations)|TestSecurityAlertReconciliationToolAdvertisesTriageFields' -count=1` failed before reconciliation rows carried structured triage details, then passed after provider-only, stale, unsupported, ambiguous, and matched rows exposed stable reason codes and missing-evidence details across reducer, HTTP, OpenAPI, and MCP.
 
 No-Observability-Change: row-level triage reuses the existing reducer
 execution telemetry, persisted reconciliation facts, `query.supply_chain_security_alerts`
