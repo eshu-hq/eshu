@@ -1,0 +1,180 @@
+go/internal/query/language/repository_match_key_test.go
+  s_76eb48722aa6e6::t_6433883aab133c 4-31
+go/internal/query/querytestutil/README.md
+  s_76eb48722aa6e6::t_02fc233c214344 108-115
+  s_76eb48722aa6e6::t_ecd3e23aab81a2 116-118
+  s_76eb48722aa6e6::t_04724c80bd1585 119
+go/internal/query/typescript_graph_metadata_test.go
+  s_76eb48722aa6e6::t_35db6d4750d42f 13-14
+  s_76eb48722aa6e6::t_a83616a292e1c3 29
+go/internal/query/language/doc.go
+  s_76eb48722aa6e6::t_8686dc646f0751 1-36
+docs/public/reference/language-query-dsl.md
+  s_76eb48722aa6e6::t_2f2586d4cc9eef 279,282-288
+  s_76eb48722aa6e6::t_edc3f18c325f19 323-333,337-341
+go/internal/query/language/registry_test.go
+  s_76eb48722aa6e6::t_e1ed5ef8aa3590 4
+docs/internal/evidence/6546-language-query-extension-filter.md
+  s_76eb48722aa6e6::t_9c021dc62ceae8 97-98,100-101
+  s_76eb48722aa6e6::t_2f2dcf77f59294 135-137
+go/internal/query/language/graph_configured.go
+  s_76eb48722aa6e6::t_30ccdd0c51976d 4
+go/internal/query/typescript_function_graph_first_test.go
+  s_76eb48722aa6e6::t_9973d6e6bd14df 13-14
+  s_76eb48722aa6e6::t_f5d26fbf8a0b30 23
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_76eb48722aa6e6::t_666c68584e9d82 377,379,383
+go/internal/query/querytestutil/scopedauthcontext.go
+  s_76eb48722aa6e6::t_4ed84158625e1b 7,9,13,77-219
+go/internal/query/language_query_metadata_test.go
+  s_76eb48722aa6e6::t_156057742d6cc2 24-28,33-34,37-38
+  s_76eb48722aa6e6::t_9f3d4886db982a 14-15
+go/internal/query/language_query_metadata_repository_key_test.go
+  s_76eb48722aa6e6::t_f85f8e90613bc4 31-35,37-39
+go/internal/query/language/metadata.go
+  s_76eb48722aa6e6::t_b0e532ffc4b48a 4-263
+go/internal/query/language/reasons_test.go
+  s_76eb48722aa6e6::t_b7772e8811d6a4 4-47
+go/internal/query/language/result_test.go
+  s_76eb48722aa6e6::t_255da41e506664 4
+go/internal/query/language/cypher_shipped_text_test.go
+  s_76eb48722aa6e6::t_fa9cd88b094f9f 4
+  s_76eb48722aa6e6::t_d650f2734d8d76 16,22,29,46,63
+go/internal/query/language/README.md
+  s_76eb48722aa6e6::t_9096fcacdca1c8 1-27,34-97
+  s_e8ab01ccdfa8e2::t_e5f4aa76c98614 28-33
+scripts/lib/dirgate-grandfather.tsv
+  s_76eb48722aa6e6::t_498bb564ce4680 87
+go/internal/query/language/AGENTS.md
+  s_76eb48722aa6e6::t_0f827b94c3dd61 1-7,10-118
+  s_e8ab01ccdfa8e2::t_0aaf0a758c3eba 8-9
+go/internal/query/language/reasons.go
+  s_76eb48722aa6e6::t_3965fa88bff67a 4-55,67-112
+  s_76eb48722aa6e6::t_a94eed0940226e 65
+go/internal/query/language/span_test.go
+  s_76eb48722aa6e6::t_7c7cbcefa2debd 4-74
+go/internal/query/neo4j_test.go
+  s_76eb48722aa6e6::t_01027d483312ee 175-178,180
+  s_76eb48722aa6e6::t_07cfcbaeebf897 8-9
+go/internal/query/language/cypher.go
+  s_76eb48722aa6e6::t_04bc9a11d8c0d9 4-232
+go/internal/query/language/cypher_builder_test.go
+  s_76eb48722aa6e6::t_b5942e62d01ac1 4-11
+  s_76eb48722aa6e6::t_e6dd6eb77636d8 50,55,71,75,79,82,85,93,98,101,137,168,171,180,183,196,201,204,218,221,224
+go/internal/query/code_grant_test_fixtures_test.go
+  s_76eb48722aa6e6::t_9db975d0ec8d79 36-40,42-43
+  s_76eb48722aa6e6::t_665b373a80621e 12-13
+go/internal/query/language/handler.go
+  s_76eb48722aa6e6::t_bbdc449f4be22a 4-447
+go/internal/query/language/kotlin_secondary_constructor_test.go
+  s_76eb48722aa6e6::t_5279cdcdfc6e54 4
+go/internal/query/language/typescript_declaration_family_test.go
+  s_76eb48722aa6e6::t_ead452009527bc 4-26,173
+  s_76eb48722aa6e6::t_20db232aef666e 128
+  s_3aca14dc64f2a1::t_000e1c3623ca0f 27,127
+go/internal/query/auth_scoped_language_query_shipped_text_test.go
+  s_76eb48722aa6e6::t_b2ba0a3221e449 47
+  s_e8ab01ccdfa8e2::t_4fc3a8b54d06ec 110
+go/internal/query/language_alias.go
+  s_76eb48722aa6e6::t_b4dc1f23f4a280 1-62,64-66,74
+  s_76eb48722aa6e6::t_4a69a6a10e50de 63
+  s_76eb48722aa6e6::t_bfe018f8eb2c85 67-73
+go/internal/query/language/entities.go
+  s_76eb48722aa6e6::t_51762d9624c36a 4-138
+go/internal/query/language/registry.go
+  s_76eb48722aa6e6::t_e64e2c2f572dfa 4-45
+go/internal/query/language/entity_search_dispatch_test.go
+  s_76eb48722aa6e6::t_7d745bf5132bc6 4-127,131
+go/internal/query/auth_scoped_language_query_grant_test.go
+  s_76eb48722aa6e6::t_d6e6a0851b8e59 36-40,42-43,61
+  s_76eb48722aa6e6::t_6a13f1cea19eae 332-334
+  s_e8ab01ccdfa8e2::t_28e7855c04850d 25-26
+go/internal/query/language/parser_spelling_test.go
+  s_76eb48722aa6e6::t_07340cb96c6242 4
+go/internal/query/auth_scoped_routes_code_flow.go
+  s_e8ab01ccdfa8e2::t_146bf3aa99c89f 115-116
+go/internal/query/code_seam.go
+  s_e8ab01ccdfa8e2::t_5bad380ff6076b 50,116,243
+go/internal/query/codemodel/code_graph_search_query.go
+  s_e8ab01ccdfa8e2::t_916dcf33920872 69
+go/internal/query/codequery/relationships/story/resolution.go
+  s_e8ab01ccdfa8e2::t_2d8deb5879f194 203,212,256
+go/internal/query/codequery/repository_selector.go
+  s_e8ab01ccdfa8e2::t_edad5fd2f49b6b 162-165
+go/internal/query/codequery/seam_crosspackage_test.go
+  s_e8ab01ccdfa8e2::t_155f74e67f1e51 24,146-147
+go/internal/query/codequery/seam_export_test.go
+  s_e8ab01ccdfa8e2::t_74b239985c462d 166
+go/internal/query/language/handler_tracing.go
+  s_e8ab01ccdfa8e2::t_eef8f0fc95004f 1-23
+go/internal/query/language/handler_write.go
+  s_e8ab01ccdfa8e2::t_8a9a9d167f6c8a 1-62
+go/internal/query/language_query_argument_names_capability_test.go
+  s_e8ab01ccdfa8e2::t_62fb8ae66ad79e 20
+go/internal/query/language_query_generic_failure_test.go
+  s_e8ab01ccdfa8e2::t_e0220cfb2942ab 33
+go/internal/query/language_query_grant_nornicdb_live_backend_test.go
+  s_e8ab01ccdfa8e2::t_ed3f4fe49dd987 19-20,54,130,138
+go/internal/query/language_query_grant_nornicdb_live_test.go
+  s_e8ab01ccdfa8e2::t_e74ae6fced2657 54-55,230,244,265
+go/internal/query/language_query_grant_nornicdb_negative_control_live_test.go
+  s_e8ab01ccdfa8e2::t_61dcfcbefcf8bb 31-32,69,92,137
+go/internal/query/language_query_graph_error_test.go
+  s_e8ab01ccdfa8e2::t_7657850ae91548 29,73,236
+go/internal/query/language_query_graph_first_extra_test.go
+  s_e8ab01ccdfa8e2::t_826ed771d1e746 67
+go/internal/query/language_query_graphless_reader_test.go
+  s_e8ab01ccdfa8e2::t_6f061ccfae1e6d 99,113,169
+go/internal/query/language_query_guard_content_filter_test.go
+  s_e8ab01ccdfa8e2::t_aff95c8ee5eace 15
+go/internal/query/language_query_limit_clamp_test.go
+  s_e8ab01ccdfa8e2::t_b91c5b44b47fd6 33
+go/internal/query/language_query_metadata_handler_test.go
+  s_e8ab01ccdfa8e2::t_ba39a54e3e8695 22,24
+go/internal/query/language_query_metadata_merge_test.go
+  s_e8ab01ccdfa8e2::t_851d49b9f1007e 16,35
+go/internal/query/language_query_mixed_language_nornicdb_live_test.go
+  s_e8ab01ccdfa8e2::t_2e8f14e666ad16 61-62,131,154,168,187,207
+go/internal/query/language_query_source_backend_test.go
+  s_e8ab01ccdfa8e2::t_c1c5a9b9ee3957 14,26
+go/internal/query/language_query_truth_envelope_test.go
+  s_e8ab01ccdfa8e2::t_5764fecd7ef11f 167
+go/internal/query/language_query_tsx_wrapper_graph_first_test.go
+  s_e8ab01ccdfa8e2::t_6e8753b4c31d56 15,86
+go/internal/query/visualization_packet.go
+  s_e8ab01ccdfa8e2::t_edf48eb9f74b2d 30
+tools/golangci-lint-dirgate/grandfather.go
+  s_76eb48722aa6e6::t_c69293aacb42b1 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "888836267c6f0ed052fa993b733184a9212ed4e2",
+  "prompts": {},
+  "sessions": {
+    "s_3aca14dc64f2a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b3b79176-f458-4831-a5d8-71892df9434c",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_76eb48722aa6e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c63352b-88be-4713-bba6-7be0c462d10d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
