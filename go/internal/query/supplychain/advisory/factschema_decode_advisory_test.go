@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -16,7 +16,7 @@ import (
 // (TestSupplyChainDecodeWrappersClassifyMissingRequiredField) proves for the
 // wrappers that stayed behind: a required payload key absent (or null) from
 // a source-fact payload must dead-letter as a classified input_invalid
-// *querydecode.Error, never a silent zero-value struct. These four
+// *decode.Error, never a silent zero-value struct. These four
 // vulnerability cases moved here with the wrappers (#6060 lane A) so the
 // root table keeps covering only the wrappers still living in root package
 // query.
@@ -81,9 +81,9 @@ func TestAdvisoryDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 			if err == nil {
 				t.Fatalf("decode error = nil, want classified input_invalid error for missing %q", tc.missingField)
 			}
-			var decodeErr *querydecode.Error
+			var decodeErr *decode.Error
 			if !errors.As(err, &decodeErr) {
-				t.Fatalf("error = %v (%T), want *querydecode.Error", err, err)
+				t.Fatalf("error = %v (%T), want *decode.Error", err, err)
 			}
 			if decodeErr.Classification != factschema.ClassificationInputInvalid {
 				t.Fatalf("Classification = %q, want %q", decodeErr.Classification, factschema.ClassificationInputInvalid)

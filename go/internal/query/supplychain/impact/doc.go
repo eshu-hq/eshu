@@ -15,7 +15,7 @@
 // It moved out of root package query (#6060 lane A) so this family can be
 // read, tested, and changed without pulling in the rest of the query surface.
 // It depends only on dependency-neutral leaves -- querycontract (row-value
-// decoders, HTTP param/error writers), querydecode (classified fact-decode
+// decoders, HTTP param/error writers), decode (classified fact-decode
 // failures), sdk/go/factschema (the typed source-fact decode seams),
 // pgarray, postgres (the suppression-mutation storage adapter), and truth --
 // never on root package query itself, which would create an import cycle:

@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -235,7 +235,7 @@ func packageRegistryCorrelationFactKinds() []string {
 // decodePackageRegistryCorrelationRow decodes one scanned fact row into a
 // PackageRegistryCorrelationRow through the typed factschema seam matching
 // its fact kind (factschema_decode_package_correlations.go). ok is false and
-// err is nil when the fact fails ANY classified decode — a *querydecode.Error,
+// err is nil when the fact fails ANY classified decode — a *decode.Error,
 // logged at debug level — so the caller drops the row rather than emitting a
 // wrong-looking row. The motivating case is the fact's required identity
 // field (package_id) missing or null, but the same drop path also covers any
@@ -342,7 +342,7 @@ func decodePackageRegistryCorrelationRow(
 // field so an operator can locate the malformed row in fact_records. Mirrors
 // work_item_evidence.go's logWorkItemEvidenceDecodeDrop.
 func logPackageRegistryCorrelationDecodeDrop(err error) {
-	var decodeErr *querydecode.Error
+	var decodeErr *decode.Error
 	if !errors.As(err, &decodeErr) {
 		slog.Debug("package registry correlation fact dropped from list: decode error", slog.String("error", err.Error()))
 		return

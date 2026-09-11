@@ -12,7 +12,7 @@
 // It moved out of root package query (#6060 lane A) so this family can be
 // read, tested, and changed without pulling in the rest of the query surface.
 // It depends only on dependency-neutral leaves -- querycontract (row-value
-// decoders), querydecode (classified fact-decode failures), sdk/go/factschema
+// decoders), decode (classified fact-decode failures), sdk/go/factschema
 // (the typed vulnerability decode seams), and pgarray -- never on root
 // package query itself, which would create an import cycle: root's
 // supply_chain_advisory_alias.go imports this package for the compatibility

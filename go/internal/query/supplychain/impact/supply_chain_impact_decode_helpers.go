@@ -6,7 +6,7 @@ package impact
 import (
 	"strings"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	packageregistryv1 "github.com/eshu-hq/eshu/sdk/go/factschema/packageregistry/v1"
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
@@ -45,9 +45,9 @@ func boolPointerVal(payload map[string]any, key string) *bool {
 //
 // Each wrapper wraps the matching sdk/go/factschema Decode* seam and, on a
 // classified *factschema.DecodeError (a missing/null required identity
-// field), returns a *querydecode.Error via querydecode.New -- the leaf
+// field), returns a *decode.Error via decode.New -- the leaf
 // constructor root's newQueryDecodeError forwards to (root's queryDecodeError
-// is an alias for querydecode.Error), so the returned values are identical
+// is an alias for decode.Error), so the returned values are identical
 // to what the root seam produced. Callers drop the fact's contribution
 // instead of fabricating a zero-valued row.
 
@@ -91,24 +91,24 @@ func supplyChainSchemaEnvelope(factKind, schemaVersion string, payload map[strin
 
 // decodeSBOMDocument decodes one sbom.document fact row into the typed
 // struct. A missing required field (document_id) yields a self-classifying
-// *querydecode.Error. Copied from root package query's
+// *decode.Error. Copied from root package query's
 // factschema_decode_supplychain.go.
 func decodeSBOMDocument(in supplyChainFactDecodeInput) (sbomv1.Document, error) {
 	document, err := factschema.DecodeSBOMDocument(supplyChainSchemaEnvelope(factschema.FactKindSBOMDocument, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return sbomv1.Document{}, querydecode.New(factschema.FactKindSBOMDocument, in.FactID, err)
+		return sbomv1.Document{}, decode.New(factschema.FactKindSBOMDocument, in.FactID, err)
 	}
 	return document, nil
 }
 
 // decodeSBOMComponent decodes one sbom.component fact row into the typed
 // struct. A missing required field (document_id) yields a self-classifying
-// *querydecode.Error. Copied from root package query's
+// *decode.Error. Copied from root package query's
 // factschema_decode_supplychain.go.
 func decodeSBOMComponent(in supplyChainFactDecodeInput) (sbomv1.Component, error) {
 	component, err := factschema.DecodeSBOMComponent(supplyChainSchemaEnvelope(factschema.FactKindSBOMComponent, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return sbomv1.Component{}, querydecode.New(factschema.FactKindSBOMComponent, in.FactID, err)
+		return sbomv1.Component{}, decode.New(factschema.FactKindSBOMComponent, in.FactID, err)
 	}
 	return component, nil
 }
@@ -116,48 +116,48 @@ func decodeSBOMComponent(in supplyChainFactDecodeInput) (sbomv1.Component, error
 // decodePackageRegistryPackageDependency decodes one
 // package_registry.package_dependency fact row into the typed struct. A
 // missing required field (package_id, version_id, or dependency_package_id)
-// yields a self-classifying *querydecode.Error. Copied from root package
+// yields a self-classifying *decode.Error. Copied from root package
 // query's factschema_decode_supplychain.go.
 func decodePackageRegistryPackageDependency(in supplyChainFactDecodeInput) (packageregistryv1.PackageDependency, error) {
 	dependency, err := factschema.DecodePackageRegistryPackageDependency(supplyChainSchemaEnvelope(factschema.FactKindPackageRegistryPackageDependency, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return packageregistryv1.PackageDependency{}, querydecode.New(factschema.FactKindPackageRegistryPackageDependency, in.FactID, err)
+		return packageregistryv1.PackageDependency{}, decode.New(factschema.FactKindPackageRegistryPackageDependency, in.FactID, err)
 	}
 	return dependency, nil
 }
 
 // decodeServiceCatalogEntity decodes one service_catalog.entity fact row
 // into the typed struct. A missing required field (entity_ref) yields a
-// self-classifying *querydecode.Error. Copied from root package query's
+// self-classifying *decode.Error. Copied from root package query's
 // factschema_decode_supplychain.go.
 func decodeServiceCatalogEntity(in supplyChainFactDecodeInput) (servicecatalogv1.Entity, error) {
 	entity, err := factschema.DecodeServiceCatalogEntity(supplyChainSchemaEnvelope(factschema.FactKindServiceCatalogEntity, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return servicecatalogv1.Entity{}, querydecode.New(factschema.FactKindServiceCatalogEntity, in.FactID, err)
+		return servicecatalogv1.Entity{}, decode.New(factschema.FactKindServiceCatalogEntity, in.FactID, err)
 	}
 	return entity, nil
 }
 
 // decodeServiceCatalogOwnership decodes one service_catalog.ownership fact
 // row into the typed struct. A missing required field (entity_ref) yields a
-// self-classifying *querydecode.Error. Copied from root package query's
+// self-classifying *decode.Error. Copied from root package query's
 // factschema_decode_supplychain.go.
 func decodeServiceCatalogOwnership(in supplyChainFactDecodeInput) (servicecatalogv1.Ownership, error) {
 	ownership, err := factschema.DecodeServiceCatalogOwnership(supplyChainSchemaEnvelope(factschema.FactKindServiceCatalogOwnership, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return servicecatalogv1.Ownership{}, querydecode.New(factschema.FactKindServiceCatalogOwnership, in.FactID, err)
+		return servicecatalogv1.Ownership{}, decode.New(factschema.FactKindServiceCatalogOwnership, in.FactID, err)
 	}
 	return ownership, nil
 }
 
 // decodeServiceCatalogRepositoryLink decodes one
 // service_catalog.repository_link fact row into the typed struct. A missing
-// required field (entity_ref) yields a self-classifying *querydecode.Error.
+// required field (entity_ref) yields a self-classifying *decode.Error.
 // Copied from root package query's factschema_decode_supplychain.go.
 func decodeServiceCatalogRepositoryLink(in supplyChainFactDecodeInput) (servicecatalogv1.RepositoryLink, error) {
 	link, err := factschema.DecodeServiceCatalogRepositoryLink(supplyChainSchemaEnvelope(factschema.FactKindServiceCatalogRepositoryLink, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return servicecatalogv1.RepositoryLink{}, querydecode.New(factschema.FactKindServiceCatalogRepositoryLink, in.FactID, err)
+		return servicecatalogv1.RepositoryLink{}, decode.New(factschema.FactKindServiceCatalogRepositoryLink, in.FactID, err)
 	}
 	return link, nil
 }

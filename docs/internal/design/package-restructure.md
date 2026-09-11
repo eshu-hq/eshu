@@ -1905,7 +1905,7 @@ the tense: the four cycles it describes are resolved, by the first of the two
 remedies. For query the hoisted contracts live in `querycontract` (envelopes,
 error codes, profiles, capability registry, read ports), `queryauth`
 (request-scoped authorization bounds), `queryspan` (the per-route span),
-`querydecode` and `queryselector`. Each of the four packages has since moved at
+`decode` and `queryselector`. Each of the four packages has since moved at
 least one family on top of that boundary, so "does not compile as written" below
 should be read as the state before #6100, not as a live blocker.
 

@@ -1,4 +1,4 @@
-# Agent instructions: querydecode
+# Agent instructions: decode
 
 Read `doc.go` and `README.md` first. This package is one type and one
 constructor; nearly any change here is a contract change.

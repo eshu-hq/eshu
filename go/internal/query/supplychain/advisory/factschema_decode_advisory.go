@@ -4,7 +4,7 @@
 package advisory
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	vulnerabilityv1 "github.com/eshu-hq/eshu/sdk/go/factschema/vulnerability/v1"
 )
@@ -17,7 +17,7 @@ import (
 //
 // Each wrapper wraps the matching sdk/go/factschema Decode* seam and, on a
 // classified *factschema.DecodeError (a missing/null required identity
-// field), returns a *querydecode.Error (the leaf that lets a handler family
+// field), returns a *decode.Error (the leaf that lets a handler family
 // classify a decode failure without importing root package query) so the
 // caller drops the fact's contribution instead of fabricating a zero-valued
 // row. The shape mirrors packagereg's
@@ -87,53 +87,53 @@ func supplyChainSchemaEnvelope(factKind, schemaVersion string, payload map[strin
 
 // decodeVulnerabilityCVE decodes one vulnerability.cve fact row into the
 // typed struct. A missing required field (advisory_id) yields a
-// self-classifying *querydecode.Error. See this file's struct-completeness
+// self-classifying *decode.Error. See this file's struct-completeness
 // note: callers must still read aliases/severity/cvss_v2/cvss_v3/cvss_v4/
 // cvss_metrics/cwes from the raw payload — the typed struct does not
 // declare them yet.
 func decodeVulnerabilityCVE(in supplyChainFactDecodeInput) (vulnerabilityv1.CVE, error) {
 	cve, err := factschema.DecodeVulnerabilityCVE(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityCVE, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return vulnerabilityv1.CVE{}, querydecode.New(factschema.FactKindVulnerabilityCVE, in.FactID, err)
+		return vulnerabilityv1.CVE{}, decode.New(factschema.FactKindVulnerabilityCVE, in.FactID, err)
 	}
 	return cve, nil
 }
 
 // decodeVulnerabilityAffectedPackage decodes one vulnerability.affected_package
 // fact row into the typed struct. A missing required field (advisory_id)
-// yields a self-classifying *querydecode.Error. See this file's
+// yields a self-classifying *decode.Error. See this file's
 // struct-completeness note: callers must still read
 // parsed_affected_range/affected_ranges from the raw payload.
 func decodeVulnerabilityAffectedPackage(in supplyChainFactDecodeInput) (vulnerabilityv1.AffectedPackage, error) {
 	affected, err := factschema.DecodeVulnerabilityAffectedPackage(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityAffectedPackage, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return vulnerabilityv1.AffectedPackage{}, querydecode.New(factschema.FactKindVulnerabilityAffectedPackage, in.FactID, err)
+		return vulnerabilityv1.AffectedPackage{}, decode.New(factschema.FactKindVulnerabilityAffectedPackage, in.FactID, err)
 	}
 	return affected, nil
 }
 
 // decodeVulnerabilityEPSSScore decodes one vulnerability.epss_score fact row
 // into the typed struct. A missing required field (cve_id) yields a
-// self-classifying *querydecode.Error. This kind decodes losslessly: every
+// self-classifying *decode.Error. This kind decodes losslessly: every
 // field the query-side AdvisoryEPSSObservation reads (probability,
 // percentile, score_date) is declared on vulnerabilityv1.EPSSScore.
 func decodeVulnerabilityEPSSScore(in supplyChainFactDecodeInput) (vulnerabilityv1.EPSSScore, error) {
 	score, err := factschema.DecodeVulnerabilityEPSSScore(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityEPSSScore, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return vulnerabilityv1.EPSSScore{}, querydecode.New(factschema.FactKindVulnerabilityEPSSScore, in.FactID, err)
+		return vulnerabilityv1.EPSSScore{}, decode.New(factschema.FactKindVulnerabilityEPSSScore, in.FactID, err)
 	}
 	return score, nil
 }
 
 // decodeVulnerabilityKnownExploited decodes one vulnerability.known_exploited
 // fact row into the typed struct. A missing required field (cve_id) yields a
-// self-classifying *querydecode.Error. This kind decodes losslessly: every
+// self-classifying *decode.Error. This kind decodes losslessly: every
 // field the query-side AdvisoryKEVObservation reads is declared on
 // vulnerabilityv1.KnownExploited.
 func decodeVulnerabilityKnownExploited(in supplyChainFactDecodeInput) (vulnerabilityv1.KnownExploited, error) {
 	kev, err := factschema.DecodeVulnerabilityKnownExploited(supplyChainSchemaEnvelope(factschema.FactKindVulnerabilityKnownExploited, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return vulnerabilityv1.KnownExploited{}, querydecode.New(factschema.FactKindVulnerabilityKnownExploited, in.FactID, err)
+		return vulnerabilityv1.KnownExploited{}, decode.New(factschema.FactKindVulnerabilityKnownExploited, in.FactID, err)
 	}
 	return kev, nil
 }

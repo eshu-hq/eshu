@@ -99,8 +99,8 @@ Internal packages, all of them leaves that never import root package `query`:
   `FloatVal`, `StringSliceVal` row-value decoders plus `QueryParam`
   and `WriteError` (root forwards to the same functions, so behavior
   is identical on both sides of the move).
-- `internal/query/querydecode` — the classified decode failure the
-  copied source-fact wrappers return via `querydecode.New`, the same
+- `internal/query/decode` — the classified decode failure the
+  copied source-fact wrappers return via `decode.New`, the same
   constructor root's `newQueryDecodeError` forwards to (advisory and
   packagereg precedent).
 - `internal/storage/postgres/pgarray` — the array scan/build surface

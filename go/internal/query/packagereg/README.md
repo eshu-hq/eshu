@@ -50,8 +50,8 @@ The Go standard library, `database/sql`, `go/internal/storage/postgres/pgarray`,
 - `querycontract` -- `GraphQuery`, `ContentStore`, response/truth envelopes,
   capability gates, row-value decoders, `CollectorListReadinessStore` and its
   two `Build*` functions.
-- `querydecode` -- the classified fact-decode failure
-  (`*querydecode.Error`) this package's correlation decode wrappers return.
+- `decode` -- the classified fact-decode failure
+  (`*decode.Error`) this package's correlation decode wrappers return.
 - `queryselector` -- `ResolveForRequestWithAccess`, the repository-selector
   resolution this package's correlation and dependency-chains handlers use.
 - `queryauth` -- `AuthContext`, `AuthContextFromContext`,

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
@@ -44,7 +44,7 @@ type workItemDecodeInput struct {
 // struct through the contracts seam. Forked from decodeWorkItemRecord
 // (internal/query/factschema_decode_workitem.go): a missing required field
 // (provider_work_item_id, work_item_key) yields a self-classifying
-// *querydecode.Error.
+// *decode.Error.
 func decodeWorkItemRecord(in workItemDecodeInput) (workitemv1.WorkItemRecord, error) {
 	record, err := factschema.DecodeWorkItemRecord(workItemSchemaEnvelope(factschema.FactKindWorkItemRecord, in.SchemaVersion, in.Payload))
 	if err != nil {
@@ -56,7 +56,7 @@ func decodeWorkItemRecord(in workItemDecodeInput) (workitemv1.WorkItemRecord, er
 // decodeWorkItemProjectMetadata decodes one work_item.project_metadata fact
 // row into the typed struct. Forked from decodeWorkItemProjectMetadata
 // (internal/query/factschema_decode_workitem.go): a missing required field
-// yields a self-classifying *querydecode.Error.
+// yields a self-classifying *decode.Error.
 func decodeWorkItemProjectMetadata(in workItemDecodeInput) (workitemv1.WorkItemProjectMetadata, error) {
 	metadata, err := factschema.DecodeWorkItemProjectMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemProjectMetadata, in.SchemaVersion, in.Payload))
 	if err != nil {
@@ -68,7 +68,7 @@ func decodeWorkItemProjectMetadata(in workItemDecodeInput) (workitemv1.WorkItemP
 // decodeWorkItemStatusMetadata decodes one work_item.status_metadata fact
 // row into the typed struct. Forked from decodeWorkItemStatusMetadata
 // (internal/query/factschema_decode_workitem.go): a missing required
-// status_id anchor yields a self-classifying *querydecode.Error.
+// status_id anchor yields a self-classifying *decode.Error.
 func decodeWorkItemStatusMetadata(in workItemDecodeInput) (workitemv1.WorkItemStatusMetadata, error) {
 	metadata, err := factschema.DecodeWorkItemStatusMetadata(workItemSchemaEnvelope(factschema.FactKindWorkItemStatusMetadata, in.SchemaVersion, in.Payload))
 	if err != nil {
@@ -80,8 +80,8 @@ func decodeWorkItemStatusMetadata(in workItemDecodeInput) (workitemv1.WorkItemSt
 // newQueryDecodeError wraps a decode error returned by a factschema Decode*
 // function into the query layer's classified decode failure. Forked from
 // newQueryDecodeError (internal/query/factschema_decode_workitem.go).
-func newQueryDecodeError(factKind, factID string, err error) *querydecode.Error {
-	return querydecode.New(factKind, factID, err)
+func newQueryDecodeError(factKind, factID string, err error) *decode.Error {
+	return decode.New(factKind, factID, err)
 }
 
 // workItemSchemaEnvelope adapts one scanned work-item fact row into the
@@ -130,7 +130,7 @@ func workItemDerefBool(value *bool) bool {
 // typed decode. Forked from logWorkItemEvidenceDecodeDrop
 // (internal/query/work_item_evidence.go).
 func logWorkItemEvidenceDecodeDrop(err error) {
-	var decodeErr *querydecode.Error
+	var decodeErr *decode.Error
 	if !errors.As(err, &decodeErr) {
 		slog.Debug("work-item evidence fact dropped from list: decode error", slog.String("error", err.Error()))
 		return

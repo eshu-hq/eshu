@@ -36,7 +36,7 @@ It is **not** in `querycontract` itself. `ResolveForRequestWithAccess` takes an
 `http.ResponseWriter` and writes to it, and request-time orchestration in the
 dependency-neutral contract package is exactly what review rejected on the
 collector-readiness seam. The same reasoning put the handler span in `queryspan`
-and the decode error in `querydecode`.
+and the decode error in `decode`.
 
 ## Telemetry
 
