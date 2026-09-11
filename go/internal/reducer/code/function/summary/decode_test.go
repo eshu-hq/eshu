@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package summary
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/parser/summary"
+	flow "github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
 // TestCodeFunctionSummaryEffectsMapsAllFields proves the JSONB float64/any
-// payload shapes decode through the typed contracts seam into summary.Effects
+// payload shapes decode through the typed contracts seam into flow.Effects
 // (Contract System v1 Wave 4f S2, issue #4754).
 func TestCodeFunctionSummaryEffectsMapsAllFields(t *testing.T) {
 	t.Parallel()
@@ -36,7 +36,7 @@ func TestCodeFunctionSummaryEffectsMapsAllFields(t *testing.T) {
 	if !ok {
 		t.Fatalf("codeFunctionSummaryEffects ok = false, want true")
 	}
-	if id != summary.FunctionID("repo-1:pkg::view") {
+	if id != flow.FunctionID("repo-1:pkg::view") {
 		t.Fatalf("codeFunctionSummaryEffects id = %q, want repo-1:pkg::view", id)
 	}
 	if len(effects.ParamToReturn) != 2 || effects.ParamToReturn[1] != 2 {
@@ -48,14 +48,14 @@ func TestCodeFunctionSummaryEffectsMapsAllFields(t *testing.T) {
 	if len(effects.SourceToReturn) != 1 || effects.SourceToReturn[0] != "http_request" {
 		t.Fatalf("source_to_return not coerced: %+v", effects.SourceToReturn)
 	}
-	if len(effects.ParamToCallArg) != 1 || effects.ParamToCallArg[0].Callee != summary.FunctionID("repo-1:pkg::query") || effects.ParamToCallArg[0].Arg != 1 {
+	if len(effects.ParamToCallArg) != 1 || effects.ParamToCallArg[0].Callee != flow.FunctionID("repo-1:pkg::query") || effects.ParamToCallArg[0].Arg != 1 {
 		t.Fatalf("param_to_call_arg not coerced: %+v", effects.ParamToCallArg)
 	}
 }
 
 // TestCodeFunctionSummaryEffectsTrimsCallee proves the Codex review fix
 // (PR #4758): a padded param_to_call_arg[].callee is TrimSpace'd before it
-// becomes a summary.FunctionID, so the durable summary keys its callee edge on
+// becomes a flow.FunctionID, so the durable summary keys its callee edge on
 // the same trimmed FunctionID the fixpoint's summary/graph-id maps use. The
 // old loader trimmed via payloadString; the typed path must trim explicitly or
 // the fixpoint cannot match the callee summary it previously matched.
@@ -76,7 +76,7 @@ func TestCodeFunctionSummaryEffectsTrimsCallee(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("codeFunctionSummaryEffects err=%v ok=%v, want nil/true", err, ok)
 	}
-	if len(effects.ParamToCallArg) != 1 || effects.ParamToCallArg[0].Callee != summary.FunctionID("repo-1:pkg::query") {
+	if len(effects.ParamToCallArg) != 1 || effects.ParamToCallArg[0].Callee != flow.FunctionID("repo-1:pkg::query") {
 		t.Fatalf("callee not trimmed: %+v", effects.ParamToCallArg)
 	}
 }
@@ -136,7 +136,7 @@ func TestCodeFunctionGraphIDMapsFields(t *testing.T) {
 		},
 	}
 	id, uid, ok, err := codeFunctionGraphID(resolved)
-	if err != nil || !ok || id != summary.FunctionID("repo-1:pkg::view") || uid != "uid:view-fn" {
+	if err != nil || !ok || id != flow.FunctionID("repo-1:pkg::view") || uid != "uid:view-fn" {
 		t.Fatalf("codeFunctionGraphID(resolved) = (%q, %q, %v, %v), want (repo-1:pkg::view, uid:view-fn, true, nil)", id, uid, ok, err)
 	}
 

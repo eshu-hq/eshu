@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the decode and fact-load/write families (schemadecode, factdecode, factwrite, factload, payloadcore)
+// This file is the reducer root's compatibility surface for the decode and fact-load/write families (schemadecode, factdecode, factwrite, factload, payloadcore, code/function/summary)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
@@ -314,3 +315,47 @@ var (
 	decodeCodeDataflowFunction = schemadecode.DecodeCodeDataflowFunction
 	decodeCodeDataflowScanned  = schemadecode.DecodeCodeDataflowScanned
 )
+
+// Stanza: code-function-summary family move (#6061; no prior compat file).
+// The durable value-flow function-summary persistence family moved to
+// [summary] (go/internal/reducer/code/function/summary). Every entry keeps
+// the reducer.X spelling for cmd/reducer's wiring, defaults_handlers.go's
+// DefaultHandlers/CodeEvidenceHandlers field types, and the postgres store
+// implementers named only in comments (structural typing needs no source
+// change there). Each entry is deleted once its last caller names [summary]
+// directly.
+
+// CodeFunctionSummaryLoader is the root spelling of [summary.Loader].
+type CodeFunctionSummaryLoader = summary.Loader
+
+// CodeFunctionSummaryWriter is the root spelling of [summary.Writer]. It is
+// satisfied by postgres.FunctionSummaryStore.
+type CodeFunctionSummaryWriter = summary.Writer
+
+// CodeFunctionSourceLoader is the root spelling of [summary.SourceLoader].
+type CodeFunctionSourceLoader = summary.SourceLoader
+
+// CodeFunctionSourceWriter is the root spelling of [summary.SourceWriter].
+// It is satisfied by postgres.FunctionSourceStore.
+type CodeFunctionSourceWriter = summary.SourceWriter
+
+// CodeFunctionGraphIDLoader is the root spelling of [summary.GraphIDLoader].
+type CodeFunctionGraphIDLoader = summary.GraphIDLoader
+
+// CodeFunctionGraphIDWriter is the root spelling of [summary.GraphIDWriter].
+// It is satisfied by postgres.FunctionGraphIDStore.
+type CodeFunctionGraphIDWriter = summary.GraphIDWriter
+
+// ValueFlowFixpointProjector is the root spelling of
+// [summary.ValueFlowFixpointProjector]. cmd/reducer's value_flow_wiring.go
+// constructs the concrete projector this interface is satisfied by.
+type ValueFlowFixpointProjector = summary.ValueFlowFixpointProjector
+
+// CodeFunctionSummaryMaterializationHandler is the root spelling of
+// [summary.MaterializationHandler].
+type CodeFunctionSummaryMaterializationHandler = summary.MaterializationHandler
+
+// codeFunctionSummaryDomainDefinition forwards to [summary.Definition].
+func codeFunctionSummaryDomainDefinition() DomainDefinition {
+	return summary.Definition()
+}

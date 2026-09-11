@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package summary
 
 import (
 	"context"
@@ -10,7 +10,9 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
-	"github.com/eshu-hq/eshu/go/internal/parser/summary"
+	flow "github.com/eshu-hq/eshu/go/internal/parser/summary"
+	valueflow "github.com/eshu-hq/eshu/go/internal/reducer/code/value"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
 // stubCodeFunctionSummaryLoader returns raw code_function_summary envelopes
@@ -18,8 +20,8 @@ import (
 // typed contracts seam. The graphIDs field lets a test attach a graph_uid to a
 // function id so the graph-id view (which reads the same facts) resolves it.
 type stubCodeFunctionSummaryLoader struct {
-	effects  map[summary.FunctionID]summary.Effects
-	graphIDs map[summary.FunctionID]string
+	effects  map[flow.FunctionID]flow.Effects
+	graphIDs map[flow.FunctionID]string
 }
 
 func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryFacts(
@@ -32,7 +34,7 @@ func (l stubCodeFunctionSummaryLoader) LoadCodeFunctionSummaryFacts(
 // effects (union'd with graphIDs so a graph-id-only function still emits a
 // fact), carrying the reconstructed effect lists a real payload would hold.
 func (l stubCodeFunctionSummaryLoader) summaryEnvelopes() []facts.Envelope {
-	ids := make(map[summary.FunctionID]struct{})
+	ids := make(map[flow.FunctionID]struct{})
 	for id := range l.effects {
 		ids[id] = struct{}{}
 	}
@@ -87,18 +89,18 @@ type recordingCodeFunctionSummaryWriter struct {
 	calls           int
 	upsertCalls     int
 	replaceCalls    int
-	previous        summary.Snapshot
-	snapshot        summary.Snapshot
-	replaceSnapshot summary.Snapshot
+	previous        flow.Snapshot
+	snapshot        flow.Snapshot
+	replaceSnapshot flow.Snapshot
 	replaceRepo     string
 	updatedAt       time.Time
 }
 
-func (w *recordingCodeFunctionSummaryWriter) LoadSnapshot(context.Context) (summary.Snapshot, error) {
+func (w *recordingCodeFunctionSummaryWriter) LoadSnapshot(context.Context) (flow.Snapshot, error) {
 	return w.previous, nil
 }
 
-func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, snap summary.Snapshot, updatedAt time.Time) error {
+func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, snap flow.Snapshot, updatedAt time.Time) error {
 	w.calls++
 	w.upsertCalls++
 	w.snapshot = snap
@@ -109,7 +111,7 @@ func (w *recordingCodeFunctionSummaryWriter) UpsertSnapshot(_ context.Context, s
 func (w *recordingCodeFunctionSummaryWriter) ReplaceSnapshot(
 	_ context.Context,
 	repo string,
-	snap summary.Snapshot,
+	snap flow.Snapshot,
 	updatedAt time.Time,
 ) error {
 	w.calls++
@@ -120,28 +122,28 @@ func (w *recordingCodeFunctionSummaryWriter) ReplaceSnapshot(
 	return nil
 }
 
-func codeFunctionSummaryIntent() Intent {
-	return Intent{
+func codeFunctionSummaryIntent() reducercontract.Intent {
+	return reducercontract.Intent{
 		IntentID:     "intent-summary-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainCodeFunctionSummary,
+		Domain:       reducercontract.DomainCodeFunctionSummary,
 	}
 }
 
 // TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot proves the handler
-// loads the raw Effects, recomputes content versions through summary.Store, and
+// loads the raw Effects, recomputes content versions through flow.Store, and
 // upserts a versioned snapshot.
 func TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot(t *testing.T) {
 	t.Parallel()
 
-	loader := stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
-		summary.FunctionID("repo-1\x1fpkg\x1f\x1fview"):  {SourceToReturn: []string{"http_request"}},
-		summary.FunctionID("repo-1\x1fpkg\x1f\x1fquery"): {ParamToSink: []summary.ParamSink{{Param: 0, SinkKind: "sql"}}},
+	loader := stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
+		flow.FunctionID("repo-1\x1fpkg\x1f\x1fview"):  {SourceToReturn: []string{"http_request"}},
+		flow.FunctionID("repo-1\x1fpkg\x1f\x1fquery"): {ParamToSink: []flow.ParamSink{{Param: 0, SinkKind: "sql"}}},
 	}}
 	writer := &recordingCodeFunctionSummaryWriter{}
 	at := time.Date(2026, time.June, 18, 0, 0, 0, 0, time.UTC)
-	handler := CodeFunctionSummaryMaterializationHandler{
+	handler := MaterializationHandler{
 		Loader: loader,
 		Writer: writer,
 		Now:    func() time.Time { return at },
@@ -162,7 +164,7 @@ func TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot(t *testing.T) {
 			t.Fatalf("function %q persisted without a content version", fn.ID)
 		}
 	}
-	if result.CanonicalWrites != 2 || result.Status != ResultStatusSucceeded {
+	if result.CanonicalWrites != 2 || result.Status != reducercontract.ResultStatusSucceeded {
 		t.Fatalf("result = %+v, want 2 canonical writes succeeded", result)
 	}
 }
@@ -173,18 +175,18 @@ func TestCodeFunctionSummaryHandlerPersistsVersionedSnapshot(t *testing.T) {
 func TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot(t *testing.T) {
 	t.Parallel()
 
-	callerID := summary.FunctionID("repo-1\x1fpkg\x1f\x1fhandler")
-	calleeID := summary.FunctionID("repo-1\x1fpkg\x1f\x1fvalidate")
-	previousStore := summary.NewStore()
-	previousStore.Upsert(map[summary.FunctionID]summary.Effects{
-		calleeID: {ParamToSink: []summary.ParamSink{{Param: 0, SinkKind: "authz"}}},
-		callerID: {ParamToCallArg: []summary.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}}},
+	callerID := flow.FunctionID("repo-1\x1fpkg\x1f\x1fhandler")
+	calleeID := flow.FunctionID("repo-1\x1fpkg\x1f\x1fvalidate")
+	previousStore := flow.NewStore()
+	previousStore.Upsert(map[flow.FunctionID]flow.Effects{
+		calleeID: {ParamToSink: []flow.ParamSink{{Param: 0, SinkKind: "authz"}}},
+		callerID: {ParamToCallArg: []flow.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}}},
 	})
 	writer := &recordingCodeFunctionSummaryWriter{previous: previousStore.Snapshot()}
-	handler := CodeFunctionSummaryMaterializationHandler{
-		Loader: stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
+	handler := MaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
 			callerID: {
-				ParamToCallArg: []summary.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}},
+				ParamToCallArg: []flow.CallArgFlow{{Callee: calleeID, Param: 0, Arg: 0}},
 				SourceToReturn: []string{"http_request"},
 			},
 		}},
@@ -198,7 +200,7 @@ func TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot(t *testing.T
 	if len(writer.snapshot.Functions) != 2 {
 		t.Fatalf("snapshot functions = %d, want previous callee plus updated caller", len(writer.snapshot.Functions))
 	}
-	if _, ok := summary.Load(writer.snapshot).Version(calleeID); !ok {
+	if _, ok := flow.Load(writer.snapshot).Version(calleeID); !ok {
 		t.Fatalf("snapshot dropped unchanged callee %q", calleeID)
 	}
 }
@@ -208,50 +210,14 @@ func TestCodeFunctionSummaryHandlerRebuildsDeltaFromDurableSnapshot(t *testing.T
 func TestCodeFunctionSummaryHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	handler := CodeFunctionSummaryMaterializationHandler{
+	handler := MaterializationHandler{
 		Loader: stubCodeFunctionSummaryLoader{},
 		Writer: &recordingCodeFunctionSummaryWriter{},
 	}
 	intent := codeFunctionSummaryIntent()
-	intent.Domain = DomainDataLineage
+	intent.Domain = reducercontract.DomainDataLineage
 	if _, err := handler.Handle(context.Background(), intent); err == nil {
 		t.Fatal("Handle accepted a non-summary domain")
-	}
-}
-
-func TestImplementedDefaultDomainDefinitionsOmitsCodeFunctionSummaryWithoutWriter(t *testing.T) {
-	t.Parallel()
-
-	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
-		CodeEvidenceHandlers: CodeEvidenceHandlers{
-			CodeFunctionSummaryLoader: stubCodeFunctionSummaryLoader{},
-		},
-	})
-	for _, def := range definitions {
-		if def.Domain == DomainCodeFunctionSummary {
-			t.Fatalf("code_function_summary registered without writer; want omitted")
-		}
-	}
-}
-
-func TestNewDefaultRegistryAcceptsCodeFunctionSummaryWhenWired(t *testing.T) {
-	t.Parallel()
-
-	registry, err := NewDefaultRegistry(DefaultHandlers{
-		CodeEvidenceHandlers: CodeEvidenceHandlers{
-			CodeFunctionSummaryLoader: stubCodeFunctionSummaryLoader{},
-			CodeFunctionSummaryWriter: &recordingCodeFunctionSummaryWriter{},
-		},
-	})
-	if err != nil {
-		t.Fatalf("NewDefaultRegistry returned error with summary wired: %v", err)
-	}
-	def, ok := registry.Definition(DomainCodeFunctionSummary)
-	if !ok {
-		t.Fatal("code_function_summary not registered when wired")
-	}
-	if _, ok := def.Handler.(CodeFunctionSummaryMaterializationHandler); !ok {
-		t.Fatalf("handler type = %T, want CodeFunctionSummaryMaterializationHandler", def.Handler)
 	}
 }
 
@@ -301,7 +267,7 @@ func (w *recordingCodeFunctionSourceWriter) ReplaceSources(
 func TestCodeFunctionSummaryHandlerPersistsSourcesWhenWired(t *testing.T) {
 	t.Parallel()
 	srcWriter := &recordingCodeFunctionSourceWriter{}
-	handler := CodeFunctionSummaryMaterializationHandler{
+	handler := MaterializationHandler{
 		Loader: stubCodeFunctionSummaryLoader{},
 		Writer: &recordingCodeFunctionSummaryWriter{},
 		SourceLoader: stubCodeFunctionSourceLoader{sources: []interproc.Source{
@@ -324,8 +290,8 @@ func TestCodeFunctionSummaryHandlerPersistsSourcesWhenWired(t *testing.T) {
 func TestCodeFunctionSummaryHandlerReplacesEmptySourceSnapshot(t *testing.T) {
 	t.Parallel()
 	srcWriter := &recordingCodeFunctionSourceWriter{}
-	handler := CodeFunctionSummaryMaterializationHandler{
-		Loader: stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
+	handler := MaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
 			"repo-1\x1fpkg\x1f\x1fhandle": {ParamToReturn: []int{0}},
 		}},
 		Writer:       &recordingCodeFunctionSummaryWriter{},
@@ -348,7 +314,7 @@ func TestCodeFunctionSummaryHandlerReplacesEmptySourceSnapshot(t *testing.T) {
 // is skipped (no panic) when the optional source loader/writer are absent.
 func TestCodeFunctionSummaryHandlerSkipsSourcesWhenUnwired(t *testing.T) {
 	t.Parallel()
-	handler := CodeFunctionSummaryMaterializationHandler{
+	handler := MaterializationHandler{
 		Loader: stubCodeFunctionSummaryLoader{},
 		Writer: &recordingCodeFunctionSummaryWriter{},
 	}
@@ -363,7 +329,7 @@ func TestCodeFunctionSummaryHandlerSkipsSourcesWhenUnwired(t *testing.T) {
 // empty-string uid is emitted as a present-but-empty graph_uid so the
 // unresolved-id-clears-stale-mapping behavior is preserved.
 type stubCodeFunctionGraphIDLoader struct {
-	ids map[summary.FunctionID]string
+	ids map[flow.FunctionID]string
 }
 
 func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDFacts(context.Context, string, string) ([]facts.Envelope, error) {
@@ -385,13 +351,13 @@ func (l stubCodeFunctionGraphIDLoader) LoadCodeFunctionGraphIDFacts(context.Cont
 type recordingCodeFunctionGraphIDWriter struct {
 	calls int
 	repos []string
-	sets  []map[summary.FunctionID]string
+	sets  []map[flow.FunctionID]string
 }
 
 func (w *recordingCodeFunctionGraphIDWriter) ReplaceGraphIDs(
 	_ context.Context,
 	repo string,
-	ids map[summary.FunctionID]string,
+	ids map[flow.FunctionID]string,
 	_ time.Time,
 ) error {
 	w.calls++
@@ -405,10 +371,10 @@ func (w *recordingCodeFunctionGraphIDWriter) ReplaceGraphIDs(
 func TestCodeFunctionSummaryHandlerPersistsGraphIDsWhenWired(t *testing.T) {
 	t.Parallel()
 	gidWriter := &recordingCodeFunctionGraphIDWriter{}
-	handler := CodeFunctionSummaryMaterializationHandler{
+	handler := MaterializationHandler{
 		Loader:        stubCodeFunctionSummaryLoader{},
 		Writer:        &recordingCodeFunctionSummaryWriter{},
-		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[summary.FunctionID]string{"repo-1\x1fpkg\x1f\x1fview": "uid-view"}},
+		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[flow.FunctionID]string{"repo-1\x1fpkg\x1f\x1fview": "uid-view"}},
 		GraphIDWriter: gidWriter,
 	}
 	if _, err := handler.Handle(context.Background(), codeFunctionSummaryIntent()); err != nil {
@@ -425,12 +391,12 @@ func TestCodeFunctionSummaryHandlerPersistsGraphIDsWhenWired(t *testing.T) {
 func TestCodeFunctionSummaryHandlerReplacesUnresolvedGraphIDs(t *testing.T) {
 	t.Parallel()
 	gidWriter := &recordingCodeFunctionGraphIDWriter{}
-	handler := CodeFunctionSummaryMaterializationHandler{
-		Loader: stubCodeFunctionSummaryLoader{effects: map[summary.FunctionID]summary.Effects{
+	handler := MaterializationHandler{
+		Loader: stubCodeFunctionSummaryLoader{effects: map[flow.FunctionID]flow.Effects{
 			"repo-1\x1fpkg\x1f\x1fview": {ParamToReturn: []int{0}},
 		}},
 		Writer: &recordingCodeFunctionSummaryWriter{},
-		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[summary.FunctionID]string{
+		GraphIDLoader: stubCodeFunctionGraphIDLoader{ids: map[flow.FunctionID]string{
 			"repo-1\x1fpkg\x1f\x1fview": "",
 		}},
 		GraphIDWriter: gidWriter,
@@ -451,14 +417,14 @@ type recordingValueFlowFixpointProjector struct {
 	calls        int
 	scopeID      string
 	generationID string
-	result       ValueFlowFixpointProjectionResult
+	result       valueflow.ValueFlowFixpointProjectionResult
 }
 
 func (p *recordingValueFlowFixpointProjector) ProjectValueFlowFixpointEvidence(
 	_ context.Context,
 	scopeID string,
 	generationID string,
-) (ValueFlowFixpointProjectionResult, error) {
+) (valueflow.ValueFlowFixpointProjectionResult, error) {
 	p.calls++
 	p.scopeID = scopeID
 	p.generationID = generationID
@@ -472,9 +438,9 @@ func TestCodeFunctionSummaryHandlerProjectsFixpointAfterPersistence(t *testing.T
 	t.Parallel()
 
 	projector := &recordingValueFlowFixpointProjector{
-		result: ValueFlowFixpointProjectionResult{FindingCount: 1, GraphRows: 1},
+		result: valueflow.ValueFlowFixpointProjectionResult{FindingCount: 1, GraphRows: 1},
 	}
-	handler := CodeFunctionSummaryMaterializationHandler{
+	handler := MaterializationHandler{
 		Loader:                  stubCodeFunctionSummaryLoader{},
 		Writer:                  &recordingCodeFunctionSummaryWriter{},
 		ValueFlowFixpointWriter: projector,
