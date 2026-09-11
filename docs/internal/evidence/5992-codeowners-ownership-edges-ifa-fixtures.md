@@ -92,7 +92,7 @@ scoped and proven.
    fail-open; `ifa_det_untrack_bg_pid` call deleted) and green after restore.
 
 The production reducer handler
-(`go/internal/reducer/code/owners/handler.go`), its pure
+(`go/internal/reducer/codeowners_ownership_materialization.go`), its pure
 extraction seam (`ExtractCodeownersOwnershipEdgeRowsWithQuarantine`), and the
 production Cypher writer
 (`go/internal/storage/cypher/canonical_codeowners_edges.go`) are untouched by
