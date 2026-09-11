@@ -77,9 +77,9 @@ before touching any file in this directory.
   handler may call a Neo4j or NornicDB driver directly.
 - **`JavaScript` dynamic-call alias parsing is indexed once per function** —
   `buildCodeEntityIndex` caches static alias metadata
-  (`code_call_materialization_index.go:45`) and
+  (`code/call/index.go:53`) and
   `resolveDynamicJavaScriptCalleeEntityID` reuses that cache
-  (`code_call_materialization_dynamic_javascript.go:41`). Do not move that
+  (`code/call/dynamic_javascript.go:42`). Do not move that
   work back into the per-call loop; generated JS bundles make that
   multiplicative. Cache negative scans too; a source with no static aliases
   must not be sent through the regex pass once per call.
@@ -175,7 +175,7 @@ before touching any file in this directory.
 - **Slow `code_call_materialization` extraction**: if the completion log shows
   high `extract_duration_seconds` with low fact count, inspect large
   JavaScript `function_calls` arrays and run
-  BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls before changing
+  BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls (package `code/call`) before changing
   graph or queue code.
 
 ## Evidence notes
@@ -547,7 +547,7 @@ so existing fact-based `code_interproc_evidence` inputs stay isolated.
 
 No-Regression Evidence: #2969 adds one Function.uid-bounded graph read that
 joins INVOKES_CLOUD_ACTION to CAN_PERFORM cloud permission targets only after a
-single exact RUNS_IN workload fan-out. `go test ./internal/reducer/valueflow -run
+single exact RUNS_IN workload fan-out. `go test ./internal/reducer/code/value -run
 'TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions'
 -count=1` failed before the loader returned permission-backed sinks, then
 passed with ambiguous workload fan-out still empty.
@@ -1883,7 +1883,7 @@ seams the gate covers and adds no new gate mechanism.
 
 No-Regression Evidence (Wave 4f S1, code family typed-payload decode, Contract
 System v1 #4566/#4749): the code-graph-core reducer read sites
-(`code_call_materialization_extract.go`, `code_call_materialization_intents.go`,
+(`code/call/extract.go`, `code/call/intents.go`,
 `code_import_repo_edge.go`, `code_import_repo_edge_retract.go`) now decode the
 `file`/`repository` fact OUTER envelope through the `sdk/go/factschema` seam
 (`decodeCodegraphFile`/`decodeCodegraphRepository` in
@@ -1971,7 +1971,7 @@ reducer handlers decode them through the typed contracts seam via the
 `ExtractCodeFunctionSummaryEffectsWithQuarantine`,
 `ExtractCodeFunctionGraphIDsWithQuarantine`,
 `ExtractCodeFunctionSourcesWithQuarantine`), matching the Wave 4f S1
-(`code_call_materialization_extract.go`) and Wave 4e documentation
+(`code/call/extract.go`) and Wave 4e documentation
 (`ExtractDocumentationEdgeRowsWithQuarantine`) precedent: the storage adapter
 owns the SQL fetch, the reducer owns the typed decode AND the input_invalid
 dead-letter. Also converts `shell_exec_materialization.go`'s and
@@ -2067,7 +2067,7 @@ code-graph-core reducer now reads two closed-shape parsed_file_data inner keys
 through typed factschema accessors instead of raw map lookups —
 `dead_code_file_root_kinds` (`resolveFileRootCodeCallCallerID`) and
 `gomod_state.module_path` (`goModuleDeclaredPath`), wrapped in
-`parsed_file_data_typed.go`. `File.ParsedFileData` stays an OPEN
+`code/call/parsed_file_data.go`. `File.ParsedFileData` stays an OPEN
 `map[string]any` (the aws_resource.Attributes open-object precedent), so the
 `file.v1.schema.json` wire schema is unchanged (no major bump) and the graph
 rows for valid facts stay byte-identical. Byte-identity is proven three ways:

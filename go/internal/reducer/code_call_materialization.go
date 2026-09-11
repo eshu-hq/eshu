@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:dirgate // code-call handler stays in root (#6609): it composes code/call rows with the handles_route, runs_in and invokes_cloud_action families that live here, so it cannot sit below them
 
 import (
 	"context"
@@ -12,12 +12,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
-)
-
-const (
-	codeCallEvidenceSource            = "parser/code-calls"
-	pythonMetaclassEvidenceSource     = "parser/python-metaclass"
-	codeCallRepoRefreshEvidenceSource = "reducer/code-call-refresh"
 )
 
 // CanonicalNodeChecker checks whether canonical code entity nodes (Function,
@@ -143,7 +137,7 @@ func (h CodeCallMaterializationHandler) Handle(
 
 	intentBuildStart := time.Now()
 	fileScopeResult := buildCodeCallFileScopesByRepoID(envelopes)
-	fileScopesByRepoID := fileScopeResult.scopesByRepoID
+	fileScopesByRepoID := fileScopeResult.ScopesByRepoID
 	intentRows := buildCodeCallRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, createdAt)
 	intentRows = append(
 		intentRows,
@@ -188,8 +182,8 @@ func (h CodeCallMaterializationHandler) Handle(
 			metaclassRowCount:   len(metaclassRows),
 			intentRowCount:      0,
 			fileScopedRepoCount: len(fileScopesByRepoID),
-			fullRefreshScoped:   fileScopeResult.fullRefreshScopedRepos,
-			fullRefreshFallback: fileScopeResult.fullRefreshFallbackRepos,
+			fullRefreshScoped:   fileScopeResult.FullRefreshScopedRepos,
+			fullRefreshFallback: fileScopeResult.FullRefreshFallbackRepos,
 			loadDuration:        loadDuration,
 			contextDuration:     contextDuration,
 			symbolLoadDuration:  symbolLoadDuration,
@@ -247,8 +241,8 @@ func (h CodeCallMaterializationHandler) Handle(
 		metaclassRowCount:   len(metaclassRows),
 		intentRowCount:      len(intentRows),
 		fileScopedRepoCount: len(fileScopesByRepoID),
-		fullRefreshScoped:   fileScopeResult.fullRefreshScopedRepos,
-		fullRefreshFallback: fileScopeResult.fullRefreshFallbackRepos,
+		fullRefreshScoped:   fileScopeResult.FullRefreshScopedRepos,
+		fullRefreshFallback: fileScopeResult.FullRefreshFallbackRepos,
 		loadDuration:        loadDuration,
 		contextDuration:     contextDuration,
 		symbolLoadDuration:  symbolLoadDuration,

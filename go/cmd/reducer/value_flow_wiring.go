@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer"
-	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 func newValueFlowFixpointProjector(

@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 // This file holds the reducer root's own copies of test doubles the moved
 // codetaint package's tests also define
-// (go/internal/reducer/codetaint/code_taint_evidence_materialization_test.go,
-// code_interproc_evidence_materialization_test.go, and
-// code_interproc_projected_edge_backfill_test.go). Before issue #6061 moved
+// (go/internal/reducer/code/taint/evidence_materialization_test.go,
+// code/taint/interproc_evidence_materialization_test.go, and
+// code/taint/interproc_projected_edge_backfill_test.go). Before issue #6061 moved
 // the code_taint_evidence/code_interproc_evidence family out of this package,
 // a single set of unexported test doubles served both the family's own tests
 // and the root tests that exercise it through DefaultHandlers,
@@ -361,9 +361,9 @@ func (f *fakeCodeInterprocProjectedEdgeLedger) LedgerHasRowsForSource(
 }
 
 // fakeBackfillStateMarker satisfies CodeValueFlowBackfillStateMarker (root's
-// own copy — code_value_flow_backfill_state_marker.go, shared by this file's
+// own copy — compat_projection.go, shared by this file's
 // projected_source_edge_backfill_test.go and codetaint's own copy of this
-// same fake in code_interproc_projected_edge_backfill_test.go).
+// same fake in code/taint/interproc_projected_edge_backfill_test.go).
 type fakeBackfillStateMarker struct {
 	complete     map[string]bool
 	markComplete map[string]time.Time

@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package call
+
+import (
+	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+)
+
+// codeCallRelationshipType maps parser call-like metadata to the canonical
+// relationship that truthfully describes the edge.
+func codeCallRelationshipType(edge map[string]any) string {
+	switch payloadcore.AnyToString(edge["call_kind"]) {
+	case "go.function_value_reference":
+		return "REFERENCES"
+	case "go.composite_literal_type_reference":
+		return "REFERENCES"
+	case "javascript.hapi_route_handler_reference":
+		return "REFERENCES"
+	case "javascript.function_value_reference":
+		return "REFERENCES"
+	case "java.method_reference":
+		return "REFERENCES"
+	case "java.reflection_class_reference":
+		return "REFERENCES"
+	case "java.reflection_method_reference":
+		return "REFERENCES"
+	case "java.service_loader_provider":
+		return "REFERENCES"
+	case "java.spring_autoconfiguration_class":
+		return "REFERENCES"
+	case "typescript.type_reference":
+		return "REFERENCES"
+	case "python.class_reference":
+		return "REFERENCES"
+	default:
+		return ""
+	}
+}
+
+// codeCallRowKey deduplicates type references by entity pair because repeated
+// literal sites do not carry distinct reachability truth.
+func codeCallRowKey(repositoryID string, callerID string, calleeID string, relationshipType string, line int) string {
+	if relationshipType == "REFERENCES" || relationshipType == "INSTANTIATES" {
+		return repositoryID + "|" + callerID + "|" + calleeID + "|" + relationshipType
+	}
+	return repositoryID + "|" + callerID + "|" + calleeID + "|" + fmt.Sprintf("%d", line)
+}

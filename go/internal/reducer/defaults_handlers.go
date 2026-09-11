@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudinventory"
-	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossplane"
 	"github.com/eshu-hq/eshu/go/internal/reducer/eshusearch"
 	"github.com/eshu-hq/eshu/go/internal/reducer/incident"

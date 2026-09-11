@@ -6,7 +6,7 @@ package reducer
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 func TestImplementedDefaultDomainDefinitionsOmitsCodeTaintWithoutWriter(t *testing.T) {

@@ -32,7 +32,7 @@ type ContainerImageExistenceLookup interface {
 // (infrastructure_platform_lookup.go) is genuine root-owned logic shared by
 // several families that have not moved out of root yet, so importing it
 // would violate the rule that a family subpackage never imports the reducer
-// root (issue #6061). See internal/reducer/codetaint/graph_ports.go for the
+// root (issue #6061). See internal/reducer/code/taint/graph_ports.go for the
 // established precedent. Go interfaces are satisfied structurally, so the
 // same concrete graph-query implementation root wires into
 // GraphInfrastructurePlatformLookup and other families' readers also

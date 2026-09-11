@@ -27,7 +27,7 @@
 // Imports point strictly downward: this package reaches [reducercontract],
 // [factwrite], [gpphase], [payloadcore], internal/facts and pkg/log, and never
 // the parent internal/reducer package. The reducer root keeps compatibility
-// aliases in the platform stanza of compat_projection.go so its own callers, cmd/reducer and
+// aliases in the platform stanza of compat_cloud.go so its own callers, cmd/reducer and
 // internal/storage/postgres compile unchanged; that direction is root importing
 // this family, never the reverse. See AGENTS.md in this directory before adding
 // an import.

@@ -13,7 +13,7 @@ import (
 // ExtractSymbolRuntimeIntentRows builds every symbol->runtime shared-projection
 // intent row -- handles_route, runs_in, and invokes_cloud_action -- from
 // repository and file envelopes, with no backend dependency. It is modeled on
-// ExtractAllCodeRelationshipRows (code_call_materialization_extract.go): it
+// ExtractAllCodeRelationshipRows (compat forwarder to code/call/extract.go): it
 // builds the unexported codeEntityIndex internally via
 // extractAllCodeRelationshipRowsWithIndex and never returns it, so a caller
 // outside this package can drive the real production intent builders
@@ -24,7 +24,7 @@ import (
 //
 // It lives here, beside buildSymbolRuntimeIntentRows, rather than in its own
 // symbol_runtime_extract.go sibling file (the shape
-// code_call_materialization_extract.go would otherwise suggest), because
+// code/call/extract.go would otherwise suggest), because
 // internal/reducer is at its grandfathered go-dir-gate file cap
 // (scripts/lib/dirgate-grandfather.tsv): a new non-test file cannot land here
 // without lowering that count, which this function does not do.

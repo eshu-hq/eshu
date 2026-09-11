@@ -31,10 +31,10 @@ separate `function_calls_scip` bucket of symbol-resolved edges. The callee
 entity is bound to a `uid` later, in the reducer:
 
 - SCIP path: `extractSCIPCodeCallRows`
-  (`go/internal/reducer/code_call_materialization_index.go`) — both endpoints
+  (`go/internal/reducer/code/call/index.go`) — both endpoints
   resolved by symbol → file/line lookup. Highest certainty.
 - Heuristic path: `resolveGenericCallee`
-  (`go/internal/reducer/code_call_materialization_imports.go`) — an **ordered**
+  (`go/internal/reducer/code/call/imports.go`) — an **ordered**
   fallback dispatch over same-file lexical scope, type inference, import
   bindings, package/directory scope, and repository-wide unique-name match.
 - Declared path: Python metaclass rows arrive with `source_entity_id` /

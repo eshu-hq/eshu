@@ -27,7 +27,7 @@ import (
 // The returned struct's ParsedFileData field stays an OPEN map[string]any
 // container. Specific inner keys are typed incrementally through the factschema
 // DecodeParsedFileData* accessors, wrapped reducer-side in
-// parsed_file_data_typed.go (issue #4750): S1 routes gomod_state and
+// code/call/parsed_file_data.go (issue #4750): S1 routes gomod_state and
 // dead_code_file_root_kinds through typed accessors, while the wide per-language
 // AST buckets (imports, functions, function_calls, ...) are still read raw until
 // their own #4750 increment. The container itself is never narrowed, so an

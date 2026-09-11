@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:dirgate // code-call projection runner stays in root (#6609): it needs the root lease and shared-projection machinery that sharedintent/doc.go pins here
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -30,8 +31,9 @@ const DefaultCodeCallProjectionLeaseOwnerPrefix = "code-call-projection-runner"
 // the runner may scan or load for one authoritative acceptance unit. The runner
 // must see the complete unit before retracting and rewriting repo-wide CALLS
 // edges; this guard prevents silent partial graph truth while allowing large
-// real repositories to exceed the normal per-cycle batch size.
-const DefaultCodeCallAcceptanceScanLimit = 250_000
+// real repositories to exceed the normal per-cycle batch size. The value
+// lives in [codecall.AcceptanceScanLimit] so full-refresh file scoping shares it.
+const DefaultCodeCallAcceptanceScanLimit = codecall.AcceptanceScanLimit
 
 // CodeCallProjectionIntentReader reads code-call intents by domain and bounded
 // acceptance unit.

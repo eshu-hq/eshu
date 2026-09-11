@@ -23,7 +23,7 @@ import (
 // internal/parser/java_comprehensive_route_fixture_test.go asserts against)
 // through the real parser.DefaultEngine().ParsePath(), then round-trip the
 // result through encoding/json before feeding it to the reducer. That
-// round-trip is not cosmetic: mapSlice() (code_call_materialization_path_helpers.go)
+// round-trip is not cosmetic: mapSlice() (compat forwarder to payloadcore.MapSlice)
 // only decodes []map[string]any or []any of map[string]any, never the
 // parser's raw []map[string]string route_entries shape, so the JSON
 // round-trip -- which turns every JSON object into map[string]any regardless
@@ -322,4 +322,15 @@ func TestBuildHandlesRouteIntentRowsSkipsUnknownJavaHandler(t *testing.T) {
 	if len(intents) != 0 {
 		t.Fatalf("expected no HANDLES_ROUTE intent for unknown Java handler, got %d", len(intents))
 	}
+}
+
+// reducerTestRelativePath is this package's twin of the code/call test helper
+// of the same name: test helpers cannot cross package boundaries.
+func reducerTestRelativePath(t *testing.T, root string, path string) string {
+	t.Helper()
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		t.Fatalf("Rel(%q, %q) error = %v, want nil", root, path, err)
+	}
+	return rel
 }

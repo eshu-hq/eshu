@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 )
 
 func TestCodeCallProjectionRunnerSelectsAcceptanceUnitUsingScopeAndUnit(t *testing.T) {
@@ -140,8 +142,8 @@ func TestCodeCallProjectionRunnerScansAcceptanceUnitForCoveringRefreshBeyondDoma
 
 	now := time.Date(2026, time.April, 17, 11, 30, 0, 0, time.UTC)
 	partitionCount := 8
-	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
-	refreshPartition := codeCallRefreshPartitionKeyForDelta(
+	filePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	refreshPartition := codecall.RefreshPartitionKeyForDelta(
 		"repo-a",
 		[]string{"src/caller.go", "src/models.go"},
 	)
@@ -204,8 +206,8 @@ func TestCodeCallProjectionRunnerUsesBoundedRefreshFenceLookup(t *testing.T) {
 
 	now := time.Date(2026, time.June, 19, 9, 0, 0, 0, time.UTC)
 	partitionCount := 8
-	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
-	refreshPartition := codeCallRefreshPartitionKeyForDelta(
+	filePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	refreshPartition := codecall.RefreshPartitionKeyForDelta(
 		"repo-a",
 		[]string{"src/caller.go", "src/models.go"},
 	)

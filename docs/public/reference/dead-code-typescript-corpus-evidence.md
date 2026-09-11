@@ -101,7 +101,7 @@ reducer regression commands were:
 ```bash
 cd go
 go test ./internal/parser/javascript -run 'TestDefaultEngineParsePathTypeScriptFastifyRouteObjectHandler' -count=1
-go test ./internal/reducer -run 'TestExtractCodeCallRowsResolvesFastifyRouteObjectHandlerReference|TestExtractCodeCallRowsResolvesConstructorFunctionValueReference' -count=1
+go test ./internal/reducer/code/call -run 'TestExtractCodeCallRowsResolvesFastifyRouteObjectHandlerReference|TestExtractCodeCallRowsResolvesConstructorFunctionValueReference' -count=1
 ```
 
 Benchmark Evidence: on Apple M1 Max / darwin arm64, the reducer dynamic-call

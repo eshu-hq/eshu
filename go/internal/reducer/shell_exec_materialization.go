@@ -175,7 +175,7 @@ func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]an
 		// codegraphv1.File field (fileFactEnvelope never writes it to the
 		// payload in production — it routes the checkout path to
 		// SourceRef.SourceURI, per codegraphv1.Repository's LocalPath
-		// precedent in code_call_materialization_intents.go), so it is read
+		// precedent in code/call/intents.go), so it is read
 		// raw here only to preserve behavior for callers (and fixtures) that
 		// carry the source path under the top-level "path" key.
 		sourcePath := semanticPayloadString(env.Payload, "path")

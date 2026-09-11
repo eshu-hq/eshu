@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	codetaint "github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T) {

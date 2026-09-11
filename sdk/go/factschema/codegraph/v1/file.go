@@ -10,7 +10,7 @@ package v1
 // (go/internal/collector/gitrepo/git_fact_builder.go fileFactEnvelope). RepoID,
 // RelativePath, and ParsedFileData are the join identity the code-graph-core
 // reducer handlers key their extraction on
-// (go/internal/reducer/code_call_materialization_extract.go,
+// (go/internal/reducer/code/call/extract.go,
 // code_import_repo_edge.go, code_import_repo_edge_retract.go): before this
 // contract, a fact missing repo_id or relative_path decoded through
 // payloadStr(env.Payload, "repo_id") to "", producing an empty-string graph

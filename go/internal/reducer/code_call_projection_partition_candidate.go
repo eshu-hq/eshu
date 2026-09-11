@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:dirgate // code-call projection runner stays in root (#6609): it needs the root lease and shared-projection machinery that sharedintent/doc.go pins here
 
 import "context"
 

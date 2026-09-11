@@ -126,7 +126,7 @@ for the fixture, benchmark boundary, and completed live proof on the supported b
 ## Cross-repo call resolver coverage (issue #3487)
 
 `DomainCodeCallMaterialization` resolves a parser-emitted call to a callee entity
-through the ordered dispatch in `code_call_materialization_resolution.go`. Beyond
+through the ordered dispatch in `code/call/resolution.go`. Beyond
 the language-agnostic stages (same-file scope, import binding, repo-unique name),
 some languages register a dedicated `before_repo_fallback` resolver
 (`code_call_language_*_resolver.go`) that uses parser-emitted receiver-type or

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:dirgate // function-summary family awaits its own code/value move (census on #6609); outside the code/call PR's approved scope
 
 import (
 	"strings"

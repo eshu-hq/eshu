@@ -45,7 +45,7 @@ schema-version-1 typed payload structs for the git collector's value-flow
 - `ClassificationInputInvalid` is the parent `factschema` package's own
   constant (`decode.go`). A reducer handler or postgres loader receiving it
   must dead-letter the fact (or, for the postgres loaders in this family,
-  skip it — see `code_taint_evidence_typed_decode.go`'s doc comment for why
+  skip it — see `code/taint/evidence_typed_decode.go`'s doc comment for why
   these particular call sites have no error return to propagate a per-fact
   failure through) rather than proceed with a zero-value struct pretending to
   be valid data.

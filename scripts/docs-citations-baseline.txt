@@ -283,7 +283,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/candidate_loader.go:42
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_call_projection_work.go:376
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/code_import_repo_edge_identity.go:56
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/container_image_identity_provenance.go:24
@@ -291,14 +290,12 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/eshu_search_document_writer.go:87
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/incident/incident_repository_correlation_writer.go:20
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/infrastructure_platform_extractor.go:44
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/infrastructure_platform_extractor.go:44
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/invokes_cloud_action_intents.go:149
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:137
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:18
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/package_correlation_writer.go:20
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/platform_materialization_writer.go:16
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/python_metaclass_materialization.go:50
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/sbom_attestation_attachment_index.go:297
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/sbom_attestation_attachment_writer.go:17
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/secrets_iam_trust_chain_writer.go:18
@@ -309,7 +306,6 @@ LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reduce
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/shared_projection.go:246
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/shared_projection.go:246
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/shared_projection_readiness.go:72
-LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/supply_chain_impact_match.go:26
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/supply_chain_impact_match.go:26
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/supply_chain_impact_match.go:26
 LINE docs/internal/design/4786-contract-integration-matrix.md go/internal/reducer/supply_chain_impact_writer.go:17

@@ -27,7 +27,7 @@ import (
 //
 // Four further production sites spell the same value as a hard-coded literal
 // rather than through this constant. Two EMIT it --
-// code_call_materialization_intents.go and code_call_projection_work.go -- and
+// code/call/intents.go and code_call_projection_work.go -- and
 // two COMPARE against it: code_call_projection_partitions.go, and
 // storage/postgres/shared_intents_history.go, where it decides
 // rowCanBeCoveredByFileRefresh. All four are DomainCodeCalls-side and never

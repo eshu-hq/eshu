@@ -416,7 +416,7 @@ func TestExtractSymbolRuntimeIntentRowsDeterministic(t *testing.T) {
 // TestExtractSymbolRuntimeIntentRowsEmptySourceRunIDYieldsZeroRows is a
 // regression guard for a silent-zero trap: buildCodeCallProjectionContexts
 // skips building a ProjectionContext entry for a repository fact whose
-// source_run_id is empty (code_call_materialization_intents.go:63-65). All
+// source_run_id is empty (schemadecode.BuildProjectionContexts). All
 // three builders (buildHandlesRouteIntentRows, buildRunsInIntentRows,
 // buildInvokesCloudActionIntentRows) early-return nil the moment
 // contextByRepoID has no entry for a file's repo_id, so a repository fact

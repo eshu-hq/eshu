@@ -144,7 +144,7 @@ func copyPayload(m map[string]any) map[string]any {
 }
 
 // codeCallInt returns the first value convertible to int, or 0 if none is.
-// Duplicated from the reducer root's codeCallInt (code_call_materialization_path_helpers.go)
+// Duplicated from the reducer root's codeCallInt (code/call/path_helpers.go)
 // rather than imported: that helper is owned by the code_call family, which
 // has not moved out of root yet, so this package cannot import it without
 // violating the "never import the reducer root" rule (issue #6061). It is a
@@ -226,7 +226,7 @@ var (
 // codeCallDeltaRelativePathsFromRepository returns the deduplicated union of a
 // decoded codegraphv1.Repository's DeltaRelativePaths and
 // DeltaDeletedRelativePaths. Duplicated from the reducer root's
-// code_call_materialization_intents.go rather than imported: that helper is
+// code/call/intents.go rather than imported: that helper is
 // owned by the code_call family, which has not moved out of root yet, so this
 // package cannot import it without violating the "never import the reducer
 // root" rule (issue #6061). It operates only on the SDK-owned

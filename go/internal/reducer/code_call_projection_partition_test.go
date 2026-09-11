@@ -8,6 +8,8 @@ import (
 	"slices"
 	"testing"
 	"time"
+
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 )
 
 func TestCodeCallProjectionRunnerProcessesDistinctDeltaFilePartitionsSeparately(t *testing.T) {
@@ -15,8 +17,8 @@ func TestCodeCallProjectionRunnerProcessesDistinctDeltaFilePartitionsSeparately(
 
 	now := time.Date(2026, time.June, 15, 10, 0, 0, 0, time.UTC)
 	partitionCount := 16
-	callerPartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
-	modelsPartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/models.go"})
+	callerPartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	modelsPartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/models.go"})
 	callerPartitionID := mustPartitionForKey(t, callerPartition, partitionCount)
 	modelsPartitionID := mustPartitionForKey(t, modelsPartition, partitionCount)
 	if callerPartitionID == modelsPartitionID {
@@ -109,7 +111,7 @@ func TestCodeCallProjectionRunnerWholeScopeBlocksFilePartitions(t *testing.T) {
 	now := time.Date(2026, time.June, 15, 11, 0, 0, 0, time.UTC)
 	partitionCount := 8
 	wholeRow := codeCallProjectionWholeScopeRow("whole-refresh", "repo-a", now)
-	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	filePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
 	fileRow := codeCallProjectionDeltaPartitionRow(
 		"caller-edge",
 		filePartition,
@@ -154,8 +156,8 @@ func TestCodeCallProjectionRunnerFileRefreshBlocksCoveredFilePartitions(t *testi
 
 	now := time.Date(2026, time.June, 15, 11, 15, 0, 0, time.UTC)
 	partitionCount := 8
-	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
-	refreshPartition := codeCallRefreshPartitionKeyForDelta(
+	filePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	refreshPartition := codecall.RefreshPartitionKeyForDelta(
 		"repo-a",
 		[]string{"src/caller.go", "src/models.go"},
 	)
@@ -210,7 +212,7 @@ func TestCodeCallProjectionRunnerFilePartitionsBlockLaterWholeScope(t *testing.T
 
 	now := time.Date(2026, time.June, 15, 11, 30, 0, 0, time.UTC)
 	partitionCount := 8
-	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	filePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
 	fileRow := codeCallProjectionDeltaPartitionRow(
 		"caller-edge",
 		filePartition,
@@ -256,7 +258,7 @@ func TestCodeCallProjectionRunnerLaterWholeRefreshDoesNotBlockEarlierFilePartiti
 
 	now := time.Date(2026, time.June, 15, 11, 40, 0, 0, time.UTC)
 	partitionCount := 8
-	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	filePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
 	fileRow := codeCallProjectionDeltaPartitionRow(
 		"caller-edge",
 		filePartition,
@@ -380,7 +382,7 @@ func codeCallProjectionWholeScopeRow(intentID string, repositoryID string, creat
 	return SharedProjectionIntentRow{
 		IntentID:         intentID,
 		ProjectionDomain: DomainCodeCalls,
-		PartitionKey:     codeCallWholeScopePartitionKey(repositoryID),
+		PartitionKey:     codecall.WholeScopePartitionKey(repositoryID),
 		ScopeID:          "scope-a",
 		AcceptanceUnitID: repositoryID,
 		RepositoryID:     repositoryID,
@@ -390,7 +392,7 @@ func codeCallProjectionWholeScopeRow(intentID string, repositoryID string, creat
 			"repo_id":         repositoryID,
 			"action":          "refresh",
 			"intent_type":     "repo_refresh",
-			"evidence_source": codeCallRepoRefreshEvidenceSource,
+			"evidence_source": codecall.RepoRefreshEvidenceSource,
 		},
 		CreatedAt: createdAt,
 	}
@@ -416,7 +418,7 @@ func codeCallProjectionFileRefreshRow(
 			"repo_id":          repositoryID,
 			"action":           "refresh",
 			"intent_type":      "repo_refresh",
-			"evidence_source":  codeCallRepoRefreshEvidenceSource,
+			"evidence_source":  codecall.RepoRefreshEvidenceSource,
 			"delta_projection": true,
 			"delta_file_paths": append([]string(nil), deltaFilePaths...),
 		},

@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the projection and readiness families (iamcan, iamescalation, secretsiam, crossscope, platformfam, valueflow)
+// This file is the reducer root's compatibility surface for the projection and readiness families (iamcan, iamescalation, secretsiam, crossscope, valueflow, codecall)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -16,18 +16,22 @@ package reducer
 //   - iam_escalation_compat.go
 //   - secrets_iam_compat.go
 //   - cross_scope_readiness_compat.go
-//   - platform_compat.go
 //   - value_flow_compat.go
 
 import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	valueflow "github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamescalation"
-	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secretsiam"
-	"github.com/eshu-hq/eshu/go/internal/reducer/valueflow"
 )
 
 // Stanza: iam_can_compat.go (merged; do not recreate this file).
@@ -197,112 +201,22 @@ type CrossScopeProducerReadiness = crossscope.ProducerReadiness
 // domain separately. See [crossscope.ProducerReadinessByDomain].
 type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
 
-// Stanza: platform_compat.go (merged; do not recreate this file).
-// This file is the transitional compatibility surface for the platform family
-// that moved to [platformfam] (issue #6061). Reducer-root call sites and the
-// external packages that name these types -- cmd/reducer, internal/query and
-// internal/storage/postgres -- keep their current spelling; each entry is
-// deleted once its last caller has moved out of the reducer root.
-
-// PlatformMaterializationWrite captures the bounded canonical reconciliation
-// request for one platform materialization reducer intent. See
-// [platformfam.PlatformMaterializationWrite].
-type PlatformMaterializationWrite = platformfam.PlatformMaterializationWrite
-
-// PlatformMaterializationWriteResult captures the canonical platform
-// materialization write outcome returned by the backend adapter. See
-// [platformfam.PlatformMaterializationWriteResult].
-type PlatformMaterializationWriteResult = platformfam.PlatformMaterializationWriteResult
-
-// PlatformMaterializationWriter persists one platform materialization request
-// into a canonical reducer-owned target. See
-// [platformfam.PlatformMaterializationWriter].
-type PlatformMaterializationWriter = platformfam.PlatformMaterializationWriter
-
-// PlatformGraphLocker coordinates writes that can touch the same Platform.id.
-// See [platformfam.PlatformGraphLocker].
-type PlatformGraphLocker = platformfam.PlatformGraphLocker
-
-// WorkloadMaterializationReplayer requeues workload materialization after
-// stronger deployment evidence becomes available for the same scope
-// generation. See [platformfam.WorkloadMaterializationReplayer].
-type WorkloadMaterializationReplayer = platformfam.WorkloadMaterializationReplayer
-
-// CrossRepoRelationshipResolver is the cross-repo resolution seam the platform
-// materialization handler depends on. [CrossRepoRelationshipHandler] is the
-// production implementation. See [platformfam.CrossRepoRelationshipResolver].
-type CrossRepoRelationshipResolver = platformfam.CrossRepoRelationshipResolver
-
-// PlatformMaterializationHandler reduces one platform materialization intent
-// into a bounded canonical write request. See
-// [platformfam.PlatformMaterializationHandler].
-type PlatformMaterializationHandler = platformfam.PlatformMaterializationHandler
-
-// PostgresPlatformMaterializationWriter persists one platform-materialization
-// reducer reconciliation into the shared fact store. See
-// [platformfam.PostgresPlatformMaterializationWriter].
-type PostgresPlatformMaterializationWriter = platformfam.PostgresPlatformMaterializationWriter
-
-// TerraformRuntimeFamily describes one Terraform-managed runtime family. See
-// [platformfam.TerraformRuntimeFamily].
-type TerraformRuntimeFamily = platformfam.TerraformRuntimeFamily
-
-// RuntimeFamilies forwards to [platformfam.RuntimeFamilies].
-func RuntimeFamilies() []TerraformRuntimeFamily {
-	return platformfam.RuntimeFamilies()
-}
-
-// LookupRuntimeFamily forwards to [platformfam.LookupRuntimeFamily].
-func LookupRuntimeFamily(kind string) *TerraformRuntimeFamily {
-	return platformfam.LookupRuntimeFamily(kind)
-}
-
-// InferTerraformRuntimeFamilyKind forwards to
-// [platformfam.InferTerraformRuntimeFamilyKind].
-func InferTerraformRuntimeFamilyKind(content string) string {
-	return platformfam.InferTerraformRuntimeFamilyKind(content)
-}
-
-// InferRuntimeFamilyKindFromIdentifiers forwards to
-// [platformfam.InferRuntimeFamilyKindFromIdentifiers].
-func InferRuntimeFamilyKindFromIdentifiers(values []string) string {
-	return platformfam.InferRuntimeFamilyKindFromIdentifiers(values)
-}
-
-// InferInfrastructureRuntimeFamilyKind forwards to
-// [platformfam.InferInfrastructureRuntimeFamilyKind].
-func InferInfrastructureRuntimeFamilyKind(resourceTypes, moduleSources []string) string {
-	return platformfam.InferInfrastructureRuntimeFamilyKind(resourceTypes, moduleSources)
-}
-
-// MatchesServiceModuleSource forwards to
-// [platformfam.MatchesServiceModuleSource].
-func MatchesServiceModuleSource(source, kind string) bool {
-	return platformfam.MatchesServiceModuleSource(source, kind)
-}
-
-// TerraformPlatformEvidenceKind forwards to
-// [platformfam.TerraformPlatformEvidenceKind].
-func TerraformPlatformEvidenceKind(kind, scope string) string {
-	return platformfam.TerraformPlatformEvidenceKind(kind, scope)
-}
-
-// FormatPlatformKindLabel forwards to [platformfam.FormatPlatformKindLabel].
-func FormatPlatformKindLabel(kind string) string {
-	return platformfam.FormatPlatformKindLabel(kind)
-}
-
 // Stanza: value_flow_compat.go (merged; do not recreate this file).
 // This file is the transitional compatibility surface for the value-flow
 // fixpoint family that moved to [valueflow] (issue #6061). Reducer-root call
 // sites keep their current spelling; each entry is deleted once its last
 // caller has moved into a family subpackage.
 //
-// code_value_flow_stale_cleanup_runner.go and
-// code_value_flow_backfill_state_marker.go stay in root: the first has no
-// dependency on the moved family (it only reaches codetaint's writer/ledger
-// surface), and the second's only real caller is the still-in-root
-// projected_source_edge_backfill family, so neither belongs in valueflow.
+// code_value_flow_stale_cleanup_runner.go stays in root: it is a side runner
+// that needs the root PartitionLeaseManager and Service.startSideRunners
+// wiring, the same reason the code_call_projection_* runners stay.
+// code_value_flow_backfill_state_marker.go moved to [valueflow] as
+// [valueflow.BackfillStateMarker] with the code/ tree move (#6609); its only
+// root caller, projected_source_edge_backfill.go, keeps the alias below.
+
+// CodeValueFlowBackfillStateMarker is the root spelling of
+// [valueflow.BackfillStateMarker].
+type CodeValueFlowBackfillStateMarker = valueflow.BackfillStateMarker
 
 // GraphValueFlowCloudSinkTargetLoader loads graph-backed cloud sink edges for
 // the value-flow fixpoint. See [valueflow.GraphValueFlowCloudSinkTargetLoader].
@@ -364,3 +278,134 @@ type ValueFlowFixpointEvidenceProjector = valueflow.ValueFlowFixpointEvidencePro
 // post-summary fixpoint projection. See
 // [valueflow.ValueFlowFixpointProjectionResult].
 type ValueFlowFixpointProjectionResult = valueflow.ValueFlowFixpointProjectionResult
+
+// Stanza: code-call family move (#6609; no prior compat file).
+// The code-call extraction, entity-index, resolver, and intent-building family
+// moved to [codecall] (go/internal/reducer/code/call). The handler
+// (code_call_materialization.go) and the seven code_call_projection_* runner
+// files stay in root: the handler composes code-call rows with the
+// handles_route, runs_in, and invokes_cloud_action families, and the runner
+// needs the root lease and shared-projection machinery. The exported
+// forwarders keep the reducer.X spelling for callers outside this package; the
+// unexported spellings keep the runner files unchanged. Each entry is deleted
+// once its last caller names [codecall] directly.
+
+// ExtractCodeCallRows forwards to [codecall.ExtractRows].
+func ExtractCodeCallRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
+	return codecall.ExtractRows(envelopes)
+}
+
+// ExtractAllCodeRelationshipRows forwards to
+// [codecall.ExtractAllRelationshipRows].
+func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
+	codeCallRepoIDs []string,
+	codeCallRows []map[string]any,
+	metaclassRepoIDs []string,
+	metaclassRows []map[string]any,
+) {
+	return codecall.ExtractAllRelationshipRows(envelopes)
+}
+
+// codeEntityIndex is [codecall.EntityIndex] for the root handles_route,
+// runs_in, invokes_cloud_action, and symbol-runtime builders.
+type codeEntityIndex = codecall.EntityIndex
+
+// buildCodeEntityIndex forwards to [codecall.BuildEntityIndex].
+func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
+	return codecall.BuildEntityIndex(envelopes)
+}
+
+// extractAllCodeRelationshipRowsWithIndex forwards to
+// [codecall.ExtractAllRelationshipRowsWithIndex].
+func extractAllCodeRelationshipRowsWithIndex(envelopes []facts.Envelope) (
+	codeCallRepoIDs []string,
+	codeCallRows []map[string]any,
+	metaclassRepoIDs []string,
+	metaclassRows []map[string]any,
+	entityIndex codeEntityIndex,
+	quarantined []quarantinedFact,
+) {
+	return codecall.ExtractAllRelationshipRowsWithIndex(envelopes)
+}
+
+// buildCodeCallProjectionContexts forwards to
+// [schemadecode.BuildProjectionContexts], the owner the moved family also
+// calls.
+func buildCodeCallProjectionContexts(envelopes []facts.Envelope, generationID string) map[string]ProjectionContext {
+	return schemadecode.BuildProjectionContexts(envelopes, generationID)
+}
+
+// buildCodeCallSharedIntentRows forwards to [codecall.BuildSharedIntentRows].
+func buildCodeCallSharedIntentRows(
+	rows []map[string]any,
+	contextByRepoID map[string]ProjectionContext,
+	createdAt time.Time,
+	evidenceSource string,
+	deltaScopesByRepoID map[string]codecall.DeltaFileScope,
+) []SharedProjectionIntentRow {
+	return codecall.BuildSharedIntentRows(rows, contextByRepoID, createdAt, evidenceSource, deltaScopesByRepoID)
+}
+
+// buildCodeCallRefreshIntentsWithDeltaFileScopes forwards to
+// [codecall.BuildRefreshIntentsWithDeltaFileScopes].
+func buildCodeCallRefreshIntentsWithDeltaFileScopes(
+	contextByRepoID map[string]ProjectionContext,
+	deltaScopesByRepoID map[string]codecall.DeltaFileScope,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	return codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaScopesByRepoID, createdAt)
+}
+
+// buildCodeCallFileScopesByRepoID forwards to [codecall.BuildFileScopesByRepoID].
+func buildCodeCallFileScopesByRepoID(envelopes []facts.Envelope) codecall.FileScopeBuildResult {
+	return codecall.BuildFileScopesByRepoID(envelopes)
+}
+
+// codeCallReferencedSymbolKeys forwards to [codecall.ReferencedSymbolKeys].
+func codeCallReferencedSymbolKeys(envelopes []facts.Envelope) []string {
+	return codecall.ReferencedSymbolKeys(envelopes)
+}
+
+// resolveContainingCodeEntityID forwards to [codecall.ResolveContainingEntityID].
+func resolveContainingCodeEntityID(index codeEntityIndex, rawPath string, relativePath string, line int) string {
+	return codecall.ResolveContainingEntityID(index, rawPath, relativePath, line)
+}
+
+// codeCallEndpointEntityType forwards to [codecall.EndpointEntityType].
+func codeCallEndpointEntityType(index codeEntityIndex, repositoryID string, entityID string) string {
+	return codecall.EndpointEntityType(index, repositoryID, entityID)
+}
+
+// codeCallPathKeys forwards to [codecall.PathKeys].
+func codeCallPathKeys(rawPath string, relativePath string) []string {
+	return codecall.PathKeys(rawPath, relativePath)
+}
+
+// codeCallInt forwards to [codecall.PayloadInt].
+func codeCallInt(values ...any) int {
+	return codecall.PayloadInt(values...)
+}
+
+// mapSlice forwards to [payloadcore.MapSlice], the owner the moved family
+// also calls.
+func mapSlice(value any) []map[string]any {
+	return payloadcore.MapSlice(value)
+}
+
+// codeCallEvidenceSource is [codecall.EvidenceSource] for the root handler and
+// the code_call_projection_work.go runner file.
+const codeCallEvidenceSource = codecall.EvidenceSource
+
+// pythonMetaclassEvidenceSource is [codecall.PythonMetaclassEvidenceSource]
+// for the root handler and the code_call_projection_work.go runner file.
+const pythonMetaclassEvidenceSource = codecall.PythonMetaclassEvidenceSource
+
+// codeCallPartitionKeyVersion is [codecall.PartitionKeyVersion], kept for the
+// code_call_projection_partitions.go runner file.
+const codeCallPartitionKeyVersion = codecall.PartitionKeyVersion
+
+// codeCallPayloadBool forwards to [codecall.PayloadBool] for the
+// code_call_projection_work.go runner file.
+func codeCallPayloadBool(payload map[string]any, key string) bool {
+	return codecall.PayloadBool(payload, key)
+}

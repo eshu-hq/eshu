@@ -15,7 +15,7 @@ import (
 // seam (ExtractCodeTaintEvidenceRowsWithQuarantine) so a fact missing its
 // required function_uid dead-letters as an input_invalid quarantine instead of
 // being silently dropped. Keeping the raw envelope fetch here (and the typed
-// decode + quarantine in internal/reducer/codetaint, which calls
+// decode + quarantine in internal/reducer/code/taint, which calls
 // factdecode.PartitionDecodeFailures / factdecode.RecordQuarantinedFacts —
 // those live in internal/reducer/factdecode) matches the code-graph-core
 // (Wave 4f S1) and documentation (Wave 4e) precedent: the storage adapter

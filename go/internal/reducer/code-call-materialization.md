@@ -32,8 +32,8 @@ evidence proves the local target. Static object registries are resolved only
 inside the containing function source, including destructured aliases and
 literal bracket keys; runtime-computed keys do not create edges. `JavaScript`
 static alias metadata is cached on the code entity index
-(`code_call_materialization_index.go:45`) and reused during dynamic call
-resolution (`code_call_materialization_dynamic_javascript.go:41`), so
+(`code/call/index.go:53`) and reused during dynamic call
+resolution (`code/call/dynamic_javascript.go:42`), so
 generated bundles with thousands of call sites do not re-parse the same
 containing function source for every call. Sources with no static aliases are
 cached too; a negative scan is still the proof that the reducer can skip the
@@ -74,7 +74,7 @@ inside nested classes use parser-proven `enclosing_class_contexts` as exact
 candidates, so an inner helper wins before the reducer tries the enclosing
 class method. Explicit outer-this field receivers in Java's
 named-outer-instance field form use the enclosing class field type to resolve
-calls on collaborator objects. `code_call_materialization_arity.go` converts
+calls on collaborator objects. `code/call/arity.go` converts
 `argument_count` and `parameter_count` metadata into `name#arity` candidates
 before broad name matching, so overloaded methods such as `basicAuth(String)`
 and `basicAuth(String, String)` do not collapse into one reachability result.

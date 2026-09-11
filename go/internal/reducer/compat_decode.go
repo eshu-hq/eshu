@@ -44,7 +44,6 @@ import (
 // moved into internal/reducer/incident, which imports schemadecode directly.
 
 var (
-	codegraphDecodeQuarantine        = schemadecode.CodegraphDecodeQuarantine
 	decodeAWSRelationship            = schemadecode.DecodeAWSRelationship
 	decodeAWSResource                = schemadecode.DecodeAWSResource
 	decodeAzureCloudRelationship     = schemadecode.DecodeAzureCloudRelationship

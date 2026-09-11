@@ -49,8 +49,8 @@ package v1
 //
 // Only the two fields the cross-repo-export reducer reads are named: State (the
 // "parsed"/"malformed" discriminator) and ModulePath (the declared module path
-// goModuleDeclaredPath resolves, go/internal/reducer/
-// code_call_materialization_cross_repo_export.go). Every other producer field
+// goModuleDeclaredPath resolves,
+// go/internal/reducer/code/call/cross_repo_export.go). Every other producer field
 // (go_version, toolchain, the *_count tallies, replaced_modules, parse_error,
 // checksum_count, ambiguous_entry) differs between the go.mod and go.sum
 // producers and is carried verbatim in the open Attributes pass-through so the
@@ -83,7 +83,7 @@ type GomodState struct {
 // SCIP index importer emits (go/internal/parser/scip_parser.go
 // appendSCIPReference). The SCIP importer is the single producer of this key
 // and writes a closed, stable edge shape, so every field the SCIP code-call
-// extractor reads (go/internal/reducer/code_call_materialization_index_rows.go
+// extractor reads (go/internal/reducer/code/call/index_rows.go
 // extractSCIPCodeCallRows) is named here with no open pass-through: unlike the
 // polymorphic AST buckets, this element has no per-language variance to carry.
 //

@@ -156,7 +156,7 @@ for the same value. Each bullet below says which:
   satisfied structurally, so the same concrete `FactLoader` implementation
   root wires into other families' handlers also satisfies these local
   declarations without duplicating any logic -- the pattern
-  `internal/reducer/codetaint/graph_ports.go` established.
+  `internal/reducer/code/taint/graph_ports.go` established.
 - `packageNameFromPURL` / `packageNameFromPackageID`
   (`reconciliation.go`) mirror
   `manifest_dependency.go`: pure purl/package-ID string

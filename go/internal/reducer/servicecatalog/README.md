@@ -79,7 +79,7 @@ imported from the root, which owns the canonical version
 families. Go interfaces are structural, so the same concrete implementation
 root wires in elsewhere satisfies this local declaration too, without
 duplicating any logic — the established precedent is
-`internal/reducer/codetaint/graph_ports.go`.
+`internal/reducer/code/taint/graph_ports.go`.
 
 `exactPackageSourceURLMatch`/`normalizePackageSourceExactURL` moved to
 `packages/source` as `ExactURLMatch`/`NormalizeExactURL`, alongside the

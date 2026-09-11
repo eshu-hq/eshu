@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -152,122 +154,18 @@ func TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions(t *testing.T) {
 		}
 	}
 
-	wantCallerPartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"caller.py"})
+	wantCallerPartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"caller.py"})
 	if got, want := codeCallRow.PartitionKey, wantCallerPartition; got != want {
 		t.Fatalf("code-call PartitionKey = %q, want caller partition %q", got, want)
 	}
 	if gotPaths := semanticPayloadStringSlice(codeCallRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/caller.py"}) {
 		t.Fatalf("code-call delta_file_paths = %#v, want [/repo/caller.py]", gotPaths)
 	}
-	wantModelsPartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"models.py"})
+	wantModelsPartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"models.py"})
 	if got, want := metaclassRow.PartitionKey, wantModelsPartition; got != want {
 		t.Fatalf("metaclass PartitionKey = %q, want models partition %q", got, want)
 	}
 	if gotPaths := semanticPayloadStringSlice(metaclassRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/models.py"}) {
 		t.Fatalf("metaclass delta_file_paths = %#v, want [/repo/models.py]", gotPaths)
-	}
-}
-
-func TestBuildCodeCallSharedIntentRowsCarriesDeltaPartitionForSourceFile(t *testing.T) {
-	t.Parallel()
-
-	createdAt := time.Date(2026, time.June, 14, 16, 0, 0, 0, time.UTC)
-	contextByRepoID := map[string]ProjectionContext{
-		"repo-a": {
-			ScopeID:          "scope:git:repo-a",
-			AcceptanceUnitID: "repository:repo-a",
-			SourceRunID:      "run-a",
-			GenerationID:     "gen-a",
-		},
-	}
-	deltaFileScopesByRepoID := map[string]codeCallDeltaFileScope{
-		"repo-a": {
-			filePaths:      []string{"/repo/src/caller.go", "/repo/src/models.py"},
-			partitionPaths: []string{"src/caller.go", "src/models.py"},
-		},
-	}
-
-	rows := []map[string]any{
-		{
-			"repo_id":           "repo-a",
-			"caller_entity_id":  "entity:caller",
-			"callee_entity_id":  "entity:callee",
-			"caller_file":       "src/caller.go",
-			"callee_file":       "src/callee.go",
-			"relationship_type": "CALLS",
-			"action":            IntentActionUpsert,
-		},
-		{
-			"repo_id":           "repo-a",
-			"caller_entity_id":  "entity:caller",
-			"callee_entity_id":  "entity:callee",
-			"caller_file":       "src/caller.go",
-			"callee_file":       "src/callee.go",
-			"relationship_type": "INSTANTIATES",
-			"action":            IntentActionUpsert,
-		},
-		{
-			"repo_id":           "repo-a",
-			"caller_entity_id":  "entity:unsafe-caller",
-			"callee_entity_id":  "entity:unsafe-callee",
-			"caller_file":       "../outside.go",
-			"callee_file":       "src/callee.go",
-			"relationship_type": "CALLS",
-			"action":            IntentActionUpsert,
-		},
-	}
-
-	intents := buildCodeCallSharedIntentRows(
-		rows,
-		contextByRepoID,
-		createdAt,
-		codeCallEvidenceSource,
-		deltaFileScopesByRepoID,
-	)
-	if got, want := len(intents), 3; got != want {
-		t.Fatalf("len(intents) = %d, want %d", got, want)
-	}
-
-	var deltaIntents []SharedProjectionIntentRow
-	var fallbackIntent SharedProjectionIntentRow
-	for _, row := range intents {
-		switch row.Payload["caller_entity_id"] {
-		case "entity:caller":
-			deltaIntents = append(deltaIntents, row)
-		case "entity:unsafe-caller":
-			fallbackIntent = row
-		}
-	}
-	if got, want := len(deltaIntents), 2; got != want {
-		t.Fatalf("len(deltaIntents) = %d, want %d", got, want)
-	}
-
-	wantPartitionKey := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
-	seenIntentIDs := make(map[string]struct{}, len(deltaIntents))
-	for _, deltaIntent := range deltaIntents {
-		if got := deltaIntent.PartitionKey; got != wantPartitionKey {
-			t.Fatalf("delta PartitionKey = %q, want %q", got, wantPartitionKey)
-		}
-		if _, exists := seenIntentIDs[deltaIntent.IntentID]; exists {
-			t.Fatalf("duplicate delta IntentID %q for same-file edges", deltaIntent.IntentID)
-		}
-		seenIntentIDs[deltaIntent.IntentID] = struct{}{}
-		if got, want := deltaIntent.Payload["delta_projection"], true; got != want {
-			t.Fatalf("delta_projection = %#v, want %#v", got, want)
-		}
-		gotPaths, ok := deltaIntent.Payload["delta_file_paths"].([]string)
-		if !ok {
-			t.Fatalf("delta_file_paths type = %T, want []string", deltaIntent.Payload["delta_file_paths"])
-		}
-		if wantPaths := []string{"/repo/src/caller.go"}; !reflect.DeepEqual(gotPaths, wantPaths) {
-			t.Fatalf("delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
-		}
-	}
-
-	if got, want := fallbackIntent.PartitionKey, "entity:unsafe-caller->entity:unsafe-callee"; got != want {
-		t.Fatalf("fallback PartitionKey = %q, want %q", got, want)
-	}
-	if _, ok := fallbackIntent.Payload["delta_projection"]; ok {
-		t.Fatal("fallback intent unexpectedly carries delta_projection")
 	}
 }

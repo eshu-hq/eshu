@@ -40,7 +40,7 @@ type activeSecurityAlertReconciliationFactLoader interface {
 // also satisfies this local declaration without any code duplication.
 // Importing a sibling family's copy instead would couple families, and a
 // family subpackage may never import the reducer root (issue #6061). See
-// internal/reducer/codetaint/graph_ports.go for the established precedent.
+// internal/reducer/code/taint/graph_ports.go for the established precedent.
 type activeRepositoryFactLoader interface {
 	ListActiveRepositoryFacts(ctx context.Context) ([]facts.Envelope, error)
 }

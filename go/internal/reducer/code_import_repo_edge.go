@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package reducer //nolint:dirgate // code_import family moves to repodependency/import after packages/correlation (docs/internal/design/reducer-target-tree.md), not under code/
 
 import (
 	"fmt"

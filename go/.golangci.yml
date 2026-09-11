@@ -488,7 +488,7 @@ linters:
       - path: 'internal/reducer/code_call_materialization\.go'
         linters:
           - funlen
-      - path: 'internal/reducer/code_call_materialization_index\.go'
+      - path: 'internal/reducer/code/call/index\.go'
         linters:
           - funlen
       - path: 'internal/reducer/code_call_projection_runner\.go'

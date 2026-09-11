@@ -8,6 +8,8 @@ import (
 	"sort"
 	"testing"
 	"time"
+
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 )
 
 func TestCodeCallProjectionRunnerSelectsPartitionCandidatesWithoutDomainScan(t *testing.T) {
@@ -207,7 +209,7 @@ func TestCodeCallProjectionRunnerIndexedCandidateFenceSpansAcceptanceUnit(t *tes
 	partitionCount := 8
 	wholeRow := codeCallProjectionWholeScopeRow("whole-refresh", "repo-a", now)
 	wholePartitionID := mustPartitionForKey(t, wholeRow.PartitionKey, partitionCount)
-	filePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	filePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
 	filePartitionID := mustPartitionForKey(t, filePartition, partitionCount)
 	if filePartitionID == wholePartitionID {
 		t.Fatalf("test partition keys mapped to same partition %d; choose different fixture paths", filePartitionID)

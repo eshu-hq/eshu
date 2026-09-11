@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
 )
 
 func TestCodeCallProjectionRunnerSkipsRetractForDurableFirstProjection(t *testing.T) {
@@ -143,8 +145,8 @@ func TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition(t *test
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 28, 17, 38, 0, 0, time.UTC)
-	completedPartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
-	activePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/models.go"})
+	completedPartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/caller.go"})
+	activePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/models.go"})
 	active := codeCallProjectionDeltaPartitionRow(
 		"models-edge",
 		activePartition,
@@ -193,7 +195,7 @@ func TestCodeCallProjectionRunnerSkipsRetractAfterCompletedCoveringRefresh(t *te
 	t.Parallel()
 
 	now := time.Date(2026, time.April, 28, 17, 39, 0, 0, time.UTC)
-	activePartition := codeCallRefreshPartitionKeyForDelta("repo-a", []string{"src/models.go"})
+	activePartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"src/models.go"})
 	active := codeCallProjectionDeltaPartitionRow(
 		"models-edge",
 		activePartition,
