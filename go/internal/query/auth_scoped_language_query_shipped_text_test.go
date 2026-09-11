@@ -106,7 +106,7 @@ func TestLanguageTypeEntityFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 
 // TestLanguageQueryBuildersBindTheGrantInTheShippedCypher and
 // TestLanguageQueryUnscopedCypherTextIsFrozen moved to
-// language_query_cypher_shipped_text_test.go (#6642): both call
+// language/cypher_shipped_text_test.go (#6642): both call
 // language.BuildCypherWithSemanticFilter, buildLanguageCypher, and
 // graphSemanticMetadataProjection directly to pin the raw Cypher text the
 // builders emit -- text no HTTP response body ever carries -- so they belong

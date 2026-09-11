@@ -43,7 +43,7 @@ func (h *Handler) writeLanguageQueryUnsupportedCapability(w http.ResponseWriter,
 // arguments on purpose: keeping them at the call site is what lets a
 // per-branch regression test mutate exactly one dispatch path's basis (or
 // reason) and see only that branch's assertion fail. source_backend is
-// derived from basis (sourceBackendForTruthBasis) rather than threaded
+// derived from basis (SourceBackendForTruthBasis) rather than threaded
 // separately, mirroring code_symbol.go's source_backend field.
 //
 // Callers pass req's fields individually because req is an anonymous struct

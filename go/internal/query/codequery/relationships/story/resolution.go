@@ -200,7 +200,7 @@ func ExactCandidatesPerRepository(
 //
 // It lives in the story leaf, and not beside the read it mirrors, for a gate
 // reason rather than a design one. Its twin is
-// LanguageQueryHandler.searchLanguageEntities in language/metadata.go,
+// language.Handler.searchLanguageEntities in language/metadata.go,
 // and the two dispatch identically.
 // scripts/verify-parser-relationship-kit.sh classifies every
 // go/internal/query/language*.go path as Language Query DSL source and fails

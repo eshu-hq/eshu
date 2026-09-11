@@ -21,8 +21,10 @@
 // codeprovenance, facts, parser, reducer, the internal/search* ranking
 // packages, telemetry -- but NEVER root package query itself, which would
 // create an import cycle (root imports this package for the alias and
-// seam). LanguageQueryHandler stays in root for the same reason:
-// Language-specific queries mount from APIRouter.Mount via its own
+// seam). Language-specific queries live in the sibling leaf
+// go/internal/query/language (language.Handler, aliased by root as
+// LanguageQueryHandler); that leaf imports this package, so this package
+// must not import it back. It mounts from APIRouter.Mount via its own
 // Language field (root handler.go), and both cmd wirings construct it
 // with Neo4j/Content/Profile/Logger.
 //
