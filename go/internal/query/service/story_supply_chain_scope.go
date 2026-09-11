@@ -17,14 +17,32 @@ type containerImageCandidateExplainer interface {
 	ExplainContainerImageCandidate(context.Context, string) (map[string]any, error)
 }
 
+// StoryImageCandidateParts is a deployment image reference split into the
+// pieces StoryParseImageCandidate could resolve. Tag and Digest are
+// mutually exclusive and both may be empty (a bare repository reference).
 type StoryImageCandidateParts struct {
-	ImageRef     string
-	Repository   string
+	// ImageRef is the original, trimmed reference as supplied by the caller.
+	ImageRef string
+	// Repository is the lowercased, slash-trimmed registry image repository
+	// StoryParseImageCandidate extracted from ImageRef.
+	Repository string
+	// RepositoryID is the synthetic "oci-registry://" + Repository id this
+	// package uses to key OCI registry evidence for the candidate.
 	RepositoryID string
-	Tag          string
-	Digest       string
+	// Tag is the parsed `:tag` suffix, or "" when the reference carries a
+	// digest or no qualifier at all.
+	Tag string
+	// Digest is the parsed `@digest` suffix, or "" when the reference
+	// carries a tag or no qualifier at all.
+	Digest string
 }
 
+// StoryRepoOnlyImageCandidateDetail builds the missing-evidence detail for
+// a deployment image reference that names a repository but no tag or
+// digest -- a candidate that can never resolve to OCI identity or SBOM
+// evidence until the caller adds one. It returns (nil, false) when imageRef
+// does not parse, or does carry a tag or digest, since this helper only
+// covers the repo-only case.
 func StoryRepoOnlyImageCandidateDetail(imageRef string) (map[string]any, bool) {
 	parts, ok := StoryParseImageCandidate(imageRef)
 	if !ok || parts.Tag != "" || parts.Digest != "" {
@@ -36,6 +54,17 @@ func StoryRepoOnlyImageCandidateDetail(imageRef string) (map[string]any, bool) {
 	}), true
 }
 
+// StoryImageCandidateMissingExplanation explains why imageRef has no
+// resolved container image identity, preferring store's collector-specific
+// explanation over the generic one. It only asks store to explain when
+// fallbackReason is exactly "container_image_identity_missing" (any other
+// reason gets the generic detail directly, since a different reason means
+// identity resolution was not the actual blocker); when store does not
+// implement the optional explainer interface, or its explanation is empty,
+// it falls back to StoryGenericImageCandidateMissingDetail. It returns the
+// detail map, the reason actually used (which may differ from
+// fallbackReason when store supplied its own), and an error only when the
+// explainer itself fails.
 func StoryImageCandidateMissingExplanation(
 	ctx context.Context,
 	store supplychain.ContainerImageIdentityStore,
@@ -64,6 +93,11 @@ func StoryImageCandidateMissingExplanation(
 	return detail, reason, nil
 }
 
+// StoryGenericImageCandidateMissingDetail builds the missing-evidence
+// detail for imageRef when no collector-specific explanation is available.
+// It parses imageRef via StoryParseImageCandidate; on a parse failure it
+// falls back to a minimal detail carrying only the trimmed raw reference
+// and reason, since there are no resolved parts to report.
 func StoryGenericImageCandidateMissingDetail(imageRef string, reason string) map[string]any {
 	parts, ok := StoryParseImageCandidate(imageRef)
 	if !ok {
@@ -78,6 +112,12 @@ func StoryGenericImageCandidateMissingDetail(imageRef string, reason string) map
 	})
 }
 
+// StorySBOMMissingExplanation builds the missing-evidence detail for a
+// resolved container image identity that has no SBOM attestation. It
+// returns nil when reason is blank, treating that as "SBOM evidence is
+// actually present, nothing to explain" rather than emitting an empty
+// detail. identity.Digest is included only when non-blank, since a resolved
+// identity is not guaranteed to carry one.
 func StorySBOMMissingExplanation(
 	imageRef string,
 	identity supplychain.ContainerImageIdentityRow,
@@ -99,6 +139,13 @@ func StorySBOMMissingExplanation(
 	return detail
 }
 
+// StoryParseImageCandidate splits a deployment image reference into its
+// repository/tag/digest parts. It tries a digest split (`repo@digest`)
+// before a tag split (`repo:tag`), and only treats a trailing `:segment` as
+// a tag when the colon comes after the last `/` (so a registry host's port,
+// e.g. "host:5000/repo", is not mistaken for a tag). It returns
+// (StoryImageCandidateParts{}, false) when raw is blank or its repository
+// segment resolves to empty after normalization.
 func StoryParseImageCandidate(raw string) (StoryImageCandidateParts, bool) {
 	imageRef := strings.TrimSpace(raw)
 	if imageRef == "" {
@@ -128,6 +175,11 @@ func StoryParseImageCandidate(raw string) (StoryImageCandidateParts, bool) {
 	}, true
 }
 
+// StoryBaseImageCandidateDetail builds the common shape every
+// missing-evidence detail for an image candidate shares
+// (candidate_image_ref, candidate_repository_id, reason), then merges in
+// extra. An extra entry whose value is nil, or whose string form is blank
+// after trimming, is dropped rather than written as an empty field.
 func StoryBaseImageCandidateDetail(
 	parts StoryImageCandidateParts,
 	reason string,
@@ -147,6 +199,11 @@ func StoryBaseImageCandidateDetail(
 	return detail
 }
 
+// StoryUniqueMissingDetails deduplicates missing-evidence detail rows by
+// their (candidate_image_ref, reason, collector_scope, operator_action)
+// tuple, keeping the first occurrence, then sorts the result by
+// (candidate_image_ref, reason) for a stable response order. A nil or empty
+// input row is dropped rather than kept as an empty entry.
 func StoryUniqueMissingDetails(rows []map[string]any) []map[string]any {
 	if len(rows) == 0 {
 		return nil

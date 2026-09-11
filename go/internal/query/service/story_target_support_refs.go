@@ -9,6 +9,14 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// StorySupportTargetRefs resolves filter into the deduplicated set of
+// documentation target refs a story-target-support query should match
+// against. Beyond querycontract.DocumentationTargetRefs' base scope refs, it
+// expands each ref into every case/synonym spelling a stored fact payload
+// might use for that kind ("service"/"workload" and their capitalized
+// forms for a service target; "repository"/"repo" and their capitalized
+// forms for a repository target), since callers filtering stored JSON
+// payloads cannot rely on one canonical spelling.
 func StorySupportTargetRefs(filter querycontract.ServiceStoryTargetSupportFilter) []querycontract.DocumentationTargetRef {
 	scope := querycontract.DocumentationTargetScopeFromValues(
 		filter.Repository,
@@ -50,6 +58,12 @@ func serviceStorySupportTargetRefAliases(ref querycontract.DocumentationTargetRe
 	}
 }
 
+// StorySupportPayloadMatchesTargetRefs reports whether a fact's decoded
+// payload names any of refs (from StorySupportTargetRefs) in one of its
+// candidate_refs, evidence_refs, or linked_entities ref lists. It checks
+// payload directly first, then falls back to payload["payload"] when that
+// is itself a nested map, since some fact shapes carry their ref lists one
+// level down.
 func StorySupportPayloadMatchesTargetRefs(payload map[string]any, refs []querycontract.DocumentationTargetRef) bool {
 	for _, ref := range refs {
 		if serviceStorySupportPayloadMatchesTargetRef(payload, ref) {

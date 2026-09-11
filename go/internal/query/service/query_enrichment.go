@@ -13,12 +13,32 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
+// QueryEnrichmentOptions controls how much graph-derived enrichment
+// EnrichServiceQueryContextWithOptions adds to a service's workload
+// context. It is shared by every route that runs this enrichment (service
+// workload context and story, /investigations/services/{name}, and
+// /impact/trace-deployment-chain), so a field here changes behavior for all
+// of them.
 type QueryEnrichmentOptions struct {
-	DirectOnly                bool
+	// DirectOnly, when true, skips the indirect provisioning-candidate graph
+	// traversal entirely: no dependents, consumer_repositories, or
+	// provisioning_source_chains are computed, only direct evidence.
+	DirectOnly bool
+	// IncludeRelatedModuleUsage runs the provisioning-candidate traversal
+	// even when DirectOnly is true, so a caller can request the related
+	// module usage signal alone without paying for the full indirect
+	// dependents/consumers/chains enrichment.
 	IncludeRelatedModuleUsage bool
-	MaxDepth                  int
-	Logger                    *slog.Logger
-	Operation                 string
+	// MaxDepth bounds the provisioning-candidate graph traversal via
+	// querycontract.BoundedTraceEnrichmentLimit; it is clamped, not passed
+	// through unchecked.
+	MaxDepth int
+	// Logger receives per-stage timing logs (StartServiceQueryStage); a nil
+	// Logger disables that logging, it does not panic.
+	Logger *slog.Logger
+	// Operation names the enrichment operation for per-stage logging and
+	// defaults to "service_context" when left blank.
+	Operation string
 }
 
 func EnrichServiceQueryContextWithOptions(
