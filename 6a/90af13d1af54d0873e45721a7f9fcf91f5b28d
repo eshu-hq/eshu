@@ -1,0 +1,144 @@
+go/internal/query/entity/entity_workload_context.go
+  s_fda3c3452bc358::t_4e1559c36c5069 240
+go/internal/query/repository_infrastructure_degrade_test.go
+  s_fda3c3452bc358::t_dc2c1dd3f1e7a1 22
+go/internal/query/querytestutil/repo_graph_reader.go
+  s_fda3c3452bc358::t_ecfda7ecd29f2a 138
+  s_fda3c3452bc358::t_4ed35eb06ae2df 131
+go/internal/query/repository/infrastructure_test.go
+  s_fda3c3452bc358::t_48f087f4f5eced 155
+go/internal/query/repository/infrastructure.go
+  s_fda3c3452bc358::t_12132d24d4a681 171
+go/internal/query/querycontract/ports.go
+  s_fda3c3452bc358::t_989fc13753cdac 97
+go/internal/query/repository_context_relationship_read_model_leak_test.go
+  s_fda3c3452bc358::t_857a60a3cf18bf 22
+  s_fda3c3452bc358::t_7d89c60942c48e 59
+go/internal/query/querycontract/context_limits.go
+  s_fda3c3452bc358::t_59370ebadd598c 87
+go/internal/query/repository/story_infrastructure_truncated_fold_test.go
+  s_fda3c3452bc358::t_e2b10c918ec654 27
+go/internal/query/entity/service_story_infrastructure_truncated_fold_test.go
+  s_fda3c3452bc358::t_e7d12787d87bbf 39
+go/internal/mcp/route_serves_data_registry_routes.go
+  s_fda3c3452bc358::t_4d209b3fac834e 120,126,128,130,132,137
+go/internal/query/interface_export_tripwire_evidence_repository_test.go
+  s_fda3c3452bc358::t_73e6fc6e3eecdb 188
+go/internal/query/graph_read_error_selector_test.go
+  s_fda3c3452bc358::t_9e6aef2e0ffe94 96
+go/internal/query/repository_relationship_read_model.go
+  s_fda3c3452bc358::t_c4467b9ca1649f 19
+go/internal/query/repository_read_model_summary.go
+  s_fda3c3452bc358::t_75f6b57aaf160c 17
+go/internal/query/terraform_config_state_drift_evidence_access.go
+  s_fda3c3452bc358::t_f399eeb06d9ac2 25
+go/internal/query/repository/readmodel/AGENTS.md
+  s_fda3c3452bc358::t_0fefd7f57a5c6d 16-18,23-24,29
+go/internal/query/graph_read_error_repository_context_aux_test.go
+  s_fda3c3452bc358::t_99cc2480fd49ca 26
+  s_fda3c3452bc358::t_12c8a6ba2b8acd 111
+  s_fda3c3452bc358::t_80986ceaf914c1 15
+  s_fda3c3452bc358::t_c991fb04446b1f 70
+  s_fda3c3452bc358::t_7cce9615180b2d 149
+go/internal/query/auth_scoped_routes_relationship_leak_test.go
+  s_fda3c3452bc358::t_16f3502c79ff69 62
+go/internal/query/auth_scoped_routes_impact_evidence_test.go
+  s_fda3c3452bc358::t_c2acc144f8e379 100
+docs/public/reference/http-api/iac-content-infra.md
+  s_fda3c3452bc358::t_4146b55ababde1 182-183
+docs/internal/aws-relationship-edge-materialization-design.md
+  s_fda3c3452bc358::t_b9c9cde1589391 38
+go/internal/query/infra_graph_summary_packet.go
+  s_fda3c3452bc358::t_15e893237df596 267
+go/internal/query/language_query_graph_error_test.go
+  s_fda3c3452bc358::t_a7be4ada3d46a9 83
+go/internal/query/auth_scoped_routes_cloud.go
+  s_fda3c3452bc358::t_0868b510db97ba 166,176
+go/internal/query/service_read_model_workload_context_test.go
+  s_fda3c3452bc358::t_c8742d38158050 116
+go/internal/query/repository/dependency_cluster.go
+  s_fda3c3452bc358::t_2daa5dbaf73e7b 54
+go/internal/query/repository/story.go
+  s_fda3c3452bc358::t_3ba4782d7ba6d9 47
+docs/public/languages/elixir.md
+  s_fda3c3452bc358::t_f727dcc49d2bd4 20,23-24,28
+go/internal/query/repository/context_helpers.go
+  s_fda3c3452bc358::t_dabce9dfb1f9bb 309
+docs/public/reference/mcp-prompt-surface-audit.md
+  s_fda3c3452bc358::t_11bc6b87e86063 87
+  s_fda3c3452bc358::t_a34b006441f677 107
+go/internal/query/infra_graph_summary_packet_cypher.go
+  s_fda3c3452bc358::t_a63e591671b791 29
+  s_fda3c3452bc358::t_8ae215942c4f79 49
+go/internal/query/entitysemantics/entity_semantic_profile.go
+  s_fda3c3452bc358::t_af322472123822 78
+scripts/verify-parser-relationship-kit.sh
+  s_fda3c3452bc358::t_72a05adf76bfe0 111
+  s_fda3c3452bc358::t_4fc841544c82c5 121
+scripts/test-verify-parser-relationship-kit.sh
+  s_fda3c3452bc358::t_f2a535fc08d948 248
+docs/internal/design/5584-route-serves-data-registry.md
+  s_fda3c3452bc358::t_cf050460eb00c9 92
+go/internal/query/service/service_story_dossier.go
+  s_fda3c3452bc358::t_92aef0aeddab97 300
+go/internal/query/graph_read_error_capability_sweep_test.go
+  s_fda3c3452bc358::t_7402dcf6d7adba 316
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_fda3c3452bc358::t_c4ddb363cfc148 539
+  s_fda3c3452bc358::t_6da97310aa420d 527
+  s_fda3c3452bc358::t_ff1e2384061da9 504
+  s_fda3c3452bc358::t_a5fb576a44f1c7 475
+  s_fda3c3452bc358::t_51dd368135fb42 498
+  s_fda3c3452bc358::t_edf7a2cfb99241 524
+  s_fda3c3452bc358::t_0be05e1c0ea37a 492
+  s_fda3c3452bc358::t_154640f4133c95 536
+  s_fda3c3452bc358::t_545bb5c028c371 515
+  s_fda3c3452bc358::t_03b23d40a9181d 501
+  s_fda3c3452bc358::t_c066617efd0468 512
+go/internal/query/repository_infrastructure_openapi_family_test.go
+  s_fda3c3452bc358::t_845a60d979123a 65
+go/internal/query/cloud_inventory_rollout_signal_test.go
+  s_fda3c3452bc358::t_58d1e651f973ca 203
+docs/internal/design/5472-graph-projection-policy.md
+  s_fda3c3452bc358::t_b82b70871fd0f6 44
+go/internal/query/service/service_evidence_types.go
+  s_fda3c3452bc358::t_44d2d36067a568 34
+go/internal/query/cloud_inventory_rollout_signal.go
+  s_fda3c3452bc358::t_ea2e31357fb926 34
+go/internal/query/context_story_limits_test.go
+  s_fda3c3452bc358::t_a9c593720e1608 287
+go/internal/query/repository/story_counts.go
+  s_fda3c3452bc358::t_3effb8b03f28e2 22-27
+  s_fda3c3452bc358::t_0b44e956690c5a 194
+  s_fda3c3452bc358::t_1fbfa18dc64b9c 34
+go/internal/query/repository/language_inventory.go
+  s_fda3c3452bc358::t_389f23fd5b9465 28
+go/internal/query/graph_read_error_repository_entity_test.go
+  s_fda3c3452bc358::t_361b95d6717d9b 15
+go/.golangci.yml
+  s_e8ab01ccdfa8e2::t_476189293f5abe 470,473,476
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6a90af13d1af54d0873e45721a7f9fcf91f5b28d",
+  "prompts": {},
+  "sessions": {
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_fda3c3452bc358": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "220b87a2-c083-4a23-a07b-5e5b1bee2b09",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
