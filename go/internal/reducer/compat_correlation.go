@@ -114,10 +114,6 @@ func BuildServiceCatalogCorrelationDecisions(envelopes []facts.Envelope) []Servi
 // lineage write input. See [servicecatalog.ServiceMaterializationWrite].
 type ServiceMaterializationWrite = servicecatalog.ServiceMaterializationWrite
 
-// ServiceMaterializationWriteResult summarizes a service materialization
-// commit. See [servicecatalog.ServiceMaterializationWriteResult].
-type ServiceMaterializationWriteResult = servicecatalog.ServiceMaterializationWriteResult
-
 // ServiceOwnershipEvidence is one owner-ref evidence row before it is
 // resolved into a generation-stable snapshot row. See
 // [servicecatalog.ServiceOwnershipEvidence].
@@ -126,13 +122,12 @@ type ServiceOwnershipEvidence = servicecatalog.ServiceOwnershipEvidence
 // Evidence family label constants. See
 // [servicecatalog.ServiceEvidenceFamilyOwnership] and its siblings.
 const (
-	ServiceEvidenceFamilyOwnership       = servicecatalog.ServiceEvidenceFamilyOwnership
-	ServiceEvidenceFamilyDeployment      = servicecatalog.ServiceEvidenceFamilyDeployment
-	ServiceEvidenceFamilyRuntime         = servicecatalog.ServiceEvidenceFamilyRuntime
-	ServiceEvidenceFamilyDependencies    = servicecatalog.ServiceEvidenceFamilyDependencies
-	ServiceEvidenceFamilyDocs            = servicecatalog.ServiceEvidenceFamilyDocs
-	ServiceEvidenceFamilyIncidents       = servicecatalog.ServiceEvidenceFamilyIncidents
-	ServiceEvidenceFamilyVulnerabilities = servicecatalog.ServiceEvidenceFamilyVulnerabilities
+	ServiceEvidenceFamilyOwnership    = servicecatalog.ServiceEvidenceFamilyOwnership
+	ServiceEvidenceFamilyDeployment   = servicecatalog.ServiceEvidenceFamilyDeployment
+	ServiceEvidenceFamilyRuntime      = servicecatalog.ServiceEvidenceFamilyRuntime
+	ServiceEvidenceFamilyDependencies = servicecatalog.ServiceEvidenceFamilyDependencies
+	ServiceEvidenceFamilyDocs         = servicecatalog.ServiceEvidenceFamilyDocs
+	ServiceEvidenceFamilyIncidents    = servicecatalog.ServiceEvidenceFamilyIncidents
 )
 
 // ServiceMaterializationWriter commits the additive per-service evidence
@@ -236,16 +231,10 @@ type ServiceVulnerabilityRecord = servicecatalog.ServiceVulnerabilityRecord
 // spelling; each entry is deleted once its last caller has moved into a
 // family subpackage.
 
-// CICDRunCorrelationOutcome forwards to [cicdrun.CICDRunCorrelationOutcome].
-type CICDRunCorrelationOutcome = cicdrun.CICDRunCorrelationOutcome
-
 // The CICDRunCorrelation outcome values forward to their [cicdrun] equivalents.
 const (
-	CICDRunCorrelationExact      = cicdrun.CICDRunCorrelationExact
-	CICDRunCorrelationDerived    = cicdrun.CICDRunCorrelationDerived
-	CICDRunCorrelationAmbiguous  = cicdrun.CICDRunCorrelationAmbiguous
-	CICDRunCorrelationUnresolved = cicdrun.CICDRunCorrelationUnresolved
-	CICDRunCorrelationRejected   = cicdrun.CICDRunCorrelationRejected
+	CICDRunCorrelationExact   = cicdrun.CICDRunCorrelationExact
+	CICDRunCorrelationDerived = cicdrun.CICDRunCorrelationDerived
 )
 
 // CICDRunCorrelationDecision forwards to [cicdrun.CICDRunCorrelationDecision].
@@ -271,12 +260,6 @@ type PostgresCICDRunCorrelationWriter = cicdrun.PostgresCICDRunCorrelationWriter
 // cicdWorkflowImageBuiltFromEvidenceSource forwards to
 // [cicdrun.CICDWorkflowImageBuiltFromEvidenceSource].
 const cicdWorkflowImageBuiltFromEvidenceSource = cicdrun.CICDWorkflowImageBuiltFromEvidenceSource
-
-// BuildCICDRunCorrelationDecisions forwards to
-// [cicdrun.BuildCICDRunCorrelationDecisions].
-func BuildCICDRunCorrelationDecisions(envelopes []facts.Envelope) []CICDRunCorrelationDecision {
-	return cicdrun.BuildCICDRunCorrelationDecisions(envelopes)
-}
 
 // Stanza: cross_repo_compat.go (merged; do not recreate this file).
 // The cross-repo resolution family moved to [crossrepo] under issue #6061.
@@ -337,18 +320,9 @@ const (
 	// SBOMAttachmentAttachedVerified forwards to
 	// [sbomattest.SBOMAttachmentAttachedVerified].
 	SBOMAttachmentAttachedVerified = sbomattest.SBOMAttachmentAttachedVerified
-	// SBOMAttachmentAttachedUnverified forwards to
-	// [sbomattest.SBOMAttachmentAttachedUnverified].
-	SBOMAttachmentAttachedUnverified = sbomattest.SBOMAttachmentAttachedUnverified
 	// SBOMAttachmentAttachedParseOnly forwards to
 	// [sbomattest.SBOMAttachmentAttachedParseOnly].
 	SBOMAttachmentAttachedParseOnly = sbomattest.SBOMAttachmentAttachedParseOnly
-	// SBOMAttachmentSubjectMismatch forwards to
-	// [sbomattest.SBOMAttachmentSubjectMismatch].
-	SBOMAttachmentSubjectMismatch = sbomattest.SBOMAttachmentSubjectMismatch
-	// SBOMAttachmentAmbiguousSubject forwards to
-	// [sbomattest.SBOMAttachmentAmbiguousSubject].
-	SBOMAttachmentAmbiguousSubject = sbomattest.SBOMAttachmentAmbiguousSubject
 	// SBOMAttachmentUnknownSubject forwards to
 	// [sbomattest.SBOMAttachmentUnknownSubject].
 	SBOMAttachmentUnknownSubject = sbomattest.SBOMAttachmentUnknownSubject
@@ -364,10 +338,6 @@ type SBOMAttestationAttachmentDecision = sbomattest.SBOMAttestationAttachmentDec
 // SBOMAttestationAttachmentWrite carries decisions for durable publication.
 // See [sbomattest.SBOMAttestationAttachmentWrite].
 type SBOMAttestationAttachmentWrite = sbomattest.SBOMAttestationAttachmentWrite
-
-// SBOMAttestationAttachmentWriteResult summarizes durable publication. See
-// [sbomattest.SBOMAttestationAttachmentWriteResult].
-type SBOMAttestationAttachmentWriteResult = sbomattest.SBOMAttestationAttachmentWriteResult
 
 // SBOMAttestationAttachmentWriter persists reducer-owned attachment facts.
 // See [sbomattest.SBOMAttestationAttachmentWriter].
@@ -497,4 +467,11 @@ type (
 
 func GraphProjectionPhaseRepairsFromStates(states []GraphProjectionPhaseState, lastError string, enqueuedAt time.Time) []GraphProjectionPhaseRepair {
 	return gpphase.PhaseRepairsFromStates(states, lastError, enqueuedAt)
+}
+
+// repoWideRetractRefreshPartitionKey forwards to [sharedintent.RepoWideRetractRefreshPartitionKey]
+// (H5 root-remnant fold, issue #6061; relocated here from compat_decode.go
+// for line-budget headroom).
+func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
+	return sharedintent.RepoWideRetractRefreshPartitionKey(domain, repoID)
 }

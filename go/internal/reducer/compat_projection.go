@@ -23,7 +23,7 @@ package reducer
 //
 // shell-exec family stanza relocated byte-identical to compat_cloud.go
 // (issue #6061 H5 root-remnant fold) to make room for the shared-projection
-// worker/runner/partitioning/refresh-fence/phase-repair stanzas below; see
+// worker/runner/refresh-fence stanzas below; see
 // that file's header for its stanza list.
 
 import (
@@ -229,12 +229,8 @@ type ValueFlowProgramInput = value.ProgramInput
 // See [value.CallEdge].
 type ValueFlowCallEdge = value.CallEdge
 
-// ValueFlowProgramAssemblyStats summarizes one Program assembly cycle. See
-// [value.ProgramAssemblyStats].
-type ValueFlowProgramAssemblyStats = value.ProgramAssemblyStats
-
 // BuildValueFlowProgram forwards to [value.BuildProgram].
-func BuildValueFlowProgram(input ValueFlowProgramInput) (interproc.Program, ValueFlowProgramAssemblyStats) {
+func BuildValueFlowProgram(input ValueFlowProgramInput) (interproc.Program, value.ProgramAssemblyStats) {
 	return value.BuildProgram(input)
 }
 
@@ -474,18 +470,6 @@ type sharedAcceptanceLookupEvent = worker.AcceptanceLookupEvent
 
 // sharedAcceptanceTelemetry is the root spelling of [worker.AcceptanceTelemetry].
 type sharedAcceptanceTelemetry = worker.AcceptanceTelemetry
-
-// Stanza: partitioning (H5 root-remnant fold, partitioning.go, issue #6061).
-
-// PartitionHashForKey forwards to [sharedintent.PartitionHashForKey].
-func PartitionHashForKey(partitionKey string) uint64 {
-	return sharedintent.PartitionHashForKey(partitionKey)
-}
-
-// PartitionForKey forwards to [sharedintent.PartitionForKey].
-func PartitionForKey(partitionKey string, partitionCount int) (int, error) {
-	return sharedintent.PartitionForKey(partitionKey, partitionCount)
-}
 
 // Stanza: repo-wide-retract refresh fence (H5 root-remnant fold, #6061).
 // RepoRefreshIntentType is a storage/cypher wire contract (#5998).

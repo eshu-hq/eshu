@@ -33,6 +33,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -380,11 +381,6 @@ type PlatformGraphLocker = platformfam.PlatformGraphLocker
 // generation. See [platformfam.WorkloadMaterializationReplayer].
 type WorkloadMaterializationReplayer = platformfam.WorkloadMaterializationReplayer
 
-// CrossRepoRelationshipResolver is the cross-repo resolution seam the platform
-// materialization handler depends on. [CrossRepoRelationshipHandler] is the
-// production implementation. See [platformfam.CrossRepoRelationshipResolver].
-type CrossRepoRelationshipResolver = platformfam.CrossRepoRelationshipResolver
-
 // PlatformMaterializationHandler reduces one platform materialization intent
 // into a bounded canonical write request. See
 // [platformfam.PlatformMaterializationHandler].
@@ -395,30 +391,14 @@ type PlatformMaterializationHandler = platformfam.PlatformMaterializationHandler
 // [platformfam.PostgresPlatformMaterializationWriter].
 type PostgresPlatformMaterializationWriter = platformfam.PostgresPlatformMaterializationWriter
 
-// TerraformRuntimeFamily describes one Terraform-managed runtime family. See
-// [platformfam.TerraformRuntimeFamily].
-type TerraformRuntimeFamily = platformfam.TerraformRuntimeFamily
-
 // RuntimeFamilies forwards to [platformfam.RuntimeFamilies].
-func RuntimeFamilies() []TerraformRuntimeFamily {
+func RuntimeFamilies() []platformfam.TerraformRuntimeFamily {
 	return platformfam.RuntimeFamilies()
 }
 
 // LookupRuntimeFamily forwards to [platformfam.LookupRuntimeFamily].
-func LookupRuntimeFamily(kind string) *TerraformRuntimeFamily {
+func LookupRuntimeFamily(kind string) *platformfam.TerraformRuntimeFamily {
 	return platformfam.LookupRuntimeFamily(kind)
-}
-
-// InferTerraformRuntimeFamilyKind forwards to
-// [platformfam.InferTerraformRuntimeFamilyKind].
-func InferTerraformRuntimeFamilyKind(content string) string {
-	return platformfam.InferTerraformRuntimeFamilyKind(content)
-}
-
-// InferRuntimeFamilyKindFromIdentifiers forwards to
-// [platformfam.InferRuntimeFamilyKindFromIdentifiers].
-func InferRuntimeFamilyKindFromIdentifiers(values []string) string {
-	return platformfam.InferRuntimeFamilyKindFromIdentifiers(values)
 }
 
 // InferInfrastructureRuntimeFamilyKind forwards to
@@ -437,11 +417,6 @@ func MatchesServiceModuleSource(source, kind string) bool {
 // [platformfam.TerraformPlatformEvidenceKind].
 func TerraformPlatformEvidenceKind(kind, scope string) string {
 	return platformfam.TerraformPlatformEvidenceKind(kind, scope)
-}
-
-// FormatPlatformKindLabel forwards to [platformfam.FormatPlatformKindLabel].
-func FormatPlatformKindLabel(kind string) string {
-	return platformfam.FormatPlatformKindLabel(kind)
 }
 
 // Stanza: shell-exec family move (#6061; no prior compat file), moved to
@@ -496,4 +471,17 @@ func buildShellExecSharedIntentRows(
 	createdAt time.Time,
 ) []SharedProjectionIntentRow {
 	return shell.BuildSharedIntentRows(edgeRows, deltaScope, repoIDs, contextByRepoID, createdAt)
+}
+
+// Stanza: partitioning (H5 root-remnant fold, partitioning.go, issue #6061;
+// relocated here from compat_projection.go for line-budget headroom).
+
+// PartitionHashForKey forwards to [sharedintent.PartitionHashForKey].
+func PartitionHashForKey(partitionKey string) uint64 {
+	return sharedintent.PartitionHashForKey(partitionKey)
+}
+
+// PartitionForKey forwards to [sharedintent.PartitionForKey].
+func PartitionForKey(partitionKey string, partitionCount int) (int, error) {
+	return sharedintent.PartitionForKey(partitionKey, partitionCount)
 }

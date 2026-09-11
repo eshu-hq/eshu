@@ -432,17 +432,8 @@ func loadCodeownersOwnershipMaterializationFacts(
 // again.
 type CrossScopeDependency = reducercontract.CrossScopeDependency
 
-// CrossScopeConsumerDomains forwards to [crossscope.ConsumerDomains].
-func CrossScopeConsumerDomains() []Domain {
-	return crossscope.ConsumerDomains()
-}
-
-// CrossScopeCompletionEdge is one producer-to-consumer fanout edge derived
-// from the cross-scope dependency catalog.
-type CrossScopeCompletionEdge = crossscope.CompletionEdge
-
 // CrossScopeCompletionEdges forwards to [crossscope.CompletionEdges].
-func CrossScopeCompletionEdges() []CrossScopeCompletionEdge {
+func CrossScopeCompletionEdges() []crossscope.CompletionEdge {
 	return crossscope.CompletionEdges()
 }
 
@@ -493,8 +484,3 @@ const (
 
 // allProjectionDomains forwards to [reducercontract.ProjectionDomains].
 var allProjectionDomains = reducercontract.ProjectionDomains()
-
-// repoWideRetractRefreshPartitionKey forwards to [sharedintent.RepoWideRetractRefreshPartitionKey].
-func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
-	return sharedintent.RepoWideRetractRefreshPartitionKey(domain, repoID)
-}
