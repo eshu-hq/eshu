@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package secrets
 
 import (
 	"context"
@@ -11,25 +11,27 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type recordingSecretsIAMIdentityTrustChainStore struct {
-	rows       []SecretsIAMIdentityTrustChainRow
-	lastFilter SecretsIAMIdentityTrustChainFilter
+	rows       []IAMIdentityTrustChainRow
+	lastFilter IAMIdentityTrustChainFilter
 }
 
 func (s *recordingSecretsIAMIdentityTrustChainStore) ListSecretsIAMIdentityTrustChains(
 	_ context.Context,
-	filter SecretsIAMIdentityTrustChainFilter,
-) ([]SecretsIAMIdentityTrustChainRow, error) {
+	filter IAMIdentityTrustChainFilter,
+) ([]IAMIdentityTrustChainRow, error) {
 	s.lastFilter = filter
-	return append([]SecretsIAMIdentityTrustChainRow(nil), s.rows...), nil
+	return append([]IAMIdentityTrustChainRow(nil), s.rows...), nil
 }
 
 func TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &SecretsIAMHandler{IdentityTrustChains: &recordingSecretsIAMIdentityTrustChainStore{}}
+	handler := &Handler{IdentityTrustChains: &recordingSecretsIAMIdentityTrustChainStore{}}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -56,7 +58,7 @@ func TestSecretsIAMListIdentityTrustChainsUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSecretsIAMIdentityTrustChainStore{
-		rows: []SecretsIAMIdentityTrustChainRow{
+		rows: []IAMIdentityTrustChainRow{
 			{
 				ChainID:               "secrets-iam-identity-trust-chain-1",
 				State:                 "exact",
@@ -71,7 +73,7 @@ func TestSecretsIAMListIdentityTrustChainsUsesBoundedStore(t *testing.T) {
 			{ChainID: "secrets-iam-identity-trust-chain-2", State: "partial"},
 		},
 	}
-	handler := &SecretsIAMHandler{IdentityTrustChains: store}
+	handler := &Handler{IdentityTrustChains: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -97,11 +99,11 @@ func TestSecretsIAMListIdentityTrustChainsUsesBoundedStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Chains    []SecretsIAMIdentityTrustChainResult `json:"identity_trust_chains"`
-		Count     int                                  `json:"count"`
-		Limit     int                                  `json:"limit"`
-		Truncated bool                                 `json:"truncated"`
-		Cursor    map[string]string                    `json:"next_cursor"`
+		Chains    []IAMIdentityTrustChainResult `json:"identity_trust_chains"`
+		Count     int                           `json:"count"`
+		Limit     int                           `json:"limit"`
+		Truncated bool                          `json:"truncated"`
+		Cursor    map[string]string             `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -124,9 +126,9 @@ func TestSecretsIAMIdentityTrustChainsTruthLabel(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSecretsIAMIdentityTrustChainStore{
-		rows: []SecretsIAMIdentityTrustChainRow{{ChainID: "c1", State: "exact"}},
+		rows: []IAMIdentityTrustChainRow{{ChainID: "c1", State: "exact"}},
 	}
-	handler := &SecretsIAMHandler{IdentityTrustChains: store, Profile: ProfileProduction}
+	handler := &Handler{IdentityTrustChains: store, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -135,7 +137,7 @@ func TestSecretsIAMIdentityTrustChainsTruthLabel(t *testing.T) {
 		"/api/v0/secrets-iam/identity-trust-chains?scope_id=scope-123&limit=10",
 		nil,
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -143,7 +145,7 @@ func TestSecretsIAMIdentityTrustChainsTruthLabel(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	var resp struct {
-		Truth *TruthEnvelope `json:"truth"`
+		Truth *querycontract.TruthEnvelope `json:"truth"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -151,7 +153,7 @@ func TestSecretsIAMIdentityTrustChainsTruthLabel(t *testing.T) {
 	if resp.Truth == nil {
 		t.Fatal("truth envelope is nil, want non-nil")
 	}
-	if got, want := resp.Truth.Capability, secretsIAMIdentityTrustChainsCapability; got != want {
+	if got, want := resp.Truth.Capability, IAMIdentityTrustChainsCapability; got != want {
 		t.Fatalf("truth.capability = %q, want %q", got, want)
 	}
 }
@@ -159,7 +161,7 @@ func TestSecretsIAMIdentityTrustChainsTruthLabel(t *testing.T) {
 func TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable(t *testing.T) {
 	t.Parallel()
 
-	handler := &SecretsIAMHandler{IdentityTrustChains: nil, Profile: ProfileProduction}
+	handler := &Handler{IdentityTrustChains: nil, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -216,8 +218,8 @@ func (q failingSecretsIAMTrustChainQueryer) QueryContext(
 func TestSecretsIAMIdentityTrustChainFilterRejectsUnboundedScope(t *testing.T) {
 	t.Parallel()
 
-	store := PostgresSecretsIAMIdentityTrustChainStore{DB: failingSecretsIAMTrustChainQueryer{t: t}}
-	_, err := store.ListSecretsIAMIdentityTrustChains(context.Background(), SecretsIAMIdentityTrustChainFilter{Limit: 10})
+	store := PostgresIAMIdentityTrustChainStore{DB: failingSecretsIAMTrustChainQueryer{t: t}}
+	_, err := store.ListSecretsIAMIdentityTrustChains(context.Background(), IAMIdentityTrustChainFilter{Limit: 10})
 	if err == nil {
 		t.Fatal("ListSecretsIAMIdentityTrustChains() error = nil, want non-nil for unbounded scope")
 	}
@@ -229,8 +231,8 @@ func TestSecretsIAMIdentityTrustChainFilterRejectsUnboundedScope(t *testing.T) {
 func TestSecretsIAMIdentityTrustChainFilterRejectsNilDB(t *testing.T) {
 	t.Parallel()
 
-	store := PostgresSecretsIAMIdentityTrustChainStore{DB: nil}
-	_, err := store.ListSecretsIAMIdentityTrustChains(context.Background(), SecretsIAMIdentityTrustChainFilter{
+	store := PostgresIAMIdentityTrustChainStore{DB: nil}
+	_, err := store.ListSecretsIAMIdentityTrustChains(context.Background(), IAMIdentityTrustChainFilter{
 		WorkloadObjectID: "deployment/payments/checkout",
 		Limit:            10,
 	})

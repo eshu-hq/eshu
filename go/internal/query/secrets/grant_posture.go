@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package secrets
 
 import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // secretsIAMGrantPostureReadTimeout bounds the graph aggregate reads behind
@@ -16,7 +18,7 @@ import (
 // codeownersOwnershipReadTimeout budget for bounded dashboard graph reads.
 const secretsIAMGrantPostureReadTimeout = 10 * time.Second
 
-// SecretsIAMGrantPosture is the bounded S3 external-principal grant section of
+// IAMGrantPosture is the bounded S3 external-principal grant section of
 // the posture summary (issue #5643). It is aggregate counts over the canonical
 // (:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal) edges the
 // s3_external_principal_grant_materialization reducer domain writes — the
@@ -24,36 +26,36 @@ const secretsIAMGrantPostureReadTimeout = 10 * time.Second
 // grants whose source bucket never materialized are truthfully excluded.
 // Counts only; no principal identities, ARNs, or bucket names cross the wire,
 // preserving the summary's provenance-only contract.
-type SecretsIAMGrantPosture struct {
+type IAMGrantPosture struct {
 	// TotalGrants is derived from the grant_outcome grouping: grant_outcome is
 	// a required edge property, so every edge lands in exactly one outcome
 	// bucket and the bucket sum equals the edge count.
-	TotalGrants            int                     `json:"total_grants"`
-	GrantsByOutcome        []SecretsIAMBucketCount `json:"grants_by_outcome"`
-	GrantsByResolutionMode []SecretsIAMBucketCount `json:"grants_by_resolution_mode"`
-	PublicGrants           int                     `json:"public_grants"`
-	CrossAccountGrants     int                     `json:"cross_account_grants"`
-	ServicePrincipalGrants int                     `json:"service_principal_grants"`
+	TotalGrants            int              `json:"total_grants"`
+	GrantsByOutcome        []IAMBucketCount `json:"grants_by_outcome"`
+	GrantsByResolutionMode []IAMBucketCount `json:"grants_by_resolution_mode"`
+	PublicGrants           int              `json:"public_grants"`
+	CrossAccountGrants     int              `json:"cross_account_grants"`
+	ServicePrincipalGrants int              `json:"service_principal_grants"`
 }
 
-// SecretsIAMGrantPostureStore reads the aggregate S3 external-principal grant
+// IAMGrantPostureStore reads the aggregate S3 external-principal grant
 // posture for one reducer scope.
-type SecretsIAMGrantPostureStore interface {
-	SummarizeS3ExternalPrincipalGrantPosture(ctx context.Context, scopeID string) (SecretsIAMGrantPosture, error)
+type IAMGrantPostureStore interface {
+	SummarizeS3ExternalPrincipalGrantPosture(ctx context.Context, scopeID string) (IAMGrantPosture, error)
 }
 
-// GraphSecretsIAMGrantPostureStore reads the grant posture via the GraphQuery
+// GraphIAMGrantPostureStore reads the grant posture via the GraphQuery
 // port so handler tests can inject a stub that asserts on the Cypher shape and
 // parameter bag the production code sends (the GraphPackageRegistryAggregateStore
 // precedent).
-type GraphSecretsIAMGrantPostureStore struct {
-	Graph GraphQuery
+type GraphIAMGrantPostureStore struct {
+	Graph querycontract.GraphQuery
 }
 
-// NewGraphSecretsIAMGrantPostureStore wires a GraphQuery (Neo4jReader in
+// NewGraphIAMGrantPostureStore wires a GraphQuery (Neo4jReader in
 // production) into the grant-posture reader.
-func NewGraphSecretsIAMGrantPostureStore(graph GraphQuery) GraphSecretsIAMGrantPostureStore {
-	return GraphSecretsIAMGrantPostureStore{Graph: graph}
+func NewGraphIAMGrantPostureStore(graph querycontract.GraphQuery) GraphIAMGrantPostureStore {
+	return GraphIAMGrantPostureStore{Graph: graph}
 }
 
 // Cypher shapes: every read anchors on the canonical GRANTS_ACCESS_TO edge
@@ -96,7 +98,7 @@ ORDER BY bucket ASC`
 // secretsIAMGrantFlagFields is the closed set of boolean edge properties the
 // flag counts may filter on. Restricting the interpolated property to this
 // allow-list keeps the Cypher free of any caller-influenced text (mirrors the
-// secretsIAMSummaryBucketFields SQL defense in secrets_iam_summary.go).
+// secretsIAMSummaryBucketFields SQL defense in summary.go).
 var secretsIAMGrantFlagFields = map[string]struct{}{
 	"is_public":            {},
 	"is_cross_account":     {},
@@ -117,64 +119,64 @@ RETURN count(*) AS total`, flag), nil
 // SummarizeS3ExternalPrincipalGrantPosture returns the aggregate grant posture
 // for one reducer scope. A scope anchor is required so the read never spans
 // tenants, and every statement runs under one shared deadline.
-func (s GraphSecretsIAMGrantPostureStore) SummarizeS3ExternalPrincipalGrantPosture(
+func (s GraphIAMGrantPostureStore) SummarizeS3ExternalPrincipalGrantPosture(
 	ctx context.Context,
 	scopeID string,
-) (SecretsIAMGrantPosture, error) {
+) (IAMGrantPosture, error) {
 	if s.Graph == nil {
-		return SecretsIAMGrantPosture{}, fmt.Errorf("secrets/IAM grant posture graph is required")
+		return IAMGrantPosture{}, fmt.Errorf("secrets/IAM grant posture graph is required")
 	}
 	if scopeID == "" {
-		return SecretsIAMGrantPosture{}, fmt.Errorf("scope_id is required")
+		return IAMGrantPosture{}, fmt.Errorf("scope_id is required")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, secretsIAMGrantPostureReadTimeout)
 	defer cancel()
 	params := map[string]any{"scope_id": scopeID}
 
-	var posture SecretsIAMGrantPosture
+	var posture IAMGrantPosture
 	var err error
 	if posture.GrantsByOutcome, err = s.groupedGrantCounts(ctx, secretsIAMGrantsByOutcomeCypher, params); err != nil {
-		return SecretsIAMGrantPosture{}, err
+		return IAMGrantPosture{}, err
 	}
 	for _, bucket := range posture.GrantsByOutcome {
 		posture.TotalGrants += bucket.Count
 	}
 	if posture.GrantsByResolutionMode, err = s.groupedGrantCounts(ctx, secretsIAMGrantsByResolutionModeCypher, params); err != nil {
-		return SecretsIAMGrantPosture{}, err
+		return IAMGrantPosture{}, err
 	}
 	if posture.PublicGrants, err = s.grantFlagCount(ctx, "is_public", params); err != nil {
-		return SecretsIAMGrantPosture{}, err
+		return IAMGrantPosture{}, err
 	}
 	if posture.CrossAccountGrants, err = s.grantFlagCount(ctx, "is_cross_account", params); err != nil {
-		return SecretsIAMGrantPosture{}, err
+		return IAMGrantPosture{}, err
 	}
 	if posture.ServicePrincipalGrants, err = s.grantFlagCount(ctx, "is_service_principal", params); err != nil {
-		return SecretsIAMGrantPosture{}, err
+		return IAMGrantPosture{}, err
 	}
 	return posture, nil
 }
 
-func (s GraphSecretsIAMGrantPostureStore) groupedGrantCounts(
+func (s GraphIAMGrantPostureStore) groupedGrantCounts(
 	ctx context.Context,
 	cypher string,
 	params map[string]any,
-) ([]SecretsIAMBucketCount, error) {
+) ([]IAMBucketCount, error) {
 	rows, err := s.Graph.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, fmt.Errorf("summarize s3 external-principal grant posture: %w", err)
 	}
-	var out []SecretsIAMBucketCount
+	var out []IAMBucketCount
 	for _, row := range rows {
-		out = append(out, SecretsIAMBucketCount{
-			Bucket: StringVal(row, "bucket"),
-			Count:  IntVal(row, "bucket_count"),
+		out = append(out, IAMBucketCount{
+			Bucket: querycontract.StringVal(row, "bucket"),
+			Count:  querycontract.IntVal(row, "bucket_count"),
 		})
 	}
 	return out, nil
 }
 
-func (s GraphSecretsIAMGrantPostureStore) grantFlagCount(
+func (s GraphIAMGrantPostureStore) grantFlagCount(
 	ctx context.Context,
 	flag string,
 	params map[string]any,
@@ -190,5 +192,5 @@ func (s GraphSecretsIAMGrantPostureStore) grantFlagCount(
 	if len(rows) == 0 {
 		return 0, nil
 	}
-	return IntVal(rows[0], "total"), nil
+	return querycontract.IntVal(rows[0], "total"), nil
 }

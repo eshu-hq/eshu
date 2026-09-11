@@ -4,11 +4,53 @@
 package query
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/secrets"
 )
+
+// The four stubs below satisfy the secrets package's store interfaces (via
+// the SecretsIAMHandler alias) so fullSecretsIAMHandler can wire every route
+// without a nil store. This file is the only staying root test that needs
+// them (secrets_iam_authz_test.go and graph_read_error_secrets_iam_test.go
+// use recordingPostureSummaryStore, defined once in the latter), so they are
+// local to it rather than shared.
+
+type recordingSecretsIAMIdentityTrustChainStore struct{}
+
+func (s *recordingSecretsIAMIdentityTrustChainStore) ListSecretsIAMIdentityTrustChains(
+	context.Context, secrets.IAMIdentityTrustChainFilter,
+) ([]secrets.IAMIdentityTrustChainRow, error) {
+	return nil, nil
+}
+
+type recordingPrivilegePostureStore struct{}
+
+func (s *recordingPrivilegePostureStore) ListSecretsIAMPrivilegePostureObservations(
+	context.Context, secrets.IAMPrivilegePostureObservationFilter,
+) ([]secrets.IAMPrivilegePostureObservationRow, error) {
+	return nil, nil
+}
+
+type recordingSecretAccessPathStore struct{}
+
+func (s *recordingSecretAccessPathStore) ListSecretsIAMSecretAccessPaths(
+	context.Context, secrets.IAMSecretAccessPathFilter,
+) ([]secrets.IAMSecretAccessPathRow, error) {
+	return nil, nil
+}
+
+type recordingPostureGapStore struct{}
+
+func (s *recordingPostureGapStore) ListSecretsIAMPostureGaps(
+	context.Context, secrets.IAMPostureGapFilter,
+) ([]secrets.IAMPostureGapRow, error) {
+	return nil, nil
+}
 
 // secretsIAMEndpoints is the full secrets/IAM read surface: each capability,
 // its HTTP route, and its MCP tool name. The contract tests below assert these

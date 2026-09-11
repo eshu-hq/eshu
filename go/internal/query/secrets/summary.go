@@ -1,93 +1,96 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package secrets
 
 import (
 	"context"
 	"fmt"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const secretsIAMPostureSummaryCapability = "secrets_iam.posture_summary.read"
+// IAMPostureSummaryCapability identifies the bounded posture summary
+// rollup route.
+const IAMPostureSummaryCapability = "secrets_iam.posture_summary.read"
 
-// SecretsIAMBucketCount is one grouped count in a posture summary: a bucket
+// IAMBucketCount is one grouped count in a posture summary: a bucket
 // label (a state, risk type, severity, or gap type) and how many reducer-owned
 // rows fall in it.
-type SecretsIAMBucketCount struct {
+type IAMBucketCount struct {
 	Bucket string `json:"bucket"`
 	Count  int    `json:"count"`
 }
 
-// SecretsIAMPostureSummary is a bounded, scope-anchored rollup of the four
+// IAMPostureSummary is a bounded, scope-anchored rollup of the four
 // secrets/IAM reducer read models plus the S3 external-principal grant graph
 // truth, for dashboards. It is provenance-only counts; it exposes no
 // fingerprints, paths, or evidence — only low-cardinality bucket labels and
 // totals.
-type SecretsIAMPostureSummary struct {
-	IdentityTrustChainsByState      []SecretsIAMBucketCount `json:"identity_trust_chains_by_state"`
-	PrivilegeObservationsByRiskType []SecretsIAMBucketCount `json:"privilege_observations_by_risk_type"`
-	PrivilegeObservationsBySeverity []SecretsIAMBucketCount `json:"privilege_observations_by_severity"`
-	SecretAccessPathsByState        []SecretsIAMBucketCount `json:"secret_access_paths_by_state"`
-	PostureGapsByGapType            []SecretsIAMBucketCount `json:"posture_gaps_by_gap_type"`
+type IAMPostureSummary struct {
+	IdentityTrustChainsByState      []IAMBucketCount `json:"identity_trust_chains_by_state"`
+	PrivilegeObservationsByRiskType []IAMBucketCount `json:"privilege_observations_by_risk_type"`
+	PrivilegeObservationsBySeverity []IAMBucketCount `json:"privilege_observations_by_severity"`
+	SecretAccessPathsByState        []IAMBucketCount `json:"secret_access_paths_by_state"`
+	PostureGapsByGapType            []IAMBucketCount `json:"posture_gaps_by_gap_type"`
 	// S3ExternalPrincipalGrantPosture is the issue-#5643 grant section read
 	// from the canonical GRANTS_ACCESS_TO edges (the
 	// s3_external_principal_grant fact family's read surface per
 	// specs/fact-kind-registry.v1.yaml). Populated by the handler from its
 	// GrantPosture store, not by the Postgres summary store; omitted when no
 	// graph reader is wired.
-	S3ExternalPrincipalGrantPosture *SecretsIAMGrantPosture `json:"s3_external_principal_grant_posture,omitempty"`
+	S3ExternalPrincipalGrantPosture *IAMGrantPosture `json:"s3_external_principal_grant_posture,omitempty"`
 }
 
-// SecretsIAMPostureSummaryStore reads grouped counts over the secrets/IAM
+// IAMPostureSummaryStore reads grouped counts over the secrets/IAM
 // reducer read models for one scope.
-type SecretsIAMPostureSummaryStore interface {
-	SummarizeSecretsIAMPosture(ctx context.Context, scopeID string) (SecretsIAMPostureSummary, error)
+type IAMPostureSummaryStore interface {
+	SummarizeSecretsIAMPosture(ctx context.Context, scopeID string) (IAMPostureSummary, error)
 }
 
-// PostgresSecretsIAMPostureSummaryStore computes the posture summary with
+// PostgresIAMPostureSummaryStore computes the posture summary with
 // bounded, scope-anchored GROUP BY queries against the active-fact read model.
-type PostgresSecretsIAMPostureSummaryStore struct {
+type PostgresIAMPostureSummaryStore struct {
 	DB secretsIAMReadQueryer
 }
 
-// NewPostgresSecretsIAMPostureSummaryStore creates the Postgres-backed posture
+// NewPostgresIAMPostureSummaryStore creates the Postgres-backed posture
 // summary read model.
-func NewPostgresSecretsIAMPostureSummaryStore(db secretsIAMReadQueryer) PostgresSecretsIAMPostureSummaryStore {
-	return PostgresSecretsIAMPostureSummaryStore{DB: db}
+func NewPostgresIAMPostureSummaryStore(db secretsIAMReadQueryer) PostgresIAMPostureSummaryStore {
+	return PostgresIAMPostureSummaryStore{DB: db}
 }
 
 // SummarizeSecretsIAMPosture returns grouped counts for one reducer scope. A
 // scope anchor is required so the rollup never scans the whole fact store.
-func (s PostgresSecretsIAMPostureSummaryStore) SummarizeSecretsIAMPosture(
+func (s PostgresIAMPostureSummaryStore) SummarizeSecretsIAMPosture(
 	ctx context.Context,
 	scopeID string,
-) (SecretsIAMPostureSummary, error) {
+) (IAMPostureSummary, error) {
 	if s.DB == nil {
-		return SecretsIAMPostureSummary{}, fmt.Errorf("secrets/IAM posture summary database is required")
+		return IAMPostureSummary{}, fmt.Errorf("secrets/IAM posture summary database is required")
 	}
 	if scopeID == "" {
-		return SecretsIAMPostureSummary{}, fmt.Errorf("scope_id is required")
+		return IAMPostureSummary{}, fmt.Errorf("scope_id is required")
 	}
 
-	var summary SecretsIAMPostureSummary
+	var summary IAMPostureSummary
 	var err error
 	if summary.IdentityTrustChainsByState, err = s.bucketCounts(ctx, secretsIAMIdentityTrustChainFactKind, "state", scopeID); err != nil {
-		return SecretsIAMPostureSummary{}, err
+		return IAMPostureSummary{}, err
 	}
 	if summary.PrivilegeObservationsByRiskType, err = s.bucketCounts(ctx, secretsIAMPrivilegePostureObservationFactKind, "risk_type", scopeID); err != nil {
-		return SecretsIAMPostureSummary{}, err
+		return IAMPostureSummary{}, err
 	}
 	if summary.PrivilegeObservationsBySeverity, err = s.bucketCounts(ctx, secretsIAMPrivilegePostureObservationFactKind, "severity", scopeID); err != nil {
-		return SecretsIAMPostureSummary{}, err
+		return IAMPostureSummary{}, err
 	}
 	if summary.SecretAccessPathsByState, err = s.bucketCounts(ctx, secretsIAMSecretAccessPathFactKind, "state", scopeID); err != nil {
-		return SecretsIAMPostureSummary{}, err
+		return IAMPostureSummary{}, err
 	}
 	if summary.PostureGapsByGapType, err = s.bucketCounts(ctx, secretsIAMPostureGapFactKind, "gap_type", scopeID); err != nil {
-		return SecretsIAMPostureSummary{}, err
+		return IAMPostureSummary{}, err
 	}
 	return summary, nil
 }
@@ -102,12 +105,12 @@ var secretsIAMSummaryBucketFields = map[string]struct{}{
 	"gap_type":  {},
 }
 
-func (s PostgresSecretsIAMPostureSummaryStore) bucketCounts(
+func (s PostgresIAMPostureSummaryStore) bucketCounts(
 	ctx context.Context,
 	factKind string,
 	bucketField string,
 	scopeID string,
-) ([]SecretsIAMBucketCount, error) {
+) ([]IAMBucketCount, error) {
 	if _, ok := secretsIAMSummaryBucketFields[bucketField]; !ok {
 		return nil, fmt.Errorf("unsupported summary bucket field %q", bucketField)
 	}
@@ -118,7 +121,7 @@ func (s PostgresSecretsIAMPostureSummaryStore) bucketCounts(
 	}
 	defer func() { _ = rows.Close() }()
 
-	var out []SecretsIAMBucketCount
+	var out []IAMBucketCount
 	for rows.Next() {
 		var bucket string
 		// COUNT(*) is int64 in Postgres; scan into int64 (consistent with the
@@ -127,7 +130,7 @@ func (s PostgresSecretsIAMPostureSummaryStore) bucketCounts(
 		if err := rows.Scan(&bucket, &count); err != nil {
 			return nil, fmt.Errorf("summarize secrets/IAM posture: %w", err)
 		}
-		out = append(out, SecretsIAMBucketCount{Bucket: bucket, Count: int(count)})
+		out = append(out, IAMBucketCount{Bucket: bucket, Count: int(count)})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("summarize secrets/IAM posture: %w", err)
@@ -157,51 +160,51 @@ ORDER BY bucket ASC
 `
 
 // summary serves the bounded secrets/IAM posture summary. It is a method on the
-// shared SecretsIAMHandler (registered by its Mount).
-func (h *SecretsIAMHandler) summary(w http.ResponseWriter, r *http.Request) {
+// shared Handler (registered by its Mount).
+func (h *Handler) summary(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySecretsIAMPostureSummary,
 		"GET /api/v0/secrets-iam/posture-summary",
-		secretsIAMPostureSummaryCapability,
+		IAMPostureSummaryCapability,
 	)
 	defer span.End()
 
-	if capabilityUnsupported(h.profile(), secretsIAMPostureSummaryCapability) {
-		WriteContractError(w, r, http.StatusNotImplemented,
+	if querycontract.CapabilityUnsupported(h.profile(), IAMPostureSummaryCapability) {
+		querycontract.WriteContractError(w, r, http.StatusNotImplemented,
 			"secrets/IAM posture summary requires the Postgres reducer read model",
-			ErrorCodeUnsupportedCapability, secretsIAMPostureSummaryCapability,
-			h.profile(), requiredProfile(secretsIAMPostureSummaryCapability))
+			querycontract.ErrorCodeUnsupportedCapability, IAMPostureSummaryCapability,
+			h.profile(), querycontract.RequiredProfile(IAMPostureSummaryCapability))
 		return
 	}
-	scopeID := QueryParam(r, "scope_id")
+	scopeID := querycontract.QueryParam(r, "scope_id")
 	if scopeID == "" {
-		WriteError(w, http.StatusBadRequest, "scope_id is required")
+		querycontract.WriteError(w, http.StatusBadRequest, "scope_id is required")
 		return
 	}
 	if !authorizeSecretsIAMScopedScope(w, r, scopeID) {
 		return
 	}
 	if h.Summary == nil {
-		WriteContractError(w, r, http.StatusServiceUnavailable,
+		querycontract.WriteContractError(w, r, http.StatusServiceUnavailable,
 			"secrets/IAM posture summary requires the Postgres reducer read model",
-			ErrorCodeBackendUnavailable, secretsIAMPostureSummaryCapability,
-			h.profile(), requiredProfile(secretsIAMPostureSummaryCapability))
+			querycontract.ErrorCodeBackendUnavailable, IAMPostureSummaryCapability,
+			h.profile(), querycontract.RequiredProfile(IAMPostureSummaryCapability))
 		return
 	}
 
 	summary, err := h.Summary.SummarizeSecretsIAMPosture(r.Context(), scopeID)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if h.GrantPosture != nil {
 		grantPosture, err := h.GrantPosture.SummarizeS3ExternalPrincipalGrantPosture(r.Context(), scopeID)
 		if err != nil {
-			if WriteGraphReadError(w, r, err, secretsIAMPostureSummaryCapability) {
+			if querycontract.WriteGraphReadError(w, r, err, IAMPostureSummaryCapability) {
 				return
 			}
-			WriteError(w, http.StatusInternalServerError, err.Error())
+			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		summary.S3ExternalPrincipalGrantPosture = &grantPosture
@@ -212,16 +215,16 @@ func (h *SecretsIAMHandler) summary(w http.ResponseWriter, r *http.Request) {
 	// downstream consumers key AnswerTruthSemanticObservation off
 	// semantic_facts+exact, so the fallback (no graph section) must stay
 	// semantic_facts.
-	truthBasis := TruthBasisSemanticFacts
+	truthBasis := querycontract.TruthBasisSemanticFacts
 	truthReason := "resolved from reducer-owned secrets/IAM read models as grouped counts by state, risk type, severity, and gap type; provenance-only rollup, no fingerprints or evidence exposed"
 	if summary.S3ExternalPrincipalGrantPosture != nil {
-		truthBasis = TruthBasisHybrid
+		truthBasis = querycontract.TruthBasisHybrid
 		truthReason = "resolved from reducer-owned secrets/IAM read models as grouped counts by state, risk type, severity, and gap type, blended with S3 external-principal grant counts read from the canonical GRANTS_ACCESS_TO graph edges; provenance-only rollup, no fingerprints or evidence exposed"
 	}
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"scope_id": scopeID,
 		"summary":  summary,
-	}, BuildTruthEnvelope(
-		h.profile(), secretsIAMPostureSummaryCapability, truthBasis, truthReason,
+	}, querycontract.BuildTruthEnvelope(
+		h.profile(), IAMPostureSummaryCapability, truthBasis, truthReason,
 	))
 }

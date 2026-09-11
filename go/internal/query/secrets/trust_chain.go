@@ -1,32 +1,34 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package secrets
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const secretsIAMIdentityTrustChainFactKind = "reducer_secrets_iam_identity_trust_chain"
 
-// SecretsIAMIdentityTrustChainStore reads reducer-owned secrets/IAM identity
+// IAMIdentityTrustChainStore reads reducer-owned secrets/IAM identity
 // trust chains (issue #25). The store is the read half of the reducer producer
 // (reducer_secrets_iam_identity_trust_chain facts); it writes nothing and
 // projects no graph edges. Rows carry stable fingerprints and source-safe
 // object IDs only, preserving the metadata-only contract: raw IAM role ARNs,
 // ServiceAccount names, namespaces, Vault role names, and paths are never read.
-type SecretsIAMIdentityTrustChainStore interface {
-	ListSecretsIAMIdentityTrustChains(context.Context, SecretsIAMIdentityTrustChainFilter) ([]SecretsIAMIdentityTrustChainRow, error)
+type IAMIdentityTrustChainStore interface {
+	ListSecretsIAMIdentityTrustChains(context.Context, IAMIdentityTrustChainFilter) ([]IAMIdentityTrustChainRow, error)
 }
 
-// SecretsIAMIdentityTrustChainFilter bounds chain reads to a concrete reducer
+// IAMIdentityTrustChainFilter bounds chain reads to a concrete reducer
 // scope, chain, workload object, ServiceAccount join key, IAM role fingerprint,
 // or chain state. At least one anchor is required so a read never scans the
 // whole fact store.
-type SecretsIAMIdentityTrustChainFilter struct {
+type IAMIdentityTrustChainFilter struct {
 	ScopeID               string
 	ChainID               string
 	WorkloadObjectID      string
@@ -37,10 +39,10 @@ type SecretsIAMIdentityTrustChainFilter struct {
 	Limit                 int
 }
 
-// SecretsIAMIdentityTrustChainRow is one durable identity trust-chain fact. The
+// IAMIdentityTrustChainRow is one durable identity trust-chain fact. The
 // fields mirror the reducer payload written by the secrets/IAM trust-chain
 // writer; fingerprints, join keys, states, and evidence IDs only.
-type SecretsIAMIdentityTrustChainRow struct {
+type IAMIdentityTrustChainRow struct {
 	ChainID               string
 	State                 string
 	Confidence            string
@@ -61,28 +63,28 @@ type secretsIAMIdentityTrustChainQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-// PostgresSecretsIAMIdentityTrustChainStore reads active identity trust-chain
+// PostgresIAMIdentityTrustChainStore reads active identity trust-chain
 // facts from Postgres using bounded payload predicates against the shared
 // active-fact read model.
-type PostgresSecretsIAMIdentityTrustChainStore struct {
+type PostgresIAMIdentityTrustChainStore struct {
 	DB secretsIAMIdentityTrustChainQueryer
 }
 
-// NewPostgresSecretsIAMIdentityTrustChainStore creates the Postgres-backed
+// NewPostgresIAMIdentityTrustChainStore creates the Postgres-backed
 // secrets/IAM identity trust-chain read model.
-func NewPostgresSecretsIAMIdentityTrustChainStore(
+func NewPostgresIAMIdentityTrustChainStore(
 	db secretsIAMIdentityTrustChainQueryer,
-) PostgresSecretsIAMIdentityTrustChainStore {
-	return PostgresSecretsIAMIdentityTrustChainStore{DB: db}
+) PostgresIAMIdentityTrustChainStore {
+	return PostgresIAMIdentityTrustChainStore{DB: db}
 }
 
 // ListSecretsIAMIdentityTrustChains returns one bounded page of active reducer
 // identity trust-chain facts. It requires a concrete scope anchor and a bounded
 // limit, and orders by fact_id so after_chain_id pagination is deterministic.
-func (s PostgresSecretsIAMIdentityTrustChainStore) ListSecretsIAMIdentityTrustChains(
+func (s PostgresIAMIdentityTrustChainStore) ListSecretsIAMIdentityTrustChains(
 	ctx context.Context,
-	filter SecretsIAMIdentityTrustChainFilter,
-) ([]SecretsIAMIdentityTrustChainRow, error) {
+	filter IAMIdentityTrustChainFilter,
+) ([]IAMIdentityTrustChainRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("secrets/IAM identity trust-chain database is required")
 	}
@@ -111,7 +113,7 @@ func (s PostgresSecretsIAMIdentityTrustChainStore) ListSecretsIAMIdentityTrustCh
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]SecretsIAMIdentityTrustChainRow, 0, filter.Limit)
+	out := make([]IAMIdentityTrustChainRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
 		var payloadBytes []byte
@@ -154,7 +156,7 @@ ORDER BY fact.fact_id ASC
 LIMIT $9
 `
 
-func (f SecretsIAMIdentityTrustChainFilter) hasScope() bool {
+func (f IAMIdentityTrustChainFilter) hasScope() bool {
 	return f.ScopeID != "" ||
 		f.ChainID != "" ||
 		f.WorkloadObjectID != "" ||
@@ -165,25 +167,25 @@ func (f SecretsIAMIdentityTrustChainFilter) hasScope() bool {
 func decodeSecretsIAMIdentityTrustChainRow(
 	factID string,
 	payloadBytes []byte,
-) (SecretsIAMIdentityTrustChainRow, error) {
+) (IAMIdentityTrustChainRow, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return SecretsIAMIdentityTrustChainRow{}, fmt.Errorf("decode secrets/IAM identity trust chain: %w", err)
+		return IAMIdentityTrustChainRow{}, fmt.Errorf("decode secrets/IAM identity trust chain: %w", err)
 	}
-	return SecretsIAMIdentityTrustChainRow{
+	return IAMIdentityTrustChainRow{
 		ChainID:               factID,
-		State:                 StringVal(payload, "state"),
-		Confidence:            StringVal(payload, "confidence"),
-		ServiceAccountJoinKey: StringVal(payload, "service_account_join_key"),
-		WorkloadObjectID:      StringVal(payload, "workload_object_id"),
-		WorkloadKind:          StringVal(payload, "workload_kind"),
-		IAMRoleFingerprint:    StringVal(payload, "iam_role_fingerprint"),
-		VaultRoleJoinKey:      StringVal(payload, "vault_role_join_key"),
-		VaultMountJoinKey:     StringVal(payload, "vault_mount_join_key"),
-		VaultPolicyJoinKeys:   StringSliceVal(payload, "vault_policy_join_keys"),
-		EvidenceFactIDs:       StringSliceVal(payload, "evidence_fact_ids"),
-		MissingEvidence:       StringSliceVal(payload, "missing_evidence"),
-		SourceScopes:          StringSliceVal(payload, "source_scopes"),
-		SourceGenerations:     StringSliceVal(payload, "source_generations"),
+		State:                 querycontract.StringVal(payload, "state"),
+		Confidence:            querycontract.StringVal(payload, "confidence"),
+		ServiceAccountJoinKey: querycontract.StringVal(payload, "service_account_join_key"),
+		WorkloadObjectID:      querycontract.StringVal(payload, "workload_object_id"),
+		WorkloadKind:          querycontract.StringVal(payload, "workload_kind"),
+		IAMRoleFingerprint:    querycontract.StringVal(payload, "iam_role_fingerprint"),
+		VaultRoleJoinKey:      querycontract.StringVal(payload, "vault_role_join_key"),
+		VaultMountJoinKey:     querycontract.StringVal(payload, "vault_mount_join_key"),
+		VaultPolicyJoinKeys:   querycontract.StringSliceVal(payload, "vault_policy_join_keys"),
+		EvidenceFactIDs:       querycontract.StringSliceVal(payload, "evidence_fact_ids"),
+		MissingEvidence:       querycontract.StringSliceVal(payload, "missing_evidence"),
+		SourceScopes:          querycontract.StringSliceVal(payload, "source_scopes"),
+		SourceGenerations:     querycontract.StringSliceVal(payload, "source_generations"),
 	}, nil
 }

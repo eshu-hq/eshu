@@ -203,7 +203,7 @@ func packageRegistryAggregateParams(filter PackageRegistryAggregateFilter) map[s
 // enum rather than emit the fact, so p.ecosystem cannot carry
 // collector-supplied free text by either route. 32 = 13 enum values + 1 unknown bucket +
 // headroom, mirroring the groupedGrantCounts precedent in
-// secrets_iam_grant_posture.go.
+// secrets/grant_posture.go.
 func (s GraphPackageRegistryAggregateStore) CountPackageRegistryPackages(
 	ctx context.Context,
 	filter PackageRegistryAggregateFilter,
