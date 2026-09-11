@@ -237,8 +237,8 @@ tests exercise root's middleware directly and never call `Handler`.
 
 ## Related docs
 
-- [Cypher performance](../../../../docs/public/reference/cypher-performance.md)
-- [HTTP API reference](../../../../docs/public/reference/http-api.md)
+- [Cypher performance](../../../../../docs/public/reference/cypher-performance.md)
+- [HTTP API reference](../../../../../docs/public/reference/http-api.md)
 
 ## Verification
 
