@@ -4,7 +4,7 @@
 package packagereg
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	reducerderivedv1 "github.com/eshu-hq/eshu/sdk/go/factschema/reducerderived/v1"
 )
@@ -14,7 +14,7 @@ import (
 // reducer_package_consumption_correlation, and reducer_package_publication_correlation.
 // package_registry_correlations.go is the only read site for these three
 // kinds. Each wrapper wraps the matching sdk/go/factschema Decode* seam and,
-// on ANY classified *factschema.DecodeError, returns a *querydecode.Error so
+// on ANY classified *factschema.DecodeError, returns a *decode.Error so
 // the caller drops that fact's contribution instead of fabricating a
 // zero-valued row — matching the #4784 ADR's "missing required fields
 // dead-letter, they never silently zero out" rule. The motivating case is a
@@ -34,8 +34,8 @@ import (
 //
 // This file moved from root package query into packagereg with the rest of
 // the package-registry handler family (#6060); it kept package query's decode
-// helpers (querydecode.New, the schema-version default) rather than forking
-// them, calling the exported querydecode seam instead of the root package's
+// helpers (decode.New, the schema-version default) rather than forking
+// them, calling the exported decode seam instead of the root package's
 // unexported wrapper.
 
 // packageCorrelationDecodeInput carries one scanned package correlation fact
@@ -81,11 +81,11 @@ func packageCorrelationSchemaEnvelope(factKind, schemaVersion string, payload ma
 // decodeReducerPackageOwnershipCorrelation decodes one
 // reducer_package_ownership_correlation fact row into the typed struct. A
 // missing required field (package_id) yields a self-classifying
-// *querydecode.Error.
+// *decode.Error.
 func decodeReducerPackageOwnershipCorrelation(in packageCorrelationDecodeInput) (reducerderivedv1.PackageOwnershipCorrelation, error) {
 	correlation, err := factschema.DecodeReducerPackageOwnershipCorrelation(packageCorrelationSchemaEnvelope(factschema.FactKindReducerPackageOwnershipCorrelation, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return reducerderivedv1.PackageOwnershipCorrelation{}, querydecode.New(factschema.FactKindReducerPackageOwnershipCorrelation, in.FactID, err)
+		return reducerderivedv1.PackageOwnershipCorrelation{}, decode.New(factschema.FactKindReducerPackageOwnershipCorrelation, in.FactID, err)
 	}
 	return correlation, nil
 }
@@ -93,11 +93,11 @@ func decodeReducerPackageOwnershipCorrelation(in packageCorrelationDecodeInput) 
 // decodeReducerPackageConsumptionCorrelation decodes one
 // reducer_package_consumption_correlation fact row into the typed struct. A
 // missing required field (package_id) yields a self-classifying
-// *querydecode.Error.
+// *decode.Error.
 func decodeReducerPackageConsumptionCorrelation(in packageCorrelationDecodeInput) (reducerderivedv1.PackageConsumptionCorrelation, error) {
 	correlation, err := factschema.DecodeReducerPackageConsumptionCorrelation(packageCorrelationSchemaEnvelope(factschema.FactKindReducerPackageConsumptionCorrelation, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return reducerderivedv1.PackageConsumptionCorrelation{}, querydecode.New(factschema.FactKindReducerPackageConsumptionCorrelation, in.FactID, err)
+		return reducerderivedv1.PackageConsumptionCorrelation{}, decode.New(factschema.FactKindReducerPackageConsumptionCorrelation, in.FactID, err)
 	}
 	return correlation, nil
 }
@@ -105,11 +105,11 @@ func decodeReducerPackageConsumptionCorrelation(in packageCorrelationDecodeInput
 // decodeReducerPackagePublicationCorrelation decodes one
 // reducer_package_publication_correlation fact row into the typed struct. A
 // missing required field (package_id) yields a self-classifying
-// *querydecode.Error.
+// *decode.Error.
 func decodeReducerPackagePublicationCorrelation(in packageCorrelationDecodeInput) (reducerderivedv1.PackagePublicationCorrelation, error) {
 	correlation, err := factschema.DecodeReducerPackagePublicationCorrelation(packageCorrelationSchemaEnvelope(factschema.FactKindReducerPackagePublicationCorrelation, in.SchemaVersion, in.Payload))
 	if err != nil {
-		return reducerderivedv1.PackagePublicationCorrelation{}, querydecode.New(factschema.FactKindReducerPackagePublicationCorrelation, in.FactID, err)
+		return reducerderivedv1.PackagePublicationCorrelation{}, decode.New(factschema.FactKindReducerPackagePublicationCorrelation, in.FactID, err)
 	}
 	return correlation, nil
 }

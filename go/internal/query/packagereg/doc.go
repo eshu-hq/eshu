@@ -10,7 +10,7 @@
 // read, tested, and changed without pulling in the rest of the query
 // surface. It depends only on the dependency-neutral leaf packages under
 // internal/query -- querycontract (ports, row-value decoders, response and
-// truth envelopes, capability gates), querydecode (classified fact-decode
+// truth envelopes, capability gates), decode (classified fact-decode
 // failures), queryselector (repository-selector resolution), and queryspan
 // (the per-route HTTP span) -- never on root package query itself, which
 // would create an import cycle: root's package_registry_alias.go imports

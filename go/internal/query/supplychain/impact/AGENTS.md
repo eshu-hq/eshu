@@ -8,15 +8,15 @@ Read `doc.go` and `README.md` first.
   `supply_chain_impact_alias.go` already imports this package for its
   compatibility aliases, so the reverse import cycles. If a change needs
   something only root exposes, either a leaf equivalent already exists
-  (`querycontract`, `querydecode`) or it does not belong in this family;
+  (`querycontract`, `decode`) or it does not belong in this family;
   ask before adding one.
 - The capabilities (`supplyChainImpactFindingsCapability`,
   `supplyChainImpactExplanationCapability`) are registered in ROOT
   (`contract_supply_chain.go`), not here — root owns the router and always
   links into production. This package only declares the read models.
-- The copied decode wrappers MUST return `*querydecode.Error` via
-  `querydecode.New`, never root's `newQueryDecodeError`. That constructor
-  forwards to `querydecode.New` (root's `queryDecodeError` is an alias),
+- The copied decode wrappers MUST return `*decode.Error` via
+  `decode.New`, never root's `newQueryDecodeError`. That constructor
+  forwards to `decode.New` (root's `queryDecodeError` is an alias),
   so the values are identical — but the next family copying this seam
   copies the constructor call too, so keep it on the leaf.
 - `supplyChainDefaultSchemaMajorVersion` MUST stay `"1.0.0"` and MUST stay

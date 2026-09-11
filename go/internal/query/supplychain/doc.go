@@ -18,7 +18,7 @@
 // surface. It depends only on dependency-neutral leaves -- querycontract
 // (envelopes, capabilities, row-value decoders), queryauth (request auth
 // bounds), queryselector (repository-selector resolution), queryspan (span
-// plumbing), querydecode-adjacent sdk/go/factschema seams, internal/scope,
+// plumbing), decode-adjacent sdk/go/factschema seams, internal/scope,
 // and the advisory/impact subpackages -- never on root package query
 // itself, which would create an import cycle: root's
 // supply_chain_hub_alias.go imports this package for the compatibility

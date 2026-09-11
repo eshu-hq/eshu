@@ -8,14 +8,14 @@ Read `doc.go` and `README.md` first.
   `supply_chain_advisory_alias.go` already imports this package for its
   compatibility aliases, so the reverse import cycles. If a change needs
   something only root exposes, either a leaf equivalent already exists
-  (`querycontract`, `querydecode`) or it does not belong in this family;
+  (`querycontract`, `decode`) or it does not belong in this family;
   ask before adding one.
 - The capabilities (`AdvisoryCatalogCapability`,
   `AdvisoryEvidenceCapability`) are registered in ROOT
   (`contract_supply_chain.go`), not here — root owns the router and always
   links into production. This package only declares the constant values.
-- The typed decode wrappers MUST return `*querydecode.Error` via
-  `querydecode.New`, never root's `newQueryDecodeError`. The model drops on
+- The typed decode wrappers MUST return `*decode.Error` via
+  `decode.New`, never root's `newQueryDecodeError`. The model drops on
   any non-nil error without inspecting its type, and the dead-letter tests
   pin the drop, not the error type — but the next family copying this seam
   copies the constructor call too, so keep it on the leaf.

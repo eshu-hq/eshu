@@ -60,7 +60,7 @@ Internal packages, all of them leaves that never import root package `query`:
 - `internal/query/querycontract` — `StringVal`, `BoolVal`,
   `StringSliceVal` row-value decoders (root forwards to the same
   functions, so behavior is identical on both sides of the move).
-- `internal/query/querydecode` — the classified decode failure the four
+- `internal/query/decode` — the classified decode failure the four
   vulnerability decode wrappers return (packagereg precedent).
 - `internal/storage/postgres/pgarray` — the array scan/build surface the
   stores read and write through.
@@ -96,7 +96,7 @@ the grouping, paging, normalization, SQL shape, and dead-letter behavior.
 The four vulnerability decode cases the root dead-letter table yielded
 moved with their wrappers into `factschema_decode_advisory_test.go`,
 asserting the same classification, fact kind, fact ID, and field on the
-`querydecode.Error` the wrappers return.
+`decode.Error` the wrappers return.
 
 No-Observability-Change: there is no observability to change — this
 package emits none, and the handler spans and capability strings keep

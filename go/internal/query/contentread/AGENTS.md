@@ -13,7 +13,7 @@ Read `doc.go` and `README.md` first.
   already imports this package for its compatibility aliases, so the reverse
   import cycles. If a change needs something only root exposes, either it
   already has a leaf equivalent under `internal/query` (`querycontract`,
-  `queryauth`, `querydecode`, `queryselector`, `queryspan`, `codemodel`) or
+  `queryauth`, `decode`, `queryselector`, `queryspan`, `codemodel`) or
   it does not belong in this family; ask before adding one.
 - `querycontract.PagedContentSearcher` MUST keep decomposed primitive
   parameters. Reintroducing a shared request struct (or any unexported type

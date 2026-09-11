@@ -18,7 +18,7 @@ Read `doc.go` and `README.md` first.
   already imports this package for its compatibility aliases, so the reverse
   import cycles. If a change needs something only root exposes, either it
   already has a leaf equivalent under `internal/query` (`querycontract`,
-  `queryauth`, `querydecode`, `queryselector`, `queryspan`) or it does not
+  `queryauth`, `decode`, `queryselector`, `queryspan`) or it does not
   belong in this family; ask before adding one.
 - This family's six capabilities are registered in ROOT
   (`contract_package_registry.go`, `contract_capability_matrix.go`), not here

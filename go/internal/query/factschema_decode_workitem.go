@@ -4,7 +4,7 @@
 package query
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/querydecode"
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 	workitemv1 "github.com/eshu-hq/eshu/sdk/go/factschema/workitem/v1"
 )
@@ -26,18 +26,18 @@ import (
 // is building.
 
 // queryDecodeError is the query layer's classified decode failure. It aliases
-// querydecode.Error, which owns the type and both of its methods.
+// decode.Error, which owns the type and both of its methods.
 //
 // The alias carries Error() and Unwrap() because they are exported; #6060's
 // other seam, RepositoryAccessFilter, needed a 177-file rename precisely
 // because ITS methods were unexported and an alias cannot reach those across a
 // package boundary. Nothing here changes for the 73 existing references.
-type queryDecodeError = querydecode.Error
+type queryDecodeError = decode.Error
 
 // newQueryDecodeError wraps a decode error returned by a factschema Decode*
 // function into the query layer's classified decode failure.
 func newQueryDecodeError(factKind, factID string, err error) *queryDecodeError {
-	return querydecode.New(factKind, factID, err)
+	return decode.New(factKind, factID, err)
 }
 
 // workItemSchemaEnvelope adapts one scanned work-item fact row into the

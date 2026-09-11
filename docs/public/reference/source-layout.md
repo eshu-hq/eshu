@@ -105,7 +105,7 @@ live in the repository today.
 | `go/internal/query/packagereg/` | package-registry query handler family: package/version identity, package-native dependency edges, reducer-derived correlation, and inventory reads |
 | `go/internal/query/queryauth/` | request-scoped authorization bounds a query handler reads, and the context slot they travel in |
 | `go/internal/query/querycontract/` | dependency-neutral query profiles, envelopes, capability registry, and read ports |
-| `go/internal/query/querydecode/` | the query layer's classified fact-decode failure, defaulting an unexpected error to non-retryable |
+| `go/internal/query/decode/` | the query layer's classified fact-decode failure, defaulting an unexpected error to non-retryable |
 | `go/internal/query/queryselector/` | resolves a caller-supplied repository selector to one canonical repository id under the caller's access bounds |
 | `go/internal/query/queryspan/` | the per-route span query HTTP reads emit, startable from a family subpackage without importing root |
 | `go/internal/query/querytestutil/` | test helpers shared by internal/query and its handler-family subpackages, in non-test files so they are importable |
@@ -174,7 +174,7 @@ Read and operator surfaces live under:
 - `go/internal/query/queryauth/`: request-scoped authorization bounds and their
   context slot
 - `go/internal/query/querycontract/`: response contracts, profile gates, and read ports
-- `go/internal/query/querydecode/`: classified fact-decode failure for query
+- `go/internal/query/decode/`: classified fact-decode failure for query
   handlers
 - `go/internal/query/queryselector/`: repository-selector resolution under
   access bounds
