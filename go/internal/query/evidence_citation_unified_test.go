@@ -68,9 +68,9 @@ func TestEvidenceCitationRoundTripsCanonical(t *testing.T) {
 		Excerpt:        "func main() {\n\tstartAPI()",
 	}
 
-	ev := cite.toCanonical()
+	ev := citationToCanonical(cite)
 	if err := ev.Validate(); err != nil {
-		t.Fatalf("toCanonical().Validate() error = %v, want nil", err)
+		t.Fatalf("citationToCanonical().Validate() error = %v, want nil", err)
 	}
 	if ev.Confidence != 0.75 {
 		t.Fatalf("Confidence = %v, want 0.75", ev.Confidence)

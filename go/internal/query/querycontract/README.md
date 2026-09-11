@@ -25,6 +25,7 @@ subpackage can call the same logic without an import cycle (#6060):
 | Entity-name search | `entity_name_search.go` | exported type aliases, unexported const and sentinel-error aliases |
 | Content-index readiness | `content_index_readiness.go` | exported error alias, function forwarder |
 | Evidence-citation handles | `evidence_citation_handle.go` | unexported type aliases in `evidence_citation.go`, plus the exported `EvidenceCitationHandle` alias root already published in `evidence_citation_public.go` |
+| Evidence-citation packet read models (#6642) | `evidence_citation.go` | unexported type aliases in root `evidence_citation.go` and `evidence_citation_unified.go` (`evidenceCitation`, `evidenceCitationResponse`, `evidenceCitationCoverage`, `evidenceCitationProvenance`); root's `toCanonical` method became the free function `citationToCanonical` because an alias cannot carry methods |
 | Language alias table and coverage maps | `language/registry.go` | unexported function forwarders |
 | `ContentStore` read models (#6060) | `documentation_read_models.go`, `repository_read_models.go`, `repository_summary_read_models.go`, `k8s_select_candidate_projection.go` | 20 unexported type aliases in root, plus four exported ones |
 | `AnswerMetadata` attach helper | `answer_metadata.go` | exported type alias + wrapper in `answer_metadata_alias.go`; `AssertAnswerMetadata` pin in `impact/` test |

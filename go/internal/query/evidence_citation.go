@@ -37,48 +37,18 @@ type evidenceCitationRequest struct {
 // this package. Every field stays exported and unchanged.
 type evidenceCitationHandle = querycontract.EvidenceCitationHandle
 
-type evidenceCitationResponse struct {
-	Subject              map[string]any           `json:"subject,omitempty"`
-	Question             string                   `json:"question,omitempty"`
-	Citations            []evidenceCitation       `json:"citations"`
-	MissingHandles       []evidenceCitationHandle `json:"missing_handles"`
-	Coverage             evidenceCitationCoverage `json:"coverage"`
-	RecommendedNextCalls []map[string]any         `json:"recommended_next_calls"`
-}
+// evidenceCitationResponse aliases querycontract.EvidenceCitationResponse,
+// which this type moved to (#6642) with evidenceCitation and
+// evidenceCitationCoverage so the visualization and evidence families can
+// build citation packets without importing this package.
+type evidenceCitationResponse = querycontract.EvidenceCitationResponse
 
-type evidenceCitation struct {
-	CitationID     string                     `json:"citation_id"`
-	Rank           int                        `json:"rank"`
-	Kind           string                     `json:"kind"`
-	EvidenceFamily string                     `json:"evidence_family"`
-	Reason         string                     `json:"reason,omitempty"`
-	Confidence     float64                    `json:"confidence"`
-	RepoID         string                     `json:"repo_id,omitempty"`
-	RelativePath   string                     `json:"relative_path,omitempty"`
-	EntityID       string                     `json:"entity_id,omitempty"`
-	EntityType     string                     `json:"entity_type,omitempty"`
-	EntityName     string                     `json:"entity_name,omitempty"`
-	StartLine      int                        `json:"start_line,omitempty"`
-	EndLine        int                        `json:"end_line,omitempty"`
-	ByteOffset     int                        `json:"byte_offset,omitempty"`
-	ByteLength     int                        `json:"byte_length,omitempty"`
-	Language       string                     `json:"language,omitempty"`
-	ArtifactType   string                     `json:"artifact_type,omitempty"`
-	ContentHash    string                     `json:"content_hash,omitempty"`
-	CommitSHA      string                     `json:"commit_sha,omitempty"`
-	Provenance     evidenceCitationProvenance `json:"provenance"`
-	Excerpt        string                     `json:"excerpt"`
-}
+// evidenceCitation aliases querycontract.EvidenceCitation (moved for #6642).
+type evidenceCitation = querycontract.EvidenceCitation
 
-type evidenceCitationCoverage struct {
-	QueryShape       string `json:"query_shape"`
-	InputHandleCount int    `json:"input_handle_count"`
-	ResolvedCount    int    `json:"resolved_count"`
-	MissingCount     int    `json:"missing_count"`
-	Limit            int    `json:"limit"`
-	Truncated        bool   `json:"truncated"`
-	SourceBackend    string `json:"source_backend"`
-}
+// evidenceCitationCoverage aliases querycontract.EvidenceCitationCoverage
+// (moved for #6642).
+type evidenceCitationCoverage = querycontract.EvidenceCitationCoverage
 
 type evidenceCitationFileLookup struct {
 	RepoID       string
