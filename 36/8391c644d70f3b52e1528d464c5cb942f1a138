@@ -1,0 +1,201 @@
+go/internal/query/kubernetes_runtime_workload_store_fairness_live_test.go
+  s_5caebb0e4c1d81::t_0c3f8c3baa4ff2 58-59,68-69
+go/internal/query/supplychain/findings_aggregates_handler.go
+  s_5caebb0e4c1d81::t_bd3f40bf4cd055 15,19-20,25,30,34,41,43,54,56,60,95,101,106,110,117,119,130,132,136,191,197,202
+go/internal/query/supplychain/security_alerts.go
+  s_5caebb0e4c1d81::t_1fcbf586e4f98b 16
+go/internal/query/supply_chain_advisory_alias.go
+  s_5caebb0e4c1d81::t_32a934ebcb0a60 30,37
+go/internal/query/supplychain/kubernetes_runtime_probe_fair.go
+  s_5caebb0e4c1d81::t_94a52188865730 19-20,49-50,60,63,87-88,99,140,170,172-173
+go/internal/query/cloud_resource_runtime_digest_starvation_live_test.go
+  s_5caebb0e4c1d81::t_7089821e4fbd4e 108,110,229,233
+go/internal/query/supplychain/runtime_environment_digest_bound_test.go
+  s_5caebb0e4c1d81::t_bc58ddcf950549 31,80
+go/internal/query/supplychain/investigation_packet_api_supply_chain_test.go
+  s_5caebb0e4c1d81::t_cdc0d65ac0ea5b 23
+go/internal/query/supplychain/impact/AGENTS.md
+  s_5caebb0e4c1d81::t_cfca6f285ae572 95-96
+go/internal/cli/compparity/exercises.go
+  s_5caebb0e4c1d81::t_401a635c03d537 111
+go/internal/query/supplychain/advisory/doc.go
+  s_5caebb0e4c1d81::t_1d46101c267f55 5,7,22,26
+go/cmd/eshu/investigation_cmd_test.go
+  s_5caebb0e4c1d81::t_f441065d20b77a 66
+go/internal/query/supply_chain_advisory_evidence_scoped_token_test.go
+  s_5caebb0e4c1d81::t_20b3282a46b507 23-24,63,120
+go/internal/query/supplychain/findings_scope.go
+  s_5caebb0e4c1d81::t_6f50667cd8c413 23,37,53,66,72,80,94,102,121
+go/internal/mcp/route_serves_data_registry_routes.go
+  s_5caebb0e4c1d81::t_316e087995f6e9 152
+  s_e8ab01ccdfa8e2::t_9ed288428c078b 142
+go/internal/query/supplychain/runtime_context_probe.go
+  s_5caebb0e4c1d81::t_1ea1db5679519a 55,57,82,125,171,190-191
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_5caebb0e4c1d81::t_fc6fa17cba7a5f 202
+go/internal/query/supplychain/advisory/evidence_model.go
+  s_5caebb0e4c1d81::t_18a18ecf74fa79 16,32,46,51,58-59,76,113,128,142,144,182,195-199,236,249,251,280,282,300,308,392,409,419,427,429,432,444-445
+go/internal/query/supplychain/doc.go
+  s_5caebb0e4c1d81::t_0244632fb2d85c 5,34
+go/internal/query/supply_chain_hub_alias.go
+  s_5caebb0e4c1d81::t_dd47f0cc0e6295 24-25,28-29,103-104,107,125-129,151-152,155,165,167-168,170-171,178,180-181,245,247,295-296
+go/internal/query/supplychain/suppression_mutation.go
+  s_5caebb0e4c1d81::t_de736bf8d234d6 64
+go/internal/query/supplychain/main_test.go
+  s_5caebb0e4c1d81::t_e3ea35b19f6e61 24,51,55,67
+go/internal/query/supplychain/sbom_attachments.go
+  s_5caebb0e4c1d81::t_940e2f968c68bd 80
+go/internal/query/supplychain/kubernetes_runtime_probe_test.go
+  s_5caebb0e4c1d81::t_75ee49beb629fe 51,89,123,144-146,152,161,167-168,177-178,180-181,191,199,205,230,246,275,354,397
+go/internal/query/supplychain/evidence_handler.go
+  s_5caebb0e4c1d81::t_bcd29dd7adfdbb 17,54,56,100,110,116-117,141-142
+go/internal/query/supplychain/advisory/catalog_model.go
+  s_5caebb0e4c1d81::t_0b544190d2c682 15,19,22,24,27-28,31,34,55-57,60,64-65
+go/internal/query/supplychain/advisory/evidence_store.go
+  s_5caebb0e4c1d81::t_ae821f74a4a848 17,21,25,28,45,50,58-59,67-68,74,77,88,103,121-122,126,133,135,149,151,154,160,167,169-170,185,190,203,206-207,213,216,219,228,232,241,244,255,257,266,272,292,299
+go/internal/query/supplychain/advisory/AGENTS.md
+  s_5caebb0e4c1d81::t_e936dcd55d6a00 52,54,57,59,61,64
+  s_5caebb0e4c1d81::t_dd41fa4d858a1c 31
+go/internal/query/supplychain/impact/scanner_filters.go
+  s_5caebb0e4c1d81::t_130c855e0cd849 16,25
+go/internal/query/supplychain/container_images.go
+  s_5caebb0e4c1d81::t_50bcb88b5267fd 17
+go/internal/query/supplychain/runtime_environment_evidence_test.go
+  s_5caebb0e4c1d81::t_6473771be7cb44 61,86,111,129,138,184,218,255
+go/internal/query/supply_chain_advisory_evidence_test.go
+  s_5caebb0e4c1d81::t_dd74fa55b0ce6a 21-22,28-29,32,75,77,82,91,93,103-104,124,126,130,133,142,159-160,167-171,193-196,199,203,207,211,219-222,225,234,236,238,243,245,250,252,258,267,275,426,431,440
+go/internal/query/supply_chain_vulnerability_detail_handler_test.go
+  s_5caebb0e4c1d81::t_887c6dcf6371c3 16-18,37,44-45,63,73-74
+go/internal/query/supplychain/security_alert_reconciliation_scope.go
+  s_5caebb0e4c1d81::t_ac58c36529be63 29,45,67,86
+go/internal/query/supplychain/handler.go
+  s_5caebb0e4c1d81::t_ddbc9e94f883ef 17-18,22,31-32,37-38,69,110,128
+go/internal/query/supply_chain_impact_explain_runtime_test.go
+  s_5caebb0e4c1d81::t_8f924289b40574 227
+go/internal/query/supply_chain_advisory_evidence_scope_test.go
+  s_5caebb0e4c1d81::t_adb0fce8b36693 30-31,35,61,69-70,78,125-126,130-131
+go/internal/query/supplychain/sbom_attestation_attachment_aggregates_handler.go
+  s_5caebb0e4c1d81::t_6668b106b6485b 18,23,93,185
+go/internal/query/supplychain/kubernetes_runtime_probe.go
+  s_5caebb0e4c1d81::t_339a522777659d 17,20-21,24,30,99,125
+go/internal/query/supplychain/advisory/README.md
+  s_5caebb0e4c1d81::t_a5a9f85be7c31d 38,40-41,43-44,46,49-51
+  s_5caebb0e4c1d81::t_441b41db5e64b5 121-122
+  s_5caebb0e4c1d81::t_08f8139de719e7 113
+go/internal/query/supplychain/advisory/factschema_decode_advisory.go
+  s_5caebb0e4c1d81::t_c4a3e811bc8811 30,118,131
+go/internal/cli/investigation/packet_test.go
+  s_5caebb0e4c1d81::t_c64e32077ca6ce 57
+go/internal/query/collector_list_readiness_parity_test.go
+  s_5caebb0e4c1d81::t_d8a4dfdb38dfca 109
+go/internal/query/supply_chain_impact_operational_anchor_test.go
+  s_5caebb0e4c1d81::t_e14cd7effbd488 178-179,233-235
+go/internal/query/supplychain/findings_handler.go
+  s_5caebb0e4c1d81::t_50d29740e08d6e 17,22,26,33,35,47,81,122,124,153,170,234,318
+go/internal/query/supply_chain_impact_packet_responder.go
+  s_5caebb0e4c1d81::t_b20b316a976949 15,28
+go/internal/query/supplychain/scanner_contract.go
+  s_5caebb0e4c1d81::t_32989bf2c2e679 70,161-164,168
+go/internal/query/supplychain/impact/explain.go
+  s_5caebb0e4c1d81::t_ddcea2a0ef5f88 87,225
+go/internal/query/supplychain/kubernetes_runtime_probe_bench_test.go
+  s_5caebb0e4c1d81::t_f3226fbe02ae14 17-19,35
+go/internal/query/supplychain/investigation_packet_api_supply_chain.go
+  s_5caebb0e4c1d81::t_94e1193f54bdf6 15,20,29,45,50,54,61,63,68,79,81,111,113,124,140,158
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_5caebb0e4c1d81::t_f3d2f046030961 134
+  s_5caebb0e4c1d81::t_f2469ac308caf6 159,166
+  s_e8ab01ccdfa8e2::t_7e801e3679390c 125
+go/internal/query/supplychain/repository_selector.go
+  s_5caebb0e4c1d81::t_289febe86465b9 21,46,88,116,137
+go/internal/query/supplychain/advisory/evidence_helpers.go
+  s_5caebb0e4c1d81::t_450a45b2e50832 155,158
+go/internal/query/supplychain/runtime_context_probe_test.go
+  s_5caebb0e4c1d81::t_84a14a288799ce 40,67,107,166,197,215,250,274,295,315,350
+go/internal/query/supplychain/container_image_identity_scope.go
+  s_5caebb0e4c1d81::t_328d5219a6ba91 23,35,57,73
+go/internal/query/supplychain/runtime_repository_precedence_live_test.go
+  s_5caebb0e4c1d81::t_2e5c8d614842ae 137
+go/internal/query/supplychain/security_alert_reconciliation_aggregates_handler.go
+  s_5caebb0e4c1d81::t_a8b4eabff8797c 19-20,25,97,189
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_5caebb0e4c1d81::t_c2dfdb58866cf2 571
+go/internal/query/supply_chain_advisory_catalog_test.go
+  s_5caebb0e4c1d81::t_4dfba40a3b0ec2 19-20,26-27,30,116,118,128,169-174,226,250-251,266
+go/internal/query/supply_chain_advisory_evidence_decode_test.go
+  s_5caebb0e4c1d81::t_5689d4f95d86b2 32,55,84,109,129
+go/internal/query/supplychain/AGENTS.md
+  s_5caebb0e4c1d81::t_94e7b17fe54578 93
+  s_5caebb0e4c1d81::t_da28b9c1461535 50
+  s_5caebb0e4c1d81::t_8a5ed2b8a8311c 106,109-110,114
+  s_5caebb0e4c1d81::t_2af6ec31872556 72
+  s_5caebb0e4c1d81::t_935549caab1b42 38
+go/internal/query/supply_chain_advisory_evidence_sql_test.go
+  s_5caebb0e4c1d81::t_094f04ee99a4ca 79-82
+go/internal/query/supplychain/kubernetes_runtime_probe_fair_test.go
+  s_5caebb0e4c1d81::t_72604c31b45aad 105-106,115,125,135,140-141,162-163,176,185,204-205,217,231,270,283,304,314,317-318,320-321,324,344,372,402
+go/internal/query/supplychain/cloud_runtime_probe.go
+  s_5caebb0e4c1d81::t_fc4eaf28c0895d 24,30,32,34,36,56,58,75-76,78,83,97,99,101-103,126,139-140,220
+go/internal/query/investigation_packet_supply_chain.go
+  s_5caebb0e4c1d81::t_4a25377e16c478 22,41,269
+go/internal/query/supply_chain_impact_explain_refusal_test.go
+  s_5caebb0e4c1d81::t_9df2462b0c96dd 74-75
+go/internal/query/supplychain/explain_handler.go
+  s_5caebb0e4c1d81::t_b58ddc4c0a13a2 15,20,24,31,33,37,50,80,82,93,108,128,146,160,166
+go/internal/query/supply_chain_impact_kubernetes_runtime_probe_performance_live_test.go
+  s_5caebb0e4c1d81::t_ba147872191102 63,79-80,94,104-105,107-108,241,243-245,300,320,361-362,433-434
+go/internal/query/supplychain/alerts/README.md
+  s_5caebb0e4c1d81::t_c2db6c1eeeda10 12
+go/internal/query/investigation_packet_supply_chain_test.go
+  s_5caebb0e4c1d81::t_86916d38296f3a 52,120,141
+go/internal/packetdogfood/grounding_test.go
+  s_5caebb0e4c1d81::t_f58a9fb90aab3c 93
+go/internal/query/supplychain/runtime_context_scope_live_test.go
+  s_5caebb0e4c1d81::t_ab02f6f55cd929 58
+go/internal/query/supplychain/catalog_handler.go
+  s_5caebb0e4c1d81::t_96c8d08d25fd37 27,74,104,117,143-144
+go/internal/query/supplychain/README.md
+  s_5caebb0e4c1d81::t_e1d8308e05ce64 137
+  s_5caebb0e4c1d81::t_a38d77ac528a30 67-68
+  s_5caebb0e4c1d81::t_e8e1226eeab141 5
+go/internal/query/supplychain/cloud_runtime_probe_test.go
+  s_5caebb0e4c1d81::t_7f934d016783f0 147,195,239,273,300,320,333,338
+go/internal/query/supplychain/sbom_attestation_attachment_scope.go
+  s_5caebb0e4c1d81::t_14f97063f909a4 22,34,56,72
+go/internal/query/supplychain/vulnerability_detail_handler.go
+  s_5caebb0e4c1d81::t_125f491f0d50a3 26,89-90,94
+go/internal/query/supplychain/route_registration_test.go
+  s_5caebb0e4c1d81::t_e3b69a64eadcd8 26
+go/internal/query/supplychain/container_image_identity_aggregates_handler.go
+  s_5caebb0e4c1d81::t_981406bd7b392b 18-19,24,96
+go/internal/query/supplychain/advisory/catalog_store.go
+  s_5caebb0e4c1d81::t_8ff453d4ed7cf3 20,25,34-35,38,40-41,55,59,85,87-88,102,112
+go/internal/query/supplychain/advisory/evidence.go
+  s_5caebb0e4c1d81::t_298b59a082beb5 14,16,18,20,26-28,31,35,37,57,60-77,80,82,84,103,105,107,121-122,139-140,149-150,161-162,164,171,173-175,178-179
+go/internal/query/supplychain/kubernetes_runtime_probe_fair_live.go
+  s_5caebb0e4c1d81::t_65dd8767d136a4 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "368391c644d70f3b52e1528d464c5cb942f1a138",
+  "prompts": {},
+  "sessions": {
+    "s_5caebb0e4c1d81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3074553b-cc56-48c1-b155-4004d5ec4957",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
