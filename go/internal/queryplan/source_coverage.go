@@ -84,17 +84,19 @@ type NonHotDisposition struct {
 }
 
 // nonHotCorpusMaxCALLSOutDegree floors max_degree for degree-bounded CALLS
-// reads. Measured value 7: production parser (DefaultEngine.ParsePath) over
+// reads. Measured value 8: production parser (DefaultEngine.ParsePath) over
 // the 31 B-7 staged corpus fixtures
-// (scripts/lib/golden-corpus-fixtures.sh), per enclosing function, distinct
-// callee names restricted to CALLS-eligible call kinds (REFERENCES-mapped
-// kinds, constructor_call INSTANTIATES, and jsx_component REFERENCES are
-// excluded per the reducer and edge-writer contracts). Maximum observed on
-// go_comprehensive/goroutines.go FanOut (7 distinct callees); resolution can
-// only drop callees, so graph out-degree on this corpus cannot exceed it.
-// Re-measure with the same method when the staged corpus changes and raise
-// this floor; never lower an entry's max_degree to fit.
-const nonHotCorpusMaxCALLSOutDegree = 7
+// (scripts/lib/golden-corpus-fixtures.sh), restricted to CALLS-eligible call
+// kinds (REFERENCES-mapped kinds, constructor_call INSTANTIATES, and
+// jsx_component REFERENCES are excluded per the reducer and edge-writer
+// contracts), both directions: maximum 7 distinct callees per enclosing
+// function (out-degree, go_comprehensive/goroutines.go FanOut) and maximum 8
+// distinct caller functions per callee name (in-degree, "fmt.Sprintf").
+// Resolution can only drop references, so graph CALLS degree on this corpus
+// cannot exceed either upper bound, and one floor covers both read
+// directions. Re-measure with the same method when the staged corpus changes
+// and raise this floor; never lower an entry's max_degree to fit.
+const nonHotCorpusMaxCALLSOutDegree = 8
 
 // nonHotTransitiveMaxDepth ceilings max_depth for depth-bounded CALLS
 // traversals. It is the enforced clamp ceiling in
@@ -454,9 +456,9 @@ func validateNonHotDisposition(key string, disposition NonHotDisposition) []stri
 			))
 		}
 		violations = append(violations, validateNonHotMaxDegree(key, disposition.Class, disposition.MaxDegree)...)
-		if disposition.MaxDepth < 1 || disposition.MaxDepth > nonHotTransitiveMaxDepth {
+		if disposition.MaxDepth != nonHotTransitiveMaxDepth {
 			violations = append(violations, fmt.Sprintf(
-				"%s: depth_bounded requires max_depth within 1..%d (got %d); the handler clamps MaxDepth to %d, so a bound outside that range describes no production path",
+				"%s: depth_bounded requires max_depth == %d (got %d); %d is the handler-enforced clamp ceiling, so a lower bound describes no production path — a tighter production clamp needs a validator update, not a smaller number here",
 				key,
 				nonHotTransitiveMaxDepth,
 				disposition.MaxDepth,
@@ -477,7 +479,7 @@ func validateNonHotDisposition(key string, disposition NonHotDisposition) []stri
 func validateNonHotMaxDegree(key, class string, maxDegree int) []string {
 	if maxDegree < nonHotCorpusMaxCALLSOutDegree {
 		return []string{fmt.Sprintf(
-			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS out-degree measured on the B-7 staged corpus",
+			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS degree measured both directions on the B-7 staged corpus",
 			key,
 			class,
 			nonHotCorpusMaxCALLSOutDegree,
