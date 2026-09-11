@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestReducerPortRootsRequireMatchingSignatures(t *testing.T) {
+func TestReducerPortRootsIncludeContextlessMethodsAndExcludeTaxonomy(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -26,6 +26,7 @@ import "context"
 
 type Writer interface {
 	Write(context.Context, string) error
+	WriteWithoutContext(string) error
 }
 
 type ClassifiedFailure interface {
@@ -56,6 +57,11 @@ func (RightWriter) Write(context.Context, string) error {
 	return nil
 }
 
+func (RightWriter) WriteWithoutContext(string) error {
+	_ = relationshipTemplate
+	return nil
+}
+
 type ClassifiedError struct{}
 
 func (ClassifiedError) Error() string {
@@ -78,14 +84,31 @@ func (ClassifiedError) Retryable() bool {
 	}
 
 	source, ports := parseCypherPackageWithReducerPorts(t, dir)
+	for _, taxonomyMethod := range []string{"Error", "FailureClass", "Retryable"} {
+		if _, ok := ports[taxonomyMethod]; ok {
+			t.Errorf("non-port taxonomy method %s was collected as a reducer port", taxonomyMethod)
+		}
+	}
 	classifications := classifyCypherPorts(source, ports)
-	if len(classifications) != 1 {
-		t.Fatalf("classifications = %v, want only the signature-matched Write port", classifications)
+	if len(classifications) != 2 {
+		t.Fatalf("classifications = %v, want only the two Writer ports", classifications)
 	}
-	if classifications[0].Port != "Write" {
-		t.Fatalf("classified port = %q, want Write", classifications[0].Port)
+	byPort := make(map[string]cypherPortClassification, len(classifications))
+	for _, classification := range classifications {
+		byPort[classification.Port] = classification
 	}
-	if classifications[0].WritesEdges {
-		t.Errorf("Write reached Cypher through the same-named method with the wrong signature: %q", classifications[0].Evidence)
+	write, ok := byPort["Write"]
+	if !ok {
+		t.Fatal("context-bearing Write port was not classified")
+	}
+	if write.WritesEdges {
+		t.Errorf("Write reached Cypher through the same-named method with the wrong signature: %q", write.Evidence)
+	}
+	contextlessWrite, ok := byPort["WriteWithoutContext"]
+	if !ok {
+		t.Fatal("contextless WriteWithoutContext port was not classified")
+	}
+	if !contextlessWrite.WritesEdges {
+		t.Error("contextless WriteWithoutContext port did not reach its relationship MERGE")
 	}
 }
