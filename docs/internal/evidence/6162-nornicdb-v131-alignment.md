@@ -66,6 +66,34 @@ passed. These results support compatibility and no blocking performance
 regression, not a speedup or improved maintenance-latency claim. The advisory
 target remains unchanged.
 
+## Live local Kubernetes proof
+
+The exact implementation commit `3bcb17130` passed
+`bash scripts/run-k8s-two-team-governance-proof.sh --artifacts <temporary-dir>`
+on a disposable single-node `linux/amd64` Minikube v1.39.0 / Kubernetes v1.37.0
+cluster using the Docker runtime and Calico. The 674-second (11m14s) total
+included the uncached post-rebase Eshu image build, Helm deployment, two-repo
+seed, API and MCP capture, artifact verification, and namespace cleanup.
+
+The Pod specification used the immutable v1.3.1 multi-architecture index. The
+runtime reported that same immutable index, the node reported `linux/amd64`,
+and the running binary reported `NornicDB v1.3.1`. The verifier passed:
+
+- unauthenticated API and MCP rejection;
+- admin visibility of both seeded repositories;
+- one-repository visibility for each team through both API and MCP;
+- cross-scope omission and matching non-disclosing `404` selectors;
+- API/MCP parity;
+- four applied NetworkPolicy objects with the restricted-egress chart mode;
+- exact NornicDB provenance and artifact redaction.
+
+The normalized six-file artifact checksum was
+`sha256:9e55be4607d74c561debfffdfad2674caa55c2bb4e619465179eb79c3545b4f3`.
+This is local single-node evidence, not a production, managed-cluster,
+multi-node, arm64-runtime, or in-place-upgrade claim. It proves the restricted
+NetworkPolicy objects were applied on a Calico-backed cluster; it is not a
+hostile packet-flow test.
+
 ## Restart determinism
 
 One full `--shard 4/4` Ifá run passed every assigned recovery cell. Its common
