@@ -86,7 +86,7 @@ fan-out position. The reducer intent domain, entity
 key, reason, anchor selection, and source-system derivation are identical to
 the base commit, and the dispatcher's ordered fan-out is unchanged at 44
 builder probes with this probe still running immediately after
-`packages.BuildReducerIntent` and immediately
+`packagesource.BuildReducerIntent` and immediately
 before `multidrift.BuildReducerIntent`. During the earlier #6057 extraction,
 the root
 `awsCloudRuntimeDriftSourceSystem` helper it called was compared body-for-body

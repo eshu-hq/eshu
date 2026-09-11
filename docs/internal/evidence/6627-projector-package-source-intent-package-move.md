@@ -4,7 +4,7 @@
 
 Original TDD base: `722d636e9f805d76cf0fc6a24141d240867a048c`
 
-Current review base: `8ff548233cd431a8bf3db44bdd248ca5fe6e7b0c`
+Current review base: `2b01f131acfd5bf4f7642f0c9aa25b1182a280a9`
 
 The implementation commit rebased cleanly after PRs #6639 and #6636 merged.
 Before this evidence-binding correction, `git range-diff` marked the original
@@ -12,6 +12,18 @@ and rebased implementation patches as unchanged. PR #6639 had no changed-path
 intersection. PR #6636 overlapped only the telemetry coverage document and a
 supply-chain README; the rebased text preserves its reducer changes while
 repointing the package-source path.
+
+The branch later rebased onto `2b01f131a` after PRs #6610, #6612, and #6622
+merged. `git range-diff 8ff548233..9bc4524b3 2b01f131a..447c05c6f` marked the
+implementation patch unchanged; none of those merges touched a file this
+branch changes.
+
+Review follow-up: the root dispatcher imports the leaf under the descriptive
+alias `packagesource` rather than `packages`, which read as the documentation
+parent (whose `doc.go` declares `package packages`). The two README sentences
+that quote the call were updated to match. This is an identifier change in
+`scope_generation_intents.go` only; the call, its arguments, and its fan-out
+position are unchanged.
 
 This slice moves the package-source-correlation reducer-intent builder from
 `internal/projector/packagesource` to `internal/projector/package/source`,

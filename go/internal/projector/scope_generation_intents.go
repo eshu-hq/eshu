@@ -28,7 +28,7 @@ import (
 	projectorkubernetes "github.com/eshu-hq/eshu/go/internal/projector/kubernetes"
 	projectorobservabilitycoverage "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoverage"
 	projectorobservabilitycoveragematerialization "github.com/eshu-hq/eshu/go/internal/projector/observabilitycoveragematerialization"
-	packages "github.com/eshu-hq/eshu/go/internal/projector/package/source"
+	packagesource "github.com/eshu-hq/eshu/go/internal/projector/package/source"
 	projectorsbomattestation "github.com/eshu-hq/eshu/go/internal/projector/sbomattestation"
 	projectorsecretsiam "github.com/eshu-hq/eshu/go/internal/projector/secretsiam"
 	projectorsecurity "github.com/eshu-hq/eshu/go/internal/projector/security"
@@ -61,7 +61,7 @@ func appendScopeGenerationReducerIntents(
 ) []ReducerIntent {
 	index := newReducerIntentFactIndex(inputFacts)
 
-	if intent, ok := packages.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := packagesource.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := awsdrift.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {

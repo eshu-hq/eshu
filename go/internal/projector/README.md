@@ -172,7 +172,7 @@ other non-repository scopes may still carry fields named `path`, `name`, or
 similar provider-native identifiers; those fields must not mint repository
 content rows or bypass the content package's non-empty `RepoID` contract.
 When a generation contains package identity or source hints,
-`packages.BuildReducerIntent` emits one
+`packagesource.BuildReducerIntent` emits one
 `package_source_correlation` reducer intent for the scope so the reducer can
 classify hints and manifest-backed package consumption against active Git facts
 once. Package identity also triggers `supply_chain_impact` so vulnerability
