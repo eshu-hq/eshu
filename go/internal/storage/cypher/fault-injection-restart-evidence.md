@@ -30,3 +30,33 @@ failure manifest hashes the retained bytes and marks the diagnostic set
 incomplete if the graph read times out or fails. A default local run without
 `--keep` emits the existing stderr diagnostics and removes its temporary work
 directory instead of collecting this retained artifact set.
+
+## Performance and observability
+
+No-Regression Evidence (#6162): baseline
+`5145345672acb83717fd268961827761637524e2` and implementation commit
+`a75ae9b4be258f96046160ef937bdf8a42bc58c6` both select
+`fault_executor_off.go` in default builds. The recorder and restart sentinel
+path are absent, so this change adds no production graph call, work item,
+queue row, or request-path work. No runtime timing was measured or is claimed.
+The hermetic tagged regression uses a recording executor with two completed
+groups; the trigger group contains one canonical-upsert statement and one
+prepared row. It proves the complete atomic JSON record exists before the
+sentinel and is not overwritten. The shell fixture proves failure capture
+performs exactly one bounded graph read when the regular restart dump is
+absent, no extra read when it exists, preserves the original exit status,
+rejects timeout values outside 1--30 seconds before collection, and fails
+completeness on missing artifacts or backend-revision mismatch. These local
+fixtures use neither Postgres nor a live graph backend, so backend version and
+terminal queue counts are not applicable locally. Before merge, the hosted
+shard must provide its existing drain, dead-letter, and digest result against
+the Compose-resolved NornicDB revision; this note does not claim that result.
+
+No-Observability-Change (production): baseline and after add no production
+metric, span, structured log, status field, or dashboard series. The opt-in
+tagged harness adds the stderr trigger line with group ordinal, statement
+count, and capture duration. Failure-only artifacts retain the trigger JSON,
+canonical graph dump and SHA-256/count manifest, work-item and GCP-fact
+snapshots, reducer/projector/Compose logs, expected and actual backend
+revisions, safe container and mount evidence, and the diagnostics completeness
+manifest. These are CI fault-gate diagnostics, not production telemetry.
