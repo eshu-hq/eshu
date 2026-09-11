@@ -158,7 +158,7 @@ IFA_FAULT_ALL_CELLS=(
 	cell_failgraphwrite_workload_dependency
 	# handles_route/runs_in/invokes_cloud_action (#5995/#6000/#5997): ONE
 	# shared trio baseline (all three families come from one cassette and one
-	# builder pass, buildSymbolRuntimeIntentRows), each family's own
+	# builder pass, materialization.BuildIntentRows), each family's own
 	# cell_failgraphwrite_<family>, and each family's runner-lease kill/reclaim
 	# cell. The baseline writes
 	# digests[baseline_handles_route]/[baseline_runs_in]/

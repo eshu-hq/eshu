@@ -18,8 +18,9 @@ package's value-flow fixpoint solver (`code/value/fixpoint_evidence_loader.go`,
 a different family, not this one) imports this package for its evidence
 writer/ledger/uid-namespace surface — a one-directional leaf-to-leaf
 dependency, not a cycle, since this package never imports `value` back.
-The reducer root's `code_value_flow_stale_cleanup_runner.go` reaching into
-this package's exported symbols is a normal root-imports-leaf relationship.
+The value-flow stale cleanup runner (`code/value/cleanup/runner.go`)
+reaching into this package's exported symbols is another one-directional
+leaf-to-leaf dependency.
 The real obstacle is that
 `code/taint/evidence_typed_decode.go` — a taint-prefixed file — implements
 the decode/quarantine functions for BOTH fact kinds:
@@ -48,7 +49,7 @@ the sibling `value` package) — that is a different family (durable cross-repo 
 solved into a `Program`) that happens to produce `InterprocEvidenceInput`
 rows and calls through this package's `ExtractInterprocFixpointEvidenceRows`
 and `SourceUIDsFromRows`/`UnresolvedInterprocEndpointCount` exports. Also
-does not own `code_value_flow_stale_cleanup_runner.go` (root) — the
+does not own `code/value/cleanup/runner.go` — the
 generation-scoped stale-evidence sweep that calls through this package's
 writer/ledger interfaces and `EvidenceSource()`/
 `InterprocEvidenceSource()` accessors.

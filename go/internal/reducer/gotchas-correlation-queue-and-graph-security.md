@@ -107,7 +107,7 @@ moving them would push that file over the 500-line cap.
 - **Code-call chunks must not retract each other** — a code-call accepted
   unit can exceed `DefaultCodeCallAcceptanceScanLimit`. The runner processes a
   capped slice, marks it complete, and then continues with later slices from
-  the same source run. `CodeCallProjectionCurrentRunHistoryLookup` is the guard
+  the same source run. `projection.CurrentRunHistoryLookup` (`code/call/projection`) is the guard
   that skips retraction after the first current-run chunk.
 - **Bare code-call names are scoped before they are broadened** — same-file
   resolution wins first. Go then allows a same-directory match before the

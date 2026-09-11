@@ -55,8 +55,8 @@ present in the closed `iamcan` `CAN_PERFORM` catalog.
 
 ## Do not change without ADR review
 
-- The evidence-source string constants (`handlesRouteEvidenceSource`,
-  `runsInEvidenceSource`, `invokesCloudActionEvidenceSource` in
+- The evidence-source string constants (`HandlesRouteEvidenceSource`,
+  `RunsInEvidenceSource`, `invokesCloudActionEvidenceSource` in
   `routes.go`/`workloads.go`/`cloud_actions.go`) and the `cloud-action:`
   node-id prefix (`cloudActionIDPrefix`) — durable rows and downstream
   consumers key on these literals.

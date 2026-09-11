@@ -12,8 +12,8 @@ loader/projector pair, and the graph-backed cloud sink target loader (issue
 `internal/reducer/valueflow` to `internal/reducer/code/value` (package
 `value`, dropping the `ValueFlow` prefix from its exported identifiers) under
 the same issue. See the README's Purpose and Ownership boundary sections for
-exactly what stays in root despite similar naming
-(`code_value_flow_stale_cleanup_runner.go`) and why
+why the stale-evidence cleanup runner lives in the child package `cleanup/`
+(`code/value/cleanup/runner.go`) and does not import this one, and why
 `backfill_state_marker.go` lives here with no caller in this package.
 
 ## Read first

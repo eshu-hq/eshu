@@ -29,9 +29,9 @@ evidence-loading/projection pair (`FixpointEvidenceLoader`/
 `FixpointEvidenceProjector`), and the graph-backed cloud sink target
 loader (`GraphCloudSinkTargetLoader`).
 
-**Does not own:** `code_value_flow_stale_cleanup_runner.go` (reducer root) —
-the generation-scoped stale-evidence sweep that only reaches `taint`'s
-writer/ledger surface and has no dependency on this package.
+**Does not own:** the generation-scoped stale-evidence sweep in the child
+package `cleanup/` (`code/value/cleanup/runner.go`). It only reaches
+`taint`'s writer/ledger surface and does not import this package.
 
 **Owns but does not use:** `BackfillStateMarker` (`backfill_state_marker.go`),
 moved here from the reducer root under #6609. Its only caller is the root's

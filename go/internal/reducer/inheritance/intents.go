@@ -17,7 +17,7 @@ import (
 
 // PartitionKeyVersion namespaces every inheritance_edges partition
 // key so a future key-shape change can run alongside the old one without
-// colliding. It mirrors codeCallPartitionKeyVersion (#2867).
+// colliding. It mirrors code/call's PartitionKeyVersion (#2867).
 const PartitionKeyVersion = "inheritance-edges:v1"
 
 // inheritanceFilePartitionKey returns the file-scoped partition key for a single

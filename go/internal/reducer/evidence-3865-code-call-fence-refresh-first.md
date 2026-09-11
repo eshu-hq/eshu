@@ -5,7 +5,8 @@ non-file branch of `codeCallProjectionFileFenceSQL` in
 `go/internal/storage/postgres/shared_intents_history.go`) ranked candidate
 intents by raw `(created_at, intent_id)`, while the batch query
 (`shared_intents_partition_candidates.go`, #3451/#3474) and the in-memory fence
-(`code_call_projection_selection.go`) rank them `is_refresh_intent`-first. When a
+(`code_call_projection_selection.go`, since moved to
+`code/call/projection/selection.go`) rank them `is_refresh_intent`-first. When a
 repository's whole/file repo-refresh intent and an older-created edge intent for
 the same repo landed in the same projection partition, the DB fence blocked the
 refresh behind the edge while the in-memory fence blocked the edge behind the

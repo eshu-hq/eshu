@@ -24,11 +24,11 @@ import (
 // The missing filter is required, not an oversight, and #6166 measured what
 // adding one costs. Every one of those domains synthesises its retract rows in
 // the caller rather than draining them from the shared-projection queue --
-// buildCodeCallRepoRetractRows (reducer/code_call_projection_work.go),
+// buildCodeCallRepoRetractRows (reducer/code/call/projection/rows.go),
 // buildRepoDependencyRetractRows (reducer/repo_dependency_projection_replay.go),
 // buildSubmodulePinRepoRetractRows (reducer/submodule_pin_delta_scope.go), the
 // nil-payload rows codeowners selects on
-// (reducer/codeowners_ownership_materialization.go), and the workload
+// (reducer/code/owners/scope.go), and the workload
 // dependency reconcile rows -- and none of them carries an intent_type,
 // because none of them came from a refresh intent. Requiring
 // reducer.RepoRefreshIntentType here empties the bound repo_ids for all of
@@ -368,7 +368,7 @@ func buildDocumentationDeltaRetractStatements(
 }
 
 // wholeScopeRetractDomains splits the domains that reducer's
-// domainHasRepoWideRetract fences (shared_projection_worker_refresh_fence.go)
+// sharedintent.DomainHasRepoWideRetract fences (reducer/sharedintent/refresh.go)
 // into the two groups RetractEdges treats differently. It is the ONE place
 // either group is written down: retractFencedRepoWideDomain
 // (edge_writer_retract.go) gates on isWholeScopeNarrowedDomain and reaches the
