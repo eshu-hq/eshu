@@ -56,15 +56,24 @@ All commands ran from the feature worktree with `GOTOOLCHAIN=go1.26.6` and
 | R-5 replay | `bash scripts/verify-replay-tier.sh` | pass; offline graph truth and tombstone/idempotent replay completed in 87 seconds; SQL UNION branches passed live in 48 seconds |
 | B-7 golden corpus | `bash scripts/verify-golden-corpus-gate.sh` | 561 pass, 0 required failures, 1 advisory timing warning; 147 seconds total against the 1,800-second blocking ceiling |
 
-The B-7 run staged 31 repositories, replayed 19 credentialed collector
-sources and 37 scope generations, and finished every drain with zero residual,
-dead-letter, required shared-intent, cross-scope-completion, or unroutable work.
-Its graph, API, MCP, demo-answer, and container-image lifecycle assertions all
-passed. One maintenance drain completed in 33 seconds against the 30-second
-advisory target; the blocking pipeline wall-time and every correctness gate
-passed. These results support compatibility and no blocking performance
-regression, not a speedup or improved maintenance-latency claim. The advisory
-target remains unchanged.
+No-Regression Evidence: This alignment makes no cross-version speedup claim:
+wall times from the former source-built backend and the published v1.3.1
+artifact are not treated as comparable. On the final immutable NornicDB v1.3.1
+index, R-5 completed offline graph-truth and tombstone/idempotent replay in 87
+seconds and its live SQL UNION branches in 48 seconds. B-7 completed the
+31-repository, 19-collector-source, 37-scope-generation corpus in 147 seconds
+against the 1,800-second blocking ceiling with 561 passes, zero required
+failures, and zero residual, dead-letter, required-shared-intent,
+cross-scope-completion, or unroutable work; one maintenance drain took 33
+seconds against the unchanged 30-second advisory target. The same-v1.3.1 Ifá
+eight-project comparison used the same corpus, worker count, terminal
+conditions, storage reset, and graph boundary: baseline completed in 18 seconds
+and restart in 20 seconds, both produced 627 GCP relationships with
+`cross_scope=0`, zero dead letters, terminal queue counts, and the identical
+canonical graph digest. This proves the final artifact meets the repository's
+blocking correctness and performance acceptance and preserves restart graph
+truth; it does not prove a speedup over the historical backend or improved
+maintenance-drain latency.
 
 ## Live local Kubernetes proof
 
@@ -133,9 +142,12 @@ by v1.3.1 without separate reverse-compatibility proof.
 
 ## Operational signal
 
-No Eshu runtime telemetry contract changes in this alignment. Operators retain
-the existing queue residual/dead-letter metrics and logs, graph-truth gates,
-container health checks, and NornicDB version output. The Kubernetes proof
-records the configured index, raw Pod-runtime image ID, node architecture, and
-binary-reported version. Its verifier accepts only the exact immutable index or
-the architecture-matched published child.
+No-Observability-Change: This alignment adds no Eshu runtime metric instrument
+or label, span name or attribute, structured-log field, status schema, alert,
+dashboard, worker or queue stage, or API/MCP response field. Operators retain
+the existing queue residual and dead-letter metrics and logs, graph-truth gates,
+container health checks, and NornicDB binary-version output. The Ifá GCP scope
+assertion and Kubernetes provenance JSON are bounded CI/operator proof
+artifacts, not deployed telemetry, and add no runtime signal cardinality or
+emission volume. The backend artifact changes, but Eshu's operator-facing
+observability contract does not.
