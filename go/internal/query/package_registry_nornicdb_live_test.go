@@ -16,19 +16,19 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-// This file stayed in root rather than moving into packagereg with the rest
+// This file stayed in root rather than moving into the registry family with the rest
 // of the package-registry handler family (#6060): it drives NewNeo4jReader,
 // which wraps this package's read-retry policy (neo4j_read_policy.go) and has
 // no querycontract/queryauth-style leaf a family package could import without
 // an import cycle back through root (root's package_registry_alias.go already
-// imports packagereg for the compatibility aliases cmd/api and cmd/mcp-server
+// imports the registry family for the compatibility aliases cmd/api and cmd/mcp-server
 // need). Extracting Neo4jReader into its own leaf, the way GraphQuery's other
 // dependencies were, is possible but is shared query-layer infrastructure
 // every handler family uses, not a package-registry-only concern, so it is
 // out of scope for this family's move. The two ex-unexported-method calls
 // below now route through Mount + http.ServeMux like every other test in this
 // file family, which needed no other change: PackageRegistryHandler's
-// unexported listPackages is reachable only from within packagereg.
+// unexported listPackages is reachable only from within the registry family.
 
 // TestLivePackageRegistryListPackagesReturnsZeroVersionPackages is the
 // backend-required proof that /api/v0/package-registry/packages no longer

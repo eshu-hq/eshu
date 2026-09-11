@@ -14,8 +14,9 @@ import (
 // collectorListReadiness. Root's collector_list_readiness.go documents this
 // exact split: the attach step is request-time orchestration that stays out
 // of the dependency-neutral leaf, so each handler family owns its own copy
-// and calls querycontract.BuildCollectorListReadiness itself (packagereg
-// precedent). The hub cannot call the root helpers without an import cycle.
+// and calls querycontract.BuildCollectorListReadiness itself (the registry
+// family's precedent). The hub cannot call the root helpers without an
+// import cycle.
 // Both functions MUST stay behavior-identical to their root sources (named
 // above); do not extend them with family-specific semantics. Drift trips
 // root's TestCollectorListReadinessMatchesHub parity test (#6542 review),

@@ -84,7 +84,7 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	// ships for the ecosystem browse route (packageRegistryPackagesGate
 	// short-circuits an empty grant and
 	// packageRegistryPackagesScopedEcosystemCypher forces visibility =
-	// 'public' for a scoped caller, both in packagereg), plus a
+	// 'public' for a scoped caller, both in the registry family), plus a
 	// scope_id IN $allowed_scope_ids disjunct if tenants ever get registry
 	// scopes. Promoting it means disclosing that a package whose fact carries
 	// no visibility stays hidden from a scoped caller.

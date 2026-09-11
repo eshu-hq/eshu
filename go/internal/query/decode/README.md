@@ -61,7 +61,7 @@ Baseline `origin/main` at the move vs this branch: `go build ./...` and
 paths that exercise this package live in the root package's
 `factschema_decode_*_test.go` files, `internal/query/incident/store`,
 `internal/query/supplychain/{advisory,impact}`, and
-`internal/query/packagereg`, all exercising this leaf through their existing
+`internal/query/package/registry`, all exercising this leaf through their existing
 importers unchanged. The test-name set under the leaf
 (`go test ./internal/query/decode/... -list '.*'`) is identical to
 `./internal/query/querydecode/...` at `origin/main`.

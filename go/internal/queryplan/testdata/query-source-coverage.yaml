@@ -401,50 +401,50 @@ source_coverage:
           class: delegated
           source_sha256: 43c6de6323a6a6df8896a10980edf6615c67b98d0c6ffad2c41bfd2856437429
           delegate: graph_session
-  - file: packagereg/package_registry.go
+  - file: package/registry/handler.go
     calls:
-      - symbol: "(*PackageRegistryHandler).attachPackageVersionCounts"
+      - symbol: "(*Handler).attachPackageVersionCounts"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 5fd57e7f0ce52d791c1aace27bf8633e5bcb40fed67fbb0462ca36359c5f7781
+          source_sha256: 55f9d0d61f475942712d73fac751b234bbad2971f562bfd59209b38a48c1dd75
           key_bound: bounded_key_batch
           max_keys: 200
           max_results: 200
-      - symbol: "(*PackageRegistryHandler).listPackages"
+      - symbol: "(*Handler).listPackages"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 0693b162ca52b9899b341390d3824e86d2dc02baa02fbb03ad4fc40c1d46cc4f
+          source_sha256: 27b5f7c46c69fae09cbd0d744bf5631c81922c21d997624da35d67e862b5f0a4
           key_bound: single_key
           max_results: 201
-      - symbol: "(*PackageRegistryHandler).listVersions"
+      - symbol: "(*Handler).listVersions"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: dc44b3efc59c9072e88e6a8e5964595e18d5ac23d7d525e53f83e9e97a21a4aa
+          source_sha256: abc452acf92f1a18f0604822323ef638008d545b65c0e12130f8e932f960ba25
           key_bound: single_key
           max_results: 201
-  - file: packagereg/package_registry_aggregates.go
+  - file: package/registry/aggregates.go
     calls:
-      - symbol: "(GraphPackageRegistryAggregateStore).CountPackageRegistryPackages"
+      - symbol: "(GraphAggregateStore).CountPackageRegistryPackages"
         count: 2
         non_hot:
           class: label_inventory
-          source_sha256: e6efaf42a45de6cd02fa68d0f9245e76df4787ebff31e77e72a9a64e77e79dcb
+          source_sha256: 74415bc2cfe6e898165da6063ce588c40b96afefcd9c77c9e20eddf557be565d
           label: Package
           max_results: 32
-      - symbol: "(GraphPackageRegistryAggregateStore).PackageRegistryPackageInventory"
+      - symbol: "(GraphAggregateStore).PackageRegistryPackageInventory"
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 71e7f9027b36bd06b9202c8d06ee00fc06fbfeb5e19f8a90113d18bfe7941e08
+          source_sha256: 084782fee4c574bf0bd8e932d6c5bc3c4f7d592e91e5b70b75da2b972fd67712
           label: Package
           max_results: 501
-  - file: packagereg/package_registry_dependencies_handler.go
+  - file: package/registry/dependencies_handler.go
     calls:
-      - {symbol: "(*PackageRegistryHandler).listDependencies", count: 1, source_sha256: 15bddb1891f3020ac4b98c511b9becd90103f097b5ca3d1bdd5d03d2a43d6ac6, entry_ids: [QP-SC-PKGREG-DEPS]}
-  - file: packagereg/package_registry_scoped_access.go
+      - {symbol: "(*Handler).listDependencies", count: 1, source_sha256: 9d21cccea16922bcf92f9519ce44c62d0f0078e5daa358777f3e594e2d24eb6d, entry_ids: [QP-SC-PKGREG-DEPS]}
+  - file: package/registry/scoped_access.go
     calls:
       - symbol: "packageRegistryAnchorVisibility"
         count: 1

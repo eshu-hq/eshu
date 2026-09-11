@@ -19,7 +19,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/entity"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
 	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
-	"github.com/eshu-hq/eshu/go/internal/query/packagereg"
+	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
@@ -47,7 +47,7 @@ func TestLegacyQueryplanManifestBindsProductionQueries(t *testing.T) {
 
 func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	t.Helper()
-	packageRegistryDependencies, _ := packagereg.PackageRegistryDependenciesCypher("", "proof-version", "", "", 51)
+	packageRegistryDependencies, _ := registry.DependenciesCypher("", "proof-version", "", "", 51)
 	serviceResolve := captureLegacyQueryplanCypher(t, func(graphQuery *legacyQueryplanCaptureGraph) error {
 		handler := &EntityHandler{Neo4j: graphQuery}
 		_, err := handler.QueryServiceWorkloadCandidates(

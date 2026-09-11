@@ -573,8 +573,8 @@ RETURN p.uid AS package_id, count(r) AS version_count
 
 Any package uid absent from this query's result has zero matches; the caller
 zero-fills it (`packageRegistryVersionCountsCypher` +
-`PackageRegistryHandler.attachPackageVersionCounts` in
-`go/internal/query/package_registry.go`). Do not reintroduce
+`registry.Handler.attachPackageVersionCounts` in
+`go/internal/query/package/registry/handler.go`). Do not reintroduce
 `OPTIONAL MATCH` + aggregate over an anchor's own projected columns on this
 backend; do not "fix" it with a pattern comprehension or a `WITH`+`collect`
 without proving it live first, both silently under-count in a way that looks

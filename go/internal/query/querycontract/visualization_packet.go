@@ -447,7 +447,7 @@ func VisualizationEdgeID(source, target, relationship string) string {
 // dependencies, and root's originals are shared far outside the
 // visualization-packet surface (7 other call sites), so aliasing them would
 // have pulled unrelated root files into this package's compatibility surface
-// for no benefit. Mirrors the packagereg family's derefString/derefBool
+// for no benefit. Mirrors the registry family's derefString/derefBool
 // precedent (#6060).
 func cloneTruthEnvelope(truth *TruthEnvelope) *TruthEnvelope {
 	if truth == nil {

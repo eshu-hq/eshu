@@ -12,7 +12,7 @@ import (
 )
 
 // semanticSearchTracer is this package's tracer AND the seam its span tests
-// swap. Mirrors root package query's handler_tracing.go and packagereg's: it
+// swap. Mirrors root package query's handler_tracing.go and the registry family's: it
 // must stay a package-local var, seeded from queryspan.HandlerTracer, so a
 // recording provider swapped in for this family's tests cannot change what any
 // other family or root records, and two such swaps cannot race (#6060).

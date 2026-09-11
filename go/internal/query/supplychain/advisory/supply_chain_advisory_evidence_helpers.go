@@ -118,7 +118,7 @@ func stringMapSliceVal(payload map[string]any, key string) []map[string]string {
 // family move could not take it, and an unexported root symbol cannot be
 // called across a package boundary. Named for what it does here rather than
 // the root file it came from: nothing in this package is work-item-shaped
-// (same rationale as packagereg's derefString).
+// (same rationale as the registry family's derefString).
 func derefString(value *string) string {
 	if value == nil {
 		return ""
