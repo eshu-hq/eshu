@@ -22,11 +22,11 @@ report); and the pure row/partition helpers that only classify or filter a
 and splitting, and the repo-wide-retract domain set.
 
 **Does not own:** anything that runs. The worker, runner, readiness,
-lease-heartbeat, unroutable-quarantine and batch-selection machinery stays at
-the reducer root (moving to `intents/shared/worker` as issue #6061 proceeds).
-A symbol belongs here when it is data, a port interface, or a pure function
-over `Row`; it belongs with the machinery when it calls out to a lease
-manager, a reader, or an edge writer.
+lease-heartbeat, unroutable-quarantine and batch-selection machinery lives in
+`internal/reducer/intents/shared/worker` (issue #6061 H5). A symbol belongs
+here when it is data, a port interface, or a pure function over `Row`; it
+belongs with the machinery when it calls out to a lease manager, a reader, or
+an edge writer.
 
 ## Exported surface
 
@@ -116,6 +116,6 @@ change by another route: it alters the hashed bytes. Same rule applies.
 ## Related docs
 
 - `go/internal/reducer/README.md` — the root package and its subpackage inventory
-- `go/internal/reducer/shared-projection.md` — the worker/runner machinery that stays at the root
+- `go/internal/reducer/intents/shared/worker/README.md` — the worker/runner machinery that moved out of the root in H5
 - `docs/internal/design/package-restructure.md` — the #6061 restructure and this hoist's no-regression evidence
 - `docs/public/observability/telemetry-coverage.md` — the coverage row for this file

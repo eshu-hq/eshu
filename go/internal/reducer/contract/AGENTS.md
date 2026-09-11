@@ -16,6 +16,11 @@
 - Preserve `Intent`, `Result`, handler, validation, and retry behavior byte for
   byte when moving code across the boundary.
 - Do not add queue, storage, graph, telemetry, or runtime dependencies here.
+  `GraphQueryRunner` (issue #6061) is the one allowed exception: it is a
+  context-only port interface (`Run(ctx, cypher, params) (rows, error)`), not
+  a graph dependency — it imports nothing but the standard library `context`
+  package. A concrete graph driver never lives in this leaf; only the shape a
+  caller-supplied implementation satisfies does.
 
 ## Common changes
 

@@ -39,9 +39,9 @@
 // `payloadcore` for one string coercion and `contract` for the `Domain*`
 // constants the row helpers read, and otherwise nothing but the standard
 // library; it must never import the reducer root. The worker, runner,
-// readiness, lease-heartbeat and batch-selection machinery deliberately stay in
-// the root's intents/shared/worker package: they are the reducer's concurrency
-// core, not a shape a family needs.
+// readiness, lease-heartbeat and batch-selection machinery deliberately live
+// in internal/reducer/intents/shared/worker instead of here: they are the
+// reducer's concurrency core, not a shape a family needs.
 //
 // The root keeps aliases under the original names — SharedProjectionIntentRow,
 // SharedProjectionIntentInput, SharedProjectionAcceptanceKey — and a forwarder

@@ -24,24 +24,35 @@ package. `PhaseState`, `PhasePublisher`, `EndpointPresenceRow`,
 `EndpointPresenceWriter`, and `EndpointPresenceLookup` all took the first
 route and now live here; the root aliases them.
 
-**Keep it plain data, constants, and pure builders/validation — with two
+**Keep it plain data, constants, and pure builders/validation — with four
 named exceptions.** No queue handle, no graph handle, no worker, no lease, no
-I/O of this package's own. `PublishIntentGraphPhase` and
-`PublishEndpointPresence` are the exceptions (issue #6061): they call through
-a caller-supplied `PhasePublisher` / `EndpointPresenceWriter` interface
-rather than performing I/O directly, and they exist here — instead of at the
-root, or as a local per-family wrapper like platformfam's
-`publishIntentPhase` — because they are shared consumers for the ec2, s3,
-iam, and security_group families splitting out of the reducer root. Adding a
-THIRD such function is a design change to be justified in the PR, not a
-default: prefer a local per-family wrapper (platformfam's pattern) unless you
-can name a second consumer today, the way this pair could.
+I/O of this package's own. `PublishIntentGraphPhase`, `PublishEndpointPresence`,
+`PublishIntentGraphPhaseWithRepair`, and `PublishPhaseStatesWithRepair` are the
+exceptions (issue #6061): they call through a caller-supplied `PhasePublisher`
+/ `EndpointPresenceWriter` / `PhaseRepairQueue` interface rather than
+performing I/O directly, and they exist here — instead of at the root, or as
+a local per-family wrapper like platformfam's `publishIntentPhase` — because
+they are shared consumers for the ec2, s3, iam, and security_group families
+splitting out of the reducer root, and because the repair-enqueue pair is the
+build/publish half of the failed-publish retry shape (`PhaseRepair` etc.)
+this package already owns; only the repair-queue DRAIN loop (the runner that
+lists due repairs and marks failures) stays outside, in
+`internal/reducer/intents/phase/repair`. Adding a FIFTH such function is a
+design change to be justified in the PR, not a default: prefer a local
+per-family wrapper (platformfam's pattern) unless you can name a second
+consumer today, the way these four could.
 
-**The dependency set is the standard library plus
-`internal/reducer/contract`** (for `reducercontract.Intent`, which
-`StateForIntentValue` and `PublishIntentGraphPhase` accept). Any dependency
-beyond those two is a design change to be justified in the PR, not a
-convenience.
+**The dependency set is the standard library plus `internal/reducer/contract`,
+`internal/reducer/sharedintent`, and `internal/reducer/payloadcore`.**
+`contract` supplies `reducercontract.Intent`, which `StateForIntentValue` and
+`PublishIntentGraphPhase` accept. `sharedintent` and `payloadcore` arrived
+with the presence-key derivations (`HandlesRouteEndpointPresenceKey`,
+`RunsInRepoWorkloadPresenceKey`, `WorkloadMaterializationRepoReadinessKey`):
+the producer (workload materialization) and the consumer (the
+handles_route/runs_in shared-projection domains) must derive the identical
+key from a `sharedintent.Row`, using `payloadcore` for the same string
+coercion the root used. Any dependency beyond those three is a design change
+to be justified in the PR, not a convenience.
 
 **Constant string values are a storage/query contract, not just a Go
 identifier.** `Keyspace` and `Phase` constants are persisted in Postgres and

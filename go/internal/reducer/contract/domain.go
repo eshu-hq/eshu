@@ -189,12 +189,13 @@ const (
 // ProjectionDomains returns the complete set of reducer-owned shared/edge
 // projection domains, in the same order the reducer root's
 // allProjectionDomains var used to declare them (moved here from
-// shared_projection.go, issue #6061). It is the authoritative registry
-// [AllDomains] uses for the capability surface inventory. It is a superset of
-// the domains the shared partition worker itself drains: code_calls,
-// repo_dependency, and deployable_unit_edges are driven by dedicated
-// projection runners but are still reducer-owned domains that must appear in
-// the inventory.
+// shared_projection.go, issue #6061). It is the authoritative registry the
+// reducer root's AllDomains uses for the capability surface inventory (that
+// function and the var it reads live in the root, not here, since this leaf
+// must not import the root back). It is a superset of the domains the shared
+// partition worker itself drains: code_calls, repo_dependency, and
+// deployable_unit_edges are driven by dedicated projection runners but are
+// still reducer-owned domains that must appear in the inventory.
 func ProjectionDomains() []Domain {
 	return []Domain{
 		DomainRepoDependency,

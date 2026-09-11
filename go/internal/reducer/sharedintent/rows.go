@@ -12,8 +12,8 @@ import (
 
 // RowRepoID extracts the repo id a symbol→runtime intent row keys its
 // readiness on, using the same precedence the presence-gate key functions
-// use (handlesRouteEndpointPresenceKey / runsInRepoWorkloadPresenceKey): the
-// payload repo_id first, then RepositoryID. Sharing this precedence keeps the
+// use (gpphase.HandlesRouteEndpointPresenceKey / gpphase.RunsInRepoWorkloadPresenceKey):
+// the payload repo_id first, then RepositoryID. Sharing this precedence keeps the
 // readiness repo id and the presence repo id the SAME string for the same
 // row, so the phase gate and the presence gate agree on which repo a row
 // belongs to. This is also the string the workload-materialization handler

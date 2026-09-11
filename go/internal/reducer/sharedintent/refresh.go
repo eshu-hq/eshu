@@ -142,12 +142,29 @@ func SplitRepoRefreshRows(rows []Row) (refresh, edge []Row) {
 }
 
 // repoWideRetractDomains lists the domains whose retract the per-repo refresh
-// intent owns (#2898/#2910); see [DomainHasRepoWideRetract]. The set is
-// written down once, here, because a second copy of it lives in
+// intent owns (#2898/#2910); see [DomainHasRepoWideRetract].
+//
+// The retract the refresh owns may be repo-wide (delete every edge for the
+// repo) or file-scoped (delete only the changed files' edges on a delta
+// generation): inheritance_edges, sql_relationships, and rationale_edges
+// retract repo-wide by default and file-scoped under a delta, while the
+// three symbol→runtime domains always retract repo-wide. The fence mechanism
+// is identical either way — the refresh intent owns the single retract and
+// the per-edge writes are deferred until it commits — because the refresh
+// carries whichever delta scope the materializer attached. Repo-keyed
+// domains (platform_infra, workload_dependency, …) keep one partition per
+// repo, so they do not spread and are intentionally excluded.
+//
+// The set is written down once, here, because a second copy of it lives in
 // internal/storage/cypher's wholeScopeRetractDomains table, which splits
 // these same domains into the narrowed and un-narrowed halves of the
-// whole-scope retract. [RepoWideRetractDomains] lets that package compare
-// its own handling of the set against this one instead of re-enumerating it.
+// whole-scope retract. A domain added to the fence but missed there gets a
+// whole-repository DELETE bound to the batch-wide repository list, which is
+// the #6166 over-delete, and nothing in that package's tests would iterate
+// over it. [DomainHasRepoWideRetract] and [RepoWideRetractDomains] read this
+// one map so TestWholeScopeRetractDomainsCoversFencedSet
+// (internal/storage/cypher) compares the two sets rather than two hand-typed
+// lists that happen to agree today.
 var repoWideRetractDomains = map[string]struct{}{
 	contract.DomainHandlesRoute:       {},
 	contract.DomainRunsIn:             {},

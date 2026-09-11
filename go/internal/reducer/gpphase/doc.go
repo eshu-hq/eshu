@@ -99,7 +99,7 @@
 // package now imports sharedintent (for the Row type those derivations
 // read) and payloadcore (string coercion).
 //
-// # What deliberately stays at the root
+// # What deliberately stays outside this package
 //
 // The repair QUEUE DRAIN (the runner that lists due repairs, retries the
 // publish, and marks failures) stays outside this package: it is

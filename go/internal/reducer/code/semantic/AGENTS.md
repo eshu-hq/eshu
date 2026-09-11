@@ -24,18 +24,23 @@ signal about where the symbol belongs, not a reason to reach upward:
   `GraphProjectionPhase*` keyspace/phase/key/state/publisher vocabulary are
   all root type aliases to `reducer/contract`, `reducer/factload`, and
   `reducer/gpphase` — import those packages directly, never the root alias;
-- a symbol the root genuinely owns as production logic shared with families
-  that have not moved out of root yet (the repair queue and its conversion
-  function) gets a structurally identical local declaration in
-  `graph_ports.go`, following the pattern `codetaint/graph_ports.go`
-  established (issue #6061). Copy a function body byte-for-byte if you must
-  copy at all — never re-derive it from memory. Unlike codetaint's ports,
-  `GraphProjectionPhaseRepairQueue.Enqueue` takes a named struct parameter,
-  so Go's exact-type-identity rule means the root's concrete queue does not
-  satisfy this package's interface for free the way it would with a
-  primitive-only method set; the root bridges the two named types with
-  `semanticEntityRepairQueueAdapter`
-  (`internal/reducer/semantic_entity_repair_queue_adapter.go`).
+- a symbol whose root spelling is itself now a type alias to a leaf this
+  package cannot import without recreating the blocker the leaf exists to
+  break (the repair queue: `GraphProjectionPhaseRepair`/
+  `GraphProjectionPhaseRepairQueue` alias `gpphase.PhaseRepair`/
+  `gpphase.PhaseRepairQueue` as of issue #6061's H3) gets a structurally
+  identical local declaration in `graph_ports.go`, following the pattern
+  `codetaint/graph_ports.go` established. Copy a function body byte-for-byte
+  if you must copy at all — never re-derive it from memory. Unlike
+  codetaint's ports, `GraphProjectionPhaseRepairQueue.Enqueue` takes a named
+  struct parameter, so Go's exact-type-identity rule means neither the
+  root's alias nor `gpphase`'s concrete queue satisfies this package's
+  interface for free the way it would with a primitive-only method set; the
+  root bridges the two named types with `semanticEntityRepairQueueAdapter`
+  (`internal/reducer/semantic_entity_repair_queue_adapter.go`). Issue #6061's
+  B1 §5 Q10 tracks whether this package should alias `gpphase`'s types
+  directly and retire the adapter instead — that has not been decided, so
+  the local declaration and the adapter both stay until it is.
 
 Most apparent blockers here are of the first or second kind wearing a domain
 filename. Read the declaration before deciding: a body of
