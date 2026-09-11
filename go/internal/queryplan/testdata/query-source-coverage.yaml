@@ -43,8 +43,8 @@ source_coverage:
   - file: codequery/callers.go
     calls:
       - {symbol: "(*CodeHandler).handleCallChain", count: 1, non_hot: {class: keyed_support, source_sha256: b7dc27071813d89a487879f42df7a05db22a47e2a7a6c1be303fadca97ef729e, key_bound: bounded_key_batch, max_keys: 2, max_results: 5}}
-      - {symbol: "(*CodeHandler).nornicDBCallChainOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*CodeHandler).nornicDBCallChainOneHopRows", count: 1, non_hot: {class: degree_bounded, source_sha256: 072603251b05d2e63cb29ed1deea87714e3b523d8e00f3e039a4b4143027c2a0, key_bound: single_key, max_degree: 7}}
+      - {symbol: "(*CodeHandler).callChainCandidateOneHopRows", count: 1, non_hot: {class: degree_bounded, source_sha256: 99714e60377715f1dd262e87d498648e808a367669fb4918c6048774e2ff7096, key_bound: single_key, max_degree: 7}}
   - file: codequery/graph_metrics.go
     calls:
       - {symbol: "(*CodeHandler).CallGraphMetricsData", count: 1, source_sha256: 6f4d5fccc54522e54a3e8bdc98b92aab3805391d4a1d3e009a3bdf7b9034fe89, entry_ids: [QP-CALL-GRAPH-HUBS, QP-CALL-GRAPH-RECURSIVE]}
@@ -130,10 +130,10 @@ source_coverage:
   - file: codequery/relationship_handlers.go
     calls:
       - {symbol: "(*CodeHandler).relationshipsGraphRow", count: 3, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
-      - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*CodeHandler).transitiveRelationshipsGraphRow", count: 1, non_hot: {class: depth_bounded, source_sha256: 3f078d6a49d10c2ca70b7e44d53f73b30465cd7a8e32d885ef48cccb3e99b909, key_bound: single_key, max_degree: 7, max_depth: 10}}
   - file: codequery/transitive_walk.go
     calls:
-      - {symbol: "(*CodeHandler).nornicDBTransitiveOneHopRows", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}
+      - {symbol: "(*CodeHandler).nornicDBTransitiveOneHopRows", count: 2, non_hot: {class: degree_bounded, source_sha256: 79be400046fa15ea5feb891b6bfa334e23f61b90e34d411a3e924d7f120c37c6, key_bound: single_key, max_degree: 7}}
   - file: codequery/relationships/nornicdb.go
     calls:
       - {symbol: "OneHopRelationships", count: 1, non_hot: {class: keyed_support, source_sha256: 3c12b7ba1b897dad19df62db8fb485dace01e38a35613e0110df8c58238749f8, key_bound: single_key, max_results: 501}}

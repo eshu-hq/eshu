@@ -43,6 +43,16 @@ const (
 	NonHotClassDelegated       = "delegated"
 	NonHotClassOperatorQuery   = "operator_query"
 	NonHotClassBackendMetadata = "backend_metadata"
+	// NonHotClassDegreeBounded is a single-anchor one-hop CALLS read with no
+	// statement LIMIT. The row count is the anchor's CALLS out-degree, so the
+	// disposition carries the corpus-measured degree instead of a LIMIT it
+	// does not have (#6556, option b).
+	NonHotClassDegreeBounded = "degree_bounded"
+	// NonHotClassDepthBounded is a single-anchor variable-length CALLS
+	// traversal with no row LIMIT. Each hop still fans out by CALLS
+	// out-degree, so it carries the corpus-measured degree plus the
+	// code-enforced depth ceiling (#6556).
+	NonHotClassDepthBounded = "depth_bounded"
 )
 
 // Closed key-bound classes for keyed support reads.
@@ -64,7 +74,33 @@ type NonHotDisposition struct {
 	Delegate     string `yaml:"delegate,omitempty"`
 	Policy       string `yaml:"policy,omitempty"`
 	Operation    string `yaml:"operation,omitempty"`
+	// MaxDegree bounds the anchor's CALLS out-degree for degree-bounded
+	// reads. It describes the reference corpus, not a production cap:
+	// these statements carry no LIMIT by accuracy design (#6556).
+	MaxDegree int `yaml:"max_degree,omitempty"`
+	// MaxDepth bounds a depth-bounded traversal's variable-length hop
+	// range. It must sit inside the handler's enforced clamp.
+	MaxDepth int `yaml:"max_depth,omitempty"`
 }
+
+// nonHotCorpusMaxCALLSOutDegree floors max_degree for degree-bounded CALLS
+// reads. Measured value 7: production parser (DefaultEngine.ParsePath) over
+// the 31 B-7 staged corpus fixtures
+// (scripts/lib/golden-corpus-fixtures.sh), per enclosing function, distinct
+// callee names restricted to CALLS-eligible call kinds (REFERENCES-mapped
+// kinds, constructor_call INSTANTIATES, and jsx_component REFERENCES are
+// excluded per the reducer and edge-writer contracts). Maximum observed on
+// go_comprehensive/goroutines.go FanOut (7 distinct callees); resolution can
+// only drop callees, so graph out-degree on this corpus cannot exceed it.
+// Re-measure with the same method when the staged corpus changes and raise
+// this floor; never lower an entry's max_degree to fit.
+const nonHotCorpusMaxCALLSOutDegree = 7
+
+// nonHotTransitiveMaxDepth ceilings max_depth for depth-bounded CALLS
+// traversals. It is the enforced clamp ceiling in
+// codequery/relationship_handlers.go serveTransitiveRelationships
+// (MaxDepth defaults to 5, clamps to 10), not a corpus observation.
+const nonHotTransitiveMaxDepth = 10
 
 // testOnlyHelperPackage is the directory under internal/query holding test
 // doubles that must live in ordinary .go files.
@@ -398,8 +434,56 @@ func validateNonHotDisposition(key string, disposition NonHotDisposition) []stri
 		if disposition.Operation != "relationship_types" {
 			violations = append(violations, fmt.Sprintf("%s: backend_metadata requires operation", key))
 		}
+	case NonHotClassDegreeBounded:
+		if disposition.KeyBound != NonHotKeyBoundSingle {
+			violations = append(violations, fmt.Sprintf(
+				"%s: degree_bounded requires key_bound %q (got %q); single-anchor one-hop CALLS reads use single_key, batched reads use keyed_support",
+				key,
+				NonHotKeyBoundSingle,
+				disposition.KeyBound,
+			))
+		}
+		violations = append(violations, validateNonHotMaxDegree(key, disposition.Class, disposition.MaxDegree)...)
+	case NonHotClassDepthBounded:
+		if disposition.KeyBound != NonHotKeyBoundSingle {
+			violations = append(violations, fmt.Sprintf(
+				"%s: depth_bounded requires key_bound %q (got %q); single-anchor traversals use single_key, batched reads use keyed_support",
+				key,
+				NonHotKeyBoundSingle,
+				disposition.KeyBound,
+			))
+		}
+		violations = append(violations, validateNonHotMaxDegree(key, disposition.Class, disposition.MaxDegree)...)
+		if disposition.MaxDepth < 1 || disposition.MaxDepth > nonHotTransitiveMaxDepth {
+			violations = append(violations, fmt.Sprintf(
+				"%s: depth_bounded requires max_depth within 1..%d (got %d); the handler clamps MaxDepth to %d, so a bound outside that range describes no production path",
+				key,
+				nonHotTransitiveMaxDepth,
+				disposition.MaxDepth,
+				nonHotTransitiveMaxDepth,
+			))
+		}
 	default:
 		violations = append(violations, fmt.Sprintf("%s: unsupported non-hot class %q", key, disposition.Class))
 	}
 	return violations
+}
+
+// validateNonHotMaxDegree floors max_degree at the corpus-measured maximum
+// CALLS out-degree so a disposition cannot certify a fan-out below observed
+// reality. A max_degree under the floor is either a stale measurement (the
+// staged corpus grew — re-measure and raise the floor) or a number picked to
+// fit the entry (never the fix).
+func validateNonHotMaxDegree(key, class string, maxDegree int) []string {
+	if maxDegree < nonHotCorpusMaxCALLSOutDegree {
+		return []string{fmt.Sprintf(
+			"%s: %s requires max_degree >= %d (got %d); %d is the maximum CALLS out-degree measured on the B-7 staged corpus",
+			key,
+			class,
+			nonHotCorpusMaxCALLSOutDegree,
+			maxDegree,
+			nonHotCorpusMaxCALLSOutDegree,
+		)}
+	}
+	return nil
 }

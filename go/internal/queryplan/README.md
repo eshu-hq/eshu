@@ -41,10 +41,17 @@ output or capture the query emitted by the production execution path, verify the
 fingerprints, and run the full anchor, traversal, ordering, schema, and plan
 validation against those production-owned bytes.
 
-The inventory still contains 81 pre-existing `non_hot_reason` entries. They are
+The inventory still contains 19 pre-existing `non_hot_reason` entries. They are
 immutable migration debt rather than an open classification path, and the count
 is meant to fall only as entries convert to the typed form. That direction is
 not machine-checked.
+
+Two typed classes cover LIMIT-free CALLS reads without certifying a bound
+that does not exist: `degree_bounded` (single-anchor one-hop reads, carrying
+the corpus-measured `max_degree`) and `depth_bounded` (single-anchor
+variable-length traversals, carrying `max_degree` plus the handler-enforced
+`max_depth`). Both floors live in `source_coverage.go`; see `#6556` for the
+corpus measurement behind `max_degree`.
 `TestGrandfatheredNonHotRegistryExactlyMatchesLegacyManifest` only requires the
 manifest's prose entries and `grandfatheredNonHotSourceDigests` to hold the same
 set of symbols. Add a prose entry, or convert a typed entry back to prose, and
