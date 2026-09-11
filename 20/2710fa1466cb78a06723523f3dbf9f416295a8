@@ -1,0 +1,85 @@
+go/internal/query/secrets/posture_handlers.go
+  s_d637cfd83869a5::t_abfc393cf2533a 4-288
+go/internal/query/secrets/main_test.go
+  s_d637cfd83869a5::t_64a3454bb1d1ae 1-56
+scripts/lib/dirgate-grandfather.tsv
+  s_d637cfd83869a5::t_3b22d4645984d1 87
+go/internal/query/capability_matrix_secrets_iam_test.go
+  s_d637cfd83869a5::t_b6f0ef271948c9 7-53,69,80,107,134,152,176
+  s_f10b8247b430b4::t_b9d302fa915353 54
+go/internal/query/secrets/posture_stores.go
+  s_d637cfd83869a5::t_85533c83e612ec 4-434
+go/internal/query/secrets/README.md
+  s_d637cfd83869a5::t_85ab6a35456f64 1-112
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_d637cfd83869a5::t_d667fb6427c269 542,544-545
+go/internal/query/secrets/summary.go
+  s_d637cfd83869a5::t_82542c11f9bd28 4-228
+go/internal/query/graph_read_error_secrets_iam_test.go
+  s_d637cfd83869a5::t_ec164df818c5ed 1-78
+go/internal/query/secrets/doc.go
+  s_d637cfd83869a5::t_e67ac32c106712 1-30
+go/internal/query/secrets/authz.go
+  s_d637cfd83869a5::t_ff50de48194426 4-18
+go/internal/query/secrets/posture_test.go
+  s_d637cfd83869a5::t_5c9f27821f94ba 4-236
+go/internal/query/secrets/trust_chain.go
+  s_d637cfd83869a5::t_4f3f50e4226570 4-189
+go/internal/query/secrets/handler_tracing.go
+  s_d637cfd83869a5::t_8c711eda7afabf 1-23
+go/internal/query/secrets/grant_posture_test.go
+  s_d637cfd83869a5::t_8b0d0cc3b4ee5d 4-156
+go/internal/query/secrets/handler_test.go
+  s_d637cfd83869a5::t_0f089af9d131a3 4-240
+go/internal/query/secrets/handler.go
+  s_d637cfd83869a5::t_00b847f8082b24 4-183
+go/internal/query/secrets_alias.go
+  s_d637cfd83869a5::t_3fc0bf15895673 1-6,10-38,40
+  s_d637cfd83869a5::t_920fd74a27740a 7-9,39,41-98
+go/internal/query/packagereg/package_registry_aggregates.go
+  s_d637cfd83869a5::t_a8bc6f8890c600 206
+go/internal/query/secrets/grant_posture.go
+  s_d637cfd83869a5::t_5ddb83aaf8035c 4-195
+go/internal/query/secrets/summary_test.go
+  s_d637cfd83869a5::t_c612bf263fb56c 4-236
+go/internal/query/secrets/AGENTS.md
+  s_d637cfd83869a5::t_452a05c56b2824 1-81
+go/internal/mcp/route_serves_data_registry.go
+  s_e8ab01ccdfa8e2::t_df276295720ef4 124-125,128
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_e8ab01ccdfa8e2::t_79d70d68e0ba83 50-52,56,59,63-65,67,69-72,78,80-81,87,89,105,112,119
+tools/golangci-lint-dirgate/grandfather.go
+  s_d637cfd83869a5::t_a93e57bd84b8e8 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "202710fa1466cb78a06723523f3dbf9f416295a8",
+  "prompts": {},
+  "sessions": {
+    "s_d637cfd83869a5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cda073a9-ec98-49b8-8e02-27503c28103f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_f10b8247b430b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71ce7be8-3a7b-4b59-9642-670f58a2d5e1",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
