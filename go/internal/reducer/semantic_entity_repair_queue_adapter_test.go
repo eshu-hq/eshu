@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 )
 
 // TestSemanticEntityRepairQueueAdapterEnqueueTranslatesAllFields drives a
-// fully populated semanticentity.GraphProjectionPhaseRepair row through
+// fully populated semantic.GraphProjectionPhaseRepair row through
 // semanticEntityRepairQueueAdapter.Enqueue and asserts every field of the
 // recorded root-typed row equals the input.
 //
@@ -28,7 +28,7 @@ import (
 func TestSemanticEntityRepairQueueAdapterEnqueueTranslatesAllFields(t *testing.T) {
 	t.Parallel()
 
-	in := semanticentity.GraphProjectionPhaseRepair{
+	in := semantic.GraphProjectionPhaseRepair{
 		Key: gpphase.PhaseKey{
 			ScopeID:          "scope-1",
 			AcceptanceUnitID: "unit-1",
@@ -48,7 +48,7 @@ func TestSemanticEntityRepairQueueAdapterEnqueueTranslatesAllFields(t *testing.T
 	rootQueue := &recordingSemanticEntityRepairQueue{}
 	adapter := semanticEntityRepairQueueAdapter{queue: rootQueue}
 
-	if err := adapter.Enqueue(context.Background(), []semanticentity.GraphProjectionPhaseRepair{in}); err != nil {
+	if err := adapter.Enqueue(context.Background(), []semantic.GraphProjectionPhaseRepair{in}); err != nil {
 		t.Fatalf("Enqueue() error = %v, want nil", err)
 	}
 
@@ -74,8 +74,8 @@ func TestSemanticEntityRepairQueueAdapterEnqueueTranslatesAllFields(t *testing.T
 
 // TestGraphProjectionPhaseRepairStructsStayFieldForFieldParity pins the two
 // independently declared GraphProjectionPhaseRepair struct copies --
-// graph_projection_phase_repair.go (root) and semanticentity/graph_ports.go
-// -- field-for-field. semanticentity cannot import the root's struct (issue
+// graph_projection_phase_repair.go (root) and code/semantic/graph_ports.go
+// -- field-for-field. code/semantic cannot import the root's struct (issue
 // #6061: a family subpackage never imports the reducer root), so the two
 // declarations are hand-copied and nothing but code review previously
 // caught them drifting apart. PR #6536 review, second half.
@@ -83,19 +83,19 @@ func TestGraphProjectionPhaseRepairStructsStayFieldForFieldParity(t *testing.T) 
 	t.Parallel()
 
 	rootType := reflect.TypeOf(GraphProjectionPhaseRepair{})
-	semanticType := reflect.TypeOf(semanticentity.GraphProjectionPhaseRepair{})
+	semanticType := reflect.TypeOf(semantic.GraphProjectionPhaseRepair{})
 
 	if rootType.NumField() != semanticType.NumField() {
-		t.Fatalf("field count = %d (root) vs %d (semanticentity), want equal", rootType.NumField(), semanticType.NumField())
+		t.Fatalf("field count = %d (root) vs %d (code/semantic), want equal", rootType.NumField(), semanticType.NumField())
 	}
 	for i := 0; i < rootType.NumField(); i++ {
 		rootField := rootType.Field(i)
 		semanticField := semanticType.Field(i)
 		if rootField.Name != semanticField.Name {
-			t.Fatalf("field %d name = %q (root) vs %q (semanticentity), want equal", i, rootField.Name, semanticField.Name)
+			t.Fatalf("field %d name = %q (root) vs %q (code/semantic), want equal", i, rootField.Name, semanticField.Name)
 		}
 		if rootField.Type != semanticField.Type {
-			t.Fatalf("field %q type = %s (root) vs %s (semanticentity), want equal", rootField.Name, rootField.Type, semanticField.Type)
+			t.Fatalf("field %q type = %s (root) vs %s (code/semantic), want equal", rootField.Name, rootField.Type, semanticField.Type)
 		}
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"strings"
@@ -18,7 +18,7 @@ type semanticDeltaProjectionScope struct {
 
 func extractSemanticDeltaProjectionScope(
 	envelopes []facts.Envelope,
-	rows []SemanticEntityRow,
+	rows []EntityRow,
 	targetRepoID string,
 ) semanticDeltaProjectionScope {
 	targetRepoID = strings.TrimSpace(targetRepoID)

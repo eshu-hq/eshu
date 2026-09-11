@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"testing"
@@ -47,15 +47,15 @@ func TestExtractSemanticEntityRowsIncludesTypeScriptModuleFacts(t *testing.T) {
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 2; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
-	rowsByID := make(map[string]SemanticEntityRow, len(rows))
+	rowsByID := make(map[string]EntityRow, len(rows))
 	for _, row := range rows {
 		rowsByID[row.EntityID] = row
 	}

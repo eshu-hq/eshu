@@ -232,10 +232,10 @@ func cleanFactFilterValues(values []string) []string {
 // Stanza: shared_payload_delta_compat.go (merged; do not recreate this file).
 // This file holds the payload/delta forwarders that used to live in the
 // semantic_entity_*.go files before the semantic_entity family moved to
-// [semanticentity] (issue #6061). Each one already forwarded to a
+// [code/semantic] (issue #6061). Each one already forwarded to a
 // shared-tier package; they stay in root because other root families that
 // have not moved out yet still call them by their unqualified root spelling.
-// semanticentity calls the shared-tier functions directly instead of
+// code/semantic calls the shared-tier functions directly instead of
 // reaching back into root for these.
 
 // payloadMap forwards to [payloadcore.PayloadMap].

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"bytes"
@@ -41,10 +41,10 @@ func TestSemanticEntityMaterializationHandlerLogsStageTiming(t *testing.T) {
 		},
 	}
 	writer := &recordingSemanticEntityWriter{
-		result: SemanticEntityWriteResult{CanonicalWrites: 1},
+		result: EntityWriteResult{CanonicalWrites: 1},
 	}
 
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader: loader,
 		Writer:     writer,
 	}

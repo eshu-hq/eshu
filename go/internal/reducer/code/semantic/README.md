@@ -1,4 +1,4 @@
-# semanticentity
+# internal/reducer/code/semantic
 
 Turns parser-emitted `content_entity` facts into canonical semantic-entity
 graph nodes (Annotation, Typedef, TypeAlias, TypeAnnotation, Component,
@@ -6,18 +6,20 @@ Module, ImplBlock, Protocol, ProtocolImplementation, and the per-language
 Variable/Function subsets that qualify) and writes them through the graph
 backend.
 
-This package moved out of the flat `internal/reducer` root under issue #6061.
+This package moved out of the flat `internal/reducer` root under issue #6061,
+and relocated from `internal/reducer/semanticentity` to
+`internal/reducer/code/semantic` (package `semantic`) under the same issue.
 It is a domain family: it owns one handler and the extraction pipeline behind
 it, and nothing else in the reducer depends on its internals.
 
 ## Purpose
 
-`semanticentity` is the reducer-side half of semantic-entity materialization:
-it decides which `content_entity` facts are semantic entities, shapes them
-into canonical rows, and drives the canonical write (and delta-scoped
-retract) through a `SemanticEntityWriter`. The canonical Cypher-backed writer
-that satisfies that interface lives in `internal/storage/cypher`
-(`semantic_entity.go`), not here.
+This package is the reducer-side half of semantic-entity materialization: it
+decides which `content_entity` facts are semantic entities, shapes them into
+canonical rows, and drives the canonical write (and delta-scoped retract)
+through an `EntityWriter`. The canonical Cypher-backed writer that satisfies
+that interface lives in `internal/storage/cypher` (`semantic_entity.go`), not
+here.
 
 ## Ownership boundary
 
@@ -26,14 +28,14 @@ This package owns:
 - deciding whether a `content_entity` fact qualifies as a semantic entity
   (`isSemanticEntityType` and its per-language helpers in
   `materialization_helpers.go`);
-- shaping qualifying facts into canonical `SemanticEntityRow` values in a
+- shaping qualifying facts into canonical `EntityRow` values in a
   deterministic sort order;
 - delta-scoping the write/retract to the changed and deleted files a delta
   generation reports (`delta_scope.go`);
 - publishing the `semantic_nodes_committed` graph-projection phase after a
   successful write, with a durable repair enqueue on publish failure.
 
-It does not own the canonical graph write itself (the `SemanticEntityWriter`
+It does not own the canonical graph write itself (the `EntityWriter`
 implementation in `internal/storage/cypher`) or the reducer's queue/worker
 machinery that claims and retries the `semantic_entity_materialization`
 domain.
@@ -42,12 +44,12 @@ domain.
 
 | symbol | file | what it does |
 |---|---|---|
-| `SemanticEntityMaterializationHandler` | `materialization.go` | the reducer handler the runtime registers for `semantic_entity_materialization` |
-| `SemanticEntityWriter` | `materialization.go` | the canonical graph-write sink the handler writes through |
-| `SemanticEntityRow` | `materialization.go` | one canonical semantic-entity row |
-| `SemanticEntityWrite` / `SemanticEntityWriteResult` | `materialization.go` | the write request/outcome shape the handler and writer exchange |
-| `ExtractSemanticEntityRows` | `materialization.go` | extracts every repo's semantic rows from a generation's facts |
-| `ExtractSemanticEntityRowsForRepo` | `materialization.go` | the same extraction, filtered to one repo acceptance unit |
+| `EntityMaterializationHandler` | `materialization.go` | the reducer handler the runtime registers for `semantic_entity_materialization` |
+| `EntityWriter` | `materialization.go` | the canonical graph-write sink the handler writes through |
+| `EntityRow` | `materialization.go` | one canonical semantic-entity row |
+| `EntityWrite` / `EntityWriteResult` | `materialization.go` | the write request/outcome shape the handler and writer exchange |
+| `ExtractEntityRows` | `materialization.go` | extracts every repo's semantic rows from a generation's facts |
+| `ExtractEntityRowsForRepo` | `materialization.go` | the same extraction, filtered to one repo acceptance unit |
 | `GraphProjectionPhaseRepairQueue` / `GraphProjectionPhaseRepair` | `graph_ports.go` | local structural port for the durable repair queue, see below |
 
 See `doc.go` for the godoc-rendered package contract.
@@ -59,7 +61,7 @@ Imports point strictly downward. This package reaches `reducer/contract`
 `reducer/payloadcore`, `internal/facts` and `pkg/log`, and it never imports
 the parent `internal/reducer` package. The dependency runs the other way: the
 root's handler catalog (`defaults_domain_catalog.go`) constructs
-`SemanticEntityMaterializationHandler` and wires its `FactLoader`, `Writer`,
+`EntityMaterializationHandler` and wires its `FactLoader`, `Writer`,
 `PriorGenerationCheck` and `PhasePublisher` fields, plus `RepairQueue` when the
 root repair queue is present (`defaults_domain_catalog.go:91-106`).
 
@@ -109,7 +111,7 @@ the span carries no domain attribute either, so isolate this family through
 the domain-tagged metrics and the structured log below rather than by
 filtering traces.
 
-`SemanticEntityMaterializationHandler.Handle` emits one "semantic entity
+`EntityMaterializationHandler.Handle` emits one "semantic entity
 materialization completed" structured log per execution, carrying
 `fact_count`, `repo_count`, `row_count`, `skip_retract`,
 `delta_projection`, `delta_file_count`, and the
@@ -118,24 +120,32 @@ materialization completed" structured log per execution, carrying
 `phase_publish_duration_seconds` / `total_duration_seconds` per-stage
 timings.
 
-No-Regression Evidence: #6061 relocates this family's production logic
-without changing it. Nearly every hunk in the moved production files is
-package-clause and import requalification: symbols the reducer root used to
-supply as one-line forwarders (`Intent`, `Result`, `FactLoader`,
-`GraphProjectionPhasePublisher`, and the fact-kind/loader helpers) are now
-imported from the shared-tier leaf that already owned them
-(`reducer/contract`, `reducer/factload`, `reducer/gpphase`). The
-`GraphProjectionPhaseRepairQueue`/`GraphProjectionPhaseRepair` port and the
-`graphProjectionPhaseRepairsFromStates` conversion are declared locally
-because the root's versions are still shared with families that have not
-moved, with the conversion body copied byte-for-byte; the root wires the two
-named types together with the new `semanticEntityRepairQueueAdapter`. The
-family's own extraction, delta-scoping and metadata-shaping logic is
-unchanged. Verified
-locally on this branch: `go build ./internal/reducer/...` and
-`go vet ./internal/reducer/semanticentity ./internal/reducer` both exit 0;
-`go test ./internal/reducer/semanticentity ./internal/reducer -count=1`
-passes.
+No-Regression Evidence: #6061 relocates this family from
+`internal/reducer/semanticentity` to `internal/reducer/code/semantic`
+without changing its behavior. Every hunk in the moved production files is
+package-clause, identity, or import requalification: the exported
+`SemanticEntity*` identifiers dropped that prefix per
+`docs/internal/naming.md` (`SemanticEntityMaterializationHandler` ->
+`EntityMaterializationHandler`, `SemanticEntityRow` -> `EntityRow`,
+`SemanticEntityWrite`/`SemanticEntityWriteResult` ->
+`EntityWrite`/`EntityWriteResult`, `SemanticEntityWriter` -> `EntityWriter`,
+`ExtractSemanticEntityRows`/`ExtractSemanticEntityRowsForRepo` ->
+`ExtractEntityRows`/`ExtractEntityRowsForRepo`). Every importer (`cmd/reducer`,
+the reducer root, `internal/replay/costcounting`,
+`internal/replay/offlinetier`, `internal/storage/cypher`) was updated to the
+new import path and identifier spellings in the same commit; there is no
+compat shim, because this family was already a separate package before the
+move (a path/name relocation, not an extraction out of root). Wire strings —
+the `semantic_entity_materialization` domain, the `semantic_nodes_committed`
+phase key, entity keys, and the structured-log message and fields — are
+byte-identical. The `GraphProjectionPhaseRepairQueue`/`GraphProjectionPhaseRepair`
+port and the `graphProjectionPhaseRepairsFromStates` conversion stay declared
+locally, unchanged, for the reason given under Dependencies above. Measured
+from `go/`, with `GOROOT` unset: `go build ./...`, `go vet
+./internal/reducer/... ./cmd/reducer/... ./internal/storage/...`, and `go
+test ./internal/reducer/... ./cmd/reducer/... ./internal/storage/cypher/...
+./internal/replay/... -count=1` all exited 0 on this branch. `git diff
+--check` exited 0.
 
 No-Observability-Change: #6061 adds no queue domain, worker, lease, graph or
 Postgres operation, runtime setting, metric instrument, metric label, span,
@@ -159,11 +169,11 @@ are the same before and after the move.
   the shared-payload-delta stanza of `compat_decode.go`. Do not reintroduce a
   local copy — call the shared-tier function they forward to.
 - **`GraphProjectionPhaseRepairQueue` here is narrower than the root's.** It
-  declares only `Enqueue`, the one method `SemanticEntityMaterializationHandler`
+  declares only `Enqueue`, the one method `EntityMaterializationHandler`
   calls, not the root's full `Enqueue`/`ListDue`/`Delete`/`MarkFailed` set
   the repair runner needs. Narrowing the method set is not enough on its own:
   a wider implementation satisfies this interface only if its `Enqueue` takes
-  `[]semanticentity.GraphProjectionPhaseRepair`. The root's takes the root's
+  `[]semantic.GraphProjectionPhaseRepair`. The root's takes the root's
   own struct, and Go requires exact type identity in a method signature, which
   is why `semanticEntityRepairQueueAdapter` exists. Do not delete it.
 - **Delta scoping is per repository**, carried on each generation's
@@ -172,6 +182,7 @@ are the same before and after the move.
 
 ## Related docs
 
-- [Reducer package](../README.md)
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)
-- [Telemetry coverage](../../../../docs/public/observability/telemetry-coverage.md)
+- `go/internal/reducer/README.md` — the root package and its subpackage inventory
+- `go/internal/reducer/code/README.md` — the `code/` namespace parent
+- `docs/internal/design/package-restructure.md` — the #6061 restructure
+- `docs/public/observability/telemetry-coverage.md` — the coverage rows for `semantic_entity_materialization`

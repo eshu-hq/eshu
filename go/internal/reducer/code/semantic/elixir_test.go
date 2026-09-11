@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"testing"
@@ -12,7 +12,7 @@ import (
 func TestExtractSemanticEntityRowsCarriesElixirProtocolMetadata(t *testing.T) {
 	t.Parallel()
 
-	repoIDs, rows := ExtractSemanticEntityRows([]facts.Envelope{
+	repoIDs, rows := ExtractEntityRows([]facts.Envelope{
 		{
 			FactKind: "content_entity",
 			SourceRef: facts.Ref{
@@ -56,10 +56,10 @@ func TestExtractSemanticEntityRowsCarriesElixirProtocolMetadata(t *testing.T) {
 	})
 
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 2; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	if got, want := rows[0].EntityType, "Protocol"; got != want {
@@ -83,7 +83,7 @@ func TestExtractSemanticEntityRowsCarriesElixirProtocolMetadata(t *testing.T) {
 func TestExtractSemanticEntityRowsCarriesElixirModuleAttributeMetadata(t *testing.T) {
 	t.Parallel()
 
-	repoIDs, rows := ExtractSemanticEntityRows([]facts.Envelope{
+	repoIDs, rows := ExtractEntityRows([]facts.Envelope{
 		{
 			FactKind: "content_entity",
 			SourceRef: facts.Ref{
@@ -107,10 +107,10 @@ func TestExtractSemanticEntityRowsCarriesElixirModuleAttributeMetadata(t *testin
 	})
 
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]

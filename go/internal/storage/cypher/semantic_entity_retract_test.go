@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 )
 
 func TestSemanticEntityWriterRetractsWithoutUpserts(t *testing.T) {
@@ -16,7 +16,7 @@ func TestSemanticEntityWriterRetractsWithoutUpserts(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 0)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semantic.EntityWrite{
 		RepoIDs: []string{"repo-1", "repo-2"},
 	})
 	if err != nil {

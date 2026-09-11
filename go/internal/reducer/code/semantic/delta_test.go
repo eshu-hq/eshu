@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"context"
@@ -47,8 +47,8 @@ func TestSemanticEntityMaterializationHandlerScopesDeltaRetractToFiles(t *testin
 			},
 		},
 	}
-	writer := &recordingSemanticEntityWriter{result: SemanticEntityWriteResult{CanonicalWrites: 1}}
-	handler := SemanticEntityMaterializationHandler{
+	writer := &recordingSemanticEntityWriter{result: EntityWriteResult{CanonicalWrites: 1}}
+	handler := EntityMaterializationHandler{
 		FactLoader:           loader,
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
@@ -101,7 +101,7 @@ func TestSemanticEntityMaterializationHandlerScopesDeletedOnlyDeltaRetract(t *te
 		},
 	}
 	writer := &recordingSemanticEntityWriter{}
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader:           loader,
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },

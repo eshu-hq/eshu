@@ -1,4 +1,4 @@
-# AGENTS.md — internal/reducer/semanticentity
+# AGENTS.md — internal/reducer/code/semantic
 
 Scoped instructions for this package. Read them before editing anything here.
 The root `AGENTS.md` and `CLAUDE.md` still apply; these add to them.
@@ -68,12 +68,12 @@ to.
   caller's concrete queue to satisfy methods this package never uses, for no
   benefit. That said, the narrowing does not make the root's concrete queue
   satisfy this interface directly: `Enqueue` takes a named
-  `GraphProjectionPhaseRepair` struct, and semanticentity's is a distinct
+  `GraphProjectionPhaseRepair` struct, and this package's is a distinct
   type from the root's, so Go's exact-type-identity rule for method
   signatures still requires the `semanticEntityRepairQueueAdapter` bridge in
   root. Only a plain, primitive-only method (like `codetaint.GraphQueryRunner.Run`)
   gets free structural satisfaction from a root concrete type.
-- **The extraction sort order in `ExtractSemanticEntityRowsForRepo` is a
+- **The extraction sort order in `ExtractEntityRowsForRepo` is a
   contract.** Rows sort by `(RepoID, FilePath, EntityType, StartLine,
   EntityID)` so the canonical writer gets a deterministic write order;
   changing the sort changes the write order the graph-write and delta-retract
@@ -113,12 +113,13 @@ to.
 
 ## Do not
 
-- Do not name a new root file after this directory. `dirgate` refuses a root
-  file whose stem is exactly `semanticentity` or starts with
-  `semanticentity_`, so no `semanticentity_*.go` may exist in the reducer
-  root. `semantic_entity_*.go` (with the underscore between the two words)
-  does not collide, but do not create new root files under that name for
-  this family's own logic either — extend this package instead.
+- Do not name a new `code/` file after this directory. `dirgate` refuses a
+  `code/` file whose stem is exactly `semantic` or starts with `semantic_`,
+  so no `semantic_*.go` may exist directly under `internal/reducer/code/`.
+  The reducer root's own `semantic_entity_repair_queue_adapter.go` sits two
+  levels up and is unaffected by this rule; do not create new root files
+  under that name for this family's own logic either — extend this package
+  instead.
 - Do not suppress `dirgate` with `//nolint`.
 - Do not widen `GraphProjectionPhaseRepairQueue` to the root's full
   interface without a new caller in this package that needs the extra

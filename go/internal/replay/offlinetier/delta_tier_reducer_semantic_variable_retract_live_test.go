@@ -35,7 +35,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
 
@@ -92,8 +92,8 @@ func TestReducerSemanticVariableRetractGraphTruth(t *testing.T) {
 	writer := cypher.NewSemanticEntityWriterWithCanonicalNodeRows(exec, 500).
 		WithLabelScopedRetract()
 
-	variableRow := func(uid, file string) semanticentity.SemanticEntityRow {
-		return semanticentity.SemanticEntityRow{
+	variableRow := func(uid, file string) semantic.EntityRow {
+		return semantic.EntityRow{
 			RepoID:       svRepo,
 			EntityID:     uid,
 			EntityType:   "Variable",
@@ -108,9 +108,9 @@ func TestReducerSemanticVariableRetractGraphTruth(t *testing.T) {
 
 	// gen1: upsert both Variables (SkipRetract so the first generation only
 	// writes). Each connects to its File via CONTAINS.
-	if _, err := writer.WriteSemanticEntities(ctx, semanticentity.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(ctx, semantic.EntityWrite{
 		RepoIDs:     []string{svRepo},
-		Rows:        []semanticentity.SemanticEntityRow{variableRow(svInUID, svInFile), variableRow(svOutUID, svOutFile)},
+		Rows:        []semantic.EntityRow{variableRow(svInUID, svInFile), variableRow(svOutUID, svOutFile)},
 		SkipRetract: true,
 	}); err != nil {
 		t.Fatalf("gen1 WriteSemanticEntities: %v", err)
@@ -123,7 +123,7 @@ func TestReducerSemanticVariableRetractGraphTruth(t *testing.T) {
 	// gen2: the in-scope file is absent from the new generation, so the delta
 	// projection retracts every semantic entity for that file path. Rows empty,
 	// DeltaProjection true, DeltaFilePaths naming only the in-scope file.
-	if _, err := writer.WriteSemanticEntities(ctx, semanticentity.SemanticEntityWrite{
+	if _, err := writer.WriteSemanticEntities(ctx, semantic.EntityWrite{
 		RepoIDs:         []string{svRepo},
 		DeltaProjection: true,
 		DeltaFilePaths:  []string{svInFile},

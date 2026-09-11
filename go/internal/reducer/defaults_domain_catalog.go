@@ -5,8 +5,8 @@ package reducer
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -89,7 +89,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				PlatformGraphLocker:        handlers.PlatformGraphLocker,
 			}
 		case DomainSemanticEntityMaterialization:
-			semanticHandler := semanticentity.SemanticEntityMaterializationHandler{
+			semanticHandler := semantic.EntityMaterializationHandler{
 				FactLoader:           handlers.FactLoader,
 				Writer:               handlers.SemanticEntityWriter,
 				PriorGenerationCheck: handlers.PriorGenerationCheck,

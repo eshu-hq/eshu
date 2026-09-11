@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"context"
@@ -19,8 +19,8 @@ import (
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
 
-// SemanticEntityRow holds one canonical semantic-entity materialization row.
-type SemanticEntityRow struct {
+// EntityRow holds one canonical semantic-entity materialization row.
+type EntityRow struct {
 	RepoID       string
 	EntityID     string
 	EntityType   string
@@ -33,41 +33,41 @@ type SemanticEntityRow struct {
 	Metadata     map[string]any
 }
 
-// SemanticEntityWrite captures one canonical semantic-entity write request.
-type SemanticEntityWrite struct {
+// EntityWrite captures one canonical semantic-entity write request.
+type EntityWrite struct {
 	RepoIDs         []string
-	Rows            []SemanticEntityRow
+	Rows            []EntityRow
 	SkipRetract     bool
 	DeltaProjection bool
 	DeltaFilePaths  []string
 }
 
-// SemanticEntityWriteResult captures the canonical semantic-entity write outcome.
-type SemanticEntityWriteResult struct {
+// EntityWriteResult captures the canonical semantic-entity write outcome.
+type EntityWriteResult struct {
 	CanonicalWrites int
 }
 
-// SemanticEntityWriter persists Annotation, Typedef, TypeAlias,
+// EntityWriter persists Annotation, Typedef, TypeAlias,
 // TypeAnnotation, Component, Module, ImplBlock, Protocol,
 // ProtocolImplementation, Variable, and callable Function semantic nodes into
 // Neo4j.
-type SemanticEntityWriter interface {
-	WriteSemanticEntities(context.Context, SemanticEntityWrite) (SemanticEntityWriteResult, error)
+type EntityWriter interface {
+	WriteSemanticEntities(context.Context, EntityWrite) (EntityWriteResult, error)
 }
 
-// SemanticEntityMaterializationHandler reduces one semantic-entity follow-up
+// EntityMaterializationHandler reduces one semantic-entity follow-up
 // into canonical graph writes. It loads parser facts, extracts canonical
 // semantic rows, and writes them through the Neo4j adapter.
-type SemanticEntityMaterializationHandler struct {
+type EntityMaterializationHandler struct {
 	FactLoader           factload.FactLoader
-	Writer               SemanticEntityWriter
+	Writer               EntityWriter
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	PhasePublisher       gpphase.PhasePublisher
 	RepairQueue          GraphProjectionPhaseRepairQueue
 }
 
 // Handle executes the semantic-entity materialization path.
-func (h SemanticEntityMaterializationHandler) Handle(
+func (h EntityMaterializationHandler) Handle(
 	ctx context.Context,
 	intent reducercontract.Intent,
 ) (reducercontract.Result, error) {
@@ -100,7 +100,7 @@ func (h SemanticEntityMaterializationHandler) Handle(
 
 	extractStart := time.Now()
 	targetRepoID := semanticTargetRepoID(intent, envelopes)
-	repoIDs, rows := ExtractSemanticEntityRowsForRepo(envelopes, targetRepoID)
+	repoIDs, rows := ExtractEntityRowsForRepo(envelopes, targetRepoID)
 	deltaScope := extractSemanticDeltaProjectionScope(envelopes, rows, targetRepoID)
 	extractDuration := time.Since(extractStart)
 	if len(repoIDs) == 0 && len(rows) == 0 {
@@ -131,7 +131,7 @@ func (h SemanticEntityMaterializationHandler) Handle(
 	retractDecisionDuration := time.Since(retractDecisionStart)
 
 	graphWriteStart := time.Now()
-	writeResult, err := h.Writer.WriteSemanticEntities(ctx, SemanticEntityWrite{
+	writeResult, err := h.Writer.WriteSemanticEntities(ctx, EntityWrite{
 		RepoIDs:         repoIDs,
 		Rows:            rows,
 		SkipRetract:     skipRetract,
@@ -222,7 +222,7 @@ func logSemanticEntityMaterializationCompleted(
 	)
 }
 
-func (h SemanticEntityMaterializationHandler) shouldSkipSemanticRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
+func (h EntityMaterializationHandler) shouldSkipSemanticRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -233,7 +233,7 @@ func (h SemanticEntityMaterializationHandler) shouldSkipSemanticRetract(ctx cont
 	return !hasPrior, nil
 }
 
-func (h SemanticEntityMaterializationHandler) publishSemanticGraphPhases(
+func (h EntityMaterializationHandler) publishSemanticGraphPhases(
 	ctx context.Context,
 	generationID string,
 	envelopes []facts.Envelope,
@@ -349,16 +349,16 @@ func semanticGraphPhaseStates(
 	return states
 }
 
-// ExtractSemanticEntityRows returns the touched repository IDs and canonical
+// ExtractEntityRows returns the touched repository IDs and canonical
 // semantic rows extracted from fact envelopes.
-func ExtractSemanticEntityRows(envelopes []facts.Envelope) ([]string, []SemanticEntityRow) {
-	return ExtractSemanticEntityRowsForRepo(envelopes, "")
+func ExtractEntityRows(envelopes []facts.Envelope) ([]string, []EntityRow) {
+	return ExtractEntityRowsForRepo(envelopes, "")
 }
 
-// ExtractSemanticEntityRowsForRepo returns the touched repository IDs and
+// ExtractEntityRowsForRepo returns the touched repository IDs and
 // canonical semantic rows extracted from fact envelopes, optionally filtered
 // to one repo acceptance unit.
-func ExtractSemanticEntityRowsForRepo(envelopes []facts.Envelope, targetRepoID string) ([]string, []SemanticEntityRow) {
+func ExtractEntityRowsForRepo(envelopes []facts.Envelope, targetRepoID string) ([]string, []EntityRow) {
 	if len(envelopes) == 0 {
 		return nil, nil
 	}
@@ -368,7 +368,7 @@ func ExtractSemanticEntityRowsForRepo(envelopes []facts.Envelope, targetRepoID s
 	if targetRepoID != "" {
 		repoIDs = filterSemanticRepoIDs(repoIDs, targetRepoID)
 	}
-	rows := make([]SemanticEntityRow, 0)
+	rows := make([]EntityRow, 0)
 	for _, env := range envelopes {
 		if env.FactKind != "content_entity" {
 			continue
@@ -390,7 +390,7 @@ func ExtractSemanticEntityRowsForRepo(envelopes []facts.Envelope, targetRepoID s
 			continue
 		}
 
-		row := SemanticEntityRow{
+		row := EntityRow{
 			RepoID:       repoID,
 			EntityID:     entityID,
 			EntityType:   entityType,

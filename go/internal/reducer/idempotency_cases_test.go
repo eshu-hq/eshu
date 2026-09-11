@@ -11,8 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -288,8 +288,8 @@ func semanticEntityReplayCase() idempotencyReplayCase {
 		domain: DomainSemanticEntityMaterialization,
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
-			writer := &recordingSemanticEntityWriter{result: semanticentity.SemanticEntityWriteResult{CanonicalWrites: 1}}
-			handler := semanticentity.SemanticEntityMaterializationHandler{
+			writer := &recordingSemanticEntityWriter{result: semantic.EntityWriteResult{CanonicalWrites: 1}}
+			handler := semantic.EntityMaterializationHandler{
 				FactLoader: &stubFactLoader{envelopes: fencedFacts(semanticEntityReplayFacts())},
 				Writer:     writer,
 			}

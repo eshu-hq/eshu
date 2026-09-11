@@ -2727,7 +2727,7 @@ gates:
       # harness is not blind -- seeding go/** the same way measures +106.
       #
       # It also arms the lanes on reducer files no driven cassette exercises,
-      # semanticentity/materialization.go among them, which #6200 had
+      # code/semantic/materialization.go among them, which #6200 had
       # deliberately left untriggered because no cassette either gate drives
       # produces a semantic-entity intent. That is the price of the glob and
       # it is the right trade: per-file precision is what rotted.
@@ -3187,7 +3187,7 @@ gates:
       # harness is not blind -- seeding go/** the same way measures +106.
       #
       # It also arms the lanes on reducer files no driven cassette exercises,
-      # semanticentity/materialization.go among them, which #6200 had
+      # code/semantic/materialization.go among them, which #6200 had
       # deliberately left untriggered because no cassette either gate drives
       # produces a semantic-entity intent. That is the price of the glob and
       # it is the right trade: per-file precision is what rotted.

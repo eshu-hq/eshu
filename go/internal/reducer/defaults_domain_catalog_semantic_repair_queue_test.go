@@ -6,28 +6,28 @@ package reducer
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 )
 
 // semanticEntityMaterializationHandler finds the DomainSemanticEntityMaterialization
 // definition implementedDefaultDomainDefinitions built and returns its handler,
 // failing the test if the domain or its handler type is missing.
-func semanticEntityMaterializationHandler(t *testing.T, definitions []DomainDefinition) semanticentity.SemanticEntityMaterializationHandler {
+func semanticEntityMaterializationHandler(t *testing.T, definitions []DomainDefinition) semantic.EntityMaterializationHandler {
 	t.Helper()
 
 	for _, def := range definitions {
 		if def.Domain != DomainSemanticEntityMaterialization {
 			continue
 		}
-		handler, ok := def.Handler.(semanticentity.SemanticEntityMaterializationHandler)
+		handler, ok := def.Handler.(semantic.EntityMaterializationHandler)
 		if !ok {
-			t.Fatalf("DomainSemanticEntityMaterialization handler type = %T, want semanticentity.SemanticEntityMaterializationHandler", def.Handler)
+			t.Fatalf("DomainSemanticEntityMaterialization handler type = %T, want semantic.EntityMaterializationHandler", def.Handler)
 		}
 		return handler
 	}
 
 	t.Fatal("implementedDefaultDomainDefinitions() did not return a DomainSemanticEntityMaterialization definition")
-	return semanticentity.SemanticEntityMaterializationHandler{}
+	return semantic.EntityMaterializationHandler{}
 }
 
 // TestImplementedDefaultDomainDefinitionsLeavesSemanticEntityRepairQueueNilWithoutRootQueue

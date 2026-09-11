@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"testing"
@@ -32,12 +32,12 @@ func TestExtractSemanticEntityRowsIncludesTSXFunctionFragmentFacts(t *testing.T)
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]
@@ -72,12 +72,12 @@ func TestExtractSemanticEntityRowsIncludesTSXComponentTypeAssertionFacts(t *test
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]
@@ -112,12 +112,12 @@ func TestExtractSemanticEntityRowsIncludesTSXReactFunctionComponentTypeAssertion
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]
@@ -150,12 +150,12 @@ func TestExtractSemanticEntityRowsIncludesTSXComponentWrapperFacts(t *testing.T)
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]

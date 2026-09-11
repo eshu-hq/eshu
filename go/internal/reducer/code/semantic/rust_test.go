@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"testing"
@@ -57,7 +57,7 @@ func TestExtractSemanticEntityRowsIncludesRustImplBlocksAndFunctionImplContext(t
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-rust"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("repoIDs = %v, want %v", got, want)
 	}
@@ -65,7 +65,7 @@ func TestExtractSemanticEntityRowsIncludesRustImplBlocksAndFunctionImplContext(t
 		t.Fatalf("len(rows) = %d, want %d", got, want)
 	}
 
-	rowsByType := make(map[string]SemanticEntityRow, len(rows))
+	rowsByType := make(map[string]EntityRow, len(rows))
 	for _, row := range rows {
 		rowsByType[row.EntityType] = row
 	}

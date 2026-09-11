@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package semanticentity
+package semantic
 
 import (
 	"context"
@@ -134,16 +134,16 @@ func TestExtractSemanticEntityRowsFiltersAnnotationTypedefTypeAliasComponentAndF
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 6; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
-	rowsByType := make(map[string]SemanticEntityRow, len(rows))
+	rowsByType := make(map[string]EntityRow, len(rows))
 	for _, row := range rows {
 		rowsByType[row.EntityType] = row
 	}
@@ -247,12 +247,12 @@ func TestExtractSemanticEntityRowsIncludesPythonDecoratedAsyncFunctionFacts(t *t
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]
@@ -295,12 +295,12 @@ func TestExtractSemanticEntityRowsIncludesGoMethodFunctions(t *testing.T) {
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]
@@ -339,12 +339,12 @@ func TestExtractSemanticEntityRowsIncludesPythonFunctionTypeAnnotationFacts(t *t
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]
@@ -383,12 +383,12 @@ func TestExtractSemanticEntityRowsIncludesElixirGuardFacts(t *testing.T) {
 		},
 	}
 
-	repoIDs, rows := ExtractSemanticEntityRows(envelopes)
+	repoIDs, rows := ExtractEntityRows(envelopes)
 	if got, want := repoIDs, []string{"repo-1"}; len(got) != len(want) || got[0] != want[0] {
-		t.Fatalf("ExtractSemanticEntityRows() repoIDs = %v, want %v", got, want)
+		t.Fatalf("ExtractEntityRows() repoIDs = %v, want %v", got, want)
 	}
 	if got, want := len(rows), 1; got != want {
-		t.Fatalf("ExtractSemanticEntityRows() rows = %d, want %d", got, want)
+		t.Fatalf("ExtractEntityRows() rows = %d, want %d", got, want)
 	}
 
 	row := rows[0]
@@ -506,12 +506,12 @@ func TestSemanticEntityMaterializationHandlerWritesAndRetracts(t *testing.T) {
 		},
 	}
 	writer := &recordingSemanticEntityWriter{
-		result: SemanticEntityWriteResult{
+		result: EntityWriteResult{
 			CanonicalWrites: 5,
 		},
 	}
 
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader: loader,
 		Writer:     writer,
 	}
@@ -572,7 +572,7 @@ func TestSemanticEntityMaterializationHandlerSkipsRetractForFirstGeneration(t *t
 		},
 	}
 	writer := &recordingSemanticEntityWriter{}
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader: loader,
 		Writer:     writer,
 		PriorGenerationCheck: func(_ context.Context, scopeID, generationID string) (bool, error) {
@@ -640,7 +640,7 @@ func TestSemanticEntityMaterializationHandlerRetractsWhenPriorGenerationExists(t
 			t.Parallel()
 
 			writer := &recordingSemanticEntityWriter{}
-			handler := SemanticEntityMaterializationHandler{
+			handler := EntityMaterializationHandler{
 				FactLoader: loader,
 				Writer:     writer,
 				PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
@@ -692,7 +692,7 @@ func TestSemanticEntityMaterializationHandlerRetractsForRetriedFirstGeneration(t
 		},
 	}
 	writer := &recordingSemanticEntityWriter{}
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader: loader,
 		Writer:     writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) {
@@ -748,10 +748,10 @@ func TestSemanticEntityMaterializationHandlerRetractsWhenNoTargetRowsRemain(t *t
 		},
 	}
 	writer := &recordingSemanticEntityWriter{
-		result: SemanticEntityWriteResult{},
+		result: EntityWriteResult{},
 	}
 
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader: loader,
 		Writer:     writer,
 	}
@@ -819,11 +819,11 @@ func TestSemanticEntityMaterializationPublishesSemanticNodesCommitted(t *testing
 		},
 	}
 	writer := &recordingSemanticEntityWriter{
-		result: SemanticEntityWriteResult{CanonicalWrites: 1},
+		result: EntityWriteResult{CanonicalWrites: 1},
 	}
 	publisher := &recordingSemanticEntityPhasePublisher{}
 
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader:     loader,
 		Writer:         writer,
 		PhasePublisher: publisher,
@@ -922,11 +922,11 @@ func TestSemanticEntityMaterializationHandlerFiltersToTargetRepo(t *testing.T) {
 		},
 	}
 	writer := &recordingSemanticEntityWriter{
-		result: SemanticEntityWriteResult{CanonicalWrites: 1},
+		result: EntityWriteResult{CanonicalWrites: 1},
 	}
 	publisher := &recordingSemanticEntityPhasePublisher{}
 
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader:     loader,
 		Writer:         writer,
 		PhasePublisher: publisher,
@@ -1035,11 +1035,11 @@ func TestSemanticEntityMaterializationHandlerResolvesLegacyEntityKeyToTargetRepo
 		},
 	}
 	writer := &recordingSemanticEntityWriter{
-		result: SemanticEntityWriteResult{CanonicalWrites: 1},
+		result: EntityWriteResult{CanonicalWrites: 1},
 	}
 	publisher := &recordingSemanticEntityPhasePublisher{}
 
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader:     loader,
 		Writer:         writer,
 		PhasePublisher: publisher,
@@ -1106,14 +1106,14 @@ func TestSemanticEntityMaterializationEnqueuesRepairWhenPublishFails(t *testing.
 		},
 	}
 	writer := &recordingSemanticEntityWriter{
-		result: SemanticEntityWriteResult{CanonicalWrites: 1},
+		result: EntityWriteResult{CanonicalWrites: 1},
 	}
 	publisher := &recordingSemanticEntityPhasePublisher{
 		err: errors.New("publish failed"),
 	}
 	repairQueue := &recordingSemanticEntityRepairQueue{}
 
-	handler := SemanticEntityMaterializationHandler{
+	handler := EntityMaterializationHandler{
 		FactLoader:     loader,
 		Writer:         writer,
 		PhasePublisher: publisher,
@@ -1154,14 +1154,14 @@ func (f *fakeSemanticEntityFactLoader) ListFacts(context.Context, string, string
 }
 
 type recordingSemanticEntityWriter struct {
-	writes []SemanticEntityWrite
-	result SemanticEntityWriteResult
+	writes []EntityWrite
+	result EntityWriteResult
 }
 
 func (w *recordingSemanticEntityWriter) WriteSemanticEntities(
 	_ context.Context,
-	write SemanticEntityWrite,
-) (SemanticEntityWriteResult, error) {
+	write EntityWrite,
+) (EntityWriteResult, error) {
 	w.writes = append(w.writes, write)
 	return w.result, nil
 }
