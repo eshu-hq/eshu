@@ -24,7 +24,7 @@ need splitting before the families could separate.
 - **No import of the reducer root, ever.** This package is a leaf below
   `internal/reducer`: the root imports it for `CodeEvidenceHandlers` wiring
   and the two handler constructions, never the reverse.
-- **`GraphQueryRunner` and `CodeValueFlowBackfillStateMarker` in
+- **`GraphQueryRunner` and `BackfillStateMarker` in
   `graph_ports.go` are deliberately re-declared, not imported.**
   `GraphQueryRunner` is owned by root (shared with other still-in-root
   families), so importing it would violate the rule above. The marker's
@@ -34,12 +34,12 @@ need splitting before the families could separate.
   with an import, and do not delete one without first moving the real
   declaration to a leaf package both sides can import.
 - **The ledger record must happen strictly before the graph write**, in
-  both `CodeTaintEvidenceMaterializationHandler.Handle` and
-  `CodeInterprocEvidenceMaterializationHandler.Handle`. Reordering breaks the
+  both `EvidenceHandler.Handle` and
+  `InterprocEvidenceHandler.Handle`. Reordering breaks the
   ledger-is-a-superset-of-graph invariant the anchored-delete retract on the
   next generation depends on (issue #4893).
-- **`ExtractCodeInterprocFixpointEvidenceRows` and
-  `ExtractCodeInterprocEvidenceRows` use separate uid namespaces on
+- **`ExtractInterprocFixpointEvidenceRows` and
+  `ExtractInterprocEvidenceRows` use separate uid namespaces on
   purpose.** Unifying them would let a fixpoint-solved edge collide with a
   direct-fact edge in the graph writer's `MERGE`.
 - **A malformed required field dead-letters as an input_invalid quarantine,
@@ -47,7 +47,7 @@ need splitting before the families could separate.
   `source_function_uid`/`sink_function_uid` for interproc. This is the
   Contract System v1 Wave 4f S2 accuracy guarantee (issue #4754, epic #4566
   §1) — do not swallow a decode error to make a batch "succeed."
-- **`DecodeCodeTaintEvidenceInput`/`DecodeCodeInterprocEvidenceInput` are
+- **`DecodeEvidenceInput`/`DecodeInterprocEvidenceInput` are
   exported ONLY because the reducer root's shared
   `codedataflow_bench_test.go` benchmarks them directly** (it also
   benchmarks the unrelated function-summary/source and shell-exec families
@@ -80,8 +80,8 @@ commit — nothing enforces any of them stay identical.
 
 ## Common changes
 
-Adding a new evidence field to either fact kind: extend the `CodeTaintEvidenceInput`/
-`CodeInterprocEvidenceInput` struct, the corresponding `Decode*` function,
+Adding a new evidence field to either fact kind: extend the `EvidenceInput`/
+`InterprocEvidenceInput` struct, the corresponding `Decode*` function,
 and the `Extract*Rows` row-building function together, in
 `code/taint/evidence_typed_decode.go` and `code/taint/evidence_rows.go` /
 `code/taint/interproc_evidence_rows.go`. Then update the matching envelope builder
@@ -96,15 +96,15 @@ in the root test-helpers file above if a root test exercises the new field.
 - Letting the root test-helpers copy (see above) silently diverge from this
   package's own test doubles when either side's interface or sample-builder
   shape changes.
-- Adding a new caller of `DecodeCodeTaintEvidenceInput`/
-  `DecodeCodeInterprocEvidenceInput` outside a benchmark/test context —
+- Adding a new caller of `DecodeEvidenceInput`/
+  `DecodeInterprocEvidenceInput` outside a benchmark/test context —
   route through `ExtractCode*EvidenceRowsWithQuarantine` instead so the
   quarantine/dead-letter contract stays enforced.
 
 ## Do not change without ADR review
 
-- The evidence-source strings returned by `CodeTaintEvidenceSource()` /
-  `CodeInterprocEvidenceSource()` / `CodeInterprocFixpointEvidenceSource()`
+- The evidence-source strings returned by `EvidenceSource()` /
+  `InterprocEvidenceSource()` / `InterprocFixpointEvidenceSource()`
   — `cmd/reducer` wiring and the root stale-cleanup runner key retraction on
   these exact strings.
 - The separate uid namespaces for direct vs. fixpoint interproc evidence.

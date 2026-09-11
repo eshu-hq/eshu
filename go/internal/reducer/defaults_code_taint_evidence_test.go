@@ -42,9 +42,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesCodeTaintWhenWired(t *testin
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(taint.CodeTaintEvidenceMaterializationHandler)
+		handler, ok := def.Handler.(taint.EvidenceHandler)
 		if !ok {
-			t.Fatalf("code_taint_evidence handler type = %T, want taint.CodeTaintEvidenceMaterializationHandler", def.Handler)
+			t.Fatalf("code_taint_evidence handler type = %T, want taint.EvidenceHandler", def.Handler)
 		}
 		if handler.Loader == nil || handler.Writer != writer {
 			t.Fatal("code_taint_evidence handler Loader/Writer not wired")

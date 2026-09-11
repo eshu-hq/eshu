@@ -17,8 +17,8 @@
 // of resolving the whole corpus), and resolves finding endpoints through the
 // graph-uid map. [FixpointEvidenceProjector] then retracts and
 // rewrites the full fixpoint-owned evidence source through
-// taint.CodeInterprocEvidenceWriter/CodeInterprocProjectedEdgeLedger,
-// using taint.ExtractCodeInterprocFixpointEvidenceRows' separate uid
+// taint.InterprocEvidenceWriter/InterprocProjectedEdgeLedger,
+// using taint.ExtractInterprocFixpointEvidenceRows' separate uid
 // namespace so a fixpoint-solved edge can never collide with a direct-fact
 // edge in the graph writer's MERGE.
 //

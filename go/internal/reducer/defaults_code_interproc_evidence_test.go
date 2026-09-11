@@ -42,9 +42,9 @@ func TestImplementedDefaultDomainDefinitionsIncludesCodeInterprocWhenWired(t *te
 			continue
 		}
 		found = true
-		handler, ok := def.Handler.(taint.CodeInterprocEvidenceMaterializationHandler)
+		handler, ok := def.Handler.(taint.InterprocEvidenceHandler)
 		if !ok {
-			t.Fatalf("code_interproc_evidence handler type = %T, want taint.CodeInterprocEvidenceMaterializationHandler", def.Handler)
+			t.Fatalf("code_interproc_evidence handler type = %T, want taint.InterprocEvidenceHandler", def.Handler)
 		}
 		if handler.Loader == nil || handler.Writer != writer {
 			t.Fatal("code_interproc_evidence handler Loader/Writer not wired")

@@ -65,8 +65,8 @@ func (l stubCodeTaintEvidenceLoader) LoadCodeTaintEvidence(context.Context, stri
 }
 
 // codeTaintEvidenceEnvelope builds a valid code_taint_evidence fact envelope
-// carrying the fields a sample CodeTaintEvidenceInput would decode to.
-func codeTaintEvidenceEnvelope(in CodeTaintEvidenceInput) facts.Envelope {
+// carrying the fields a sample EvidenceInput would decode to.
+func codeTaintEvidenceEnvelope(in EvidenceInput) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "taint:" + in.FunctionUID,
 		FactKind: facts.CodeTaintEvidenceFactKind,
@@ -96,8 +96,8 @@ func codeTaintEvidenceIntent() reducercontract.Intent {
 	}
 }
 
-func sampleCodeTaintInput() CodeTaintEvidenceInput {
-	return CodeTaintEvidenceInput{
+func sampleCodeTaintInput() EvidenceInput {
+	return EvidenceInput{
 		FunctionUID: "func-handle", FunctionName: "handle", RelativePath: "src/handler.go",
 		Language: "go", Kind: "TAINTED", SinkKind: "sql", SourceKind: "http_request",
 		Binding: "q", SourceLine: 4, SinkLine: 5, Confidence: 0.8, GuardReason: "allowed",
@@ -110,7 +110,7 @@ func TestCodeTaintEvidenceHandlerRetractsThenWrites(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingCodeTaintEvidenceWriter{}
-	handler := CodeTaintEvidenceMaterializationHandler{
+	handler := EvidenceHandler{
 		Loader:               stubCodeTaintEvidenceLoader{envelopes: []facts.Envelope{codeTaintEvidenceEnvelope(sampleCodeTaintInput())}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
@@ -143,7 +143,7 @@ func TestCodeTaintEvidenceHandlerSkipsRetractOnFirstGeneration(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingCodeTaintEvidenceWriter{}
-	handler := CodeTaintEvidenceMaterializationHandler{
+	handler := EvidenceHandler{
 		Loader:               stubCodeTaintEvidenceLoader{envelopes: []facts.Envelope{codeTaintEvidenceEnvelope(sampleCodeTaintInput())}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
@@ -164,7 +164,7 @@ func TestCodeTaintEvidenceHandlerSkipsRetractOnFirstGeneration(t *testing.T) {
 func TestCodeTaintEvidenceHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	handler := CodeTaintEvidenceMaterializationHandler{
+	handler := EvidenceHandler{
 		Loader: stubCodeTaintEvidenceLoader{},
 		Writer: &recordingCodeTaintEvidenceWriter{},
 	}
@@ -182,11 +182,11 @@ func TestExtractCodeTaintEvidenceRowsDropsUnresolvedAndIsIdempotent(t *testing.T
 
 	unresolved := sampleCodeTaintInput()
 	unresolved.FunctionUID = ""
-	rows := ExtractCodeTaintEvidenceRows([]CodeTaintEvidenceInput{sampleCodeTaintInput(), unresolved})
+	rows := ExtractEvidenceRows([]EvidenceInput{sampleCodeTaintInput(), unresolved})
 	if len(rows) != 1 {
 		t.Fatalf("want 1 row (unresolved dropped), got %d", len(rows))
 	}
-	again := ExtractCodeTaintEvidenceRows([]CodeTaintEvidenceInput{sampleCodeTaintInput()})
+	again := ExtractEvidenceRows([]EvidenceInput{sampleCodeTaintInput()})
 	if rows[0]["uid"] != again[0]["uid"] {
 		t.Fatalf("node uid not stable across runs: %v vs %v", rows[0]["uid"], again[0]["uid"])
 	}

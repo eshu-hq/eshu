@@ -16,7 +16,7 @@ func newValueFlowFixpointProjector(
 	graphIDLoader reducer.FunctionGraphIDSnapshotLoader,
 	componentStore reducer.ValueFlowFixpointComponentStore,
 	graphReader reducer.GraphQueryRunner,
-	writer taint.CodeInterprocEvidenceWriter,
+	writer taint.InterprocEvidenceWriter,
 	logger *slog.Logger,
 ) reducer.ValueFlowFixpointEvidenceProjector {
 	return reducer.ValueFlowFixpointEvidenceProjector{

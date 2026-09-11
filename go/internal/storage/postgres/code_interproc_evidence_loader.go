@@ -10,10 +10,10 @@ import (
 )
 
 // LoadCodeInterprocEvidenceFacts implements
-// taint.CodeInterprocEvidenceFactLoader by scanning the raw
+// taint.InterprocEvidenceFactLoader by scanning the raw
 // code_interproc_evidence fact envelopes for one scope generation. The reducer
 // handler decodes them through the typed contracts seam
-// (ExtractCodeInterprocEvidenceRowsWithQuarantine) so a fact missing a required
+// (ExtractInterprocEvidenceRowsWithQuarantine) so a fact missing a required
 // endpoint uid dead-letters as an input_invalid quarantine instead of being
 // silently dropped. This is the raw-fact loader path used by the
 // materialization handler; the fixpoint projector reads a separate in-memory

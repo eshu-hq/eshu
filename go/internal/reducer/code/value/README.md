@@ -15,7 +15,7 @@ component store so a restart or second replica reuses unchanged weak
 components), and resolves finding endpoints through the graph-uid map.
 `FixpointEvidenceProjector` then retracts and rewrites the full
 fixpoint-owned evidence source, using a separate uid namespace
-(`taint.ExtractCodeInterprocFixpointEvidenceRows`) so a fixpoint-solved
+(`taint.ExtractInterprocFixpointEvidenceRows`) so a fixpoint-solved
 edge can never collide with a direct-fact edge in the graph writer's
 `MERGE`.
 
@@ -37,7 +37,7 @@ writer/ledger surface and has no dependency on this package.
 moved here from the reducer root under #6609. Its only caller is the root's
 `projected_source_edge_backfill` family, which names it through the
 `CodeValueFlowBackfillStateMarker` alias in `compat_projection.go`.
-Also does not own `CodeInterprocEvidenceMaterializationHandler` or the
+Also does not own `InterprocEvidenceHandler` or the
 direct (non-fixpoint) `code_interproc_evidence`/`code_taint_evidence`
 handlers, ports, or ledgers — those are `taint`.
 
@@ -125,8 +125,8 @@ graph writes. Verified against `go/internal/telemetry/instruments.go` (no
   Do not "fix" this by importing the reducer root — see Dependencies above.
 - **The fixpoint uid namespace must stay separate from the direct
   `code_interproc_evidence` namespace.** `FixpointEvidenceProjector`
-  calls `taint.ExtractCodeInterprocFixpointEvidenceRows`, not
-  `ExtractCodeInterprocEvidenceRows`; unifying them would let a
+  calls `taint.ExtractInterprocFixpointEvidenceRows`, not
+  `ExtractInterprocEvidenceRows`; unifying them would let a
   fixpoint-solved edge collide with (and silently overwrite) a direct-fact
   edge in the graph writer's `MERGE`.
 - **The projector retracts the whole fixpoint evidence source, not a scoped

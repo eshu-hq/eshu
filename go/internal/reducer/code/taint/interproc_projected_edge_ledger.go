@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// CodeInterprocProjectedEdgeLedger records and enumerates the source Function
+// InterprocProjectedEdgeLedger records and enumerates the source Function
 // uids of projected TAINT_FLOWS_TO edges so retraction can enumerate uids from
 // the ledger instead of scanning the whole :Function label in the graph.
 //
@@ -16,7 +16,7 @@ import (
 // graph edge write, so the ledger is always a superset of graph edges.
 // Over-inclusion is harmless because the anchored Cypher retract WHERE still
 // filters; under-inclusion would orphan graph edges.
-type CodeInterprocProjectedEdgeLedger interface {
+type InterprocProjectedEdgeLedger interface {
 	// RecordProjectedEdges records source Function uids, idempotent on the
 	// primary key. Must be called before the corresponding graph edge write.
 	RecordProjectedEdges(

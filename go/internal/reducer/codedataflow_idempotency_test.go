@@ -57,9 +57,9 @@ func TestCodeTaintEvidenceReplayIsIdempotent(t *testing.T) {
 	}
 
 	replay := func() []map[string]any {
-		rows, _, err := taint.ExtractCodeTaintEvidenceRowsWithQuarantine(envelopes)
+		rows, _, err := taint.ExtractEvidenceRowsWithQuarantine(envelopes)
 		if err != nil {
-			t.Fatalf("taint.ExtractCodeTaintEvidenceRowsWithQuarantine error = %v, want nil", err)
+			t.Fatalf("taint.ExtractEvidenceRowsWithQuarantine error = %v, want nil", err)
 		}
 		return rows
 	}
@@ -101,9 +101,9 @@ func TestCodeInterprocEvidenceReplayIsIdempotent(t *testing.T) {
 	}
 
 	replay := func() []map[string]any {
-		rows, _, err := taint.ExtractCodeInterprocEvidenceRowsWithQuarantine(envelopes)
+		rows, _, err := taint.ExtractInterprocEvidenceRowsWithQuarantine(envelopes)
 		if err != nil {
-			t.Fatalf("taint.ExtractCodeInterprocEvidenceRowsWithQuarantine error = %v, want nil", err)
+			t.Fatalf("taint.ExtractInterprocEvidenceRowsWithQuarantine error = %v, want nil", err)
 		}
 		return rows
 	}

@@ -19,7 +19,7 @@ import (
 type fakeBackfillReader struct {
 	count       int64
 	countErr    error
-	enumerateFn func(context.Context, []string) ([]ProjectedTaintEdgeRow, error)
+	enumerateFn func(context.Context, []string) ([]ProjectedEdgeRow, error)
 }
 
 func (f fakeBackfillReader) CountTaintFlowsToEdges(ctx context.Context) (int64, error) {
@@ -31,14 +31,14 @@ func (f fakeBackfillReader) CountTaintFlowsToEdges(ctx context.Context) (int64, 
 
 func (f fakeBackfillReader) EnumerateProjectedTaintEdges(
 	ctx context.Context, evidenceSources []string,
-) ([]ProjectedTaintEdgeRow, error) {
+) ([]ProjectedEdgeRow, error) {
 	if f.enumerateFn != nil {
 		return f.enumerateFn(ctx, evidenceSources)
 	}
 	return nil, nil
 }
 
-// fakeBackfillLedger satisfies CodeInterprocProjectedEdgeLedger and records
+// fakeBackfillLedger satisfies InterprocProjectedEdgeLedger and records
 // RecordProjectedEdges calls for assertion.
 type fakeBackfillLedger struct {
 	recorded   map[string][]string // key: evidenceSource|scopeID|generationID
@@ -129,7 +129,7 @@ func indexByteIn(s string, b byte, start int) int {
 	return -1
 }
 
-// Satisfy the full CodeInterprocProjectedEdgeLedger interface.
+// Satisfy the full InterprocProjectedEdgeLedger interface.
 func (l *fakeBackfillLedger) ListSourceUIDsForScopes(_ context.Context, _ string, _ []string) ([]string, error) {
 	return nil, nil
 }
@@ -163,7 +163,7 @@ func TestCodeInterprocProjectedEdgeBackfillerCountZeroNoOp(t *testing.T) {
 	t.Parallel()
 
 	ledger := newFakeBackfillLedger()
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          fakeBackfillReader{count: 0},
 		Ledger:          ledger,
 		EvidenceSources: []string{codeInterprocEvidenceSource, codeInterprocFixpointEvidenceSource},
@@ -186,8 +186,8 @@ func TestCodeInterprocProjectedEdgeBackfillerCountPositiveLedgerEmptyBackfills(t
 
 	reader := fakeBackfillReader{
 		count: 5,
-		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
-			return []ProjectedTaintEdgeRow{
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedEdgeRow, error) {
+			return []ProjectedEdgeRow{
 				{EvidenceSource: codeInterprocEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceFunctionUID: "uid-a"},
 				{EvidenceSource: codeInterprocEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceFunctionUID: "uid-b"},
 				{EvidenceSource: codeInterprocEvidenceSource, ScopeID: "scope-2", GenerationID: "gen-2", SourceFunctionUID: "uid-c"},
@@ -197,7 +197,7 @@ func TestCodeInterprocProjectedEdgeBackfillerCountPositiveLedgerEmptyBackfills(t
 	}
 	ledger := newFakeBackfillLedger()
 
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          reader,
 		Ledger:          ledger,
 		EvidenceSources: []string{codeInterprocEvidenceSource, codeInterprocFixpointEvidenceSource},
@@ -227,8 +227,8 @@ func TestCodeInterprocProjectedEdgeBackfillerSkipsSourcesWithExistingLedgerRows(
 
 	reader := fakeBackfillReader{
 		count: 5,
-		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
-			return []ProjectedTaintEdgeRow{
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedEdgeRow, error) {
+			return []ProjectedEdgeRow{
 				{EvidenceSource: codeInterprocFixpointEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceFunctionUID: "uid-x"},
 			}, nil
 		},
@@ -237,7 +237,7 @@ func TestCodeInterprocProjectedEdgeBackfillerSkipsSourcesWithExistingLedgerRows(
 	ledger.hasRows[codeInterprocEvidenceSource] = true          // skip
 	ledger.hasRows[codeInterprocFixpointEvidenceSource] = false // backfill
 
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          reader,
 		Ledger:          ledger,
 		EvidenceSources: []string{codeInterprocEvidenceSource, codeInterprocFixpointEvidenceSource},
@@ -263,7 +263,7 @@ func TestCodeInterprocProjectedEdgeBackfillerBothSourcesAlreadyBackfilledSkipsAl
 	enumerateCalled := false
 	reader := fakeBackfillReader{
 		count: 5,
-		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedEdgeRow, error) {
 			enumerateCalled = true
 			return nil, nil
 		},
@@ -272,7 +272,7 @@ func TestCodeInterprocProjectedEdgeBackfillerBothSourcesAlreadyBackfilledSkipsAl
 	ledger.hasRows[codeInterprocEvidenceSource] = true
 	ledger.hasRows[codeInterprocFixpointEvidenceSource] = true
 
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          reader,
 		Ledger:          ledger,
 		EvidenceSources: []string{codeInterprocEvidenceSource, codeInterprocFixpointEvidenceSource},
@@ -297,7 +297,7 @@ func TestCodeInterprocProjectedEdgeBackfillerNilReaderNoOp(t *testing.T) {
 	t.Parallel()
 
 	ledger := newFakeBackfillLedger()
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          nil,
 		Ledger:          ledger,
 		EvidenceSources: []string{codeInterprocEvidenceSource},
@@ -315,7 +315,7 @@ func TestCodeInterprocProjectedEdgeBackfillerNilLedgerNoOp(t *testing.T) {
 	t.Parallel()
 
 	reader := fakeBackfillReader{count: 5}
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          reader,
 		Ledger:          nil,
 		EvidenceSources: []string{codeInterprocEvidenceSource},
@@ -363,8 +363,8 @@ func TestCodeInterprocProjectedEdgeBackfillerStateMarkerNotCompleteBackfills(t *
 
 	reader := fakeBackfillReader{
 		count: 5,
-		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
-			return []ProjectedTaintEdgeRow{
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedEdgeRow, error) {
+			return []ProjectedEdgeRow{
 				{EvidenceSource: codeInterprocEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceFunctionUID: "uid-a"},
 			}, nil
 		},
@@ -372,7 +372,7 @@ func TestCodeInterprocProjectedEdgeBackfillerStateMarkerNotCompleteBackfills(t *
 	ledger := newFakeBackfillLedger()
 	marker := newFakeBackfillStateMarker()
 
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          reader,
 		Ledger:          ledger,
 		StateMarker:     marker,
@@ -403,7 +403,7 @@ func TestCodeInterprocProjectedEdgeBackfillerStateMarkerCompleteSkips(t *testing
 	enumerateCalled := false
 	reader := fakeBackfillReader{
 		count: 5,
-		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedEdgeRow, error) {
 			enumerateCalled = true
 			return nil, nil
 		},
@@ -412,7 +412,7 @@ func TestCodeInterprocProjectedEdgeBackfillerStateMarkerCompleteSkips(t *testing
 	marker := newFakeBackfillStateMarker()
 	marker.complete[codeInterprocBackfillKey(codeInterprocEvidenceSource)] = true
 
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          reader,
 		Ledger:          ledger,
 		StateMarker:     marker,
@@ -440,8 +440,8 @@ func TestCodeInterprocProjectedEdgeBackfillerRecordErrorSkipsMarkComplete(t *tes
 
 	reader := fakeBackfillReader{
 		count: 5,
-		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedTaintEdgeRow, error) {
-			return []ProjectedTaintEdgeRow{
+		enumerateFn: func(_ context.Context, sources []string) ([]ProjectedEdgeRow, error) {
+			return []ProjectedEdgeRow{
 				{EvidenceSource: codeInterprocEvidenceSource, ScopeID: "scope-1", GenerationID: "gen-1", SourceFunctionUID: "uid-a"},
 			}, nil
 		},
@@ -450,7 +450,7 @@ func TestCodeInterprocProjectedEdgeBackfillerRecordErrorSkipsMarkComplete(t *tes
 	ledger.recordErr = errors.New("record failed")
 	marker := newFakeBackfillStateMarker()
 
-	b := CodeInterprocProjectedEdgeBackfiller{
+	b := InterprocProjectedEdgeBackfiller{
 		Reader:          reader,
 		Ledger:          ledger,
 		StateMarker:     marker,

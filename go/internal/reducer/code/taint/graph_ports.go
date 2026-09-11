@@ -21,7 +21,7 @@ type GraphQueryRunner interface {
 	Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
 }
 
-// CodeValueFlowBackfillStateMarker provides durable per-source completion
+// BackfillStateMarker provides durable per-source completion
 // markers for the taint/interproc ledger backfills so a partially failed
 // backfill re-runs on the next startup instead of being treated as done.
 //
@@ -31,7 +31,7 @@ type GraphQueryRunner interface {
 // cmd/reducer wires the same concrete Postgres-backed marker into the root's
 // projected_source_edge_backfill family and this package's backfillers;
 // structural typing makes that safe.
-type CodeValueFlowBackfillStateMarker interface {
+type BackfillStateMarker interface {
 	IsComplete(ctx context.Context, key string) (bool, error)
 	MarkComplete(ctx context.Context, key string, at time.Time) error
 }

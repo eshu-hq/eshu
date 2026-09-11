@@ -12,9 +12,9 @@ import (
 func codeValueFlowStaleCleanupRunnerFor(
 	database postgres.ExecQueryer,
 	taintEvidence reducer.CodeTaintStaleEvidenceRetractor,
-	taintWriter taint.CodeTaintEvidenceWriter,
+	taintWriter taint.EvidenceWriter,
 	interprocEvidence reducer.CodeInterprocStaleEvidenceRetractor,
-	interprocWriter taint.CodeInterprocEvidenceWriter,
+	interprocWriter taint.InterprocEvidenceWriter,
 	leaseManager reducer.PartitionLeaseManager,
 	cfg codeValueFlowStaleCleanupConfig,
 ) *reducer.CodeValueFlowStaleCleanupRunner {

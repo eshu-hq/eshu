@@ -34,7 +34,7 @@ func TestCodeTaintEvidenceHandlerQuarantinesMalformedFact(t *testing.T) {
 	valid := codeTaintEvidenceEnvelope(sampleCodeTaintInput())
 
 	writer := &recordingCodeTaintEvidenceWriter{}
-	handler := taint.CodeTaintEvidenceMaterializationHandler{
+	handler := taint.EvidenceHandler{
 		Loader:               stubCodeTaintEvidenceLoader{envelopes: []facts.Envelope{malformed, valid}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
@@ -69,7 +69,7 @@ func TestCodeInterprocEvidenceHandlerQuarantinesMalformedFact(t *testing.T) {
 	valid := codeInterprocEvidenceEnvelope(sampleCodeInterprocInput())
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
-	handler := taint.CodeInterprocEvidenceMaterializationHandler{
+	handler := taint.InterprocEvidenceHandler{
 		Loader:               stubInterprocFactLoader{envelopes: []facts.Envelope{malformed, valid}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },

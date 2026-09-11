@@ -108,8 +108,8 @@ func TestCodeInterprocEvidenceHandlerLedgerRecordsBeforeWrite(t *testing.T) {
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
 	ledger := &fakeCodeInterprocProjectedEdgeLedger{}
-	handler := CodeInterprocEvidenceMaterializationHandler{
-		Loader:               stubCodeInterprocEvidenceLoader{inputs: []CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+	handler := InterprocEvidenceHandler{
+		Loader:               stubCodeInterprocEvidenceLoader{inputs: []InterprocEvidenceInput{sampleCodeInterprocInput()}},
 		Writer:               writer,
 		Ledger:               ledger,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
@@ -162,8 +162,8 @@ func TestCodeInterprocEvidenceHandlerLedgerRetractEnumeratesUIDs(t *testing.T) {
 	ledger := &fakeCodeInterprocProjectedEdgeLedger{
 		listForScopesUIDs: []string{"uid-1", "uid-2"},
 	}
-	handler := CodeInterprocEvidenceMaterializationHandler{
-		Loader:               stubCodeInterprocEvidenceLoader{inputs: []CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+	handler := InterprocEvidenceHandler{
+		Loader:               stubCodeInterprocEvidenceLoader{inputs: []InterprocEvidenceInput{sampleCodeInterprocInput()}},
 		Writer:               writer,
 		Ledger:               ledger,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
@@ -191,8 +191,8 @@ func TestCodeInterprocEvidenceHandlerLedgerSkipsRetractOnFirstGeneration(t *test
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
 	ledger := &fakeCodeInterprocProjectedEdgeLedger{}
-	handler := CodeInterprocEvidenceMaterializationHandler{
-		Loader:               stubCodeInterprocEvidenceLoader{inputs: []CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+	handler := InterprocEvidenceHandler{
+		Loader:               stubCodeInterprocEvidenceLoader{inputs: []InterprocEvidenceInput{sampleCodeInterprocInput()}},
 		Writer:               writer,
 		Ledger:               ledger,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
@@ -219,8 +219,8 @@ func TestCodeInterprocEvidenceHandlerNilLedgerPreservesOldRetractPath(t *testing
 	t.Parallel()
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
-	handler := CodeInterprocEvidenceMaterializationHandler{
-		Loader:               stubCodeInterprocEvidenceLoader{inputs: []CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+	handler := InterprocEvidenceHandler{
+		Loader:               stubCodeInterprocEvidenceLoader{inputs: []InterprocEvidenceInput{sampleCodeInterprocInput()}},
 		Writer:               writer,
 		Ledger:               nil,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },

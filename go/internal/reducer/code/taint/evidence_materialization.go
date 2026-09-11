@@ -20,15 +20,15 @@ import (
 // CodeTaintEvidence graph writes, used for scoped retraction before reprojection.
 const codeTaintEvidenceSource = "reducer/code-taint"
 
-// CodeTaintEvidenceSource returns the evidence-source string for reducer-owned
+// EvidenceSource returns the evidence-source string for reducer-owned
 // code-taint evidence nodes.
-func CodeTaintEvidenceSource() string { return codeTaintEvidenceSource }
+func EvidenceSource() string { return codeTaintEvidenceSource }
 
-// CodeTaintEvidenceDomainDefinition returns the DomainDefinition for
+// EvidenceDomainDefinition returns the DomainDefinition for
 // DomainCodeTaintEvidence. Exported for the reducer root's additive-domain
 // registration (defaults_additive_domains_incident_code.go), which composes
 // this package's handler into the runtime's domain registry.
-func CodeTaintEvidenceDomainDefinition() reducercontract.DomainDefinition {
+func EvidenceDomainDefinition() reducercontract.DomainDefinition {
 	return reducercontract.DomainDefinition{
 		Domain:  reducercontract.DomainCodeTaintEvidence,
 		Summary: "project value-flow taint findings into graph evidence nodes attached to their Function",
@@ -46,15 +46,15 @@ func CodeTaintEvidenceDomainDefinition() reducercontract.DomainDefinition {
 	}
 }
 
-// CodeTaintEvidenceLoader loads the raw code_taint_evidence fact envelopes for
+// EvidenceLoader loads the raw code_taint_evidence fact envelopes for
 // one scope generation. The handler decodes them through the typed contracts
-// seam (ExtractCodeTaintEvidenceRowsWithQuarantine), so a malformed fact
+// seam (ExtractEvidenceRowsWithQuarantine), so a malformed fact
 // dead-letters as an input_invalid quarantine rather than being silently
 // dropped by the loader (Contract System v1 Wave 4f S2, issue #4754). The
 // loader stays a pure envelope fetch: the typed decode + quarantine belongs in
 // the reducer package where factdecode.PartitionDecodeFailures and factdecode.RecordQuarantinedFacts
 // live, not in a storage adapter.
-type CodeTaintEvidenceLoader interface {
+type EvidenceLoader interface {
 	LoadCodeTaintEvidence(
 		ctx context.Context,
 		scopeID string,
@@ -62,21 +62,21 @@ type CodeTaintEvidenceLoader interface {
 	) ([]facts.Envelope, error)
 }
 
-// CodeTaintEvidenceWriter writes and retracts reducer-owned CodeTaintEvidence
+// EvidenceWriter writes and retracts reducer-owned CodeTaintEvidence
 // graph nodes and Function relationships.
-type CodeTaintEvidenceWriter interface {
+type EvidenceWriter interface {
 	WriteCodeTaintEvidence(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractCodeTaintEvidence(ctx context.Context, scopeIDs []string, generationID, evidenceSource string) error
 	RetractCodeTaintEvidenceByUIDs(ctx context.Context, nodeUIDs []string, scopeIDs []string, evidenceSource string) error
 	RetractStaleCodeTaintEvidenceByUIDs(ctx context.Context, nodeUIDs []string, scopeID, generationID, evidenceSource string) error
 }
 
-// CodeTaintEvidenceMaterializationHandler reduces one taint-evidence intent into
+// EvidenceHandler reduces one taint-evidence intent into
 // graph evidence rows.
-type CodeTaintEvidenceMaterializationHandler struct {
-	Loader               CodeTaintEvidenceLoader
-	Writer               CodeTaintEvidenceWriter
-	Ledger               CodeTaintEvidenceProjectedNodeLedger
+type EvidenceHandler struct {
+	Loader               EvidenceLoader
+	Writer               EvidenceWriter
+	Ledger               ProjectedNodeLedger
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Instruments          *telemetry.Instruments
 }
@@ -84,7 +84,7 @@ type CodeTaintEvidenceMaterializationHandler struct {
 // Handle executes one taint-evidence materialization intent: load the resolved
 // findings, project them to rows, retract the prior generation's nodes (unless
 // this is the first generation for the scope), and write the new rows.
-func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+func (h EvidenceHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != reducercontract.DomainCodeTaintEvidence {
 		return reducercontract.Result{}, fmt.Errorf("code taint evidence handler does not accept domain %q", intent.Domain)
 	}
@@ -99,7 +99,7 @@ func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, int
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load code taint evidence: %w", err)
 	}
-	rows, quarantined, err := ExtractCodeTaintEvidenceRowsWithQuarantine(envelopes)
+	rows, quarantined, err := ExtractEvidenceRowsWithQuarantine(envelopes)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("decode code taint evidence: %w", err)
 	}
@@ -173,7 +173,7 @@ func (h CodeTaintEvidenceMaterializationHandler) Handle(ctx context.Context, int
 // shouldSkipRetract reports whether the pre-write retraction must be skipped:
 // on the first attempt of the first generation for a scope there is nothing to
 // retract, so the sweep is avoided.
-func (h CodeTaintEvidenceMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
+func (h EvidenceHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}

@@ -76,12 +76,12 @@ func TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID(t *testing.T) {
 	if evidence.FunctionUID != "uid:handle-fn" {
 		t.Fatalf("decodeCodeTaintEvidence FunctionUID = %q, want uid:handle-fn", evidence.FunctionUID)
 	}
-	rows, _, err := taint.ExtractCodeTaintEvidenceRowsWithQuarantine([]facts.Envelope{valid})
+	rows, _, err := taint.ExtractEvidenceRowsWithQuarantine([]facts.Envelope{valid})
 	if err != nil {
-		t.Fatalf("taint.ExtractCodeTaintEvidenceRowsWithQuarantine(valid sibling) error = %v, want nil", err)
+		t.Fatalf("taint.ExtractEvidenceRowsWithQuarantine(valid sibling) error = %v, want nil", err)
 	}
 	if len(rows) != 1 || rows[0]["function_uid"] != "uid:handle-fn" {
-		t.Fatalf("taint.ExtractCodeTaintEvidenceRowsWithQuarantine(valid sibling) rows = %#v, want one row keyed on uid:handle-fn", rows)
+		t.Fatalf("taint.ExtractEvidenceRowsWithQuarantine(valid sibling) rows = %#v, want one row keyed on uid:handle-fn", rows)
 	}
 }
 
@@ -90,7 +90,7 @@ func TestDecodeCodeTaintEvidenceQuarantinesMissingFunctionUID(t *testing.T) {
 // "code_interproc_evidence" fact missing either source_function_uid or
 // sink_function_uid must dead-letter as input_invalid, never silently produce
 // a TAINT_FLOWS_TO edge under an empty-string endpoint (the pre-migration
-// ExtractCodeInterprocEvidenceRows guard already dropped these rows, but
+// ExtractInterprocEvidenceRows guard already dropped these rows, but
 // silently — with no operator-visible dead-letter signal).
 func TestDecodeCodeInterprocEvidenceQuarantinesMissingEndpoint(t *testing.T) {
 	t.Parallel()
@@ -137,12 +137,12 @@ func TestDecodeCodeInterprocEvidenceQuarantinesMissingEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decodeCodeInterprocEvidence(valid sibling) error = %v, want nil", err)
 	}
-	rows, _, extractErr := taint.ExtractCodeInterprocEvidenceRowsWithQuarantine([]facts.Envelope{valid})
+	rows, _, extractErr := taint.ExtractInterprocEvidenceRowsWithQuarantine([]facts.Envelope{valid})
 	if extractErr != nil {
-		t.Fatalf("taint.ExtractCodeInterprocEvidenceRowsWithQuarantine(valid sibling) error = %v, want nil", extractErr)
+		t.Fatalf("taint.ExtractInterprocEvidenceRowsWithQuarantine(valid sibling) error = %v, want nil", extractErr)
 	}
 	if len(rows) != 1 || rows[0]["source_function_uid"] != evidence.SourceFunctionUID {
-		t.Fatalf("taint.ExtractCodeInterprocEvidenceRowsWithQuarantine(valid sibling) rows = %#v, want one edge row for the valid sibling", rows)
+		t.Fatalf("taint.ExtractInterprocEvidenceRowsWithQuarantine(valid sibling) rows = %#v, want one edge row for the valid sibling", rows)
 	}
 }
 
@@ -366,12 +366,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 		if evidence.FunctionUID != "uid:persisted-fn" {
 			t.Fatalf("decodeCodeTaintEvidence FunctionUID = %q, want uid:persisted-fn", evidence.FunctionUID)
 		}
-		rows, _, extractErr := taint.ExtractCodeTaintEvidenceRowsWithQuarantine([]facts.Envelope{env})
+		rows, _, extractErr := taint.ExtractEvidenceRowsWithQuarantine([]facts.Envelope{env})
 		if extractErr != nil {
-			t.Fatalf("taint.ExtractCodeTaintEvidenceRowsWithQuarantine(persisted 0.0.0 version) error = %v, want nil", extractErr)
+			t.Fatalf("taint.ExtractEvidenceRowsWithQuarantine(persisted 0.0.0 version) error = %v, want nil", extractErr)
 		}
 		if len(rows) != 1 {
-			t.Fatalf("taint.ExtractCodeTaintEvidenceRowsWithQuarantine(persisted 0.0.0 version) rows = %#v, want one row, not a dropped/empty graph", rows)
+			t.Fatalf("taint.ExtractEvidenceRowsWithQuarantine(persisted 0.0.0 version) rows = %#v, want one row, not a dropped/empty graph", rows)
 		}
 	})
 
@@ -391,12 +391,12 @@ func TestDecodeCodeDataflowFamilyTreatsPersistedZeroVersionAsLatestMajor(t *test
 		if err != nil {
 			t.Fatalf("decodeCodeInterprocEvidence(SchemaVersion=%q) error = %v, want nil", persistedZeroVersion, err)
 		}
-		rows, _, extractErr := taint.ExtractCodeInterprocEvidenceRowsWithQuarantine([]facts.Envelope{env})
+		rows, _, extractErr := taint.ExtractInterprocEvidenceRowsWithQuarantine([]facts.Envelope{env})
 		if extractErr != nil {
-			t.Fatalf("taint.ExtractCodeInterprocEvidenceRowsWithQuarantine(persisted 0.0.0 version) error = %v, want nil", extractErr)
+			t.Fatalf("taint.ExtractInterprocEvidenceRowsWithQuarantine(persisted 0.0.0 version) error = %v, want nil", extractErr)
 		}
 		if len(rows) != 1 || rows[0]["source_function_uid"] != evidence.SourceFunctionUID {
-			t.Fatalf("taint.ExtractCodeInterprocEvidenceRowsWithQuarantine(persisted 0.0.0 version) rows = %#v, want one edge row, not a dropped/empty graph", rows)
+			t.Fatalf("taint.ExtractInterprocEvidenceRowsWithQuarantine(persisted 0.0.0 version) rows = %#v, want one edge row, not a dropped/empty graph", rows)
 		}
 	})
 }

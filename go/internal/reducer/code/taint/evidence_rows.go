@@ -10,10 +10,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// CodeTaintEvidenceInput is one resolved value-flow taint finding loaded for a
+// EvidenceInput is one resolved value-flow taint finding loaded for a
 // scope generation: a finding already joined to the Function entity uid it
 // concerns by the collector.
-type CodeTaintEvidenceInput struct {
+type EvidenceInput struct {
 	FunctionUID  string
 	FunctionName string
 	RelativePath string
@@ -31,11 +31,11 @@ type CodeTaintEvidenceInput struct {
 	GuardReason  string
 }
 
-// ExtractCodeTaintEvidenceRows projects taint findings into deterministic graph
+// ExtractEvidenceRows projects taint findings into deterministic graph
 // rows. A finding without a resolved Function uid is dropped (it has no node to
 // attach to). Rows are keyed by a generation-independent uid so reprojection is
 // idempotent, and sorted by uid for byte-stable output.
-func ExtractCodeTaintEvidenceRows(inputs []CodeTaintEvidenceInput) []map[string]any {
+func ExtractEvidenceRows(inputs []EvidenceInput) []map[string]any {
 	rows := make([]map[string]any, 0, len(inputs))
 	for _, in := range inputs {
 		if in.FunctionUID == "" {
@@ -69,7 +69,7 @@ func ExtractCodeTaintEvidenceRows(inputs []CodeTaintEvidenceInput) []map[string]
 // codeTaintEvidenceUID derives the generation-independent node identity of one
 // finding: a source-to-sink flow within a function, identified by the function
 // uid, the source/sink lines, the sink and source kinds, and the binding.
-func codeTaintEvidenceUID(in CodeTaintEvidenceInput) string {
+func codeTaintEvidenceUID(in EvidenceInput) string {
 	return facts.StableID("CodeTaintEvidence", map[string]any{
 		"function_uid": in.FunctionUID,
 		"source_line":  in.SourceLine,

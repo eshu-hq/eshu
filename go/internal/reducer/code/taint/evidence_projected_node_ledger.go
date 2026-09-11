@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// CodeTaintEvidenceProjectedNodeLedger records and enumerates the uids of
+// ProjectedNodeLedger records and enumerates the uids of
 // projected CodeTaintEvidence nodes so retraction can enumerate uids from the
 // ledger instead of scanning the whole :CodeTaintEvidence label in the graph.
 //
@@ -16,7 +16,7 @@ import (
 // graph node write, so the ledger is always a superset of graph nodes.
 // Over-inclusion is harmless because the anchored Cypher retract WHERE still
 // filters; under-inclusion would orphan graph nodes.
-type CodeTaintEvidenceProjectedNodeLedger interface {
+type ProjectedNodeLedger interface {
 	// RecordProjectedNodes records node uids, idempotent on the primary key.
 	// Must be called before the corresponding graph node write.
 	RecordProjectedNodes(

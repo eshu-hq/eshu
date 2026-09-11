@@ -10,7 +10,7 @@ import (
 )
 
 // recordingCodeInterprocEvidenceWriter satisfies
-// taint.CodeInterprocEvidenceWriter.
+// taint.InterprocEvidenceWriter.
 //
 // This is a hand-kept-in-sync copy of the reducer root's own
 // recordingCodeInterprocEvidenceWriter (codedataflow_evidence_test_helpers_test.go)
@@ -18,7 +18,7 @@ import (
 // unexported symbols across packages, and this package's
 // code/value/fixpoint_evidence_loader_test.go needs the same shape to drive
 // FixpointEvidenceProjector.Writer. If you change
-// taint.CodeInterprocEvidenceWriter's method set, update this copy in the
+// taint.InterprocEvidenceWriter's method set, update this copy in the
 // same commit (see code/taint/AGENTS.md's "Root-side test doubles" section for
 // the same rule on the reducer-root copy).
 type recordingCodeInterprocEvidenceWriter struct {
@@ -105,22 +105,22 @@ func (w *recordingCodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence
 	return nil
 }
 
-// stubCodeInterprocEvidenceLoader satisfies taint.CodeInterprocEvidenceLoader
+// stubCodeInterprocEvidenceLoader satisfies taint.InterprocEvidenceLoader
 // (LoadCodeInterprocEvidence only; this package's fixpoint projector never
 // needs the materialization handler's envelope-returning
-// CodeInterprocEvidenceFactLoader shape, unlike the reducer root's copy).
+// InterprocEvidenceFactLoader shape, unlike the reducer root's copy).
 type stubCodeInterprocEvidenceLoader struct {
-	inputs []taint.CodeInterprocEvidenceInput
+	inputs []taint.InterprocEvidenceInput
 }
 
-func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]taint.CodeInterprocEvidenceInput, error) {
+func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]taint.InterprocEvidenceInput, error) {
 	return l.inputs, nil
 }
 
 // sampleCodeInterprocInput mirrors the reducer root's sampleCodeInterprocInput
 // (codedataflow_evidence_test_helpers_test.go).
-func sampleCodeInterprocInput() taint.CodeInterprocEvidenceInput {
-	return taint.CodeInterprocEvidenceInput{
+func sampleCodeInterprocInput() taint.InterprocEvidenceInput {
+	return taint.InterprocEvidenceInput{
 		SourceFunctionUID: "func-source", SinkFunctionUID: "func-sink",
 		RelativePath: "src/handler.go", SourceFunctionName: "readRequest",
 		SinkFunctionName: "execQuery", Language: "go", SinkKind: "sql",

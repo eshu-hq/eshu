@@ -23,18 +23,18 @@ const (
 	codeInterprocFixpointEvidenceSource = "reducer/code-interproc-fixpoint"
 )
 
-// CodeInterprocEvidenceSource returns the evidence-source string for
+// InterprocEvidenceSource returns the evidence-source string for
 // reducer-owned code-interproc edges.
-func CodeInterprocEvidenceSource() string { return codeInterprocEvidenceSource }
+func InterprocEvidenceSource() string { return codeInterprocEvidenceSource }
 
-// CodeInterprocFixpointEvidenceSource returns the evidence-source string for
+// InterprocFixpointEvidenceSource returns the evidence-source string for
 // fixpoint-projected code-interproc edges.
-func CodeInterprocFixpointEvidenceSource() string { return codeInterprocFixpointEvidenceSource }
+func InterprocFixpointEvidenceSource() string { return codeInterprocFixpointEvidenceSource }
 
-// CodeInterprocEvidenceDomainDefinition returns the DomainDefinition for
+// InterprocEvidenceDomainDefinition returns the DomainDefinition for
 // DomainCodeInterprocEvidence. Exported for the same reason as
-// CodeTaintEvidenceDomainDefinition.
-func CodeInterprocEvidenceDomainDefinition() reducercontract.DomainDefinition {
+// EvidenceDomainDefinition.
+func InterprocEvidenceDomainDefinition() reducercontract.DomainDefinition {
 	return reducercontract.DomainDefinition{
 		Domain:  reducercontract.DomainCodeInterprocEvidence,
 		Summary: "project cross-function value-flow findings into TAINT_FLOWS_TO edges between Function nodes",
@@ -52,33 +52,33 @@ func CodeInterprocEvidenceDomainDefinition() reducercontract.DomainDefinition {
 	}
 }
 
-// CodeInterprocEvidenceLoader loads reducer-ready cross-function findings for one
+// InterprocEvidenceLoader loads reducer-ready cross-function findings for one
 // scope generation. It is satisfied both by the fixpoint evidence loader
 // (ValueFlowFixpointEvidenceLoader, which SOLVES the cross-repo value-flow
 // program from persisted summaries and therefore has no raw fact to decode)
 // and, historically, by the postgres raw-fact loader. The materialization
 // handler no longer uses this interface for raw facts — it uses
-// CodeInterprocEvidenceFactLoader so it can decode + quarantine — but the
+// InterprocEvidenceFactLoader so it can decode + quarantine — but the
 // fixpoint projector (ValueFlowFixpointEvidenceProjector) still consumes this
 // typed-input interface because its inputs come from an in-memory solve, not
 // a raw decode.
-type CodeInterprocEvidenceLoader interface {
+type InterprocEvidenceLoader interface {
 	LoadCodeInterprocEvidence(
 		ctx context.Context,
 		scopeID string,
 		generationID string,
-	) ([]CodeInterprocEvidenceInput, error)
+	) ([]InterprocEvidenceInput, error)
 }
 
-// CodeInterprocEvidenceFactLoader loads the raw code_interproc_evidence fact
+// InterprocEvidenceFactLoader loads the raw code_interproc_evidence fact
 // envelopes for one scope generation. The materialization handler decodes them
-// through the typed contracts seam (ExtractCodeInterprocEvidenceRowsWithQuarantine)
+// through the typed contracts seam (ExtractInterprocEvidenceRowsWithQuarantine)
 // so a malformed fact dead-letters as an input_invalid quarantine rather than
 // being silently dropped by the loader (Contract System v1 Wave 4f S2, issue
-// #4754). This is separate from CodeInterprocEvidenceLoader because the
+// #4754). This is separate from InterprocEvidenceLoader because the
 // fixpoint projector's loader produces already-typed inputs from an in-memory
 // solve and has no envelopes to hand back.
-type CodeInterprocEvidenceFactLoader interface {
+type InterprocEvidenceFactLoader interface {
 	LoadCodeInterprocEvidenceFacts(
 		ctx context.Context,
 		scopeID string,
@@ -86,9 +86,9 @@ type CodeInterprocEvidenceFactLoader interface {
 	) ([]facts.Envelope, error)
 }
 
-// CodeInterprocEvidenceWriter writes and retracts reducer-owned TAINT_FLOWS_TO
+// InterprocEvidenceWriter writes and retracts reducer-owned TAINT_FLOWS_TO
 // edges between Function nodes.
-type CodeInterprocEvidenceWriter interface {
+type InterprocEvidenceWriter interface {
 	WriteCodeInterprocEvidence(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractCodeInterprocEvidence(ctx context.Context, scopeIDs []string, generationID, evidenceSource string) error
 	RetractCodeInterprocEvidenceSource(ctx context.Context, evidenceSource string) error
@@ -114,12 +114,12 @@ func SourceUIDsFromRows(rows []map[string]any) []string {
 	return uids
 }
 
-// CodeInterprocEvidenceMaterializationHandler reduces one cross-function
+// InterprocEvidenceHandler reduces one cross-function
 // evidence intent into TAINT_FLOWS_TO edge rows.
-type CodeInterprocEvidenceMaterializationHandler struct {
-	Loader               CodeInterprocEvidenceFactLoader
-	Writer               CodeInterprocEvidenceWriter
-	Ledger               CodeInterprocProjectedEdgeLedger
+type InterprocEvidenceHandler struct {
+	Loader               InterprocEvidenceFactLoader
+	Writer               InterprocEvidenceWriter
+	Ledger               InterprocProjectedEdgeLedger
 	PriorGenerationCheck reducercontract.PriorGenerationCheck
 	Instruments          *telemetry.Instruments
 }
@@ -130,7 +130,7 @@ type CodeInterprocEvidenceMaterializationHandler struct {
 // When a Ledger is present, retraction enumerates source Function uids from the
 // ledger and uses anchored-delete; the ledger is recorded before the graph edge
 // write so it is always a superset of graph edges.
-func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
+func (h InterprocEvidenceHandler) Handle(ctx context.Context, intent reducercontract.Intent) (reducercontract.Result, error) {
 	if intent.Domain != reducercontract.DomainCodeInterprocEvidence {
 		return reducercontract.Result{}, fmt.Errorf("code interproc evidence handler does not accept domain %q", intent.Domain)
 	}
@@ -145,7 +145,7 @@ func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context,
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("load code interproc evidence: %w", err)
 	}
-	rows, quarantined, err := ExtractCodeInterprocEvidenceRowsWithQuarantine(envelopes)
+	rows, quarantined, err := ExtractInterprocEvidenceRowsWithQuarantine(envelopes)
 	if err != nil {
 		return reducercontract.Result{}, fmt.Errorf("decode code interproc evidence: %w", err)
 	}
@@ -223,7 +223,7 @@ func (h CodeInterprocEvidenceMaterializationHandler) Handle(ctx context.Context,
 // shouldSkipRetract reports whether the pre-write retraction must be skipped: on
 // the first attempt of the first generation for a scope there is nothing to
 // retract.
-func (h CodeInterprocEvidenceMaterializationHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
+func (h InterprocEvidenceHandler) shouldSkipRetract(ctx context.Context, intent reducercontract.Intent) (bool, error) {
 	if h.PriorGenerationCheck == nil || intent.AttemptCount > 1 {
 		return false, nil
 	}
@@ -234,11 +234,11 @@ func (h CodeInterprocEvidenceMaterializationHandler) shouldSkipRetract(ctx conte
 	return !hasPrior, nil
 }
 
-// UnresolvedCodeInterprocEndpointCount counts findings missing either a
+// UnresolvedInterprocEndpointCount counts findings missing either a
 // resolved source or sink Function uid. Exported for the value-flow fixpoint
 // loader (reducer root, a different family that composes this package's
 // evidence rows into its own structured log and result fields).
-func UnresolvedCodeInterprocEndpointCount(inputs []CodeInterprocEvidenceInput) int {
+func UnresolvedInterprocEndpointCount(inputs []InterprocEvidenceInput) int {
 	count := 0
 	for _, input := range inputs {
 		if input.SourceFunctionUID == "" || input.SinkFunctionUID == "" {

@@ -251,7 +251,7 @@ func TestValueFlowFixpointEvidenceLoaderSurfacesMissingGraphUIDs(t *testing.T) {
 	if len(inputs) != 1 || inputs[0].SourceFunctionUID != "" || inputs[0].SinkFunctionUID != "uid-sink" {
 		t.Fatalf("missing source uid not surfaced as unresolved input: %+v", inputs)
 	}
-	if rows := taint.ExtractCodeInterprocEvidenceRows(inputs); len(rows) != 0 {
+	if rows := taint.ExtractInterprocEvidenceRows(inputs); len(rows) != 0 {
 		t.Fatalf("unresolved finding projected %d graph rows, want 0", len(rows))
 	}
 }
@@ -262,8 +262,8 @@ func TestExtractCodeInterprocFixpointEvidenceRowsUsesSeparateUIDNamespace(t *tes
 	t.Parallel()
 
 	input := sampleCodeInterprocInput()
-	direct := taint.ExtractCodeInterprocEvidenceRows([]taint.CodeInterprocEvidenceInput{input})
-	fixpoint := taint.ExtractCodeInterprocFixpointEvidenceRows([]taint.CodeInterprocEvidenceInput{input})
+	direct := taint.ExtractInterprocEvidenceRows([]taint.InterprocEvidenceInput{input})
+	fixpoint := taint.ExtractInterprocFixpointEvidenceRows([]taint.InterprocEvidenceInput{input})
 	if len(direct) != 1 || len(fixpoint) != 1 {
 		t.Fatalf("rows missing: direct=%+v fixpoint=%+v", direct, fixpoint)
 	}
@@ -280,7 +280,7 @@ func TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence(t *tes
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
 	projector := FixpointEvidenceProjector{
-		Loader: stubCodeInterprocEvidenceLoader{inputs: []taint.CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+		Loader: stubCodeInterprocEvidenceLoader{inputs: []taint.InterprocEvidenceInput{sampleCodeInterprocInput()}},
 		Writer: writer,
 	}
 
@@ -288,13 +288,13 @@ func TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence(t *tes
 	if err != nil {
 		t.Fatalf("ProjectValueFlowFixpointEvidence returned error: %v", err)
 	}
-	if writer.globalRetracts != 1 || writer.globalEvidence != taint.CodeInterprocFixpointEvidenceSource() {
+	if writer.globalRetracts != 1 || writer.globalEvidence != taint.InterprocFixpointEvidenceSource() {
 		t.Fatalf("global retract evidence = %q calls=%d, want fixpoint source", writer.globalEvidence, writer.globalRetracts)
 	}
 	if writer.retractCalls != 0 || len(writer.retractScopeIDs) != 0 {
 		t.Fatalf("scoped retract used for global fixpoint solve: %+v", writer)
 	}
-	if writer.writeCalls != 1 || writer.writeEvidence != taint.CodeInterprocFixpointEvidenceSource() {
+	if writer.writeCalls != 1 || writer.writeEvidence != taint.InterprocFixpointEvidenceSource() {
 		t.Fatalf("write evidence = %q calls=%d, want fixpoint source", writer.writeEvidence, writer.writeCalls)
 	}
 	if result.GraphRows != 1 || result.FindingCount != 1 || result.UnresolvedEndpointCount != 0 {

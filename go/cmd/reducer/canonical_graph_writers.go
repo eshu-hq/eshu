@@ -155,24 +155,24 @@ func newCanonicalGraphWriters(exec sourcecypher.Executor, reader sourcecypher.Po
 // request-scoped deadline the caller may be operating under.
 func seedReducerProjectedSourceLedgers(database postgres.ExecQueryer, graphReader query.GraphQuery) (postgres.ProjectedSourceEdgeStore, error) {
 	backfillStateMarker := postgres.NewCodeValueFlowBackfillStateStore(database)
-	backfiller := taint.CodeInterprocProjectedEdgeBackfiller{
-		Reader:      taint.CodeInterprocProjectedEdgeBackfillReader{Graph: graphReader},
+	backfiller := taint.InterprocProjectedEdgeBackfiller{
+		Reader:      taint.InterprocProjectedEdgeBackfillReader{Graph: graphReader},
 		Ledger:      postgres.NewCodeInterprocProjectedEdgeStore(database),
 		StateMarker: backfillStateMarker,
 		EvidenceSources: []string{
-			taint.CodeInterprocEvidenceSource(),
-			taint.CodeInterprocFixpointEvidenceSource(),
+			taint.InterprocEvidenceSource(),
+			taint.InterprocFixpointEvidenceSource(),
 		},
 	}
 	if err := backfiller.Run(context.Background()); err != nil {
 		return postgres.ProjectedSourceEdgeStore{}, fmt.Errorf("code interproc projected edge backfill: %w", err)
 	}
-	taintNodeBackfiller := taint.CodeTaintEvidenceProjectedNodeBackfiller{
-		Reader:      taint.CodeTaintEvidenceProjectedNodeBackfillReader{Graph: graphReader},
+	taintNodeBackfiller := taint.ProjectedNodeBackfiller{
+		Reader:      taint.ProjectedNodeBackfillReader{Graph: graphReader},
 		Ledger:      postgres.NewCodeTaintEvidenceProjectedNodeStore(database),
 		StateMarker: backfillStateMarker,
 		EvidenceSources: []string{
-			taint.CodeTaintEvidenceSource(),
+			taint.EvidenceSource(),
 		},
 	}
 	if err := taintNodeBackfiller.Run(context.Background()); err != nil {

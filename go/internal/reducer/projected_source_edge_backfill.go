@@ -51,8 +51,8 @@ type projectedSourceEdgeBackfillQuerier interface {
 // (RetractXxxByUIDs) would enumerate an empty ledger for those edges and
 // orphan them in the graph instead of retracting them.
 //
-// This mirrors CodeInterprocProjectedEdgeBackfiller and
-// CodeTaintEvidenceProjectedNodeBackfiller with one structural difference: it
+// This mirrors taint.InterprocProjectedEdgeBackfiller and
+// taint.ProjectedNodeBackfiller with one structural difference: it
 // has no bare-type/bare-label count guard (see projectedSourceEdgeBackfillQuerier),
 // so the StateMarker is not an optional optimization here — it is the only
 // idempotency guard against a full-graph enumeration running on every

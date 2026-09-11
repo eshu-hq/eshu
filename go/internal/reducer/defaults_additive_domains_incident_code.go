@@ -29,8 +29,8 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		definitions = append(definitions, incidentRouting)
 	}
 	if handlers.CodeTaintEvidenceLoader != nil && handlers.CodeTaintEvidenceWriter != nil {
-		codeTaint := taint.CodeTaintEvidenceDomainDefinition()
-		codeTaint.Handler = taint.CodeTaintEvidenceMaterializationHandler{
+		codeTaint := taint.EvidenceDomainDefinition()
+		codeTaint.Handler = taint.EvidenceHandler{
 			Loader:               handlers.CodeTaintEvidenceLoader,
 			Writer:               handlers.CodeTaintEvidenceWriter,
 			Ledger:               handlers.CodeTaintEvidenceProjectedNodeLedger,
@@ -40,8 +40,8 @@ func appendIncidentAndCodeEvidenceAdditiveDomains(definitions []DomainDefinition
 		definitions = append(definitions, codeTaint)
 	}
 	if handlers.CodeInterprocEvidenceLoader != nil && handlers.CodeInterprocEvidenceWriter != nil {
-		codeInterproc := taint.CodeInterprocEvidenceDomainDefinition()
-		codeInterproc.Handler = taint.CodeInterprocEvidenceMaterializationHandler{
+		codeInterproc := taint.InterprocEvidenceDomainDefinition()
+		codeInterproc.Handler = taint.InterprocEvidenceHandler{
 			Loader:               handlers.CodeInterprocEvidenceLoader,
 			Writer:               handlers.CodeInterprocEvidenceWriter,
 			Ledger:               handlers.CodeInterprocProjectedEdgeLedger,

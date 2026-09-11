@@ -12,9 +12,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// ProjectedTaintEdgeRow is one enumerated TAINT_FLOWS_TO edge from the
+// ProjectedEdgeRow is one enumerated TAINT_FLOWS_TO edge from the
 // graph, carrying the identity fields the backfill ledger needs.
-type ProjectedTaintEdgeRow struct {
+type ProjectedEdgeRow struct {
 	EvidenceSource    string
 	ScopeID           string
 	GenerationID      string
@@ -23,34 +23,34 @@ type ProjectedTaintEdgeRow struct {
 
 // codeInterprocBackfillQuerier is the read surface the backfill orchestrator
 // needs: a fast bare-type count and a labeled full enumeration. Production
-// code satisfies it via CodeInterprocProjectedEdgeBackfillReader (backed by
+// code satisfies it via InterprocProjectedEdgeBackfillReader (backed by
 // GraphQueryRunner); tests supply a fake.
 type codeInterprocBackfillQuerier interface {
 	CountTaintFlowsToEdges(ctx context.Context) (int64, error)
-	EnumerateProjectedTaintEdges(ctx context.Context, evidenceSources []string) ([]ProjectedTaintEdgeRow, error)
+	EnumerateProjectedTaintEdges(ctx context.Context, evidenceSources []string) ([]ProjectedEdgeRow, error)
 }
 
-// CodeInterprocProjectedEdgeBackfiller seeds the CodeInterprocProjectedEdgeLedger
+// InterprocProjectedEdgeBackfiller seeds the InterprocProjectedEdgeLedger
 // from existing graph TAINT_FLOWS_TO edges so the ledger is a superset of graph
 // edges at deploy time. Edges projected BEFORE this deploy have no ledger rows;
 // the backfiller enumerates them once, idempotent per evidence source.
 //
-// Completion is tracked via a durable CodeValueFlowBackfillStateMarker so a
+// Completion is tracked via a durable BackfillStateMarker so a
 // partial backfill that records some groups then errors does not skip the
 // source on the next startup.
-type CodeInterprocProjectedEdgeBackfiller struct {
+type InterprocProjectedEdgeBackfiller struct {
 	// Leader is the backfill graph-read surface (CountTaintFlowsToEdges +
 	// EnumerateProjectedTaintEdges). Production wiring passes a
-	// CodeInterprocProjectedEdgeBackfillReader backed by GraphQueryRunner.
+	// InterprocProjectedEdgeBackfillReader backed by GraphQueryRunner.
 	Reader codeInterprocBackfillQuerier
 
 	// Ledger is the durable projected-edge store. When nil, Run is a no-op.
-	Ledger CodeInterprocProjectedEdgeLedger
+	Ledger InterprocProjectedEdgeLedger
 
 	// StateMarker is the durable completion-marker store. When nil, Run falls
 	// back to checking ledger rows (existing behavior) so the no-migration path
 	// stays backward-compatible.
-	StateMarker CodeValueFlowBackfillStateMarker
+	StateMarker BackfillStateMarker
 
 	// EvidenceSources is the set of evidence_source values to backfill.
 	EvidenceSources []string
@@ -59,11 +59,11 @@ type CodeInterprocProjectedEdgeBackfiller struct {
 	Now func() time.Time
 }
 
-// CodeInterprocProjectedEdgeBackfillReader provides the two graph-read
+// InterprocProjectedEdgeBackfillReader provides the two graph-read
 // capabilities the backfill orchestrator needs, backed by GraphQueryRunner.
 // It is the production reader; tests supply a fake implementing
 // codeInterprocBackfillQuerier.
-type CodeInterprocProjectedEdgeBackfillReader struct {
+type InterprocProjectedEdgeBackfillReader struct {
 	Graph GraphQueryRunner
 }
 
@@ -71,7 +71,7 @@ type CodeInterprocProjectedEdgeBackfillReader struct {
 // NornicDB's relationship-type-index fast path. Do NOT add labels or a
 // WHERE clause — those would defeat the index path and make the count
 // guard a full scan instead of a ~0.01s index lookup.
-func (r CodeInterprocProjectedEdgeBackfillReader) CountTaintFlowsToEdges(ctx context.Context) (int64, error) {
+func (r InterprocProjectedEdgeBackfillReader) CountTaintFlowsToEdges(ctx context.Context) (int64, error) {
 	if r.Graph == nil {
 		return 0, fmt.Errorf("backfill reader requires graph query runner")
 	}
@@ -89,9 +89,9 @@ func (r CodeInterprocProjectedEdgeBackfillReader) CountTaintFlowsToEdges(ctx con
 // edges for the given evidence sources. This only runs when the count guard
 // says edges exist and the per-source ledger check says a source needs
 // backfill.
-func (r CodeInterprocProjectedEdgeBackfillReader) EnumerateProjectedTaintEdges(
+func (r InterprocProjectedEdgeBackfillReader) EnumerateProjectedTaintEdges(
 	ctx context.Context, evidenceSources []string,
-) ([]ProjectedTaintEdgeRow, error) {
+) ([]ProjectedEdgeRow, error) {
 	if r.Graph == nil {
 		return nil, fmt.Errorf("backfill reader requires graph query runner")
 	}
@@ -108,7 +108,7 @@ RETURN s.uid AS source_function_uid,
 	if err != nil {
 		return nil, fmt.Errorf("enumerate projected taint edges: %w", err)
 	}
-	var out []ProjectedTaintEdgeRow
+	var out []ProjectedEdgeRow
 	for _, row := range rows {
 		sourceUID := payloadcore.AnyToString(row["source_function_uid"])
 		scopeID := payloadcore.AnyToString(row["scope_id"])
@@ -117,7 +117,7 @@ RETURN s.uid AS source_function_uid,
 		if sourceUID == "" || scopeID == "" || genID == "" || evSrc == "" {
 			continue
 		}
-		out = append(out, ProjectedTaintEdgeRow{
+		out = append(out, ProjectedEdgeRow{
 			EvidenceSource:    evSrc,
 			ScopeID:           scopeID,
 			GenerationID:      genID,
@@ -134,7 +134,7 @@ RETURN s.uid AS source_function_uid,
 //  3. Per-source check: if the ledger already has rows for a source → skip it.
 //  4. Only remaining sources trigger the one-time enumeration + grouped
 //     RecordProjectedEdges.
-func (b CodeInterprocProjectedEdgeBackfiller) Run(ctx context.Context) error {
+func (b InterprocProjectedEdgeBackfiller) Run(ctx context.Context) error {
 	if b.Reader == nil || b.Ledger == nil {
 		return nil
 	}
@@ -250,7 +250,7 @@ func codeInterprocBackfillKey(evidenceSource string) string {
 // complete. When the StateMarker is nil, it falls back to checking whether the
 // ledger has any rows for the source (backward-compatible with deployments
 // before the completion-marker migration).
-func (b CodeInterprocProjectedEdgeBackfiller) isSourceComplete(ctx context.Context, evidenceSource string) (bool, error) {
+func (b InterprocProjectedEdgeBackfiller) isSourceComplete(ctx context.Context, evidenceSource string) (bool, error) {
 	if b.StateMarker != nil {
 		return b.StateMarker.IsComplete(ctx, codeInterprocBackfillKey(evidenceSource))
 	}

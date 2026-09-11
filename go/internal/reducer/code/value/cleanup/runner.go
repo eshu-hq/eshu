@@ -129,11 +129,11 @@ type Result struct {
 type Runner struct {
 	CurrentGenerations CurrentGenerationReader
 	TaintEvidence      TaintStaleEvidenceRetractor
-	TaintWriter        taint.CodeTaintEvidenceWriter
-	TaintLedger        taint.CodeTaintEvidenceProjectedNodeLedger
+	TaintWriter        taint.EvidenceWriter
+	TaintLedger        taint.ProjectedNodeLedger
 	InterprocEvidence  InterprocStaleEvidenceRetractor
-	InterprocWriter    taint.CodeInterprocEvidenceWriter
-	InterprocLedger    taint.CodeInterprocProjectedEdgeLedger
+	InterprocWriter    taint.InterprocEvidenceWriter
+	InterprocLedger    taint.InterprocProjectedEdgeLedger
 	LeaseManager       sharedintent.PartitionLeaseManager
 	Config             RunnerConfig
 	Wait               func(context.Context, time.Duration) error
@@ -235,19 +235,19 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		}
 		if r.TaintLedger != nil && r.TaintWriter != nil {
 			uids, err := r.TaintLedger.ListStaleNodeUIDs(
-				ctx, taint.CodeTaintEvidenceSource(), scopeID, generationID, deleteLimit,
+				ctx, taint.EvidenceSource(), scopeID, generationID, deleteLimit,
 			)
 			if err != nil {
 				return Result{}, fmt.Errorf("list stale taint node uids: %w", err)
 			}
 			if err := r.TaintWriter.RetractStaleCodeTaintEvidenceByUIDs(
-				ctx, uids, scopeID, generationID, taint.CodeTaintEvidenceSource(),
+				ctx, uids, scopeID, generationID, taint.EvidenceSource(),
 			); err != nil {
 				return Result{}, fmt.Errorf("retract stale code taint evidence by uids: %w", err)
 			}
 			if len(uids) > 0 {
 				if err := r.TaintLedger.PruneStaleForUIDs(
-					ctx, taint.CodeTaintEvidenceSource(), scopeID, generationID, uids,
+					ctx, taint.EvidenceSource(), scopeID, generationID, uids,
 				); err != nil {
 					return Result{}, fmt.Errorf("prune stale taint projected nodes for uids: %w", err)
 				}
@@ -257,7 +257,7 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 				ctx,
 				scopeID,
 				generationID,
-				taint.CodeTaintEvidenceSource(),
+				taint.EvidenceSource(),
 				deleteLimit,
 			); err != nil {
 				return Result{}, fmt.Errorf("retract stale code taint evidence: %w", err)
@@ -266,19 +266,19 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 		result.TaintSweeps++
 		if r.InterprocLedger != nil && r.InterprocWriter != nil {
 			uids, err := r.InterprocLedger.ListStaleSourceUIDs(
-				ctx, taint.CodeInterprocEvidenceSource(), scopeID, generationID, deleteLimit,
+				ctx, taint.InterprocEvidenceSource(), scopeID, generationID, deleteLimit,
 			)
 			if err != nil {
 				return Result{}, fmt.Errorf("list stale interproc source uids: %w", err)
 			}
 			if err := r.InterprocWriter.RetractStaleCodeInterprocEvidenceByUIDs(
-				ctx, uids, scopeID, generationID, taint.CodeInterprocEvidenceSource(),
+				ctx, uids, scopeID, generationID, taint.InterprocEvidenceSource(),
 			); err != nil {
 				return Result{}, fmt.Errorf("retract stale code interproc evidence by uids: %w", err)
 			}
 			if len(uids) > 0 {
 				if err := r.InterprocLedger.PruneStaleForUIDs(
-					ctx, taint.CodeInterprocEvidenceSource(), scopeID, generationID, uids,
+					ctx, taint.InterprocEvidenceSource(), scopeID, generationID, uids,
 				); err != nil {
 					return Result{}, fmt.Errorf("prune stale interproc projected edges for uids: %w", err)
 				}
@@ -288,7 +288,7 @@ func (r *Runner) RunOnce(ctx context.Context) (Result, error) {
 				ctx,
 				scopeID,
 				generationID,
-				taint.CodeInterprocEvidenceSource(),
+				taint.InterprocEvidenceSource(),
 				deleteLimit,
 			); err != nil {
 				return Result{}, fmt.Errorf("retract stale code interproc evidence: %w", err)

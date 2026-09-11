@@ -27,7 +27,7 @@ import (
 // shape. The value-flow stale-cleanup runner's own copy of the interproc
 // ledger fake moved with it to code/value/cleanup/runner_test.go (#6061).
 
-// recordingCodeTaintEvidenceWriter satisfies taint.CodeTaintEvidenceWriter.
+// recordingCodeTaintEvidenceWriter satisfies taint.EvidenceWriter.
 type recordingCodeTaintEvidenceWriter struct {
 	writeCalls      int
 	writtenRows     []map[string]any
@@ -69,7 +69,7 @@ func (w *recordingCodeTaintEvidenceWriter) RetractStaleCodeTaintEvidenceByUIDs(
 	return nil
 }
 
-// stubCodeTaintEvidenceLoader satisfies taint.CodeTaintEvidenceLoader,
+// stubCodeTaintEvidenceLoader satisfies taint.EvidenceLoader,
 // returning raw code_taint_evidence envelopes for the handler to decode.
 type stubCodeTaintEvidenceLoader struct {
 	envelopes []facts.Envelope
@@ -80,8 +80,8 @@ func (l stubCodeTaintEvidenceLoader) LoadCodeTaintEvidence(context.Context, stri
 }
 
 // codeTaintEvidenceEnvelope builds a valid code_taint_evidence fact envelope
-// carrying the fields a sample taint.CodeTaintEvidenceInput decodes to.
-func codeTaintEvidenceEnvelope(in taint.CodeTaintEvidenceInput) facts.Envelope {
+// carrying the fields a sample taint.EvidenceInput decodes to.
+func codeTaintEvidenceEnvelope(in taint.EvidenceInput) facts.Envelope {
 	return facts.Envelope{
 		FactID:   "taint:" + in.FunctionUID,
 		FactKind: facts.CodeTaintEvidenceFactKind,
@@ -111,8 +111,8 @@ func codeTaintEvidenceIntent() Intent {
 	}
 }
 
-func sampleCodeTaintInput() taint.CodeTaintEvidenceInput {
-	return taint.CodeTaintEvidenceInput{
+func sampleCodeTaintInput() taint.EvidenceInput {
+	return taint.EvidenceInput{
 		FunctionUID: "func-handle", FunctionName: "handle", RelativePath: "src/handler.go",
 		Language: "go", Kind: "TAINTED", SinkKind: "sql", SourceKind: "http_request",
 		Binding: "q", SourceLine: 4, SinkLine: 5, Confidence: 0.8, GuardReason: "allowed",
@@ -120,7 +120,7 @@ func sampleCodeTaintInput() taint.CodeTaintEvidenceInput {
 }
 
 // recordingCodeInterprocEvidenceWriter satisfies
-// taint.CodeInterprocEvidenceWriter.
+// taint.InterprocEvidenceWriter.
 type recordingCodeInterprocEvidenceWriter struct {
 	writeCalls      int
 	writtenRows     []map[string]any
@@ -206,15 +206,15 @@ func (w *recordingCodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence
 }
 
 // stubCodeInterprocEvidenceLoader satisfies BOTH the fixpoint projector's
-// typed taint.CodeInterprocEvidenceLoader (returning inputs) and the
-// materialization handler's taint.CodeInterprocEvidenceFactLoader
+// typed taint.InterprocEvidenceLoader (returning inputs) and the
+// materialization handler's taint.InterprocEvidenceFactLoader
 // (returning envelopes built from the same inputs), so the one stub serves
 // both call contexts.
 type stubCodeInterprocEvidenceLoader struct {
-	inputs []taint.CodeInterprocEvidenceInput
+	inputs []taint.InterprocEvidenceInput
 }
 
-func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]taint.CodeInterprocEvidenceInput, error) {
+func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]taint.InterprocEvidenceInput, error) {
 	return l.inputs, nil
 }
 
@@ -227,9 +227,9 @@ func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidenceFacts(context.
 }
 
 // codeInterprocEvidenceEnvelope builds a valid code_interproc_evidence fact
-// envelope carrying the fields a sample taint.CodeInterprocEvidenceInput
+// envelope carrying the fields a sample taint.InterprocEvidenceInput
 // decodes to.
-func codeInterprocEvidenceEnvelope(in taint.CodeInterprocEvidenceInput) facts.Envelope {
+func codeInterprocEvidenceEnvelope(in taint.InterprocEvidenceInput) facts.Envelope {
 	payload := map[string]any{
 		"source_function_uid":  in.SourceFunctionUID,
 		"sink_function_uid":    in.SinkFunctionUID,
@@ -260,8 +260,8 @@ func codeInterprocEvidenceIntent() Intent {
 	}
 }
 
-func sampleCodeInterprocInput() taint.CodeInterprocEvidenceInput {
-	return taint.CodeInterprocEvidenceInput{
+func sampleCodeInterprocInput() taint.InterprocEvidenceInput {
+	return taint.InterprocEvidenceInput{
 		SourceFunctionUID: "func-source", SinkFunctionUID: "func-sink",
 		RelativePath: "src/handler.go", SourceFunctionName: "readRequest",
 		SinkFunctionName: "execQuery", Language: "go", SinkKind: "sql",

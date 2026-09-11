@@ -87,7 +87,7 @@ identity/join/attachment**, not what the collector always emits.
 | `FunctionSummary` | `FunctionID` | The durable, generation-independent map key every reducer read site (summary store, `durableFunctionRepo` repo-prefix parse, graph-id store) keys on. |
 | `FunctionSource` | `FunctionID`, `Kind` | `LoadCodeFunctionSources`'s pre-existing drop guard for a missing id or kind, made explicit and dead-lettering. |
 | `TaintEvidence` | `FunctionUID` | The graph Function node this finding attaches to; a finding whose function did not resolve is never emitted with an empty uid collector-side, but making it required here dead-letters any payload that still arrives malformed. |
-| `InterprocEvidence` | `SourceFunctionUID`, `SinkFunctionUID` | The TAINT_FLOWS_TO edge's two endpoints; `ExtractCodeInterprocEvidenceRows` already drops any row missing either, made explicit and dead-lettering here. |
+| `InterprocEvidence` | `SourceFunctionUID`, `SinkFunctionUID` | The TAINT_FLOWS_TO edge's two endpoints; `taint.ExtractInterprocEvidenceRows` already drops any row missing either, made explicit and dead-lettering here. |
 
 Every other field on every struct is optional: written conditionally by the
 collector (only a non-empty/non-zero/true value gets a payload key), so a

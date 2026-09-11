@@ -11,10 +11,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// CodeInterprocEvidenceInput is one resolved cross-function value-flow finding
+// InterprocEvidenceInput is one resolved cross-function value-flow finding
 // loaded for a scope generation: a finding whose source and sink functions the
 // collector already joined to their Function entity uids.
-type CodeInterprocEvidenceInput struct {
+type InterprocEvidenceInput struct {
 	SourceFunctionUID  string
 	SinkFunctionUID    string
 	RelativePath       string
@@ -29,22 +29,22 @@ type CodeInterprocEvidenceInput struct {
 	WhyTrailTruncated  bool
 }
 
-// ExtractCodeInterprocEvidenceRows projects cross-function findings into
+// ExtractInterprocEvidenceRows projects cross-function findings into
 // deterministic graph edge rows. A finding missing either endpoint uid is dropped
 // (no edge to draw). Rows are keyed by a generation-independent edge uid so
 // reprojection is idempotent, and sorted by uid for byte-stable output.
-func ExtractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput) []map[string]any {
+func ExtractInterprocEvidenceRows(inputs []InterprocEvidenceInput) []map[string]any {
 	return extractCodeInterprocEvidenceRows(inputs, codeInterprocEvidenceUID)
 }
 
-// ExtractCodeInterprocFixpointEvidenceRows projects summary-fixpoint findings
+// ExtractInterprocFixpointEvidenceRows projects summary-fixpoint findings
 // into deterministic edge rows under a separate uid namespace so they cannot
 // clobber direct code_interproc_evidence rows in the graph writer's MERGE.
-func ExtractCodeInterprocFixpointEvidenceRows(inputs []CodeInterprocEvidenceInput) []map[string]any {
+func ExtractInterprocFixpointEvidenceRows(inputs []InterprocEvidenceInput) []map[string]any {
 	return extractCodeInterprocEvidenceRows(inputs, codeInterprocFixpointEvidenceUID)
 }
 
-func extractCodeInterprocEvidenceRows(inputs []CodeInterprocEvidenceInput, uidForInput func(CodeInterprocEvidenceInput) string) []map[string]any {
+func extractCodeInterprocEvidenceRows(inputs []InterprocEvidenceInput, uidForInput func(InterprocEvidenceInput) string) []map[string]any {
 	rows := make([]map[string]any, 0, len(inputs))
 	for _, in := range inputs {
 		if in.SourceFunctionUID == "" || in.SinkFunctionUID == "" {
@@ -91,7 +91,7 @@ func codeInterprocWhyTrailJSON(trail []map[string]any) string {
 // codeInterprocEvidenceUID derives the generation-independent identity of one
 // cross-function flow: the source and sink function uids plus the sink and source
 // kinds. Distinct flows between the same pair (different kinds) get distinct uids.
-func codeInterprocEvidenceUID(in CodeInterprocEvidenceInput) string {
+func codeInterprocEvidenceUID(in InterprocEvidenceInput) string {
 	return facts.StableID("CodeInterprocEvidence", map[string]any{
 		"source_function_uid": in.SourceFunctionUID,
 		"sink_function_uid":   in.SinkFunctionUID,
@@ -100,7 +100,7 @@ func codeInterprocEvidenceUID(in CodeInterprocEvidenceInput) string {
 	})
 }
 
-func codeInterprocFixpointEvidenceUID(in CodeInterprocEvidenceInput) string {
+func codeInterprocFixpointEvidenceUID(in InterprocEvidenceInput) string {
 	return facts.StableID("CodeInterprocFixpointEvidence", map[string]any{
 		"source_function_uid": in.SourceFunctionUID,
 		"sink_function_uid":   in.SinkFunctionUID,

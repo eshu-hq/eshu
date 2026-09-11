@@ -96,14 +96,14 @@ func (w *recordingCodeInterprocEvidenceWriter) RetractStaleCodeInterprocEvidence
 }
 
 // stubCodeInterprocEvidenceLoader satisfies BOTH the fixpoint projector's typed
-// CodeInterprocEvidenceLoader (returning inputs) and the materialization
-// handler's CodeInterprocEvidenceFactLoader (returning envelopes built from the
+// InterprocEvidenceLoader (returning inputs) and the materialization
+// handler's InterprocEvidenceFactLoader (returning envelopes built from the
 // same inputs), so the one stub serves both call contexts.
 type stubCodeInterprocEvidenceLoader struct {
-	inputs []CodeInterprocEvidenceInput
+	inputs []InterprocEvidenceInput
 }
 
-func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]CodeInterprocEvidenceInput, error) {
+func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidence(context.Context, string, string) ([]InterprocEvidenceInput, error) {
 	return l.inputs, nil
 }
 
@@ -116,8 +116,8 @@ func (l stubCodeInterprocEvidenceLoader) LoadCodeInterprocEvidenceFacts(context.
 }
 
 // codeInterprocEvidenceEnvelope builds a valid code_interproc_evidence fact
-// envelope carrying the fields a sample CodeInterprocEvidenceInput decodes to.
-func codeInterprocEvidenceEnvelope(in CodeInterprocEvidenceInput) facts.Envelope {
+// envelope carrying the fields a sample InterprocEvidenceInput decodes to.
+func codeInterprocEvidenceEnvelope(in InterprocEvidenceInput) facts.Envelope {
 	payload := map[string]any{
 		"source_function_uid":  in.SourceFunctionUID,
 		"sink_function_uid":    in.SinkFunctionUID,
@@ -148,8 +148,8 @@ func codeInterprocEvidenceIntent() reducercontract.Intent {
 	}
 }
 
-func sampleCodeInterprocInput() CodeInterprocEvidenceInput {
-	return CodeInterprocEvidenceInput{
+func sampleCodeInterprocInput() InterprocEvidenceInput {
+	return InterprocEvidenceInput{
 		SourceFunctionUID: "func-source", SinkFunctionUID: "func-sink",
 		RelativePath: "src/handler.go", SourceFunctionName: "readRequest",
 		SinkFunctionName: "execQuery", Language: "go", SinkKind: "sql",
@@ -163,8 +163,8 @@ func TestCodeInterprocEvidenceHandlerRetractsThenWrites(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
-	handler := CodeInterprocEvidenceMaterializationHandler{
-		Loader:               stubCodeInterprocEvidenceLoader{inputs: []CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+	handler := InterprocEvidenceHandler{
+		Loader:               stubCodeInterprocEvidenceLoader{inputs: []InterprocEvidenceInput{sampleCodeInterprocInput()}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
 	}
@@ -194,8 +194,8 @@ func TestCodeInterprocEvidenceHandlerSkipsRetractOnFirstGeneration(t *testing.T)
 	t.Parallel()
 
 	writer := &recordingCodeInterprocEvidenceWriter{}
-	handler := CodeInterprocEvidenceMaterializationHandler{
-		Loader:               stubCodeInterprocEvidenceLoader{inputs: []CodeInterprocEvidenceInput{sampleCodeInterprocInput()}},
+	handler := InterprocEvidenceHandler{
+		Loader:               stubCodeInterprocEvidenceLoader{inputs: []InterprocEvidenceInput{sampleCodeInterprocInput()}},
 		Writer:               writer,
 		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
 	}
@@ -215,7 +215,7 @@ func TestCodeInterprocEvidenceHandlerSkipsRetractOnFirstGeneration(t *testing.T)
 func TestCodeInterprocEvidenceHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	handler := CodeInterprocEvidenceMaterializationHandler{
+	handler := InterprocEvidenceHandler{
 		Loader: stubCodeInterprocEvidenceLoader{},
 		Writer: &recordingCodeInterprocEvidenceWriter{},
 	}
@@ -236,13 +236,13 @@ func TestExtractCodeInterprocEvidenceRowsDropsUnresolvedAndIsIdempotent(t *testi
 	missingSink.SinkFunctionUID = ""
 	missingSource := sampleCodeInterprocInput()
 	missingSource.SourceFunctionUID = ""
-	rows := ExtractCodeInterprocEvidenceRows([]CodeInterprocEvidenceInput{
+	rows := ExtractInterprocEvidenceRows([]InterprocEvidenceInput{
 		sampleCodeInterprocInput(), missingSink, missingSource,
 	})
 	if len(rows) != 1 {
 		t.Fatalf("want 1 row (both unresolved dropped), got %d", len(rows))
 	}
-	again := ExtractCodeInterprocEvidenceRows([]CodeInterprocEvidenceInput{sampleCodeInterprocInput()})
+	again := ExtractInterprocEvidenceRows([]InterprocEvidenceInput{sampleCodeInterprocInput()})
 	if rows[0]["uid"] != again[0]["uid"] {
 		t.Fatalf("edge uid not stable across runs: %v vs %v", rows[0]["uid"], again[0]["uid"])
 	}
@@ -261,7 +261,7 @@ func TestExtractCodeInterprocEvidenceRowsCarriesWhyTrailOutsideUID(t *testing.T)
 	}
 	input.WhyTrailTruncated = true
 
-	row := ExtractCodeInterprocEvidenceRows([]CodeInterprocEvidenceInput{input})[0]
+	row := ExtractInterprocEvidenceRows([]InterprocEvidenceInput{input})[0]
 	if row["why_trail_truncated"] != true {
 		t.Fatalf("why_trail_truncated not carried: %+v", row)
 	}
@@ -273,7 +273,7 @@ func TestExtractCodeInterprocEvidenceRowsCarriesWhyTrailOutsideUID(t *testing.T)
 	}
 
 	withoutTrail := sampleCodeInterprocInput()
-	if got := ExtractCodeInterprocEvidenceRows([]CodeInterprocEvidenceInput{withoutTrail})[0]["uid"]; got != row["uid"] {
+	if got := ExtractInterprocEvidenceRows([]InterprocEvidenceInput{withoutTrail})[0]["uid"]; got != row["uid"] {
 		t.Fatalf("trail changed edge uid: with=%v without=%v", row["uid"], got)
 	}
 }

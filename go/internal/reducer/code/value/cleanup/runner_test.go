@@ -63,13 +63,13 @@ func TestCodeValueFlowStaleCleanupRunnerSweepsBothEvidenceFamilies(t *testing.T)
 	}
 	if call := taintSweeper.calls[0]; call.scopeID != "scope-a" ||
 		call.generationID != "gen-current-a" ||
-		call.evidenceSource != taint.CodeTaintEvidenceSource() ||
+		call.evidenceSource != taint.EvidenceSource() ||
 		call.limit != 50 {
 		t.Fatalf("first taintSweeper call = %+v, want current scope/generation/source/limit", call)
 	}
 	if call := interproc.calls[1]; call.scopeID != "scope-b" ||
 		call.generationID != "gen-current-b" ||
-		call.evidenceSource != taint.CodeInterprocEvidenceSource() ||
+		call.evidenceSource != taint.InterprocEvidenceSource() ||
 		call.limit != 50 {
 		t.Fatalf("second interproc call = %+v, want current scope/generation/source/limit", call)
 	}
@@ -261,7 +261,7 @@ func (w *recordingCodeValueFlowInterprocSweeper) RetractStaleCodeInterprocEviden
 	return nil
 }
 
-// CodeInterprocEvidenceWriter methods (not needed for old-path testing, just the by-uids):
+// InterprocEvidenceWriter methods (not needed for old-path testing, just the by-uids):
 func (w *recordingCodeValueFlowInterprocSweeper) WriteCodeInterprocEvidence(context.Context, []map[string]any, string, string, string) error {
 	return nil
 }
@@ -315,7 +315,7 @@ func (l *fakeCodeValueFlowLeaseManager) ReleasePartitionLease(
 // fakeCodeInterprocProjectedEdgeLedger is a local copy, scoped to this
 // package's tests, of the reducer root's own fake of the same name
 // (codedataflow_evidence_test_helpers_test.go). It satisfies
-// taint.CodeInterprocProjectedEdgeLedger with only the fields this package's
+// taint.InterprocProjectedEdgeLedger with only the fields this package's
 // ledger-driven tests need; Go test files cannot share unexported symbols
 // across a package boundary (issue #6061).
 type fakeCodeInterprocProjectedEdgeLedger struct {

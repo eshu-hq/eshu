@@ -40,9 +40,9 @@ func TestDecodeCodeTaintEvidenceInputMapsAllFields(t *testing.T) {
 		},
 	}
 
-	got, err := DecodeCodeTaintEvidenceInput(envelope)
+	got, err := DecodeEvidenceInput(envelope)
 	if err != nil {
-		t.Fatalf("DecodeCodeTaintEvidenceInput error = %v, want nil", err)
+		t.Fatalf("DecodeEvidenceInput error = %v, want nil", err)
 	}
 	if got.FunctionUID != "func-handle" || got.FunctionName != "handle" || got.RelativePath != "src/handler.go" {
 		t.Fatalf("identity fields not mapped: %+v", got)
@@ -73,8 +73,8 @@ func TestDecodeCodeTaintEvidenceInputMissingFunctionUIDReturnsError(t *testing.T
 			"relative_path": "src/handler.go",
 		},
 	}
-	if _, err := DecodeCodeTaintEvidenceInput(envelope); err == nil {
-		t.Fatal("DecodeCodeTaintEvidenceInput(missing function_uid) error = nil, want a classified input_invalid error")
+	if _, err := DecodeEvidenceInput(envelope); err == nil {
+		t.Fatal("DecodeEvidenceInput(missing function_uid) error = nil, want a classified input_invalid error")
 	}
 }
 
@@ -94,9 +94,9 @@ func TestDecodeCodeTaintEvidenceInputTrimsWhitespace(t *testing.T) {
 		},
 	}
 
-	got, err := DecodeCodeTaintEvidenceInput(envelope)
+	got, err := DecodeEvidenceInput(envelope)
 	if err != nil {
-		t.Fatalf("DecodeCodeTaintEvidenceInput error = %v, want nil", err)
+		t.Fatalf("DecodeEvidenceInput error = %v, want nil", err)
 	}
 	if got.FunctionUID != "uid:padded" {
 		t.Fatalf("FunctionUID = %q, want trimmed uid:padded", got.FunctionUID)
@@ -120,9 +120,9 @@ func TestDecodeCodeInterprocEvidenceInputTrimsWhitespace(t *testing.T) {
 		},
 	}
 
-	got, err := DecodeCodeInterprocEvidenceInput(envelope)
+	got, err := DecodeInterprocEvidenceInput(envelope)
 	if err != nil {
-		t.Fatalf("DecodeCodeInterprocEvidenceInput error = %v, want nil", err)
+		t.Fatalf("DecodeInterprocEvidenceInput error = %v, want nil", err)
 	}
 	if got.SourceFunctionUID != "uid:source-padded" || got.SinkFunctionUID != "uid:sink-padded" {
 		t.Fatalf("endpoint uids not trimmed: SourceFunctionUID=%q SinkFunctionUID=%q", got.SourceFunctionUID, got.SinkFunctionUID)
@@ -156,9 +156,9 @@ func TestDecodeCodeInterprocEvidenceInputMapsAllFields(t *testing.T) {
 		},
 	}
 
-	got, err := DecodeCodeInterprocEvidenceInput(envelope)
+	got, err := DecodeInterprocEvidenceInput(envelope)
 	if err != nil {
-		t.Fatalf("DecodeCodeInterprocEvidenceInput error = %v, want nil", err)
+		t.Fatalf("DecodeInterprocEvidenceInput error = %v, want nil", err)
 	}
 	if got.SourceFunctionUID != "func-source" || got.SinkFunctionUID != "func-sink" || got.RelativePath != "src/handler.go" {
 		t.Fatalf("identity fields not mapped: %+v", got)
@@ -193,9 +193,9 @@ func TestDecodeCodeInterprocEvidenceInputDefaultsCloudAbsent(t *testing.T) {
 			"sink_function_uid":   "func-sink",
 		},
 	}
-	got, err := DecodeCodeInterprocEvidenceInput(envelope)
+	got, err := DecodeInterprocEvidenceInput(envelope)
 	if err != nil {
-		t.Fatalf("DecodeCodeInterprocEvidenceInput error = %v, want nil", err)
+		t.Fatalf("DecodeInterprocEvidenceInput error = %v, want nil", err)
 	}
 	if got.Cloud {
 		t.Fatalf("cloud must default to false when absent, got %+v", got)

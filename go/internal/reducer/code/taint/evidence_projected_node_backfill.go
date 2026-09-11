@@ -12,9 +12,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
-// ProjectedTaintNodeRow is one enumerated CodeTaintEvidence node from the graph,
+// ProjectedNodeRow is one enumerated CodeTaintEvidence node from the graph,
 // carrying the identity fields the backfill ledger needs.
-type ProjectedTaintNodeRow struct {
+type ProjectedNodeRow struct {
 	EvidenceSource string
 	ScopeID        string
 	GenerationID   string
@@ -25,31 +25,31 @@ type ProjectedTaintNodeRow struct {
 // needs: a fast label count and a labeled full enumeration.
 type codeTaintNodeBackfillQuerier interface {
 	CountCodeTaintEvidenceNodes(ctx context.Context) (int64, error)
-	EnumerateProjectedTaintNodes(ctx context.Context, evidenceSources []string) ([]ProjectedTaintNodeRow, error)
+	EnumerateProjectedTaintNodes(ctx context.Context, evidenceSources []string) ([]ProjectedNodeRow, error)
 }
 
-// CodeTaintEvidenceProjectedNodeBackfiller seeds the
-// CodeTaintEvidenceProjectedNodeLedger from existing graph CodeTaintEvidence
+// ProjectedNodeBackfiller seeds the
+// ProjectedNodeLedger from existing graph CodeTaintEvidence
 // nodes so the ledger is a superset of graph nodes at deploy time. Nodes
 // projected BEFORE this deploy have no ledger rows; the backfiller enumerates
 // them once, idempotent per evidence source.
 //
-// Completion is tracked via a durable CodeValueFlowBackfillStateMarker so a
+// Completion is tracked via a durable BackfillStateMarker so a
 // partial backfill that records some groups then errors does not skip the
 // source on the next startup.
-type CodeTaintEvidenceProjectedNodeBackfiller struct {
+type ProjectedNodeBackfiller struct {
 	// Reader is the backfill graph-read surface (CountCodeTaintEvidenceNodes +
 	// EnumerateProjectedTaintNodes). Production wiring passes a
-	// CodeTaintEvidenceProjectedNodeBackfillReader backed by GraphQueryRunner.
+	// ProjectedNodeBackfillReader backed by GraphQueryRunner.
 	Reader codeTaintNodeBackfillQuerier
 
 	// Ledger is the durable projected-node store. When nil, Run is a no-op.
-	Ledger CodeTaintEvidenceProjectedNodeLedger
+	Ledger ProjectedNodeLedger
 
 	// StateMarker is the durable completion-marker store. When nil, Run falls
 	// back to checking ledger rows (existing behavior) so the no-migration path
 	// stays backward-compatible.
-	StateMarker CodeValueFlowBackfillStateMarker
+	StateMarker BackfillStateMarker
 
 	// EvidenceSources is the set of evidence_source values to backfill.
 	EvidenceSources []string
@@ -58,16 +58,16 @@ type CodeTaintEvidenceProjectedNodeBackfiller struct {
 	Now func() time.Time
 }
 
-// CodeTaintEvidenceProjectedNodeBackfillReader provides the two graph-read
+// ProjectedNodeBackfillReader provides the two graph-read
 // capabilities the backfill orchestrator needs, backed by GraphQueryRunner.
-type CodeTaintEvidenceProjectedNodeBackfillReader struct {
+type ProjectedNodeBackfillReader struct {
 	Graph GraphQueryRunner
 }
 
 // CountCodeTaintEvidenceNodes uses the label count to hit NornicDB's label index
 // fast path. Do NOT add a WHERE clause — that would defeat the index path and
 // make the count guard a full scan instead of a ~0.01s index lookup.
-func (r CodeTaintEvidenceProjectedNodeBackfillReader) CountCodeTaintEvidenceNodes(ctx context.Context) (int64, error) {
+func (r ProjectedNodeBackfillReader) CountCodeTaintEvidenceNodes(ctx context.Context) (int64, error) {
 	if r.Graph == nil {
 		return 0, fmt.Errorf("backfill reader requires graph query runner")
 	}
@@ -85,9 +85,9 @@ func (r CodeTaintEvidenceProjectedNodeBackfillReader) CountCodeTaintEvidenceNode
 // CodeTaintEvidence nodes for the given evidence sources. This only runs when
 // the count guard says nodes exist and the per-source ledger check says a
 // source needs backfill.
-func (r CodeTaintEvidenceProjectedNodeBackfillReader) EnumerateProjectedTaintNodes(
+func (r ProjectedNodeBackfillReader) EnumerateProjectedTaintNodes(
 	ctx context.Context, evidenceSources []string,
-) ([]ProjectedTaintNodeRow, error) {
+) ([]ProjectedNodeRow, error) {
 	if r.Graph == nil {
 		return nil, fmt.Errorf("backfill reader requires graph query runner")
 	}
@@ -104,7 +104,7 @@ RETURN n.uid AS node_uid,
 	if err != nil {
 		return nil, fmt.Errorf("enumerate projected taint nodes: %w", err)
 	}
-	var out []ProjectedTaintNodeRow
+	var out []ProjectedNodeRow
 	for _, row := range rows {
 		nodeUID := payloadcore.AnyToString(row["node_uid"])
 		scopeID := payloadcore.AnyToString(row["scope_id"])
@@ -113,7 +113,7 @@ RETURN n.uid AS node_uid,
 		if nodeUID == "" || scopeID == "" || genID == "" || evSrc == "" {
 			continue
 		}
-		out = append(out, ProjectedTaintNodeRow{
+		out = append(out, ProjectedNodeRow{
 			EvidenceSource: evSrc,
 			ScopeID:        scopeID,
 			GenerationID:   genID,
@@ -130,7 +130,7 @@ RETURN n.uid AS node_uid,
 //  3. Per-source check: if the ledger already has rows for a source → skip it.
 //  4. Only remaining sources trigger the one-time enumeration + grouped
 //     RecordProjectedNodes.
-func (b CodeTaintEvidenceProjectedNodeBackfiller) Run(ctx context.Context) error {
+func (b ProjectedNodeBackfiller) Run(ctx context.Context) error {
 	if b.Reader == nil || b.Ledger == nil {
 		return nil
 	}
@@ -228,7 +228,7 @@ func codeTaintNodeBackfillKey(evidenceSource string) string {
 // isSourceComplete returns true when the source's backfill has been marked
 // complete. When the StateMarker is nil, it falls back to checking whether the
 // ledger has any rows for the source.
-func (b CodeTaintEvidenceProjectedNodeBackfiller) isSourceComplete(ctx context.Context, evidenceSource string) (bool, error) {
+func (b ProjectedNodeBackfiller) isSourceComplete(ctx context.Context, evidenceSource string) (bool, error) {
 	if b.StateMarker != nil {
 		return b.StateMarker.IsComplete(ctx, codeTaintNodeBackfillKey(evidenceSource))
 	}

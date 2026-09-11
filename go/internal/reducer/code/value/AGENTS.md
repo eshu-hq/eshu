@@ -37,8 +37,8 @@ exactly what stays in root despite similar naming
   shared leaf package both sides import.
 - **The fixpoint uid namespace is separate from `taint`'s direct
   `code_interproc_evidence` namespace, on purpose.** Always call
-  `taint.ExtractCodeInterprocFixpointEvidenceRows`, never
-  `ExtractCodeInterprocEvidenceRows`, from this package's write path.
+  `taint.ExtractInterprocFixpointEvidenceRows`, never
+  `ExtractInterprocEvidenceRows`, from this package's write path.
   Unifying them lets a fixpoint-solved edge collide with a direct-fact edge
   in the graph writer's `MERGE`.
 - **`ProjectValueFlowFixpointEvidence` keeps its `ValueFlow` infix on
@@ -63,7 +63,7 @@ exactly what stays in root despite similar naming
 
 Adding a new value-flow finding field: extend `FixpointEvidenceLoader`'s
 row-building (around `LoadCodeInterprocEvidence`), which produces
-`taint.CodeInterprocEvidenceInput` values — the field itself likely
+`taint.InterprocEvidenceInput` values — the field itself likely
 belongs in `taint`'s typed-decode/row shapes, not here. This package only
 composes and solves; it does not own the evidence row schema.
 
@@ -98,7 +98,7 @@ from the in-process cache's invalidation behavior.
 ## Do not change without ADR review
 
 - The separate uid namespaces for direct (`taint`) vs. fixpoint
-  (`ExtractCodeInterprocFixpointEvidenceRows`) interproc evidence.
-- The evidence-source string `taint.CodeInterprocFixpointEvidenceSource()`
+  (`ExtractInterprocFixpointEvidenceRows`) interproc evidence.
+- The evidence-source string `taint.InterprocFixpointEvidenceSource()`
   this package's projector retracts and writes under — `cmd/reducer` wiring
   and `code/function/summary`'s `MaterializationHandler` both key off it.

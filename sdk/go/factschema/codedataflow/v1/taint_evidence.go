@@ -14,7 +14,7 @@ package v1
 // graph Function entity uid before emission, dropping any finding whose
 // function did not materialize as an entity. The reducer's postgres loader
 // (go/internal/storage/postgres/code_taint_evidence_loader.go) projects this
-// struct into a CodeTaintEvidenceInput row
+// struct into a taint.EvidenceInput row
 // (go/internal/reducer/code/taint/evidence_materialization.go), which the
 // materialization handler writes as a graph evidence node attached to that
 // Function node — evidence, never canonical truth.
