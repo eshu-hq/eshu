@@ -160,8 +160,8 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// SupplyChainHandler.listSecurityAlertReconciliations ->
 	// h.SecurityAlerts (PostgresSecurityAlertReconciliationStore):
 	// fact_kind = $1 bound to "reducer_security_alert_reconciliation"
-	// (go/internal/query/security_alert_reconciliation.go:18,
-	// security_alert_reconciliation_queries.go:47).
+	// (the factKind const in go/internal/query/supplychain/alerts/store.go,
+	// used by queries.go's listQuery).
 	"GET /api/v0/supply-chain/security-alerts/reconciliations": {
 		RegistrationFile: "go/internal/query/supplychain/supply_chain.go",
 		HandlerStruct:    "SupplyChainHandler",
@@ -170,15 +170,15 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 		MethodFile:       "go/internal/query/supplychain/supply_chain_security_alerts.go",
 		ScanFiles: []string{
 			"go/internal/query/supplychain/supply_chain_security_alerts.go",
-			"go/internal/query/security_alert_reconciliation.go",
-			"go/internal/query/security_alert_reconciliation_queries.go",
+			"go/internal/query/supplychain/alerts/store.go",
+			"go/internal/query/supplychain/alerts/queries.go",
 		},
 		Served: []routeServedDomain{{
 			Domain:     "security_alert_reconciliation",
 			StoreField: "SecurityAlerts",
 			StoreType:  "SecurityAlertReconciliationStore",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/security_alert_reconciliation.go", Marker: "reducer_security_alert_reconciliation"},
+				{File: "go/internal/query/supplychain/alerts/store.go", Marker: "reducer_security_alert_reconciliation"},
 			},
 		}},
 	},

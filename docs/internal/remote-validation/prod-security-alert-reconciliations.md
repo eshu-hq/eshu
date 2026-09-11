@@ -32,25 +32,27 @@ anchored pages only.
 **Bounded lookup, provider/Eshu state separation, and coverage gaps** —
 `go/internal/query/supply_chain_security_alerts_test.go`:
 `TestSupplyChainListSecurityAlertReconciliationsRequiresScopeAndLimit`,
-`TestPostgresSecurityAlertReconciliationRejectsFilterOnlyStateOrStatus`,
 `TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState`,
-`TestSupplyChainListSecurityAlertReconciliationsSurfacesIncompleteProviderCoverage`,
+`TestSupplyChainListSecurityAlertReconciliationsSurfacesIncompleteProviderCoverage`;
+`go/internal/query/supplychain/alerts/store_test.go`:
+`TestPostgresSecurityAlertReconciliationRejectsFilterOnlyStateOrStatus`,
 `TestPostgresSecurityAlertReconciliationQueryShape`, and
 `TestSecurityAlertProviderRepositoryScopesQueryIsExactAndBounded`. Reproduce:
 
 ```bash
 cd go && go test ./internal/query -run TestSupplyChainListSecurityAlertReconciliations -count=1
-cd go && go test ./internal/query -run 'TestPostgresSecurityAlertReconciliation|TestSecurityAlertProviderRepositoryScopesQueryIsExactAndBounded' -count=1
+cd go && go test ./internal/query/supplychain/alerts -run 'TestPostgresSecurityAlertReconciliation|TestSecurityAlertProviderRepositoryScopesQueryIsExactAndBounded' -count=1
 ```
 
 **Triage detail decoding** —
 `go/internal/query/security_alert_reconciliation_triage_test.go`:
-`TestDecodeSecurityAlertReconciliationRowPreservesTriageDetails` and
-`TestSupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails`.
+`TestSupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails`;
+`go/internal/query/supplychain/alerts/triage_test.go`:
+`TestDecodeSecurityAlertReconciliationRowPreservesTriageDetails`.
 Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run 'TestDecodeSecurityAlertReconciliationRowPreservesTriageDetails|TestSupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails' -count=1
+cd go && go test ./internal/query ./internal/query/supplychain/alerts -run 'TestDecodeSecurityAlertReconciliationRowPreservesTriageDetails|TestSupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails' -count=1
 ```
 
 **Deployed-services target-story readback** —

@@ -1,25 +1,29 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package alerts
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
 )
 
-func securityAlertMissingEvidenceVal(payload map[string]any, key string) []SecurityAlertMissingEvidence {
+// missingEvidenceVal decodes the row-level triage detail behind a
+// reconciliation's missing_evidence payload field.
+func missingEvidenceVal(payload map[string]any, key string) []supplychain.SecurityAlertMissingEvidence {
 	items, ok := payload[key].([]any)
 	if !ok || len(items) == 0 {
 		return nil
 	}
-	out := make([]SecurityAlertMissingEvidence, 0, len(items))
+	out := make([]supplychain.SecurityAlertMissingEvidence, 0, len(items))
 	for _, item := range items {
 		raw, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		row := SecurityAlertMissingEvidence{
+		row := supplychain.SecurityAlertMissingEvidence{
 			Kind:       strings.TrimSpace(fmt.Sprint(raw["kind"])),
 			Reason:     strings.TrimSpace(fmt.Sprint(raw["reason"])),
 			EvidenceID: strings.TrimSpace(fmt.Sprint(raw["evidence_id"])),

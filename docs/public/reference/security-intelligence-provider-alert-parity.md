@@ -84,7 +84,8 @@ pagination bounds, and marks truncated open-alert reads as partial source
 freshness. `go test ./internal/reducer -run
 'TestBuildSecurityAlertReconciliations|TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTriggeredRepair'
 -count=1` proves source freshness and collection coverage survive reducer
-reconciliation payload publication. `go test ./internal/query -run
+reconciliation payload publication. `go test ./internal/query
+./internal/query/supplychain/alerts -run
 'TestSupplyChainListSecurityAlertReconciliations|TestDecodeSecurityAlertReconciliationRowPreservesProviderCoverage|TestSecurityAlertReconciliationAggregate'
 -count=1` proves API/MCP-backed list and count responses expose partial
 coverage without unbounded page reads.

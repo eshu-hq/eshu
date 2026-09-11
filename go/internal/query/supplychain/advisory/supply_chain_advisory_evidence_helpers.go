@@ -58,11 +58,13 @@ func sortedStrings(values []string) []string {
 	return SetToSortedSlice(seen)
 }
 
-// mapVal extracts a trimmed, non-empty map payload value. Copied from root
-// package query's security_alert_reconciliation.go: the advisory model reads
-// cvss_metrics and parsed_affected_range through it, and an unexported root
-// symbol cannot be called across the package boundary. The names stay root's
-// because they are neutral; only the location changes with the #6060 move.
+// mapVal extracts a trimmed, non-empty map payload value. Copied from
+// supplychain/alerts' store.go (formerly root package query's
+// security_alert_reconciliation.go, moved #6642): the advisory model reads
+// cvss_metrics and parsed_affected_range through it, and an unexported
+// symbol cannot be called across the package boundary. The names stay the
+// source's because they are neutral; only the location changes with the
+// #6060/#6642 moves.
 func mapVal(payload map[string]any, key string) map[string]any {
 	raw, ok := payload[key].(map[string]any)
 	if !ok || len(raw) == 0 {
@@ -81,8 +83,8 @@ func mapVal(payload map[string]any, key string) map[string]any {
 }
 
 // stringMapSliceVal extracts a sanitized []map[string]string payload value.
-// Copied from root package query's security_alert_reconciliation.go for the
-// same reason as mapVal: the advisory model reads severity through it.
+// Copied from supplychain/alerts' store.go for the same reason as mapVal:
+// the advisory model reads severity through it.
 func stringMapSliceVal(payload map[string]any, key string) []map[string]string {
 	items, ok := payload[key].([]any)
 	if !ok || len(items) == 0 {

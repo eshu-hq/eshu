@@ -87,16 +87,18 @@ not export a new symbol without adding its caller to this list.
   const-forwards).
 - `UniqueSortedNonEmpty` — staying `ci_cd_evidence_summary.go` and
   `sbom_attestation_attachments.go` (via root forward).
-- `SecurityAlertRepositoryScopeIDs` — staying
-  `security_alert_reconciliation*.go` (via root forward).
+- `SecurityAlertRepositoryScopeIDs` — the moved
+  `alerts/store.go` and `alerts/aggregates.go` (direct import, #6642; no
+  longer a root forward, since those files left root).
 - `SupplyChainCloudRuntimeProbePerDigestLimit` — staying
   `cloud_resource_list_store.go` (via root forward).
 - `BoundedSBOMWarningSummaries`,
   `SBOMAttestationWarningSummaryPreviewMaxCount` — staying
   `sbom_attestation_attachment_rows.go` decode wrappers (via root
   forwards).
-- `SecurityAlertReconciliationAnchorRequiredMessage` — the staying
-  security-alert store error (via root forward).
+- `SecurityAlertReconciliationAnchorRequiredMessage` — this package's own
+  handler (`supply_chain_security_alerts.go`) and the moved
+  `alerts/store.go` (direct import, #6642).
 - Aggregate pagination offsets (`Next*AggregateOffset`) and
   `SBOMAttestationAttachmentAggregateScope` — the staying aggregate
   tests, which pin them directly (via root forwards).

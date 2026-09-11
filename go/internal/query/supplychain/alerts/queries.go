@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package alerts
 
-// SQL for the reducer-owned security-alert reconciliation list read model. The
-// security_alert_current CTE keeps the latest comparison row per
-// provider/alert/repository/package/advisory key, applies the requested
-// repository scope ($2) and the scoped-token grant set ($11), and only then
-// ranks, filters, and pages so a scoped caller never observes or paginates
-// reconciliation rows outside its granted repositories.
-const listSecurityAlertReconciliationsQuery = `
+// listQuery is the SQL for the reducer-owned security-alert reconciliation
+// list read model. The security_alert_current CTE keeps the latest
+// comparison row per provider/alert/repository/package/advisory key, applies
+// the requested repository scope ($2) and the scoped-token grant set ($11),
+// and only then ranks, filters, and pages so a scoped caller never observes
+// or paginates reconciliation rows outside its granted repositories.
+//
+// TestSecurityAlertReconciliationSQLAppliesScopedGrant (queries_test.go)
+// pins this exact text and predicate ordering in-package.
+const listQuery = `
 WITH security_alert_current AS (
   SELECT
       fact.fact_id,

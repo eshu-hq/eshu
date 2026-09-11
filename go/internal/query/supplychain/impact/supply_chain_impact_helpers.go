@@ -171,9 +171,10 @@ func appendUniqueString(values *[]string, candidate string) {
 }
 
 // stringMapVal extracts a string map from a payload value.
-// Family-local copy of root package query's stringMapVal
-// (security_alert_reconciliation.go); see compactStrings for why it is
-// copied. MUST stay behavior-identical to its root source.
+// Family-local copy of supplychain/alerts' exported StringMapVal
+// (store.go, formerly root package query's security_alert_reconciliation.go
+// before the #6642 move); see compactStrings for why it is copied. MUST stay
+// behavior-identical to its source.
 func stringMapVal(payload map[string]any, key string) map[string]string {
 	raw, ok := payload[key].(map[string]any)
 	if !ok || len(raw) == 0 {

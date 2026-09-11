@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package alerts
 
 // SQL for the reducer-owned security-alert reconciliation aggregate read model.
 // Each query keeps the latest comparison row per provider/alert/repository/
@@ -9,8 +9,13 @@ package query
 // scoped-token grant set ($8), and only then ranks, filters, groups, and pages
 // so aggregate totals and inventory buckets never include reconciliation rows
 // outside a scoped caller's granted repositories.
+//
+// All SQL text below is unexported; aggregates_test.go pins the exact text
+// and grant-predicate ordering in-package
+// (TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows,
+// TestSecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias).
 
-const securityAlertReconciliationAggregateRankingCTE = `
+const aggregateRankingCTE = `
 WITH security_alert_current AS (
   SELECT
       fact.payload,
@@ -65,7 +70,8 @@ WITH security_alert_current AS (
 )
 `
 
-const securityAlertReconciliationAggregateTotalQuery = securityAlertReconciliationAggregateRankingCTE + `
+// aggregateTotalQuery is the count-only aggregate query.
+const aggregateTotalQuery = aggregateRankingCTE + `
 SELECT COUNT(*) AS total
 FROM security_alert_current AS current_fact
 WHERE current_fact.security_alert_current_rank = 1
@@ -73,7 +79,9 @@ WHERE current_fact.security_alert_current_rank = 1
   AND ($7 = '' OR current_fact.payload->>'reconciliation_status' = $7);
 `
 
-const securityAlertReconciliationAggregateGroupQueryTemplate = securityAlertReconciliationAggregateRankingCTE + `
+// aggregateGroupQueryTemplate is the grouped-bucket aggregate query template;
+// %s is substituted with a group-by expression from inventoryGroupExpression.
+const aggregateGroupQueryTemplate = aggregateRankingCTE + `
 SELECT %s AS bucket, COUNT(*) AS bucket_count
 FROM security_alert_current AS current_fact
 WHERE current_fact.security_alert_current_rank = 1
@@ -82,7 +90,9 @@ WHERE current_fact.security_alert_current_rank = 1
 GROUP BY bucket;
 `
 
-const securityAlertReconciliationSourceFreshnessGroupExpr = `
+// sourceFreshnessGroupExpr is the group-by expression for the
+// by-source-freshness aggregate bucket.
+const sourceFreshnessGroupExpr = `
 COALESCE(
   NULLIF(current_fact.payload->>'source_freshness', ''),
   CASE
@@ -92,7 +102,10 @@ COALESCE(
 )
 `
 
-const securityAlertReconciliationInventoryQueryTemplate = securityAlertReconciliationAggregateRankingCTE + `
+// inventoryQueryTemplate is the paginated grouped-bucket inventory query
+// template; %s is substituted with a group-by expression from
+// inventoryGroupExpression.
+const inventoryQueryTemplate = aggregateRankingCTE + `
 SELECT %s AS bucket, COUNT(*) AS bucket_count
 FROM security_alert_current AS current_fact
 WHERE current_fact.security_alert_current_rank = 1
