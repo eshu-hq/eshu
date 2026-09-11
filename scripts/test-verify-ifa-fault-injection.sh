@@ -316,6 +316,10 @@ source "${submodule_pin_cases_lib}"; run_ifa_fault_injection_submodule_pin_cases
 # hard failure (never a retry) on divergence.
 require_framing "baseline digest capture" "digests[baseline]" "${driver_lib}"
 require_driver "digest comparison helper" "assert_matches_baseline"
+require_driver "Ifa GCP project scope-integrity helper" "assert_gcp_project_edge_scopes() {"
+require_driver "Ifa GCP project scope assertion follows synth overrides" '-synth-projects "${SYNTH_MULTISCOPE_PROJECTS}"'
+[[ "$(_ifa_count_code_matches 'assert_gcp_project_edge_scopes' "${cells_lib}")" -eq 2 ]] \
+	|| fail "baseline and restart-backend cells must both assert zero cross-scope GCP edges"
 require_driver "mismatch framing" "MISMATCH:"
 require_driver "full-bytes diff on divergence" "diff -u"
 require_driver "no-normalize-away directive" "do NOT retry, lower workers, or otherwise normalize this away"

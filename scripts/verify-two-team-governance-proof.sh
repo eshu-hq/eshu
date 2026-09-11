@@ -11,8 +11,8 @@ set -euo pipefail
 #     repository list/count route (allowed in-scope read),
 #   - each team's scoped token CANNOT see the other team's repository in that
 #     list (denied cross-scope read), and the single-repository context selector
-#     for the other team's repo fails closed (403 permission_denied: that route
-#     is not scope-enabled, so scoped tokens cannot reach it at all),
+#     for the other team's repo fails closed without disclosing existence
+#     (403 permission_denied or 404 not_found),
 #   - API and MCP readbacks agree for the same token/scope (parity), and
 #   - no raw bearer token, host path, private key, raw IP, or registry token
 #     hash leaks into any proof artifact (redaction canary).
@@ -91,9 +91,9 @@ print_checks() {
 		'  1. unauthenticated: API and MCP repository reads return 401 with no body' \
 		'  2. admin: all-scopes token enumerates at least two repositories' \
 		'  3. team-a allowed: team-A scoped token API+MCP list includes only its own repo (count==1)' \
-		"  4. team-a denied: team-A list excludes team-B's repo; context selector for it returns 403" \
+			"  4. team-a denied: team-A list excludes team-B's repo; context selector for it returns a non-disclosing 403 or 404" \
 		'  5. team-b allowed: team-B scoped token API+MCP list includes only its own repo (count==1)' \
-		"  6. team-b denied: team-B list excludes team-A's repo; context selector for it returns 403" \
+			"  6. team-b denied: team-B list excludes team-A's repo; context selector for it returns a non-disclosing 403 or 404" \
 		'  7. parity: API and MCP scoped readbacks agree per team (same allowed/denied verdicts)' \
 		'  8. provenance: records eshu_commit, backend, registry token count, metrics handle' \
 		'  9. redaction canary: no bearer tokens, token hashes, host paths, keys, or raw IPs'
@@ -130,6 +130,13 @@ require_eq() {
 	local got="$1" want="$2" what="$3"
 	[[ "${got}" == "${want}" ]] || die "${what}: got '${got}', want '${want}'"
 }
+require_non_disclosing_selector_status() {
+	local got="$1" what="$2"
+	case "${got}" in
+		403|404) ;;
+		*) die "${what}: got '${got}', want non-disclosing 403 or 404" ;;
+	esac
+}
 
 # 1. Unauthenticated: API and MCP repository reads must be rejected (401).
 require_eq "$(json_num "${unauth}" api_status)" "401" "unauth API repository read status"
@@ -160,10 +167,10 @@ check_team() {
 		require_eq "${own}" "true" "${label} ${surface} own repository present"
 		require_eq "${count}" "1" "${label} ${surface} scoped repository count"
 		# Denied cross-scope read: other team's repo absent from the list and the
-		# single-repository context selector for it fails closed with 403
-		# permission_denied (that route is not scope-enabled for any scoped token).
+		# single-repository context selector for it fails closed without exposing
+		# whether the repository exists.
 		require_eq "${other}" "false" "${label} ${surface} cross-scope repository leaked"
-		require_eq "${sel}" "403" "${label} ${surface} cross-scope selector status"
+		require_non_disclosing_selector_status "${sel}" "${label} ${surface} cross-scope selector status"
 	done
 
 	# 7. Parity: API and MCP must agree on every verdict for this team.

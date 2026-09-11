@@ -40,10 +40,10 @@ guidance belong in the public Kubernetes docs.
 - The render-safe chart defaults select external Neo4j. Any enabled workload
   whose effective environment selects `ESHU_GRAPH_BACKEND=nornicdb` fails closed unless
   `nornicdb.capabilities.relationshipMergePropertyIdentity=true`, including
-  external platform-owned endpoints. The bundled default pins
-  `timothyswt/nornicdb-cpu-bge:v1.2.3` by digest, and nobody has measured the
-  relationship-identity capability against it, so the acknowledgement stays
-  off. Verify the build you actually selected — external or bundled — before
+  external platform-owned endpoints. The bundled default pins the validated
+  `timothyswt/nornicdb-cpu-bge:v1.3.1` image by digest. The acknowledgement
+  stays off because the chart cannot prove that an operator-selected external
+  endpoint uses that artifact; verify the endpoint actually selected before
   turning it on.
 - `workspace-setup` is a non-root init container. It must keep dropped
   capabilities, avoid ownership mutation, and rely on pod `fsGroup` handling for

@@ -78,17 +78,24 @@ schemaBootstrap:
   useHelmHooks: false
 ```
 
-The chart's default bundled image (`timothyswt/nornicdb-cpu-bge:v1.2.3`, pinned
-by digest) is still rejected when enabled, because nobody has measured whether
-it preserves the relationship identity properties the provenance writers need.
-The version it replaced, `v1.1.11`, was measured and did not. Replace the
-example repository, tag, and digest with an immutable build containing
-orneryd/NornicDB#290 (or a later verified equivalent), or measure the default,
-before setting the capability acknowledgement to `true`.
+The chart's default bundled image (`timothyswt/nornicdb-cpu-bge:v1.3.1`, pinned
+by digest) is the verified default. The capability acknowledgement still stays
+explicit because it also covers operator-selected external endpoints the chart
+cannot identify. Confirm the selected endpoint uses the verified digest, or
+independently prove an override, before setting it to `true`.
 
 Replace `password` with your own strong password (min 12 chars, mixed case +
 digit) or set `neo4j.auth.secretName` to an existing Kubernetes Secret instead;
 the chart requires one or the other and fails the render otherwise.
+
+For an existing NornicDB PVC, do not let a Helm image change implicitly define
+the storage migration. Scale graph writers down, preserve a VolumeSnapshot or
+equivalent copy of the old PVC, provision a fresh graph PVC for v1.3.1, and
+follow [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md)
+from the preserved Postgres store. Cut over only after queues are terminal and
+required API/MCP graph truth passes. Roll back with the preserved old PVC or a
+fresh rebuild; never attach an older binary to a PVC modified by v1.3.1 without
+proof for that exact reverse transition.
 
 Do not use Helm hooks for schema bootstrap in this shape. Hooks run before the
 bundled NornicDB Service exists.

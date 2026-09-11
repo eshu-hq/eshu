@@ -1595,7 +1595,7 @@ gates:
       - "scripts/**/verify-remote-e2e-*.sh"
       - "scripts/**/*compose*.sh"
       - "scripts/verify-golden-corpus-gate.sh"
-      - "scripts/**/run-k8s-*.sh"
+      - "scripts/**/*k8s*.sh"
       - "scripts/**/verify-hosted-*.sh"
       - "scripts/**/*e2e*.sh"
       - "specs/remote-validation-baseline.txt"
@@ -1606,10 +1606,11 @@ gates:
       - "scripts/generate-remote-validation-inventory.sh"
       - "scripts/test-generate-remote-validation-inventory.sh"
       - "tests/fixtures/component_extension_proof/**"
+      - "tests/fixtures/governance_k8s_two_team_proof/**"
       - "specs/ci-gates.v1.yaml"
     local:
       command: "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh"
-      test_command: "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh"
+      test_command: "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh && bash scripts/test-verify-k8s-two-team-governance-proof.sh && bash scripts/test-k8s-two-team-governance-provenance.sh"
     ci:
       workflow: static-contract-gates.yml
       job: "Verify remote-validation-artifacts gate"

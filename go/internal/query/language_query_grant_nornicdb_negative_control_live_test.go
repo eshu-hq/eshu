@@ -112,12 +112,11 @@ func TestLiveNornicDBLanguageQueryImpossibleLanguageReturnsNoRows(t *testing.T) 
 // every shape. Any other answer is cross-tenant exposure on whatever backend is
 // under test, not an accuracy bug.
 //
-// Which backend matters. The 1.2.x line the gates and Compose run
-// (verify-replay-tier.sh pins v1.2.3; docker-compose defaults to the pr290
-// image, 1.2.1) filters this correctly when measured. The embedded 1.0.0
+// Which backend matters. The v1.3.1 image pinned by the replay gate and
+// Compose filters this correctly when measured. The embedded 1.0.0
 // library -- linked only under the nolocalllm build tag -- does not. So a
 // failure here on a local profile is expected against 1.0.0 and would be a
-// genuine regression against 1.2.x.
+// genuine regression against the deployed v1.3.1 backend.
 //
 // The existing grant tests cannot catch this: they assert that a GRANTED caller
 // sees the granted rows, which stays true whether or not the predicate is

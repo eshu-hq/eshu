@@ -10,12 +10,10 @@ package offlinetier_test
 //
 // It is backend-required rather than a Cypher string assertion because the
 // projector's fold — one edge per (file, module), with a per-symbol property
-// carried only when every entry agrees — is a consequence of how the backend
-// stores relationship identity, not of the Cypher text. On the pinned build a
-// relationship property map in a MERGE pattern is NOT part of identity (see
-// docs/public/reference/nornicdb-pitfalls.md), so a per-symbol edge set is not
-// representable and an extractor that emitted one row per symbol would lose
-// rows silently at write time. Only a real backend can hold that line.
+// carried only when every entry agrees — is a deliberate Eshu contract rather
+// than a backend workaround. NornicDB v1.3.1 supports property-bearing
+// relationship MERGE identity, but this projection must continue to produce
+// the same module-level row set. Only a real backend can hold that line.
 //
 // Skills active: golang-engineering, cypher-query-rigor,
 // eshu-diagnostic-rigor.

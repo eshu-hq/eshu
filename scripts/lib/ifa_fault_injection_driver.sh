@@ -182,6 +182,20 @@ assert_no_dead_letters() {
 	printf '%s: dead_letter rows: 0 (recovery converged)\n' "${cell}"
 }
 
+# assert_gcp_project_edge_scopes fails unless the fixed Ifa project fixture has
+# its exact per-scope GCP edge counts and every edge connects CloudResource
+# endpoints owned by that scope's project. This is intentionally not a general
+# rule for organization-, folder-, or custom-scoped GCP collection.
+assert_gcp_project_edge_scopes() {
+	local cell="$1"
+	log "${cell}: assert exact Ifa GCP project relationship scopes"
+	"${bin_dir}/eshu-ifa" assert-gcp-project-edge-scopes \
+		-synth-seed "${SYNTH_MULTISCOPE_SEED}" \
+		-synth-projects "${SYNTH_MULTISCOPE_PROJECTS}" \
+		-synth-resources "${SYNTH_MULTISCOPE_RESOURCES}" \
+		|| die "${cell}: Ifa GCP project relationship scope integrity failed"
+}
+
 # capture_digest canonicalizes the post-drain graph and stores it in digests[cell].
 capture_digest() {
 	local cell="$1"
