@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
 )
 
-func BenchmarkFixpointFull(b *testing.B) {
+func BenchmarkValueFlowFixpointFull(b *testing.B) {
 	program, versions := benchmarkProgram(100, 100)
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -22,7 +22,7 @@ func BenchmarkFixpointFull(b *testing.B) {
 	_ = versions
 }
 
-func BenchmarkFixpointIncrementalCached(b *testing.B) {
+func BenchmarkValueFlowFixpointIncrementalCached(b *testing.B) {
 	program, versions := benchmarkProgram(100, 100)
 	cache := NewFixpointCache()
 	SolveProgramIncremental(program, versions, cache, interproc.DefaultLimits())
@@ -43,7 +43,7 @@ func BenchmarkFixpointIncrementalCached(b *testing.B) {
 	}
 }
 
-func BenchmarkSnapshotFullAssemblySolve(b *testing.B) {
+func BenchmarkValueFlowSnapshotFullAssemblySolve(b *testing.B) {
 	effects, sources, versions := benchmarkSnapshot(100, 100)
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -53,7 +53,7 @@ func BenchmarkSnapshotFullAssemblySolve(b *testing.B) {
 	_ = versions
 }
 
-func BenchmarkSnapshotDurableRestartCached(b *testing.B) {
+func BenchmarkValueFlowSnapshotDurableRestartCached(b *testing.B) {
 	effects, sources, versions := benchmarkSnapshot(100, 100)
 	store := newMemoryFixpointComponentStore()
 	_, _, err := SolveSnapshotIncrementalDurable(

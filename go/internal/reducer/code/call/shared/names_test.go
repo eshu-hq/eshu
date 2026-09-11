@@ -5,13 +5,13 @@ package shared
 
 import "testing"
 
-// TestExactCandidateNamesDartReceiverFallback is the edge-case table for the
+// TestCodeCallExactCandidateNamesDartReceiverFallback is the edge-case table for the
 // Dart candidate branch in ExactCandidateNames: every qualified Dart
 // full_name produces [qualified, bare-trailing-name] in that order,
 // regardless of how codeCallDartQualifiedClassReceiver classifies the
 // receiver segment (class vs. instance-variable vs. keyword vs. multi-segment
 // vs. unrecognized) — Dart fails open and always appends the bare fallback.
-func TestExactCandidateNamesDartReceiverFallback(t *testing.T) {
+func TestCodeCallExactCandidateNamesDartReceiverFallback(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -83,7 +83,7 @@ func TestExactCandidateNamesDartReceiverFallback(t *testing.T) {
 // class/static/named-constructor reference; everything else (lowercase,
 // keyword, multi-segment, or unrecognized) is treated as an instance-variable
 // receiver. The candidate list itself does not branch on this — see
-// TestExactCandidateNamesDartReceiverFallback — but the classifier must
+// TestCodeCallExactCandidateNamesDartReceiverFallback — but the classifier must
 // still be independently correct.
 func TestCodeCallDartQualifiedClassReceiver(t *testing.T) {
 	t.Parallel()

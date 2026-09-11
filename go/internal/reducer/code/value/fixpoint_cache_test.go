@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/valueflow"
 )
 
-func TestFixpointCacheRecomputesOnlyChangedComponent(t *testing.T) {
+func TestValueFlowFixpointCacheRecomputesOnlyChangedComponent(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
@@ -39,7 +39,7 @@ func TestFixpointCacheRecomputesOnlyChangedComponent(t *testing.T) {
 	}
 }
 
-func TestFixpointCacheMatchesFullSolve(t *testing.T) {
+func TestValueFlowFixpointCacheMatchesFullSolve(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
@@ -64,7 +64,7 @@ func TestFixpointCacheMatchesFullSolve(t *testing.T) {
 	}
 }
 
-func TestFixpointDurableCacheSurvivesRestart(t *testing.T) {
+func TestValueFlowFixpointDurableCacheSurvivesRestart(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
@@ -106,7 +106,7 @@ func TestFixpointDurableCacheSurvivesRestart(t *testing.T) {
 	}
 }
 
-func TestFixpointDurableCacheInvalidatesChangedFunctionVersion(t *testing.T) {
+func TestValueFlowFixpointDurableCacheInvalidatesChangedFunctionVersion(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
@@ -149,7 +149,7 @@ func TestFixpointDurableCacheInvalidatesChangedFunctionVersion(t *testing.T) {
 	}
 }
 
-func TestFixpointDurableCacheInvalidatesChangedComponentEdges(t *testing.T) {
+func TestValueFlowFixpointDurableCacheInvalidatesChangedComponentEdges(t *testing.T) {
 	t.Parallel()
 
 	source := summary.NewFunctionID("repo-a", "pkg", "", "source")
@@ -196,7 +196,7 @@ func TestFixpointDurableCacheInvalidatesChangedComponentEdges(t *testing.T) {
 	}
 }
 
-func TestFixpointSnapshotDurableCacheAssemblesOnlyChangedComponent(t *testing.T) {
+func TestValueFlowFixpointSnapshotDurableCacheAssemblesOnlyChangedComponent(t *testing.T) {
 	t.Parallel()
 
 	leftSource := summary.NewFunctionID("repo-a", "pkg", "", "leftSource")
@@ -257,7 +257,7 @@ func TestFixpointSnapshotDurableCacheAssemblesOnlyChangedComponent(t *testing.T)
 	}
 }
 
-func TestFixpointDurableCacheStoresBoundedComponentResults(t *testing.T) {
+func TestValueFlowFixpointDurableCacheStoresBoundedComponentResults(t *testing.T) {
 	t.Parallel()
 
 	sourceA := summary.NewFunctionID("repo-a", "pkg", "", "sourceA")

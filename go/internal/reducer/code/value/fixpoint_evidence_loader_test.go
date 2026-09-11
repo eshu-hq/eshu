@@ -85,10 +85,10 @@ func httpRequestSource(id summary.FunctionID) interproc.Source {
 	}
 }
 
-// TestFixpointEvidenceLoaderProjectsCloudSinks proves graph-backed
+// TestValueFlowFixpointEvidenceLoaderProjectsCloudSinks proves graph-backed
 // cloud sinks are loaded after FunctionID graph ids and participate in the same
 // partitioned fixpoint as summary-derived sinks.
-func TestFixpointEvidenceLoaderProjectsCloudSinks(t *testing.T) {
+func TestValueFlowFixpointEvidenceLoaderProjectsCloudSinks(t *testing.T) {
 	t.Parallel()
 
 	sourceFn := summary.NewFunctionID("repo-a", "pkg", "", "handle")
@@ -135,10 +135,10 @@ func TestFixpointEvidenceLoaderProjectsCloudSinks(t *testing.T) {
 	}
 }
 
-// TestFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts keeps
+// TestValueFlowFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts keeps
 // function-level cloud bridge edges from fabricating value-flow precision when
 // the summary store has no observed parameter port for that function.
-func TestFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts(t *testing.T) {
+func TestValueFlowFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts(t *testing.T) {
 	t.Parallel()
 
 	sourceFn := summary.NewFunctionID("repo-a", "pkg", "", "handle")
@@ -164,9 +164,9 @@ func TestFixpointEvidenceLoaderSkipsCloudTargetsWithoutObservedPorts(t *testing.
 	}
 }
 
-// TestFixpointEvidenceLoaderSkipsGraphWorkWithoutSources proves an
+// TestValueFlowFixpointEvidenceLoaderSkipsGraphWorkWithoutSources proves an
 // empty source snapshot exits before graph id or graph-backed cloud sink reads.
-func TestFixpointEvidenceLoaderSkipsGraphWorkWithoutSources(t *testing.T) {
+func TestValueFlowFixpointEvidenceLoaderSkipsGraphWorkWithoutSources(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
@@ -186,10 +186,10 @@ func TestFixpointEvidenceLoaderSkipsGraphWorkWithoutSources(t *testing.T) {
 	}
 }
 
-// TestFixpointEvidenceLoaderProjectsDurableInputs proves durable
+// TestValueFlowFixpointEvidenceLoaderProjectsDurableInputs proves durable
 // summaries, sources, and graph ids are composed into reducer-ready
 // TAINT_FLOWS_TO evidence.
-func TestFixpointEvidenceLoaderProjectsDurableInputs(t *testing.T) {
+func TestValueFlowFixpointEvidenceLoaderProjectsDurableInputs(t *testing.T) {
 	t.Parallel()
 
 	sourceFn, sinkFn, effects := crossRepoFixpointEffects()
@@ -230,9 +230,9 @@ func TestFixpointEvidenceLoaderProjectsDurableInputs(t *testing.T) {
 	}
 }
 
-// TestFixpointEvidenceLoaderSurfacesMissingGraphUIDs proves unresolved
+// TestValueFlowFixpointEvidenceLoaderSurfacesMissingGraphUIDs proves unresolved
 // graph ids remain visible as skipped findings instead of fabricating edges.
-func TestFixpointEvidenceLoaderSurfacesMissingGraphUIDs(t *testing.T) {
+func TestValueFlowFixpointEvidenceLoaderSurfacesMissingGraphUIDs(t *testing.T) {
 	t.Parallel()
 
 	sourceFn, sinkFn, effects := crossRepoFixpointEffects()
@@ -272,10 +272,10 @@ func TestExtractCodeInterprocFixpointEvidenceRowsUsesSeparateUIDNamespace(t *tes
 	}
 }
 
-// TestFixpointEvidenceProjectorRetractsGlobalFixpointEvidence proves
+// TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence proves
 // summary-driven projection retracts the full fixpoint-owned evidence source
 // before writing the global solve, rather than scope-stamping stale rows.
-func TestFixpointEvidenceProjectorRetractsGlobalFixpointEvidence(t *testing.T) {
+func TestValueFlowFixpointEvidenceProjectorRetractsGlobalFixpointEvidence(t *testing.T) {
 	t.Parallel()
 
 	writer := &recordingCodeInterprocEvidenceWriter{}

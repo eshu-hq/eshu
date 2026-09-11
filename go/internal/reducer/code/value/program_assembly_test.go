@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
-func TestBuildProgramFiltersSummaryCallFlowsThroughActiveCalls(t *testing.T) {
+func TestBuildValueFlowProgramFiltersSummaryCallFlowsThroughActiveCalls(t *testing.T) {
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
 	callee := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Query")
 	unconfirmed := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Unused")
@@ -57,7 +57,7 @@ func TestBuildProgramFiltersSummaryCallFlowsThroughActiveCalls(t *testing.T) {
 	}
 }
 
-func TestBuildProgramCountsMissingSummary(t *testing.T) {
+func TestBuildValueFlowProgramCountsMissingSummary(t *testing.T) {
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
 	callee := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Query")
 

@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/parser/summary"
 )
 
-func TestProgramAssemblyRunnerAggregatesStatsWithoutWriting(t *testing.T) {
+func TestValueFlowProgramAssemblyRunnerAggregatesStatsWithoutWriting(t *testing.T) {
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
 	callee := summary.NewFunctionID("repo-lib", "example.com/lib", "", "Query")
 	loader := &recordingProgramAssemblyLoader{
@@ -45,7 +45,7 @@ func TestProgramAssemblyRunnerAggregatesStatsWithoutWriting(t *testing.T) {
 	}
 }
 
-func TestProgramAssemblyRunnerAggregatesMissingCalleeIdentity(t *testing.T) {
+func TestValueFlowProgramAssemblyRunnerAggregatesMissingCalleeIdentity(t *testing.T) {
 	caller := summary.NewFunctionID("repo-app", "example.com/app", "", "Handle")
 	loader := &recordingProgramAssemblyLoader{
 		inputs: []ProgramInput{{

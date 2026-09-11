@@ -39,7 +39,7 @@ func (g *recordingCloudSinkGraph) Run(
 	return append([]map[string]any(nil), g.rows...), nil
 }
 
-func TestGraphCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testing.T) {
+func TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
@@ -86,7 +86,7 @@ func TestGraphCloudSinkTargetLoaderLoadsCloudActionPermissions(t *testing.T) {
 	}
 }
 
-func TestGraphCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t *testing.T) {
+func TestGraphValueFlowCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t *testing.T) {
 	t.Parallel()
 
 	fn := summary.NewFunctionID("repo-a", "pkg", "", "handler")
@@ -119,7 +119,7 @@ func TestGraphCloudSinkTargetLoaderDoesNotPromoteCatalogOnlyConfigAndIaCSinks(t 
 	}
 }
 
-func TestGraphCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T) {
+func TestGraphValueFlowCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T) {
 	t.Parallel()
 
 	first := summary.NewFunctionID("repo-a", "pkg", "", "first")
@@ -148,7 +148,7 @@ func TestGraphCloudSinkTargetLoaderSkipsAmbiguousGraphUID(t *testing.T) {
 	}
 }
 
-func TestGraphCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
+func TestGraphValueFlowCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
 	t.Parallel()
 
 	graphIDs := make(map[summary.FunctionID]string, valueFlowCloudSinkTargetBatchLimit+1)
@@ -175,7 +175,7 @@ func TestGraphCloudSinkTargetLoaderChunksFunctionUIDs(t *testing.T) {
 	}
 }
 
-func TestGraphCloudSinkTargetLoaderEmptyAndNilGuards(t *testing.T) {
+func TestGraphValueFlowCloudSinkTargetLoaderEmptyAndNilGuards(t *testing.T) {
 	t.Parallel()
 
 	loader := GraphCloudSinkTargetLoader{Graph: &recordingCloudSinkGraph{}}
