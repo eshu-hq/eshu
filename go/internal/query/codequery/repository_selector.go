@@ -159,10 +159,10 @@ func codeContentGrantScope(ctx context.Context, repoID string) (allowed []string
 // carries a non-canonical repo_id to resolve; it is grant-filtered in
 // queryselector, so it cannot see outside the caller's grant either.
 //
-// Both fields are exported (#6060): language_queries.go and
-// language_query_metadata.go stay in root when this file's family moves to
-// its own subpackage, and Go cannot alias a struct field across that
-// boundary. See code_seam.go.
+// Both fields are exported (#6060): the language family (now
+// language/handler.go and language/metadata.go, #6642) reads them from its
+// own subpackage, and Go cannot alias a struct field across that boundary.
+// See code_seam.go.
 type LanguageQueryGrant struct {
 	Access               querycontract.RepositoryAccessFilter
 	AllowedRepositoryIDs []string

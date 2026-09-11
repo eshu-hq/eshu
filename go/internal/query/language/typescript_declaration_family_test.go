@@ -1,12 +1,29 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package language
 
 import (
 	"context"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/codequery"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
+
+// unscopedLanguageQueryGrant is the grant an unscoped shared-key, admin, or
+// local caller carries: no restriction on either backend. It is what the
+// pre-existing language-query tests pass, so their assertions keep describing
+// the unscoped read.
+//
+// Moved from package query's auth_scoped_language_query_grant_test.go
+// (#6642): this file is its only caller, and codequery.LanguageQueryGrant
+// names a handler-family type querytestutil must never import, so the
+// fixture cannot be hoisted there -- it moves with its one caller instead.
+func unscopedLanguageQueryGrant() codequery.LanguageQueryGrant {
+	return codequery.LanguageQueryGrant{Access: querycontract.RepositoryAccessFilter{AllScopes: true}}
+}
 
 func TestHandleLanguageQuery_TypeScriptClassFamilyUsesGraphMetadataWithoutContent(t *testing.T) {
 	t.Parallel()
@@ -107,8 +124,8 @@ func TestHandleLanguageQuery_TypeScriptClassFamilyUsesGraphMetadataWithoutConten
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler := &LanguageQueryHandler{
-				Neo4j: &mockLanguageQueryGraphReader{rows: []map[string]any{tt.row}},
+			handler := &Handler{
+				Neo4j: &querytestutil.MockLanguageQueryGraphReader{Rows: []map[string]any{tt.row}},
 			}
 
 			results, _, err := handler.queryByLanguageWithSemanticFilter(

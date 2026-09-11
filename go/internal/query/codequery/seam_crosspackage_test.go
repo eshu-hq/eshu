@@ -21,7 +21,7 @@ import (
 // outside package query -- the position the staying files named in the
 // A-worklist (infra_graph_summary_packet.go, contract_code_flow.go,
 // contract_capability_matrix.go, content_reader_structural_inventory.go,
-// language_queries.go, language_query_metadata.go, entity_metadata.go,
+// language/handler.go, language/metadata.go, entity_metadata.go,
 // content_reader_dead_code.go, content_reader_dead_code_cross_repo.go,
 // content_reader_security_secrets.go, content_reader.go,
 // content_reader_code_topic.go, answer_packet_routes.go, and
@@ -143,8 +143,8 @@ func TestCodeSeamCrossPackageAccess(t *testing.T) {
 		t.Fatalf("ResultContentEntityType(labels=[Class]) = %q, want Class", got)
 	}
 
-	// LanguageQueryGrant / LanguageQueryGrantFor: language_queries.go reads
-	// Access, language_query_metadata.go reads AllowedRepositoryIDs.
+	// LanguageQueryGrant / LanguageQueryGrantFor: language/handler.go reads
+	// Access, language/metadata.go reads AllowedRepositoryIDs.
 	grant, blocked := codequery.LanguageQueryGrantFor(context.Background(), "")
 	if blocked {
 		t.Fatal("LanguageQueryGrantFor(unscoped) reported blocked, want false")

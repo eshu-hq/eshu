@@ -163,7 +163,7 @@ func TestCodeSeamExportsForward(t *testing.T) {
 	// TestWriteGraphReadErrorCapabilitiesExistInMatrix's caller-tracing sweep
 	// cannot resolve, since nothing in production would call the forwarder
 	// itself. It stays in this tripwire because it is still part of the
-	// #6060 exported surface language_queries.go crosses to reach. A nil
+	// #6060 exported surface language/handler.go crosses to reach. A nil
 	// selector short-circuits to true before touching graph or content,
 	// which is a real branch of the function, not a stub -- a non-nil
 	// graph/content would panic on Run if this exercised anything else.

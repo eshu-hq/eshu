@@ -66,7 +66,7 @@ func BuildSearchGraphEntitiesQuery(
 }
 
 // graphSemanticMetadataProjection is a family-local copy of root's
-// language_query_entities.go helper of the same name. The entity
+// language/entities.go helper of the same name. The entity
 // semantic-metadata projection is shared with staying root builders
 // (language-query, dead-code, complexity, entity) that cannot cross
 // the package boundary, so the leaf carries this byte-identical copy

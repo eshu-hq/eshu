@@ -44,7 +44,7 @@ func (s *languageQueryGrantContentStore) SearchEntitiesByLanguageAndTypeForAcces
 	search querycontract.LanguageEntitySearch,
 ) ([]EntityContent, error) {
 	s.searches = append(s.searches, search)
-	return languageQueryGrantEntities(search.RepoID, search.AllowedRepositoryIDs, search.EntityType), nil
+	return querytestutil.LanguageQueryGrantEntities(search.RepoID, search.AllowedRepositoryIDs, search.EntityType), nil
 }
 
 // TestLanguageQueryGrantBoundStoreTakesOneRead pins the path production takes.
@@ -107,7 +107,7 @@ func TestLanguageTypeEntityFiltersBindTheGrantInTheShippedSQL(t *testing.T) {
 // TestLanguageQueryBuildersBindTheGrantInTheShippedCypher and
 // TestLanguageQueryUnscopedCypherTextIsFrozen moved to
 // language_query_cypher_shipped_text_test.go (#6642): both call
-// buildLanguageCypherWithSemanticFilter, buildLanguageCypher, and
+// language.BuildCypherWithSemanticFilter, buildLanguageCypher, and
 // graphSemanticMetadataProjection directly to pin the raw Cypher text the
 // builders emit -- text no HTTP response body ever carries -- so they belong
 // in a family-owned white-box test file rather than here alongside the

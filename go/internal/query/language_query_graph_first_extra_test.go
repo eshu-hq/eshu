@@ -64,7 +64,7 @@ func TestHandleLanguageQuery_TSXFunctionFragmentUsesGraphMetadataWithoutContent(
 }
 
 // TestHandleLanguageQuery_TSXVariableAssertionUsesContentMetadata covers the
-// content-backed "variable" path (see language_query_entities.go): plain and
+// content-backed "variable" path (see language/entities.go): plain and
 // semantic Variable rows alike are read from content_entities, so a TSX
 // component-type-assertion variable's semantic summary must derive from
 // EntityContent.Metadata rather than raw graph row columns.

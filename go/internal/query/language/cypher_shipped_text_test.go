@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package language
 
 import (
 	"slices"
@@ -13,20 +13,20 @@ import (
 )
 
 // TestLanguageQueryBuildersBindTheGrantInTheShippedCypher is the same guard for
-// the four Cypher builders behind buildLanguageCypherWithSemanticFilter. The
+// the four Cypher builders behind BuildCypherWithSemanticFilter. The
 // condition has to appear in the anchoring MATCH's own WHERE, ahead of every
 // WITH, ORDER BY and LIMIT.
 func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 	t.Parallel()
 
-	scoped := repositoryAccessFilter{AllowedRepositoryIDs: []string{codeGrantGrantedRepo}}
+	scoped := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{querytestutil.CodeGrantGrantedRepo}}
 	want := "(r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids)"
 
 	for _, label := range []string{"Repository", "Directory", "File", "Function"} {
 		t.Run(label, func(t *testing.T) {
 			t.Parallel()
 
-			cypher, params := buildLanguageCypherWithSemanticFilter("go", label, "", "", 50, "", "", scoped)
+			cypher, params := BuildCypherWithSemanticFilter("go", label, "", "", 50, "", "", scoped)
 			normalized := querycontract.NormalizeCypherWhitespace(cypher)
 			if !strings.Contains(normalized, want) {
 				t.Fatalf("%s builder missing %q:\n%s", label, want, normalized)
@@ -43,7 +43,7 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 					t.Fatalf("%s builder emits the grant after %q, so the page is taken before the grant applies:\n%s", label, strings.TrimSpace(clause), normalized)
 				}
 			}
-			if got, ok := params["allowed_repository_ids"].([]string); !ok || !slices.Equal(got, []string{codeGrantGrantedRepo}) {
+			if got, ok := params["allowed_repository_ids"].([]string); !ok || !slices.Equal(got, []string{querytestutil.CodeGrantGrantedRepo}) {
 				t.Fatalf("params[allowed_repository_ids] = %#v, want the caller's granted ids; an unbound parameter fails at execution", params["allowed_repository_ids"])
 			}
 
@@ -60,7 +60,7 @@ func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 
 // TestLanguageQueryUnscopedCypherTextIsFrozen is the byte-identity guard for
 // the unscoped text of the four builders behind
-// buildLanguageCypherWithSemanticFilter. TestLanguageQueryBuildersBindTheGrantInTheShippedCypher
+// BuildCypherWithSemanticFilter. TestLanguageQueryBuildersBindTheGrantInTheShippedCypher
 // above pins the ABSENCE of grant artifacts from an unscoped statement, which a
 // wholesale rewrite would pass; this one compares the entire statement,
 // whitespace included.

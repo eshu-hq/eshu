@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/language"
+
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
@@ -49,7 +51,7 @@ func TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing(t *testi
 
 	// The shipped builder, which must now answer. If this ever returns nothing
 	// again, the rewrite has been undone or the backend has changed under it.
-	cypher, params := buildLanguageCypherWithSemanticFilter(
+	cypher, params := language.BuildCypherWithSemanticFilter(
 		liveGrantLanguage, "Directory", "", "", 3, "", "", liveGrantAccess(),
 	)
 	rows := runLiveGrantStatement(ctx, t, driver, "buildDirectoryCypher shipped", cypher, params)
@@ -125,7 +127,7 @@ func TestLiveNornicDBGrantPlanShapeIsNotReportable(t *testing.T) {
 	defer func() { _ = driver.Close(context.Background()) }()
 	seedLiveGrantGraph(ctx, t, driver)
 
-	cypher, params := buildLanguageCypherWithSemanticFilter(
+	cypher, params := language.BuildCypherWithSemanticFilter(
 		liveGrantLanguage, "File", "", "", 2, "", "", liveGrantAccess(),
 	)
 	plain := runLiveGrantStatement(ctx, t, driver, "plan probe plain", cypher, params)
@@ -133,7 +135,7 @@ func TestLiveNornicDBGrantPlanShapeIsNotReportable(t *testing.T) {
 		t.Fatal("plan probe plain: the shipped statement returned nothing, so the comparison below is meaningless")
 	}
 	for _, prefix := range []string{"EXPLAIN", "PROFILE"} {
-		_, prefixParams := buildLanguageCypherWithSemanticFilter(
+		_, prefixParams := language.BuildCypherWithSemanticFilter(
 			liveGrantLanguage, "File", "", "", 2, "", "", liveGrantAccess(),
 		)
 		rows := runLiveGrantStatement(ctx, t, driver, "plan probe "+prefix, prefix+" "+cypher, prefixParams)

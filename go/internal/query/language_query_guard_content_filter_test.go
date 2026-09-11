@@ -12,7 +12,7 @@ import (
 
 // TestHandleLanguageQueryGuardFallbackFiltersBySemanticKindNotAllFunctions is
 // the #5761 F2 regression. queryGraphFirstContentByLanguageWithSemanticFilter's
-// content-store fallback (language_queries.go, reached whenever the graph
+// content-store fallback (language/handler.go, reached whenever the graph
 // read returns zero rows -- reachable in FULL profiles too, not only
 // graphless ones) called queryContentByLanguage with the GRAPH label
 // ("Function") instead of the "guard" content entity type, so it silently

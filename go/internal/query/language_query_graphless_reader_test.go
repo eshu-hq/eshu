@@ -96,7 +96,7 @@ func TestHandleLanguageQueryUnconfiguredReaderServesContentBackedEntityType(t *t
 	}
 	// sourceBackendForTruthBasis is an unexported language-family free
 	// function; "postgres_content_store" is its documented
-	// TruthBasisContentIndex mapping (language_query_reasons.go), asserted by
+	// TruthBasisContentIndex mapping (language/reasons.go), asserted by
 	// literal value rather than by reference to keep this route-level test
 	// off the family's unexported surface (#6642).
 	if got, want := data["source_backend"], languageQueryContentBackendWire; got != want {
@@ -110,7 +110,7 @@ func TestHandleLanguageQueryUnconfiguredReaderServesContentBackedEntityType(t *t
 // TestHandleLanguageQueryUnconfiguredReaderReturns501ForGraphOnlyEntityType is
 // the #5761 F1 residue regression: "repository", "directory", and "file" have
 // no content-store equivalent (graphLabelToContentEntityType returns "" for
-// all three -- language_query_entities.go), so an unconfigured graph reader
+// all three -- language/entities.go), so an unconfigured graph reader
 // cannot serve them at all. The handler must answer the bounded
 // 501 unsupported_capability envelope naming symbol_graph.language_entities
 // (the repo idiom at handler.go:137-145), not a generic 500 leaking the bare
@@ -166,7 +166,7 @@ func TestHandleLanguageQueryUnconfiguredReaderReturns501ForGraphOnlyEntityType(t
 // TestHandleLanguageQueryUnconfiguredReaderGuardEntityTypeServesGuardsOnlyFromContent
 // combines the #5761 F1 and F2 regressions for entity_type=="guard" under an
 // unconfigured graph reader: the graph-first branch must skip the driverless
-// Neo4jReader entirely (F1, extending the guard at language_queries.go:434)
+// Neo4jReader entirely (F1, extending the guard at language/handler.go:424)
 // and, once on the content-store fallback, must filter by
 // semantic_kind=guard rather than returning every Function (F2). content.rows
 // deliberately holds one plain Function-shaped row to prove the content query

@@ -28,10 +28,15 @@ import (
 // and differ only in repo_id, and assert each row keeps its own repository's
 // metadata.
 
+// languageMetadataSharedPath, languageMetadataSharedName, and
+// languageMetadataSharedStart forward to querytestutil. The values moved
+// there for #6642 so package language's repository_match_key_test.go can
+// share the identical collision fixture; these consts keep this file's
+// callers unchanged.
 const (
-	languageMetadataSharedPath  = "internal/auth/session.go"
-	languageMetadataSharedName  = "SharedKeyProbe"
-	languageMetadataSharedStart = 10
+	languageMetadataSharedPath  = querytestutil.LanguageMetadataSharedPath
+	languageMetadataSharedName  = querytestutil.LanguageMetadataSharedName
+	languageMetadataSharedStart = querytestutil.LanguageMetadataSharedStart
 )
 
 // languageMetadataCollisionStore returns one content row per repository, both

@@ -47,7 +47,7 @@ import (
 //     code_repository_selector.go, with both callers updated, rather than
 //     forwarded from here. A forwarder would be a third call site passing a
 //     capability parameter into WriteGraphReadError, and nothing in
-//     production would call the forwarder itself: language_queries.go, the
+//     production would call the forwarder itself: language/handler.go, the
 //     staying caller this export exists for, keeps calling the function
 //     directly. TestWriteGraphReadErrorCapabilitiesExistInMatrix resolves
 //     that capability argument by tracing every caller of the enclosing
@@ -113,7 +113,7 @@ type HardcodedSecretInvestigationRequest = codequery.HardcodedSecretInvestigatio
 type HardcodedSecretInvestigator = codequery.HardcodedSecretInvestigator
 
 // LanguageQueryGrant is the exported seam for languageQueryGrant, which
-// language_queries.go and language_query_metadata.go read from outside the
+// language/handler.go and language/metadata.go read from outside the
 // code move set. See #6060.
 type LanguageQueryGrant = codequery.LanguageQueryGrant
 
@@ -240,7 +240,7 @@ func CrossRepoDeadCodeConfidenceLabel(confidence float64) string {
 }
 
 // LanguageQueryGrantFor is the exported seam for codequery.LanguageQueryGrantFor, which
-// language_queries.go calls from outside the code move set. It forwards so
+// language/handler.go calls from outside the code move set. It forwards so
 // the code family can move without touching callers. See #6060.
 func LanguageQueryGrantFor(ctx context.Context, repoID string) (LanguageQueryGrant, bool) {
 	return codequery.LanguageQueryGrantFor(ctx, repoID)

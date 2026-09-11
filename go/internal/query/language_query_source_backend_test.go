@@ -11,7 +11,7 @@ import (
 )
 
 // TestOpenAPILanguageQueryResponseDocumentsSourceBackend is the #5761 P1-2
-// review-fix regression: writeLanguageQueryResult (language_queries.go) has
+// review-fix regression: writeLanguageQueryResult (language/handler.go) has
 // emitted a "source_backend" field on every response since #5761 landed, but
 // the OpenAPI LanguageQueryResponse schema (openapi_components.go) never
 // gained the matching property, so the live spec omitted a field the handler
@@ -23,7 +23,7 @@ import (
 //
 // The enum assertion is the #5761 P2-1 review-fix regression: the property's
 // "enum" is asserted against the values sourceBackendForTruthBasis
-// (language_query_reasons.go) actually derives from every TruthBasis outcome
+// (language/reasons.go) actually derives from every TruthBasis outcome
 // this route can produce, rather than a hand-frozen literal list, so a future
 // change to sourceBackendForTruthBasis that silently drifts from the
 // documented enum fails this test instead of only being caught by manual

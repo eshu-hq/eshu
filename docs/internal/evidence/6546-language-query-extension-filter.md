@@ -94,9 +94,11 @@ against the same store (`go test ./internal/query -tags
 live_nornicdb_language_imports_grant -run TestLiveNornicDB -count=1`, exit 0).
 
 The shipped text is frozen in
-`go/internal/query/language_query_cypher_shipped_text_test.go::TestLanguageQueryUnscopedCypherTextIsFrozen`,
+`go/internal/query/language/cypher_shipped_text_test.go::TestLanguageQueryUnscopedCypherTextIsFrozen`
+(moved from root's `language_query_cypher_shipped_text_test.go` for #6642),
 and the spelling list in
-`go/internal/query/language_registry_test.go::TestGraphLanguageSpellings`.
+`go/internal/query/language/registry_test.go::TestGraphLanguageSpellings`
+(moved from root's `language_registry_test.go`).
 
 No-Regression Evidence: same corpus and same read path as the theory table,
 File builder median 13.2 ms shipped against 2.8 ms with `f.language IN
@@ -130,8 +132,9 @@ drops any path the registry does not claim before a File is ever written
 (`discovery` calls `parser.Registry.LookupByPath`). So the only way to an
 untagged or missing File is an extension outside the registry.
 
-`go/internal/query/language_query_parser_spelling_test.go::TestRetiredExtensionsParseToAnAdmittedLanguageSpelling`
-parses one minimal fixture per (language, extension) pair of the retired map
+`go/internal/query/language/parser_spelling_test.go::TestRetiredExtensionsParseToAnAdmittedLanguageSpelling`
+(moved from root's `language_query_parser_spelling_test.go` for #6642) parses
+one minimal fixture per (language, extension) pair of the retired map
 through `parser.Engine.ParsePath` on the default registry and asks
 `graphLanguageSpellings` whether the emitted spelling is bound for that
 language. Before the registry change it failed on exactly three rows, each

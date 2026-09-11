@@ -27,7 +27,7 @@ import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 // Every other root caller compiles unchanged. Where a root file in this diff
 // changed for some other reason -- content_reader_entity_names.go,
 // content_reader_index_readiness.go, entity_resolve_identity.go,
-// evidence_citation.go, language_registry.go, repository_coverage.go -- it is
+// evidence_citation.go, language/registry.go, repository_coverage.go -- it is
 // naming the leaf package for a different promoted symbol, not touching the
 // builder.
 

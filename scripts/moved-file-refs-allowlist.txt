@@ -36,3 +36,10 @@ go/internal/ifa/materializededges/materialized_edges_direct_family_blindness_tes
 # repoint either leaves a command that cannot run or fabricates a command
 # nobody ran. The transcript is evidence of what was executed, not a pointer.
 docs/internal/evidence/5428-built-from-projection-rescinded.md:go/internal/reducer/ci_cd_run_correlation_narrowing_regression_test.go
+
+# #6642 language family move: dated evidence records that quote the root
+# path as it stood when the evidence was captured; repointing would falsify
+# the record. The live pointer is go/internal/query/language/.
+docs/internal/evidence/5167-code-family-batch-2.md:go/internal/query/language_query_cypher.go
+docs/internal/evidence/5167-code-family-batch-2.md:go/internal/query/language_query_metadata.go
+docs/internal/evidence/6546-language-query-extension-filter.md:go/internal/query/language_query_cypher.go

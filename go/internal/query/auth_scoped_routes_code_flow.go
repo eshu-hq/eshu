@@ -112,8 +112,8 @@ func scopedCodeContentGrantRoute(r *http.Request) bool {
 //     and the by-entity-id lookup, which previously carried no repository
 //     predicate at all and ignored even a repo_id the caller supplied.
 //   - POST /api/v0/code/language-query -- both backends, like dead-code above.
-//     Its Cypher half is buildLanguageCypherWithSemanticFilter
-//     (language_query_cypher.go), whose four builders append the grant to the
+//     Its Cypher half is language.BuildCypherWithSemanticFilter
+//     (language/cypher.go), whose four builders append the grant to the
 //     anchoring MATCH's own WHERE; its SQL half is
 //     buildLanguageTypeEntityFilters (content_reader_entity_search.go), which
 //     serves the content-only entity types, the graphless and zero-row

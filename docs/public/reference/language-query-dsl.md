@@ -276,13 +276,16 @@ When adding or promoting language-query support:
 
 1. Update the Go registry or handler enum that accepts the `language` or
    `entity_type` value. The accepted-language set is `supportedLanguages` in
-   `go/internal/query/language_registry.go` — that is the file to edit when
+   `go/internal/query/language/registry.go` — that is the file to edit when
    adding or removing an accepted language. The alias table behind the `jsx`
    and `tsx` normalizations above, and the coverage maps, live separately in
-   `go/internal/query/querycontract/language_registry.go` so the handler-family
-   subpackages can reach them. The root file does not re-export them: it calls
-   `querycontract` through unexported forwarders, so root-package callers reach
-   the helpers as `canonicalLanguage` and `normalizedLanguageVariants`.
+   `go/internal/query/querycontract/language_registry.go` so every
+   handler-family subpackage, this one included, can reach them.
+   `language/registry.go` calls `querycontract` directly as
+   `canonicalLanguage` and `NormalizedVariants`; root package `query` (#6642)
+   does not re-export the querycontract helpers itself, it forwards to this
+   package's own spellings (`normalizedLanguageVariants`) for its own staying
+   callers.
 2. Add focused HTTP or MCP coverage for the accepted value, unsupported-value
    error behavior, limit handling, and deterministic result shape.
 3. State whether the entity type is graph-backed, graph-first with content
@@ -317,17 +320,25 @@ Guardrails:
 
 ## Where the implementation lives
 
-The DSL described above is unchanged by the #6060 handler-family split, but the
-code behind it has moved, and the note is here so a reader tracing a field back
-to its producer does not start in the wrong package.
+The DSL described above is unchanged by the #6060 handler-family split and the
+later #6642 move of the route's own handler family, but the code behind it has
+moved twice, and the note is here so a reader tracing a field back to its
+producer does not start in the wrong package.
+
+`POST /api/v0/code/language-query` itself -- the handler, its Mount method,
+the four Cypher builders, and the language name/spelling registry -- lives in
+`internal/query/language` (#6642). Root package `query` keeps every pre-move
+exported spelling (`LanguageQueryHandler`, `SupportedLanguages`,
+`SupportedEntityTypes`, and the unexported forwarders staying root callers
+use) through a compatibility stanza in `language_alias.go`.
 
 The graph-row metadata projection that fills a language-query result's
 `metadata` object, and the entity-type mapping that decides which label a row
-resolves to, now live in `internal/query/querycontract`. The graph-first
-content-backed map (`GraphFirstContentBackedEntityTypes`, with the root
-`language_query_entities.go` keeping a same-value alias) is canonical there
-too since the #6060 entity move; no mapping entry changed. The Cypher projection
-fragment those reads splice into their statements lives in
+resolves to, live in `internal/query/querycontract`. The graph-first
+content-backed map (`GraphFirstContentBackedEntityTypes`, with
+`internal/query/language`'s `entities.go` keeping a same-value alias) is
+canonical there too since the #6060 entity move; no mapping entry changed. The
+Cypher projection fragment those reads splice into their statements lives in
 `internal/query/querygraphrows`, which is separate because it also decodes
 graph-driver row types that the dependency-neutral contract package may not
 import. The one-sentence `semantic_summary` and the `semantic_profile` block

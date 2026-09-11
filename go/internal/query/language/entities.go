@@ -1,82 +1,76 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package language
 
 import (
 	"fmt"
 	"net/http"
 
+	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 // graphBackedEntityTypes forwards to querycontract.GraphBackedEntityTypes.
-// The implementation moved to querycontract for #6060; this alias keeps
-// root callers unchanged.
 var graphBackedEntityTypes = querycontract.GraphBackedEntityTypes
 
 // contentBackedEntityTypes forwards to querycontract.ContentBackedEntityTypes.
-// The implementation moved to querycontract for #6060; this alias keeps
-// root callers unchanged.
 var contentBackedEntityTypes = querycontract.ContentBackedEntityTypes
 
 // graphFirstContentBackedEntityTypes forwards to
-// querycontract.GraphFirstContentBackedEntityTypes. The implementation moved
-// to querycontract for #6060; this alias keeps root callers unchanged.
+// querycontract.GraphFirstContentBackedEntityTypes.
 var graphFirstContentBackedEntityTypes = querycontract.GraphFirstContentBackedEntityTypes
 
 // buildLanguageResult converts a Neo4j result row into the response shape.
 func buildLanguageResult(row map[string]any, label string) map[string]any {
 	result := map[string]any{
-		"entity_id": StringVal(row, "entity_id"),
-		"name":      StringVal(row, "name"),
+		"entity_id": querycontract.StringVal(row, "entity_id"),
+		"name":      querycontract.StringVal(row, "name"),
 	}
 
-	if v := StringSliceVal(row, "labels"); v != nil {
+	if v := querycontract.StringSliceVal(row, "labels"); v != nil {
 		result["labels"] = v
 	}
-	if v := StringVal(row, "file_path"); v != "" {
+	if v := querycontract.StringVal(row, "file_path"); v != "" {
 		result["file_path"] = v
 	}
-	if v := StringVal(row, "repo_id"); v != "" {
+	if v := querycontract.StringVal(row, "repo_id"); v != "" {
 		result["repo_id"] = v
 	}
-	if v := StringVal(row, "repo_name"); v != "" {
+	if v := querycontract.StringVal(row, "repo_name"); v != "" {
 		result["repo_name"] = v
 	}
-	if v := StringVal(row, "language"); v != "" {
+	if v := querycontract.StringVal(row, "language"); v != "" {
 		result["language"] = v
 	}
 
 	switch label {
 	case "Repository":
-		result["id"] = StringVal(row, "id")
-		result["name"] = StringVal(row, "name")
-		result["local_path"] = StringVal(row, "local_path")
-		result["remote_url"] = StringVal(row, "remote_url")
-		result["file_count"] = IntVal(row, "file_count")
+		result["id"] = querycontract.StringVal(row, "id")
+		result["name"] = querycontract.StringVal(row, "name")
+		result["local_path"] = querycontract.StringVal(row, "local_path")
+		result["remote_url"] = querycontract.StringVal(row, "remote_url")
+		result["file_count"] = querycontract.IntVal(row, "file_count")
 	case "Directory":
-		result["file_count"] = IntVal(row, "file_count")
+		result["file_count"] = querycontract.IntVal(row, "file_count")
 	default:
-		if v := IntVal(row, "start_line"); v != 0 {
+		if v := querycontract.IntVal(row, "start_line"); v != 0 {
 			result["start_line"] = v
 		}
-		if v := IntVal(row, "end_line"); v != 0 {
+		if v := querycontract.IntVal(row, "end_line"); v != 0 {
 			result["end_line"] = v
 		}
 		if metadata := graphResultMetadata(row); len(metadata) > 0 {
 			result["metadata"] = metadata
-			attachSemanticSummary(result)
+			entitysemantics.AttachSemanticSummary(result)
 		}
 	}
 
 	return result
 }
 
-// graphResultMetadata forwards to querycontract.GraphResultMetadata. The
-// implementation moved to querycontract for #6060; this wrapper keeps
-// root callers unchanged.
+// graphResultMetadata forwards to querycontract.GraphResultMetadata.
 func graphResultMetadata(row map[string]any) map[string]any {
 	return querycontract.GraphResultMetadata(row)
 }
@@ -89,8 +83,7 @@ func graphSemanticMetadataProjection() string {
 }
 
 // graphLabelToContentEntityType forwards to
-// querycontract.GraphLabelToContentEntityType. The implementation moved to
-// querycontract for #6060; this wrapper keeps root callers unchanged.
+// querycontract.GraphLabelToContentEntityType.
 func graphLabelToContentEntityType(label string) string {
 	return querycontract.GraphLabelToContentEntityType(label)
 }
@@ -142,7 +135,7 @@ func acceptLanguageQueryEntityType(w http.ResponseWriter, entityType string) boo
 // allSupportedEntityTypes() but not yet dispatched would otherwise fall out of
 // the handler with no response written at all.
 func writeLanguageQueryUnsupportedEntityType(w http.ResponseWriter, entityType string) {
-	WriteError(w, http.StatusBadRequest, fmt.Sprintf(
+	querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf(
 		"unsupported entity_type %q; supported: %s",
 		entityType, joinKeys(allSupportedEntityTypes()),
 	))

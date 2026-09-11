@@ -28,6 +28,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/language"
 )
 
 const (
@@ -64,7 +66,7 @@ func liveGrantImpossibleAccess() repositoryAccessFilter {
 }
 
 // liveGrantNegativeControlLabels are the four dispatch branches of
-// buildLanguageCypherWithSemanticFilter that reach the graph.
+// language.BuildCypherWithSemanticFilter that reach the graph.
 var liveGrantNegativeControlLabels = []string{"Repository", "Directory", "File", "Function"}
 
 // TestLiveNornicDBLanguageQueryImpossibleLanguageReturnsNoRows is the control a
@@ -87,7 +89,7 @@ func TestLiveNornicDBLanguageQueryImpossibleLanguageReturnsNoRows(t *testing.T) 
 			// Unscoped deliberately: with no grant clause the language predicate
 			// is the only thing that can filter, so a non-empty result isolates
 			// the failure to it.
-			cypher, params := buildLanguageCypherWithSemanticFilter(
+			cypher, params := language.BuildCypherWithSemanticFilter(
 				liveGrantImpossibleLanguage, label, "", "",
 				liveGrantNegativeControlLimit, "", "", liveGrantUnscopedAccess(),
 			)
@@ -132,7 +134,7 @@ func TestLiveNornicDBLanguageQueryImpossibleGrantReturnsNoRows(t *testing.T) {
 			// The language is the real one here, so every seeded row satisfies
 			// it. The grant is then the only predicate that can exclude them,
 			// which is what makes a non-empty result unambiguous.
-			cypher, params := buildLanguageCypherWithSemanticFilter(
+			cypher, params := language.BuildCypherWithSemanticFilter(
 				liveGrantLanguage, label, "", "",
 				liveGrantNegativeControlLimit, "", "", liveGrantImpossibleAccess(),
 			)

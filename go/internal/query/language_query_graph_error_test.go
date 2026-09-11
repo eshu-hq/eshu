@@ -26,7 +26,7 @@ import (
 // graphBackedEntityTypes dispatch (graph-only), and the
 // graphFirstContentBackedEntityTypes dispatch (graph-first-with-content-
 // fallback, using "sql_table" -- a live graph-backed entity type per
-// language_query_entities.go). Each is a separate call site with its own
+// language/entities.go). Each is a separate call site with its own
 // error return, so one being mapped does not imply another is.
 // TestHandleLanguageQueryContentBackedBranchMapsGraphReadAvailabilityErrors
 // below covers the fourth (contentBackedEntityTypes), which is Postgres
@@ -70,7 +70,7 @@ func TestHandleLanguageQueryMapsGraphReadAvailabilityErrors(t *testing.T) {
 
 // TestHandleLanguageQueryContentBackedBranchMapsGraphReadAvailabilityErrors
 // covers the fourth guarded call site, contentBackedEntityTypes
-// (language_queries.go's queryContentByLanguage branch). Unlike the other
+// (language/handler.go's queryContentByLanguage branch). Unlike the other
 // three branches, this one is Postgres content-store backed -- it can only be
 // reached for an entity_type absent from both graphBackedEntityTypes and
 // graphFirstContentBackedEntityTypes, such as "variable" -- so it needs a
@@ -244,7 +244,7 @@ func TestHandleLanguageQueryCapabilityGateReturns501WhenUnsupported(t *testing.T
 // fragment declares the 501 response the handler can actually return:
 // handleLanguageQuery writes http.StatusNotImplemented with
 // ErrorCodeUnsupportedCapability when capabilityUnsupported gates
-// languageQueryCapability at the running profile (language_queries.go), but
+// languageQueryCapability at the running profile (language/handler.go), but
 // until this route's openapi_paths_code.go fragment listed "501" the live
 // spec omitted a response the handler could genuinely produce -- exactly the
 // documented-vs-actual drift AGENTS.md's "OpenAPI fragments and handler

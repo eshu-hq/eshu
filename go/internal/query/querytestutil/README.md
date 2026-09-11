@@ -105,6 +105,18 @@ production SQL's predicate order. A double that limited first would hand a test
 rows the real query would not return, which is the failure mode a double exists
 to avoid.
 
+- `CodeGrantGrantedRepo`/`CodeGrantOtherRepo`, `SearchString`, and
+  `BoundCanonicalLanguage` — the #5167/#6642 grant-test repo ids, the
+  Cypher/SQL-text substring check, and a Cypher builder's canonical bound
+  `$languages` entry; package query forwards each under its pre-move name.
+- `LanguageMetadataSharedPath/Name/Start`, `LanguageGrantGrantedEntity`/
+  `LanguageGrantUngrantedEntity`, and `LanguageQueryGrantEntities` — the
+  #6642 language-query merge-key and grant fixtures both package query's and
+  package `language`'s tests share, so neither drifts from the other.
+- `MockLanguageQueryGraphReader` — minimal `querycontract.GraphQuery` double
+  answering `Run`/`RunSingle` from `Rows`; package query forwards it as
+  `mockLanguageQueryGraphReader`.
+
 ### The content-reader driver's two-tier answer
 
 The fake answers most queries from the queue, but a handler issues incidental
