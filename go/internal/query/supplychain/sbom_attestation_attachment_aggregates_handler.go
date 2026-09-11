@@ -15,12 +15,12 @@ const SBOMAttestationAttachmentAggregateCapability = "supply_chain.sbom_attestat
 
 // sbomAttestationAttachmentAggregateRoutes registers the cheap-summary
 // aggregate routes alongside the existing SBOM attachment list route.
-func (h *SupplyChainHandler) sbomAttestationAttachmentAggregateRoutes(mux *http.ServeMux) {
+func (h *Handler) sbomAttestationAttachmentAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/sbom-attestations/attachments/count", h.countSBOMAttestationAttachments)
 	mux.HandleFunc("GET /api/v0/supply-chain/sbom-attestations/attachments/inventory", h.sbomAttestationAttachmentInventory)
 }
 
-func (h *SupplyChainHandler) countSBOMAttestationAttachments(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) countSBOMAttestationAttachments(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySBOMAttestationAttachmentAggregate,
@@ -90,7 +90,7 @@ func (h *SupplyChainHandler) countSBOMAttestationAttachments(w http.ResponseWrit
 	))
 }
 
-func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) sbomAttestationAttachmentInventory(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySBOMAttestationAttachmentAggregate,
@@ -182,7 +182,7 @@ func (h *SupplyChainHandler) sbomAttestationAttachmentInventory(w http.ResponseW
 	))
 }
 
-func (h *SupplyChainHandler) sbomAttestationAttachmentAggregateFilterFromRequest(
+func (h *Handler) sbomAttestationAttachmentAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	access querycontract.RepositoryAccessFilter,

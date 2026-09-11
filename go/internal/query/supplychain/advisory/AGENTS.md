@@ -28,7 +28,7 @@ Read `doc.go` and `README.md` first.
   behavior-identical to their root sources (named in each provenance
   comment). Do not extend them with family-specific semantics; add a new
   helper instead.
-- `AdvisoryEvidenceFilter` MUST carry an anchor: `HasScope` gates the
+- `EvidenceFilter` MUST carry an anchor: `HasScope` gates the
   store, and the staying root handler gates before it. Widening either
   gate enables unscoped reads over the whole vulnerability corpus.
 - The catalog SQL MUST keep its bounded single-pass shape (#3389): one
@@ -49,19 +49,19 @@ not export a new symbol without adding its caller to this list.
 - `AdvisoryCatalogCapability`, `AdvisoryEvidenceCapability` —
   `contract_supply_chain.go` registration; the catalog, evidence, and
   vulnerability-detail handlers.
-- `AdvisoryCatalogMaxLimit`, `AdvisoryEvidenceMaxLimit` — the staying
+- `CatalogMaxLimit`, `EvidenceMaxLimit` — the staying
   root handler limit checks and the root catalog/evidence tests.
-- `AdvisoryEvidenceMaxFactRows`, `AdvisoryEvidenceFactCapacity` — the
+- `EvidenceMaxFactRows`, `EvidenceFactCapacity` — the
   root evidence tests (`FactCapacity` also bounds the store's scan).
 - `NormalizeAdvisoryEvidenceFilter`, `NormalizeAdvisoryCatalogFilter`,
-  `AdvisoryEvidenceFilter.HasScope` — the staying root handlers
+  `EvidenceFilter.HasScope` — the staying root handlers
   (evidence, vulnerability-detail) and the root tests.
-- `BuildAdvisoryEvidenceRows`, `AdvisoryEvidenceFactRow`,
+- `BuildAdvisoryEvidenceRows`, `EvidenceFactRow`,
   `CanonicalAdvisoryKey`, `PageAdvisoryEvidenceRows`,
-  `AdvisoryEvidenceLookupIDs`, `ListAdvisoryEvidenceQuery`,
+  `EvidenceLookupIDs`, `ListAdvisoryEvidenceQuery`,
   `ListAdvisoryCatalogQuery` — the root evidence/catalog/SQL tests, which
   pin grouping, paging, normalization, and SQL shape.
-- `AdvisoryEvidenceQueryer` — the constructor parameter the root tests,
+- `EvidenceQueryer` — the constructor parameter the root tests,
   the root alias forwarders, and `cmd/*` wiring name.
 - `FormatNullTime` — the staying root work-item evidence store.
 - `SetToSortedSlice` — the staying root work-item evidence state helper.

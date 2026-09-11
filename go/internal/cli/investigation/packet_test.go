@@ -54,7 +54,7 @@ func supplyChainEnvelope() investigation.SupplyChainExplainEnvelope {
 				ServiceIDs:      []string{"service:checkout"},
 				EvidenceFactIDs: []string{"fact-advisory"},
 			},
-			ImpactPath: []query.SupplyChainImpactPathHop{
+			Path: []query.SupplyChainImpactPathHop{
 				{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 				{Hop: "service", Status: "present"},
 			},

@@ -55,7 +55,7 @@ func assertSupplyChainRuntimeContextScopesLive(
 	} {
 		tc := tc
 		t.Run("runtime_context_"+tc.name, func(t *testing.T) {
-			handler := &SupplyChainHandler{ImpactFindings: store}
+			handler := &Handler{ImpactFindings: store}
 			rows := []impact.SupplyChainImpactFindingRow{{RepositoryID: runtimeFilterLiveRepository}}
 			if err := handler.applySupplyChainRuntimeContext(ctx, rows, tc.access); err != nil {
 				t.Fatalf("apply runtime context: %v", err)

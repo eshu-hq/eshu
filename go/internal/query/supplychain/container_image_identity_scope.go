@@ -20,7 +20,7 @@ import (
 // resolveContainerImageSourceRepositorySelector resolves a human source
 // repository selector under the caller's scoped grants. Out-of-grant selectors
 // return a not-found response without reading the identity or aggregate stores.
-func (h *SupplyChainHandler) resolveContainerImageSourceRepositorySelector(
+func (h *Handler) resolveContainerImageSourceRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	selector string,
@@ -32,7 +32,7 @@ func (h *SupplyChainHandler) resolveContainerImageSourceRepositorySelector(
 
 // writeEmptyContainerImageIdentityPage returns the bounded zero-identities page
 // for an empty-grant scoped token without reading the identity store.
-func (h *SupplyChainHandler) writeEmptyContainerImageIdentityPage(
+func (h *Handler) writeEmptyContainerImageIdentityPage(
 	w http.ResponseWriter,
 	r *http.Request,
 	limit int,
@@ -54,7 +54,7 @@ func (h *SupplyChainHandler) writeEmptyContainerImageIdentityPage(
 
 // writeEmptyContainerImageIdentityCount returns the zero-count aggregate shape
 // for an empty-grant scoped token without reading the aggregate store.
-func (h *SupplyChainHandler) writeEmptyContainerImageIdentityCount(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) writeEmptyContainerImageIdentityCount(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"total_identities":     0,
 		"by_outcome":           map[string]int{},
@@ -70,7 +70,7 @@ func (h *SupplyChainHandler) writeEmptyContainerImageIdentityCount(w http.Respon
 
 // writeEmptyContainerImageIdentityInventory returns the empty inventory page for
 // an empty-grant scoped token without reading the aggregate store.
-func (h *SupplyChainHandler) writeEmptyContainerImageIdentityInventory(
+func (h *Handler) writeEmptyContainerImageIdentityInventory(
 	w http.ResponseWriter,
 	r *http.Request,
 	dimension ContainerImageIdentityInventoryDimension,

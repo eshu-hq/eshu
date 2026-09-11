@@ -27,14 +27,14 @@ type PostgresAdvisoryEvidenceStore = advisory.PostgresAdvisoryEvidenceStore
 // NewPostgresAdvisoryCatalogStore constructs the Postgres-backed catalog
 // read model. Forwards unchanged to
 // advisory.NewPostgresAdvisoryCatalogStore.
-func NewPostgresAdvisoryCatalogStore(db advisory.AdvisoryEvidenceQueryer) PostgresAdvisoryCatalogStore {
+func NewPostgresAdvisoryCatalogStore(db advisory.EvidenceQueryer) PostgresAdvisoryCatalogStore {
 	return advisory.NewPostgresAdvisoryCatalogStore(db)
 }
 
 // NewPostgresAdvisoryEvidenceStore constructs the Postgres-backed advisory
 // evidence read model. Forwards unchanged to
 // advisory.NewPostgresAdvisoryEvidenceStore.
-func NewPostgresAdvisoryEvidenceStore(db advisory.AdvisoryEvidenceQueryer) PostgresAdvisoryEvidenceStore {
+func NewPostgresAdvisoryEvidenceStore(db advisory.EvidenceQueryer) PostgresAdvisoryEvidenceStore {
 	return advisory.NewPostgresAdvisoryEvidenceStore(db)
 }
 

@@ -175,8 +175,8 @@ func TestSupplyChainExplainImpactExposesOperationalAnchors(t *testing.T) {
 	if !reflect.DeepEqual(resp.Anchors.CatalogOwners, []string{"team:default/platform"}) {
 		t.Fatalf("Anchors.CatalogOwners = %#v, want catalog owner anchor", resp.Anchors.CatalogOwners)
 	}
-	assertImpactPathHopStatus(t, resp.ImpactPath, "service", "present")
-	assertImpactPathHopStatus(t, resp.ImpactPath, "environment", "present")
+	assertImpactPathHopStatus(t, resp.Path, "service", "present")
+	assertImpactPathHopStatus(t, resp.Path, "environment", "present")
 }
 
 func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
@@ -230,9 +230,9 @@ func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
 	if len(resp.Anchors.Services) != 0 {
 		t.Fatalf("Anchors.Services = %#v, want no fabricated service identity", resp.Anchors.Services)
 	}
-	assertImpactPathHopStatus(t, resp.ImpactPath, "workload", "present")
-	assertImpactPathHopStatus(t, resp.ImpactPath, "service", "present")
-	assertImpactPathHopStatus(t, resp.ImpactPath, "environment", "missing_evidence")
+	assertImpactPathHopStatus(t, resp.Path, "workload", "present")
+	assertImpactPathHopStatus(t, resp.Path, "service", "present")
+	assertImpactPathHopStatus(t, resp.Path, "environment", "missing_evidence")
 }
 
 func operationalAnchorFindingRow() impact.SupplyChainImpactFindingRow {

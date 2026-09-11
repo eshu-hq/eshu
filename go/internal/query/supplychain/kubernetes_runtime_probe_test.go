@@ -48,7 +48,7 @@ func (s *stubKubernetesWorkloadInventory) CurrentAuthorizedKubernetesRuntimeWork
 func TestKubernetesRuntimeProbeCypherIsPortableBoundedThreeArmQuery(t *testing.T) {
 	t.Parallel()
 
-	cypher := SupplyChainKubernetesRuntimeProbeCypher
+	cypher := KubernetesRuntimeProbeCypher
 	if got := strings.Count(cypher, "UNWIND $subject_digests AS candidate_digest"); got != 3 {
 		t.Fatalf("UNWIND count = %d, want 3; cypher=%s", got, cypher)
 	}
@@ -86,7 +86,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePromotesExactDigest(t *testing
 	inventory := &stubKubernetesWorkloadInventory{rows: []KubernetesRuntimeWorkloadMatch{{
 		Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-1", ClusterID: "cluster-a", Namespace: "payments", Name: "api"},
 	}}}
-	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
+	handler := &Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 	rows := []impact.SupplyChainImpactFindingRow{
 		{FindingID: "running", SubjectDigest: digest},
 		{FindingID: "other", SubjectDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
@@ -120,7 +120,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceExcludesDeniedOwnerOrEdge(t *t
 		"matched_digest": digest, "workload_uid": "kw-denied", "edge_scope_id": "scope-denied", "edge_generation_id": "gen-denied",
 	}}}
 	inventory := &stubKubernetesWorkloadInventory{}
-	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
+	handler := &Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest, EvidencePath: []string{cloudRuntimeProbeTestCICDFactKind}}}
 
 	access := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{"repository:r_allowed"}, AllowedScopeIDs: []string{"scope-allowed"}}
@@ -141,15 +141,15 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceExcludesDeniedOwnerOrEdge(t *t
 func TestApplySupplyChainKubernetesRuntimeEvidenceBoundsAndDeduplicatesDigests(t *testing.T) {
 	t.Parallel()
 
-	digests := make([]string, 0, SupplyChainCloudRuntimeProbeMaxDigests+2)
-	rows := make([]impact.SupplyChainImpactFindingRow, 0, SupplyChainCloudRuntimeProbeMaxDigests+2)
-	for i := SupplyChainCloudRuntimeProbeMaxDigests + 1; i >= 0; i-- {
+	digests := make([]string, 0, CloudRuntimeProbeMaxDigests+2)
+	rows := make([]impact.SupplyChainImpactFindingRow, 0, CloudRuntimeProbeMaxDigests+2)
+	for i := CloudRuntimeProbeMaxDigests + 1; i >= 0; i-- {
 		digest := fmt.Sprintf("sha256:%064x", i+1)
 		digests = append(digests, digest)
 		rows = append(rows, impact.SupplyChainImpactFindingRow{FindingID: digest, SubjectDigest: digest})
 	}
 	rows = append(rows, impact.SupplyChainImpactFindingRow{FindingID: "duplicate", SubjectDigest: digests[0]})
-	graphRows := make([]map[string]any, SupplyChainKubernetesRuntimeProbeMaxResults+2)
+	graphRows := make([]map[string]any, KubernetesRuntimeProbeMaxResults+2)
 	for i := range graphRows {
 		graphRows[i] = map[string]any{
 			"matched_digest": digests[0], "workload_uid": fmt.Sprintf("workload-%03d", i),
@@ -158,14 +158,14 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceBoundsAndDeduplicatesDigests(t
 	}
 	graph := &querytestutil.FakeKubernetesRuntimeGraph{Rows: graphRows}
 	inventory := &stubKubernetesWorkloadInventory{}
-	handler := &SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
+	handler := &Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}
 
 	if err := handler.applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
 	runCalls, calls := graph.Snapshot()
-	if runCalls != SupplyChainCloudRuntimeProbeMaxDigests {
-		t.Fatalf("graph calls = %d, want %d", runCalls, SupplyChainCloudRuntimeProbeMaxDigests)
+	if runCalls != CloudRuntimeProbeMaxDigests {
+		t.Fatalf("graph calls = %d, want %d", runCalls, CloudRuntimeProbeMaxDigests)
 	}
 	queryLimitTotal := 0
 	for _, call := range calls {
@@ -174,11 +174,11 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceBoundsAndDeduplicatesDigests(t
 		}
 		queryLimitTotal += call.Limit
 	}
-	if queryLimitTotal > SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("graph query limits total = %d, want <= %d", queryLimitTotal, SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if queryLimitTotal > KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("graph query limits total = %d, want <= %d", queryLimitTotal, KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
-	if len(inventory.candidates) > SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("inventory candidate count = %d, want <= %d", len(inventory.candidates), SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if len(inventory.candidates) > KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("inventory candidate count = %d, want <= %d", len(inventory.candidates), KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 }
 
@@ -188,7 +188,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePropagatesErrorsAndEmptyIsNoOp
 	digest := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
 	graphErr := errors.New("graph unavailable")
-	if err := (&SupplyChainHandler{Neo4j: &querytestutil.FakeKubernetesRuntimeGraph{Err: graphErr}, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
+	if err := (&Handler{Neo4j: &querytestutil.FakeKubernetesRuntimeGraph{Err: graphErr}, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); !errors.Is(err, graphErr) {
 		t.Fatalf("graph error = %v, want %v", err, graphErr)
 	}
@@ -196,13 +196,13 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePropagatesErrorsAndEmptyIsNoOp
 	graphWithCandidate := &querytestutil.FakeKubernetesRuntimeGraph{Rows: []map[string]any{{
 		"matched_digest": digest, "workload_uid": "kw-1", "edge_scope_id": "scope-1", "edge_generation_id": "gen-1",
 	}}}
-	if err := (&SupplyChainHandler{Neo4j: graphWithCandidate, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{err: inventoryErr}}).
+	if err := (&Handler{Neo4j: graphWithCandidate, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{err: inventoryErr}}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); !errors.Is(err, inventoryErr) {
 		t.Fatalf("inventory error = %v, want %v", err, inventoryErr)
 	}
 
 	graph := &querytestutil.FakeKubernetesRuntimeGraph{}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
+	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, nil); err != nil {
 		t.Fatalf("empty rows error = %v", err)
 	}
@@ -227,7 +227,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsMalformedAndDeduplicate
 		Digest: digest, WorkloadRef: impact.KubernetesRuntimeWorkloadRef{UID: "kw-dual", ClusterID: "cluster-a", Namespace: "default", Name: "api"},
 	}}}
 	rows := []impact.SupplyChainImpactFindingRow{{FindingID: "f", SubjectDigest: digest}}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).
+	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -243,7 +243,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceSkipsUnconfiguredGraphWithoutS
 	t.Parallel()
 
 	inventory := &stubKubernetesWorkloadInventory{}
-	handler := &SupplyChainHandler{KubernetesWorkloadInventory: inventory}
+	handler := &Handler{KubernetesWorkloadInventory: inventory}
 	rows := []impact.SupplyChainImpactFindingRow{
 		{FindingID: "empty"},
 		{FindingID: "whitespace", SubjectDigest: "  \t"},
@@ -272,7 +272,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRejectsStoreCrossFindingMismat
 		{FindingID: "a", SubjectDigest: digestA},
 		{FindingID: "b", SubjectDigest: digestB},
 	}
-	if err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).
+	if err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: inventory}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows); err != nil {
 		t.Fatalf("apply error = %v", err)
 	}
@@ -351,7 +351,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceRecordsZeroInitializedAndFinal
 			for i := range rows {
 				rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("f-%d", i), SubjectDigest: digest}
 			}
-			handler := &SupplyChainHandler{
+			handler := &Handler{
 				Neo4j:                       &querytestutil.FakeKubernetesRuntimeGraph{Rows: tt.graphRows},
 				KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{rows: tt.matches},
 			}
@@ -394,7 +394,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceErrorSpanKeepsPlannedBounds(t 
 	}
 	wantErr := errors.New("graph unavailable")
 	graph := &fairKubernetesRuntimeGraph{errorDigest: digests[0], err: wantErr}
-	err := (&SupplyChainHandler{Neo4j: graph, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
+	err := (&Handler{Neo4j: graph, KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{}}).
 		applySupplyChainKubernetesRuntimeEvidence(context.Background(), querycontract.RepositoryAccessFilter{AllScopes: true}, rows)
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("apply error = %v, want %v", err, wantErr)

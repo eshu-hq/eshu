@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryAdvisoryEvidence,
@@ -51,9 +51,9 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	filter := advisory.NormalizeAdvisoryEvidenceFilter(advisory.AdvisoryEvidenceFilter{
+	filter := advisory.NormalizeAdvisoryEvidenceFilter(advisory.EvidenceFilter{
 		CVEID:                      querycontract.QueryParam(r, "cve_id"),
-		AdvisoryID:                 querycontract.QueryParam(r, "advisory_id"),
+		ID:                         querycontract.QueryParam(r, "advisory_id"),
 		PackageID:                  querycontract.QueryParam(r, "package_id"),
 		RepositoryID:               repositoryID,
 		ServiceID:                  querycontract.QueryParam(r, "service_id"),
@@ -97,7 +97,7 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 		"truncated":  truncated,
 	}
 	if truncated && len(rows) > 0 {
-		body["next_cursor"] = map[string]string{"after_advisory_key": rows[len(rows)-1].AdvisoryKey}
+		body["next_cursor"] = map[string]string{"after_advisory_key": rows[len(rows)-1].Key}
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -107,14 +107,14 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	))
 }
 
-func advisoryEvidenceResponseScope(filter advisory.AdvisoryEvidenceFilter) map[string]string {
+func advisoryEvidenceResponseScope(filter advisory.EvidenceFilter) map[string]string {
 	filter = advisory.NormalizeAdvisoryEvidenceFilter(filter)
 	scope := make(map[string]string, 6)
 	if filter.CVEID != "" {
 		scope["cve_id"] = filter.CVEID
 	}
-	if filter.AdvisoryID != "" {
-		scope["advisory_id"] = filter.AdvisoryID
+	if filter.ID != "" {
+		scope["advisory_id"] = filter.ID
 	}
 	if filter.PackageID != "" {
 		scope["package_id"] = filter.PackageID
@@ -138,8 +138,8 @@ func requiredAdvisoryEvidenceLimit(w http.ResponseWriter, r *http.Request) (int,
 		return 0, false
 	}
 	limit, err := strconv.Atoi(raw)
-	if err != nil || limit <= 0 || limit > advisory.AdvisoryEvidenceMaxLimit {
-		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", advisory.AdvisoryEvidenceMaxLimit))
+	if err != nil || limit <= 0 || limit > advisory.EvidenceMaxLimit {
+		querycontract.WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", advisory.EvidenceMaxLimit))
 		return 0, false
 	}
 	return limit, true

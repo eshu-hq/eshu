@@ -14,12 +14,12 @@ import (
 const (
 	SBOMAttestationAttachmentsCapability       = "supply_chain.sbom_attestation_attachments.list"
 	VulnerabilityScannerReadContractCapability = "supply_chain.vulnerability_scanner.contract.read"
-	SupplyChainImpactFindingsCapability        = "supply_chain.impact_findings.list"
-	SupplyChainImpactExplanationCapability     = "supply_chain.impact_explanation.read"
+	ImpactFindingsCapability                   = "supply_chain.impact_findings.list"
+	ImpactExplanationCapability                = "supply_chain.impact_explanation.read"
 	ContainerImageIdentitiesCapability         = "supply_chain.container_image_identities.list"
 	SecurityAlertReconciliationsCapability     = "supply_chain.security_alert_reconciliations.list"
 	SBOMAttestationAttachmentMaxLimit          = 200
-	SupplyChainImpactFindingMaxLimit           = 200
+	ImpactFindingMaxLimit                      = 200
 	ContainerImageIdentityMaxLimit             = 200
 	SecurityAlertReconciliationMaxLimit        = 200
 
@@ -28,14 +28,14 @@ const (
 	// (#6060 lane A); see supply_chain_impact_alias.go.
 )
 
-// SupplyChainHandler exposes reducer-owned supply-chain read models.
-type SupplyChainHandler struct {
+// Handler exposes reducer-owned supply-chain read models.
+type Handler struct {
 	Neo4j                    querycontract.GraphQuery
 	Content                  querycontract.ContentStore
 	SBOMAttachments          SBOMAttestationAttachmentStore
 	SBOMAttachmentAggregates SBOMAttestationAttachmentAggregateStore
-	AdvisoryEvidence         advisory.AdvisoryEvidenceStore
-	AdvisoryCatalog          advisory.AdvisoryCatalogStore
+	AdvisoryEvidence         advisory.EvidenceStore
+	AdvisoryCatalog          advisory.CatalogStore
 	ImpactFindings           impact.SupplyChainImpactFindingStore
 	ImpactAggregates         impact.SupplyChainImpactAggregateStore
 	ImpactExplanations       impact.SupplyChainImpactExplanationStore
@@ -66,7 +66,7 @@ type SupplyChainHandler struct {
 	// Root package query provides it from the lane-B packet envelope; cmd
 	// wiring always injects it. A nil responder answers the packet route
 	// with 503 rather than composing without the envelope.
-	PacketResponder SupplyChainImpactPacketResponder
+	PacketResponder ImpactPacketResponder
 	Profile         querycontract.QueryProfile
 }
 
@@ -107,7 +107,7 @@ type ContainerImageIdentitySourceBridge struct {
 }
 
 // Mount registers supply-chain query routes.
-func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/vulnerability-scanner/contract", h.getVulnerabilityScannerReadContract)
 	mux.HandleFunc("GET /api/v0/supply-chain/sbom-attestations/attachments", h.listSBOMAttachments)
 	mux.HandleFunc("GET /api/v0/supply-chain/advisories", h.listAdvisoryCatalog)
@@ -125,7 +125,7 @@ func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	h.sbomAttestationAttachmentAggregateRoutes(mux)
 }
 
-func (h *SupplyChainHandler) profile() querycontract.QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil || h.Profile == "" {
 		return querycontract.ProfileProduction
 	}

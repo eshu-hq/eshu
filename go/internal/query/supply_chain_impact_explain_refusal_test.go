@@ -71,8 +71,8 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	if len(resp.Evidence) != 0 {
 		t.Fatalf("Evidence = %#v, want empty bounded refusal evidence list", resp.Evidence)
 	}
-	if len(resp.ImpactPath) != 0 {
-		t.Fatalf("ImpactPath = %#v, want no fabricated impact path", resp.ImpactPath)
+	if len(resp.Path) != 0 {
+		t.Fatalf("Path = %#v, want no fabricated impact path", resp.Path)
 	}
 	if got, want := resp.Anchors.RepositoryID, "repo://example/api"; got != want {
 		t.Fatalf("Anchors.RepositoryID = %q, want %q", got, want)

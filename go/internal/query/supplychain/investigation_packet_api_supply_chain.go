@@ -12,12 +12,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// SupplyChainImpactPacketResponder composes and writes the portable
+// ImpactPacketResponder composes and writes the portable
 // investigation packet for a supply-chain impact explanation. Root package
 // query implements it from the lane-B packet envelope
 // (BuildSupplyChainImpactPacket, the refusal composer, and the packet
 // writer); cmd wiring injects that implementation into
-// SupplyChainHandler.PacketResponder.
+// Handler.PacketResponder.
 //
 // The seam exists because the packet envelope types live in root, which
 // this package cannot import without a cycle through root's compatibility
@@ -26,7 +26,7 @@ import (
 // request inside root's implementation, exactly as before the move. If
 // lane-B moves the envelope to an importable leaf, collapse this seam back
 // to direct calls and delete the responder.
-type SupplyChainImpactPacketResponder interface {
+type ImpactPacketResponder interface {
 	// RespondSupplyChainImpactPacket composes body and truth into the
 	// portable packet (bounds from the request's max_source_facts, contract
 	// defaults when absent) and writes it.
@@ -42,30 +42,30 @@ type SupplyChainImpactPacketResponder interface {
 	RespondSupplyChainImpactScopeRefusal(w http.ResponseWriter, r *http.Request)
 }
 
-func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySupplyChainImpactExplanation,
 		"GET /api/v0/investigations/supply-chain/impact/packet",
-		SupplyChainImpactExplanationCapability,
+		ImpactExplanationCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), SupplyChainImpactExplanationCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), ImpactExplanationCapability) {
 		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"supply-chain impact packets require the Postgres reducer read model",
 			querycontract.ErrorCodeUnsupportedCapability,
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactExplanationCapability),
+			querycontract.RequiredProfile(ImpactExplanationCapability),
 		)
 		return
 	}
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
-	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, SupplyChainImpactExplanationCapability)
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, ImpactExplanationCapability)
 	if !ok {
 		return
 	}
@@ -76,9 +76,9 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 			http.StatusServiceUnavailable,
 			"supply-chain impact packets require the Postgres reducer read model",
 			querycontract.ErrorCodeBackendUnavailable,
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactExplanationCapability),
+			querycontract.RequiredProfile(ImpactExplanationCapability),
 		)
 		return
 	}
@@ -108,9 +108,9 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 			http.StatusServiceUnavailable,
 			"supply-chain impact packets require the Postgres reducer read model",
 			querycontract.ErrorCodeBackendUnavailable,
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactExplanationCapability),
+			querycontract.RequiredProfile(ImpactExplanationCapability),
 		)
 		return
 	}
@@ -121,7 +121,7 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
 		truth := querycontract.BuildTruthEnvelope(
 			h.profile(),
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			querycontract.TruthBasisSemanticFacts,
 			"no reducer-owned impact finding matched the bounded explanation scope; readiness explains missing evidence",
 		)
@@ -137,7 +137,7 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 		)
 		truth := querycontract.BuildTruthEnvelope(
 			h.profile(),
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			querycontract.TruthBasisSemanticFacts,
 			"bounded explanation scope matched multiple reducer-owned impact findings; provide finding_id or a narrower advisory/package/repository/image/workload/service scope",
 		)
@@ -155,7 +155,7 @@ func (h *SupplyChainHandler) getImpactPacket(w http.ResponseWriter, r *http.Requ
 	body := impact.BuildSupplyChainImpactExplanation(filter, row, readiness)
 	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactExplanationCapability,
+		ImpactExplanationCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from one reducer-owned impact finding and its bounded evidence fact ids; reachability and deployment anchors are reported only when evidence exists",
 	)

@@ -14,9 +14,9 @@ import (
 )
 
 func BenchmarkApplySupplyChainKubernetesRuntimeEvidence200Digests(b *testing.B) {
-	rows := make([]impact.SupplyChainImpactFindingRow, SupplyChainCloudRuntimeProbeMaxDigests)
-	graphRows := make([]map[string]any, SupplyChainKubernetesRuntimeProbeMaxResults)
-	matches := make([]KubernetesRuntimeWorkloadMatch, SupplyChainKubernetesRuntimeProbeMaxResults)
+	rows := make([]impact.SupplyChainImpactFindingRow, CloudRuntimeProbeMaxDigests)
+	graphRows := make([]map[string]any, KubernetesRuntimeProbeMaxResults)
+	matches := make([]KubernetesRuntimeWorkloadMatch, KubernetesRuntimeProbeMaxResults)
 	for i := range rows {
 		digest := fmt.Sprintf("sha256:%064x", i+1)
 		uid := fmt.Sprintf("workload-%03d", i)
@@ -32,7 +32,7 @@ func BenchmarkApplySupplyChainKubernetesRuntimeEvidence200Digests(b *testing.B) 
 			},
 		}
 	}
-	handler := &SupplyChainHandler{
+	handler := &Handler{
 		Neo4j:                       &querytestutil.FakeKubernetesRuntimeGraph{Rows: graphRows},
 		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{rows: matches},
 	}

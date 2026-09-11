@@ -153,10 +153,10 @@ func sourceConfidenceLabel(values map[string]struct{}) string {
 	return "mixed"
 }
 
-func sortAdvisoryEvidence(row *AdvisoryEvidenceRow) {
+func sortAdvisoryEvidence(row *EvidenceRow) {
 	sort.Slice(row.Sources, func(i, j int) bool {
 		if row.Sources[i].Source == row.Sources[j].Source {
-			return row.Sources[i].AdvisoryID < row.Sources[j].AdvisoryID
+			return row.Sources[i].ID < row.Sources[j].ID
 		}
 		return row.Sources[i].Source < row.Sources[j].Source
 	})

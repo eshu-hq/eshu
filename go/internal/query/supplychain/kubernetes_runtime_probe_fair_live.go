@@ -68,7 +68,7 @@ func KubernetesRuntimeCandidates(rows []map[string]any) []KubernetesRuntimeCandi
 
 // ApplySupplyChainKubernetesRuntimeEvidenceLive applies the runtime evidence
 // probe to findings rows. See applySupplyChainKubernetesRuntimeEvidence.
-func (h *SupplyChainHandler) ApplySupplyChainKubernetesRuntimeEvidenceLive(
+func (h *Handler) ApplySupplyChainKubernetesRuntimeEvidenceLive(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
 	rows []impact.SupplyChainImpactFindingRow,

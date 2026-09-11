@@ -29,7 +29,7 @@ import (
 func TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisory.AdvisoryEvidenceFactRow{
+	rows := []advisory.EvidenceFactRow{
 		factRow("cve-missing-advisory-id", "vulnerability.cve", `{
 			"source": "osv",
 			"cve_id": "CVE-2026-9001",
@@ -52,7 +52,7 @@ func TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField(t *tes
 func TestBuildAdvisoryEvidenceRowsDropsAffectedPackageMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisory.AdvisoryEvidenceFactRow{
+	rows := []advisory.EvidenceFactRow{
 		factRow("pkg-missing-advisory-id", "vulnerability.affected_package", `{
 			"source": "osv",
 			"cve_id": "CVE-2026-9002",
@@ -81,7 +81,7 @@ func TestBuildAdvisoryEvidenceRowsDropsAffectedPackageMissingRequiredField(t *te
 func TestBuildAdvisoryEvidenceRowsDropsUnsupportedSchemaMajor(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisory.AdvisoryEvidenceFactRow{
+	rows := []advisory.EvidenceFactRow{
 		factRowWithSchema("cve-future-major", "vulnerability.cve", "2.0.0", `{
 			"source": "osv",
 			"advisory_id": "GHSA-future-major",
@@ -106,7 +106,7 @@ func TestBuildAdvisoryEvidenceRowsDropsUnsupportedSchemaMajor(t *testing.T) {
 func TestBuildAdvisoryEvidenceRowsAbsentSchemaVersionDecodesAsV1(t *testing.T) {
 	t.Parallel()
 
-	rows := []advisory.AdvisoryEvidenceFactRow{
+	rows := []advisory.EvidenceFactRow{
 		factRowWithSchema("cve-no-version", "vulnerability.cve", "", `{
 			"source": "osv",
 			"advisory_id": "GHSA-no-version",
@@ -126,7 +126,7 @@ func TestBuildAdvisoryEvidenceRowsAbsentSchemaVersionDecodesAsV1(t *testing.T) {
 
 // factRowWithSchema builds an advisoryEvidenceFactRow with an explicit
 // persisted schema_version, for the schema-version dead-letter cases above.
-func factRowWithSchema(factID string, factKind string, schemaVersion string, payload string) advisory.AdvisoryEvidenceFactRow {
+func factRowWithSchema(factID string, factKind string, schemaVersion string, payload string) advisory.EvidenceFactRow {
 	row := factRow(factID, factKind, payload)
 	row.SchemaVersion = schemaVersion
 	return row

@@ -134,7 +134,7 @@ func assertRuntimeRepositoryPrecedenceHydration(
 	wantSelector bool,
 ) {
 	t.Helper()
-	handler := &SupplyChainHandler{ImpactFindings: store}
+	handler := &Handler{ImpactFindings: store}
 	rows := []impact.SupplyChainImpactFindingRow{{RepositoryID: repositoryID}}
 	access := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{repositoryID}}
 	if err := handler.applySupplyChainRuntimeContext(ctx, rows, access); err != nil {

@@ -123,7 +123,7 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 		},
 	},
 
-	// SupplyChainHandler.listSBOMAttachments -> h.SBOMAttachments
+	// Handler.listSBOMAttachments -> h.SBOMAttachments
 	// (PostgresSBOMAttestationAttachmentStore): fact_kind = $1 bound to
 	// "reducer_sbom_attestation_attachment"
 	// (sbomAttestationAttachmentFactKind in
@@ -132,7 +132,7 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// support view — disclosed, not served.
 	"GET /api/v0/supply-chain/sbom-attestations/attachments": {
 		RegistrationFile: "go/internal/query/supplychain/handler.go",
-		HandlerStruct:    "SupplyChainHandler",
+		HandlerStruct:    "Handler",
 		StructFile:       "go/internal/query/supplychain/handler.go",
 		Method:           "listSBOMAttachments",
 		MethodFile:       "go/internal/query/supplychain/sbom_attachments.go",
@@ -157,14 +157,14 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 		}},
 	},
 
-	// SupplyChainHandler.listSecurityAlertReconciliations ->
+	// Handler.listSecurityAlertReconciliations ->
 	// h.SecurityAlerts (PostgresSecurityAlertReconciliationStore):
 	// fact_kind = $1 bound to "reducer_security_alert_reconciliation"
 	// (the factKind const in go/internal/query/supplychain/alerts/store.go,
 	// used by queries.go's listQuery).
 	"GET /api/v0/supply-chain/security-alerts/reconciliations": {
 		RegistrationFile: "go/internal/query/supplychain/handler.go",
-		HandlerStruct:    "SupplyChainHandler",
+		HandlerStruct:    "Handler",
 		StructFile:       "go/internal/query/supplychain/handler.go",
 		Method:           "listSecurityAlertReconciliations",
 		MethodFile:       "go/internal/query/supplychain/security_alerts.go",

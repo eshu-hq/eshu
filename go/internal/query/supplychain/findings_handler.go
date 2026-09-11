@@ -14,25 +14,25 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySupplyChainImpactFindings,
 		"GET /api/v0/supply-chain/impact/findings",
-		SupplyChainImpactFindingsCapability,
+		ImpactFindingsCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), SupplyChainImpactFindingsCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), ImpactFindingsCapability) {
 		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"supply-chain impact findings require the Postgres reducer read model",
 			querycontract.ErrorCodeUnsupportedCapability,
-			SupplyChainImpactFindingsCapability,
+			ImpactFindingsCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactFindingsCapability),
+			querycontract.RequiredProfile(ImpactFindingsCapability),
 		)
 		return
 	}
@@ -44,7 +44,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ImpactFindingsScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.FindingsScannerFilters()) {
 		return
 	}
 	advisoryID := querycontract.QueryParam(r, "advisory_id")
@@ -78,7 +78,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		h.writeEmptyImpactFindingsPage(w, r, limit, profile)
 		return
 	}
-	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, SupplyChainImpactFindingsCapability)
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, ImpactFindingsCapability)
 	if !ok {
 		return
 	}
@@ -119,9 +119,9 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 			http.StatusServiceUnavailable,
 			"supply-chain impact findings require the Postgres reducer read model",
 			querycontract.ErrorCodeBackendUnavailable,
-			SupplyChainImpactFindingsCapability,
+			ImpactFindingsCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactFindingsCapability),
+			querycontract.RequiredProfile(ImpactFindingsCapability),
 		)
 		return
 	}
@@ -150,7 +150,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	// graph candidate through current, caller-authorized workload-owner and edge
 	// generations before allowing it to become live deployment evidence.
 	if err := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, SupplyChainImpactFindingsCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, ImpactFindingsCapability) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact kubernetes runtime evidence probe failed")
@@ -167,7 +167,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	// after a failed read would be indistinguishable from "nothing runs this"
 	// on a security surface, so no failure path returns a false empty.
 	if err := h.applySupplyChainRuntimeContext(r.Context(), rows, access); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, SupplyChainImpactFindingsCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, ImpactFindingsCapability) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime context probe failed")
@@ -231,7 +231,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	}
 	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactFindingsCapability,
+		ImpactFindingsCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from reducer-owned impact facts; CVSS, EPSS, KEV, reachability, missing evidence, and readiness coverage remain separate",
 	)
@@ -315,7 +315,7 @@ func applyWinnersFreshness(truth *querycontract.TruthEnvelope, fr impact.SupplyC
 	querycontract.WithFreshnessCause(truth, querycontract.FreshnessCauseReducerBacklog)
 }
 
-func (h *SupplyChainHandler) readSupplyChainImpactReadinessSnapshot(
+func (h *Handler) readSupplyChainImpactReadinessSnapshot(
 	r *http.Request,
 	scope impact.SupplyChainImpactTargetScope,
 ) (impact.SupplyChainImpactReadinessSnapshot, error) {

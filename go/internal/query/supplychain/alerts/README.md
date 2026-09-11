@@ -9,7 +9,7 @@ lookup, and the cheap-summary aggregate count and grouped inventory reads.
 ## Ownership boundary
 
 Read-only Postgres store implementations for one supplychain family. Does not
-own the HTTP handler (`supplychain.SupplyChainHandler`), the port
+own the HTTP handler (`supplychain.Handler`), the port
 interfaces, or the filter/row/limit types the handlers and stores share --
 those live in `supplychain/`. Does not own the reducer writer that produces
 the `reducer_security_alert_reconciliation` fact

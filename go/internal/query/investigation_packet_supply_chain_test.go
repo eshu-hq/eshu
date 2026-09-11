@@ -49,7 +49,7 @@ func completeSupplyChainResult() impact.SupplyChainImpactExplanationResult {
 			Workloads:    []string{"workload:checkout"},
 			Services:     []string{"service:checkout"},
 		},
-		ImpactPath: []impact.SupplyChainImpactPathHop{
+		Path: []impact.SupplyChainImpactPathHop{
 			{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 			{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
 			{Hop: "image", Status: "present"},
@@ -117,7 +117,7 @@ func graphAnswerForHop(answers []PacketGraphAnswer, hop string) *PacketGraphAnsw
 
 func TestBuildSupplyChainImpactPacketMissingSBOM(t *testing.T) {
 	result := completeSupplyChainResult()
-	result.ImpactPath = []impact.SupplyChainImpactPathHop{
+	result.Path = []impact.SupplyChainImpactPathHop{
 		{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 		{Hop: "sbom", Status: "missing_evidence", MissingEvidence: []string{"no SBOM document links the advisory to an image"}},
 	}
@@ -138,7 +138,7 @@ func TestBuildSupplyChainImpactPacketMissingSBOM(t *testing.T) {
 
 func TestBuildSupplyChainImpactPacketMissingWorkload(t *testing.T) {
 	result := completeSupplyChainResult()
-	result.ImpactPath = []impact.SupplyChainImpactPathHop{
+	result.Path = []impact.SupplyChainImpactPathHop{
 		{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 		{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
 		{Hop: "image", Status: "present"},

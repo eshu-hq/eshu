@@ -60,7 +60,7 @@ func TestLiveKubernetesRuntimeProbePerformance(t *testing.T) {
 	reader := NewNeo4jReader(driver, "nornic")
 	store := NewPostgresKubernetesRuntimeWorkloadStore(db)
 	digests, candidates := seedKubernetesRuntimePerformanceDataset(t, ctx, driver, db)
-	sum := sha256.Sum256([]byte(supplychain.SupplyChainKubernetesRuntimeProbeCypher))
+	sum := sha256.Sum256([]byte(supplychain.KubernetesRuntimeProbeCypher))
 	if got := hex.EncodeToString(sum[:]); got != kubernetesRuntimeCypherSHA256 {
 		t.Fatalf("production Kubernetes runtime Cypher SHA-256 = %s, want %s", got, kubernetesRuntimeCypherSHA256)
 	}
@@ -76,8 +76,8 @@ ORDER BY matched_digest, workload_uid LIMIT 1`, nil)
 	t.Logf("seeded production graph row: %#v", seeded[0])
 	probeParams := map[string]any{
 		"subject_digests": []string{digests[0]},
-		"evidence_source": supplychain.SupplyChainKubernetesRuntimeEvidenceSource,
-		"resolution_mode": supplychain.SupplyChainKubernetesRuntimeResolutionMode,
+		"evidence_source": supplychain.KubernetesRuntimeEvidenceSource,
+		"resolution_mode": supplychain.KubernetesRuntimeResolutionMode,
 		"limit":           2,
 	}
 	filtered, err := reader.Run(ctx, `UNWIND $subject_digests AS candidate_digest
@@ -91,7 +91,7 @@ ORDER BY matched_digest, workload_uid LIMIT $limit`, probeParams)
 	if err != nil || len(filtered) != 2 {
 		t.Fatalf("read filtered single-arm graph shape: rows=%d error=%v", len(filtered), err)
 	}
-	exact, err := reader.Run(ctx, supplychain.SupplyChainKubernetesRuntimeProbeCypher, probeParams)
+	exact, err := reader.Run(ctx, supplychain.KubernetesRuntimeProbeCypher, probeParams)
 	if err != nil || len(exact) != 2 {
 		t.Fatalf("read exact production graph shape: rows=%d error=%v", len(exact), err)
 	}
@@ -101,11 +101,11 @@ ORDER BY matched_digest, workload_uid LIMIT $limit`, probeParams)
 	if err != nil {
 		t.Fatalf("run real balanced fanout: %v", err)
 	}
-	if fanout.MaxConcurrency() < 2 || fanout.MaxConcurrency() > supplychain.SupplyChainKubernetesRuntimeProbeMaxConcurrency {
-		t.Fatalf("real fanout max concurrency = %d, want 2..%d", fanout.MaxConcurrency(), supplychain.SupplyChainKubernetesRuntimeProbeMaxConcurrency)
+	if fanout.MaxConcurrency() < 2 || fanout.MaxConcurrency() > supplychain.KubernetesRuntimeProbeMaxConcurrency {
+		t.Fatalf("real fanout max concurrency = %d, want 2..%d", fanout.MaxConcurrency(), supplychain.KubernetesRuntimeProbeMaxConcurrency)
 	}
-	if got := len(fanout.Candidates()); got != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("real fanout candidates = %d, want %d", got, supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if got := len(fanout.Candidates()); got != supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("real fanout candidates = %d, want %d", got, supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 	t.Logf("real driver fanout: queries=%d candidate_limit=%d max_concurrency=%d", len(plans), fanout.PlannedCandidateLimit(), fanout.MaxConcurrency())
 
@@ -238,11 +238,11 @@ func runLegacyKubernetesRuntimePerformance(
 ) kubernetesRuntimePerformanceResult {
 	t.Helper()
 	started := time.Now()
-	rows, err := reader.Run(ctx, supplychain.SupplyChainKubernetesRuntimeProbeCypher, map[string]any{
+	rows, err := reader.Run(ctx, supplychain.KubernetesRuntimeProbeCypher, map[string]any{
 		"subject_digests": digests,
-		"evidence_source": supplychain.SupplyChainKubernetesRuntimeEvidenceSource,
-		"resolution_mode": supplychain.SupplyChainKubernetesRuntimeResolutionMode,
-		"limit":           supplychain.SupplyChainKubernetesRuntimeProbeMaxResults,
+		"evidence_source": supplychain.KubernetesRuntimeEvidenceSource,
+		"resolution_mode": supplychain.KubernetesRuntimeResolutionMode,
+		"limit":           supplychain.KubernetesRuntimeProbeMaxResults,
 	})
 	if err != nil {
 		t.Fatalf("run legacy global graph probe: %v", err)
@@ -297,7 +297,7 @@ func openKubernetesRuntimePerformanceGraph(
 		t.Fatal("ESHU_NEO4J_URI is required for the live performance proof")
 	}
 	driver, err := neo4jdriver.NewDriverWithContext(uri, neo4jdriver.NoAuth(), func(config *neo4jdriver.Config) {
-		config.MaxConnectionPoolSize = supplychain.SupplyChainKubernetesRuntimeProbeMaxConcurrency
+		config.MaxConnectionPoolSize = supplychain.KubernetesRuntimeProbeMaxConcurrency
 	})
 	if err != nil {
 		t.Fatalf("open NornicDB driver: %v", err)
@@ -317,7 +317,7 @@ func seedKubernetesRuntimePerformanceDataset(
 	db *sql.DB,
 ) ([]string, []KubernetesRuntimeCandidate) {
 	t.Helper()
-	digests := make([]string, supplychain.SupplyChainKubernetesRuntimeProbeMaxResults)
+	digests := make([]string, supplychain.KubernetesRuntimeProbeMaxResults)
 	candidates := make([]KubernetesRuntimeCandidate, 0, 1398)
 	graphRows := make([]map[string]any, 0, 1398)
 	for i := range digests {
@@ -358,8 +358,8 @@ SET runtime.evidence_source = $evidence_source,
     runtime.source_digest = row.digest,
     runtime.scope_id = $scope_id,
     runtime.generation_id = $generation_id`, map[string]any{
-		"rows": graphRows, "evidence_source": supplychain.SupplyChainKubernetesRuntimeEvidenceSource,
-		"resolution_mode": supplychain.SupplyChainKubernetesRuntimeResolutionMode,
+		"rows": graphRows, "evidence_source": supplychain.KubernetesRuntimeEvidenceSource,
+		"resolution_mode": supplychain.KubernetesRuntimeResolutionMode,
 		"scope_id":        kubernetesRuntimePerformanceScope, "generation_id": kubernetesRuntimePerformanceGen,
 	})
 	t.Cleanup(func() {
@@ -430,8 +430,8 @@ func assertKubernetesRuntimeCancellationRecovery(
 	if err != nil {
 		t.Fatalf("fanout after cancellation: %v", err)
 	}
-	if len(recovered.Candidates()) != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("fanout after cancellation candidates = %d, want %d", len(recovered.Candidates()), supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if len(recovered.Candidates()) != supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("fanout after cancellation candidates = %d, want %d", len(recovered.Candidates()), supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 	t.Logf("cancellation recovery: canceled request drained; next request candidates=%d", len(recovered.Candidates()))
 }

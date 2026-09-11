@@ -12,29 +12,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySupplyChainImpactExplanation,
 		"GET /api/v0/supply-chain/impact/explain",
-		SupplyChainImpactExplanationCapability,
+		ImpactExplanationCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), SupplyChainImpactExplanationCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), ImpactExplanationCapability) {
 		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"supply-chain impact explanations require the Postgres reducer read model",
 			querycontract.ErrorCodeUnsupportedCapability,
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactExplanationCapability),
+			querycontract.RequiredProfile(ImpactExplanationCapability),
 		)
 		return
 	}
-	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ImpactExplanationScannerFilters()) {
+	if !impact.RejectUnsupportedVulnerabilityScannerFilters(w, r, impact.ExplanationScannerFilters()) {
 		return
 	}
 	// Resolve scoped-token grants before any repository-selector, reducer, or
@@ -47,7 +47,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		h.writeEmptyImpactExplanation(w, r)
 		return
 	}
-	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, SupplyChainImpactExplanationCapability)
+	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, ImpactExplanationCapability)
 	if !ok {
 		return
 	}
@@ -77,9 +77,9 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 			http.StatusServiceUnavailable,
 			"supply-chain impact explanations require the Postgres reducer read model",
 			querycontract.ErrorCodeBackendUnavailable,
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			h.profile(),
-			querycontract.RequiredProfile(SupplyChainImpactExplanationCapability),
+			querycontract.RequiredProfile(ImpactExplanationCapability),
 		)
 		return
 	}
@@ -90,7 +90,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
 		querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 			h.profile(),
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			querycontract.TruthBasisSemanticFacts,
 			"no reducer-owned impact finding matched the bounded explanation scope; readiness explains missing evidence",
 		))
@@ -105,7 +105,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		)
 		querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 			h.profile(),
-			SupplyChainImpactExplanationCapability,
+			ImpactExplanationCapability,
 			querycontract.TruthBasisSemanticFacts,
 			"bounded explanation scope matched multiple reducer-owned impact findings; provide finding_id or a narrower advisory/package/repository/image/workload/service scope",
 		))
@@ -125,7 +125,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := h.applySupplyChainKubernetesRuntimeEvidence(r.Context(), access, rows); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, SupplyChainImpactExplanationCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, ImpactExplanationCapability) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact kubernetes runtime evidence probe failed")
@@ -143,7 +143,7 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	// capability and resolves at most one repository, well inside what list
 	// already resolves for a full page.
 	if err := h.applySupplyChainRuntimeContext(r.Context(), rows, access); err != nil {
-		if querycontract.WriteGraphReadError(w, r, err, SupplyChainImpactExplanationCapability) {
+		if querycontract.WriteGraphReadError(w, r, err, ImpactExplanationCapability) {
 			return
 		}
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime context probe failed")
@@ -157,13 +157,13 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 	body := impact.BuildSupplyChainImpactExplanation(filter, row, readiness)
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		SupplyChainImpactExplanationCapability,
+		ImpactExplanationCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from one reducer-owned impact finding and its bounded evidence fact ids; reachability and deployment anchors are reported only when evidence exists",
 	))
 }
 
-func (h *SupplyChainHandler) readSupplyChainImpactReadinessForScope(
+func (h *Handler) readSupplyChainImpactReadinessForScope(
 	r *http.Request,
 	scope impact.SupplyChainImpactTargetScope,
 	findings []impact.SupplyChainImpactFindingResult,

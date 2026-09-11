@@ -35,7 +35,7 @@ Read `doc.go` and `README.md` first.
 - The probes MUST keep eligibility inside the bound
   (docs/internal/evidence/5789-per-digest-bound.md): bounding candidates
   first and authorizing after returns wrong answers on crowded pages.
-- The packet route MUST compose through `SupplyChainImpactPacketResponder`
+- The packet route MUST compose through `ImpactPacketResponder`
   and MUST NOT name lane-B packet types. If lane-B moves the envelope to
   a leaf, collapse this seam to direct calls and delete the responder.
 - Files must stay under 500 lines. Watch
@@ -47,7 +47,7 @@ Read `doc.go` and `README.md` first.
 Every export below names a staying root caller — no speculative API. Do
 not export a new symbol without adding its caller to this list.
 
-- `SupplyChainHandler` — root `handler.go` field, `cmd/api` and
+- `Handler` — root `handler.go` field, `cmd/api` and
   `cmd/mcp-server` wiring, staying root tests (via the root alias).
 - `ContainerImageIdentityResult`, `ContainerImageIdentitySourceBridge` —
   the hub list handler and the staying source-bridge test (via the root
@@ -69,7 +69,7 @@ not export a new symbol without adding its caller to this list.
   `entity.go`, the incident-context stores, and `cmd/*` wiring (via the
   root aliases). The three filter `HasScope` methods are exported because
   the staying implementations call them across the boundary (advisory
-  precedent: `AdvisoryEvidenceFilter.HasScope`).
+  precedent: `advisory.EvidenceFilter.HasScope`).
 - `CloudResourceCurrentInventoryFilter`,
   `CloudResourceRuntimeDigestResolver`, `CloudResourceRuntimeDigestMatch` —
   staying `cloud_resource_list_store.go` and its tests (via the root
@@ -90,7 +90,7 @@ not export a new symbol without adding its caller to this list.
 - `SecurityAlertRepositoryScopeIDs` — the moved
   `alerts/store.go` and `alerts/aggregates.go` (direct import, #6642; no
   longer a root forward, since those files left root).
-- `SupplyChainCloudRuntimeProbePerDigestLimit` — staying
+- `CloudRuntimeProbePerDigestLimit` — staying
   `cloud_resource_list_store.go` (via root forward).
 - `BoundedSBOMWarningSummaries`,
   `SBOMAttestationWarningSummaryPreviewMaxCount` — staying
@@ -103,15 +103,15 @@ not export a new symbol without adding its caller to this list.
   `SBOMAttestationAttachmentAggregateScope` — the staying aggregate
   tests, which pin them directly (via root forwards).
 - `PlanSupplyChainRuntimeEnvironmentCandidates`,
-  `SupplyChainRuntimeEnvironmentPlan`,
+  `RuntimeEnvironmentPlan`,
   `MaxSupplyChainRuntimeEnvironmentCandidates` — the staying
   runtime-context tests (via root forwards).
-- `SupplyChainKubernetesRuntimeEvidenceSource`,
-  `SupplyChainKubernetesRuntimeResolutionMode` — staying
+- `KubernetesRuntimeEvidenceSource`,
+  `KubernetesRuntimeResolutionMode` — staying
   `queryplan_profile_params_test.go` (via root forwards).
 - `BuildContainerImageIdentitySourceBridge` — the staying source-bridge
   test (via root forward).
-- `SupplyChainImpactPacketResponder` — root's lane-B packet responder
+- `ImpactPacketResponder` — root's lane-B packet responder
   implementation and `cmd/*` wiring, which inject it.
 
 ## Where the tests live
