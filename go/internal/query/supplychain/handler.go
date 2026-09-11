@@ -11,6 +11,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
 )
 
+// Capability strings key this family's rows in the root contract capability
+// matrix (see supply_chain_hub_alias.go's exported/unexported forwards) and
+// gate each route via querycontract.CapabilityUnsupported. The MaxLimit
+// constants bound the page size a caller may request from the
+// corresponding route's `limit` query parameter; a request above the bound
+// is rejected with a 400, not silently clamped.
 const (
 	SBOMAttestationAttachmentsCapability       = "supply_chain.sbom_attestation_attachments.list"
 	VulnerabilityScannerReadContractCapability = "supply_chain.vulnerability_scanner.contract.read"
@@ -19,9 +25,14 @@ const (
 	ContainerImageIdentitiesCapability         = "supply_chain.container_image_identities.list"
 	SecurityAlertReconciliationsCapability     = "supply_chain.security_alert_reconciliations.list"
 	SBOMAttestationAttachmentMaxLimit          = 200
-	ImpactFindingMaxLimit                      = 200
-	ContainerImageIdentityMaxLimit             = 200
-	SecurityAlertReconciliationMaxLimit        = 200
+	// ImpactFindingMaxLimit does NOT bound the impact-findings route's page
+	// size (that bound is impact.supplyChainImpactFindingMaxLimit, a
+	// deliberate family-local copy of the same value -- see
+	// supplychain/impact/AGENTS.md). It exists only to derive
+	// MaxSupplyChainRuntimeEnvironmentCandidates (runtime_context_probe.go).
+	ImpactFindingMaxLimit               = 200
+	ContainerImageIdentityMaxLimit      = 200
+	SecurityAlertReconciliationMaxLimit = 200
 
 	// impact.SupplyChainImpactProfilePrecise and impact.SupplyChainImpactProfileComprehensive
 	// moved to internal/query/supplychain/impact with the impact read models

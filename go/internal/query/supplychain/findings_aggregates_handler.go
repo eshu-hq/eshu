@@ -12,6 +12,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// ImpactAggregateCapability is the capability string that gates the
+// cheap-summary impact-findings aggregate routes (count and inventory),
+// distinct from ImpactFindingsCapability's row-level list route: a caller
+// may be authorized for one without the other.
 const ImpactAggregateCapability = "supply_chain.impact_findings.aggregate"
 
 // supplyChainImpactAggregateRoutes registers the cheap-summary aggregate routes
