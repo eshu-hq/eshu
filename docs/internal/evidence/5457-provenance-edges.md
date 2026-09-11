@@ -11,7 +11,7 @@ decisions, mirroring the `package_registry_edge_writer.go` Cypher shape and the
 ## BUILT_FROM join-key decision: digest, not uid
 
 `ContainerImageIdentityDecision`
-(`go/internal/reducer/container_image_identity.go:63-82`) carries `ImageRef`
+(`go/internal/reducer/containerimage/container_image_identity.go`) carries `ImageRef`
 and `Digest` only — there is no field carrying the `OciImageManifest`/
 `ContainerImage` node's `uid`. The canonical OCI writer
 (`go/internal/storage/cypher/oci_registry_canonical_writer.go:35-45`) MERGEs

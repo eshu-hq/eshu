@@ -106,7 +106,7 @@ or B-12 snapshot value was changed in this slice.
 
 The scenario drives `WriteServiceAccountNodes`, one of NINE `Write*` families
 the projection handler can call per intent
-(`go/internal/reducer/secrets_iam_graph_projection.go:28-36`: four node
+(`go/internal/reducer/secretsiam/secrets_iam_graph_projection.go`: four node
 families — ServiceAccount, VaultAuthRole, VaultPolicy, SecretMetadataPath —
 and five edge families — UsesServiceAccount, AssumesIAMRole,
 AuthenticatesVaultRole, UsesVaultPolicy, GrantsSecretRead). One family is

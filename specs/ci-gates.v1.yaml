@@ -1506,6 +1506,34 @@ gates:
     # tests/fixtures/** triggers are deliberate: a source edit, hidden tracked doc,
     # test-file split, or fixture move must re-run this gate in the SAME PR that
     # causes the drift, not wait for someone to notice a stale citation later.
+  - id: moved-file-refs
+    name: Moved-file reference guard
+    category: exactness
+    tier: pre-pr
+    blocking: true
+    triggers:
+      - "go/**"
+      - "scripts/verify-moved-file-refs.sh"
+      - "scripts/test-verify-moved-file-refs.sh"
+      - "scripts/moved-file-refs-allowlist.txt"
+      - "scripts/lib/gate-diff-base.sh"
+      - "specs/ci-gates.v1.yaml"
+      - ".github/workflows/static-contract-gates.yml"
+    self_test_triggers:
+      - "scripts/verify-moved-file-refs.sh"
+      - "scripts/test-verify-moved-file-refs.sh"
+      - "scripts/moved-file-refs-allowlist.txt"
+      - "scripts/lib/gate-diff-base.sh"
+      - "specs/ci-gates.v1.yaml"
+      - ".github/workflows/static-contract-gates.yml"
+    local:
+      command: "bash scripts/verify-moved-file-refs.sh"
+      test_command: "bash scripts/test-verify-moved-file-refs.sh"
+    ci:
+      workflow: static-contract-gates.yml
+      job: "Verify moved-file-refs gate"
+    requirements: []
+    ci_only_reason: ""
 
   - id: measurement-citations
     name: Measurement ledger citation gate

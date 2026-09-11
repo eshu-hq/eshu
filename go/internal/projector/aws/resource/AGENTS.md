@@ -87,7 +87,7 @@
 - **A stale citation of the pre-extraction unexported name.** Before this
   move, `buildAWSResourceMaterializationReducerIntent` was named by six
   places outside the file that defined it, including
-  `go/internal/reducer/ec2_uses_profile_materialization.go` and a synthetic
+  `go/internal/reducer/ec2usesprofile/ec2_uses_profile_materialization.go` and a synthetic
   AST fixture in `../../reducer_intent_probe_count_test.go` labelled "root
   builder", which would have kept naming a function that no longer exists. No
   gate scans `docs/internal/**`, so sweep the whole repository — not just

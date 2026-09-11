@@ -11,7 +11,7 @@
 -- nextval() against the SAME shared Postgres instance, so the value reflects
 -- real invocation order (which pass called nextval() more recently), never
 -- any individual host's clock. See
--- go/internal/reducer/aws_cloud_runtime_drift_admission.go's
+-- go/internal/reducer/awscloud/aws_cloud_runtime_drift_admission.go's
 -- awsCloudRuntimeDriftFencingToken doc comment for why the token is still
 -- issued at EVIDENCE-READ time (in AWSCloudRuntimeDriftHandler.Handle, before
 -- the evidence load), not at write-commit time: a write-time token would

@@ -182,7 +182,7 @@ There is exactly one shipped precedent for cross-**domain** re-trigger of
 properties rather than inventing a mechanism:
 
 `PlatformMaterializationHandler.Handle`
-(`go/internal/reducer/platform_materialization.go:117-139`) calls
+(`go/internal/reducer/platformfam/platform_materialization.go`) calls
 `WorkloadMaterializationReplayer.ReplayWorkloadMaterialization` only when
 `crossRepoWrites > 0` after `DeploymentMapping`'s cross-repo resolution. The
 replay itself (`go/internal/storage/postgres/reducer_queue_replay.go:134-174`,

@@ -115,7 +115,7 @@ reducer-root test suites still construct `ci.run`/`ci.artifact`/
 tests do. Rather than export production API for test-only shapes, the root
 keeps its own hand-kept-in-sync copies:
 
-- `go/internal/reducer/container_image_identity_ci_fixtures_test.go`:
+- `go/internal/reducer/containerimage/container_image_identity_ci_fixtures_test.go`:
   `ciRunFact`, `ciArtifactFact`, `containerImageIdentityFact`,
   `stringSliceContains` — mirror this package's identically-named builders in
   `ci_cd_run_correlation_test.go`.
@@ -124,7 +124,7 @@ keeps its own hand-kept-in-sync copies:
   `recordingCICDRunCorrelationWriter`, `cicdDecisionsByRun` — mirror this
   package's equivalents (also in `ci_cd_run_correlation_test.go`), sized to
   what that file's #5709 floor-wiring proof needs.
-- `go/internal/reducer/container_image_provenance_edges_test.go`'s
+- `go/internal/reducer/containerimage/container_image_provenance_edges_test.go`'s
   `recordingContainerImageProvenanceEdgeWriter` has a mirror,
   `ci_cd_run_correlation_workflow_image_edges_test.go`'s copy of the same
   name, inside THIS package — the direction is symmetric: each side keeps

@@ -2,7 +2,7 @@
 
 Follow-up to [#4685](https://github.com/eshu-hq/eshu/issues/4685) (codex review
 on PR #5233). The typed container-image-identity decode in
-`go/internal/reducer/container_image_identity_typed_evidence.go` accepted a
+`go/internal/reducer/containerimage/container_image_identity_typed_evidence.go` accepted a
 present-but-blank `run_id` (an explicit empty string is a valid decode for
 `decodeAndValidate`), and `cicdRunKeyFromParts` returns
 `trimmed(provider):trimmed(run_id):attempt`, which is never empty. A malformed

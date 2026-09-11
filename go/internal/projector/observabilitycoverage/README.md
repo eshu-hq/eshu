@@ -24,7 +24,7 @@ lifecycle, queue writes, retries, and telemetry. The reducer's
 `DomainObservabilityCoverageCorrelation` handler (domain definition
 `observabilityCoverageCorrelationDomainDefinition` in
 `go/internal/reducer/registry_additive_domains.go`, correlation contract in
-`go/internal/reducer/observability_coverage_correlation.go`) owns the
+`go/internal/reducer/obscoverage/observability_coverage_correlation.go`) owns the
 six-outcome correlation, the canonical coverage write, and the counters.
 
 ## Exported surface

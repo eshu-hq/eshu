@@ -61,7 +61,7 @@ func serviceCatalogCorrelationFixtureDecisions() []reducer.ServiceCatalogCorrela
 // count is within the committed budget.
 //
 // WriteServiceCatalogCorrelations now calls the shared reducerBatchInsertFacts
-// bounded chunked bulk insert (go/internal/reducer/reducer_fact_batch_insert.go,
+// bounded chunked bulk insert (go/internal/reducer/factwrite/batch_insert.go,
 // batch size 1000, issue #5317) instead of one ExecContext per decision, so two
 // decisions fit one chunk and this scenario asserts exactly one write
 // observation. The companion N+1 negative control below

@@ -124,7 +124,7 @@ succeeds, fails, or is disabled (nil `Service.QuarantineWriter`).
 failure is logged (`slog.ErrorContext`) and counted
 (`eshu_dp_reducer_input_invalid_fact_write_errors_total`), then swallowed. This
 is proven by `TestRecordQuarantinedFactsWriteFailureIsNonFatal`
-(`go/internal/reducer/quarantine_writer_test.go`), which injects a write error
+(`go/internal/reducer/factdecode/quarantine_writer_test.go`), which injects a write error
 and asserts `recordQuarantinedFacts` still returns the correct quarantine count
 with no panic or propagated error. Idempotent replay under concurrent or
 retried reduction is proven against real Postgres by

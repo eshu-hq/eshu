@@ -20,7 +20,7 @@ root [AGENTS.md](../../../../AGENTS.md) AND the rules below.
   `attached_verified`, and only when attestation/signature evidence
   exists.
 - MUST keep fact payload keys in sync with the consumer in
-  `go/internal/reducer/sbom_attestation_attachment_index.go`. Adding a
+  `go/internal/reducer/sbomattest/sbom_attestation_attachment_index.go`. Adding a
   payload key without updating the reducer is a contract break.
 - MUST keep parser warnings explicit and machine-routable. New warning
   reasons go into `types.go` as a `WarningReason` constant; never emit

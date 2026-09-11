@@ -179,7 +179,7 @@ The probe is wired. `ProducerScopeQuiescence` has exactly one production caller,
 (`go/internal/storage/postgres/cross_scope_producer_readiness.go`), and its
 answer decides whether `CICDRunCorrelationHandler.Handle` commits a correlation
 or returns `crossScopeProducerNotReadyError`
-(`go/internal/reducer/ci_cd_run_correlation.go`). So the failure class
+(`go/internal/reducer/cicdrun/ci_cd_run_correlation.go`). So the failure class
 this branch declares is a class the runtime now produces.
 
 That makes this document the wrong place for the branch's runtime evidence. It

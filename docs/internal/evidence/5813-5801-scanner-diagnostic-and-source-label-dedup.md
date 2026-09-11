@@ -185,7 +185,7 @@ hot-path evidence gate's tracked surfaces.
 ### Root cause
 
 `matchOCIConfigSourceRepository`
-(`go/internal/reducer/container_image_identity_provenance.go:103`, pre-fix)
+(`go/internal/reducer/containerimage/container_image_identity_provenance.go`, pre-fix)
 counted raw repository **fact** matches and required exactly one:
 
 ```go
@@ -218,7 +218,7 @@ the exactly-one rule (the same logic `matchOCIConfigSourceRepositoryByDistinctRe
 had). Since both matchers now do identical work, the duplicate function was
 collapsed: `matchOCIConfigSourceRepositoryByDistinctRepository` is deleted and
 `extractOCIConfigBuildProvenanceRefs` now calls `matchOCIConfigSourceRepository`
-directly (`go/internal/reducer/container_image_identity_provenance.go`).
+directly (`go/internal/reducer/containerimage/container_image_identity_provenance.go`).
 
 ### Reconciliation: `singleSupplyChainImageSourceRepositoryID`
 

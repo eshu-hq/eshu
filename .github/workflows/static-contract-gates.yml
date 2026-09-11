@@ -49,6 +49,7 @@ jobs:
       docsclienvrefs: ${{ steps.filter.outputs.docsclienvrefs }}
       querydoccommitrefs: ${{ steps.filter.outputs.querydoccommitrefs }}
       doccitations: ${{ steps.filter.outputs.doccitations }}
+      movedfilerefs: ${{ steps.filter.outputs.movedfilerefs }}
       measurementcite: ${{ steps.filter.outputs.measurementcite }}
       remotevalidation: ${{ steps.filter.outputs.remotevalidation }}
       maturitydrift: ${{ steps.filter.outputs.maturitydrift }}
@@ -335,6 +336,14 @@ jobs:
               - 'scripts/lib/test-verify-doc-citations-scope-cases.sh'
               - 'scripts/lib/gate-diff-base.sh'
               - 'scripts/docs-citations-baseline.txt'
+            movedfilerefs:
+              - '.github/workflows/static-contract-gates.yml'
+              - 'specs/ci-gates.v1.yaml'
+              - 'go/**'
+              - 'scripts/verify-moved-file-refs.sh'
+              - 'scripts/test-verify-moved-file-refs.sh'
+              - 'scripts/moved-file-refs-allowlist.txt'
+              - 'scripts/lib/gate-diff-base.sh'
             taggedbuilds:
               - '.github/workflows/static-contract-gates.yml'
               - 'specs/ci-gates.v1.yaml'
@@ -451,6 +460,7 @@ jobs:
           append_gate "${{ steps.filter.outputs.docsclienvrefs }}" "docsclienvrefs" "Verify docs CLI/env refs gate" "bash scripts/test-verify-docs-cli-env-refs.sh" "bash scripts/verify-docs-cli-env-refs.sh"
           append_gate "${{ steps.filter.outputs.querydoccommitrefs }}" "querydoccommitrefs" "Verify query-doc-commit-refs gate" "bash scripts/test-verify-query-doc-commit-refs.sh" "bash scripts/verify-query-doc-commit-refs.sh"
           append_gate "${{ steps.filter.outputs.doccitations }}" "doccitations" "Verify doc-citations gate" "bash scripts/test-verify-doc-citations.sh" "bash scripts/verify-doc-citations.sh"
+          append_gate "${{ steps.filter.outputs.movedfilerefs }}" "movedfilerefs" "Verify moved-file-refs gate" "bash scripts/test-verify-moved-file-refs.sh" "bash scripts/verify-moved-file-refs.sh"
           append_gate "${{ steps.filter.outputs.measurementcite }}" "measurementcite" "Verify measurement-citations gate" "bash scripts/test-verify-measurement-citations.sh" "bash scripts/verify-measurement-citations.sh"
           append_gate "${{ steps.filter.outputs.remotevalidation }}" "remotevalidation" "Verify remote-validation-artifacts gate" "bash scripts/test-generate-remote-validation-inventory.sh && bash scripts/test-verify-remote-validation-artifacts.sh && bash scripts/test-verify-dead-iac-compose.sh && bash scripts/test-verify-remote-e2e-component-extension.sh" "bash scripts/generate-remote-validation-inventory.sh && git diff --exit-code -- docs/internal/remote-validation/inventory.generated.json && bash scripts/verify-remote-validation-artifacts.sh"
           append_gate "${{ steps.filter.outputs.maturitydrift }}" "maturitydrift" "Verify maturity-drift-guard gate" "bash scripts/test-verify-maturity-drift-guard.sh" "bash scripts/verify-maturity-drift-guard.sh"

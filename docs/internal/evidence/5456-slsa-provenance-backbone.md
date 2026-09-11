@@ -23,7 +23,7 @@ query, Cypher statement, worker, lease, queue, batch, or concurrency knob. The
 touched paths stay on their existing cost profile:
 
 - **Identity ranking** — `applySLSADigestRevision`
-  (`go/internal/reducer/container_image_identity_slsa.go`) builds an in-process
+  (`go/internal/reducer/containerimage/container_image_identity_slsa.go`) builds an in-process
   `map[digest]commit` anchor from the `attestation.slsa_provenance` facts already
   loaded for the scope generation, then does an O(1) map lookup per container-image
   ref, exactly mirroring the shipped `applyCIRunDigestRevision` /

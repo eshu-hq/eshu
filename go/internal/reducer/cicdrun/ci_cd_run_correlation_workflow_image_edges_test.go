@@ -16,7 +16,7 @@ import (
 // instead of writing anything, for asserting retract-then-write ordering and
 // propagating a configured error. It mirrors the equivalent fixture in the
 // container_image_identity family's own test suite
-// (go/internal/reducer/container_image_provenance_edges_test.go): the two
+// (go/internal/reducer/containerimage/container_image_provenance_edges_test.go): the two
 // families cannot share one package-private type across the root/cicdrun
 // seam (issue #6061), so each keeps its own copy of this trivial recorder.
 type recordingContainerImageProvenanceEdgeWriter struct {

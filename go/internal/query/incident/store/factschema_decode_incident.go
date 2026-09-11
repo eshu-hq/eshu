@@ -30,7 +30,7 @@ import (
 // go/internal/payloadusage/schema.go), so this is their ONLY typed decode
 // site; incident.record and the incident_routing.* kinds are ALSO decoded by
 // the reducer (sdk/go/factschema/decode_incident.go via
-// go/internal/reducer/factschema_decode_incident.go) for a different,
+// go/internal/reducer/schemadecode/factschema_decode_incident.go) for a different,
 // unrelated purpose (deployment/repository correlation), so this file is a
 // second, independent decode site for those kinds — both are gated by the
 // merged reducer+query payload-usage manifest (payloadusage.Load).

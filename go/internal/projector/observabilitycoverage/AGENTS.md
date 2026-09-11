@@ -8,7 +8,7 @@
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after the observability-coverage materialization probe and before the
    incident-routing probe.
-5. `go/internal/reducer/observability_coverage_correlation.go` and
+5. `go/internal/reducer/obscoverage/observability_coverage_correlation.go` and
    `go/internal/reducer/registry_additive_domains.go`
    (`observabilityCoverageCorrelationDomainDefinition`) for what the reducer
    does with the intent this package enqueues.

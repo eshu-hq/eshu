@@ -492,7 +492,7 @@ avoids the collision without losing any real coverage, and mirrors the
 established precedent: `secrets_iam_trust_chain_anchor_decode.go` decodes
 several fact kinds already seamed by the reducer (e.g.
 `facts.AWSIAMPrincipalFactKind`, seamed by
-`go/internal/reducer/factschema_decode.go`'s `decodeAWSIAMPrincipal`) the
+`go/internal/reducer/schemadecode/factschema_decode.go`'s `decodeAWSIAMPrincipal`) the
 same way, through `factschema.Decode*` directly, in a file intentionally
 outside the `factschema_decode*.go` glob.
 

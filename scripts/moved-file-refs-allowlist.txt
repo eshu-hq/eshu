@@ -1,0 +1,38 @@
+# Allowlist for scripts/verify-moved-file-refs.sh (#6525).
+#
+# One entry per line, exactly:
+#
+#   <referencing-file>:<vacated-path>
+#
+# An entry exempts ONE referencing file naming ONE vacated path. It does not
+# exempt the path everywhere, so moving a file still has to repoint every other
+# pointer to it.
+#
+# Add an entry only when repointing would make the document WRONG rather than
+# stale -- a recorded command transcript, or a dated evidence note describing
+# the tree as it stood at the time. A reference that is merely out of date is
+# not an exception: repoint it (without a `:NNN` line suffix, which
+# scripts/verify-doc-citations.sh refuses from a branch).
+#
+# Always say why in a comment above the entry.
+#
+# The #6525 sweep repointed every stale reference it could. Most of what stayed
+# dead is inherited debt or a deliberate negative fixture, neither of which this
+# gate attributes to a branch, so neither needs an entry. The two below are
+# recorded here anyway: they are the cases where a future move COULD make the
+# path branch-attributable, and where the right answer would still be to leave
+# the text alone. They are the durable record of that intent.
+
+# The comment names this path as the counter-example -- the error message that
+# "shipped naming ... a file that has never existed" -- and the constant below
+# it points at the live materialized_edge_families.go, which the test os.Stats
+# and fails on if absent. Repointing would make "has never existed" name a file
+# that does, erasing both the comment and the reason for that assertion.
+go/internal/ifa/materializededges/materialized_edges_direct_family_blindness_test.go:go/internal/reducer/direct_materialized_edge_families.go
+
+# A recorded shell transcript of how the #5428 regression was reproduced. The
+# cited path is one line of a three-line sequence whose `cp` destination and
+# `go test ./internal/reducer` target would both have to change with it, so a
+# repoint either leaves a command that cannot run or fabricates a command
+# nobody ran. The transcript is evidence of what was executed, not a pointer.
+docs/internal/evidence/5428-built-from-projection-rescinded.md:go/internal/reducer/ci_cd_run_correlation_narrowing_regression_test.go

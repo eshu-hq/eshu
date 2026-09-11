@@ -21,7 +21,7 @@ const provenanceDerivedFromEdgeLabel = "DERIVED_FROM"
 // declared.
 //
 // BOTH endpoints are matched by digest. ContainerImageIdentityDecision
-// (go/internal/reducer/container_image_identity.go) carries only ImageRef and
+// (go/internal/reducer/containerimage/container_image_identity.go) carries only ImageRef and
 // Digest, never the OciImageManifest node uid, and
 // oci_registry_canonical_writer.go SETs digest on every ContainerImage node it
 // writes, so digest is the correct and only available join key on both sides.

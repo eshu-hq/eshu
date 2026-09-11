@@ -47,7 +47,7 @@ var nonCountingReducerRetryFailureClasses = []string{
 	// attempt_count and is not dead-lettered while it waits. Produced by both
 	// registered cross-scope consumers, ci_cd_run_correlation and
 	// supply_chain_impact
-	// (go/internal/reducer/cross_scope_readiness_floor.go); the deferral is
+	// (go/internal/reducer/crossscope/readiness_floor.go); the deferral is
 	// bounded by elapsed time since the repair cycle began, so a producer scope
 	// that never activates still converges instead of retrying forever.
 	reducer.CrossScopeProducerNotReadyFailureClass,

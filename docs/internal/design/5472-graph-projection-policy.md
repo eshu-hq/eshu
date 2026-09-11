@@ -13,13 +13,13 @@ classes of truth because those edges are absent from the graph schema.
 
 Domain-by-domain file:line evidence:
 
-- **ci_cd_run_correlation** (`go/internal/reducer/ci_cd_run_correlation.go:309-319`):
+- **ci_cd_run_correlation** (`go/internal/reducer/cicdrun/ci_cd_run_correlation.go`):
   exact outcomes name `canonical_target: "container_image"` and carry
   `SourceLayerKinds` plus an `ImageRef`, but nothing materializes a graph
   edge. The `ContainerImage`/`OciImageManifest` node exists in the graph; the
   CI-run-produced-an-image relationship does not.
 
-- **container_image_identity** (`go/internal/reducer/container_image_identity_writer.go:117-162`):
+- **container_image_identity** (`go/internal/reducer/containerimage/container_image_identity_writer.go`):
   canonical-only writer of image identity facts. `source_repository_ids`,
   `workload_ids`, and `service_ids` are stored but never projected as graph
   edges. The image node stands alone with no link to the repository that built

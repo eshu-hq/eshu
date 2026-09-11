@@ -1,6 +1,6 @@
 # Evidence: typed AWS resource/relationship attribute shapes (#4631)
 
-Scope: `go/internal/reducer/ec2_block_device_kms_posture_index.go`,
+Scope: `go/internal/reducer/ec2blockkms/ec2_block_device_kms_posture_index.go`,
 `observability_coverage_correlation_index.go`,
 `workload_cloud_relationship_materialization.go`,
 `aws_resource_service_anchor.go`, `aws_resource_materialization.go`,
