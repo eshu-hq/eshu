@@ -5,45 +5,17 @@ package reducer
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
-// apiEndpointRepoPathPresenceKeySeparator joins repo_id and path in the presence
-// uid HASH INPUT only. The NUL byte never appears in a repo_id or route path, so
-// the (repo_id, path) pair hashes to exactly one digest with no collision and no
-// separator ambiguity. It is only ever a hash input — never stored — so the
-// 0x00 byte never reaches Postgres.
-const apiEndpointRepoPathPresenceKeySeparator = "\x00"
-
-// apiEndpointRepoPathPresenceKeyPrefix labels the synthesized presence uid so it
-// is self-describing in the graph_endpoint_presence table.
-const apiEndpointRepoPathPresenceKeyPrefix = "api-endpoint-presence:"
-
-// apiEndpointRepoPathPresenceKey synthesizes the (repo_id, path) presence uid an
-// :Endpoint node is recorded under in the GraphProjectionKeyspaceAPIEndpointRepoPath
-// presence domain (#2809). It returns an empty string when either component is
-// blank, because a blank component cannot key a presence row and must be skipped
-// by both the publisher and the gate.
-//
-// The uid is a SHA-256 hex digest, not a raw repo_id+separator+path join: the
-// uid is written to the Postgres text graph_endpoint_presence.uid column, and a
-// raw join embeds the 0x00 separator byte, which Postgres rejects for text
-// (SQLSTATE 22021) — dead-lettering workload materialization for every
-// endpoint-exposing repo (#2844 regression). Hashing keeps the key
-// collision-free and separator-unambiguous while staying Postgres-safe (hex,
-// no control bytes). Publisher and gate both call this function, so they agree.
+// apiEndpointRepoPathPresenceKey forwards to
+// [gpphase.APIEndpointRepoPathPresenceKey].
 func apiEndpointRepoPathPresenceKey(repoID, path string) string {
-	repoID = strings.TrimSpace(repoID)
-	path = strings.TrimSpace(path)
-	if repoID == "" || path == "" {
-		return ""
-	}
-	digest := sha256.Sum256([]byte(repoID + apiEndpointRepoPathPresenceKeySeparator + path))
-	return apiEndpointRepoPathPresenceKeyPrefix + hex.EncodeToString(digest[:16])
+	return gpphase.APIEndpointRepoPathPresenceKey(repoID, path)
 }
 
 // publishAPIEndpointRepoPathPresence records property-keyed (repo_id, path)
@@ -120,18 +92,10 @@ func publishAPIEndpointRepoPathPresence(
 	)
 }
 
-// handlesRouteEndpointPresenceKey returns the (repo_id, path) presence uid for
-// one handles_route intent row, reading the repo_id and path from the intent
-// payload (the fields buildHandlesRouteIntentRows emits). It returns an empty
-// string when either is missing, in which case the gate cannot prove presence
-// and defers the row.
+// handlesRouteEndpointPresenceKey forwards to
+// [gpphase.HandlesRouteEndpointPresenceKey].
 func handlesRouteEndpointPresenceKey(row SharedProjectionIntentRow) string {
-	repoID := payloadStr(row.Payload, "repo_id")
-	if repoID == "" {
-		repoID = strings.TrimSpace(row.RepositoryID)
-	}
-	path := payloadStr(row.Payload, "path")
-	return apiEndpointRepoPathPresenceKey(repoID, path)
+	return gpphase.HandlesRouteEndpointPresenceKey(row)
 }
 
 // filterRowsByTargetPresence splits phase-ready symbol→runtime rows into the rows

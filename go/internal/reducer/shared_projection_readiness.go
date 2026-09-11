@@ -6,9 +6,9 @@ package reducer
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
@@ -28,14 +28,7 @@ import (
 // the service identity domain. Defining the key in ONE helper used by publisher
 // and consumer guarantees they cannot drift.
 func workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID string) GraphProjectionPhaseKey {
-	generationID = strings.TrimSpace(generationID)
-	return GraphProjectionPhaseKey{
-		ScopeID:          strings.TrimSpace(scopeID),
-		AcceptanceUnitID: strings.TrimSpace(repoID),
-		SourceRunID:      generationID,
-		GenerationID:     generationID,
-		Keyspace:         GraphProjectionKeyspaceServiceUID,
-	}
+	return gpphase.WorkloadMaterializationRepoReadinessKey(scopeID, repoID, generationID)
 }
 
 // sharedProjectionReadinessKeyForRow builds the readiness lookup key for one
