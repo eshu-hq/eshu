@@ -22,8 +22,8 @@
 // beside the domain families that need it, so a family that wanted the
 // generic worker (or a symbol it exported) had to import the root — and the
 // root imports the families. That is the import cycle issue #6061 keeps
-// running into: 23-plus domains and 7 dedicated projection runners depend on
-// this substrate today, and none of them could become a subpackage while it
+// running into: 23-plus domains and the dedicated projection runners
+// (code-call and repo-dependency) depend on this substrate, and none of them could become a subpackage while it
 // stayed in the same package as the families it drains.
 //
 // This package therefore holds the worker's concurrency core: partition
@@ -38,12 +38,12 @@
 // internal/cpubudget, internal/telemetry, and the standard library — and it
 // must never import the reducer root.
 //
-// # What stays at the root
+// # Who calls this package
 //
-// The seven dedicated projection runners (code/call/projection,
-// repo_dependency_projection_*) and the shared-projection edge-materialization
-// handlers stay in the reducer root for now: they are a later hoist in issue
-// #6061's PR sequence. They call this package's exported surface —
+// The code-call projection runner (code/call/projection) imports this package
+// directly. The repo-dependency projection runner and the shared-projection
+// edge-materialization handlers still live in the reducer root, a later hoist
+// in issue #6061's PR sequence. They call this package's exported surface —
 // [DefaultBatchLimit], [DefaultLeaseTTL], [DefaultPollInterval],
 // [DefaultEvidenceSource], [MergePartitionProcessResult],
 // [MaxIntentWaitSeconds], [RecordStepDurations],

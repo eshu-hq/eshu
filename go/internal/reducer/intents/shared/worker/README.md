@@ -30,9 +30,9 @@ configuration, and its telemetry.
 
 **Does not own:** intent row shape and identity (`sharedintent`), readiness
 phase/keyspace vocabulary and presence-key derivations (`gpphase`), the
-Domain catalog (`contract`), or the dedicated projection runners
-(code/call/projection, repo_dependency's runner family) — those still live
-at the reducer root and call into this package.
+Domain catalog (`contract`), or the dedicated projection runners that
+drive it: `code/call/projection`, and the repo-dependency runner, which
+still lives at the reducer root.
 
 ## Exported surface
 
@@ -52,7 +52,7 @@ aliases `Runner`, `LoadSharedProjectionConfig` forwards to `LoadConfig` — and
 also newly exports (from what were root-unexported helpers) `DefaultBatchLimit`,
 `DefaultLeaseTTL`, `DefaultEvidenceSource`, and
 `MergePartitionProcessResult`, `GraphProjectionPhaseKeyForAcceptance` so the
-still-root dedicated projection runners can reach them through a root
+repo-dependency runner, still at the root, can reach them through a root
 forwarder under their original unexported spelling.
 
 ## Dependencies
