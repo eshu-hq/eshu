@@ -97,7 +97,7 @@ func visualizationPacketDerivationTruth(source *querycontract.TruthEnvelope) *qu
 	}
 	return querycontract.BuildTruthEnvelope(
 		profile,
-		"visualization.packet_derivation",
+		PacketDerivationCapability,
 		querycontract.TruthBasisHybrid,
 		"derived from caller-supplied authorized source response without graph or content reads",
 	)

@@ -9,9 +9,11 @@ This leaf owns the visualization-packet derivation route (#6642 Part A):
 type aliases and builder forwarders onto `querycontract`), `decode.go` (the
 `FromMap` adapters), `evidence.go`
 (`BuildEvidenceCitationPacket`,
-`BuildIncidentContextPacket`), and `story.go`
-(`BuildServiceStoryPacket`), plus this package's own tests,
-three moved in verbatim from root -- see README.md's Move evidence.
+`BuildIncidentContextPacket`), `story.go`
+(`BuildServiceStoryPacket`), and `capability.go`
+(`PacketDerivationCapability`, `PacketDerivationSupport`), plus this
+package's own tests: three moved in verbatim from root (see README.md's
+Move evidence), `handler_test.go`, and `main_test.go`.
 
 ## Invariants
 
@@ -56,6 +58,16 @@ three moved in verbatim from root -- see README.md's Move evidence.
   package-local aliases in `packet.go` with no root forwarder: no root or
   internal/mcp caller outside this family names them (confirmed by the #6642
   census's EXT/IN symbol inventory).
+
+- `main_test.go` MUST keep registering `PacketDerivationCapability`
+  through `PacketDerivationSupport()` (never a copied row): this test binary
+  never links root, so without it `Handler.derive` panics in the
+  truth-envelope builder. Root's `contract_capability_matrix.go` row is the
+  production registration; `TestVisualizationPacketDerivationCapabilityLockstep`
+  in root fails if either side changes a ceiling without the other.
+- `handler_test.go` MUST stay in this directory and keep a `Derive` word in
+  its test names: `scripts/verify-route-coverage.sh` looks for the route's
+  test only in the handler's own directory.
 
 ## Test fixtures hoisted to querytestutil (#6608 rule)
 

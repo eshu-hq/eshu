@@ -7,7 +7,8 @@
 // three derivation builders -- BuildServiceStoryPacket,
 // BuildEvidenceCitationPacket, and
 // BuildIncidentContextPacket -- plus their FromMap adapters for
-// canonical HTTP/MCP/CLI JSON maps.
+// canonical HTTP/MCP/CLI JSON maps, and the route's capability contract
+// (PacketDerivationCapability, PacketDerivationSupport).
 //
 // Every builder is a pure transformation over a source response the caller
 // already received and authorized: it performs no graph, content, or

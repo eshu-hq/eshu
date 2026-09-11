@@ -42,10 +42,18 @@ own derivation reports.
 - `story.go` -- `BuildServiceStoryPacket`, the service-anchor,
   evidence-graph, upstream, and downstream node/edge builders, and the
   confidence-to-truth-label mapping.
-- Test files -- this package's own tests, moved in verbatim from root (see
-  Move evidence); `packet_test.go`, `merge_test.go`, and
-  `story_bench_test.go` construct fixtures hoisted to `querytestutil` (see
-  AGENTS.md).
+- `capability.go` -- `PacketDerivationCapability` and
+  `PacketDerivationSupport`, the route's capability string and ceilings.
+  Root's `contract_capability_matrix.go` still carries its own row for the
+  same string; the root test
+  `TestVisualizationPacketDerivationCapabilityLockstep` keeps the two in
+  step until that row calls the constructor.
+- Test files -- `packet_test.go`, `merge_test.go`, and
+  `story_bench_test.go` moved in verbatim from root (see Move evidence) and
+  construct fixtures hoisted to `querytestutil` (see AGENTS.md);
+  `handler_test.go` drives `Handler` through its own `Mount` so the leaf
+  proves the route without root's `APIRouter`; `main_test.go` registers the
+  capability for this test binary, which never links root.
 
 ## Move evidence
 
@@ -84,11 +92,14 @@ No-Regression Evidence: baseline `origin/main` vs this branch -- `go build
 service-story packet shape through the root forwarder) pass with zero
 failures; the root and
 leaf test-name union (`go test ./internal/query/ -list '.*'` UNION `go test
-./internal/query/visualization/ -list '.*'`) equals the pre-move `go test
-./internal/query/ -list '.*'` list exactly -- 2878 names, no duplicate, no
-drop -- and the same holds for `-list 'Benchmark.*'` (11 names, including
+./internal/query/visualization/ -list '.*'`) is the pre-move `go test
+./internal/query/ -list '.*'` list plus exactly the five tests this leaf
+adds (the four `TestHandlerDerive*` cases in `handler_test.go` and root's
+`TestVisualizationPacketDerivationCapabilityLockstep`), with no duplicate
+and no drop; the `-list 'Benchmark.*'` union equals the pre-move root
+benchmark list, with
 `BenchmarkBuildServiceStoryVisualizationPacketRetainedShape` moving from
-root's list to the leaf's). This route issues no Cypher, so
+root's list to the leaf's. This route issues no Cypher, so
 `internal/queryplan`'s source-coverage manifest has no row naming it and
 none needed re-pinning. `git diff origin/main --stat -- testdata/golden
 testdata/cassettes` is empty.
