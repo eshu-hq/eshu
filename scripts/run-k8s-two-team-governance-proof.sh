@@ -13,7 +13,8 @@ set -euo pipefail
 #     fixtures baked into a seed image FROM the chart image),
 #   - asserts through the LIVE in-cluster API and MCP (via kubectl port-forward)
 #     that team-A reads only its own repo and not team-B's (and symmetrically),
-#     the out-of-grant single-repo selector fails closed (403), unauthenticated
+#     the out-of-grant selector returns a non-disclosing 403 permission_denied or
+#     404 not_found, unauthenticated
 #     reads are rejected (401), and the admin token sees every repo,
 #   - records that the rendered NetworkPolicies are actually applied in-cluster,
 #   - shapes the results into normalized proof artifacts (counts + HTTP states

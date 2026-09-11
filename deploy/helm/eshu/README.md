@@ -159,11 +159,12 @@ file is test-only and is not part of any shipped runtime profile.
 
 No-Regression Evidence: these are opt-in, empty-by-default Pod volume hooks; they
 add no Cypher, graph write, worker claim, lease, batch, queue, or concurrency
-knob and do not change the default-rendered Deployment runtime. Live proof on
-OrbStack Kubernetes v1.34.8 (single node): two-team scoped reads stay isolated
-(each team count=1, other team's repo absent, API/MCP parity), out-of-grant
-selector 403, unauthenticated 401, NetworkPolicy restricted egress applied; all
-pods reached Ready and the namespace was torn down clean. The scoped-token
+knob and do not change the default-rendered Deployment runtime. Live proof on a
+disposable single-node linux/amd64 Minikube v1.39.0 / Kubernetes v1.37.0 cluster:
+two-team scoped reads stayed isolated (each team count=1, other team's repo
+absent, API/MCP parity), out-of-grant selectors returned 404, unauthenticated
+reads returned 401, four restricted NetworkPolicies were applied, all pods
+reached Ready, and cleanup removed the namespace. The scoped-token
 authorization itself is unchanged graph/SQL already exercised by the merged
 scoped-read suites.
 

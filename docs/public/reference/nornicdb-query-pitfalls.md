@@ -518,7 +518,7 @@ RETURN nodes(path) AS chain
 
 A path whose BOTH endpoints are pre-bound in their own `MATCH` clauses was
 recorded here as working without a label on the path pattern. That was measured
-on v1.1.11 and does NOT hold on the current pin, where the shape fails to parse:
+on v1.1.11 and did NOT hold on the later v1.2.3 pin, where the shape failed to parse:
 see [NornicDB Path-Predicate Pitfalls](nornicdb-path-predicate-pitfalls.md) for
 the error, the shape that does work, and why nothing in production hits it.
 
@@ -626,10 +626,10 @@ on all three:
   measured. The Neo4j-vs-NornicDB counts under
   **Observed shape** above were measured here against Neo4j 2026.05.0.
 - `timothyswt/nornicdb-cpu-bge:v1.1.11` — the image most of this page's other
-  entries name, and the chart's pin at the time this was measured. #6296 has
-  since moved `deploy/helm/eshu/values.yaml` to `v1.2.3` by digest, so v1.1.11
-  is a historical build here rather than the deployed lane, and this shape has
-  not been re-run on the current pin. The ignored-label-filter behaviour
+  entries name, and the chart's pin at the time this was measured. #6296 later
+  moved `deploy/helm/eshu/values.yaml` to `v1.2.3` by digest, and this change
+  moves it again to v1.3.1. The shape has not been re-run on the current pin.
+  The ignored-label-filter behaviour
   **reproduces here too**: a `WHERE impacted:Workload` clause attached to a
   `WITH` still admitted a `File` row.
 - NornicDB `main` at `8abc2269` — a local checkout rather than a published
@@ -798,8 +798,8 @@ in NornicDB `main`.
 
 ### Observed shape
 
-Measured on the currently pinned `timothyswt/nornicdb-cpu-bge`
-`sha256:4dfa887d…` (self-reports `1.2.2`), against a graph seeded the way the
+Measured on the then-pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
+(self-reports `1.2.2`), against a graph seeded the way the
 canonical projector writes repositories, directories and files. A read with
 **two `MATCH` clauses** followed by a `WITH … count(…)` aggregation returns
 **zero rows** as soon as the `RETURN` projects anything richer than a plain

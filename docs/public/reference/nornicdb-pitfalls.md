@@ -414,7 +414,7 @@ Compose images used for that proof.
 
 ### Observed shape
 
-Measured on the pinned v1.2.3 replay image
+Measured on the then-pinned v1.2.3 replay image
 (`timothyswt/nornicdb-cpu-bge@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`,
 self-reporting 1.2.2) through `neo4j-go-driver/v5`, while proving the #5167
 dead-code incoming-edge probe.

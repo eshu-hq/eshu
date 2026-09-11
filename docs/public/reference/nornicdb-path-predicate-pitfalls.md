@@ -38,7 +38,7 @@ as "check before relying on it", not as a safe shape. Live pin:
 
 ### Observed shape
 
-Measured on the pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
+Measured on the then-pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
 (#5167 batch 2b), against one three-node `CALLS` chain whose middle hop is in a
 different repository from its two endpoints. A bound that works returns 0 rows;
 an inert one returns the chain.
@@ -116,7 +116,7 @@ build that changes any of them is seen rather than silently absorbed.
 
 ### Observed shape
 
-Measured on the pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
+Measured on the then-pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
 (#6546) against a 180-file corpus, 105 of them `.go`. A `STARTS WITH` or
 `ENDS WITH` term is evaluated correctly when the `MATCH` binds one node and
 evaluates as `true` for every row when it binds two or more. `CONTAINS` and a

@@ -91,9 +91,9 @@ print_checks() {
 		'  1. unauthenticated: API and MCP repository reads return 401 with no body' \
 		'  2. admin: all-scopes token enumerates at least two repositories' \
 		'  3. team-a allowed: team-A scoped token API+MCP list includes only its own repo (count==1)' \
-			"  4. team-a denied: team-A list excludes team-B's repo; context selector for it returns a non-disclosing 403 or 404" \
+			"  4. team-a denied: team-A list excludes team-B's repo; selector returns non-disclosing 403 permission_denied or 404 not_found" \
 		'  5. team-b allowed: team-B scoped token API+MCP list includes only its own repo (count==1)' \
-			"  6. team-b denied: team-B list excludes team-A's repo; context selector for it returns a non-disclosing 403 or 404" \
+			"  6. team-b denied: team-B list excludes team-A's repo; selector returns non-disclosing 403 permission_denied or 404 not_found" \
 		'  7. parity: API and MCP scoped readbacks agree per team (same allowed/denied verdicts)' \
 		'  8. provenance: records eshu_commit, backend, registry token count, metrics handle' \
 		'  9. redaction canary: no bearer tokens, token hashes, host paths, keys, or raw IPs'
