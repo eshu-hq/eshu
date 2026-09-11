@@ -93,9 +93,9 @@ decode-seam read consumer in the current codebase:
 
 - `SourceHint`'s payload IS read today, but only by the reducer's
   `package_source_correlation` domain
-  (`go/internal/reducer/package_source_correlation.go`, raw `payloadStr`
+  (`go/internal/reducer/packages/correlation/source.go`, `payloadcore.PayloadStr`
   calls) — a separate reducer family this wave does not convert. The
-  projector's own `go/internal/projector/packagesource/correlation_intents.go` reads only
+  projector's own `go/internal/projector/package/source/reducer_intent.go` reads only
   `envelope.FactKind` to route a reducer intent, never a payload field.
 - `VulnerabilityHint.PackageID` and `Warning.Ecosystem`/`.WarningCode` are read
   by raw-SQL-JSONB loaders in `go/internal/storage/postgres`

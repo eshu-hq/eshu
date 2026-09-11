@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package packagesource
+package source
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// BuildPackageSourceCorrelationReducerIntent enqueues one reducer intent that
+// BuildReducerIntent enqueues one reducer intent that
 // asks the reducer to classify the scope generation's package-registry source
 // hints and manifest-backed package consumption against active Git facts. It
 // anchors to the first package_registry.source_hint fact in original input
@@ -20,7 +20,7 @@ import (
 // after an identity fact still wins. Only envelope.FactKind is read — the
 // payload is never decoded here, so a malformed hint never fails the build. A
 // generation with neither kind enqueues nothing.
-func BuildPackageSourceCorrelationReducerIntent(
+func BuildReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,

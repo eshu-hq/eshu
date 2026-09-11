@@ -35,7 +35,7 @@ The builder depends on `internal/projector/intent.FactLookup` and
 root projector package — root already imports this package to dispatch to it,
 so the reverse import would cycle. It reads `internal/facts` for the
 secrets/IAM posture schema registry and `internal/reducer` for the domain
-constant. There is no decode seam: like `packagesource`, this builder reads
+constant. There is no decode seam: like `package/source`, this builder reads
 only envelope metadata and never a payload field.
 
 ## Telemetry

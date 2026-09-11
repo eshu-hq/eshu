@@ -61,7 +61,7 @@
   package identity rows and package-native dependency rows. Source hints are
   provenance only; do not create repository ownership, publication, or
   consumption truth in the projector.
-  `packagesource/correlation_intents.go` may enqueue the reducer classifier,
+  `package/source/reducer_intent.go` may enqueue the reducer classifier,
   but that intent is counter-only until reducer admission grows stronger
   provenance. The five consumed kinds (`package`, `.package_version`,
   `.package_dependency`, — since #5458 — `.package_artifact`, and — also

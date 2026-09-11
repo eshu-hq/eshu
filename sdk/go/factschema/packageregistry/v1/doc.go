@@ -36,11 +36,11 @@
 //   - Warning              (package_registry.warning)
 //
 // SourceHint's payload IS read today, but only by the reducer's
-// package_source_correlation domain (go/internal/reducer/package_source_correlation.go
-// extractPackageSourceHints, via raw payloadStr calls) — a separate reducer
+// package_source_correlation domain (go/internal/reducer/packages/correlation/source.go
+// extractPackageSourceHints, via payloadcore.PayloadStr calls) — a separate reducer
 // family this wave does not touch (Contract System v1 Wave 4c is scoped to the
 // package_registry PROJECTOR family). The projector's own
-// go/internal/projector/packagesource/correlation_intents.go reads only envelope.FactKind to route a
+// go/internal/projector/package/source/reducer_intent.go reads only envelope.FactKind to route a
 // reducer intent, never a payload field, so SourceHint has no projector
 // decode-site consumer today either. It is typed here so the contract is ready
 // the moment a projector or reducer conversion lands; wiring the reducer's own
