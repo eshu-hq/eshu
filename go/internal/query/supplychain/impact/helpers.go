@@ -95,7 +95,7 @@ func ParseSupplyChainImpactIncludeSuppressed(w http.ResponseWriter, r *http.Requ
 }
 
 // SupplyChainImpactProfilePrecise selects exact installed-version
-// anchored findings only. Relocated from root package query's supply_chain.go
+// anchored findings only. Relocated from root package query's handler.go
 // (#6060 lane A): the moved profile helpers above read it and this package
 // must not import root, so the declaration lives here and root keeps
 // `SupplyChainImpactProfilePrecise = impact.SupplyChainImpactProfilePrecise`
@@ -106,12 +106,12 @@ const SupplyChainImpactProfilePrecise = "precise"
 // finding including range-only manifest, SBOM/CPE-derived,
 // malformed range, and missing-version rows. Unsupported matcher
 // ecosystems are surfaced by readiness, not as finding rows.
-// Relocated from root package query's supply_chain.go (#6060 lane A);
+// Relocated from root package query's handler.go (#6060 lane A);
 // see SupplyChainImpactProfilePrecise for the alias arrangement.
 const SupplyChainImpactProfileComprehensive = "comprehensive"
 
 // supplyChainImpactFindingMaxLimit bounds the impact findings page size.
-// Family-local copy of root package query's supply_chain.go constant: that
+// Family-local copy of root package query's handler.go constant: that
 // home file stays in root (the staying handlers read it there) and this
 // package must not import root, so the value is duplicated here and MUST
 // stay byte-identical to its root source (same rationale as advisory's
@@ -120,8 +120,8 @@ const supplyChainImpactFindingMaxLimit = 200
 
 // maxSupplyChainRuntimeEnvironmentCandidates bounds the finding-bound
 // digest/environment candidates one environment-evidence read confirms.
-// Family-local copy of root package query's
-// supply_chain_impact_runtime_context_probe.go constant, which derives it
+// Family-local copy of the supplychain hub's
+// runtime_context_probe.go constant, which derives it
 // from supplyChainImpactFindingMaxLimit the same way.
 const maxSupplyChainRuntimeEnvironmentCandidates = supplyChainImpactFindingMaxLimit
 

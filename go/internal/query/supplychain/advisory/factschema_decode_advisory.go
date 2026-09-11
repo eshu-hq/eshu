@@ -35,7 +35,7 @@ import (
 // specific keys through the typed seam would silently drop real evidence
 // data emitted by OSV/NVD/GitLab Gemnasium collectors, so those specific
 // fields keep their pre-existing raw payload read (each marked with a
-// struct-gap comment in supply_chain_advisory_evidence_model.go) alongside
+// struct-gap comment in evidence_model.go) alongside
 // the fields that do decode losslessly.
 // vulnerability.affected_product's typed struct is missing six of the nine
 // fields the response model reads (VersionStart/EndIncluding/Excluding,

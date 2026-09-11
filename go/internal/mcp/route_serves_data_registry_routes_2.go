@@ -131,13 +131,13 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// missing-evidence CTE also touches the effective container-image-identity
 	// support view — disclosed, not served.
 	"GET /api/v0/supply-chain/sbom-attestations/attachments": {
-		RegistrationFile: "go/internal/query/supplychain/supply_chain.go",
+		RegistrationFile: "go/internal/query/supplychain/handler.go",
 		HandlerStruct:    "SupplyChainHandler",
-		StructFile:       "go/internal/query/supplychain/supply_chain.go",
+		StructFile:       "go/internal/query/supplychain/handler.go",
 		Method:           "listSBOMAttachments",
-		MethodFile:       "go/internal/query/supplychain/supply_chain_sbom_attachments.go",
+		MethodFile:       "go/internal/query/supplychain/sbom_attachments.go",
 		ScanFiles: []string{
-			"go/internal/query/supplychain/supply_chain_sbom_attachments.go",
+			"go/internal/query/supplychain/sbom_attachments.go",
 			"go/internal/query/sbom_attestation_attachments.go",
 		},
 		Served: []routeServedDomain{{
@@ -163,13 +163,13 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// (the factKind const in go/internal/query/supplychain/alerts/store.go,
 	// used by queries.go's listQuery).
 	"GET /api/v0/supply-chain/security-alerts/reconciliations": {
-		RegistrationFile: "go/internal/query/supplychain/supply_chain.go",
+		RegistrationFile: "go/internal/query/supplychain/handler.go",
 		HandlerStruct:    "SupplyChainHandler",
-		StructFile:       "go/internal/query/supplychain/supply_chain.go",
+		StructFile:       "go/internal/query/supplychain/handler.go",
 		Method:           "listSecurityAlertReconciliations",
-		MethodFile:       "go/internal/query/supplychain/supply_chain_security_alerts.go",
+		MethodFile:       "go/internal/query/supplychain/security_alerts.go",
 		ScanFiles: []string{
-			"go/internal/query/supplychain/supply_chain_security_alerts.go",
+			"go/internal/query/supplychain/security_alerts.go",
 			"go/internal/query/supplychain/alerts/store.go",
 			"go/internal/query/supplychain/alerts/queries.go",
 		},

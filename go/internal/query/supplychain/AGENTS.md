@@ -39,7 +39,7 @@ Read `doc.go` and `README.md` first.
   and MUST NOT name lane-B packet types. If lane-B moves the envelope to
   a leaf, collapse this seam to direct calls and delete the responder.
 - Files must stay under 500 lines. Watch
-  `supply_chain_impact_kubernetes_runtime_probe.go` and the aggregate
+  `kubernetes_runtime_probe.go` and the aggregate
   handlers; split by concern rather than growing them.
 
 ## Exported symbols and why each is exported
@@ -97,7 +97,7 @@ not export a new symbol without adding its caller to this list.
   `sbom_attestation_attachment_rows.go` decode wrappers (via root
   forwards).
 - `SecurityAlertReconciliationAnchorRequiredMessage` — this package's own
-  handler (`supply_chain_security_alerts.go`) and the moved
+  handler (`security_alerts.go`) and the moved
   `alerts/store.go` (direct import, #6642).
 - Aggregate pagination offsets (`Next*AggregateOffset`) and
   `SBOMAttestationAttachmentAggregateScope` — the staying aggregate
@@ -181,7 +181,7 @@ the k8s probe performance pair) live in root, not here: this package
 cannot name root production types, and root cannot name hub
 unexported planner symbols. They reach the planner through the
 `integration`-only seam in
-`supply_chain_impact_kubernetes_runtime_probe_fair_live.go` (type
+`kubernetes_runtime_probe_fair_live.go` (type
 aliases, planner forwards, fanout accessors, one handler-method
 forward) — compiled out of the default build, so default lint never
 sees it. Do not add unconditional hub exports for live tests, and do

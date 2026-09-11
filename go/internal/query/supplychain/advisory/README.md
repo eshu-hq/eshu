@@ -22,7 +22,7 @@ the response envelope, or capability registration.
 
 The HTTP handlers live in the supply-chain hub
 (`internal/query/supplychain`: `supply_chain_advisory_*_handler.go`,
-`supply_chain_vulnerability_detail_handler.go`) since hub PR3 (#6060);
+`vulnerability_detail_handler.go`) since hub PR3 (#6060);
 the unit tests that need only hub symbols moved with them, reaching this
 store directly. Root package `query` keeps the capability matrix rows
 (`contract_supply_chain.go`), the `SupplyChainHandler` compatibility alias

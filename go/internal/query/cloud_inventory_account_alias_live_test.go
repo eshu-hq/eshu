@@ -37,7 +37,7 @@ import (
 // No build tag: this test must compile and run (skipping cleanly without a
 // DSN) in the default `go test ./...` lane CI actually runs, matching the
 // sibling live-proof precedent in this package (e.g.
-// supply_chain_impact_runtime_filter_live_test.go). An earlier revision of
+// runtime_filter_live_test.go). An earlier revision of
 // this file carried `//go:build integration`, which no workflow, Makefile
 // target, or script in this repo ever passes -- the test never ran anywhere.
 func TestCloudInventoryAccountIDMatchesExactScopeIDLive(t *testing.T) {

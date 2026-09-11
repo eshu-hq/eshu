@@ -40,13 +40,13 @@ Read `doc.go` and `README.md` first.
   corpus.
 - The findings SQL MUST keep its bounded placeholder-bound shape: the
   root placeholder-binding test parses
-  `supplychain/impact/supply_chain_impact_findings.go` and pins the
+  `supplychain/impact/findings.go` and pins the
   production `QueryContext` argument list against both list-query
   variants. Adding a placeholder without updating the production call
   (or vice versa) fails that test by design.
-- Files must stay under 500 lines. `supply_chain_impact_readiness.go`
-  (489), `supply_chain_impact_findings.go` (458), and
-  `supply_chain_impact_readiness_postgres_query.go` (438) are the ones
+- Files must stay under 500 lines. `readiness.go`
+  (489), `findings.go` (458), and
+  `readiness_postgres_query.go` (438) are the ones
   to watch; split by concern (decode, grouping, SQL legs) rather than
   growing them.
 
@@ -102,7 +102,7 @@ to this list.
   `ValidSupplyChainImpactPriorityBucket` and
   `OptionalSupplyChainImpactMinPriorityScore`) — the staying
   findings/aggregates/explain handlers, the security-alert handlers,
-  the investigation packets, and `supply_chain_sbom_attachments.go`.
+  the investigation packets, and `sbom_attachments.go`.
 - Decode/normalize entry points (`DecodeSupplyChainImpactFindingRow`,
   `DecodeSupplyChainImpactRemediation`,
   `NormalizeSupplyChainImpactSort`, `ReadinessMissingContains`,
@@ -199,7 +199,7 @@ Everything else stays in root package `query` for this lane — do not
   handler through `Mount` with the staying `recording*` stores.
 - The SQL-shape, decode, and placeholder tests pin moved texts from
   root as `impact.X` (including the placeholder-binding test, which
-  parses `supplychain/impact/supply_chain_impact_findings.go` by its
+  parses `supplychain/impact/findings.go` by its
   new path).
 
 ## Shared test fixtures
@@ -218,7 +218,7 @@ its doubles; never redeclare them.
   the normalization branch, and the readiness tests on both sides
   (moved unit + staying handler tests).
 - New source-fact kind on the explain path: add the typed wrapper in
-  `supply_chain_impact_decode_helpers.go`, the accumulator branch in
+  `decode_helpers.go`, the accumulator branch in
   `decodeSupplyChainComponentEvidence`, and extend the decode tests.
   If the sdk struct does not declare a field the response reads, the
   read stays raw with a struct-gap comment (advisory precedent).

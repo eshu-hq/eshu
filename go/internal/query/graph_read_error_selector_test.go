@@ -45,7 +45,7 @@ func TestPackageRegistryDependencyChainsSelectorMapsGraphReadAvailabilityErrors(
 
 // TestSupplyChainAdvisoryEvidenceSelectorMapsGraphReadAvailabilityErrors covers
 // listAdvisoryEvidence's resolveRepositorySelectorForRequestWithAccess call
-// (supply_chain_advisory_evidence_handler.go), a direct caller of the writing
+// (evidence_handler.go), a direct caller of the writing
 // variant.
 func TestSupplyChainAdvisoryEvidenceSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()

@@ -42,7 +42,7 @@ QUALIFIES:
   subject digest. The exact scanned vulnerable image is running on that
   resource, so the finding is `runtime_confirmed` and names the resource ARN
   in `cloud_runtime_resource_refs`. This is a query-time `CloudResource` graph
-  probe (`go/internal/query/supply_chain_impact_cloud_runtime_probe.go`), not a
+  probe (`go/internal/query/supplychain/cloud_runtime_probe.go`), not a
   reducer-materialized field — the digest is the artifact's content-addressed
   identity, so the match is exact, not a shared-base-image coincidence (#5452).
 
@@ -115,7 +115,7 @@ the tier semantics above.
   `config_only` or no tier at all from the service story surface for the
   same workload. Tracked in [#5582](https://github.com/eshu-hq/eshu/issues/5582).
 - **Supply-chain impact** (`findings[].deployment_truth_tier`,
-  `go/internal/query/supplychain/impact/supply_chain_impact_result.go`): now differentiates all
+  `go/internal/query/supplychain/impact/result.go`): now differentiates all
   three evidence classes (#5452, closing the earlier gap tracked in #5472/#5474,
   both merged). A finding whose subject digest is observed running on a cloud
   resource classifies as `runtime_confirmed` (see the runtime_confirmed
@@ -164,7 +164,7 @@ is recorded in the [confidence calibration reference](confidence-calibration.md)
 ## Version resolution reuse (#5469)
 
 `supply_chain_impact` findings also disclose `version_resolution_tier` and
-`version_resolution_corroboration[]` (`go/internal/query/supplychain/impact/supply_chain_impact_version_resolution.go`).
+`version_resolution_corroboration[]` (`go/internal/query/supplychain/impact/version_resolution.go`).
 These fields reuse the exact same closed `DeploymentTruthTier` vocabulary
 above — no new tier enum. They answer a narrower question than
 `deployment_truth_tier`: not "what is the strongest evidence that this

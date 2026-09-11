@@ -12,7 +12,7 @@ import (
 )
 
 // DecodeSupplyChainImpactFindingRow decodes one reducer_supply_chain_impact_finding
-// fact payload (supply_chain_impact_findings_queries.go's
+// fact payload (findings_queries.go's
 // SupplyChainImpactFindingFactKind) into the query-side row shape.
 //
 // The reducer writer now emits a governed factschema payload for #4810/W1h.

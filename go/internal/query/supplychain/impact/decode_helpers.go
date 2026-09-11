@@ -179,7 +179,7 @@ func derefString(value *string) string {
 
 // supplyChainComponentEvidence bundles the subset of anchor/component
 // fields buildSupplyChainComponentExplanation and
-// buildSupplyChainExplanationAnchors (supply_chain_impact_explain_build.go)
+// buildSupplyChainExplanationAnchors (explain_build.go)
 // read across heterogeneous evidence facts. Matched is false when
 // fact.FactKind is not one of the source-fact kinds this package can
 // typed-decode yet -- chiefly the reducer-derived correlation/finding/

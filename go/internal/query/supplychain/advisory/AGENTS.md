@@ -36,8 +36,8 @@ Read `doc.go` and `README.md` first.
   `MATERIALIZED` CTEs, no rollup joins. The per-kind active-scan anchors
   keep the #3402 partial indexes eligible. Root catalog tests pin both;
   run them after any SQL touch.
-- Files must stay under 500 lines. `supply_chain_advisory_evidence_model.go`
-  (463) and `supply_chain_advisory_evidence_sql.go` (356) are the ones to
+- Files must stay under 500 lines. `evidence_model.go`
+  (463) and `evidence_sql.go` (356) are the ones to
   watch; split by concern (decode, grouping, key normalization) rather
   than growing them.
 
@@ -101,7 +101,7 @@ its doubles; never redeclare them.
 
 - New vulnerability fact kind on the evidence path: add the kind to
   `advisoryEvidenceFactKinds`, extend the SQL legs, add the accumulator
-  branch in `supply_chain_advisory_evidence_model.go`, and extend the
+  branch in `evidence_model.go`, and extend the
   root evidence tests (grouping + SQL shape + lockstep). All four, or the
   kind is silently dropped or unpinned.
 - New response field backed by a typed struct: check the
