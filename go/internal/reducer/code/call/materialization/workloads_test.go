@@ -1,26 +1,31 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-func buildRunsInIntentsForTest(t *testing.T, envelopes []facts.Envelope) []SharedProjectionIntentRow {
+func buildRunsInIntentsForTest(t *testing.T, envelopes []facts.Envelope) []sharedintent.Row {
 	t.Helper()
 	generationID := "gen-1"
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, generationID)
-	index := buildCodeEntityIndex(envelopes)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, generationID)
+	index := shared.BuildEntityIndex(envelopes)
 	return buildRunsInIntentRows(
 		envelopes,
 		index,
 		contextByRepoID,
 		time.Unix(0, 0).UTC(),
-		runsInEvidenceSource,
+		RunsInEvidenceSource,
 	)
 }
 
@@ -50,13 +55,13 @@ func TestBuildRunsInIntentRowsBindsResolvedRouteHandler(t *testing.T) {
 	}
 
 	intent := intents[0]
-	if intent.ProjectionDomain != DomainRunsIn {
-		t.Fatalf("projection domain = %q, want %q", intent.ProjectionDomain, DomainRunsIn)
+	if intent.ProjectionDomain != reducercontract.DomainRunsIn {
+		t.Fatalf("projection domain = %q, want %q", intent.ProjectionDomain, reducercontract.DomainRunsIn)
 	}
-	if got, want := payloadStr(intent.Payload, "function_id"), "content-entity:gw"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_id"), "content-entity:gw"; got != want {
 		t.Fatalf("function_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "repo_id"), "repo-1"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "repo_id"), "repo-1"; got != want {
 		t.Fatalf("repo_id = %q, want %q", got, want)
 	}
 	// The code-call materialization stage never proves a repo defines exactly one
@@ -110,10 +115,10 @@ func TestBuildRunsInIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testing.T) 
 			if len(intents) != 1 {
 				t.Fatalf("expected exactly 1 RUNS_IN intent, got %d", len(intents))
 			}
-			if got, want := payloadStr(intents[0].Payload, "function_id"), "content-entity:user-index"; got != want {
+			if got, want := payloadcore.PayloadStr(intents[0].Payload, "function_id"), "content-entity:user-index"; got != want {
 				t.Fatalf("function_id = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intents[0].Payload, "resolution_method"), "repo_unique_name"; got != want {
+			if got, want := payloadcore.PayloadStr(intents[0].Payload, "resolution_method"), "repo_unique_name"; got != want {
 				t.Fatalf("resolution_method = %q, want %q", got, want)
 			}
 		})
@@ -187,7 +192,7 @@ func TestBuildRunsInIntentRowsEmitsOnePerHandlerFunction(t *testing.T) {
 	if len(intents) != 1 {
 		t.Fatalf("expected exactly 1 RUNS_IN intent for a single handler Function, got %d", len(intents))
 	}
-	if got, want := payloadStr(intents[0].Payload, "function_id"), "content-entity:gw"; got != want {
+	if got, want := payloadcore.PayloadStr(intents[0].Payload, "function_id"), "content-entity:gw"; got != want {
 		t.Fatalf("function_id = %q, want %q", got, want)
 	}
 }

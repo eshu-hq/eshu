@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestBuildHandlesRouteIntentRowsEmitsPHPSymfonyRouteMatches(t *testing.T) {
@@ -40,19 +41,19 @@ func TestBuildHandlesRouteIntentRowsEmitsPHPSymfonyRouteMatches(t *testing.T) {
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:report-show"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:report-show"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "framework"), "symfony"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "symfony"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "path"), "/reports/{id}"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/reports/{id}"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }
@@ -87,19 +88,19 @@ func TestBuildHandlesRouteIntentRowsEmitsPHPSlimRouteMatches(t *testing.T) {
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:slim-handler"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:slim-handler"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "framework"), "slim"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "slim"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "path"), "/"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }
@@ -134,13 +135,13 @@ func TestBuildHandlesRouteIntentRowsEmitsPHPLaravelAtJoinedRouteMatches(t *testi
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:user-index"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:user-index"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "framework"), "laravel"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "laravel"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }
@@ -181,10 +182,10 @@ func TestBuildHandlesRouteIntentRowsEmitsPHPLaravelRepoUniqueAtJoinedRouteMatch(
 	if len(intents) != 1 {
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
-	if got, want := payloadStr(intents[0].Payload, "function_entity_id"), "content-entity:user-index"; got != want {
+	if got, want := payloadcore.PayloadStr(intents[0].Payload, "function_entity_id"), "content-entity:user-index"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intents[0].Payload, "resolution_method"), codeprovenance.MethodRepoUniqueName; got != want {
+	if got, want := payloadcore.PayloadStr(intents[0].Payload, "resolution_method"), codeprovenance.MethodRepoUniqueName; got != want {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"sort"
@@ -9,11 +9,16 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-// runsInEvidenceSource labels RUNS_IN edges so retraction and re-projection only
+// RunsInEvidenceSource labels RUNS_IN edges so retraction and re-projection only
 // ever touch edges this emitter owns.
-const runsInEvidenceSource = "reducer/runs-in"
+const RunsInEvidenceSource = "reducer/runs-in"
 
 // runsInAmbiguousConfidence is the honest confidence for every RUNS_IN edge.
 //
@@ -46,27 +51,27 @@ const runsInAmbiguousConfidence = 0.5
 // one edge.
 func buildRunsInIntentRows(
 	envelopes []facts.Envelope,
-	index codeEntityIndex,
-	contextByRepoID map[string]ProjectionContext,
+	index shared.EntityIndex,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
 	evidenceSource string,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(envelopes) == 0 || len(contextByRepoID) == 0 {
 		return nil
 	}
 	if evidenceSource == "" {
-		evidenceSource = runsInEvidenceSource
+		evidenceSource = RunsInEvidenceSource
 	}
 
-	intents := make([]SharedProjectionIntentRow, 0)
+	intents := make([]sharedintent.Row, 0)
 	// seen dedupes by (functionID, repositoryID): a handler that serves several
 	// routes binds to its runtime exactly once.
 	seen := make(map[string]struct{})
 	for _, env := range envelopes {
-		if env.FactKind != factKindFile {
+		if env.FactKind != factload.FactKindFile {
 			continue
 		}
-		repositoryID := payloadStr(env.Payload, "repo_id")
+		repositoryID := payloadcore.PayloadStr(env.Payload, "repo_id")
 		if repositoryID == "" {
 			continue
 		}
@@ -78,17 +83,17 @@ func buildRunsInIntentRows(
 		if !ok {
 			continue
 		}
-		relativePath := payloadStr(env.Payload, "relative_path")
-		rawPath := anyToString(fileData["path"])
-		pathKeys := codeCallPathKeys(rawPath, relativePath)
+		relativePath := payloadcore.PayloadStr(env.Payload, "relative_path")
+		rawPath := payloadcore.AnyToString(fileData["path"])
+		pathKeys := shared.PathKeys(rawPath, relativePath)
 
 		for _, entry := range handlesRouteEntries(fileData) {
-			handler := strings.TrimSpace(anyToString(entry["handler"]))
-			routePath := strings.TrimSpace(anyToString(entry["path"]))
+			handler := strings.TrimSpace(payloadcore.AnyToString(entry["handler"]))
+			routePath := strings.TrimSpace(payloadcore.AnyToString(entry["path"]))
 			if handler == "" || routePath == "" {
 				continue
 			}
-			framework := strings.TrimSpace(anyToString(entry["framework"]))
+			framework := strings.TrimSpace(payloadcore.AnyToString(entry["framework"]))
 			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, framework, handler)
 			if functionID == "" {
 				continue
@@ -109,8 +114,8 @@ func buildRunsInIntentRows(
 				"ambiguous":         true,
 			}
 
-			intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
-				ProjectionDomain: DomainRunsIn,
+			intents = append(intents, sharedintent.Build(sharedintent.Input{
+				ProjectionDomain: reducercontract.DomainRunsIn,
 				PartitionKey:     functionID + "->" + repositoryID,
 				ScopeID:          context.ScopeID,
 				AcceptanceUnitID: context.ResolveAcceptanceUnitID(repositoryID),

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"sort"
@@ -10,7 +10,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // invokesCloudActionEvidenceSource labels INVOKES_CLOUD_ACTION edges so the
@@ -128,11 +133,11 @@ func resolveCloudAction(
 // (Function, action) collapse to one intent.
 func buildInvokesCloudActionIntentRows(
 	envelopes []facts.Envelope,
-	index codeEntityIndex,
-	contextByRepoID map[string]ProjectionContext,
+	index shared.EntityIndex,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
 	evidenceSource string,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(envelopes) == 0 || len(contextByRepoID) == 0 {
 		return nil
 	}
@@ -141,13 +146,13 @@ func buildInvokesCloudActionIntentRows(
 	}
 	catalog := iamcan.CatalogByAction()
 
-	intents := make([]SharedProjectionIntentRow, 0)
+	intents := make([]sharedintent.Row, 0)
 	seen := make(map[string]struct{})
 	for _, env := range envelopes {
-		if env.FactKind != factKindFile {
+		if env.FactKind != factload.FactKindFile {
 			continue
 		}
-		repositoryID := payloadStr(env.Payload, "repo_id")
+		repositoryID := payloadcore.PayloadStr(env.Payload, "repo_id")
 		if repositoryID == "" {
 			continue
 		}
@@ -159,25 +164,25 @@ func buildInvokesCloudActionIntentRows(
 		if !ok {
 			continue
 		}
-		relativePath := payloadStr(env.Payload, "relative_path")
-		rawPath := anyToString(fileData["path"])
+		relativePath := payloadcore.PayloadStr(env.Payload, "relative_path")
+		rawPath := payloadcore.AnyToString(fileData["path"])
 
-		for _, call := range mapSlice(fileData["function_calls"]) {
-			service := anyToString(call["receiver_sdk_service"])
-			method := anyToString(call["name"])
+		for _, call := range payloadcore.MapSlice(fileData["function_calls"]) {
+			service := payloadcore.AnyToString(call["receiver_sdk_service"])
+			method := payloadcore.AnyToString(call["name"])
 			action, ok := resolveCloudAction(service, method, catalog)
 			if !ok {
 				continue
 			}
-			callLine := codeCallInt(call["line_number"], call["ref_line"])
+			callLine := shared.PayloadInt(call["line_number"], call["ref_line"])
 			if callLine <= 0 {
 				continue
 			}
-			functionID := resolveContainingCodeEntityID(index, rawPath, relativePath, callLine)
+			functionID := shared.ResolveContainingEntityID(index, rawPath, relativePath, callLine)
 			if functionID == "" {
 				continue
 			}
-			if codeCallEndpointEntityType(index, repositoryID, functionID) != "Function" {
+			if shared.EndpointEntityType(index, repositoryID, functionID) != "Function" {
 				continue
 			}
 
@@ -204,8 +209,8 @@ func buildInvokesCloudActionIntentRows(
 				"reason":            codeprovenance.Reason(codeprovenance.MethodImportBinding),
 			}
 
-			intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
-				ProjectionDomain: DomainInvokesCloudAction,
+			intents = append(intents, sharedintent.Build(sharedintent.Input{
+				ProjectionDomain: reducercontract.DomainInvokesCloudAction,
 				PartitionKey:     functionID + "->" + action,
 				ScopeID:          context.ScopeID,
 				AcceptanceUnitID: context.ResolveAcceptanceUnitID(repositoryID),

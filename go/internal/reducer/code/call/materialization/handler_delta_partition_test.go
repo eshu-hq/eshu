@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"context"
@@ -9,9 +9,11 @@ import (
 	"testing"
 	"time"
 
-	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions(t *testing.T) {
@@ -102,39 +104,39 @@ func TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions(t *testing.T) {
 	}
 
 	writer := &recordingCodeCallIntentWriter{}
-	handler := CodeCallMaterializationHandler{
+	handler := Handler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-code-call-delta-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		SourceSystem: "git",
-		Domain:       DomainCodeCallMaterialization,
+		Domain:       reducercontract.DomainCodeCallMaterialization,
 		Cause:        "parser follow-up required",
 		EnqueuedAt:   now,
 		AvailableAt:  now,
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("result.Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("result.Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 	if got, want := len(writer.rows), 3; got != want {
 		t.Fatalf("len(writer.rows) = %d, want %d", got, want)
 	}
 
-	var refreshRows []SharedProjectionIntentRow
+	var refreshRows []sharedintent.Row
 	for _, row := range writer.rows {
 		if row.Payload["intent_type"] != "repo_refresh" {
 			continue
 		}
 		refreshRows = append(refreshRows, row)
-		gotPaths := semanticPayloadStringSlice(row.Payload, "delta_file_paths")
+		gotPaths := payloadcore.SemanticPayloadStringSlice(row.Payload, "delta_file_paths")
 		wantPaths := []string{"/repo/caller.py", "/repo/models.py"}
 		if !reflect.DeepEqual(gotPaths, wantPaths) {
 			t.Fatalf("refresh delta_file_paths = %#v, want %#v", gotPaths, wantPaths)
@@ -144,12 +146,12 @@ func TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions(t *testing.T) {
 		t.Fatalf("len(refreshRows) = %d, want %d", got, want)
 	}
 
-	var codeCallRow, metaclassRow SharedProjectionIntentRow
+	var codeCallRow, metaclassRow sharedintent.Row
 	for _, row := range writer.rows {
 		switch row.Payload["evidence_source"] {
-		case codeCallEvidenceSource:
+		case codecall.EvidenceSource:
 			codeCallRow = row
-		case pythonMetaclassEvidenceSource:
+		case codecall.PythonMetaclassEvidenceSource:
 			metaclassRow = row
 		}
 	}
@@ -158,14 +160,14 @@ func TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions(t *testing.T) {
 	if got, want := codeCallRow.PartitionKey, wantCallerPartition; got != want {
 		t.Fatalf("code-call PartitionKey = %q, want caller partition %q", got, want)
 	}
-	if gotPaths := semanticPayloadStringSlice(codeCallRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/caller.py"}) {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(codeCallRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/caller.py"}) {
 		t.Fatalf("code-call delta_file_paths = %#v, want [/repo/caller.py]", gotPaths)
 	}
 	wantModelsPartition := codecall.RefreshPartitionKeyForDelta("repo-a", []string{"models.py"})
 	if got, want := metaclassRow.PartitionKey, wantModelsPartition; got != want {
 		t.Fatalf("metaclass PartitionKey = %q, want models partition %q", got, want)
 	}
-	if gotPaths := semanticPayloadStringSlice(metaclassRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/models.py"}) {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(metaclassRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/models.py"}) {
 		t.Fatalf("metaclass delta_file_paths = %#v, want [/repo/models.py]", gotPaths)
 	}
 }

@@ -224,16 +224,6 @@ func loadFactsForKinds(
 	return factload.LoadFactsForKinds(ctx, loader, scopeID, generationID, factKinds)
 }
 
-// classifyFactLoadError forwards to [factload.ClassifyFactLoadError].
-func classifyFactLoadError(err error) error {
-	return factload.ClassifyFactLoadError(err)
-}
-
-// cleanFactFilterValues forwards to [payloadcore.CleanFactFilterValues].
-func cleanFactFilterValues(values []string) []string {
-	return payloadcore.CleanFactFilterValues(values)
-}
-
 // Stanza: shared_payload_delta_compat.go (merged; do not recreate this file).
 // This file holds the payload/delta forwarders that used to live in the
 // semantic_entity_*.go files before the semantic_entity family moved to
@@ -283,6 +273,18 @@ func applyRepoRefreshDeltaScope(
 	filePathsByRepoID map[string][]string,
 ) {
 	sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, filePathsByRepoID)
+}
+
+// sharedProjectionRowRepoID forwards to [sharedintent.RowRepoID]. Root test
+// files that exercise the shared-projection worker's partition-convergence
+// behavior (inherits_edge_partition_convergence_test.go,
+// rationale_edge_materialization_partition_test.go,
+// shared_projection_worker_retract_race_test.go,
+// sql_relationship_partition_convergence_test.go) read this spelling; the
+// production call site moved to [materialization] with the code-call handler
+// (issue #6061).
+func sharedProjectionRowRepoID(row SharedProjectionIntentRow) string {
+	return sharedintent.RowRepoID(row)
 }
 
 // Stanza: decode_seam_compat2.go (merged; do not recreate this file).

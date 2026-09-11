@@ -48,7 +48,8 @@ _ifa_generic_require_intent_writer() {
 	# earlier form was `rg --fixed-strings 'IntentWriter'`, which every one of
 	# these handlers satisfies twice over without having the field: each
 	# declares its writer INTERFACE in the same file as the struct
-	# (CodeCallIntentWriter at code_call_materialization.go:26,
+	# (IntentWriter, root spelling CodeCallIntentWriter, at
+	# code/call/materialization/handler.go:34,
 	# RationaleEdgeIntentWriter at rationale_edge_materialization.go:26). A
 	# refactor that drops the struct field but keeps the interface -- or that
 	# leaves the word in a comment -- passed. Proven by feeding it a handler

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestBuildHandlesRouteIntentRowsEmitsCPPExactEntries(t *testing.T) {
@@ -65,13 +66,13 @@ func TestBuildHandlesRouteIntentRowsEmitsCPPExactEntries(t *testing.T) {
 				t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 			}
 			intent := intents[0]
-			if got, want := payloadStr(intent.Payload, "framework"), tc.framework; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), tc.framework; got != want {
 				t.Fatalf("framework = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "path"), tc.routePath; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "path"), tc.routePath; got != want {
 				t.Fatalf("path = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "http_method"), tc.method; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), tc.method; got != want {
 				t.Fatalf("http_method = %q, want %q", got, want)
 			}
 		})

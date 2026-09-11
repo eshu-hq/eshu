@@ -28,7 +28,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser/interproc"
 	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
-	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value"
 	"github.com/eshu-hq/eshu/go/internal/reducer/code/value/cleanup"
@@ -260,15 +260,42 @@ type ValueFlowFixpointEvidenceProjector = value.FixpointEvidenceProjector
 type ValueFlowFixpointProjectionResult = value.FixpointProjectionResult
 
 // Stanza: code-call family move (#6609; no prior compat file).
-// The code-call extraction, entity-index, resolver, and intent-building family
-// moved to [codecall] (go/internal/reducer/code/call). The handler
-// (code_call_materialization.go) and the seven code_call_projection_* runner
-// files stay in root: the handler composes code-call rows with the
-// handles_route, runs_in, and invokes_cloud_action families, and the runner
-// needs the root lease and shared-projection machinery. The exported
-// forwarders keep the reducer.X spelling for callers outside this package; the
-// unexported spellings keep the runner files' call sites unchanged. Each entry is deleted
-// once its last caller names [codecall] directly.
+// The code-call extraction, entity-index, resolver, and intent-building
+// family moved to [codecall] (go/internal/reducer/code/call); the handler,
+// handles_route, runs_in, invokes_cloud_action, and symbol-runtime refresh
+// files moved to [materialization]
+// (go/internal/reducer/code/call/materialization, issue #6061). The seven
+// code_call_projection_* runner files still stay in root: they need the
+// root lease and shared-projection machinery. The exported forwarders keep
+// the reducer.X spelling for callers outside these packages; the unexported
+// spellings keep the runner files' call sites unchanged. Each entry is
+// deleted once its last caller names [codecall]/[materialization] directly.
+
+// CodeCallMaterializationHandler is the root spelling of
+// [materialization.Handler].
+type CodeCallMaterializationHandler = materialization.Handler
+
+// CodeCallIntentWriter is the root spelling of [materialization.IntentWriter].
+type CodeCallIntentWriter = materialization.IntentWriter
+
+// ExtractSymbolRuntimeIntentRows is the root spelling of
+// [materialization.ExtractIntentRows]. internal/ifa's symbol-runtime family
+// odù fixtures call this as reducer.ExtractSymbolRuntimeIntentRows.
+func ExtractSymbolRuntimeIntentRows(
+	envelopes []facts.Envelope,
+	generationID string,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	return materialization.ExtractIntentRows(envelopes, generationID, createdAt)
+}
+
+// BuildHandlesRouteIntentRowsForQueryProof is the root spelling of
+// [materialization.BuildRouteIntentRowsForQueryProof]. internal/mcp and
+// internal/query's route-to-caller proof tests call this as
+// reducer.BuildHandlesRouteIntentRowsForQueryProof.
+func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []SharedProjectionIntentRow {
+	return materialization.BuildRouteIntentRowsForQueryProof(envelopes)
+}
 
 // ExtractCodeCallRows forwards to [codecall.ExtractRows].
 func ExtractCodeCallRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
@@ -286,84 +313,13 @@ func ExtractAllCodeRelationshipRows(envelopes []facts.Envelope) (
 	return codecall.ExtractAllRelationshipRows(envelopes)
 }
 
-// codeEntityIndex is [shared.EntityIndex] for the root handles_route,
-// runs_in, invokes_cloud_action, and symbol-runtime builders.
-type codeEntityIndex = shared.EntityIndex
-
-// buildCodeEntityIndex forwards to [shared.BuildEntityIndex].
-func buildCodeEntityIndex(envelopes []facts.Envelope) codeEntityIndex {
-	return shared.BuildEntityIndex(envelopes)
-}
-
-// extractAllCodeRelationshipRowsWithIndex forwards to
-// [codecall.ExtractAllRelationshipRowsWithIndex].
-func extractAllCodeRelationshipRowsWithIndex(envelopes []facts.Envelope) (
-	codeCallRepoIDs []string,
-	codeCallRows []map[string]any,
-	metaclassRepoIDs []string,
-	metaclassRows []map[string]any,
-	entityIndex codeEntityIndex,
-	quarantined []quarantinedFact,
-) {
-	return codecall.ExtractAllRelationshipRowsWithIndex(envelopes)
-}
-
 // buildCodeCallProjectionContexts forwards to
-// [schemadecode.BuildProjectionContexts], the owner the moved family also
-// calls.
+// [schemadecode.BuildProjectionContexts]. Kept for the root-only sibling
+// cross-domain proofs (rationale_edge_materialization.go and its partition
+// test, sibling_edge_intent_delta_gate_test.go) that still call it
+// unqualified; [materialization] and [codecall] call schemadecode directly.
 func buildCodeCallProjectionContexts(envelopes []facts.Envelope, generationID string) map[string]ProjectionContext {
 	return schemadecode.BuildProjectionContexts(envelopes, generationID)
-}
-
-// buildCodeCallSharedIntentRows forwards to [codecall.BuildSharedIntentRows].
-func buildCodeCallSharedIntentRows(
-	rows []map[string]any,
-	contextByRepoID map[string]ProjectionContext,
-	createdAt time.Time,
-	evidenceSource string,
-	deltaScopesByRepoID map[string]codecall.DeltaFileScope,
-) []SharedProjectionIntentRow {
-	return codecall.BuildSharedIntentRows(rows, contextByRepoID, createdAt, evidenceSource, deltaScopesByRepoID)
-}
-
-// buildCodeCallRefreshIntentsWithDeltaFileScopes forwards to
-// [codecall.BuildRefreshIntentsWithDeltaFileScopes].
-func buildCodeCallRefreshIntentsWithDeltaFileScopes(
-	contextByRepoID map[string]ProjectionContext,
-	deltaScopesByRepoID map[string]codecall.DeltaFileScope,
-	createdAt time.Time,
-) []SharedProjectionIntentRow {
-	return codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, deltaScopesByRepoID, createdAt)
-}
-
-// buildCodeCallFileScopesByRepoID forwards to [codecall.BuildFileScopesByRepoID].
-func buildCodeCallFileScopesByRepoID(envelopes []facts.Envelope) codecall.FileScopeBuildResult {
-	return codecall.BuildFileScopesByRepoID(envelopes)
-}
-
-// codeCallReferencedSymbolKeys forwards to [shared.ReferencedSymbolKeys].
-func codeCallReferencedSymbolKeys(envelopes []facts.Envelope) []string {
-	return shared.ReferencedSymbolKeys(envelopes)
-}
-
-// resolveContainingCodeEntityID forwards to [shared.ResolveContainingEntityID].
-func resolveContainingCodeEntityID(index codeEntityIndex, rawPath string, relativePath string, line int) string {
-	return shared.ResolveContainingEntityID(index, rawPath, relativePath, line)
-}
-
-// codeCallEndpointEntityType forwards to [shared.EndpointEntityType].
-func codeCallEndpointEntityType(index codeEntityIndex, repositoryID string, entityID string) string {
-	return shared.EndpointEntityType(index, repositoryID, entityID)
-}
-
-// codeCallPathKeys forwards to [shared.PathKeys].
-func codeCallPathKeys(rawPath string, relativePath string) []string {
-	return shared.PathKeys(rawPath, relativePath)
-}
-
-// codeCallInt forwards to [shared.PayloadInt].
-func codeCallInt(values ...any) int {
-	return shared.PayloadInt(values...)
 }
 
 // mapSlice forwards to [payloadcore.MapSlice], the owner the moved family

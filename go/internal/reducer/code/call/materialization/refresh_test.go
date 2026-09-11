@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
 	"time"
+
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-func perEdgeRowForRepo(domain, repoID, partitionKey string) SharedProjectionIntentRow {
-	return SharedProjectionIntentRow{
+func perEdgeRowForRepo(domain, repoID, partitionKey string) sharedintent.Row {
+	return sharedintent.Row{
 		ProjectionDomain: domain,
 		PartitionKey:     partitionKey,
 		ScopeID:          "scope-a",
@@ -30,24 +35,24 @@ func TestBuildRepoWideRetractRefreshIntentsPairsOnePerRepo(t *testing.T) {
 	t.Parallel()
 
 	createdAt := time.Date(2026, time.June, 18, 12, 0, 0, 0, time.UTC)
-	perEdge := []SharedProjectionIntentRow{
-		perEdgeRowForRepo(DomainHandlesRoute, "repo-a", "fn1->repo-a:/x"),
-		perEdgeRowForRepo(DomainHandlesRoute, "repo-a", "fn2->repo-a:/y"),
-		perEdgeRowForRepo(DomainHandlesRoute, "repo-b", "fn3->repo-b:/z"),
+	perEdge := []sharedintent.Row{
+		perEdgeRowForRepo(reducercontract.DomainHandlesRoute, "repo-a", "fn1->repo-a:/x"),
+		perEdgeRowForRepo(reducercontract.DomainHandlesRoute, "repo-a", "fn2->repo-a:/y"),
+		perEdgeRowForRepo(reducercontract.DomainHandlesRoute, "repo-b", "fn3->repo-b:/z"),
 	}
-	contextByRepoID := map[string]ProjectionContext{
+	contextByRepoID := map[string]sharedintent.ProjectionContext{
 		"repo-a": {ScopeID: "scope-a", SourceRunID: "run-1", GenerationID: "gen-1"},
 		"repo-b": {ScopeID: "scope-a", SourceRunID: "run-1", GenerationID: "gen-1"},
 	}
 
 	refreshes := buildRepoWideRetractRefreshIntents(
-		DomainHandlesRoute, perEdge, contextByRepoID, createdAt, handlesRouteEvidenceSource,
+		reducercontract.DomainHandlesRoute, perEdge, contextByRepoID, createdAt, HandlesRouteEvidenceSource,
 	)
 
 	if len(refreshes) != 2 {
 		t.Fatalf("refresh intent count = %d, want 2 (one per repo)", len(refreshes))
 	}
-	byRepo := map[string]SharedProjectionIntentRow{}
+	byRepo := map[string]sharedintent.Row{}
 	for _, r := range refreshes {
 		byRepo[r.RepositoryID] = r
 	}
@@ -56,13 +61,13 @@ func TestBuildRepoWideRetractRefreshIntentsPairsOnePerRepo(t *testing.T) {
 		if !ok {
 			t.Fatalf("missing refresh intent for %q", repoID)
 		}
-		if !isRepoRefreshRow(r) {
+		if !sharedintent.IsRepoRefreshRow(r) {
 			t.Errorf("%q refresh intent not marked repo_refresh", repoID)
 		}
-		if got := payloadStr(r.Payload, "action"); got != repoRefreshAction {
-			t.Errorf("%q refresh action = %q, want %q", repoID, got, repoRefreshAction)
+		if got := payloadcore.PayloadStr(r.Payload, "action"); got != sharedintent.RepoRefreshAction {
+			t.Errorf("%q refresh action = %q, want %q", repoID, got, sharedintent.RepoRefreshAction)
 		}
-		if want := repoWideRetractRefreshPartitionKey(DomainHandlesRoute, repoID); r.PartitionKey != want {
+		if want := sharedintent.RepoWideRetractRefreshPartitionKey(reducercontract.DomainHandlesRoute, repoID); r.PartitionKey != want {
 			t.Errorf("%q refresh partition key = %q, want %q", repoID, r.PartitionKey, want)
 		}
 		// The refresh intent must share the acceptance key the per-edge rows carry,
@@ -80,10 +85,10 @@ func TestBuildRepoWideRetractRefreshIntentsPairsOnePerRepo(t *testing.T) {
 func TestBuildRepoWideRetractRefreshIntentsSkipsNonRepoWideDomain(t *testing.T) {
 	t.Parallel()
 
-	perEdge := []SharedProjectionIntentRow{perEdgeRowForRepo(DomainCodeCalls, "repo-a", "pk")}
-	contextByRepoID := map[string]ProjectionContext{"repo-a": {ScopeID: "scope-a", SourceRunID: "run-1", GenerationID: "gen-1"}}
+	perEdge := []sharedintent.Row{perEdgeRowForRepo(reducercontract.DomainCodeCalls, "repo-a", "pk")}
+	contextByRepoID := map[string]sharedintent.ProjectionContext{"repo-a": {ScopeID: "scope-a", SourceRunID: "run-1", GenerationID: "gen-1"}}
 
-	if got := buildRepoWideRetractRefreshIntents(DomainCodeCalls, perEdge, contextByRepoID, time.Now(), codeCallEvidenceSource); got != nil {
+	if got := buildRepoWideRetractRefreshIntents(reducercontract.DomainCodeCalls, perEdge, contextByRepoID, time.Now(), codecall.EvidenceSource); got != nil {
 		t.Fatalf("expected no refresh intents for non-repo-wide domain, got %d", len(got))
 	}
 }

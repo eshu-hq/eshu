@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestBuildHandlesRouteIntentRowsEmitsPerlExactEntries(t *testing.T) {
@@ -43,13 +44,13 @@ func TestBuildHandlesRouteIntentRowsEmitsPerlExactEntries(t *testing.T) {
 				t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 			}
 			intent := intents[0]
-			if got, want := payloadStr(intent.Payload, "framework"), tc.framework; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), tc.framework; got != want {
 				t.Fatalf("framework = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "path"), "/health"; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/health"; got != want {
 				t.Fatalf("path = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 				t.Fatalf("http_method = %q, want %q", got, want)
 			}
 		})
@@ -79,7 +80,7 @@ func TestBuildHandlesRouteIntentRowsResolvesPerlQualifiedHandler(t *testing.T) {
 	if len(intents) != 1 {
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
-	if got, want := payloadStr(intents[0].Payload, "function_entity_id"), "content-entity:admin-show"; got != want {
+	if got, want := payloadcore.PayloadStr(intents[0].Payload, "function_entity_id"), "content-entity:admin-show"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
 }

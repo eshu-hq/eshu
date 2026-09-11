@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
@@ -9,6 +9,11 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // handlesRouteRepoEnvelope builds a repository fact envelope that anchors the
@@ -53,17 +58,17 @@ func handlesRouteFileEnvelope(
 	}
 }
 
-func buildHandlesRouteIntentsForTest(t *testing.T, envelopes []facts.Envelope) []SharedProjectionIntentRow {
+func buildHandlesRouteIntentsForTest(t *testing.T, envelopes []facts.Envelope) []sharedintent.Row {
 	t.Helper()
 	generationID := "gen-1"
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, generationID)
-	index := buildCodeEntityIndex(envelopes)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, generationID)
+	index := shared.BuildEntityIndex(envelopes)
 	return buildHandlesRouteIntentRows(
 		envelopes,
 		index,
 		contextByRepoID,
 		time.Unix(0, 0).UTC(),
-		handlesRouteEvidenceSource,
+		HandlesRouteEvidenceSource,
 	)
 }
 
@@ -91,22 +96,22 @@ func TestBuildHandlesRouteIntentRowsEmitsExactSameFileMatch(t *testing.T) {
 	}
 
 	intent := intents[0]
-	if intent.ProjectionDomain != DomainHandlesRoute {
-		t.Fatalf("projection domain = %q, want %q", intent.ProjectionDomain, DomainHandlesRoute)
+	if intent.ProjectionDomain != reducercontract.DomainHandlesRoute {
+		t.Fatalf("projection domain = %q, want %q", intent.ProjectionDomain, reducercontract.DomainHandlesRoute)
 	}
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:gw"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:gw"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "repo_id"), "repo-1"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "repo_id"), "repo-1"; got != want {
 		t.Fatalf("repo_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "path"), "/widgets"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/widgets"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
-	method := payloadStr(intent.Payload, "resolution_method")
+	method := payloadcore.PayloadStr(intent.Payload, "resolution_method")
 	if !codeprovenance.Classified(method) {
 		t.Fatalf("resolution_method = %q, want a classified provenance method", method)
 	}
@@ -143,16 +148,16 @@ func TestBuildHandlesRouteIntentRowsEmitsGoFrameworkRouteMatches(t *testing.T) {
 				t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 			}
 			intent := intents[0]
-			if got, want := payloadStr(intent.Payload, "framework"), framework; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), framework; got != want {
 				t.Fatalf("framework = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:health"; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:health"; got != want {
 				t.Fatalf("function_entity_id = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "path"), "/health"; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/health"; got != want {
 				t.Fatalf("path = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 				t.Fatalf("http_method = %q, want %q", got, want)
 			}
 		})
@@ -195,10 +200,10 @@ func TestBuildHandlesRouteIntentRowsResolvesRepoUniqueAcrossFiles(t *testing.T) 
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:ct"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:ct"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodRepoUniqueName; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodRepoUniqueName; got != want {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }
@@ -226,13 +231,13 @@ func TestBuildHandlesRouteIntentRowsPreservesJVMFrameworkProvenance(t *testing.T
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "framework"), "ktor"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "ktor"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "path"), "/ktor/ping"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/ktor/ping"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
 }
@@ -267,13 +272,13 @@ func TestBuildHandlesRouteIntentRowsResolvesClassMethodHandler(t *testing.T) {
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:report-get"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:report-get"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "framework"), "django"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "django"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }
@@ -440,10 +445,10 @@ func TestBuildHandlesRouteIntentRowsEmitsNextJSRouteHandlerEntries(t *testing.T)
 	}
 	seen := map[string]bool{}
 	for _, intent := range intents {
-		if got, want := payloadStr(intent.Payload, "framework"), "nextjs"; got != want {
+		if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "nextjs"; got != want {
 			t.Fatalf("framework = %q, want %q", got, want)
 		}
-		seen[payloadStr(intent.Payload, "http_method")+" "+payloadStr(intent.Payload, "function_entity_id")] = true
+		seen[payloadcore.PayloadStr(intent.Payload, "http_method")+" "+payloadcore.PayloadStr(intent.Payload, "function_entity_id")] = true
 	}
 	if !seen["GET content-entity:get"] || !seen["POST content-entity:post"] {
 		t.Fatalf("nextjs HANDLES_ROUTE intents = %#v, want GET and POST bindings", intents)

@@ -48,18 +48,6 @@ const (
 	retractViaRefreshKey = sharedintent.RetractViaRefreshKey
 )
 
-// domainHasRepoWideRetract forwards to [sharedintent.DomainHasRepoWideRetract].
-// See that function for which domains are fenced and why: these domains emit
-// per-edge partition keys, so their edges spread across partitions, and the
-// retract suppression (#2898/#2910) routes their single repo-wide retract
-// through a per-repo refresh intent instead of reissuing it once per
-// partition. A second copy of the fenced set lives in
-// internal/storage/cypher's wholeScopeRetractDomains table; a domain added
-// here but missed there gets the #6166 over-delete.
-func domainHasRepoWideRetract(domain string) bool {
-	return sharedintent.DomainHasRepoWideRetract(domain)
-}
-
 // RepoWideRetractDomains forwards to [sharedintent.RepoWideRetractDomains].
 func RepoWideRetractDomains() []string {
 	return sharedintent.RepoWideRetractDomains()
@@ -78,11 +66,6 @@ func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
 // isRepoRefreshRow forwards to [sharedintent.IsRepoRefreshRow].
 func isRepoRefreshRow(row SharedProjectionIntentRow) bool {
 	return sharedintent.IsRepoRefreshRow(row)
-}
-
-// markRowsRetractViaRefresh forwards to [sharedintent.MarkRowsRetractViaRefresh].
-func markRowsRetractViaRefresh(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
-	return sharedintent.MarkRowsRetractViaRefresh(rows)
 }
 
 // rowUsesRefreshFence forwards to [worker.RowUsesRefreshFence].

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestBuildHandlesRouteIntentRowsEmitsScalaPlayRouteMatches(t *testing.T) {
@@ -47,19 +48,19 @@ func TestBuildHandlesRouteIntentRowsEmitsScalaPlayRouteMatches(t *testing.T) {
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:reports-show"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:reports-show"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "framework"), "play"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "play"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "path"), "/reports/:id"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/reports/:id"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodRepoUniqueName; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "resolution_method"), codeprovenance.MethodRepoUniqueName; got != want {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }

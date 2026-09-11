@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"sort"
@@ -10,11 +10,17 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
-// handlesRouteEvidenceSource labels HANDLES_ROUTE edges so retraction and
+// HandlesRouteEvidenceSource labels HANDLES_ROUTE edges so retraction and
 // re-projection only ever touch edges this emitter owns.
-const handlesRouteEvidenceSource = "parser/framework-routes"
+const HandlesRouteEvidenceSource = "parser/framework-routes"
 
 // buildHandlesRouteIntentRows resolves parser-owned framework route handlers to
 // Function entities and emits one ordering-safe shared-projection intent per
@@ -31,25 +37,25 @@ const handlesRouteEvidenceSource = "parser/framework-routes"
 // behavior for older facts or frameworks that still model roots without routes.
 func buildHandlesRouteIntentRows(
 	envelopes []facts.Envelope,
-	index codeEntityIndex,
-	contextByRepoID map[string]ProjectionContext,
+	index shared.EntityIndex,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
 	createdAt time.Time,
 	evidenceSource string,
-) []SharedProjectionIntentRow {
+) []sharedintent.Row {
 	if len(envelopes) == 0 || len(contextByRepoID) == 0 {
 		return nil
 	}
 	if evidenceSource == "" {
-		evidenceSource = handlesRouteEvidenceSource
+		evidenceSource = HandlesRouteEvidenceSource
 	}
 
-	intents := make([]SharedProjectionIntentRow, 0)
+	intents := make([]sharedintent.Row, 0)
 	seen := make(map[string]struct{})
 	for _, env := range envelopes {
-		if env.FactKind != factKindFile {
+		if env.FactKind != factload.FactKindFile {
 			continue
 		}
-		repositoryID := payloadStr(env.Payload, "repo_id")
+		repositoryID := payloadcore.PayloadStr(env.Payload, "repo_id")
 		if repositoryID == "" {
 			continue
 		}
@@ -61,22 +67,22 @@ func buildHandlesRouteIntentRows(
 		if !ok {
 			continue
 		}
-		relativePath := payloadStr(env.Payload, "relative_path")
-		rawPath := anyToString(fileData["path"])
-		pathKeys := codeCallPathKeys(rawPath, relativePath)
+		relativePath := payloadcore.PayloadStr(env.Payload, "relative_path")
+		rawPath := payloadcore.AnyToString(fileData["path"])
+		pathKeys := shared.PathKeys(rawPath, relativePath)
 
 		for _, entry := range handlesRouteEntries(fileData) {
-			handler := strings.TrimSpace(anyToString(entry["handler"]))
-			routePath := strings.TrimSpace(anyToString(entry["path"]))
+			handler := strings.TrimSpace(payloadcore.AnyToString(entry["handler"]))
+			routePath := strings.TrimSpace(payloadcore.AnyToString(entry["path"]))
 			if handler == "" || routePath == "" {
 				continue
 			}
-			framework := strings.TrimSpace(anyToString(entry["framework"]))
+			framework := strings.TrimSpace(payloadcore.AnyToString(entry["framework"]))
 			functionID, method := resolveHandlesRouteFunction(index, repositoryID, pathKeys, framework, handler)
 			if functionID == "" {
 				continue
 			}
-			httpMethod := strings.ToUpper(strings.TrimSpace(anyToString(entry["method"])))
+			httpMethod := strings.ToUpper(strings.TrimSpace(payloadcore.AnyToString(entry["method"])))
 			dedupeKey := functionID + "\x00" + repositoryID + "\x00" + routePath + "\x00" + httpMethod
 			if _, exists := seen[dedupeKey]; exists {
 				continue
@@ -96,8 +102,8 @@ func buildHandlesRouteIntentRows(
 				"reason":             codeprovenance.Reason(method),
 			}
 
-			intents = append(intents, BuildSharedProjectionIntent(SharedProjectionIntentInput{
-				ProjectionDomain: DomainHandlesRoute,
+			intents = append(intents, sharedintent.Build(sharedintent.Input{
+				ProjectionDomain: reducercontract.DomainHandlesRoute,
 				PartitionKey:     functionID + "->" + repositoryID + ":" + routePath,
 				ScopeID:          context.ScopeID,
 				AcceptanceUnitID: context.ResolveAcceptanceUnitID(repositoryID),
@@ -119,9 +125,9 @@ func buildHandlesRouteIntentRows(
 	return intents
 }
 
-// BuildHandlesRouteIntentRowsForQueryProof runs the same HANDLES_ROUTE
-// materialization pipeline production uses -- buildCodeCallProjectionContexts,
-// buildCodeEntityIndex, and buildHandlesRouteIntentRows -- over the given file
+// BuildRouteIntentRowsForQueryProof runs the same HANDLES_ROUTE
+// materialization pipeline production uses -- schemadecode.BuildProjectionContexts,
+// shared.BuildEntityIndex, and buildHandlesRouteIntentRows -- over the given file
 // envelopes and returns the resulting intent rows.
 //
 // It exists solely so internal/query's Java route-to-caller proof test
@@ -133,11 +139,11 @@ func buildHandlesRouteIntentRows(
 // green because its fake row was disconnected from reducer behavior. Calling
 // this from the query test closes that seam without exporting the full
 // internal materialization surface.
-func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []SharedProjectionIntentRow {
+func BuildRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []sharedintent.Row {
 	generationID := "gen-handles-route-query-proof"
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, generationID)
-	index := buildCodeEntityIndex(envelopes)
-	return buildHandlesRouteIntentRows(envelopes, index, contextByRepoID, time.Unix(0, 0).UTC(), handlesRouteEvidenceSource)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, generationID)
+	index := shared.BuildEntityIndex(envelopes)
+	return buildHandlesRouteIntentRows(envelopes, index, contextByRepoID, time.Unix(0, 0).UTC(), HandlesRouteEvidenceSource)
 }
 
 // resolveHandlesRouteFunction resolves a route handler name to exactly one
@@ -149,7 +155,7 @@ func BuildHandlesRouteIntentRowsForQueryProof(envelopes []facts.Envelope) []Shar
 // name is unknown or ambiguous. The index maps retain a name only when it is
 // unique in that scope.
 func resolveHandlesRouteFunction(
-	index codeEntityIndex,
+	index shared.EntityIndex,
 	repositoryID string,
 	pathKeys []string,
 	framework string,
@@ -211,7 +217,7 @@ func handlesRouteEntries(fileData map[string]any) []map[string]any {
 	if !ok {
 		return nil
 	}
-	frameworks := toStringSlice(semantics["frameworks"])
+	frameworks := payloadcore.ToStringSlice(semantics["frameworks"])
 	if len(frameworks) == 0 {
 		return nil
 	}
@@ -227,7 +233,7 @@ func handlesRouteEntries(fileData map[string]any) []map[string]any {
 		if !ok {
 			continue
 		}
-		for _, entry := range mapSlice(rawEntries) {
+		for _, entry := range payloadcore.MapSlice(rawEntries) {
 			withFramework := make(map[string]any, len(entry)+1)
 			for key, value := range entry {
 				withFramework[key] = value

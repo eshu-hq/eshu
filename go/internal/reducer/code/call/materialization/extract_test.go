@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"reflect"
@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // symbolRuntimeFileEnvelope builds one file fact envelope carrying functions,
@@ -55,8 +57,8 @@ func symbolRuntimeFileEnvelope(
 }
 
 // filterByDomain returns only the rows for one ProjectionDomain.
-func filterByDomain(rows []SharedProjectionIntentRow, domain string) []SharedProjectionIntentRow {
-	out := make([]SharedProjectionIntentRow, 0, len(rows))
+func filterByDomain(rows []sharedintent.Row, domain string) []sharedintent.Row {
+	out := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		if row.ProjectionDomain == domain {
 			out = append(out, row)
@@ -69,13 +71,13 @@ func filterByDomain(rows []SharedProjectionIntentRow, domain string) []SharedPro
 // repo-wide refresh intent (action: "refresh", intent_type: "repo_refresh"),
 // as opposed to a per-edge upsert row. A consumer that wants edges must
 // filter these out, mirroring the production filterUpsertRows gate.
-func symbolRuntimeIsRefreshRow(row SharedProjectionIntentRow) bool {
-	return payloadStr(row.Payload, "action") == "refresh"
+func symbolRuntimeIsRefreshRow(row sharedintent.Row) bool {
+	return payloadcore.PayloadStr(row.Payload, "action") == "refresh"
 }
 
 // filterEdgeRows keeps only the per-edge (non-refresh) rows for a domain.
-func filterEdgeRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRow {
-	out := make([]SharedProjectionIntentRow, 0, len(rows))
+func filterEdgeRows(rows []sharedintent.Row) []sharedintent.Row {
+	out := make([]sharedintent.Row, 0, len(rows))
 	for _, row := range rows {
 		if !symbolRuntimeIsRefreshRow(row) {
 			out = append(out, row)
@@ -87,7 +89,7 @@ func filterEdgeRows(rows []SharedProjectionIntentRow) []SharedProjectionIntentRo
 func TestExtractSymbolRuntimeIntentRowsEmptyEnvelopes(t *testing.T) {
 	t.Parallel()
 
-	rows := ExtractSymbolRuntimeIntentRows(nil, "gen-1", time.Unix(0, 0).UTC())
+	rows := ExtractIntentRows(nil, "gen-1", time.Unix(0, 0).UTC())
 	if len(rows) != 0 {
 		t.Fatalf("expected no rows for empty envelopes, got %d: %+v", len(rows), rows)
 	}
@@ -112,8 +114,8 @@ func TestExtractSymbolRuntimeIntentRowsHandlesRouteHappyPath(t *testing.T) {
 		),
 	}
 
-	rows := ExtractSymbolRuntimeIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
-	edgeRows := filterEdgeRows(filterByDomain(rows, DomainHandlesRoute))
+	rows := ExtractIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
+	edgeRows := filterEdgeRows(filterByDomain(rows, reducercontract.DomainHandlesRoute))
 	if len(edgeRows) != 1 {
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE upsert row, got %d: %+v", len(edgeRows), edgeRows)
 	}
@@ -122,31 +124,31 @@ func TestExtractSymbolRuntimeIntentRowsHandlesRouteHappyPath(t *testing.T) {
 	// Assert every payload field canonical_handles_route_edges.go's row-map
 	// builder reads: function_entity_id/repo_id/path feed the two MATCH
 	// clauses' identity, the rest are SET-only relationship properties.
-	if got, want := payloadStr(row.Payload, "function_entity_id"), "content-entity:gw"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "function_entity_id"), "content-entity:gw"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(row.Payload, "repo_id"), "repo-1"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "repo_id"), "repo-1"; got != want {
 		t.Fatalf("repo_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(row.Payload, "path"), "/widgets"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "path"), "/widgets"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(row.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(row.Payload, "framework"), "net_http"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "framework"), "net_http"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(row.Payload, "evidence_source"), handlesRouteEvidenceSource; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "evidence_source"), HandlesRouteEvidenceSource; got != want {
 		t.Fatalf("evidence_source = %q, want %q", got, want)
 	}
-	if payloadStr(row.Payload, "resolution_method") == "" {
+	if payloadcore.PayloadStr(row.Payload, "resolution_method") == "" {
 		t.Fatalf("resolution_method is empty, want a classified provenance method")
 	}
 	if _, ok := row.Payload["confidence"].(float64); !ok {
 		t.Fatalf("confidence missing or not a float64: %+v", row.Payload["confidence"])
 	}
-	if payloadStr(row.Payload, "reason") == "" {
+	if payloadcore.PayloadStr(row.Payload, "reason") == "" {
 		t.Fatalf("reason is empty")
 	}
 }
@@ -186,8 +188,8 @@ func TestExtractSymbolRuntimeIntentRowsHandlesRouteMethodDedupeSharedPartitionKe
 		),
 	}
 
-	rows := ExtractSymbolRuntimeIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
-	edgeRows := filterEdgeRows(filterByDomain(rows, DomainHandlesRoute))
+	rows := ExtractIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
+	edgeRows := filterEdgeRows(filterByDomain(rows, reducercontract.DomainHandlesRoute))
 	if len(edgeRows) != 2 {
 		t.Fatalf("expected exactly 2 HANDLES_ROUTE upsert rows (one per method), got %d: %+v", len(edgeRows), edgeRows)
 	}
@@ -195,7 +197,7 @@ func TestExtractSymbolRuntimeIntentRowsHandlesRouteMethodDedupeSharedPartitionKe
 	methods := make(map[string]bool)
 	partitionKeys := make(map[string]struct{})
 	for _, row := range edgeRows {
-		methods[payloadStr(row.Payload, "http_method")] = true
+		methods[payloadcore.PayloadStr(row.Payload, "http_method")] = true
 		partitionKeys[row.PartitionKey] = struct{}{}
 	}
 	if !methods["GET"] || !methods["POST"] {
@@ -233,18 +235,18 @@ func TestExtractSymbolRuntimeIntentRowsRunsIn(t *testing.T) {
 		),
 	}
 
-	rows := ExtractSymbolRuntimeIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
-	edgeRows := filterEdgeRows(filterByDomain(rows, DomainRunsIn))
+	rows := ExtractIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
+	edgeRows := filterEdgeRows(filterByDomain(rows, reducercontract.DomainRunsIn))
 	if len(edgeRows) != 1 {
 		t.Fatalf("expected exactly 1 RUNS_IN upsert row (dedupe collapses both route entries), got %d: %+v",
 			len(edgeRows), edgeRows)
 	}
 
 	row := edgeRows[0]
-	if got, want := payloadStr(row.Payload, "function_id"), "content-entity:gw"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "function_id"), "content-entity:gw"; got != want {
 		t.Fatalf("function_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(row.Payload, "repo_id"), "repo-1"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "repo_id"), "repo-1"; got != want {
 		t.Fatalf("repo_id = %q, want %q", got, want)
 	}
 	// The code stage never proves a repo defines exactly one Workload, so every
@@ -280,18 +282,18 @@ func TestExtractSymbolRuntimeIntentRowsInvokesCloudAction(t *testing.T) {
 		),
 	}
 
-	rows := ExtractSymbolRuntimeIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
-	edgeRows := filterEdgeRows(filterByDomain(rows, DomainInvokesCloudAction))
+	rows := ExtractIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
+	edgeRows := filterEdgeRows(filterByDomain(rows, reducercontract.DomainInvokesCloudAction))
 	if len(edgeRows) != 1 {
 		t.Fatalf("expected exactly 1 INVOKES_CLOUD_ACTION upsert row (non-catalog call must emit nothing), "+
 			"got %d: %+v", len(edgeRows), edgeRows)
 	}
 
 	row := edgeRows[0]
-	if got, want := payloadStr(row.Payload, "function_id"), "content-entity:handler"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "function_id"), "content-entity:handler"; got != want {
 		t.Fatalf("function_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(row.Payload, "repo_id"), "repo-1"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "repo_id"), "repo-1"; got != want {
 		t.Fatalf("repo_id = %q, want %q", got, want)
 	}
 	// REQUIRED: the resolved action lives under "cloud_action", NEVER "action".
@@ -299,16 +301,16 @@ func TestExtractSymbolRuntimeIntentRowsInvokesCloudAction(t *testing.T) {
 	// discriminator (shared_projection_readiness.go:245-258); if the cloud
 	// action string were stored under "action" every row would look like a
 	// non-"upsert" control row and silently drop every edge.
-	if got, want := payloadStr(row.Payload, "cloud_action"), "s3:putobject"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "cloud_action"), "s3:putobject"; got != want {
 		t.Fatalf("cloud_action = %q, want %q", got, want)
 	}
 	if _, hasAction := row.Payload["action"]; hasAction {
 		t.Fatalf("payload MUST NOT carry an \"action\" key for a per-edge row, got %v", row.Payload["action"])
 	}
-	if got, want := payloadStr(row.Payload, "action_id"), "cloud-action:s3:putobject"; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "action_id"), "cloud-action:s3:putobject"; got != want {
 		t.Fatalf("action_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(row.Payload, "evidence_source"), invokesCloudActionEvidenceSource; got != want {
+	if got, want := payloadcore.PayloadStr(row.Payload, "evidence_source"), invokesCloudActionEvidenceSource; got != want {
 		t.Fatalf("evidence_source = %q, want %q", got, want)
 	}
 }
@@ -343,18 +345,18 @@ func TestExtractSymbolRuntimeIntentRowsRepoWideRefreshPairing(t *testing.T) {
 		),
 	}
 
-	rows := ExtractSymbolRuntimeIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
+	rows := ExtractIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
 
-	for _, domain := range []string{DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction} {
+	for _, domain := range []string{reducercontract.DomainHandlesRoute, reducercontract.DomainRunsIn, reducercontract.DomainInvokesCloudAction} {
 		domainRows := filterByDomain(rows, domain)
 		var refreshCount int
 		var edgeCount int
 		for _, row := range domainRows {
 			if symbolRuntimeIsRefreshRow(row) {
 				refreshCount++
-				if payloadStr(row.Payload, "intent_type") != RepoRefreshIntentType {
+				if payloadcore.PayloadStr(row.Payload, "intent_type") != sharedintent.RepoRefreshIntentType {
 					t.Fatalf("[%s] refresh row intent_type = %q, want %q",
-						domain, payloadStr(row.Payload, "intent_type"), RepoRefreshIntentType)
+						domain, payloadcore.PayloadStr(row.Payload, "intent_type"), sharedintent.RepoRefreshIntentType)
 				}
 				continue
 			}
@@ -402,20 +404,20 @@ func TestExtractSymbolRuntimeIntentRowsDeterministic(t *testing.T) {
 	}
 
 	createdAt := time.Unix(0, 0).UTC()
-	first := ExtractSymbolRuntimeIntentRows(buildEnvelopes(), "gen-1", createdAt)
-	second := ExtractSymbolRuntimeIntentRows(buildEnvelopes(), "gen-1", createdAt)
+	first := ExtractIntentRows(buildEnvelopes(), "gen-1", createdAt)
+	second := ExtractIntentRows(buildEnvelopes(), "gen-1", createdAt)
 
 	if len(first) == 0 {
 		t.Fatalf("expected at least one row from the fixture, got 0")
 	}
 	if !reflect.DeepEqual(first, second) {
-		t.Fatalf("ExtractSymbolRuntimeIntentRows is not deterministic:\nfirst:  %+v\nsecond: %+v", first, second)
+		t.Fatalf("ExtractIntentRows is not deterministic:\nfirst:  %+v\nsecond: %+v", first, second)
 	}
 }
 
 // TestExtractSymbolRuntimeIntentRowsEmptySourceRunIDYieldsZeroRows is a
-// regression guard for a silent-zero trap: buildCodeCallProjectionContexts
-// skips building a ProjectionContext entry for a repository fact whose
+// regression guard for a silent-zero trap: schemadecode.BuildProjectionContexts
+// skips building a sharedintent.ProjectionContext entry for a repository fact whose
 // source_run_id is empty (schemadecode.BuildProjectionContexts). All
 // three builders (buildHandlesRouteIntentRows, buildRunsInIntentRows,
 // buildInvokesCloudActionIntentRows) early-return nil the moment
@@ -453,13 +455,13 @@ func TestExtractSymbolRuntimeIntentRowsEmptySourceRunIDYieldsZeroRows(t *testing
 		),
 	}
 
-	rows := ExtractSymbolRuntimeIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
+	rows := ExtractIntentRows(envelopes, "gen-1", time.Unix(0, 0).UTC())
 	if len(rows) != 0 {
 		t.Fatalf("expected 0 rows for a repository fact with an empty source_run_id "+
-			"(no ProjectionContext is ever built for it), got %d: %+v", len(rows), rows)
+			"(no sharedintent.ProjectionContext is ever built for it), got %d: %+v", len(rows), rows)
 	}
 
-	for _, domain := range []string{DomainHandlesRoute, DomainRunsIn, DomainInvokesCloudAction} {
+	for _, domain := range []string{reducercontract.DomainHandlesRoute, reducercontract.DomainRunsIn, reducercontract.DomainInvokesCloudAction} {
 		if got := filterByDomain(rows, domain); len(got) != 0 {
 			t.Fatalf("[%s] expected 0 rows with empty source_run_id, got %d", domain, len(got))
 		}

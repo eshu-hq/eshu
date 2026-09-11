@@ -16,21 +16,23 @@
 // there is no init()-time registration left in this family. No leaf imports
 // this package, and code/call/shared imports no leaf.
 //
-// The reducer root imports this package as codecall. The root keeps the
-// CodeCallMaterializationHandler (code_call_materialization.go), which calls
-// ExtractAllRelationshipRowsWithIndex, BuildFileScopesByRepoID,
+// The reducer root imports this package as codecall. [materialization]
+// (code/call/materialization, issue #6061) holds the handler
+// (materialization.Handler, root spelling CodeCallMaterializationHandler),
+// which calls ExtractAllRelationshipRowsWithIndex, BuildFileScopesByRepoID,
 // BuildRefreshIntentsWithDeltaFileScopes, and BuildSharedIntentRows here and
-// composes the result with the symbol-runtime families that stay in root. The
-// seven code_call_projection_* runner files also stay in root: they read
-// PartitionKeyVersion, PayloadBool, and the evidence-source constants through
-// the parent's compat_projection.go stanza, and code_call_projection_runner.go
-// imports this package directly for AcceptanceScanLimit. External callers keep the
-// reducer.ExtractCodeCallRows and reducer.ExtractAllCodeRelationshipRows
-// spellings through that same stanza.
+// composes the result with the symbol-runtime builders that moved with it
+// (materialization.BuildIntentRows). The seven code_call_projection_* runner
+// files still stay in root: they read PartitionKeyVersion, PayloadBool, and
+// the evidence-source constants through the parent's compat_projection.go
+// stanza, and code_call_projection_runner.go imports this package directly
+// for AcceptanceScanLimit. External callers keep the reducer.ExtractCodeCallRows
+// and reducer.ExtractAllCodeRelationshipRows spellings through that same
+// stanza.
 //
 // shared.EntityIndex is the shared substrate: the resolvers, the materialization
-// helpers, and the root's handles_route, runs_in, invokes_cloud_action, and
-// symbol-runtime builders all resolve code entities through it. It is built
+// helpers, and [materialization]'s handles_route, runs_in, invokes_cloud_action,
+// and symbol-runtime builders all resolve code entities through it. It is built
 // once per materialization pass by shared.BuildEntityIndex (or returned by
 // ExtractAllRelationshipRowsWithIndex) and is read-only after construction;
 // its language-specific fields stay unexported and are read through accessor

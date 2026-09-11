@@ -1,33 +1,34 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallMaterializationHandlerRejectsWrongDomain(t *testing.T) {
 	t.Parallel()
 
-	handler := CodeCallMaterializationHandler{
+	handler := Handler{
 		IntentWriter: &recordingCodeCallIntentWriter{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainWorkloadIdentity,
+		Domain:       reducercontract.DomainWorkloadIdentity,
 		EnqueuedAt:   time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC),
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")
@@ -37,18 +38,18 @@ func TestCodeCallMaterializationHandlerRejectsWrongDomain(t *testing.T) {
 func TestCodeCallMaterializationHandlerRequiresIntentWriter(t *testing.T) {
 	t.Parallel()
 
-	handler := CodeCallMaterializationHandler{
+	handler := Handler{
 		FactLoader: &stubFactLoader{},
 	}
 
-	_, err := handler.Handle(context.Background(), Intent{
+	_, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
-		Domain:       DomainCodeCallMaterialization,
+		Domain:       reducercontract.DomainCodeCallMaterialization,
 		EnqueuedAt:   time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC),
 		AvailableAt:  time.Date(2026, time.April, 15, 12, 0, 0, 0, time.UTC),
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err == nil {
 		t.Fatal("Handle() error = nil, want non-nil")
@@ -150,27 +151,27 @@ func TestCodeCallMaterializationHandlerEmitsSharedIntents(t *testing.T) {
 	}
 
 	writer := &recordingCodeCallIntentWriter{}
-	handler := CodeCallMaterializationHandler{
+	handler := Handler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-code-call-1",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		SourceSystem: "git",
-		Domain:       DomainCodeCallMaterialization,
+		Domain:       reducercontract.DomainCodeCallMaterialization,
 		Cause:        "parser follow-up required",
 		EnqueuedAt:   now,
 		AvailableAt:  now,
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("result.Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("result.Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 	if result.CanonicalWrites != 4 {
 		t.Fatalf("result.CanonicalWrites = %d, want 4", result.CanonicalWrites)
@@ -179,7 +180,7 @@ func TestCodeCallMaterializationHandlerEmitsSharedIntents(t *testing.T) {
 		t.Fatalf("len(writer.rows) = %d, want 4", len(writer.rows))
 	}
 
-	rowsByRepo := make(map[string][]SharedProjectionIntentRow)
+	rowsByRepo := make(map[string][]sharedintent.Row)
 	for _, row := range writer.rows {
 		rowsByRepo[row.RepositoryID] = append(rowsByRepo[row.RepositoryID], row)
 		if row.GenerationID != "gen-1" {
@@ -195,9 +196,9 @@ func TestCodeCallMaterializationHandlerEmitsSharedIntents(t *testing.T) {
 	}
 
 	var (
-		refreshRows   []SharedProjectionIntentRow
-		codeCallRows  []SharedProjectionIntentRow
-		metaclassRows []SharedProjectionIntentRow
+		refreshRows   []sharedintent.Row
+		codeCallRows  []sharedintent.Row
+		metaclassRows []sharedintent.Row
 	)
 	for _, row := range writer.rows {
 		switch row.Payload["intent_type"] {
@@ -205,9 +206,9 @@ func TestCodeCallMaterializationHandlerEmitsSharedIntents(t *testing.T) {
 			refreshRows = append(refreshRows, row)
 		default:
 			switch row.Payload["evidence_source"] {
-			case codeCallEvidenceSource:
+			case codecall.EvidenceSource:
 				codeCallRows = append(codeCallRows, row)
-			case pythonMetaclassEvidenceSource:
+			case codecall.PythonMetaclassEvidenceSource:
 				metaclassRows = append(metaclassRows, row)
 			}
 		}
@@ -255,7 +256,7 @@ func TestCodeCallMaterializationHandlerEmitsSharedIntents(t *testing.T) {
 	if got, want := codeCallRows[0].SourceRunID, "run-a"; got != want {
 		t.Fatalf("code-call SourceRunID = %q, want %q", got, want)
 	}
-	if got, want := codeCallRows[0].Payload["evidence_source"], codeCallEvidenceSource; got != want {
+	if got, want := codeCallRows[0].Payload["evidence_source"], codecall.EvidenceSource; got != want {
 		t.Fatalf("code-call evidence_source = %#v, want %#v", got, want)
 	}
 	if got, want := codeCallRows[0].Payload["caller_entity_id"], "entity:handle"; got != want {
@@ -271,7 +272,7 @@ func TestCodeCallMaterializationHandlerEmitsSharedIntents(t *testing.T) {
 	if got, want := metaclassRows[0].SourceRunID, "run-a"; got != want {
 		t.Fatalf("metaclass SourceRunID = %q, want %q", got, want)
 	}
-	if got, want := metaclassRows[0].Payload["evidence_source"], pythonMetaclassEvidenceSource; got != want {
+	if got, want := metaclassRows[0].Payload["evidence_source"], codecall.PythonMetaclassEvidenceSource; got != want {
 		t.Fatalf("metaclass evidence_source = %#v, want %#v", got, want)
 	}
 	if got, want := metaclassRows[0].Payload["relationship_type"], "USES_METACLASS"; got != want {
@@ -283,10 +284,24 @@ func TestCodeCallMaterializationHandlerEmitsSharedIntents(t *testing.T) {
 }
 
 type recordingCodeCallIntentWriter struct {
-	rows []SharedProjectionIntentRow
+	rows []sharedintent.Row
 }
 
-func (r *recordingCodeCallIntentWriter) UpsertIntents(_ context.Context, rows []SharedProjectionIntentRow) error {
+func (r *recordingCodeCallIntentWriter) UpsertIntents(_ context.Context, rows []sharedintent.Row) error {
 	r.rows = append(r.rows, rows...)
 	return nil
+}
+
+// stubFactLoader is a minimal factload.FactLoader double, following the
+// reducer root's stubFactLoader (workload_materialization_handler_test.go).
+// Shared by this package's handler_delta_partition_test.go and
+// handler_full_refresh_test.go.
+type stubFactLoader struct {
+	envelopes []facts.Envelope
+	calls     int
+}
+
+func (f *stubFactLoader) ListFacts(_ context.Context, _, _ string) ([]facts.Envelope, error) {
+	f.calls++
+	return f.envelopes, nil
 }

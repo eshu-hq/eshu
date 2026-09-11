@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"context"
@@ -10,6 +10,10 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions(t *testing.T) {
@@ -20,7 +24,7 @@ func TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions(t *
 	loader := &activeCodeCallSymbolFactLoader{
 		primary: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":       "repo-app",
 					"source_run_id": "run-app",
@@ -29,7 +33,7 @@ func TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions(t *
 				},
 			},
 			{
-				FactKind: factKindFile,
+				FactKind: factload.FactKindFile,
 				Payload: map[string]any{
 					"repo_id":       "repo-app",
 					"relative_path": "cmd/app/main.go",
@@ -58,7 +62,7 @@ func TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions(t *
 		},
 		activeDefinitions: []facts.Envelope{
 			{
-				FactKind: factKindFile,
+				FactKind: factload.FactKindFile,
 				Payload: map[string]any{
 					"repo_id":       "repo-lib",
 					"relative_path": "client.go",
@@ -79,26 +83,26 @@ func TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions(t *
 		},
 	}
 	writer := &recordingCodeCallIntentWriter{}
-	handler := CodeCallMaterializationHandler{
+	handler := Handler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-cross-repo-symbol",
 		ScopeID:      "scope-app",
 		GenerationID: "gen-app",
 		SourceSystem: "git",
-		Domain:       DomainCodeCallMaterialization,
+		Domain:       reducercontract.DomainCodeCallMaterialization,
 		EnqueuedAt:   now,
 		AvailableAt:  now,
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("result.Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("result.Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 	if got, want := loader.activeSymbolCalls, 1; got != want {
 		t.Fatalf("active symbol loader calls = %d, want %d", got, want)
@@ -107,12 +111,12 @@ func TestCodeCallMaterializationHandlerLoadsActiveCrossRepoSymbolDefinitions(t *
 		t.Fatalf("requested symbols = %#v, want %#v", loader.requestedSymbols, want)
 	}
 
-	var codeCallRows []SharedProjectionIntentRow
+	var codeCallRows []sharedintent.Row
 	for _, row := range writer.rows {
 		if row.RepositoryID == "repo-lib" {
 			t.Fatalf("external definition repo emitted an intent: %#v", row)
 		}
-		if row.Payload["evidence_source"] == codeCallEvidenceSource {
+		if row.Payload["evidence_source"] == codecall.EvidenceSource {
 			codeCallRows = append(codeCallRows, row)
 		}
 	}

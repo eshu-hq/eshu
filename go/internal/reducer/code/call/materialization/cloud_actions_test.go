@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
@@ -9,7 +9,12 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/iamcan"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 // invokesCloudActionRepoEnvelope anchors the projection context for a repo so
@@ -54,11 +59,11 @@ func invokesCloudActionFileEnvelope(
 	}
 }
 
-func buildInvokesCloudActionIntentsForTest(t *testing.T, envelopes []facts.Envelope) []SharedProjectionIntentRow {
+func buildInvokesCloudActionIntentsForTest(t *testing.T, envelopes []facts.Envelope) []sharedintent.Row {
 	t.Helper()
 	generationID := "gen-1"
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, generationID)
-	index := buildCodeEntityIndex(envelopes)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, generationID)
+	index := shared.BuildEntityIndex(envelopes)
 	return buildInvokesCloudActionIntentRows(
 		envelopes,
 		index,
@@ -96,25 +101,25 @@ func TestBuildInvokesCloudActionIntentRowsEmitsCatalogAction(t *testing.T) {
 		t.Fatalf("expected exactly 1 INVOKES_CLOUD_ACTION intent, got %d", len(intents))
 	}
 	intent := intents[0]
-	if intent.ProjectionDomain != DomainInvokesCloudAction {
-		t.Fatalf("projection domain = %q, want %q", intent.ProjectionDomain, DomainInvokesCloudAction)
+	if intent.ProjectionDomain != reducercontract.DomainInvokesCloudAction {
+		t.Fatalf("projection domain = %q, want %q", intent.ProjectionDomain, reducercontract.DomainInvokesCloudAction)
 	}
-	if got, want := payloadStr(intent.Payload, "function_id"), "content-entity:handler"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_id"), "content-entity:handler"; got != want {
 		t.Fatalf("function_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "cloud_action"), "s3:putobject"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "cloud_action"), "s3:putobject"; got != want {
 		t.Fatalf("cloud_action = %q, want %q", got, want)
 	}
-	if got := payloadStr(intent.Payload, "action"); got != "" {
+	if got := payloadcore.PayloadStr(intent.Payload, "action"); got != "" {
 		t.Fatalf("payload must not set \"action\" (collides with the upsert discriminator); got %q", got)
 	}
-	if got, want := payloadStr(intent.Payload, "action_id"), "cloud-action:s3:putobject"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "action_id"), "cloud-action:s3:putobject"; got != want {
 		t.Fatalf("action_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "repo_id"), "repo-1"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "repo_id"), "repo-1"; got != want {
 		t.Fatalf("repo_id = %q, want %q", got, want)
 	}
-	method := payloadStr(intent.Payload, "resolution_method")
+	method := payloadcore.PayloadStr(intent.Payload, "resolution_method")
 	if !codeprovenance.Classified(method) {
 		t.Fatalf("resolution_method = %q, want a classified provenance method", method)
 	}
@@ -125,8 +130,8 @@ func TestBuildInvokesCloudActionIntentRowsEmitsCatalogAction(t *testing.T) {
 
 // TestInvokesCloudActionUpsertIntentSurvivesFilterUpsertRows is the regression
 // for the rc-10 root cause: the per-edge upsert intent must survive
-// filterUpsertRows. The intent originally stored the cloud action under the
-// payload "action" key (e.g. "s3:putobject"), but filterUpsertRows treats
+// sharedintent.FilterUpsertRows. The intent originally stored the cloud action under the
+// payload "action" key (e.g. "s3:putobject"), but sharedintent.FilterUpsertRows treats
 // payload["action"] as the upsert/refresh/delete discriminator and skips any row
 // whose action is not "upsert". That silently dropped every INVOKES_CLOUD_ACTION
 // upsert (the intent still completed, no edge ever wrote), so the edge never
@@ -151,11 +156,11 @@ func TestInvokesCloudActionUpsertIntentSurvivesFilterUpsertRows(t *testing.T) {
 		t.Fatalf("expected exactly 1 INVOKES_CLOUD_ACTION intent, got %d", len(intents))
 	}
 
-	rows := []SharedProjectionIntentRow{{Payload: intents[0].Payload}}
-	kept := filterUpsertRows(rows)
+	rows := []sharedintent.Row{{Payload: intents[0].Payload}}
+	kept := sharedintent.FilterUpsertRows(rows)
 	if len(kept) != 1 {
-		t.Fatalf("filterUpsertRows dropped the invokes_cloud_action upsert intent (payload action=%q); the cloud action must not collide with the upsert discriminator",
-			payloadStr(intents[0].Payload, "action"))
+		t.Fatalf("sharedintent.FilterUpsertRows dropped the invokes_cloud_action upsert intent (payload action=%q); the cloud action must not collide with the upsert discriminator",
+			payloadcore.PayloadStr(intents[0].Payload, "action"))
 	}
 }
 

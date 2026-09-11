@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer //nolint:dirgate // code-call handler stays in root (#6609): it composes code/call rows with the handles_route, runs_in and invokes_cloud_action families that live here, so it cannot sit below them
+package materialization
 
 import (
 	"context"
@@ -10,6 +10,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	log "github.com/eshu-hq/eshu/go/pkg/log"
 )
@@ -21,10 +29,10 @@ type CanonicalNodeChecker interface {
 	HasCanonicalCodeTargets(ctx context.Context) (bool, error)
 }
 
-// CodeCallIntentWriter persists durable shared-intent rows for code-call
+// IntentWriter persists durable shared-intent rows for code-call
 // materialization.
-type CodeCallIntentWriter interface {
-	UpsertIntents(ctx context.Context, rows []SharedProjectionIntentRow) error
+type IntentWriter interface {
+	UpsertIntents(ctx context.Context, rows []sharedintent.Row) error
 }
 
 type codeCallSymbolDefinitionFactLoader interface {
@@ -34,57 +42,57 @@ type codeCallSymbolDefinitionFactLoader interface {
 	) ([]facts.Envelope, error)
 }
 
-// CodeCallMaterializationHandler reduces one parser relationship follow-up into
-// durable shared-intent emission for code-call and Python metaclass rows.
-type CodeCallMaterializationHandler struct {
-	FactLoader   FactLoader
-	IntentWriter CodeCallIntentWriter
+// Handler reduces one parser relationship follow-up into durable
+// shared-intent emission for code-call and Python metaclass rows.
+type Handler struct {
+	FactLoader   factload.FactLoader
+	IntentWriter IntentWriter
 
 	// EdgeWriter is retained for compatibility with older wiring and tests.
 	// The handler no longer writes canonical edges directly.
-	EdgeWriter SharedProjectionEdgeWriter
+	EdgeWriter sharedintent.EdgeWriter
 
 	// Instruments records the input_invalid quarantine counter for a "file"
 	// fact whose outer envelope fails the codegraph decode seam (issue
-	// #4749). Optional: nil skips the counter (recordQuarantinedFacts still
+	// #4749). Optional: nil skips the counter (RecordQuarantinedFacts still
 	// logs), matching every other typed-decode handler's convention.
 	Instruments *telemetry.Instruments
 }
 
 // Handle executes the code-call materialization path.
-func (h CodeCallMaterializationHandler) Handle(
+func (h Handler) Handle(
 	ctx context.Context,
-	intent Intent,
-) (Result, error) {
-	if intent.Domain != DomainCodeCallMaterialization {
-		return Result{}, fmt.Errorf(
+	intent reducercontract.Intent,
+) (reducercontract.Result, error) {
+	if intent.Domain != reducercontract.DomainCodeCallMaterialization {
+		return reducercontract.Result{}, fmt.Errorf(
 			"code call materialization handler does not accept domain %q",
 			intent.Domain,
 		)
 	}
 	if h.FactLoader == nil {
-		return Result{}, fmt.Errorf("code call materialization fact loader is required")
+		return reducercontract.Result{}, fmt.Errorf("code call materialization fact loader is required")
 	}
 	if h.IntentWriter == nil {
-		return Result{}, fmt.Errorf("code call materialization intent writer is required")
+		return reducercontract.Result{}, fmt.Errorf("code call materialization intent writer is required")
 	}
 
 	totalStart := time.Now()
 	loadStart := time.Now()
-	envelopes, err := loadFactsForKinds(
+	envelopes, err := factload.LoadFactsForKinds(
 		ctx,
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{factKindRepository, factKindFile},
+		[]string{factload.FactKindRepository, factload.FactKindFile},
 	)
 	if err != nil {
-		return Result{}, fmt.Errorf("load facts for code call materialization: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load facts for code call materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
 	contextStart := time.Now()
-	contextByRepoID := buildCodeCallProjectionContexts(envelopes, intent.GenerationID)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, intent.GenerationID)
 	contextDuration := time.Since(contextStart)
 	if len(contextByRepoID) == 0 {
 		totalDuration := time.Since(totalStart)
@@ -98,25 +106,25 @@ func (h CodeCallMaterializationHandler) Handle(
 		// No projection context built from the loaded facts: the handler ran
 		// before its upstream repository/file facts existed — an ordering stall,
 		// signaled by input_ready=0.
-		return Result{
+		return reducercontract.Result{
 			IntentID:        intent.IntentID,
-			Domain:          DomainCodeCallMaterialization,
-			Status:          ResultStatusSucceeded,
+			Domain:          reducercontract.DomainCodeCallMaterialization,
+			Status:          reducercontract.ResultStatusSucceeded,
 			EvidenceSummary: "no repositories available for code call materialization",
 			SubDurations: codeCallMaterializationSubDurations(codeCallMaterializationTiming{
 				loadDuration:    loadDuration,
 				contextDuration: contextDuration,
 				totalDuration:   totalDuration,
 			}),
-			SubSignals: materializationDiagnosticSignals(false, 0),
+			SubSignals: reducercontract.MaterializationDiagnosticSignals(false, 0),
 		}, nil
 	}
 
 	symbolLoadStart := time.Now()
-	symbolKeys := codeCallReferencedSymbolKeys(envelopes)
+	symbolKeys := shared.ReferencedSymbolKeys(envelopes)
 	symbolDefinitionEnvelopes, err := loadActiveCodeCallSymbolDefinitionFacts(ctx, h.FactLoader, symbolKeys)
 	if err != nil {
-		return Result{}, fmt.Errorf("load active code call symbol definition facts: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("load active code call symbol definition facts: %w", err)
 	}
 	relationshipEnvelopes := envelopes
 	if len(symbolDefinitionEnvelopes) > 0 {
@@ -127,35 +135,35 @@ func (h CodeCallMaterializationHandler) Handle(
 	symbolLoadDuration := time.Since(symbolLoadStart)
 
 	extractStart := time.Now()
-	_, codeCallRows, _, metaclassRows, entityIndex, quarantinedFiles := extractAllCodeRelationshipRowsWithIndex(relationshipEnvelopes)
+	_, codeCallRows, _, metaclassRows, entityIndex, quarantinedFiles := codecall.ExtractAllRelationshipRowsWithIndex(relationshipEnvelopes)
 	extractDuration := time.Since(extractStart)
-	inputInvalidCount := recordQuarantinedFacts(ctx, h.Instruments, DomainCodeCallMaterialization, intent.ScopeID, intent.GenerationID, quarantinedFiles)
+	inputInvalidCount := factdecode.RecordQuarantinedFacts(ctx, h.Instruments, reducercontract.DomainCodeCallMaterialization, intent.ScopeID, intent.GenerationID, quarantinedFiles)
 	createdAt := intent.EnqueuedAt
 	if createdAt.IsZero() {
 		createdAt = time.Now().UTC()
 	}
 
 	intentBuildStart := time.Now()
-	fileScopeResult := buildCodeCallFileScopesByRepoID(envelopes)
+	fileScopeResult := codecall.BuildFileScopesByRepoID(envelopes)
 	fileScopesByRepoID := fileScopeResult.ScopesByRepoID
-	intentRows := buildCodeCallRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, createdAt)
+	intentRows := codecall.BuildRefreshIntentsWithDeltaFileScopes(contextByRepoID, fileScopesByRepoID, createdAt)
 	intentRows = append(
 		intentRows,
-		buildCodeCallSharedIntentRows(
+		codecall.BuildSharedIntentRows(
 			codeCallRows,
 			contextByRepoID,
 			createdAt,
-			codeCallEvidenceSource,
+			codecall.EvidenceSource,
 			fileScopesByRepoID,
 		)...,
 	)
 	intentRows = append(
 		intentRows,
-		buildCodeCallSharedIntentRows(
+		codecall.BuildSharedIntentRows(
 			metaclassRows,
 			contextByRepoID,
 			createdAt,
-			pythonMetaclassEvidenceSource,
+			codecall.PythonMetaclassEvidenceSource,
 			fileScopesByRepoID,
 		)...,
 	)
@@ -166,7 +174,7 @@ func (h CodeCallMaterializationHandler) Handle(
 	// and stop partitions wiping each other's edges (#2898/#2910).
 	intentRows = append(
 		intentRows,
-		buildSymbolRuntimeIntentRows(envelopes, entityIndex, contextByRepoID, createdAt)...,
+		BuildIntentRows(envelopes, entityIndex, contextByRepoID, createdAt)...,
 	)
 	intentBuildDuration := time.Since(intentBuildStart)
 
@@ -193,14 +201,14 @@ func (h CodeCallMaterializationHandler) Handle(
 		})
 		// Projection context was built (input present) but extraction produced no
 		// edges: genuine empty work, signaled by input_ready=1 and written_rows=0.
-		emptySubSignals := materializationDiagnosticSignals(true, 0)
-		for key, value := range inputInvalidSubSignals(inputInvalidCount) {
+		emptySubSignals := reducercontract.MaterializationDiagnosticSignals(true, 0)
+		for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 			emptySubSignals[key] = value
 		}
-		return Result{
+		return reducercontract.Result{
 			IntentID:        intent.IntentID,
-			Domain:          DomainCodeCallMaterialization,
-			Status:          ResultStatusSucceeded,
+			Domain:          reducercontract.DomainCodeCallMaterialization,
+			Status:          reducercontract.ResultStatusSucceeded,
 			EvidenceSummary: "no code-call or metaclass intents available for materialization",
 			SubDurations: codeCallMaterializationSubDurations(codeCallMaterializationTiming{
 				loadDuration:        loadDuration,
@@ -216,7 +224,7 @@ func (h CodeCallMaterializationHandler) Handle(
 
 	upsertStart := time.Now()
 	if err := h.IntentWriter.UpsertIntents(ctx, intentRows); err != nil {
-		return Result{}, fmt.Errorf("write code call intents: %w", err)
+		return reducercontract.Result{}, fmt.Errorf("write code call intents: %w", err)
 	}
 	upsertDuration := time.Since(upsertStart)
 	totalDuration := time.Since(totalStart)
@@ -253,15 +261,15 @@ func (h CodeCallMaterializationHandler) Handle(
 	})
 
 	// Projection context was built (input present) and intents were emitted.
-	subSignals := materializationDiagnosticSignals(true, len(intentRows))
-	for key, value := range inputInvalidSubSignals(inputInvalidCount) {
+	subSignals := reducercontract.MaterializationDiagnosticSignals(true, len(intentRows))
+	for key, value := range factdecode.InputInvalidSubSignals(inputInvalidCount) {
 		subSignals[key] = value
 	}
 
-	return Result{
+	return reducercontract.Result{
 		IntentID: intent.IntentID,
-		Domain:   DomainCodeCallMaterialization,
-		Status:   ResultStatusSucceeded,
+		Domain:   reducercontract.DomainCodeCallMaterialization,
+		Status:   reducercontract.ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
 			"emitted %d durable code call intents across %d repositories",
 			len(intentRows),
@@ -293,10 +301,10 @@ func codeCallMaterializationSubDurations(t codeCallMaterializationTiming) map[st
 
 func loadActiveCodeCallSymbolDefinitionFacts(
 	ctx context.Context,
-	loader FactLoader,
+	loader factload.FactLoader,
 	symbolKeys []string,
 ) ([]facts.Envelope, error) {
-	symbolKeys = cleanFactFilterValues(symbolKeys)
+	symbolKeys = payloadcore.CleanFactFilterValues(symbolKeys)
 	if len(symbolKeys) == 0 {
 		return nil, nil
 	}
@@ -306,13 +314,13 @@ func loadActiveCodeCallSymbolDefinitionFacts(
 	}
 	envelopes, err := typed.LoadActiveCodeCallSymbolDefinitionFacts(ctx, symbolKeys)
 	if err != nil {
-		return nil, classifyFactLoadError(err)
+		return nil, factload.ClassifyFactLoadError(err)
 	}
 	return envelopes, nil
 }
 
 type codeCallMaterializationTiming struct {
-	intent              Intent
+	intent              reducercontract.Intent
 	factCount           int
 	symbolKeyCount      int
 	symbolFactCount     int

@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 )
 
 // TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint proves the terminal
@@ -38,7 +40,7 @@ func TestProcessPartitionOnceHandlesRouteDrainsAbsentEndpoint(t *testing.T) {
 		LeaseOwner:     "worker-1",
 		LeaseTTL:       30 * time.Second,
 		BatchLimit:     100,
-		EvidenceSource: handlesRouteEvidenceSource,
+		EvidenceSource: materialization.HandlesRouteEvidenceSource,
 	}
 
 	result, err := ProcessPartitionOnce(
@@ -124,7 +126,7 @@ func TestProcessPartitionOnceHandlesRouteAllTerminalRepoDrainsAndRetracts(t *tes
 		LeaseOwner:     "worker-1",
 		LeaseTTL:       30 * time.Second,
 		BatchLimit:     100,
-		EvidenceSource: handlesRouteEvidenceSource,
+		EvidenceSource: materialization.HandlesRouteEvidenceSource,
 	}
 
 	result, err := ProcessPartitionOnce(
@@ -189,7 +191,7 @@ func TestProcessPartitionOnceHandlesRouteNilPresenceProjectsAll(t *testing.T) {
 		LeaseOwner:     "worker-1",
 		LeaseTTL:       30 * time.Second,
 		BatchLimit:     100,
-		EvidenceSource: handlesRouteEvidenceSource,
+		EvidenceSource: materialization.HandlesRouteEvidenceSource,
 	}
 
 	result, err := ProcessPartitionOnce(

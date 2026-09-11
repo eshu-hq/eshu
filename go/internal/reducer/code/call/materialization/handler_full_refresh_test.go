@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"context"
@@ -9,9 +9,12 @@ import (
 	"testing"
 	"time"
 
-	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
-
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnership(t *testing.T) {
@@ -21,7 +24,7 @@ func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnersh
 	loader := &stubFactLoader{
 		envelopes: []facts.Envelope{
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":       "repo-a",
 					"source_run_id": "run-a",
@@ -30,7 +33,7 @@ func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnersh
 				},
 			},
 			{
-				FactKind: factKindRepository,
+				FactKind: factload.FactKindRepository,
 				Payload: map[string]any{
 					"repo_id":       "repo-b",
 					"source_run_id": "run-b",
@@ -38,7 +41,7 @@ func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnersh
 				},
 			},
 			{
-				FactKind: factKindFile,
+				FactKind: factload.FactKindFile,
 				Payload: map[string]any{
 					"repo_id":       "repo-a",
 					"relative_path": "caller.py",
@@ -65,7 +68,7 @@ func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnersh
 				},
 			},
 			{
-				FactKind: factKindFile,
+				FactKind: factload.FactKindFile,
 				Payload: map[string]any{
 					"repo_id":       "repo-a",
 					"relative_path": "callee.py",
@@ -82,7 +85,7 @@ func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnersh
 				},
 			},
 			{
-				FactKind: factKindFile,
+				FactKind: factload.FactKindFile,
 				Payload: map[string]any{
 					"repo_id":       "repo-a",
 					"relative_path": "models.py",
@@ -105,41 +108,41 @@ func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnersh
 		},
 	}
 	writer := &recordingCodeCallIntentWriter{}
-	handler := CodeCallMaterializationHandler{
+	handler := Handler{
 		FactLoader:   loader,
 		IntentWriter: writer,
 	}
 
-	result, err := handler.Handle(context.Background(), Intent{
+	result, err := handler.Handle(context.Background(), reducercontract.Intent{
 		IntentID:     "intent-code-call-full-refresh",
 		ScopeID:      "scope-1",
 		GenerationID: "gen-1",
 		SourceSystem: "git",
-		Domain:       DomainCodeCallMaterialization,
+		Domain:       reducercontract.DomainCodeCallMaterialization,
 		EnqueuedAt:   now,
 		AvailableAt:  now,
-		Status:       IntentStatusPending,
+		Status:       reducercontract.IntentStatusPending,
 	})
 	if err != nil {
 		t.Fatalf("Handle() error = %v", err)
 	}
-	if result.Status != ResultStatusSucceeded {
-		t.Fatalf("result.Status = %q, want %q", result.Status, ResultStatusSucceeded)
+	if result.Status != reducercontract.ResultStatusSucceeded {
+		t.Fatalf("result.Status = %q, want %q", result.Status, reducercontract.ResultStatusSucceeded)
 	}
 
-	var repoARefresh SharedProjectionIntentRow
-	var repoBRefresh SharedProjectionIntentRow
-	var codeCallRow SharedProjectionIntentRow
-	var metaclassRow SharedProjectionIntentRow
+	var repoARefresh sharedintent.Row
+	var repoBRefresh sharedintent.Row
+	var codeCallRow sharedintent.Row
+	var metaclassRow sharedintent.Row
 	for _, row := range writer.rows {
 		switch {
 		case row.RepositoryID == "repo-a" && row.Payload["intent_type"] == "repo_refresh":
 			repoARefresh = row
 		case row.RepositoryID == "repo-b" && row.Payload["intent_type"] == "repo_refresh":
 			repoBRefresh = row
-		case row.Payload["evidence_source"] == codeCallEvidenceSource:
+		case row.Payload["evidence_source"] == codecall.EvidenceSource:
 			codeCallRow = row
-		case row.Payload["evidence_source"] == pythonMetaclassEvidenceSource:
+		case row.Payload["evidence_source"] == codecall.PythonMetaclassEvidenceSource:
 			metaclassRow = row
 		}
 	}
@@ -158,7 +161,7 @@ func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnersh
 	}
 
 	wantRefreshPaths := []string{"/repo/callee.py", "/repo/caller.py", "/repo/models.py"}
-	if gotPaths := semanticPayloadStringSlice(repoARefresh.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, wantRefreshPaths) {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(repoARefresh.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, wantRefreshPaths) {
 		t.Fatalf("repo-a refresh delta_file_paths = %#v, want %#v", gotPaths, wantRefreshPaths)
 	}
 	if got, want := repoARefresh.PartitionKey, codecall.RefreshPartitionKeyForDelta("repo-a", []string{"callee.py", "caller.py", "models.py"}); got != want {
@@ -167,13 +170,13 @@ func TestCodeCallMaterializationHandlerPartitionsFullRefreshByDurableFileOwnersh
 	if got, want := codeCallRow.PartitionKey, codecall.RefreshPartitionKeyForDelta("repo-a", []string{"caller.py"}); got != want {
 		t.Fatalf("code-call PartitionKey = %q, want %q", got, want)
 	}
-	if gotPaths := semanticPayloadStringSlice(codeCallRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/caller.py"}) {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(codeCallRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/caller.py"}) {
 		t.Fatalf("code-call delta_file_paths = %#v, want [/repo/caller.py]", gotPaths)
 	}
 	if got, want := metaclassRow.PartitionKey, codecall.RefreshPartitionKeyForDelta("repo-a", []string{"models.py"}); got != want {
 		t.Fatalf("metaclass PartitionKey = %q, want %q", got, want)
 	}
-	if gotPaths := semanticPayloadStringSlice(metaclassRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/models.py"}) {
+	if gotPaths := payloadcore.SemanticPayloadStringSlice(metaclassRow.Payload, "delta_file_paths"); !reflect.DeepEqual(gotPaths, []string{"/repo/models.py"}) {
 		t.Fatalf("metaclass delta_file_paths = %#v, want [/repo/models.py]", gotPaths)
 	}
 	if got, want := repoBRefresh.PartitionKey, codecall.RefreshPartitionKey("repo-b"); got != want {

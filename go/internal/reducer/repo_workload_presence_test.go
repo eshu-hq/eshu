@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 )
 
 // runsInIntentRow builds a minimal DomainRunsIn intent row carrying the repo_id
@@ -223,7 +225,7 @@ func TestProcessPartitionOnceRunsInDrainsAbsentWorkload(t *testing.T) {
 		LeaseOwner:     "worker-1",
 		LeaseTTL:       30 * time.Second,
 		BatchLimit:     100,
-		EvidenceSource: runsInEvidenceSource,
+		EvidenceSource: materialization.RunsInEvidenceSource,
 	}
 
 	result, err := ProcessPartitionOnce(

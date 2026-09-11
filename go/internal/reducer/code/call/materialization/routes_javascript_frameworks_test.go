@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 func TestBuildHandlesRouteIntentRowsEmitsJavaScriptFrameworkRouteMatches(t *testing.T) {
@@ -37,16 +38,16 @@ func TestBuildHandlesRouteIntentRowsEmitsJavaScriptFrameworkRouteMatches(t *test
 				t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d", len(intents))
 			}
 			intent := intents[0]
-			if got, want := payloadStr(intent.Payload, "framework"), framework; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), framework; got != want {
 				t.Fatalf("framework = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:health"; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:health"; got != want {
 				t.Fatalf("function_entity_id = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "path"), "/health"; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/health"; got != want {
 				t.Fatalf("path = %q, want %q", got, want)
 			}
-			if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+			if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 				t.Fatalf("http_method = %q, want %q", got, want)
 			}
 		})

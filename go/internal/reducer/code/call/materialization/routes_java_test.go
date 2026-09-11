@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package reducer
+package materialization
 
 import (
 	"encoding/json"
@@ -13,6 +13,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/codeprovenance"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/parser"
+	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 )
 
 // Java's framework_routes.go/spring_routes.go emit route_entries with a bare
@@ -23,7 +25,7 @@ import (
 // internal/parser/java_comprehensive_route_fixture_test.go asserts against)
 // through the real parser.DefaultEngine().ParsePath(), then round-trip the
 // result through encoding/json before feeding it to the reducer. That
-// round-trip is not cosmetic: mapSlice() (compat forwarder to payloadcore.MapSlice)
+// round-trip is not cosmetic: payloadcore.MapSlice() (compat forwarder to payloadcore.MapSlice)
 // only decodes []map[string]any or []any of map[string]any, never the
 // parser's raw []map[string]string route_entries shape, so the JSON
 // round-trip -- which turns every JSON object into map[string]any regardless
@@ -44,8 +46,8 @@ func javaRouteFixtureRepoRoot(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller failed")
 	}
-	// This file lives at <repoRoot>/go/internal/reducer/.
-	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..")
+	// This file lives at <repoRoot>/go/internal/reducer/code/call/materialization/.
+	repoRoot := filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "..", "..", "..")
 	return filepath.Join(repoRoot, "tests", "fixtures", "ecosystems", "java_comprehensive")
 }
 
@@ -113,7 +115,7 @@ func TestBuildHandlesRouteIntentRowsEmitsJavaSpringRouteMatches(t *testing.T) {
 	envelopes := []facts.Envelope{
 		handlesRouteRepoEnvelope("repo-1"),
 		{
-			FactKind: factKindFile,
+			FactKind: factload.FactKindFile,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":          "repo-1",
@@ -128,34 +130,34 @@ func TestBuildHandlesRouteIntentRowsEmitsJavaSpringRouteMatches(t *testing.T) {
 		t.Fatalf("expected exactly 2 HANDLES_ROUTE intents, got %d: %#v", len(intents), intents)
 	}
 	sort.Slice(intents, func(i, j int) bool {
-		return payloadStr(intents[i].Payload, "path") < payloadStr(intents[j].Payload, "path")
+		return payloadcore.PayloadStr(intents[i].Payload, "path") < payloadcore.PayloadStr(intents[j].Payload, "path")
 	})
 
 	create := intents[0]
-	if got, want := payloadStr(create.Payload, "function_entity_id"), "content-entity:catalog-create"; got != want {
+	if got, want := payloadcore.PayloadStr(create.Payload, "function_entity_id"), "content-entity:catalog-create"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(create.Payload, "path"), "/api/catalog/items"; got != want {
+	if got, want := payloadcore.PayloadStr(create.Payload, "path"), "/api/catalog/items"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(create.Payload, "http_method"), "POST"; got != want {
+	if got, want := payloadcore.PayloadStr(create.Payload, "http_method"), "POST"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
 
 	show := intents[1]
-	if got, want := payloadStr(show.Payload, "function_entity_id"), "content-entity:catalog-show"; got != want {
+	if got, want := payloadcore.PayloadStr(show.Payload, "function_entity_id"), "content-entity:catalog-show"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(show.Payload, "framework"), "spring"; got != want {
+	if got, want := payloadcore.PayloadStr(show.Payload, "framework"), "spring"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(show.Payload, "path"), "/api/catalog/items/{id}"; got != want {
+	if got, want := payloadcore.PayloadStr(show.Payload, "path"), "/api/catalog/items/{id}"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(show.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(show.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(show.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
+	if got, want := payloadcore.PayloadStr(show.Payload, "resolution_method"), codeprovenance.MethodSameFile; got != want {
 		t.Fatalf("resolution_method = %q, want %q", got, want)
 	}
 }
@@ -169,7 +171,7 @@ func TestBuildHandlesRouteIntentRowsEmitsJavaJAXRSRouteMatches(t *testing.T) {
 	envelopes := []facts.Envelope{
 		handlesRouteRepoEnvelope("repo-1"),
 		{
-			FactKind: factKindFile,
+			FactKind: factload.FactKindFile,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":          "repo-1",
@@ -184,16 +186,16 @@ func TestBuildHandlesRouteIntentRowsEmitsJavaJAXRSRouteMatches(t *testing.T) {
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d: %#v", len(intents), intents)
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:widget-get"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:widget-get"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "framework"), "jax_rs"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "jax_rs"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "path"), "/widgets/{id}"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/widgets/{id}"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
 }
@@ -207,7 +209,7 @@ func TestBuildHandlesRouteIntentRowsEmitsJavaMicronautRouteMatches(t *testing.T)
 	envelopes := []facts.Envelope{
 		handlesRouteRepoEnvelope("repo-1"),
 		{
-			FactKind: factKindFile,
+			FactKind: factload.FactKindFile,
 			ScopeID:  "scope-1",
 			Payload: map[string]any{
 				"repo_id":          "repo-1",
@@ -222,16 +224,16 @@ func TestBuildHandlesRouteIntentRowsEmitsJavaMicronautRouteMatches(t *testing.T)
 		t.Fatalf("expected exactly 1 HANDLES_ROUTE intent, got %d: %#v", len(intents), intents)
 	}
 	intent := intents[0]
-	if got, want := payloadStr(intent.Payload, "function_entity_id"), "content-entity:micronaut-ping"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "function_entity_id"), "content-entity:micronaut-ping"; got != want {
 		t.Fatalf("function_entity_id = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "framework"), "micronaut"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "framework"), "micronaut"; got != want {
 		t.Fatalf("framework = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "path"), "/ping"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "path"), "/ping"; got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
-	if got, want := payloadStr(intent.Payload, "http_method"), "GET"; got != want {
+	if got, want := payloadcore.PayloadStr(intent.Payload, "http_method"), "GET"; got != want {
 		t.Fatalf("http_method = %q, want %q", got, want)
 	}
 }

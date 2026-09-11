@@ -9,9 +9,10 @@
 # reading the citations inline; it is never sourced, generated, or read back
 # out of the registry.
 
-# go/internal/reducer/code_call_materialization.go:26 declares
-# CodeCallIntentWriter; :41 embeds it as IntentWriter; :218 calls
-# h.IntentWriter.UpsertIntents(...) inside Handle(). Same shape as
+# go/internal/reducer/code/call/materialization/handler.go:34 declares
+# IntentWriter (root spelling: CodeCallIntentWriter); :49 embeds it as
+# IntentWriter; :226 calls h.IntentWriter.UpsertIntents(...) inside
+# Handle(). Same shape as
 # sql_relationships => blocker_kind=shared_intent_lock. Confirmed live, one
 # hop through the generic dispatcher rather than a direct call:
 # cell_killworker_code_calls (scripts/lib/ifa_fault_injection_code_call_cells.sh)
