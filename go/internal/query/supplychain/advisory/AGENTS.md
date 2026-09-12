@@ -28,7 +28,7 @@ Read `doc.go` and `README.md` first.
   behavior-identical to their root sources (named in each provenance
   comment). Do not extend them with family-specific semantics; add a new
   helper instead.
-- `AdvisoryEvidenceFilter` MUST carry an anchor: `HasScope` gates the
+- `EvidenceFilter` MUST carry an anchor: `HasScope` gates the
   store, and the staying root handler gates before it. Widening either
   gate enables unscoped reads over the whole vulnerability corpus.
 - The catalog SQL MUST keep its bounded single-pass shape (#3389): one
@@ -36,8 +36,8 @@ Read `doc.go` and `README.md` first.
   `MATERIALIZED` CTEs, no rollup joins. The per-kind active-scan anchors
   keep the #3402 partial indexes eligible. Root catalog tests pin both;
   run them after any SQL touch.
-- Files must stay under 500 lines. `supply_chain_advisory_evidence_model.go`
-  (463) and `supply_chain_advisory_evidence_sql.go` (356) are the ones to
+- Files must stay under 500 lines. `evidence_model.go`
+  (463) and `evidence_sql.go` (356) are the ones to
   watch; split by concern (decode, grouping, key normalization) rather
   than growing them.
 
@@ -49,19 +49,19 @@ not export a new symbol without adding its caller to this list.
 - `AdvisoryCatalogCapability`, `AdvisoryEvidenceCapability` —
   `contract_supply_chain.go` registration; the catalog, evidence, and
   vulnerability-detail handlers.
-- `AdvisoryCatalogMaxLimit`, `AdvisoryEvidenceMaxLimit` — the staying
+- `CatalogMaxLimit`, `EvidenceMaxLimit` — the staying
   root handler limit checks and the root catalog/evidence tests.
-- `AdvisoryEvidenceMaxFactRows`, `AdvisoryEvidenceFactCapacity` — the
+- `EvidenceMaxFactRows`, `EvidenceFactCapacity` — the
   root evidence tests (`FactCapacity` also bounds the store's scan).
 - `NormalizeAdvisoryEvidenceFilter`, `NormalizeAdvisoryCatalogFilter`,
-  `AdvisoryEvidenceFilter.HasScope` — the staying root handlers
+  `EvidenceFilter.HasScope` — the staying root handlers
   (evidence, vulnerability-detail) and the root tests.
-- `BuildAdvisoryEvidenceRows`, `AdvisoryEvidenceFactRow`,
+- `BuildAdvisoryEvidenceRows`, `EvidenceFactRow`,
   `CanonicalAdvisoryKey`, `PageAdvisoryEvidenceRows`,
-  `AdvisoryEvidenceLookupIDs`, `ListAdvisoryEvidenceQuery`,
+  `EvidenceLookupIDs`, `ListAdvisoryEvidenceQuery`,
   `ListAdvisoryCatalogQuery` — the root evidence/catalog/SQL tests, which
   pin grouping, paging, normalization, and SQL shape.
-- `AdvisoryEvidenceQueryer` — the constructor parameter the root tests,
+- `EvidenceQueryer` — the constructor parameter the root tests,
   the root alias forwarders, and `cmd/*` wiring name.
 - `FormatNullTime` — the staying root work-item evidence store.
 - `SetToSortedSlice` — the staying root work-item evidence state helper.
@@ -101,7 +101,7 @@ its doubles; never redeclare them.
 
 - New vulnerability fact kind on the evidence path: add the kind to
   `advisoryEvidenceFactKinds`, extend the SQL legs, add the accumulator
-  branch in `supply_chain_advisory_evidence_model.go`, and extend the
+  branch in `evidence_model.go`, and extend the
   root evidence tests (grouping + SQL shape + lockstep). All four, or the
   kind is silently dropped or unpinned.
 - New response field backed by a typed struct: check the

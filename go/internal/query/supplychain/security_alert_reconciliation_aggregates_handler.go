@@ -12,17 +12,21 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// SecurityAlertReconciliationAggregateCapability keys the capability-matrix
+// row that gates the security-alert reconciliation count route. It is a
+// separate capability from SecurityAlertReconciliationsCapability, which
+// gates the list route, so a profile can serve one without the other.
 const SecurityAlertReconciliationAggregateCapability = "supply_chain.security_alert_reconciliations.aggregate"
 
 // securityAlertReconciliationAggregateRoutes registers the cheap-summary
 // aggregate routes alongside the existing reconciliation list route. The
-// SupplyChainHandler.Mount in supply_chain.go invokes it.
-func (h *SupplyChainHandler) securityAlertReconciliationAggregateRoutes(mux *http.ServeMux) {
+// Handler.Mount in handler.go invokes it.
+func (h *Handler) securityAlertReconciliationAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations/count", h.countSecurityAlertReconciliations)
 	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations/inventory", h.securityAlertReconciliationInventory)
 }
 
-func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) countSecurityAlertReconciliations(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySecurityAlertReconciliationAggregate,
@@ -94,7 +98,7 @@ func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWr
 	))
 }
 
-func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) securityAlertReconciliationInventory(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQuerySecurityAlertReconciliationAggregate,
@@ -186,7 +190,7 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 	))
 }
 
-func (h *SupplyChainHandler) securityAlertReconciliationAggregateFilterFromRequest(
+func (h *Handler) securityAlertReconciliationAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	access querycontract.RepositoryAccessFilter,

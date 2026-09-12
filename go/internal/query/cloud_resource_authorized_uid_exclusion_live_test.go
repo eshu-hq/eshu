@@ -216,7 +216,7 @@ func TestCurrentAuthorizedCloudResourceUIDsExcludesStaleAndUnauthorizedLive(t *t
 // caller. probeSupplyChainCloudRuntimeResources type-asserts
 // CloudResourceRuntimeDigestResolver and calls
 // CurrentAuthorizedCloudResourcesByDigest
-// (supply_chain_impact_cloud_runtime_probe.go:91), so that query is what stands
+// (cloud_runtime_probe.go:91), so that query is what stands
 // between a stale or cross-scope resource and a runtime_confirmed tier.
 // Guarding only the UIDs method would have left the real path unproven while
 // looking thorough (codex review).

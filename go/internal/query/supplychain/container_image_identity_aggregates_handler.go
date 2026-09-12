@@ -11,17 +11,21 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// ContainerImageIdentityAggregateCapability is the capability string that
+// gates the cheap-summary container-image-identity aggregate (count) route,
+// distinct from ContainerImageIdentitiesCapability's row-level list route: a
+// caller may be authorized for one without the other.
 const ContainerImageIdentityAggregateCapability = "supply_chain.container_image_identities.aggregate"
 
 // containerImageIdentityAggregateRoutes registers the cheap-summary aggregate
 // routes alongside the existing identity list route. The
-// SupplyChainHandler.Mount in supply_chain.go invokes it.
-func (h *SupplyChainHandler) containerImageIdentityAggregateRoutes(mux *http.ServeMux) {
+// Handler.Mount in handler.go invokes it.
+func (h *Handler) containerImageIdentityAggregateRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities/count", h.countContainerImageIdentities)
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities/inventory", h.containerImageIdentityInventory)
 }
 
-func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) countContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryContainerImageIdentityAggregate,
@@ -93,7 +97,7 @@ func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter
 	))
 }
 
-func (h *SupplyChainHandler) containerImageIdentityInventory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) containerImageIdentityInventory(w http.ResponseWriter, r *http.Request) {
 	r, span := startQueryHandlerSpan(
 		r,
 		telemetry.SpanQueryContainerImageIdentityAggregate,
@@ -238,7 +242,7 @@ func containerImageIdentityAggregateSourceBridge(
 // validateContainerImageIdentityAggregateOutcome rejects unknown outcome
 // filters with a 400 so a typo like `outcome=exact-digest` does not silently
 // return zero counts. Mirrors the same guard on the list endpoint
-// (supply_chain.go), which enumerates only `exact_digest` and `tag_resolved`
+// (handler.go), which enumerates only `exact_digest` and `tag_resolved`
 // — the same values advertised in OpenAPI for these aggregate routes.
 func validateContainerImageIdentityAggregateOutcome(w http.ResponseWriter, filter ContainerImageIdentityAggregateFilter) bool {
 	if filter.Outcome == "" || isSupportedContainerImageIdentityOutcome(filter.Outcome) {

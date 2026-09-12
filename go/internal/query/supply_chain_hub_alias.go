@@ -5,6 +5,7 @@ package query
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
+	"github.com/eshu-hq/eshu/go/internal/query/supplychain/alerts"
 )
 
 // This file preserves the root package query surface cmd/api,
@@ -20,12 +21,12 @@ import (
 // callers.
 
 // SupplyChainHandler exposes reducer-owned supply-chain read models. See
-// supplychain.SupplyChainHandler.
-type SupplyChainHandler = supplychain.SupplyChainHandler
+// supplychain.Handler.
+type SupplyChainHandler = supplychain.Handler
 
 // SupplyChainImpactPacketResponder composes and writes the impact
-// investigation packet. See supplychain.SupplyChainImpactPacketResponder.
-type SupplyChainImpactPacketResponder = supplychain.SupplyChainImpactPacketResponder
+// investigation packet. See supplychain.ImpactPacketResponder.
+type SupplyChainImpactPacketResponder = supplychain.ImpactPacketResponder
 
 // Container-image identity port and values. See the supplychain package.
 type (
@@ -99,11 +100,11 @@ type (
 const (
 	SBOMAttestationAttachmentsCapability             = supplychain.SBOMAttestationAttachmentsCapability
 	VulnerabilityScannerReadContractCapability       = supplychain.VulnerabilityScannerReadContractCapability
-	SupplyChainImpactFindingsCapability              = supplychain.SupplyChainImpactFindingsCapability
-	SupplyChainImpactExplanationCapability           = supplychain.SupplyChainImpactExplanationCapability
+	SupplyChainImpactFindingsCapability              = supplychain.ImpactFindingsCapability
+	SupplyChainImpactExplanationCapability           = supplychain.ImpactExplanationCapability
 	ContainerImageIdentitiesCapability               = supplychain.ContainerImageIdentitiesCapability
 	SecurityAlertReconciliationsCapability           = supplychain.SecurityAlertReconciliationsCapability
-	SupplyChainImpactAggregateCapability             = supplychain.SupplyChainImpactAggregateCapability
+	SupplyChainImpactAggregateCapability             = supplychain.ImpactAggregateCapability
 	SecurityAlertReconciliationAggregateCapability   = supplychain.SecurityAlertReconciliationAggregateCapability
 	ContainerImageIdentityAggregateCapability        = supplychain.ContainerImageIdentityAggregateCapability
 	SBOMAttestationAttachmentAggregateCapability     = supplychain.SBOMAttestationAttachmentAggregateCapability
@@ -121,11 +122,11 @@ const (
 	SBOMAttestationAttachmentAggregateMaxLimit              = supplychain.SBOMAttestationAttachmentAggregateMaxLimit
 	SecurityAlertReconciliationAggregateMaxLimit            = supplychain.SecurityAlertReconciliationAggregateMaxLimit
 	SBOMAttestationWarningSummaryPreviewMaxCount            = supplychain.SBOMAttestationWarningSummaryPreviewMaxCount
-	SupplyChainCloudRuntimeProbeMaxResults                  = supplychain.SupplyChainCloudRuntimeProbeMaxResults
-	SupplyChainCloudRuntimeProbeMaxDigests                  = supplychain.SupplyChainCloudRuntimeProbeMaxDigests
-	SupplyChainKubernetesRuntimeProbeMaxResults             = supplychain.SupplyChainKubernetesRuntimeProbeMaxResults
-	SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates
-	SupplyChainKubernetesRuntimeProbeCypher                 = supplychain.SupplyChainKubernetesRuntimeProbeCypher
+	SupplyChainCloudRuntimeProbeMaxResults                  = supplychain.CloudRuntimeProbeMaxResults
+	SupplyChainCloudRuntimeProbeMaxDigests                  = supplychain.CloudRuntimeProbeMaxDigests
+	SupplyChainKubernetesRuntimeProbeMaxResults             = supplychain.KubernetesRuntimeProbeMaxResults
+	SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates
+	SupplyChainKubernetesRuntimeProbeCypher                 = supplychain.KubernetesRuntimeProbeCypher
 	ContainerImageIdentityInventoryByOutcome                = supplychain.ContainerImageIdentityInventoryByOutcome
 	ContainerImageIdentityInventoryByIdentityStrength       = supplychain.ContainerImageIdentityInventoryByIdentityStrength
 	ContainerImageIdentityInventoryByRepository             = supplychain.ContainerImageIdentityInventoryByRepository
@@ -147,46 +148,86 @@ const (
 const (
 	vulnerabilityScannerReadContractCapability = supplychain.VulnerabilityScannerReadContractCapability
 	sbomAttestationAttachmentsCapability       = supplychain.SBOMAttestationAttachmentsCapability
-	supplyChainImpactFindingsCapability        = supplychain.SupplyChainImpactFindingsCapability
-	supplyChainImpactExplanationCapability     = supplychain.SupplyChainImpactExplanationCapability
+	supplyChainImpactFindingsCapability        = supplychain.ImpactFindingsCapability
+	supplyChainImpactExplanationCapability     = supplychain.ImpactExplanationCapability
 	containerImageIdentitiesCapability         = supplychain.ContainerImageIdentitiesCapability
 	securityAlertReconciliationsCapability     = supplychain.SecurityAlertReconciliationsCapability
-	supplyChainImpactAggregateCapability       = supplychain.SupplyChainImpactAggregateCapability
+	supplyChainImpactAggregateCapability       = supplychain.ImpactAggregateCapability
 	// Staying callers: contract_supply_chain.go capability matrix.
 	securityAlertReconciliationAggregateCapability = supplychain.SecurityAlertReconciliationAggregateCapability
 	containerImageIdentityAggregateCapability      = supplychain.ContainerImageIdentityAggregateCapability
 	sbomAttestationAttachmentAggregateCapability   = supplychain.SBOMAttestationAttachmentAggregateCapability
 
-	sbomAttestationAttachmentMaxLimit   = supplychain.SBOMAttestationAttachmentMaxLimit
-	containerImageIdentityMaxLimit      = supplychain.ContainerImageIdentityMaxLimit
-	securityAlertReconciliationMaxLimit = supplychain.SecurityAlertReconciliationMaxLimit
+	sbomAttestationAttachmentMaxLimit = supplychain.SBOMAttestationAttachmentMaxLimit
+	containerImageIdentityMaxLimit    = supplychain.ContainerImageIdentityMaxLimit
 	// Staying callers: the Postgres store limit checks.
 
-	supplyChainCloudRuntimeProbeMaxResults = supplychain.SupplyChainCloudRuntimeProbeMaxResults
+	supplyChainCloudRuntimeProbeMaxResults = supplychain.CloudRuntimeProbeMaxResults
 	// Staying callers: cloud_resource_list_store.go owner-ledger budget.
-	supplyChainKubernetesRuntimeProbeMaxResults             = supplychain.SupplyChainKubernetesRuntimeProbeMaxResults
-	supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates
+	supplyChainKubernetesRuntimeProbeMaxResults             = supplychain.KubernetesRuntimeProbeMaxResults
+	supplyChainKubernetesRuntimeProbeMaxAllScopesCandidates = supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates
 	// Staying callers: kubernetes_runtime_workload_store.go candidate budget.
-	supplyChainKubernetesRuntimeProbeMaxConcurrency = supplychain.SupplyChainKubernetesRuntimeProbeMaxConcurrency
-	supplyChainKubernetesRuntimeProbeCypher         = supplychain.SupplyChainKubernetesRuntimeProbeCypher
+	supplyChainKubernetesRuntimeProbeMaxConcurrency = supplychain.KubernetesRuntimeProbeMaxConcurrency
+	supplyChainKubernetesRuntimeProbeCypher         = supplychain.KubernetesRuntimeProbeCypher
 	// Staying callers: queryplan_production_binding_test.go, which pins
 	// the exact Cypher. (The probe unit/perf tests moved to the hub and
 	// use the exported hub name directly, as does the digest-starvation
 	// live test for the per-digest floor, so the fan-out-bound and
 	// per-digest-floor forwards are deleted; the candidate-cap and plan
 	// forwards for the moved runtime-context tests are deleted too.)
-	supplyChainImpactFindingMaxLimit = supplychain.SupplyChainImpactFindingMaxLimit
+	supplyChainImpactFindingMaxLimit = supplychain.ImpactFindingMaxLimit
 	// Staying callers: the findings limit tests, which pin the page bound.
-	supplyChainKubernetesRuntimeEvidenceSource = supplychain.SupplyChainKubernetesRuntimeEvidenceSource
-	supplyChainKubernetesRuntimeResolutionMode = supplychain.SupplyChainKubernetesRuntimeResolutionMode
+	supplyChainKubernetesRuntimeEvidenceSource = supplychain.KubernetesRuntimeEvidenceSource
+	supplyChainKubernetesRuntimeResolutionMode = supplychain.KubernetesRuntimeResolutionMode
 	// Staying callers: queryplan_profile_params_test.go, which pins the
 	// probe's evidence-source contract.
 
-	securityAlertReconciliationAnchorRequiredMessage = supplychain.SecurityAlertReconciliationAnchorRequiredMessage
-	// Staying callers: security_alert_reconciliation.go store error.
 	sbomAttestationWarningSummaryPreviewMaxCount = supplychain.SBOMAttestationWarningSummaryPreviewMaxCount
 	// Staying callers: sbom_attestation_attachment_rows.go decode wrappers.
 )
+
+// stringMapVal stringifies a map payload field. Its home is
+// supplychain/alerts/ (StringMapVal); this forward keeps
+// sbom_attestation_attachments.go and sbom_attestation_attachment_rows.go
+// spelling the unqualified name unchanged. See #6642.
+func stringMapVal(payload map[string]any, key string) map[string]string {
+	return alerts.StringMapVal(payload, key)
+}
+
+// PostgresSecurityAlertReconciliationStore reads active provider alert
+// reconciliation facts from Postgres. Its home is supplychain/alerts/
+// (PostgresStore); this alias keeps the cmd/api and cmd/mcp-server wiring
+// spelling query.PostgresSecurityAlertReconciliationStore unchanged. See
+// #6642.
+type PostgresSecurityAlertReconciliationStore = alerts.PostgresStore
+
+// NewPostgresSecurityAlertReconciliationStore creates the Postgres-backed
+// provider alert reconciliation read model. Its home is supplychain/alerts/
+// (NewPostgresStore); this forwarder keeps cmd/api and cmd/mcp-server wiring
+// calling query.NewPostgresSecurityAlertReconciliationStore unchanged, passing
+// the *sql.DB main always passed (it satisfies alerts.Queryer). See #6642.
+func NewPostgresSecurityAlertReconciliationStore(db alerts.Queryer) PostgresSecurityAlertReconciliationStore {
+	return alerts.NewPostgresStore(db)
+}
+
+// PostgresSecurityAlertReconciliationAggregateStore reads aggregate counts
+// directly from reducer-owned reconciliation facts. Its home is
+// supplychain/alerts/ (PostgresAggregateStore); this alias keeps the cmd/api
+// and cmd/mcp-server wiring spelling
+// query.PostgresSecurityAlertReconciliationAggregateStore unchanged. See
+// #6642.
+type PostgresSecurityAlertReconciliationAggregateStore = alerts.PostgresAggregateStore
+
+// NewPostgresSecurityAlertReconciliationAggregateStore creates the
+// Postgres-backed aggregate store. Its home is supplychain/alerts/
+// (NewPostgresAggregateStore); this forwarder keeps cmd/api and
+// cmd/mcp-server wiring calling
+// query.NewPostgresSecurityAlertReconciliationAggregateStore unchanged,
+// passing the *sql.DB main always passed (it satisfies
+// alerts.AggregateQueryer). See #6642.
+func NewPostgresSecurityAlertReconciliationAggregateStore(db alerts.AggregateQueryer) PostgresSecurityAlertReconciliationAggregateStore {
+	return alerts.NewPostgresAggregateStore(db)
+}
 
 // Shared seams the staying files reuse. Each names its staying callers;
 // hub-internal callers use the exported hub names directly.
@@ -198,21 +239,12 @@ func uniqueSortedNonEmpty(values []string) []string {
 	return supplychain.UniqueSortedNonEmpty(values)
 }
 
-// securityAlertRepositoryScopeIDs prepends the repository id to the scope
-// set, trimmed, deduped, and sorted. Staying callers:
-// security_alert_reconciliation.go,
-// security_alert_reconciliation_aggregates.go. See
-// supplychain.SecurityAlertRepositoryScopeIDs.
-func securityAlertRepositoryScopeIDs(repositoryID string, scopeIDs []string) []string {
-	return supplychain.SecurityAlertRepositoryScopeIDs(repositoryID, scopeIDs)
-}
-
 // supplyChainCloudRuntimeProbePerDigestLimit shares the owner-ledger row
 // budget across a page's digests. Staying callers:
 // cloud_resource_list_store.go and staying cloud tests. See
-// supplychain.SupplyChainCloudRuntimeProbePerDigestLimit.
+// supplychain.CloudRuntimeProbePerDigestLimit.
 func supplyChainCloudRuntimeProbePerDigestLimit(digestCount int) int {
-	return supplychain.SupplyChainCloudRuntimeProbePerDigestLimit(digestCount)
+	return supplychain.CloudRuntimeProbePerDigestLimit(digestCount)
 }
 
 // boundedSBOMWarningSummaries bounds one attachment's warning summaries.
@@ -260,20 +292,18 @@ func sbomAttestationAttachmentAggregateScope(filter SBOMAttestationAttachmentAgg
 }
 
 // SupplyChainRuntimeEnvironmentPlan is one finding's runtime-environment
-// probe plan. See supplychain.SupplyChainRuntimeEnvironmentPlan.
-type SupplyChainRuntimeEnvironmentPlan = supplychain.SupplyChainRuntimeEnvironmentPlan
+// probe plan. See supplychain.RuntimeEnvironmentPlan.
+type SupplyChainRuntimeEnvironmentPlan = supplychain.RuntimeEnvironmentPlan
 
 // The staying Postgres implementations satisfy the hub ports through these
 // assertions: wiring assigns the concrete stores to hub-typed handler
 // fields, and any port drift fails here rather than at a call site.
 var (
-	_ ContainerImageIdentityStore               = PostgresContainerImageIdentityStore{}
-	_ ContainerImageIdentityAggregateStore      = PostgresContainerImageIdentityAggregateStore{}
-	_ SBOMAttestationAttachmentStore            = PostgresSBOMAttestationAttachmentStore{}
-	_ SBOMAttestationAttachmentAggregateStore   = PostgresSBOMAttestationAttachmentAggregateStore{}
-	_ SecurityAlertReconciliationStore          = PostgresSecurityAlertReconciliationStore{}
-	_ SecurityAlertReconciliationAggregateStore = PostgresSecurityAlertReconciliationAggregateStore{}
-	_ CloudResourceCurrentInventoryFilter       = (*PostgresCloudResourceListStore)(nil)
-	_ CloudResourceRuntimeDigestResolver        = (*PostgresCloudResourceListStore)(nil)
-	_ KubernetesWorkloadCurrentInventoryFilter  = (*PostgresKubernetesRuntimeWorkloadStore)(nil)
+	_ ContainerImageIdentityStore              = PostgresContainerImageIdentityStore{}
+	_ ContainerImageIdentityAggregateStore     = PostgresContainerImageIdentityAggregateStore{}
+	_ SBOMAttestationAttachmentStore           = PostgresSBOMAttestationAttachmentStore{}
+	_ SBOMAttestationAttachmentAggregateStore  = PostgresSBOMAttestationAttachmentAggregateStore{}
+	_ CloudResourceCurrentInventoryFilter      = (*PostgresCloudResourceListStore)(nil)
+	_ CloudResourceRuntimeDigestResolver       = (*PostgresCloudResourceListStore)(nil)
+	_ KubernetesWorkloadCurrentInventoryFilter = (*PostgresKubernetesRuntimeWorkloadStore)(nil)
 )

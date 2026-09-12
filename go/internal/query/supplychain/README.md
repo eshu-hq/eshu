@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Owns the `SupplyChainHandler` HTTP surface: nineteen routes over
+Owns the `Handler` HTTP surface: nineteen routes over
 reducer-owned supply-chain truth, served from Postgres read models and the
 graph (eleven in `Mount`, plus a count/inventory pair per aggregate
 family).
@@ -26,11 +26,11 @@ family).
 | sbom-attachment aggregate routes | `sbomAttestationAttachmentAggregateRoutes` |
 
 Three runtime-evidence probes enrich impact findings before they are
-served: the cloud probe (`supply_chain_impact_cloud_runtime_probe.go`),
-the Kubernetes probe (`supply_chain_impact_kubernetes_runtime_probe.go`
+served: the cloud probe (`cloud_runtime_probe.go`),
+the Kubernetes probe (`kubernetes_runtime_probe.go`
 plus the fairness fan-out in
-`supply_chain_impact_kubernetes_runtime_probe_fair.go`), and the runtime
-context applier (`supply_chain_impact_runtime_context_probe.go`). All
+`kubernetes_runtime_probe_fair.go`), and the runtime
+context applier (`runtime_context_probe.go`). All
 three promote a finding to `runtime_confirmed` only on current,
 caller-authorized evidence; a nil inventory store disables its tier.
 
@@ -64,8 +64,8 @@ them; the capability, limit, and probe-budget constants the staying
 contract matrix, staying stores, and staying tests read; the shared
 seams staying root files reuse (`UniqueSortedNonEmpty`,
 `SecurityAlertRepositoryScopeIDs`,
-`SupplyChainCloudRuntimeProbePerDigestLimit`); and the
-`SupplyChainImpactPacketResponder` port root implements from the lane-B
+`CloudRuntimeProbePerDigestLimit`); and the
+`ImpactPacketResponder` port root implements from the lane-B
 packet envelope. See `doc.go` for the godoc-rendered contract.
 
 ## Dependencies
@@ -134,12 +134,12 @@ package qualifier moved.
 - The probes never surface unauthorized or stale evidence: nil inventory
   disables the tier, and eligibility runs inside the bound, not after.
 - The packet route never touches lane-B packet types directly; it
-  composes through `SupplyChainImpactPacketResponder`, which root
+  composes through `ImpactPacketResponder`, which root
   injects. If lane-B moves the envelope to a leaf, this seam collapses
   back to direct calls.
 
 ## Related docs
 
-- [HTTP API Reference](../../../../../docs/public/reference/http-api.md)
-- [Telemetry](../../../../../docs/public/reference/telemetry/index.md)
-- [Architecture](../../../../../docs/public/architecture.md)
+- [HTTP API Reference](../../../../docs/public/reference/http-api.md)
+- [Telemetry](../../../../docs/public/reference/telemetry/index.md)
+- [Architecture](../../../../docs/public/architecture.md)

@@ -173,7 +173,7 @@ contract (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`, `rejected`,
 it surfaces correlation IDs, the resolved target, source classes, freshness,
 and evidence fact IDs only, never a health assertion derived from telemetry
 values.
-`SupplyChainHandler` (`supply_chain.go:16`) reads reducer-owned SBOM and
+`SupplyChainHandler` (`handler.go:16`) reads reducer-owned SBOM and
 attestation attachment facts from Postgres. It requires a subject digest,
 document ID, or document digest plus `limit`, and it keeps attachment status,
 parse status, and verification status as separate response fields so callers do
@@ -230,7 +230,7 @@ Repository-scoped security-alert reads match both the canonical repository id
 and the provider repository scope id, so `provider_only` rows remain visible as
 explicit missing-evidence rows instead of disappearing from repository pages.
 Impact responses also attach a `readiness` envelope built by
-`BuildSupplyChainImpactReadiness` (`supply_chain_impact_readiness.go:121`) so a
+`BuildSupplyChainImpactReadiness` (`readiness.go:121`) so a
 zero-finding result is classified as `not_configured`, `target_incomplete`,
 `evidence_incomplete`, `readiness_unavailable`, `ready_zero_findings`,
 `ready_with_findings`, or `ambiguous_scope`. The envelope echoes the bounded
@@ -252,7 +252,7 @@ digest, cache update time, freshness, completion state, and bounded warning
 fields from `vulnerability.source_snapshot` facts scoped by requested CVE,
 package, repository-owned ecosystem, or image component ecosystem.
 `PostgresSupplyChainImpactReadinessStore`
-(`supply_chain_impact_readiness_postgres.go:18`) runs one bounded CTE per
+(`readiness_postgres.go:18`) runs one bounded CTE per
 response with seven anchored counts, source-state/source-snapshot roll-ups, and
 unsupported-target aggregation. The readiness path never invents findings,
 never duplicates reducer matching, and adds one Postgres round trip alongside
@@ -280,7 +280,7 @@ knob.
 
 The same handler exposes cheap-summary aggregates over the reducer-owned impact
 findings through a separate Postgres aggregate read model
-(`supply_chain_impact_aggregates.go`). `CountSupplyChainImpactFindings` answers
+(`aggregates.go`). `CountSupplyChainImpactFindings` answers
 total / affected / not_affected / per-priority / per-severity questions over an
 optional CVE, package, repository id or selector, subject-digest, or impact-status scope.
 `SupplyChainImpactInventory` returns a paginated grouped count along one of the
@@ -432,7 +432,7 @@ No-Observability-Change: aggregate profile and suppression parity only adds pred
 
 The same handler exposes cheap-summary aggregates over the reducer-owned
 provider security alert reconciliations through a separate Postgres aggregate
-read model (`security_alert_reconciliation_aggregates.go`).
+read model (`supplychain/alerts/aggregates.go`).
 `CountSecurityAlertReconciliations` answers total / per-reconciliation-status /
 per-provider / per-provider-state questions over an optional repository id or
 selector, provider, package, CVE, GHSA, provider-state, or
@@ -451,7 +451,7 @@ package_id + reconciliation_status; scope_id + package_id +
 reconciliation_status; provider + provider_state + reconciliation_status;
 cve_ids GIN; ghsa_ids GIN); no graph migration is needed.
 
-No-Regression Evidence: `go test ./internal/query -run
+No-Regression Evidence: `go test ./internal/query ./internal/query/supplychain/alerts -run
 'TestSecurityAlertReconciliationAggregate|TestSecurityAlertReconciliationInventoryGroupExpression|TestNextSecurityAlertReconciliationAggregateOffset|TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors|TestSecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias'
 -count=1` proves: 503 envelope when the store is missing, totals envelope shape
 with the three rollup maps, grouped inventory shape, truncation marker plus
@@ -631,7 +631,7 @@ Observability Evidence: the aggregate routes add the
 capability attributes. They re-use the existing query-handler tracing and
 the `neo4j.query` graph span; no new metric instrument is added.
 
-`SupplyChainHandler` (`supply_chain.go`) also exposes cheap-summary
+`SupplyChainHandler` (`handler.go`) also exposes cheap-summary
 aggregates over the reducer-owned SBOM and attestation attachments through a
 separate Postgres aggregate read model
 (`sbom_attestation_attachment_aggregates.go`).

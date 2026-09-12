@@ -209,7 +209,7 @@
   markers.
 
 - **Vulnerability impact responses always carry readiness** —
-  `SupplyChainHandler.listImpactFindings` (`supply_chain.go`) must call
+  `SupplyChainHandler.listImpactFindings` (`handler.go`) must call
   `BuildSupplyChainImpactReadiness` and emit the envelope on every response.
   The readiness layer derives state from existing source-fact and reducer-fact
   counts only; do not invent findings, do not move reducer matching into the

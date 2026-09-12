@@ -358,7 +358,7 @@ of these:
    query — the parameterized sibling of signal 3's literal
    `fact_kind = '<kind>'` match, for a `fact_kind = ANY($N::text[])` bind.
    `vulnerability.source_snapshot`
-   (`supply_chain_impact_readiness_postgres_query.go:179`, feeding
+   (`readiness_postgres_query.go:179`, feeding
    `payload->>'source'` and similar reads into the readiness API response)
    is the concrete round-2 case. Requiring the `pgarray.Array` call site (not mere
    declaration) keeps a future dead `*FactKinds` slice from silently

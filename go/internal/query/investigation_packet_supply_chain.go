@@ -19,7 +19,7 @@ import (
 // result and the canonical truth envelope the explain route already produced.
 //
 // The mapping keeps the layers separated: result.Evidence becomes the
-// raw-source-fact layer, the finding becomes a reducer decision, result.ImpactPath
+// raw-source-fact layer, the finding becomes a reducer decision, result.Path
 // becomes the graph-answer and missing-hop layers, and result.Freshness overlays
 // the freshness state. No provider is consulted, so the packet is deterministic.
 //
@@ -38,7 +38,7 @@ func BuildSupplyChainImpactPacket(result impact.SupplyChainImpactExplanationResu
 	sourceFacts, knownFactIDs := supplyChainPacketSourceFacts(result.Evidence)
 	in.SourceFacts = sourceFacts
 	in.ReducerDecisions = supplyChainPacketDecisions(result.Finding, knownFactIDs)
-	in.GraphAnswers = supplyChainPacketGraphAnswers(result.ImpactPath, knownFactIDs)
+	in.GraphAnswers = supplyChainPacketGraphAnswers(result.Path, knownFactIDs)
 	in.MissingEvidence = supplyChainPacketMissingHops(result)
 	in.Summary = supplyChainPacketSummary(result)
 	in.Limitations = supplyChainPacketLimitations(result.Readiness)
@@ -266,7 +266,7 @@ func supplyChainPacketMissingHops(result impact.SupplyChainImpactExplanationResu
 		seen[key] = struct{}{}
 		hops = append(hops, PacketMissingHop{Hop: hop, Reason: reason})
 	}
-	for _, hop := range result.ImpactPath {
+	for _, hop := range result.Path {
 		if strings.EqualFold(strings.TrimSpace(hop.Status), "present") {
 			continue
 		}

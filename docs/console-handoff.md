@@ -143,7 +143,7 @@ these.
 | `GET /api/v0/repositories/{id}/content` | `repository/handler.go` | yes |
 | `GET /api/v0/repositories/{id}/branches` | `repository/handler.go` | yes |
 | `GET /api/v0/metrics/timeseries` | `metrics.go` | yes |
-| `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}` | `supply_chain_vulnerability_detail_handler.go` | yes |
+| `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}` | `vulnerability_detail_handler.go` | yes |
 | `POST /api/v0/impact/blast-radius` | `impact.go` (`findBlastRadius`) | yes |
 
 OpenAPI docs: `go/internal/query/openapi_paths_repositories.go`,

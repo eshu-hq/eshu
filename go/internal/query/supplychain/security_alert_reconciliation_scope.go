@@ -26,7 +26,7 @@ import (
 // written a not-found response, and the caller must not read the reconciliation
 // store. The original selector (not the resolved id) is echoed so no
 // out-of-grant repository id leaks.
-func (h *SupplyChainHandler) securityAlertReconciliationOutOfGrant(
+func (h *Handler) securityAlertReconciliationOutOfGrant(
 	w http.ResponseWriter,
 	r *http.Request,
 	access querycontract.RepositoryAccessFilter,
@@ -42,7 +42,7 @@ func (h *SupplyChainHandler) securityAlertReconciliationOutOfGrant(
 
 // writeEmptySecurityAlertReconciliationPage returns the bounded zero-row list
 // page for an empty-grant scoped token without reading the reconciliation store.
-func (h *SupplyChainHandler) writeEmptySecurityAlertReconciliationPage(
+func (h *Handler) writeEmptySecurityAlertReconciliationPage(
 	w http.ResponseWriter,
 	r *http.Request,
 	limit int,
@@ -64,7 +64,7 @@ func (h *SupplyChainHandler) writeEmptySecurityAlertReconciliationPage(
 
 // writeEmptySecurityAlertReconciliationCount returns the zero-count aggregate
 // shape for an empty-grant scoped token without reading the aggregate store.
-func (h *SupplyChainHandler) writeEmptySecurityAlertReconciliationCount(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) writeEmptySecurityAlertReconciliationCount(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"total_reconciliations":    0,
 		"by_reconciliation_status": map[string]int{},
@@ -83,7 +83,7 @@ func (h *SupplyChainHandler) writeEmptySecurityAlertReconciliationCount(w http.R
 
 // writeEmptySecurityAlertReconciliationInventory returns the empty inventory
 // page for an empty-grant scoped token without reading the aggregate store.
-func (h *SupplyChainHandler) writeEmptySecurityAlertReconciliationInventory(
+func (h *Handler) writeEmptySecurityAlertReconciliationInventory(
 	w http.ResponseWriter,
 	r *http.Request,
 	dimension SecurityAlertReconciliationInventoryDimension,

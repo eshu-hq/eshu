@@ -141,7 +141,7 @@ The owning store/read-model surfaces for the requested families are:
 | Dependencies | `service_story_dossier.go` upstream/downstream | graph relationships across repo scopes |
 | Docs | `documentation_target_read_model.go` | `documentation_source` scope facts keyed to `service_id` payload |
 | Incidents | `incident_routing_evidence_loader.go` | PagerDuty / Jira provider scope facts keyed to `service_id` payload |
-| Vulnerabilities | `supply_chain_advisory_evidence.go`, `supply_chain_impact_*` | scanner / advisory provider scope facts keyed to `service_id`/image payload |
+| Vulnerabilities | `advisory/evidence.go`, `supply_chain_impact_*` | scanner / advisory provider scope facts keyed to `service_id`/image payload |
 | Ownership | `service_catalog_correlations.go` (`reducer_service_catalog_correlation` fact, `owner_ref`) | reducer-owned correlation facts under the source catalog scope |
 
 ## Why the #1799 generation-diff model does not transfer

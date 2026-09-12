@@ -19,7 +19,7 @@ import (
 // resolveSBOMAttachmentRepositorySelector resolves a human repository selector
 // under the caller's scoped grants. Out-of-grant selectors return a not-found
 // response without reading the attachment or aggregate stores.
-func (h *SupplyChainHandler) resolveSBOMAttachmentRepositorySelector(
+func (h *Handler) resolveSBOMAttachmentRepositorySelector(
 	w http.ResponseWriter,
 	r *http.Request,
 	selector string,
@@ -31,7 +31,7 @@ func (h *SupplyChainHandler) resolveSBOMAttachmentRepositorySelector(
 
 // writeEmptySBOMAttachmentPage returns the bounded zero-attachments page for an
 // empty-grant scoped token without reading the attachment store.
-func (h *SupplyChainHandler) writeEmptySBOMAttachmentPage(
+func (h *Handler) writeEmptySBOMAttachmentPage(
 	w http.ResponseWriter,
 	r *http.Request,
 	limit int,
@@ -53,7 +53,7 @@ func (h *SupplyChainHandler) writeEmptySBOMAttachmentPage(
 
 // writeEmptySBOMAttachmentCount returns the zero-count aggregate shape for an
 // empty-grant scoped token without reading the aggregate store.
-func (h *SupplyChainHandler) writeEmptySBOMAttachmentCount(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) writeEmptySBOMAttachmentCount(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"total_attachments":    0,
 		"by_attachment_status": map[string]int{},
@@ -69,7 +69,7 @@ func (h *SupplyChainHandler) writeEmptySBOMAttachmentCount(w http.ResponseWriter
 
 // writeEmptySBOMAttachmentInventory returns the empty inventory page for an
 // empty-grant scoped token without reading the aggregate store.
-func (h *SupplyChainHandler) writeEmptySBOMAttachmentInventory(
+func (h *Handler) writeEmptySBOMAttachmentInventory(
 	w http.ResponseWriter,
 	r *http.Request,
 	dimension SBOMAttestationAttachmentInventoryDimension,

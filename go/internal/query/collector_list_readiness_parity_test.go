@@ -106,7 +106,7 @@ func TestCollectorListReadinessMatchesHub(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			hubHandler := &supplychain.SupplyChainHandler{
+			hubHandler := &supplychain.Handler{
 				Profile:            querycontract.ProfileProduction,
 				CollectorReadiness: tc.store,
 			}

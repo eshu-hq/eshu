@@ -90,7 +90,7 @@ func buildSupplyChainPacket(t *testing.T) query.InvestigationEvidencePacket {
 			ImpactStatus: "affected_exact", WorkloadIDs: []string{"workload:checkout"}, ServiceIDs: []string{"service:checkout"},
 			EvidenceFactIDs: []string{"fact-advisory"},
 		},
-		ImpactPath: []query.SupplyChainImpactPathHop{
+		Path: []query.SupplyChainImpactPathHop{
 			{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 			{Hop: "service", Status: "present"},
 		},

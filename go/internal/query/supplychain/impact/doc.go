@@ -33,7 +33,7 @@
 // fact (input_invalid), not as missing data: facts that fail typed-decode
 // validation never contribute zero-valued rows; the raw-payload path stays
 // only for reducer-derived kinds with no typed struct yet (see the #4784 ADR
-// note in supply_chain_impact_decode_helpers.go).
+// note in decode_helpers.go).
 //
 // Capability registration stays in root package query
 // (contract_supply_chain.go), which owns the router and always links into
