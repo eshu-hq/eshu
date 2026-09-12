@@ -1,0 +1,245 @@
+go/internal/query/decode/doc.go
+  s_7bdb6e9dae6e34::t_36e960bf1006a8 4-19
+go/internal/query/decode/error_test.go
+  s_7bdb6e9dae6e34::t_2a17fe97c99756 4
+go/internal/query/package/registry/factschema_decode_package_correlations.go
+  s_7bdb6e9dae6e34::t_b4a114830952d4 38
+  s_7bdb6e9dae6e34::t_acf21b05d81d87 37
+  s_d12a9f6390a369::t_755fc1edb30e52 7,17,84,88,96,100,108,112
+  s_187c352dd118ab::t_8e7098fd76f344 35-36
+  s_187c352dd118ab::t_f200eea2664244 4,15
+go/internal/query/decode/AGENTS.md
+  s_7bdb6e9dae6e34::t_fe9e83a8f27baf 1
+go/internal/query/decode/error.go
+  s_7bdb6e9dae6e34::t_aa49e92d488223 4
+go/internal/query/decode/README.md
+  s_7bdb6e9dae6e34::t_c2d46cd399eeb1 35-63,65-72
+  s_7bdb6e9dae6e34::t_a040501aac91a6 73
+  s_187c352dd118ab::t_9596d6c6b2195a 64
+docs/internal/design/package-restructure.md
+  s_7bdb6e9dae6e34::t_ac15158faccf9b 1908
+docs/public/reference/source-layout.md
+  s_7bdb6e9dae6e34::t_82f5d139664394 108,177
+  s_187c352dd118ab::t_014b667a11552c 173
+  s_187c352dd118ab::t_f74aa0b3b82abf 105
+go/internal/query/contentread/AGENTS.md
+  s_7bdb6e9dae6e34::t_5ccf739052243d 16
+go/internal/query/workitem/factschema_decode.go
+  s_7bdb6e9dae6e34::t_f941505308d5ba 7
+go/internal/query/incident/store/decode_workitem.go
+  s_7bdb6e9dae6e34::t_9f20b32b3bfb9b 10,50,62,74,86-87,138
+go/internal/query/incident/store/factschema_decode_incident.go
+  s_7bdb6e9dae6e34::t_58482d55da113c 10,208
+go/internal/query/package/registry/AGENTS.md
+  s_7bdb6e9dae6e34::t_bd82319eaa682f 21
+  s_187c352dd118ab::t_bba21a75a50322 1-68
+go/internal/query/package/registry/README.md
+  s_7bdb6e9dae6e34::t_dc700d8827f109 53-54
+  s_187c352dd118ab::t_3fc58b50845312 8-118
+go/internal/query/package/registry/doc.go
+  s_7bdb6e9dae6e34::t_ba9258138ce822 13
+  s_187c352dd118ab::t_1157899cb3c8c2 4-26
+  s_e8ab01ccdfa8e2::t_c4bade7d3630bc 28
+go/internal/query/package/registry/correlations.go
+  s_7bdb6e9dae6e34::t_09d806e216c5e0 14,238,345
+  s_187c352dd118ab::t_33736ca3e22f36 4,34,38,41,44-45,48,62,72-73,79,81,104,108,112,114-115,118,120-121,128,133,135-136,138,141,144,163,174,184,188,236,257,260,269,271,291,293,315,317,336
+go/internal/query/queryselector/README.md
+  s_7bdb6e9dae6e34::t_4bd00ef2788ce5 39
+go/internal/query/supplychain/advisory/AGENTS.md
+  s_7bdb6e9dae6e34::t_be0cb06ebde1ee 11,17-18
+  s_187c352dd118ab::t_fda89bee38bd8e 23
+go/internal/query/supplychain/advisory/README.md
+  s_7bdb6e9dae6e34::t_a445993a0b720c 63,99
+  s_187c352dd118ab::t_b435038cb35a05 64
+go/internal/query/supplychain/advisory/doc.go
+  s_7bdb6e9dae6e34::t_855d19dc7fc194 15
+go/internal/query/supplychain/advisory/factschema_decode_advisory.go
+  s_7bdb6e9dae6e34::t_0c0800fc8181a4 7,20,91,98,105,111,118,124,131,137
+  s_187c352dd118ab::t_dfe93680469a25 66
+  s_187c352dd118ab::t_4c23a2bb34a448 23
+go/internal/query/supplychain/advisory/factschema_decode_advisory_test.go
+  s_7bdb6e9dae6e34::t_00057faa12b445 10,19,84,86
+go/internal/query/supplychain/doc.go
+  s_7bdb6e9dae6e34::t_f391ffcce90778 21
+go/internal/query/supplychain/impact/AGENTS.md
+  s_7bdb6e9dae6e34::t_2651f7d2cd8e98 11,17-19
+go/internal/query/supplychain/impact/README.md
+  s_7bdb6e9dae6e34::t_a751c4f6dcafd0 102-103
+  s_187c352dd118ab::t_409d793bb98536 105
+go/internal/query/supplychain/impact/doc.go
+  s_7bdb6e9dae6e34::t_6a18b2af6add3f 18
+go/internal/query/supplychain/impact/supply_chain_impact_decode_helpers.go
+  s_7bdb6e9dae6e34::t_fdc707360aac47 9,48,50,94,99,106,111,119,124,131,136,143,148,155,160
+go/internal/query/supplychain/main_test.go
+  s_187c352dd118ab::t_899cc40cb40900 32-33
+go/internal/query/querycontract/visualization_packet.go
+  s_187c352dd118ab::t_813bee991c017a 450
+go/internal/query/package_registry_nornicdb_live_test.go
+  s_187c352dd118ab::t_bbf35323d7e1ef 31
+  s_187c352dd118ab::t_1d13f2cc925ca8 19
+  s_187c352dd118ab::t_175da9fbaadfec 24
+go/internal/query/package_registry_auth_middleware_test.go
+  s_187c352dd118ab::t_fc02a90b2675db 12
+  s_187c352dd118ab::t_f2de43b2491bc0 62
+go/internal/query/semanticsearch/handler_tracing.go
+  s_187c352dd118ab::t_5b78221075ef67 15
+go/internal/query/package_registry_alias.go
+  s_187c352dd118ab::t_9418bbf5741a43 7,11-18,21-22,25-26,29-30,34-37,42-43,45
+go/internal/query/supplychain/collector_readiness.go
+  s_187c352dd118ab::t_c191530aa25cdc 17-19
+go/internal/query/auth_scoped_routes_pending_row_filtering.go
+  s_187c352dd118ab::t_91c0a009cbf7fa 87
+go/internal/query/package/registry/collector_readiness.go
+  s_187c352dd118ab::t_bdb733cb9c9925 18-20
+  s_e8ab01ccdfa8e2::t_99c10f1c829767 4
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_187c352dd118ab::t_8d15cfc76f4163 73
+  s_187c352dd118ab::t_988f91a5b2bc6b 71-72
+go/internal/query/auth_scoped_routes_supply_chain_infra.go
+  s_187c352dd118ab::t_8a11b79e981b55 217
+go/internal/query/graph_read_error_capability_sweep_resolve_test.go
+  s_187c352dd118ab::t_dea88dfb899b43 375
+go/internal/query/supplychain/capabilities.go
+  s_187c352dd118ab::t_338d7f8b2cd6d7 15
+go/internal/query/package_registry_family_test_doubles_test.go
+  s_187c352dd118ab::t_78cea23a4b321b 27-28
+  s_187c352dd118ab::t_ea2950ed4db506 9,13-14,17-18
+  s_187c352dd118ab::t_3f2ed9cbc97de4 23
+  s_187c352dd118ab::t_088cb4450d52ff 64-67
+  s_187c352dd118ab::t_62fa1e703417c9 63,69-70,75-76,78,83,86-88,96-97,99,101,106-107,110
+go/internal/query/package/registry/sql_lockstep_helpers_test.go
+  s_187c352dd118ab::t_f00b23ab969386 16-20
+  s_187c352dd118ab::t_453de27dc1b846 48-57
+  s_e8ab01ccdfa8e2::t_24473c59b6b0cb 4
+go/internal/query/querytestutil/AGENTS.md
+  s_187c352dd118ab::t_c18a74717552c2 26-27,34-36
+  s_187c352dd118ab::t_5c0c487d3bbfe6 47-50
+  s_187c352dd118ab::t_bd3a8301a0a2d1 149-150
+  s_187c352dd118ab::t_fb455b07b0280b 119-120
+go/internal/query/package/registry/main_test.go
+  s_187c352dd118ab::t_bda6a9d5ef1cba 26-28
+  s_e8ab01ccdfa8e2::t_3827b75ae9c701 4,29
+go/internal/query/supplychain/advisory/supply_chain_advisory_evidence_helpers.go
+  s_187c352dd118ab::t_daf49570c9e366 121
+go/internal/query/queryplan_legacy_production_binding_test.go
+  s_187c352dd118ab::t_7b9b8581ec2ab0 22
+  s_187c352dd118ab::t_bd45edbfe5b40a 50
+go/internal/query/codeowners/main_test.go
+  s_187c352dd118ab::t_fa0fbe05281488 32-33
+docs/internal/design/5584-route-serves-data-registry.md
+  s_e8ab01ccdfa8e2::t_d850f12ee36177 99
+docs/public/reference/nornicdb-pitfalls.md
+  s_e8ab01ccdfa8e2::t_296b1eda66ddb0 576-577
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_e8ab01ccdfa8e2::t_69c7b484ed9ac7 28-30,34-36,38,40-41,46
+go/internal/query/package/registry/aggregates.go
+  s_187c352dd118ab::t_8d9441cc9464c8 4,14,24-25,28-29,32,35,39,44,47,50,54,57,60,62,66,68,73,81,88,93,95-98,101,105,109,111-112,169,207,209-210,212,219,226,233,248,251-254,256-257,260,270-271,289,293,308
+go/internal/query/package/registry/aggregates_handler.go
+  s_187c352dd118ab::t_2f512d04257edb 4,19,24,98,134,157,204-205,214,234,253,290
+go/internal/query/package/registry/aggregates_scoped_test.go
+  s_187c352dd118ab::t_cbce7405427ca1 4,27-28,30,35-36,39,46-47,78,98,100,123,146-147
+go/internal/query/package/registry/aggregates_store_test.go
+  s_187c352dd118ab::t_089991f7c81c29 4,15,18,66-67,101,104,145,158,161,199,202-203
+go/internal/query/package/registry/aggregates_test.go
+  s_187c352dd118ab::t_b109fac42be0cf 4,16,19,21,23-24,33-34,38,45-46,49,58,64,92,97,141,146,185,187,194,228,270,292,311,326,341,356,358,365,422
+go/internal/query/package/registry/authz_test.go
+  s_187c352dd118ab::t_f86d3992e49ff1 4,23,68,107,114,176,186-187,189
+go/internal/query/package/registry/content_fake_test.go
+  s_187c352dd118ab::t_618c8da6deaf72 4
+go/internal/query/package/registry/correlation_deref.go
+  s_187c352dd118ab::t_7ecb5f088a55a5 4,6
+go/internal/query/package/registry/correlation_handler.go
+  s_187c352dd118ab::t_6f9e37dd9ad14c 4,15,17,40,93,110,112,134,140,155,157
+go/internal/query/package/registry/correlation_page.go
+  s_187c352dd118ab::t_bc8169b7e2870f 4,8,19,27,32,50,81,91,95,102
+go/internal/query/package/registry/correlations_pagination_test.go
+  s_187c352dd118ab::t_f3dbf5ba2b17ae 4,26,99,156,171-172,233,271,319,353,404
+go/internal/query/package/registry/correlations_sql_schema_lockstep_test.go
+  s_187c352dd118ab::t_6e0c669c930860 4,16
+go/internal/query/package/registry/correlations_test.go
+  s_187c352dd118ab::t_3c11538d92be99 4,17-18,24,33,35,46-47,49,54,64,91,106,132-136,231,252,288,326
+go/internal/query/package/registry/cypher.go
+  s_187c352dd118ab::t_78662816d65f6b 4,47,163,171
+go/internal/query/package/registry/dependencies_handler.go
+  s_187c352dd118ab::t_5f2afb9fce0713 4,15,47,68,70
+go/internal/query/package/registry/dependencies_scoped_test.go
+  s_187c352dd118ab::t_7047bbcfc6d856 4,34,36,61,87,89,113
+go/internal/query/package/registry/dependencies_test.go
+  s_187c352dd118ab::t_25f91bf0b44e74 4,17,77,114-117,169,184,217-221,247,301,329-331
+go/internal/query/package/registry/dependency_chains.go
+  s_187c352dd118ab::t_1e8e75573f2717 4,84,123,136,201,209,246
+go/internal/query/package/registry/dependency_chains_handler.go
+  s_187c352dd118ab::t_1b54966d6dad4e 4,48,148
+go/internal/query/package/registry/dependency_chains_handler_test.go
+  s_187c352dd118ab::t_82a1b7d1af4eba 4,17,38,40,49,108,122,134
+go/internal/query/package/registry/dependency_chains_publishers_truncated_test.go
+  s_187c352dd118ab::t_429b7278e34c8f 4,16,66,153
+go/internal/query/package/registry/dependency_chains_test.go
+  s_187c352dd118ab::t_2a5bdae47e4cc5 4,15-17,20,27-28,32,50,57,67,74,89,167,203,212,247,258,308,317
+go/internal/query/package/registry/handler.go
+  s_187c352dd118ab::t_7bb7f896902bb2 4,29-30,33-34,43,46,62,64,78,80,106,115,122,177-178,250,290,292,329,331,355
+go/internal/query/package/registry/handler_test.go
+  s_187c352dd118ab::t_ae205f1bb7b6e0 4,75,101,153,213-216,270,292,334,366-368
+go/internal/query/package/registry/handler_tracing.go
+  s_187c352dd118ab::t_65f566c3de8268 4
+go/internal/query/package/registry/identity.go
+  s_187c352dd118ab::t_5d1e5b59971bf6 4,14,16,35,39,41,66,79-80
+go/internal/query/package/registry/identity_test.go
+  s_187c352dd118ab::t_472914b2327110 4,48,67,144,207,226-227
+go/internal/query/package/registry/name_anchor_test.go
+  s_187c352dd118ab::t_b2fa433c8a8b73 4,32-33,39,42,48,103,116-117,122,202,215-216,285-286,289,291,297,301-302,306,344,357-358,363
+go/internal/query/package/registry/no_oracle_test.go
+  s_187c352dd118ab::t_8b2dda84294b0b 4,21,23,28-29,32,36,146,150,164,168
+go/internal/query/package/registry/scoped_access.go
+  s_187c352dd118ab::t_c6db2009e311b7 4,77,86,113,126,174,202,350,352-353,369,371,387,389,416-417
+go/internal/query/package/registry/scoped_access_test.go
+  s_187c352dd118ab::t_6a21792e4272b1 4,96-97,99,149,177,179,210,252,284,286,311,335,365,413
+go/internal/query/package/registry/scoped_access_windowfactcount_test.go
+  s_187c352dd118ab::t_6bc0c425ea2a02 4,7,9-10,25,38,43-44
+go/internal/query/package/registry/scoped_gates.go
+  s_187c352dd118ab::t_9e8d11ba067250 4,64,167,191,241
+go/internal/query/package/registry/slice_test_helpers_test.go
+  s_187c352dd118ab::t_7827b95ebc4daf 4
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_187c352dd118ab::t_8eadf1050a8b3a 404,406,410,414,418,421,425,428,430,434,437,441,444,446-447
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ff6cb08f17a58c60c95d6c6b3ac09dd779b3e11c",
+  "prompts": {},
+  "sessions": {
+    "s_187c352dd118ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b4af4ac0-be6a-446a-87ce-2ec735f6b268",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_7bdb6e9dae6e34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1de2ac28-66d6-417c-86af-7d04197bdfe8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_d12a9f6390a369": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a08b00-5bc1-72c0-9cde-633e7ff7d817",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
