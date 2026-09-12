@@ -122,8 +122,8 @@ func TestComponentExtensionPlannerPlansActivationScopedWork(t *testing.T) {
 // root half (shouldScheduleComponentExtension still treats this
 // configuration as a component-extension instance so the planner surfaces
 // the rejection) now lives in service_component_extension_test.go. The
-// rejection itself is produced by componentactivation.ParseConfig, pinned
-// independently in componentactivation's own test package.
+// rejection itself is produced by activation.ParseConfig, pinned
+// independently in activation's own test package.
 func TestComponentExtensionPlannerRejectsUnsupportedSDKProtocol(t *testing.T) {
 	t.Parallel()
 

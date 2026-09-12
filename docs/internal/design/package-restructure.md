@@ -1146,13 +1146,13 @@ the planner would make two unrelated providers depend on a
 scheduler-specific package, the same shape `owned_package_target_helpers.go`
 and `target_priority.go` avoid by staying in root. The fix landed as its own
 commit, before the scheduler moved: the type and its parser were hoisted
-into a new dependency-neutral package, `internal/coordinator/componentactivation`
-(`Config`, `RuntimeConfig`, `ParseConfig`) — the same
+into `internal/coordinator/component/activation` (originally
+`internal/coordinator/componentactivation`; `Config`, `RuntimeConfig`, `ParseConfig`) — the same
 hoist-to-a-neutral-package pattern `internal/projector/intent` already uses
 for the projector families' equivalent problem. `component_activation_config.go`,
 `component_extension_service.go`, `pagerduty_service.go`,
 `governance_audit.go`, and the `planner/component/extension` leaf all import
-`componentactivation`; `component_activation_config_test.go` is the only test
+the activation package; `component_activation_config_test.go` is the only test
 importer. The shared contract imports neither root nor a planner. Root keeps
 scheduling order, hosted extension egress-policy filtering and audit, durable admission, retries, queue and
 lease behavior, and telemetry. These moves do not change scheduler order,

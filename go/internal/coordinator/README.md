@@ -190,7 +190,7 @@ one enabled bounded scope; invalid configurations fail validation.
   key `loki:<instance_id>:<scope_id>`.
 - `GCPPlanner` — implemented by `gcp.WorkPlanner`, which also exposes
   `EnabledScopes`/`ValidateClaimSchedulerConfiguration` for root reuse.
-- `ComponentExtensionPlanner` — `extension.WorkPlanner`, from `componentactivation.Config`.
+- `ComponentExtensionPlanner` — `extension.WorkPlanner`, from `activation.Config`.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.
@@ -233,7 +233,7 @@ one enabled bounded scope; invalid configurations fail validation.
   — provider-specific deterministic planners.
 - `internal/coordinator/planner/aws/{freshness,scheduled}` — AWS planner leaves.
 - `internal/coordinator/planner/component/extension` — component work planner.
-- `internal/coordinator/componentactivation` — shared activation configuration.
+- `internal/coordinator/component/activation` — shared activation configuration.
 - `internal/coordinator/vaultlive` — Vault metadata planner.
 - `internal/workflow` — `DesiredCollectorInstance`, `CollectorInstance`,
   `Claim`, and default accessors; used throughout `Store` and `Config`.

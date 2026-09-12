@@ -21,12 +21,12 @@ admission, retries, queue and lease behavior, and telemetry.
 activation host-claim metadata that root reads before this package ever
 sees a collector instance's `Configuration` string. Parsing and validating
 that `Configuration` string is not this package's contract either: it
-belongs to the dependency-neutral `internal/coordinator/componentactivation`
+belongs to the dependency-neutral `internal/coordinator/component/activation`
 package, because root's `component_activation_config.go` (construction),
 `component_extension_service.go` (scheduling eligibility and egress checks),
 `pagerduty_service.go` (PagerDuty exclusion), and `governance_audit.go` (audit
 identity) all need that same parsing. This package is one of
-`componentactivation`'s consumers, not its owner.
+`activation`'s consumers, not its owner.
 
 ## Exported surface
 
@@ -39,7 +39,7 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/coordinator/componentactivation` supplies `Config`,
+- `internal/coordinator/component/activation` supplies `Config`,
   `RuntimeConfig`, and `ParseConfig` — the shared activation-configuration
   contract this package plans from.
 - `internal/coordinator/planner/contract` validates safe plan keys.
@@ -75,7 +75,7 @@ signals continue to cover scheduling and egress-audit failures.
   the claimed-collection runtime invariant for non-terraform kinds requires
   them equal (see `collector.validateClaimedGeneration`).
 - Every validation error this package returns for a malformed activation
-  configuration originates in `componentactivation.ParseConfig`; do not
+  configuration originates in `activation.ParseConfig`; do not
   duplicate that validation here.
 
 No-Regression Evidence: direct child tests call the production planner and
@@ -94,7 +94,7 @@ egress-policy decision.
 ## Related docs
 
 - `go/internal/coordinator/README.md`
-- `go/internal/coordinator/componentactivation/README.md`
+- `go/internal/coordinator/component/activation/README.md`
 - `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`
 - `docs/public/observability/telemetry-coverage.md`

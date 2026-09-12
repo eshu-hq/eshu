@@ -94,7 +94,7 @@
      work-item construction and requested-scope privacy (no raw host config
      path or credentials). Unlike every other extraction, the activation
      configuration it plans from is not this planner's own type: it lives in
-     `go/internal/coordinator/componentactivation` (`Config`, `RuntimeConfig`,
+     `go/internal/coordinator/component/activation` (`Config`, `RuntimeConfig`,
      `ParseConfig`), a dependency-neutral package below both root and the
      planner, landed as its own commit (2026-08-31) because
      `component_activation_config.go` (construction),
@@ -102,7 +102,7 @@
      (PagerDuty exclusion), and `governance_audit.go` (audit identity) all
      depend on the same parsing for reasons unrelated to component-extension
      planning. Those four root files and the extension planner import
-     `componentactivation`; `component_activation_config_test.go` is the sole
+     `activation`; `component_activation_config_test.go` is the sole
      test importer. The shared contract imports neither root nor a planner.
 6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
@@ -205,7 +205,7 @@
   in root (the child cannot import root once root imports the child for the
   request type, so the child will not compile). Hoist it into a new
   dependency-neutral package below both root and the child FIRST, as its own
-  commit, before extracting the scheduler — see `componentactivation`, which
+  commit, before extracting the scheduler — see `component/activation`, which
   matches what `contract` already is for plan-key validation and what
   `projector/intent` is for the projector families' equivalent problem. Every
   consumer — root's several call sites and the child — imports the neutral

@@ -1,4 +1,4 @@
-# Component activation config agent guide
+# Component activation agent guide
 
 ## Read first
 
@@ -6,13 +6,13 @@
    validation rules.
 2. `config_test.go` — the parse/validation contract every consumer depends
    on.
-3. `../component_activation_config.go` — the write side: constructs a
+3. `../../component_activation_config.go` — the write side: constructs a
    `Config` from a loaded component manifest and activation.
-4. `../planner/component/extension/planner.go` — the planning side: calls
+4. `../../planner/component/extension/planner.go` — the planning side: calls
    `ParseConfig` and builds workflow rows from the result.
-5. `../component_extension_service.go` — the root eligibility checks that
+5. `../../component_extension_service.go` — the root eligibility checks that
    precede planner calls.
-6. `../pagerduty_service.go` and `../governance_audit.go` — the two
+6. `../../pagerduty_service.go` and `../../governance_audit.go` — the two
    unrelated-provider read sites this package exists to serve without
    forcing them to import a scheduler package.
 
@@ -76,5 +76,5 @@ move into the scheduler-owned child), not adjacent scope.
 
 ## Verification
 
-`go test ./internal/coordinator/componentactivation ./internal/coordinator/planner/component/extension ./internal/coordinator -count=1`
+`go test ./internal/coordinator/component/activation ./internal/coordinator/planner/component/extension ./internal/coordinator -count=1`
 covers this package plus every consumer.

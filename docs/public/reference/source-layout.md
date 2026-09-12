@@ -21,7 +21,7 @@ live in the repository today.
 | `go/internal/coordinator/planner/aws/freshness/` | AWS freshness scheduler target-scope parsing, target authorization shared with root, trigger coalescing, and deterministic workflow planning |
 | `go/internal/coordinator/planner/aws/scheduled/` | Scheduled AWS collector work planning from instance configuration: the `scheduled_scan_enabled` decode, target planning over scopes parsed by `freshness`, and deterministic workflow run and work-item construction |
 | `go/internal/coordinator/cicdrun/` | CI/CD run scheduler request validation and deterministic workflow planning |
-| `go/internal/coordinator/componentactivation/` | dependency-neutral generic component-activation configuration parsing and validation shared by the component-extension planner and unrelated root scheduling/audit files |
+| `go/internal/coordinator/component/activation/` | dependency-neutral generic component-activation configuration parsing and validation shared by the component-extension planner and unrelated root scheduling/audit files |
 | `go/internal/coordinator/planner/component/extension/` | generic component-extension scheduler activation-scoped workflow planning |
 | `go/internal/coordinator/planner/gcp/` | GCP Cloud Asset Inventory scheduler scope configuration parsing, validation, and deterministic workflow planning |
 | `go/internal/coordinator/planner/grafana/` | Grafana scheduler request validation, target filtering, privacy, and deterministic workflow planning |

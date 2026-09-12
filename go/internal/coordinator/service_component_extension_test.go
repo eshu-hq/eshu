@@ -357,7 +357,7 @@ func testScorecardComponentInstance(now time.Time) workflow.CollectorInstance {
 // runtime.sdk_protocol rejection now lives in
 // extension.TestComponentExtensionPlannerRejectsUnsupportedSDKProtocol,
 // and the parse/validation rule itself is pinned independently in
-// componentactivation.TestParseConfig.
+// activation.TestParseConfig.
 func TestShouldScheduleComponentExtensionSurfacesInvalidActivationConfig(t *testing.T) {
 	t.Parallel()
 
