@@ -1,0 +1,65 @@
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_d203077d06d070 1066-1067
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_d203077d06d070 707
+docs/internal/evidence/6627-coordinator-cicd-run-package-move.md
+  s_4a0f86aa680964::t_00329b12c53295 1-84,86-92,104-106
+  s_4a0f86aa680964::t_a6ea518cd92fbe 93-103
+  s_4a0f86aa680964::t_c0d6894696be7a 85
+  s_4a0f86aa680964::t_ff2536b7f47429 107-123
+go/internal/coordinator/README.md
+  s_4a0f86aa680964::t_d203077d06d070 14,224
+  s_4a0f86aa680964::t_c37f9c6fc52a55 148-150
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_d203077d06d070 23-24
+go/cmd/workflow-coordinator/main.go
+  s_4a0f86aa680964::t_4e3645e9bec6c7 22
+go/internal/coordinator/cicd/run/planner_test.go
+  s_4a0f86aa680964::t_41dc29a7cffc40 4
+go/internal/coordinator/cicd/run/README.md
+  s_4a0f86aa680964::t_4e3645e9bec6c7 5,55,61
+go/internal/coordinator/cicd/doc.go
+  s_4a0f86aa680964::t_d203077d06d070 1-9
+go/internal/coordinator/cicd/README.md
+  s_4a0f86aa680964::t_d203077d06d070 1-42
+go/internal/coordinator/cicd/run/AGENTS.md
+  s_4a0f86aa680964::t_c37f9c6fc52a55 7-9,11,13,15
+  s_4a0f86aa680964::t_4e3645e9bec6c7 1,5
+go/internal/coordinator/cicd/run/planner.go
+  s_4a0f86aa680964::t_4e3645e9bec6c7 4
+docs/internal/design/restructure-research.md
+  s_4a0f86aa680964::t_d203077d06d070 97
+go/cmd/workflow-coordinator/doc.go
+  s_4a0f86aa680964::t_d203077d06d070 13
+go/internal/coordinator/cicd_run_service.go
+  s_4a0f86aa680964::t_4e3645e9bec6c7 4,12
+go/internal/coordinator/service_cicd_run_test.go
+  s_4a0f86aa680964::t_4e3645e9bec6c7 11
+go/internal/coordinator/AGENTS.md
+  s_4a0f86aa680964::t_c37f9c6fc52a55 107-112
+go/internal/coordinator/cicd/AGENTS.md
+  s_4a0f86aa680964::t_d203077d06d070 1-28
+go/internal/coordinator/doc.go
+  s_4a0f86aa680964::t_d203077d06d070 29
+go/cmd/workflow-coordinator/README.md
+  s_4a0f86aa680964::t_c37f9c6fc52a55 62-63
+  s_4a0f86aa680964::t_d203077d06d070 141
+go/internal/coordinator/cicd/run/doc.go
+  s_4a0f86aa680964::t_4e3645e9bec6c7 4,10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eab8eb31bf28b130a72be17f602c4a667f2e8527",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
