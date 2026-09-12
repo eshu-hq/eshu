@@ -10,7 +10,7 @@
 // version and exits before runtime setup. Otherwise the binary boots OTEL
 // telemetry, opens Postgres, builds coordinator.Service
 // from the configured workflow store, governance audit sink, metrics, and
-// provider-family planners (including cicd/run, securityalert,
+// provider-family planners (including cicd/run, oci/registry, securityalert,
 // sbom/attestation, scannerworker, gcp, grafana, loki,
 // jira, pagerduty, metrics, tempo, vault/live, and
 // extension scheduler planners), and hosts it through

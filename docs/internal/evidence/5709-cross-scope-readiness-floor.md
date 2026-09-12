@@ -79,7 +79,7 @@ mappings are read out of the code, not guessed:
 
 | producer domain | collector kind | why |
 | --- | --- | --- |
-| `container_image_identity` | `scope.CollectorOCIRegistry` (`oci_registry`) | registered by `internal/coordinator/oci_registry_scheduler.go`, projected by `internal/projector/oci_registry_canonical.go` |
+| `container_image_identity` | `scope.CollectorOCIRegistry` (`oci_registry`) | planned by `internal/coordinator/oci/registry/planner.go`, projected by `internal/projector/oci_registry_canonical.go` |
 | `ci_cd_run_correlation` | `scope.CollectorCICDRun` (`ci_cd_run`) | emitted by `internal/collector/cicdrun/ghactionsruntime` and `.../gitlabciruntime` |
 
 A producer domain with no entry is skipped, not guessed.

@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
+	ociregistry "github.com/eshu-hq/eshu/go/internal/coordinator/oci/registry"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/scheduled"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
@@ -50,7 +50,7 @@ type TerraformStatePlanner interface {
 }
 
 // OCIRegistryPlanner plans OCI registry workflow rows from collector instance
-// configuration. Its request type lives in the ociregistry child package
+// configuration. Its request type lives in the oci/registry child package
 // (extracted per issue #6057); this interface itself stays here, at root,
 // alongside the other not-yet-decomposed Service planner interfaces, because
 // decomposing Service.go's interface block is a separate design decision.

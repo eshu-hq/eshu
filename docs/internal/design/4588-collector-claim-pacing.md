@@ -67,7 +67,7 @@ populate it, each with a per-target key:
 | Scheduler | Key shape |
 | --- | --- |
 | `aws_scheduled_scheduler.go:285` | `aws:<instance>:<account id>` |
-| `oci_registry_scheduler.go:258` | `oci_registry:<instance>:<provider>` |
+| `coordinator/oci/registry/planner.go` | `oci_registry:<instance>:<provider>` |
 | `package_registry_scheduler.go:350` | `package_registry:<instance>:<class>:<ecosystem>` |
 | `planner/loki/planner.go` | `loki:<instance>:<scope>` |
 

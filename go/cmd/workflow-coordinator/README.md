@@ -58,7 +58,8 @@ flowchart TB
    connection through an instrumented `governance_audit` store and ensures the
    private audit sink schema exists.
 6. `coordinator.Service` is wired with all dependencies, including
-   Terraform-state, OCI registry, package registry, vulnerability installed
+   Terraform-state, OCI registry (`oci/registry`), package registry,
+   vulnerability installed
    advisory target readers, the `cicd/run` planner (aliased as `cicdrun`),
    `securityalert`, `sbom/attestation`, `scannerworker`, `gcp`, `grafana`,
    `loki`, `jira`, `pagerduty`, `metrics`,
@@ -162,6 +163,8 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   Tempo trace-signal targets
 - `internal/coordinator/planner/tfstate` — concrete scheduler wiring for
   Terraform-state drift targets
+- `internal/coordinator/oci/registry` — concrete scheduler wiring for OCI
+  registry repository targets
 - `internal/coordinator/vault/live` — concrete scheduler wiring for Vault
   metadata targets
 - `internal/workflow` — type contracts consumed by `coordinator.Service`

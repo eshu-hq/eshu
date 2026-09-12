@@ -1,15 +1,15 @@
-# AGENTS.md — internal/coordinator/ociregistry guidance
+# AGENTS.md — internal/coordinator/oci/registry guidance
 
 ## Read first
 
 1. `README.md` for ownership and invariants.
 2. `planner.go` for target parsing, per-provider identity resolution, and
    deterministic workflow-row construction.
-3. `../oci_registry_service.go` for root scheduling and durable admission.
-4. `../service.go` for the `OCIRegistryPlanner` interface — unlike sibling
+3. `../../oci_registry_service.go` for root scheduling and durable admission.
+4. `../../service.go` for the `OCIRegistryPlanner` interface — unlike sibling
    extractions, it stays there rather than moving into `oci_registry_service.go`
    (issue #6057: Service decomposition is a separate design decision).
-5. `../planner/contract/README.md` for plan-key grammar.
+5. `../../planner/contract/README.md` for plan-key grammar.
 
 ## Invariants
 
@@ -58,6 +58,6 @@ silently turn a misconfiguration into a successful no-op.
 
 ## Verification
 
-Run `go test ./internal/coordinator/ociregistry ./internal/coordinator -count=1`
+Run `go test ./internal/coordinator/oci/registry ./internal/coordinator -count=1`
 first, then the recursive coordinator suite, scoped race, package-doc, and
 dirgate checks, and whole-module build and vet.

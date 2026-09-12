@@ -72,8 +72,8 @@
 // durable row. The root retains scheduling order, the plan-key clock, durable
 // admission, the waiting-on-git-generation continue path, retries, and
 // telemetry.
-// The root OCIRegistryPlanner interface accepts the child
-// ociregistry.PlanRequest; the child plans one bounded claimable work item per
+// The root OCIRegistryPlanner interface accepts the oci/registry child's
+// PlanRequest; the child plans one bounded claimable work item per
 // configured repository target across Docker Hub, GHCR, ECR, Google Artifact
 // Registry, Azure Container Registry, JFrog, and Harbor, resolving each into a
 // shared normalized repository identity and rejecting duplicate normalized

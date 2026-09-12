@@ -18,7 +18,7 @@ waiting-on-git-generation log-and-continue path, retries, and telemetry.
 Methods on `coordinator.Service` remain in the parent package
 (`tfstate_service.go`).
 
-Following the `ociregistry` extraction (#6491), the `TerraformStatePlanner`
+Following the `oci/registry` extraction (#6491), the `TerraformStatePlanner`
 interface itself stays in `service.go` rather than moving into
 `tfstate_service.go`: issue #6057 scopes this change to the `_scheduler.go`
 half only and treats decomposing `Service`'s interface block as a separate
@@ -48,7 +48,7 @@ See `doc.go` for the godoc contract.
 `scope` and `workflow` provide stable identities and durable row contracts.
 This package does not import its parent, and it holds no shared helper with
 root: every private function that moved here has no other caller in the
-repository. Unlike the `ociregistry` extraction, there was no `firstNonBlank`-
+repository. Unlike the `oci/registry` extraction, there was no `firstNonBlank`-
 style helper to duplicate.
 
 It also does not import `contract`. Terraform-state keeps its own
@@ -80,7 +80,7 @@ claim status, and the existing admission logs.
   `backend_kind`, sorted by `candidate_id`.
 - **Zero resolved candidates is an empty plan, not an error.** The planner
   returns a zero-value run with no items and a nil error, and the parent skips
-  creating workflow rows. This differs from `ociregistry`, where an empty
+  creating workflow rows. This differs from `oci/registry`, where an empty
   target set is a validation failure — here the configuration is validated
   separately from what discovery resolves, so a valid graph or backend-filter
   configuration that matches nothing is a legitimate no-op rather than a

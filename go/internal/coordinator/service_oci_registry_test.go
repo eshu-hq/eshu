@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
+	ociregistry "github.com/eshu-hq/eshu/go/internal/coordinator/oci/registry"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
