@@ -1,0 +1,140 @@
+go/internal/query/service/query_enrichment.go
+  s_13ac21f26e8eed::t_789dd5119a7742 16,29
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_13ac21f26e8eed::t_5042b9d72a78a1 217
+  s_13ac21f26e8eed::t_185b3f8ec2b918 551
+docs/internal/design/5584-route-serves-data-registry.md
+  s_13ac21f26e8eed::t_3bb02d3218324a 104
+go/internal/query/service/result_limits_evidence_file_bound_test.go
+  s_13ac21f26e8eed::t_c59057a112fc31 46
+go/internal/query/service/story_trace_path.go
+  s_13ac21f26e8eed::t_70602861c81575 96,100,105,145
+go/internal/query/service/query_enrichment_rows.go
+  s_13ac21f26e8eed::t_c0acf2fcfcba5e 13,29,45,186,197,208
+go/internal/query/container_image_candidate_explanation.go
+  s_13ac21f26e8eed::t_419cabe7aa6c3c 17,29,31,34,124,146
+go/internal/query/service/catalog_authz_test.go
+  s_13ac21f26e8eed::t_e8e04970ef4884 25,73,118,182-183,192
+go/internal/query/entity/entity.go
+  s_13ac21f26e8eed::t_f14afd75b639e1 451
+go/internal/query/service_story_target_support.go
+  s_13ac21f26e8eed::t_ddd42a29c84ecc 110,170,178
+go/internal/query/entity/service_workload_resolution.go
+  s_13ac21f26e8eed::t_033a8c9e2653f8 25
+go/internal/query/service/query_timing.go
+  s_13ac21f26e8eed::t_de3d8a7b0bc173 15,17,35-36,59
+go/internal/query/service/evidence_file_bound_test.go
+  s_13ac21f26e8eed::t_c6e3f13d661889 90
+go/internal/query/service/catalog_correlations.go
+  s_13ac21f26e8eed::t_b4bcde05841c5f 18,22,36,41,43,46,48,50,74-75,117,142,165,319,322,324,352,355,357
+go/internal/query/service/story_candidate_explanation.go
+  s_13ac21f26e8eed::t_1149c028df0c9a 10,14,25,29-30,32,39,42,47,49,64,76,78-79,88,90-91,100,102-103
+go/internal/query/entity/service_story_supply_chain_scope_test.go
+  s_13ac21f26e8eed::t_a516214492102d 54,120,154,156,162,164,170,172,182,184
+go/internal/query/service/contract_helpers_test.go
+  s_13ac21f26e8eed::t_2b2df0f014a5c0 17-18,21,32,55,118-119,127,172-173,181
+go/internal/query/entity/service_story_supply_chain_test.go
+  s_13ac21f26e8eed::t_6079c0143c8655 98,222,257,296,372,412
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_13ac21f26e8eed::t_684dc639ebfa9b 214
+go/internal/query/service/query_evidence_test.go
+  s_13ac21f26e8eed::t_8733c685b13d40 270,334,401
+go/internal/query/service/contract_helpers.go
+  s_13ac21f26e8eed::t_0c01300ec4240d 13
+go/internal/query/service/story_supply_chain_scope.go
+  s_13ac21f26e8eed::t_139d46df52cad9 20,28-29,33,39,46,50,57,67-68,76,81,102,105,119,122,131-132,150
+go/internal/query/service/catalog_evidence_summary.go
+  s_13ac21f26e8eed::t_00f5e94d448816 19,21-24,27,29-36,39,41,49,52,59,63,65,67,72,75,78,80,83,93,96,98,103,105,116,125-126,128,139,147,150,161,163-164,187,209,218
+go/internal/query/service/story_overview.go
+  s_13ac21f26e8eed::t_8ddc40cc9de8b6 35,307
+go/internal/query/read-models.md
+  s_13ac21f26e8eed::t_f0dbd1baa0f1b9 146
+go/internal/query/service/deployment_trace_truncation_disclosure_test.go
+  s_13ac21f26e8eed::t_68cb37dccf6ea1 276
+go/internal/query/entity/service_story_seam.go
+  s_13ac21f26e8eed::t_c89766b00f5137 33,64,94
+go/internal/query/service/story_supply_chain_image.go
+  s_13ac21f26e8eed::t_ebae5c7e874104 21,25,29,34
+go/internal/query/service/query_evidence_types.go
+  s_13ac21f26e8eed::t_8138850b7521c9 14,18,35,52-53,80,82-88,103,105,112,114,120-121,127,129,136,140,142-144
+go/internal/query/service_alias.go
+  s_13ac21f26e8eed::t_e4b3f0450d931b 29,48,53,58,70,75,80,84,99,104,109,114,146,156,203
+go/internal/query/service/catalog.go
+  s_13ac21f26e8eed::t_9cfa912adf961d 21-22,24,28-29,51,53,59,63,70,97,156,158,183,189,193-194,198,228,230,240,242,246,248
+go/internal/query/service-catalog-read-model.md
+  s_13ac21f26e8eed::t_401c696f2d8063 3
+go/internal/query/service/story_target_support_refs.go
+  s_13ac21f26e8eed::t_33c6498505ab23 12,53
+go/internal/query/service/query_truncation_wiring_test.go
+  s_13ac21f26e8eed::t_8e8792db1dfb5c 311
+go/internal/query/service/catalog_correlations_store_test.go
+  s_13ac21f26e8eed::t_9ac57b233167c8 41,172,201
+go/internal/query/service/hostname_candidates_test.go
+  s_13ac21f26e8eed::t_c611a20b9a36ce 70,77
+go/internal/query/service/README.md
+  s_13ac21f26e8eed::t_be34af5d2c12b5 6
+  s_13ac21f26e8eed::t_802731dacadcb1 17
+  s_e8ab01ccdfa8e2::t_27605cb8ad334a 83-97
+go/internal/query/service/workload_selector.go
+  s_13ac21f26e8eed::t_5abec112c2e6ff 6,13
+go/internal/query/entity/service_story_seam_test.go
+  s_13ac21f26e8eed::t_74c3874258fe10 22,43,59,103
+go/internal/query/service/investigation_packet.go
+  s_13ac21f26e8eed::t_02d6c5c55984ef 23,26,38,46
+go/internal/query/service/query_evidence.go
+  s_13ac21f26e8eed::t_e1f2282d2b9986 18,21,23,28,31,48,68,84,97,109,118,172
+go/internal/query/entity/service_investigation.go
+  s_13ac21f26e8eed::t_d7b18960e39ed9 105,124
+go/internal/query/entity/service_story_handler.go
+  s_13ac21f26e8eed::t_83d2ca9d2bde81 20
+go/internal/query/entity/service_story_supply_chain.go
+  s_13ac21f26e8eed::t_45999aa0d714f9 46,60,88,93,110,143
+go/internal/mcp/route_serves_data_registry.go
+  s_13ac21f26e8eed::t_3b5df24345c74b 135
+go/internal/query/service/doc.go
+  s_13ac21f26e8eed::t_7dd6642b826bc2 5
+go/internal/query/service/catalog_correlations_repository_scope_test.go
+  s_13ac21f26e8eed::t_931eaa8d185128 65,85-87
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_13ac21f26e8eed::t_9b2f7da6b7a643 228
+  s_13ac21f26e8eed::t_670df75acccff2 217
+  s_4a0f86aa680964::t_026ea48bfd21ef 210,213
+go/internal/query/service/query_evidence_types_test.go
+  s_13ac21f26e8eed::t_86cfd9feede9a1 66
+go/internal/query/service/catalog_correlations_test.go
+  s_13ac21f26e8eed::t_33c5287aa3b1d9 20,68,94-98,148,167-170,196,204,224-225,253,255,264,280,307,315,332-333,360,368,385,405,422,439-441
+go/internal/query/entity/entity_workload_handlers.go
+  s_13ac21f26e8eed::t_6c64a80ca20f20 45,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bab558f6ed66dd2d60d9be0ffa3a88c92e58f91b",
+  "prompts": {},
+  "sessions": {
+    "s_13ac21f26e8eed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7b59efed-1d44-4b8f-a88d-642e9ecb29a0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
