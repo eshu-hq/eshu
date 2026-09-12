@@ -1,0 +1,211 @@
+go/internal/query/supplychain/alerts/queries.go
+  s_61d26b139d8bea::t_73618454128dfc 6,13-15
+  s_61d26b139d8bea::t_5de922ced2bb8f 4,7-12
+go/internal/query/supplychain/alerts/aggregates.go
+  s_61d26b139d8bea::t_cfa8089b1f7f32 80
+  s_61d26b139d8bea::t_b87a70fc272937 4-18,32,34,46-70,83-100,103-108,133-142,152-153,162-184,197-200,204-215
+  s_61d26b139d8bea::t_bab18342f955ae 102
+  s_61d26b139d8bea::t_ad6c491f3ee944 114
+  s_61d26b139d8bea::t_440fcbec15a0d9 37-41
+  s_61d26b139d8bea::t_e8aab71cdbba16 158
+  s_61d26b139d8bea::t_099e52db3c8d9d 196,201-203
+  s_61d26b139d8bea::t_a9abfec28ff2a5 19-27,33
+  s_61d26b139d8bea::t_a967d9079dc93c 146
+go/internal/query/supplychain/alerts/aggregates_test.go
+  s_61d26b139d8bea::t_0b0961283cee13 1-90
+go/internal/query/supplychain/store_security_alert.go
+  s_61d26b139d8bea::t_f4c769d654c983 206,208-209
+docs/public/reference/security-intelligence-provider-alert-parity.md
+  s_61d26b139d8bea::t_39b01ecdb13fa6 87-88
+go/internal/query/supplychain/impact/helpers.go
+  s_61d26b139d8bea::t_fb2d07d922f859 174-177
+  s_91af3dafd582ef::t_91d4d69a9c653b 98,109,114
+  s_e8ab01ccdfa8e2::t_008410d7540307 123-124
+go/internal/query/supplychain/alerts/doc.go
+  s_61d26b139d8bea::t_de56d3145504dc 1-12,15-16,19-28
+  s_61d26b139d8bea::t_80ab43d7a45dfc 13-14,17-18
+docs/internal/design/4784-reducer-derived-fact-governance.md
+  s_61d26b139d8bea::t_b507b5067ce8cd 82
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_61d26b139d8bea::t_5d3c4965bd0af8 1452
+go/internal/query/supplychain/AGENTS.md
+  s_61d26b139d8bea::t_742a9643ca398a 99,101
+  s_61d26b139d8bea::t_bbde115b9a0a34 90-92
+  s_e8ab01ccdfa8e2::t_7554b189e68ece 42,100,184
+go/internal/query/supplychain/alerts/aggregate_queries.go
+  s_61d26b139d8bea::t_c4d118bc0f6708 4-12,18,94,106
+  s_61d26b139d8bea::t_8cefb3bd93a790 73-93,95-105,107-108
+  s_61d26b139d8bea::t_5cb00df1b69ec2 13-16
+go/internal/query/supplychain/alerts/README.md
+  s_61d26b139d8bea::t_2497e037424c02 1-21,34,38-44,59-60,67-77
+  s_61d26b139d8bea::t_c0af57536ac68d 22-33,35-37,45-58,61-66
+go/internal/query/supplychain/alerts/store.go
+  s_61d26b139d8bea::t_b389230b4aebce 96
+  s_61d26b139d8bea::t_0e1633ee21eb63 66-69
+  s_61d26b139d8bea::t_9fdad81b188e0f 154
+  s_61d26b139d8bea::t_774eaea46764ed 25-30
+  s_61d26b139d8bea::t_f610ca2b80a37c 63,72
+  s_61d26b139d8bea::t_663fae66e7803f 4-24,34-62,70-71,73-91,97-152,163-326
+go/internal/query/supply_chain_hub_alias.go
+  s_61d26b139d8bea::t_f65155f9f736ce 302-306
+  s_61d26b139d8bea::t_97e022b815fb7d 8
+  s_61d26b139d8bea::t_c6f6096a690f2f 161-162
+  s_61d26b139d8bea::t_8e13226a81cf54 189-206,210-224,229-230
+  s_61d26b139d8bea::t_97fd7138f97d0f 225-228
+  s_61d26b139d8bea::t_e6351d5f553ed2 207-209
+  s_61d26b139d8bea::t_d8195a6177ed74 231,307-308
+go/internal/query/supplychain/alerts/triage_test.go
+  s_61d26b139d8bea::t_bdcc94f1f40e70 1-52
+go/internal/mcp/route_serves_data_registry_routes_2.go
+  s_61d26b139d8bea::t_bf767ad93c2181 163
+  s_61d26b139d8bea::t_5507cf766c2ce9 173-174,181
+  s_61d26b139d8bea::t_e006219238294e 164
+  s_91af3dafd582ef::t_f8d6f5095468f2 134,136,138,140,166,168,170,172
+go/internal/query/read-models.md
+  s_61d26b139d8bea::t_15557045ae6d5d 454
+  s_61d26b139d8bea::t_644f2495fa19e0 435
+  s_91af3dafd582ef::t_23ae1112f88112 176,233,255,283
+  s_91af3dafd582ef::t_df136d3d0404f5 634
+docs/internal/design/5584-route-serves-data-registry.md
+  s_61d26b139d8bea::t_82566ccc27f1db 102
+  s_91af3dafd582ef::t_b4c17e227207c6 93
+go/internal/query/supplychain/advisory/evidence_helpers.go
+  s_61d26b139d8bea::t_94017f3a3c5ff0 61-67
+  s_61d26b139d8bea::t_5a0dcf15e138c5 86-87
+go/internal/query/supplychain/alerts/queries_test.go
+  s_61d26b139d8bea::t_e0dd333f577f86 1-62
+go/internal/query/supplychain/alerts/AGENTS.md
+  s_61d26b139d8bea::t_2b9e121519aedf 31-45,60-75
+  s_61d26b139d8bea::t_d11b1821be674d 1-7,17-30,46-59,76-82
+  s_61d26b139d8bea::t_931489dc1a2d21 83
+  s_61d26b139d8bea::t_9dc2a1b053f031 8-16
+go/internal/query/supplychain/alerts/store_test.go
+  s_61d26b139d8bea::t_14a1b65d994b47 1-189,192-193,195,197-202,204,206-227
+  s_61d26b139d8bea::t_1090eeab5a564e 190-191,194,196,203,205
+go/internal/query/sbom_attestation_attachment_rows.go
+  s_61d26b139d8bea::t_eca5f66708583f 59
+go/internal/query/supplychain/alerts/triage.go
+  s_61d26b139d8bea::t_cb3ad5506d2e57 4-26
+docs/internal/remote-validation/prod-security-alert-reconciliations.md
+  s_61d26b139d8bea::t_6f1269444429ef 36-38,44,49-51,55
+go/internal/query/supplychain/impact/runtime_types.go
+  s_91af3dafd582ef::t_bfbec4765d92b2 19,21,23,103
+go/internal/query/semanticsearch/semantic_search.go
+  s_e8ab01ccdfa8e2::t_06c780f6d51f11 450
+go/internal/query/supply_chain_impact_explain_cloud_runtime_parity_test.go
+  s_e8ab01ccdfa8e2::t_9ae25bc477acf0 263,411,477
+docs/internal/design/1943-service-scope-changed-since-deltas.md
+  s_91af3dafd582ef::t_8bff2b29c18b2c 144
+go/internal/query/supplychain/runtime_filter_args_test.go
+  s_e8ab01ccdfa8e2::t_6daf6e97fe6704 59,151
+go/internal/query/supplychain/security_alert_reconciliation_aggregates_handler.go
+  s_91af3dafd582ef::t_e8a705345c8d94 19
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_e8ab01ccdfa8e2::t_c856912e73bd65 569
+go/internal/query/supplychain/README.md
+  s_e8ab01ccdfa8e2::t_ee69da74ab80b6 29-30,32-33
+go/internal/query/factschema_decode_supplychain.go
+  s_91af3dafd582ef::t_06beb47ea25405 145
+go/internal/query/cloud_inventory_account_alias_live_test.go
+  s_e8ab01ccdfa8e2::t_50b820a68c69fe 40
+go/internal/query/supplychain/advisory/README.md
+  s_91af3dafd582ef::t_cd1ed7311d98f3 25
+go/internal/storage/postgres/pgarray/evidence-drop-lib-pq.md
+  s_91af3dafd582ef::t_b128b5d12ffef8 80
+docs/console-handoff.md
+  s_91af3dafd582ef::t_d7d60690049a9a 146
+go/internal/query/AGENTS.md
+  s_91af3dafd582ef::t_9bd356ed60d73d 212
+go/internal/query/cloud_resource_authorized_uid_exclusion_live_test.go
+  s_e8ab01ccdfa8e2::t_b1db2d8f870e53 219
+docs/internal/security-intelligence-implementation-plan.md
+  s_e8ab01ccdfa8e2::t_75131c8e479c41 332
+go/internal/mcp/route_serves_data_registry_routes.go
+  s_e8ab01ccdfa8e2::t_b802c6e1b90907 145,151,153,155,157-159,167,175
+go/internal/queryplan/testdata/hot-cypher.yaml
+  s_91af3dafd582ef::t_a5736e3831f724 506
+go/internal/query/supplychain/findings_aggregates_handler.go
+  s_e8ab01ccdfa8e2::t_029bc002790012 19
+go/internal/query/supplychain/impact/decode_helpers.go
+  s_91af3dafd582ef::t_bb6559fb85568e 182
+go/internal/query/supplychain/impact/version_resolution_test.go
+  s_91af3dafd582ef::t_c7902f2686baf1 205
+go/internal/query/supplychain/impact/suppression_mutation_postgres.go
+  s_91af3dafd582ef::t_9543f93d659257 19
+go/internal/reportbundle/README.md
+  s_91af3dafd582ef::t_29328b3f67db11 291
+sdk/go/factschema/vulnerability/v1/source_snapshot.go
+  s_91af3dafd582ef::t_0b5cedc279a502 12-13
+go/internal/query/supplychain/impact/doc.go
+  s_91af3dafd582ef::t_482f6f7ff465d5 36
+go/internal/queryplan/testdata/handler-hot-cypher.yaml
+  s_e8ab01ccdfa8e2::t_e4203572b48033 202
+go/internal/query/supplychain/container_image_identity_aggregates_handler.go
+  s_91af3dafd582ef::t_3df64bbdc12434 18,241
+go/internal/query/supplychain/advisory/AGENTS.md
+  s_91af3dafd582ef::t_069e3a78db3176 39-40,104
+docs/public/reference/deployment-truth-tiers.md
+  s_e8ab01ccdfa8e2::t_9e42e75d04a4d7 45,118,167
+docs/public/reference/read-surface-consumer-existence-gate.md
+  s_91af3dafd582ef::t_5a61f91e51e93e 361
+docs/public/reference/vulnerability-scanner-read-contract.md
+  s_e8ab01ccdfa8e2::t_9a0c83a7d10762 80,127
+sdk/go/factschema/vulnerability/v1/reference.go
+  s_91af3dafd582ef::t_c36b8eb9a644b2 11-12
+go/internal/query/evidence-notes.md
+  s_91af3dafd582ef::t_63aed1057fdcfb 503,509,601,947-948,1015
+go/internal/query/supplychain/impact/version_resolution.go
+  s_91af3dafd582ef::t_0aa8012fbffd00 110,220
+go/internal/query/supplychain/impact/README.md
+  s_91af3dafd582ef::t_8490caac8f2225 33,36,183,188
+docs/public/reference/mcp-prompt-surface-audit.md
+  s_91af3dafd582ef::t_08aca35eb67f04 194
+go/internal/query/supplychain/advisory/factschema_decode_advisory.go
+  s_91af3dafd582ef::t_82d1f4731ccaee 38
+go/.golangci.yml
+  s_e8ab01ccdfa8e2::t_35e6134a4ed44a 494
+go/internal/storage/postgres/supply_chain_impact_canonical_winners_store.go
+  s_91af3dafd582ef::t_a7ce5501bc154e 17
+go/internal/query/graph_read_error_selector_test.go
+  s_e8ab01ccdfa8e2::t_4054ece3acb442 48
+go/internal/query/supplychain/impact/AGENTS.md
+  s_91af3dafd582ef::t_6df04dd372f11a 43,47-49,105,202,221
+go/internal/query/supplychain/impact/findings_decode.go
+  s_91af3dafd582ef::t_fd2e32a584dfea 15
+go/internal/query/vulnerability_reference_source_snapshot_sql_schema_lockstep_test.go
+  s_91af3dafd582ef::t_2aa6a69acb9ef5 85,87,98,159,166,175
+go/internal/mcp/kind_disclosure_ledger.go
+  s_e8ab01ccdfa8e2::t_8c723b5fed2fe8 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "111780b9d5733e8dc525df3b2d55b59488d0c38e",
+  "prompts": {},
+  "sessions": {
+    "s_61d26b139d8bea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e3c32115-abe8-4254-9dbd-338574e9c54e",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_91af3dafd582ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d5897f27-375f-421a-9191-15a788a93a4f",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
