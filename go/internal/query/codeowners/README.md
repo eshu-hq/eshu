@@ -94,7 +94,7 @@ Internal packages, all of them leaves that never import root package
 
 Plus `internal/telemetry` (span names). The tracer and span helper are a
 family-local copy of root's `handler_tracing.go` (mirroring
-`supplychain/handler_tracing.go`); `handler_tracing_test.go` pins the
+`supply/chain/handler_tracing.go`); `handler_tracing_test.go` pins the
 copy's emitted span against the queryspan operator contract so drift fails
 loudly.
 

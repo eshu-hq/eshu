@@ -17,7 +17,7 @@ import (
 // TestListOwnershipEmitsCodeownersOwnershipSpan is the copy-drift guard for
 // this package's family-local startQueryHandlerSpan (see handler_tracing.go):
 // the helper is the third copy of one trivial delegation (root's
-// handler_tracing.go, supplychain/handler_tracing.go, and this file), and
+// handler_tracing.go, supply/chain/handler_tracing.go, and this file), and
 // nothing but this test ties the copies together. It swaps
 // queryHandlerTracer for a recording provider (mirroring root's
 // TestHandleLanguageQueryEmitsLanguageQuerySpan) and asserts the ownership

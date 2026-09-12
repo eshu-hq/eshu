@@ -151,7 +151,7 @@ func reducerTreeDirs(repoRoot string) ([]string, error) {
 }
 
 // queryTreeDirs returns the query package directory and every package
-// directory beneath it, so #6060 family leaves (supplychain/advisory and
+// directory beneath it, so #6060 family leaves (supply/chain/advisory and
 // later siblings) keep their decode seams discoverable after moving out of
 // root. Same shape as reducerTreeDirs above.
 func queryTreeDirs(repoRoot string) ([]string, error) {

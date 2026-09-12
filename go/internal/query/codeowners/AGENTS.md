@@ -21,7 +21,7 @@ Read `doc.go` and `README.md` first.
   changes emitted spans.
 - `startQueryHandlerSpan` is a family-local copy of root's
   `handler_tracing.go` helper (mirroring
-  `supplychain/handler_tracing.go`). It MUST stay behavior-identical to
+  `supply/chain/handler_tracing.go`). It MUST stay behavior-identical to
   both sources: `handler_tracing_test.go` pins the emitted span name and
   route/capability attributes, so drift fails loudly. Do not extend it
   with family-specific semantics; add a new helper instead.
@@ -71,7 +71,7 @@ and `query-source-coverage.yaml` MUST track the builder's real location.
 ## Family-local copies (keep byte-identical, change in pairs)
 
 `startQueryHandlerSpan` + `queryHandlerTracer` (root's
-`handler_tracing.go`, `supplychain/handler_tracing.go`). Each carries a
+`handler_tracing.go`, `supply/chain/handler_tracing.go`). Each carries a
 provenance comment naming its root source, and `handler_tracing_test.go`
 enforces the shared operator contract.
 

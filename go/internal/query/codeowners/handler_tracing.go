@@ -30,7 +30,7 @@ var queryHandlerTracer = queryspan.HandlerTracer()
 // unchanged, so emitted spans and the dashboards built on them are unaffected.
 //
 // This is a family-local copy of root's handler_tracing.go helper (and of
-// supplychain/handler_tracing.go): the three copies must stay
+// supply/chain/handler_tracing.go): the three copies must stay
 // behavior-identical, and handler_tracing_test.go pins this copy's emitted
 // span against the queryspan operator contract so drift fails loudly.
 func startQueryHandlerSpan(r *http.Request, spanName, route, capability string) (*http.Request, trace.Span) {
