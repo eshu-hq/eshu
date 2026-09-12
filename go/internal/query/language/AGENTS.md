@@ -24,7 +24,7 @@ Move evidence.
   grant), `codequery/relationships/story` (the entity-search dispatch its own
   cross-check test exercises), `entitysemantics` (semantic-summary
   attachment), `querycontract` (profiles, envelopes, ports, content model),
-  or `querygraphrows` (the shared semantic-metadata Cypher fragment); if none
+  or `rows` (the shared semantic-metadata Cypher fragment); if none
   of those has what you need, it does not belong here -- ask before adding a
   new shared home.
 - `languageQueryCapability` MUST stay `"symbol_graph.language_entities"` --

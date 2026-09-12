@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package querygraphrows shapes graph-driver result rows and Cypher
-// projection fragments that a handler-family subpackage needs but that
-// cannot live in querycontract.
+// Package rows shapes graph-driver result rows and Cypher projection
+// fragments that a handler-family subpackage needs but that cannot live in
+// querycontract.
 //
 // GraphPathNodeProps, RouteToCallerEntityFromChain, and their shared
 // lastChainNodeProps helper decode a nodes(path) projection into a plain
@@ -23,4 +23,4 @@
 // primitives) may emit query text there. A field-projection fragment is not
 // part of that seam, so it stays out of querycontract and rides along here
 // instead of gaining a leaf of its own.
-package querygraphrows
+package rows

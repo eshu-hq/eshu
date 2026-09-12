@@ -54,7 +54,7 @@ source_coverage:
         count: 1
         non_hot:
           class: label_inventory
-          source_sha256: 097dd242ce5a02b1b4136e8e9daf776afaa5a1a53ab5b080973024619478a9ee
+          source_sha256: 2524864c4d9c7987cc4589413f449744202ca0bee4809847d6f6baea1fbb1c7c
           label: Function
           max_results: 101
       - symbol: "(*CodeHandler).lookupComplexityRowByName"
@@ -156,7 +156,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: e5e5784f4b2f0cd8f6897e3d56ee94c2a7955a4c8c9ebbca8aebc2cc574478cb
+          source_sha256: 686e4cf761bfa007c600fd3bc4006d2725ee5ce7ae9019d62804e86ed44087e0
           key_bound: single_key
           max_results: 101
   - file: codeowners/codeowners_ownership_rows.go
@@ -181,7 +181,7 @@ source_coverage:
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 1dc025f607bdae447c2452301e4050f0d294c48875b5794c0c0b13702caefd82
+          source_sha256: aae4bdae090765c5aa1a7e26c6422a5670ae1aa342ecdeb5b38175bc44bf4187
           key_bound: single_key
           max_results: 1
       - {symbol: "(*EntityHandler).ResolveEntity", count: 1, source_sha256: 1ebb1f04ec960700aaf7649acfaa3f7dd8d2ccf547615bd318e79aa04bc5d53c, entry_ids: [QP-ENTITY-RESOLVE-REPOSITORY]}

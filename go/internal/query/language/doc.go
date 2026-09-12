@@ -25,7 +25,7 @@
 // grant helpers), codequery/relationships/story (the entity-search dispatch
 // its own tests cross-check against), entitysemantics (semantic-summary
 // attachment), querycontract (profiles, envelopes, capability registration,
-// HTTP helpers, read ports, and their content-model closure), querygraphrows
+// HTTP helpers, read ports, and their content-model closure), rows
 // (the shared semantic-metadata Cypher projection fragment), and queryspan
 // (the shared handler-span seam); it MUST NOT import the query root, or root
 // would cycle back through its own compatibility aliases in

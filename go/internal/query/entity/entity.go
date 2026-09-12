@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
@@ -138,7 +138,7 @@ func BuildResolveEntityGraphQuery(
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + querygraphrows.GraphSemanticMetadataProjection() + `
+` + rows.GraphSemanticMetadataProjection() + `
 		ORDER BY e.name
 		LIMIT $limit
 	`
@@ -331,7 +331,7 @@ func (h *EntityHandler) GetEntityContext(w http.ResponseWriter, r *http.Request)
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + querygraphrows.GraphSemanticMetadataProjection() + `
+` + rows.GraphSemanticMetadataProjection() + `
 		       ,r.id as repo_id, r.name as repo_name,
 		       collect(DISTINCT {type: type(rel), target_name: target.name, target_id: target.id}) as relationships
 	`

@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 // labelSet indexes the code-entity labels a route handler may carry
@@ -155,13 +155,13 @@ func DirectionRows(
 		ORDER BY depth, coalesce(` + far + `.id, ` + far + `.uid)
 		LIMIT $limit`
 	params := AccessParams(access, map[string]any{"handler_id": handlerID, "limit": req.Limit + 1})
-	rows, err := graph.Run(ctx, cypher, params)
+	records, err := graph.Run(ctx, cypher, params)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		entity := querygraphrows.RouteToCallerEntityFromChain(row["chain"])
+	out := make([]map[string]any, 0, len(records))
+	for _, row := range records {
+		entity := rows.RouteToCallerEntityFromChain(row["chain"])
 		if entity == nil || querycontract.StringVal(entity, "entity_id") == "" {
 			continue
 		}

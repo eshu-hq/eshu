@@ -29,7 +29,7 @@ entries:
     domain: entity
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/entity/entity.go, symbol: BuildResolveEntityGraphQuery, source_sha256: 0ef65e86ecb87d082f2981ed8d90b155bf519d477acadd2d81ef61be61d4173e}
+    source: {file: go/internal/query/entity/entity.go, symbol: BuildResolveEntityGraphQuery, source_sha256: aa246c7a9b98031d787f28e66a2edcde701a38a2df7abb9ec62bcb95375e7c2b}
     query_fragment: 'MATCH (r:Repository {id: $repo_id})'
     cypher_sha256: ee51f2a612461a5e5bba6d28fc1e11e0259f44cd653819ca41380cee8985afc2
     required_anchors: [{label: Repository, property: id}]

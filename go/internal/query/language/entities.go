@@ -8,8 +8,8 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/entitysemantics"
+	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
 )
 
 // graphBackedEntityTypes forwards to querycontract.GraphBackedEntityTypes.
@@ -76,10 +76,10 @@ func graphResultMetadata(row map[string]any) map[string]any {
 }
 
 // graphSemanticMetadataProjection forwards to
-// querygraphrows.GraphSemanticMetadataProjection. See that package's
+// rows.GraphSemanticMetadataProjection. See that package's
 // doc.go for why the fragment lives there rather than in querycontract.
 func graphSemanticMetadataProjection() string {
-	return querygraphrows.GraphSemanticMetadataProjection()
+	return rows.GraphSemanticMetadataProjection()
 }
 
 // graphLabelToContentEntityType forwards to

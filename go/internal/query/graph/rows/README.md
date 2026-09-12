@@ -46,11 +46,40 @@ Because this package imports the Neo4j driver, it is a named exception to
 (`go/.golangci.yml`), the same way `internal/query/impact/exposure_path_mapping.go`
 already is.
 
+## Move evidence (#6642 Part D)
+
+This package renamed in place from `go/internal/query/querygraphrows` to
+`go/internal/query/graph/rows` per `docs/internal/naming.md` rules 1 to 4:
+`query` prefixed a subpackage already under `query/`, and the old
+`graph_row_shape.go` repeated the directory chain in its file name, so it
+is now `shape.go`. Nesting under a new `graph/` parent (rule 3) instead of
+gluing a longer compound name gives the package's driver-aware seam a
+directory of its own without inventing another fused identifier. What
+differs from the old package: the package clause, the doc comment, this
+doc trio, the file name, the eight importers' import paths and qualifiers,
+and one local variable (`DirectionRows` in `codequery/routes/graph.go`
+declared `rows` two lines before its only qualifier call, so that local is
+now `records`; `listMostComplexFunctions` in `codequery/complexity_queries.go`
+got the same rename for readability). The exported surface
+(`GraphPathNodeProps`, `RouteToCallerEntityFromChain`,
+`GraphSemanticMetadataProjection`) already led with `Graph`, not `Rows`, so
+none of the three needed a rule-4 rename. No decoding, projection, or
+Cypher-fragment behavior changed.
+
+No-Regression Evidence (#6642 rename): the Cypher fragment
+`GraphSemanticMetadataProjection` returns and the row-decoding helpers are
+byte-identical to the `querygraphrows` originals; the four queryplan rows
+whose recorded text carries the qualifier were re-pinned with class, count
+and disposition unchanged, and `go test ./internal/query/... ./internal/queryplan/`
+is green on the renamed tree. No query changed shape, so no benchmark delta
+is claimed.
+
 ## Telemetry
 
-No-Observability-Change: this package emits no metric, span, or log of its
-own. It only decodes rows and returns query text; the handlers that call it
-own their own spans.
+No-Observability-Change (#6642 rename): the rename touches no span, metric,
+or log name. This package emits no metric, span, or log of its own. It only
+decodes rows and returns query text; the handlers that call it own their own
+spans.
 
 ## Gotchas / invariants
 
@@ -68,5 +97,5 @@ return value cannot fail closed on an unrecognized value.
 
 ## Related docs
 
-- [Cypher performance](../../../../docs/public/reference/cypher-performance.md)
-- [Package restructure design](../../../../docs/internal/design/package-restructure.md)
+- [Cypher performance](../../../../../docs/public/reference/cypher-performance.md)
+- [Package restructure design](../../../../../docs/internal/design/package-restructure.md)

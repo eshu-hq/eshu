@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/querygraphrows"
+	"github.com/eshu-hq/eshu/go/internal/query/graph/rows"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -331,7 +331,7 @@ func issue5318BaselineBuildResolveEntityGraphQuery(
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + querygraphrows.GraphSemanticMetadataProjection() + `
+` + rows.GraphSemanticMetadataProjection() + `
 		ORDER BY e.name
 		LIMIT $limit
 	`
@@ -349,7 +349,7 @@ func issue5318BaselineGlobalCodeQuery() string {
 		       coalesce(e.language, f.language) as language,
 		       e.start_line as start_line,
 		       e.end_line as end_line,
-` + querygraphrows.GraphSemanticMetadataProjection() + `
+` + rows.GraphSemanticMetadataProjection() + `
 		ORDER BY e.name
 		LIMIT $limit
 	`
