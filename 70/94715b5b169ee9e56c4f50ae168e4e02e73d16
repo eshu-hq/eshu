@@ -1,0 +1,68 @@
+go/internal/coordinator/README.md
+  s_4a0f86aa680964::t_6f2e7cfb97aef8 157-158
+  s_4a0f86aa680964::t_e2715d4de3ff73 21-23,156,237
+go/internal/coordinator/vault/live/README.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 1,5-6,13-14,59
+go/internal/coordinator/doc.go
+  s_4a0f86aa680964::t_e2715d4de3ff73 35-37
+go/internal/coordinator/service_vault_live_test.go
+  s_4a0f86aa680964::t_e2715d4de3ff73 13
+go/internal/coordinator/vault/AGENTS.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 1-28
+go/cmd/workflow-coordinator/main.go
+  s_4a0f86aa680964::t_e2715d4de3ff73 38
+go/internal/coordinator/vault/live/planner_contract_test.go
+  s_4a0f86aa680964::t_b49398d4e5ae78 4
+go/internal/coordinator/vault_live_service.go
+  s_4a0f86aa680964::t_e2715d4de3ff73 12
+  s_4a0f86aa680964::t_cad70cef8923bc 4
+go/internal/coordinator/AGENTS.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 44-47
+go/internal/coordinator/ociregistry/README.md
+  s_4a0f86aa680964::t_e377d977662032 19
+docs/internal/evidence/6627-coordinator-vault-live-package-move.md
+  s_4a0f86aa680964::t_db7750f0741f1a 2-53,56-138
+  s_4a0f86aa680964::t_6fc3beeb0f4bf9 1,54-55
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 40-41
+go/internal/coordinator/vault/live/AGENTS.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 1,5-7
+  s_4a0f86aa680964::t_cad70cef8923bc 8-9
+go/cmd/workflow-coordinator/doc.go
+  s_4a0f86aa680964::t_e2715d4de3ff73 15
+go/internal/coordinator/vault/live/doc.go
+  s_4a0f86aa680964::t_e2715d4de3ff73 4,10
+go/internal/coordinator/vault/README.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 1-42
+go/cmd/workflow-coordinator/README.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 65-66,165
+docs/internal/design/restructure-research.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 146
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_e2715d4de3ff73 710
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_0aac9f7eb8d969 1075
+  s_4a0f86aa680964::t_6fc3beeb0f4bf9 1076
+go/internal/coordinator/vault/live/planner.go
+  s_4a0f86aa680964::t_e2715d4de3ff73 4
+go/internal/coordinator/vault/live/planner_validation_test.go
+  s_4a0f86aa680964::t_b49398d4e5ae78 4
+go/internal/coordinator/vault/doc.go
+  s_4a0f86aa680964::t_e2715d4de3ff73 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7094715b5b169ee9e56c4f50ae168e4e02e73d16",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
