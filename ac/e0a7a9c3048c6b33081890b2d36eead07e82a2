@@ -1,0 +1,28 @@
+docs/internal/evidence/6505-nornicdb-headless-ci.md
+  s_4a0f86aa680964::t_5080901efb072c 49-52
+  s_4a0f86aa680964::t_00b2ccdf9d6658 3-6,31,33-34,42,47
+  s_4a0f86aa680964::t_bf3567b9b1d805 1
+  s_4a0f86aa680964::t_6463ae4a37581e 2
+docs/internal/evidence/live-grant-negative-control.md
+  s_4a0f86aa680964::t_00b2ccdf9d6658 17-22,46-47
+docs/internal/evidence/6166-whole-scope-retract-refresh-scope.md
+  s_4a0f86aa680964::t_00b2ccdf9d6658 75-77
+docs/internal/evidence/6162-nornicdb-v131-alignment.md
+  s_4a0f86aa680964::t_bf3567b9b1d805 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ace0a7a9c3048c6b33081890b2d36eead07e82a2",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
