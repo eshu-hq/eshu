@@ -6,8 +6,8 @@
 # file's own runs_in (#6000, 10_runs_in.sh) and invokes_cloud_action (#5997,
 # 11_invokes_cloud_action.sh) -- all three share ONE cassette/drive_fn
 # because their intent rows come from the
-# SAME production entry point, buildSymbolRuntimeIntentRows
-# (go/internal/reducer/symbol_runtime_refresh_intents.go:66), called inside
+# SAME production entry point, materialization.BuildIntentRows
+# (go/internal/reducer/code/call/materialization/refresh.go:56), called inside
 # CodeCallMaterializationHandler.Handle -- the same handler code_calls
 # already covers (materialized_edge_family_blocker_shape_test.go:152-154's
 # own exclusion reason).
@@ -20,8 +20,8 @@
 IFA_FAMILY_BLOCKER_KIND[handles_route]="runner_lease_hold"
 # wait_stage=runner, not handler: this family's intent rows are tagged
 # ProjectionDomain=DomainHandlesRoute="handles_route"
-# (go/internal/reducer/shared_projection.go:30,
-# go/internal/reducer/handles_route_intents.go:100) -- the
+# (go/internal/reducer/contract/domain.go:176,
+# go/internal/reducer/code/call/materialization/routes.go:106) -- the
 # shared_projection_intents.projection_domain column, which is exactly what
 # wait_stage=runner polls (ifa_family_registry.sh's wait_stage doc comment).
 IFA_FAMILY_WAIT_STAGE[handles_route]="runner"
@@ -38,7 +38,7 @@ IFA_FAMILY_SHARED_CELL[handles_route]=1
 IFA_FAMILY_DRIVE_FN[handles_route]="ifa_symbol_runtime_drive"
 IFA_FAMILY_ASSERT_FN[handles_route]="ifa_handles_route_assert"
 # SHARED cassette var across all three trio rows -- one cassette, one
-# builder pass (buildSymbolRuntimeIntentRows, cited above). NOT shared:
+# builder pass (materialization.BuildIntentRows, cited above). NOT shared:
 # assert_fn, expected_var, anchor.
 IFA_FAMILY_CASSETTE_VAR[handles_route]="symbol_runtime_cassette"
 IFA_FAMILY_EXPECTED_VAR[handles_route]="handles_route_expected_edges"

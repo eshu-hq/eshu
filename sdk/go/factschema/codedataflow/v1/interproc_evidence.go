@@ -14,14 +14,14 @@ package v1
 // functions to their graph Function entity uids before emission, dropping any
 // finding whose either endpoint did not resolve. The reducer's postgres
 // loader (go/internal/storage/postgres/code_interproc_evidence_loader.go)
-// projects this struct into a CodeInterprocEvidenceInput row
-// (go/internal/reducer/codetaint/code_interproc_evidence_materialization.go,
-// code_interproc_evidence_rows.go), which the materialization handler writes
+// projects this struct into a taint.InterprocEvidenceInput row
+// (go/internal/reducer/code/taint/interproc_evidence_materialization.go,
+// code/taint/interproc_evidence_rows.go), which the materialization handler writes
 // as a TAINT_FLOWS_TO edge between the two Function nodes — evidence, never
 // canonical truth.
 //
 // SourceFunctionUID and SinkFunctionUID are REQUIRED: they are the edge's two
-// endpoints, and ExtractCodeInterprocEvidenceRows already drops any input
+// endpoints, and taint.ExtractInterprocEvidenceRows already drops any input
 // missing either uid before drawing an edge — promoting them to required here
 // makes that drop an explicit, operator-visible input_invalid dead-letter
 // instead of a silent skip. Every other field is optional: always emitted but

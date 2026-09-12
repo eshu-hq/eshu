@@ -3,7 +3,13 @@
 
 package sharedintent
 
-import "strings"
+import (
+	"sort"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
+)
 
 const (
 	// RepoRefreshIntentType is the payload intent_type marking a per-repo
@@ -99,4 +105,98 @@ func ApplyRepoRefreshDeltaScope(
 	filePaths := filePathsByRepoID[repoID]
 	payload["delta_projection"] = true
 	payload["delta_file_paths"] = append(make([]string, 0, len(filePaths)), filePaths...)
+}
+
+// IsRepoRefreshRow reports whether a row is a per-repo refresh intent.
+func IsRepoRefreshRow(row Row) bool {
+	return payloadcore.PayloadStr(row.Payload, "intent_type") == RepoRefreshIntentType
+}
+
+// MarkRowsRetractViaRefresh stamps the retract_via_refresh marker on every
+// per-edge row so the worker fences them behind their paired repo refresh
+// intent. It is applied at emission, right where the refresh intents are
+// built, so the marker and the refresh intent are always emitted together.
+func MarkRowsRetractViaRefresh(rows []Row) []Row {
+	for i := range rows {
+		if rows[i].Payload == nil {
+			rows[i].Payload = map[string]any{}
+		}
+		rows[i].Payload[RetractViaRefreshKey] = true
+	}
+	return rows
+}
+
+// SplitRepoRefreshRows separates per-repo refresh rows from per-edge rows,
+// preserving order. A refresh row carries no edge target, so callers exempt
+// it from the endpoint-presence (terminal) gate that would otherwise drain
+// it with no edge and never run its repo-wide retract.
+func SplitRepoRefreshRows(rows []Row) (refresh, edge []Row) {
+	for _, row := range rows {
+		if IsRepoRefreshRow(row) {
+			refresh = append(refresh, row)
+			continue
+		}
+		edge = append(edge, row)
+	}
+	return refresh, edge
+}
+
+// repoWideRetractDomains lists the domains whose retract the per-repo refresh
+// intent owns (#2898/#2910); see [DomainHasRepoWideRetract].
+//
+// The retract the refresh owns may be repo-wide (delete every edge for the
+// repo) or file-scoped (delete only the changed files' edges on a delta
+// generation): inheritance_edges, sql_relationships, and rationale_edges
+// retract repo-wide by default and file-scoped under a delta, while the
+// three symbol→runtime domains always retract repo-wide. The fence mechanism
+// is identical either way — the refresh intent owns the single retract and
+// the per-edge writes are deferred until it commits — because the refresh
+// carries whichever delta scope the materializer attached. Repo-keyed
+// domains (platform_infra, workload_dependency, …) keep one partition per
+// repo, so they do not spread and are intentionally excluded.
+//
+// The set is written down once, here, because a second copy of it lives in
+// internal/storage/cypher's wholeScopeRetractDomains table, which splits
+// these same domains into the narrowed and un-narrowed halves of the
+// whole-scope retract. A domain added to the fence but missed there gets a
+// whole-repository DELETE bound to the batch-wide repository list, which is
+// the #6166 over-delete, and nothing in that package's tests would iterate
+// over it. [DomainHasRepoWideRetract] and [RepoWideRetractDomains] read this
+// one map so TestWholeScopeRetractDomainsCoversFencedSet
+// (internal/storage/cypher) compares the two sets rather than two hand-typed
+// lists that happen to agree today.
+var repoWideRetractDomains = map[string]struct{}{
+	contract.DomainHandlesRoute:       {},
+	contract.DomainRunsIn:             {},
+	contract.DomainInvokesCloudAction: {},
+	contract.DomainInheritanceEdges:   {},
+	contract.DomainSQLRelationships:   {},
+	contract.DomainShellExec:          {},
+	contract.DomainRationaleEdges:     {},
+}
+
+// DomainHasRepoWideRetract reports whether a domain owns its retract at the
+// repository (or whole-repo delta) level rather than per partition. These
+// domains emit per-edge partition keys, so their edges spread across
+// partitions; the generic worker would otherwise issue the same scope-wide
+// retract once per partition and wipe sibling partitions' just-written edges
+// within a cycle (#2910). The retract suppression (#2898) routes the single
+// retract through a per-repo refresh intent and fences per-edge writes
+// behind it.
+func DomainHasRepoWideRetract(domain string) bool {
+	_, fenced := repoWideRetractDomains[domain]
+	return fenced
+}
+
+// RepoWideRetractDomains returns every domain whose retract the per-repo
+// refresh intent owns, sorted, so another package can check its own handling
+// of that set against this one instead of re-enumerating it. It reads the
+// same map [DomainHasRepoWideRetract] does, so the two cannot disagree.
+func RepoWideRetractDomains() []string {
+	domains := make([]string, 0, len(repoWideRetractDomains))
+	for domain := range repoWideRetractDomains {
+		domains = append(domains, domain)
+	}
+	sort.Strings(domains)
+	return domains
 }

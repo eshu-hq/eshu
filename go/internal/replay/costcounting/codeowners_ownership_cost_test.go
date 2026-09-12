@@ -30,8 +30,8 @@ const codeownersOwnershipCostEvidenceSource = "reducer/codeowners"
 
 // codeownersOwnershipEdgeFixtureRows is the deterministic input for both the
 // positive and N+1 scenarios: two DECLARES_CODEOWNER edge rows for one
-// repository, shaped exactly like buildCodeownersOwnershipIntentRows
-// (go/internal/reducer/codeowners_ownership_materialization.go) builds them
+// repository, shaped exactly like buildIntentRows
+// (go/internal/reducer/code/owners/handler.go) builds them
 // from extracted (pattern, owner) rows, for the reducer_domain
 // codeowners_ownership (specs/fact-kind-registry.v1.yaml "codeowners" family,
 // DomainCodeownersOwnership intent / DomainCodeownersOwnershipEdges write
@@ -73,8 +73,9 @@ func codeownersOwnershipEdgeFixtureRows() []reducer.SharedProjectionIntentRow {
 }
 
 // newInstrumentedCodeownersOwnershipEdgeWriter builds the production
-// cypher.EdgeWriter used by CodeownersOwnershipEdgeMaterializationHandler
-// (go/internal/reducer/codeowners_ownership_materialization.go), wired over a
+// cypher.EdgeWriter used by owners.Handler (root spelling:
+// CodeownersOwnershipEdgeMaterializationHandler,
+// go/internal/reducer/code/owners/handler.go), wired over a
 // groupCountingExecutor that implements GroupExecutor so WriteEdges takes its
 // atomic-transaction path. EdgeWriter.Instruments is the same field
 // go/cmd/reducer/endpoint_presence_wiring.go newHandlerEdgeWriter sets from

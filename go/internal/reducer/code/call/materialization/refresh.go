@@ -1,0 +1,159 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package materialization
+
+import (
+	"sort"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	codecall "github.com/eshu-hq/eshu/go/internal/reducer/code/call"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/shared"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+)
+
+// ExtractIntentRows builds every symbol->runtime shared-projection intent row
+// -- handles_route, runs_in, and invokes_cloud_action -- from repository and
+// file envelopes, with no backend dependency. It is modeled on
+// codecall.ExtractAllRelationshipRows: it builds the unexported
+// shared.EntityIndex internally via codecall.ExtractAllRelationshipRowsWithIndex
+// and never returns it, so a caller outside this package can drive the real
+// production intent builders (buildHandlesRouteIntentRows, buildRunsInIntentRows,
+// buildInvokesCloudActionIntentRows, via their shared entry point BuildIntentRows
+// below) without needing a graph backend, Postgres, or a clock -- createdAt is
+// injected by the caller.
+//
+// The returned slice is MIXED and callers MUST account for both shapes:
+//
+//   - Per-edge rows, one per resolved HANDLES_ROUTE/RUNS_IN/INVOKES_CLOUD_ACTION
+//     binding, whose payload carries no "action" key (implicitly "upsert").
+//   - Exactly one per-repo, per-domain repo-wide refresh row
+//     (payload "action": "refresh", "intent_type": "repo_refresh"), emitted by
+//     buildRepoWideRetractRefreshIntents below alongside the per-edge rows it
+//     fences. A caller that wants only edges MUST filter on
+//     payload["action"] == "upsert" or absent, mirroring the production
+//     sharedintent.FilterUpsertRows gate; every per-edge row here also carries
+//     retract_via_refresh=true, pairing it with its domain's refresh row.
+//
+// Rows for all THREE domains are returned together in one call, distinguished
+// by ProjectionDomain (DomainHandlesRoute, DomainRunsIn,
+// DomainInvokesCloudAction) -- there is no per-domain variant of this seam,
+// matching the single shared production entry point.
+func ExtractIntentRows(
+	envelopes []facts.Envelope,
+	generationID string,
+	createdAt time.Time,
+) []sharedintent.Row {
+	_, _, _, _, entityIndex, _ := codecall.ExtractAllRelationshipRowsWithIndex(envelopes)
+	contextByRepoID := schemadecode.BuildProjectionContexts(envelopes, generationID)
+	return BuildIntentRows(envelopes, entityIndex, contextByRepoID, createdAt)
+}
+
+// BuildIntentRows builds every symbol→runtime shared-projection intent
+// (handles_route, runs_in, invokes_cloud_action) for one materialization
+// pass. For each domain it emits the per-edge rows and, paired in the same pass,
+// the per-repo refresh intents that own the domain's single repo-wide retract
+// (#2898/#2910). Keeping emission in one helper preserves the paired-emission
+// invariant the worker's refresh fence relies on and keeps the materialization
+// orchestrator small.
+func BuildIntentRows(
+	envelopes []facts.Envelope,
+	entityIndex shared.EntityIndex,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
+	createdAt time.Time,
+) []sharedintent.Row {
+	handlesRouteRows := sharedintent.MarkRowsRetractViaRefresh(buildHandlesRouteIntentRows(
+		envelopes, entityIndex, contextByRepoID, createdAt, HandlesRouteEvidenceSource,
+	))
+	runsInRows := sharedintent.MarkRowsRetractViaRefresh(buildRunsInIntentRows(
+		envelopes, entityIndex, contextByRepoID, createdAt, RunsInEvidenceSource,
+	))
+	invokesCloudActionRows := sharedintent.MarkRowsRetractViaRefresh(buildInvokesCloudActionIntentRows(
+		envelopes, entityIndex, contextByRepoID, createdAt, invokesCloudActionEvidenceSource,
+	))
+
+	rows := make([]sharedintent.Row, 0,
+		len(handlesRouteRows)+len(runsInRows)+len(invokesCloudActionRows))
+	rows = append(rows, buildRepoWideRetractRefreshIntents(
+		reducercontract.DomainHandlesRoute, handlesRouteRows, contextByRepoID, createdAt, HandlesRouteEvidenceSource,
+	)...)
+	rows = append(rows, handlesRouteRows...)
+	rows = append(rows, buildRepoWideRetractRefreshIntents(
+		reducercontract.DomainRunsIn, runsInRows, contextByRepoID, createdAt, RunsInEvidenceSource,
+	)...)
+	rows = append(rows, runsInRows...)
+	rows = append(rows, buildRepoWideRetractRefreshIntents(
+		reducercontract.DomainInvokesCloudAction, invokesCloudActionRows, contextByRepoID, createdAt, invokesCloudActionEvidenceSource,
+	)...)
+	rows = append(rows, invokesCloudActionRows...)
+	return rows
+}
+
+// buildRepoWideRetractRefreshIntents emits one whole-scope refresh intent per
+// repository that has at least one per-edge intent in perEdgeRows, for a
+// repo-wide-retract domain (handles_route, runs_in, invokes_cloud_action). The
+// refresh intent owns the domain's single repo-wide retract; the generic worker
+// fences the per-edge writes behind it so a repo whose edges span partitions no
+// longer loses edges to a per-partition repo-wide retract (#2898/#2910).
+//
+// It MUST be emitted in the same materialization pass as the per-edge intents so
+// every authoritative per-edge row for a (repo, source_run) has a paired refresh
+// intent — that pairing is what lets the worker safely treat "refresh not yet
+// completed" as "refresh still pending" rather than "no refresh exists". The
+// refresh intent carries no edge: its action is sharedintent.RepoRefreshAction, so
+// sharedintent.FilterUpsertRows drops it from writes, and it is exempt from the
+// endpoint presence gate.
+func buildRepoWideRetractRefreshIntents(
+	domain string,
+	perEdgeRows []sharedintent.Row,
+	contextByRepoID map[string]sharedintent.ProjectionContext,
+	createdAt time.Time,
+	evidenceSource string,
+) []sharedintent.Row {
+	if !sharedintent.DomainHasRepoWideRetract(domain) || len(perEdgeRows) == 0 || len(contextByRepoID) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	repoIDs := make([]string, 0)
+	for _, row := range perEdgeRows {
+		repoID := sharedintent.RowRepoID(row)
+		if repoID == "" {
+			continue
+		}
+		if _, ok := seen[repoID]; ok {
+			continue
+		}
+		seen[repoID] = struct{}{}
+		repoIDs = append(repoIDs, repoID)
+	}
+	sort.Strings(repoIDs)
+
+	intents := make([]sharedintent.Row, 0, len(repoIDs))
+	for _, repoID := range repoIDs {
+		context, ok := contextByRepoID[repoID]
+		if !ok {
+			continue
+		}
+		intents = append(intents, sharedintent.Build(sharedintent.Input{
+			ProjectionDomain: domain,
+			PartitionKey:     sharedintent.RepoWideRetractRefreshPartitionKey(domain, repoID),
+			ScopeID:          context.ScopeID,
+			AcceptanceUnitID: context.ResolveAcceptanceUnitID(repoID),
+			RepositoryID:     repoID,
+			SourceRunID:      context.SourceRunID,
+			GenerationID:     context.GenerationID,
+			Payload: map[string]any{
+				"repo_id":         repoID,
+				"intent_type":     sharedintent.RepoRefreshIntentType,
+				"action":          sharedintent.RepoRefreshAction,
+				"evidence_source": evidenceSource,
+			},
+			CreatedAt: createdAt,
+		}))
+	}
+	return intents
+}

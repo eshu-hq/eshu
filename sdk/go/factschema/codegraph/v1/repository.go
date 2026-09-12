@@ -10,7 +10,7 @@ package v1
 // summary (go/internal/collector/gitrepo/git_fact_builder.go repositoryFactEnvelope).
 // RepoID is the join identity code-graph-core reducer handlers key
 // repository-scoped intents on
-// (go/internal/reducer/code_call_materialization_intents.go
+// (go/internal/reducer/code/call/intents.go
 // buildCodeCallProjectionContexts, buildCodeCallDeltaFileScopesByRepoID). It
 // is required for the same reason as File.RepoID: a fact missing it must
 // dead-letter, not silently collapse to an empty-string acceptance-unit key.

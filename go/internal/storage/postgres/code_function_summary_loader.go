@@ -12,8 +12,8 @@ import (
 // LoadCodeFunctionSummaryFacts implements reducer.CodeFunctionSummaryLoader by
 // scanning the raw code_function_summary fact envelopes for one scope
 // generation. The reducer handler decodes them through the typed contracts
-// seam (ExtractCodeFunctionSummaryEffectsWithQuarantine /
-// ExtractCodeFunctionGraphIDsWithQuarantine) so a fact missing its required
+// seam (ExtractEffects /
+// ExtractGraphIDs) so a fact missing its required
 // function_id dead-letters as an input_invalid quarantine instead of being
 // silently dropped (Contract System v1 Wave 4f S2, issue #4754). Tombstones
 // are filtered by the decode seam, not here.

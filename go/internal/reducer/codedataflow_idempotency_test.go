@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 // TestCodeTaintEvidenceReplayIsIdempotent proves that decoding and extracting
@@ -57,9 +57,9 @@ func TestCodeTaintEvidenceReplayIsIdempotent(t *testing.T) {
 	}
 
 	replay := func() []map[string]any {
-		rows, _, err := codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine(envelopes)
+		rows, _, err := taint.ExtractEvidenceRowsWithQuarantine(envelopes)
 		if err != nil {
-			t.Fatalf("codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine error = %v, want nil", err)
+			t.Fatalf("taint.ExtractEvidenceRowsWithQuarantine error = %v, want nil", err)
 		}
 		return rows
 	}
@@ -101,9 +101,9 @@ func TestCodeInterprocEvidenceReplayIsIdempotent(t *testing.T) {
 	}
 
 	replay := func() []map[string]any {
-		rows, _, err := codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine(envelopes)
+		rows, _, err := taint.ExtractInterprocEvidenceRowsWithQuarantine(envelopes)
 		if err != nil {
-			t.Fatalf("codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine error = %v, want nil", err)
+			t.Fatalf("taint.ExtractInterprocEvidenceRowsWithQuarantine error = %v, want nil", err)
 		}
 		return rows
 	}

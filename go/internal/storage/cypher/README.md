@@ -1683,7 +1683,7 @@ as edge properties, not as new instrumentation.
 `canonical_invokes_cloud_action_edges.go` projects
 `Function-[:INVOKES_CLOUD_ACTION]->CloudAction` for the `invokes_cloud_action`
 shared-projection domain. The reducer
-(`go/internal/reducer/invokes_cloud_action_intents.go`) emits an intent only when
+(`go/internal/reducer/code/call/materialization/cloud_actions.go`) emits an intent only when
 a Go AWS SDK call site carries a non-empty `receiver_sdk_service`, its method
 maps to an action via the explicit `cloudActionByServiceMethod` table, that
 action is in the closed CAN_PERFORM catalog, and the call's containing entity is
@@ -1701,7 +1701,7 @@ leaving the shared id-keyed `CloudAction` node in place.
 No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
 ./internal/graph -count=1` plus the focused
 `go test ./internal/storage/cypher -run 'InvokesCloudAction' -count=1` and
-`go test ./internal/reducer -run 'InvokesCloudAction' -count=1` passes; the
+`go test ./internal/reducer/code/call/materialization -run 'InvokesCloudAction' -count=1` passes; the
 edge-writer and reducer tests fail before the new dispatch/producer exist.
 Cardinality is bounded at most one edge per `(Function, catalog-action)` that is
 provably invoked: the reducer deduplicates by `(function uid, action)` and the

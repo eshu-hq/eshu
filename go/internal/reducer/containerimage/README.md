@@ -63,7 +63,7 @@ rather than imported from the root, which owns the canonical versions shared
 by several still-in-root families. Go interfaces are structural, so the same
 concrete implementations root wires in elsewhere satisfy these local
 declarations too, without duplicating any logic — the established precedent
-is `internal/reducer/codetaint/graph_ports.go`.
+is `internal/reducer/code/taint/graph_ports.go`.
 
 Two root-owned symbols this family used to reach as one-line forwarders
 (`ociRepositoryID`, `boolPayload`) turned out to already forward straight to

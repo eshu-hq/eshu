@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestRationaleSameFileEdgesKeepDistinctPartitionAndIntentIDs(t *testing.T) {
@@ -36,7 +38,7 @@ func TestRationaleSameFileEdgesKeepDistinctPartitionAndIntentIDs(t *testing.T) {
 
 	var edgeRows []SharedProjectionIntentRow
 	for _, row := range rows {
-		if !isRepoRefreshRow(row) {
+		if !sharedintent.IsRepoRefreshRow(row) {
 			edgeRows = append(edgeRows, row)
 		}
 	}

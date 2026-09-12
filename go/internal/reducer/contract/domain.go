@@ -186,6 +186,42 @@ const (
 	DomainSearchVectorBuild Domain = "search_vector_build"
 )
 
+// ProjectionDomains returns the complete set of reducer-owned shared/edge
+// projection domains, in the same order the reducer root's
+// allProjectionDomains var used to declare them (moved here from
+// shared_projection.go, issue #6061). It is the authoritative registry the
+// reducer root's AllDomains uses for the capability surface inventory (that
+// function and the var it reads live in the root, not here, since this leaf
+// must not import the root back). It is a superset of the domains the shared
+// partition worker itself drains: code_calls, repo_dependency, and
+// deployable_unit_edges are driven by dedicated projection runners but are
+// still reducer-owned domains that must appear in the inventory.
+func ProjectionDomains() []Domain {
+	return []Domain{
+		DomainRepoDependency,
+		DomainWorkloadDependency,
+		DomainCodeCalls,
+		DomainSQLRelationships,
+		DomainShellExec,
+		DomainInheritanceEdges,
+		DomainDocumentationEdges,
+		DomainRationaleEdges,
+		DomainDeployableUnitEdges,
+		DomainHandlesRoute,
+		DomainRunsIn,
+		DomainInvokesCloudAction,
+		DomainCodeownersOwnershipEdges,
+		DomainSubmodulePinEdges,
+	}
+}
+
+// RationaleEvidenceSource is the evidence_source the rationale EXPLAINS edge
+// family writes under, kept as its own constant (rather than the shared
+// projection runner's global evidence source) because a promoted edge domain
+// keeps its handler's original evidence_source (moved here from the reducer
+// root's rationale_edge_materialization.go, issue #6061).
+const RationaleEvidenceSource = "reducer/rationale"
+
 var knownDomains = map[Domain]struct{}{
 	DomainWorkloadIdentity:                         {},
 	DomainDeployableUnitCorrelation:                {},

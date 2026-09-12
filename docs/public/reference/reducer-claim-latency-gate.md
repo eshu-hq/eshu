@@ -337,7 +337,7 @@ No-Regression Evidence: #2626 changes only code-call partition selection
 fencing. The regression input shapes are a same-run earlier file partition
 followed by a later whole repo refresh, and a `BatchLimit=1` domain page where a
 same-run covering file refresh sorts outside the current
-`ListPendingDomainIntents` page. `go test ./internal/reducer -run
+`ListPendingDomainIntents` page. `go test ./internal/reducer/code/call/projection -run
 'TestCodeCallProjectionRunner(LaterWholeRefreshDoesNotBlockEarlierFilePartition|ScansAcceptanceUnitForCoveringRefreshBeyondDomainPage)'
 -count=1` failed before the fence fix and passed after it. `go test
 ./internal/reducer -count=1` proves the unchanged reducer package contract,

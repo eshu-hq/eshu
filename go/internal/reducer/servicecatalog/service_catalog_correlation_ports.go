@@ -20,8 +20,8 @@ import (
 // importing it would violate the rule that a family subpackage never imports
 // the reducer root. Go interfaces are satisfied structurally, so the same
 // concrete implementation root wires into other families' loaders also
-// satisfies this local declaration without any code duplication. codetaint's
-// GraphQueryRunner and CodeValueFlowBackfillStateMarker resolve the same
+// satisfies this local declaration without any code duplication. taint's
+// GraphQueryRunner and BackfillStateMarker resolve the same
 // problem the same way.
 type RepositoryScopedResolvedRelationshipLoader interface {
 	GetResolvedRelationshipsForRepos(

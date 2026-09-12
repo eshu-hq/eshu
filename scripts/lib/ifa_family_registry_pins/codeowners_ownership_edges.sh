@@ -9,13 +9,13 @@
 # text, derived by reading the citations inline; it is never sourced,
 # generated, or read back out of the registry.
 
-# go/internal/reducer/codeowners_ownership_materialization.go:26-35 declares
-# CodeownersOwnershipEdgeMaterializationHandler with FactLoader, EdgeWriter,
-# PriorGenerationCheck and Instruments fields -- and NO IntentWriter, anywhere
-# in the struct or the file (`rg -c IntentWriter
-# go/internal/reducer/codeowners_ownership_materialization.go` returns
-# nothing). That absence is the load-bearing fact. Handle() calls only
-# h.EdgeWriter.WriteEdges/RetractEdges (lines 86, 138, 145); it never touches
+# go/internal/reducer/code/owners/handler.go:31-40 declares Handler (root
+# spelling: CodeownersOwnershipEdgeMaterializationHandler) with FactLoader,
+# EdgeWriter, PriorGenerationCheck and Instruments fields -- and NO
+# IntentWriter, anywhere in the struct or the file (`rg -c IntentWriter
+# go/internal/reducer/code/owners/handler.go` returns nothing). That absence
+# is the load-bearing fact. Handle() calls only
+# h.EdgeWriter.WriteEdges/RetractEdges (lines 91, 143, 150); it never touches
 # shared_projection_intents, so shared_intent_lock is the one kind this family
 # provably cannot use. wait_stage=handler, wait_key="codeowners_ownership"
 # (go/internal/reducer/intent.go:75

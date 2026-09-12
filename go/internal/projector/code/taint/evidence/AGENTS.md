@@ -6,7 +6,7 @@
 2. `../../../AGENTS.md` and `../../../README.md` for projector-wide invariants.
 3. `../../../intent/AGENTS.md` for the neutral intent contract.
 4. `../../../scope_generation_intents.go` for root-owned assembly order.
-5. `go/internal/reducer/codetaint/` for reducer ownership.
+5. `go/internal/reducer/code/taint/` for reducer ownership.
 
 ## Invariants
 

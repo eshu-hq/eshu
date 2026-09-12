@@ -43,11 +43,11 @@ before touching any file in this directory.
   captures the retry. Do not skip enqueueing to the repair queue when a
   publish fails.
 - **Shared projection intent IDs are stable SHA256 hashes** —
-  `shared_projection.go:62–74`; changing the default identity fields breaks
+  `sharedintent.Build` (`sharedintent/intent.go`, root spelling `BuildSharedProjectionIntent`); changing the default identity fields breaks
   in-flight idempotency. `IdentityKey` is a narrow override for domains that
   must store several rows under one durable `PartitionKey` without collapsing
   their `intent_id`s; audit every caller before using it.
-- **Edge domains gate on readiness phases** — `sharedProjectionReadinessPhase`;
+- **Edge domains gate on readiness phases** — `worker.ReadinessPhase` (`intents/shared/worker/domains.go`);
   `code_calls`, `inheritance_edges`, `sql_relationships`, and `rationale_edges`
   gate on `canonical_nodes_committed` because their targets are canonical or
   created inline. `semantic_nodes_committed` can stall them forever (#2867-#2869).
@@ -76,10 +76,10 @@ before touching any file in this directory.
 - **All canonical graph writes go through `internal/storage/cypher`** — no
   handler may call a Neo4j or NornicDB driver directly.
 - **`JavaScript` dynamic-call alias parsing is indexed once per function** —
-  `buildCodeEntityIndex` caches static alias metadata
-  (`code_call_materialization_index.go:45`) and
-  `resolveDynamicJavaScriptCalleeEntityID` reuses that cache
-  (`code_call_materialization_dynamic_javascript.go:41`). Do not move that
+  `BuildEntityIndex` caches static alias metadata
+  (`code/call/shared/javascript_aliases.go`) and
+  `javascript.ResolveDynamicCallee` reuses that cache
+  (`code/call/javascript/dynamic.go`). Do not move that
   work back into the per-call loop; generated JS bundles make that
   multiplicative. Cache negative scans too; a source with no static aliases
   must not be sent through the regex pass once per call.
@@ -138,16 +138,16 @@ before touching any file in this directory.
 
 1. Add the constant to `gpphase/keyspace.go` (keyspace) or `gpphase/phasekey.go` (phase) — see `gpphase/README.md`. Add a `GraphProjectionKeyspace*`/`GraphProjectionPhase*` alias in `graph_projection_phase.go` only if root callers need the old spelling.
 2. Verify the new constant does not conflict with existing keyspace usage in
-   `shared_projection.go:91–99`.
+   `worker.ReadinessPhase` and `worker.ReadinessKeyspace` (`intents/shared/worker/domains.go`).
 3. Update `internal/storage/postgres` schema DDL if a new readiness row
    shape is needed.
-4. Update `sharedProjectionReadinessPhase` in `shared_projection.go` if the
+4. Update `worker.ReadinessPhase` in `intents/shared/worker/domains.go` if the
    new phase gates a shared-projection domain.
 
 ### Change shared projection runner config
 
-- Env var parsing lives in `LoadSharedProjectionConfig`
-  (`shared_projection_runner.go:476`); constants live in `cmd/reducer/config.go`.
+- Env var parsing lives in `worker.LoadConfig`
+  (`intents/shared/worker/config.go`; the root keeps the `LoadSharedProjectionConfig` spelling); constants live in `cmd/reducer/config.go`.
 - Update both the runner config and the README config table in the same PR.
 
 ## Failure modes
@@ -175,7 +175,7 @@ before touching any file in this directory.
 - **Slow `code_call_materialization` extraction**: if the completion log shows
   high `extract_duration_seconds` with low fact count, inspect large
   JavaScript `function_calls` arrays and run
-  BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls before changing
+  BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls (package `code/call`) before changing
   graph or queue code.
 
 ## Evidence notes
@@ -250,11 +250,11 @@ No-Regression Evidence: `go test ./internal/reducer/securityalert -run 'TestBuil
 
 No-Observability-Change: the observed-version change only extends reducer-owned `reducer_security_alert_reconciliation` payloads and the existing HTTP/MCP read model. It adds no route, graph query, queue domain, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans and execution counters, persisted reconciliation payloads, `query.supply_chain_security_alerts` spans, provider-source coverage, and Postgres query duration metrics.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey|TestBuildCodeCallSharedIntentRowsCarriesDeltaPartitionForSourceFile|TestBuildCodeCallRefreshIntentsCarriesDeltaFileScope|TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions' -count=1` failed before CALLS delta edge intents carried source-file-scoped delta payloads and durable file partition keys, then passed. `go test ./internal/reducer -count=1` also passed after the shared-intent identity override preserved same-file edges with distinct relationship types while repo-refresh rows kept the full delta file set for safe retraction.
+No-Regression Evidence: `go test ./internal/reducer/code/call ./internal/reducer/code/call/materialization -run 'TestBuildCodeCallRefreshIntentsUseVersionedDeltaPartitionKey|TestBuildCodeCallSharedIntentRowsCarriesDeltaPartitionForSourceFile|TestBuildCodeCallRefreshIntentsCarriesDeltaFileScope|TestCodeCallMaterializationHandlerAlignsDeltaEdgePartitions' -count=1` failed before CALLS delta edge intents carried source-file-scoped delta payloads and durable file partition keys, then passed. `go test ./internal/reducer -count=1` also passed after the shared-intent identity override preserved same-file edges with distinct relationship types while repo-refresh rows kept the full delta file set for safe retraction.
 
 No-Observability-Change: the CALLS delta partition change only alters reducer intent construction for accepted code-call materialization rows. It adds no graph query, queue table, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing `code_call_materialization` completion logs, code-call projection runner timing, reducer execution counters, and shared-intent backlog/status queries.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'TestCodeCallProjectionRunner(FileRefreshBlocksCoveredFilePartitions|SkipsRetractAfterCompletedCoveringRefresh)' -count=1` failed before file-scoped `repo_refresh` rows fenced later file partitions and completed current-run refresh rows suppressed redundant first-retracts, then passed. `go test ./internal/storage/postgres -run 'TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRun(Partition|Refresh)DomainIntents' -count=1` proves the refresh-history lookup stays bounded to one acceptance/source run, completed `repo_refresh` rows, and selected file paths.
+No-Regression Evidence: `go test ./internal/reducer/code/call/projection -run 'TestCodeCallProjectionRunner(FileRefreshBlocksCoveredFilePartitions|SkipsRetractAfterCompletedCoveringRefresh)' -count=1` failed before file-scoped `repo_refresh` rows fenced later file partitions and completed current-run refresh rows suppressed redundant first-retracts, then passed. `go test ./internal/storage/postgres -run 'TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRun(Partition|Refresh)DomainIntents' -count=1` proves the refresh-history lookup stays bounded to one acceptance/source run, completed `repo_refresh` rows, and selected file paths.
 
 No-Observability-Change: the code-call refresh fence change only adjusts shared-intent selection and current-run history lookup for existing code-call projection rows. It adds no route, graph query shape, queue table, worker, lease, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing code-call projection cycle logs, shared-intent backlog/status queries, partition lease rows, reducer execution counters, and Postgres query instrumentation.
 
@@ -262,7 +262,7 @@ No-Regression Evidence: remote full-corpus proof on #2626 showed completed
 refresh rows no longer blocked code-call progress, but selected file partitions
 still loaded unrelated pending rows from the same acceptance unit and collapsed
 to single-digit completed code-call intents per minute after collectors stopped
-enqueueing. `go test ./internal/reducer -run
+enqueueing. `go test ./internal/reducer/code/call/projection -run
 'TestCodeCallProjectionRunnerLoadsSelectedPartitionDirectly|TestCodeCallProjectionRunnerLoadAllAcceptanceUnitIntents'
 -count=1` failed before the runner used the partition-bounded store method,
 then passed after selected partitions loaded only their own uncompleted rows
@@ -283,13 +283,13 @@ No-Regression Evidence: remote full-corpus proof on #2631 showed typed
 `INSTANTIATES` graph writes and selected partition loads were no longer the
 dominant cost, but code-call cycles still spent roughly 0.14-0.92s in
 `selection_duration_seconds` while `write_duration_seconds` stayed around
-1-6ms. `go test ./internal/reducer -run
+1-6ms. `go test ./internal/reducer/code/call/projection -run
 'TestCodeCallProjectionRunner(SelectsPartitionCandidatesWithoutDomainScan|ReadsUnhashedPendingRowsWithoutDomainScan|EmptyPartitionDoesNotFallbackToDomainScan)'
 -count=1` failed before the runner used the partition-candidate reader, then
 passed after candidate selection preferred rows already hashed into the leased
 partition and read pre-hash legacy rows through a bounded unhashed-reader path
 without re-entering the global domain scan for normal empty partitions. `go test
-./internal/reducer -run
+./internal/reducer/code/call/projection -run
 'TestCodeCallProjectionRunner(Selects|Scans|Skips|Uses|Loads|FileRefresh|LoadAll|Processes|Marks|Retries|Keeps|DoesNot|Suppresses|Partitions|Runs)'
 -count=1` proves readiness gating, refresh fencing, direct partition loading,
 completion, retry, and fallback behavior still converge.
@@ -320,7 +320,7 @@ query instrumentation.
 No-Regression Evidence: #2637 follows the #2633 full-corpus finding that
 partition-candidate selection removed the broad domain scan but still left
 readiness- and refresh-fence-heavy selector outliers. `go test
-./internal/reducer -run
+./internal/reducer/code/call/projection -run
 'TestCodeCallProjectionRunnerReuses(Readiness|RefreshFence)RowsAcrossWidenedCandidateWindows'
 -count=1` failed before one selector call re-prefetched the same blocked
 readiness key and reloaded the same acceptance-unit refresh-fence rows across
@@ -503,7 +503,7 @@ gated on its loader+writer (so it never registers without a handler), following
 the existing claim/execute/ack path, with no change to any existing domain's
 selection, write, or readiness path. Unlike the evidence domains it persists to a
 durable Postgres table (`function_summaries`) rather than the graph, so it adds no
-Cypher. `go test ./internal/reducer -run 'CodeFunctionSummary' -count=1`,
+Cypher. `go test ./internal/reducer ./internal/reducer/code/function/summary -run 'CodeFunctionSummary' -count=1`,
 `go test ./internal/storage/postgres -run 'CodeFunctionSummary' -count=1`, and
 `go test ./internal/projector -run 'CodeFunctionSummary' -count=1` cover the
 handler (versioned-snapshot persistence, wrong-domain reject, registration gate),
@@ -528,7 +528,7 @@ each `code_function_summary` fact, and a `CodeFunctionGraphIDWriter` =
 the summaries and sources, idempotent on `FunctionID`, skipping unresolved
 (empty) uids. It is additive and behind the same off-by-default value-flow gate;
 no new Cypher (a durable `function_graph_ids` Postgres table), graph write,
-worker, queue, or batch. `go test ./internal/reducer -run 'CodeFunctionSummary'
+worker, queue, or batch. `go test ./internal/reducer ./internal/reducer/code/function/summary -run 'CodeFunctionSummary'
 -count=1` and `go test ./internal/storage/postgres -run 'FunctionGraphID|Bootstrap'
 -count=1` cover the handler graph-id persistence and the store/ordered bootstrap
 schema; `go test ./cmd/reducer -count=1` proves the wiring.
@@ -547,7 +547,7 @@ so existing fact-based `code_interproc_evidence` inputs stay isolated.
 
 No-Regression Evidence: #2969 adds one Function.uid-bounded graph read that
 joins INVOKES_CLOUD_ACTION to CAN_PERFORM cloud permission targets only after a
-single exact RUNS_IN workload fan-out. `go test ./internal/reducer/valueflow -run
+single exact RUNS_IN workload fan-out. `go test ./internal/reducer/code/value -run
 'TestGraphValueFlowCloudSinkTargetLoaderLoadsCloudActionPermissions'
 -count=1` failed before the loader returned permission-backed sinks, then
 passed with ambiguous workload fan-out still empty.
@@ -588,7 +588,7 @@ existing code-call intent rows and materialization completion logs.
 
 No-Regression Evidence: Java code-call resolver registration moves receiver and
 argument type evidence ahead of the weak repository-wide fallback without
-changing edge identity. `go test ./internal/reducer -run
+changing edge identity. `go test ./internal/reducer/code/call -run
 'TestResolveGenericCalleeUsesJavaReceiverTypeBeforeRepoUniqueName|TestExtractCodeCallRowsResolvesJava'
 -count=1` fails before the Java resolver because the edge is classified as
 `repo_unique_name`, then passes with `type_inferred`. `go test
@@ -1883,7 +1883,7 @@ seams the gate covers and adds no new gate mechanism.
 
 No-Regression Evidence (Wave 4f S1, code family typed-payload decode, Contract
 System v1 #4566/#4749): the code-graph-core reducer read sites
-(`code_call_materialization_extract.go`, `code_call_materialization_intents.go`,
+(`code/call/extract.go`, `code/call/intents.go`,
 `code_import_repo_edge.go`, `code_import_repo_edge_retract.go`) now decode the
 `file`/`repository` fact OUTER envelope through the `sdk/go/factschema` seam
 (`decodeCodegraphFile`/`decodeCodegraphRepository` in
@@ -1900,7 +1900,7 @@ ever recorded — the missing field decoded to `""` and the fact was silently
 skipped by the `repositoryID == ""` guard), then passed after. Measured with the
 existing hot-path benchmark (in-memory extractor; the 500-source large-JS
 dynamic-call corpus the benchmark builds; darwin/arm64, `-count=5`): `go test
-./internal/reducer -run '^$' -bench
+./internal/reducer/code/call -run '^$' -bench
 'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls' -benchmem`. BEFORE
 (raw `payloadStr`, `origin/main`) -> AFTER (typed decode):
 8.79ms/1653571 B/30209 allocs -> 8.77ms/1655558 B/30208 allocs (~0% time, ~0%
@@ -1966,15 +1966,15 @@ postgres loaders (`code_taint_evidence_loader.go`,
 `code_interproc_evidence_loader.go`, `code_function_summary_loader.go`,
 `code_function_source_loader.go`) now return the RAW fact envelopes and the
 reducer handlers decode them through the typed contracts seam via the
-`*WithQuarantine` extractors (`ExtractCodeTaintEvidenceRowsWithQuarantine`,
-`ExtractCodeInterprocEvidenceRowsWithQuarantine`,
-`ExtractCodeFunctionSummaryEffectsWithQuarantine`,
-`ExtractCodeFunctionGraphIDsWithQuarantine`,
-`ExtractCodeFunctionSourcesWithQuarantine`), matching the Wave 4f S1
-(`code_call_materialization_extract.go`) and Wave 4e documentation
+`*WithQuarantine` extractors (`taint.ExtractEvidenceRowsWithQuarantine`,
+`taint.ExtractInterprocEvidenceRowsWithQuarantine`,
+`ExtractEffects`,
+`ExtractGraphIDs`,
+`ExtractSources`), matching the Wave 4f S1
+(`code/call/extract.go`) and Wave 4e documentation
 (`ExtractDocumentationEdgeRowsWithQuarantine`) precedent: the storage adapter
 owns the SQL fetch, the reducer owns the typed decode AND the input_invalid
-dead-letter. Also converts `shell_exec_materialization.go`'s and
+dead-letter. Also converts `code/shell/handler.go`'s and
 `sqlrelationship/sql_relationship_delta_scope.go`'s `file`/`repository` identity
 reads to Wave 4f S1's `decodeCodegraphFile`/`decodeCodegraphRepository`.
 
@@ -1994,11 +1994,11 @@ production-path proof is `TestCodeTaintEvidenceHandlerQuarantinesMalformedFact`,
 `TestCodeFunctionSummaryHandlerQuarantinesMalformedSourceFact` — each feeds a
 malformed fact through the ACTUAL loader -> handler path and asserts
 `SubSignals["input_invalid_facts"] == 1` while a valid sibling still projects.
-A P0 was ruled out: `ExtractCodeTaintEvidenceRows`/`ExtractCodeInterprocEvidenceRows`
+A P0 was ruled out: `taint.ExtractEvidenceRows`/`taint.ExtractInterprocEvidenceRows`
 already `continue` on an empty uid, so a decode-failed fact never wrote an
 empty-key graph node even before this dead-letter wiring landed. The interproc
-handler reads a NEW `CodeInterprocEvidenceFactLoader` (envelopes) distinct from
-the fixpoint projector's `CodeInterprocEvidenceLoader` (typed inputs from an
+handler reads a NEW `taint.InterprocEvidenceFactLoader` (envelopes) distinct from
+the fixpoint projector's `taint.InterprocEvidenceLoader` (typed inputs from an
 in-memory solve, no raw decode) so the projector path is untouched. The
 graph-id view reads the SAME `code_function_summary` facts the summary-effects
 view already quarantines, so its quarantines are discarded to avoid
@@ -2065,24 +2065,24 @@ gate mechanism.
 No-Regression Evidence (#4750 S1, parsed_file_data inner-key typing): the
 code-graph-core reducer now reads two closed-shape parsed_file_data inner keys
 through typed factschema accessors instead of raw map lookups —
-`dead_code_file_root_kinds` (`resolveFileRootCodeCallCallerID`) and
+`dead_code_file_root_kinds` (`javascript.FileRootCallerID`) and
 `gomod_state.module_path` (`goModuleDeclaredPath`), wrapped in
-`parsed_file_data_typed.go`. `File.ParsedFileData` stays an OPEN
+`code/call/shared/parsed_file_data.go`. `File.ParsedFileData` stays an OPEN
 `map[string]any` (the aws_resource.Attributes open-object precedent), so the
 `file.v1.schema.json` wire schema is unchanged (no major bump) and the graph
 rows for valid facts stay byte-identical. Byte-identity is proven three ways:
 (a) accessor/raw-read equivalence tests
-(`go test ./internal/reducer -run 'TestParsedFileData|TestResolveFileRootCallerIDTypedByteIdentity' -count=1`);
+(`go test ./internal/reducer/code/call/javascript -run 'TestParsedFileData|TestResolveFileRootCallerIDTypedByteIdentity' -count=1` and `go test ./internal/reducer/code/call/shared -run 'TestParsedFileData' -count=1`);
 (b) hot-path ns/op no-regression on the same JavaScript code-call benchmark the
 prior typed-decode waves used —
-`go test ./internal/reducer -run '^$' -bench 'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls' -benchmem -count=5`
+`go test ./internal/reducer/code/call -run '^$' -bench 'BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls' -benchmem -count=5`
 went 8.82ms/1.66MB/30,212allocs (BEFORE) -> 8.82ms/1.66MB/30,211allocs (AFTER),
 0% delta (darwin/arm64, Apple M1 Max); (c) the B-7/B-12 golden-corpus gate
 byte-identical. The two migrated read sites are cold relative to the SCIP and
 generic per-edge inner loops, and the SCIP consumer
 (`extractSCIPCodeCallRows`) was left reading raw on purpose: its output rows
 copy raw edge values verbatim with present/absent semantics
-(`copyOptionalCodeCallField`) an `omitempty` typed struct cannot reproduce
+(`shared.CopyOptionalField`) an `omitempty` typed struct cannot reproduce
 byte-identically, so per the byte-identity-non-negotiable guardrail it keeps its
 raw read while the typed `codegraphv1.SCIPFunctionCall` struct is delivered as
 the authoritative contract shape (round-trip-proven in
@@ -2173,8 +2173,8 @@ completion logs).
 - The `BuildSharedProjectionIntent` SHA256 identity function.
 - The `GraphProjectionPhaseRepairQueue` contract (removing it breaks
   the non-atomic write/publish recovery path).
-- The ordering of phases in `sharedProjectionReadinessPhase`
-  (`shared_projection.go:91–99`).
+- The ordering of phases in `worker.ReadinessPhase`
+  (`intents/shared/worker/domains.go`).
 
 ## #4771 — docker-compose runtime signal repair (evidence)
 

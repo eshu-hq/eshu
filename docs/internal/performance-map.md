@@ -27,7 +27,7 @@ The performance-critical stages:
 | emit facts | `collector/git_source_processing.go` | `*_facts_*_total`, fact emit duration |
 | enqueue / claim | `projector/`, `storage/postgres` queue | queue depth, queue wait, oldest age |
 | reducer | `reducer/` | reducer run duration, queue wait |
-| shared projection | `reducer/shared_projection_runner.go` | intent wait, processing/step seconds |
+| shared projection | `reducer/intents/shared/worker/telemetry.go` | intent wait, processing/step seconds |
 | graph write | `storage/cypher/` | canonical/phase duration, backpressure, batch size, deadlock retries |
 | query / read | `query/`, `mcp/` | API request duration (p95/p99), errors |
 

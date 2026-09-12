@@ -143,7 +143,7 @@ func DecodeParsedFileDataPipelineCalls(parsedFileData map[string]any) []string {
 // DecodeParsedFileDataDeadCodeFileRootKinds decodes the
 // "dead_code_file_root_kinds" inner key into a []string, matching the JavaScript
 // dead-code root-kind values the reducer compares against literal root-kind
-// strings (code_call_materialization_javascript_roots.go).
+// strings (code/call/javascript/roots.go).
 func DecodeParsedFileDataDeadCodeFileRootKinds(parsedFileData map[string]any) []string {
 	return decodeParsedFileDataStringSlice(parsedFileData, "dead_code_file_root_kinds")
 }

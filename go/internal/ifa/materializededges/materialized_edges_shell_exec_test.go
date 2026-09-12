@@ -187,8 +187,8 @@ func TestShellExecCanonicalEntityIDLiterals(t *testing.T) {
 }
 
 // shellExecTargetIDReference is an independent copy of
-// go/internal/reducer/shell_exec_materialization.go's unexported
-// shellExecTargetID, held here so this test can reproduce the writer's
+// go/internal/reducer/code/shell/handler.go's unexported
+// shellCommandTargetID, held here so this test can reproduce the writer's
 // sha256 target uid without importing an unexported reducer symbol. Any
 // drift between this copy and the production function is caught by
 // TestShellExecFamilyOduResolvesItsExpectedEdgeSet, which runs the REAL

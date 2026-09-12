@@ -10,9 +10,10 @@ its result is recorded here rather than only in a PR description.
 
 ## Why the two obvious blockers do not work
 
-All three families' rows are built by `buildSymbolRuntimeIntentRows` INSIDE
+All three families' rows are built by `buildSymbolRuntimeIntentRows` (now
+`materialization.BuildIntentRows`) INSIDE
 `CodeCallMaterializationHandler.Handle` -- the same handler the `code_calls`
-family already covers (`go/internal/reducer/symbol_runtime_refresh_intents.go:66`).
+family already covers (`go/internal/reducer/code/call/materialization/refresh.go`).
 That single fact rules out both handler-stage and runner-stage forms of the
 `shared_intent_lock` blocker used by `code_calls`, `rationale_edges`,
 `inheritance_edges`, and `shell_exec`:
@@ -203,7 +204,7 @@ the `handles_route` expected-edges fixture's own `note` field both point
 back to this section).
 
 The intent-level dedupe key is `functionID + "\x00" + repositoryID + "\x00"
-+ routePath + "\x00" + httpMethod` (`go/internal/reducer/handles_route_intents.go:80`)
++ routePath + "\x00" + httpMethod` (`go/internal/reducer/code/call/materialization/routes.go`)
 -- it includes `http_method`, so GET and POST on the same path produce TWO
 distinct intent rows, each with its own `PartitionKey =
 functionID+"->"+repositoryID+":"+routePath` (`handles_route_intents.go:101`),
@@ -257,7 +258,8 @@ this section was not. Five of the six are: `symbol_runtime_family_odu.go` and
 the four `materialized_edges_*` files. The sixth,
 `go/internal/reducer/symbol_runtime_refresh_intents.go`, is NOT -- it lives in
 `internal/reducer` and contains production code. `buildSymbolRuntimeIntentRows`
-is defined there and runs inside `CodeCallMaterializationHandler.Handle`
+(now `materialization.BuildIntentRows`) is defined there and runs inside
+`CodeCallMaterializationHandler.Handle`
 (`code_call_materialization.go:175`) on every code-call materialization. A file
 holding production code is not a file off the production path; what is off the
 path is the added function, and the claim has to be made at that granularity.
@@ -267,7 +269,8 @@ origin/main...HEAD -- go/internal/reducer/symbol_runtime_refresh_intents.go`
 reports `46 0`. Zero deletions is what makes "byte-identical" rigorous rather
 than rhetorical: a modified line appears in a unified diff as a delete plus an
 add, so zero deletions means no existing line was touched.
-`buildSymbolRuntimeIntentRows` and the three per-family builders beneath it are
+`buildSymbolRuntimeIntentRows` (now `materialization.BuildIntentRows`) and the
+three per-family builders beneath it are
 byte-identical to `origin/main`, and the whole diff is one added function plus
 its doc comment. Scope that to the file, not the package: the only other
 non-test reducer change is `materialized_edge_families.go` at `6 4`, whose four

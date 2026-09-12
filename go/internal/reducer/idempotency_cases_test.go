@@ -11,10 +11,65 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
+	"github.com/eshu-hq/eshu/sdk/go/factschema"
+	codeownersv1 "github.com/eshu-hq/eshu/sdk/go/factschema/codeowners/v1"
 )
+
+// replayRecordingCodeownersOwnershipEdgeWriter is a local copy of the
+// [owners] package's own recordingCodeownersOwnershipEdgeWriter test fake,
+// scoped to this replay case: it records every write request so the
+// idempotency case can compare contents across replays. Go test files cannot
+// share unexported symbols across a package boundary (issue #6061).
+type replayRecordingCodeownersOwnershipEdgeWriter struct {
+	retractDomain string
+	retractRows   []SharedProjectionIntentRow
+	writeDomain   string
+	writeRows     []SharedProjectionIntentRow
+}
+
+func (r *replayRecordingCodeownersOwnershipEdgeWriter) RetractEdges(
+	_ context.Context,
+	domain string,
+	rows []SharedProjectionIntentRow,
+	_ string,
+) error {
+	r.retractDomain = domain
+	r.retractRows = append(r.retractRows, rows...)
+	return nil
+}
+
+func (r *replayRecordingCodeownersOwnershipEdgeWriter) WriteEdges(
+	_ context.Context,
+	domain string,
+	rows []SharedProjectionIntentRow,
+	_ string,
+) (SharedProjectionWriteReport, error) {
+	r.writeDomain = domain
+	r.writeRows = append(r.writeRows, rows...)
+	return SharedProjectionWriteReport{}, nil
+}
+
+// codeownersOwnershipReplayEnvelope is a local copy of the [owners] package's
+// own codeownersOwnershipEnvelope test helper, scoped to this replay case.
+func codeownersOwnershipReplayEnvelope(repoID, sourcePath, pattern string, owners []string, orderIndex int) facts.Envelope {
+	payload, err := factschema.EncodeCodeownersOwnership(codeownersv1.Ownership{
+		RepoID:     repoID,
+		SourcePath: sourcePath,
+		Pattern:    pattern,
+		Owners:     owners,
+		OrderIndex: orderIndex,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return facts.Envelope{
+		FactKind: factKindCodeownersOwnership,
+		Payload:  payload,
+	}
+}
 
 // replayRecordingCloudAssetResolutionWriter is a local copy of cloudasset's
 // own recordingCloudAssetResolutionWriter test fake, scoped to this replay
@@ -288,8 +343,8 @@ func semanticEntityReplayCase() idempotencyReplayCase {
 		domain: DomainSemanticEntityMaterialization,
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
-			writer := &recordingSemanticEntityWriter{result: semanticentity.SemanticEntityWriteResult{CanonicalWrites: 1}}
-			handler := semanticentity.SemanticEntityMaterializationHandler{
+			writer := &recordingSemanticEntityWriter{result: semantic.EntityWriteResult{CanonicalWrites: 1}}
+			handler := semantic.Handler{
 				FactLoader: &stubFactLoader{envelopes: fencedFacts(semanticEntityReplayFacts())},
 				Writer:     writer,
 			}
@@ -337,7 +392,7 @@ func codeownersOwnershipReplayCase() idempotencyReplayCase {
 		domain: DomainCodeownersOwnership,
 		run: func(t *testing.T) []idempotencyRow {
 			t.Helper()
-			writer := &recordingCodeownersOwnershipEdgeWriter{}
+			writer := &replayRecordingCodeownersOwnershipEdgeWriter{}
 			handler := CodeownersOwnershipEdgeMaterializationHandler{
 				FactLoader: &stubFactLoader{envelopes: fencedFacts(codeownersOwnershipReplayFacts())},
 				EdgeWriter: writer,
@@ -356,7 +411,7 @@ func codeownersOwnershipReplayCase() idempotencyReplayCase {
 
 func codeownersOwnershipReplayFacts() []facts.Envelope {
 	return []facts.Envelope{
-		codeownersOwnershipEnvelope("repo-co", "CODEOWNERS", "*.go", []string{"@org/backend"}, 0),
+		codeownersOwnershipReplayEnvelope("repo-co", "CODEOWNERS", "*.go", []string{"@org/backend"}, 0),
 	}
 }
 

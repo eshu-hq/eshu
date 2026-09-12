@@ -232,7 +232,7 @@ entries apply DRF's trailing slash convention after any literal mount prefix.
 TestDefaultEngineParsePathPythonDjangoDRFExactRouteEntries --
 ./internal/parser/python -count=1` proves the
 parent `DefaultEngine.ParsePath` payload carries those rows into the emitted
-file fact shape. `go test ./internal/reducer -run
+file fact shape. `go test ./internal/reducer/code/call/materialization -run
 TestBuildHandlesRouteIntentRowsResolvesClassMethodHandler -count=1` proves the
 existing `HANDLES_ROUTE` projection resolves `Class.method` handler strings to
 the exact Function entity when the parser can prove the class method. Dynamic
@@ -254,7 +254,7 @@ the target was exact. `../scripts/go-test-run-guard.sh 1
 TestDefaultEngineParsePathPythonAioHTTPTornadoExactRouteEntries --
 ./internal/parser/python -count=1`
 proves the parent `DefaultEngine.ParsePath` payload carries those rows into the
-emitted file fact shape. `go test ./internal/reducer -run
+emitted file fact shape. `go test ./internal/reducer/code/call/materialization -run
 TestBuildHandlesRouteIntentRowsEmitsAioHTTPTornadoFrameworkRoutes -count=1`
 proves the existing `HANDLES_ROUTE` projection resolves aiohttp function
 handlers and Tornado `Class.method` handler strings to exact Function entities.

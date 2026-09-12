@@ -41,11 +41,11 @@ not own decode dispatch, schema-version routing, or required-field
 validation — that lives in the parent `factschema` package (`decode.go`,
 `decode_codedataflow.go`). It does not own graph projection, evidence-row
 extraction, or postgres loading; `go/internal/reducer`
-(`factschema_decode_codedataflow.go`, `code_taint_evidence_typed_decode.go`,
-`code_function_summary_typed_decode.go`,
-`code_taint_evidence_materialization.go`,
-`code_interproc_evidence_materialization.go`,
-`code_function_summary_materialization.go`) and
+(`factschema_decode_codedataflow.go`, `code/taint/evidence_typed_decode.go`,
+`code/function/summary/decode.go`,
+`code/taint/evidence_materialization.go`,
+`code/taint/interproc_evidence_materialization.go`,
+`code/function/summary/handler.go`) and
 `go/internal/storage/postgres` (the `Load*` loader files) consume the decoded
 structs but live outside this module. It does not own the git collector
 emitters that build these payloads
@@ -87,7 +87,7 @@ identity/join/attachment**, not what the collector always emits.
 | `FunctionSummary` | `FunctionID` | The durable, generation-independent map key every reducer read site (summary store, `durableFunctionRepo` repo-prefix parse, graph-id store) keys on. |
 | `FunctionSource` | `FunctionID`, `Kind` | `LoadCodeFunctionSources`'s pre-existing drop guard for a missing id or kind, made explicit and dead-lettering. |
 | `TaintEvidence` | `FunctionUID` | The graph Function node this finding attaches to; a finding whose function did not resolve is never emitted with an empty uid collector-side, but making it required here dead-letters any payload that still arrives malformed. |
-| `InterprocEvidence` | `SourceFunctionUID`, `SinkFunctionUID` | The TAINT_FLOWS_TO edge's two endpoints; `ExtractCodeInterprocEvidenceRows` already drops any row missing either, made explicit and dead-lettering here. |
+| `InterprocEvidence` | `SourceFunctionUID`, `SinkFunctionUID` | The TAINT_FLOWS_TO edge's two endpoints; `taint.ExtractInterprocEvidenceRows` already drops any row missing either, made explicit and dead-lettering here. |
 
 Every other field on every struct is optional: written conditionally by the
 collector (only a non-empty/non-zero/true value gets a payload key), so a

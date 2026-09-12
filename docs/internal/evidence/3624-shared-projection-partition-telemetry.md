@@ -39,7 +39,8 @@ attribution missing before this change. An operator running Grafana against the
 next corpus run can identify the long-pole domain and its partition distribution
 from metrics alone, without strace or DB forensics.
 
-Verified by three focused tests in `shared_projection_runner_test.go`:
+Verified by three focused tests in
+`go/internal/reducer/intents/shared/worker/telemetry_test.go`:
 - `TestRecordSharedProjectionPartitionMetrics_HistogramAndCounter` — emission
   and label correctness under a real `sdkmetric.ManualReader`.
 - `TestRecordSharedProjectionPartitionMetrics_SkipsZeroDuration` — no spurious

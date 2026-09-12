@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the decode and fact-load/write families (schemadecode, factdecode, factwrite, factload, payloadcore)
+// This file is the reducer root's compatibility surface for the decode and fact-load/write families (schemadecode, factdecode, factwrite, factload, payloadcore, code/function/summary)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -19,12 +19,21 @@ package reducer
 //   - reducer_fact_write_compat.go
 //   - scoped_fact_loader_compat.go
 //   - shared_payload_delta_compat.go
+//   - codeowners-ownership family move (#6061; no prior compat file)
+//   - cross_scope_readiness_compat.go (relocated byte-identical from
+//     compat_projection.go to keep that bucket under the 500-line cap)
+//   - shared-projection domains + intent row (H5 root-remnant fold, issue
+//     #6061; folded from shared_projection.go)
 
 import (
 	"context"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/function/summary"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/owners"
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
+	"github.com/eshu-hq/eshu/go/internal/reducer/crossscope"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factdecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factwrite"
@@ -44,7 +53,6 @@ import (
 // moved into internal/reducer/incident, which imports schemadecode directly.
 
 var (
-	codegraphDecodeQuarantine        = schemadecode.CodegraphDecodeQuarantine
 	decodeAWSRelationship            = schemadecode.DecodeAWSRelationship
 	decodeAWSResource                = schemadecode.DecodeAWSResource
 	decodeAzureCloudRelationship     = schemadecode.DecodeAzureCloudRelationship
@@ -54,8 +62,6 @@ var (
 	decodeCodeInterprocEvidence      = schemadecode.DecodeCodeInterprocEvidence
 	decodeCodeTaintEvidence          = schemadecode.DecodeCodeTaintEvidence
 	decodeCodegraphFile              = schemadecode.DecodeCodegraphFile
-	decodeCodegraphRepository        = schemadecode.DecodeCodegraphRepository
-	decodeCodeownersOwnership        = schemadecode.DecodeCodeownersOwnership
 	decodeDocumentationDocument      = schemadecode.DecodeDocumentationDocument
 	decodeDocumentationEntityMention = schemadecode.DecodeDocumentationEntityMention
 	decodeGCPCloudRelationship       = schemadecode.DecodeGCPCloudRelationship
@@ -220,23 +226,13 @@ func loadFactsForKinds(
 	return factload.LoadFactsForKinds(ctx, loader, scopeID, generationID, factKinds)
 }
 
-// classifyFactLoadError forwards to [factload.ClassifyFactLoadError].
-func classifyFactLoadError(err error) error {
-	return factload.ClassifyFactLoadError(err)
-}
-
-// cleanFactFilterValues forwards to [payloadcore.CleanFactFilterValues].
-func cleanFactFilterValues(values []string) []string {
-	return payloadcore.CleanFactFilterValues(values)
-}
-
 // Stanza: shared_payload_delta_compat.go (merged; do not recreate this file).
 // This file holds the payload/delta forwarders that used to live in the
 // semantic_entity_*.go files before the semantic_entity family moved to
-// [semanticentity] (issue #6061). Each one already forwarded to a
+// [code/semantic] (issue #6061). Each one already forwarded to a
 // shared-tier package; they stay in root because other root families that
 // have not moved out yet still call them by their unqualified root spelling.
-// semanticentity calls the shared-tier functions directly instead of
+// code/semantic calls the shared-tier functions directly instead of
 // reaching back into root for these.
 
 // payloadMap forwards to [payloadcore.PayloadMap].
@@ -269,6 +265,14 @@ func deltaScopeRepositorySet(repositoryIDs []string) map[string]struct{} {
 	return sharedintent.DeltaScopeRepositorySet(repositoryIDs)
 }
 
+// uniqueRepositoryIDs forwards to [sharedintent.UniqueRepositoryIDs]. Kept
+// for the root's repo_dependency_projection_runner.go, which has not moved
+// out yet (issue #6061); [projection] (code/call/projection) calls
+// sharedintent.UniqueRepositoryIDs directly.
+func uniqueRepositoryIDs(rows []SharedProjectionIntentRow) []string {
+	return sharedintent.UniqueRepositoryIDs(rows)
+}
+
 // applyRepoRefreshDeltaScope forwards to
 // [sharedintent.ApplyRepoRefreshDeltaScope], which carries the full rule and
 // why the two obvious alternatives lose edges (#6216).
@@ -279,6 +283,18 @@ func applyRepoRefreshDeltaScope(
 	filePathsByRepoID map[string][]string,
 ) {
 	sharedintent.ApplyRepoRefreshDeltaScope(payload, repoID, deltaRepositoryIDs, filePathsByRepoID)
+}
+
+// sharedProjectionRowRepoID forwards to [sharedintent.RowRepoID]. Root test
+// files that exercise the shared-projection worker's partition-convergence
+// behavior (inherits_edge_partition_convergence_test.go,
+// rationale_edge_materialization_partition_test.go,
+// shared_projection_worker_retract_race_test.go,
+// sql_relationship_partition_convergence_test.go) read this spelling; the
+// production call site moved to [materialization] with the code-call handler
+// (issue #6061).
+func sharedProjectionRowRepoID(row SharedProjectionIntentRow) string {
+	return sharedintent.RowRepoID(row)
 }
 
 // Stanza: decode_seam_compat2.go (merged; do not recreate this file).
@@ -316,3 +332,155 @@ var (
 	decodeCodeDataflowFunction = schemadecode.DecodeCodeDataflowFunction
 	decodeCodeDataflowScanned  = schemadecode.DecodeCodeDataflowScanned
 )
+
+// Stanza: code-function-summary family move (#6061; no prior compat file).
+// The durable value-flow function-summary persistence family moved to
+// [summary] (go/internal/reducer/code/function/summary). Every entry keeps
+// the reducer.X spelling for cmd/reducer's wiring, defaults_handlers.go's
+// DefaultHandlers/CodeEvidenceHandlers field types, and the postgres store
+// implementers named only in comments (structural typing needs no source
+// change there). Each entry is deleted once its last caller names [summary]
+// directly.
+
+// CodeFunctionSummaryLoader is the root spelling of [summary.Loader].
+type CodeFunctionSummaryLoader = summary.Loader
+
+// CodeFunctionSummaryWriter is the root spelling of [summary.Writer]. It is
+// satisfied by postgres.FunctionSummaryStore.
+type CodeFunctionSummaryWriter = summary.Writer
+
+// CodeFunctionSourceLoader is the root spelling of [summary.SourceLoader].
+type CodeFunctionSourceLoader = summary.SourceLoader
+
+// CodeFunctionSourceWriter is the root spelling of [summary.SourceWriter].
+// It is satisfied by postgres.FunctionSourceStore.
+type CodeFunctionSourceWriter = summary.SourceWriter
+
+// CodeFunctionGraphIDLoader is the root spelling of [summary.GraphIDLoader].
+type CodeFunctionGraphIDLoader = summary.GraphIDLoader
+
+// CodeFunctionGraphIDWriter is the root spelling of [summary.GraphIDWriter].
+// It is satisfied by postgres.FunctionGraphIDStore.
+type CodeFunctionGraphIDWriter = summary.GraphIDWriter
+
+// ValueFlowFixpointProjector is the root spelling of
+// [summary.ValueFlowFixpointProjector]. cmd/reducer's value_flow_wiring.go
+// constructs the concrete projector this interface is satisfied by.
+type ValueFlowFixpointProjector = summary.ValueFlowFixpointProjector
+
+// CodeFunctionSummaryMaterializationHandler is the root spelling of
+// [summary.Handler].
+type CodeFunctionSummaryMaterializationHandler = summary.Handler
+
+// codeFunctionSummaryDomainDefinition forwards to [summary.Definition].
+func codeFunctionSummaryDomainDefinition() DomainDefinition {
+	return summary.Definition()
+}
+
+// Stanza: codeowners-ownership family move (#6061; no prior compat file).
+// The codeowners.ownership fact extraction, materialization, and delta-scope
+// family moved to [owners] (go/internal/reducer/code/owners). Every entry
+// keeps the reducer.X spelling for the additive-domain registry's handler
+// wiring, internal/ifa/materializededges' cross-check, and the reducer
+// root's factload_materialization_bench_test.go corpus-coverage guard. Each
+// entry is deleted once its last caller names [owners] directly.
+
+// CodeownersOwnershipEdgeMaterializationHandler is the root spelling of
+// [owners.Handler].
+type CodeownersOwnershipEdgeMaterializationHandler = owners.Handler
+
+// codeownersMaterializationFactKinds is the root spelling of
+// [owners.MaterializationFactKinds]. The reducer root's
+// factload_materialization_bench_test.go corpus-coverage guard reads it.
+var codeownersMaterializationFactKinds = owners.MaterializationFactKinds()
+
+// ExtractCodeownersOwnershipEdgeRowsWithQuarantine forwards to
+// [owners.ExtractEdgeRowsWithQuarantine]. internal/ifa/
+// materializededges calls this as
+// reducer.ExtractCodeownersOwnershipEdgeRowsWithQuarantine.
+func ExtractCodeownersOwnershipEdgeRowsWithQuarantine(
+	envelopes []facts.Envelope,
+	generationID string,
+) ([]map[string]any, []quarantinedFact, error) {
+	return owners.ExtractEdgeRowsWithQuarantine(envelopes, generationID)
+}
+
+// loadCodeownersOwnershipMaterializationFacts forwards to
+// [owners.LoadMaterializationFacts]. The reducer root's
+// factload_materialization_bench_test.go benches it under this spelling.
+func loadCodeownersOwnershipMaterializationFacts(
+	ctx context.Context,
+	loader FactLoader,
+	scopeID string,
+	generationID string,
+) ([]facts.Envelope, error) {
+	return owners.LoadMaterializationFacts(ctx, loader, scopeID, generationID)
+}
+
+// Stanza: cross_scope_readiness_compat.go (merged; do not recreate this
+// file). Relocated byte-identical from compat_projection.go (issue #6061
+// code/ subtree move) to keep that bucket under the 500-line cap.
+// This file is the transitional compatibility surface for the cross-scope
+// producer-readiness floor and dependency catalog that moved to [crossscope]
+// (issue #6061). Reducer-root call sites keep their current spelling; each
+// entry is deleted once its last caller has moved into a family subpackage.
+
+// CrossScopeDependency declares that a consumer reducer domain reads canonical
+// facts a producer domain writes in a DIFFERENT ingestion scope. The consumer's
+// cross-scope active-fact load can run before the producer has committed its
+// latest output, so producer completion must schedule the canonical consumer
+// again.
+type CrossScopeDependency = reducercontract.CrossScopeDependency
+
+// CrossScopeCompletionEdges forwards to [crossscope.CompletionEdges].
+func CrossScopeCompletionEdges() []crossscope.CompletionEdge {
+	return crossscope.CompletionEdges()
+}
+
+// crossScopeDependenciesForRegistration forwards to
+// [crossscope.DependenciesForRegistration].
+func crossScopeDependenciesForRegistration(domain Domain) []CrossScopeDependency {
+	return crossscope.DependenciesForRegistration(domain)
+}
+
+// CrossScopeProducerNotReadyFailureClass is the durable failure_class a
+// cross-scope consumer domain self-classifies with when a producer it declares
+// a CrossScopeDependency on has not yet activated its generation for the
+// relevant scope. See [crossscope.ProducerNotReadyFailureClass].
+const CrossScopeProducerNotReadyFailureClass = crossscope.ProducerNotReadyFailureClass
+
+// crossScopeProducerNotReadyError marks a cross-scope producer-readiness miss
+// as retryable. See [crossscope.ProducerNotReadyError].
+type crossScopeProducerNotReadyError = crossscope.ProducerNotReadyError
+
+// CrossScopeProducerReadiness answers whether the producer scopes a consumer
+// depends on have finished publishing. See [crossscope.ProducerReadiness].
+type CrossScopeProducerReadiness = crossscope.ProducerReadiness
+
+// CrossScopeProducerReadinessByDomain answers readiness for each producer
+// domain separately. See [crossscope.ProducerReadinessByDomain].
+type CrossScopeProducerReadinessByDomain = crossscope.ProducerReadinessByDomain
+
+// Stanza: shared-projection domains + intent row (H5 root-remnant fold,
+// issue #6061). HandlesRoute/RunsIn ride the ordering-safe shared-projection
+// path (#2721, #2722); InvokesCloudAction/CodeownersOwnershipEdges/
+// SubmodulePinEdges MERGE both endpoints inline, needing no readiness gate.
+const (
+	DomainRepoDependency           = reducercontract.DomainRepoDependency
+	DomainWorkloadDependency       = reducercontract.DomainWorkloadDependency
+	DomainCodeCalls                = reducercontract.DomainCodeCalls
+	DomainSQLRelationships         = reducercontract.DomainSQLRelationships
+	DomainShellExec                = reducercontract.DomainShellExec
+	DomainInheritanceEdges         = reducercontract.DomainInheritanceEdges
+	DomainDocumentationEdges       = reducercontract.DomainDocumentationEdges
+	DomainRationaleEdges           = reducercontract.DomainRationaleEdges
+	DomainDeployableUnitEdges      = reducercontract.DomainDeployableUnitEdges
+	DomainHandlesRoute             = reducercontract.DomainHandlesRoute
+	DomainRunsIn                   = reducercontract.DomainRunsIn
+	DomainInvokesCloudAction       = reducercontract.DomainInvokesCloudAction
+	DomainCodeownersOwnershipEdges = reducercontract.DomainCodeownersOwnershipEdges
+	DomainSubmodulePinEdges        = reducercontract.DomainSubmodulePinEdges
+)
+
+// allProjectionDomains forwards to [reducercontract.ProjectionDomains].
+var allProjectionDomains = reducercontract.ProjectionDomains()

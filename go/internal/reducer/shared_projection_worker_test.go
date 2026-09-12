@@ -7,6 +7,9 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestLatestIntentsByRepoAndPartitionDeduplicates(t *testing.T) {
@@ -202,7 +205,7 @@ func TestFilterUpsertRows(t *testing.T) {
 		{IntentID: "nil-payload"},
 	}
 
-	result := filterUpsertRows(rows)
+	result := sharedintent.FilterUpsertRows(rows)
 	if len(result) != 3 {
 		t.Fatalf("filterUpsertRows len = %d, want 3", len(result))
 	}
@@ -230,7 +233,7 @@ func TestSelectPartitionBatchReturnsAcceptedBatch(t *testing.T) {
 
 	lookup := acceptedGenerationFixed("gen-1", true)
 
-	batch, err := SelectPartitionBatch(
+	batch, err := worker.SelectPartitionBatch(
 		context.Background(), reader, "platform_infra",
 		0, 1, // partition 0 of 1 → all rows match
 		10, lookup, nil, nil, nil, nil,
@@ -256,7 +259,7 @@ func TestSelectPartitionBatchFiltersStale(t *testing.T) {
 
 	lookup := acceptedGenerationFixed("gen-current", true)
 
-	batch, err := SelectPartitionBatch(
+	batch, err := worker.SelectPartitionBatch(
 		context.Background(), reader, "platform_infra",
 		0, 1, 10, lookup, nil, nil, nil, nil,
 	)
@@ -340,7 +343,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 		},
 	}
 
-	batch, err := SelectPartitionBatch(
+	batch, err := worker.SelectPartitionBatch(
 		context.Background(),
 		reader,
 		DomainWorkloadDependency,
@@ -354,7 +357,7 @@ func TestSelectPartitionBatchExpandsWindowWhenPartitionWorkIsBeyondHeadSlice(t *
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("SelectPartitionBatch() error = %v", err)
+		t.Fatalf("worker.SelectPartitionBatch() error = %v", err)
 	}
 	if len(batch.LatestRows) != 1 || batch.LatestRows[0].IntentID != "target-partition-1" {
 		t.Fatalf("LatestRows = %v, want target partition row", batch.LatestRows)
@@ -386,7 +389,7 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 		},
 	}
 
-	_, err := SelectPartitionBatch(
+	_, err := worker.SelectPartitionBatch(
 		context.Background(),
 		reader,
 		DomainWorkloadDependency,
@@ -400,7 +403,7 @@ func TestSelectPartitionBatchErrorsWhenScanCapIsReached(t *testing.T) {
 		nil,
 	)
 	if err == nil {
-		t.Fatal("SelectPartitionBatch() error = nil, want non-nil")
+		t.Fatal("worker.SelectPartitionBatch() error = nil, want non-nil")
 	}
 	if got, want := reader.limitRequests[len(reader.limitRequests)-1], maxSharedSelectionScanLimit; got != want {
 		t.Fatalf("final scan limit = %d, want cap %d", got, want)
@@ -434,7 +437,7 @@ func TestSelectPartitionBatchSkipsSQLAndInheritanceRowsUntilSemanticNodesCommitt
 				},
 			}
 
-			result, err := SelectPartitionBatch(
+			result, err := worker.SelectPartitionBatch(
 				context.Background(),
 				reader,
 				domain,
@@ -448,7 +451,7 @@ func TestSelectPartitionBatchSkipsSQLAndInheritanceRowsUntilSemanticNodesCommitt
 				nil,
 			)
 			if err != nil {
-				t.Fatalf("SelectPartitionBatch() error = %v", err)
+				t.Fatalf("worker.SelectPartitionBatch() error = %v", err)
 			}
 			if len(result.LatestRows) != 0 {
 				t.Fatalf("len(LatestRows) = %d, want 0 until semantic readiness exists", len(result.LatestRows))

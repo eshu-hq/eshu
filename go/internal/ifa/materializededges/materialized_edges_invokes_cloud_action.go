@@ -75,7 +75,7 @@ func resolveInvokesCloudActionMaterializedEdges(odu ifa.Odu, expectedEdgesPath s
 // rows one-for-one into ExpectedEdge, reading the resolved action id off
 // "action_id" (never "action": that payload key is reserved as the
 // upsert/refresh/delete discriminator, see
-// go/internal/reducer/invokes_cloud_action_intents.go's own comment). No
+// go/internal/reducer/code/call/materialization/cloud_actions.go's own comment). No
 // dedupe is needed here: the extractor's own (function_id, action) dedupe
 // key already equals the edge identity.
 func invokesCloudActionRowsToExpectedEdges(rows []reducer.SharedProjectionIntentRow, relationshipType string) []ExpectedEdge {

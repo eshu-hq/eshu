@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the cloud and platform-inventory families (awscloud, containerimage, kubernetescorrelation, obscoverage, cloudjoin)
+// This file is the reducer root's compatibility surface for the cloud and platform-inventory families (awscloud, containerimage, kubernetescorrelation, obscoverage, cloudjoin, platformfam)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -17,14 +17,24 @@ package reducer
 //   - kubernetes_correlation_compat.go
 //   - observability_coverage_compat.go
 //   - cloud_resource_join_index_compat.go
+//   - platform_compat.go (relocated from compat_projection.go by the code/ move, #6609)
+//   - shell-exec family move (relocated byte-identical from compat_projection.go
+//     to make room for the H5 root-remnant fold there, issue #6061)
 
 import (
+	"context"
+	"time"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudjoin"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/shell"
 	"github.com/eshu-hq/eshu/go/internal/reducer/containerimage"
 	"github.com/eshu-hq/eshu/go/internal/reducer/kubernetescorrelation"
 	"github.com/eshu-hq/eshu/go/internal/reducer/obscoverage"
+	"github.com/eshu-hq/eshu/go/internal/reducer/platformfam"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
 // Stanza: aws_cloud_family_compat.go (merged; do not recreate this file).
@@ -338,4 +348,140 @@ func buildCloudResourceJoinIndex(envelopes []facts.Envelope) (cloudResourceJoinI
 // cloudResourceUID forwards to [cloudjoin.CloudResourceUID].
 func cloudResourceUID(accountID, region, resourceType, resourceID string) string {
 	return cloudjoin.CloudResourceUID(accountID, region, resourceType, resourceID)
+}
+
+// Stanza: platform_compat.go (merged; do not recreate this file).
+// This file is the transitional compatibility surface for the platform family
+// that moved to [platformfam] (issue #6061). Reducer-root call sites and the
+// external packages that name these types -- cmd/reducer, internal/query and
+// internal/storage/postgres -- keep their current spelling; each entry is
+// deleted once its last caller has moved out of the reducer root.
+
+// PlatformMaterializationWrite captures the bounded canonical reconciliation
+// request for one platform materialization reducer intent. See
+// [platformfam.PlatformMaterializationWrite].
+type PlatformMaterializationWrite = platformfam.PlatformMaterializationWrite
+
+// PlatformMaterializationWriteResult captures the canonical platform
+// materialization write outcome returned by the backend adapter. See
+// [platformfam.PlatformMaterializationWriteResult].
+type PlatformMaterializationWriteResult = platformfam.PlatformMaterializationWriteResult
+
+// PlatformMaterializationWriter persists one platform materialization request
+// into a canonical reducer-owned target. See
+// [platformfam.PlatformMaterializationWriter].
+type PlatformMaterializationWriter = platformfam.PlatformMaterializationWriter
+
+// PlatformGraphLocker coordinates writes that can touch the same Platform.id.
+// See [platformfam.PlatformGraphLocker].
+type PlatformGraphLocker = platformfam.PlatformGraphLocker
+
+// WorkloadMaterializationReplayer requeues workload materialization after
+// stronger deployment evidence becomes available for the same scope
+// generation. See [platformfam.WorkloadMaterializationReplayer].
+type WorkloadMaterializationReplayer = platformfam.WorkloadMaterializationReplayer
+
+// PlatformMaterializationHandler reduces one platform materialization intent
+// into a bounded canonical write request. See
+// [platformfam.PlatformMaterializationHandler].
+type PlatformMaterializationHandler = platformfam.PlatformMaterializationHandler
+
+// PostgresPlatformMaterializationWriter persists one platform-materialization
+// reducer reconciliation into the shared fact store. See
+// [platformfam.PostgresPlatformMaterializationWriter].
+type PostgresPlatformMaterializationWriter = platformfam.PostgresPlatformMaterializationWriter
+
+// RuntimeFamilies forwards to [platformfam.RuntimeFamilies].
+func RuntimeFamilies() []platformfam.TerraformRuntimeFamily {
+	return platformfam.RuntimeFamilies()
+}
+
+// LookupRuntimeFamily forwards to [platformfam.LookupRuntimeFamily].
+func LookupRuntimeFamily(kind string) *platformfam.TerraformRuntimeFamily {
+	return platformfam.LookupRuntimeFamily(kind)
+}
+
+// InferInfrastructureRuntimeFamilyKind forwards to
+// [platformfam.InferInfrastructureRuntimeFamilyKind].
+func InferInfrastructureRuntimeFamilyKind(resourceTypes, moduleSources []string) string {
+	return platformfam.InferInfrastructureRuntimeFamilyKind(resourceTypes, moduleSources)
+}
+
+// MatchesServiceModuleSource forwards to
+// [platformfam.MatchesServiceModuleSource].
+func MatchesServiceModuleSource(source, kind string) bool {
+	return platformfam.MatchesServiceModuleSource(source, kind)
+}
+
+// TerraformPlatformEvidenceKind forwards to
+// [platformfam.TerraformPlatformEvidenceKind].
+func TerraformPlatformEvidenceKind(kind, scope string) string {
+	return platformfam.TerraformPlatformEvidenceKind(kind, scope)
+}
+
+// Stanza: shell-exec family move (#6061; no prior compat file), moved to
+// [shell] (go/internal/reducer/code/shell); each entry is deleted once its
+// last caller names [shell] directly.
+
+// ShellExecIntentWriter is the root spelling of [shell.IntentWriter].
+type ShellExecIntentWriter = shell.IntentWriter
+
+// shellExecMaterializationFactKinds is [shell.MaterializationFactKinds]
+// (factload_materialization_bench_test.go reads it).
+var shellExecMaterializationFactKinds = shell.MaterializationFactKinds()
+
+// ShellExecMaterializationHandler is the root spelling of [shell.Handler].
+type ShellExecMaterializationHandler = shell.Handler
+
+// ExtractShellExecRows forwards to [shell.ExtractExecRows].
+func ExtractShellExecRows(envelopes []facts.Envelope) ([]string, []map[string]any) {
+	return shell.ExtractExecRows(envelopes)
+}
+
+// loadShellExecMaterializationFacts forwards to
+// [shell.LoadMaterializationFacts] (factload_materialization_bench_test.go
+// benches it under this spelling).
+func loadShellExecMaterializationFacts(
+	ctx context.Context,
+	loader FactLoader,
+	scopeID string,
+	generationID string,
+) ([]facts.Envelope, error) {
+	return shell.LoadMaterializationFacts(ctx, loader, scopeID, generationID)
+}
+
+// buildShellExecRefreshIntents forwards to [shell.BuildRefreshIntents]
+// (sibling_edge_intent_delta_gate_test.go's cross-domain table).
+func buildShellExecRefreshIntents(
+	deltaScope sqlrelationship.DeltaScope,
+	repoIDs []string,
+	contextByRepoID map[string]ProjectionContext,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	return shell.BuildRefreshIntents(deltaScope, repoIDs, contextByRepoID, createdAt)
+}
+
+// buildShellExecSharedIntentRows forwards to [shell.BuildSharedIntentRows]
+// (sibling_edge_intent_retract_reachability_test.go's cross-domain table).
+func buildShellExecSharedIntentRows(
+	edgeRows []map[string]any,
+	deltaScope sqlrelationship.DeltaScope,
+	repoIDs []string,
+	contextByRepoID map[string]ProjectionContext,
+	createdAt time.Time,
+) []SharedProjectionIntentRow {
+	return shell.BuildSharedIntentRows(edgeRows, deltaScope, repoIDs, contextByRepoID, createdAt)
+}
+
+// Stanza: partitioning (H5 root-remnant fold, partitioning.go, issue #6061;
+// relocated here from compat_projection.go for line-budget headroom).
+
+// PartitionHashForKey forwards to [sharedintent.PartitionHashForKey].
+func PartitionHashForKey(partitionKey string) uint64 {
+	return sharedintent.PartitionHashForKey(partitionKey)
+}
+
+// PartitionForKey forwards to [sharedintent.PartitionForKey].
+func PartitionForKey(partitionKey string, partitionCount int) (int, error) {
+	return sharedintent.PartitionForKey(partitionKey, partitionCount)
 }

@@ -1056,7 +1056,7 @@ static `CALLS` / `REFERENCES` / `USES_METACLASS` delete statement anchored on
 `source.path IN $file_paths` rather than deleting every code-call relationship
 for the repository.
 
-No-Regression Evidence: `go test ./internal/reducer -run
+No-Regression Evidence: `go test ./internal/reducer/code/call ./internal/reducer/code/call/projection -run
 'TestBuildCodeCall(RefreshIntentsCarriesDeltaFileScope|DeltaFilePathsByRepoIDUsesRepositoryDeltaFact)|TestCodeCallProjectionRunnerRetractRepoPreservesDeltaFileScope|TestBuildCodeCallRetractRowsKeepsMalformedDeltaScoped'
 -count=1` proves the reducer extracts changed/deleted file paths from the
 repository delta fact, carries them into the code-call repo-refresh intent,

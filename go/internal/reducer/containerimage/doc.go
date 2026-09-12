@@ -32,7 +32,7 @@
 // would invert the one-way dependency above. Go interfaces are structural, so
 // a local declaration with the same method set is satisfied by the same
 // concrete implementations root wires in, without duplicating any logic. The
-// codetaint package resolves the same problem the same way.
+// taint package resolves the same problem the same way.
 //
 // Telemetry: the identity handler increments
 // eshu_dp_container_image_identity_decisions_total (labeled by domain and

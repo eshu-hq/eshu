@@ -31,10 +31,10 @@ separate `function_calls_scip` bucket of symbol-resolved edges. The callee
 entity is bound to a `uid` later, in the reducer:
 
 - SCIP path: `extractSCIPCodeCallRows`
-  (`go/internal/reducer/code_call_materialization_index.go`) — both endpoints
+  (`go/internal/reducer/code/call/rows.go`) — both endpoints
   resolved by symbol → file/line lookup. Highest certainty.
 - Heuristic path: `resolveGenericCallee`
-  (`go/internal/reducer/code_call_materialization_imports.go`) — an **ordered**
+  (`go/internal/reducer/code/call/resolution.go`) — an **ordered**
   fallback dispatch over same-file lexical scope, type inference, import
   bindings, package/directory scope, and repository-wide unique-name match.
 - Declared path: Python metaclass rows arrive with `source_entity_id` /
@@ -94,17 +94,17 @@ contract the accuracy goldens (#2226) assert against.
 | `extractSCIPCodeCallRows` | `scip` |
 | `USES_METACLASS` declared rows | `declared` |
 | `resolveSameFileScopedCalleeEntityID` | `same_file` |
-| `resolveSameFileCalleeEntityID` | `same_file` |
-| `resolveDynamicJavaScriptCalleeEntityID` | `type_inferred` |
+| `shared.ResolveSameFileCalleeEntityID` | `same_file` |
+| `javascript.ResolveDynamicCallee` | `type_inferred` |
 | `resolveGoMethodReturnChainCalleeEntityID` | `type_inferred` |
-| `resolveConstructorMethodCalleeID` | `type_inferred` |
-| `resolveImportedCrossFileCallee` | `import_binding` |
+| `shared.ResolveConstructorMethodCalleeID` | `type_inferred` |
+| `shared.ResolveImportedCrossFileCallee` | `import_binding` |
 | `resolveGoPackageQualifiedCalleeEntityID` | `import_binding` |
 | `resolveReexportedCrossFileCallee` | `import_binding` |
 | `resolveGoSameDirectoryCalleeEntityID` | `scope_unique_name` |
 | `resolveGoCrossRepoExportCalleeEntityID` | `cross_repo_export_package` |
-| `index.uniqueNameByRepo` exact-name match | `repo_unique_name` |
-| `index.uniqueNameByRepo` broad-name match | `repo_unique_name` |
+| `index.UniqueNameByRepo` exact-name match | `repo_unique_name` |
+| `index.UniqueNameByRepo` broad-name match | `repo_unique_name` |
 
 If a new resolver branch is added later, this table and the goldens MUST be
 updated in the same change; an unmapped branch defaults to `unspecified` and

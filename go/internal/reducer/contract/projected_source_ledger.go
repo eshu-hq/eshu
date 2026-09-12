@@ -12,7 +12,7 @@ import (
 // projected CloudResource edges so a scoped retraction can enumerate uids from
 // the ledger instead of scanning the whole :CloudResource label in the graph.
 // It is the generic, multi-evidence-source counterpart of
-// CodeInterprocProjectedEdgeLedger: the same superset-ledger pattern, but
+// taint.InterprocProjectedEdgeLedger: the same superset-ledger pattern, but
 // keyed by an arbitrary evidence_source rather than one hardcoded edge kind,
 // so the AWS, Azure, GCP, and observability-coverage edge writers can all
 // share one durable ledger table (see postgres.ProjectedSourceEdgeStore).

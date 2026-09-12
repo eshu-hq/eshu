@@ -2424,7 +2424,7 @@ gates:
       - "go/internal/ifa/materializededges/**"
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/materialized_edge_families.go"
-      - "go/internal/reducer/shared_projection.go"
+      - "go/internal/reducer/contract/domain.go"
       - "go/internal/reducer/sqlrelationship/sql_relationship_materialization.go"
       - "go/internal/reducer/sqlrelationship/sql_relationship_embedded_query.go"
       - "go/internal/reducer/sqlrelationship/sql_relationship_metadata.go"
@@ -2727,7 +2727,7 @@ gates:
       # harness is not blind -- seeding go/** the same way measures +106.
       #
       # It also arms the lanes on reducer files no driven cassette exercises,
-      # semanticentity/materialization.go among them, which #6200 had
+      # code/semantic/materialization.go among them, which #6200 had
       # deliberately left untriggered because no cassette either gate drives
       # produces a semantic-entity intent. That is the price of the glob and
       # it is the right trade: per-file precision is what rotted.
@@ -2999,7 +2999,7 @@ gates:
       # directory glob that covers the same files does not satisfy it. Keeping
       # these explicit is what ties the coverage row to a gate that re-runs (#6200).
       - "go/internal/ifa/familyodu/symbol_runtime_family_odu.go"
-      - "go/internal/reducer/symbol_runtime*.go"
+      - "go/internal/reducer/code/call/materialization/*.go"
       - "scripts/lib/ifa_symbol_runtime_live.sh"
       - "go/internal/ifa/sql_relationship_odu*.go"
       - "go/internal/reducer/sql_relationship_*.go"
@@ -3187,7 +3187,7 @@ gates:
       # harness is not blind -- seeding go/** the same way measures +106.
       #
       # It also arms the lanes on reducer files no driven cassette exercises,
-      # semanticentity/materialization.go among them, which #6200 had
+      # code/semantic/materialization.go among them, which #6200 had
       # deliberately left untriggered because no cassette either gate drives
       # produces a semantic-entity intent. That is the price of the glob and
       # it is the right trade: per-file precision is what rotted.
@@ -3545,7 +3545,7 @@ gates:
       # directory glob that covers the same files does not satisfy it. Keeping
       # these explicit is what ties the coverage row to a gate that re-runs (#6200).
       - "go/internal/ifa/familyodu/symbol_runtime_family_odu.go"
-      - "go/internal/reducer/symbol_runtime*.go"
+      - "go/internal/reducer/code/call/materialization/*.go"
       - "scripts/lib/ifa_symbol_runtime_live.sh"
       - "scripts/lib/ifa_fault_injection_symbol_runtime_cells.sh"
       - "go/internal/ifa/sql_relationship_odu*.go"
@@ -3782,7 +3782,7 @@ gates:
     # before it looks at a trigger.
     triggers:
       - "go/internal/backendconformance/**"
-      - "go/internal/reducer/valueflow/value_flow_cloud_sink_loader.go"
+      - "go/internal/reducer/code/value/cloud_sink_loader.go"
       - "docker-compose.yaml"
       - "docker-compose.neo4j.yml"
       - "scripts/verify_backend_conformance_live.sh"

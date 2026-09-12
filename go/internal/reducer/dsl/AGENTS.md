@@ -52,8 +52,8 @@ it before touching any file in this directory.
 
 1. Append to `defaultRuntimeContract.Checkpoints` in `contract.go`.
 2. If the new phase gates a domain that is currently blocked, verify the
-   `sharedProjectionReadinessPhase` switch in
-   `internal/reducer/shared_projection.go:91` is updated accordingly.
+   `worker.ReadinessPhase` switch in
+   `internal/reducer/intents/shared/worker/domains.go` is updated accordingly.
 3. Update this README's checkpoint table.
 
 ### Implement a concrete `Evaluator`

@@ -15,7 +15,7 @@ carry `declared`, and the secondary constructor edge carries `type_inferred`.
 The method is descriptive, never admissive. Graph persistence of the tiered
 confidence derived from this method is owned by #2224.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'ResolutionMethod|MetaclassRowsCarry' -count=1`
+No-Regression Evidence: `go test ./internal/reducer/code/call -run 'ResolutionMethod|MetaclassRowsCarry' -count=1`
 and `go test ./internal/codeprovenance -count=1` fail before the resolution
 method is threaded out of the resolver and pass after. The change adds one
 string key (`resolution_method`) to each already-emitted row and one return
@@ -48,7 +48,7 @@ callee id is the function's generation-independent `content.CanonicalEntityID`
 cross-repo tier is a follow-up (function definition facts carry no SCIP symbol
 today).
 
-No-Regression Evidence: `go test ./internal/reducer -run 'CrossRepoExport'
+No-Regression Evidence: `go test ./internal/reducer/code/call -run 'CrossRepoExport'
 -count=1` and `go test ./internal/codeprovenance ./internal/resolutionparity
 -count=1` fail before the branch/method exist and pass after. The branch runs
 only after all same-repo branches return empty, and the export index is built

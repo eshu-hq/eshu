@@ -32,11 +32,11 @@ active reducer graph domains remain, the runner records a blocked cycle and
 waits before claiming a code-call partition. The gate only schedules work. It
 does not change which rows become `CALLS`, `REFERENCES`, or `USES_METACLASS`.
 
-No-Regression Evidence: `go test ./internal/reducer ./internal/storage/postgres
+No-Regression Evidence: `go test ./internal/reducer/code/call/projection ./internal/storage/postgres
 -run 'TestCodeCallProjectionRunnerWholeScopeBlocksLaterWholeScope|TestCodeCallProjectionRunnerRetractsForDifferentCurrentRunPartition|TestCodeCallProjectionRunnerSkipsRetractForCurrentRunChunkAfterFirstChunk|TestSharedIntentStoreHasCompletedAcceptanceUnitSourceRunPartitionDomainIntents'
 -count=1` failed before same-repository whole/legacy rows were mutually fenced
 and current-run history was partition-scoped, then passed.
-`go test ./internal/reducer -run
+`go test ./internal/reducer/code/call/projection -run
 'TestCodeCallProjectionRunner(LaterWholeRefreshDoesNotBlockEarlierFilePartition|ScansAcceptanceUnitForCoveringRefreshBeyondDomainPage)'
 -count=1` failed before later whole refreshes stopped fencing earlier file rows
 and file refresh fences scanned the selected acceptance unit beyond the current

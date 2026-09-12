@@ -10,47 +10,10 @@ import (
 	"time"
 )
 
-func TestCodeCallProjectionRunnerOrderlyStopDoesNotMisreportInFlightRenewalCancellation(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.August, 7, 12, 0, 0, 0, time.UTC)
-	row := codeCallProjectionTestRow("intent-code-call-cancel", "gen-1", now)
-	reader := &fakeCodeCallIntentStore{
-		pendingByDomain:     []SharedProjectionIntentRow{row},
-		pendingByAcceptance: map[string][]SharedProjectionIntentRow{"scope-a|repo-a|run-1": {row}},
-	}
-	leases := newInFlightCancellationLeaseManager()
-	runner := CodeCallProjectionRunner{
-		IntentReader: reader,
-		LeaseManager: leases,
-		EdgeWriter:   waitForLeaseRenewalWriter{renewalStarted: leases.renewalStarted},
-		AcceptedGen:  acceptedGenerationFixed("gen-1", true),
-		ReadinessLookup: func(GraphProjectionPhaseKey, GraphProjectionPhase) (bool, bool) {
-			return true, true
-		},
-		Config: CodeCallProjectionRunnerConfig{
-			LeaseTTL:   2 * time.Millisecond,
-			BatchLimit: 10,
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	result, err := runner.processOnce(ctx, now)
-	if err != nil {
-		t.Fatalf("processOnce() error = %v, want nil after orderly stop cancels an in-flight renewal", err)
-	}
-	if !result.LeaseAcquired {
-		t.Fatal("LeaseAcquired = false, want true")
-	}
-	if got, want := len(reader.marked), 1; got != want {
-		t.Fatalf("completed intents = %d, want %d", got, want)
-	}
-	if !leases.wasReleased() {
-		t.Fatal("partition lease was not released")
-	}
-}
-
+// TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation
+// is the ProcessPartitionOnce half of this file; the code-call half moved to
+// [projection] (code/call/projection/lease_heartbeat_orderly_stop_test.go)
+// with the runner (issue #6061).
 func TestProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation(t *testing.T) {
 	t.Parallel()
 

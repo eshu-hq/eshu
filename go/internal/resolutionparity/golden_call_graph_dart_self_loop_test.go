@@ -78,7 +78,7 @@ void topFn() {}
 // produce a real self-loop CALLS edge with resolution_method "same_file".
 // Filtering a resolved self-loop would trade one accuracy bug (#5332's
 // declaration-as-call) for its inverse (dropping real recursion) — see
-// go/internal/reducer/code_call_materialization_extract.go's
+// go/internal/reducer/code/call/extract.go's
 // recordCodeCallSelfLoopWritten for the companion observe-only telemetry
 // that watches for this class of regression in production.
 func TestDartRecursionCallGraphSelfLoopSurvives(t *testing.T) {

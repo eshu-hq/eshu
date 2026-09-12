@@ -48,7 +48,7 @@ Imports point strictly downward. This package reaches `reducer/contract`,
 `reducer/factwrite`, `reducer/gpphase`, `reducer/payloadcore`, `internal/facts`
 and `pkg/log`, and it never imports the parent `internal/reducer` package. The
 dependency runs the other way: the root keeps compatibility aliases in
-the platform stanza of `compat_projection.go` (plus `intent.go` for the fact-kind constant) so its own
+the platform stanza of `compat_cloud.go` (plus `intent.go` for the fact-kind constant) so its own
 callers, `cmd/reducer` and `internal/storage/postgres` compile unchanged.
 
 `CrossRepoRelationshipResolver` is why that boundary holds. The handler needs

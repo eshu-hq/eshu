@@ -106,8 +106,8 @@ type familyBlockerExpectation struct {
 // reflection cannot distinguish their shared handler from code_calls; their
 // runner_lease_hold proof is checked separately.
 var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectation{
-	// code_call_materialization_intents.go:129,225 tag rows
-	// ProjectionDomain: DomainCodeCalls; code_call_materialization.go:224
+	// code/call/intents.go:118,221 tag rows
+	// ProjectionDomain: DomainCodeCalls; code_call_materialization.go:218
 	// writes them via h.IntentWriter.UpsertIntents.
 	DomainCodeCalls: {routedDomain: DomainCodeCallMaterialization},
 	// sqlrelationship/sql_relationship_intents.go:108,167 tag rows
@@ -115,8 +115,8 @@ var materializedEdgeFamilyBlockerExpectations = map[string]familyBlockerExpectat
 	// sqlrelationship/sql_relationship_materialization.go:117 writes them via
 	// h.IntentWriter.UpsertIntents.
 	DomainSQLRelationships: {routedDomain: DomainSQLRelationshipMaterialization},
-	// shell_exec_intents.go:60,110 tag rows ProjectionDomain: DomainShellExec;
-	// shell_exec_materialization.go writes them via h.IntentWriter.UpsertIntents.
+	// code/shell/intents.go tag rows ProjectionDomain: DomainShellExec;
+	// code/shell/handler.go writes them via h.IntentWriter.UpsertIntents.
 	DomainShellExec: {routedDomain: DomainShellExecMaterialization},
 	// inheritance/intents.go:99,152 tag rows ProjectionDomain: DomainInheritanceEdges;
 	// inheritance/materialization.go writes them via h.IntentWriter.UpsertIntents.

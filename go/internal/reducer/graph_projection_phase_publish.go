@@ -5,7 +5,6 @@ package reducer
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
@@ -27,6 +26,8 @@ func publishIntentGraphPhase(
 	return gpphase.PublishIntentGraphPhase(ctx, publisher, intent, keyspace, phase, observedAt)
 }
 
+// publishIntentGraphPhaseWithRepair forwards to
+// [gpphase.PublishIntentGraphPhaseWithRepair].
 func publishIntentGraphPhaseWithRepair(
 	ctx context.Context,
 	publisher GraphProjectionPhasePublisher,
@@ -36,38 +37,18 @@ func publishIntentGraphPhaseWithRepair(
 	phase GraphProjectionPhase,
 	observedAt time.Time,
 ) error {
-	if publisher == nil {
-		return nil
-	}
-	state, ok := graphProjectionPhaseStateForIntent(intent, keyspace, phase, observedAt)
-	if !ok {
-		return nil
-	}
-	if err := publishGraphProjectionPhaseStatesWithRepair(ctx, publisher, repairQueue, []GraphProjectionPhaseState{state}); err != nil {
-		return fmt.Errorf("publish %s phase: %w", phase, err)
-	}
-	return nil
+	return gpphase.PublishIntentGraphPhaseWithRepair(ctx, publisher, repairQueue, intent, keyspace, phase, observedAt)
 }
 
+// publishGraphProjectionPhaseStatesWithRepair forwards to
+// [gpphase.PublishPhaseStatesWithRepair].
 func publishGraphProjectionPhaseStatesWithRepair(
 	ctx context.Context,
 	publisher GraphProjectionPhasePublisher,
 	repairQueue GraphProjectionPhaseRepairQueue,
 	states []GraphProjectionPhaseState,
 ) error {
-	if publisher == nil || len(states) == 0 {
-		return nil
-	}
-	if err := publisher.PublishGraphProjectionPhases(ctx, states); err != nil {
-		if repairQueue != nil {
-			repairs := GraphProjectionPhaseRepairsFromStates(states, err.Error(), time.Now().UTC())
-			if enqueueErr := repairQueue.Enqueue(ctx, repairs); enqueueErr != nil {
-				return fmt.Errorf("%w (enqueue repairs: %v)", err, enqueueErr)
-			}
-		}
-		return err
-	}
-	return nil
+	return gpphase.PublishPhaseStatesWithRepair(ctx, publisher, repairQueue, states)
 }
 
 // graphProjectionPhaseStateForIntent builds one durable readiness publication

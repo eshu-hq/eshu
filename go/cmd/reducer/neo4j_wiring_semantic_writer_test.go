@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	sourcecypher "github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -33,9 +33,9 @@ func TestSemanticEntityWriterForGraphBackendUsesCanonicalNodeRowsForNornicDB(t *
 	}
 
 	const docstring = "buildCallChainCypher uses shortestPath((start)-[*]->(end)) for graph traversal."
-	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semantic.EntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []semanticentity.SemanticEntityRow{
+		Rows: []semantic.EntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "function-go-1",
@@ -107,9 +107,9 @@ func TestSemanticEntityWriterForGraphBackendUsesOwnershipScopedRetractForNornicD
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
 
-	_, err = writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
+	_, err = writer.WriteSemanticEntities(context.Background(), semantic.EntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []semanticentity.SemanticEntityRow{
+		Rows: []semantic.EntityRow{
 			semanticFunctionRow("function-go-1"),
 		},
 	})
@@ -168,9 +168,9 @@ func TestSemanticEntityWriterForGraphBackendKeepsBroadRetractForNeo4j(t *testing
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
 
-	_, err = writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
+	_, err = writer.WriteSemanticEntities(context.Background(), semantic.EntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []semanticentity.SemanticEntityRow{
+		Rows: []semantic.EntityRow{
 			semanticFunctionRow("function-go-1"),
 		},
 	})
@@ -207,9 +207,9 @@ func TestSemanticEntityWriterForGraphBackendAppliesNornicDBLabelBatchCaps(t *tes
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
 
-	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semantic.EntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []semanticentity.SemanticEntityRow{
+		Rows: []semantic.EntityRow{
 			semanticFunctionRow("function-go-1"),
 			semanticFunctionRow("function-go-2"),
 			semanticFunctionRow("function-go-3"),
@@ -259,12 +259,12 @@ func TestSemanticEntityWriterForGraphBackendAppliesDefaultNornicDBLabelCaps(t *t
 		t.Fatalf("semanticEntityWriterForGraphBackend() error = %v", err)
 	}
 
-	rows := make([]semanticentity.SemanticEntityRow, 0, 22)
+	rows := make([]semantic.EntityRow, 0, 22)
 	for i := 0; i < 11; i++ {
 		rows = append(rows, semanticModuleRow(fmt.Sprintf("module-ts-%02d", i)))
 		rows = append(rows, semanticImplBlockRow(fmt.Sprintf("impl-rs-%02d", i)))
 	}
-	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semantic.EntityWrite{
 		RepoIDs: []string{"repo-1"},
 		Rows:    rows,
 	})
@@ -329,8 +329,8 @@ func firstReducerStatementWithOperation(
 	return sourcecypher.Statement{}
 }
 
-func semanticFunctionRow(id string) semanticentity.SemanticEntityRow {
-	return semanticentity.SemanticEntityRow{
+func semanticFunctionRow(id string) semantic.EntityRow {
+	return semantic.EntityRow{
 		RepoID:       "repo-1",
 		EntityID:     id,
 		EntityType:   "Function",
@@ -343,8 +343,8 @@ func semanticFunctionRow(id string) semanticentity.SemanticEntityRow {
 	}
 }
 
-func semanticVariableRow(id string) semanticentity.SemanticEntityRow {
-	return semanticentity.SemanticEntityRow{
+func semanticVariableRow(id string) semantic.EntityRow {
+	return semantic.EntityRow{
 		RepoID:       "repo-1",
 		EntityID:     id,
 		EntityType:   "Variable",
@@ -357,8 +357,8 @@ func semanticVariableRow(id string) semanticentity.SemanticEntityRow {
 	}
 }
 
-func semanticModuleRow(id string) semanticentity.SemanticEntityRow {
-	return semanticentity.SemanticEntityRow{
+func semanticModuleRow(id string) semantic.EntityRow {
+	return semantic.EntityRow{
 		RepoID:       "repo-1",
 		EntityID:     id,
 		EntityType:   "Module",
@@ -371,8 +371,8 @@ func semanticModuleRow(id string) semanticentity.SemanticEntityRow {
 	}
 }
 
-func semanticImplBlockRow(id string) semanticentity.SemanticEntityRow {
-	return semanticentity.SemanticEntityRow{
+func semanticImplBlockRow(id string) semantic.EntityRow {
+	return semantic.EntityRow{
 		RepoID:       "repo-1",
 		EntityID:     id,
 		EntityType:   "ImplBlock",

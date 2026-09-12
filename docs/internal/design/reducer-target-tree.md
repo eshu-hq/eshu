@@ -1,15 +1,16 @@
 # Reducer target tree (#6061)
 
-Owner-approved destination for the `go/internal/reducer` restructure.
-All counts measured at `origin/main` `8d0c6cec` unless noted (re-derived
-identical after the #6607/#6608/#6613 base move; that move touched only
-`internal/query` plus the query ledger row — the reducer tree and its
-ledger row are byte-identical).
+Owner-approved destination for the `go/internal/reducer` restructure. First
+approved 2026-09-08 (counts measured at `origin/main` `8d0c6cec` unless
+noted). Rebuilt 2026-09-11 after the owner turned down the first version of
+#6645 under `docs/internal/naming.md`. The approved spec is #6609 comment
+5631604960. Where it conflicts with anything older on this page, the
+2026-09-11 decisions win.
 
 ## Why this exists
 
 The 40-file dirgate cap is a proxy for "a human can navigate this", not the
-goal. At approval time the tree is **304 non-test root files plus 54 flat
+goal. At first approval the tree was **304 non-test root files plus 54 flat
 sibling subpackages**, several named after edge verbs (`s3logsto`,
 `ec2usesprofile`, `iamcan`, `s3grant`, `secgroup`, `gpphase`, `crossscope`,
 `dsl`, `tags`). That is two readability problems: a flat root no one can
@@ -18,10 +19,43 @@ created. Every move lands in a NAMED destination below, never away from a
 file count.
 
 ```bash
-git ls-tree --name-only origin/main go/internal/reducer/ | rg '\.go$' | rg -vc '_test\.go$'  # 304 root non-test
-ls go/internal/reducer/*.go | rg -v '_test\.go$' | wc -l                                     # 304, same tree locally
-ls -d go/internal/reducer/*/ | wc -l                                                          # 54 subpackages
+git ls-tree --name-only origin/main go/internal/reducer/ | rg '\.go$' | rg -vc '_test\.go$'  # root non-test
+ls -d go/internal/reducer/*/ | wc -l                                                          # subpackages
 ```
+
+## Owner decisions recorded (2026-09-11, #6609 comment 5631604960)
+
+The 2026-09-08 tree predates `docs/internal/naming.md`. The owner's review of
+#6645 turned it down for glued directory names, stuttering file names, and
+157 files left in the root. Where the two conflict, these decisions win:
+
+1. **One parent per PR.** #6645 lands the complete `code/` subtree plus the
+   hoists it needs. The other parents follow, one PR each, in the order under
+   Sequencing.
+2. **`code/call` nests by language.** The entity index is its own package,
+   `code/call/shared`. Language leaves import it, and the dispatcher imports
+   the leaves: the same shape as `parser` / `parser/<lang>` /
+   `parser/shared`. Registration is an explicit list in `languages.go`, so a
+   missing language fails to compile instead of silently resolving nothing.
+   This reverses the 2026-09-08 "single `code/call`, no separate package"
+   lock.
+3. **`EntityIndex` keeps its fields unexported.** Leaves read the index
+   through read-only accessors, which inline at zero measured cost (evidence
+   under step 3).
+4. **The runners and the handler leave the root.** The shared-projection
+   substrate moves to `intents/shared/worker` (H5), after the H1–H4 hoists.
+5. **`projection.go`, `projection_helpers.go`, `candidate_loader.go` and
+   `platforms.go` leave the spine.** They are workload/platform product: all
+   18 callers are workload files.
+6. **`dependency/{repo,imports,submodule,resolution}`** replaces the glued
+   `repodependency/`.
+7. **`supply/chain/{impact,cicd,image,sbom,model}`** replaces `supplychain/`.
+8. **`service/catalog`** holds `servicecatalog`. The root loop files are
+   renamed `loop*.go`.
+9. **Exported stutter is dropped in the move PR.** Wire strings, domains,
+   entity keys and telemetry stay byte-identical. The `payloadcore`
+   `Payload*` accessors get their own PR.
+10. **`code/intel` is held** until the query-lane owner agrees.
 
 ## Owner decisions recorded (2026-09-08, #6061)
 
@@ -42,20 +76,14 @@ ls -d go/internal/reducer/*/ | wc -l                                            
    change, every alias and forwarder preserved; root 304 -> 286. Every
    later family move adds a stanza to the matching bucket file and NEVER
    creates a new `*_compat.go` — that rule stops the moves making the
-   problem worse. Rebalance buckets before any one crosses the 500-line cap
-   (`compat_correlation.go` lands at 492).
+   problem worse. Rebalance buckets before any one crosses the 500-line cap;
+   when a move would still push one over, migrate the highest-count
+   importers to the new paths first (2026-09-11 plan, D12).
    Measured at #6061 HEAD `81a51b706` (after the value_flow rebalance, before
    any family move): `compat_cloud.go` 369, `compat_correlation.go` 416,
    `compat_decode.go` 347, `compat_projection.go` 417 (1,549 bucket lines).
-   The rebalance relocated the value_flow stanza byte-identical from
-   `compat_correlation.go` (492) to `compat_projection.go`, freeing
-   correlation for the incoming supplychain stanza. The supplychain move adds
-   a 50-line stanza to `compat_correlation.go` (416 -> 468 with the stanza
-   list/header updates). The move's orphan burn-down (dead forwarders whose
-   last callers moved, per the rule below) removes a further 12 net lines
-   from correlation plus 28/29/51 from cloud/decode/projection, landing the
-   buckets at 341/456/318/366 (1,481 lines; correlation keeps 44 lines of
-   headroom under the cap).
+   The supplychain move's stanza and orphan burn-down landed the buckets at
+   341/456/318/366 (1,481 lines).
    (b) External importers migrate `reducer.X` -> owning subpackage in
    per-package batches (postgres 191, cypher 65, cmd/reducer 40,
    projector 39, materializededges 38, then the tail) under its own child
@@ -66,193 +94,167 @@ ls -d go/internal/reducer/*/ | wc -l                                            
    domain, runtime, registry). ≤40 clears with room; no exception. The
    dirgate row ratchets DOWN on every move PR, as
    `internal/collector/gitrepo` does at 66.
-3. **This tree: yes as the destination.** PR1 (this doc) commits first; no
-   file moves until the doc is merged.
+3. **The 2026-09-08 tree as the destination.** Superseded by the 2026-09-11
+   tree below.
 
 ## The tree
 
-Thirteen named top-level domains. Existing subpackages move UNDER a named
-parent; directory paths change, Go package contents are not rewritten, and a
-package keeps its name unless the verb-name itself is the readability
-problem. `contract/` stays top-level (shared vocabulary, never a domain).
+Every directory is plain English and nested (naming.md rule 3), and no file
+repeats its directory's name (rule 2). Namespace parents carry only a doc
+trio. `contract/` stays top-level shared vocabulary.
 
-| Domain | Children (existing subpackage -> child) | Root buckets landing here (non-test counts) |
-|---|---|---|
-| `supplychain/` | `core` (new: destuttered short names INCLUDING `finding.go` + suppression story (`evaluation.go`, `decode.go`, `reasons.go`, `scope.go`) + `go_reachability*` 3, 70 — 67 at approval plus the 3 classifier files, see sequencing step 2), `cicd` (`cicdrun`, 11), `image` (`containerimage`, 25), `sbom` (`sbomattest`, 7), `model` (`supplychainmodel`, 2) | `supply_chain*` 67 + `go_vulnerability_reachability*` 3 |
-| `packages/` | `correlation` (new: `consumption*`, `source*`, `publication.go`, `provenance_edges.go`, `writer*`, `payloads.go` + `security_alert_manifest_dependency_match.go`), `source` (2 files, renamed from `packagesourcecore` #6061) | — (family fully moved; nothing remains at root) |
-| `code/` | `call` (new: `code_call*` 52 minus the #6609 runner-stays set), `intel` (`codeintel`, 5), `taint` (`codetaint`, 11), `value` (`valueflow`, 8 + `code_value*` 2) | `code_call*` 52, `code_value*` 2 (`code_import*` 6 lives in `repodependency/import`, not here) |
-| `cloud/` | `aws/s3/logging` (`s3logsto`, 3), `aws/s3/grants` (`s3grant`, 3), `aws/ec2/instance` (`ec2instance`, 5), `aws/ec2/blockkms` (`ec2blockkms`, 4), `aws/ec2/usesprofile` (`ec2usesprofile`, 3), `aws/rds/posture` (`rdsposture`, 3), `aws/runtime` (`awscloud`, 8), `aws/core` (new: `aws_*` 7), `gcp/core` (new: `gcp_*` 6), `azure/core` (new: `azure*` 3), `inventory` (`cloudinventory` 7, `cloudasset` 3), `exposure` (`internetexposure`, 5), `multicloud` (`multicloudruntimedrift`, 3), `observability` (`obscoverage`, 11) | `aws_*` 7, `gcp_*` 6, `azure*` 3 |
-| `iam/` | `can` (`iamcan`, 11), `policy` (`iampolicy`, 3), `escalation` (`iamescalation`, 6), `instanceprofile` (`iaminstprofile`, 3) | — (all four already subpackages) |
-| `workload/` | `materialization` (new: `workload_materialization*` 3 + handler), `deployable` (new: `deployable_unit*` 5), `repo` (new: `repo_workload.go`) | `workload_*` ~12, `deployable_unit*` 5 |
-| `repodependency/` | `repo` (new: `repo_dependency*` 8), `import` (new: `code_import*` 6, AFTER `packages/correlation` — see note), `terraform` (`tfconfigstate` 5, `tfstate` 2), `crossrepo` (`crossrepo`, 6), `platform` (`platformfam`, 4 + `platform_infra_materialization.go` + `intent_domain_platform.go`) | `repo_dependency*` 8, `code_import*` 6 |
-| `kubernetes/` | `correlation` (`kubernetescorrelation` 8 + `kubernetes_*` 3), `crossplane` (`crossplane`, 5) | `kubernetes_*` 3 |
-| `security/` | `alert` (`securityalert`, 12), `group` (`secgroup`, 6), `secrets` (`secretsiam` 14 + `secrets_iam.go`), `incident` (`incident`, 8) | `secrets_iam.go` (1; the rest already subpackages) |
-| `search/` | `eshu` (`eshusearch`, 9), `vector` (`searchvector`, 4), `semantic` (`semanticentity` 5 + `semantic_entity.go`) | `semantic_entity.go` |
-| `decode/` | `schema` (`schemadecode`, 22), `facts` (`factdecode`, 4 + `intent_emission.go` by default, census confirms), `load` (`factload`, 3), `write` (`factwrite`, 6), `payload` (`payloadcore`, 8), `admission` (`admissiondecision`, 2) | — (`candidate_loader.go` is sole-claimed by the spine; `cloudjoin/` stays top-level, see note) |
-| `intents/` | `shared` (`sharedintent`, 4), `phases` (`gpphase`, 9), `maintenance` (`maintenance`, 7), `crossscope` (`crossscope`, 4) | — (all four already subpackages) |
-| `edges/` | `inheritance` (`inheritance`, 7), `sql` (`sqlrelationship`, 9), `dsl` (`dsl`, 3), `tags` (`tags`, 3), `rationale` (new: `rationale*` 3), `graph` (new: `graph_*` 4) | `rationale*` 3, `graph_*` 4 |
+| Parent | Children (← old name) |
+|---|---|
+| `code/` | `call` (+ `shared`, 13 language leaves, `materialization`, `projection`), `function/summary`, `owners`, `shell`, `taint`, `value` (+ `cleanup`), `semantic` ← `semanticentity`, `intel` ← `codeintel` (held) |
+| `intents/` | `shared` ← `sharedintent` (+ `worker`), `phase` ← `gpphase` (+ `repair`), `readiness` ← `crossscope`, `maintenance` |
+| `fact/` | `decode` ← `factdecode` (+ `schema` ← `schemadecode`), `load` ← `factload`, `write` ← `factwrite`, `payload` ← `payloadcore`, `admission` ← `admissiondecision` |
+| `edges/` | `documentation`, `rationale`, `inheritance`, `dsl`, `sql` ← `sqlrelationship` |
+| `dependency/` | `repo`, `imports` ← `code_import_*`, `submodule`, `resolution` ← `crossrepo` |
+| `workload/` | `correlation` ← `deployable_unit_*`, `materialization`, `identity`, `cloud` |
+| `platform/` | ← `platformfam` + `platforms.go`, `infrastructure` |
+| `aws/` | `resource`, `relationship`, `cloud` ← `awscloud`, `join` ← `cloudjoin`, `ec2/instance` (+ `profile` ← `ec2usesprofile`), `ec2/encryption` ← `ec2blockkms`, `internet/exposure`, `rds/posture`, `s3/grant`, `s3/logging` ← `s3logsto` |
+| `gcp/`, `azure/` | ← `gcp_*`, `azure_*` |
+| `cloud/` | `asset`, `inventory`, `tags`, `runtime/drift/multi` ← `multicloudruntimedrift` |
+| `iam/` | `access` ← `iamcan`, `escalation`, `policy`, `instance/profile` ← `iaminstprofile` |
+| `kubernetes/` | `correlation` ← `kubernetescorrelation`, `live` ← `kubernetes_*` |
+| `terraform/` | `drift` ← `tfconfigstate`, `state` ← `tfstate` |
+| single leaves | `crossplane/satisfaction`, `observability/coverage` ← `obscoverage`, `incident`, `secrets/iam`, `security/{alert,group}`, `search/{document,vector}`, `supply/chain/{impact,cicd,image,sbom,model}`, `service/catalog` |
+| unchanged | `contract/`, `packages/{correlation,source}` |
 
-Notes with alternatives considered:
+Placement notes:
 
-- `code/import` vs `repodependency/import`: `code_import_*` returns
-  package-correlation types (`PackageSourceDecision` from
-  `code_import_owner_facts.go`), so it cannot move as a pure unit until
-  `packages/correlation` exists — it lands in `repodependency/import` AFTER
-  `packages/correlation`, importing it one-way. (`restructure-research.md:490`
-  calls it clean; it is not — the eleventh file,
-  `code_import_owner_facts.go`, is the coupling. 6 non-test files, not 11.)
-- `sbomattest` lands in `supplychain/sbom`, not `security/`: SBOM
-  attestation is supply-chain provenance evidence.
-- `obscoverage` lands in `cloud/observability`: it correlates AWS-native
+- `dependency/imports` ← `code_import_*`: it returns package-correlation
+  types (`PackageSourceDecision` from `code_import_owner_facts.go`), so it
+  moves only after `packages/correlation` exists and imports it one-way.
+  6 non-test files.
+- `sbomattest` → `supply/chain/sbom`: SBOM attestation is supply-chain
+  provenance evidence. `cicdrun` → `supply/chain/cicd`: CI-run-to-image
+  provenance, in the measured cycle with the supply-chain core and
+  `containerimage`.
+- `platformfam` → `platform/`: Terraform runtime vocabulary plus the
+  `deployment_mapping` reduction, which consumes `resolved_relationships`.
+  The post-Phase-3 reopen invariant in `go/internal/reducer/AGENTS.md`
+  travels with it: the move PR carries the existing `bootstrap-index/main.go`
+  reopen wiring and proves it still fires, or the stuck-`deployment_mapping`
+  failure mode recurs.
+- `admissiondecision` → `fact/admission`: shared decision vocabulary used by
+  correlation handlers, not one family's product.
+- `crossscope` → `intents/readiness`: read by more than one family, gating
+  cross-scope consumers on producer readiness.
+- `cloudjoin` → `aws/join`: it resolves AWS endpoint identity for the AWS
+  families. This reverses the earlier top-level placement (#6614).
+- `obscoverage` → `observability/coverage`: it correlates AWS-native
   observability objects against monitored CloudResource nodes.
-- `platformfam` lands in `repodependency/platform`: Terraform runtime
-  vocabulary plus the `deployment_mapping` reduction (which consumes
-  `resolved_relationships` — the post-Phase-3 reopen invariant in
-  `go/internal/reducer/AGENTS.md` travels with it: the move PR carries the
-  existing `bootstrap-index/main.go` reopen wiring and proves it still
-  fires, or the stuck-`deployment_mapping` failure mode recurs).
-- `admissiondecision` lands in `decode/admission`: shared decision
-  vocabulary used by correlation handlers, not one family's product.
-- `crossscope` lands in `intents/crossscope`: it is read by more than one
-  family (generic by the classification rule), gating cross-scope consumers
-  on producer readiness.
-- `cloudjoin/` stays top-level as an extracted shared-core leaf (owner
-  decision on #6614): its README declares it shared-core, not a domain
-  family — an identity join consumed by cloud-family packages — so nesting
-  it under one family would cross the one-way-import tiers, and moving it
-  under `decode/` would buy a churn PR with no navigability gain. Like the
-  shared-projection tier, it is accounted for exactly where it stands; no
-  move PR owns it.
-- `cicdrun` lands in `supplychain/cicd`: CI-run-to-image provenance, in the
-  measured cycle with `supply_chain` and `containerimage`.
-- `incident` lands in `security/incident`: closest of the thirteen; it is
-  response-surface correlation, not runtime machinery.
-- `iaminstprofile` lands in `iam/instanceprofile`: identity-flavored
-  (IAM role bound to EC2), not posture.
-- `service_*` runtime core (`service.go`, `runtime.go`,
-  `service_loop_config.go`, `service_runtime_instance_lookup.go`,
-  `service_batch.go`, `service_heartbeat.go`, `service_observability.go`,
-  `service_side_runners.go` — the `serviceSideRunner` interface plus
-  `Service.startSideRunners`) STAYS in the spine: it is the
-  claim/execute/ack loop, not a domain.
-  The service-catalog aliases are a stanza in `compat_correlation.go` for the
-  already-moved family: they burn down with the importer migration, the stanza
-  does not move.
-  The existing `servicecatalog/` subpackage is grandfathered interim: no
-  NEW top-level package is ever created (that is what the no-55th-sibling
-  rule bans), and a domain PR relocates `servicecatalog/` whole with a
-  census-derived destination — see the triage roll, which names it as the
-  one subpackage still awaiting a home.
+- The service/runtime core (the claim/execute/ack loop) stays in the root;
+  its files are renamed `loop*.go` when `servicecatalog` moves to
+  `service/catalog`, which removes the naming-rule collision (decision 8).
 
 ## The spine (stays in root, <=40)
 
-`registry.go` + `registry_additive_domains.go` (2; `defaults_registry.go`
-counts under `defaults*`), `defaults*.go` (17), `intent.go` + `intent_value.go`
-(2; `intent_emission.go` and `intent_domain_platform.go` are triage below),
-`domain.go` (1), `cross_scope*.go` (2; the cross-scope readiness aliases live
-as a stanza in `compat_projection.go` and burn down with the importer
-migration — spine re-derives to 38 after the crossscope move), `doc.go` (1),
-flat singles
-`dependency.go`, `observability.go`, `partitioning.go`, `platforms.go`,
-`projection.go` (5), service/runtime core (8, listed above),
-`candidate_loader.go` (1): **39 files**, plus the ~4-file compat facade
-(`compat_cloud.go`, `compat_correlation.go`, `compat_decode.go`,
-`compat_projection.go` — the 1,593 lines of `reducer.X` aliases and
-forwarders, one line per spelling, merged by the compat-consolidation PR
-into 1,549 bucket lines after shared-boilerplate dedup).
-Compat entries burn down to zero as the importer-migration child issue
-lands; until then no new `*_compat.go`, ever — a family move adds a stanza
-to the matching bucket file.
+The composition root: `doc.go`, the four compat buckets, `registry.go` +
+`registry_additive_domains.go`, the `defaults*.go` wiring, `intent.go` +
+`intent_value.go`, `domain.go`, `runtime.go`, `dependency.go`,
+`observability.go`, `cross_scope_completion_runner.go` (until
+`intents/readiness`), and the service loop (`service.go`,
+`service_loop_config.go`, `service_runtime_instance_lookup.go`,
+`service_batch.go`, `service_heartbeat.go`, `service_observability.go`,
+`service_side_runners.go`). `projection.go`, `projection_helpers.go`,
+`candidate_loader.go` and `platforms.go` are not spine (decision 5); they
+leave with `workload/` and `platform/`. Compat entries burn down to zero as
+the importer-migration child issue lands; until then no new `*_compat.go`,
+ever.
 
-Root arithmetic after the compat-consolidation PR: 286 = 39 spine + 4 compat
-facade + 243 awaiting family moves and importer migration. After the
-`packages/correlation` move (12 files): 274 = 39 + 4 + 231. After the
-`supplychain/core` move (70 files): 204 = 39 + 4 + 161 (dirgate row
-re-pinned 274 -> 204 with the re-derived digest in the same PR). End state ~9:
-doc.go + ~4 compat + ~4 contract surface (intent, domain, runtime,
-registry). ≤40 clears with room; no exception.
-`shared_projection*` (11) is NOT spine. Hoist trigger (exact): the first
-domain move whose `go/types` census references a `shared_projection*`
-symbol carries the hoist in the same PR; direction is family -> shared
-tier, never root <- family; the shared-projection intent identity
-(`shared_projection.go`) is byte-preserved and proven by B-7/B-12
-like any other move. No earlier hoist (nothing needs it yet), no later
-one (the first needy family cannot import root). (No line-anchored hash
-cite: no SHA256 derivation lives in `shared_projection*.go` — the
-`shared_projection.go:62-74` anchor from `go/internal/reducer/AGENTS.md`
-points at the domain registry block, and that AGENTS.md cite is stale.)
+Root arithmetic: 304 at first approval; 286 after the compat-consolidation
+PR; 274 after `packages/correlation`; 204 after `supplychain/core`, which is
+the #6645 base; 122 after #6645 (dirgate row re-pinned
+204 -> 122 with the re-derived digest in the same PR).
+
+`shared_projection*` was never spine. #6645 hoists it: port shapes and pure
+row helpers into `sharedintent` (H1, H2), phase repair and presence keys into
+`gpphase` (H3), `ProjectionDomains`, the rationale evidence source and
+`GraphQueryRunner` into `contract` (H4), then the worker into
+`intents/shared/worker` and the phase-repair drain into
+`intents/phase/repair` (H5). Direction is family -> shared tier, never
+root <- family. The shared-projection intent identity is byte-preserved and
+proven by B-7/B-12 like any other move.
 
 ## Triage roll (prefix-proposed, symbol-confirmed at move time)
 
 These have a proposed home by name but were not individually measured; the
 move PR's `go/types` census confirms or corrects, and this doc is amended
-when it disagrees. Never a new top-level package for any of them.
+when it disagrees. Never a new top-level package for any of them. Rows for
+singletons that already left the root are dropped.
 
 | File(s) | Proposed home |
 |---|---|
-| `s3.go`, `ec2*` singletons | `cloud/aws/core` |
-| `gcp_materialization.go` | `cloud/gcp/core` |
-| `container_image.go` (singleton) | `supplychain/image` |
-| `sbom*` singleton, `secrets*` singleton, `security*` singleton | `supplychain/sbom`, `security/secrets`, `security/alert` |
-| `semantic*` singleton | `search/semantic` |
-| `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `decode/` children by census (`intent_emission.go` defaults to `decode/facts`) |
-| `platform_infra_materialization.go` (the `platform` stanza in `compat_projection.go` burns down) | `repodependency/platform` |
-| `repo_workload.go` | `workload/repo` |
-| `publication.go`, `provenance_edges.go` (already inside the counted 11; no additional singletons) | `packages/correlation` |
-| `code_function*` (2) | `code/` child by census |
-| `value_flow.go` | `code/value` |
+| `s3.go`, `ec2*` singletons | `aws/` children by census |
+| `gcp_materialization.go` | `gcp/` |
+| `sbom*` singleton, `security*` singleton | `supply/chain/sbom`, `security/alert` |
+| `observability_coverage.go`, `quarantine*`, `decode*` (3), `shared_payload.go`, `intent_emission.go` | `fact/` children by census (`intent_emission.go` defaults to `fact/decode`) |
+| `platform_infra_materialization.go` (the `platform` stanza in `compat_cloud.go` burns down) | `platform/infrastructure` |
+| `projection.go`, `projection_helpers.go`, `candidate_loader.go`, `platforms.go` | `workload/` and `platform/` (decision 5) |
 | `workload_*` singletons (signal, identity, deployment, dependency, cloud, instance) | `workload/` children by census |
-| `runs*`, `handles*`, `invokes*`, `endpoint*`, `selection*`, `shell*`, `scoped*`, `projected*`, `documentation*`, `codeowners*`, `environment*`, `symbol*`, `source*`, `materializ*`, `infrastructure*`, `cross*`, `go*`, `python*`, `parsed*` | census at move time; no placement asserted here |
-| `servicecatalog/` (17, stays top-level interim) | destination by census at domain-move time — the one package still awaiting a home (`cloudjoin/` is decided top-level shared, above) |
+| `endpoint*`, `scoped*`, `projected*`, `documentation*`, `environment*`, `source*`, `materializ*`, `infrastructure*`, `cross*`, `go*`, `python*`, `parsed*` | census at move time; no placement asserted here |
 
-## Sequencing (largest first, one family per PR)
+## Sequencing (one parent per PR)
 
-1. `packages/correlation` (12 files: the 11 `package_*` — 13 glob hits
-   minus the two `supply_chain_impact_os_package_*` files — plus
-   `security_alert_manifest_dependency_match.go`; needs 6 generic-func
-   evictions to `payloadcore` first — `cloneBoolPointer`, `stringSet`,
-   `exactManifestDependencyVersion`, `orderedStrings`,
-   `packageNameFromPURL`, `packageNameFromPackageID` — measured 2026-09-08
-   on #6061, no cycles after eviction). `securityAlertPackageNameMatches`
-   does NOT evict to `payloadcore`: it takes
-   `securityalert.ProviderSecurityAlert`, which would violate payloadcore's
-   no-family-dependencies boundary (`payloadcore/README.md:17-24`). It
-   travels WITH the leaf into `packages/correlation`, importing the
-   already-extracted `securityalert/` subpackage one-way.
-2. `supplychain` core + suppression together (70 files, explicitly
-   including `finding.go`: suppression signatures take
-   `SupplyChainImpactFinding`, so moving the unit while `finding.go` stays
-   is a root<->package cycle — the unit is finding+core+suppression or
-   nothing; `model` leaf #6568 already merged as the stated prerequisite).
-   Count correction: 67 `supply_chain_*` non-test files at approval plus the
-   3 root-self-contained `go_vulnerability_reachability*.go` files, which the
-   move-time census showed resolve only to leaves (facts, factdecode,
-   payloadcore, schemadecode, supplychainmodel, SDK) and travel with the
-   core batch. The handler files
-   (`impact.go`, `writer.go`) travel with
-   their ~8 in-unit user files in the same PR so no batch boundary ever
-   splits a symbol from its users; external callers resolve through the
-   supply_chain_impact stanza in `compat_correlation.go` with zero edits.
-3. `code/` (45 = 52 `code_call*` minus the 7 `code_call_projection*`
-   runner-stays, plus 2 `code_value*` = 47; `code_import*` travels
-   separately in `repodependency/import`; the runner stay set is #6609's
-   list verbatim at move time — copied, never guessed; `sharedintent/doc.go`
-   pins that machinery, and #6609 is OPEN and orders before this step).
-4. `cloud/`, `workload/`, `repodependency/`, `intents/`, `edges/` in
-   measured order; re-derive each family with `go/types` first — filename
-   prefixes lie (per Lane A's query census: 4 of 46 `code*.go` files
-   belonged to a different handler).
-5. `iam/` (relocate the four existing subpackages under `iam/`: 11+3+6+3
-   files, no root strays to adjudicate).
-6. `kubernetes/` (relocate `kubernetescorrelation` + `crossplane`, absorb
-   `kubernetes_*` 3).
-7. `security/` (relocate `securityalert`, `secgroup`, `secretsiam`,
-   `incident`; absorb `secrets_iam.go`).
-8. `search/` (relocate `eshusearch`, `searchvector`, `semanticentity`;
-   absorb `semantic_entity.go`).
-9. `decode/` (relocate `schemadecode`, `factdecode`, `factload`,
-   `factwrite`, `payloadcore`, `admissiondecision`; absorb
-   `intent_emission.go` by default; `candidate_loader.go` stays spine).
+1. `packages/correlation` (landed). 12 files: the 11 `package_*` plus
+   `security_alert_manifest_dependency_match.go`, after 6 generic-func
+   evictions to `payloadcore`. `securityAlertPackageNameMatches` travels
+   with the leaf, importing the already-extracted `securityalert/` one-way,
+   because it takes `securityalert.ProviderSecurityAlert`.
+2. `supplychain` core + suppression together (landed, #6636). 70 files,
+   explicitly including `finding.go`: suppression signatures take
+   `SupplyChainImpactFinding`, so the unit is finding+core+suppression or
+   nothing. External callers resolve through the supply_chain_impact stanza
+   in `compat_correlation.go` with zero edits.
+3. `code/` (#6645): the complete subtree plus the hoists it needs
+   (decision 1). H1–H5 land first as leaf additions with root aliases (see
+   the spine section). Then `code/call` splits by language (decision 2),
+   and the handler, the seven code-call projection runners, the value-flow
+   cleanup runner and the symbol-runtime builders leave the root
+   (decision 4). Dispatcher tests stay in `code/call`: they enter through
+   `ExtractRows`, and a language directory cannot hold an internal test
+   that imports its own dispatcher. `code_import*` moves later, in
+   `dependency/imports`. `codeintel` -> `code/intel` is held (decision 10):
+   its importer `internal/query/downgraded_code_root_kinds_roundtrip_live_test.go`
+   is lanes A/B territory. The layout #6645 lands:
+
+   ```
+   code/                            namespace (doc trio only)
+   ├── call/                        doc extract resolution intents rows languages
+   │   │                            delta_partitions file_scope instantiates relationship
+   │   ├── shared/                  entity index + resolver contract (context.go)
+   │   ├── golang/ java/ javascript/ typescript/ python/ jvm/
+   │   ├── kotlin/ groovy/ dart/ elixir/ haskell/ perl/ rust/ swift/
+   │   ├── materialization/         handler routes workloads cloud_actions refresh
+   │   └── projection/              runner lease selection rows partitions candidates telemetry
+   ├── function/summary/            handler decode
+   ├── owners/                      handler scope
+   ├── shell/                       handler intents
+   ├── taint/                       package taint (was codetaint)
+   ├── value/                       package value (was valueflow)
+   │   └── cleanup/                 runner
+   └── semantic/                    was semanticentity
+   intents/                         namespace
+   ├── shared/worker/               the shared-projection worker (H5)
+   └── phase/repair/                the phase-repair drain (H5)
+   ```
+
+4. `intents/` (moves `sharedintent` and `gpphase`) and `fact/`. Shared
+   contracts: each moves with all of its consumers in the same PR, with no
+   forwarding package left behind.
+5. `edges/` and `dependency/`.
+6. `aws/`, `gcp/`, `azure/`, `cloud/`, `iam/`, `kubernetes/`, `terraform/`.
+7. `workload/` and `platform/`, after decision 5.
+8. `supply/chain/`, `security/`, `search/`, `service/catalog`,
+   `observability/`, `incident/`, `secrets/`, `crossplane/`.
+9. `code/intel`, once the query lane agrees.
+
+Re-derive each family with `go/types` first; filename prefixes lie (per Lane
+A's query census: 4 of 46 `code*.go` files belonged to a different handler).
+Open #6634 edits the code-call runner files and the dirgate ledger:
+whichever of it and #6645 lands second restacks onto the other.
 
 Preconditions per move PR: all-lanes-quiet window (re-check open PRs every
 preflight); `internal/query` untouched (lanes A/B, #5167); one-way imports
@@ -319,7 +321,8 @@ gate's own Postgres + NornicDB stack. Measured on the branch, from
 `go/`: `go build ./...` exit 0; `go vet ./internal/reducer/...` clean;
 `gofumpt -l` clean; `go test ./internal/reducer/... -count=1` green
 (full recursive tree); `go test ./internal/payloadusage/... -count=1`
-green; doc-citations 296/296; family-dirs gate green;
+green; doc-citations 296/296; `scripts/verify-package-docs.sh` reports the
+doc trio present for `supplychain/core`;
 `verify-telemetry-coverage.sh` green. 148 of 179 changed paths are
 git-mv renames (similarity 60-99%; the sub-90 scores are small files
 where package-clause plus leaf-symbol requalification dominates the
@@ -344,6 +347,32 @@ outside it (`contract/workload_identity.go`, a single string constant)
 emits nothing; its coverage row cites the unchanged writer-path trio
 (`eshu_dp_postgres_query_duration_seconds`,
 `eshu_dp_reducer_executions_total`, `eshu_dp_reducer_run_duration_seconds`).
+`verify-telemetry-coverage.sh` green.
+
+## Proof bar evidence: code/ move (tree step 3)
+
+No-Regression Evidence: #6645 is package relocation plus identifier renames,
+so there is no runtime delta to measure. Correctness is proven by
+construction plus replay. Baseline `origin/main` `e2aebec8c`, go1.27.1
+darwin/arm64, from `go/`: `go build ./...` exit 0; `go vet ./...` (whole
+module, tests included) clean; `go test
+./internal/reducer/... ./cmd/reducer/... ./internal/storage/postgres/...
+./internal/replay/... -count=1` green (84 packages ok); the test
+function inventory against the base is lost 0, gained 1 (6918 test names against 6917 at the base, from `go test -list`): moves keep test names, and
+the one gain is the E1 regression test
+`TestExtractCodeCallRowsCrossRepoExportSkipsCallerWithoutRepositoryID`;
+B-7 golden-corpus gate 562 pass / 0 required-fail / 0 advisory-warn (139s), matching the base; B-12 replay-coverage gate `--blocking` PASS with byte-identical report and reference-doc rewrites.
+The real `ExtractRows` benchmarks, before and after on the same machine,
+interleaved, n=12 per side: `ExtractCodeCallRowsLargeJavaScriptDynamicCalls` 5.230 -> 5.221 ms/op (~, p=0.755) and `ExtractCodeCallRowsRepositoryImportBarrier` 6.448 -> 6.474 ms/op (~, p=0.843), measured at 8d846ae02 after the `EntityIndex` unique-name accessors landed; B/op +0.76% and +0.01%, allocs/op +0.04% and +0.00%. `go build -gcflags=-m` reports all 13
+`EntityIndex` read-only accessors inlinable, and the language leaves inline
+them at their call sites, so decision 3 costs nothing measurable. No caller,
+query, queue, worker, lease, or storage contract changed.
+
+No-Observability-Change: the move adds no stage and no signal. Wire
+strings, domains, entity keys, and metric, span and log names are
+byte-identical; the handler still logs `code call materialization
+completed`. Every file the move added has a path-only telemetry-coverage row
+naming the instruments that already cover its stage;
 `verify-telemetry-coverage.sh` green.
 
 ## Restack rule (the dirgate ledger trap)

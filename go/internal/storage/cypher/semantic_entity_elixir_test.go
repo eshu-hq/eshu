@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 )
 
 func TestSemanticEntityWriterWritesElixirProtocolNodes(t *testing.T) {
@@ -17,9 +17,9 @@ func TestSemanticEntityWriterWritesElixirProtocolNodes(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 0)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semantic.EntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []semanticentity.SemanticEntityRow{
+		Rows: []semantic.EntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "protocol-1",
@@ -88,9 +88,9 @@ func TestSemanticEntityWriterWritesElixirModuleAttributeNodes(t *testing.T) {
 	executor := &recordingExecutor{}
 	writer := NewSemanticEntityWriter(executor, 0)
 
-	result, err := writer.WriteSemanticEntities(context.Background(), semanticentity.SemanticEntityWrite{
+	result, err := writer.WriteSemanticEntities(context.Background(), semantic.EntityWrite{
 		RepoIDs: []string{"repo-1"},
-		Rows: []semanticentity.SemanticEntityRow{
+		Rows: []semantic.EntityRow{
 			{
 				RepoID:       "repo-1",
 				EntityID:     "attr-1",

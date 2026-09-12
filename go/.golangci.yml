@@ -323,6 +323,15 @@ linters:
       #    parser-relationship-kit and route-coverage lockstep gates do
       #    not fire on what is a tooling-only change. The cap still
       #    applies to every other file; these are tracked for extraction.
+      - path: 'internal/reducer/code/call/materialization/handler\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/code/call/projection/runner\.go'
+        linters:
+          - funlen
+      - path: 'internal/reducer/code/call/projection/selection\.go'
+        linters:
+          - funlen
       - path: 'cmd/api/wiring\.go'
         linters:
           - funlen
@@ -485,18 +494,6 @@ linters:
       - path: 'internal/query/supplychain/supply_chain_impact_findings_handler\.go'
         linters:
           - funlen
-      - path: 'internal/reducer/code_call_materialization\.go'
-        linters:
-          - funlen
-      - path: 'internal/reducer/code_call_materialization_index\.go'
-        linters:
-          - funlen
-      - path: 'internal/reducer/code_call_projection_runner\.go'
-        linters:
-          - funlen
-      - path: 'internal/reducer/code_call_projection_selection\.go'
-        linters:
-          - funlen
       - path: 'internal/reducer/crossrepo/cross_repo_resolution\.go'
         linters:
           - funlen
@@ -507,9 +504,6 @@ linters:
         linters:
           - funlen
       - path: 'internal/reducer/service_batch\.go'
-        linters:
-          - funlen
-      - path: 'internal/reducer/shared_projection_worker\.go'
         linters:
           - funlen
       - path: 'internal/reducer/sqlrelationship/sql_relationship_materialization\.go'

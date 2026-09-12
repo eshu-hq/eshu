@@ -23,12 +23,12 @@
 // without a cross-partition retract race (#2910).
 //
 // Five names are exported beyond what this package's own Handle path needs
-// because the shell_exec family, which has not moved out of the reducer root
-// yet, reuses this exact delta-scope and embedded-code-index machinery for its
-// own materialization rather than duplicating it: DeltaScope and
-// BuildDeltaScope and MergeRepositoryIDs (shell_exec_materialization.go,
-// shell_exec_intents.go) and EmbeddedSQLFunctionIDsByNameLine and
-// EmbeddedSQLFunctionKey (shell_exec_materialization.go), issue #6061.
+// because the shell family (reducer/code/shell) reuses this exact delta-scope
+// and embedded-code-index machinery for its own materialization rather than
+// duplicating it: DeltaScope and BuildDeltaScope and MergeRepositoryIDs
+// (code/shell/handler.go, code/shell/intents.go) and
+// EmbeddedSQLFunctionIDsByNameLine and EmbeddedSQLFunctionKey
+// (code/shell/handler.go), issue #6061.
 //
 // EvidenceSource, FilePartitionKey, WholeScopePartitionKey and
 // PartitionKeyVersion are NOT consumed by shell_exec. They are exported for

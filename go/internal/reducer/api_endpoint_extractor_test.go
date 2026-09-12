@@ -128,3 +128,33 @@ func BenchmarkFrameworkAPIEndpointSignalsRouteEntries(b *testing.B) {
 		}
 	}
 }
+
+// TestFrameworkAPIEndpointSignalsEmitsCSharpASPNetExactEntries moved here from
+// handles_route_csharp_test.go (code/call/materialization move, issue #6061):
+// it exercises frameworkAPIEndpointSignals directly, not the HANDLES_ROUTE
+// intent builder, so it stays with its subject in this file.
+func TestFrameworkAPIEndpointSignalsEmitsCSharpASPNetExactEntries(t *testing.T) {
+	t.Parallel()
+
+	signals := frameworkAPIEndpointSignals("Controllers/OrdersController.cs", map[string]any{
+		"framework_semantics": map[string]any{
+			"frameworks": []any{"aspnet"},
+			"aspnet": map[string]any{
+				"route_entries": []map[string]string{
+					{"method": "GET", "path": "/api/orders/{id}", "handler": "OrdersController.Get"},
+					{"method": "POST", "path": "/api/orders/search", "handler": "OrdersController.Search"},
+				},
+			},
+		},
+	})
+
+	if got, want := len(signals), 2; got != want {
+		t.Fatalf("len(signals) = %d, want %d: %#v", got, want, signals)
+	}
+	methodsByPath := map[string][]string{}
+	for _, signal := range signals {
+		methodsByPath[signal.Path] = signal.Methods
+	}
+	assertEndpointMethods(t, methodsByPath, "/api/orders/{id}", []string{"get"})
+	assertEndpointMethods(t, methodsByPath, "/api/orders/search", []string{"post"})
+}

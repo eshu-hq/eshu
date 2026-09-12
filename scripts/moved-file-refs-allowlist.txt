@@ -43,3 +43,36 @@ docs/internal/evidence/5428-built-from-projection-rescinded.md:go/internal/reduc
 docs/internal/evidence/5167-code-family-batch-2.md:go/internal/query/language_query_cypher.go
 docs/internal/evidence/5167-code-family-batch-2.md:go/internal/query/language_query_metadata.go
 docs/internal/evidence/6546-language-query-extension-filter.md:go/internal/query/language_query_cypher.go
+
+# A dated No-Regression Evidence note for #5992, asserting the production
+# handler at this path was UNTOUCHED by that PR's diff (it never appears in
+# that PR's `git diff --name-only <merge-base>..HEAD`). Repointing to the
+# #6061 code/owners move destination would falsify that historical claim
+# about a prior, already-merged PR's diff scope.
+docs/internal/evidence/5992-codeowners-ownership-edges-ifa-fixtures.md:go/internal/reducer/codeowners_ownership_materialization.go
+
+# A dated "Runtime impact of the extraction seam" analysis for #6061's
+# symbol-runtime extraction: it names this exact path as the file the
+# perf-evidence gate flagged, and records the literal `git diff --numstat
+# origin/main...HEAD -- <path>` command run against it (46 additions, 0
+# deletions) as proof no existing line changed. Repointing to the #6061
+# code/call/materialization move destination would falsify that historical
+# diffstat claim, which was true only of the pre-move path.
+docs/internal/evidence/5995-5997-6000-symbol-runtime-lock-theory.md:go/internal/reducer/symbol_runtime_refresh_intents.go
+
+# #088 is an applied Postgres migration; its comment records the production
+# file name as it stood when the migration was authored. Applied migrations
+# are immutable, so this reference is never repointed.
+go/internal/storage/postgres/migrations/088_reducer_work_item_reopened_at.sql:go/internal/reducer/code_call_materialization.go
+
+# go/internal/query/** belongs to the query lanes, not this #6061 materialization
+# lane. The cited path is inside a comment; the repoint is deferred to whichever
+# query-lane PR next touches this file.
+go/internal/query/codequery/route_query_proof_matrix_test.go:go/internal/reducer/handles_route_intents.go
+
+# restructure-research.md is an explicitly dated 2026-08-11 measurement
+# snapshot ("Counts are a snapshot, not a contract") of the pre-restructure
+# citation inventory that justified this whole #6053/#6061 move -- its table
+# records the citation line numbers as they stood at research time, which
+# repointing to the post-move destination would falsify.
+docs/internal/design/restructure-research.md:go/internal/reducer/shared_projection.go

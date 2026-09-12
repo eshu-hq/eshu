@@ -15,9 +15,9 @@ import (
 // DeltaScope is the delta-generation scope this family's materialization
 // derives from a batch's "repository" facts. RepositoryIDs and
 // FilePathsByRepoID are exported (rather than kept package-private, as most of
-// this file's helpers are) because the shell_exec family, which has not moved
-// out of the reducer root yet, reuses this exact delta scope for its own
-// materialization (shell_exec_materialization.go) — see BuildDeltaScope.
+// this file's helpers are) because the shell family (reducer/code/shell)
+// reuses this exact delta scope for its own materialization
+// (code/shell/handler.go) — see BuildDeltaScope.
 type DeltaScope struct {
 	RepositoryIDs     []string
 	FilePathsByRepoID map[string][]string
@@ -140,7 +140,7 @@ func sqlRelationshipEnvelopeKey(envelope facts.Envelope) string {
 // Contract System v1 Wave 4f S2, issue #4754) rather than raw
 // semanticPayloadString/semanticPayloadStringSlice lookups. The cheap
 // delta_generation gate check runs on the raw payload before decode (matching
-// code_call_materialization_intents.go's buildCodeCallDeltaFileScopesByRepoID
+// code/call/intents.go's buildCodeCallDeltaFileScopesByRepoID
 // precedent) so a non-delta repository fact never pays the decode cost. A
 // delta-generation repository fact whose payload is missing a required
 // identity field is skipped, matching this function's pre-existing "skip and
@@ -172,7 +172,7 @@ func BuildDeltaScope(envelopes []facts.Envelope) DeltaScope {
 		// "path" is read raw off the top-level envelope first, then falls
 		// back to the typed LocalPath — preserving the exact
 		// pre-Contract-System precedence documented in
-		// code_call_materialization_intents.go's
+		// code/call/intents.go's
 		// buildCodeCallDeltaFileScopesByRepoID: "path" is NOT a typed
 		// codegraphv1.Repository field (repositoryFactEnvelope never writes
 		// it to the payload in production), so it is read raw here only to

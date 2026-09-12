@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/call/materialization"
 )
 
 // stateModelingEdgeWriter models the canonical graph edge STATE for a
@@ -215,7 +217,7 @@ func handlesRouteFenceConfig(partitionID, partitionCount int) PartitionProcessor
 		LeaseOwner:     "worker-1",
 		LeaseTTL:       30 * time.Second,
 		BatchLimit:     100,
-		EvidenceSource: handlesRouteEvidenceSource,
+		EvidenceSource: materialization.HandlesRouteEvidenceSource,
 	}
 }
 

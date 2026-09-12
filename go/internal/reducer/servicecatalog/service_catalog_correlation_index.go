@@ -322,7 +322,7 @@ func (link serviceCatalogRepositoryLinkEvidence) key() serviceCatalogEntityKey {
 // envelope's outer identity through schemadecode.DecodeCodegraphRepository, reused
 // unchanged from Wave 4f S1 (factschema_decode_codegraph.go). A payload
 // missing repo_id returns a classified decode error; the caller quarantines
-// it via codegraphDecodeQuarantine/factdecode.PartitionDecodeFailures, exactly like the
+// it via schemadecode.CodegraphDecodeQuarantine/factdecode.PartitionDecodeFailures, exactly like the
 // code-graph-core reducer's own "repository" reads.
 func serviceCatalogRepositoryFromFact(envelope facts.Envelope) (serviceCatalogRepositoryEvidence, error) {
 	repository, err := schemadecode.DecodeCodegraphRepository(envelope)

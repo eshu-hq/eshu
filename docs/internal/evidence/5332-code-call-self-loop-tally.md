@@ -6,7 +6,7 @@ unchanged from the original section.
 
 ## Code-call self-loop tally (#5332)
 
-`recordCodeCallSelfLoopWritten` (`code_call_materialization_extract.go`) runs
+`recordCodeCallSelfLoopWritten` (`go/internal/reducer/code/call/extract.go`) runs
 once per `extractCodeCallRowsWithIndex` call, after row extraction, sorting,
 and dedup. For each materialized row it compares `caller_entity_id` and
 `callee_entity_id`; a match is genuine recursion (the caller and callee
@@ -14,9 +14,9 @@ resolve to the same entity), not the #5332 parser defect the Dart AST rewrite
 removed (a declaration self-read as a call to itself — see
 `go/internal/parser/dart/calls.go`). Row writing is unchanged: every row,
 self-loop or not, is still returned and written. The pass only tallies
-self-loops per `lang` (carried onto each row by
-`appendCodeCallRow`/`copyOptionalCodeCallField` in
-`code_call_materialization_index_rows.go`) and logs the tally once if any were
+self-loops per `lang` (carried onto each row by `appendCodeCallRow` in
+`go/internal/reducer/code/call/rows.go`, through `shared.CopyOptionalField`
+in `go/internal/reducer/code/call/shared/paths.go`) and logs the tally once if any were
 found.
 
 Performance Evidence: the added work is a single extra `range` over the

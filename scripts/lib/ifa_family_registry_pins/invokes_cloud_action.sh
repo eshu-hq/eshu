@@ -15,8 +15,8 @@
 IFA_FAMILY_PIN_BLOCKER_KIND="runner_lease_hold"
 # wait_stage=runner: this family's rows are tagged
 # ProjectionDomain=DomainInvokesCloudAction="invokes_cloud_action"
-# (go/internal/reducer/shared_projection.go:44,
-# go/internal/reducer/invokes_cloud_action_intents.go:207) -- the
+# (go/internal/reducer/contract/domain.go:180,
+# go/internal/reducer/code/call/materialization/cloud_actions.go:213) -- the
 # shared_projection_intents.projection_domain column.
 IFA_FAMILY_PIN_WAIT_STAGE="runner"
 IFA_FAMILY_PIN_WAIT_KEY="invokes_cloud_action"

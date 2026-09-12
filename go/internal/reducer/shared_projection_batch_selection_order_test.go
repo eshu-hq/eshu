@@ -45,12 +45,17 @@ import (
 // This is a source-level assertion because the property is about call order in
 // one function rather than about a value any caller can observe, matching the
 // source-grep tests in cmd/reducer/neo4j_wiring_test.go.
+//
+// SelectPartitionBatch's real implementation moved to
+// intents/shared/worker/process.go (issue #6061); this file's own
+// SelectPartitionBatch is now a thin forwarder, so the assertion reads the
+// worker package's source instead.
 func TestSelectPartitionBatchFiltersBeforeDeduping(t *testing.T) {
 	t.Parallel()
 
-	src, err := os.ReadFile("shared_projection_worker.go")
+	src, err := os.ReadFile("intents/shared/worker/process.go")
 	if err != nil {
-		t.Fatalf("read shared_projection_worker.go: %v", err)
+		t.Fatalf("read intents/shared/worker/process.go: %v", err)
 	}
 
 	body := selectPartitionBatchBody(t, string(src))

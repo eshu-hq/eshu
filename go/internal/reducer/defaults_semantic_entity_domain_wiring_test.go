@@ -10,15 +10,15 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 )
 
 // TestNewDefaultRuntimeRegistersSemanticEntityMaterializationWhenWriterPresent
 // drives NewDefaultRuntime's DomainSemanticEntityMaterialization wiring
 // end-to-end. It stays in the reducer root rather than moving with the
-// semantic_entity family to semanticentity (issue #6061), because it
+// semantic_entity family to code/semantic (issue #6061), because it
 // exercises the root's own runtime/registry construction across several
-// families' writers, not semanticentity's internals alone.
+// families' writers, not code/semantic's internals alone.
 func TestNewDefaultRuntimeRegistersSemanticEntityMaterializationWhenWriterPresent(t *testing.T) {
 	t.Parallel()
 
@@ -33,7 +33,7 @@ func TestNewDefaultRuntimeRegistersSemanticEntityMaterializationWhenWriterPresen
 			result: PlatformMaterializationWriteResult{CanonicalWrites: 1},
 		},
 		SemanticEntityWriter: &recordingSemanticEntityWriter{
-			result: semanticentity.SemanticEntityWriteResult{CanonicalWrites: 1},
+			result: semantic.EntityWriteResult{CanonicalWrites: 1},
 		},
 		FactLoader: &stubFactLoader{
 			envelopes: []facts.Envelope{

@@ -85,7 +85,7 @@
 // root wires into every family's handler is the one shared factload.FactLoader,
 // and Go interfaces are satisfied structurally, so it also satisfies these
 // local declarations without duplicating any logic -- the same pattern
-// internal/reducer/codetaint's graph_ports.go established. A handful of
+// internal/reducer/code/taint's graph_ports.go established. A handful of
 // small, pure helpers this package's own logic touches
 // (package-name-from-purl/package-ID parsing, the dependency-scope and
 // exact-version-match fallbacks, the evidence-kind default, the

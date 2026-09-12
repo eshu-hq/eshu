@@ -11,7 +11,14 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
+
+// workloadMaterializationRepoReadinessKey forwards to
+// [gpphase.WorkloadMaterializationRepoReadinessKey].
+func workloadMaterializationRepoReadinessKey(scopeID, repoID, generationID string) GraphProjectionPhaseKey {
+	return gpphase.WorkloadMaterializationRepoReadinessKey(scopeID, repoID, generationID)
+}
 
 // repoReadinessPhaseStates builds one workload-materialization phase-state row
 // per distinct repo, keyed by the deterministic per-repo readiness key (#2891)
@@ -134,7 +141,7 @@ func enqueueRepoReadinessPhaseRepairs(
 	if cause != nil {
 		reason = cause.Error()
 	}
-	repairs := GraphProjectionPhaseRepairsFromStates(states, reason, time.Now().UTC())
+	repairs := gpphase.PhaseRepairsFromStates(states, reason, time.Now().UTC())
 	if err := repairQueue.Enqueue(ctx, repairs); err != nil {
 		return fmt.Errorf("enqueue repo workload-materialization readiness repairs: %w", err)
 	}

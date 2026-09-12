@@ -126,10 +126,10 @@ for the fixture, benchmark boundary, and completed live proof on the supported b
 ## Cross-repo call resolver coverage (issue #3487)
 
 `DomainCodeCallMaterialization` resolves a parser-emitted call to a callee entity
-through the ordered dispatch in `code_call_materialization_resolution.go`. Beyond
+through the ordered dispatch in `code/call/resolution.go`. Beyond
 the language-agnostic stages (same-file scope, import binding, repo-unique name),
 some languages register a dedicated `before_repo_fallback` resolver
-(`code_call_language_*_resolver.go`) that uses parser-emitted receiver-type or
+(`code/call/*_resolver.go`) that uses parser-emitted receiver-type or
 import evidence to bind a confident cross-file/cross-repo edge before the broad
 repo-unique-name guess.
 
@@ -188,25 +188,30 @@ Core interfaces:
 - `BatchWorkSource`, `BatchWorkSink` — `service.go:43–51`
 - `Handler`, `HandlerFunc` — `registry.go:70–78`
 - `GraphProjectionPhasePublisher` — `graph_projection_phase.go:117`
-- `GraphProjectionPhaseRepairQueue` — `graph_projection_phase_repair.go:36`
-- `GraphProjectionPhaseStateLookup` — `graph_projection_phase_repair_runner.go:25`
+- `GraphProjectionPhaseRepairQueue` (alias of `gpphase.PhaseRepairQueue`) —
+  `graph_projection_phase_repair.go`
+- `StateLookup` (`internal/reducer/intents/phase/repair`, no root alias) —
+  `intents/phase/repair/runner.go`
 
 Exported constants:
 
 - `DefaultSharedProjectionLeaseOwnerPrefix` and
-  `DefaultCodeCallProjectionLeaseOwnerPrefix` — the semantic fallback labels
-  shared by zero-value runner configs and the production process-unique owner
-  loader. Keeping them here prevents the two paths from drifting.
-- `RepoRefreshIntentType` — `shared_projection_worker_refresh_fence.go:44` — the
+  `DefaultCodeCallProjectionLeaseOwnerPrefix` — root spellings of
+  `worker.DefaultLeaseOwnerPrefix` and `projection.DefaultLeaseOwnerPrefix`,
+  the semantic fallback labels shared by zero-value runner configs and the
+  production process-unique owner loader. Each label is defined once, in its
+  runner's package, so the two paths cannot drift.
+- `RepoRefreshIntentType` — `sharedintent/refresh.go:25`, with a root alias — the
   `intent_type` payload value a repo-wide refresh intent carries. Exported
   because the graph-write side reads it back rather than keeping its own copy:
   `storage/cypher`'s rationale retract selects whole-scope repositories by
   matching it, and a drifted copy there would match nothing, silently stop the
   whole-scope retract, and leave stale EXPLAINS edges with no error and no dead
   letter.
-- `RepoWideRetractDomains()` — `shared_projection_worker_refresh_fence.go:100` —
-  the sorted set of domains whose retract the per-repo refresh intent owns, read
-  from the same map `domainHasRepoWideRetract` uses. Exported for the same
+- `RepoWideRetractDomains()` — `sharedintent/refresh.go:195`, with a root
+  forwarder — the sorted set of domains whose retract the per-repo refresh
+  intent owns, read from the same map `sharedintent.DomainHasRepoWideRetract`
+  uses. Exported for the same
   reason as the constant above: `storage/cypher` keeps its own table splitting
   these domains into the narrowed and un-narrowed halves of the whole-scope
   retract, and a domain fenced here but missing there gets a whole-repository

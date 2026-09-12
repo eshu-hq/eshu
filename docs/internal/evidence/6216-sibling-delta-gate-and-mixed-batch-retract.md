@@ -158,7 +158,7 @@ Each of the three delta branches now calls
 `collectWholeScopeRefreshRepoIDs(rows)` where it previously returned. Same
 input shape as the `#6166` measurement so the figures are comparable: a 100-row
 batch (`defaultBatchLimit` in
-`go/internal/reducer/shared_projection_runner.go`), one refresh row per
+`go/internal/reducer/intents/shared/worker/runner.go`), one refresh row per
 repository, 100 distinct repository ids.
 
 VERIFIED — this branch, Go 1.26.6, `darwin/arm64`, Apple M4 Pro, `-12`:

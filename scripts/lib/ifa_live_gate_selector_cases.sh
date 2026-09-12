@@ -143,7 +143,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/reducer/**|go/internal/reducer/projection_helpers.go'
 	'go/internal/reducer/**|go/internal/reducer/candidate_loader.go'
 	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase_publish.go'
-	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase_repair_runner.go'
+	'go/internal/reducer/**|go/internal/reducer/intents/phase/repair/runner.go'
 	# The five files that split off sql_relationships, the one reducer family
 	# that had been pinned to two literal filenames. They decide which edges
 	# `ifa assert-edges -domain sql_relationships` sees. #6061 moved them into
@@ -155,7 +155,7 @@ ifa_live_gate_common_seams=(
 	'go/internal/reducer/**|go/internal/reducer/sqlrelationship/sql_relationship_table_targets.go'
 	# Previously-listed literals, now covered by the glob.
 	'go/internal/reducer/**|go/internal/reducer/intent.go'
-	'go/internal/reducer/**|go/internal/reducer/shared_projection.go'
+	'go/internal/reducer/**|go/internal/reducer/contract/domain.go'
 	'go/internal/reducer/**|go/internal/reducer/graph_projection_phase.go'
 	'go/internal/reducer/**|go/internal/reducer/schemadecode/factschema_decode_submodule.go'
 	# go/internal/reducer/contract/ is a subpackage, and it arrived on main as

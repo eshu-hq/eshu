@@ -14,6 +14,7 @@ import (
 	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 	"github.com/eshu-hq/eshu/go/internal/reducer/factload"
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/payloadcore"
 	"github.com/eshu-hq/eshu/go/internal/reducer/schemadecode"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -395,7 +396,7 @@ func assertInheritanceIntentKeyShapes(t *testing.T, intents []sharedintent.Row) 
 	sawRefresh := false
 	sawPerEdge := false
 	for _, intent := range intents {
-		if isRepoRefreshRow(intent) {
+		if sharedintent.IsRepoRefreshRow(intent) {
 			sawRefresh = true
 			if intent.PartitionKey != inheritance.WholeScopePartitionKey(intent.RepositoryID) {
 				t.Fatalf("refresh intent partition key %q is not the whole-scope fence key", intent.PartitionKey)
@@ -406,7 +407,7 @@ func assertInheritanceIntentKeyShapes(t *testing.T, intents []sharedintent.Row) 
 		if !strings.HasPrefix(intent.PartitionKey, inheritance.PartitionKeyVersion+":files:") {
 			t.Fatalf("per-edge intent partition key %q lacks file-scoped prefix", intent.PartitionKey)
 		}
-		if !rowUsesRefreshFence(intent) {
+		if !worker.RowUsesRefreshFence(intent) {
 			t.Fatalf("per-edge intent %q is not marked retract_via_refresh", intent.IntentID)
 		}
 	}

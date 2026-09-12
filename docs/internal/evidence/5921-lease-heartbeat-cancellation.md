@@ -77,7 +77,7 @@ After the fix, the focused reducer proof passes under the race detector:
 
 ```bash
 cd go
-go test ./internal/reducer -race -count=1 -v \
+go test ./internal/reducer ./internal/reducer/code/call/projection -race -count=1 -v \
   -run 'Test(CodeCallProjectionRunnerOrderlyStopDoesNotMisreportInFlightRenewalCancellation|ProcessPartitionOnceOrderlyStopDoesNotMisreportInFlightRenewalCancellation|RepoDependencyLeaseHeartbeatRecordsExplicitRejectionDespiteConcurrentStop|RepoDependencyProjectionRunnerQuarantinesHeartbeatLossBeforeSuccess|RepoDependencyProjectionRunnerOrderlyHeartbeatStopNeverQuarantines)$'
 ```
 
@@ -97,7 +97,7 @@ pre-mutation SHA-256 hashes byte for byte:
 
 ```text
 d8b3d5f772efc1f02345209573eaa371f7d944fcf0c605cdd6dd3fbf05648e76  code_call_projection_runner_lease.go
-76f124d79e2decb05f585d0d9237c097762135eeabc9913ff27dd72ec1e07ff9  shared_projection_worker_lease_heartbeat.go
+76f124d79e2decb05f585d0d9237c097762135eeabc9913ff27dd72ec1e07ff9  intents/shared/worker/heartbeat.go
 06fb1e1306d5edcbfa287465cd4edd0af5f7e420c7626c870cd59ec61bd22bdd  repo_dependency_projection_runner.go
 00607739de27dc1f01b62d26bcc55eba83ce34cdf4a08f6d3dd79b3e2e318481  shared_intents.go
 ```

@@ -30,7 +30,7 @@ signal about where the symbol belongs, not a reason to reach upward:
 - a symbol the root genuinely owns as logic AND is still shared by other
   in-root families — `GraphQueryRunner`, `activeRepositoryFactLoader` — is
   declared locally here instead, structurally identical, per
-  `internal/reducer/codetaint/graph_ports.go`'s precedent. Never hoist one of
+  `internal/reducer/code/taint/graph_ports.go`'s precedent. Never hoist one of
   these unilaterally; that touches packages this family does not own.
 
 Read the root declaration before deciding: a body of

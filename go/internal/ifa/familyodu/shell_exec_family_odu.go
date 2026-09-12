@@ -14,7 +14,7 @@ import (
 
 // The shell_exec family Odù (#6001, under the #5543 umbrella).
 //
-// reducer.ExtractShellExecRows (go/internal/reducer/shell_exec_materialization.go)
+// reducer.ExtractShellExecRows (go/internal/reducer/code/shell/handler.go)
 // projects one Function-[:EXECUTES_SHELL]->ShellCommand edge per distinct
 // (function, line_number, api) triple carried in a file's parser-emitted
 // parsed_file_data.embedded_shell_commands. The fixture below exercises every
@@ -38,7 +38,7 @@ import (
 // materialized_edges_shell_exec.go guard and its tests moved to
 // go/internal/ifa/materializededges because they exercise this Odù and
 // independently reproduce its canonical-id/target-hash literals against the
-// real content.CanonicalEntityID and shellExecTargetID algorithms, and that
+// real content.CanonicalEntityID and shellCommandTargetID algorithms, and that
 // package can only do so by reading these identifiers from here, not a
 // second copy of them -- a stale copy of a reference-side identity like this
 // would fail open (compare equal to itself, never to production truth).
@@ -97,8 +97,8 @@ const (
 	ShellExecFamilySilentFunctionUID  = "content-entity:e_0bde1f6623cb"
 
 	// ShellExecFamilyDeployTarget1/2 are the ShellCommand target uids
-	// edge_writer_shell_exec.go's buildShellExecRowMap/shellExecTargetID
-	// derives: sha256(repo_id, source_path, function_entity_id, line_number,
+	// edge_writer_shell_exec.go's buildShellExecRowMap and the reducer's
+	// shellCommandTargetID (code/shell/handler.go) derive: sha256(repo_id, source_path, function_entity_id, line_number,
 	// api), each field NUL-terminated, hex-encoded and prefixed
 	// "shell-command:". source_path here is parsed_file_data.path (the full
 	// local-path-prefixed path), NOT the file fact's relative_path:
@@ -108,7 +108,7 @@ const (
 	// Independently reproduced (not hand-typed) by
 	// TestShellExecTargetIDLiteralsMatchTheWriterFunction, which holds a copy
 	// of the same hashing algorithm read directly off
-	// go/internal/reducer/shell_exec_materialization.go's shellExecTargetID.
+	// go/internal/reducer/code/shell/handler.go's shellCommandTargetID.
 	ShellExecFamilyDeployTarget1 = "shell-command:684dbafc339b684757e594dddd2c1b58a5e6613885d9506e94b9cb02258efd1a" // deploy.py line 5, api=os.system
 	ShellExecFamilyDeployTarget2 = "shell-command:c61db6da0b0b274841061584a6e9fe62f1290fd66a8fe9d2f85216eb52c11b92" // deploy.py line 6, api=subprocess.run
 )

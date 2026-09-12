@@ -35,7 +35,7 @@ type ContainerImageIdentityWriter interface {
 // by several families that have not moved out of root yet (package source
 // correlation, security alert reconciliation, supply chain impact), so
 // importing it would violate the rule that a family subpackage never imports
-// the reducer root (issue #6061). See internal/reducer/codetaint/graph_ports.go
+// the reducer root (issue #6061). See internal/reducer/code/taint/graph_ports.go
 // for the established precedent. Go interfaces are satisfied structurally, so
 // the same concrete FactLoader implementations root wires into those other
 // handlers also satisfy this local declaration without any code duplication.

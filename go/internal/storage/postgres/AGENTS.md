@@ -620,7 +620,7 @@ NON-DESTRUCTIVELY backfills pre-#2842 `repo_workload` rows with
 so the repo-scoped runtime retract (keyed `repo_id = ANY(...)`) can finally match
 and clean legacy stale rows once their repo re-materializes. It deliberately does
 NOT delete blank-provenance rows: a delete would also remove still-CURRENT target
-presence, and because `filterRowsByReadiness` terminalizes (does not defer) a
+presence, and because `worker.FilterRowsByReadiness` terminalizes (does not defer) a
 handles_route/runs_in row whose presence is absent, that would silently drop a live
 edge until the next re-materialization (the #2903 P1). The hashed
 `api_endpoint_repo_path` uid (#2844) makes repo_id unrecoverable, so those legacy

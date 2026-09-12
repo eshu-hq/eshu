@@ -24,7 +24,7 @@ import (
 // sql_relationship_materialization) already reads "relative_path", so this
 // aligns inheritance with the established contract rather than inventing a new
 // one. No "path" fallback is added: unlike a `file` fact's parsed_file_data
-// (shell_exec_materialization.go, which legitimately carries a raw top-level
+// (code/shell/handler.go, which legitimately carries a raw top-level
 // "path" for some callers/fixtures alongside its own nested "path"), a
 // content_entity fact never carries a top-level "path" key in any production
 // or fixture shape this repo emits, so a fallback here would be dead code

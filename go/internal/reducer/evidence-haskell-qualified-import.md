@@ -1,6 +1,6 @@
 # Haskell Qualified Import Evidence
 
-No-Regression Evidence: `go test ./internal/reducer -run 'Haskell.*Import' -count=1`
+No-Regression Evidence: `go test ./internal/reducer/code/call -run 'Haskell.*Import' -count=1`
 failed before `import qualified Data.Text as T; T.pack value` could resolve
 across files, then passed after the Haskell resolver bound parser-emitted
 qualified import aliases to the prescan `imports_map` module path and resolved

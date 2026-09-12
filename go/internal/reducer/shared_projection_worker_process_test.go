@@ -7,6 +7,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadinessBlocked(t *testing.T) {
@@ -40,7 +42,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 		},
 	}
 
-	result, err := SelectPartitionBatch(
+	result, err := worker.SelectPartitionBatch(
 		context.Background(),
 		reader,
 		DomainDocumentationEdges,
@@ -71,7 +73,7 @@ func TestSelectPartitionBatchKeepsScanningForReadyRowsWhenEarlierUnitsAreReadine
 		nil,
 	)
 	if err != nil {
-		t.Fatalf("SelectPartitionBatch() error = %v", err)
+		t.Fatalf("worker.SelectPartitionBatch() error = %v", err)
 	}
 	if len(result.LatestRows) != 1 {
 		t.Fatalf("len(LatestRows) = %d, want 1 ready row", len(result.LatestRows))

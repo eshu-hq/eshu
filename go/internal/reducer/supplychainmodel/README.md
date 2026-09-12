@@ -122,7 +122,7 @@ shape, or control flow changes. Measured rather than asserted, because the
 gate's hot-file list covers every `supply_chain_impact_*.go` file this diff
 touches.
 
-No-Regression Evidence: `go test ./internal/reducer -run '^$' -bench ... -benchtime=200x -count=5`
+No-Regression Evidence: `go test ./internal/reducer ./internal/reducer/code/call -run '^$' -bench ... -benchtime=200x -count=5`
 on go1.27.1 darwin/arm64, comparing `origin/main` c52c30560 against this branch
 in two worktrees on the same machine, back to back. Medians of five runs:
 

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/inheritance"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 )
 
@@ -122,7 +124,7 @@ func TestSiblingProductionIntentsNeverReachRetractAsUnmarkedRows(t *testing.T) {
 				t.Fatalf("emitted intents = %d, want 4 (2 refresh + 2 per-edge)", len(rows))
 			}
 
-			plan, err := planRepoWideRetractWork(
+			plan, err := worker.PlanRepoWideRetractWork(
 				context.Background(),
 				tc.domain,
 				roundTripPayloads(t, rows),
@@ -136,16 +138,16 @@ func TestSiblingProductionIntentsNeverReachRetractAsUnmarkedRows(t *testing.T) {
 
 			// Positive half first: the refresh rows must still retract, or a
 			// wholly inert plan would satisfy the negative half vacuously.
-			if len(plan.retractRows) != 2 {
-				t.Fatalf("retractRows = %d, want 2 (one refresh per repository)", len(plan.retractRows))
+			if len(plan.RetractRows) != 2 {
+				t.Fatalf("retractRows = %d, want 2 (one refresh per repository)", len(plan.RetractRows))
 			}
-			if len(plan.writeRows) != 2 {
-				t.Fatalf("writeRows = %d, want 2 (both per-edge rows write this cycle)", len(plan.writeRows))
+			if len(plan.WriteRows) != 2 {
+				t.Fatalf("writeRows = %d, want 2 (both per-edge rows write this cycle)", len(plan.WriteRows))
 			}
 
 			// Negative half: nothing reaching the retract may lack the
 			// intent_type the narrowed dispatch now requires.
-			for _, row := range plan.retractRows {
+			for _, row := range plan.RetractRows {
 				if payloadStr(row.Payload, "intent_type") != RepoRefreshIntentType {
 					t.Fatalf("intent %s reached retractRows without intent_type=%q (payload %#v); "+
 						"the %s whole-scope retract would bind it into a repo-wide DELETE",
@@ -176,11 +178,11 @@ func TestSiblingPerEdgeIntentsCarryRefreshFenceMarkerAfterRoundTrip(t *testing.T
 
 			perEdge := 0
 			for _, row := range roundTripPayloads(t, rows) {
-				if isRepoRefreshRow(row) {
+				if sharedintent.IsRepoRefreshRow(row) {
 					continue
 				}
 				perEdge++
-				if !rowUsesRefreshFence(row) {
+				if !worker.RowUsesRefreshFence(row) {
 					t.Fatalf("per-edge intent %s lost its %s marker across the durable round trip (payload %#v)",
 						row.IntentID, retractViaRefreshKey, row.Payload)
 				}

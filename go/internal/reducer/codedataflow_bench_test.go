@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/reducer/codetaint"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/taint"
 )
 
 // benchmarkCodeTaintEvidenceCorpus builds a synthetic corpus of count
@@ -52,7 +52,7 @@ func BenchmarkDecodeCodeTaintEvidenceInput(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, env := range envelopes {
-			_, _ = codetaint.DecodeCodeTaintEvidenceInput(env)
+			_, _ = taint.DecodeEvidenceInput(env)
 		}
 	}
 }
@@ -95,32 +95,32 @@ func BenchmarkDecodeCodeInterprocEvidenceInput(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, env := range envelopes {
-			_, _ = codetaint.DecodeCodeInterprocEvidenceInput(env)
+			_, _ = taint.DecodeInterprocEvidenceInput(env)
 		}
 	}
 }
 
 // BenchmarkExtractCodeTaintEvidenceRows measures the full row-extraction path
 // (decode + row-build) end to end, mirroring what
-// CodeTaintEvidenceMaterializationHandler.Handle does per generation.
+// EvidenceHandler.Handle does per generation.
 func BenchmarkExtractCodeTaintEvidenceRows(b *testing.B) {
 	envelopes := benchmarkCodeTaintEvidenceCorpus(1000)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _ = codetaint.ExtractCodeTaintEvidenceRowsWithQuarantine(envelopes)
+		_, _, _ = taint.ExtractEvidenceRowsWithQuarantine(envelopes)
 	}
 }
 
 // BenchmarkExtractCodeInterprocEvidenceRows measures the full row-extraction
 // path for the interproc family, mirroring
-// CodeInterprocEvidenceMaterializationHandler.Handle.
+// InterprocEvidenceHandler.Handle.
 func BenchmarkExtractCodeInterprocEvidenceRows(b *testing.B) {
 	envelopes := benchmarkCodeInterprocEvidenceCorpus(1000)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _ = codetaint.ExtractCodeInterprocEvidenceRowsWithQuarantine(envelopes)
+		_, _, _ = taint.ExtractInterprocEvidenceRowsWithQuarantine(envelopes)
 	}
 }
 

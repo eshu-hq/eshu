@@ -5,45 +5,16 @@ package reducer
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"sort"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
-// apiEndpointRepoPathPresenceKeySeparator joins repo_id and path in the presence
-// uid HASH INPUT only. The NUL byte never appears in a repo_id or route path, so
-// the (repo_id, path) pair hashes to exactly one digest with no collision and no
-// separator ambiguity. It is only ever a hash input — never stored — so the
-// 0x00 byte never reaches Postgres.
-const apiEndpointRepoPathPresenceKeySeparator = "\x00"
-
-// apiEndpointRepoPathPresenceKeyPrefix labels the synthesized presence uid so it
-// is self-describing in the graph_endpoint_presence table.
-const apiEndpointRepoPathPresenceKeyPrefix = "api-endpoint-presence:"
-
-// apiEndpointRepoPathPresenceKey synthesizes the (repo_id, path) presence uid an
-// :Endpoint node is recorded under in the GraphProjectionKeyspaceAPIEndpointRepoPath
-// presence domain (#2809). It returns an empty string when either component is
-// blank, because a blank component cannot key a presence row and must be skipped
-// by both the publisher and the gate.
-//
-// The uid is a SHA-256 hex digest, not a raw repo_id+separator+path join: the
-// uid is written to the Postgres text graph_endpoint_presence.uid column, and a
-// raw join embeds the 0x00 separator byte, which Postgres rejects for text
-// (SQLSTATE 22021) — dead-lettering workload materialization for every
-// endpoint-exposing repo (#2844 regression). Hashing keeps the key
-// collision-free and separator-unambiguous while staying Postgres-safe (hex,
-// no control bytes). Publisher and gate both call this function, so they agree.
+// apiEndpointRepoPathPresenceKey forwards to
+// [gpphase.APIEndpointRepoPathPresenceKey].
 func apiEndpointRepoPathPresenceKey(repoID, path string) string {
-	repoID = strings.TrimSpace(repoID)
-	path = strings.TrimSpace(path)
-	if repoID == "" || path == "" {
-		return ""
-	}
-	digest := sha256.Sum256([]byte(repoID + apiEndpointRepoPathPresenceKeySeparator + path))
-	return apiEndpointRepoPathPresenceKeyPrefix + hex.EncodeToString(digest[:16])
+	return gpphase.APIEndpointRepoPathPresenceKey(repoID, path)
 }
 
 // publishAPIEndpointRepoPathPresence records property-keyed (repo_id, path)
@@ -120,83 +91,12 @@ func publishAPIEndpointRepoPathPresence(
 	)
 }
 
-// handlesRouteEndpointPresenceKey returns the (repo_id, path) presence uid for
-// one handles_route intent row, reading the repo_id and path from the intent
-// payload (the fields buildHandlesRouteIntentRows emits). It returns an empty
-// string when either is missing, in which case the gate cannot prove presence
-// and defers the row.
-func handlesRouteEndpointPresenceKey(row SharedProjectionIntentRow) string {
-	repoID := payloadStr(row.Payload, "repo_id")
-	if repoID == "" {
-		repoID = strings.TrimSpace(row.RepositoryID)
-	}
-	path := payloadStr(row.Payload, "path")
-	return apiEndpointRepoPathPresenceKey(repoID, path)
-}
-
-// filterRowsByTargetPresence splits phase-ready symbol→runtime rows into the rows
-// whose target is committed (present) and the rows whose target is absent. It
-// backs both the handles_route endpoint-presence gate (#2809) and the runs_in
-// repo-workload-presence gate (#2855): the caller supplies the presence keyspace
-// and a per-row key function so the same bounded MissingUIDs lookup (ONE call
-// over the distinct synthesized uids, never an N+1 per-row probe) serves either
-// domain. A nil lookup disables the gate and returns every input row as present,
-// so the gated path stays byte-identical to its pre-gate behavior when presence
-// is unwired. The caller treats the absent set as TERMINAL (complete, no edge),
-// not deferred: the phase gate already proves the repo's targets have all
-// committed, so an absent target will never appear.
-func filterRowsByTargetPresence(
-	ctx context.Context,
-	rows []SharedProjectionIntentRow,
-	presence EndpointPresenceLookup,
-	keyspace GraphProjectionKeyspace,
-	keyFor func(SharedProjectionIntentRow) string,
-) (present, absent []SharedProjectionIntentRow, err error) {
-	if presence == nil || len(rows) == 0 {
-		return rows, nil, nil
-	}
-
-	keyByRow := make([]string, len(rows))
-	seen := make(map[string]struct{}, len(rows))
-	uids := make([]string, 0, len(rows))
-	for i, row := range rows {
-		key := keyFor(row)
-		keyByRow[i] = key
-		if key == "" {
-			continue
-		}
-		if _, exists := seen[key]; exists {
-			continue
-		}
-		seen[key] = struct{}{}
-		uids = append(uids, key)
-	}
-	sort.Strings(uids)
-
-	missing, err := presence.MissingUIDs(ctx, keyspace, uids)
-	if err != nil {
-		return nil, nil, err
-	}
-	missingSet := make(map[string]struct{}, len(missing))
-	for _, uid := range missing {
-		missingSet[uid] = struct{}{}
-	}
-
-	present = make([]SharedProjectionIntentRow, 0, len(rows))
-	absent = make([]SharedProjectionIntentRow, 0)
-	for i, row := range rows {
-		key := keyByRow[i]
-		// A row with no derivable (repo_id, path) cannot be proven present and
-		// cannot anchor a MERGE either, so it joins the absent (terminal) set.
-		if key == "" {
-			absent = append(absent, row)
-			continue
-		}
-		if _, isMissing := missingSet[key]; isMissing {
-			absent = append(absent, row)
-			continue
-		}
-		present = append(present, row)
-	}
-	return present, absent, nil
-}
+// handlesRouteEndpointPresenceKey (issue #6061's H3) already lived at
+// [gpphase.HandlesRouteEndpointPresenceKey]; this file kept only a thin root
+// forwarder under the old name. filterRowsByTargetPresence stayed here until
+// H5. Both this forwarder and filterRowsByTargetPresence were deleted in H5:
+// their only caller, the symbol→runtime presence gate
+// (symbolRuntimePresenceGate, filterRowsByReadiness), moved to
+// internal/reducer/intents/shared/worker, and worker calls
+// [gpphase.HandlesRouteEndpointPresenceKey] and its own local
+// filterRowsByTargetPresence directly instead of through a root forwarder.

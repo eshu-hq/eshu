@@ -6,6 +6,8 @@ package reducer
 import (
 	"testing"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
 )
 
 func TestBuildSharedProjectionIntentDeterministicID(t *testing.T) {
@@ -214,7 +216,7 @@ func TestRowsForPartitionFiltersCorrectly(t *testing.T) {
 	partitionCount := 4
 	var totalCollected int
 	for pid := 0; pid < partitionCount; pid++ {
-		filtered := RowsForPartition(rows, pid, partitionCount)
+		filtered := sharedintent.RowsForPartition(rows, pid, partitionCount)
 		totalCollected += len(filtered)
 		for _, r := range filtered {
 			got, err := PartitionForKey(r.PartitionKey, partitionCount)
@@ -235,12 +237,12 @@ func TestRowsForPartitionFiltersCorrectly(t *testing.T) {
 func TestRowsForPartitionEmptyForNoMatch(t *testing.T) {
 	t.Parallel()
 
-	result := RowsForPartition(nil, 0, 4)
+	result := sharedintent.RowsForPartition(nil, 0, 4)
 	if len(result) != 0 {
 		t.Errorf("expected empty result for nil input, got %d", len(result))
 	}
 
-	result = RowsForPartition([]SharedProjectionIntentRow{}, 0, 4)
+	result = sharedintent.RowsForPartition([]SharedProjectionIntentRow{}, 0, 4)
 	if len(result) != 0 {
 		t.Errorf("expected empty result for empty input, got %d", len(result))
 	}

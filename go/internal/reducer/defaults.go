@@ -11,6 +11,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/reducer/admissiondecision"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cloudasset"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2blockkms"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2instance"
 	"github.com/eshu-hq/eshu/go/internal/reducer/ec2usesprofile"
@@ -22,7 +23,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3grant"
 	"github.com/eshu-hq/eshu/go/internal/reducer/s3logsto"
 	"github.com/eshu-hq/eshu/go/internal/reducer/secgroup"
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sqlrelationship"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -41,7 +41,7 @@ type DefaultHandlers struct {
 	WorkloadMaterializer               *WorkloadMaterializer
 	InfrastructurePlatformMaterializer *InfrastructurePlatformMaterializer
 	InfrastructurePlatformLookup       InfrastructurePlatformLookup
-	SemanticEntityWriter               semanticentity.SemanticEntityWriter
+	SemanticEntityWriter               semantic.EntityWriter
 	WorkloadProjectionInputLoader      WorkloadProjectionInputLoader
 	WorkloadDependencyLookup           WorkloadDependencyGraphLookup
 	// InstanceRetractionLookup resolves superseded WorkloadInstance ids (e.g. a

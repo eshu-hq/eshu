@@ -47,7 +47,7 @@ envelopes. It does not own decode dispatch, schema-version routing, or
 required-field validation — that lives in the parent `factschema` package
 (`decode.go`, `decode_codegraph.go`). It does not own graph projection or
 code-call/import-edge extraction; reducer handlers under `go/internal/reducer`
-(`code_call_materialization_extract.go`, `code_import_repo_edge.go`,
+(`code/call/extract.go`, `code_import_repo_edge.go`,
 `code_import_repo_edge_retract.go`) consume the decoded structs but live
 outside this module. It does not own the git collector emitters that build
 these payloads (`go/internal/collector/gitrepo/git_fact_builder.go`,

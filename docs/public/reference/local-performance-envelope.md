@@ -390,7 +390,7 @@ accounts, and credentials remain operator-local.
 
 The dedicated code-call runner already selected pending rows through the indexed
 `partition_hash` predicate, but the generic shared projection runner
-(`SelectPartitionBatch` in `go/internal/reducer/shared_projection_worker.go`)
+(`SelectPartitionBatch` in `go/internal/reducer/intents/shared/worker/process.go`)
 still scanned pending rows by domain and filtered partition membership in
 memory. Under a high-cardinality shared domain a leased partition's work could
 sit behind a full `maxSharedSelectionScanLimit` (10,000-row) head slice of other
@@ -412,7 +412,7 @@ path would have, and same-key fencing across the hashed and unhashed lanes
 deduplicates by intent id.
 
 No-Regression Evidence: focused TDD proof in
-`go/internal/reducer/shared_projection_partition_candidate_test.go`. The new
+`go/internal/reducer/intents/shared/worker/partition_candidate_test.go`. The new
 tests first failed on `main` and pass after the selector change:
 `TestSelectPartitionBatchUsesIndexedPartitionCandidatesWhenReaderSupportsIt`
 (indexed predicate is used, the in-memory domain scan is not called),
@@ -929,7 +929,7 @@ row count, decision and skip tallies, and stage durations.
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
 -run 'TestSemanticEntity.*Delta|TestSemanticEntityMaterializationHandlerScopesDeltaRetractToFiles|TestSemanticEntityWriterRejectsDeltaRetractWithoutFilePaths'
--count=1` failed before `SemanticEntityWrite` carried file-delta scope, then
+-count=1` failed before `semantic.EntityWrite` (then `SemanticEntityWrite`) carried file-delta scope, then
 passed after delta semantic materialization supplied qualified changed/deleted
 file paths and the Cypher writer required those paths before retracting. The
 focused shape uses no live graph backend: reducer fakes cover one changed file

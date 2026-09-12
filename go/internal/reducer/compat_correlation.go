@@ -3,7 +3,7 @@
 
 package reducer
 
-// This file is the reducer root's compatibility surface for the correlation families (servicecatalog, cicdrun, crossrepo, sbomattest)
+// This file is the reducer root's compatibility surface for the correlation families (servicecatalog, cicdrun, crossrepo, sbomattest, supplychain)
 // (issue #6061). It merges the per-family *_compat.go files listed below
 // with no behavior change: every alias and forwarder is preserved
 // byte-identical under its stanza marker. A family move adds a stanza
@@ -17,6 +17,11 @@ package reducer
 //   - cross_repo_compat.go
 //   - sbom_attestation_attachment_compat.go
 //   - supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
+//   - shared-projection intent row + unroutable-write (H5 root-remnant
+//     fold, issue #6061; folded from shared_projection_unroutable.go)
+//   - graph-projection phase repair (H5 root-remnant fold, issue #6061;
+//     folded from graph_projection_phase_repair.go and
+//     graph_projection_phase_repair_runner.go)
 
 import (
 	"time"
@@ -24,6 +29,9 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/reducer/cicdrun"
 	"github.com/eshu-hq/eshu/go/internal/reducer/crossrepo"
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
+	"github.com/eshu-hq/eshu/go/internal/reducer/intents/phase/repair"
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sbomattest"
 	"github.com/eshu-hq/eshu/go/internal/reducer/servicecatalog"
 	"github.com/eshu-hq/eshu/go/internal/reducer/sharedintent"
@@ -106,10 +114,6 @@ func BuildServiceCatalogCorrelationDecisions(envelopes []facts.Envelope) []Servi
 // lineage write input. See [servicecatalog.ServiceMaterializationWrite].
 type ServiceMaterializationWrite = servicecatalog.ServiceMaterializationWrite
 
-// ServiceMaterializationWriteResult summarizes a service materialization
-// commit. See [servicecatalog.ServiceMaterializationWriteResult].
-type ServiceMaterializationWriteResult = servicecatalog.ServiceMaterializationWriteResult
-
 // ServiceOwnershipEvidence is one owner-ref evidence row before it is
 // resolved into a generation-stable snapshot row. See
 // [servicecatalog.ServiceOwnershipEvidence].
@@ -118,13 +122,12 @@ type ServiceOwnershipEvidence = servicecatalog.ServiceOwnershipEvidence
 // Evidence family label constants. See
 // [servicecatalog.ServiceEvidenceFamilyOwnership] and its siblings.
 const (
-	ServiceEvidenceFamilyOwnership       = servicecatalog.ServiceEvidenceFamilyOwnership
-	ServiceEvidenceFamilyDeployment      = servicecatalog.ServiceEvidenceFamilyDeployment
-	ServiceEvidenceFamilyRuntime         = servicecatalog.ServiceEvidenceFamilyRuntime
-	ServiceEvidenceFamilyDependencies    = servicecatalog.ServiceEvidenceFamilyDependencies
-	ServiceEvidenceFamilyDocs            = servicecatalog.ServiceEvidenceFamilyDocs
-	ServiceEvidenceFamilyIncidents       = servicecatalog.ServiceEvidenceFamilyIncidents
-	ServiceEvidenceFamilyVulnerabilities = servicecatalog.ServiceEvidenceFamilyVulnerabilities
+	ServiceEvidenceFamilyOwnership    = servicecatalog.ServiceEvidenceFamilyOwnership
+	ServiceEvidenceFamilyDeployment   = servicecatalog.ServiceEvidenceFamilyDeployment
+	ServiceEvidenceFamilyRuntime      = servicecatalog.ServiceEvidenceFamilyRuntime
+	ServiceEvidenceFamilyDependencies = servicecatalog.ServiceEvidenceFamilyDependencies
+	ServiceEvidenceFamilyDocs         = servicecatalog.ServiceEvidenceFamilyDocs
+	ServiceEvidenceFamilyIncidents    = servicecatalog.ServiceEvidenceFamilyIncidents
 )
 
 // ServiceMaterializationWriter commits the additive per-service evidence
@@ -228,16 +231,10 @@ type ServiceVulnerabilityRecord = servicecatalog.ServiceVulnerabilityRecord
 // spelling; each entry is deleted once its last caller has moved into a
 // family subpackage.
 
-// CICDRunCorrelationOutcome forwards to [cicdrun.CICDRunCorrelationOutcome].
-type CICDRunCorrelationOutcome = cicdrun.CICDRunCorrelationOutcome
-
 // The CICDRunCorrelation outcome values forward to their [cicdrun] equivalents.
 const (
-	CICDRunCorrelationExact      = cicdrun.CICDRunCorrelationExact
-	CICDRunCorrelationDerived    = cicdrun.CICDRunCorrelationDerived
-	CICDRunCorrelationAmbiguous  = cicdrun.CICDRunCorrelationAmbiguous
-	CICDRunCorrelationUnresolved = cicdrun.CICDRunCorrelationUnresolved
-	CICDRunCorrelationRejected   = cicdrun.CICDRunCorrelationRejected
+	CICDRunCorrelationExact   = cicdrun.CICDRunCorrelationExact
+	CICDRunCorrelationDerived = cicdrun.CICDRunCorrelationDerived
 )
 
 // CICDRunCorrelationDecision forwards to [cicdrun.CICDRunCorrelationDecision].
@@ -263,12 +260,6 @@ type PostgresCICDRunCorrelationWriter = cicdrun.PostgresCICDRunCorrelationWriter
 // cicdWorkflowImageBuiltFromEvidenceSource forwards to
 // [cicdrun.CICDWorkflowImageBuiltFromEvidenceSource].
 const cicdWorkflowImageBuiltFromEvidenceSource = cicdrun.CICDWorkflowImageBuiltFromEvidenceSource
-
-// BuildCICDRunCorrelationDecisions forwards to
-// [cicdrun.BuildCICDRunCorrelationDecisions].
-func BuildCICDRunCorrelationDecisions(envelopes []facts.Envelope) []CICDRunCorrelationDecision {
-	return cicdrun.BuildCICDRunCorrelationDecisions(envelopes)
-}
 
 // Stanza: cross_repo_compat.go (merged; do not recreate this file).
 // The cross-repo resolution family moved to [crossrepo] under issue #6061.
@@ -329,18 +320,9 @@ const (
 	// SBOMAttachmentAttachedVerified forwards to
 	// [sbomattest.SBOMAttachmentAttachedVerified].
 	SBOMAttachmentAttachedVerified = sbomattest.SBOMAttachmentAttachedVerified
-	// SBOMAttachmentAttachedUnverified forwards to
-	// [sbomattest.SBOMAttachmentAttachedUnverified].
-	SBOMAttachmentAttachedUnverified = sbomattest.SBOMAttachmentAttachedUnverified
 	// SBOMAttachmentAttachedParseOnly forwards to
 	// [sbomattest.SBOMAttachmentAttachedParseOnly].
 	SBOMAttachmentAttachedParseOnly = sbomattest.SBOMAttachmentAttachedParseOnly
-	// SBOMAttachmentSubjectMismatch forwards to
-	// [sbomattest.SBOMAttachmentSubjectMismatch].
-	SBOMAttachmentSubjectMismatch = sbomattest.SBOMAttachmentSubjectMismatch
-	// SBOMAttachmentAmbiguousSubject forwards to
-	// [sbomattest.SBOMAttachmentAmbiguousSubject].
-	SBOMAttachmentAmbiguousSubject = sbomattest.SBOMAttachmentAmbiguousSubject
 	// SBOMAttachmentUnknownSubject forwards to
 	// [sbomattest.SBOMAttachmentUnknownSubject].
 	SBOMAttachmentUnknownSubject = sbomattest.SBOMAttachmentUnknownSubject
@@ -356,10 +338,6 @@ type SBOMAttestationAttachmentDecision = sbomattest.SBOMAttestationAttachmentDec
 // SBOMAttestationAttachmentWrite carries decisions for durable publication.
 // See [sbomattest.SBOMAttestationAttachmentWrite].
 type SBOMAttestationAttachmentWrite = sbomattest.SBOMAttestationAttachmentWrite
-
-// SBOMAttestationAttachmentWriteResult summarizes durable publication. See
-// [sbomattest.SBOMAttestationAttachmentWriteResult].
-type SBOMAttestationAttachmentWriteResult = sbomattest.SBOMAttestationAttachmentWriteResult
 
 // SBOMAttestationAttachmentWriter persists reducer-owned attachment facts.
 // See [sbomattest.SBOMAttestationAttachmentWriter].
@@ -400,11 +378,11 @@ func ComponentEvidenceTupleEqual(a, b ComponentEvidence) bool {
 	return sbomattest.ComponentEvidenceTupleEqual(a, b)
 }
 
-// sbomAttestationAttachmentFactKind lives in intent.go, aliased directly from
-// [reducercontract.SBOMAttestationAttachmentFactKind] rather than forwarded
-// through sbomattest -- see that file's alias block, mirroring
-// containerImageIdentityFactKind's identical shape for the same reason
-// (#6431).
+// sbomAttestationAttachmentFactKind is not aliased in root any more: the moved
+// sbomattest family names [reducercontract.SBOMAttestationAttachmentFactKind]
+// directly, and the intent.go alias this comment used to point at was removed
+// once the last in-root caller moved (#6061). containerImageIdentityFactKind in
+// intent.go keeps the same direct-from-contract shape (#6431).
 
 // Stanza: supply_chain_impact + supply_chain_suppression (family move; no prior compat file).
 // This file is the transitional compatibility surface for the supply-chain
@@ -454,3 +432,46 @@ type SupplyChainImpactWinnersMaintainer = supplychaincore.SupplyChainImpactWinne
 // JVMReachabilityFactFilter bounds active JVM reachability evidence loading.
 // See [supplychaincore.JVMReachabilityFactFilter].
 type JVMReachabilityFactFilter = supplychaincore.JVMReachabilityFactFilter
+
+// Stanza: shared-projection intent row and unroutable-write (H5
+// root-remnant fold, issue #6061). Writer.Write MUST fail the owning cycle
+// and be idempotent (ON CONFLICT DO NOTHING keyed on intent id).
+type (
+	SharedProjectionIntentRow          = sharedintent.Row
+	SharedProjectionIntentInput        = sharedintent.Input
+	SharedProjectionAcceptanceKey      = sharedintent.AcceptanceKey
+	SharedProjectionUnroutableRow      = sharedintent.UnroutableRow
+	SharedProjectionWriteReport        = sharedintent.WriteReport
+	SharedProjectionUnroutableWriter   = worker.UnroutableWriter
+	SharedProjectionRefreshFenceLookup = worker.RefreshFenceLookup
+	FirstProjectionLookup              = worker.FirstProjectionLookup
+)
+
+func BuildSharedProjectionIntent(input SharedProjectionIntentInput) SharedProjectionIntentRow {
+	return sharedintent.Build(input)
+}
+
+func CarriesNoEdge(row SharedProjectionIntentRow) bool {
+	return sharedintent.CarriesNoEdge(row)
+}
+
+// Stanza: graph-projection phase repair (H5 root-remnant fold, issue #6061;
+// folded from graph_projection_phase_repair.go and
+// graph_projection_phase_repair_runner.go).
+type (
+	GraphProjectionPhaseRepair         = gpphase.PhaseRepair
+	GraphProjectionPhaseRepairQueue    = gpphase.PhaseRepairQueue
+	GraphProjectionPhaseRepairerConfig = repair.Config
+	GraphProjectionPhaseRepairer       = repair.Repairer
+)
+
+func GraphProjectionPhaseRepairsFromStates(states []GraphProjectionPhaseState, lastError string, enqueuedAt time.Time) []GraphProjectionPhaseRepair {
+	return gpphase.PhaseRepairsFromStates(states, lastError, enqueuedAt)
+}
+
+// repoWideRetractRefreshPartitionKey forwards to [sharedintent.RepoWideRetractRefreshPartitionKey]
+// (H5 root-remnant fold, issue #6061; relocated here from compat_decode.go
+// for line-budget headroom).
+func repoWideRetractRefreshPartitionKey(domain, repoID string) string {
+	return sharedintent.RepoWideRetractRefreshPartitionKey(domain, repoID)
+}

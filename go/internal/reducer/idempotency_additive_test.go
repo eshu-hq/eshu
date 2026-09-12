@@ -170,8 +170,8 @@ var idempotencyAdditiveExemptDomains = map[Domain]string{
 	// Code evidence materializers + incident correlation + deployable-unit
 	// correlation: evidence-loader gated cross-source fan-in, proven by their own
 	// suites.
-	DomainCodeTaintEvidence:              "additive, gated on CodeTaint evidence loader+writer with prior-generation check; idempotency proven by code_taint_evidence_materialization_test.go",
-	DomainCodeInterprocEvidence:          "additive, gated on CodeInterproc evidence loader+writer with prior-generation check; idempotency proven by code_interproc_evidence_materialization_test.go",
+	DomainCodeTaintEvidence:              "additive, gated on CodeTaint evidence loader+writer with prior-generation check; idempotency proven by code/taint/evidence_materialization_test.go",
+	DomainCodeInterprocEvidence:          "additive, gated on CodeInterproc evidence loader+writer with prior-generation check; idempotency proven by code/taint/interproc_evidence_materialization_test.go",
 	DomainCodeFunctionSummary:            "additive, gated on CodeFunctionSummary loader+writer plus source/graph-id/value-flow writers; idempotency proven by code_function_summary_materialization_test.go",
 	DomainIncidentRoutingMaterialization: "additive, gated on IncidentRouting evidence loader+writer with prior-generation check; idempotency proven by incident_routing_materialization_test.go",
 	DomainIncidentRepositoryCorrelation:  "additive, gated on PagerDuty routing loader+repo resolver+IncidentRepositoryCorrelationWriter; cross-source fan-in, idempotency proven by incident_repository_correlation_test.go",

@@ -20,7 +20,7 @@ That trade is what the measurements below price.
 Benchmark Evidence: three runs of the four benchmarks below, on the built
 package, at `n = 256` across all four guard outcomes.
 
-`go test ./internal/reducer -bench . -benchmem -count=3`, darwin/arm64, 18
+`go test ./internal/reducer/... -bench . -benchmem -count=3`, darwin/arm64, 18
 logical CPUs, `n = 256` resolved relationships spread evenly across the four
 outcomes so the classification switch is not measured against one hot branch.
 Reproduce with `workload_deployment_sources_bench_test.go`.

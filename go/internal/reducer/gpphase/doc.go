@@ -79,18 +79,47 @@
 // [StateForIntentValue] and [PublishIntentGraphPhase] accept), and it must
 // never import the reducer root.
 //
-// # What deliberately stays at the root
+// # Revision: the repair shape and presence-key derivations moved here too
 //
-// The phase-repair machinery (retry / dead-letter on a failed publish) stays
-// at the root: it is orchestration over a publisher and a repair queue, not a
-// pure builder, and no family needs it today. A future family that does can
-// follow the pattern this revision used for the publish path.
+// [PhaseRepair], [PhaseRepairQueue], [PhaseRepairsFromStates],
+// [PublishIntentGraphPhaseWithRepair], and [PublishPhaseStatesWithRepair]
+// moved here (issue #6061) from graph_projection_phase_repair.go and
+// graph_projection_phase_publish.go at the root: they are the shape and
+// build/publish side of a failed-publish retry, the same "plain data, pure
+// builder, or I/O only through a caller-supplied interface" bar the rest of
+// this package holds. The presence-key derivations
+// ([APIEndpointRepoPathPresenceKey], [HandlesRouteEndpointPresenceKey],
+// [RepoWorkloadPresenceKey], [RunsInRepoWorkloadPresenceKey], and
+// [WorkloadMaterializationRepoReadinessKey]) moved here from the reducer
+// root's endpoint_repo_path_presence.go, repo_workload_presence.go, and
+// shared_projection_readiness.go: the producer (workload materialization)
+// and the consumer (the handles_route/runs_in shared-projection domains)
+// must derive the identical key, and a leaf home is what lets both sides
+// share one function instead of risking a drifted copy. This is why the
+// package now imports sharedintent (for the Row type those derivations
+// read) and payloadcore (string coercion).
+//
+// # What deliberately stays outside this package
+//
+// The repair QUEUE DRAIN (the runner that lists due repairs, retries the
+// publish, and marks failures) stays outside this package: it is
+// orchestration over a [PhaseRepairQueue] and a [PhasePublisher], not a pure
+// builder, and lives in internal/reducer/intents/phase/repair.
 //
 // The root keeps aliases and forwarders under the original names —
 // GraphProjectionKeyspace, GraphProjectionPhase, GraphProjectionPhaseKey,
 // GraphProjectionReadinessLookup, GraphProjectionReadinessPrefetch,
-// EndpointPresenceRow, EndpointPresenceWriter, plus one alias per constant,
-// plus thin forwarder functions for publishIntentGraphPhase,
-// graphProjectionPhaseStateForIntent, and publishEndpointPresence — so no
-// caller changed when any of this moved.
+// EndpointPresenceRow, EndpointPresenceWriter, GraphProjectionPhaseRepair,
+// GraphProjectionPhaseRepairQueue, plus one alias per constant, plus thin
+// forwarder functions for publishIntentGraphPhase,
+// graphProjectionPhaseStateForIntent, publishEndpointPresence,
+// publishIntentGraphPhaseWithRepair,
+// publishGraphProjectionPhaseStatesWithRepair,
+// GraphProjectionPhaseRepairsFromStates, apiEndpointRepoPathPresenceKey,
+// repoWorkloadPresenceKey, and workloadMaterializationRepoReadinessKey — so
+// no caller changed when any of this moved. HandlesRouteEndpointPresenceKey
+// and RunsInRepoWorkloadPresenceKey have no root forwarder: their only root
+// caller (the symbolRuntimePresenceGate that fed the second presence gate)
+// moved to internal/reducer/intents/shared/worker in issue #6061's H5, and
+// worker calls both directly.
 package gpphase

@@ -5,18 +5,14 @@ package reducer
 
 import (
 	"context"
-	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/reducer/gpphase"
 )
 
-// repoWorkloadPresenceKey synthesizes the repo_id presence uid a committed
-// :Workload is recorded under in the GraphProjectionKeyspaceRepoWorkloadPresence
-// domain (#2855). RUNS_IN binds a handler Function to every Workload its
-// Repository DEFINES, so presence is proven at repo granularity, not per
-// workload. It returns an empty string for a blank repo_id, which cannot key a
-// presence row and must be skipped by both the publisher and the gate.
+// repoWorkloadPresenceKey forwards to [gpphase.RepoWorkloadPresenceKey].
 func repoWorkloadPresenceKey(repoID string) string {
-	return strings.TrimSpace(repoID)
+	return gpphase.RepoWorkloadPresenceKey(repoID)
 }
 
 // publishRepoWorkloadPresence records repo-keyed presence for the committed
@@ -81,14 +77,9 @@ func publishRepoWorkloadPresence(
 	)
 }
 
-// runsInRepoWorkloadPresenceKey returns the repo_id presence uid for one runs_in
-// intent row, reading repo_id from the intent payload (the field
-// buildRunsInIntentRows emits) and falling back to RepositoryID. It returns an
-// empty string when neither is set, in which case the gate cannot prove presence.
-func runsInRepoWorkloadPresenceKey(row SharedProjectionIntentRow) string {
-	repoID := payloadStr(row.Payload, "repo_id")
-	if repoID == "" {
-		repoID = strings.TrimSpace(row.RepositoryID)
-	}
-	return repoWorkloadPresenceKey(repoID)
-}
+// runsInRepoWorkloadPresenceKey (issue #6061's H3) already lived at
+// [gpphase.RunsInRepoWorkloadPresenceKey]; this file kept only a thin root
+// forwarder under the old name. That forwarder was deleted in H5: its only
+// caller, the symbol→runtime presence gate (symbolRuntimePresenceGate),
+// moved to internal/reducer/intents/shared/worker, and worker calls
+// [gpphase.RunsInRepoWorkloadPresenceKey] directly instead.

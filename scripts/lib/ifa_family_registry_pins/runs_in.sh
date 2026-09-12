@@ -14,8 +14,8 @@
 IFA_FAMILY_PIN_BLOCKER_KIND="runner_lease_hold"
 # wait_stage=runner: this family's rows are tagged
 # ProjectionDomain=DomainRunsIn="runs_in"
-# (go/internal/reducer/shared_projection.go:38,
-# go/internal/reducer/runs_in_intents.go:113) -- the
+# (go/internal/reducer/contract/domain.go:178,
+# go/internal/reducer/code/call/materialization/workloads.go:118) -- the
 # shared_projection_intents.projection_domain column.
 IFA_FAMILY_PIN_WAIT_STAGE="runner"
 IFA_FAMILY_PIN_WAIT_KEY="runs_in"

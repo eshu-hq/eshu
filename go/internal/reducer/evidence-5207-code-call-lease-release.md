@@ -38,7 +38,7 @@ test passed. The new regression plus the sibling generic shared-worker
 heartbeat/release tests passed 10 repeated runs:
 
 ```text
-go test ./internal/reducer \
+go test ./internal/reducer ./internal/reducer/code/call/projection \
   -run '^(TestCodeCallProjectionRunnerReleasesLeaseWithLiveContext|TestProcessPartitionOnceReleasesLeaseWithLiveContext|TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite)$' \
   -count=10
 ```
@@ -46,7 +46,7 @@ go test ./internal/reducer \
 The same three tests passed 10 runs under the Go race detector:
 
 ```text
-go test -race ./internal/reducer \
+go test -race ./internal/reducer ./internal/reducer/code/call/projection \
   -run '^(TestCodeCallProjectionRunnerReleasesLeaseWithLiveContext|TestProcessPartitionOnceReleasesLeaseWithLiveContext|TestProcessPartitionOnceHeartbeatsLeaseDuringSlowWrite)$' \
   -count=10
 ```

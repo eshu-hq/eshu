@@ -9,10 +9,12 @@ and handle work without importing the parent `internal/reducer` package.
 
 This package owns the `Domain` catalog and validation set, durable `Intent` and
 `Result` values, handler interfaces, ownership validation, domain definitions,
-and the `ContainerImageIdentityOutcome` type with its five outcome constants
-and `ContainerImageIdentityFactKind`. The parent reducer package owns registry
-composition, runtime and queue execution, adapters, retries, telemetry, and
-graph writes.
+the `ContainerImageIdentityOutcome` type with its five outcome constants and
+`ContainerImageIdentityFactKind`, the complete shared/edge projection domain
+enumeration (`ProjectionDomains`), the rationale edge family's evidence-source
+constant (`RationaleEvidenceSource`), and the read-only graph query port
+(`GraphQueryRunner`). The parent reducer package owns registry composition,
+runtime and queue execution, adapters, retries, telemetry, and graph writes.
 
 ## Exported surface
 
@@ -21,8 +23,9 @@ constants, `KnownDomains`, `ParseDomain`, lifecycle statuses, `FailureRecord`,
 `RetryableError`, `Intent`, `Result`,
 `OwnershipShape`, `CrossScopeDependency`, `DomainDefinition`, `Handler`,
 `HandlerFunc`, `ContainerImageIdentityOutcome` and its five outcome
-constants, and `ContainerImageIdentityFactKind`. See [doc.go](doc.go) for the
-package contract.
+constants, `ContainerImageIdentityFactKind`, `ProjectionDomains`,
+`RationaleEvidenceSource`, and `GraphQueryRunner`. See [doc.go](doc.go) for
+the package contract.
 
 ## Dependencies
 

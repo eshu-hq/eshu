@@ -6,6 +6,8 @@ package reducer
 import (
 	"testing"
 	"time"
+
+	worker "github.com/eshu-hq/eshu/go/internal/reducer/intents/shared/worker"
 )
 
 func TestGraphProjectionPhaseRepairValidate(t *testing.T) {
@@ -64,7 +66,7 @@ func TestSharedProjectionReadinessPhaseUsesCanonicalNodesForCodeCalls(t *testing
 		t.Run(domain, func(t *testing.T) {
 			t.Parallel()
 
-			phase, gated := sharedProjectionReadinessPhase(domain)
+			phase, gated := worker.ReadinessPhase(domain)
 			if !gated {
 				t.Fatal("gated = false, want true")
 			}
@@ -84,7 +86,7 @@ func TestSharedProjectionReadinessPhaseUsesSemanticNodesForSemanticEdgeDomains(t
 		t.Run(domain, func(t *testing.T) {
 			t.Parallel()
 
-			phase, gated := sharedProjectionReadinessPhase(domain)
+			phase, gated := worker.ReadinessPhase(domain)
 			if !gated {
 				t.Fatal("gated = false, want true")
 			}

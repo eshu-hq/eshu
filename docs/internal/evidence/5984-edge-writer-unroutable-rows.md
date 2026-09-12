@@ -14,7 +14,7 @@ silent failures"; the skip was the silent failure.
 Root-Cause Evidence: `go/internal/storage/cypher/edge_writer.go` returned `nil`
 on the `len(routedRows) == 0` branch with no counter, no log, and no error,
 while `ProcessPartitionOnce`
-(`go/internal/reducer/shared_projection_worker.go`) appends the batch's intent
+(`go/internal/reducer/intents/shared/worker/process.go`) appends the batch's intent
 IDs to `processedIDs` and calls `MarkIntentsCompleted` on any non-error return.
 `TestProcessPartitionOnceDoesNotCompleteIntentsWhenWriteEdgesFails` exercises
 that second half directly: with the old `nil`, completion happened; with an

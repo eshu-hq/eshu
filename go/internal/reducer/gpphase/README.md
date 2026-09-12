@@ -53,9 +53,22 @@ a family with no shared consumer) because they were the last root-owned
 pieces blocking the ec2, s3, iam, and security_group families from splitting
 out of the reducer root without importing it.
 
-**Does not own:** the phase-repair machinery (retry / dead-letter on a failed
-publish). That stays at the root: it is orchestration over a publisher and a
-repair queue, not a pure builder, and no family needs it today.
+Since issue #6061's third pass, it also owns the repair SHAPE — `PhaseRepair`/
+`PhaseRepairQueue`/`PhaseRepairsFromStates`, plus `PublishIntentGraphPhaseWithRepair`/
+`PublishPhaseStatesWithRepair` (retry a failed publish by enqueueing onto a
+`PhaseRepairQueue`) — and the property-keyed presence-key derivations the
+handles_route and runs_in shared-projection domains and the
+workload-materialization handler share:
+`APIEndpointRepoPathPresenceKey`/`HandlesRouteEndpointPresenceKey` and
+`RepoWorkloadPresenceKey`/`RunsInRepoWorkloadPresenceKey`, plus
+`WorkloadMaterializationRepoReadinessKey`. Producer (workload materialization)
+and consumer (the symbol→runtime domains) call the SAME function, so the two
+sides cannot drift.
+
+**Does not own:** the repair QUEUE DRAIN (the runner that lists due repairs,
+retries the publish, and marks failures) — that is orchestration over a
+`PhaseRepairQueue` and a `PhasePublisher`, not a pure builder, and lives in
+`internal/reducer/intents/phase/repair`.
 
 ## Exported surface
 
@@ -82,24 +95,46 @@ repair queue, not a pure builder, and no family needs it today.
 | `EndpointPresenceWriter` | upserts/retracts `EndpointPresenceRow`s |
 | `PublishEndpointPresence` | builds and upserts presence rows for a batch of node rows through an `EndpointPresenceWriter` |
 | `EndpointPresenceLookup` | answers "which of these uids have no presence row" |
+| `PhaseRepair` | one exact readiness publication queued for retry |
+| `PhaseRepairQueue` | persists/lists/deletes/marks-failed `PhaseRepair` rows |
+| `PhaseRepairsFromStates` | converts published states into `PhaseRepair` rows |
+| `PublishIntentGraphPhaseWithRepair` | `PublishIntentGraphPhase` with retry-on-failure |
+| `PublishPhaseStatesWithRepair` | publishes a batch of `PhaseState`, enqueueing failures for repair |
+| `APIEndpointRepoPathPresenceKey` | synthesizes the (repo_id, path) presence uid for an `:Endpoint` |
+| `HandlesRouteEndpointPresenceKey` | reads that uid off a handles_route intent row |
+| `RepoWorkloadPresenceKey` | the repo_id presence uid for a committed `:Workload` |
+| `RunsInRepoWorkloadPresenceKey` | reads that uid off a runs_in intent row |
+| `WorkloadMaterializationRepoReadinessKey` | the shared per-repo readiness key workload materialization and the symbol→runtime domains both use |
 
 The reducer root keeps aliases under the original names —
 `GraphProjectionKeyspace`, `GraphProjectionPhase`, `GraphProjectionPhaseKey`,
 `GraphProjectionReadinessLookup`, `GraphProjectionReadinessPrefetch`,
 `GraphProjectionPhaseState`, `GraphProjectionPhasePublisher`,
 `EndpointPresenceRow`, `EndpointPresenceWriter`, `EndpointPresenceLookup`,
-plus one alias per constant — and thin forwarder functions for
-`publishIntentGraphPhase`, `graphProjectionPhaseStateForIntent`, and
-`publishEndpointPresence` — so every existing caller reaches these through the
-root unchanged.
+`GraphProjectionPhaseRepair`, `GraphProjectionPhaseRepairQueue`, plus one
+alias per constant — and thin forwarder functions for
+`publishIntentGraphPhase`, `graphProjectionPhaseStateForIntent`,
+`publishEndpointPresence`, `publishIntentGraphPhaseWithRepair`,
+`publishGraphProjectionPhaseStatesWithRepair`,
+`GraphProjectionPhaseRepairsFromStates`, `apiEndpointRepoPathPresenceKey`,
+`repoWorkloadPresenceKey`, and `workloadMaterializationRepoReadinessKey`
+— so every existing caller reaches these through the root unchanged.
+`HandlesRouteEndpointPresenceKey` and `RunsInRepoWorkloadPresenceKey` have no
+root forwarder: their only root caller (the symbol→runtime presence gate)
+moved to `internal/reducer/intents/shared/worker` in issue #6061's H5, and
+worker calls both directly.
 
 ## Dependencies
 
 The standard library, plus `internal/reducer/contract` (for the
 `reducercontract.Intent` value type `StateForIntentValue` and
-`PublishIntentGraphPhase` accept). No I/O of its own beyond the two functions
-above, which call through a caller-supplied `PhasePublisher` or
-`EndpointPresenceWriter` interface rather than performing any I/O directly.
+`PublishIntentGraphPhase` accept), `internal/reducer/sharedintent` (for the
+`sharedintent.Row` type the presence-key derivations read), and
+`internal/reducer/payloadcore` (string coercion those derivations use). None
+of the three imports the reducer root, so the chain stays leaf-to-leaf. No I/O
+of its own beyond the functions above, which call through a caller-supplied
+`PhasePublisher`, `PhaseRepairQueue`, or `EndpointPresenceWriter` interface
+rather than performing any I/O directly.
 
 **This package must never import `internal/reducer`**, directly or
 transitively. Adding that import defeats the entire reason the package exists

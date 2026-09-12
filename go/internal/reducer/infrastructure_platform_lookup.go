@@ -7,12 +7,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	reducercontract "github.com/eshu-hq/eshu/go/internal/reducer/contract"
 )
 
-// GraphQueryRunner executes read-only graph queries for reducer lookups.
-type GraphQueryRunner interface {
-	Run(ctx context.Context, cypher string, params map[string]any) ([]map[string]any, error)
-}
+// GraphQueryRunner is the root spelling of [reducercontract.GraphQueryRunner].
+type GraphQueryRunner = reducercontract.GraphQueryRunner
 
 // GraphInfrastructurePlatformLookup loads already-materialized infrastructure
 // platform ownership from the canonical graph.

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/reducer/semanticentity"
+	"github.com/eshu-hq/eshu/go/internal/reducer/code/semantic"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/cypher"
 )
@@ -91,9 +91,9 @@ func TestSemanticEntityWriterLiveNornicDBConcurrentDistinctRepos(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, err := writer.WriteSemanticEntities(ctx, semanticentity.SemanticEntityWrite{
+			if _, err := writer.WriteSemanticEntities(ctx, semantic.EntityWrite{
 				RepoIDs: []string{write.repoID},
-				Rows: []semanticentity.SemanticEntityRow{
+				Rows: []semantic.EntityRow{
 					write.functionRow(),
 					write.moduleRow(),
 				},
@@ -145,8 +145,8 @@ func semanticEntityLiveWrites(runID string, count int) []semanticEntityLiveWrite
 	return writes
 }
 
-func (w semanticEntityLiveWrite) functionRow() semanticentity.SemanticEntityRow {
-	return semanticentity.SemanticEntityRow{
+func (w semanticEntityLiveWrite) functionRow() semantic.EntityRow {
+	return semantic.EntityRow{
 		RepoID:       w.repoID,
 		EntityID:     w.functionID,
 		EntityType:   "Function",
@@ -160,8 +160,8 @@ func (w semanticEntityLiveWrite) functionRow() semanticentity.SemanticEntityRow 
 	}
 }
 
-func (w semanticEntityLiveWrite) moduleRow() semanticentity.SemanticEntityRow {
-	return semanticentity.SemanticEntityRow{
+func (w semanticEntityLiveWrite) moduleRow() semantic.EntityRow {
+	return semantic.EntityRow{
 		RepoID:       w.repoID,
 		EntityID:     w.moduleID,
 		EntityType:   "Module",
