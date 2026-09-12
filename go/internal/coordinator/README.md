@@ -11,7 +11,7 @@ and incident freshness handoff, and expired-claim reaping against a narrow
 `ESHU_WORKFLOW_COORDINATOR_*` env parsing and coordinator OTEL instruments.
 The dependency-neutral `planner/contract` child owns the shared scheduler
 plan-key grammar; it does not own scheduler requests or runtime behavior.
-The `cicdrun` child owns the CI/CD run planning request and planner
+The `cicd/run` child owns the CI/CD run planning request and planner
 implementation; root retains its interface, scheduling position, and durable
 admission path.
 The `securityalert` child owns the provider security-alert planning request and
@@ -145,9 +145,9 @@ one enabled bounded scope; invalid configurations fail validation.
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.
 - `CICDRunPlanner` — the root structural interface implemented by
-  `cicdrun.WorkPlanner`. The child plans CI/CD run collection from configured
-  GitHub Actions repository targets; root keeps the service call and durable
-  admission.
+  `run.WorkPlanner` (imported as `cicdrun`). The child plans CI/CD run
+  collection from configured GitHub Actions repository targets; root keeps the
+  service call and durable admission.
 - `SecurityAlertPlanner` — the root structural interface implemented by
   `securityalert.WorkPlanner`. The child plans provider security-alert
   collection from configured targets; root keeps the service call and durable
@@ -221,7 +221,7 @@ one enabled bounded scope; invalid configurations fail validation.
 ## Dependencies
 
 - `internal/coordinator/planner/contract` — dependency-neutral shared plan-key validation used directly by scheduler planners and extension egress parsing.
-- `internal/coordinator/cicdrun` — CI/CD run plan request and deterministic
+- `internal/coordinator/cicd/run` — CI/CD run plan request and deterministic
   planner implementation.
 - `internal/coordinator/securityalert` — provider security-alert plan request
   and deterministic planner implementation.

@@ -1,16 +1,18 @@
-# AGENTS.md - internal/coordinator/cicdrun guidance
+# AGENTS.md - internal/coordinator/cicd/run guidance
 
 ## Read first
 
-1. `go/internal/coordinator/cicdrun/README.md` for this planner's ownership
+1. `go/internal/coordinator/cicd/run/README.md` for this planner's ownership
    boundary and invariants.
-2. `go/internal/coordinator/cicdrun/planner.go` for request validation, target
+2. `go/internal/coordinator/AGENTS.md` for root scheduling and runtime
+   invariants.
+3. `go/internal/coordinator/cicd/run/planner.go` for request validation, target
    parsing, and deterministic workflow identities.
-3. `go/internal/coordinator/cicd_run_service.go` for the root planner interface,
+4. `go/internal/coordinator/cicd_run_service.go` for the root planner interface,
    scheduling position, plan-key construction, and durable admission call.
-4. `go/internal/coordinator/planner/contract/README.md` for the shared plan-key
+5. `go/internal/coordinator/planner/contract/README.md` for the shared plan-key
    grammar.
-5. `go/internal/workflow/cicd_run_config.go` for the collector configuration
+6. `go/internal/workflow/cicd_run_config.go` for the collector configuration
    validation contract.
 
 ## Invariants

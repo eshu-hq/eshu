@@ -59,8 +59,8 @@ flowchart TB
    private audit sink schema exists.
 6. `coordinator.Service` is wired with all dependencies, including
    Terraform-state, OCI registry, package registry, vulnerability installed
-   advisory target readers, the extracted `cicdrun`, `securityalert`,
-   `sbomattestation`, `scannerworker`, `gcp`, `grafana`,
+   advisory target readers, the `cicd/run` planner (aliased as `cicdrun`),
+   `securityalert`, `sbomattestation`, `scannerworker`, `gcp`, `grafana`,
    `loki`, `jira`, `pagerduty`, `metrics`,
    `tempo`, `vaultlive`, and `extension` planners,
    scheduled AWS and AWS freshness planners, plus freshness trigger stores,
@@ -138,7 +138,7 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 
 - `internal/coordinator` — `Service`, `LoadConfig`, `NewMetrics`, `Store`;
   the coordinator loop and config parsing
-- `internal/coordinator/cicdrun` — concrete CI/CD run planner wiring
+- `internal/coordinator/cicd/run` — concrete CI/CD run planner wiring
 - `internal/coordinator/planner/component/extension` — concrete scheduler
   wiring for generic component-extension activation targets
 - `internal/coordinator/planner/gcp` — concrete scheduler wiring for GCP Cloud
