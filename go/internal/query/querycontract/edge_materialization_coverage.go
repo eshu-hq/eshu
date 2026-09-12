@@ -23,7 +23,7 @@ const contentContainmentEdgeReason = "generic File->entity containment writer (c
 // domains this registry otherwise derives from. They are registered directly
 // (like contentContainmentEdgeType) rather than through a per-domain map.
 // Added for the #5335 edge-materialization gate
-// (impact_edge_materialization_gate.go): DEPENDS_ON and REPO_CONTAINS are
+// (impact/edge_materialization_gate.go): DEPENDS_ON and REPO_CONTAINS are
 // traversed by blast-radius queries with no per-query coverage/complete
 // disclosure field (repository, terraform_module), so the gate needs this
 // registry to actually know they have writers instead of reporting them as a

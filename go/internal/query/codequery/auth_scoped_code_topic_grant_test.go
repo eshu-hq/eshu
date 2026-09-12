@@ -22,7 +22,7 @@ import (
 // The route's SQL already knew how to bind a grant -- codeTopicFilters
 // (content_reader_code_topic.go) emits `repo_id = ANY($n)` from
 // req.AllowedRepositoryIDs -- but only POST /api/v0/impact/change-surface
-// ever populated that field (impact_change_surface_code.go). A scoped caller
+// ever populated that field (impact/change_surface_code.go). A scoped caller
 // who omitted repo_id ran the topic search across the whole content-entity
 // corpus.
 //

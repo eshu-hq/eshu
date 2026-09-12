@@ -48,7 +48,7 @@ type exposurePathRequest struct {
 // unresolved with an honest reason.
 //
 // POST /api/v0/impact/trace-exposure-path
-func (h *ImpactHandler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) traceExposurePath(w http.ResponseWriter, r *http.Request) {
 	if querycontract.CapabilityUnsupported(h.profile(), exposurePathCapability) {
 		querycontract.WriteContractError(
 			w,
@@ -142,7 +142,7 @@ func clampExposureDepth(depth int) int {
 // design; see storage/cypher canonical node writer). It returns the source node,
 // the classified source spec, whether classification succeeded, and an honest
 // reason when the entity is missing or not a taint source.
-func (h *ImpactHandler) resolveExposureSource(ctx context.Context, req exposurePathRequest) (exposure.PathNode, exposure.SourceSpec, bool, string, error) {
+func (h *Handler) resolveExposureSource(ctx context.Context, req exposurePathRequest) (exposure.PathNode, exposure.SourceSpec, bool, string, error) {
 	entity, err := h.resolveExposureSourceEntity(ctx, req)
 	if err != nil {
 		return exposure.PathNode{}, exposure.SourceSpec{}, false, "", err
@@ -161,7 +161,7 @@ func (h *ImpactHandler) resolveExposureSource(ctx context.Context, req exposureP
 
 // resolveExposureSourceEntity loads the source entity by id, or resolves it by
 // exact name within the repo (rejecting ambiguous names).
-func (h *ImpactHandler) resolveExposureSourceEntity(ctx context.Context, req exposurePathRequest) (*querycontract.EntityContent, error) {
+func (h *Handler) resolveExposureSourceEntity(ctx context.Context, req exposurePathRequest) (*querycontract.EntityContent, error) {
 	if h.Content == nil {
 		return nil, nil
 	}
@@ -179,7 +179,7 @@ func (h *ImpactHandler) resolveExposureSourceEntity(ctx context.Context, req exp
 // and recognizes cloud sinks among the reached nodes via the catalog. It returns
 // the structural reachability candidates and whether the bound truncated the
 // walk. The raw nodes(path) projection works on both Neo4j and NornicDB.
-func (h *ImpactHandler) exposurePathCandidates(ctx context.Context, source exposure.PathNode, maxDepth int) ([]exposure.PathCandidate, bool, error) {
+func (h *Handler) exposurePathCandidates(ctx context.Context, source exposure.PathNode, maxDepth int) ([]exposure.PathCandidate, bool, error) {
 	if h.Neo4j == nil || strings.TrimSpace(source.EntityID) == "" {
 		return nil, false, nil
 	}

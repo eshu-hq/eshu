@@ -113,7 +113,7 @@ func (h *CompareHandler) compareEnvironments(w http.ResponseWriter, r *http.Requ
 		missingWorkloadResponse()
 		return
 	}
-	if !impact.ImpactRepoIDAllowed(compareStringVal(workload, "repo_id"), access) {
+	if !impact.RepoIDAllowed(compareStringVal(workload, "repo_id"), access) {
 		missingWorkloadResponse()
 		return
 	}

@@ -42,7 +42,7 @@ func (changeSurfaceCodeBackend) FetchCodeSurface(
 	// changed-path symbols from the content store, bypassing the graph-target
 	// resolver's grant filtering entirely -- an explicit repo_id must be
 	// checked against the caller's grant before any content read runs.
-	if req.RepoID != "" && !impact.ImpactRepoIDAllowed(req.RepoID, querycontract.RepositoryAccessFilterFromContext(ctx)) {
+	if req.RepoID != "" && !impact.RepoIDAllowed(req.RepoID, querycontract.RepositoryAccessFilterFromContext(ctx)) {
 		return nil, impact.ErrChangeSurfaceRepoNotGranted
 	}
 	files := impact.ChangeSurfaceFileMaps(req.ChangedPaths, req.RepoID)
@@ -157,7 +157,7 @@ func filterCodeTopicRowsForAccess(rows []codequery.CodeTopicEvidenceRow, access 
 	}
 	filtered := make([]codequery.CodeTopicEvidenceRow, 0, len(rows))
 	for _, row := range rows {
-		if impact.ImpactRepoIDAllowed(row.RepoID, access) {
+		if impact.RepoIDAllowed(row.RepoID, access) {
 			filtered = append(filtered, row)
 		}
 	}

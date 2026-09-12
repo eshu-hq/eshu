@@ -252,7 +252,7 @@ func TestResolveRouteMapsTraceDeploymentChain(t *testing.T) {
 // covers the trace-deployment-chain schema in ecosystem/tools.go. The MCP
 // schema description says an omitted max_depth "does not apply a default --
 // it resolves to the handler's own operator-safe default search limit of 25"
-// (boundedTraceEnrichmentLimit(0) in impact_trace_deployment.go). Before this
+// (boundedTraceEnrichmentLimit(0) in deployment_trace_support_helpers.go). Before this
 // fix, impactRoute forwarded intOr(args, "max_depth", 8) for an omitted
 // argument, so the handler received max_depth=8 and resolved to
 // boundedTraceEnrichmentLimit(8) = 80 -- a 3.2x wider provisioning-candidate

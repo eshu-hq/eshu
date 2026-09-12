@@ -48,7 +48,7 @@ var entityMapRepositoryIncomingRelationships = []string{
 	"READS_CONFIG_FROM",
 }
 
-func (h *ImpactHandler) entityMapNeighborhoodRows(
+func (h *Handler) entityMapNeighborhoodRows(
 	ctx context.Context,
 	req entityMapRequest,
 	selected EntityMapCandidate,

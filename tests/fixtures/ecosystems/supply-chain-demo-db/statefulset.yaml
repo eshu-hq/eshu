@@ -1,7 +1,7 @@
 # Declared k8sResource for the #5639 declared kind+namespace+name identity
 # anchor proof. This repo's own workload name resolves to its repo/fixture
 # name ("supply-chain-demo-db", no ArgoCD Application to redirect it via a
-# GitOps-target name -- see impact_trace_deployment.go's
+# GitOps-target name -- see go/internal/query/impact/trace_deployment.go's
 # fetchK8sResourceResult, which name-anchors the surfaced k8s_resources pool
 # to the traced workload's own resolved name), so this StatefulSet's
 # metadata.name must match the repo/workload name for it to surface as this

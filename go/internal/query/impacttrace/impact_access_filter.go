@@ -39,7 +39,7 @@ func ImpactRepoIDAllowed(repoID string, access querycontract.RepositoryAccessFil
 
 // FilterRowsByRepoIDForAccess drops rows carrying a "repo_id" string field
 // outside the caller's grant. It is the generic form of the candidate filters
-// (see impact/impact_candidate_access_filter.go) for the raw map[string]any
+// (see impact/candidate_access_filter.go) for the raw map[string]any
 // impact/path rows several handlers in this family project directly from
 // Cypher (change-surface impact rows, blast-radius affected repos,
 // resource-investigation repository paths, deployment sources).

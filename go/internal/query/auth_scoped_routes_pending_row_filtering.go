@@ -105,9 +105,9 @@ var pendingRowFilteringRoutes = map[string]struct{}{
 	"POST /api/v0/code/relationships": {},
 	// #5167 W3 flagged (NOT allowlisted, still pending). All three walks are
 	// bounded today, contrary to what this comment used to claim:
-	// traceResourceToCode (impact.go) clamps max_depth to 1..20 (default 8)
-	// and caps rows through normalizeImpactListLimit (impact_bounds.go,
-	// default 50, max 200); explainDependencyPath (impact.go) is one
+	// traceResourceToCode (impact/handler.go) clamps max_depth to 1..20 (default 8)
+	// and caps rows through normalizeImpactListLimit (impact/bounds.go,
+	// default 50, max 200); explainDependencyPath (impact/handler.go) is one
 	// shortestPath of at most 8 hops; trace-exposure-path clamps depth through
 	// clampExposureDepth (exposure_path.go, default 5, max 10) and returns at
 	// most exposurePathResultLimit (25) paths. What keeps them pending is the

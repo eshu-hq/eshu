@@ -231,8 +231,8 @@ func TestBuildDeploymentConfigInfluenceResponseUsesServiceStoryDeploymentEvidenc
 	}
 }
 
-func makeDeploymentConfigInfluenceHandler() *ImpactHandler {
-	return &ImpactHandler{
+func makeDeploymentConfigInfluenceHandler() *Handler {
+	return &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (w:Workload) WHERE": {
@@ -259,7 +259,7 @@ func makeDeploymentConfigInfluenceHandler() *ImpactHandler {
 	}
 }
 
-func requestDeploymentConfigInfluence(t *testing.T, handler *ImpactHandler, body string) *httptest.ResponseRecorder {
+func requestDeploymentConfigInfluence(t *testing.T, handler *Handler, body string) *httptest.ResponseRecorder {
 	t.Helper()
 	mux := http.NewServeMux()
 	handler.Mount(mux)
@@ -301,7 +301,7 @@ func TestInvestigateDeploymentConfigInfluenceReturnsEnrichedResponse(t *testing.
 func TestInvestigateDeploymentConfigInfluenceReturns404ForUnknownService(t *testing.T) {
 	t.Parallel()
 
-	handler := &ImpactHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{},
 			RunByMatch:       map[string][]map[string]any{},
@@ -319,7 +319,7 @@ func TestInvestigateDeploymentConfigInfluenceReturnsConflictForDuplicateWorkload
 	t.Parallel()
 
 	call := 0
-	handler := &ImpactHandler{Neo4j: querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
+	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 		if strings.Contains(cypher, "w.id = $service_name") {
 			return nil, nil
 		}
@@ -431,7 +431,7 @@ func TestInvestigateDeploymentConfigInfluenceDisclosesSaturatedUpstreamEvidence(
 func TestInvestigateDeploymentConfigInfluence_LocalLightweightReturnsStructuredUnsupportedCapability(t *testing.T) {
 	t.Parallel()
 
-	handler := &ImpactHandler{Profile: querycontract.ProfileLocalLightweight}
+	handler := &Handler{Profile: querycontract.ProfileLocalLightweight}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/impact/deployment-config-influence", strings.NewReader(`{"service_name":"test-service"}`))

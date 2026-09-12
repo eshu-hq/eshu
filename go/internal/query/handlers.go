@@ -9,7 +9,7 @@ package query
 // ContentHandler is implemented in contentread/content_handler.go
 // InfraHandler is implemented in infra.go
 // IaCHandler is implemented in iac.go
-// ImpactHandler is implemented in impact.go
+// ImpactHandler is implemented in impact/handler.go
 // StatusHandler is implemented in status.go
 // PackageRegistryHandler is implemented in package/registry/handler.go
 

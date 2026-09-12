@@ -10,7 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func (h *ImpactHandler) resolveEntityMapStart(
+func (h *Handler) resolveEntityMapStart(
 	ctx context.Context,
 	req entityMapRequest,
 ) (*EntityMapCandidate, map[string]any, error) {

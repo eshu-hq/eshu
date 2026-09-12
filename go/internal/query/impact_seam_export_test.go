@@ -67,8 +67,8 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	if got := impact.NormalizeImpactListLimit(-1); got != 50 {
 		t.Fatalf("NormalizeImpactListLimit(-1) = %d, want 50", got)
 	}
-	if got := impact.NormalizeImpactListLimit(100000); got != impact.ImpactMaxListLimit {
-		t.Fatalf("NormalizeImpactListLimit(huge) = %d, want ImpactMaxListLimit", got)
+	if got := impact.NormalizeImpactListLimit(100000); got != impact.MaxListLimit {
+		t.Fatalf("NormalizeImpactListLimit(huge) = %d, want MaxListLimit", got)
 	}
 	if got := impact.CanonicalWorkloadIDCandidate("x"); got != "workload:x" {
 		t.Fatalf("CanonicalWorkloadIDCandidate(x) = %q, want workload:x", got)
@@ -102,8 +102,8 @@ func TestImpactSeamExportsForward(t *testing.T) {
 		t.Fatalf("PreChangeImpactErrorStatus(nil) = %d, want 500", got)
 	}
 	unscoped := RepositoryAccessFilter{AllScopes: true}
-	if impact.ImpactRepoIDAllowed("", unscoped) != impacttrace.ImpactRepoIDAllowed("", unscoped) {
-		t.Fatal("ImpactRepoIDAllowed != impacttrace.ImpactRepoIDAllowed")
+	if impact.RepoIDAllowed("", unscoped) != impacttrace.ImpactRepoIDAllowed("", unscoped) {
+		t.Fatal("RepoIDAllowed != impacttrace.ImpactRepoIDAllowed")
 	}
 	if !reflect.DeepEqual(
 		impact.FilterRowsByRepoIDForAccess(nil, unscoped),
@@ -149,8 +149,8 @@ func TestImpactSeamExportsForward(t *testing.T) {
 	if impact.DeveloperChangePlanCapability != "platform_impact.developer_change_plan" {
 		t.Fatalf("DeveloperChangePlanCapability = %q", impact.DeveloperChangePlanCapability)
 	}
-	if impact.ImpactMaxListLimit != 200 {
-		t.Fatalf("ImpactMaxListLimit = %d, want 200", impact.ImpactMaxListLimit)
+	if impact.MaxListLimit != 200 {
+		t.Fatalf("MaxListLimit = %d, want 200", impact.MaxListLimit)
 	}
 	if impact.ContractImpactCapability != "platform_impact.contract_impact" {
 		t.Fatalf("ContractImpactCapability = %q", impact.ContractImpactCapability)

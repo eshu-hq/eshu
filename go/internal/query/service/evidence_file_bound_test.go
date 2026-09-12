@@ -219,7 +219,7 @@ func traceWithServiceEvidenceCorpus(t *testing.T, fileCount int) map[string]any 
 	t.Helper()
 
 	workload := provisioningTruncationWorkload()
-	handler := &impact.ImpactHandler{
+	handler := &impact.Handler{
 		Neo4j:   provisioningCandidateGraphReader(workload, provisioningCandidateRows(serviceEvidenceCandidateRowCount)),
 		Content: querytestutil.FakePortContentStore{RepoFiles: serviceEvidenceFileCorpus(fileCount)},
 	}

@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// impactPathProbeBackend is the production impact.ImpactPathProbeBackend: it
+// impactPathProbeBackend is the production impact.PathProbeBackend: it
 // decodes raw graph path projections (nodes(path) and relationships(path)
 // values, which embed Neo4j driver structs) into anchors and hop provenance
 // for the by-id impact reads. The driver-typed decoding stays in root because
@@ -23,11 +23,11 @@ type impactPathProbeBackend struct{}
 
 // NewImpactPathProbeBackend returns the production path-probe backend for
 // ImpactHandler wiring.
-func NewImpactPathProbeBackend() impact.ImpactPathProbeBackend {
+func NewImpactPathProbeBackend() impact.PathProbeBackend {
 	return impactPathProbeBackend{}
 }
 
-// ResolveAnchor implements impact.ImpactPathProbeBackend.
+// ResolveAnchor implements impact.PathProbeBackend.
 func (impactPathProbeBackend) ResolveAnchor(
 	ctx context.Context,
 	reader querycontract.GraphQuery,
@@ -36,22 +36,22 @@ func (impactPathProbeBackend) ResolveAnchor(
 	return impacttrace.ResolveImpactAnchorNode(ctx, reader, idParam, id)
 }
 
-// TraceHops implements impact.ImpactPathProbeBackend.
+// TraceHops implements impact.PathProbeBackend.
 func (impactPathProbeBackend) TraceHops(relsRaw any) []map[string]any {
 	return impacttrace.ImpactTraceHops(impactRelProvenanceList(relsRaw))
 }
 
-// DependencyHops implements impact.ImpactPathProbeBackend.
+// DependencyHops implements impact.PathProbeBackend.
 func (impactPathProbeBackend) DependencyHops(nodesRaw, relsRaw any) []map[string]any {
 	return impacttrace.ImpactDependencyHops(impactNodeIdentityList(nodesRaw), impactRelProvenanceList(relsRaw))
 }
 
-// PathHasNodes implements impact.ImpactPathProbeBackend.
+// PathHasNodes implements impact.PathProbeBackend.
 func (impactPathProbeBackend) PathHasNodes(nodesRaw any) bool {
 	return len(impactNodeIdentityList(nodesRaw)) > 0
 }
 
-// ResourceInvestigationHops implements impact.ImpactPathProbeBackend.
+// ResourceInvestigationHops implements impact.PathProbeBackend.
 func (impactPathProbeBackend) ResourceInvestigationHops(relsRaw any) []map[string]any {
 	return resourceInvestigationHopList(relsRaw)
 }

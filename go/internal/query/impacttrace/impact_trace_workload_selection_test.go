@@ -42,8 +42,8 @@ func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 // #5720 P2-3 handler-level half of the overflow fix, retargeted in round 2
 // (P1-2): the first draft of this boundary rejected an absurd max_depth with
 // 400, but that broke the wire contract every sibling max_depth-bearing
-// route keeps (impact_resource_investigation.go,
-// impact_change_surface_investigation.go, impact_change_surface_legacy.go
+// route keeps (impact/resource_investigation.go,
+// impact/change_surface_investigation.go, impact/change_surface_legacy.go
 // all normalize rather than reject) and silently changed observable
 // behavior for existing callers, including the MCP dispatch route which
 // forwards an explicit max_depth straight through. A negative max_depth, and
@@ -55,7 +55,7 @@ func TestResolveTraceWorkloadSelectorRejectsDuplicateNames(t *testing.T) {
 // actually receives.
 //
 // #5720 round-4 P2: this HTTP-level assertion alone cannot distinguish
-// whether normalizeTraceDeploymentChainMaxDepth (impact_trace_deployment.go)
+// whether normalizeTraceDeploymentChainMaxDepth (impact/trace_deployment.go)
 // actually ran, because boundedTraceEnrichmentLimit maps every int input --
 // including both cases below -- into (0, maxIndirectEvidenceSearchLimit] on
 // its own; deleting the handler clamp yields the identical wantTraceLimit for
@@ -82,7 +82,7 @@ func TestResolveTraceWorkloadSelectorPreservesExactIDLookup(t *testing.T) {
 
 // TestNormalizeTraceDeploymentChainMaxDepth is the #5720 round-4 P2 direct
 // unit proof for normalizeTraceDeploymentChainMaxDepth
-// (impact_trace_deployment.go), extracted from the inline handler clamp so
+// (impact/trace_deployment.go), extracted from the inline handler clamp so
 // its boundary behavior has coverage independent of
 // boundedTraceEnrichmentLimit's own saturation (see the reworded doc comment
 // on TestTraceDeploymentChainClampsAbsurdMaxDepthInsteadOfRejecting above for

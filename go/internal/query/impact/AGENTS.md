@@ -11,7 +11,7 @@
 - This package must not import the query root or graph drivers. Root
   (`compare.go`, `family_impact_shim.go`) imports this package, so a root
   import here cycles, including from `_test.go` files in this package. The
-  external `impact_test` package (`impact_defaults_test.go`) is the only
+  external `impact_test` package (`defaults_test.go`) is the only
   exception: nothing imports it, so it may wire root constructors.
 - Import `impacttrace`, never the reverse.
 - Family capability rows live in `capabilities.go` and register through
@@ -46,7 +46,7 @@ never Cypher text or queue/projection behavior.
 ## Failure modes
 
 - A test binary for this package skips root `init`: gated paths 501 and
-  unset backends nil-panic without `impact_defaults_test.go`.
+  unset backends nil-panic without `defaults_test.go`.
 - Re-adding a capability row to the root matrix trips the duplicate-
   initialization contract test.
 - A copied type instead of an alias breaks source identity across storage

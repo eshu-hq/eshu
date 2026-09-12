@@ -49,7 +49,7 @@ otherwise read as covering them:
 
 | Site | What it builds | Why it matters at re-key |
 | --- | --- | --- |
-| `internal/query/impact_change_surface_resolvers.go:107` | `"workload:" + target` | The sharpest one. The result is matched against graph nodes, so a re-key confined to this package silently stops the change-surface resolver matching anything. |
+| `internal/query/impact/change_surface_resolvers.go:107` | `"workload:" + target` | The sharpest one. The result is matched against graph nodes, so a re-key confined to this package silently stops the change-surface resolver matching anything. |
 | `internal/query/entity_workload_context.go:261` | `"id": "workload:" + workloadName` | Emits the id into an API response body. |
 | `internal/query/catalog.go:213` | `"workload:" + strings.TrimPrefix(identity.Name, "workload:")` | Normalises a possibly-prefixed name back into an id. |
 

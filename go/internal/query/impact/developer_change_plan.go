@@ -13,7 +13,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-func (h *ImpactHandler) developerChangePlan(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) developerChangePlan(w http.ResponseWriter, r *http.Request) {
 	r, span := queryspan.StartHandlerSpanWith(queryspan.HandlerTracer(),
 		r,
 		telemetry.SpanQueryChangeSurfaceInvestigation,

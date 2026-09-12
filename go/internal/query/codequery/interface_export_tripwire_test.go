@@ -113,7 +113,7 @@ func (s *fakeCodeTopicTripwireStore) InvestigateCodeTopic(
 // TestCodeHandlerCodeTopicRowsUsesInvestigatorFastPath proves
 // (h *CodeHandler).codeTopicRows's h.Content.(CodeTopicContentInvestigator)
 // assertion resolves to a real implementer. CodeTopicContentInvestigator is
-// also asserted from impact_change_surface_code.go's changeSurfaceTopicRows
+// also asserted from impact/change_surface_code.go's changeSurfaceTopicRows
 // -- both call sites share this one interface and implementer, so either
 // family moving away from the other silently breaks both.
 func TestCodeHandlerCodeTopicRowsUsesInvestigatorFastPath(t *testing.T) {

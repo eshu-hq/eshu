@@ -79,7 +79,7 @@ The compiler enumerates every construction of the typed value, which covers the
 reducer write path where projected graph truth is decided. It does not cover
 read-side callers that still concatenate the prefix by hand; the package README
 names the three that remain. The most consequential is
-`internal/query/impact_change_surface_resolvers.go:107`, whose result is matched
+`internal/query/impact/change_surface_resolvers.go:107`, whose result is matched
 against graph nodes — a re-key confined to this package would silently stop that
 resolver matching anything. Converting them is the re-key's work, not step
 zero's, but the claim is scoped here so it is not read as broader than it is.

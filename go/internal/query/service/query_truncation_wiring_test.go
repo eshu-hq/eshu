@@ -117,7 +117,7 @@ func provisioningTruncationWorkload() map[string]any {
 func runProvisioningTruncationTrace(t *testing.T, candidateRowCount int) map[string]any {
 	t.Helper()
 
-	handler := &impact.ImpactHandler{
+	handler := &impact.Handler{
 		Neo4j:   provisioningCandidateGraphReader(provisioningTruncationWorkload(), provisioningCandidateRows(candidateRowCount)),
 		Content: querytestutil.FakePortContentStore{},
 	}
@@ -164,7 +164,7 @@ var provisioningTruncationResponseFields = []string{
 // This drives the real handler over a seeded graph and asserts the round trip
 // in both directions: present-and-true when the underlying read truncates,
 // and absent when it does not. It mirrors
-// impact_trace_deployment_config_bounds_test.go, which already does exactly
+// impact/trace_deployment_config_bounds_test.go, which already does exactly
 // this for the sibling uncorrelated_cloud_resources_truncated field.
 func TestTraceDeploymentChainDisclosesProvisioningReadTruncation(t *testing.T) {
 	t.Parallel()
@@ -240,7 +240,7 @@ func TestTraceDeploymentChainDistinguishesConsumerTruncationFromCandidateTruncat
 
 	const candidateRowCount = 2
 	workload := provisioningTruncationWorkload()
-	handler := &impact.ImpactHandler{
+	handler := &impact.Handler{
 		Neo4j: provisioningCandidateGraphReader(workload, provisioningCandidateRows(candidateRowCount)),
 		Content: fullPageConsumerSearchContentStore{
 			pattern: "orders-api",
