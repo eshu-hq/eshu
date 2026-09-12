@@ -1,0 +1,94 @@
+go/internal/query/setup/README.md
+  s_92622d8d1ad5e4::t_4ea8ca313c2585 1-135,140-160
+  s_92622d8d1ad5e4::t_d946ba5c2f5354 136-139
+apps/console/src/api/setupSession.ts
+  s_92622d8d1ad5e4::t_6d39ccf51e0f21 9
+  s_92622d8d1ad5e4::t_97c3720f34472f 24
+  s_92622d8d1ad5e4::t_a6d80b6132cca3 68
+  s_92622d8d1ad5e4::t_9abf74bcf350ca 5
+go/internal/query/setup/handler_test.go
+  s_92622d8d1ad5e4::t_0dd4d8f60de881 4,15-16,19,25,27,41,45,52,56,61
+  s_92622d8d1ad5e4::t_0e5f067027280b 73
+  s_92622d8d1ad5e4::t_f98063059ea681 74,96-98,110-111,118-120,135-136,143-144,178,182,189,222-223,246-247
+go/internal/query/local_identity_alias.go
+  s_92622d8d1ad5e4::t_d9c5129677121b 42-46
+  s_92622d8d1ad5e4::t_00371932ef6cc9 110-111
+  s_92622d8d1ad5e4::t_1f1cb5f884bb68 98-101
+  s_4a0f86aa680964::t_403ea59ef7795e 4,14-16,174-177
+go/internal/query/local/AGENTS.md
+  s_92622d8d1ad5e4::t_c961d2c7ca6498 48-53
+go/internal/query/local/doc.go
+  s_e8ab01ccdfa8e2::t_ed1e1922356f80 30
+go/internal/query/setup/doc.go
+  s_92622d8d1ad5e4::t_d32ea03d7e12d2 1-31
+go/internal/query/local/README.md
+  s_e8ab01ccdfa8e2::t_060a8a92cdb178 22,28-29,95,103-106,108-109
+go/internal/query/setup/mfa_test.go
+  s_92622d8d1ad5e4::t_a990fa2eb59586 83-84,111,115,123,125,149,155
+  s_92622d8d1ad5e4::t_b719590a9b4e7b 4,12-13,19,23,32
+go/internal/query/setup/handler_fakes_test.go
+  s_92622d8d1ad5e4::t_00d6507d463408 1-59
+go/internal/query/setup_alias.go
+  s_92622d8d1ad5e4::t_97d41d46157fe4 1-46
+apps/console/src/pages/SetupPage.tsx
+  s_92622d8d1ad5e4::t_5fcb6e583032c1 6
+docs/public/observability/telemetry-coverage.md
+  s_92622d8d1ad5e4::t_2258c6b073473f 818
+go/internal/query/setup/types.go
+  s_92622d8d1ad5e4::t_efb2b30a6bb1f2 4,9-11,14-16,20-21
+  s_92622d8d1ad5e4::t_94ecb32ae7bce1 36,39
+  s_92622d8d1ad5e4::t_6ee169db0c7ced 68-70,77-78,83-94
+go/internal/query/setup/AGENTS.md
+  s_92622d8d1ad5e4::t_25b7c44f2cf127 1-85
+go/internal/query/setup/requests.go
+  s_92622d8d1ad5e4::t_b9fcae32d9fe17 4
+go/internal/query/local/helpers.go
+  s_92622d8d1ad5e4::t_782979dc46e719 399-401
+go/internal/query/setup/mfa.go
+  s_92622d8d1ad5e4::t_f6f6d5f606a7ed 4,12-13
+  s_92622d8d1ad5e4::t_dc357e08426813 49,54-55,65,70,72,81,91,102,107,120,126,140
+  s_92622d8d1ad5e4::t_b74acdcc7b7121 32
+go/internal/query/setup/helpers.go
+  s_92622d8d1ad5e4::t_764f9bb8011c59 77,81
+  s_92622d8d1ad5e4::t_c81107f2439120 98-100,107,118
+  s_92622d8d1ad5e4::t_5f3d18d626dbc3 4,18-20,26,28,34,41,45,48,52,56-57,60
+go/internal/query/setup/handler.go
+  s_92622d8d1ad5e4::t_2b9f0500455b68 63,69,72,78,83-84,91,97,102,105,110-111,115,124,130,134,139,143,148,158,162,167-168,173-174,180-181,190,193,197
+  s_92622d8d1ad5e4::t_f93383b55f7a2f 4,14-16,20,23-24,27-34,43,56
+scripts/lib/dirgate-grandfather.tsv
+  s_e8ab01ccdfa8e2::t_cdd97e801efaa9 87
+tools/golangci-lint-dirgate/grandfather.go
+  s_e8ab01ccdfa8e2::t_af087f35913cee 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fc8572cc26a0f10911a2e2ad7aa43d9777294593",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_92622d8d1ad5e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cef83486-9c04-482f-8227-c4a5e3fa8529",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
