@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
 // Sign-in policy guardrail sentinel errors (epic #4962, issue #4968). An
@@ -30,22 +32,10 @@ var (
 	ErrSignInPolicyTimeoutOrdering = errors.New("sign-in policy: absolute_timeout_seconds must not be less than idle_timeout_seconds")
 )
 
-// SignInPolicy is the tenant sign-in policy (issue #4968). A tenant with no
-// configured policy reads as RequireSSO=false, AllowLocalUserCreation=true,
-// RequireMFAForAllUsers=false, and zero-value ("use the process default")
-// timeouts.
-type SignInPolicy struct {
-	TenantID                         string
-	RequireSSO                       bool
-	AllowLocalUserCreation           bool
-	RequireMFAForAllUsers            bool
-	IdleTimeoutSeconds               int
-	AbsoluteTimeoutSeconds           int
-	SSOAdminVerifiedAt               time.Time
-	SSOAdminVerifiedProviderConfigID string
-	PolicyRevisionHash               string
-	UpdatedAt                        time.Time
-}
+// SignInPolicy is the tenant sign-in policy (issue #4968). It lives in
+// queryauth (#6642) so a handler-family subpackage can read a tenant's
+// sign-in policy without importing this package.
+type SignInPolicy = queryauth.SignInPolicy
 
 // SignInPolicyUpdateRequest is a partial update to one tenant's sign-in
 // policy. A nil field is left unchanged.
@@ -57,10 +47,9 @@ type SignInPolicyUpdateRequest struct {
 	AbsoluteTimeoutSeconds *int
 }
 
-// SignInPolicyReadStore is the read surface for tenant sign-in policy.
-type SignInPolicyReadStore interface {
-	GetSignInPolicy(ctx context.Context, tenantID string) (SignInPolicy, error)
-}
+// SignInPolicyReadStore is the read surface for tenant sign-in policy. It
+// lives in queryauth (#6642).
+type SignInPolicyReadStore = queryauth.SignInPolicyReadStore
 
 // SignInPolicyMutationStore is the write surface for tenant sign-in policy.
 // Implementations must apply the require_sso guardrail AND the merged
@@ -74,7 +63,8 @@ type SignInPolicyReadStore interface {
 // PR #5053 review) found that racy: two concurrent partial PATCHes could
 // each read the same stale value and both pass, so the ordering check must
 // live under the lock this interface's implementation holds, not in the
-// caller.
+// caller. Not part of the #6642 hoist: no hoisted symbol needs it, only the
+// root sign-in-policy mutation handler.
 type SignInPolicyMutationStore interface {
 	UpsertSignInPolicy(
 		ctx context.Context,
