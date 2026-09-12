@@ -333,6 +333,57 @@ func TestSAMLHandlerACSRedirectsToReturnToPath(t *testing.T) {
 	}
 }
 
+// TestSAMLHandlerACSRejectsBackslashReturnToPath covers a row stored before
+// authsafe.ReturnPath closed the "/\" bypass: ConsumeSAMLRequest can still
+// return a backslash-prefixed path from before the fix landed, and the
+// re-check at redirect time (createSession) must still reject it -- falling
+// back to the JSON session response instead of redirecting off-origin.
+func TestSAMLHandlerACSRejectsBackslashReturnToPath(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 22, 16, 0, 0, 0, time.UTC)
+	store := &fakeSAMLStore{
+		provider:     testSAMLProvider(),
+		requestOK:    true,
+		resolveOK:    true,
+		replayOK:     true,
+		returnToPath: "/\\evil.example.com",
+		sessionAuth: AuthContext{
+			Mode:         AuthModeBrowserSession,
+			TenantID:     "tenant_a",
+			WorkspaceID:  "workspace_a",
+			SubjectClass: "external_saml",
+		},
+	}
+	handler := &SAMLHandler{
+		Store:     store,
+		Sessions:  store,
+		Verifier:  fakeSAMLVerifier{},
+		NewSecret: sequenceSecrets("session-secret", "csrf-secret"),
+		Now:       func() time.Time { return now },
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	form := url.Values{}
+	form.Set("RelayState", "relay-secret")
+	form.Set("SAMLResponse", testSAMLResponseForRequest("request-1"))
+	req := httptest.NewRequest(http.MethodPost, "/api/v0/auth/saml/providers/provider_a/acs", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d (JSON session response, not a redirect): %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if location := rec.Header().Get("Location"); location != "" {
+		t.Fatalf("Location = %q, want no redirect", location)
+	}
+	// Session cookie must still be set even though the redirect was refused.
+	requireCookie(t, rec.Result(), BrowserSessionCookieName)
+}
+
 func TestSAMLHandlerLoginStoresReturnToPath(t *testing.T) {
 	t.Parallel()
 
@@ -374,6 +425,7 @@ func TestSAMLHandlerLoginRejectsMaliciousReturnTo(t *testing.T) {
 		"http://evil.example.com/steal",
 		"/path\r\nX-Injected: header",
 		"\\UNC\\path",
+		"/\\evil.example.com/steal",
 	} {
 		badPath := badPath // capture loop var
 		store := &fakeSAMLStore{
