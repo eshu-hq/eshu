@@ -39,8 +39,11 @@ rewrites each file's `package` clause and constant names and nothing
 else, and the fragment bodies are untouched. `go build ./...` exit 0,
 `go vet ./internal/query/...` exit 0, `go test ./internal/query/...
 -count=1` exit 0 across 40 packages. The test set is unchanged:
-`go test ./internal/query/... -list '.*'` yields 4,794 tests on
-`origin/main` and 4,794 on the branch, `diff` exit 0.
+`go test ./internal/query/... -list '.*'` yields 4,801 tests on
+`origin/main` and 4,801 on the branch (re-measured after rebasing onto
+`origin/main`; up from the pre-rebase 4,794 on both sides because of
+tests main's own intervening commits added elsewhere in
+`internal/query/...`), `diff` exit 0.
 
 No-Observability-Change: no span, metric, tracer, log field or pprof
 identifier is added or renamed. No route, operation ID, capability
@@ -64,8 +67,11 @@ found. It bites — with the fragment recursion disabled the suite reports
 `3 tests, 2 passed, 1 failed` on exactly that vector, and returns to 3/3
 when it is restored.
 
-`internal/query`'s dirgate row is re-pinned down from 502 to 388 files.
-The digest run reports zero remaining `openapi`-prefixed naming
-violations, which is the mechanical proof that every non-test
-`openapi*.go` left root: the naming-exempt ledger only shrinks, so a
-straggler could not have been grandfathered.
+`internal/query`'s dirgate row is re-pinned down from 479 to 365 files
+(re-derived after rebasing onto `origin/main`, whose intervening commits
+had already moved other query families and re-pinned the row to 479; the
+114-file delta this PR's own move accounts for is unchanged). The digest
+run reports zero remaining `openapi`-prefixed naming violations, which is
+the mechanical proof that every non-test `openapi*.go` left root: the
+naming-exempt ledger only shrinks, so a straggler could not have been
+grandfathered.
