@@ -52,7 +52,7 @@ All commands ran from the feature worktree with `GOTOOLCHAIN=go1.26.6` and
 | Ifá hostile/static mirror | `bash scripts/test-verify-ifa-fault-injection.sh` | pass; 49 cells and four-shard exact cover |
 | Kubernetes provenance verifier | `bash scripts/test-verify-k8s-two-team-governance-proof.sh` | pass when the runtime reports either the exact index or the architecture-matched amd64/arm64 child; wrong index, repository, platform child, version, and invented source revision fail closed |
 | Remote-evidence gate selection | `bash scripts/test-verify-remote-validation-artifacts.sh` | 34 passed; runner, verifier, helper, test, and fixture paths select the gate |
-| Relationship identity | `go test ./internal/storage/cypher -run 'TestProvenanceEdgeWriterLive(LegacyRowSetMigration\|SamePairAssertionIsolation)' -count=1 -v` against the exact v1.3.1 amd64 container | pass; legacy migration, duplicate delivery, eight-way concurrent delivery, retry, and scoped retract isolation |
+| Relationship identity | `go test ./internal/storage/cypher -run 'TestProvenanceEdgeWriterLive(LegacyRowSetMigration|SamePairAssertionIsolation)' -count=1 -v` against the exact v1.3.1 amd64 container | pass; legacy migration, duplicate delivery, eight-way concurrent delivery, retry, and scoped retract isolation |
 | R-5 replay | `bash scripts/verify-replay-tier.sh` | pass; offline graph truth and tombstone/idempotent replay completed in 87 seconds; SQL UNION branches passed live in 48 seconds |
 | B-7 golden corpus | `bash scripts/verify-golden-corpus-gate.sh` | 561 pass, 0 required failures, 1 advisory timing warning; 147 seconds total against the 1,800-second blocking ceiling |
 
