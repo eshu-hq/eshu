@@ -3,11 +3,10 @@
 
 package query
 
+import "github.com/eshu-hq/eshu/go/internal/query/workitem"
+
+// Declared by the work-item family (workitem/capability.go, #6060), not copied
+// here. See the semanticsearch entry in contract_capability_matrix.go for why.
 func init() {
-	capabilityMatrix[workItemEvidenceCapability] = capabilitySupport{
-		LocalLightweightMax:   &truthExact,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-	}
+	capabilityMatrix[workItemEvidenceCapability] = workitem.EvidenceSupport()
 }

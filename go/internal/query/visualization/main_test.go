@@ -25,8 +25,8 @@ import (
 // because no capability was ever registered for it to look up.
 //
 // It registers through PacketDerivationSupport in capability.go, never a
-// copy of its fields; the root lockstep test asserts root's row agrees with
-// that constructor field by field.
+// copy of its fields, and so does root's contract_capability_matrix.go
+// (#6642 Part C) — one declaration, no second copy to drift from.
 func TestMain(m *testing.M) {
 	querycontract.RegisterCapabilities(
 		querycontract.CapabilityRegistration{

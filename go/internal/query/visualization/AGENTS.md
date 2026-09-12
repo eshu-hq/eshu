@@ -63,8 +63,10 @@ Move evidence), `handler_test.go`, and `main_test.go`.
   through `PacketDerivationSupport()` (never a copied row): this test binary
   never links root, so without it `Handler.derive` panics in the
   truth-envelope builder. Root's `contract_capability_matrix.go` row is the
-  production registration; `TestVisualizationPacketDerivationCapabilityLockstep`
-  in root fails if either side changes a ceiling without the other.
+  production registration and calls the same `PacketDerivationSupport()`
+  (#6642 Part C), so there is one declaration, not two. Root's
+  `TestCapabilityMatrixMatchesYAMLContract` pins the assembled row against
+  the YAML contract and names the profile when a ceiling here changes.
 - `handler_test.go` MUST stay in this directory and keep a `Derive` word in
   its test names: `scripts/verify-route-coverage.sh` looks for the route's
   test only in the handler's own directory.

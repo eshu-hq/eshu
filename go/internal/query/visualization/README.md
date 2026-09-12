@@ -44,10 +44,10 @@ own derivation reports.
   confidence-to-truth-label mapping.
 - `capability.go` -- `PacketDerivationCapability` and
   `PacketDerivationSupport`, the route's capability string and ceilings.
-  Root's `contract_capability_matrix.go` still carries its own row for the
-  same string; the root test
-  `TestVisualizationPacketDerivationCapabilityLockstep` keeps the two in
-  step until that row calls the constructor.
+  Root's `contract_capability_matrix.go` registers the same const and calls
+  `PacketDerivationSupport()` for its row (#6642 Part C), so the ceilings are
+  declared once here. Root's `TestCapabilityMatrixMatchesYAMLContract` pins
+  the assembled row against the YAML contract.
 - Test files -- `packet_test.go`, `merge_test.go`, and
   `story_bench_test.go` moved in verbatim from root (see Move evidence) and
   construct fixtures hoisted to `querytestutil` (see AGENTS.md);
@@ -95,7 +95,9 @@ leaf test-name union (`go test ./internal/query/ -list '.*'` UNION `go test
 ./internal/query/visualization/ -list '.*'`) is the pre-move `go test
 ./internal/query/ -list '.*'` list plus exactly the five tests this leaf
 adds (the four `TestHandlerDerive*` cases in `handler_test.go` and root's
-`TestVisualizationPacketDerivationCapabilityLockstep`), with no duplicate
+`TestVisualizationPacketDerivationCapabilityLockstep`, the latter since
+removed by #6642 Part C when root's row adopted the constructor), with no
+duplicate
 and no drop; the `-list 'Benchmark.*'` union equals the pre-move root
 benchmark list, with
 `BenchmarkBuildServiceStoryVisualizationPacketRetainedShape` moving from

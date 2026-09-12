@@ -9,6 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
 	"github.com/eshu-hq/eshu/go/internal/query/semanticsearch"
+	"github.com/eshu-hq/eshu/go/internal/query/visualization"
 )
 
 // This file holds the capability support matrix extracted from contract.go to
@@ -300,15 +301,9 @@ var baseCapabilityMatrix = map[string]capabilitySupport{
 		LocalFullStackMax:     &truthDerived,
 		ProductionMax:         &truthDerived,
 	},
-	// visualization.packet_derivation is a pure transform of a caller-supplied
-	// source response; it runs no graph or content query, embeds the source truth
-	// in the packet, and emits a derived route envelope.
-	"visualization.packet_derivation": {
-		LocalLightweightMax:   &truthDerived,
-		LocalAuthoritativeMax: &truthDerived,
-		LocalFullStackMax:     &truthDerived,
-		ProductionMax:         &truthDerived,
-	},
+	// Declared by the visualization family (visualization/capability.go,
+	// #6060), not copied here. See the semanticsearch entry above for why.
+	visualization.PacketDerivationCapability: visualization.PacketDerivationSupport(),
 	// visualization.graph_query executes caller-supplied read-only Cypher and
 	// projects the graph entities in the result into a renderable subgraph. It
 	// performs a real graph read, so it is unsupported in local_lightweight and

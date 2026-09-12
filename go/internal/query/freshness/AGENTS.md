@@ -30,10 +30,17 @@ moved in verbatim from root -- see README.md's Move evidence.
   `"freshness.generation_lifecycle"` / `"freshness.service_changed_since"` --
   byte-identical to root's `contract_changed_since.go` /
   `contract_freshness.go` / `contract_service_changed_since.go` constants.
-  `capability_lockstep_freshness_test.go` (root, package query) pins the
-  string equality and every `*Support()` ceiling field by field; it is the
-  only thing that would catch a one-sided edit today, since root's three
-  `init()` rows are still a literal copy, not a call into these constructors.
+  Root's three `init()` rows call `ChangedSinceSupport()` /
+  `GenerationLifecycleSupport()` / `ServiceChangedSinceSupport()` directly
+  (#6642 Part C), so the ceilings have one declaration and cannot drift.
+  Root's `TestCapabilityMatrixMatchesYAMLContract` pins the assembled rows
+  against the YAML contract and names the profile when a ceiling changes.
+  The three key strings are spelled once. Root's
+  `freshnessChangedSinceCapability` / `freshnessGenerationLifecycleCapability`
+  / `freshnessServiceChangedSinceCapability` forward the consts declared here
+  (#6642 Part C, the `work_item_alias.go` precedent), so the compiler enforces
+  the equality a test used to assert. Keep them forwards: re-spelling a
+  literal in root reintroduces a second declaration with no guard.
 - `main_test.go`'s `TestMain` registering the three capabilities through
   `ChangedSinceSupport()`/`GenerationLifecycleSupport()`/
   `ServiceChangedSinceSupport()` is NOT redundant with root's `init()`

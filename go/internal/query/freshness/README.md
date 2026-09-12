@@ -103,17 +103,15 @@ Capability registration: root's `contract_changed_since.go`,
 `contract_freshness.go`, and `contract_service_changed_since.go` (#6642 Part
 C, not moved by this lane) define the three capability constants this
 family's handlers read and register them into root's `capabilityMatrix` via
-literal `init()` blocks. This leaf declares its own exported copies with the
-same string values in `capabilities.go` plus three `*Support()`
-constructors, registered by `main_test.go`'s `TestMain` so this package's own
-test binary (which cannot import root without an import cycle) exercises the
-same capability gate production does. Root's
-`capability_lockstep_freshness_test.go` (package query) asserts, field by
-field, that root's three literal rows equal this leaf's three constructors,
-so the two copies of the same contract cannot drift apart silently; a
-follow-up lane should point root's rows at these constructors directly, the
-way root's hardcoded-secret registration already calls
-`querycontract.HardcodedSecretSupport`.
+`init()` blocks. This leaf declares its own exported copies with the same
+string values in `capabilities.go` plus three `*Support()` constructors,
+registered by `main_test.go`'s `TestMain` so this package's own test binary
+(which cannot import root without an import cycle) exercises the same
+capability gate production does. Root's three `init()` rows call those same
+constructors (#6642 Part C), the way root's hardcoded-secret registration
+calls `querycontract.HardcodedSecretSupport`, so the ceilings are declared
+once and `TestCapabilityMatrixMatchesYAMLContract` pins the assembled result
+against the YAML contract.
 
 Two fixtures this package's two-tenant grant-boundary tests share with
 package query's #6450 residual all-scope-bearer boundary test
@@ -146,7 +144,9 @@ No-Regression Evidence: the `go test ./internal/query/...` and
 `go test ./internal/query/freshness/` test-name union (`-list '.*'`) equals
 main's 2777 root names (`origin/main` 43c0606ca) plus exactly
 `TestFreshnessCapabilityLockstep`, nothing dropped or duplicated (2778
-total). The `internal/query` dirgate ledger row
+total). That test has since been removed: #6642 Part C pointed root's three
+rows at this package's constructors, leaving one declaration and nothing for
+it to compare. The `internal/query` dirgate ledger row
 (`scripts/lib/dirgate-grandfather.tsv`) moved from 479 non-test files to 475
 (five files left root, one alias file arrived); `bash
 scripts/verify-dirgate.sh --all` passes with no exemption row for this new
