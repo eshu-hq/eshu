@@ -85,7 +85,7 @@ freshness. `go test ./internal/reducer -run
 'TestBuildSecurityAlertReconciliations|TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTriggeredRepair'
 -count=1` proves source freshness and collection coverage survive reducer
 reconciliation payload publication. `go test ./internal/query
-./internal/query/supplychain/alerts -run
+./internal/query/supply/chain/alerts -run
 'TestSupplyChainListSecurityAlertReconciliations|TestDecodeSecurityAlertReconciliationRowPreservesProviderCoverage|TestSecurityAlertReconciliationAggregate'
 -count=1` proves API/MCP-backed list and count responses expose partial
 coverage without unbounded page reads.

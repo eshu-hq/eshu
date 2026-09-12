@@ -14,7 +14,7 @@ import (
 //
 // IMPORTANT — read/write parity: the winner selection here MUST stay byte-for-byte
 // equivalent to the read-time dedup in
-// go/internal/query/supplychain/impact/findings_queries.go. canonical_key, the
+// go/internal/query/supply/chain/impact/findings_queries.go. canonical_key, the
 // public finding_id fallback, the has_payload_finding_id tiebreak, the
 // severity_bucket CASE, and the suppression_state default are duplicated from
 // that query on purpose (cross-package); the integration parity test

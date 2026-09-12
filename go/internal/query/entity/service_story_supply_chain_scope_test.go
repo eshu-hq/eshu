@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/service"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 )
 
 type serviceStoryExplainingImageIdentityStore struct {

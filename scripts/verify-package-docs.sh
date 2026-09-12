@@ -109,7 +109,20 @@ staged_rename_dest() {
   local -a dir_files=()
   for g in "${changed_files[@]}"; do
     case "$g" in
-      "${dir}/"*) dir_files+=("$g") ;;
+      "${dir}/"*)
+        # Direct children only: a subpackage's own files match this same
+        # prefix (dir/sub/x.go), but a recursive tree move (dir and its
+        # subpackages all git-mv'd in one commit) legitimately sends them to
+        # a DIFFERENT destination than dir's own direct children. Sweeping
+        # them in here makes every multi-destination tree move fail the
+        # single-destination check below even when each destination has its
+        # own full doc trio; the subpackage's own package_dirs entry follows
+        # its own rename independently.
+        case "${g#"${dir}"/}" in
+          */*) ;;
+          *) dir_files+=("$g") ;;
+        esac
+        ;;
     esac
   done
   [[ "${#dir_files[@]}" -gt 0 ]] || return 1

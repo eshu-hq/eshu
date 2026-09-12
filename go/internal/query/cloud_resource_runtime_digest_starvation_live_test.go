@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 )
 
 // The #5789 starvation regression, at scale, against real rows.

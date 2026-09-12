@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel"

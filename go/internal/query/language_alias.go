@@ -9,7 +9,7 @@ import (
 )
 
 // language_alias.go is the root alias shim for the language-query handler
-// family (#6642, modelled on entity_alias.go and supply_chain_hub_alias.go).
+// family (#6642, modelled on entity_alias.go and compat_supply_chain.go).
 // LanguageQueryHandler and its method files moved to language/. Names the
 // rest of the program still spells `query.X` (handler wiring, cmd routers,
 // staying root callers and tests) alias here so the move touches no caller

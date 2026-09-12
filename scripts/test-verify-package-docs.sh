@@ -165,4 +165,30 @@ git -C "${rename_nodocs_repo}" mv go/internal/collector/oldpkg go/internal/colle
 git -C "${rename_nodocs_repo}" rm -qf go/internal/collector/newpkg/doc.go
 expect_fail "${rename_nodocs_repo}"
 
+# Regression (staged rename, nested tree move): a single `git mv` of a
+# directory that has its own subpackage nested one level inside it stages
+# the parent's own files and the subpackage's files as separate renames to
+# two DIFFERENT destinations (the subpackage keeps its relative nesting one
+# level under the new parent path). dir_files collection for the parent must
+# match only its own direct children -- a naive prefix match also sweeps in
+# the subpackage's files, and since those resolve to a different
+# destination than the parent's own direct children, the single-destination
+# consistency check falsely fails even though both destinations carry a
+# full doc trio.
+nested_rename_repo="$(init_repo nested-rename)"
+mkdir -p "${nested_rename_repo}/go/internal/collector/oldpkg/sub"
+printf 'package oldpkg\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/source.go"
+printf 'package oldpkg\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/doc.go"
+printf '# Old Pkg\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/README.md"
+printf '# Old Pkg Agent Rules\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/AGENTS.md"
+printf 'package sub\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/sub/source.go"
+printf 'package sub\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/sub/doc.go"
+printf '# Sub Pkg\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/sub/README.md"
+printf '# Sub Pkg Agent Rules\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/sub/AGENTS.md"
+git -C "${nested_rename_repo}" add .
+git -C "${nested_rename_repo}" commit -q -m 'add oldpkg with nested sub and docs'
+mkdir -p "${nested_rename_repo}/go/internal/collector/parent"
+git -C "${nested_rename_repo}" mv go/internal/collector/oldpkg go/internal/collector/parent/newpkg
+expect_pass "${nested_rename_repo}"
+
 printf 'verify-package-docs tests passed\n'

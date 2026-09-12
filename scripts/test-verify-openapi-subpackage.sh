@@ -81,7 +81,7 @@ run_verifier() {
 setup_repo() {
   local name="$1"
   local dir="${tmp_root}/${name}"
-  mkdir -p "${dir}/go/internal/query/supplychain"
+  mkdir -p "${dir}/go/internal/query/supply/chain"
   mkdir -p "${dir}/go/internal/serviceintelhttp"
   mkdir -p "${dir}/scripts"
   echo "$dir"
@@ -91,7 +91,7 @@ setup_repo() {
 # family has after #6060 moves it: its own package, its own Mount().
 write_moved_handler() {
   local dir="$1"
-  cat > "${dir}/go/internal/query/supplychain/handler.go" << 'GOEOF'
+  cat > "${dir}/go/internal/query/supply/chain/handler.go" << 'GOEOF'
 package supplychain
 
 import "net/http"

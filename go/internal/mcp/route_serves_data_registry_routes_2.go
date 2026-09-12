@@ -131,13 +131,13 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// missing-evidence CTE also touches the effective container-image-identity
 	// support view — disclosed, not served.
 	"GET /api/v0/supply-chain/sbom-attestations/attachments": {
-		RegistrationFile: "go/internal/query/supplychain/handler.go",
+		RegistrationFile: "go/internal/query/supply/chain/handler.go",
 		HandlerStruct:    "Handler",
-		StructFile:       "go/internal/query/supplychain/handler.go",
+		StructFile:       "go/internal/query/supply/chain/handler.go",
 		Method:           "listSBOMAttachments",
-		MethodFile:       "go/internal/query/supplychain/sbom_attachments.go",
+		MethodFile:       "go/internal/query/supply/chain/sbom_attachments.go",
 		ScanFiles: []string{
-			"go/internal/query/supplychain/sbom_attachments.go",
+			"go/internal/query/supply/chain/sbom_attachments.go",
 			"go/internal/query/sbom_attestation_attachments.go",
 		},
 		Served: []routeServedDomain{{
@@ -160,25 +160,25 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// Handler.listSecurityAlertReconciliations ->
 	// h.SecurityAlerts (PostgresSecurityAlertReconciliationStore):
 	// fact_kind = $1 bound to "reducer_security_alert_reconciliation"
-	// (the factKind const in go/internal/query/supplychain/alerts/store.go,
+	// (the factKind const in go/internal/query/supply/chain/alerts/store.go,
 	// used by queries.go's listQuery).
 	"GET /api/v0/supply-chain/security-alerts/reconciliations": {
-		RegistrationFile: "go/internal/query/supplychain/handler.go",
+		RegistrationFile: "go/internal/query/supply/chain/handler.go",
 		HandlerStruct:    "Handler",
-		StructFile:       "go/internal/query/supplychain/handler.go",
+		StructFile:       "go/internal/query/supply/chain/handler.go",
 		Method:           "listSecurityAlertReconciliations",
-		MethodFile:       "go/internal/query/supplychain/security_alerts.go",
+		MethodFile:       "go/internal/query/supply/chain/security_alerts.go",
 		ScanFiles: []string{
-			"go/internal/query/supplychain/security_alerts.go",
-			"go/internal/query/supplychain/alerts/store.go",
-			"go/internal/query/supplychain/alerts/queries.go",
+			"go/internal/query/supply/chain/security_alerts.go",
+			"go/internal/query/supply/chain/alerts/store.go",
+			"go/internal/query/supply/chain/alerts/queries.go",
 		},
 		Served: []routeServedDomain{{
 			Domain:     "security_alert_reconciliation",
 			StoreField: "SecurityAlerts",
 			StoreType:  "SecurityAlertReconciliationStore",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/supplychain/alerts/store.go", Marker: "reducer_security_alert_reconciliation"},
+				{File: "go/internal/query/supply/chain/alerts/store.go", Marker: "reducer_security_alert_reconciliation"},
 			},
 		}},
 	},

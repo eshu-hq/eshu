@@ -9,13 +9,13 @@ import (
 	sbomv1 "github.com/eshu-hq/eshu/sdk/go/factschema/sbom/v1"
 	servicecatalogv1 "github.com/eshu-hq/eshu/sdk/go/factschema/servicecatalog/v1"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 // This file holds query-side decode wrappers for the source-fact kinds that
 // feed the supply-chain impact-explanation and impact-path read models
 // (#4795 W2b). The vulnerability wrappers that fed the advisory-evidence
-// read model moved with it to internal/query/supplychain/advisory (#6060
+// read model moved with it to internal/query/supply/chain/advisory (#6060
 // lane A). Each wraps the matching
 // sdk/go/factschema Decode* seam and, on a classified *factschema.DecodeError
 // (a missing/null required identity field), returns a *queryDecodeError

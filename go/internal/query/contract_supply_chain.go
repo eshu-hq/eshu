@@ -4,8 +4,8 @@
 package query
 
 import (
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 )
 
 func init() {

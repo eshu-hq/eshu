@@ -34,25 +34,25 @@ anchored pages only.
 `TestSupplyChainListSecurityAlertReconciliationsRequiresScopeAndLimit`,
 `TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState`,
 `TestSupplyChainListSecurityAlertReconciliationsSurfacesIncompleteProviderCoverage`;
-`go/internal/query/supplychain/alerts/store_test.go`:
+`go/internal/query/supply/chain/alerts/store_test.go`:
 `TestPostgresSecurityAlertReconciliationRejectsFilterOnlyStateOrStatus`,
 `TestPostgresSecurityAlertReconciliationQueryShape`, and
 `TestSecurityAlertProviderRepositoryScopesQueryIsExactAndBounded`. Reproduce:
 
 ```bash
 cd go && go test ./internal/query -run TestSupplyChainListSecurityAlertReconciliations -count=1
-cd go && go test ./internal/query/supplychain/alerts -run 'TestPostgresSecurityAlertReconciliation|TestSecurityAlertProviderRepositoryScopesQueryIsExactAndBounded' -count=1
+cd go && go test ./internal/query/supply/chain/alerts -run 'TestPostgresSecurityAlertReconciliation|TestSecurityAlertProviderRepositoryScopesQueryIsExactAndBounded' -count=1
 ```
 
 **Triage detail decoding** —
 `go/internal/query/security_alert_reconciliation_triage_test.go`:
 `TestSupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails`;
-`go/internal/query/supplychain/alerts/triage_test.go`:
+`go/internal/query/supply/chain/alerts/triage_test.go`:
 `TestDecodeSecurityAlertReconciliationRowPreservesTriageDetails`.
 Reproduce:
 
 ```bash
-cd go && go test ./internal/query ./internal/query/supplychain/alerts -run 'TestDecodeSecurityAlertReconciliationRowPreservesTriageDetails|TestSupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails' -count=1
+cd go && go test ./internal/query ./internal/query/supply/chain/alerts -run 'TestDecodeSecurityAlertReconciliationRowPreservesTriageDetails|TestSupplyChainListSecurityAlertReconciliationsSurfacesTriageDetails' -count=1
 ```
 
 **Deployed-services target-story readback** —

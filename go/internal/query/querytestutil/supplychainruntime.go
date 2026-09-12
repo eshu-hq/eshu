@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 // Supply-chain impact probe doubles shared by root internal/query tests and

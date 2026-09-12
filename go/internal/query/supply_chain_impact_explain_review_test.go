@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 func TestBuildSupplyChainImpactExplanationOmitsEmptyDependencyChain(t *testing.T) {

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 

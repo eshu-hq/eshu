@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 // TestSupplyChainExplainImpactSurfacesRemediation proves that the impact

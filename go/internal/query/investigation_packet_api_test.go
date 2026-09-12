@@ -12,7 +12,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {

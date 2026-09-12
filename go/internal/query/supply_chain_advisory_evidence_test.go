@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 )
 
 type recordingAdvisoryEvidenceStore struct {

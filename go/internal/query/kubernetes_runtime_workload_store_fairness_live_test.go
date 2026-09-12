@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )

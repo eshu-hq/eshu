@@ -6,7 +6,7 @@ package query
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 )
 
 // This file holds the advisory-evidence read-model tests that exercise the

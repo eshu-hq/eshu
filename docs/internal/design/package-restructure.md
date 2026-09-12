@@ -2452,7 +2452,7 @@ test ./internal/reducer/...` passes all packages including `gpphase`.
 
 Extraction grades from the research become the repo-split roadmap:
 
-- `clean` families (query/supplychain, query/code, reducer/containerimage,
+- `clean` families (query/supply/chain, query/code, reducer/containerimage,
   collector/gitrepo leaves, projector provider intents, coordinator
   schedulers, most cli families) = future module/repo candidates with
   measured-zero internal coupling.

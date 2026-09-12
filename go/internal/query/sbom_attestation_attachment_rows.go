@@ -46,9 +46,9 @@ func boundedSBOMWarningSummariesFromAny(values []any) ([]string, int, bool) {
 	return preview, count, count > len(preview)
 }
 
-// boundedSBOMWarningSummaries moved to internal/query/supplychain with the
+// boundedSBOMWarningSummaries moved to internal/query/supply/chain with the
 // result builder that shares it (#6060 lane A); the staying decode wrappers
-// above reach it through root's forward. See supply_chain_hub_alias.go.
+// above reach it through root's forward. See compat_supply_chain.go.
 
 // slsaMaterialRowsFromPayload decodes the reducer-persisted
 // slsa_provenance_materials array (#5456) into the typed, bounded row set.

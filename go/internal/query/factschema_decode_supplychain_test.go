@@ -7,7 +7,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/sdk/go/factschema"
 )
 
@@ -18,7 +18,7 @@ import (
 // struct. Table-driven so every #4795 W2b supply-chain decode wrapper still
 // living in this package is covered by the same assertion. The four
 // vulnerability wrappers moved with the advisory-evidence read model to
-// internal/query/supplychain/advisory (#6060 lane A); their missing-field
+// internal/query/supply/chain/advisory (#6060 lane A); their missing-field
 // cases live in that package's factschema_decode_test.go.
 func TestSupplyChainDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 	t.Parallel()
