@@ -61,7 +61,7 @@ func highestPlaceholder(t *testing.T, query string) int {
 func TestSupplyChainRuntimeFilterListArgsMatchQueryPlaceholders(t *testing.T) {
 	t.Parallel()
 
-	args := supplyChainRuntimeFilterListArgs(impact.SupplyChainImpactFindingFilter{})
+	args := supplyChainRuntimeFilterListArgs(impact.FindingFilter{})
 
 	for name, query := range map[string]string{
 		"list direct":       impact.ListSupplyChainImpactFindingsQuery,

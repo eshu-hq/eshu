@@ -212,7 +212,7 @@ type supplyChainComponentEvidence struct {
 // need from that kind. See supplyChainComponentEvidence's doc for the
 // Matched/Err contract. Copied from root package query's
 // factschema_decode_supplychain.go.
-func decodeSupplyChainComponentEvidence(fact SupplyChainImpactEvidenceFact) supplyChainComponentEvidence {
+func decodeSupplyChainComponentEvidence(fact EvidenceFact) supplyChainComponentEvidence {
 	in := supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload}
 	switch fact.FactKind {
 	case factschema.FactKindSBOMDocument:

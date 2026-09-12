@@ -34,13 +34,13 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 	seedKubernetesRuntimeLiveScope(t, ctx, db)
 
 	digests := make([]string, SupplyChainKubernetesRuntimeProbeMaxResults)
-	findings := make([]impact.SupplyChainImpactFindingRow, len(digests))
+	findings := make([]impact.FindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	allCandidates := make([]KubernetesRuntimeCandidate, 0, 400)
 	for i := range digests {
 		digest := fmt.Sprintf("sha256:%064x", i)
 		digests[i] = digest
-		findings[i] = impact.SupplyChainImpactFindingRow{
+		findings[i] = impact.FindingRow{
 			FindingID:     fmt.Sprintf("finding-%03d", i),
 			SubjectDigest: digest,
 		}
@@ -117,7 +117,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesSingleDigestSentinelLive(t *testi
 	}
 	seedKubernetesRuntimeLiveCandidates(t, ctx, db, candidates)
 
-	findings := []impact.SupplyChainImpactFindingRow{{
+	findings := []impact.FindingRow{{
 		FindingID:     "finding-single-digest-sentinel",
 		SubjectDigest: digest,
 	}}

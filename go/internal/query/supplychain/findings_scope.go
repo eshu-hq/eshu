@@ -41,12 +41,12 @@ func (h *Handler) writeEmptyImpactFindingsPage(
 	profile string,
 ) {
 	body := map[string]any{
-		"findings":          []impact.SupplyChainImpactFindingResult{},
+		"findings":          []impact.FindingResult{},
 		"count":             0,
 		"limit":             limit,
 		"truncated":         false,
 		"detection_profile": profile,
-		"readiness":         impact.BuildSupplyChainImpactReadinessUnavailable(impact.SupplyChainImpactTargetScope{}, nil, false),
+		"readiness":         impact.BuildSupplyChainImpactReadinessUnavailable(impact.TargetScope{}, nil, false),
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -64,8 +64,8 @@ func (h *Handler) writeEmptyImpactFindingsPage(
 // scope that legitimately has no findings, and readiness is reported
 // unavailable rather than falsely clean.
 func (h *Handler) writeEmptyImpactExplanation(w http.ResponseWriter, r *http.Request) {
-	filter := impact.SupplyChainImpactExplanationFilter{}
-	readiness := impact.BuildSupplyChainImpactReadinessUnavailable(impact.SupplyChainImpactTargetScope{}, nil, false)
+	filter := impact.ExplanationFilter{}
+	readiness := impact.BuildSupplyChainImpactReadinessUnavailable(impact.TargetScope{}, nil, false)
 	body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -87,7 +87,7 @@ func (h *Handler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request) 
 		"not_affected":       0,
 		"by_priority_bucket": map[string]int{},
 		"by_severity":        map[string]int{},
-		"detection_profile":  impact.SupplyChainImpactProfileComprehensive,
+		"detection_profile":  impact.ProfileComprehensive,
 		"scope":              map[string]string{},
 	}, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -102,17 +102,17 @@ func (h *Handler) writeEmptyImpactCount(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) writeEmptyImpactInventory(
 	w http.ResponseWriter,
 	r *http.Request,
-	dimension impact.SupplyChainImpactInventoryDimension,
+	dimension impact.InventoryDimension,
 	limit int,
 	offset int,
 ) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"buckets":           []impact.SupplyChainImpactInventoryRow{},
+		"buckets":           []impact.InventoryRow{},
 		"count":             0,
 		"limit":             limit,
 		"offset":            offset,
 		"group_by":          string(dimension),
-		"detection_profile": impact.SupplyChainImpactProfileComprehensive,
+		"detection_profile": impact.ProfileComprehensive,
 		"truncated":         false,
 		"next_offset":       nil,
 		"scope":             map[string]string{},

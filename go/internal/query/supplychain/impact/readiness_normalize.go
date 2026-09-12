@@ -24,11 +24,11 @@ var allowedEvidenceFamilies = map[string]struct{}{
 	EvidenceFamilyScannerWorkerAnalysis:       {},
 }
 
-func normalizeEvidenceSources(sources []SupplyChainImpactEvidenceFamily) []SupplyChainImpactEvidenceFamily {
+func normalizeEvidenceSources(sources []EvidenceFamily) []EvidenceFamily {
 	if len(sources) == 0 {
-		return []SupplyChainImpactEvidenceFamily{}
+		return []EvidenceFamily{}
 	}
-	cloned := make([]SupplyChainImpactEvidenceFamily, 0, len(sources))
+	cloned := make([]EvidenceFamily, 0, len(sources))
 	for _, family := range sources {
 		name := strings.TrimSpace(family.Family)
 		if name == "" {
@@ -45,11 +45,11 @@ func normalizeEvidenceSources(sources []SupplyChainImpactEvidenceFamily) []Suppl
 	return cloned
 }
 
-func normalizeSourceSnapshots(snapshots []SupplyChainImpactSourceSnapshot) []SupplyChainImpactSourceSnapshot {
+func normalizeSourceSnapshots(snapshots []SourceSnapshot) []SourceSnapshot {
 	if len(snapshots) == 0 {
 		return nil
 	}
-	out := make([]SupplyChainImpactSourceSnapshot, 0, len(snapshots))
+	out := make([]SourceSnapshot, 0, len(snapshots))
 	seen := map[string]struct{}{}
 	for _, snapshot := range snapshots {
 		snapshot.Source = strings.TrimSpace(snapshot.Source)

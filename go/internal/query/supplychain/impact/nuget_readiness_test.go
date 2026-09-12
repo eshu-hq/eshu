@@ -9,11 +9,11 @@ func TestBuildSupplyChainImpactReadinessClassifiesNuGetReadyZeroFindings(t *test
 	t.Parallel()
 
 	envelope := BuildSupplyChainImpactReadiness(
-		SupplyChainImpactTargetScope{RepositoryID: "repo://example/dotnet-worker"},
+		TargetScope{RepositoryID: "repo://example/dotnet-worker"},
 		nil,
 		false,
-		SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+		ReadinessSnapshot{
+			EvidenceSources: []EvidenceFamily{
 				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 8, Freshness: FreshnessLabelFresh},
 				{Family: EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: FreshnessLabelFresh},
 				{Family: EvidenceFamilyPackageRegistry, FactCount: 2, Freshness: FreshnessLabelFresh},

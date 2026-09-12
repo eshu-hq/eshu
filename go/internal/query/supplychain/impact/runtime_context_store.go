@@ -23,22 +23,22 @@ import (
 // PlatformMaterializationFactKindQuery are defined here because no other
 // query surface reads them yet.
 const (
-	WorkloadIdentityFactKindQuery                    = "reducer_workload_identity"
-	PlatformMaterializationFactKindQuery             = "reducer_platform_materialization"
-	serviceCatalogCorrelationFactKind                = "reducer_service_catalog_correlation"
-	cicdRunCorrelationFactKind                       = "reducer_ci_cd_run_correlation"
-	SupplyChainRuntimeEnvironmentEvidenceDeployEvent = "deploy_event"
-	SupplyChainRuntimeEnvironmentEvidenceDeclared    = "declared"
+	WorkloadIdentityFactKindQuery         = "reducer_workload_identity"
+	PlatformMaterializationFactKindQuery  = "reducer_platform_materialization"
+	serviceCatalogCorrelationFactKind     = "reducer_service_catalog_correlation"
+	cicdRunCorrelationFactKind            = "reducer_ci_cd_run_correlation"
+	RuntimeEnvironmentEvidenceDeployEvent = "deploy_event"
+	RuntimeEnvironmentEvidenceDeclared    = "declared"
 )
 
-// SupplyChainImpactRuntimeContextFactKinds is the closed kind set the
+// RuntimeContextFactKinds is the closed kind set the
 // read-time runtime-context join scans (issue #5746). Each kind contributes
 // one side of the repository→runtime mapping: workload_identity owns
 // workloads, service_catalog_correlation owns services and catalog refs,
 // platform_materialization owns deployment ids, and ci_cd_run_correlation
 // owns environments — the same four sources the reducer matches at reduce
 // time (matchingSupplyChainWorkloads/Services/DeploymentLanes/Deployments).
-var SupplyChainImpactRuntimeContextFactKinds = []string{
+var RuntimeContextFactKinds = []string{
 	WorkloadIdentityFactKindQuery,
 	serviceCatalogCorrelationFactKind,
 	PlatformMaterializationFactKindQuery,
@@ -117,8 +117,8 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 	repositoryIDs []string,
 	allowedRepositoryIDs []string,
 	allowedScopeIDs []string,
-) (map[string]SupplyChainRuntimeContext, error) {
-	out := make(map[string]SupplyChainRuntimeContext)
+) (map[string]RuntimeContext, error) {
+	out := make(map[string]RuntimeContext)
 	if len(repositoryIDs) == 0 {
 		return out, nil
 	}
@@ -131,7 +131,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 	rows, err := s.DB.QueryContext(
 		ctx,
 		SelectSupplyChainImpactRuntimeContextQuery,
-		pgarray.Array(SupplyChainImpactRuntimeContextFactKinds),
+		pgarray.Array(RuntimeContextFactKinds),
 		pgarray.Array(repositoryIDs),
 		pgarray.Array(allowedRepositoryIDs),
 		pgarray.Array(allowedScopeIDs),
@@ -164,7 +164,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 // a repository:-prefixed scope); a fact that decodes to no repository is
 // ignored because it can never join a finding.
 func AddSupplyChainRuntimeContextFact(
-	out map[string]SupplyChainRuntimeContext,
+	out map[string]RuntimeContext,
 	kind string,
 	scopeID string,
 	payload map[string]any,
@@ -178,7 +178,7 @@ func AddSupplyChainRuntimeContextFact(
 }
 
 func addSupplyChainRuntimeContextFactForRepository(
-	out map[string]SupplyChainRuntimeContext,
+	out map[string]RuntimeContext,
 	kind string,
 	repositoryID string,
 	payload map[string]any,
@@ -267,14 +267,14 @@ func RecordSupplyChainRuntimeEnvironmentEvidence(
 	if state == nil {
 		state = make(map[string]string)
 	}
-	if state[environment] == SupplyChainRuntimeEnvironmentEvidenceDeployEvent {
+	if state[environment] == RuntimeEnvironmentEvidenceDeployEvent {
 		return state
 	}
-	if strings.TrimSpace(raw) == SupplyChainRuntimeEnvironmentEvidenceDeployEvent {
-		state[environment] = SupplyChainRuntimeEnvironmentEvidenceDeployEvent
+	if strings.TrimSpace(raw) == RuntimeEnvironmentEvidenceDeployEvent {
+		state[environment] = RuntimeEnvironmentEvidenceDeployEvent
 		return state
 	}
-	state[environment] = SupplyChainRuntimeEnvironmentEvidenceDeclared
+	state[environment] = RuntimeEnvironmentEvidenceDeclared
 	return state
 }
 

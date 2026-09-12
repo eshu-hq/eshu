@@ -9,7 +9,7 @@ package impact
 // grants ($18/$19) — before any count, grouping, ordering, limit, or offset so
 // aggregate totals and inventory buckets never include unauthorized rows.
 
-var SupplyChainImpactAggregateCanonicalFactsCTE = `
+var AggregateCanonicalFactsCTE = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10", "$18", "$19") + `,
 source_candidates AS (
   SELECT fact.fact_id,
@@ -17,7 +17,7 @@ source_candidates AS (
          COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + SupplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key,
+         ` + CanonicalFindingKeySQL + ` AS canonical_key,
          COALESCE(fact.payload->>'impact_status', '') AS impact_status,
          COALESCE(fact.payload->>'priority_bucket', '') AS priority_bucket,
          ` + supplyChainImpactSeverityBucketFactSQL + ` AS severity_bucket,
@@ -94,7 +94,7 @@ operator_candidates AS (
          fact.payload #>> '{suppression,expires_at}' AS expires_at,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + SupplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
+         ` + CanonicalFindingKeySQL + ` AS canonical_key
   FROM fact_records AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
@@ -157,7 +157,7 @@ canonical_facts AS (
 )
 `
 
-var SupplyChainImpactAggregateCountQuery = SupplyChainImpactAggregateCanonicalFactsCTE + `
+var AggregateCountQuery = AggregateCanonicalFactsCTE + `
 SELECT
 	COUNT(*) AS total,
 	SUM(CASE WHEN impact_status IN ('affected_exact', 'affected_derived', 'possibly_affected') THEN 1 ELSE 0 END) AS affected,
@@ -168,7 +168,7 @@ SELECT
 FROM canonical_facts;
 `
 
-var SupplyChainImpactAggregatePriorityCountQuery = SupplyChainImpactAggregateCanonicalFactsCTE + `
+var AggregatePriorityCountQuery = AggregateCanonicalFactsCTE + `
 SELECT
 	COALESCE(NULLIF(fact.priority_bucket, ''), 'unknown') AS bucket,
 	COUNT(*) AS bucket_count
@@ -176,7 +176,7 @@ FROM canonical_facts AS fact
 GROUP BY bucket;
 `
 
-var SupplyChainImpactAggregateSeverityCountQuery = SupplyChainImpactAggregateCanonicalFactsCTE + `
+var AggregateSeverityCountQuery = AggregateCanonicalFactsCTE + `
 SELECT
 	COALESCE(NULLIF(fact.severity_bucket, ''), 'none') AS bucket,
 	COUNT(*) AS bucket_count
@@ -186,7 +186,7 @@ GROUP BY bucket;
 
 const supplyChainImpactInventoryGroupExpressionPlaceholder = "__SUPPLY_CHAIN_IMPACT_GROUP_EXPRESSION__"
 
-var SupplyChainImpactInventoryQueryTemplate = SupplyChainImpactAggregateCanonicalFactsCTE + `
+var InventoryQueryTemplate = AggregateCanonicalFactsCTE + `
 SELECT ` + supplyChainImpactInventoryGroupExpressionPlaceholder + ` AS bucket, COUNT(*) AS bucket_count
 FROM canonical_facts AS fact
 GROUP BY bucket

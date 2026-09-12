@@ -51,7 +51,7 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	filter := impact.TrimSupplyChainImpactExplanationFilter(impact.SupplyChainImpactExplanationFilter{
+	filter := impact.TrimSupplyChainImpactExplanationFilter(impact.ExplanationFilter{
 		FindingID:     querycontract.QueryParam(r, "finding_id"),
 		AdvisoryID:    querycontract.QueryParam(r, "advisory_id"),
 		CVEID:         querycontract.QueryParam(r, "cve_id"),
@@ -101,7 +101,7 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 		body := impact.BuildSupplyChainImpactAmbiguousExplanation(
 			filter,
 			readiness,
-			impact.SupplyChainImpactExplanationAmbiguousCandidateCount(err),
+			impact.ExplanationAmbiguousCandidateCount(err),
 		)
 		querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 			h.profile(),
@@ -119,7 +119,7 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	// Resolve current, authorized runtime image evidence through the indexed
 	// owner ledger before assembling the finding, so explain and list select the
 	// same deployment and version-resolution tiers.
-	rows := []impact.SupplyChainImpactFindingRow{row.Finding}
+	rows := []impact.FindingRow{row.Finding}
 	if err := h.applySupplyChainCloudRuntimeEvidence(r.Context(), access, rows); err != nil {
 		querycontract.WriteError(w, http.StatusInternalServerError, "supply-chain impact runtime evidence probe failed")
 		return
@@ -132,7 +132,7 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Same shape, same root cause as the cloud-runtime probe above:
-	// buildSupplyChainImpactFindingResult's SupplyChainImpactFindingResult(row)
+	// buildSupplyChainImpactFindingResult's FindingResult(row)
 	// conversion carries row.RuntimeContext straight through to the
 	// runtime_context response field, but only the list route called
 	// applySupplyChainRuntimeContext before assembling results -- explain
@@ -152,8 +152,8 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 	row.Finding = rows[0]
 
 	scope := impact.FindingReadinessScope(row.Finding, filter)
-	findingResult := impact.SupplyChainImpactFindingResult(row.Finding)
-	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []impact.SupplyChainImpactFindingResult{findingResult}, false)
+	findingResult := impact.FindingResult(row.Finding)
+	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []impact.FindingResult{findingResult}, false)
 	body := impact.BuildSupplyChainImpactExplanation(filter, row, readiness)
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -165,10 +165,10 @@ func (h *Handler) explainImpact(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) readSupplyChainImpactReadinessForScope(
 	r *http.Request,
-	scope impact.SupplyChainImpactTargetScope,
-	findings []impact.SupplyChainImpactFindingResult,
+	scope impact.TargetScope,
+	findings []impact.FindingResult,
 	truncated bool,
-) impact.SupplyChainImpactReadinessEnvelope {
+) impact.ReadinessEnvelope {
 	snapshot, err := h.readSupplyChainImpactReadinessSnapshot(r, scope)
 	if err != nil {
 		return impact.BuildSupplyChainImpactReadinessUnavailable(scope, findings, truncated)

@@ -53,16 +53,16 @@ func explainSuppressionQueryPlan(
 }
 
 func suppressionListPlanArgs(
-	filter SupplyChainImpactFindingFilter,
+	filter FindingFilter,
 	readAt time.Time,
 ) []any {
 	return []any{
-		SupplyChainImpactFindingFactKind,
+		FindingFactKind,
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.SubjectDigest,
-		filter.ImpactStatus,
+		filter.Status,
 		filter.AdvisoryID,
 		filter.Ecosystem,
 		filter.ServiceID,
@@ -85,7 +85,7 @@ func suppressionListPlanArgs(
 }
 
 func suppressionAggregatePlanArgs(
-	filter SupplyChainImpactAggregateFilter,
+	filter AggregateFilter,
 	readAt time.Time,
 ) []any {
 	return []any{
@@ -93,7 +93,7 @@ func suppressionAggregatePlanArgs(
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.SubjectDigest,
-		filter.ImpactStatus,
+		filter.Status,
 		filter.AdvisoryID,
 		filter.Ecosystem,
 		filter.ServiceID,
@@ -114,7 +114,7 @@ func suppressionAggregatePlanArgs(
 
 func suppressionExplainPlanArgs(readAt time.Time) []any {
 	return []any{
-		SupplyChainImpactFindingFactKind,
+		FindingFactKind,
 		"finding:000501",
 		"",
 		"",

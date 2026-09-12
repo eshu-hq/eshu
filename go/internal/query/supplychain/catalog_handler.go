@@ -29,20 +29,20 @@ func (h *Handler) listAdvisoryCatalog(w http.ResponseWriter, r *http.Request) {
 		r,
 		telemetry.SpanQueryAdvisoryCatalog,
 		"GET /api/v0/supply-chain/advisories",
-		advisory.AdvisoryCatalogCapability,
+		advisory.CatalogCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), advisory.AdvisoryCatalogCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), advisory.CatalogCapability) {
 		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"advisory catalog requires the Postgres vulnerability source fact read model",
 			querycontract.ErrorCodeUnsupportedCapability,
-			advisory.AdvisoryCatalogCapability,
+			advisory.CatalogCapability,
 			h.profile(),
-			querycontract.RequiredProfile(advisory.AdvisoryCatalogCapability),
+			querycontract.RequiredProfile(advisory.CatalogCapability),
 		)
 		return
 	}
@@ -65,9 +65,9 @@ func (h *Handler) listAdvisoryCatalog(w http.ResponseWriter, r *http.Request) {
 			http.StatusServiceUnavailable,
 			"advisory catalog requires the Postgres vulnerability source fact read model",
 			querycontract.ErrorCodeBackendUnavailable,
-			advisory.AdvisoryCatalogCapability,
+			advisory.CatalogCapability,
 			h.profile(),
-			querycontract.RequiredProfile(advisory.AdvisoryCatalogCapability),
+			querycontract.RequiredProfile(advisory.CatalogCapability),
 		)
 		return
 	}
@@ -106,7 +106,7 @@ func (h *Handler) listAdvisoryCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		advisory.AdvisoryCatalogCapability,
+		advisory.CatalogCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from active vulnerability source facts; rows are known CVE intelligence and do not imply repository, image, workload, or deployment impact, which remains the separate supply-chain impact findings surface",
 	))

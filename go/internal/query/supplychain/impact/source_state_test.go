@@ -10,14 +10,14 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 
 	tests := []struct {
 		name       string
-		state      SupplyChainImpactSourceState
-		wantState  SupplyChainImpactReadinessState
+		state      SourceState
+		wantState  ReadinessState
 		wantFresh  string
 		wantReason string
 	}{
 		{
 			name: "fresh empty success",
-			state: SupplyChainImpactSourceState{
+			state: SourceState{
 				ScopeID:          "vuln-intel://nvd/CVE-2026-0001",
 				Source:           "nvd",
 				FreshnessState:   "fresh",
@@ -25,14 +25,14 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 				ResultCount:      0,
 				LastSuccessAt:    "2026-05-24T19:00:00Z",
 				LastAttemptAt:    "2026-05-24T19:00:00Z",
-				CollectionWindow: SupplyChainImpactSourceStateWindow{Start: "2026-05-23T19:00:00Z", End: "2026-05-24T19:00:00Z"},
+				CollectionWindow: SourceStateWindow{Start: "2026-05-23T19:00:00Z", End: "2026-05-24T19:00:00Z"},
 			},
 			wantState: ReadinessStateReadyZeroFindings,
 			wantFresh: "fresh",
 		},
 		{
 			name: "pending source",
-			state: SupplyChainImpactSourceState{
+			state: SourceState{
 				ScopeID:        "vuln-intel://osv/npm/vite?version=5.4.21",
 				Source:         "osv",
 				Ecosystem:      "npm",
@@ -46,7 +46,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 		},
 		{
 			name: "rate limited source",
-			state: SupplyChainImpactSourceState{
+			state: SourceState{
 				ScopeID:          "vuln-intel://nvd/modified",
 				Source:           "nvd",
 				FreshnessState:   "rate_limited",
@@ -54,7 +54,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 				LastAttemptAt:    "2026-05-24T19:00:00Z",
 				NextRetryAt:      "2026-05-24T19:05:00Z",
 				LastErrorClass:   "rate_limited",
-				CollectionWindow: SupplyChainImpactSourceStateWindow{Start: "2026-05-23T19:00:00Z", End: "2026-05-24T19:00:00Z"},
+				CollectionWindow: SourceStateWindow{Start: "2026-05-23T19:00:00Z", End: "2026-05-24T19:00:00Z"},
 			},
 			wantState:  ReadinessStateTargetIncomplete,
 			wantFresh:  "rate_limited",
@@ -62,7 +62,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 		},
 		{
 			name: "partial source",
-			state: SupplyChainImpactSourceState{
+			state: SourceState{
 				ScopeID:        "vuln-intel://first/epss",
 				Source:         "first_epss",
 				FreshnessState: "partial",
@@ -76,7 +76,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 		},
 		{
 			name: "stale source",
-			state: SupplyChainImpactSourceState{
+			state: SourceState{
 				ScopeID:        "vuln-intel://cisa/kev",
 				Source:         "cisa_kev",
 				FreshnessState: "stale",
@@ -91,7 +91,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 		},
 		{
 			name: "failed source",
-			state: SupplyChainImpactSourceState{
+			state: SourceState{
 				ScopeID:          "vuln-intel://nvd/modified",
 				Source:           "nvd",
 				FreshnessState:   "failed",
@@ -99,7 +99,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 				LastAttemptAt:    "2026-05-24T19:00:00Z",
 				NextRetryAt:      "2026-05-24T19:05:00Z",
 				LastErrorClass:   "retryable",
-				CollectionWindow: SupplyChainImpactSourceStateWindow{Start: "2026-05-23T19:00:00Z", End: "2026-05-24T19:00:00Z"},
+				CollectionWindow: SourceStateWindow{Start: "2026-05-23T19:00:00Z", End: "2026-05-24T19:00:00Z"},
 			},
 			wantState:  ReadinessStateTargetIncomplete,
 			wantFresh:  "failed",
@@ -112,11 +112,11 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 			t.Parallel()
 
 			envelope := BuildSupplyChainImpactReadiness(
-				SupplyChainImpactTargetScope{CVEID: "CVE-2026-0001"},
+				TargetScope{CVEID: "CVE-2026-0001"},
 				nil,
 				false,
-				SupplyChainImpactReadinessSnapshot{
-					SourceStates: []SupplyChainImpactSourceState{tt.state},
+				ReadinessSnapshot{
+					SourceStates: []SourceState{tt.state},
 				},
 			)
 			if envelope.State != tt.wantState {

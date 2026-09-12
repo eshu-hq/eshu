@@ -76,7 +76,7 @@ var selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery = fmt.Sprintf(
 // input pair and deploy_event wins over declared across matching facts.
 func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
 	ctx context.Context,
-	candidates []SupplyChainRuntimeEnvironmentCandidate,
+	candidates []RuntimeEnvironmentCandidate,
 	allowedRepositoryIDs []string,
 	allowedScopeIDs []string,
 ) (map[string]map[string]string, error) {

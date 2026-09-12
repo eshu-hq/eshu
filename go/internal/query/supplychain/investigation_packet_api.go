@@ -33,7 +33,7 @@ type ImpactPacketResponder interface {
 	RespondSupplyChainImpactPacket(
 		w http.ResponseWriter,
 		r *http.Request,
-		body impact.SupplyChainImpactExplanationResult,
+		body impact.ExplanationResult,
 		truth *querycontract.TruthEnvelope,
 	)
 	// RespondSupplyChainImpactScopeRefusal writes the scope-not-found
@@ -86,7 +86,7 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 		h.PacketResponder.RespondSupplyChainImpactScopeRefusal(w, r)
 		return
 	}
-	filter := impact.TrimSupplyChainImpactExplanationFilter(impact.SupplyChainImpactExplanationFilter{
+	filter := impact.TrimSupplyChainImpactExplanationFilter(impact.ExplanationFilter{
 		FindingID:     querycontract.QueryParam(r, "finding_id"),
 		AdvisoryID:    querycontract.QueryParam(r, "advisory_id"),
 		CVEID:         querycontract.QueryParam(r, "cve_id"),
@@ -133,7 +133,7 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 		body := impact.BuildSupplyChainImpactAmbiguousExplanation(
 			filter,
 			readiness,
-			impact.SupplyChainImpactExplanationAmbiguousCandidateCount(err),
+			impact.ExplanationAmbiguousCandidateCount(err),
 		)
 		truth := querycontract.BuildTruthEnvelope(
 			h.profile(),
@@ -150,8 +150,8 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	scope := impact.FindingReadinessScope(row.Finding, filter)
-	findingResult := impact.SupplyChainImpactFindingResult(row.Finding)
-	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []impact.SupplyChainImpactFindingResult{findingResult}, false)
+	findingResult := impact.FindingResult(row.Finding)
+	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []impact.FindingResult{findingResult}, false)
 	body := impact.BuildSupplyChainImpactExplanation(filter, row, readiness)
 	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),

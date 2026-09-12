@@ -226,7 +226,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	want int,
 ) {
 	t.Helper()
-	filter := impact.SupplyChainImpactFindingFilter{
+	filter := impact.FindingFilter{
 		CVEID:            runtimeFilterLiveCVE,
 		WorkloadID:       workloadID,
 		ServiceID:        serviceID,
@@ -238,7 +238,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, false, want)
 	assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, true, want)
 
-	aggregateFilter := impact.SupplyChainImpactAggregateFilter{
+	aggregateFilter := impact.AggregateFilter{
 		CVEID:            runtimeFilterLiveCVE,
 		WorkloadID:       workloadID,
 		ServiceID:        serviceID,
@@ -256,7 +256,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	inventory, err := aggregateStore.SupplyChainImpactInventory(
 		ctx,
 		aggregateFilter,
-		impact.SupplyChainImpactInventoryByImpactStatus,
+		impact.InventoryByImpactStatus,
 		10,
 		0,
 	)
@@ -272,7 +272,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	if environment != "" {
 		return
 	}
-	_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
+	_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
 		CVEID:           runtimeFilterLiveCVE,
 		PackageID:       runtimeFilterLivePackage,
 		WorkloadID:      workloadID,

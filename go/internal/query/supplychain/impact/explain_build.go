@@ -13,10 +13,10 @@ import (
 )
 
 func buildSupplyChainAdvisoryExplanation(
-	row SupplyChainImpactExplanationRow,
-) SupplyChainImpactAdvisoryExplanation {
+	row ExplanationRow,
+) AdvisoryExplanation {
 	finding := row.Finding
-	out := SupplyChainImpactAdvisoryExplanation{
+	out := AdvisoryExplanation{
 		CVEID:      finding.CVEID,
 		AdvisoryID: finding.AdvisoryID,
 	}
@@ -24,7 +24,7 @@ func buildSupplyChainAdvisoryExplanation(
 		out.RangeSource = finding.Provenance.SelectedRangeSource
 		out.SelectedSeveritySource = finding.Provenance.SelectedSeveritySource
 		out.SelectedFixedVersionSource = finding.Provenance.SelectedFixedVersionSource
-		out.Sources = append([]SupplyChainAdvisorySource(nil), finding.Provenance.AdvisorySources...)
+		out.Sources = append([]AdvisorySource(nil), finding.Provenance.AdvisorySources...)
 	}
 	for _, fact := range row.EvidenceFacts {
 		if !strings.Contains(fact.FactKind, "vulnerability") {
@@ -50,10 +50,10 @@ func buildSupplyChainAdvisoryExplanation(
 }
 
 func buildSupplyChainComponentExplanation(
-	row SupplyChainImpactExplanationRow,
-) SupplyChainImpactComponentExplanation {
+	row ExplanationRow,
+) ComponentExplanation {
 	finding := row.Finding
-	out := SupplyChainImpactComponentExplanation{
+	out := ComponentExplanation{
 		PackageID:       finding.PackageID,
 		Ecosystem:       finding.Ecosystem,
 		PackageName:     finding.PackageName,
@@ -100,11 +100,11 @@ func buildSupplyChainComponentExplanation(
 }
 
 func buildSupplyChainVersionExplanation(
-	row SupplyChainImpactExplanationRow,
-	advisory SupplyChainImpactAdvisoryExplanation,
-	component SupplyChainImpactComponentExplanation,
-) SupplyChainImpactVersionExplanation {
-	version := SupplyChainImpactVersionExplanation{
+	row ExplanationRow,
+	advisory AdvisoryExplanation,
+	component ComponentExplanation,
+) VersionExplanation {
+	version := VersionExplanation{
 		ObservedVersion: component.ObservedVersion,
 		ManifestRange:   component.ManifestRange,
 		VulnerableRange: advisory.VulnerableRange,
@@ -133,10 +133,10 @@ func buildSupplyChainVersionExplanation(
 }
 
 func buildSupplyChainDependencyChain(
-	finding SupplyChainImpactFindingRow,
-	facts []SupplyChainImpactEvidenceFact,
-) *SupplyChainImpactDependencyChain {
-	out := SupplyChainImpactDependencyChain{
+	finding FindingRow,
+	facts []EvidenceFact,
+) *DependencyChain {
+	out := DependencyChain{
 		Path:             append([]string(nil), finding.DependencyPath...),
 		Depth:            finding.DependencyDepth,
 		DirectDependency: cloneBoolPointer(finding.DirectDependency),
@@ -159,9 +159,9 @@ func buildSupplyChainDependencyChain(
 }
 
 func buildSupplyChainExplanationAnchors(
-	row SupplyChainImpactExplanationRow,
-) SupplyChainImpactExplanationAnchors {
-	out := SupplyChainImpactExplanationAnchors{
+	row ExplanationRow,
+) ExplanationAnchors {
+	out := ExplanationAnchors{
 		RepositoryID:    row.Finding.RepositoryID,
 		SubjectDigest:   row.Finding.SubjectDigest,
 		ImageRefs:       compactStrings([]string{row.Finding.ImageRef}),
@@ -231,7 +231,7 @@ func buildSupplyChainExplanationAnchors(
 	return out
 }
 
-func appendDeploymentAnchors(out *SupplyChainImpactExplanationAnchors, payload map[string]any) {
+func appendDeploymentAnchors(out *ExplanationAnchors, payload map[string]any) {
 	appendUniqueString(&out.Deployments, querycontract.StringVal(payload, "deployment_id"))
 	for _, entityKey := range querycontract.StringSliceVal(payload, "entity_keys") {
 		if strings.HasPrefix(entityKey, "deployment:") {
@@ -241,11 +241,11 @@ func appendDeploymentAnchors(out *SupplyChainImpactExplanationAnchors, payload m
 }
 
 func summarizeSupplyChainEvidenceFacts(
-	facts []SupplyChainImpactEvidenceFact,
-) []SupplyChainImpactEvidenceFactSummary {
-	out := make([]SupplyChainImpactEvidenceFactSummary, 0, len(facts))
+	facts []EvidenceFact,
+) []EvidenceFactSummary {
+	out := make([]EvidenceFactSummary, 0, len(facts))
 	for _, fact := range facts {
-		summary := SupplyChainImpactEvidenceFactSummary{
+		summary := EvidenceFactSummary{
 			FactID:           fact.FactID,
 			FactKind:         fact.FactKind,
 			SourceSystem:     fact.SourceSystem,
@@ -260,13 +260,13 @@ func summarizeSupplyChainEvidenceFacts(
 }
 
 func explanationMissingEvidence(
-	finding SupplyChainImpactFindingRow,
-	readiness SupplyChainImpactReadinessEnvelope,
-	advisory SupplyChainImpactAdvisoryExplanation,
-	component SupplyChainImpactComponentExplanation,
-	version SupplyChainImpactVersionExplanation,
-	dependencyChain *SupplyChainImpactDependencyChain,
-	anchors SupplyChainImpactExplanationAnchors,
+	finding FindingRow,
+	readiness ReadinessEnvelope,
+	advisory AdvisoryExplanation,
+	component ComponentExplanation,
+	version VersionExplanation,
+	dependencyChain *DependencyChain,
+	anchors ExplanationAnchors,
 ) []string {
 	missing := normalizedSupplyChainImpactMissingEvidence(&finding)
 	missing = append(missing, readiness.MissingEvidence...)
@@ -286,16 +286,16 @@ func explanationMissingEvidence(
 }
 
 func supplyChainExplanationFreshness(
-	facts []SupplyChainImpactEvidenceFact,
+	facts []EvidenceFact,
 	readinessFreshness string,
-) SupplyChainImpactExplanationFreshness {
+) ExplanationFreshness {
 	var latest time.Time
 	for _, fact := range facts {
 		if fact.ObservedAt.After(latest) {
 			latest = fact.ObservedAt
 		}
 	}
-	out := SupplyChainImpactExplanationFreshness{
+	out := ExplanationFreshness{
 		State:             explanationFreshnessState(readinessFreshness),
 		EvidenceFactCount: len(facts),
 	}
@@ -312,12 +312,12 @@ func explanationFreshnessState(readinessFreshness string) string {
 	return FreshnessLabelUnknown
 }
 
-func providerAlertAnchor(fact SupplyChainImpactEvidenceFact) SupplyChainProviderAlertAnchor {
+func providerAlertAnchor(fact EvidenceFact) ProviderAlertAnchor {
 	if !strings.Contains(strings.ToLower(fact.FactKind), "alert") &&
 		querycontract.StringVal(fact.Payload, "alert_id") == "" {
-		return SupplyChainProviderAlertAnchor{}
+		return ProviderAlertAnchor{}
 	}
-	return SupplyChainProviderAlertAnchor{
+	return ProviderAlertAnchor{
 		Provider:     querycontract.StringVal(fact.Payload, "provider"),
 		AlertID:      querycontract.StringVal(fact.Payload, "alert_id"),
 		State:        querycontract.StringVal(fact.Payload, "state"),
@@ -325,7 +325,7 @@ func providerAlertAnchor(fact SupplyChainImpactEvidenceFact) SupplyChainProvider
 	}
 }
 
-func appendPathAnchors(out *SupplyChainImpactExplanationAnchors, path string) {
+func appendPathAnchors(out *ExplanationAnchors, path string) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return
@@ -336,7 +336,7 @@ func appendPathAnchors(out *SupplyChainImpactExplanationAnchors, path string) {
 	}
 }
 
-func appendLockfilePathAnchors(out *SupplyChainImpactExplanationAnchors, lockfilePath string) {
+func appendLockfilePathAnchors(out *ExplanationAnchors, lockfilePath string) {
 	lockfilePath = strings.TrimSpace(lockfilePath)
 	if lockfilePath == "" {
 		return
@@ -345,7 +345,7 @@ func appendLockfilePathAnchors(out *SupplyChainImpactExplanationAnchors, lockfil
 	appendUniqueString(&out.LockfilePaths, lockfilePath)
 }
 
-func dependencyChainHasEvidence(chain SupplyChainImpactDependencyChain) bool {
+func dependencyChainHasEvidence(chain DependencyChain) bool {
 	return len(chain.Path) > 0 || chain.Depth > 0 || chain.DirectDependency != nil
 }
 

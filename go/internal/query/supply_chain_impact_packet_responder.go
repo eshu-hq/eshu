@@ -34,7 +34,7 @@ func NewSupplyChainImpactPacketResponder() supplychain.ImpactPacketResponder {
 func (supplyChainImpactPacketResponder) RespondSupplyChainImpactPacket(
 	w http.ResponseWriter,
 	r *http.Request,
-	body impact.SupplyChainImpactExplanationResult,
+	body impact.ExplanationResult,
 	truth *querycontract.TruthEnvelope,
 ) {
 	packet, err := BuildSupplyChainImpactPacket(body, truth, packetBoundsFromRequest(r))

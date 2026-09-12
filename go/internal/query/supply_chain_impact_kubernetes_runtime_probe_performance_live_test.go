@@ -266,9 +266,9 @@ func runBalancedKubernetesRuntimePerformance(
 	digests []string,
 ) kubernetesRuntimePerformanceResult {
 	t.Helper()
-	findings := make([]impact.SupplyChainImpactFindingRow, len(digests))
+	findings := make([]impact.FindingRow, len(digests))
 	for i, digest := range digests {
-		findings[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("performance-%03d", i), SubjectDigest: digest}
+		findings[i] = impact.FindingRow{FindingID: fmt.Sprintf("performance-%03d", i), SubjectDigest: digest}
 	}
 	started := time.Now()
 	err := (&SupplyChainHandler{Neo4j: reader, KubernetesWorkloadInventory: store}).

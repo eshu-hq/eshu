@@ -13,11 +13,11 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForStalePackageMetadata(t *te
 	// freshness and must not be converted into a clean ready_zero_findings
 	// answer just because advisory and registry fact counts are non-zero.
 	envelope := BuildSupplyChainImpactReadiness(
-		SupplyChainImpactTargetScope{PackageID: "pkg:npm/example"},
+		TargetScope{PackageID: "pkg:npm/example"},
 		nil,
 		false,
-		SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+		ReadinessSnapshot{
+			EvidenceSources: []EvidenceFamily{
 				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
 				{Family: EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: FreshnessLabelStale},
 			},
@@ -39,10 +39,10 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForMissingPackageMetadata(t *
 
 	tests := []struct {
 		name  string
-		scope SupplyChainImpactTargetScope
+		scope TargetScope
 	}{
-		{name: "package anchor", scope: SupplyChainImpactTargetScope{PackageID: "pkg:npm/example"}},
-		{name: "repository target", scope: SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"}},
+		{name: "package anchor", scope: TargetScope{PackageID: "pkg:npm/example"}},
+		{name: "repository target", scope: TargetScope{RepositoryID: "repo://example/api"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -52,8 +52,8 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForMissingPackageMetadata(t *
 				tt.scope,
 				nil,
 				false,
-				SupplyChainImpactReadinessSnapshot{
-					EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				ReadinessSnapshot{
+					EvidenceSources: []EvidenceFamily{
 						{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
 						{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
 					},
@@ -73,11 +73,11 @@ func TestBuildSupplyChainImpactReadinessKeepsFreshPackageMetadataReady(t *testin
 	t.Parallel()
 
 	envelope := BuildSupplyChainImpactReadiness(
-		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+		ReadinessSnapshot{
+			EvidenceSources: []EvidenceFamily{
 				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
 				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
 				{Family: EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: FreshnessLabelFresh},

@@ -71,7 +71,7 @@ func KubernetesRuntimeCandidates(rows []map[string]any) []KubernetesRuntimeCandi
 func (h *Handler) ApplySupplyChainKubernetesRuntimeEvidenceLive(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
-	rows []impact.SupplyChainImpactFindingRow,
+	rows []impact.FindingRow,
 ) error {
 	return h.applySupplyChainKubernetesRuntimeEvidence(ctx, access, rows)
 }

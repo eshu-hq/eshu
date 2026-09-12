@@ -10,8 +10,8 @@ Read `doc.go` and `README.md` first.
   something only root exposes, either a leaf equivalent already exists
   (`querycontract`, `decode`) or it does not belong in this family;
   ask before adding one.
-- The capabilities (`AdvisoryCatalogCapability`,
-  `AdvisoryEvidenceCapability`) are registered in ROOT
+- The capabilities (`CatalogCapability`,
+  `EvidenceCapability`) are registered in ROOT
   (`contract_supply_chain.go`), not here — root owns the router and always
   links into production. This package only declares the constant values.
 - The typed decode wrappers MUST return `*decode.Error` via
@@ -46,7 +46,7 @@ Read `doc.go` and `README.md` first.
 Every export below names a staying root caller — no speculative API. Do
 not export a new symbol without adding its caller to this list.
 
-- `AdvisoryCatalogCapability`, `AdvisoryEvidenceCapability` —
+- `CatalogCapability`, `EvidenceCapability` —
   `contract_supply_chain.go` registration; the catalog, evidence, and
   vulnerability-detail handlers.
 - `CatalogMaxLimit`, `EvidenceMaxLimit` — the staying
@@ -105,6 +105,6 @@ its doubles; never redeclare them.
   root evidence tests (grouping + SQL shape + lockstep). All four, or the
   kind is silently dropped or unpinned.
 - New response field backed by a typed struct: check the
-  struct-completeness note in `factschema_decode_advisory.go` first —
+  struct-completeness note in `factschema_decode.go` first —
   if the sdk struct does not declare the field, the read stays raw with a
   struct-gap comment, same as the existing ones.

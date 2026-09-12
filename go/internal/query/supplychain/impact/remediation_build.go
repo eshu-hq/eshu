@@ -15,12 +15,12 @@ import "strings"
 // builder only fills in display values the persisted block does not
 // already carry.
 func buildSupplyChainRemediationExplanation(
-	row SupplyChainImpactExplanationRow,
-	advisory SupplyChainImpactAdvisoryExplanation,
-	version SupplyChainImpactVersionExplanation,
-	component SupplyChainImpactComponentExplanation,
-	dependencyChain *SupplyChainImpactDependencyChain,
-) *SupplyChainImpactRemediation {
+	row ExplanationRow,
+	advisory AdvisoryExplanation,
+	version VersionExplanation,
+	component ComponentExplanation,
+	dependencyChain *DependencyChain,
+) *Remediation {
 	if row.Finding.Remediation == nil {
 		return nil
 	}

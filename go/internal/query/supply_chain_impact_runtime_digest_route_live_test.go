@@ -53,11 +53,11 @@ WHERE uid BETWEEN 'uid-000001' AND 'uid-001000'
 
 	handler := &SupplyChainHandler{
 		ImpactFindings: &recordingSupplyChainImpactFindingStore{
-			rows: []impact.SupplyChainImpactFindingRow{{
+			rows: []impact.FindingRow{{
 				FindingID:     "finding-runtime-route-proof",
 				CVEID:         "CVE-2026-00069",
 				PackageID:     "pkg:npm/example",
-				ImpactStatus:  "affected_exact",
+				Status:        "affected_exact",
 				SubjectDigest: digest,
 			}},
 		},
@@ -82,7 +82,7 @@ WHERE uid BETWEEN 'uid-000001' AND 'uid-001000'
 			t.Fatalf("route status = %d, want %d; body = %s", got, want, response.Body.String())
 		}
 		var body struct {
-			Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+			Findings []impact.FindingResult `json:"findings"`
 		}
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatalf("decode route response: %v", err)

@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-var supplyChainImpactFindingResultBenchmarkSink SupplyChainImpactFindingResult
+var supplyChainImpactFindingResultBenchmarkSink FindingResult
 
 // TestSupplyChainVersionResolutionTier proves the #5469 tiered version
 // resolution: the judged version/digest for a finding comes from the
@@ -46,20 +46,20 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 
 	cases := []struct {
 		name              string
-		row               SupplyChainImpactFindingRow
+		row               FindingRow
 		wantTier          truth.DeploymentTruthTier
-		wantCorroboration []SupplyChainVersionResolutionCorroboration
+		wantCorroboration []VersionResolutionCorroboration
 	}{
 		{
 			name: "kubernetes runtime confirms the parent finding digest",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				SubjectDigest: digest,
 				KubernetesRuntimeWorkloadRefs: []KubernetesRuntimeWorkloadRef{{
 					UID: "workload-1", ClusterID: "cluster-a", Namespace: "payments", Name: "api",
 				}},
 			},
 			wantTier: truth.TierRuntimeConfirmed,
-			wantCorroboration: []SupplyChainVersionResolutionCorroboration{{
+			wantCorroboration: []VersionResolutionCorroboration{{
 				Tier:            string(truth.TierConfigOnly),
 				DigestOrVersion: digest,
 				EvidenceKind:    "config_materialization",
@@ -68,7 +68,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		},
 		{
 			name: "runtime confirms the same digest a strong-branch CI match baked, both corroborate and agree",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				SubjectDigest:            digest,
 				CloudRuntimeResourceRefs: []string{ecsARN},
 				CIDeclaredArtifactDigest: digest,
@@ -79,7 +79,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 			// any version/digest at all gets at least a config_only claim,
 			// matching deployment_truth_tier's own hasDeploymentAnchor rule
 			// (SubjectDigest alone qualifies).
-			wantCorroboration: []SupplyChainVersionResolutionCorroboration{
+			wantCorroboration: []VersionResolutionCorroboration{
 				{
 					Tier:            string(truth.TierProvenanceCIDeclared),
 					DigestOrVersion: digest,
@@ -96,7 +96,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		},
 		{
 			name: "runtime-observed digest disagrees with a contradicting CI-declared digest; runtime still wins since it never needed CI eligibility",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				SubjectDigest:            digest,
 				CloudRuntimeResourceRefs: []string{ecsARN},
 				// The CI-declared deployment's OWN digest genuinely differs
@@ -112,7 +112,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 				CIDeclaredArtifactDigest: otherDigest,
 			},
 			wantTier: truth.TierRuntimeConfirmed,
-			wantCorroboration: []SupplyChainVersionResolutionCorroboration{
+			wantCorroboration: []VersionResolutionCorroboration{
 				{
 					Tier:            string(truth.TierProvenanceCIDeclared),
 					DigestOrVersion: otherDigest,
@@ -129,12 +129,12 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		},
 		{
 			name: "a contradicting CI-declared digest with no runtime evidence is ineligible to win; config_only's own SubjectDigest wins instead (review finding R1's required case)",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				SubjectDigest:            digest,
 				CIDeclaredArtifactDigest: otherDigest,
 			},
 			wantTier: truth.TierConfigOnly,
-			wantCorroboration: []SupplyChainVersionResolutionCorroboration{
+			wantCorroboration: []VersionResolutionCorroboration{
 				{
 					Tier:            string(truth.TierProvenanceCIDeclared),
 					DigestOrVersion: otherDigest,
@@ -145,7 +145,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		},
 		{
 			name: "CI-declared wins over a config-only version it cannot be compared against (cross-axis, not_comparable)",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				SubjectDigest:            digest,
 				CIDeclaredArtifactDigest: digest,
 				ObservedVersion:          "1.2.3",
@@ -153,7 +153,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 				Environments:             []string{"prod"},
 			},
 			wantTier: truth.TierProvenanceCIDeclared,
-			wantCorroboration: []SupplyChainVersionResolutionCorroboration{
+			wantCorroboration: []VersionResolutionCorroboration{
 				{
 					Tier:            string(truth.TierConfigOnly),
 					DigestOrVersion: "1.2.3",
@@ -164,7 +164,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		},
 		{
 			name: "config-only is the floor when only a version anchor exists",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				ObservedVersion: "4.5.6",
 				WorkloadIDs:     []string{"workload:example-api"},
 				Environments:    []string{"prod"},
@@ -181,7 +181,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 			// fallback was untested even though config_only is the floor
 			// every finding degrades to.
 			name: "config-only falls back to image_ref when no version or digest exists",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				ImageRef:     "registry.example.com/app:v1",
 				WorkloadIDs:  []string{"workload:example-api"},
 				Environments: []string{"prod"},
@@ -197,7 +197,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		},
 		{
 			name: "weak-branch CI hop with no baked digest contributes no version claim, even with a digest-bearing finding",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				// SubjectDigest is present (a digest-bearing finding) and
 				// EvidencePath carries the CI hop -- deployment_truth_tier
 				// would report provenance_ci_declared for this row (see
@@ -220,7 +220,7 @@ func TestSupplyChainVersionResolutionTier(t *testing.T) {
 		},
 		{
 			name:              "no deployment evidence at all reports no tier",
-			row:               SupplyChainImpactFindingRow{},
+			row:               FindingRow{},
 			wantTier:          "",
 			wantCorroboration: nil,
 		},
@@ -259,7 +259,7 @@ func TestSupplyChainVersionResolutionDeclaredRefNeverEmitted(t *testing.T) {
 	otherDigest := "sha256:88888888888888888888888888888888888888888888888888888888888888"
 	ecsARN := "arn:example:compute:::resource/cccccccc"
 
-	rows := []SupplyChainImpactFindingRow{
+	rows := []FindingRow{
 		{},
 		{ObservedVersion: "1.0.0", Environments: []string{"prod"}},
 		{SubjectDigest: digest, EvidencePath: []string{cicdRunCorrelationFactKind}},
@@ -295,7 +295,7 @@ func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) 
 	t.Parallel()
 
 	digest := "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-	row := SupplyChainImpactFindingRow{
+	row := FindingRow{
 		SubjectDigest:            digest,
 		CIDeclaredArtifactDigest: digest,
 	}
@@ -313,7 +313,7 @@ func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) 
 // add another per-finding allocation on this read path.
 func TestBuildSupplyChainImpactFindingResultAllocationBudget(t *testing.T) {
 	digest := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-	row := SupplyChainImpactFindingRow{
+	row := FindingRow{
 		FindingID:                "finding-allocation-budget",
 		CVEID:                    "CVE-2026-00099",
 		SubjectDigest:            digest,
@@ -359,7 +359,7 @@ func TestBuildSupplyChainImpactFindingResultAllocationBudget(t *testing.T) {
 // present at once to walk the full candidate/corroboration loop.
 func BenchmarkBuildSupplyChainImpactFindingResult(b *testing.B) {
 	digest := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-	row := SupplyChainImpactFindingRow{
+	row := FindingRow{
 		FindingID:                "finding-bench",
 		CVEID:                    "CVE-2026-00099",
 		SubjectDigest:            digest,

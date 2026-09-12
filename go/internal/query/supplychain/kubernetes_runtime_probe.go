@@ -99,7 +99,7 @@ type KubernetesWorkloadCurrentInventoryFilter interface {
 func (h *Handler) applySupplyChainKubernetesRuntimeEvidence(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
-	rows []impact.SupplyChainImpactFindingRow,
+	rows []impact.FindingRow,
 ) error {
 	if h == nil || h.KubernetesWorkloadInventory == nil || len(rows) == 0 {
 		return nil

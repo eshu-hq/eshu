@@ -8,36 +8,36 @@ import (
 	"strings"
 )
 
-// SupplyChainImpactSourceState exposes durable vulnerability source
+// SourceState exposes durable vulnerability source
 // checkpoint, retry, and freshness state without raw advisory payloads.
-type SupplyChainImpactSourceState struct {
-	CollectorInstanceID string                             `json:"collector_instance_id"`
-	ScopeID             string                             `json:"scope_id"`
-	Source              string                             `json:"source"`
-	Ecosystem           string                             `json:"ecosystem,omitempty"`
-	CollectionWindow    SupplyChainImpactSourceStateWindow `json:"collection_window,omitempty"`
-	LastAttemptAt       string                             `json:"last_attempt_at,omitempty"`
-	LastSuccessAt       string                             `json:"last_success_at,omitempty"`
-	NextRetryAt         string                             `json:"next_retry_at,omitempty"`
-	LastErrorClass      string                             `json:"last_error_class,omitempty"`
-	FreshnessState      string                             `json:"freshness_state"`
-	TerminalStatus      string                             `json:"terminal_status"`
-	ResultCount         int                                `json:"result_count"`
-	WarningCount        int                                `json:"warning_count"`
-	UpdatedAt           string                             `json:"updated_at,omitempty"`
+type SourceState struct {
+	CollectorInstanceID string            `json:"collector_instance_id"`
+	ScopeID             string            `json:"scope_id"`
+	Source              string            `json:"source"`
+	Ecosystem           string            `json:"ecosystem,omitempty"`
+	CollectionWindow    SourceStateWindow `json:"collection_window,omitempty"`
+	LastAttemptAt       string            `json:"last_attempt_at,omitempty"`
+	LastSuccessAt       string            `json:"last_success_at,omitempty"`
+	NextRetryAt         string            `json:"next_retry_at,omitempty"`
+	LastErrorClass      string            `json:"last_error_class,omitempty"`
+	FreshnessState      string            `json:"freshness_state"`
+	TerminalStatus      string            `json:"terminal_status"`
+	ResultCount         int               `json:"result_count"`
+	WarningCount        int               `json:"warning_count"`
+	UpdatedAt           string            `json:"updated_at,omitempty"`
 }
 
-// SupplyChainImpactSourceStateWindow is the bounded source collection window.
-type SupplyChainImpactSourceStateWindow struct {
+// SourceStateWindow is the bounded source collection window.
+type SourceStateWindow struct {
 	Start string `json:"start,omitempty"`
 	End   string `json:"end,omitempty"`
 }
 
-func normalizeSourceStates(states []SupplyChainImpactSourceState) []SupplyChainImpactSourceState {
+func normalizeSourceStates(states []SourceState) []SourceState {
 	if len(states) == 0 {
 		return nil
 	}
-	out := make([]SupplyChainImpactSourceState, 0, len(states))
+	out := make([]SourceState, 0, len(states))
 	seen := map[string]struct{}{}
 	for _, state := range states {
 		state.CollectorInstanceID = strings.TrimSpace(state.CollectorInstanceID)
@@ -68,7 +68,7 @@ func normalizeSourceStates(states []SupplyChainImpactSourceState) []SupplyChainI
 	return out
 }
 
-func sourceStatesIncomplete(states []SupplyChainImpactSourceState) bool {
+func sourceStatesIncomplete(states []SourceState) bool {
 	for _, state := range states {
 		switch state.FreshnessState {
 		case "pending", "stale", "rate_limited", "failed", "partial":
@@ -78,7 +78,7 @@ func sourceStatesIncomplete(states []SupplyChainImpactSourceState) bool {
 	return false
 }
 
-func sourceStateIncompleteReasons(states []SupplyChainImpactSourceState) []string {
+func sourceStateIncompleteReasons(states []SourceState) []string {
 	reasons := make([]string, 0, len(states))
 	for _, state := range states {
 		switch state.FreshnessState {
@@ -89,7 +89,7 @@ func sourceStateIncompleteReasons(states []SupplyChainImpactSourceState) []strin
 	return reasons
 }
 
-func sourceStatesHaveFreshSuccess(states []SupplyChainImpactSourceState) bool {
+func sourceStatesHaveFreshSuccess(states []SourceState) bool {
 	for _, state := range states {
 		if state.FreshnessState == "fresh" && state.TerminalStatus == "succeeded" {
 			return true
@@ -98,7 +98,7 @@ func sourceStatesHaveFreshSuccess(states []SupplyChainImpactSourceState) bool {
 	return false
 }
 
-func aggregateSourceStateFreshness(states []SupplyChainImpactSourceState) string {
+func aggregateSourceStateFreshness(states []SourceState) string {
 	for _, priority := range []string{"rate_limited", "failed", "partial", "pending", "stale"} {
 		for _, state := range states {
 			if state.FreshnessState == priority {

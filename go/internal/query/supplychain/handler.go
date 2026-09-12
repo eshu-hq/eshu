@@ -34,7 +34,7 @@ const (
 	ContainerImageIdentityMaxLimit      = 200
 	SecurityAlertReconciliationMaxLimit = 200
 
-	// impact.SupplyChainImpactProfilePrecise and impact.SupplyChainImpactProfileComprehensive
+	// impact.ProfilePrecise and impact.ProfileComprehensive
 	// moved to internal/query/supplychain/impact with the impact read models
 	// (#6060 lane A); see supply_chain_impact_alias.go.
 )
@@ -47,14 +47,14 @@ type Handler struct {
 	SBOMAttachmentAggregates SBOMAttestationAttachmentAggregateStore
 	AdvisoryEvidence         advisory.EvidenceStore
 	AdvisoryCatalog          advisory.CatalogStore
-	ImpactFindings           impact.SupplyChainImpactFindingStore
-	ImpactAggregates         impact.SupplyChainImpactAggregateStore
-	ImpactExplanations       impact.SupplyChainImpactExplanationStore
+	ImpactFindings           impact.FindingStore
+	ImpactAggregates         impact.AggregateStore
+	ImpactExplanations       impact.ExplanationStore
 	ContainerImageIdentities ContainerImageIdentityStore
 	ContainerImageAggregates ContainerImageIdentityAggregateStore
 	SecurityAlerts           SecurityAlertReconciliationStore
 	SecurityAlertAggregates  SecurityAlertReconciliationAggregateStore
-	Readiness                impact.SupplyChainImpactReadinessStore
+	Readiness                impact.ReadinessStore
 	SuppressionMutations     VulnerabilitySuppressionMutationStore
 	// CloudResourceInventory gates the #5452 runtime-observed cloud evidence
 	// probe: it filters the probe's digest-matched CloudResource graph nodes to

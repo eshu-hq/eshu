@@ -15,33 +15,33 @@ const (
 	unsupportedTargetFamilyMarker = "vulnerability.unsupported_target"
 )
 
-func decodeSourceSnapshots(raw sql.NullString) ([]SupplyChainImpactSourceSnapshot, error) {
+func decodeSourceSnapshots(raw sql.NullString) ([]SourceSnapshot, error) {
 	if !raw.Valid || raw.String == "" {
 		return nil, nil
 	}
-	var snapshots []SupplyChainImpactSourceSnapshot
+	var snapshots []SourceSnapshot
 	if err := json.Unmarshal([]byte(raw.String), &snapshots); err != nil {
 		return nil, fmt.Errorf("decode vulnerability source snapshot metadata: %w", err)
 	}
 	return snapshots, nil
 }
 
-func decodeSourceStates(raw sql.NullString) ([]SupplyChainImpactSourceState, error) {
+func decodeSourceStates(raw sql.NullString) ([]SourceState, error) {
 	if !raw.Valid || raw.String == "" {
 		return nil, nil
 	}
-	var states []SupplyChainImpactSourceState
+	var states []SourceState
 	if err := json.Unmarshal([]byte(raw.String), &states); err != nil {
 		return nil, fmt.Errorf("decode vulnerability source state metadata: %w", err)
 	}
 	return states, nil
 }
 
-func decodeUnsupportedTargets(raw sql.NullString) ([]SupplyChainImpactUnsupportedTarget, error) {
+func decodeUnsupportedTargets(raw sql.NullString) ([]UnsupportedTarget, error) {
 	if !raw.Valid || raw.String == "" {
 		return nil, nil
 	}
-	var targets []SupplyChainImpactUnsupportedTarget
+	var targets []UnsupportedTarget
 	if err := json.Unmarshal([]byte(raw.String), &targets); err != nil {
 		return nil, fmt.Errorf("decode vulnerability unsupported target metadata: %w", err)
 	}

@@ -56,7 +56,7 @@ func planKubernetesRuntimeProbeQueries(digests []string, allScopes bool) []kuber
 	return planKubernetesRuntimeProbeQueriesByOccurrence(occurrences, allScopes)
 }
 
-func planKubernetesRuntimeProbeQueriesForRows(rows []impact.SupplyChainImpactFindingRow, allScopes bool) []kubernetesRuntimeProbePlan {
+func planKubernetesRuntimeProbeQueriesForRows(rows []impact.FindingRow, allScopes bool) []kubernetesRuntimeProbePlan {
 	occurrences := make(map[string]int, min(len(rows), KubernetesRuntimeProbeMaxResults))
 	plannedRows := 0
 	for _, row := range rows {

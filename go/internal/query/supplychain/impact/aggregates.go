@@ -13,36 +13,36 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
-// SupplyChainImpactAggregateStore reads cheap-summary aggregates over
+// AggregateStore reads cheap-summary aggregates over
 // reducer-owned vulnerability impact findings without forcing callers to
 // page through the full list endpoint.
-type SupplyChainImpactAggregateStore interface {
-	CountSupplyChainImpactFindings(context.Context, SupplyChainImpactAggregateFilter) (SupplyChainImpactAggregateCount, error)
-	SupplyChainImpactInventory(context.Context, SupplyChainImpactAggregateFilter, SupplyChainImpactInventoryDimension, int, int) ([]SupplyChainImpactInventoryRow, error)
+type AggregateStore interface {
+	CountSupplyChainImpactFindings(context.Context, AggregateFilter) (AggregateCount, error)
+	SupplyChainImpactInventory(context.Context, AggregateFilter, InventoryDimension, int, int) ([]InventoryRow, error)
 }
 
-// SupplyChainImpactInventoryDimension names the grouping dimension for the
+// InventoryDimension names the grouping dimension for the
 // inventory aggregate.
-type SupplyChainImpactInventoryDimension string
+type InventoryDimension string
 
 const (
-	// SupplyChainImpactInventoryByImpactStatus groups by reducer impact_status.
-	SupplyChainImpactInventoryByImpactStatus SupplyChainImpactInventoryDimension = "impact_status"
-	// SupplyChainImpactInventoryByPriorityBucket groups by reducer priority_bucket.
-	SupplyChainImpactInventoryByPriorityBucket SupplyChainImpactInventoryDimension = "priority_bucket"
-	// SupplyChainImpactInventoryBySeverity groups by CVSS severity bucket
+	// InventoryByImpactStatus groups by reducer impact_status.
+	InventoryByImpactStatus InventoryDimension = "impact_status"
+	// InventoryByPriorityBucket groups by reducer priority_bucket.
+	InventoryByPriorityBucket InventoryDimension = "priority_bucket"
+	// InventoryBySeverity groups by CVSS severity bucket
 	// (none / low / medium / high / critical).
-	SupplyChainImpactInventoryBySeverity SupplyChainImpactInventoryDimension = "severity"
-	// SupplyChainImpactInventoryByRepository groups by repository_id.
-	SupplyChainImpactInventoryByRepository SupplyChainImpactInventoryDimension = "repository_id"
-	// SupplyChainImpactInventoryByEcosystem groups by package ecosystem.
-	SupplyChainImpactInventoryByEcosystem SupplyChainImpactInventoryDimension = "ecosystem"
+	InventoryBySeverity InventoryDimension = "severity"
+	// InventoryByRepository groups by repository_id.
+	InventoryByRepository InventoryDimension = "repository_id"
+	// InventoryByEcosystem groups by package ecosystem.
+	InventoryByEcosystem InventoryDimension = "ecosystem"
 )
 
-// SupplyChainImpactAggregateMaxLimit caps inventory result pages.
-const SupplyChainImpactAggregateMaxLimit = 500
+// AggregateMaxLimit caps inventory result pages.
+const AggregateMaxLimit = 500
 
-// SupplyChainImpactAggregateFilter narrows aggregate reads to one repository,
+// AggregateFilter narrows aggregate reads to one repository,
 // package, CVE, subject digest, profile, priority, or suppression state. An
 // aggregate without a scope is allowed because the totals question itself is
 // the call shape we want to replace — the dataset is already bounded by
@@ -50,14 +50,14 @@ const SupplyChainImpactAggregateMaxLimit = 500
 // DetectionProfile uses the same downstream value as the list route: `precise`
 // narrows to exact installed-version anchors, and blank admits both precise and
 // comprehensive rows.
-type SupplyChainImpactAggregateFilter struct {
+type AggregateFilter struct {
 	CVEID             string
 	AdvisoryID        string
 	PackageID         string
 	RepositoryID      string
 	SubjectDigest     string
 	ImageRef          string
-	ImpactStatus      string
+	Status            string
 	Ecosystem         string
 	WorkloadID        string
 	ServiceID         string
@@ -78,12 +78,12 @@ type SupplyChainImpactAggregateFilter struct {
 	AllowedScopeIDs      []string
 }
 
-// SupplyChainImpactAggregateCount is the cheap-summary totals envelope used by
+// AggregateCount is the cheap-summary totals envelope used by
 // the count handler. AffectedExact and AffectedDerived correspond to the
 // reducer-owned impact_status values 'affected_exact' and 'affected_derived';
 // PossiblyAffected covers 'possibly_affected'. NotAffected counts every
 // impact_status value with the 'not_affected' prefix.
-type SupplyChainImpactAggregateCount struct {
+type AggregateCount struct {
 	TotalFindings    int
 	AffectedFindings int
 	NotAffected      int
@@ -94,24 +94,24 @@ type SupplyChainImpactAggregateCount struct {
 	BySeverity       map[string]int
 }
 
-// SupplyChainImpactInventoryRow is one grouped bucket returned by the
+// InventoryRow is one grouped bucket returned by the
 // inventory aggregate.
-type SupplyChainImpactInventoryRow struct {
-	Dimension SupplyChainImpactInventoryDimension `json:"dimension"`
-	Value     string                              `json:"value"`
-	Count     int                                 `json:"count"`
+type InventoryRow struct {
+	Dimension InventoryDimension `json:"dimension"`
+	Value     string             `json:"value"`
+	Count     int                `json:"count"`
 }
 
 // PostgresSupplyChainImpactAggregateStore reads aggregate counts directly
 // from reducer-owned impact findings facts.
 type PostgresSupplyChainImpactAggregateStore struct {
-	DB SupplyChainImpactAggregateQueryer
+	DB AggregateQueryer
 	// Now supplies the single UTC clock value shared by every SQL statement
 	// in one aggregate call. It defaults to time.Now.
 	Now func() time.Time
 }
 
-type SupplyChainImpactAggregateQueryer interface {
+type AggregateQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
@@ -119,7 +119,7 @@ type SupplyChainImpactAggregateQueryer interface {
 // NewPostgresSupplyChainImpactAggregateStore creates the Postgres-backed
 // aggregate store.
 func NewPostgresSupplyChainImpactAggregateStore(
-	db SupplyChainImpactAggregateQueryer,
+	db AggregateQueryer,
 ) PostgresSupplyChainImpactAggregateStore {
 	return PostgresSupplyChainImpactAggregateStore{DB: db}
 }
@@ -128,21 +128,21 @@ func NewPostgresSupplyChainImpactAggregateStore(
 // for the scoped supply-chain impact slice.
 func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 	ctx context.Context,
-	filter SupplyChainImpactAggregateFilter,
-) (SupplyChainImpactAggregateCount, error) {
+	filter AggregateFilter,
+) (AggregateCount, error) {
 	if s.DB == nil {
-		return SupplyChainImpactAggregateCount{}, fmt.Errorf("supply chain impact aggregate database is required")
+		return AggregateCount{}, fmt.Errorf("supply chain impact aggregate database is required")
 	}
 
-	readAt := SupplyChainImpactSuppressionReadAt(s.Now)
+	readAt := SuppressionReadAt(s.Now)
 	row := s.DB.QueryRowContext(
 		ctx,
-		SupplyChainImpactAggregateCountQuery,
+		AggregateCountQuery,
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.SubjectDigest,
-		filter.ImpactStatus,
+		filter.Status,
 		filter.AdvisoryID,
 		filter.Ecosystem,
 		filter.ServiceID,
@@ -161,10 +161,10 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 	)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
 	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected); err != nil {
-		return SupplyChainImpactAggregateCount{}, fmt.Errorf("count supply chain impact findings: %w", err)
+		return AggregateCount{}, fmt.Errorf("count supply chain impact findings: %w", err)
 	}
 
-	count := SupplyChainImpactAggregateCount{
+	count := AggregateCount{
 		TotalFindings:    int(total.Int64),
 		AffectedFindings: int(affected.Int64),
 		AffectedExact:    int(affectedExact.Int64),
@@ -176,28 +176,28 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 	}
 
 	if err := s.fillPriorityBuckets(ctx, filter, readAt, &count); err != nil {
-		return SupplyChainImpactAggregateCount{}, err
+		return AggregateCount{}, err
 	}
 	if err := s.fillSeverityBuckets(ctx, filter, readAt, &count); err != nil {
-		return SupplyChainImpactAggregateCount{}, err
+		return AggregateCount{}, err
 	}
 	return count, nil
 }
 
 func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 	ctx context.Context,
-	filter SupplyChainImpactAggregateFilter,
+	filter AggregateFilter,
 	readAt time.Time,
-	count *SupplyChainImpactAggregateCount,
+	count *AggregateCount,
 ) error {
 	rows, err := s.DB.QueryContext(
 		ctx,
-		SupplyChainImpactAggregatePriorityCountQuery,
+		AggregatePriorityCountQuery,
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.SubjectDigest,
-		filter.ImpactStatus,
+		filter.Status,
 		filter.AdvisoryID,
 		filter.Ecosystem,
 		filter.ServiceID,
@@ -231,18 +231,18 @@ func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 
 func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 	ctx context.Context,
-	filter SupplyChainImpactAggregateFilter,
+	filter AggregateFilter,
 	readAt time.Time,
-	count *SupplyChainImpactAggregateCount,
+	count *AggregateCount,
 ) error {
 	rows, err := s.DB.QueryContext(
 		ctx,
-		SupplyChainImpactAggregateSeverityCountQuery,
+		AggregateSeverityCountQuery,
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.SubjectDigest,
-		filter.ImpactStatus,
+		filter.Status,
 		filter.AdvisoryID,
 		filter.Ecosystem,
 		filter.ServiceID,
@@ -279,11 +279,11 @@ func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 // caller.
 func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	ctx context.Context,
-	filter SupplyChainImpactAggregateFilter,
-	dimension SupplyChainImpactInventoryDimension,
+	filter AggregateFilter,
+	dimension InventoryDimension,
 	limit int,
 	offset int,
-) ([]SupplyChainImpactInventoryRow, error) {
+) ([]InventoryRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("supply chain impact aggregate database is required")
 	}
@@ -294,14 +294,14 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	// The handler asks for one extra row to detect truncation, so the store
 	// accepts up to MaxLimit+1 for that internal pagination probe (mirrors
 	// PostgresSupplyChainImpactFindingStore.ListSupplyChainImpactFindings).
-	if limit <= 0 || limit > SupplyChainImpactAggregateMaxLimit+1 {
-		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", SupplyChainImpactAggregateMaxLimit+1)
+	if limit <= 0 || limit > AggregateMaxLimit+1 {
+		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", AggregateMaxLimit+1)
 	}
 	if offset < 0 {
 		offset = 0
 	}
-	q := SupplyChainImpactInventoryQuery(groupExpr)
-	readAt := SupplyChainImpactSuppressionReadAt(s.Now)
+	q := InventoryQuery(groupExpr)
+	readAt := SuppressionReadAt(s.Now)
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
@@ -309,7 +309,7 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.SubjectDigest,
-		filter.ImpactStatus,
+		filter.Status,
 		filter.AdvisoryID,
 		filter.Ecosystem,
 		filter.ServiceID,
@@ -332,14 +332,14 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		return nil, fmt.Errorf("inventory supply chain impact findings: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	out := make([]SupplyChainImpactInventoryRow, 0, limit)
+	out := make([]InventoryRow, 0, limit)
 	for rows.Next() {
 		var bucket string
 		var bucketCount int64
 		if err := rows.Scan(&bucket, &bucketCount); err != nil {
 			return nil, fmt.Errorf("scan supply chain impact inventory row: %w", err)
 		}
-		out = append(out, SupplyChainImpactInventoryRow{
+		out = append(out, InventoryRow{
 			Dimension: dimension,
 			Value:     strings.TrimSpace(bucket),
 			Count:     int(bucketCount),
@@ -351,13 +351,13 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	return out, nil
 }
 
-// SupplyChainImpactInventoryQuery inserts one expression selected by the
-// closed SupplyChainImpactInventoryDimension enum. A sentinel replacement is
+// InventoryQuery inserts one expression selected by the
+// closed InventoryDimension enum. A sentinel replacement is
 // deliberate: fmt.Sprintf over the complete SQL would reinterpret percent
 // literals in runtime repository-scope LIKE patterns.
-func SupplyChainImpactInventoryQuery(groupExpr string) string {
+func InventoryQuery(groupExpr string) string {
 	return strings.Replace(
-		SupplyChainImpactInventoryQueryTemplate,
+		InventoryQueryTemplate,
 		supplyChainImpactInventoryGroupExpressionPlaceholder,
 		groupExpr,
 		1,
@@ -367,17 +367,17 @@ func SupplyChainImpactInventoryQuery(groupExpr string) string {
 // supplyChainImpactInventoryGroupExpression maps the dimension enum to the
 // safe SQL expression substituted into the inventory query template. Only
 // known enum values are accepted, so the substitution stays parameter-safe.
-func supplyChainImpactInventoryGroupExpression(dimension SupplyChainImpactInventoryDimension) (string, error) {
+func supplyChainImpactInventoryGroupExpression(dimension InventoryDimension) (string, error) {
 	switch dimension {
-	case SupplyChainImpactInventoryByImpactStatus:
+	case InventoryByImpactStatus:
 		return "COALESCE(NULLIF(fact.impact_status, ''), 'unknown')", nil
-	case SupplyChainImpactInventoryByPriorityBucket:
+	case InventoryByPriorityBucket:
 		return "COALESCE(NULLIF(fact.priority_bucket, ''), 'unknown')", nil
-	case SupplyChainImpactInventoryBySeverity:
+	case InventoryBySeverity:
 		return "COALESCE(NULLIF(fact.severity_bucket, ''), 'none')", nil
-	case SupplyChainImpactInventoryByRepository:
+	case InventoryByRepository:
 		return "COALESCE(NULLIF(fact.repository_id, ''), 'unknown')", nil
-	case SupplyChainImpactInventoryByEcosystem:
+	case InventoryByEcosystem:
 		return "COALESCE(NULLIF(fact.ecosystem, ''), 'unknown')", nil
 	default:
 		return "", fmt.Errorf("unsupported supply chain impact inventory dimension: %q", dimension)

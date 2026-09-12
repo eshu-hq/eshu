@@ -141,9 +141,9 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dimension := impact.SupplyChainImpactInventoryDimension(querycontract.QueryParam(r, "group_by"))
+	dimension := impact.InventoryDimension(querycontract.QueryParam(r, "group_by"))
 	if dimension == "" {
-		dimension = impact.SupplyChainImpactInventoryByImpactStatus
+		dimension = impact.InventoryByImpactStatus
 	}
 	if !isSupportedSupplyChainImpactDimension(dimension) {
 		querycontract.WriteError(w, http.StatusBadRequest, "group_by must be one of impact_status, priority_bucket, severity, repository_id, ecosystem")
@@ -202,14 +202,14 @@ func (h *Handler) supplyChainImpactAggregateFilterFromRequest(
 	w http.ResponseWriter,
 	r *http.Request,
 	access querycontract.RepositoryAccessFilter,
-) (impact.SupplyChainImpactAggregateFilter, bool) {
+) (impact.AggregateFilter, bool) {
 	repositoryID, ok := h.resolveSupplyChainImpactRepositorySelector(w, r, querycontract.QueryParam(r, "repository_id"), access, ImpactAggregateCapability)
 	if !ok {
-		return impact.SupplyChainImpactAggregateFilter{}, false
+		return impact.AggregateFilter{}, false
 	}
 	profile, ok := impact.RequestedSupplyChainImpactProfile(w, r)
 	if !ok {
-		return impact.SupplyChainImpactAggregateFilter{}, false
+		return impact.AggregateFilter{}, false
 	}
 	advisoryID := querycontract.QueryParam(r, "advisory_id")
 	if advisoryID == "" {
@@ -217,35 +217,35 @@ func (h *Handler) supplyChainImpactAggregateFilterFromRequest(
 	}
 	severity, ok := impact.ParseSupplyChainScannerSeverity(w, r)
 	if !ok {
-		return impact.SupplyChainImpactAggregateFilter{}, false
+		return impact.AggregateFilter{}, false
 	}
 	priorityBucket := querycontract.QueryParam(r, "priority_bucket")
 	if priorityBucket != "" && !impact.ValidSupplyChainImpactPriorityBucket(priorityBucket) {
 		querycontract.WriteError(w, http.StatusBadRequest, "priority_bucket must be critical, high, medium, low, or informational")
-		return impact.SupplyChainImpactAggregateFilter{}, false
+		return impact.AggregateFilter{}, false
 	}
 	minPriorityScore, err := impact.OptionalSupplyChainImpactMinPriorityScore(r)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
-		return impact.SupplyChainImpactAggregateFilter{}, false
+		return impact.AggregateFilter{}, false
 	}
 	suppressionState := querycontract.QueryParam(r, "suppression_state")
 	if suppressionState != "" && !impact.IsSupportedSupplyChainSuppressionState(suppressionState) {
 		querycontract.WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
-		return impact.SupplyChainImpactAggregateFilter{}, false
+		return impact.AggregateFilter{}, false
 	}
 	includeSuppressed, ok := impact.ParseSupplyChainImpactIncludeSuppressed(w, r)
 	if !ok {
-		return impact.SupplyChainImpactAggregateFilter{}, false
+		return impact.AggregateFilter{}, false
 	}
-	filter := impact.SupplyChainImpactAggregateFilter{
+	filter := impact.AggregateFilter{
 		CVEID:             querycontract.QueryParam(r, "cve_id"),
 		AdvisoryID:        advisoryID,
 		PackageID:         querycontract.QueryParam(r, "package_id"),
 		RepositoryID:      repositoryID,
 		SubjectDigest:     querycontract.QueryParam(r, "subject_digest"),
 		ImageRef:          querycontract.QueryParam(r, "image_ref"),
-		ImpactStatus:      querycontract.QueryParam(r, "impact_status"),
+		Status:            querycontract.QueryParam(r, "impact_status"),
 		Ecosystem:         querycontract.QueryParam(r, "ecosystem"),
 		WorkloadID:        querycontract.QueryParam(r, "workload_id"),
 		ServiceID:         querycontract.QueryParam(r, "service_id"),
@@ -264,14 +264,14 @@ func (h *Handler) supplyChainImpactAggregateFilterFromRequest(
 	return filter, true
 }
 
-func requestedSupplyChainImpactAggregateProfile(filter impact.SupplyChainImpactAggregateFilter) string {
-	if filter.DetectionProfile == impact.SupplyChainImpactProfilePrecise {
-		return impact.SupplyChainImpactProfilePrecise
+func requestedSupplyChainImpactAggregateProfile(filter impact.AggregateFilter) string {
+	if filter.DetectionProfile == impact.ProfilePrecise {
+		return impact.ProfilePrecise
 	}
-	return impact.SupplyChainImpactProfileComprehensive
+	return impact.ProfileComprehensive
 }
 
-func supplyChainImpactAggregateScope(filter impact.SupplyChainImpactAggregateFilter) map[string]string {
+func supplyChainImpactAggregateScope(filter impact.AggregateFilter) map[string]string {
 	out := map[string]string{}
 	if filter.CVEID != "" {
 		out["cve_id"] = filter.CVEID
@@ -291,8 +291,8 @@ func supplyChainImpactAggregateScope(filter impact.SupplyChainImpactAggregateFil
 	if filter.ImageRef != "" {
 		out["image_ref"] = filter.ImageRef
 	}
-	if filter.ImpactStatus != "" {
-		out["impact_status"] = filter.ImpactStatus
+	if filter.Status != "" {
+		out["impact_status"] = filter.Status
 	}
 	if filter.Ecosystem != "" {
 		out["ecosystem"] = filter.Ecosystem
@@ -325,13 +325,13 @@ func supplyChainImpactAggregateScope(filter impact.SupplyChainImpactAggregateFil
 	return out
 }
 
-func isSupportedSupplyChainImpactDimension(d impact.SupplyChainImpactInventoryDimension) bool {
+func isSupportedSupplyChainImpactDimension(d impact.InventoryDimension) bool {
 	switch d {
-	case impact.SupplyChainImpactInventoryByImpactStatus,
-		impact.SupplyChainImpactInventoryByPriorityBucket,
-		impact.SupplyChainImpactInventoryBySeverity,
-		impact.SupplyChainImpactInventoryByRepository,
-		impact.SupplyChainImpactInventoryByEcosystem:
+	case impact.InventoryByImpactStatus,
+		impact.InventoryByPriorityBucket,
+		impact.InventoryBySeverity,
+		impact.InventoryByRepository,
+		impact.InventoryByEcosystem:
 		return true
 	default:
 		return false
@@ -362,7 +362,7 @@ func parseSupplyChainImpactAggregateLimit(w http.ResponseWriter, r *http.Request
 		querycontract.WriteError(w, http.StatusBadRequest, "limit must be a positive integer")
 		return 0, false
 	}
-	if parsed > impact.SupplyChainImpactAggregateMaxLimit {
+	if parsed > impact.AggregateMaxLimit {
 		querycontract.WriteError(w, http.StatusBadRequest, "limit exceeds maximum")
 		return 0, false
 	}

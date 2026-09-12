@@ -6,7 +6,7 @@ package impact
 import "github.com/eshu-hq/eshu/go/internal/truth"
 
 // Agreement is the closed, three-state vocabulary a
-// SupplyChainVersionResolutionCorroboration entry reports (issue #5469
+// VersionResolutionCorroboration entry reports (issue #5469
 // review finding R6). Raw textual equality across incomparable identity axes
 // -- a dpkg version string can never equal a sha256 digest -- would make
 // "disagrees" a guaranteed-false comparison an operator could mistake for a
@@ -31,7 +31,7 @@ const (
 	axisVersion  supplyChainVersionResolutionAxis = "version"
 )
 
-// SupplyChainVersionResolutionCorroboration is one weaker deployment-truth
+// VersionResolutionCorroboration is one weaker deployment-truth
 // tier's own digest/version claim for a finding whose judged version/digest
 // (version_resolution_tier) was resolved from a stronger tier. Every present
 // weaker tier is disclosed here, including a tier whose claim disagrees with
@@ -40,7 +40,7 @@ const (
 // instead of only ever seeing confirmation. A cross-axis pair (for example a
 // version compared against a digest) can never textually agree, so it is
 // reported "not_comparable" rather than a misleading "disagrees".
-type SupplyChainVersionResolutionCorroboration struct {
+type VersionResolutionCorroboration struct {
 	Tier            string `json:"tier"`
 	DigestOrVersion string `json:"digest_or_version,omitempty"`
 	EvidenceKind    string `json:"evidence_kind,omitempty"`
@@ -70,7 +70,7 @@ type supplyChainVersionResolutionCandidate struct {
 // rather than guessing.
 func supplyChainVersionResolutionClaim(
 	tier truth.DeploymentTruthTier,
-	row *SupplyChainImpactFindingRow,
+	row *FindingRow,
 ) (value string, evidenceKind string, axis supplyChainVersionResolutionAxis) {
 	switch tier {
 	case truth.TierRuntimeConfirmed:
@@ -169,7 +169,7 @@ func supplyChainVersionResolutionClaim(
 // appears as corroboration (with a disagrees Agreement, since it shares the
 // digest axis with the finding's own identity) -- it is only barred from
 // being the winner.
-func supplyChainCIDeclaredDigestContradictsFinding(row *SupplyChainImpactFindingRow) bool {
+func supplyChainCIDeclaredDigestContradictsFinding(row *FindingRow) bool {
 	return row.SubjectDigest != "" &&
 		row.CIDeclaredArtifactDigest != "" &&
 		row.CIDeclaredArtifactDigest != row.SubjectDigest
@@ -221,8 +221,8 @@ func supplyChainVersionResolutionAgreement(
 // deployment_truth_tier. A finding with no eligible version/digest evidence
 // at all -- not even a config-materialized one -- returns ("", nil).
 func supplyChainVersionResolution(
-	row *SupplyChainImpactFindingRow,
-) (tier string, corroboration []SupplyChainVersionResolutionCorroboration) {
+	row *FindingRow,
+) (tier string, corroboration []VersionResolutionCorroboration) {
 	ciContradicts := supplyChainCIDeclaredDigestContradictsFinding(row)
 
 	// truth.AllDeploymentTruthTiers has exactly four members; the candidate
@@ -278,11 +278,11 @@ func supplyChainVersionResolution(
 // not_comparable, since there is no winning value to compare against.
 // Returns nil when there is nothing to disclose, matching the "omitted when
 // no weaker tier makes a claim" contract on
-// SupplyChainImpactFindingResult.VersionResolutionCorroboration.
+// FindingResult.VersionResolutionCorroboration.
 func supplyChainVersionResolutionCorroborationEntries(
 	candidates []supplyChainVersionResolutionCandidate,
 	winnerIndex int,
-) []SupplyChainVersionResolutionCorroboration {
+) []VersionResolutionCorroboration {
 	entryCount := len(candidates)
 	var winner supplyChainVersionResolutionCandidate
 	if winnerIndex != -1 {
@@ -292,7 +292,7 @@ func supplyChainVersionResolutionCorroborationEntries(
 	if entryCount == 0 {
 		return nil
 	}
-	entries := make([]SupplyChainVersionResolutionCorroboration, 0, entryCount)
+	entries := make([]VersionResolutionCorroboration, 0, entryCount)
 	for i, c := range candidates {
 		if i == winnerIndex {
 			continue
@@ -301,7 +301,7 @@ func supplyChainVersionResolutionCorroborationEntries(
 		if winnerIndex != -1 {
 			agreement = supplyChainVersionResolutionAgreement(c.value, c.axis, winner.value, winner.axis)
 		}
-		entries = append(entries, SupplyChainVersionResolutionCorroboration{
+		entries = append(entries, VersionResolutionCorroboration{
 			Tier:            string(c.tier),
 			DigestOrVersion: c.value,
 			EvidenceKind:    c.kind,

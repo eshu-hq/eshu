@@ -3,11 +3,11 @@
 
 package impact
 
-const SupplyChainImpactFindingFactKind = "reducer_supply_chain_impact_finding"
+const FindingFactKind = "reducer_supply_chain_impact_finding"
 
 const supplyChainImpactOperatorSuppressionScopeID = "operator:vulnerability_suppressions"
 
-const SupplyChainImpactCanonicalFindingKeySQL = `CONCAT_WS('|',
+const CanonicalFindingKeySQL = `CONCAT_WS('|',
          COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
          COALESCE(fact.payload->>'advisory_id', ''),
          COALESCE(fact.payload->>'package_id', ''),
@@ -23,7 +23,7 @@ const SupplyChainImpactCanonicalFindingKeySQL = `CONCAT_WS('|',
 
 const supplyChainImpactPublicFindingIDSQL = `COALESCE(
          NULLIF(fact.payload->>'finding_id', ''),
-         ` + SupplyChainImpactCanonicalFindingKeySQL + `
+         ` + CanonicalFindingKeySQL + `
        )`
 
 const supplyChainImpactPayloadFindingIDPresentSQL = `CASE

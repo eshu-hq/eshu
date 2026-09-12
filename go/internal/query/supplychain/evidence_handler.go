@@ -19,20 +19,20 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 		r,
 		telemetry.SpanQueryAdvisoryEvidence,
 		"GET /api/v0/supply-chain/advisories/evidence",
-		advisory.AdvisoryEvidenceCapability,
+		advisory.EvidenceCapability,
 	)
 	defer span.End()
 
-	if querycontract.CapabilityUnsupported(h.profile(), advisory.AdvisoryEvidenceCapability) {
+	if querycontract.CapabilityUnsupported(h.profile(), advisory.EvidenceCapability) {
 		querycontract.WriteContractError(
 			w,
 			r,
 			http.StatusNotImplemented,
 			"advisory evidence requires the Postgres vulnerability source fact read model",
 			querycontract.ErrorCodeUnsupportedCapability,
-			advisory.AdvisoryEvidenceCapability,
+			advisory.EvidenceCapability,
 			h.profile(),
-			querycontract.RequiredProfile(advisory.AdvisoryEvidenceCapability),
+			querycontract.RequiredProfile(advisory.EvidenceCapability),
 		)
 		return
 	}
@@ -47,7 +47,7 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 	// with the impact findings that derive advisory anchors so a scoped caller
 	// only learns advisories affecting its own repositories.
 	access := querycontract.RepositoryAccessFilterFromContext(r.Context())
-	repositoryID, ok := queryselector.ResolveForRequestWithAccess(w, r, h.Neo4j, h.Content, querycontract.QueryParam(r, "repository_id"), access, advisory.AdvisoryEvidenceCapability)
+	repositoryID, ok := queryselector.ResolveForRequestWithAccess(w, r, h.Neo4j, h.Content, querycontract.QueryParam(r, "repository_id"), access, advisory.EvidenceCapability)
 	if !ok {
 		return
 	}
@@ -74,9 +74,9 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 			http.StatusServiceUnavailable,
 			"advisory evidence requires the Postgres vulnerability source fact read model",
 			querycontract.ErrorCodeBackendUnavailable,
-			advisory.AdvisoryEvidenceCapability,
+			advisory.EvidenceCapability,
 			h.profile(),
-			querycontract.RequiredProfile(advisory.AdvisoryEvidenceCapability),
+			querycontract.RequiredProfile(advisory.EvidenceCapability),
 		)
 		return
 	}
@@ -101,7 +101,7 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
-		advisory.AdvisoryEvidenceCapability,
+		advisory.EvidenceCapability,
 		querycontract.TruthBasisSemanticFacts,
 		"resolved from active vulnerability source facts; repository, service, and workload scopes use reducer-owned impact findings only as bounded advisory anchors and do not imply additional package, image, workload, or deployment impact",
 	))

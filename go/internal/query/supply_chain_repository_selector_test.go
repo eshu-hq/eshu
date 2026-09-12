@@ -30,21 +30,21 @@ func (s *countingRepositoryContentStore) MatchRepositories(
 }
 
 type canonicalRepositoryImpactStore struct {
-	rows       []impact.SupplyChainImpactFindingRow
-	lastFilter impact.SupplyChainImpactFindingFilter
+	rows       []impact.FindingRow
+	lastFilter impact.FindingFilter
 	calls      int
 }
 
 func (s *canonicalRepositoryImpactStore) ListSupplyChainImpactFindings(
 	_ context.Context,
-	filter impact.SupplyChainImpactFindingFilter,
-) ([]impact.SupplyChainImpactFindingRow, error) {
+	filter impact.FindingFilter,
+) ([]impact.FindingRow, error) {
 	s.calls++
 	s.lastFilter = filter
 	if filter.RepositoryID != "repo://example/api" {
 		return nil, fmt.Errorf("repository_id = %q, want repo://example/api", filter.RepositoryID)
 	}
-	return append([]impact.SupplyChainImpactFindingRow(nil), s.rows...), nil
+	return append([]impact.FindingRow(nil), s.rows...), nil
 }
 
 type canonicalRepositorySecurityAlertStore struct {
@@ -107,10 +107,10 @@ func TestSupplyChainListImpactFindingsResolvesRepositorySelectors(t *testing.T) 
 				},
 			}
 			store := &canonicalRepositoryImpactStore{
-				rows: []impact.SupplyChainImpactFindingRow{{
+				rows: []impact.FindingRow{{
 					FindingID:    "finding-1",
 					RepositoryID: "repo://example/api",
-					ImpactStatus: "affected_exact",
+					Status:       "affected_exact",
 				}},
 			}
 			handler := &SupplyChainHandler{
@@ -142,7 +142,7 @@ func TestSupplyChainListImpactFindingsResolvesRepositorySelectors(t *testing.T) 
 			}
 
 			var resp struct {
-				Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+				Findings []impact.FindingResult `json:"findings"`
 			}
 			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 				t.Fatalf("json.Unmarshal: %v", err)

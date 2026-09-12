@@ -17,7 +17,7 @@ source_candidates AS (
          COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + SupplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
+         ` + CanonicalFindingKeySQL + ` AS canonical_key
   FROM fact_records AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
@@ -77,7 +77,7 @@ operator_candidates AS (
          fact.payload #>> '{suppression,expires_at}' AS expires_at,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + SupplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
+         ` + CanonicalFindingKeySQL + ` AS canonical_key
   FROM fact_records AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id

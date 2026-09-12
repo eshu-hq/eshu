@@ -83,7 +83,7 @@ func TestSupplyChainImpactExplainScopedGrantsAcrossTenants(t *testing.T) {
 		WorkspaceID:          "workspace-b",
 		AllowedRepositoryIDs: []string{"repo://example/other"},
 	}
-	explanations.lastFilter = impact.SupplyChainImpactExplanationFilter{}
+	explanations.lastFilter = impact.ExplanationFilter{}
 	reqB := httptest.NewRequest(
 		http.MethodGet,
 		"/api/v0/supply-chain/impact/explain?repository_id=payments-api&advisory_id=GHSA-test-1",
@@ -106,7 +106,7 @@ func TestSupplyChainImpactExplainScopedGrantsAcrossTenants(t *testing.T) {
 func assertEmptyImpactExplanationResponse(t *testing.T, body []byte) {
 	t.Helper()
 
-	var resp impact.SupplyChainImpactExplanationResult
+	var resp impact.ExplanationResult
 	if err := json.Unmarshal(body, &resp); err != nil {
 		t.Fatalf("decode explain response: %v; body = %s", err, string(body))
 	}

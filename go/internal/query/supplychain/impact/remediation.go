@@ -7,7 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// SupplyChainImpactRemediation is the advisory-only safe-upgrade recommendation
+// Remediation is the advisory-only safe-upgrade recommendation
 // the reducer attaches to one vulnerability impact finding (issue #595). It
 // records the installed version, the source-reported vulnerable range, the
 // first patched version Eshu can defend, every published fixed-version
@@ -20,32 +20,32 @@ import (
 //
 // The reducer never auto-applies remediation; this block is strictly
 // advisory.
-type SupplyChainImpactRemediation struct {
-	Ecosystem              string                          `json:"ecosystem,omitempty"`
-	CurrentVersion         string                          `json:"current_version,omitempty"`
-	VulnerableRange        string                          `json:"vulnerable_range,omitempty"`
-	FixedVersionSource     string                          `json:"fixed_version_source,omitempty"`
-	MatchReason            string                          `json:"match_reason,omitempty"`
-	FirstPatchedVersion    string                          `json:"first_patched_version,omitempty"`
-	PatchedVersionBranches []SupplyChainFixedVersionBranch `json:"patched_version_branches,omitempty"`
-	ManifestRange          string                          `json:"manifest_range,omitempty"`
-	ManifestAllowsFix      string                          `json:"manifest_allows_fix,omitempty"`
-	Direct                 *bool                           `json:"direct,omitempty"`
-	ParentPackage          string                          `json:"parent_package,omitempty"`
-	Confidence             string                          `json:"confidence,omitempty"`
-	Reason                 string                          `json:"reason,omitempty"`
-	MissingEvidence        []string                        `json:"missing_evidence,omitempty"`
+type Remediation struct {
+	Ecosystem              string               `json:"ecosystem,omitempty"`
+	CurrentVersion         string               `json:"current_version,omitempty"`
+	VulnerableRange        string               `json:"vulnerable_range,omitempty"`
+	FixedVersionSource     string               `json:"fixed_version_source,omitempty"`
+	MatchReason            string               `json:"match_reason,omitempty"`
+	FirstPatchedVersion    string               `json:"first_patched_version,omitempty"`
+	PatchedVersionBranches []FixedVersionBranch `json:"patched_version_branches,omitempty"`
+	ManifestRange          string               `json:"manifest_range,omitempty"`
+	ManifestAllowsFix      string               `json:"manifest_allows_fix,omitempty"`
+	Direct                 *bool                `json:"direct,omitempty"`
+	ParentPackage          string               `json:"parent_package,omitempty"`
+	Confidence             string               `json:"confidence,omitempty"`
+	Reason                 string               `json:"reason,omitempty"`
+	MissingEvidence        []string             `json:"missing_evidence,omitempty"`
 }
 
 // DecodeSupplyChainImpactRemediation decodes the remediation block off a
 // reducer-owned finding payload. Returns nil when the payload does not
 // carry a remediation row (older facts written before #595 landed).
-func DecodeSupplyChainImpactRemediation(payload map[string]any) *SupplyChainImpactRemediation {
+func DecodeSupplyChainImpactRemediation(payload map[string]any) *Remediation {
 	raw, ok := payload["remediation"].(map[string]any)
 	if !ok || len(raw) == 0 {
 		return nil
 	}
-	out := SupplyChainImpactRemediation{
+	out := Remediation{
 		Ecosystem:              querycontract.StringVal(raw, "ecosystem"),
 		CurrentVersion:         querycontract.StringVal(raw, "current_version"),
 		VulnerableRange:        querycontract.StringVal(raw, "vulnerable_range"),
@@ -67,7 +67,7 @@ func DecodeSupplyChainImpactRemediation(payload map[string]any) *SupplyChainImpa
 	return &out
 }
 
-func remediationIsEmpty(r SupplyChainImpactRemediation) bool {
+func remediationIsEmpty(r Remediation) bool {
 	return r.Reason == "" && r.Confidence == "" && r.FirstPatchedVersion == "" &&
 		r.ManifestRange == "" && r.CurrentVersion == "" && r.VulnerableRange == "" &&
 		r.FixedVersionSource == "" && r.MatchReason == "" &&

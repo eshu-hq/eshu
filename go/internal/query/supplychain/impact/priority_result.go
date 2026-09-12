@@ -7,12 +7,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func decodeSupplyChainImpactPriorityContributions(raw any) []SupplyChainImpactPriorityContribution {
+func decodeSupplyChainImpactPriorityContributions(raw any) []PriorityContribution {
 	items, ok := raw.([]any)
 	if !ok || len(items) == 0 {
 		return nil
 	}
-	out := make([]SupplyChainImpactPriorityContribution, 0, len(items))
+	out := make([]PriorityContribution, 0, len(items))
 	for _, item := range items {
 		row, ok := item.(map[string]any)
 		if !ok {
@@ -22,7 +22,7 @@ func decodeSupplyChainImpactPriorityContributions(raw any) []SupplyChainImpactPr
 		if reasonCode == "" {
 			continue
 		}
-		out = append(out, SupplyChainImpactPriorityContribution{
+		out = append(out, PriorityContribution{
 			ReasonCode:   reasonCode,
 			Input:        querycontract.StringVal(row, "input"),
 			Value:        querycontract.StringVal(row, "value"),

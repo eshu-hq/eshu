@@ -35,7 +35,7 @@ func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *test
 			"provenance_only":      true,
 		},
 	} {
-		out := map[string]impact.SupplyChainRuntimeContext{}
+		out := map[string]impact.RuntimeContext{}
 		impact.AddSupplyChainRuntimeContextFact(out, cloudRuntimeProbeTestCICDFactKind, "scope", payload)
 		if _, ok := out["repository:r_rejected"]; ok {
 			t.Fatalf("rejected payload folded into runtime context: %#v", payload)
@@ -46,12 +46,12 @@ func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *test
 func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDigestCandidate(t *testing.T) {
 	t.Parallel()
 
-	contextValue := impact.SupplyChainRuntimeContext{
+	contextValue := impact.RuntimeContext{
 		Environments: []string{"production"},
 	}
 	row := osPackageFindingRowForRuntimeContext()
 	store := &querytestutil.FakeRuntimeContextFindingStore{
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{
+		ByRepo: map[string]impact.RuntimeContext{
 			"repository:r_217415d9": contextValue,
 		},
 		ByDigest: map[string]map[string]string{
@@ -59,7 +59,7 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 		},
 	}
 	handler := &Handler{ImpactFindings: store}
-	rows := []impact.SupplyChainImpactFindingRow{row}
+	rows := []impact.FindingRow{row}
 
 	if err := handler.applySupplyChainRuntimeContext(context.Background(), rows, querycontract.RepositoryAccessFilter{AllScopes: true}); err != nil {
 		t.Fatalf("applySupplyChainRuntimeContext() error = %v, want nil", err)
@@ -79,10 +79,10 @@ func TestApplySupplyChainRuntimeContextUsesRepositoryEnvironmentOnlyAsExactDiges
 func TestApplySupplyChainRuntimeContextDoesNotDefaultUnconfirmedRepositoryEnvironment(t *testing.T) {
 	t.Parallel()
 
-	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.SupplyChainRuntimeContext{
+	store := &querytestutil.FakeRuntimeContextFindingStore{ByRepo: map[string]impact.RuntimeContext{
 		"repository:r_217415d9": {Environments: []string{"production"}},
 	}}
-	rows := []impact.SupplyChainImpactFindingRow{osPackageFindingRowForRuntimeContext()}
+	rows := []impact.FindingRow{osPackageFindingRowForRuntimeContext()}
 	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -100,12 +100,12 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 
 	row := osPackageFindingRowForRuntimeContext()
 	store := &querytestutil.FakeRuntimeContextFindingStore{
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{},
+		ByRepo: map[string]impact.RuntimeContext{},
 		ByDigest: map[string]map[string]string{
 			row.SubjectDigest: {"production": "deploy_event"},
 		},
 	}
-	rows := []impact.SupplyChainImpactFindingRow{row}
+	rows := []impact.FindingRow{row}
 	rows[0].Environments = []string{"production"}
 
 	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
@@ -126,9 +126,9 @@ func TestApplySupplyChainRuntimeContextCarriesCurrentDigestBoundEnvironmentEvide
 func TestPlanSupplyChainRuntimeEnvironmentCandidatesSharesPageBudgetFairly(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]impact.SupplyChainImpactFindingRow, ImpactFindingMaxLimit)
+	rows := make([]impact.FindingRow, ImpactFindingMaxLimit)
 	for i := range rows {
-		rows[i] = impact.SupplyChainImpactFindingRow{
+		rows[i] = impact.FindingRow{
 			FindingID:     "finding-" + strconv.Itoa(i),
 			SubjectDigest: "sha256:" + strconv.Itoa(i),
 			Environments:  []string{"staging", "production", "production"},
@@ -154,7 +154,7 @@ func TestPlanSupplyChainRuntimeEnvironmentCandidatesSharesPageBudgetFairly(t *te
 func TestPlanSupplyChainRuntimeEnvironmentCandidatesDeduplicatesSQLPairs(t *testing.T) {
 	t.Parallel()
 
-	rows := []impact.SupplyChainImpactFindingRow{
+	rows := []impact.FindingRow{
 		{SubjectDigest: "sha256:shared", Environments: []string{"production"}},
 		{SubjectDigest: "sha256:shared", Environments: []string{"production"}},
 	}
@@ -175,12 +175,12 @@ func TestApplySupplyChainRuntimeContextDefensivelyCopiesEnvironmentEvidence(t *t
 	sourceEvidence := map[string]string{"production": "deploy_event"}
 	row := osPackageFindingRowForRuntimeContext()
 	store := &querytestutil.FakeRuntimeContextFindingStore{
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{
+		ByRepo: map[string]impact.RuntimeContext{
 			row.RepositoryID: {Environments: []string{"production"}},
 		},
 		ByDigest: map[string]map[string]string{row.SubjectDigest: sourceEvidence},
 	}
-	rows := []impact.SupplyChainImpactFindingRow{row}
+	rows := []impact.FindingRow{row}
 	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -204,7 +204,7 @@ func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing
 
 	row := osPackageFindingRowForRuntimeContext()
 	store := &querytestutil.FakeRuntimeContextFindingStore{
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{
+		ByRepo: map[string]impact.RuntimeContext{
 			row.RepositoryID: {Environments: []string{"production"}},
 		},
 		ByDigest: map[string]map[string]string{
@@ -214,7 +214,7 @@ func TestApplySupplyChainRuntimeContextOmitsOrphanEnvironmentEvidence(t *testing
 			},
 		},
 	}
-	rows := []impact.SupplyChainImpactFindingRow{row}
+	rows := []impact.FindingRow{row}
 	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -233,21 +233,21 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 	t.Parallel()
 
 	const repositoryID = "repository:r_environment_evidence_parity"
-	finding := impact.SupplyChainImpactFindingRow{
+	finding := impact.FindingRow{
 		FindingID:     "finding-environment-evidence-parity",
 		CVEID:         "CVE-2026-5835",
 		PackageID:     "pkg:npm/example",
-		ImpactStatus:  "affected_exact",
+		Status:        "affected_exact",
 		RepositoryID:  repositoryID,
 		SubjectDigest: "sha256:environment-evidence-parity",
 		Environments:  []string{"production"},
 	}
-	contextValue := impact.SupplyChainRuntimeContext{
+	contextValue := impact.RuntimeContext{
 		Environments: []string{"production"},
 	}
 	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
-		Rows:   []impact.SupplyChainImpactFindingRow{finding},
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{repositoryID: contextValue},
+		Rows:   []impact.FindingRow{finding},
+		ByRepo: map[string]impact.RuntimeContext{repositoryID: contextValue},
 		ByDigest: map[string]map[string]string{
 			finding.SubjectDigest: {"production": "deploy_event"},
 		},
@@ -255,7 +255,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeEnvironmentEvidence(t *testin
 	handler := &Handler{
 		ImpactFindings: contextStore,
 		ImpactExplanations: &evidenceExplanationStore{
-			row: impact.SupplyChainImpactExplanationRow{Finding: finding},
+			row: impact.ExplanationRow{Finding: finding},
 		},
 		Readiness: &evidenceReadinessStore{},
 	}
@@ -304,7 +304,7 @@ func BenchmarkFoldSupplyChainRuntimeContext200Repositories(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		out := make(map[string]impact.SupplyChainRuntimeContext, repositoryCount)
+		out := make(map[string]impact.RuntimeContext, repositoryCount)
 		for _, item := range facts {
 			impact.AddSupplyChainRuntimeContextFact(out, item.kind, item.scopeID, item.payload)
 		}
@@ -347,31 +347,31 @@ func nestedRuntimeEnvironmentEvidenceForTest(t *testing.T, body []byte, path ...
 // staying route tests pin. Keep the canned behavior identical; the root
 // copies are authoritative for their suites.
 type evidenceExplanationStore struct {
-	row impact.SupplyChainImpactExplanationRow
+	row impact.ExplanationRow
 	err error
 }
 
 func (s *evidenceExplanationStore) ExplainSupplyChainImpact(
 	_ context.Context,
-	_ impact.SupplyChainImpactExplanationFilter,
-) (impact.SupplyChainImpactExplanationRow, error) {
+	_ impact.ExplanationFilter,
+) (impact.ExplanationRow, error) {
 	if s.err != nil {
-		return impact.SupplyChainImpactExplanationRow{}, s.err
+		return impact.ExplanationRow{}, s.err
 	}
 	return s.row, nil
 }
 
 type evidenceReadinessStore struct {
-	snapshot impact.SupplyChainImpactReadinessSnapshot
+	snapshot impact.ReadinessSnapshot
 	err      error
 }
 
 func (s *evidenceReadinessStore) ReadSupplyChainImpactReadiness(
 	_ context.Context,
-	_ impact.SupplyChainImpactReadinessQuery,
-) (impact.SupplyChainImpactReadinessSnapshot, error) {
+	_ impact.ReadinessQuery,
+) (impact.ReadinessSnapshot, error) {
 	if s.err != nil {
-		return impact.SupplyChainImpactReadinessSnapshot{}, s.err
+		return impact.ReadinessSnapshot{}, s.err
 	}
 	return s.snapshot, nil
 }

@@ -95,7 +95,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 	direct := NewPostgresSupplyChainImpactFindingStore(db)
 	materialized := NewPostgresSupplyChainImpactFindingStoreWithReadModel(db, true)
 	aggregates := NewPostgresSupplyChainImpactAggregateStore(db)
-	listFilter := SupplyChainImpactFindingFilter{
+	listFilter := FindingFilter{
 		DetectionProfile:  "precise",
 		PriorityBucket:    "high",
 		IncludeSuppressed: true,
@@ -118,7 +118,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 
 	count, err := aggregates.CountSupplyChainImpactFindings(
 		ctx,
-		SupplyChainImpactAggregateFilter{
+		AggregateFilter{
 			DetectionProfile:  "precise",
 			IncludeSuppressed: true,
 		},
@@ -141,7 +141,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 
 	explanation, err := direct.ExplainSupplyChainImpact(
 		ctx,
-		SupplyChainImpactExplanationFilter{FindingID: "finding:000501"},
+		ExplanationFilter{FindingID: "finding:000501"},
 	)
 	if err != nil {
 		t.Fatalf("explain finding: %v", err)
@@ -170,7 +170,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 			values: measureSuppressionPath(t, func() error {
 				_, err := aggregates.CountSupplyChainImpactFindings(
 					ctx,
-					SupplyChainImpactAggregateFilter{
+					AggregateFilter{
 						DetectionProfile:  "precise",
 						IncludeSuppressed: true,
 					},
@@ -183,7 +183,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 			values: measureSuppressionPath(t, func() error {
 				_, err := direct.ExplainSupplyChainImpact(
 					ctx,
-					SupplyChainImpactExplanationFilter{
+					ExplanationFilter{
 						FindingID: "finding:000501",
 					},
 				)
@@ -231,7 +231,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 
 	readAt := time.Now().UTC()
 	listArgs := suppressionListPlanArgs(listFilter, readAt)
-	aggregateFilter := SupplyChainImpactAggregateFilter{
+	aggregateFilter := AggregateFilter{
 		DetectionProfile:  "precise",
 		IncludeSuppressed: true,
 	}
@@ -244,10 +244,10 @@ ALTER TABLE supply_chain_impact_canonical_winners
 			t, ctx, db, ListSupplyChainImpactFindingsFromWinnersQuery, listArgs...,
 		),
 		"aggregate_count": explainSuppressionQueryPlan(
-			t, ctx, db, SupplyChainImpactAggregateCountQuery, aggregateArgs...,
+			t, ctx, db, AggregateCountQuery, aggregateArgs...,
 		),
 		"aggregate_priority_facet": explainSuppressionQueryPlan(
-			t, ctx, db, SupplyChainImpactAggregatePriorityCountQuery, aggregateArgs...,
+			t, ctx, db, AggregatePriorityCountQuery, aggregateArgs...,
 		),
 		"explain": explainSuppressionQueryPlan(
 			t, ctx, db, ExplainSupplyChainImpactFindingByPublicIDQuery,

@@ -19,16 +19,16 @@ func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {
 	t.Parallel()
 
 	row := exactManifestAndImageExplanationRow()
-	filter := impact.SupplyChainImpactExplanationFilter{FindingID: row.Finding.FindingID}
-	readinessSnapshot := impact.SupplyChainImpactReadinessSnapshot{
-		EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+	filter := impact.ExplanationFilter{FindingID: row.Finding.FindingID}
+	readinessSnapshot := impact.ReadinessSnapshot{
+		EvidenceSources: []impact.EvidenceFamily{
 			{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 		},
 	}
 	readiness := impact.BuildSupplyChainImpactReadiness(
 		impact.FindingReadinessScope(row.Finding, filter),
-		[]impact.SupplyChainImpactFindingResult{impact.SupplyChainImpactFindingResult(row.Finding)},
+		[]impact.FindingResult{impact.FindingResult(row.Finding)},
 		false,
 		readinessSnapshot,
 	)
@@ -184,10 +184,10 @@ type failingSupplyChainImpactExplanationStore struct {
 
 func (s *failingSupplyChainImpactExplanationStore) ExplainSupplyChainImpact(
 	context.Context,
-	impact.SupplyChainImpactExplanationFilter,
-) (impact.SupplyChainImpactExplanationRow, error) {
+	impact.ExplanationFilter,
+) (impact.ExplanationRow, error) {
 	s.called = true
-	return impact.SupplyChainImpactExplanationRow{}, errors.New("broad supply-chain impact explanation read")
+	return impact.ExplanationRow{}, errors.New("broad supply-chain impact explanation read")
 }
 
 func TestInvestigationPacketAPIDriftMatchesSharedBuilder(t *testing.T) {

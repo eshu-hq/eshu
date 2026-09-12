@@ -172,7 +172,7 @@ type supplyChainComponentEvidence struct {
 // fields buildSupplyChainComponentExplanation/buildSupplyChainExplanationAnchors
 // need from that kind. See supplyChainComponentEvidence's doc for the
 // Matched/Err contract.
-func decodeSupplyChainComponentEvidence(fact impact.SupplyChainImpactEvidenceFact) supplyChainComponentEvidence {
+func decodeSupplyChainComponentEvidence(fact impact.EvidenceFact) supplyChainComponentEvidence {
 	in := supplyChainFactDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload}
 	switch fact.FactKind {
 	case factschema.FactKindSBOMDocument:

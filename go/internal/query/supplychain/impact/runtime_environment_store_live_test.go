@@ -58,7 +58,7 @@ func TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive(t *testing.T) 
 	if len(got) != len(candidates) {
 		t.Fatalf("confirmed digests = %d, want %d", len(got), len(candidates))
 	}
-	if got[digests[0]]["prod"] != SupplyChainRuntimeEnvironmentEvidenceDeployEvent {
+	if got[digests[0]]["prod"] != RuntimeEnvironmentEvidenceDeployEvent {
 		t.Fatalf("hot digest evidence = %#v, want deploy_event", got[digests[0]])
 	}
 	if elapsed > 2*time.Second {
@@ -91,9 +91,9 @@ func TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive(t *testing.T
 		"rejected":         fmt.Sprintf("sha256:%064x", 1006),
 		"provenance":       fmt.Sprintf("sha256:%064x", 1007),
 	}
-	candidates := make([]SupplyChainRuntimeEnvironmentCandidate, 0, len(digests))
+	candidates := make([]RuntimeEnvironmentCandidate, 0, len(digests))
 	for _, name := range []string{"scope-authorized", "repo-authorized", "denied", "stale", "tombstone", "rejected", "provenance"} {
-		candidates = append(candidates, SupplyChainRuntimeEnvironmentCandidate{
+		candidates = append(candidates, RuntimeEnvironmentCandidate{
 			SubjectDigest: digests[name],
 			Environment:   "prod",
 		})
@@ -111,10 +111,10 @@ func TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive(t *testing.T
 	if len(got) != 2 {
 		t.Fatalf("confirmed digest count = %d, want 2; got %#v", len(got), got)
 	}
-	if evidence := got[digests["scope-authorized"]]["prod"]; evidence != SupplyChainRuntimeEnvironmentEvidenceDeployEvent {
+	if evidence := got[digests["scope-authorized"]]["prod"]; evidence != RuntimeEnvironmentEvidenceDeployEvent {
 		t.Fatalf("scope-authorized evidence = %q, want deploy_event", evidence)
 	}
-	if evidence := got[digests["repo-authorized"]]["prod"]; evidence != SupplyChainRuntimeEnvironmentEvidenceDeclared {
+	if evidence := got[digests["repo-authorized"]]["prod"]; evidence != RuntimeEnvironmentEvidenceDeclared {
 		t.Fatalf("repo-authorized evidence = %q, want declared", evidence)
 	}
 	for _, name := range []string{"denied", "stale", "tombstone", "rejected", "provenance"} {
@@ -245,13 +245,13 @@ FROM generate_series(1, 900000) AS n`,
 	}
 }
 
-func runtimeEnvironmentEvidenceLiveCandidates() ([]SupplyChainRuntimeEnvironmentCandidate, []string, []string) {
-	candidates := make([]SupplyChainRuntimeEnvironmentCandidate, 0, 200)
+func runtimeEnvironmentEvidenceLiveCandidates() ([]RuntimeEnvironmentCandidate, []string, []string) {
+	candidates := make([]RuntimeEnvironmentCandidate, 0, 200)
 	digests := make([]string, 0, 200)
 	environments := make([]string, 0, 200)
 	for i := 1; i <= 200; i++ {
 		digest := fmt.Sprintf("sha256:%064x", i)
-		candidates = append(candidates, SupplyChainRuntimeEnvironmentCandidate{
+		candidates = append(candidates, RuntimeEnvironmentCandidate{
 			SubjectDigest: digest,
 			Environment:   "prod",
 		})

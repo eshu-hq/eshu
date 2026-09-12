@@ -6,12 +6,12 @@ package advisory
 import "context"
 
 const (
-	// AdvisoryCatalogCapability gates the browsable CVE-intelligence catalog
+	// CatalogCapability gates the browsable CVE-intelligence catalog
 	// list over the Postgres vulnerability source fact read model. Exported
 	// so root package query registers it in contract_supply_chain.go and
 	// gates the catalog handler on it (#6060 lane A keeps registration and
 	// routing in root).
-	AdvisoryCatalogCapability = "supply_chain.advisory_catalog.list"
+	CatalogCapability = "supply_chain.advisory_catalog.list"
 	// CatalogMaxLimit bounds one catalog page so an unscoped browse
 	// of the whole intelligence catalog stays cheap and cancellable.
 	// Exported for the staying root catalog handler's limit check and the

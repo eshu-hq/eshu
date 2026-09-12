@@ -21,11 +21,11 @@ func TestSupplyChainImpactFindingsExposeEnvironmentEvidenceInResponseBody(t *tes
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
 				FindingID:    "finding-env-evidence",
 				CVEID:        "CVE-2026-5426",
-				ImpactStatus: "affected_exact",
+				Status:       "affected_exact",
 				Confidence:   "exact",
 				RepositoryID: "repo://example/svc",
 				Environments: []string{"prod", "staging"},
@@ -79,11 +79,11 @@ func TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent(t *testing.T
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
 				FindingID:    "finding-no-env-evidence",
 				CVEID:        "CVE-2026-5426",
-				ImpactStatus: "affected_exact",
+				Status:       "affected_exact",
 				Confidence:   "exact",
 				RepositoryID: "repo://example/svc",
 			},

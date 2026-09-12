@@ -18,16 +18,16 @@ func TestApplySupplyChainRuntimeContextDoesNotBorrowMismatchedDigestEvidenceForR
 
 	row := osPackageFindingRowForRuntimeContext()
 	store := &querytestutil.FakeRuntimeContextFindingStore{
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{
+		ByRepo: map[string]impact.RuntimeContext{
 			row.RepositoryID: {
 				Environments: []string{"production"},
 			},
 		},
 		ByDigest: map[string]map[string]string{
-			"sha256:other-artifact": {"production": impact.SupplyChainRuntimeEnvironmentEvidenceDeployEvent},
+			"sha256:other-artifact": {"production": impact.RuntimeEnvironmentEvidenceDeployEvent},
 		},
 	}
-	rows := []impact.SupplyChainImpactFindingRow{row}
+	rows := []impact.FindingRow{row}
 	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,
@@ -65,18 +65,18 @@ func TestApplySupplyChainRuntimeContextCapsOneRepositoryEnvironmentEvidenceAtPag
 		environment := fmt.Sprintf("environment-%03d", index)
 		repositoryEnvironments = append(repositoryEnvironments, environment)
 		if index < MaxSupplyChainRuntimeEnvironmentCandidates {
-			confirmed[environment] = impact.SupplyChainRuntimeEnvironmentEvidenceDeployEvent
+			confirmed[environment] = impact.RuntimeEnvironmentEvidenceDeployEvent
 		}
 	}
 	store := &querytestutil.FakeRuntimeContextFindingStore{
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{
+		ByRepo: map[string]impact.RuntimeContext{
 			row.RepositoryID: {
 				Environments: repositoryEnvironments,
 			},
 		},
 		ByDigest: map[string]map[string]string{row.SubjectDigest: confirmed},
 	}
-	rows := []impact.SupplyChainImpactFindingRow{row}
+	rows := []impact.FindingRow{row}
 	if err := (&Handler{ImpactFindings: store}).applySupplyChainRuntimeContext(
 		context.Background(),
 		rows,

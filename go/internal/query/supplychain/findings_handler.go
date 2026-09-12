@@ -55,7 +55,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	priorityBucket, minPriorityScore, sort, err := impact.SupplyChainImpactPriorityFilter(r)
+	priorityBucket, minPriorityScore, sort, err := impact.PriorityFilter(r)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return
@@ -82,14 +82,14 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	filter := impact.SupplyChainImpactFindingFilter{
+	filter := impact.FindingFilter{
 		CVEID:             querycontract.QueryParam(r, "cve_id"),
 		AdvisoryID:        advisoryID,
 		PackageID:         querycontract.QueryParam(r, "package_id"),
 		RepositoryID:      repositoryID,
 		SubjectDigest:     querycontract.QueryParam(r, "subject_digest"),
 		ImageRef:          querycontract.QueryParam(r, "image_ref"),
-		ImpactStatus:      querycontract.QueryParam(r, "impact_status"),
+		Status:            querycontract.QueryParam(r, "impact_status"),
 		Ecosystem:         querycontract.QueryParam(r, "ecosystem"),
 		WorkloadID:        querycontract.QueryParam(r, "workload_id"),
 		ServiceID:         querycontract.QueryParam(r, "service_id"),
@@ -186,11 +186,11 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		attribute.Int("eshu.query.runtime_context_findings", resolvedContextCount),
 		attribute.Int("eshu.query.runtime_context_workloads", resolvedWorkloadCount),
 	)
-	results := make([]impact.SupplyChainImpactFindingResult, 0, len(rows))
+	results := make([]impact.FindingResult, 0, len(rows))
 	for i := range rows {
 		results = append(results, impact.BuildSupplyChainImpactFindingResult(&rows[i]))
 	}
-	scope := impact.SupplyChainImpactTargetScope{
+	scope := impact.TargetScope{
 		CVEID:         filter.CVEID,
 		AdvisoryID:    filter.AdvisoryID,
 		PackageID:     filter.PackageID,
@@ -202,10 +202,10 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		ServiceID:     filter.ServiceID,
 		Environment:   filter.Environment,
 		Severity:      filter.Severity,
-		ImpactStatus:  filter.ImpactStatus,
+		Status:        filter.Status,
 	}
 	snapshot, readinessErr := h.readSupplyChainImpactReadinessSnapshot(r, scope)
-	var readiness impact.SupplyChainImpactReadinessEnvelope
+	var readiness impact.ReadinessEnvelope
 	if readinessErr != nil {
 		// Readiness lookup failed (transient Postgres error, statement
 		// timeout, etc.). Do not drop the already-fetched findings page:
@@ -259,7 +259,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 // read-model watermark. The handler type-asserts it so the legacy store (or a
 // test double) that does not implement it simply keeps the fresh envelope.
 type supplyChainImpactWinnersFreshnessReader interface {
-	SupplyChainImpactWinnersWatermark(context.Context) (impact.SupplyChainImpactWinnersFreshness, error)
+	SupplyChainImpactWinnersWatermark(context.Context) (impact.WinnersFreshness, error)
 }
 
 // supplyChainImpactWinnersFreshnessWindow bounds how long after the last winners
@@ -277,7 +277,7 @@ const supplyChainImpactWinnersFreshnessWindow = 2 * time.Minute
 // unpopulated, or could not be probed. It is a no-op on the legacy live read
 // (always current) and when the model is fresh. now is injected for deterministic
 // tests.
-func applyWinnersFreshness(truth *querycontract.TruthEnvelope, fr impact.SupplyChainImpactWinnersFreshness, probeErr error, now time.Time) {
+func applyWinnersFreshness(truth *querycontract.TruthEnvelope, fr impact.WinnersFreshness, probeErr error, now time.Time) {
 	if truth == nil || !fr.ServingFromWinners {
 		return
 	}
@@ -317,10 +317,10 @@ func applyWinnersFreshness(truth *querycontract.TruthEnvelope, fr impact.SupplyC
 
 func (h *Handler) readSupplyChainImpactReadinessSnapshot(
 	r *http.Request,
-	scope impact.SupplyChainImpactTargetScope,
-) (impact.SupplyChainImpactReadinessSnapshot, error) {
+	scope impact.TargetScope,
+) (impact.ReadinessSnapshot, error) {
 	if h.Readiness == nil {
-		return impact.SupplyChainImpactReadinessSnapshot{}, nil
+		return impact.ReadinessSnapshot{}, nil
 	}
-	return h.Readiness.ReadSupplyChainImpactReadiness(r.Context(), impact.SupplyChainImpactReadinessQuery(scope))
+	return h.Readiness.ReadSupplyChainImpactReadiness(r.Context(), impact.ReadinessQuery(scope))
 }

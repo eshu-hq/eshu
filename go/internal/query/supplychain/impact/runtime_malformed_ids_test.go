@@ -8,7 +8,7 @@ import "testing"
 func TestAddSupplyChainRuntimeContextFactRejectsNonStringDirectIDs(t *testing.T) {
 	t.Parallel()
 
-	out := map[string]SupplyChainRuntimeContext{}
+	out := map[string]RuntimeContext{}
 	addSupplyChainRuntimeContextFactForRepository(
 		out,
 		WorkloadIdentityFactKindQuery,

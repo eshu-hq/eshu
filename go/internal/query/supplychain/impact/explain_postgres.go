@@ -43,7 +43,7 @@ func newSupplyChainImpactExplanationAmbiguousError(candidateCount int) error {
 	return &supplyChainImpactExplanationAmbiguousError{candidateCount: candidateCount}
 }
 
-func SupplyChainImpactExplanationAmbiguousCandidateCount(err error) int {
+func ExplanationAmbiguousCandidateCount(err error) int {
 	var ambiguous *supplyChainImpactExplanationAmbiguousError
 	if errors.As(err, &ambiguous) && ambiguous.candidateCount > 0 {
 		return ambiguous.candidateCount
@@ -58,14 +58,14 @@ func SupplyChainImpactExplanationAmbiguousCandidateCount(err error) int {
 // evidence fact previews referenced by the finding.
 func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 	ctx context.Context,
-	filter SupplyChainImpactExplanationFilter,
-) (SupplyChainImpactExplanationRow, error) {
+	filter ExplanationFilter,
+) (ExplanationRow, error) {
 	if s.DB == nil {
-		return SupplyChainImpactExplanationRow{}, fmt.Errorf("supply chain impact finding database is required")
+		return ExplanationRow{}, fmt.Errorf("supply chain impact finding database is required")
 	}
 	filter = TrimSupplyChainImpactExplanationFilter(filter)
 	if !filter.HasBoundedScope() {
-		return SupplyChainImpactExplanationRow{}, fmt.Errorf("finding_id or advisory/cve plus package, repository, or subject digest is required")
+		return ExplanationRow{}, fmt.Errorf("finding_id or advisory/cve plus package, repository, or subject digest is required")
 	}
 	args := supplyChainImpactExplanationQueryArgs(filter, s.Now)
 	query := ExplainSupplyChainImpactFindingQuery
@@ -74,7 +74,7 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 	}
 	findings, err := s.loadSupplyChainImpactExplanationFindings(ctx, query, args)
 	if err != nil {
-		return SupplyChainImpactExplanationRow{}, err
+		return ExplanationRow{}, err
 	}
 	if filter.FindingID != "" && len(findings) == 0 {
 		findings, err = s.loadSupplyChainImpactExplanationFindings(
@@ -83,21 +83,21 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 			args,
 		)
 		if err != nil {
-			return SupplyChainImpactExplanationRow{}, err
+			return ExplanationRow{}, err
 		}
 	}
 	switch len(findings) {
 	case 0:
-		return SupplyChainImpactExplanationRow{}, ErrSupplyChainImpactExplanationNotFound
+		return ExplanationRow{}, ErrSupplyChainImpactExplanationNotFound
 	case 1:
 	default:
-		return SupplyChainImpactExplanationRow{}, newSupplyChainImpactExplanationAmbiguousError(len(findings))
+		return ExplanationRow{}, newSupplyChainImpactExplanationAmbiguousError(len(findings))
 	}
 	evidence, err := s.loadSupplyChainImpactEvidenceFacts(ctx, findings[0].EvidenceFactIDs)
 	if err != nil {
-		return SupplyChainImpactExplanationRow{}, err
+		return ExplanationRow{}, err
 	}
-	return SupplyChainImpactExplanationRow{
+	return ExplanationRow{
 		Finding:       findings[0],
 		EvidenceFacts: evidence,
 	}, nil
@@ -107,7 +107,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactExplanationF
 	ctx context.Context,
 	query string,
 	args []any,
-) ([]SupplyChainImpactFindingRow, error) {
+) ([]FindingRow, error) {
 	rows, err := s.DB.QueryContext(
 		ctx,
 		query,
@@ -118,7 +118,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactExplanationF
 	}
 	defer func() { _ = rows.Close() }()
 
-	findings := make([]SupplyChainImpactFindingRow, 0, 2)
+	findings := make([]FindingRow, 0, 2)
 	for rows.Next() {
 		var factID string
 		var sourceConfidence string
@@ -141,7 +141,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactExplanationF
 func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFacts(
 	ctx context.Context,
 	factIDs []string,
-) ([]SupplyChainImpactEvidenceFact, error) {
+) ([]EvidenceFact, error) {
 	factIDs = explanationUniqueStrings(factIDs)
 	if len(factIDs) == 0 {
 		return nil, nil
@@ -156,9 +156,9 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]SupplyChainImpactEvidenceFact, 0, len(factIDs))
+	out := make([]EvidenceFact, 0, len(factIDs))
 	for rows.Next() {
-		var fact SupplyChainImpactEvidenceFact
+		var fact EvidenceFact
 		var sourceSystem sql.NullString
 		var sourceConfidence sql.NullString
 		var observedAt sql.NullTime
@@ -212,7 +212,7 @@ var ExplainSupplyChainImpactFindingQuery = buildExplainSupplyChainImpactFindingQ
      OR finding_id = $2
      OR canonical_key = $2
      OR canonical_key IN (
-          SELECT `+SupplyChainImpactCanonicalFindingKeySQL+`
+          SELECT `+CanonicalFindingKeySQL+`
           FROM fact_records AS fact
           JOIN ingestion_scopes AS identity_scope
             ON identity_scope.scope_id = fact.scope_id
@@ -242,7 +242,7 @@ authorized_source_candidates AS NOT MATERIALIZED (
          COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + SupplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
+         ` + CanonicalFindingKeySQL + ` AS canonical_key
   FROM fact_records AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id
@@ -292,11 +292,11 @@ LIMIT 2
 }
 
 func supplyChainImpactExplanationQueryArgs(
-	filter SupplyChainImpactExplanationFilter,
+	filter ExplanationFilter,
 	now func() time.Time,
 ) []any {
 	return []any{
-		SupplyChainImpactFindingFactKind,
+		FindingFactKind,
 		filter.FindingID,
 		filter.AdvisoryID,
 		filter.CVEID,
@@ -308,7 +308,7 @@ func supplyChainImpactExplanationQueryArgs(
 		filter.ImageRef,
 		pgarray.Array(filter.AllowedRepositoryIDs),
 		pgarray.Array(filter.AllowedScopeIDs),
-		SupplyChainImpactSuppressionReadAt(now),
+		SuppressionReadAt(now),
 	}
 }
 
@@ -328,8 +328,8 @@ ORDER BY fact.fact_id ASC
 `
 
 func TrimSupplyChainImpactExplanationFilter(
-	filter SupplyChainImpactExplanationFilter,
-) SupplyChainImpactExplanationFilter {
+	filter ExplanationFilter,
+) ExplanationFilter {
 	filter.FindingID = strings.TrimSpace(filter.FindingID)
 	filter.AdvisoryID = strings.TrimSpace(filter.AdvisoryID)
 	filter.CVEID = strings.TrimSpace(filter.CVEID)

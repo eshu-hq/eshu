@@ -87,7 +87,7 @@ func buildSupplyChainPacket(t *testing.T) query.InvestigationEvidencePacket {
 		Input:   query.SupplyChainImpactExplanationFilter{AdvisoryID: "GHSA-aaaa-bbbb-cccc", PackageID: "pkg:golang/example.com/vuln"},
 		Finding: &query.SupplyChainImpactFindingResult{
 			FindingID: "finding-1", AdvisoryID: "GHSA-aaaa-bbbb-cccc", PackageName: "example.com/vuln",
-			ImpactStatus: "affected_exact", WorkloadIDs: []string{"workload:checkout"}, ServiceIDs: []string{"service:checkout"},
+			Status: "affected_exact", WorkloadIDs: []string{"workload:checkout"}, ServiceIDs: []string{"service:checkout"},
 			EvidenceFactIDs: []string{"fact-advisory"},
 		},
 		Path: []query.SupplyChainImpactPathHop{

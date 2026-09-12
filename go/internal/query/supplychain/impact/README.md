@@ -43,18 +43,18 @@ router and always links into the production binary.
 
 ## Exported surface
 
-The store ports (`SupplyChainImpactFindingStore`,
-`SupplyChainImpactAggregateStore`, `SupplyChainImpactExplanationStore`,
-`SupplyChainImpactReadinessStore`,
+The store ports (`FindingStore`,
+`AggregateStore`, `ExplanationStore`,
+`ReadinessStore`,
 `VulnerabilitySuppressionMutationStore`) and the Postgres
 implementations with their constructors
 (`NewPostgresSupplyChainImpactFindingStore` with its
 `WithReadModel` variant, `NewPostgresSupplyChainImpactAggregateStore`,
 `NewPostgresSupplyChainImpactReadinessStore`,
 `NewPostgresVulnerabilitySuppressionMutationStore`) and queryer ports
-(`SupplyChainImpactFindingQueryer`,
-`SupplyChainImpactAggregateQueryer`,
-`SupplyChainImpactReadinessQueryer`), the values crossing those ports
+(`FindingQueryer`,
+`AggregateQueryer`,
+`ReadinessQueryer`), the values crossing those ports
 (filters, rows, results, envelopes, path hops, remediation,
 provenance), the builder entry points
 (`BuildSupplyChainImpactExplanation` and its no-evidence/ambiguous
@@ -71,8 +71,8 @@ call (`RequestedSupplyChainImpactProfile`, `FilterProfile`,
 `RejectUnsupportedVulnerabilityScannerFilters`,
 `FirstNonEmptyQueryParam`,
 `TrimSupplyChainImpactExplanationFilter`,
-`SupplyChainImpactExplanationAmbiguousCandidateCount`,
-`FindingReadinessScope`, `SupplyChainImpactPriorityFilter` with its
+`ExplanationAmbiguousCandidateCount`,
+`FindingReadinessScope`, `PriorityFilter` with its
 bucket/score helpers, `HasScope`/`HasBoundedScope`/`ReadinessScope`),
 the decode entry points (`DecodeSupplyChainImpactFindingRow`,
 `DecodeSupplyChainImpactRemediation`,
@@ -81,9 +81,9 @@ the decode entry points (`DecodeSupplyChainImpactFindingRow`,
 `RecordSupplyChainRuntimeEnvironmentEvidence`), the profile, limit,
 fact-kind, vocabulary, readiness-state, evidence-family, and
 missing-evidence constants, and the relocated runtime-evidence types
-(`SupplyChainRuntimeContext`, `SupplyChainRuntimeContextResult`,
-`SupplyChainRuntimeEnvironmentEvidenceProbe`,
-`SupplyChainRuntimeEnvironmentCandidate`,
+(`RuntimeContext`, `RuntimeContextResult`,
+`RuntimeEnvironmentEvidenceProbe`,
+`RuntimeEnvironmentCandidate`,
 `KubernetesRuntimeWorkloadRef`, `KubernetesRuntimeProbeMetadata`,
 `VulnerabilitySuppressionMutationResult`).
 
@@ -176,7 +176,7 @@ only their package qualifier changed).
   reverse import cycles.
 - The capability is registered in ROOT (`contract_supply_chain.go`),
   not here — root owns the router and always links into production.
-- `SupplyChainImpactFindingFilter` must carry an anchor (`HasScope`);
+- `FindingFilter` must carry an anchor (`HasScope`);
   the store rejects anchorless reads before running SQL, and the
   handlers reject them before reaching the store. The page limit is
   bounded by `supplyChainImpactFindingMaxLimit` (family-local copy —
@@ -192,7 +192,7 @@ only their package qualifier changed).
   adding a member means updating the normalization, the SQL legs, and
   both suites.
 - The winners-read cutover (`ReadFromWinners`,
-  `SupplyChainImpactWinnersReadEnv`) keeps output byte-identical
+  `WinnersReadEnv`) keeps output byte-identical
   between the legacy dedup and the maintained read model; the
   placeholder-binding test pins the production argument list.
 - The handler-driving tests that share helpers, fakes, or corpus with

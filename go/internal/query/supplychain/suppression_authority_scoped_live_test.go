@@ -24,7 +24,7 @@ func assertScopedSuppressionAuthority(
 		"materialized": materialized,
 	} {
 		t.Run(name, func(t *testing.T) {
-			defaultRows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
+			defaultRows, err := store.ListSupplyChainImpactFindings(ctx, impact.FindingFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				DetectionProfile:  "comprehensive",
 				AllowedScopeIDs:   []string{suppressionAuthorityLiveSource},
@@ -38,7 +38,7 @@ func assertScopedSuppressionAuthority(
 				t.Fatalf("default scoped list = %#v, want suppressed finding hidden", defaultRows)
 			}
 
-			auditRows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
+			auditRows, err := store.ListSupplyChainImpactFindings(ctx, impact.FindingFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				DetectionProfile:  "comprehensive",
 				SuppressionState:  "ignored",
@@ -85,7 +85,7 @@ func assertScopedSuppressionAuthority(
 		},
 	} {
 		t.Run("aggregate "+tc.name, func(t *testing.T) {
-			count, err := aggregates.CountSupplyChainImpactFindings(ctx, impact.SupplyChainImpactAggregateFilter{
+			count, err := aggregates.CountSupplyChainImpactFindings(ctx, impact.AggregateFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				DetectionProfile:  "comprehensive",
 				SuppressionState:  tc.suppressionState,
@@ -101,7 +101,7 @@ func assertScopedSuppressionAuthority(
 		})
 	}
 
-	explanation, err := direct.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
+	explanation, err := direct.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
 		FindingID:       suppressionAuthorityLiveFinding,
 		AllowedScopeIDs: []string{suppressionAuthorityLiveSource},
 	})
@@ -112,7 +112,7 @@ func assertScopedSuppressionAuthority(
 		t.Fatalf("scoped explain suppression = %#v, want ignored", explanation.Finding.Suppression)
 	}
 
-	if _, err := direct.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
+	if _, err := direct.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
 		FindingID:       suppressionAuthorityLiveFinding,
 		AllowedScopeIDs: []string{"scope:5465:unrelated"},
 	}); err == nil {

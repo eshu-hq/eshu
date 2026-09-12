@@ -23,7 +23,7 @@ func assertSuppressionAuthorityCloneDriftAndOrphan(
 		"materialized": materialized,
 	} {
 		t.Run(name+" clone drift", func(t *testing.T) {
-			rows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
+			rows, err := store.ListSupplyChainImpactFindings(ctx, impact.FindingFilter{
 				CVEID:             suppressionAuthorityLiveCVE,
 				Severity:          "high",
 				DetectionProfile:  "comprehensive",
@@ -44,7 +44,7 @@ func assertSuppressionAuthorityCloneDriftAndOrphan(
 		})
 
 		t.Run(name+" operator orphan", func(t *testing.T) {
-			rows, err := store.ListSupplyChainImpactFindings(ctx, impact.SupplyChainImpactFindingFilter{
+			rows, err := store.ListSupplyChainImpactFindings(ctx, impact.FindingFilter{
 				CVEID:             suppressionAuthorityOrphanCVE,
 				DetectionProfile:  "comprehensive",
 				IncludeSuppressed: true,

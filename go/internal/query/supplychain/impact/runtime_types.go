@@ -13,16 +13,16 @@ package impact
 // and, for the fair probe, root GraphQuery).
 //
 // Relocated declarations and their root sources:
-//   - SupplyChainRuntimeContext, SupplyChainRuntimeContextResult,
-//     SupplyChainRuntimeEnvironmentEvidenceProbe,
-//     SupplyChainRuntimeEnvironmentCandidate: from
+//   - RuntimeContext, RuntimeContextResult,
+//     RuntimeEnvironmentEvidenceProbe,
+//     RuntimeEnvironmentCandidate: from
 //     runtime_context_probe.go.
 //   - KubernetesRuntimeWorkloadRef: from
 //     kubernetes_runtime_probe.go.
 //   - KubernetesRuntimeProbeMetadata: from
 //     kubernetes_runtime_probe_fair.go.
 
-// SupplyChainRuntimeContext is one repository's read-time-resolved runtime
+// RuntimeContext is one repository's read-time-resolved runtime
 // context: the workloads, services, deployments, environments, and catalog
 // refs that repository currently maps to, resolved from active
 // workload_identity, service_catalog_correlation, platform_materialization,
@@ -34,7 +34,7 @@ package impact
 // every request. Absence of a workload here is an honest "current state of
 // knowledge" that self-heals on the next read — no readiness gate, no
 // re-enqueue, no fan-out.
-type SupplyChainRuntimeContext struct {
+type RuntimeContext struct {
 	WorkloadIDs       []string
 	ServiceIDs        []string
 	DeploymentIDs     []string
@@ -43,12 +43,12 @@ type SupplyChainRuntimeContext struct {
 	CatalogOwnerRefs  []string
 }
 
-// SupplyChainRuntimeContextResult is the response-side envelope attached to
+// RuntimeContextResult is the response-side envelope attached to
 // one impact finding as `runtime_context` (#5746). TruthBasis labels the
 // resolution path so a caller cannot mistake these IDs for baked payload
 // fields. The workload_id/service_id/environment filters resolve the same
 // current repository mappings independently (#5747).
-type SupplyChainRuntimeContextResult struct {
+type RuntimeContextResult struct {
 	// TruthBasis is always "read_time_resolved": the context was resolved
 	// from the repository's active runtime facts at query time, not baked
 	// into the finding at reduce time. Empty lists are an honest "no runtime
@@ -66,14 +66,14 @@ type SupplyChainRuntimeContextResult struct {
 	// EnvironmentEvidenceProbe reports this finding's page-weighted current
 	// confirmation budget. CandidatesTruncated means visible candidate names
 	// exceeded that budget; it never reflects hidden or unauthorized facts.
-	EnvironmentEvidenceProbe *SupplyChainRuntimeEnvironmentEvidenceProbe `json:"environment_evidence_probe,omitempty"`
-	CatalogEntityRefs        []string                                    `json:"catalog_entity_refs,omitempty"`
-	CatalogOwnerRefs         []string                                    `json:"catalog_owner_refs,omitempty"`
+	EnvironmentEvidenceProbe *RuntimeEnvironmentEvidenceProbe `json:"environment_evidence_probe,omitempty"`
+	CatalogEntityRefs        []string                         `json:"catalog_entity_refs,omitempty"`
+	CatalogOwnerRefs         []string                         `json:"catalog_owner_refs,omitempty"`
 }
 
-// SupplyChainRuntimeEnvironmentEvidenceProbe describes the bounded current
+// RuntimeEnvironmentEvidenceProbe describes the bounded current
 // confirmation work performed for one finding's environment candidates.
-type SupplyChainRuntimeEnvironmentEvidenceProbe struct {
+type RuntimeEnvironmentEvidenceProbe struct {
 	CandidateLimit      int  `json:"candidate_limit"`
 	CandidatesTruncated bool `json:"candidates_truncated"`
 }
@@ -96,7 +96,7 @@ type KubernetesRuntimeProbeMetadata struct {
 	WorkloadRefsTruncated *bool `json:"workload_refs_truncated"`
 }
 
-// SupplyChainRuntimeEnvironmentCandidate identifies one finding-bound
+// RuntimeEnvironmentCandidate identifies one finding-bound
 // digest/environment pair that must be revalidated against current accepted
 // CI/CD correlation facts before it can enter read-time runtime_context.
 // Relocated from root package query's
@@ -104,7 +104,7 @@ type KubernetesRuntimeProbeMetadata struct {
 // runtime-environment store names it and this package must not import root,
 // so the declaration lives here and root keeps a `type X = impact.X` alias
 // (see root supply_chain_impact_alias.go).
-type SupplyChainRuntimeEnvironmentCandidate struct {
+type RuntimeEnvironmentCandidate struct {
 	SubjectDigest string
 	Environment   string
 }

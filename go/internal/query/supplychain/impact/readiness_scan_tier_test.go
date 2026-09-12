@@ -21,11 +21,11 @@ func TestBuildSupplyChainImpactReadinessScanTierProvesScannedImage(t *testing.T)
 	t.Parallel()
 
 	envelope := BuildSupplyChainImpactReadiness(
-		SupplyChainImpactTargetScope{SubjectDigest: "sha256:scanned-distroless"},
+		TargetScope{SubjectDigest: "sha256:scanned-distroless"},
 		nil,
 		false,
-		SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+		ReadinessSnapshot{
+			EvidenceSources: []EvidenceFamily{
 				// vulnerability.advisory evidence is a separate, general
 				// precondition (the CVE database itself must be populated
 				// before any zero-finding answer is trustworthy) — it is not
@@ -57,11 +57,11 @@ func TestBuildSupplyChainImpactReadinessScanTierEvidenceAvoidsNotConfigured(t *t
 	t.Parallel()
 
 	envelope := BuildSupplyChainImpactReadiness(
-		SupplyChainImpactTargetScope{SubjectDigest: "sha256:scanned-with-packages"},
+		TargetScope{SubjectDigest: "sha256:scanned-with-packages"},
 		nil,
 		false,
-		SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+		ReadinessSnapshot{
+			EvidenceSources: []EvidenceFamily{
 				{Family: EvidenceFamilyScannerWorkerAnalysis, FactCount: 1, Freshness: FreshnessLabelFresh},
 				{Family: EvidenceFamilyVulnerabilityOSPackage, FactCount: 42, Freshness: FreshnessLabelFresh},
 			},
@@ -82,11 +82,11 @@ func TestBuildSupplyChainImpactReadinessNeverScannedStaysEvidenceIncomplete(t *t
 	t.Parallel()
 
 	envelope := BuildSupplyChainImpactReadiness(
-		SupplyChainImpactTargetScope{SubjectDigest: "sha256:never-scanned"},
+		TargetScope{SubjectDigest: "sha256:never-scanned"},
 		nil,
 		false,
-		SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+		ReadinessSnapshot{
+			EvidenceSources: []EvidenceFamily{
 				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
 			},
 		},
@@ -107,11 +107,11 @@ func TestBuildSupplyChainImpactReadinessNormalizesScanTierFamilies(t *testing.T)
 	t.Parallel()
 
 	envelope := BuildSupplyChainImpactReadiness(
-		SupplyChainImpactTargetScope{SubjectDigest: "sha256:normalize-scan-tier"},
+		TargetScope{SubjectDigest: "sha256:normalize-scan-tier"},
 		nil,
 		false,
-		SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+		ReadinessSnapshot{
+			EvidenceSources: []EvidenceFamily{
 				{Family: EvidenceFamilyVulnerabilityOSPackage, FactCount: 3},
 				{Family: EvidenceFamilyScannerWorkerAnalysis, FactCount: 1},
 			},

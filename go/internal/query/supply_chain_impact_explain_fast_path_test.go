@@ -25,7 +25,7 @@ func TestExplainSupplyChainImpactUsesPublicFindingIDFastPath(t *testing.T) {
 
 	explanation, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.SupplyChainImpactExplanationFilter{FindingID: "finding:public"},
+		impact.ExplanationFilter{FindingID: "finding:public"},
 	)
 	if err != nil {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want nil", err)
@@ -50,7 +50,7 @@ func TestExplainSupplyChainImpactFallsBackForLegacyFindingIdentity(t *testing.T)
 
 	explanation, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.SupplyChainImpactExplanationFilter{FindingID: "fact:legacy"},
+		impact.ExplanationFilter{FindingID: "fact:legacy"},
 	)
 	if err != nil {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want nil", err)
@@ -78,7 +78,7 @@ func TestExplainSupplyChainImpactFastPathPreservesAmbiguity(t *testing.T) {
 
 	_, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.SupplyChainImpactExplanationFilter{FindingID: "finding:duplicate"},
+		impact.ExplanationFilter{FindingID: "finding:duplicate"},
 	)
 	if !errors.Is(err, impact.ErrSupplyChainImpactExplanationAmbiguous) {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want ambiguity", err)
@@ -99,7 +99,7 @@ func TestExplainSupplyChainImpactNonFindingScopeUsesCompatibilityQuery(t *testin
 
 	_, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.SupplyChainImpactExplanationFilter{
+		impact.ExplanationFilter{
 			CVEID:     "CVE-2026-54654",
 			PackageID: "pkg:deb/example/bounded",
 		},

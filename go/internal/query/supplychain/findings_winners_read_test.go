@@ -28,7 +28,7 @@ func (q *recordingImpactQueryer) QueryContext(_ context.Context, query string, _
 func TestSupplyChainImpactReadGateSelectsQuery(t *testing.T) {
 	t.Parallel()
 
-	filter := impact.SupplyChainImpactFindingFilter{ImpactStatus: "affected_exact", Limit: 51}
+	filter := impact.FindingFilter{Status: "affected_exact", Limit: 51}
 
 	for _, tc := range []struct {
 		name        string
@@ -62,8 +62,8 @@ func TestSupplyChainImpactWinnersReadEnabled(t *testing.T) {
 		"1": true, "t": true, "T": true,
 		"": false, "false": false, "0": false, "f": false, "yes": false, "on": false,
 	} {
-		if got := impact.SupplyChainImpactWinnersReadEnabled(value); got != want {
-			t.Fatalf("impact.SupplyChainImpactWinnersReadEnabled(%q) = %v, want %v", value, got, want)
+		if got := impact.WinnersReadEnabled(value); got != want {
+			t.Fatalf("impact.WinnersReadEnabled(%q) = %v, want %v", value, got, want)
 		}
 	}
 }

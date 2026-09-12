@@ -32,21 +32,21 @@ type supplyChainImpactRuntimeContextReader interface {
 		[]string,
 		[]string,
 		[]string,
-	) (map[string]impact.SupplyChainRuntimeContext, error)
+	) (map[string]impact.RuntimeContext, error)
 }
 
-// impact.SupplyChainRuntimeEnvironmentCandidate moved to
+// impact.RuntimeEnvironmentCandidate moved to
 // internal/query/supplychain/impact with the other runtime-evidence
 // read-model types (#6060 lane A); see supply_chain_impact_alias.go.
 
-// impact.SupplyChainRuntimeEnvironmentEvidenceProbe moved to
+// impact.RuntimeEnvironmentEvidenceProbe moved to
 // internal/query/supplychain/impact with the other runtime-evidence
 // read-model types (#6060 lane A); see supply_chain_impact_alias.go.
 
 type supplyChainImpactRuntimeEnvironmentReader interface {
 	ListSupplyChainImpactRuntimeEnvironmentEvidence(
 		context.Context,
-		[]impact.SupplyChainRuntimeEnvironmentCandidate,
+		[]impact.RuntimeEnvironmentCandidate,
 		[]string,
 		[]string,
 	) (map[string]map[string]string, error)
@@ -55,8 +55,8 @@ type supplyChainImpactRuntimeEnvironmentReader interface {
 const MaxSupplyChainRuntimeEnvironmentCandidates = ImpactFindingMaxLimit
 
 type RuntimeEnvironmentPlan struct {
-	candidates []impact.SupplyChainRuntimeEnvironmentCandidate
-	metadata   *impact.SupplyChainRuntimeEnvironmentEvidenceProbe
+	candidates []impact.RuntimeEnvironmentCandidate
+	metadata   *impact.RuntimeEnvironmentEvidenceProbe
 }
 
 // applySupplyChainRuntimeContext resolves each finding row's runtime context
@@ -81,7 +81,7 @@ type RuntimeEnvironmentPlan struct {
 // disagree about which current facts the caller may observe.
 func (h *Handler) applySupplyChainRuntimeContext(
 	ctx context.Context,
-	rows []impact.SupplyChainImpactFindingRow,
+	rows []impact.FindingRow,
 	access querycontract.RepositoryAccessFilter,
 ) error {
 	if h == nil || len(rows) == 0 {
@@ -152,7 +152,7 @@ func (h *Handler) applySupplyChainRuntimeContext(
 			append([]string(nil), resolved.Environments...),
 			mapStringKeys(digestEvidence)...,
 		))
-		rows[i].RuntimeContext = &impact.SupplyChainRuntimeContextResult{
+		rows[i].RuntimeContext = &impact.RuntimeContextResult{
 			TruthBasis:               supplyChainRuntimeContextTruthBasis,
 			WorkloadIDs:              UniqueSortedNonEmpty(resolved.WorkloadIDs),
 			ServiceIDs:               UniqueSortedNonEmpty(resolved.ServiceIDs),
@@ -185,11 +185,11 @@ func supplyChainRuntimeEnvironmentEvidenceForPlan(
 }
 
 func PlanSupplyChainRuntimeEnvironmentCandidates(
-	rows []impact.SupplyChainImpactFindingRow,
-	byRepo map[string]impact.SupplyChainRuntimeContext,
-) ([]impact.SupplyChainRuntimeEnvironmentCandidate, []RuntimeEnvironmentPlan) {
+	rows []impact.FindingRow,
+	byRepo map[string]impact.RuntimeContext,
+) ([]impact.RuntimeEnvironmentCandidate, []RuntimeEnvironmentPlan) {
 	plans := make([]RuntimeEnvironmentPlan, len(rows))
-	available := make([][]impact.SupplyChainRuntimeEnvironmentCandidate, len(rows))
+	available := make([][]impact.RuntimeEnvironmentCandidate, len(rows))
 	for rowIndex, row := range rows {
 		digest := strings.TrimSpace(row.SubjectDigest)
 		if digest == "" {
@@ -201,7 +201,7 @@ func PlanSupplyChainRuntimeEnvironmentCandidates(
 			repositoryContext.Environments...,
 		))
 		for _, environment := range environments {
-			available[rowIndex] = append(available[rowIndex], impact.SupplyChainRuntimeEnvironmentCandidate{
+			available[rowIndex] = append(available[rowIndex], impact.RuntimeEnvironmentCandidate{
 				SubjectDigest: digest,
 				Environment:   environment,
 			})
@@ -222,12 +222,12 @@ func PlanSupplyChainRuntimeEnvironmentCandidates(
 			break
 		}
 	}
-	unique := make(map[string]impact.SupplyChainRuntimeEnvironmentCandidate)
+	unique := make(map[string]impact.RuntimeEnvironmentCandidate)
 	for rowIndex := range plans {
 		if len(available[rowIndex]) == 0 {
 			continue
 		}
-		plans[rowIndex].metadata = &impact.SupplyChainRuntimeEnvironmentEvidenceProbe{
+		plans[rowIndex].metadata = &impact.RuntimeEnvironmentEvidenceProbe{
 			CandidateLimit:      len(plans[rowIndex].candidates),
 			CandidatesTruncated: len(plans[rowIndex].candidates) < len(available[rowIndex]),
 		}
@@ -240,7 +240,7 @@ func PlanSupplyChainRuntimeEnvironmentCandidates(
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-	out := make([]impact.SupplyChainRuntimeEnvironmentCandidate, 0, len(keys))
+	out := make([]impact.RuntimeEnvironmentCandidate, 0, len(keys))
 	for _, key := range keys {
 		out = append(out, unique[key])
 	}

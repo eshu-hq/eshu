@@ -33,7 +33,7 @@ func (repeatedDigestEnvironmentImpactStore) ListSupplyChainImpactFindings(
 			PackageID:     fmt.Sprintf("pkg:maven/example/environment-%03d@1.0.0", index),
 			RepositoryID:  "repository:r_environment_budget",
 			SubjectDigest: repeatedDigestMCPTestDigest,
-			ImpactStatus:  "affected_exact",
+			Status:        "affected_exact",
 			Environments:  []string{fmt.Sprintf("environment-%03d", index)},
 		}
 	}

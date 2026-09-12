@@ -22,12 +22,12 @@ func TestSupplyChainDeploymentTruthTierDistinguishesRuntimeCIAndConfig(t *testin
 
 	cases := []struct {
 		name string
-		row  SupplyChainImpactFindingRow
+		row  FindingRow
 		want truth.DeploymentTruthTier
 	}{
 		{
 			name: "runtime-observed cloud resource is runtime_confirmed",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				SubjectDigest:            digest,
 				CloudRuntimeResourceRefs: []string{ecsARN},
 				EvidencePath:             []string{cicdRunCorrelationFactKind},
@@ -36,7 +36,7 @@ func TestSupplyChainDeploymentTruthTierDistinguishesRuntimeCIAndConfig(t *testin
 		},
 		{
 			name: "runtime evidence beats a co-present CI-declared hop",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				SubjectDigest:            digest,
 				CloudRuntimeResourceRefs: []string{ecsARN},
 			},
@@ -44,7 +44,7 @@ func TestSupplyChainDeploymentTruthTierDistinguishesRuntimeCIAndConfig(t *testin
 		},
 		{
 			name: "CI-declared deployment hop is provenance_ci_declared",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				SubjectDigest: digest,
 				DeploymentIDs: []string{"deployment:example-api"},
 				Environments:  []string{"prod"},
@@ -54,7 +54,7 @@ func TestSupplyChainDeploymentTruthTierDistinguishesRuntimeCIAndConfig(t *testin
 		},
 		{
 			name: "config-only anchors without CI or runtime evidence stay config_only",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				WorkloadIDs:  []string{"workload:example-api"},
 				Environments: []string{"prod"},
 				EvidencePath: []string{"reducer_platform_materialization"},
@@ -63,7 +63,7 @@ func TestSupplyChainDeploymentTruthTierDistinguishesRuntimeCIAndConfig(t *testin
 		},
 		{
 			name: "no deployment anchor at all classifies as no tier",
-			row:  SupplyChainImpactFindingRow{},
+			row:  FindingRow{},
 			want: "",
 		},
 	}

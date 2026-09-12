@@ -140,13 +140,13 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"runtime_context_200_candidates",
 		impact.SelectSupplyChainImpactRuntimeContextQuery,
-		pgarray.Array(impact.SupplyChainImpactRuntimeContextFactKinds),
+		pgarray.Array(impact.RuntimeContextFactKinds),
 		pgarray.Array(contextCandidates),
 		pgarray.Array(contextCandidates),
 		pgarray.Array([]string{}),
 	)
 
-	baseFilter := impact.SupplyChainImpactFindingFilter{
+	baseFilter := impact.FindingFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		WorkloadID:           "workload:5747:scalar",
 		ServiceID:            "service:5747:allowed",
@@ -158,7 +158,7 @@ FROM generate_series(1, 100000) AS sample`,
 	for _, tc := range []struct {
 		name        string
 		query       string
-		filter      impact.SupplyChainImpactFindingFilter
+		filter      impact.FindingFilter
 		wantIndexes []string
 	}{
 		{
@@ -272,7 +272,7 @@ FROM generate_series(1, 100000) AS sample`,
 		}
 	}
 
-	combinedAggregate := impact.SupplyChainImpactAggregateFilter{
+	combinedAggregate := impact.AggregateFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		WorkloadID:           "workload:5747:scalar",
 		ServiceID:            "service:5747:allowed",
@@ -285,7 +285,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"aggregate_combined",
-		impact.SupplyChainImpactAggregateCountQuery,
+		impact.AggregateCountQuery,
 		supplyChainRuntimeFilterAggregateArgs(combinedAggregate)...,
 	)
 	for _, wantIndex := range []string{
@@ -298,7 +298,7 @@ FROM generate_series(1, 100000) AS sample`,
 		}
 	}
 
-	highCardinalityAggregate := impact.SupplyChainImpactAggregateFilter{
+	highCardinalityAggregate := impact.AggregateFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		Environment:          runtimeFilterHighCardinalityEnvironment,
 		DetectionProfile:     "comprehensive",
@@ -317,7 +317,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"aggregate_environment_high_cardinality",
-		impact.SupplyChainImpactAggregateCountQuery,
+		impact.AggregateCountQuery,
 		supplyChainRuntimeFilterAggregateArgs(highCardinalityAggregate)...,
 	)
 	if !strings.Contains(
@@ -343,7 +343,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"inventory_environment_high_cardinality",
-		impact.SupplyChainImpactInventoryQuery("COALESCE(fact.payload->>'impact_status', 'unknown')"),
+		impact.InventoryQuery("COALESCE(fact.payload->>'impact_status', 'unknown')"),
 		highCardinalityInventoryArgs...,
 	)
 	if !strings.Contains(
@@ -365,8 +365,8 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"aggregate_no_runtime_filter",
-		impact.SupplyChainImpactAggregateCountQuery,
-		supplyChainRuntimeFilterAggregateArgs(impact.SupplyChainImpactAggregateFilter{})...,
+		impact.AggregateCountQuery,
+		supplyChainRuntimeFilterAggregateArgs(impact.AggregateFilter{})...,
 	)
 	for _, unexpectedIndex := range []string{
 		"fact_records_workload_identity_workload_idx",
@@ -385,7 +385,7 @@ FROM generate_series(1, 100000) AS sample`,
 		tx,
 		"explain_workload_service",
 		impact.ExplainSupplyChainImpactFindingQuery,
-		supplyChainRuntimeFilterExplainArgs(impact.SupplyChainImpactExplanationFilter{
+		supplyChainRuntimeFilterExplainArgs(impact.ExplanationFilter{
 			CVEID:                runtimeFilterLiveCVE,
 			PackageID:            runtimeFilterLivePackage,
 			WorkloadID:           "workload:5747:scalar",
@@ -404,25 +404,25 @@ FROM generate_series(1, 100000) AS sample`,
 }
 
 func withSupplyChainRuntimeFilterDimensions(
-	filter impact.SupplyChainImpactFindingFilter,
+	filter impact.FindingFilter,
 	workloadID string,
 	serviceID string,
 	environment string,
-) impact.SupplyChainImpactFindingFilter {
+) impact.FindingFilter {
 	filter.WorkloadID = workloadID
 	filter.ServiceID = serviceID
 	filter.Environment = environment
 	return filter
 }
 
-func supplyChainRuntimeFilterListArgs(filter impact.SupplyChainImpactFindingFilter) []any {
+func supplyChainRuntimeFilterListArgs(filter impact.FindingFilter) []any {
 	return []any{
-		impact.SupplyChainImpactFindingFactKind,
+		impact.FindingFactKind,
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.SubjectDigest,
-		filter.ImpactStatus,
+		filter.Status,
 		filter.AdvisoryID,
 		filter.Ecosystem,
 		filter.ServiceID,
@@ -446,17 +446,17 @@ func supplyChainRuntimeFilterListArgs(filter impact.SupplyChainImpactFindingFilt
 		// query, so a placeholder added there must be added here too. Omitting it
 		// fails at bind time with "expected 24 arguments, got 23", before any plan
 		// is produced, so every plan assertion below is skipped rather than run.
-		impact.SupplyChainImpactSuppressionReadAt(nil),
+		impact.SuppressionReadAt(nil),
 	}
 }
 
-func supplyChainRuntimeFilterAggregateArgs(filter impact.SupplyChainImpactAggregateFilter) []any {
+func supplyChainRuntimeFilterAggregateArgs(filter impact.AggregateFilter) []any {
 	return []any{
 		filter.CVEID,
 		filter.PackageID,
 		filter.RepositoryID,
 		filter.SubjectDigest,
-		filter.ImpactStatus,
+		filter.Status,
 		filter.AdvisoryID,
 		filter.Ecosystem,
 		filter.ServiceID,
@@ -474,9 +474,9 @@ func supplyChainRuntimeFilterAggregateArgs(filter impact.SupplyChainImpactAggreg
 	}
 }
 
-func supplyChainRuntimeFilterExplainArgs(filter impact.SupplyChainImpactExplanationFilter) []any {
+func supplyChainRuntimeFilterExplainArgs(filter impact.ExplanationFilter) []any {
 	return []any{
-		impact.SupplyChainImpactFindingFactKind,
+		impact.FindingFactKind,
 		filter.FindingID,
 		filter.AdvisoryID,
 		filter.CVEID,

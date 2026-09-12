@@ -8,35 +8,35 @@ import (
 	"strings"
 )
 
-// SupplyChainImpactReadinessState classifies one bounded vulnerability impact
+// ReadinessState classifies one bounded vulnerability impact
 // answer so callers can tell missing target coverage from a clean result.
-type SupplyChainImpactReadinessState string
+type ReadinessState string
 
 const (
 	// ReadinessStateNotConfigured means Eshu has no advisory ingestion for the
 	// requested scope, so a zero-finding answer cannot be interpreted as safe.
-	ReadinessStateNotConfigured SupplyChainImpactReadinessState = "not_configured"
+	ReadinessStateNotConfigured ReadinessState = "not_configured"
 	// ReadinessStateTargetIncomplete means at least one required target source
 	// reported partial or in-flight collection for the requested scope.
-	ReadinessStateTargetIncomplete SupplyChainImpactReadinessState = "target_incomplete"
+	ReadinessStateTargetIncomplete ReadinessState = "target_incomplete"
 	// ReadinessStateEvidenceIncomplete means some target evidence exists but a
 	// required join family is missing for the requested scope.
-	ReadinessStateEvidenceIncomplete SupplyChainImpactReadinessState = "evidence_incomplete"
+	ReadinessStateEvidenceIncomplete ReadinessState = "evidence_incomplete"
 	// ReadinessStateReadyZeroFindings means required evidence is present, the
 	// reducer ran, and no impact finding matched the scope.
-	ReadinessStateReadyZeroFindings SupplyChainImpactReadinessState = "ready_zero_findings"
+	ReadinessStateReadyZeroFindings ReadinessState = "ready_zero_findings"
 	// ReadinessStateReadyWithFindings means required evidence is present and
 	// reducer-owned impact findings exist for the scope.
-	ReadinessStateReadyWithFindings SupplyChainImpactReadinessState = "ready_with_findings"
+	ReadinessStateReadyWithFindings ReadinessState = "ready_with_findings"
 	// ReadinessStateAmbiguousScope means the bounded scope matched multiple
 	// reducer-owned impact findings, so callers must narrow the request before
 	// interpreting readiness as clean or affected.
-	ReadinessStateAmbiguousScope SupplyChainImpactReadinessState = "ambiguous_scope"
+	ReadinessStateAmbiguousScope ReadinessState = "ambiguous_scope"
 	// ReadinessStateReadinessUnavailable means the readiness lookup itself
 	// failed; the findings page is still returned but its coverage cannot be
 	// classified. Callers must not interpret zero findings as safe in this
 	// state.
-	ReadinessStateReadinessUnavailable SupplyChainImpactReadinessState = "readiness_unavailable"
+	ReadinessStateReadinessUnavailable ReadinessState = "readiness_unavailable"
 	// ReadinessStateUnsupported means Eshu observed real target evidence
 	// (owned dependency in an unsupported ecosystem, package-manager file
 	// flagged with an unsupported lockfile feature, VCS/path/URL/editable
@@ -44,28 +44,28 @@ const (
 	// package-registry metadata, or unsupported image manifest) the matcher
 	// cannot resolve into a finding. Callers must not interpret this as clean
 	// or affected.
-	ReadinessStateUnsupported SupplyChainImpactReadinessState = "unsupported"
+	ReadinessStateUnsupported ReadinessState = "unsupported"
 )
 
-// SupplyChainImpactReadinessEnvelope is the readiness payload attached to a
+// ReadinessEnvelope is the readiness payload attached to a
 // vulnerability impact response so a UI, MCP client, or operator can tell
 // "nothing matched" from "Eshu has not collected the evidence yet."
-type SupplyChainImpactReadinessEnvelope struct {
-	State              SupplyChainImpactReadinessState      `json:"readiness_state"`
-	TargetScope        SupplyChainImpactTargetScope         `json:"target_scope"`
-	EvidenceSources    []SupplyChainImpactEvidenceFamily    `json:"evidence_sources"`
-	SourceSnapshots    []SupplyChainImpactSourceSnapshot    `json:"source_snapshots,omitempty"`
-	SourceStates       []SupplyChainImpactSourceState       `json:"source_states,omitempty"`
-	UnsupportedTargets []SupplyChainImpactUnsupportedTarget `json:"unsupported_targets,omitempty"`
-	MissingEvidence    []string                             `json:"missing_evidence,omitempty"`
-	IncompleteReasons  []string                             `json:"incomplete_reasons,omitempty"`
-	Freshness          string                               `json:"freshness"`
-	Counts             SupplyChainImpactReadinessCounts     `json:"counts"`
+type ReadinessEnvelope struct {
+	State              ReadinessState      `json:"readiness_state"`
+	TargetScope        TargetScope         `json:"target_scope"`
+	EvidenceSources    []EvidenceFamily    `json:"evidence_sources"`
+	SourceSnapshots    []SourceSnapshot    `json:"source_snapshots,omitempty"`
+	SourceStates       []SourceState       `json:"source_states,omitempty"`
+	UnsupportedTargets []UnsupportedTarget `json:"unsupported_targets,omitempty"`
+	MissingEvidence    []string            `json:"missing_evidence,omitempty"`
+	IncompleteReasons  []string            `json:"incomplete_reasons,omitempty"`
+	Freshness          string              `json:"freshness"`
+	Counts             ReadinessCounts     `json:"counts"`
 }
 
-// SupplyChainImpactTargetScope echoes the bounded anchors the caller used so
+// TargetScope echoes the bounded anchors the caller used so
 // the readiness verdict is reproducible without re-deriving query parameters.
-type SupplyChainImpactTargetScope struct {
+type TargetScope struct {
 	CVEID         string `json:"cve_id,omitempty"`
 	AdvisoryID    string `json:"advisory_id,omitempty"`
 	PackageID     string `json:"package_id,omitempty"`
@@ -77,21 +77,21 @@ type SupplyChainImpactTargetScope struct {
 	ServiceID     string `json:"service_id,omitempty"`
 	Environment   string `json:"environment,omitempty"`
 	Severity      string `json:"severity,omitempty"`
-	ImpactStatus  string `json:"impact_status,omitempty"`
+	Status        string `json:"impact_status,omitempty"`
 }
 
-// SupplyChainImpactEvidenceFamily summarizes one source-evidence family for the
+// EvidenceFamily summarizes one source-evidence family for the
 // requested scope without leaking package names or advisory bodies.
-type SupplyChainImpactEvidenceFamily struct {
+type EvidenceFamily struct {
 	Family           string `json:"family"`
 	FactCount        int    `json:"fact_count"`
 	LatestObservedAt string `json:"latest_observed_at,omitempty"`
 	Freshness        string `json:"freshness,omitempty"`
 }
 
-// SupplyChainImpactSourceSnapshot exposes source-cache and observation metadata
+// SourceSnapshot exposes source-cache and observation metadata
 // for vulnerability source snapshots without returning raw advisory payloads.
-type SupplyChainImpactSourceSnapshot struct {
+type SourceSnapshot struct {
 	Source               string `json:"source"`
 	Ecosystem            string `json:"ecosystem,omitempty"`
 	CacheArtifactVersion string `json:"cache_artifact_version,omitempty"`
@@ -103,22 +103,22 @@ type SupplyChainImpactSourceSnapshot struct {
 	WarningMessage       string `json:"warning_message,omitempty"`
 }
 
-// SupplyChainImpactReadinessCounts surfaces enough numeric coverage to diagnose
+// ReadinessCounts surfaces enough numeric coverage to diagnose
 // a zero or partial answer without exposing raw payloads.
-type SupplyChainImpactReadinessCounts struct {
+type ReadinessCounts struct {
 	FindingsReturned   int            `json:"findings_returned"`
 	FindingsTruncated  bool           `json:"findings_truncated"`
 	FindingsByStatus   map[string]int `json:"findings_by_status,omitempty"`
 	EvidenceFactsTotal int            `json:"evidence_facts_total"`
 }
 
-// SupplyChainImpactReadinessQuery is the bounded readiness lookup the handler
-// runs alongside the findings page. ImpactStatus is intentionally not used by
+// ReadinessQuery is the bounded readiness lookup the handler
+// runs alongside the findings page. Status is intentionally not used by
 // the source-fact counts because source facts have no impact-status field;
 // it is preserved here so the call site can build the query from the same
 // scope value used to echo TargetScope back to the caller. AdvisoryID narrows
 // source-advisory rows only when another fact anchor is present.
-type SupplyChainImpactReadinessQuery struct {
+type ReadinessQuery struct {
 	CVEID         string
 	AdvisoryID    string
 	PackageID     string
@@ -130,13 +130,13 @@ type SupplyChainImpactReadinessQuery struct {
 	ServiceID     string
 	Environment   string
 	Severity      string
-	ImpactStatus  string
+	Status        string
 }
 
 // hasFactAnchor reports whether the query carries an anchor that source facts
 // can be filtered by. impact_status is a reducer-finding attribute that does
 // not appear on source facts, so an impact_status-only query has no anchor.
-func (q SupplyChainImpactReadinessQuery) hasFactAnchor() bool {
+func (q ReadinessQuery) hasFactAnchor() bool {
 	return strings.TrimSpace(q.CVEID) != "" ||
 		strings.TrimSpace(q.PackageID) != "" ||
 		strings.TrimSpace(q.RepositoryID) != "" ||
@@ -144,25 +144,25 @@ func (q SupplyChainImpactReadinessQuery) hasFactAnchor() bool {
 		strings.TrimSpace(q.ImageRef) != ""
 }
 
-// SupplyChainImpactReadinessSnapshot is the source-only evidence summary the
+// ReadinessSnapshot is the source-only evidence summary the
 // readiness store returns. The handler classifies the readiness state from
 // this snapshot plus the findings page; the store never invents findings.
-type SupplyChainImpactReadinessSnapshot struct {
-	EvidenceSources    []SupplyChainImpactEvidenceFamily
-	SourceSnapshots    []SupplyChainImpactSourceSnapshot
-	SourceStates       []SupplyChainImpactSourceState
-	UnsupportedTargets []SupplyChainImpactUnsupportedTarget
+type ReadinessSnapshot struct {
+	EvidenceSources    []EvidenceFamily
+	SourceSnapshots    []SourceSnapshot
+	SourceStates       []SourceState
+	UnsupportedTargets []UnsupportedTarget
 	TargetIncomplete   bool
 	IncompleteReasons  []string
 }
 
-// SupplyChainImpactReadinessStore reads bounded source-fact counts so the
+// ReadinessStore reads bounded source-fact counts so the
 // handler can build a readiness envelope without traversing the graph.
-type SupplyChainImpactReadinessStore interface {
+type ReadinessStore interface {
 	ReadSupplyChainImpactReadiness(
 		context.Context,
-		SupplyChainImpactReadinessQuery,
-	) (SupplyChainImpactReadinessSnapshot, error)
+		ReadinessQuery,
+	) (ReadinessSnapshot, error)
 }
 
 const (
@@ -220,11 +220,11 @@ const (
 // source-evidence snapshot to produce one readiness envelope. The function is
 // deterministic and never mutates its inputs.
 func BuildSupplyChainImpactReadiness(
-	scope SupplyChainImpactTargetScope,
-	findings []SupplyChainImpactFindingResult,
+	scope TargetScope,
+	findings []FindingResult,
 	truncated bool,
-	snapshot SupplyChainImpactReadinessSnapshot,
-) SupplyChainImpactReadinessEnvelope {
+	snapshot ReadinessSnapshot,
+) ReadinessEnvelope {
 	sources := normalizeEvidenceSources(snapshot.EvidenceSources)
 	sourceStates := normalizeSourceStates(snapshot.SourceStates)
 	snapshot.SourceStates = sourceStates
@@ -234,7 +234,7 @@ func BuildSupplyChainImpactReadiness(
 	}
 	unsupportedTargets := normalizeUnsupportedTargets(snapshot.UnsupportedTargets)
 	snapshot.UnsupportedTargets = unsupportedTargets
-	counts := SupplyChainImpactReadinessCounts{
+	counts := ReadinessCounts{
 		FindingsReturned:   len(findings),
 		FindingsTruncated:  truncated,
 		FindingsByStatus:   countFindingsByStatus(findings),
@@ -255,7 +255,7 @@ func BuildSupplyChainImpactReadiness(
 	}
 	freshness := aggregateReadinessFreshness(sources)
 	freshness = combineReadinessFreshness(freshness, aggregateSourceStateFreshness(sourceStates))
-	return SupplyChainImpactReadinessEnvelope{
+	return ReadinessEnvelope{
 		State:              state,
 		TargetScope:        scope,
 		EvidenceSources:    sources,
@@ -273,17 +273,17 @@ func BuildSupplyChainImpactReadiness(
 // when the readiness lookup itself failed. The findings page is still returned
 // to the caller but the envelope explicitly says coverage cannot be classified.
 func BuildSupplyChainImpactReadinessUnavailable(
-	scope SupplyChainImpactTargetScope,
-	findings []SupplyChainImpactFindingResult,
+	scope TargetScope,
+	findings []FindingResult,
 	truncated bool,
-) SupplyChainImpactReadinessEnvelope {
-	return SupplyChainImpactReadinessEnvelope{
+) ReadinessEnvelope {
+	return ReadinessEnvelope{
 		State:           ReadinessStateReadinessUnavailable,
 		TargetScope:     scope,
-		EvidenceSources: []SupplyChainImpactEvidenceFamily{},
+		EvidenceSources: []EvidenceFamily{},
 		MissingEvidence: []string{MissingEvidenceReadinessUnavailable},
 		Freshness:       FreshnessLabelUnknown,
-		Counts: SupplyChainImpactReadinessCounts{
+		Counts: ReadinessCounts{
 			FindingsReturned:  len(findings),
 			FindingsTruncated: truncated,
 			FindingsByStatus:  countFindingsByStatus(findings),
@@ -292,11 +292,11 @@ func BuildSupplyChainImpactReadinessUnavailable(
 }
 
 func classifyReadinessState(
-	findings []SupplyChainImpactFindingResult,
-	sources []SupplyChainImpactEvidenceFamily,
-	snapshot SupplyChainImpactReadinessSnapshot,
+	findings []FindingResult,
+	sources []EvidenceFamily,
+	snapshot ReadinessSnapshot,
 	missing []string,
-) SupplyChainImpactReadinessState {
+) ReadinessState {
 	if len(findings) > 0 {
 		return ReadinessStateReadyWithFindings
 	}
@@ -341,9 +341,9 @@ func classifyReadinessState(
 }
 
 func classifyMissingEvidence(
-	scope SupplyChainImpactTargetScope,
-	sources []SupplyChainImpactEvidenceFamily,
-	snapshot SupplyChainImpactReadinessSnapshot,
+	scope TargetScope,
+	sources []EvidenceFamily,
+	snapshot ReadinessSnapshot,
 ) []string {
 	var missing []string
 	if snapshot.TargetIncomplete &&
@@ -403,7 +403,7 @@ func classifyMissingEvidence(
 	return uniqueSortedReadinessStrings(missing)
 }
 
-func isReadyState(state SupplyChainImpactReadinessState) bool {
+func isReadyState(state ReadinessState) bool {
 	switch state {
 	case ReadinessStateReadyWithFindings, ReadinessStateReadyZeroFindings:
 		return true
@@ -412,35 +412,35 @@ func isReadyState(state SupplyChainImpactReadinessState) bool {
 	}
 }
 
-func scopeRequiresOwnedPackages(scope SupplyChainImpactTargetScope) bool {
+func scopeRequiresOwnedPackages(scope TargetScope) bool {
 	return scope.RepositoryID != "" || scope.PackageID != ""
 }
 
-func scopeRequiresPackageRegistryMetadata(scope SupplyChainImpactTargetScope, sources []SupplyChainImpactEvidenceFamily) bool {
+func scopeRequiresPackageRegistryMetadata(scope TargetScope, sources []EvidenceFamily) bool {
 	if scope.PackageID != "" {
 		return true
 	}
 	return scope.RepositoryID != "" && evidenceFactCount(sources, EvidenceFamilyPackageConsumption) > 0
 }
 
-func scopeRequiresImageEvidence(scope SupplyChainImpactTargetScope) bool {
+func scopeRequiresImageEvidence(scope TargetScope) bool {
 	return scope.SubjectDigest != "" || scope.ImageRef != ""
 }
 
-func scopeRequiresServiceOrWorkloadEvidence(scope SupplyChainImpactTargetScope) bool {
+func scopeRequiresServiceOrWorkloadEvidence(scope TargetScope) bool {
 	return scope.WorkloadID != "" || scope.ServiceID != ""
 }
 
-func countFindingsByStatus(findings []SupplyChainImpactFindingResult) map[string]int {
+func countFindingsByStatus(findings []FindingResult) map[string]int {
 	if len(findings) == 0 {
 		return nil
 	}
 	counts := make(map[string]int, len(findings))
 	for _, finding := range findings {
-		if finding.ImpactStatus == "" {
+		if finding.Status == "" {
 			continue
 		}
-		counts[finding.ImpactStatus]++
+		counts[finding.Status]++
 	}
 	if len(counts) == 0 {
 		return nil
@@ -448,7 +448,7 @@ func countFindingsByStatus(findings []SupplyChainImpactFindingResult) map[string
 	return counts
 }
 
-func sumEvidenceFactCount(sources []SupplyChainImpactEvidenceFamily) int {
+func sumEvidenceFactCount(sources []EvidenceFamily) int {
 	total := 0
 	for _, family := range sources {
 		total += family.FactCount
@@ -456,7 +456,7 @@ func sumEvidenceFactCount(sources []SupplyChainImpactEvidenceFamily) int {
 	return total
 }
 
-func evidenceFactCount(sources []SupplyChainImpactEvidenceFamily, name string) int {
+func evidenceFactCount(sources []EvidenceFamily, name string) int {
 	for _, family := range sources {
 		if family.Family == name {
 			return family.FactCount
@@ -465,7 +465,7 @@ func evidenceFactCount(sources []SupplyChainImpactEvidenceFamily, name string) i
 	return 0
 }
 
-func evidenceFamilyFreshness(sources []SupplyChainImpactEvidenceFamily, name string) string {
+func evidenceFamilyFreshness(sources []EvidenceFamily, name string) string {
 	freshness := FreshnessLabelUnknown
 	for _, family := range sources {
 		if family.Family == name {
@@ -475,7 +475,7 @@ func evidenceFamilyFreshness(sources []SupplyChainImpactEvidenceFamily, name str
 	return freshness
 }
 
-func aggregateReadinessFreshness(sources []SupplyChainImpactEvidenceFamily) string {
+func aggregateReadinessFreshness(sources []EvidenceFamily) string {
 	state := FreshnessLabelUnknown
 	for _, family := range sources {
 		switch family.Freshness {

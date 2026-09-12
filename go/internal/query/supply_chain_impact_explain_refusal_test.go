@@ -16,8 +16,8 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	t.Parallel()
 
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		snapshot: impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
@@ -42,9 +42,9 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 	}
 
 	var envelope struct {
-		Data  impact.SupplyChainImpactExplanationResult `json:"data"`
-		Truth *TruthEnvelope                            `json:"truth"`
-		Error *ErrorEnvelope                            `json:"error"`
+		Data  impact.ExplanationResult `json:"data"`
+		Truth *TruthEnvelope           `json:"truth"`
+		Error *ErrorEnvelope           `json:"error"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -98,8 +98,8 @@ func TestSupplyChainImpactAmbiguousExplanationUsesCandidateCount(t *testing.T) {
 	t.Parallel()
 
 	body := impact.BuildSupplyChainImpactAmbiguousExplanation(
-		impact.SupplyChainImpactExplanationFilter{AdvisoryID: "GHSA-ambiguous", RepositoryID: "repo://example/api"},
-		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyZeroFindings},
+		impact.ExplanationFilter{AdvisoryID: "GHSA-ambiguous", RepositoryID: "repo://example/api"},
+		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyZeroFindings},
 		4,
 	)
 	if got, want := body.Readiness.State, impact.ReadinessStateAmbiguousScope; got != want {

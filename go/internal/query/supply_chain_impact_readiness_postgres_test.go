@@ -310,7 +310,7 @@ func TestPostgresSupplyChainImpactReadinessSkipsImpactStatusOnlyScope(t *testing
 	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
 	snapshot, err := store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{ImpactStatus: "affected_exact"},
+		impact.ReadinessQuery{Status: "affected_exact"},
 	)
 	if err != nil {
 		t.Fatalf("ReadSupplyChainImpactReadiness() error = %v, want nil", err)
@@ -330,7 +330,7 @@ func TestPostgresSupplyChainImpactReadinessSkipsAdvisoryOnlyScope(t *testing.T) 
 	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
 	snapshot, err := store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{AdvisoryID: "GHSA-aaaa-bbbb-cccc"},
+		impact.ReadinessQuery{AdvisoryID: "GHSA-aaaa-bbbb-cccc"},
 	)
 	if err != nil {
 		t.Fatalf("ReadSupplyChainImpactReadiness() error = %v, want nil", err)
@@ -353,7 +353,7 @@ func TestPostgresSupplyChainImpactReadinessScansForFactAnchoredScope(t *testing.
 	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{CVEID: "CVE-2026-0001", ImpactStatus: "affected_exact"},
+		impact.ReadinessQuery{CVEID: "CVE-2026-0001", Status: "affected_exact"},
 	)
 	if db.called != 1 {
 		t.Fatalf("QueryContext invocations = %d, want 1 for fact-anchored scope", db.called)
@@ -367,7 +367,7 @@ func TestPostgresSupplyChainImpactReadinessScansForImageRefScope(t *testing.T) {
 	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{ImageRef: "registry.example.com/team/api:prod"},
+		impact.ReadinessQuery{ImageRef: "registry.example.com/team/api:prod"},
 	)
 	if db.called != 1 {
 		t.Fatalf("QueryContext invocations = %d, want 1 for image_ref scope", db.called)
@@ -410,7 +410,7 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{SubjectDigest: "sha256:scan-tier-args"},
+		impact.ReadinessQuery{SubjectDigest: "sha256:scan-tier-args"},
 	)
 	if len(db.args) != 16 {
 		t.Fatalf("QueryContext args = %d, want 16 (8 fact-kind arrays + 6 scalars + 2 new scan-tier arrays)", len(db.args))

@@ -142,7 +142,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 	// Handler.listImpactFindings -> h.ImpactFindings
 	// (PostgresSupplyChainImpactFindingStore): both the legacy and winners
 	// queries bind fact_kind = $1 to "reducer_supply_chain_impact_finding"
-	// (go/internal/query/supplychain/impact/findings_queries.go::SupplyChainImpactFindingFactKind).
+	// (go/internal/query/supplychain/impact/findings_queries.go::FindingFactKind).
 	// reducer_derived_findings owns the kind
 	// (specs/fact-kind-registry.v1.yaml:131-142); supply_chain_impact is the
 	// producing projection (scanner_worker family, specs:346-356) — both are
@@ -162,7 +162,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 			{
 				Domain:     "reducer_derived_findings",
 				StoreField: "ImpactFindings",
-				StoreType:  "SupplyChainImpactFindingStore",
+				StoreType:  "FindingStore",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/supplychain/impact/findings_queries.go", Marker: "reducer_supply_chain_impact_finding"},
 				},
@@ -170,7 +170,7 @@ var routeServesDataRegistryPart1 = map[string]routeServesDataSource{
 			{
 				Domain:     "supply_chain_impact",
 				StoreField: "ImpactFindings",
-				StoreType:  "SupplyChainImpactFindingStore",
+				StoreType:  "FindingStore",
 				Evidence: []routeReadEvidence{
 					{File: "go/internal/query/supplychain/impact/findings_queries.go", Marker: "reducer_supply_chain_impact_finding"},
 					{File: "go/internal/reducer/supplychain/core/writer.go", Marker: "ReducerSupplyChainImpactFindingFactKind"},

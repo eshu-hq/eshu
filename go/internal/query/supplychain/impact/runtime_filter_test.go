@@ -28,7 +28,7 @@ func TestSupplyChainImpactRuntimeFiltersResolveCurrentRepositoryContext(t *testi
 		},
 		{
 			name:           "aggregate",
-			query:          SupplyChainImpactAggregateCanonicalFactsCTE,
+			query:          AggregateCanonicalFactsCTE,
 			repositoryExpr: "fact.payload->>'repository_id'",
 		},
 		{
@@ -83,7 +83,7 @@ func TestSupplyChainImpactRuntimeFiltersNeverUseStaleBakedMembership(t *testing.
 		},
 		{
 			name:  "aggregate",
-			query: SupplyChainImpactAggregateCanonicalFactsCTE,
+			query: AggregateCanonicalFactsCTE,
 			forbidden: []string{
 				"OR fact.payload->'service_ids' ?",
 				"OR fact.payload->'workload_ids' ?",
@@ -165,7 +165,7 @@ func TestSupplyChainImpactRuntimeFiltersApplyCallerGrantBeforeMembership(t *test
 		},
 		{
 			name:              "aggregate",
-			query:             SupplyChainImpactAggregateCanonicalFactsCTE,
+			query:             AggregateCanonicalFactsCTE,
 			repositoriesParam: "$18",
 			scopesParam:       "$19",
 		},
@@ -194,7 +194,7 @@ func TestSupplyChainImpactRuntimeFiltersApplyCallerGrantBeforeMembership(t *test
 func TestSupplyChainImpactInventoryQueryPreservesRuntimeScopePatterns(t *testing.T) {
 	t.Parallel()
 
-	query := SupplyChainImpactInventoryQuery("fact.payload->>'impact_status'")
+	query := InventoryQuery("fact.payload->>'impact_status'")
 	for _, want := range []string{
 		"SELECT fact.payload->>'impact_status' AS bucket",
 		"LIKE 'repository:%'",
@@ -212,12 +212,12 @@ func TestSupplyChainImpactInventoryQueryPreservesRuntimeScopePatterns(t *testing
 func TestSupplyChainImpactInventoryGroupExpressionEnumIsClosed(t *testing.T) {
 	t.Parallel()
 
-	cases := []SupplyChainImpactInventoryDimension{
-		SupplyChainImpactInventoryByImpactStatus,
-		SupplyChainImpactInventoryByPriorityBucket,
-		SupplyChainImpactInventoryBySeverity,
-		SupplyChainImpactInventoryByRepository,
-		SupplyChainImpactInventoryByEcosystem,
+	cases := []InventoryDimension{
+		InventoryByImpactStatus,
+		InventoryByPriorityBucket,
+		InventoryBySeverity,
+		InventoryByRepository,
+		InventoryByEcosystem,
 	}
 	for _, dim := range cases {
 		if _, err := supplyChainImpactInventoryGroupExpression(dim); err != nil {

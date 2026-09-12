@@ -19,7 +19,7 @@ func supplyChainImpactBoundedOperatorCandidatesCTE(factKindExpr string) string {
 	return supplyChainImpactOperatorCandidatesWithPredicateCTE(
 		factKindExpr,
 		`
-    AND `+SupplyChainImpactCanonicalFindingKeySQL+` IN (
+    AND `+CanonicalFindingKeySQL+` IN (
       SELECT canonical_key FROM source_candidates
     )`,
 		true,
@@ -45,7 +45,7 @@ operator_candidates AS` + materialization + ` (
          COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') AS suppression_state,
          COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
          ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
-         ` + SupplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
+         ` + CanonicalFindingKeySQL + ` AS canonical_key
   FROM fact_records AS fact
   JOIN ingestion_scopes AS scope
     ON scope.scope_id = fact.scope_id

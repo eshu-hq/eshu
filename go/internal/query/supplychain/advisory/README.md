@@ -45,7 +45,7 @@ key helpers (`EvidenceFactRow`, `CanonicalAdvisoryKey`,
 `NormalizeAdvisoryEvidenceFilter`, `NormalizeAdvisoryCatalogFilter`,
 `EvidenceFactCapacity`), the SQL texts (`ListAdvisoryCatalogQuery`,
 `ListAdvisoryEvidenceQuery`), the capability and bound constants
-(`AdvisoryCatalogCapability`, `AdvisoryEvidenceCapability`,
+(`CatalogCapability`, `EvidenceCapability`,
 `CatalogMaxLimit`, `EvidenceMaxLimit`,
 `EvidenceMaxFactRows`), and the shared seams other root read
 models reuse (`EvidenceQueryer`, `FormatNullTime`,
@@ -94,7 +94,7 @@ with its root source and verified behavior-preserving by the
 re-qualified root test suite (`go test ./internal/query/...`), which pins
 the grouping, paging, normalization, SQL shape, and dead-letter behavior.
 The four vulnerability decode cases the root dead-letter table yielded
-moved with their wrappers into `factschema_decode_advisory_test.go`,
+moved with their wrappers into `factschema_decode_test.go`,
 asserting the same classification, fact kind, fact ID, and field on the
 `decode.Error` the wrappers return.
 
@@ -116,7 +116,7 @@ their package qualifier changed).
 - A dropped `Sources` entry is a dead-lettered malformed fact
   (`input_invalid`), not missing data. The typed decode wrappers drop
   rather than zero-fill; see the struct-completeness note in
-  `factschema_decode_advisory.go` for which fields stay on the raw path
+  `factschema_decode.go` for which fields stay on the raw path
   and why.
 - `EvidenceMaxFactRows` bounds the scanned fact rows behind one
   page; `EvidenceMaxLimit + 1` is the wire limit the pagination

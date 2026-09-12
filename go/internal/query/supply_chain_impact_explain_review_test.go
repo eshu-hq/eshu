@@ -14,16 +14,16 @@ func TestBuildSupplyChainImpactExplanationOmitsEmptyDependencyChain(t *testing.T
 	t.Parallel()
 
 	got := impact.BuildSupplyChainImpactExplanation(
-		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-empty-chain"},
-		impact.SupplyChainImpactExplanationRow{
-			Finding: impact.SupplyChainImpactFindingRow{
-				FindingID:    "finding-empty-chain",
-				CVEID:        "CVE-2026-0101",
-				PackageID:    "pkg:npm/no-chain",
-				ImpactStatus: "possibly_affected",
+		impact.ExplanationFilter{FindingID: "finding-empty-chain"},
+		impact.ExplanationRow{
+			Finding: impact.FindingRow{
+				FindingID: "finding-empty-chain",
+				CVEID:     "CVE-2026-0101",
+				PackageID: "pkg:npm/no-chain",
+				Status:    "possibly_affected",
 			},
 		},
-		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	payload, err := json.Marshal(got)
@@ -43,15 +43,15 @@ func TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForM
 	t.Parallel()
 
 	got := impact.BuildSupplyChainImpactExplanation(
-		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-evidence-chain"},
-		impact.SupplyChainImpactExplanationRow{
-			Finding: impact.SupplyChainImpactFindingRow{
-				FindingID:    "finding-evidence-chain",
-				CVEID:        "CVE-2026-0102",
-				PackageID:    "pkg:npm/transitive",
-				ImpactStatus: "affected_exact",
+		impact.ExplanationFilter{FindingID: "finding-evidence-chain"},
+		impact.ExplanationRow{
+			Finding: impact.FindingRow{
+				FindingID: "finding-evidence-chain",
+				CVEID:     "CVE-2026-0102",
+				PackageID: "pkg:npm/transitive",
+				Status:    "affected_exact",
 			},
-			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.EvidenceFact{
 				explanationFact("consume-chain", "reducer_package_consumption_correlation", map[string]any{
 					"dependency_path":   []any{"api", "framework", "transitive"},
 					"dependency_depth":  float64(3),
@@ -60,7 +60,7 @@ func TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForM
 				}),
 			},
 		},
-		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	if got.DependencyChain == nil {
@@ -78,21 +78,21 @@ func TestBuildSupplyChainImpactExplanationDoesNotTreatClockPathAsLockfile(t *tes
 	t.Parallel()
 
 	got := impact.BuildSupplyChainImpactExplanation(
-		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-clock-path"},
-		impact.SupplyChainImpactExplanationRow{
-			Finding: impact.SupplyChainImpactFindingRow{
-				FindingID:    "finding-clock-path",
-				CVEID:        "CVE-2026-0103",
-				PackageID:    "pkg:golang/example",
-				ImpactStatus: "possibly_affected",
+		impact.ExplanationFilter{FindingID: "finding-clock-path"},
+		impact.ExplanationRow{
+			Finding: impact.FindingRow{
+				FindingID: "finding-clock-path",
+				CVEID:     "CVE-2026-0103",
+				PackageID: "pkg:golang/example",
+				Status:    "possibly_affected",
 			},
-			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.EvidenceFact{
 				explanationFact("source-path", "reducer_package_consumption_correlation", map[string]any{
 					"relative_path": "src/clock.go",
 				}),
 			},
 		},
-		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	if !containsString(got.Anchors.ManifestPaths, "src/clock.go") {

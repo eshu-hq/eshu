@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// SupplyChainImpactUnsupportedTarget describes one observed vulnerability
+// UnsupportedTarget describes one observed vulnerability
 // target Eshu cannot match precisely with the current matcher set. Targets
 // carry the kind of evidence Eshu saw and a stable reason code so callers can
 // tell "we observed something we cannot resolve" from "we collected nothing".
@@ -16,7 +16,7 @@ import (
 // Unsupported targets never imply the target is safe or affected. They are
 // coverage-gap evidence: the producer observed a real artifact but the
 // matcher could not turn that artifact into a finding.
-type SupplyChainImpactUnsupportedTarget struct {
+type UnsupportedTarget struct {
 	TargetKind     string `json:"target_kind"`
 	Reason         string `json:"reason"`
 	Count          int    `json:"count"`
@@ -77,14 +77,14 @@ var allowedUnsupportedTargetKinds = map[string]struct{}{
 // feature_token), and returns a deterministic ordering. Counts on duplicate
 // keys are summed so a producer that emits one fact per observation does not
 // inflate the envelope with redundant rows.
-func normalizeUnsupportedTargets(targets []SupplyChainImpactUnsupportedTarget) []SupplyChainImpactUnsupportedTarget {
+func normalizeUnsupportedTargets(targets []UnsupportedTarget) []UnsupportedTarget {
 	if len(targets) == 0 {
 		return nil
 	}
 	type key struct {
 		kind, reason, ecosystem, flavor, feature string
 	}
-	merged := map[key]SupplyChainImpactUnsupportedTarget{}
+	merged := map[key]UnsupportedTarget{}
 	for _, target := range targets {
 		kind := strings.TrimSpace(target.TargetKind)
 		if kind == "" {
@@ -93,7 +93,7 @@ func normalizeUnsupportedTargets(targets []SupplyChainImpactUnsupportedTarget) [
 		if _, ok := allowedUnsupportedTargetKinds[kind]; !ok {
 			continue
 		}
-		entry := SupplyChainImpactUnsupportedTarget{
+		entry := UnsupportedTarget{
 			TargetKind:     kind,
 			Reason:         strings.TrimSpace(target.Reason),
 			Count:          target.Count,
@@ -129,7 +129,7 @@ func normalizeUnsupportedTargets(targets []SupplyChainImpactUnsupportedTarget) [
 	if len(merged) == 0 {
 		return nil
 	}
-	out := make([]SupplyChainImpactUnsupportedTarget, 0, len(merged))
+	out := make([]UnsupportedTarget, 0, len(merged))
 	for _, entry := range merged {
 		out = append(out, entry)
 	}

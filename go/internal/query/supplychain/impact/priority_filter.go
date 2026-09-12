@@ -18,7 +18,7 @@ const (
 	supplyChainImpactSortPriorityScoreAsc  = "priority_score_asc"
 )
 
-func SupplyChainImpactPriorityFilter(r *http.Request) (string, int, string, error) {
+func PriorityFilter(r *http.Request) (string, int, string, error) {
 	bucket := querycontract.QueryParam(r, "priority_bucket")
 	if bucket != "" && !ValidSupplyChainImpactPriorityBucket(bucket) {
 		return "", 0, "", fmt.Errorf("priority_bucket must be critical, high, medium, low, or informational")

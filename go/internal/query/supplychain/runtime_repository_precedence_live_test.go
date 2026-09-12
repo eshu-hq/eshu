@@ -135,7 +135,7 @@ func assertRuntimeRepositoryPrecedenceHydration(
 ) {
 	t.Helper()
 	handler := &Handler{ImpactFindings: store}
-	rows := []impact.SupplyChainImpactFindingRow{{RepositoryID: repositoryID}}
+	rows := []impact.FindingRow{{RepositoryID: repositoryID}}
 	access := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{repositoryID}}
 	if err := handler.applySupplyChainRuntimeContext(ctx, rows, access); err != nil {
 		t.Fatalf("hydrate %s for %s: %v", tc.name, repositoryID, err)
@@ -170,7 +170,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	want int,
 ) {
 	t.Helper()
-	listFilter := impact.SupplyChainImpactFindingFilter{
+	listFilter := impact.FindingFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		PackageID:            packageID,
 		WorkloadID:           tc.workloadID,
@@ -183,7 +183,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, false, want)
 	assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, true, want)
 
-	aggregateFilter := impact.SupplyChainImpactAggregateFilter{
+	aggregateFilter := impact.AggregateFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		PackageID:            packageID,
 		WorkloadID:           tc.workloadID,
@@ -202,7 +202,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	inventory, err := aggregateStore.SupplyChainImpactInventory(
 		ctx,
 		aggregateFilter,
-		impact.SupplyChainImpactInventoryByImpactStatus,
+		impact.InventoryByImpactStatus,
 		10,
 		0,
 	)
@@ -218,7 +218,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	if tc.environment != "" {
 		return
 	}
-	_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
+	_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
 		CVEID:                runtimeFilterLiveCVE,
 		PackageID:            packageID,
 		WorkloadID:           tc.workloadID,
@@ -409,7 +409,7 @@ func insertRuntimePrecedenceFinding(
 		factID,
 		runtimeFilterLiveScopeA,
 		runtimeFilterLiveGenA,
-		impact.SupplyChainImpactFindingFactKind,
+		impact.FindingFactKind,
 		false,
 		map[string]any{
 			"finding_id":        findingID,

@@ -10,12 +10,12 @@ import (
 )
 
 func buildSupplyChainImpactPath(
-	row SupplyChainImpactExplanationRow,
+	row ExplanationRow,
 	missing []string,
-) []SupplyChainImpactPathHop {
-	var hops []SupplyChainImpactPathHop
+) []PathHop {
+	var hops []PathHop
 	for _, hop := range row.Finding.EvidencePath {
-		hops = append(hops, SupplyChainImpactPathHop{
+		hops = append(hops, PathHop{
 			Hop:             hop,
 			Status:          "present",
 			EvidenceFactIDs: evidenceFactIDsForHop(hop, row),
@@ -23,7 +23,7 @@ func buildSupplyChainImpactPath(
 	}
 	hops = append(hops, semanticSupplyChainImpactHops(row, missing)...)
 	for _, reason := range missing {
-		hops = append(hops, SupplyChainImpactPathHop{
+		hops = append(hops, PathHop{
 			Hop:             reason,
 			Status:          "missing_evidence",
 			MissingEvidence: []string{reason},
@@ -36,16 +36,16 @@ func buildSupplyChainImpactPath(
 }
 
 func semanticSupplyChainImpactHops(
-	row SupplyChainImpactExplanationRow,
+	row ExplanationRow,
 	missing []string,
-) []SupplyChainImpactPathHop {
+) []PathHop {
 	repositoryEvidence := evidenceFactIDsForSemanticHop(row, "repository")
 	imageEvidence := evidenceFactIDsForSemanticHop(row, "image")
 	workloadEvidence := evidenceFactIDsForSemanticHop(row, "workload")
 	deploymentEvidence := evidenceFactIDsForSemanticHop(row, "deployment")
 	serviceEvidence := evidenceFactIDsForSemanticHop(row, "service")
 	environmentEvidence := evidenceFactIDsForSemanticHop(row, "environment")
-	return []SupplyChainImpactPathHop{
+	return []PathHop{
 		semanticSupplyChainImpactHop(
 			"repository",
 			row.Finding.RepositoryID != "" || len(repositoryEvidence) > 0,
@@ -90,22 +90,22 @@ func semanticSupplyChainImpactHop(
 	present bool,
 	evidenceFactIDs []string,
 	missingEvidence []string,
-) SupplyChainImpactPathHop {
+) PathHop {
 	if present {
-		return SupplyChainImpactPathHop{
+		return PathHop{
 			Hop:             hop,
 			Status:          "present",
 			EvidenceFactIDs: evidenceFactIDs,
 		}
 	}
-	return SupplyChainImpactPathHop{
+	return PathHop{
 		Hop:             hop,
 		Status:          "missing_evidence",
 		MissingEvidence: missingEvidence,
 	}
 }
 
-func evidenceFactIDsForHop(hop string, row SupplyChainImpactExplanationRow) []string {
+func evidenceFactIDsForHop(hop string, row ExplanationRow) []string {
 	var factIDs []string
 	for _, fact := range row.EvidenceFacts {
 		if fact.FactKind == hop {
@@ -127,7 +127,7 @@ func evidenceFactIDsForHop(hop string, row SupplyChainImpactExplanationRow) []st
 // the "service" case below is already scoped to the exact reducer-derived
 // kind it targets.
 func evidenceFactIDsForSemanticHop(
-	row SupplyChainImpactExplanationRow,
+	row ExplanationRow,
 	hop string,
 ) []string {
 	var factIDs []string

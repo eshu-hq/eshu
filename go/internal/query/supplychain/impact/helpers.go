@@ -20,10 +20,10 @@ import (
 func RequestedSupplyChainImpactProfile(w http.ResponseWriter, r *http.Request) (string, bool) {
 	raw := strings.TrimSpace(querycontract.QueryParam(r, "profile"))
 	if raw == "" {
-		return SupplyChainImpactProfilePrecise, true
+		return ProfilePrecise, true
 	}
 	switch raw {
-	case SupplyChainImpactProfilePrecise, SupplyChainImpactProfileComprehensive:
+	case ProfilePrecise, ProfileComprehensive:
 		return raw, true
 	default:
 		querycontract.WriteError(w, http.StatusBadRequest, "profile must be precise or comprehensive")
@@ -35,8 +35,8 @@ func RequestedSupplyChainImpactProfile(w http.ResponseWriter, r *http.Request) (
 // `comprehensive` matches every row, so the filter remains blank to avoid
 // adding an unneeded predicate.
 func FilterProfile(profile string) string {
-	if profile == SupplyChainImpactProfilePrecise {
-		return SupplyChainImpactProfilePrecise
+	if profile == ProfilePrecise {
+		return ProfilePrecise
 	}
 	return ""
 }
@@ -94,21 +94,21 @@ func ParseSupplyChainImpactIncludeSuppressed(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// SupplyChainImpactProfilePrecise selects exact installed-version
+// ProfilePrecise selects exact installed-version
 // anchored findings only. Relocated from root package query's handler.go
 // (#6060 lane A): the moved profile helpers above read it and this package
 // must not import root, so the declaration lives here and root keeps
-// `SupplyChainImpactProfilePrecise = impact.SupplyChainImpactProfilePrecise`
+// `ProfilePrecise = impact.ProfilePrecise`
 // (see root supply_chain_impact_alias.go).
-const SupplyChainImpactProfilePrecise = "precise"
+const ProfilePrecise = "precise"
 
-// SupplyChainImpactProfileComprehensive selects every owned-anchor
+// ProfileComprehensive selects every owned-anchor
 // finding including range-only manifest, SBOM/CPE-derived,
 // malformed range, and missing-version rows. Unsupported matcher
 // ecosystems are surfaced by readiness, not as finding rows.
 // Relocated from root package query's handler.go (#6060 lane A);
-// see SupplyChainImpactProfilePrecise for the alias arrangement.
-const SupplyChainImpactProfileComprehensive = "comprehensive"
+// see ProfilePrecise for the alias arrangement.
+const ProfileComprehensive = "comprehensive"
 
 // supplyChainImpactFindingMaxLimit bounds the impact findings page size.
 // Family-local copy of root package query's handler.go constant: that

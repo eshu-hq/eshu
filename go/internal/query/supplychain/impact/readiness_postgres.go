@@ -14,7 +14,7 @@ import (
 
 const supplyChainImpactReadinessFreshnessWindow = 14 * 24 * time.Hour
 
-type SupplyChainImpactReadinessQueryer interface {
+type ReadinessQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
@@ -23,14 +23,14 @@ type SupplyChainImpactReadinessQueryer interface {
 // invents findings or duplicates reducer matching: it only reports counts and
 // observed-at timestamps the API handler classifies into a readiness state.
 type PostgresSupplyChainImpactReadinessStore struct {
-	DB              SupplyChainImpactReadinessQueryer
+	DB              ReadinessQueryer
 	FreshnessWindow time.Duration
 }
 
 // NewPostgresSupplyChainImpactReadinessStore creates a Postgres-backed
 // readiness store with the default 14-day freshness window.
 func NewPostgresSupplyChainImpactReadinessStore(
-	db SupplyChainImpactReadinessQueryer,
+	db ReadinessQueryer,
 ) PostgresSupplyChainImpactReadinessStore {
 	return PostgresSupplyChainImpactReadinessStore{
 		DB:              db,
@@ -49,13 +49,13 @@ func NewPostgresSupplyChainImpactReadinessStore(
 // facts do not carry those reducer-owned attributes.
 func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	ctx context.Context,
-	query SupplyChainImpactReadinessQuery,
-) (SupplyChainImpactReadinessSnapshot, error) {
+	query ReadinessQuery,
+) (ReadinessSnapshot, error) {
 	if s.DB == nil {
-		return SupplyChainImpactReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness database is required")
+		return ReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness database is required")
 	}
 	if !query.hasFactAnchor() {
-		return SupplyChainImpactReadinessSnapshot{}, nil
+		return ReadinessSnapshot{}, nil
 	}
 	window := s.FreshnessWindow
 	if window <= 0 {
@@ -84,16 +84,16 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 		pgarray.Array(scannerWorkerAnalysisFactKinds),
 	)
 	if err != nil {
-		return SupplyChainImpactReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
+		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 
-	families := make(map[string]SupplyChainImpactEvidenceFamily, len(supplyChainImpactReadinessFamilies))
+	families := make(map[string]EvidenceFamily, len(supplyChainImpactReadinessFamilies))
 	var targetIncomplete bool
 	var incompleteReasons []string
-	var sourceSnapshots []SupplyChainImpactSourceSnapshot
-	var sourceStates []SupplyChainImpactSourceState
-	var unsupportedTargets []SupplyChainImpactUnsupportedTarget
+	var sourceSnapshots []SourceSnapshot
+	var sourceStates []SourceState
+	var unsupportedTargets []UnsupportedTarget
 
 	for rows.Next() {
 		var family string
@@ -105,7 +105,7 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 		var sourceStatesJSON sql.NullString
 		var unsupportedTargetsJSON sql.NullString
 		if err := rows.Scan(&family, &factCount, &latest, &incompleteFlag, &reasons, &sourceSnapshotsJSON, &sourceStatesJSON, &unsupportedTargetsJSON); err != nil {
-			return SupplyChainImpactReadinessSnapshot{}, fmt.Errorf("scan supply chain impact readiness row: %w", err)
+			return ReadinessSnapshot{}, fmt.Errorf("scan supply chain impact readiness row: %w", err)
 		}
 		if family == sourceSnapshotFamilyMarker {
 			if incompleteFlag.Valid && incompleteFlag.Bool {
@@ -114,7 +114,7 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 			}
 			decodedSnapshots, err := decodeSourceSnapshots(sourceSnapshotsJSON)
 			if err != nil {
-				return SupplyChainImpactReadinessSnapshot{}, err
+				return ReadinessSnapshot{}, err
 			}
 			sourceSnapshots = append(sourceSnapshots, decodedSnapshots...)
 			continue
@@ -126,7 +126,7 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 			}
 			decodedStates, err := decodeSourceStates(sourceStatesJSON)
 			if err != nil {
-				return SupplyChainImpactReadinessSnapshot{}, err
+				return ReadinessSnapshot{}, err
 			}
 			sourceStates = append(sourceStates, decodedStates...)
 			continue
@@ -134,14 +134,14 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 		if family == unsupportedTargetFamilyMarker {
 			decodedTargets, err := decodeUnsupportedTargets(unsupportedTargetsJSON)
 			if err != nil {
-				return SupplyChainImpactReadinessSnapshot{}, err
+				return ReadinessSnapshot{}, err
 			}
 			unsupportedTargets = append(unsupportedTargets, decodedTargets...)
 			continue
 		}
 		existing, ok := families[family]
 		if !ok {
-			existing = SupplyChainImpactEvidenceFamily{Family: family}
+			existing = EvidenceFamily{Family: family}
 		}
 		existing.FactCount += factCount
 		if latest.Valid {
@@ -158,10 +158,10 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 		families[family] = existing
 	}
 	if err := rows.Err(); err != nil {
-		return SupplyChainImpactReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
+		return ReadinessSnapshot{}, fmt.Errorf("read supply chain impact readiness: %w", err)
 	}
 
-	sources := make([]SupplyChainImpactEvidenceFamily, 0, len(families))
+	sources := make([]EvidenceFamily, 0, len(families))
 	for _, family := range supplyChainImpactReadinessFamilies {
 		entry, ok := families[family]
 		if !ok {
@@ -176,7 +176,7 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 		sources = append(sources, entry)
 	}
 
-	return SupplyChainImpactReadinessSnapshot{
+	return ReadinessSnapshot{
 		EvidenceSources:    sources,
 		SourceSnapshots:    sourceSnapshots,
 		SourceStates:       sourceStates,

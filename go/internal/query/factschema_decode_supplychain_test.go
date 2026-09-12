@@ -19,7 +19,7 @@ import (
 // living in this package is covered by the same assertion. The four
 // vulnerability wrappers moved with the advisory-evidence read model to
 // internal/query/supplychain/advisory (#6060 lane A); their missing-field
-// cases live in that package's factschema_decode_advisory_test.go.
+// cases live in that package's factschema_decode_test.go.
 func TestSupplyChainDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 	t.Parallel()
 
@@ -132,7 +132,7 @@ func TestSupplyChainDecodeWrappersClassifyMissingRequiredField(t *testing.T) {
 func TestDecodeSupplyChainComponentEvidenceFallsBackForUnmatchedKind(t *testing.T) {
 	t.Parallel()
 
-	fact := impact.SupplyChainImpactEvidenceFact{
+	fact := impact.EvidenceFact{
 		FactID:   "fact-unmatched",
 		FactKind: "reducer_container_image_identity",
 		Payload:  map[string]any{"digest": "sha256:deadbeef"},
@@ -154,7 +154,7 @@ func TestDecodeSupplyChainComponentEvidenceDecodesKnownKinds(t *testing.T) {
 
 	t.Run("sbom.component", func(t *testing.T) {
 		t.Parallel()
-		fact := impact.SupplyChainImpactEvidenceFact{
+		fact := impact.EvidenceFact{
 			FactID:   "fact-component",
 			FactKind: factschema.FactKindSBOMComponent,
 			Payload: map[string]any{
@@ -175,7 +175,7 @@ func TestDecodeSupplyChainComponentEvidenceDecodesKnownKinds(t *testing.T) {
 
 	t.Run("package_registry.package_dependency", func(t *testing.T) {
 		t.Parallel()
-		fact := impact.SupplyChainImpactEvidenceFact{
+		fact := impact.EvidenceFact{
 			FactID:   "fact-dependency",
 			FactKind: factschema.FactKindPackageRegistryPackageDependency,
 			Payload: map[string]any{
@@ -197,7 +197,7 @@ func TestDecodeSupplyChainComponentEvidenceDecodesKnownKinds(t *testing.T) {
 
 	t.Run("service_catalog.ownership", func(t *testing.T) {
 		t.Parallel()
-		fact := impact.SupplyChainImpactEvidenceFact{
+		fact := impact.EvidenceFact{
 			FactID:   "fact-ownership",
 			FactKind: factschema.FactKindServiceCatalogOwnership,
 			Payload: map[string]any{

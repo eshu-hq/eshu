@@ -19,18 +19,18 @@ import (
 // the type-level compatibility the staying probes and rows need until then.
 
 // SupplyChainRuntimeContext is one repository's read-time-resolved runtime
-// context. See impact.SupplyChainRuntimeContext.
-type SupplyChainRuntimeContext = impact.SupplyChainRuntimeContext
+// context. See impact.RuntimeContext.
+type SupplyChainRuntimeContext = impact.RuntimeContext
 
 // SupplyChainRuntimeContextResult is the response-side runtime-context
 // envelope attached to one impact finding. See
-// impact.SupplyChainRuntimeContextResult.
-type SupplyChainRuntimeContextResult = impact.SupplyChainRuntimeContextResult
+// impact.RuntimeContextResult.
+type SupplyChainRuntimeContextResult = impact.RuntimeContextResult
 
 // SupplyChainRuntimeEnvironmentEvidenceProbe describes the bounded current
 // confirmation work for one finding's environment candidates. See
-// impact.SupplyChainRuntimeEnvironmentEvidenceProbe.
-type SupplyChainRuntimeEnvironmentEvidenceProbe = impact.SupplyChainRuntimeEnvironmentEvidenceProbe
+// impact.RuntimeEnvironmentEvidenceProbe.
+type SupplyChainRuntimeEnvironmentEvidenceProbe = impact.RuntimeEnvironmentEvidenceProbe
 
 // KubernetesRuntimeWorkloadRef is one current, authorized Kubernetes workload
 // observed running a finding's exact subject digest. See
@@ -42,20 +42,20 @@ type KubernetesRuntimeWorkloadRef = impact.KubernetesRuntimeWorkloadRef
 type KubernetesRuntimeProbeMetadata = impact.KubernetesRuntimeProbeMetadata
 
 // SupplyChainImpactProfilePrecise selects exact installed-version
-// anchored findings only. See impact.SupplyChainImpactProfilePrecise.
-const SupplyChainImpactProfilePrecise = impact.SupplyChainImpactProfilePrecise
+// anchored findings only. See impact.ProfilePrecise.
+const SupplyChainImpactProfilePrecise = impact.ProfilePrecise
 
 // SupplyChainImpactProfileComprehensive selects every owned-anchor
 // finding including range-only manifest, SBOM/CPE-derived,
 // malformed range, and missing-version rows. See
-// impact.SupplyChainImpactProfileComprehensive.
-const SupplyChainImpactProfileComprehensive = impact.SupplyChainImpactProfileComprehensive
+// impact.ProfileComprehensive.
+const SupplyChainImpactProfileComprehensive = impact.ProfileComprehensive
 
 // SupplyChainRuntimeEnvironmentCandidate identifies one finding-bound
 // digest/environment pair that must be revalidated against current accepted
 // CI/CD correlation facts before it can enter read-time runtime_context.
-// See impact.SupplyChainRuntimeEnvironmentCandidate.
-type SupplyChainRuntimeEnvironmentCandidate = impact.SupplyChainRuntimeEnvironmentCandidate
+// See impact.RuntimeEnvironmentCandidate.
+type SupplyChainRuntimeEnvironmentCandidate = impact.RuntimeEnvironmentCandidate
 
 // VulnerabilitySuppressionMutationResult identifies the durable generation
 // containing an operator suppression. See
@@ -70,22 +70,22 @@ type VulnerabilitySuppressionMutationResult = impact.VulnerabilitySuppressionMut
 // touching other lanes.
 
 type (
-	SupplyChainImpactAggregateCount               = impact.SupplyChainImpactAggregateCount
-	SupplyChainImpactAggregateFilter              = impact.SupplyChainImpactAggregateFilter
-	SupplyChainImpactAggregateStore               = impact.SupplyChainImpactAggregateStore
-	SupplyChainImpactEvidenceFactSummary          = impact.SupplyChainImpactEvidenceFactSummary
-	SupplyChainImpactExplanationAnchors           = impact.SupplyChainImpactExplanationAnchors
-	SupplyChainImpactExplanationFilter            = impact.SupplyChainImpactExplanationFilter
-	SupplyChainImpactExplanationFreshness         = impact.SupplyChainImpactExplanationFreshness
-	SupplyChainImpactExplanationResult            = impact.SupplyChainImpactExplanationResult
-	SupplyChainImpactFindingFilter                = impact.SupplyChainImpactFindingFilter
-	SupplyChainImpactFindingResult                = impact.SupplyChainImpactFindingResult
-	SupplyChainImpactFindingRow                   = impact.SupplyChainImpactFindingRow
-	SupplyChainImpactFindingStore                 = impact.SupplyChainImpactFindingStore
-	SupplyChainImpactInventoryDimension           = impact.SupplyChainImpactInventoryDimension
-	SupplyChainImpactInventoryRow                 = impact.SupplyChainImpactInventoryRow
-	SupplyChainImpactPathHop                      = impact.SupplyChainImpactPathHop
-	SupplyChainImpactReadinessEnvelope            = impact.SupplyChainImpactReadinessEnvelope
+	SupplyChainImpactAggregateCount               = impact.AggregateCount
+	SupplyChainImpactAggregateFilter              = impact.AggregateFilter
+	SupplyChainImpactAggregateStore               = impact.AggregateStore
+	SupplyChainImpactEvidenceFactSummary          = impact.EvidenceFactSummary
+	SupplyChainImpactExplanationAnchors           = impact.ExplanationAnchors
+	SupplyChainImpactExplanationFilter            = impact.ExplanationFilter
+	SupplyChainImpactExplanationFreshness         = impact.ExplanationFreshness
+	SupplyChainImpactExplanationResult            = impact.ExplanationResult
+	SupplyChainImpactFindingFilter                = impact.FindingFilter
+	SupplyChainImpactFindingResult                = impact.FindingResult
+	SupplyChainImpactFindingRow                   = impact.FindingRow
+	SupplyChainImpactFindingStore                 = impact.FindingStore
+	SupplyChainImpactInventoryDimension           = impact.InventoryDimension
+	SupplyChainImpactInventoryRow                 = impact.InventoryRow
+	SupplyChainImpactPathHop                      = impact.PathHop
+	SupplyChainImpactReadinessEnvelope            = impact.ReadinessEnvelope
 	PostgresSupplyChainImpactFindingStore         = impact.PostgresSupplyChainImpactFindingStore
 	PostgresSupplyChainImpactAggregateStore       = impact.PostgresSupplyChainImpactAggregateStore
 	PostgresSupplyChainImpactReadinessStore       = impact.PostgresSupplyChainImpactReadinessStore
@@ -93,29 +93,29 @@ type (
 )
 
 const (
-	SupplyChainImpactAggregateMaxLimit       = impact.SupplyChainImpactAggregateMaxLimit
+	SupplyChainImpactAggregateMaxLimit       = impact.AggregateMaxLimit
 	ReadinessStateReadyWithFindings          = impact.ReadinessStateReadyWithFindings
-	SupplyChainImpactInventoryByImpactStatus = impact.SupplyChainImpactInventoryByImpactStatus
-	SupplyChainImpactWinnersReadEnv          = impact.SupplyChainImpactWinnersReadEnv
+	SupplyChainImpactInventoryByImpactStatus = impact.InventoryByImpactStatus
+	SupplyChainImpactWinnersReadEnv          = impact.WinnersReadEnv
 )
 
 func SupplyChainImpactWinnersReadEnabled(value string) bool {
-	return impact.SupplyChainImpactWinnersReadEnabled(value)
+	return impact.WinnersReadEnabled(value)
 }
 
-func NewPostgresSupplyChainImpactFindingStore(db impact.SupplyChainImpactFindingQueryer) PostgresSupplyChainImpactFindingStore {
+func NewPostgresSupplyChainImpactFindingStore(db impact.FindingQueryer) PostgresSupplyChainImpactFindingStore {
 	return impact.NewPostgresSupplyChainImpactFindingStore(db)
 }
 
-func NewPostgresSupplyChainImpactFindingStoreWithReadModel(db impact.SupplyChainImpactFindingQueryer, readFromWinners bool) PostgresSupplyChainImpactFindingStore {
+func NewPostgresSupplyChainImpactFindingStoreWithReadModel(db impact.FindingQueryer, readFromWinners bool) PostgresSupplyChainImpactFindingStore {
 	return impact.NewPostgresSupplyChainImpactFindingStoreWithReadModel(db, readFromWinners)
 }
 
-func NewPostgresSupplyChainImpactAggregateStore(db impact.SupplyChainImpactAggregateQueryer) PostgresSupplyChainImpactAggregateStore {
+func NewPostgresSupplyChainImpactAggregateStore(db impact.AggregateQueryer) PostgresSupplyChainImpactAggregateStore {
 	return impact.NewPostgresSupplyChainImpactAggregateStore(db)
 }
 
-func NewPostgresSupplyChainImpactReadinessStore(db impact.SupplyChainImpactReadinessQueryer) PostgresSupplyChainImpactReadinessStore {
+func NewPostgresSupplyChainImpactReadinessStore(db impact.ReadinessQueryer) PostgresSupplyChainImpactReadinessStore {
 	return impact.NewPostgresSupplyChainImpactReadinessStore(db)
 }
 

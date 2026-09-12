@@ -220,7 +220,7 @@ func (h *Handler) probeSupplyChainCloudRuntimeResources(
 func (h *Handler) applySupplyChainCloudRuntimeEvidence(
 	ctx context.Context,
 	access querycontract.RepositoryAccessFilter,
-	rows []impact.SupplyChainImpactFindingRow,
+	rows []impact.FindingRow,
 ) error {
 	if h == nil || h.CloudResourceInventory == nil || len(rows) == 0 {
 		return nil

@@ -24,8 +24,8 @@ type failingSupplyChainImpactFindingStore struct {
 
 func (s *failingSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 	context.Context,
-	impact.SupplyChainImpactFindingFilter,
-) ([]impact.SupplyChainImpactFindingRow, error) {
+	impact.FindingFilter,
+) ([]impact.FindingRow, error) {
 	s.called = true
 	return nil, errors.New("broad supply-chain impact finding read")
 }
@@ -39,19 +39,19 @@ type failingSupplyChainImpactAggregateStore struct {
 
 func (s *failingSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 	context.Context,
-	impact.SupplyChainImpactAggregateFilter,
-) (impact.SupplyChainImpactAggregateCount, error) {
+	impact.AggregateFilter,
+) (impact.AggregateCount, error) {
 	s.countCalled = true
-	return impact.SupplyChainImpactAggregateCount{}, errors.New("broad supply-chain impact count read")
+	return impact.AggregateCount{}, errors.New("broad supply-chain impact count read")
 }
 
 func (s *failingSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	context.Context,
-	impact.SupplyChainImpactAggregateFilter,
-	impact.SupplyChainImpactInventoryDimension,
+	impact.AggregateFilter,
+	impact.InventoryDimension,
 	int,
 	int,
-) ([]impact.SupplyChainImpactInventoryRow, error) {
+) ([]impact.InventoryRow, error) {
 	s.inventoryCalled = true
 	return nil, errors.New("broad supply-chain impact inventory read")
 }
@@ -69,10 +69,10 @@ type failingSupplyChainImpactReadinessStore struct {
 
 func (s *failingSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	context.Context,
-	impact.SupplyChainImpactReadinessQuery,
-) (impact.SupplyChainImpactReadinessSnapshot, error) {
+	impact.ReadinessQuery,
+) (impact.ReadinessSnapshot, error) {
 	s.called = true
-	return impact.SupplyChainImpactReadinessSnapshot{}, errors.New("broad supply-chain impact readiness read")
+	return impact.ReadinessSnapshot{}, errors.New("broad supply-chain impact readiness read")
 }
 
 func TestAuthMiddlewareWithScopedTokensAllowsSupplyChainImpactRoutes(t *testing.T) {
@@ -294,7 +294,7 @@ func TestSupplyChainImpactHandlerPassesScopedGrants(t *testing.T) {
 
 	findings := &recordingSupplyChainImpactFindingStore{}
 	aggregates := &stubSupplyChainImpactAggregateStore{
-		count: impact.SupplyChainImpactAggregateCount{
+		count: impact.AggregateCount{
 			ByPriorityBucket: map[string]int{},
 			BySeverity:       map[string]int{},
 		},
@@ -400,14 +400,14 @@ func TestSupplyChainImpactSQLAppliesScopedAuthorizationBeforeOrderingAndGrouping
 		},
 		{
 			name:       "aggregate_cte",
-			query:      impact.SupplyChainImpactAggregateCanonicalFactsCTE,
+			query:      impact.AggregateCanonicalFactsCTE,
 			beforeText: "source_winners AS",
 			repoParam:  "fact.payload->>'repository_id' = ANY($18::text[])",
 			scopeParam: "fact.scope_id = ANY($19::text[])",
 		},
 		{
 			name:       "inventory",
-			query:      impact.SupplyChainImpactInventoryQueryTemplate,
+			query:      impact.InventoryQueryTemplate,
 			beforeText: "GROUP BY",
 			repoParam:  "fact.payload->>'repository_id' = ANY($18::text[])",
 			scopeParam: "fact.scope_id = ANY($19::text[])",

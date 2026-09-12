@@ -14,13 +14,13 @@ import (
 )
 
 func BenchmarkApplySupplyChainKubernetesRuntimeEvidence200Digests(b *testing.B) {
-	rows := make([]impact.SupplyChainImpactFindingRow, CloudRuntimeProbeMaxDigests)
+	rows := make([]impact.FindingRow, CloudRuntimeProbeMaxDigests)
 	graphRows := make([]map[string]any, KubernetesRuntimeProbeMaxResults)
 	matches := make([]KubernetesRuntimeWorkloadMatch, KubernetesRuntimeProbeMaxResults)
 	for i := range rows {
 		digest := fmt.Sprintf("sha256:%064x", i+1)
 		uid := fmt.Sprintf("workload-%03d", i)
-		rows[i] = impact.SupplyChainImpactFindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
+		rows[i] = impact.FindingRow{FindingID: fmt.Sprintf("finding-%03d", i), SubjectDigest: digest}
 		graphRows[i] = map[string]any{
 			"matched_digest": digest, "workload_uid": uid,
 			"edge_scope_id": "edge-scope", "edge_generation_id": "edge-generation",

@@ -17,15 +17,15 @@ func TestSupplyChainListImpactFindingsFiltersAndSortsByPriority(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
 				FindingID:           "finding-critical",
 				CVEID:               "CVE-2026-3001",
-				ImpactStatus:        "possibly_affected",
+				Status:              "possibly_affected",
 				PriorityScore:       87,
 				PriorityBucket:      "critical",
 				PriorityReasonCodes: []string{"cisa_kev", "runtime_reachable"},
-				PriorityContributions: []impact.SupplyChainImpactPriorityContribution{
+				PriorityContributions: []impact.PriorityContribution{
 					{ReasonCode: "cisa_kev", Input: "kev", Value: "true", Contribution: 25},
 				},
 			},
@@ -56,7 +56,7 @@ func TestSupplyChainListImpactFindingsFiltersAndSortsByPriority(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)

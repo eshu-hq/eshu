@@ -11,14 +11,14 @@ import (
 func init() {
 	capabilityMatrix[vulnerabilityScannerReadContractCapability] = supplychain.LightweightExactSupport()
 	capabilityMatrix[sbomAttestationAttachmentsCapability] = supplychain.AuthoritativeExactSupport()
-	capabilityMatrix[advisory.AdvisoryEvidenceCapability] = capabilitySupport{
+	capabilityMatrix[advisory.EvidenceCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
-	capabilityMatrix[advisory.AdvisoryCatalogCapability] = capabilitySupport{
+	capabilityMatrix[advisory.CatalogCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
 		LocalFullStackMax:     &truthExact,

@@ -17,7 +17,7 @@ func TestSupplyChainListImpactFindingsExposesOperationalAnchors(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{operationalAnchorFindingRow()},
+		rows: []impact.FindingRow{operationalAnchorFindingRow()},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
 	mux := http.NewServeMux()
@@ -35,7 +35,7 @@ func TestSupplyChainListImpactFindingsExposesOperationalAnchors(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
@@ -74,7 +74,7 @@ func TestSupplyChainListImpactFindingsSuppressesStaleCatalogAnchorMissing(t *tes
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{catalogEntityOperationalFindingRow()},
+		rows: []impact.FindingRow{catalogEntityOperationalFindingRow()},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
 	mux := http.NewServeMux()
@@ -92,7 +92,7 @@ func TestSupplyChainListImpactFindingsSuppressesStaleCatalogAnchorMissing(t *tes
 	}
 
 	var resp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
@@ -122,9 +122,9 @@ func TestSupplyChainExplainImpactExposesOperationalAnchors(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		row: impact.SupplyChainImpactExplanationRow{
+		row: impact.ExplanationRow{
 			Finding: operationalAnchorFindingRow(),
-			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.EvidenceFact{
 				explanationFact("catalog-1", serviceCatalogCorrelationFactKind, map[string]any{
 					"repository_id": "repo://example/api",
 					"service_id":    "service:example-api",
@@ -156,7 +156,7 @@ func TestSupplyChainExplainImpactExposesOperationalAnchors(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.SupplyChainImpactExplanationResult
+	var resp impact.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -183,9 +183,9 @@ func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		row: impact.SupplyChainImpactExplanationRow{
+		row: impact.ExplanationRow{
 			Finding: catalogEntityOperationalFindingRow(),
-			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.EvidenceFact{
 				explanationFact("catalog-1", serviceCatalogCorrelationFactKind, map[string]any{
 					"repository_id": "repo://example/api",
 					"entity_ref":    "api:default/example-api",
@@ -214,7 +214,7 @@ func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.SupplyChainImpactExplanationResult
+	var resp impact.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -235,12 +235,12 @@ func TestSupplyChainExplainImpactTreatsCatalogEntityAsServiceHop(t *testing.T) {
 	assertImpactPathHopStatus(t, resp.Path, "environment", "missing_evidence")
 }
 
-func operationalAnchorFindingRow() impact.SupplyChainImpactFindingRow {
-	return impact.SupplyChainImpactFindingRow{
+func operationalAnchorFindingRow() impact.FindingRow {
+	return impact.FindingRow{
 		FindingID:           "finding-operational",
 		CVEID:               "CVE-2026-1668",
 		PackageID:           "pkg:npm/example",
-		ImpactStatus:        "affected_exact",
+		Status:              "affected_exact",
 		RuntimeReachability: "package_api_missing_evidence",
 		RepositoryID:        "repo://example/api",
 		WorkloadIDs:         []string{"workload:example-api"},
@@ -261,12 +261,12 @@ func operationalAnchorFindingRow() impact.SupplyChainImpactFindingRow {
 	}
 }
 
-func catalogEntityOperationalFindingRow() impact.SupplyChainImpactFindingRow {
-	return impact.SupplyChainImpactFindingRow{
+func catalogEntityOperationalFindingRow() impact.FindingRow {
+	return impact.FindingRow{
 		FindingID:           "finding-catalog-entity",
 		CVEID:               "CVE-2026-1693",
 		PackageID:           "pkg:npm/example",
-		ImpactStatus:        "affected_exact",
+		Status:              "affected_exact",
 		RuntimeReachability: "package_api_missing_evidence",
 		RepositoryID:        "repo://example/api",
 		WorkloadIDs:         []string{"workload:example-api"},
@@ -289,7 +289,7 @@ func catalogEntityOperationalFindingRow() impact.SupplyChainImpactFindingRow {
 
 func assertImpactPathHopStatus(
 	t *testing.T,
-	impactPath []impact.SupplyChainImpactPathHop,
+	impactPath []impact.PathHop,
 	wantHop string,
 	wantStatus string,
 ) {

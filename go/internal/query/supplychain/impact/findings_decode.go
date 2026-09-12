@@ -13,7 +13,7 @@ import (
 
 // DecodeSupplyChainImpactFindingRow decodes one reducer_supply_chain_impact_finding
 // fact payload (findings_queries.go's
-// SupplyChainImpactFindingFactKind) into the query-side row shape.
+// FindingFactKind) into the query-side row shape.
 //
 // The reducer writer now emits a governed factschema payload for #4810/W1h.
 // This query-side decoder remains the W2 consumer seam: it preserves the
@@ -23,12 +23,12 @@ func DecodeSupplyChainImpactFindingRow(
 	factID string,
 	sourceConfidence string,
 	payloadBytes []byte,
-) (SupplyChainImpactFindingRow, error) {
+) (FindingRow, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return SupplyChainImpactFindingRow{}, fmt.Errorf("decode supply chain impact finding: %w", err)
+		return FindingRow{}, fmt.Errorf("decode supply chain impact finding: %w", err)
 	}
-	row := SupplyChainImpactFindingRow{
+	row := FindingRow{
 		FindingID:           factID,
 		CVEID:               querycontract.StringVal(payload, "cve_id"),
 		AdvisoryID:          querycontract.StringVal(payload, "advisory_id"),
@@ -43,7 +43,7 @@ func DecodeSupplyChainImpactFindingRow(
 		FixedVersion:        querycontract.StringVal(payload, "fixed_version"),
 		VulnerableRange:     querycontract.StringVal(payload, "vulnerable_range"),
 		MatchReason:         querycontract.StringVal(payload, "match_reason"),
-		ImpactStatus:        querycontract.StringVal(payload, "impact_status"),
+		Status:              querycontract.StringVal(payload, "impact_status"),
 		Confidence:          querycontract.StringVal(payload, "confidence"),
 		CVSSScore:           querycontract.FloatVal(payload, "cvss_score"),
 		AdvisoryPublishedAt: querycontract.StringVal(payload, "advisory_published_at"),
@@ -87,12 +87,12 @@ func DecodeSupplyChainImpactFindingRow(
 		Remediation:              DecodeSupplyChainImpactRemediation(payload),
 	}
 	if row.DetectionProfile == "" {
-		row.DetectionProfile = inferLegacyDetectionProfile(row.ImpactStatus, row.ObservedVersion, row.MatchReason)
+		row.DetectionProfile = inferLegacyDetectionProfile(row.Status, row.ObservedVersion, row.MatchReason)
 	}
 	return row, nil
 }
 
-func decodeSupplyChainReachability(payload map[string]any) *SupplyChainReachabilityResult {
+func decodeSupplyChainReachability(payload map[string]any) *ReachabilityResult {
 	raw, ok := payload["reachability"].(map[string]any)
 	if !ok {
 		return nil
@@ -101,7 +101,7 @@ func decodeSupplyChainReachability(payload map[string]any) *SupplyChainReachabil
 	if state == "" {
 		return nil
 	}
-	return &SupplyChainReachabilityResult{
+	return &ReachabilityResult{
 		State:            state,
 		Confidence:       querycontract.StringVal(raw, "confidence"),
 		Source:           querycontract.StringVal(raw, "source"),
@@ -120,10 +120,10 @@ func inferLegacyDetectionProfile(impactStatus string, observedVersion string, ma
 	switch impactStatus {
 	case "affected_exact", "not_affected_known_fixed":
 	default:
-		return SupplyChainImpactProfileComprehensive
+		return ProfileComprehensive
 	}
 	if strings.TrimSpace(observedVersion) == "" {
-		return SupplyChainImpactProfileComprehensive
+		return ProfileComprehensive
 	}
 	switch matchReason {
 	case "npm_semver_affected_range",
@@ -138,22 +138,22 @@ func inferLegacyDetectionProfile(impactStatus string, observedVersion string, ma
 		"maven_known_fixed",
 		"swift_semver_affected_range",
 		"swift_semver_known_fixed":
-		return SupplyChainImpactProfilePrecise
+		return ProfilePrecise
 	default:
-		return SupplyChainImpactProfileComprehensive
+		return ProfileComprehensive
 	}
 }
 
-func decodeSupplyChainSuppressionDecision(payload map[string]any) *SupplyChainSuppressionDecisionRow {
+func decodeSupplyChainSuppressionDecision(payload map[string]any) *SuppressionDecisionRow {
 	raw, ok := payload["suppression"].(map[string]any)
 	if !ok || len(raw) == 0 {
 		state := querycontract.StringVal(payload, "suppression_state")
 		if state == "" {
 			return nil
 		}
-		return &SupplyChainSuppressionDecisionRow{State: state}
+		return &SuppressionDecisionRow{State: state}
 	}
-	row := SupplyChainSuppressionDecisionRow{
+	row := SuppressionDecisionRow{
 		State:          querycontract.StringVal(raw, "state"),
 		SuppressionID:  querycontract.StringVal(raw, "suppression_id"),
 		Source:         querycontract.StringVal(raw, "source"),
@@ -175,12 +175,12 @@ func decodeSupplyChainSuppressionDecision(payload map[string]any) *SupplyChainSu
 	return &row
 }
 
-func decodeSupplyChainImpactProvenance(payload map[string]any) *SupplyChainImpactProvenance {
+func decodeSupplyChainImpactProvenance(payload map[string]any) *Provenance {
 	raw, ok := payload["provenance"].(map[string]any)
 	if !ok || len(raw) == 0 {
 		return nil
 	}
-	provenance := SupplyChainImpactProvenance{
+	provenance := Provenance{
 		SelectedSeveritySource:     querycontract.StringVal(raw, "selected_severity_source"),
 		SelectedSeverityScore:      querycontract.FloatVal(raw, "selected_severity_score"),
 		SelectedSeverityVector:     querycontract.StringVal(raw, "selected_severity_vector"),
@@ -197,7 +197,7 @@ func decodeSupplyChainImpactProvenance(payload map[string]any) *SupplyChainImpac
 	return &provenance
 }
 
-func (p SupplyChainImpactProvenance) isEmpty() bool {
+func (p Provenance) isEmpty() bool {
 	return p.SelectedSeveritySource == "" &&
 		p.SelectedSeverityScore == 0 &&
 		p.SelectedSeverityVector == "" &&
@@ -209,18 +209,18 @@ func (p SupplyChainImpactProvenance) isEmpty() bool {
 		len(p.AdvisorySources) == 0
 }
 
-func decodeAlternateSeverities(raw any) []SupplyChainAlternateSeverity {
+func decodeAlternateSeverities(raw any) []AlternateSeverity {
 	items, ok := raw.([]any)
 	if !ok || len(items) == 0 {
 		return nil
 	}
-	out := make([]SupplyChainAlternateSeverity, 0, len(items))
+	out := make([]AlternateSeverity, 0, len(items))
 	for _, item := range items {
 		row, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, SupplyChainAlternateSeverity{
+		out = append(out, AlternateSeverity{
 			Source: querycontract.StringVal(row, "source"),
 			Score:  querycontract.FloatVal(row, "score"),
 			Vector: querycontract.StringVal(row, "vector"),
@@ -233,18 +233,18 @@ func decodeAlternateSeverities(raw any) []SupplyChainAlternateSeverity {
 	return out
 }
 
-func decodeFixedVersionBranches(raw any) []SupplyChainFixedVersionBranch {
+func decodeFixedVersionBranches(raw any) []FixedVersionBranch {
 	items, ok := raw.([]any)
 	if !ok || len(items) == 0 {
 		return nil
 	}
-	out := make([]SupplyChainFixedVersionBranch, 0, len(items))
+	out := make([]FixedVersionBranch, 0, len(items))
 	for _, item := range items {
 		row, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, SupplyChainFixedVersionBranch{
+		out = append(out, FixedVersionBranch{
 			Version: querycontract.StringVal(row, "version"),
 			Source:  querycontract.StringVal(row, "source"),
 		})
@@ -255,18 +255,18 @@ func decodeFixedVersionBranches(raw any) []SupplyChainFixedVersionBranch {
 	return out
 }
 
-func decodeAdvisorySources(raw any) []SupplyChainAdvisorySource {
+func decodeAdvisorySources(raw any) []AdvisorySource {
 	items, ok := raw.([]any)
 	if !ok || len(items) == 0 {
 		return nil
 	}
-	out := make([]SupplyChainAdvisorySource, 0, len(items))
+	out := make([]AdvisorySource, 0, len(items))
 	for _, item := range items {
 		row, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		out = append(out, SupplyChainAdvisorySource{
+		out = append(out, AdvisorySource{
 			Source:          querycontract.StringVal(row, "source"),
 			AdvisoryID:      querycontract.StringVal(row, "advisory_id"),
 			SourceUpdatedAt: querycontract.StringVal(row, "source_updated_at"),

@@ -17,8 +17,8 @@ func TestSupplyChainImpactQueriesEvaluateSuppressionExpiryAtStatementTime(t *tes
 	}{
 		"list direct":       {query: ListSupplyChainImpactFindingsQuery, readAt: "$24::timestamptz"},
 		"list materialized": {query: ListSupplyChainImpactFindingsFromWinnersQuery, readAt: "$24::timestamptz"},
-		"aggregate shared":  {query: SupplyChainImpactAggregateCanonicalFactsCTE, readAt: "$20::timestamptz"},
-		"aggregate count":   {query: SupplyChainImpactAggregateCountQuery, readAt: "$20::timestamptz"},
+		"aggregate shared":  {query: AggregateCanonicalFactsCTE, readAt: "$20::timestamptz"},
+		"aggregate count":   {query: AggregateCountQuery, readAt: "$20::timestamptz"},
 		"explain":           {query: ExplainSupplyChainImpactFindingQuery, readAt: "$13::timestamptz"},
 	}
 	for name, tc := range queries {

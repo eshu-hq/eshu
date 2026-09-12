@@ -93,8 +93,8 @@ var domainDataSignatures = map[string]domainDataSignature{
 	// Both domains surface through the one reducer-derived finding kind:
 	// reducer_derived owns the kind, supply_chain_impact is the producing
 	// projection (specs/fact-kind-registry.v1.yaml:131-142, 346-356).
-	"reducer_derived_findings": {Markers: []string{"reducer_supply_chain_impact_finding"}, StoreTypes: []string{"SupplyChainImpactFindingStore"}},
-	"supply_chain_impact":      {Markers: []string{"reducer_supply_chain_impact_finding"}, StoreTypes: []string{"SupplyChainImpactFindingStore"}},
+	"reducer_derived_findings": {Markers: []string{"reducer_supply_chain_impact_finding"}, StoreTypes: []string{"FindingStore"}},
+	"supply_chain_impact":      {Markers: []string{"reducer_supply_chain_impact_finding"}, StoreTypes: []string{"FindingStore"}},
 
 	// The three /cloud/resources domains all materialize onto the
 	// CloudResource label: ec2 MERGEs nodes

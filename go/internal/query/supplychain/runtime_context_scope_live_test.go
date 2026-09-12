@@ -56,7 +56,7 @@ func assertSupplyChainRuntimeContextScopesLive(
 		tc := tc
 		t.Run("runtime_context_"+tc.name, func(t *testing.T) {
 			handler := &Handler{ImpactFindings: store}
-			rows := []impact.SupplyChainImpactFindingRow{{RepositoryID: runtimeFilterLiveRepository}}
+			rows := []impact.FindingRow{{RepositoryID: runtimeFilterLiveRepository}}
 			if err := handler.applySupplyChainRuntimeContext(ctx, rows, tc.access); err != nil {
 				t.Fatalf("apply runtime context: %v", err)
 			}
@@ -102,7 +102,7 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 	} {
 		tc := tc
 		t.Run("conflicting_anchor_filter_"+tc.name, func(t *testing.T) {
-			listFilter := impact.SupplyChainImpactFindingFilter{
+			listFilter := impact.FindingFilter{
 				CVEID:                runtimeFilterLiveCVE,
 				WorkloadID:           tc.workloadID,
 				ServiceID:            tc.serviceID,
@@ -115,7 +115,7 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, false, 0)
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, true, 0)
 
-			aggregateFilter := impact.SupplyChainImpactAggregateFilter{
+			aggregateFilter := impact.AggregateFilter{
 				CVEID:                runtimeFilterLiveCVE,
 				WorkloadID:           tc.workloadID,
 				ServiceID:            tc.serviceID,
@@ -134,7 +134,7 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 			inventory, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
-				impact.SupplyChainImpactInventoryByImpactStatus,
+				impact.InventoryByImpactStatus,
 				10,
 				0,
 			)
@@ -147,7 +147,7 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 			if tc.environment != "" {
 				return
 			}
-			_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
+			_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
 				CVEID:                runtimeFilterLiveCVE,
 				PackageID:            runtimeFilterLivePackage,
 				WorkloadID:           tc.workloadID,
@@ -181,7 +181,7 @@ func assertSupplyChainStaleBakedFiltersLive(
 	} {
 		tc := tc
 		t.Run("stale_baked_filter_"+tc.name, func(t *testing.T) {
-			listFilter := impact.SupplyChainImpactFindingFilter{
+			listFilter := impact.FindingFilter{
 				CVEID:            runtimeFilterLiveCVE,
 				PackageID:        runtimeFilterLiveBakedPkg,
 				WorkloadID:       tc.workloadID,
@@ -194,7 +194,7 @@ func assertSupplyChainStaleBakedFiltersLive(
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, false, 0)
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, listFilter, true, 0)
 
-			aggregateFilter := impact.SupplyChainImpactAggregateFilter{
+			aggregateFilter := impact.AggregateFilter{
 				CVEID:            runtimeFilterLiveCVE,
 				PackageID:        runtimeFilterLiveBakedPkg,
 				WorkloadID:       tc.workloadID,
@@ -213,7 +213,7 @@ func assertSupplyChainStaleBakedFiltersLive(
 			inventory, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
-				impact.SupplyChainImpactInventoryByImpactStatus,
+				impact.InventoryByImpactStatus,
 				10,
 				0,
 			)
@@ -226,7 +226,7 @@ func assertSupplyChainStaleBakedFiltersLive(
 			if tc.environment != "" {
 				return
 			}
-			_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
+			_, err = findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
 				CVEID:           runtimeFilterLiveCVE,
 				PackageID:       runtimeFilterLiveBakedPkg,
 				WorkloadID:      tc.workloadID,

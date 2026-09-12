@@ -59,7 +59,7 @@ func TestApplyWinnersFreshness(t *testing.T) {
 	base := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
 	cases := []struct {
 		name         string
-		fr           impact.SupplyChainImpactWinnersFreshness
+		fr           impact.WinnersFreshness
 		probeErr     error
 		wantState    querycontract.FreshnessState
 		wantCause    querycontract.FreshnessCause
@@ -68,24 +68,24 @@ func TestApplyWinnersFreshness(t *testing.T) {
 	}{
 		{
 			name:      "legacy live read untouched",
-			fr:        impact.SupplyChainImpactWinnersFreshness{ServingFromWinners: false},
+			fr:        impact.WinnersFreshness{ServingFromWinners: false},
 			wantState: querycontract.FreshnessFresh,
 		},
 		{
 			name:      "legacy live read untouched even on probe error",
-			fr:        impact.SupplyChainImpactWinnersFreshness{ServingFromWinners: false},
+			fr:        impact.WinnersFreshness{ServingFromWinners: false},
 			probeErr:  errors.New("boom"),
 			wantState: querycontract.FreshnessFresh,
 		},
 		{
 			name:         "winners fresh within window",
-			fr:           impact.SupplyChainImpactWinnersFreshness{ServingFromWinners: true, Present: true, MaterializedAt: base.Add(-30 * time.Second)},
+			fr:           impact.WinnersFreshness{ServingFromWinners: true, Present: true, MaterializedAt: base.Add(-30 * time.Second)},
 			wantState:    querycontract.FreshnessFresh,
 			wantObserved: true,
 		},
 		{
 			name:         "winners stale beyond window",
-			fr:           impact.SupplyChainImpactWinnersFreshness{ServingFromWinners: true, Present: true, MaterializedAt: base.Add(-10 * time.Minute)},
+			fr:           impact.WinnersFreshness{ServingFromWinners: true, Present: true, MaterializedAt: base.Add(-10 * time.Minute)},
 			wantState:    querycontract.FreshnessStale,
 			wantCause:    querycontract.FreshnessCauseReducerBacklog,
 			wantObserved: true,
@@ -97,14 +97,14 @@ func TestApplyWinnersFreshness(t *testing.T) {
 			// produced zero winners still writes the watermark, so it lands in the
 			// fresh cases above (Present=true) — not here.
 			name:      "no maintainer watermark is building",
-			fr:        impact.SupplyChainImpactWinnersFreshness{ServingFromWinners: true, Present: false},
+			fr:        impact.WinnersFreshness{ServingFromWinners: true, Present: false},
 			wantState: querycontract.FreshnessBuilding,
 			wantCause: querycontract.FreshnessCauseReducerBacklog,
 			wantNext:  true,
 		},
 		{
 			name:      "probe error is unavailable not fresh",
-			fr:        impact.SupplyChainImpactWinnersFreshness{ServingFromWinners: true},
+			fr:        impact.WinnersFreshness{ServingFromWinners: true},
 			probeErr:  errors.New("boom"),
 			wantState: querycontract.FreshnessUnavailable,
 		},

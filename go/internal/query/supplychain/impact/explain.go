@@ -11,18 +11,18 @@ import (
 	"time"
 )
 
-// SupplyChainImpactExplanationStore reads one reducer-owned vulnerability
+// ExplanationStore reads one reducer-owned vulnerability
 // impact finding and the bounded evidence facts referenced by that finding.
-type SupplyChainImpactExplanationStore interface {
+type ExplanationStore interface {
 	ExplainSupplyChainImpact(
 		context.Context,
-		SupplyChainImpactExplanationFilter,
-	) (SupplyChainImpactExplanationRow, error)
+		ExplanationFilter,
+	) (ExplanationRow, error)
 }
 
-// SupplyChainImpactExplanationFilter is the bounded input accepted by the
+// ExplanationFilter is the bounded input accepted by the
 // vulnerability impact explanation route.
-type SupplyChainImpactExplanationFilter struct {
+type ExplanationFilter struct {
 	FindingID     string `json:"finding_id,omitempty"`
 	AdvisoryID    string `json:"advisory_id,omitempty"`
 	CVEID         string `json:"cve_id,omitempty"`
@@ -47,17 +47,17 @@ type SupplyChainImpactExplanationFilter struct {
 	AllowedScopeIDs      []string `json:"-"`
 }
 
-// SupplyChainImpactExplanationRow contains the durable impact finding and only
+// ExplanationRow contains the durable impact finding and only
 // the source or reducer facts referenced by that finding's evidence ids.
-type SupplyChainImpactExplanationRow struct {
-	Finding       SupplyChainImpactFindingRow
-	EvidenceFacts []SupplyChainImpactEvidenceFact
+type ExplanationRow struct {
+	Finding       FindingRow
+	EvidenceFacts []EvidenceFact
 }
 
-// SupplyChainImpactEvidenceFact is a bounded fact preview used to explain one
+// EvidenceFact is a bounded fact preview used to explain one
 // reducer-owned vulnerability impact finding without returning raw graph paths
 // or whole advisory bodies.
-type SupplyChainImpactEvidenceFact struct {
+type EvidenceFact struct {
 	FactID           string
 	FactKind         string
 	SourceSystem     string
@@ -72,46 +72,46 @@ type SupplyChainImpactEvidenceFact struct {
 	Payload       map[string]any
 }
 
-// SupplyChainImpactExplanationResult is the public API and MCP data payload for
+// ExplanationResult is the public API and MCP data payload for
 // explaining one vulnerability finding or a bounded no-evidence scope.
-type SupplyChainImpactExplanationResult struct {
-	Outcome              string                                 `json:"outcome"`
-	EvidencePacketHandle string                                 `json:"evidence_packet_handle,omitempty"`
-	Input                SupplyChainImpactExplanationFilter     `json:"input"`
-	Finding              *SupplyChainImpactFindingResult        `json:"finding,omitempty"`
-	Advisory             SupplyChainImpactAdvisoryExplanation   `json:"advisory"`
-	Component            SupplyChainImpactComponentExplanation  `json:"component"`
-	Version              SupplyChainImpactVersionExplanation    `json:"version"`
-	DependencyChain      *SupplyChainImpactDependencyChain      `json:"dependency_chain,omitempty"`
-	Anchors              SupplyChainImpactExplanationAnchors    `json:"anchors"`
-	Path                 []SupplyChainImpactPathHop             `json:"impact_path,omitempty"`
-	Evidence             []SupplyChainImpactEvidenceFactSummary `json:"evidence"`
-	Readiness            SupplyChainImpactReadinessEnvelope     `json:"readiness"`
-	MissingEvidence      []string                               `json:"missing_evidence,omitempty"`
-	Freshness            SupplyChainImpactExplanationFreshness  `json:"freshness"`
+type ExplanationResult struct {
+	Outcome              string                `json:"outcome"`
+	EvidencePacketHandle string                `json:"evidence_packet_handle,omitempty"`
+	Input                ExplanationFilter     `json:"input"`
+	Finding              *FindingResult        `json:"finding,omitempty"`
+	Advisory             AdvisoryExplanation   `json:"advisory"`
+	Component            ComponentExplanation  `json:"component"`
+	Version              VersionExplanation    `json:"version"`
+	DependencyChain      *DependencyChain      `json:"dependency_chain,omitempty"`
+	Anchors              ExplanationAnchors    `json:"anchors"`
+	Path                 []PathHop             `json:"impact_path,omitempty"`
+	Evidence             []EvidenceFactSummary `json:"evidence"`
+	Readiness            ReadinessEnvelope     `json:"readiness"`
+	MissingEvidence      []string              `json:"missing_evidence,omitempty"`
+	Freshness            ExplanationFreshness  `json:"freshness"`
 	// Remediation is the reducer-owned advisory-only safe-upgrade
 	// recommendation enriched with vulnerable-range evidence from the
 	// referenced advisory facts (issue #595). Nil when the finding is too
 	// old to carry remediation metadata.
-	Remediation *SupplyChainImpactRemediation `json:"remediation,omitempty"`
+	Remediation *Remediation `json:"remediation,omitempty"`
 }
 
-// SupplyChainImpactAdvisoryExplanation summarizes advisory evidence selected
+// AdvisoryExplanation summarizes advisory evidence selected
 // for a finding and the source-reported vulnerable range when available.
-type SupplyChainImpactAdvisoryExplanation struct {
-	CVEID                      string                      `json:"cve_id,omitempty"`
-	AdvisoryID                 string                      `json:"advisory_id,omitempty"`
-	VulnerableRange            string                      `json:"vulnerable_range,omitempty"`
-	RangeSource                string                      `json:"range_source,omitempty"`
-	SelectedSeveritySource     string                      `json:"selected_severity_source,omitempty"`
-	SelectedFixedVersionSource string                      `json:"selected_fixed_version_source,omitempty"`
-	Sources                    []SupplyChainAdvisorySource `json:"sources,omitempty"`
-	References                 []string                    `json:"references,omitempty"`
+type AdvisoryExplanation struct {
+	CVEID                      string           `json:"cve_id,omitempty"`
+	AdvisoryID                 string           `json:"advisory_id,omitempty"`
+	VulnerableRange            string           `json:"vulnerable_range,omitempty"`
+	RangeSource                string           `json:"range_source,omitempty"`
+	SelectedSeveritySource     string           `json:"selected_severity_source,omitempty"`
+	SelectedFixedVersionSource string           `json:"selected_fixed_version_source,omitempty"`
+	Sources                    []AdvisorySource `json:"sources,omitempty"`
+	References                 []string         `json:"references,omitempty"`
 }
 
-// SupplyChainImpactComponentExplanation identifies the package or component
+// ComponentExplanation identifies the package or component
 // version matched by reducer-owned impact evidence.
-type SupplyChainImpactComponentExplanation struct {
+type ComponentExplanation struct {
 	PackageID       string `json:"package_id,omitempty"`
 	Ecosystem       string `json:"ecosystem,omitempty"`
 	PackageName     string `json:"package_name,omitempty"`
@@ -122,9 +122,9 @@ type SupplyChainImpactComponentExplanation struct {
 	ManifestRange   string `json:"manifest_range,omitempty"`
 }
 
-// SupplyChainImpactVersionExplanation keeps version observations separate from
+// VersionExplanation keeps version observations separate from
 // advisory range and remediation metadata.
-type SupplyChainImpactVersionExplanation struct {
+type VersionExplanation struct {
 	ObservedVersion string `json:"observed_version,omitempty"`
 	ManifestRange   string `json:"manifest_range,omitempty"`
 	VulnerableRange string `json:"vulnerable_range,omitempty"`
@@ -132,55 +132,55 @@ type SupplyChainImpactVersionExplanation struct {
 	VersionEvidence string `json:"version_evidence"`
 }
 
-// SupplyChainImpactDependencyChain explains direct versus transitive package
+// DependencyChain explains direct versus transitive package
 // evidence when a manifest, lockfile, or SBOM source provided it.
-type SupplyChainImpactDependencyChain struct {
+type DependencyChain struct {
 	Path             []string `json:"path,omitempty"`
 	Depth            int      `json:"depth,omitempty"`
 	DirectDependency *bool    `json:"direct_dependency,omitempty"`
 }
 
-// SupplyChainImpactExplanationAnchors lists scoped evidence anchors. Empty
+// ExplanationAnchors lists scoped evidence anchors. Empty
 // anchor families remain omitted rather than inferred from names or tags.
-type SupplyChainImpactExplanationAnchors struct {
-	RepositoryID    string                           `json:"repository_id,omitempty"`
-	SubjectDigest   string                           `json:"subject_digest,omitempty"`
-	ManifestPaths   []string                         `json:"manifest_paths,omitempty"`
-	LockfilePaths   []string                         `json:"lockfile_paths,omitempty"`
-	SBOMDocuments   []string                         `json:"sbom_documents,omitempty"`
-	ImageDigests    []string                         `json:"image_digests,omitempty"`
-	ImageRefs       []string                         `json:"image_refs,omitempty"`
-	Workloads       []string                         `json:"workloads,omitempty"`
-	Deployments     []string                         `json:"deployments,omitempty"`
-	Services        []string                         `json:"services,omitempty"`
-	Environments    []string                         `json:"environments,omitempty"`
-	CatalogEntities []string                         `json:"catalog_entities,omitempty"`
-	CatalogOwners   []string                         `json:"catalog_owners,omitempty"`
-	ProviderAlerts  []SupplyChainProviderAlertAnchor `json:"provider_alerts,omitempty"`
-	EvidenceFactIDs []string                         `json:"evidence_fact_ids,omitempty"`
+type ExplanationAnchors struct {
+	RepositoryID    string                `json:"repository_id,omitempty"`
+	SubjectDigest   string                `json:"subject_digest,omitempty"`
+	ManifestPaths   []string              `json:"manifest_paths,omitempty"`
+	LockfilePaths   []string              `json:"lockfile_paths,omitempty"`
+	SBOMDocuments   []string              `json:"sbom_documents,omitempty"`
+	ImageDigests    []string              `json:"image_digests,omitempty"`
+	ImageRefs       []string              `json:"image_refs,omitempty"`
+	Workloads       []string              `json:"workloads,omitempty"`
+	Deployments     []string              `json:"deployments,omitempty"`
+	Services        []string              `json:"services,omitempty"`
+	Environments    []string              `json:"environments,omitempty"`
+	CatalogEntities []string              `json:"catalog_entities,omitempty"`
+	CatalogOwners   []string              `json:"catalog_owners,omitempty"`
+	ProviderAlerts  []ProviderAlertAnchor `json:"provider_alerts,omitempty"`
+	EvidenceFactIDs []string              `json:"evidence_fact_ids,omitempty"`
 }
 
-// SupplyChainImpactPathHop reports one present or missing hop in the
+// PathHop reports one present or missing hop in the
 // reducer-owned vulnerability impact path.
-type SupplyChainImpactPathHop struct {
+type PathHop struct {
 	Hop             string   `json:"hop"`
 	Status          string   `json:"status"`
 	EvidenceFactIDs []string `json:"evidence_fact_ids,omitempty"`
 	MissingEvidence []string `json:"missing_evidence,omitempty"`
 }
 
-// SupplyChainProviderAlertAnchor preserves provider alert evidence without
+// ProviderAlertAnchor preserves provider alert evidence without
 // promoting it into owned package, image, workload, or deployment truth.
-type SupplyChainProviderAlertAnchor struct {
+type ProviderAlertAnchor struct {
 	Provider     string `json:"provider,omitempty"`
 	AlertID      string `json:"alert_id,omitempty"`
 	State        string `json:"state,omitempty"`
 	ManifestPath string `json:"manifest_path,omitempty"`
 }
 
-// SupplyChainImpactEvidenceFactSummary is a compact source/reducer fact preview
+// EvidenceFactSummary is a compact source/reducer fact preview
 // for one evidence id referenced by the finding.
-type SupplyChainImpactEvidenceFactSummary struct {
+type EvidenceFactSummary struct {
 	FactID           string `json:"fact_id"`
 	FactKind         string `json:"fact_kind"`
 	SourceSystem     string `json:"source_system,omitempty"`
@@ -188,9 +188,9 @@ type SupplyChainImpactEvidenceFactSummary struct {
 	ObservedAt       string `json:"observed_at,omitempty"`
 }
 
-// SupplyChainImpactExplanationFreshness exposes evidence observation freshness
+// ExplanationFreshness exposes evidence observation freshness
 // for the explanation payload itself.
-type SupplyChainImpactExplanationFreshness struct {
+type ExplanationFreshness struct {
 	State             string `json:"state"`
 	LatestObservedAt  string `json:"latest_observed_at,omitempty"`
 	EvidenceFactCount int    `json:"evidence_fact_count"`
@@ -199,10 +199,10 @@ type SupplyChainImpactExplanationFreshness struct {
 // BuildSupplyChainImpactExplanation shapes a durable impact finding and its
 // referenced evidence facts into one bounded explain response.
 func BuildSupplyChainImpactExplanation(
-	filter SupplyChainImpactExplanationFilter,
-	row SupplyChainImpactExplanationRow,
-	readiness SupplyChainImpactReadinessEnvelope,
-) SupplyChainImpactExplanationResult {
+	filter ExplanationFilter,
+	row ExplanationRow,
+	readiness ReadinessEnvelope,
+) ExplanationResult {
 	finding := BuildSupplyChainImpactFindingResult(&row.Finding)
 	advisory := buildSupplyChainAdvisoryExplanation(row)
 	component := buildSupplyChainComponentExplanation(row)
@@ -212,7 +212,7 @@ func BuildSupplyChainImpactExplanation(
 	missing := explanationMissingEvidence(row.Finding, readiness, advisory, component, version, dependencyChain, anchors)
 	impactPath := buildSupplyChainImpactPath(row, supplyChainImpactPathMissingEvidence(normalizedSupplyChainImpactMissingEvidence(&row.Finding)))
 	remediation := buildSupplyChainRemediationExplanation(row, advisory, version, component, dependencyChain)
-	return SupplyChainImpactExplanationResult{
+	return ExplanationResult{
 		Outcome:              "finding_explained",
 		EvidencePacketHandle: supplyChainImpactEvidencePacketHandle(filter, row.Finding.FindingID),
 		Input:                filter,
@@ -234,38 +234,38 @@ func BuildSupplyChainImpactExplanation(
 // BuildSupplyChainImpactNoEvidenceExplanation returns a bounded explanation for
 // a valid scope where no reducer-owned impact finding currently exists.
 func BuildSupplyChainImpactNoEvidenceExplanation(
-	filter SupplyChainImpactExplanationFilter,
-	readiness SupplyChainImpactReadinessEnvelope,
-) SupplyChainImpactExplanationResult {
+	filter ExplanationFilter,
+	readiness ReadinessEnvelope,
+) ExplanationResult {
 	missing := explanationUniqueStrings(append([]string{"impact_finding"}, readiness.MissingEvidence...))
-	return SupplyChainImpactExplanationResult{
+	return ExplanationResult{
 		Outcome:              "no_finding",
 		EvidencePacketHandle: supplyChainImpactEvidencePacketHandle(filter, ""),
 		Input:                filter,
-		Advisory:             SupplyChainImpactAdvisoryExplanation{CVEID: filter.CVEID, AdvisoryID: filter.AdvisoryID},
-		Component:            SupplyChainImpactComponentExplanation{PackageID: filter.PackageID},
-		Version:              SupplyChainImpactVersionExplanation{VersionEvidence: "missing"},
-		Anchors: SupplyChainImpactExplanationAnchors{
+		Advisory:             AdvisoryExplanation{CVEID: filter.CVEID, AdvisoryID: filter.AdvisoryID},
+		Component:            ComponentExplanation{PackageID: filter.PackageID},
+		Version:              VersionExplanation{VersionEvidence: "missing"},
+		Anchors: ExplanationAnchors{
 			RepositoryID:  filter.RepositoryID,
 			SubjectDigest: filter.SubjectDigest,
 			ImageRefs:     compactStrings([]string{filter.ImageRef}),
 			Workloads:     compactStrings([]string{filter.WorkloadID}),
 			Services:      compactStrings([]string{filter.ServiceID}),
 		},
-		Evidence:        []SupplyChainImpactEvidenceFactSummary{},
+		Evidence:        []EvidenceFactSummary{},
 		Readiness:       readiness,
 		MissingEvidence: missing,
-		Freshness:       SupplyChainImpactExplanationFreshness{State: explanationFreshnessState(readiness.Freshness)},
+		Freshness:       ExplanationFreshness{State: explanationFreshnessState(readiness.Freshness)},
 	}
 }
 
 // BuildSupplyChainImpactAmbiguousExplanation returns a bounded refusal envelope
 // for a valid scope that matches multiple reducer-owned impact findings.
 func BuildSupplyChainImpactAmbiguousExplanation(
-	filter SupplyChainImpactExplanationFilter,
-	readiness SupplyChainImpactReadinessEnvelope,
+	filter ExplanationFilter,
+	readiness ReadinessEnvelope,
 	candidateCount int,
-) SupplyChainImpactExplanationResult {
+) ExplanationResult {
 	readiness = supplyChainImpactAmbiguousReadiness(readiness, candidateCount)
 	body := buildSupplyChainImpactRefusalExplanation(filter, readiness)
 	body.Outcome = "ambiguous_scope"
@@ -274,9 +274,9 @@ func BuildSupplyChainImpactAmbiguousExplanation(
 }
 
 func supplyChainImpactAmbiguousReadiness(
-	readiness SupplyChainImpactReadinessEnvelope,
+	readiness ReadinessEnvelope,
 	candidateCount int,
-) SupplyChainImpactReadinessEnvelope {
+) ReadinessEnvelope {
 	if readiness.State != ReadinessStateReadinessUnavailable {
 		readiness.State = ReadinessStateAmbiguousScope
 	}
@@ -291,29 +291,29 @@ func supplyChainImpactAmbiguousReadiness(
 }
 
 func buildSupplyChainImpactRefusalExplanation(
-	filter SupplyChainImpactExplanationFilter,
-	readiness SupplyChainImpactReadinessEnvelope,
-) SupplyChainImpactExplanationResult {
-	return SupplyChainImpactExplanationResult{
+	filter ExplanationFilter,
+	readiness ReadinessEnvelope,
+) ExplanationResult {
+	return ExplanationResult{
 		EvidencePacketHandle: supplyChainImpactEvidencePacketHandle(filter, ""),
 		Input:                filter,
-		Advisory:             SupplyChainImpactAdvisoryExplanation{CVEID: filter.CVEID, AdvisoryID: filter.AdvisoryID},
-		Component:            SupplyChainImpactComponentExplanation{PackageID: filter.PackageID},
-		Version:              SupplyChainImpactVersionExplanation{VersionEvidence: "missing"},
-		Anchors: SupplyChainImpactExplanationAnchors{
+		Advisory:             AdvisoryExplanation{CVEID: filter.CVEID, AdvisoryID: filter.AdvisoryID},
+		Component:            ComponentExplanation{PackageID: filter.PackageID},
+		Version:              VersionExplanation{VersionEvidence: "missing"},
+		Anchors: ExplanationAnchors{
 			RepositoryID:  filter.RepositoryID,
 			SubjectDigest: filter.SubjectDigest,
 			ImageRefs:     compactStrings([]string{filter.ImageRef}),
 			Workloads:     compactStrings([]string{filter.WorkloadID}),
 			Services:      compactStrings([]string{filter.ServiceID}),
 		},
-		Evidence:  []SupplyChainImpactEvidenceFactSummary{},
+		Evidence:  []EvidenceFactSummary{},
 		Readiness: readiness,
-		Freshness: SupplyChainImpactExplanationFreshness{State: explanationFreshnessState(readiness.Freshness)},
+		Freshness: ExplanationFreshness{State: explanationFreshnessState(readiness.Freshness)},
 	}
 }
 
-func supplyChainImpactEvidencePacketHandle(filter SupplyChainImpactExplanationFilter, findingID string) string {
+func supplyChainImpactEvidencePacketHandle(filter ExplanationFilter, findingID string) string {
 	if findingID = strings.TrimSpace(findingID); findingID != "" {
 		return "supply-chain-impact-explanation:finding:" + findingID
 	}
@@ -332,7 +332,7 @@ func supplyChainImpactEvidencePacketHandle(filter SupplyChainImpactExplanationFi
 	return "supply-chain-impact-explanation:scope:" + hex.EncodeToString(sum[:])
 }
 
-func (f SupplyChainImpactExplanationFilter) HasBoundedScope() bool {
+func (f ExplanationFilter) HasBoundedScope() bool {
 	if strings.TrimSpace(f.FindingID) != "" {
 		return true
 	}
@@ -345,7 +345,7 @@ func (f SupplyChainImpactExplanationFilter) HasBoundedScope() bool {
 	return f.hasTargetScope()
 }
 
-func (f SupplyChainImpactExplanationFilter) hasTargetScope() bool {
+func (f ExplanationFilter) hasTargetScope() bool {
 	return strings.TrimSpace(f.PackageID) != "" ||
 		strings.TrimSpace(f.RepositoryID) != "" ||
 		strings.TrimSpace(f.SubjectDigest) != "" ||
@@ -354,8 +354,8 @@ func (f SupplyChainImpactExplanationFilter) hasTargetScope() bool {
 		strings.TrimSpace(f.ServiceID) != ""
 }
 
-func (f SupplyChainImpactExplanationFilter) ReadinessScope() SupplyChainImpactTargetScope {
-	return SupplyChainImpactTargetScope{
+func (f ExplanationFilter) ReadinessScope() TargetScope {
+	return TargetScope{
 		CVEID:         f.CVEID,
 		AdvisoryID:    f.AdvisoryID,
 		PackageID:     f.PackageID,
@@ -367,7 +367,7 @@ func (f SupplyChainImpactExplanationFilter) ReadinessScope() SupplyChainImpactTa
 	}
 }
 
-func FindingReadinessScope(row SupplyChainImpactFindingRow, fallback SupplyChainImpactExplanationFilter) SupplyChainImpactTargetScope {
+func FindingReadinessScope(row FindingRow, fallback ExplanationFilter) TargetScope {
 	scope := fallback.ReadinessScope()
 	if scope.CVEID == "" {
 		scope.CVEID = row.CVEID

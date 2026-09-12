@@ -5,11 +5,11 @@ package advisory
 
 import "context"
 
-// AdvisoryEvidenceCapability gates the source-only vulnerability advisory
+// EvidenceCapability gates the source-only vulnerability advisory
 // evidence list. Exported so root package query registers it in
 // contract_supply_chain.go and gates the evidence and vulnerability-detail
 // handlers on it (#6060 lane A keeps registration and routing in root).
-const AdvisoryEvidenceCapability = "supply_chain.advisory_evidence.list"
+const EvidenceCapability = "supply_chain.advisory_evidence.list"
 
 // EvidenceMaxLimit bounds one evidence page. Exported for the
 // staying root evidence handler's limit check and the root evidence tests.

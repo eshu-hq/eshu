@@ -88,7 +88,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			filter := impact.SupplyChainImpactFindingFilter{
+			filter := impact.FindingFilter{
 				CVEID:             runtimeFilterLiveCVE,
 				WorkloadID:        tc.workloadID,
 				ServiceID:         tc.serviceID,
@@ -101,7 +101,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, false, 1)
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, true, 1)
 
-			aggregateFilter := impact.SupplyChainImpactAggregateFilter{
+			aggregateFilter := impact.AggregateFilter{
 				CVEID:             runtimeFilterLiveCVE,
 				WorkloadID:        tc.workloadID,
 				ServiceID:         tc.serviceID,
@@ -120,7 +120,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 			inventory, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
-				impact.SupplyChainImpactInventoryByImpactStatus,
+				impact.InventoryByImpactStatus,
 				10,
 				0,
 			)
@@ -149,7 +149,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			filter := impact.SupplyChainImpactFindingFilter{
+			filter := impact.FindingFilter{
 				CVEID:            runtimeFilterLiveCVE,
 				WorkloadID:       tc.workloadID,
 				ServiceID:        tc.serviceID,
@@ -161,7 +161,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, false, 0)
 			assertSupplyChainRuntimeFilterListCount(t, ctx, findingStore, filter, true, 0)
 
-			count, err := aggregateStore.CountSupplyChainImpactFindings(ctx, impact.SupplyChainImpactAggregateFilter{
+			count, err := aggregateStore.CountSupplyChainImpactFindings(ctx, impact.AggregateFilter{
 				CVEID:            runtimeFilterLiveCVE,
 				WorkloadID:       tc.workloadID,
 				ServiceID:        tc.serviceID,
@@ -178,7 +178,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 		})
 	}
 
-	explanation, err := findingStore.ExplainSupplyChainImpact(ctx, impact.SupplyChainImpactExplanationFilter{
+	explanation, err := findingStore.ExplainSupplyChainImpact(ctx, impact.ExplanationFilter{
 		CVEID:           runtimeFilterLiveCVE,
 		PackageID:       runtimeFilterLivePackage,
 		ServiceID:       "service:5747:allowed",
@@ -202,7 +202,7 @@ func assertSupplyChainRuntimeFilterListCount(
 	t *testing.T,
 	ctx context.Context,
 	store impact.PostgresSupplyChainImpactFindingStore,
-	filter impact.SupplyChainImpactFindingFilter,
+	filter impact.FindingFilter,
 	readFromWinners bool,
 	want int,
 ) {
@@ -273,7 +273,7 @@ INSERT INTO scope_generations (
 	}
 
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, runtimeFilterLiveFactID, runtimeFilterLiveScopeA, runtimeFilterLiveGenA,
-		impact.SupplyChainImpactFindingFactKind, false, map[string]any{
+		impact.FindingFactKind, false, map[string]any{
 			"finding_id":        runtimeFilterLiveFindingID,
 			"cve_id":            runtimeFilterLiveCVE,
 			"package_id":        runtimeFilterLivePackage,
@@ -289,7 +289,7 @@ INSERT INTO scope_generations (
 			"evidence_fact_ids": []string{},
 		})
 	insertSupplyChainRuntimeFilterFact(t, ctx, tx, runtimeFilterLiveBakedFact, runtimeFilterLiveScopeA, runtimeFilterLiveGenA,
-		impact.SupplyChainImpactFindingFactKind, false, map[string]any{
+		impact.FindingFactKind, false, map[string]any{
 			"finding_id":        runtimeFilterLiveBakedID,
 			"cve_id":            runtimeFilterLiveCVE,
 			"package_id":        runtimeFilterLiveBakedPkg,

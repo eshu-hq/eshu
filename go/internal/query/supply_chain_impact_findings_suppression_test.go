@@ -17,8 +17,8 @@ func TestSupplyChainListImpactFindingsDefaultsExcludeOperatorSuppressions(t *tes
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
-			{FindingID: "finding-active", CVEID: "CVE-2026-0001", ImpactStatus: "affected_exact"},
+		rows: []impact.FindingRow{
+			{FindingID: "finding-active", CVEID: "CVE-2026-0001", Status: "affected_exact"},
 		},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
@@ -44,12 +44,12 @@ func TestSupplyChainListImpactFindingsHonorsIncludeSuppressedTrue(t *testing.T) 
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
-				FindingID:    "finding-not-affected",
-				CVEID:        "CVE-2026-0001",
-				ImpactStatus: "affected_exact",
-				Suppression: &impact.SupplyChainSuppressionDecisionRow{
+				FindingID: "finding-not-affected",
+				CVEID:     "CVE-2026-0001",
+				Status:    "affected_exact",
+				Suppression: &impact.SuppressionDecisionRow{
 					State:         "not_affected",
 					SuppressionID: "suppression-1",
 					Source:        "vex_statement",
@@ -74,7 +74,7 @@ func TestSupplyChainListImpactFindingsHonorsIncludeSuppressedTrue(t *testing.T) 
 		t.Fatalf("IncludeSuppressed = false, want true")
 	}
 	var resp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -126,12 +126,12 @@ func TestSupplyChainListImpactFindingsFiltersBySuppressionState(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
-				FindingID:    "finding-provider",
-				CVEID:        "CVE-2026-0040",
-				ImpactStatus: "affected_exact",
-				Suppression: &impact.SupplyChainSuppressionDecisionRow{
+				FindingID: "finding-provider",
+				CVEID:     "CVE-2026-0040",
+				Status:    "affected_exact",
+				Suppression: &impact.SuppressionDecisionRow{
 					State:         "provider_dismissed",
 					SuppressionID: "suppression-provider",
 					Source:        "provider_dismissal",

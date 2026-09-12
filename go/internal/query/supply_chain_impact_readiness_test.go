@@ -15,10 +15,10 @@ func TestBuildSupplyChainImpactReadinessClassifiesNotConfigured(t *testing.T) {
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{},
+		impact.ReadinessSnapshot{},
 	)
 	if envelope.State != impact.ReadinessStateNotConfigured {
 		t.Fatalf("state = %q, want %q", envelope.State, impact.ReadinessStateNotConfigured)
@@ -40,11 +40,11 @@ func TestBuildSupplyChainImpactReadinessClassifiesEvidenceIncomplete(t *testing.
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 12, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
@@ -61,11 +61,11 @@ func TestBuildSupplyChainImpactReadinessClassifiesReadyZeroFindings(t *testing.T
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 12, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageRegistry, FactCount: 3, Freshness: impact.FreshnessLabelFresh},
@@ -94,11 +94,11 @@ func TestBuildSupplyChainImpactReadinessClassifiesStaleAdvisoryAsIncomplete(t *t
 	// API and MCP callers must not receive ready_zero_findings for a
 	// zero-finding page backed by stale advisory metadata.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 12, Freshness: impact.FreshnessLabelStale},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageRegistry, FactCount: 3, Freshness: impact.FreshnessLabelFresh},
@@ -120,14 +120,14 @@ func TestBuildSupplyChainImpactReadinessClassifiesReadyWithFindings(t *testing.T
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{CVEID: "CVE-2026-0001"},
-		[]impact.SupplyChainImpactFindingResult{
-			{FindingID: "finding-1", ImpactStatus: "affected_exact"},
-			{FindingID: "finding-2", ImpactStatus: "possibly_affected"},
+		impact.TargetScope{CVEID: "CVE-2026-0001"},
+		[]impact.FindingResult{
+			{FindingID: "finding-1", Status: "affected_exact"},
+			{FindingID: "finding-2", Status: "possibly_affected"},
 		},
 		true,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
@@ -153,10 +153,10 @@ func TestBuildSupplyChainImpactReadinessClassifiesTargetIncomplete(t *testing.T)
 	// still missing; an in-flight snapshot for any source can flip the state
 	// only when the scope has no advisory facts yet.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
+		impact.ReadinessSnapshot{
 			TargetIncomplete:  true,
 			IncompleteReasons: []string{"nvd_paging_in_progress"},
 		},
@@ -179,11 +179,11 @@ func TestBuildSupplyChainImpactReadinessScopeGuardsTargetIncomplete(t *testing.T
 	// scope whose advisory evidence is already collected. Otherwise normal
 	// staggered ingestion makes ready_zero_findings unreachable.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{CVEID: "CVE-2026-0001"},
+		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 			},
 			TargetIncomplete:  true,
@@ -208,12 +208,12 @@ func TestBuildSupplyChainImpactReadinessClearsMissingOnReadyWithFindings(t *test
 	// once the reducer admitted a finding, missing_evidence becomes
 	// internally contradictory and is dropped.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
-		[]impact.SupplyChainImpactFindingResult{
-			{FindingID: "finding-1", ImpactStatus: "affected_exact"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
+		[]impact.FindingResult{
+			{FindingID: "finding-1", Status: "affected_exact"},
 		},
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{},
+		impact.ReadinessSnapshot{},
 	)
 	if envelope.State != impact.ReadinessStateReadyWithFindings {
 		t.Fatalf("state = %q, want %q", envelope.State, impact.ReadinessStateReadyWithFindings)
@@ -227,8 +227,8 @@ func TestBuildSupplyChainImpactReadinessUnavailable(t *testing.T) {
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadinessUnavailable(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
-		[]impact.SupplyChainImpactFindingResult{{FindingID: "finding-1", ImpactStatus: "affected_exact"}},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
+		[]impact.FindingResult{{FindingID: "finding-1", Status: "affected_exact"}},
 		true,
 	)
 	if envelope.State != impact.ReadinessStateReadinessUnavailable {
@@ -254,11 +254,11 @@ func TestBuildSupplyChainImpactReadinessRejectsRepoOnlyRegistryAsOwnedPackages(t
 	// surface MissingEvidenceOwnedPackages so the reviewer-flagged
 	// "registry count suppresses missing owned packages" path stays closed.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageRegistry, FactCount: 12, Freshness: impact.FreshnessLabelFresh},
 			},
@@ -279,11 +279,11 @@ func TestBuildSupplyChainImpactReadinessAcceptsRegistryForPackageAnchor(t *testi
 	// for that package IS owned-package proof; the reviewer fix must not
 	// over-correct away the normal package-anchor flow.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{PackageID: "pkg:npm/example"},
+		impact.TargetScope{PackageID: "pkg:npm/example"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
@@ -301,11 +301,11 @@ func TestBuildSupplyChainImpactReadinessAggregatesFreshness(t *testing.T) {
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{CVEID: "CVE-2026-0001"},
+		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 3, Freshness: impact.FreshnessLabelStale},
 				{Family: impact.EvidenceFamilyVulnerabilityExploitability, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
@@ -320,11 +320,11 @@ func TestBuildSupplyChainImpactReadinessNormalizesEvidenceSources(t *testing.T) 
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{CVEID: "CVE-2026-0001"},
+		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyPackageRegistry, FactCount: 1},
 				{Family: " "},
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 7},
@@ -350,15 +350,15 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedEcosystem(t *testin
 	// surface this as unsupported, not as ready_zero_findings, so callers
 	// cannot mistake "we cannot match this" for "clean".
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{TargetKind: impact.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 3},
 			},
 		},
@@ -383,15 +383,15 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedPackageManagerFile(
 	// feature; readiness must surface the observation as unsupported instead
 	// of admitting clean evidence.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{
 					TargetKind:     impact.UnsupportedTargetKindPackageManagerFile,
 					Reason:         "lockfile_unsupported_feature",
@@ -420,15 +420,15 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedDependencySource(t 
 	// unsupported target with a stable reason code instead of letting the
 	// scope look clean or merely absent.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{
 					TargetKind:   impact.UnsupportedTargetKindDependencySource,
 					Reason:       "vcs_dependency_unsupported",
@@ -461,15 +461,15 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedSBOMTarget(t *testi
 	// has unsupported target evidence so callers do not mistake "nothing
 	// matched" for "no SBOM evidence".
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{SubjectDigest: "sha256:deadbeef"},
+		impact.TargetScope{SubjectDigest: "sha256:deadbeef"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{TargetKind: impact.UnsupportedTargetKindSBOMTarget, Reason: "unsupported_field", Count: 2},
 			},
 		},
@@ -487,11 +487,11 @@ func TestBuildSupplyChainImpactReadinessClassifiesMissingSBOMOrImageEvidence(t *
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{SubjectDigest: "sha256:missing"},
+		impact.TargetScope{SubjectDigest: "sha256:missing"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
@@ -511,14 +511,14 @@ func TestBuildSupplyChainImpactReadinessClassifiesPackageRegistryMetadataTooLarg
 	// metadata document exceeded the configured byte limit. That is an
 	// explicit source coverage gap, not a clean zero-finding result.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{PackageID: "pkg:npm/oversized"},
+		impact.TargetScope{PackageID: "pkg:npm/oversized"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{
 					TargetKind: impact.UnsupportedTargetKindPackageRegistryMetadata,
 					Reason:     "metadata_too_large",
@@ -549,15 +549,15 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedImageTarget(t *test
 	// image content; readiness must surface unsupported instead of admitting
 	// the image as covered.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{SubjectDigest: "sha256:cafefade"},
+		impact.TargetScope{SubjectDigest: "sha256:cafefade"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{TargetKind: impact.UnsupportedTargetKindImageTarget, Reason: "image_analyzer_unsupported", Count: 1},
 			},
 		},
@@ -583,15 +583,15 @@ func TestBuildSupplyChainImpactReadinessUnsupportedOutranksReadyZeroFindings(t *
 	// which is exactly the "clean" misread the unsupported state is
 	// supposed to prevent.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{TargetKind: impact.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 2},
 			},
 		},
@@ -614,15 +614,15 @@ func TestBuildSupplyChainImpactReadinessUnsupportedDropsEntriesWithoutReason(t *
 	// violation, and a scope with only-blank-reason entries falls back to
 	// the non-unsupported classification.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{TargetKind: impact.UnsupportedTargetKindSBOMTarget, Reason: "  ", Count: 1},
 			},
 		},
@@ -644,11 +644,11 @@ func TestBuildSupplyChainImpactReadinessUnsupportedDoesNotCollapseMissingEvidenc
 	// otherwise callers cannot tell "we never collected this" from "we
 	// observed something but cannot match it".
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 			},
 		},
@@ -675,17 +675,17 @@ func TestBuildSupplyChainImpactReadinessUnsupportedSurfacesAlongsideFindings(t *
 	// target counts remain visible so operators can see hidden coverage gaps
 	// without being told the result is clean for unsupported families.
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
-		[]impact.SupplyChainImpactFindingResult{
-			{FindingID: "finding-1", ImpactStatus: "affected_exact"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
+		[]impact.FindingResult{
+			{FindingID: "finding-1", Status: "affected_exact"},
 		},
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{TargetKind: impact.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 2},
 			},
 		},
@@ -705,15 +705,15 @@ func TestBuildSupplyChainImpactReadinessUnsupportedNormalizesAndSortsTargets(t *
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{TargetKind: impact.UnsupportedTargetKindSBOMTarget, Reason: "unsupported_field", Count: 2},
 				{TargetKind: " "},
 				{TargetKind: impact.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 1},
@@ -739,14 +739,14 @@ func TestBuildSupplyChainImpactReadinessExposesSourceSnapshotCacheMetadata(t *te
 	t.Parallel()
 
 	envelope := impact.BuildSupplyChainImpactReadiness(
-		impact.SupplyChainImpactTargetScope{CVEID: "CVE-2026-0001"},
+		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		nil,
 		false,
-		impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			SourceSnapshots: []impact.SupplyChainImpactSourceSnapshot{
+			SourceSnapshots: []impact.SourceSnapshot{
 				{
 					Source:               "first_epss",
 					Ecosystem:            " ",

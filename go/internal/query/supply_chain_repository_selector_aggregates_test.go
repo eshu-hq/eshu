@@ -53,13 +53,13 @@ func TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors(t *testing.T
 
 			content := selectorAggregateContentStore()
 			store := &stubSupplyChainImpactAggregateStore{
-				count: impact.SupplyChainImpactAggregateCount{
+				count: impact.AggregateCount{
 					TotalFindings:    1,
 					ByPriorityBucket: map[string]int{"high": 1},
 					BySeverity:       map[string]int{"high": 1},
 				},
-				inventory: []impact.SupplyChainImpactInventoryRow{{
-					Dimension: impact.SupplyChainImpactInventoryByRepository,
+				inventory: []impact.InventoryRow{{
+					Dimension: impact.InventoryByRepository,
 					Value:     "repo://example/api",
 					Count:     1,
 				}},

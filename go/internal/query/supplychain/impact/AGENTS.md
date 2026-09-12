@@ -34,7 +34,7 @@ Read `doc.go` and `README.md` first.
   They MUST stay behavior-identical to their root sources (named in each
   provenance comment). Do not extend them with family-specific semantics;
   add a new helper instead.
-- `SupplyChainImpactFindingFilter` MUST carry an anchor: `HasScope`
+- `FindingFilter` MUST carry an anchor: `HasScope`
   gates the store, and the staying root handlers gate before it.
   Widening either gate enables unscoped reads over the whole impact
   corpus.
@@ -62,25 +62,25 @@ to this list.
   `NewPostgresSupplyChainImpactReadinessStore`,
   `NewPostgresVulnerabilitySuppressionMutationStore` — `cmd/api` and
   `cmd/mcp-server` wiring via the root aliases, plus the staying root
-  store tests. The queryer ports (`SupplyChainImpactFindingQueryer`,
-  `SupplyChainImpactAggregateQueryer`,
-  `SupplyChainImpactReadinessQueryer`) are the constructor parameters
+  store tests. The queryer ports (`FindingQueryer`,
+  `AggregateQueryer`,
+  `ReadinessQueryer`) are the constructor parameters
   those call sites name.
-- Store ports and structs (`SupplyChainImpactFindingStore`,
-  `SupplyChainImpactAggregateStore`, `SupplyChainImpactExplanationStore`,
-  `SupplyChainImpactReadinessStore`,
+- Store ports and structs (`FindingStore`,
+  `AggregateStore`, `ExplanationStore`,
+  `ReadinessStore`,
   `VulnerabilitySuppressionMutationStore`, the four Postgres structs) —
   the `SupplyChainHandler` fields, the staying probes, and `cmd/*`
   wiring via the root aliases.
-- Row/filter/result values (`SupplyChainImpactFindingFilter`,
-  `SupplyChainImpactFindingRow`, `SupplyChainImpactFindingResult`,
-  `SupplyChainImpactEvidenceFact` and its summary,
-  `SupplyChainImpactExplanationFilter/Row/Result/Anchors/Freshness`,
-  `SupplyChainImpactAggregateFilter/Count`,
-  `SupplyChainImpactInventoryRow/Dimension`,
-  `SupplyChainImpactPathHop`, `SupplyChainImpactRemediation`,
-  `SupplyChainImpactProvenance`, `SupplyChainImpactTargetScope`,
-  `SupplyChainImpactReadinessEnvelope/Query/Snapshot/State`) — the
+- Row/filter/result values (`FindingFilter`,
+  `FindingRow`, `FindingResult`,
+  `EvidenceFact` and its summary,
+  `ExplanationFilter/Row/Result/Anchors/Freshness`,
+  `AggregateFilter/Count`,
+  `InventoryRow/Dimension`,
+  `PathHop`, `Remediation`,
+  `Provenance`, `TargetScope`,
+  `ReadinessEnvelope/Query/Snapshot/State`) — the
   staying handlers, probes, investigation packets, `serviceintelhttp`,
   `internal/cli`, and the staying root tests.
 - Builders (`BuildSupplyChainImpactExplanation` and its no-evidence /
@@ -97,8 +97,8 @@ to this list.
   `RejectUnsupportedVulnerabilityScannerFilters`,
   `SecurityAlertScannerFilters`, `FirstNonEmptyQueryParam`,
   `TrimSupplyChainImpactExplanationFilter`,
-  `SupplyChainImpactExplanationAmbiguousCandidateCount`,
-  `FindingReadinessScope`, `SupplyChainImpactPriorityFilter` with
+  `ExplanationAmbiguousCandidateCount`,
+  `FindingReadinessScope`, `PriorityFilter` with
   `ValidSupplyChainImpactPriorityBucket` and
   `OptionalSupplyChainImpactMinPriorityScore`) — the staying
   findings/aggregates/explain handlers, the security-alert handlers,
@@ -112,12 +112,12 @@ to this list.
 - SQL texts and kind/query consts (`ListSupplyChainImpactFindingsQuery`
   and its winners variant, `ExplainSupplyChainImpactFindingQuery` and
   its public-ID variant, the aggregates/readiness/runtime/suppression
-  texts, `SupplyChainImpactFindingFactKind`,
-  `SupplyChainImpactRuntimeContextFactKinds`,
+  texts, `FindingFactKind`,
+  `RuntimeContextFactKinds`,
   `WorkloadIdentityFactKindQuery`,
   `PlatformMaterializationFactKindQuery`,
-  `SupplyChainImpactSuppressionReadAt`,
-  `SupplyChainImpactAggregateMaxLimit`, the inventory-dimension and
+  `SuppressionReadAt`,
+  `AggregateMaxLimit`, the inventory-dimension and
   canonical-key consts) — the staying root SQL-shape tests and the
   lockstep schema test.
 - Vocabulary consts (profile precise/comprehensive, readiness states,
@@ -125,13 +125,13 @@ to this list.
   kinds, freshness labels, `ServiceCatalogAnchorMissingReason`,
   `ServiceCatalogCorrelationMissingReason`, the environment-evidence
   deploy_event/declared vocabulary, `ReadinessStateReadyWithFindings`
-  for compparity, `SupplyChainImpactWinnersReadEnv` and
-  `SupplyChainImpactWinnersReadEnabled`) — the staying handlers,
+  for compparity, `WinnersReadEnv` and
+  `WinnersReadEnabled`) — the staying handlers,
   tests, and external callers that name the exact wire values.
-- Relocated runtime-evidence types (`SupplyChainRuntimeContext`,
-  `SupplyChainRuntimeContextResult`,
-  `SupplyChainRuntimeEnvironmentEvidenceProbe`,
-  `SupplyChainRuntimeEnvironmentCandidate`,
+- Relocated runtime-evidence types (`RuntimeContext`,
+  `RuntimeContextResult`,
+  `RuntimeEnvironmentEvidenceProbe`,
+  `RuntimeEnvironmentCandidate`,
   `KubernetesRuntimeWorkloadRef`, `KubernetesRuntimeProbeMetadata`,
   `VulnerabilitySuppressionMutationResult`) — the moved rows that
   name them, via `type X = impact.X` root aliases for the staying
@@ -155,9 +155,9 @@ to this list.
   `EvidenceFamilyVulnerabilityOSPackage`,
   `MissingEvidencePackageRegistryMetadata`,
   `ListSupplyChainImpactReadinessQueryCore`,
-  `SupplyChainImpactSourceStateWindow`,
-  `SupplyChainVersionResolutionCorroboration`,
-  `SupplyChainProviderAlertAnchor`) — exported before the move and
+  `SourceStateWindow`,
+  `VersionResolutionCorroboration`,
+  `ProviderAlertAnchor`) — exported before the move and
   kept exported; do not unexport without checking both suites.
 
 ## Where the tests live

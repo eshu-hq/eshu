@@ -12,7 +12,7 @@ import (
 func TestAddSupplyChainRuntimeContextFactWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
-	out := map[string]SupplyChainRuntimeContext{}
+	out := map[string]RuntimeContext{}
 	AddSupplyChainRuntimeContextFact(out, WorkloadIdentityFactKindQuery, "repository:r_217415d9", map[string]any{
 		"entity_keys": []any{"workload:supply-chain-demo-db", "workload:supply-chain-demo-db-worker"},
 	})
@@ -59,7 +59,7 @@ func TestAddSupplyChainRuntimeContextFactWorkloadIdentityNormalizesReducerShapes
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			tc.payload["repository_id"] = "repository:r_normalized"
-			out := map[string]SupplyChainRuntimeContext{}
+			out := map[string]RuntimeContext{}
 			AddSupplyChainRuntimeContextFact(
 				out,
 				WorkloadIdentityFactKindQuery,
@@ -77,7 +77,7 @@ func TestAddSupplyChainRuntimeContextFactWorkloadIdentityNormalizesReducerShapes
 func TestAddSupplyChainRuntimeContextFactWorkloadIdentityRejectsObjectEntityKeys(t *testing.T) {
 	t.Parallel()
 
-	out := map[string]SupplyChainRuntimeContext{}
+	out := map[string]RuntimeContext{}
 	AddSupplyChainRuntimeContextFact(
 		out,
 		WorkloadIdentityFactKindQuery,
@@ -101,7 +101,7 @@ func TestAddSupplyChainRuntimeContextFactServiceSkipsRejectedOutcome(t *testing.
 		outcome := outcome
 		t.Run(outcome, func(t *testing.T) {
 			t.Parallel()
-			out := map[string]SupplyChainRuntimeContext{}
+			out := map[string]RuntimeContext{}
 			AddSupplyChainRuntimeContextFact(out, serviceCatalogCorrelationFactKind, "scope", map[string]any{
 				"repository_id": "repository:r_217415d9",
 				"service_id":    "service:demo-db",
@@ -118,7 +118,7 @@ func TestAddSupplyChainRuntimeContextFactServiceSkipsProvenanceOnly(t *testing.T
 	t.Parallel()
 
 	for _, provenanceOnly := range []any{true, " TRUE "} {
-		out := map[string]SupplyChainRuntimeContext{}
+		out := map[string]RuntimeContext{}
 		AddSupplyChainRuntimeContextFact(out, serviceCatalogCorrelationFactKind, "scope", map[string]any{
 			"repository_id":   "repository:r_217415d9",
 			"service_id":      "service:demo-db",
@@ -134,7 +134,7 @@ func TestAddSupplyChainRuntimeContextFactServiceAcceptsFalseOrBlankProvenance(t 
 	t.Parallel()
 
 	for _, provenanceOnly := range []any{false, " false ", " ", nil} {
-		out := map[string]SupplyChainRuntimeContext{}
+		out := map[string]RuntimeContext{}
 		payload := map[string]any{
 			"repository_id": "repository:r_217415d9",
 			"service_id":    "service:demo-db",
@@ -162,7 +162,7 @@ func TestAddSupplyChainRuntimeContextFactServiceExactDerivedAndEmptyOutcome(t *t
 		outcome := outcome
 		t.Run(outcome, func(t *testing.T) {
 			t.Parallel()
-			out := map[string]SupplyChainRuntimeContext{}
+			out := map[string]RuntimeContext{}
 			AddSupplyChainRuntimeContextFact(out, serviceCatalogCorrelationFactKind, "scope", map[string]any{
 				"repository_id": "repository:r_217415d9",
 				"service_id":    "service:demo-db",
@@ -191,7 +191,7 @@ func TestAddSupplyChainRuntimeContextFactPlatformDeployments(t *testing.T) {
 	// deployment:-prefixed keys — replay/fallback intent paths can persist
 	// repo:, platform:, aws:, tfstate:, cloud:, or canonical fact-id strings
 	// into entity_keys, and those must never surface as deployment anchors.
-	out := map[string]SupplyChainRuntimeContext{}
+	out := map[string]RuntimeContext{}
 	AddSupplyChainRuntimeContextFact(out, PlatformMaterializationFactKindQuery, "git-repository-scope:repository:r_217415d9", map[string]any{
 		"entity_keys": []any{"deployment:deployable-config", "repo:some-repo", "platform:some-platform", "canonical:platform_materialization:abc"},
 	})
@@ -200,7 +200,7 @@ func TestAddSupplyChainRuntimeContextFactPlatformDeployments(t *testing.T) {
 		t.Errorf("DeploymentIDs = %v, want only [deployment:deployable-config] (non-deployment entity_keys filtered)", ctx.DeploymentIDs)
 	}
 
-	out = map[string]SupplyChainRuntimeContext{}
+	out = map[string]RuntimeContext{}
 	AddSupplyChainRuntimeContextFact(out, PlatformMaterializationFactKindQuery, "scope", map[string]any{
 		"repository_id":  "repository:r_217415d9",
 		"deployment_id":  "deployment:demo-db-prod",
@@ -221,7 +221,7 @@ func TestAddSupplyChainRuntimeContextFactPlatformDeployments(t *testing.T) {
 func TestAddSupplyChainRuntimeContextFactCICDEnvironment(t *testing.T) {
 	t.Parallel()
 
-	out := map[string]SupplyChainRuntimeContext{}
+	out := map[string]RuntimeContext{}
 	AddSupplyChainRuntimeContextFact(out, cicdRunCorrelationFactKind, "scope", map[string]any{
 		"repository_id": "repository:r_217415d9",
 		"environment":   "production",
@@ -371,7 +371,7 @@ func TestSupplyChainRuntimeContextRepositoryIDMatchesReducerScopePrecedence(t *t
 func TestAddSupplyChainRuntimeContextFactFallsBackToRawScope(t *testing.T) {
 	t.Parallel()
 
-	out := map[string]SupplyChainRuntimeContext{}
+	out := map[string]RuntimeContext{}
 	AddSupplyChainRuntimeContextFact(out, WorkloadIdentityFactKindQuery, "scan-target-xyz", map[string]any{
 		"entity_keys": []any{"workload:x"},
 	})
@@ -384,7 +384,7 @@ func TestAddSupplyChainRuntimeContextFactFallsBackToRawScope(t *testing.T) {
 func TestAddSupplyChainRuntimeContextFactIgnoresBlankScope(t *testing.T) {
 	t.Parallel()
 
-	out := map[string]SupplyChainRuntimeContext{}
+	out := map[string]RuntimeContext{}
 	AddSupplyChainRuntimeContextFact(out, WorkloadIdentityFactKindQuery, "", map[string]any{
 		"entity_keys": []any{"workload:x"},
 	})
@@ -399,7 +399,7 @@ func TestAddSupplyChainRuntimeContextFactWorkloadIDPayloadAndPrefixFilter(t *tes
 	// Mirror the reducer (supplyChainWorkloadIDsFromPayload): payload
 	// workload_id first, then entity_keys filtered to workload:-prefixed keys —
 	// a non-workload entity key must never become runtime context.
-	out := map[string]SupplyChainRuntimeContext{}
+	out := map[string]RuntimeContext{}
 	AddSupplyChainRuntimeContextFact(out, WorkloadIdentityFactKindQuery, "repository:r_217415d9", map[string]any{
 		"workload_id": "workload:primary",
 		"entity_keys": []any{"workload:secondary", "deployment:not-a-workload", "service:also-not"},
@@ -469,7 +469,7 @@ func TestListSupplyChainImpactRuntimeEnvironmentEvidenceFailsLoud(t *testing.T) 
 	store := PostgresSupplyChainImpactFindingStore{}
 	_, err := store.ListSupplyChainImpactRuntimeEnvironmentEvidence(
 		context.Background(),
-		[]SupplyChainRuntimeEnvironmentCandidate{{SubjectDigest: "sha256:subject", Environment: "prod"}},
+		[]RuntimeEnvironmentCandidate{{SubjectDigest: "sha256:subject", Environment: "prod"}},
 		nil,
 		nil,
 	)
@@ -477,7 +477,7 @@ func TestListSupplyChainImpactRuntimeEnvironmentEvidenceFailsLoud(t *testing.T) 
 		t.Fatalf("nil-DB error = %v, want fail-loud database error", err)
 	}
 
-	tooMany := make([]SupplyChainRuntimeEnvironmentCandidate, maxSupplyChainRuntimeEnvironmentCandidates+1)
+	tooMany := make([]RuntimeEnvironmentCandidate, maxSupplyChainRuntimeEnvironmentCandidates+1)
 	_, err = store.ListSupplyChainImpactRuntimeEnvironmentEvidence(context.Background(), tooMany, nil, nil)
 	if err == nil || !strings.Contains(err.Error(), "exceed limit 200") {
 		t.Fatalf("oversized candidate error = %v, want limit error", err)

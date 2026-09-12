@@ -58,7 +58,7 @@ func completeSupplyChainExplainResult() query.SupplyChainImpactExplanationResult
 			FindingID:       "finding-1",
 			AdvisoryID:      "GHSA-aaaa-bbbb-cccc",
 			PackageName:     "example.com/vuln",
-			ImpactStatus:    "affected",
+			Status:          "affected",
 			WorkloadIDs:     []string{"workload:checkout"},
 			ServiceIDs:      []string{"service:checkout"},
 			EvidenceFactIDs: []string{"fact-advisory"},

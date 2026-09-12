@@ -11,7 +11,7 @@ import (
 func TestNormalizedSupplyChainImpactMissingEvidenceLazyFastPath(t *testing.T) {
 	t.Parallel()
 
-	row := SupplyChainImpactFindingRow{
+	row := FindingRow{
 		MissingEvidence: []string{"advisory evidence missing", "runtime evidence missing"},
 	}
 	got := normalizedSupplyChainImpactMissingEvidence(&row)
@@ -28,19 +28,19 @@ func TestNormalizedSupplyChainImpactMissingEvidenceFallbacksPreserveContract(t *
 
 	cases := []struct {
 		name string
-		row  SupplyChainImpactFindingRow
+		row  FindingRow
 		want []string
 	}{
 		{
 			name: "trims sorts drops blanks and deduplicates",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				MissingEvidence: []string{" runtime evidence missing ", "", "advisory evidence missing", "advisory evidence missing"},
 			},
 			want: []string{"advisory evidence missing", "runtime evidence missing"},
 		},
 		{
 			name: "present catalog evidence and resolved anchor remove both stale reasons",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				ServiceIDs:   []string{"service:example-api"},
 				EvidencePath: []string{serviceCatalogCorrelationFactKind},
 				MissingEvidence: []string{
@@ -53,7 +53,7 @@ func TestNormalizedSupplyChainImpactMissingEvidenceFallbacksPreserveContract(t *
 		},
 		{
 			name: "present catalog evidence without an anchor rewrites and deduplicates",
-			row: SupplyChainImpactFindingRow{
+			row: FindingRow{
 				EvidencePath: []string{serviceCatalogCorrelationFactKind},
 				MissingEvidence: []string{
 					ServiceCatalogCorrelationMissingReason,
