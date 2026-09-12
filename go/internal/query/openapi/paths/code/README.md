@@ -16,14 +16,14 @@ Layout:
 Dead-code detection (`Investigation`, `Scan`, `CrossRepo`) lives in the
 `dead/` subpackage — see `dead/README.md`.
 
-`openapi/spec.go` concatenates all ten identifiers (seven here plus the
+`openapi/spec.go` concatenates all eleven identifiers (eight here plus the
 three in `dead/`), non-contiguously — `code.Owners` in particular is added
 far later in `openapi.Spec()`'s concatenation order, next to the CI/CD
 fragments, not alongside the other `code.*` entries.
 
 ## Move evidence
 
-These seven files moved here verbatim from the query root (Issue #6060
+These eight files moved here verbatim from the query root (Issue #6060
 lane C, #6642): `openapi_paths_code.go` -> `routes.go`,
 `openapi_paths_code_symbols.go` -> `symbols.go`,
 `openapi_paths_code_quality.go` -> `quality.go`,

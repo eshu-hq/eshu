@@ -12,8 +12,12 @@ unlike most `paths/<leaf>` packages, because the parent `code` package's own
 `routes.go` already lists the code family's top-level routes and these three
 are added alongside it, not folded into it.
 
-- This package MUST NOT import `openapi` or the parent `code` package —
-  either import would cycle, since `code` does not import this leaf either.
+- This package MUST NOT import `openapi` — the parent imports this leaf,
+  and the reverse would cycle. It also MUST NOT import the sibling `code`
+  package — that import would not cycle, since `code` never imports `dead`,
+  but banning it keeps the split one-directional (`openapi/spec.go` depends
+  on both; neither depends on the other) instead of inventing a coupling
+  the split doesn't need.
 - Each file holds exactly one exported constant: `investigation.go` ->
   `Investigation`, `scan.go` -> `Scan`, `cross_repo.go` -> `CrossRepo`. Do
   not add a second constant to any of them.

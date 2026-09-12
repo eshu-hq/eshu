@@ -9,7 +9,8 @@ static-analysis routes: `Routes`, `Symbols`, `Quality`, `Security`,
 `RouteToCaller`, `Graph`, `Flow`, and `Owners`. Dead-code detection
 (`Investigation`, `Scan`, `CrossRepo`) lives in the `dead/` subpackage —
 see `dead/AGENTS.md`. `openapi/spec.go` imports both this package and
-`dead` and concatenates all ten identifiers.
+`dead` and concatenates all eleven identifiers (eight here plus three in
+`dead/`).
 
 - This package MUST NOT import `openapi` — the parent imports this
   package, and the reverse would cycle. It also MUST NOT import `dead` —

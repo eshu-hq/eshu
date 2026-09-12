@@ -11,6 +11,6 @@
 //
 // Each file here holds exactly one exported string constant.
 // openapi/spec.go imports both this package and dead and concatenates all
-// ten identifiers between them. This package MUST NOT import the openapi
-// parent.
+// eleven identifiers (eight here plus three in dead) between them. This
+// package MUST NOT import the openapi parent.
 package code
