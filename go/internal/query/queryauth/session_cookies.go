@@ -211,7 +211,7 @@ func WriteBrowserSessionCookies(
 	secure := browserSessionCookieSecure(r, mode)
 	sessionName, csrfName := browserSessionCookieNames(secure)
 	expires := expiresAt.UTC()
-	// #nosec G124 -- HttpOnly and SameSite=Strict are constant; Secure is false only for a plain-HTTP loopback Host under ESHU_AUTH_COOKIE_SECURE=auto (browserSessionCookieSecure, #4964), which uses the non-__Host- name; every other request, and mode=always, sets Secure=true
+	// #nosec G124 -- HttpOnly and SameSite=Strict are set unconditionally below; Secure is browserSessionCookieSecure(r, mode) so plain-HTTP local development works, and the insecure variant carries its own cookie name so it cannot be mistaken for the HTTPS cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     sessionName,
 		Value:    sessionSecret,
@@ -257,7 +257,7 @@ func clearBrowserSessionCookies(w http.ResponseWriter) {
 		{BrowserSessionCookieNameInsecure, false},
 	}
 	for _, v := range sessionVariants {
-		// #nosec G124 -- expiry-only Set-Cookie (empty value, MaxAge=-1): the bare eshu_session variant must be Secure=false so a plain-HTTP loopback browser accepts the deletion; the __Host- variant keeps Secure=true; HttpOnly and SameSite=Strict are constant
+		// #nosec G124 -- expiry write (MaxAge -1, empty value) for both the secure and the insecure-named session cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     v.name,
 			Value:    "",
@@ -277,7 +277,7 @@ func clearBrowserSessionCookies(w http.ResponseWriter) {
 		{BrowserSessionCSRFCookieNameInsecure, false},
 	}
 	for _, v := range csrfVariants {
-		// #nosec G124 -- expiry-only Set-Cookie (empty value, MaxAge=-1) for both CSRF cookie names: the bare eshu_csrf variant must be Secure=false so a plain-HTTP loopback browser accepts the deletion, and the CSRF cookie is JS-readable by design
+		// #nosec G124 -- expiry write (MaxAge -1, empty value) for both the secure and the insecure-named CSRF cookie
 		http.SetCookie(w, &http.Cookie{
 			Name:     v.name,
 			Value:    "",
