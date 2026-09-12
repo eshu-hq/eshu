@@ -993,7 +993,7 @@ filtering is tracked as a follow-up.
   (`query.evidence_citation_packet`) on citation packet hydration. Hydrated
   citations carry the unified evidence contract (issue #3489): `confidence`, a
   byte-level citation (`byte_offset`/`byte_length`, `content_hash`,
-  `commit_sha`), and a typed `provenance` object. `evidenceCitation.toCanonical`
+  `commit_sha`), and a typed `provenance` object. `citationToCanonical`
   round-trips one citation into `truth.Evidence`.
   `telemetry.SpanQueryDocumentationFindings`
   (`query.documentation_findings`),

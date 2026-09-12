@@ -36,13 +36,6 @@ func attachSemanticSummary(result map[string]any) {
 	entitysemantics.AttachSemanticSummary(result)
 }
 
-// safeStr extracts a string from a map while filtering empty and nil
-// values. Its home is querycontract; this wrapper keeps the staying
-// visualization caller spelling the package-local name unchanged.
-func safeStr(m map[string]any, key string) string {
-	return querycontract.SafeStr(m, key)
-}
-
 // resolveEntityRequest is the request body for entity resolution. Its home
 // is entity/; this alias keeps the staying queryplan production-binding
 // tests spelling the package-local name unchanged. See #6060.

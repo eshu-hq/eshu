@@ -238,9 +238,9 @@ rows:
     capability: evidence_citation.packet
     api_routes: ["POST /api/v0/evidence/citations"]
     mcp_tools: ["build_evidence_citation_packet"]
-    source_fact: {ref: "go test ./internal/query -run '^(TestEvidenceCitationVisualizationDeterministicOrdering|TestEvidenceCitationVisualizationPrivacyInvariant)$' -count=1"}
+    source_fact: {ref: "go test ./internal/query/visualization -run '^(TestEvidenceCitationVisualizationDeterministicOrdering|TestEvidenceCitationVisualizationPrivacyInvariant)$' -count=1"}
     continuity:
-      projection: {ref: "go test ./internal/query -run '^(TestEvidenceCitationVisualizationTruncates|TestEvidenceCitationVisualizationUnsupported)$' -count=1"}
+      projection: {ref: "go test ./internal/query/visualization -run '^(TestEvidenceCitationVisualizationTruncates|TestEvidenceCitationVisualizationUnsupported)$' -count=1"}
       api: {ref: "go test ./internal/query -run '^(TestAuthMiddlewareWithScopedTokensAllowsEvidenceCitationRouteWithEmptyGrant)$' -count=1"}
       mcp: {ref: "go test ./internal/mcp -run '^(TestResolveRouteMapsEvidenceCitationPacketToBoundedBody|TestDispatchToolEvidenceCitationAllowsScopedCitationRoute)$' -count=1"}
     empty_states:
@@ -250,7 +250,7 @@ rows:
     negative_cases:
       - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestEvidenceHandlerCitationPacketRejectsEmptyHandles)$' -count=1"}
       - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestEvidenceHandlerCitationPacketReportsMissingAndTruncatedHandles)$' -count=1"}
-      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestEvidenceCitationVisualizationUnsupported)$' -count=1"}
-      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestEvidenceCitationVisualizationTruncates)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query/visualization -run '^(TestEvidenceCitationVisualizationUnsupported)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query/visualization -run '^(TestEvidenceCitationVisualizationTruncates)$' -count=1"}
       - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestEvidenceHandlerScopedCitationPacketFiltersOutOfScopeHandles)$' -count=1"}
     properties: *required_properties

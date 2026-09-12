@@ -29,7 +29,9 @@
 // NewVisualizationBuilder, AddNode, AddEdge, SetTruth, Empty, EdgeCount and
 // Finalize, the stable VisualizationNodeID and VisualizationEdgeID hashers, and
 // UnsupportedVisualizationPacket. EvidenceCitationHandle and its dedup key are
-// the citation handles those packets carry. Entity-name search covers
+// the citation handles those packets carry, and EvidenceCitationResponse,
+// EvidenceCitation, EvidenceCitationCoverage and EvidenceCitationProvenance
+// are the citation packet those handles resolve into. Entity-name search covers
 // EntityNameSearch, EntityNameMatch, EntityNameScope, the EntityNameSearcher
 // port, its limit constants, and the sentinel errors
 // ErrEntityNameSearchUnavailable and ErrGlobalGraphEntitySearchUnsupported.

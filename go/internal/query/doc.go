@@ -368,15 +368,18 @@
 //
 // VisualizationPacket is a sibling derived-view contract: a compact, bounded
 // subgraph of an existing service-story, evidence-citation, or incident-context
-// response. BuildServiceStoryVisualizationPacket,
-// BuildEvidenceCitationVisualizationPacket, and
-// BuildIncidentContextVisualizationPacket are pure transformations of data the
-// caller already received; they perform no graph access and surface no field
-// beyond the source response. Their FromMap adapters decode canonical
-// HTTP/MCP/CLI JSON maps into those same builders without adding a new data
-// source. Node and edge IDs are derived deterministically from the underlying
-// entity/handle identity (never iteration order), the subgraph is sorted by
-// stable ID and bounded by VisualizationMaxNodes and VisualizationMaxEdges with
+// response. The builders live in package visualization (#6642):
+// visualization.BuildServiceStoryPacket, BuildEvidenceCitationPacket, and
+// BuildIncidentContextPacket are pure transformations of data the caller
+// already received; they perform no graph access and surface no field beyond
+// the source response. Their FromMap adapters decode canonical HTTP/MCP/CLI
+// JSON maps into those same builders without adding a new data source; this
+// package forwards them as BuildServiceStoryVisualizationPacket,
+// BuildEvidenceCitationVisualizationPacketFromMap, and
+// BuildIncidentContextVisualizationPacketFromMap. Node and edge IDs are derived
+// deterministically from the underlying entity/handle identity (never
+// iteration order), the subgraph is sorted by stable ID and bounded by
+// visualization.MaxNodes and visualization.MaxEdges with
 // explicit truncation, the source TruthEnvelope is copied verbatim, and each
 // node may reference the evidence_citation handle that hydrates it. Unsupported
 // views return an explicit packet with recommended_next_calls rather than

@@ -350,9 +350,9 @@ func assertSameGraphQueryPacketShape(t *testing.T, first, second querycontract.V
 }
 
 // freshTruth builds the exact/authoritative/fresh truth envelope the packet
-// tests start from. Twin of the same-named helper in package query
-// (visualization_packet_test.go): a _test.go symbol is not importable across
-// the package boundary (#6060).
+// tests start from. The visualization family's copy became
+// querytestutil.FreshTruth when that family left root (#6642); this one stays
+// package-local so the graph-query packet tests keep their own fixture.
 func freshTruth() *querycontract.TruthEnvelope {
 	return &querycontract.TruthEnvelope{
 		Level:     querycontract.TruthLevelExact,

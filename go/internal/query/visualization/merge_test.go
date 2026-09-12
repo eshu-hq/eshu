@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package visualization
 
 import (
 	"fmt"
 	"reflect"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
 )
 
 func TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent(t *testing.T) {
@@ -59,13 +62,13 @@ func TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent(t *testing
 		}
 	}
 
-	forward := BuildServiceStoryVisualizationPacket(buildResponse(false), freshTruth())
-	reverse := BuildServiceStoryVisualizationPacket(buildResponse(true), freshTruth())
+	forward := BuildServiceStoryPacket(buildResponse(false), querytestutil.FreshTruth())
+	reverse := BuildServiceStoryPacket(buildResponse(true), querytestutil.FreshTruth())
 	if !reflect.DeepEqual(forward, reverse) {
 		t.Fatalf("canonical collapse depends on observation order:\nforward=%+v\nreverse=%+v", forward, reverse)
 	}
 
-	var canonical VisualizationNode
+	var canonical Node
 	for _, node := range forward.Nodes {
 		if node.CanonicalKey == "repository:r_argocd" {
 			canonical = node
@@ -81,7 +84,7 @@ func TestServiceStoryVisualizationCanonicalCollapseIsOrderIndependent(t *testing
 	if got, want := fmt.Sprint(canonical.ScopeKeys), "[scope:s_a scope:s_b]"; got != want {
 		t.Fatalf("canonical scope keys = %s, want %s", got, want)
 	}
-	if len(forward.Edges) != 1 || forward.Edges[0].TruthLabel != string(TruthLevelExact) {
+	if len(forward.Edges) != 1 || forward.Edges[0].TruthLabel != string(querycontract.TruthLevelExact) {
 		t.Fatalf("canonical edge truth = %+v, want one exact edge", forward.Edges)
 	}
 }
@@ -102,7 +105,7 @@ func TestServiceStoryVisualizationCarriesKnownSourceDroppedEdgeCount(t *testing.
 		},
 	}
 
-	packet := BuildServiceStoryVisualizationPacket(response, freshTruth())
+	packet := BuildServiceStoryPacket(response, querytestutil.FreshTruth())
 	if !packet.Truncation.Truncated {
 		t.Fatal("source-truncated story must remain truncated")
 	}

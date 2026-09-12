@@ -7,18 +7,14 @@ import (
 	"math"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-// evidenceCitationProvenance is the wire shape of the canonical truth.Provenance
-// carried on every citation. It records where the cited bytes came from so a
-// citation now carries provenance alongside confidence and the byte window,
-// closing the gap called out in issue #3489.
-type evidenceCitationProvenance struct {
-	Basis     string `json:"basis"`
-	Rationale string `json:"rationale,omitempty"`
-	Source    string `json:"source,omitempty"`
-}
+// evidenceCitationProvenance aliases querycontract.EvidenceCitationProvenance
+// (moved for #6642); it is the wire shape of the canonical truth.Provenance
+// carried on every citation (issue #3489).
+type evidenceCitationProvenance = querycontract.EvidenceCitationProvenance
 
 // excerptByteWindow locates the byte offset and length of an excerpt inside the
 // original content. boundedLineExcerpt drops a single trailing newline before
@@ -72,10 +68,13 @@ func citationProvenance(reason string) evidenceCitationProvenance {
 	}
 }
 
-// toCanonical projects one wire evidenceCitation into the unified truth.Evidence
-// record, proving the citation packet carries BOTH confidence and a byte-level
-// citation under one contract (issue #3489).
-func (c evidenceCitation) toCanonical() truth.Evidence {
+// citationToCanonical projects one wire evidenceCitation into the unified
+// truth.Evidence record, proving the citation packet carries BOTH confidence
+// and a byte-level citation under one contract (issue #3489). It is a free
+// function rather than a method because evidenceCitation is now an alias of
+// querycontract.EvidenceCitation (#6642) and an alias cannot carry methods
+// declared in another package.
+func citationToCanonical(c evidenceCitation) truth.Evidence {
 	basis := truth.ProvenanceBasis(c.Provenance.Basis)
 	if basis.Validate() != nil {
 		basis = truth.ProvenanceBasisSourceContent

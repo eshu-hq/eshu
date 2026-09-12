@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package visualization
 
-import "strings"
+import (
+	"strings"
 
-// BuildServiceStoryVisualizationPacket derives a bounded visualization packet
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+// BuildServiceStoryPacket derives a bounded visualization packet
 // from an existing service-story dossier response. The response map is the same
 // shape enrichServiceStoryDossierResponseWithContext produces: service_identity,
 // upstream_dependencies, downstream_consumers, and evidence_graph. The builder
@@ -17,22 +21,22 @@ import "strings"
 // not from iteration order, so the same response always yields the same IDs.
 // When the response carries no identity and no evidence graph, an explicit
 // unsupported packet is returned with recommended next calls.
-func BuildServiceStoryVisualizationPacket(response map[string]any, truth *TruthEnvelope) VisualizationPacket {
-	identity := mapValue(response, "service_identity")
-	evidenceGraph := mapValue(response, "evidence_graph")
-	upstream := mapSliceValue(response, "upstream_dependencies")
-	downstream := mapValue(response, "downstream_consumers")
+func BuildServiceStoryPacket(response map[string]any, truth *querycontract.TruthEnvelope) Packet {
+	identity := querycontract.MapValue(response, "service_identity")
+	evidenceGraph := querycontract.MapValue(response, "evidence_graph")
+	upstream := querycontract.MapSliceValue(response, "upstream_dependencies")
+	downstream := querycontract.MapValue(response, "downstream_consumers")
 
 	if len(identity) == 0 && len(evidenceGraph) == 0 && len(upstream) == 0 && len(downstream) == 0 {
 		return unsupportedVisualizationPacket(
-			VisualizationViewServiceStory,
+			ViewServiceStory,
 			truth,
 			[]string{"service story response carried no identity, evidence graph, or dependency topology to visualize"},
 			serviceStoryVisualizationNextCalls(),
 		)
 	}
 
-	builder := newVisualizationBuilder(VisualizationViewServiceStory, serviceStoryTitle(identity))
+	builder := newVisualizationBuilder(ViewServiceStory, serviceStoryTitle(identity))
 	builder.SetTruth(truth)
 
 	serviceNodeID := addServiceStoryServiceNode(builder, identity)
@@ -41,22 +45,22 @@ func BuildServiceStoryVisualizationPacket(response map[string]any, truth *TruthE
 	addServiceStoryDownstream(builder, downstream, serviceNodeID)
 
 	packet := builder.Finalize()
-	if BoolVal(evidenceGraph, "truncated") || serviceStoryDownstreamTruncated(downstream) {
+	if querycontract.BoolVal(evidenceGraph, "truncated") || serviceStoryDownstreamTruncated(downstream) {
 		packet.Truncation.Truncated = true
-		if sourceEdgeCount := IntVal(evidenceGraph, "edge_count"); sourceEdgeCount > len(mapSliceValue(evidenceGraph, "edges")) {
-			packet.Truncation.DroppedEdgeCount += sourceEdgeCount - len(mapSliceValue(evidenceGraph, "edges"))
+		if sourceEdgeCount := querycontract.IntVal(evidenceGraph, "edge_count"); sourceEdgeCount > len(querycontract.MapSliceValue(evidenceGraph, "edges")) {
+			packet.Truncation.DroppedEdgeCount += sourceEdgeCount - len(querycontract.MapSliceValue(evidenceGraph, "edges"))
 		}
-		packet.Limitations = appendReason(packet.Limitations,
+		packet.Limitations = querycontract.AppendReason(packet.Limitations,
 			"source story response was already truncated; visualized subgraph is a bounded subset")
 	}
 	return packet
 }
 
 func serviceStoryTitle(identity map[string]any) string {
-	if name := strings.TrimSpace(safeStr(identity, "service_name")); name != "" {
+	if name := strings.TrimSpace(querycontract.SafeStr(identity, "service_name")); name != "" {
 		return name
 	}
-	return strings.TrimSpace(safeStr(identity, "service_id"))
+	return strings.TrimSpace(querycontract.SafeStr(identity, "service_id"))
 }
 
 // addServiceStoryServiceNode adds the central service node and returns its
@@ -64,23 +68,23 @@ func serviceStoryTitle(identity map[string]any) string {
 // so it is stable across responses. An empty identity yields no node and an
 // empty anchor ID, which the dependency builders treat as "no anchor".
 func addServiceStoryServiceNode(builder *visualizationBuilder, identity map[string]any) string {
-	serviceID := strings.TrimSpace(safeStr(identity, "service_id"))
-	serviceName := strings.TrimSpace(safeStr(identity, "service_name"))
-	repoID := strings.TrimSpace(safeStr(identity, "repo_id"))
-	anchor := firstNonEmptyString(serviceID, serviceName)
+	serviceID := strings.TrimSpace(querycontract.SafeStr(identity, "service_id"))
+	serviceName := strings.TrimSpace(querycontract.SafeStr(identity, "service_name"))
+	repoID := strings.TrimSpace(querycontract.SafeStr(identity, "repo_id"))
+	anchor := querycontract.FirstNonEmptyString(serviceID, serviceName)
 	if anchor == "" {
 		return ""
 	}
 	nodeID := visualizationNodeID("service", anchor)
-	node := VisualizationNode{
+	node := Node{
 		ID:       nodeID,
 		Type:     "service",
-		Label:    firstNonEmptyString(serviceName, serviceID),
+		Label:    querycontract.FirstNonEmptyString(serviceName, serviceID),
 		Category: "service",
 		Role:     "workload",
 	}
 	if repoID != "" {
-		node.EvidenceHandle = &evidenceCitationHandle{Kind: "entity", RepoID: repoID, EntityID: serviceID}
+		node.EvidenceHandle = &querycontract.EvidenceCitationHandle{Kind: "entity", RepoID: repoID, EntityID: serviceID}
 	}
 	builder.AddNode(node)
 	return nodeID
@@ -97,15 +101,15 @@ func addServiceStoryEvidenceGraph(
 	serviceNodeID string,
 ) {
 	var nodeIDOverrides map[string]string
-	serviceID := strings.TrimSpace(safeStr(identity, "service_id"))
-	serviceRepoID := strings.TrimSpace(safeStr(identity, "repo_id"))
-	for _, node := range mapSliceValue(evidenceGraph, "nodes") {
-		rawID := strings.TrimSpace(StringVal(node, "id"))
+	serviceID := strings.TrimSpace(querycontract.SafeStr(identity, "service_id"))
+	serviceRepoID := strings.TrimSpace(querycontract.SafeStr(identity, "repo_id"))
+	for _, node := range querycontract.MapSliceValue(evidenceGraph, "nodes") {
+		rawID := strings.TrimSpace(querycontract.StringVal(node, "id"))
 		if rawID == "" {
 			continue
 		}
-		kind := firstNonEmptyString(StringVal(node, "kind"), "repository")
-		canonicalKey := strings.TrimSpace(StringVal(node, "canonical_key"))
+		kind := querycontract.FirstNonEmptyString(querycontract.StringVal(node, "kind"), "repository")
+		canonicalKey := strings.TrimSpace(querycontract.StringVal(node, "canonical_key"))
 		nodeID := serviceStoryVisualizationNodeID(kind, rawID, canonicalKey)
 		if serviceNodeID != "" && kind == "service" && rawID == serviceID {
 			nodeID = serviceNodeID
@@ -121,21 +125,21 @@ func addServiceStoryEvidenceGraph(
 			}
 			nodeIDOverrides[rawID] = nodeID
 		}
-		handle := serviceStoryEvidenceHandle(kind, rawID, StringVal(node, "repo_id"))
-		builder.AddNode(VisualizationNode{
+		handle := serviceStoryEvidenceHandle(kind, rawID, querycontract.StringVal(node, "repo_id"))
+		builder.AddNode(Node{
 			ID:             nodeID,
 			Type:           kind,
-			Label:          firstNonEmptyString(StringVal(node, "label"), rawID),
-			Category:       StringVal(node, "category"),
-			Role:           StringVal(node, "role"),
+			Label:          querycontract.FirstNonEmptyString(querycontract.StringVal(node, "label"), rawID),
+			Category:       querycontract.StringVal(node, "category"),
+			Role:           querycontract.StringVal(node, "role"),
 			CanonicalKey:   canonicalKey,
-			ScopeKey:       StringVal(node, "scope_key"),
+			ScopeKey:       querycontract.StringVal(node, "scope_key"),
 			EvidenceHandle: handle,
 		})
 	}
-	for _, edge := range mapSliceValue(evidenceGraph, "edges") {
-		source := strings.TrimSpace(StringVal(edge, "source"))
-		target := strings.TrimSpace(StringVal(edge, "target"))
+	for _, edge := range querycontract.MapSliceValue(evidenceGraph, "edges") {
+		source := strings.TrimSpace(querycontract.StringVal(edge, "source"))
+		target := strings.TrimSpace(querycontract.StringVal(edge, "target"))
 		if source == "" || target == "" {
 			continue
 		}
@@ -153,10 +157,10 @@ func addServiceStoryEvidenceGraph(
 		if serviceNodeID != "" && source == serviceID {
 			sourceNodeID = serviceNodeID
 		}
-		builder.AddEdge(VisualizationEdge{
+		builder.AddEdge(Edge{
 			Source:       sourceNodeID,
 			Target:       targetNodeID,
-			Relationship: firstNonEmptyString(StringVal(edge, "relationship_type"), "RELATED"),
+			Relationship: querycontract.FirstNonEmptyString(querycontract.StringVal(edge, "relationship_type"), "RELATED"),
 			TruthLabel:   serviceStoryConfidenceLabel(edge),
 		})
 	}
@@ -168,31 +172,31 @@ func addServiceStoryEvidenceGraph(
 // renders.
 func addServiceStoryUpstreamEdges(builder *visualizationBuilder, upstream []map[string]any, serviceNodeID string) {
 	for _, row := range upstream {
-		sourceID := strings.TrimSpace(StringVal(row, "source_repo_id"))
+		sourceID := strings.TrimSpace(querycontract.StringVal(row, "source_repo_id"))
 		if sourceID == "" {
 			continue
 		}
-		canonicalKey := strings.TrimSpace(StringVal(row, "source_repo_canonical_id"))
+		canonicalKey := strings.TrimSpace(querycontract.StringVal(row, "source_repo_canonical_id"))
 		sourceNodeID := serviceStoryVisualizationNodeID("repository", sourceID, canonicalKey)
 		handle := serviceStoryRepoHandle("repository", sourceID)
-		builder.AddNode(VisualizationNode{
+		builder.AddNode(Node{
 			ID:             sourceNodeID,
 			Type:           "repository",
-			Label:          firstNonEmptyString(StringVal(row, "source"), sourceID),
+			Label:          querycontract.FirstNonEmptyString(querycontract.StringVal(row, "source"), sourceID),
 			Category:       "deployment",
 			Role:           "deployment_configuration",
 			CanonicalKey:   canonicalKey,
-			ScopeKey:       StringVal(row, "source_repo_scope_key"),
+			ScopeKey:       querycontract.StringVal(row, "source_repo_scope_key"),
 			EvidenceHandle: handle,
 		})
 		targetNodeID := serviceNodeID
 		if targetNodeID == "" {
 			continue
 		}
-		builder.AddEdge(VisualizationEdge{
+		builder.AddEdge(Edge{
 			Source:       sourceNodeID,
 			Target:       targetNodeID,
-			Relationship: firstNonEmptyString(StringVal(row, "relationship_type"), "DEPENDS_ON"),
+			Relationship: querycontract.FirstNonEmptyString(querycontract.StringVal(row, "relationship_type"), "DEPENDS_ON"),
 			TruthLabel:   serviceStoryConfidenceLabel(row),
 		})
 	}
@@ -205,23 +209,23 @@ func addServiceStoryDownstream(builder *visualizationBuilder, downstream map[str
 	if serviceNodeID == "" {
 		return
 	}
-	rows := append([]map[string]any{}, mapSliceValue(downstream, "graph_dependents")...)
-	rows = append(rows, mapSliceValue(downstream, "content_consumers")...)
+	rows := append([]map[string]any{}, querycontract.MapSliceValue(downstream, "graph_dependents")...)
+	rows = append(rows, querycontract.MapSliceValue(downstream, "content_consumers")...)
 	for _, row := range rows {
-		repoID := strings.TrimSpace(StringVal(row, "repo_id"))
+		repoID := strings.TrimSpace(querycontract.StringVal(row, "repo_id"))
 		if repoID == "" {
 			continue
 		}
 		nodeID := visualizationNodeID("repository", repoID)
-		builder.AddNode(VisualizationNode{
+		builder.AddNode(Node{
 			ID:             nodeID,
 			Type:           "repository",
-			Label:          firstNonEmptyString(StringVal(row, "repository"), repoID),
+			Label:          querycontract.FirstNonEmptyString(querycontract.StringVal(row, "repository"), repoID),
 			Category:       "downstream",
 			Role:           "downstream_consumer",
 			EvidenceHandle: serviceStoryRepoHandle("repository", repoID),
 		})
-		builder.AddEdge(VisualizationEdge{
+		builder.AddEdge(Edge{
 			Source:       serviceNodeID,
 			Target:       nodeID,
 			Relationship: "CONSUMED_BY",
@@ -237,7 +241,7 @@ func serviceStoryVisualizationNodeID(kind, rawID, canonicalKey string) string {
 	return visualizationNodeID(kind, identity)
 }
 
-func serviceStoryEvidenceHandle(kind, id, repoID string) *evidenceCitationHandle {
+func serviceStoryEvidenceHandle(kind, id, repoID string) *querycontract.EvidenceCitationHandle {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil
@@ -245,7 +249,7 @@ func serviceStoryEvidenceHandle(kind, id, repoID string) *evidenceCitationHandle
 	if kind == "repository" || kind == "service" {
 		return serviceStoryRepoHandle(kind, id)
 	}
-	return &evidenceCitationHandle{
+	return &querycontract.EvidenceCitationHandle{
 		Kind:           "entity",
 		RepoID:         strings.TrimSpace(repoID),
 		EntityID:       id,
@@ -254,34 +258,34 @@ func serviceStoryEvidenceHandle(kind, id, repoID string) *evidenceCitationHandle
 }
 
 func serviceStoryDownstreamTruncated(downstream map[string]any) bool {
-	return BoolVal(downstream, "truncated")
+	return querycontract.BoolVal(downstream, "truncated")
 }
 
 // serviceStoryRepoHandle returns an evidence_citation handle for a repository or
 // service node, so a rendered node maps back to the citation handle shape. It is
 // derived only from the node id already present in the response.
-func serviceStoryRepoHandle(kind, id string) *evidenceCitationHandle {
+func serviceStoryRepoHandle(kind, id string) *querycontract.EvidenceCitationHandle {
 	id = strings.TrimSpace(id)
 	if id == "" {
 		return nil
 	}
-	return &evidenceCitationHandle{Kind: "entity", RepoID: id, EntityID: id, EvidenceFamily: kind}
+	return &querycontract.EvidenceCitationHandle{Kind: "entity", RepoID: id, EntityID: id, EvidenceFamily: kind}
 }
 
 // serviceStoryConfidenceLabel folds a relationship confidence into a truth-style
 // label, reusing the answer-packet truth vocabulary. It never invents truth
 // beyond the confidence the source row already carried.
 func serviceStoryConfidenceLabel(row map[string]any) string {
-	confidence := relationshipFloatVal(row, "confidence")
+	confidence := querycontract.FloatVal(row, "confidence")
 	switch {
 	case confidence <= 0:
 		return ""
 	case confidence >= 0.85:
-		return string(TruthLevelExact)
+		return string(querycontract.TruthLevelExact)
 	case confidence >= 0.5:
-		return string(TruthLevelDerived)
+		return string(querycontract.TruthLevelDerived)
 	default:
-		return string(TruthLevelFallback)
+		return string(querycontract.TruthLevelFallback)
 	}
 }
 

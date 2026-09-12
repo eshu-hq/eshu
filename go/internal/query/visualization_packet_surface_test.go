@@ -17,10 +17,10 @@ func TestVisualizationDeriveRouteBuildsServiceStoryPacket(t *testing.T) {
 	t.Parallel()
 
 	handler := mountVisualizationHandler()
-	truth := freshTruth()
+	truth := querytestutil.FreshTruth()
 	env := visualizationHTTPEnvelope(t, handler, map[string]any{
 		"view":            string(VisualizationViewServiceStory),
-		"source_response": storyResponseWithUpstream([]string{"r2", "r1"}),
+		"source_response": querytestutil.StoryResponseWithUpstream([]string{"r2", "r1"}),
 		"source_truth":    truth,
 	})
 	packet := visualizationEnvelopePacket(t, env)
@@ -71,12 +71,12 @@ func TestVisualizationDeriveRouteSupportsEvidenceCitationAndIncidentContext(t *t
 		{
 			name:   "evidence citation",
 			view:   VisualizationViewEvidenceCitation,
-			source: citationResponse([]string{"entity-2", "entity-1"}),
+			source: querytestutil.CitationResponse([]string{"entity-2", "entity-1"}),
 		},
 		{
 			name:   "incident context",
 			view:   VisualizationViewIncidentContext,
-			source: incidentResponse([]IncidentEvidenceSlot{IncidentSlotIncident, IncidentSlotService}),
+			source: querytestutil.IncidentResponse([]IncidentEvidenceSlot{IncidentSlotIncident, IncidentSlotService}),
 		},
 	}
 	for _, tc := range testCases {
@@ -84,7 +84,7 @@ func TestVisualizationDeriveRouteSupportsEvidenceCitationAndIncidentContext(t *t
 			env := visualizationHTTPEnvelope(t, handler, map[string]any{
 				"view":            string(tc.view),
 				"source_response": tc.source,
-				"source_truth":    freshTruth(),
+				"source_truth":    querytestutil.FreshTruth(),
 			})
 			packet := visualizationEnvelopePacket(t, env)
 			if packet.View != tc.view {
@@ -106,7 +106,7 @@ func TestVisualizationDeriveRouteReturnsUnsupportedPacketForEmptyKnownView(t *te
 	env := visualizationHTTPEnvelope(t, mountVisualizationHandler(), map[string]any{
 		"view":            string(VisualizationViewServiceStory),
 		"source_response": map[string]any{},
-		"source_truth":    freshTruth(),
+		"source_truth":    querytestutil.FreshTruth(),
 	})
 	packet := visualizationEnvelopePacket(t, env)
 
