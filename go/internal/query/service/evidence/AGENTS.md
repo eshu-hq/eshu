@@ -21,11 +21,11 @@ holds every exported symbol.
 - `ExtractDocsRoutes`, `LooksLikeDocsRoute` — sorted, de-duplicated
   docs-like route references quoted in content. Callers:
   `service/docs_routes.go` (`extractDocsRoutes` wrapper),
-  `repository/repository_narrative_enrichment.go`.
+  `repository/narrative_enrichment.go`.
 - `ExtractAPISpecEvidence`, `ExtractAPISpecEvidenceWithoutRefs` — summarize
   one candidate API spec file, with or without `$ref` resolution. Callers:
   `service/query_evidence.go` (`extractAPISpecEvidence` wrapper),
-  `repository/repository_narrative_enrichment.go`.
+  `repository/narrative_enrichment.go`.
 
 ## Invariants
 
