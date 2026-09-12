@@ -1,0 +1,60 @@
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_f8002a6fd04d9e 1073
+go/internal/coordinator/sbom/attestation/AGENTS.md
+  s_4a0f86aa680964::t_a363401cf29f1f 1,5-13,34-35
+go/internal/coordinator/sbom/attestation/planner_test.go
+  s_4a0f86aa680964::t_cf039f70c014ea 4
+go/internal/coordinator/README.md
+  s_4a0f86aa680964::t_376126b01ae6dd 19,144,228
+go/internal/coordinator/sbom/AGENTS.md
+  s_4a0f86aa680964::t_a363401cf29f1f 1-28
+go/internal/coordinator/service_sbom_attestation_test.go
+  s_4a0f86aa680964::t_a363401cf29f1f 11,17,22
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_376126b01ae6dd 36-37
+go/internal/coordinator/sbom/attestation/README.md
+  s_4a0f86aa680964::t_a363401cf29f1f 1,5,45-47,52
+go/cmd/workflow-coordinator/doc.go
+  s_4a0f86aa680964::t_376126b01ae6dd 14
+go/internal/coordinator/sbom_attestation_service.go
+  s_4a0f86aa680964::t_a363401cf29f1f 4,12,20,38
+docs/internal/evidence/6627-coordinator-sbom-attestation-package-move.md
+  s_4a0f86aa680964::t_30bcc8fe3a2c23 5
+  s_4a0f86aa680964::t_437d48e6c324b7 1-4,6-129
+go/internal/coordinator/sbom/attestation/planner.go
+  s_4a0f86aa680964::t_a363401cf29f1f 4
+go/internal/coordinator/doc.go
+  s_4a0f86aa680964::t_376126b01ae6dd 33
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_376126b01ae6dd 709
+go/internal/coordinator/sbom/README.md
+  s_4a0f86aa680964::t_a363401cf29f1f 1-44
+go/internal/coordinator/sbom/attestation/planner_contract_test.go
+  s_4a0f86aa680964::t_cf039f70c014ea 4
+go/cmd/workflow-coordinator/main.go
+  s_4a0f86aa680964::t_a363401cf29f1f 35,190
+go/internal/coordinator/sbom/attestation/doc.go
+  s_4a0f86aa680964::t_a363401cf29f1f 4,11
+docs/internal/design/restructure-research.md
+  s_4a0f86aa680964::t_6be24602e06acb 146
+go/cmd/workflow-coordinator/README.md
+  s_4a0f86aa680964::t_376126b01ae6dd 63,154
+go/internal/coordinator/sbom/doc.go
+  s_4a0f86aa680964::t_a363401cf29f1f 1-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16add333c9439e129ca1ae197250c003728d559d",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
