@@ -74,8 +74,8 @@ const (
 	// Statement.SyntaxError, which a schema conflict never carries (#6162).
 	//
 	// PROVENANCE for this spelling and its sibling below, so both literals can
-	// be checked against the backend without a live run. At NornicDB v1.1.11 --
-	// the tag deploy/helm/eshu/values.yaml pins -- BadgerTransaction.Commit
+	// be checked against the backend without a live run. At the NornicDB v1.1.11
+	// revision where this spelling was established, BadgerTransaction.Commit
 	// (pkg/storage/badger_transaction.go:1610) makes two store calls back to
 	// back and wraps each with its own operation prefix:
 	//
