@@ -103,6 +103,8 @@ func uniqueSortedReadinessStrings(values []string) []string {
 	return unique
 }
 
+// ReadinessMissingContains reports whether target is present, by exact match,
+// in the readiness "missing evidence" list values.
 func ReadinessMissingContains(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {

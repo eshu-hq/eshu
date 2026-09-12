@@ -34,6 +34,8 @@ func ExplanationScannerFilters() scannerFilterSet {
 	}
 }
 
+// SecurityAlertScannerFilters is the set of query-param filter names the
+// security-alert route accepts, used to reject an unsupported filter.
 func SecurityAlertScannerFilters() scannerFilterSet {
 	return scannerFilterSet{
 		"cve_id": {}, "ghsa_id": {}, "package_id": {}, "provider": {},
@@ -41,6 +43,11 @@ func SecurityAlertScannerFilters() scannerFilterSet {
 	}
 }
 
+// RejectUnsupportedVulnerabilityScannerFilters checks every recognized
+// vulnerability-scanner query parameter present on r against allowed. If any
+// present parameter is not in allowed, it writes a 400 naming the
+// unsupported filter and returns false; otherwise it returns true and writes
+// nothing.
 func RejectUnsupportedVulnerabilityScannerFilters(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -67,6 +74,8 @@ func RejectUnsupportedVulnerabilityScannerFilters(
 	return true
 }
 
+// FirstNonEmptyQueryParam returns the value of the first key in keys that has
+// a non-empty query parameter on r, or "" when none do.
 func FirstNonEmptyQueryParam(r *http.Request, keys ...string) string {
 	for _, key := range keys {
 		if value := querycontract.QueryParam(r, key); value != "" {
@@ -76,6 +85,10 @@ func FirstNonEmptyQueryParam(r *http.Request, keys ...string) string {
 	return ""
 }
 
+// ParseScannerSeverity parses the optional severity query parameter from r,
+// lower-cased and trimmed. It returns ("", true) when the caller omits the
+// parameter, (severity, true) for one of the closed severity values, and
+// writes a 400 response and returns (_, false) for any other value.
 func ParseScannerSeverity(w http.ResponseWriter, r *http.Request) (string, bool) {
 	severity := strings.ToLower(strings.TrimSpace(querycontract.QueryParam(r, "severity")))
 	if severity == "" {

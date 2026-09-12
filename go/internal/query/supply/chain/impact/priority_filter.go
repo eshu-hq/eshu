@@ -37,6 +37,9 @@ func PriorityFilter(r *http.Request) (string, int, string, error) {
 	return bucket, minScore, sort, nil
 }
 
+// OptionalMinPriorityScore parses the optional min_priority_score query
+// parameter from r, returning 0 (no floor) when the caller omits it, and an
+// error when the raw value is not an integer in [0, 100].
 func OptionalMinPriorityScore(r *http.Request) (int, error) {
 	raw := querycontract.QueryParam(r, "min_priority_score")
 	if raw == "" {
@@ -49,6 +52,9 @@ func OptionalMinPriorityScore(r *http.Request) (int, error) {
 	return score, nil
 }
 
+// ValidPriorityBucket reports whether bucket is one of the closed
+// priority-bucket enumeration values (critical, high, medium, low,
+// informational).
 func ValidPriorityBucket(bucket string) bool {
 	switch bucket {
 	case "critical", "high", "medium", "low", "informational":
@@ -58,6 +64,8 @@ func ValidPriorityBucket(bucket string) bool {
 	}
 }
 
+// NormalizeSort maps a caller-supplied sort value to its canonical query
+// constant, defaulting an empty or unrecognized value to the finding-id sort.
 func NormalizeSort(sort string) string {
 	switch strings.TrimSpace(sort) {
 	case "", supplyChainImpactSortFindingID:

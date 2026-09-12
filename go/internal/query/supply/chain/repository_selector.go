@@ -189,6 +189,9 @@ func securityAlertRepositoryNamesForCatalog(
 	return out
 }
 
+// SecurityAlertRepositoryScopeIDs merges repositoryID and scopeIDs into one
+// deduplicated, sorted, trimmed slice for the security-alert route's
+// repository scope filter.
 func SecurityAlertRepositoryScopeIDs(repositoryID string, scopeIDs []string) []string {
 	out := make([]string, 0, len(scopeIDs)+1)
 	seen := map[string]struct{}{}
@@ -211,6 +214,8 @@ func SecurityAlertRepositoryScopeIDs(repositoryID string, scopeIDs []string) []s
 	return out
 }
 
+// UniqueSortedNonEmpty trims every entry in values, drops empty and duplicate
+// results, and returns the remainder sorted.
 func UniqueSortedNonEmpty(values []string) []string {
 	out := make([]string, 0, len(values))
 	seen := map[string]struct{}{}

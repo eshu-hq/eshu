@@ -9,6 +9,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
+// ServiceCatalogCorrelationMissingReason and ServiceCatalogAnchorMissingReason
+// are the two reasons BuildFindingResult can record for a missing
+// service-catalog evidence entry: no correlation evidence was found at all,
+// versus evidence exists but does not resolve to a known service/workload
+// catalog anchor.
 const (
 	ServiceCatalogCorrelationMissingReason = "service catalog correlation evidence missing"
 	ServiceCatalogAnchorMissingReason      = "service/workload catalog anchor missing"
@@ -162,6 +167,9 @@ type ReachabilityResult struct {
 	MissingEvidence  []string `json:"missing_evidence,omitempty"`
 }
 
+// BuildFindingResult converts row into its API response shape, deriving the
+// missing-evidence list, deployment-truth tier, and version-resolution tier
+// and corroboration from the row's existing fields.
 func BuildFindingResult(row *FindingRow) FindingResult {
 	result := FindingResult(*row)
 	result.MissingEvidence = normalizedSupplyChainImpactMissingEvidence(row)

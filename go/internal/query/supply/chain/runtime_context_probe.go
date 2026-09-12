@@ -52,6 +52,10 @@ type supplyChainImpactRuntimeEnvironmentReader interface {
 	) (map[string]map[string]string, error)
 }
 
+// MaxRuntimeEnvironmentCandidates bounds the total number of runtime
+// environment candidates PlanRuntimeEnvironmentCandidates plans for evidence
+// lookup across all rows in one call, sharing the findings page-size limit so
+// the bound stays inside the same proven join shape.
 const MaxRuntimeEnvironmentCandidates = ImpactFindingMaxLimit
 
 // RuntimeEnvironmentPlan pairs one finding's runtime-environment candidates
@@ -187,6 +191,13 @@ func supplyChainRuntimeEnvironmentEvidenceForPlan(
 	return out
 }
 
+// PlanRuntimeEnvironmentCandidates builds, for each row, the set of
+// subject-digest/environment candidates worth probing for runtime evidence
+// (row-declared environments plus its repository's resolved runtime
+// environments), round-robins the shared MaxRuntimeEnvironmentCandidates
+// budget across rows so no single row starves the rest, and returns both the
+// deduplicated, sorted candidate list to look up and the per-row plans
+// (including truncation metadata) that pair back to it.
 func PlanRuntimeEnvironmentCandidates(
 	rows []impact.FindingRow,
 	byRepo map[string]impact.RuntimeContext,

@@ -3,10 +3,19 @@
 
 package impact
 
+// ListReadinessQuery is the full supply-chain readiness query: the family CTEs
+// in ListReadinessQueryCore, followed by the unsupported-target and
+// source-snapshot CTEs, followed by the final SELECT that assembles one row
+// per evidence family for the requested target.
 const ListReadinessQuery = ListReadinessQueryCore +
 	listSupplyChainImpactReadinessQueryUnsupportedAndSource +
 	listSupplyChainImpactReadinessQuerySelect
 
+// ListReadinessQueryCore is the first half of ListReadinessQuery: one CTE per
+// evidence family (vulnerability advisory/exploitability, package
+// consumption/registry, SBOM component/attestation, container image identity,
+// vulnerability source snapshot) scoped to the caller's target — CVE ID,
+// package ID, repository ID, image digest, or image ref, in any combination.
 const ListReadinessQueryCore = `
 WITH advisory_active AS (
     SELECT fact.payload, fact.observed_at

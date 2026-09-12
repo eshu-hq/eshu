@@ -208,6 +208,9 @@ func (h *Handler) sbomAttestationAttachmentAggregateFilterFromRequest(
 	}, true
 }
 
+// SBOMAttestationAttachmentAggregateScope renders filter's non-empty fields as
+// a string-keyed scope map for telemetry and response metadata, keyed by the
+// same field names the route accepts as query parameters.
 func SBOMAttestationAttachmentAggregateScope(filter SBOMAttestationAttachmentAggregateFilter) map[string]string {
 	out := map[string]string{}
 	if filter.SubjectDigest != "" {

@@ -89,6 +89,9 @@ WHERE fact.fact_kind = ANY($1::text[])
       )
   AND runtime_repository.repository_id = ANY($2::text[])`
 
+// SelectRuntimeContextQuery is selectSupplyChainImpactRuntimeContextQueryTemplate
+// rendered with the repository-decoder join it needs; see that constant's
+// doc comment for the query's precedence, scoping, and performance contract.
 var SelectRuntimeContextQuery = fmt.Sprintf(
 	selectSupplyChainImpactRuntimeContextQueryTemplate,
 	supplyChainRuntimeRepositoryDecoderJoin(

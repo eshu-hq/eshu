@@ -367,6 +367,9 @@ func (f ExplanationFilter) ReadinessScope() TargetScope {
 	}
 }
 
+// FindingReadinessScope builds the readiness target scope for row, starting
+// from fallback's ReadinessScope and filling in any field fallback left empty
+// from row's own anchors.
 func FindingReadinessScope(row FindingRow, fallback ExplanationFilter) TargetScope {
 	scope := fallback.ReadinessScope()
 	if scope.CVEID == "" {

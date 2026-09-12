@@ -200,12 +200,17 @@ func (s PostgresFindingStore) loadSupplyChainImpactEvidenceFacts(
 	return out, nil
 }
 
+// ExplainFindingByPublicIDQuery explains one finding anchored on its exact
+// public finding_id, never falling back to a canonical-key candidate match.
 var ExplainFindingByPublicIDQuery = buildExplainSupplyChainImpactFindingQuery(
 	`
     AND fact.payload->>'finding_id' = $2`,
 	"",
 )
 
+// ExplainFindingQuery explains one finding from a caller-supplied identifier
+// that may be a fact id, finding id, or canonical key, falling back to a
+// canonical-key candidate match when $2 is empty or does not match directly.
 var ExplainFindingQuery = buildExplainSupplyChainImpactFindingQuery(
 	"",
 	`
@@ -329,6 +334,9 @@ WHERE fact.fact_id = ANY($1::text[])
 ORDER BY fact.fact_id ASC
 `
 
+// TrimExplanationFilter trims whitespace from every scope-anchor field on
+// filter, so a caller-supplied value with leading or trailing space does not
+// silently miss an exact-match anchor.
 func TrimExplanationFilter(
 	filter ExplanationFilter,
 ) ExplanationFilter {
