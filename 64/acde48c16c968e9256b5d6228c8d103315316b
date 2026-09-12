@@ -1,0 +1,20 @@
+docs/internal/evidence/6627-coordinator-component-activation-package-move.md
+  s_4a0f86aa680964::t_9eb752825012fb 5
+  s_4a0f86aa680964::t_13dce982998df2 22-24,101-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "64acde48c16c968e9256b5d6228c8d103315316b",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    }
+  }
+}
