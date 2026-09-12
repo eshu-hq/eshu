@@ -14,10 +14,10 @@ side, so both can import it.
 
 - This is the single most important fact about this package: it exists
   because of that cycle, not as a general-purpose place for shared schema.
-  Do not add a fragment here unless it genuinely has a consumer in
-  `openapi` (or a `components_*.go` file) AND a consumer in some
-  `paths/<leaf>` package. A fragment used by only one side belongs there
-  instead.
+  Do not add a fragment here unless two or more of `openapi`'s packages
+  that cannot import each other — the parent and a `paths/<leaf>`, or two
+  or more different `paths/<leaf>` packages — genuinely need it. A fragment
+  used by only one such package belongs there instead.
 - This package MUST NOT import `openapi` or any `openapi/paths/<leaf>`
   package — either import recreates the cycle this package exists to
   avoid.
@@ -29,9 +29,10 @@ side, so both can import it.
 ## Verification
 
 A change to a fragment here changes every document assembled by
-`openapi.Spec()` that includes it — check both current consumers
-(`openapi/components_workload_session.go` and
-`openapi/paths/supplychain/{impact_findings,impact_explain}.go`) before
+`openapi.Spec()` that includes it — check that fragment's current consumers
+(`ImpactRuntimeTopologyLimits`: `openapi/components_workload_session.go` and
+`openapi/paths/impact/routes.go`; `EvidenceBoundaries`: the `impact`,
+`repository` and `search` leaves) before
 editing, and keep `scripts/verify-openapi.sh` green (see
 `openapi/AGENTS.md` for what it checks). A wire-visible change MUST update
 `docs/public/reference/http-api.md` in the same PR.

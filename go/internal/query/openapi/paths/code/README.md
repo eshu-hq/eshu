@@ -12,8 +12,8 @@ Layout:
 - `graph.go` — `Graph`: the call/reference graph.
 - `flow.go` — `Flow`: data-flow tracing.
 - `owners.go` — `Owners`: code ownership.
-- `dead_code_scan.go` — `DeadCodeScan`: the per-repository dead-code scan.
-- `dead_code.go` — `DeadCodeInvestigation` (a single dead-code
+- `dead_scan.go` — `DeadCodeScan`: the per-repository dead-code scan.
+- `dead.go` — `DeadCodeInvestigation` (a single dead-code
   investigation) and `CrossRepoDeadCode` (the cross-repository rollup) —
   two exported constants in this one file, unlike every other file in this
   package. Do not read "one constant per file" as a rule this package
@@ -35,6 +35,6 @@ C, #6642): `openapi_paths_code.go` -> `routes.go`,
 `openapi_paths_code_graph.go` -> `graph.go`,
 `openapi_paths_code_flow.go` -> `flow.go`,
 `openapi_paths_codeowners.go` -> `owners.go`,
-`openapi_paths_code_dead_code_scan.go` -> `dead_code_scan.go`, and
-`openapi_paths_code_dead_code.go` -> `dead_code.go`. Only the package
+`openapi_paths_code_dead_code_scan.go` -> `dead_scan.go`, and
+`openapi_paths_code_dead_code.go` -> `dead.go`. Only the package
 clause and file names changed; the JSON each constant renders is unchanged.
