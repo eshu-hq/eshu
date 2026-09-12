@@ -695,14 +695,14 @@ The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
 `InstrumentedExecutor`.
 
-`RetryingExecutor` detects transient Neo4j errors, retryable driver
-`ConnectivityError`, NornicDB MERGE unique conflicts, and relationship snapshot
-conflicts carrying legacy `conflict:` or v1.3.1 `conflict detected:` plus the transaction-age suffix. A driver `ConnectivityError`
+`RetryingExecutor` detects transient Neo4j and driver connectivity errors,
+NornicDB MERGE unique conflicts, and relationship snapshot conflicts. Raw legacy
+errors require bounded `conflict:`; typed v1.3.1 errors require `conflict detected:`, an edge or node identity, and the transaction-age suffix. A driver `ConnectivityError`
 wrapping `CommitFailedDeadError` is not retried in place because its commit
 outcome is unknown. Durable callers may later replay still-pending idempotent
 work after backoff. The same exponential-backoff loop covers `Execute` and
-`ExecuteGroup`; group retries stay limited to safe driver-level transient
-failures or all-MERGE NornicDB commit conflicts so replay stays idempotent.
+`ExecuteGroup`. Typed driver transients replay the managed transaction body;
+message-derived conflicts require all statements to be replay-safe, including `MERGE` and bounded retracts.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
 'TestClassifyTransientNeo4jErrorPrioritizesNornicDBWriteConflict|TestRetryingExecutorV131WriteConflictUsesBoundedMetricReason|TestRetryingExecutor(RetriesDriverConnectivityError|ConnectivityErrorExhaustionRemainsQueueRetryable)|TestWrapRetryableNeo4jError'

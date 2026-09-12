@@ -62,9 +62,9 @@ func TestClassifyTransientNeo4jErrorPrioritizesNornicDBWriteConflict(t *testing.
 			want: graphWriteRetryReasonWriteConflict,
 		},
 		{
-			name: "v1.3.1 wrapped",
+			name: "v1.3.1 untyped wrapped",
 			err:  fmt.Errorf("phase group failed: %w", errors.New(observedNornicDBV131WriteConflict)),
-			want: graphWriteRetryReasonWriteConflict,
+			want: "",
 		},
 		{
 			name: "outdated suffix without delimiter",

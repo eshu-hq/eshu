@@ -13,6 +13,10 @@ import (
 const malformedNeo4jConnectivityErrorMessage = "neo4j connectivity error is missing its underlying cause"
 
 const (
+	nornicDBLegacyWriteConflictDelimiter = ": conflict: "
+	nornicDBV131WriteConflictDelimiter   = ": conflict detected: "
+	nornicDBWriteConflictSuffix          = " changed after transaction start"
+
 	nornicDBRestartTransactionStartCode = "Neo.ClientError.Transaction.TransactionStartFailed"
 	nornicDBRestartTransactionStartMsg  = "failed to write WAL tx begin: wal: closed"
 	// nornicDBEngineClosedTransactionStartMsg is the SECOND spelling NornicDB
@@ -101,6 +105,54 @@ const (
 	// backend restart and the same retry decision.
 	nornicDBStoreClosedCommitAllocMsg = "allocating mvcc commit version: DB Closed"
 )
+
+// isNornicDBWriteConflict recognizes NornicDB transaction-age conflicts. The
+// v1.3.1 wording is accepted only with the typed Transaction.Outdated code: a
+// string-only lookalike must not turn a terminal error into retryable work.
+func isNornicDBWriteConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var neo4jErr *neo4jdriver.Neo4jError
+	if errors.As(err, &neo4jErr) && strings.TrimSpace(neo4jErr.Code) != "" {
+		if neo4jErr.Code != nornicDBTransactionOutdatedCode {
+			return false
+		}
+		return isNornicDBWriteConflictMessage(neo4jErr.Msg, true)
+	}
+
+	// Preserve the legacy string-wrapped compatibility contract. The new
+	// v1.3.1 delimiter has a typed code and deliberately has no raw fallback.
+	return isNornicDBWriteConflictMessage(err.Error(), false)
+}
+
+func isNornicDBWriteConflictMessage(msg string, allowV131 bool) bool {
+	if !strings.HasSuffix(msg, nornicDBWriteConflictSuffix) {
+		return false
+	}
+	if isNornicDBWriteConflictBody(msg, nornicDBLegacyWriteConflictDelimiter) {
+		return true
+	}
+	return allowV131 && isNornicDBWriteConflictBody(msg, nornicDBV131WriteConflictDelimiter)
+}
+
+func isNornicDBWriteConflictBody(msg, delimiter string) bool {
+	delimiterIndex := strings.Index(msg, delimiter)
+	if delimiterIndex < 0 {
+		return false
+	}
+	body := msg[delimiterIndex+len(delimiter) : len(msg)-len(nornicDBWriteConflictSuffix)]
+	switch {
+	case strings.HasPrefix(body, "edge "):
+		body = strings.TrimPrefix(body, "edge ")
+	case strings.HasPrefix(body, "node "):
+		body = strings.TrimPrefix(body, "node ")
+	default:
+		return false
+	}
+	return body != "" && body == strings.TrimSpace(body)
+}
 
 var errMalformedNeo4jConnectivity = errors.New(malformedNeo4jConnectivityErrorMessage)
 
