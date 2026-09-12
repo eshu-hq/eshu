@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`cicdrun` plans one workflow work item per configured CI/CD run target. It
+`cicd/run` plans one workflow work item per configured CI/CD run target. It
 validates target configuration and builds deterministic run, generation, and
 work-item identities without opening a provider connection.
 
@@ -52,12 +52,13 @@ fact-emission signals remain in the CI/CD run collector runtime.
 
 No-Regression Evidence: focused child and parent coordinator tests exercise
 the same planner and service paths after the import move. Whole-module build
-and vet verify the production binary wires `cicdrun.WorkPlanner` through the
+and vet verify the production binary wires `run.WorkPlanner` through the
 root `CICDRunPlanner` interface.
 
 ## Related docs
 
 - `go/internal/coordinator/README.md`
+- `go/internal/coordinator/cicd/README.md`
 - `go/internal/coordinator/planner/contract/README.md`
 - `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

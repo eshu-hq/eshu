@@ -104,6 +104,12 @@
      planning. Those four root files and the extension planner import
      `activation`; `component_activation_config_test.go` is the sole
      test importer. The shared contract imports neither root nor a planner.
+   - `go/internal/coordinator/cicd/run/planner.go` and
+     `cicd_run_service.go` — the nested CI/CD run planner and its root
+     scheduling seam; preserve configured target order, deterministic run and
+     work-item identities, requested-scope privacy, active and claims gates,
+     clock-derived plan keys, and durable open-target admission. The leaf is a
+     planner boundary, not an independently deployable service.
 6. `go/internal/workflow/service.go` (does not exist — `Store` is defined in
    `service.go` here; the workflow contracts are in `internal/workflow`)
 7. `go/internal/telemetry/instruments.go` and `contract.go` — before adding

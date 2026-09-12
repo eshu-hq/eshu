@@ -1063,8 +1063,8 @@ Coordinator `_scheduler.go` halves extract cleanly
 methods on the shared `Service` struct and stay until Service is
 decomposed — a design decision, not a file move. Shared plan-key validation now
 lives in dependency-neutral `internal/coordinator/planner/contract`. The CI/CD
-run scheduler now demonstrates the first provider extraction under
-`internal/coordinator/cicdrun`: the child owns its request and planner while
+run scheduler now demonstrates the first provider extraction, now nested under
+`internal/coordinator/cicd/run`: the child owns its request and planner while
 root keeps the structural interface, scheduling order, durable open-target
 admission, retry, and telemetry. The provider security-alert scheduler is the
 second extraction under `internal/coordinator/securityalert`: the child owns

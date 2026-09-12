@@ -19,7 +19,7 @@ import (
 	// SupportsServiceKind checks accept every service the collector ships.
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/coordinator"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/cicdrun"
+	cicdrun "github.com/eshu-hq/eshu/go/internal/coordinator/cicd/run"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/ociregistry"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/freshness"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/aws/scheduled"
