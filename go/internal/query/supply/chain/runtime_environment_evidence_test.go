@@ -36,7 +36,7 @@ func TestAddSupplyChainRuntimeContextFactCICDRejectedEvidenceDoesNotFold(t *test
 		},
 	} {
 		out := map[string]impact.RuntimeContext{}
-		impact.AddSupplyChainRuntimeContextFact(out, cloudRuntimeProbeTestCICDFactKind, "scope", payload)
+		impact.AddRuntimeContextFact(out, cloudRuntimeProbeTestCICDFactKind, "scope", payload)
 		if _, ok := out["repository:r_rejected"]; ok {
 			t.Fatalf("rejected payload folded into runtime context: %#v", payload)
 		}
@@ -306,7 +306,7 @@ func BenchmarkFoldSupplyChainRuntimeContext200Repositories(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		out := make(map[string]impact.RuntimeContext, repositoryCount)
 		for _, item := range facts {
-			impact.AddSupplyChainRuntimeContextFact(out, item.kind, item.scopeID, item.payload)
+			impact.AddRuntimeContextFact(out, item.kind, item.scopeID, item.payload)
 		}
 		if len(out) != repositoryCount {
 			b.Fatalf("folded repositories = %d, want %d", len(out), repositoryCount)

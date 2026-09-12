@@ -158,12 +158,12 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeContext(
 	return out, nil
 }
 
-// AddSupplyChainRuntimeContextFact folds one runtime-context fact into the
+// AddRuntimeContextFact folds one runtime-context fact into the
 // per-repository result map. The fact's repository anchor is decoded with the
 // same precedence the reducer uses (payload repository_id/repo_id first, then
 // a repository:-prefixed scope); a fact that decodes to no repository is
 // ignored because it can never join a finding.
-func AddSupplyChainRuntimeContextFact(
+func AddRuntimeContextFact(
 	out map[string]RuntimeContext,
 	kind string,
 	scopeID string,
@@ -250,12 +250,12 @@ func addSupplyChainRuntimeContextFactForRepository(
 	}
 }
 
-// RecordSupplyChainRuntimeEnvironmentEvidence folds one exact-digest lookup
+// RecordRuntimeEnvironmentEvidence folds one exact-digest lookup
 // row into the response-side evidence map. It mirrors the reducer's #5426
 // contract: only deploy_event proves deployment-event corroboration, every
 // missing or unknown admitted value is declared, and deploy_event wins
 // independent of fact iteration order.
-func RecordSupplyChainRuntimeEnvironmentEvidence(
+func RecordRuntimeEnvironmentEvidence(
 	state map[string]string,
 	environment string,
 	raw string,

@@ -59,7 +59,7 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 		ServiceID:                  querycontract.QueryParam(r, "service_id"),
 		WorkloadID:                 querycontract.QueryParam(r, "workload_id"),
 		Source:                     querycontract.QueryParam(r, "source"),
-		AfterAdvisoryKey:           querycontract.QueryParam(r, "after_advisory_key"),
+		AfterKey:                   querycontract.QueryParam(r, "after_advisory_key"),
 		Limit:                      limit + 1,
 		AllowedSourceRepositoryIDs: access.RepositorySearchIDs(),
 	})

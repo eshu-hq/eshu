@@ -215,8 +215,8 @@ func TestSupplyChainListAdvisoryCatalogAcceptsCursor(t *testing.T) {
 		t.Fatalf("AfterCVSS = %v, want %v", got, want)
 	}
 	// The store normalizes the cursor key to canonical upper-case form.
-	if got, want := store.lastFilter.AfterAdvisoryKey, "cve-2021-44228"; got != want {
-		t.Fatalf("handler AfterAdvisoryKey = %q, want %q (store normalizes)", got, want)
+	if got, want := store.lastFilter.AfterKey, "cve-2021-44228"; got != want {
+		t.Fatalf("handler AfterKey = %q, want %q (store normalizes)", got, want)
 	}
 }
 
@@ -224,10 +224,10 @@ func TestNormalizeAdvisoryCatalogFilterUppercasesCursorKey(t *testing.T) {
 	t.Parallel()
 
 	got := advisory.NormalizeCatalogFilter(advisory.CatalogFilter{
-		Severity:         " HIGH ",
-		Ecosystem:        " npm ",
-		Query:            " cve-2021 ",
-		AfterAdvisoryKey: " cve-2021-44228 ",
+		Severity:  " HIGH ",
+		Ecosystem: " npm ",
+		Query:     " cve-2021 ",
+		AfterKey:  " cve-2021-44228 ",
 	})
 	if got.Severity != "HIGH" {
 		t.Fatalf("Severity = %q, want trimmed HIGH", got.Severity)
@@ -238,8 +238,8 @@ func TestNormalizeAdvisoryCatalogFilterUppercasesCursorKey(t *testing.T) {
 	if got.Query != "cve-2021" {
 		t.Fatalf("Query = %q, want trimmed query", got.Query)
 	}
-	if got.AfterAdvisoryKey != "CVE-2021-44228" {
-		t.Fatalf("AfterAdvisoryKey = %q, want canonical upper-case key", got.AfterAdvisoryKey)
+	if got.AfterKey != "CVE-2021-44228" {
+		t.Fatalf("AfterKey = %q, want canonical upper-case key", got.AfterKey)
 	}
 }
 

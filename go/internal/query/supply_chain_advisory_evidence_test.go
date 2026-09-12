@@ -89,12 +89,12 @@ func TestNormalizeAdvisoryEvidenceFilterCanonicalizesIdentityInputs(t *testing.T
 	t.Parallel()
 
 	got := advisory.NormalizeEvidenceFilter(advisory.EvidenceFilter{
-		CVEID:            " cve-2026-0001 ",
-		ID:               " gHsA-aaaa-bbbb-cccc ",
-		PackageID:        " pkg:npm/example ",
-		Source:           " NVD ",
-		AfterAdvisoryKey: " osv-2026-0001 ",
-		Limit:            10,
+		CVEID:     " cve-2026-0001 ",
+		ID:        " gHsA-aaaa-bbbb-cccc ",
+		PackageID: " pkg:npm/example ",
+		Source:    " NVD ",
+		AfterKey:  " osv-2026-0001 ",
+		Limit:     10,
 	})
 
 	if got.CVEID != "CVE-2026-0001" {
@@ -103,8 +103,8 @@ func TestNormalizeAdvisoryEvidenceFilterCanonicalizesIdentityInputs(t *testing.T
 	if got.ID != "GHSA-aaaa-bbbb-cccc" {
 		t.Fatalf("ID = %q, want canonical GHSA prefix", got.ID)
 	}
-	if got.AfterAdvisoryKey != "OSV-2026-0001" {
-		t.Fatalf("AfterAdvisoryKey = %q, want canonical OSV prefix", got.AfterAdvisoryKey)
+	if got.AfterKey != "OSV-2026-0001" {
+		t.Fatalf("AfterKey = %q, want canonical OSV prefix", got.AfterKey)
 	}
 	if got.PackageID != "pkg:npm/example" {
 		t.Fatalf("PackageID = %q, want trimmed package id", got.PackageID)
@@ -197,16 +197,16 @@ func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
 	}
 
 	got := advisory.PageEvidenceRows(rows, advisory.EvidenceFilter{
-		AfterAdvisoryKey: "ghsa-AAAA-bbbb-cccc",
-		Limit:            1,
+		AfterKey: "ghsa-AAAA-bbbb-cccc",
+		Limit:    1,
 	})
 	if len(got) != 1 || got[0].Key != "OSV-2026-0001" {
 		t.Fatalf("page after mixed-case GHSA = %#v, want OSV row", got)
 	}
 
 	got = advisory.PageEvidenceRows(rows, advisory.EvidenceFilter{
-		AfterAdvisoryKey: "cve-2026-0001",
-		Limit:            1,
+		AfterKey: "cve-2026-0001",
+		Limit:    1,
 	})
 	if len(got) != 1 || got[0].Key != "GHSA-aaaa-bbbb-cccc" {
 		t.Fatalf("page after lowercase CVE = %#v, want GHSA row", got)

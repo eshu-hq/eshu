@@ -182,7 +182,7 @@ func supplyChainRuntimeEnvironmentEvidenceForPlan(
 		if !ok {
 			continue
 		}
-		out = impact.RecordSupplyChainRuntimeEnvironmentEvidence(out, environment, evidence)
+		out = impact.RecordRuntimeEnvironmentEvidence(out, environment, evidence)
 	}
 	return out
 }

@@ -48,7 +48,7 @@ func (s PostgresCatalogStore) ListAdvisoryCatalog(
 		filter.Query,
 		filter.KEVOnly,
 		filter.AfterCVSS,
-		filter.AfterAdvisoryKey,
+		filter.AfterKey,
 		filter.Limit,
 	)
 	if err != nil {
@@ -113,7 +113,7 @@ func NormalizeCatalogFilter(filter CatalogFilter) CatalogFilter {
 	filter.Severity = strings.TrimSpace(filter.Severity)
 	filter.Ecosystem = strings.TrimSpace(filter.Ecosystem)
 	filter.Query = strings.TrimSpace(filter.Query)
-	filter.AfterAdvisoryKey = strings.ToUpper(strings.TrimSpace(filter.AfterAdvisoryKey))
+	filter.AfterKey = strings.ToUpper(strings.TrimSpace(filter.AfterKey))
 	return filter
 }
 

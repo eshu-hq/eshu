@@ -66,8 +66,8 @@ runtime/suppression texts), the request helpers the staying handlers
 call (`RequestedProfile`, `FilterProfile`,
 `RequiredFindingLimit`,
 `ParseIncludeSuppressed`,
-`IsSupportedSupplyChainSuppressionState`,
-`ParseSupplyChainScannerSeverity`, the scanner-filter sets and
+`IsSupportedSuppressionState`,
+`ParseScannerSeverity`, the scanner-filter sets and
 `RejectUnsupportedVulnerabilityScannerFilters`,
 `FirstNonEmptyQueryParam`,
 `TrimExplanationFilter`,
@@ -77,8 +77,8 @@ bucket/score helpers, `HasScope`/`HasBoundedScope`/`ReadinessScope`),
 the decode entry points (`DecodeFindingRow`,
 `DecodeRemediation`,
 `NormalizeSort`, `ReadinessMissingContains`,
-`AddSupplyChainRuntimeContextFact`,
-`RecordSupplyChainRuntimeEnvironmentEvidence`), the profile, limit,
+`AddRuntimeContextFact`,
+`RecordRuntimeEnvironmentEvidence`), the profile, limit,
 fact-kind, vocabulary, readiness-state, evidence-family, and
 missing-evidence constants, and the relocated runtime-evidence types
 (`RuntimeContext`, `RuntimeContextResult`,

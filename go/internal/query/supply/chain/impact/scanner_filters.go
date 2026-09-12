@@ -76,7 +76,7 @@ func FirstNonEmptyQueryParam(r *http.Request, keys ...string) string {
 	return ""
 }
 
-func ParseSupplyChainScannerSeverity(w http.ResponseWriter, r *http.Request) (string, bool) {
+func ParseScannerSeverity(w http.ResponseWriter, r *http.Request) (string, bool) {
 	severity := strings.ToLower(strings.TrimSpace(querycontract.QueryParam(r, "severity")))
 	if severity == "" {
 		return "", true

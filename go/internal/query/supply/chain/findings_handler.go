@@ -51,7 +51,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	if advisoryID == "" {
 		advisoryID = impact.FirstNonEmptyQueryParam(r, "ghsa_id", "osv_id")
 	}
-	severity, ok := impact.ParseSupplyChainScannerSeverity(w, r)
+	severity, ok := impact.ParseScannerSeverity(w, r)
 	if !ok {
 		return
 	}
@@ -61,7 +61,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	suppressionState := querycontract.QueryParam(r, "suppression_state")
-	if suppressionState != "" && !impact.IsSupportedSupplyChainSuppressionState(suppressionState) {
+	if suppressionState != "" && !impact.IsSupportedSuppressionState(suppressionState) {
 		querycontract.WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
 		return
 	}

@@ -138,7 +138,7 @@ func NormalizeEvidenceFilter(filter EvidenceFilter) EvidenceFilter {
 	filter.ServiceID = strings.TrimSpace(filter.ServiceID)
 	filter.WorkloadID = strings.TrimSpace(filter.WorkloadID)
 	filter.Source = strings.ToLower(strings.TrimSpace(filter.Source))
-	filter.AfterAdvisoryKey = normalizeAdvisoryLookupID(filter.AfterAdvisoryKey)
+	filter.AfterKey = normalizeAdvisoryLookupID(filter.AfterKey)
 	return filter
 }
 
@@ -185,7 +185,7 @@ func FormatNullTime(value sql.NullTime) string {
 func PageEvidenceRows(rows []EvidenceRow, filter EvidenceFilter) []EvidenceRow {
 	rows = filterAdvisoryEvidenceRows(rows, filter)
 	start := 0
-	if after := normalizeAdvisoryLookupID(filter.AfterAdvisoryKey); after != "" {
+	if after := normalizeAdvisoryLookupID(filter.AfterKey); after != "" {
 		for idx, row := range rows {
 			if advisoryEvidenceKeyEqual(row.Key, after) {
 				start = idx + 1

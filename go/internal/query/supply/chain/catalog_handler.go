@@ -72,13 +72,13 @@ func (h *Handler) listAdvisoryCatalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filter := advisory.CatalogFilter{
-		Severity:         querycontract.QueryParam(r, "severity"),
-		Ecosystem:        querycontract.QueryParam(r, "ecosystem"),
-		Query:            querycontract.QueryParam(r, "q"),
-		KEVOnly:          kevOnly,
-		AfterCVSS:        afterCVSS,
-		AfterAdvisoryKey: afterKey,
-		Limit:            limit + 1,
+		Severity:  querycontract.QueryParam(r, "severity"),
+		Ecosystem: querycontract.QueryParam(r, "ecosystem"),
+		Query:     querycontract.QueryParam(r, "q"),
+		KEVOnly:   kevOnly,
+		AfterCVSS: afterCVSS,
+		AfterKey:  afterKey,
+		Limit:     limit + 1,
 	}
 	page, err := h.AdvisoryCatalog.ListAdvisoryCatalog(r.Context(), filter)
 	if err != nil {

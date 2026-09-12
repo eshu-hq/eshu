@@ -129,7 +129,7 @@ func (s PostgresFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
 		if digest == "" || environment == "" {
 			continue
 		}
-		out[digest] = RecordSupplyChainRuntimeEnvironmentEvidence(
+		out[digest] = RecordRuntimeEnvironmentEvidence(
 			out[digest],
 			environment,
 			evidence,

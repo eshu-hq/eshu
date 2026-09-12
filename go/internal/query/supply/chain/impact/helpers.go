@@ -57,9 +57,9 @@ func RequiredFindingLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 	return limit, true
 }
 
-// IsSupportedSupplyChainSuppressionState reports whether the value names a
+// IsSupportedSuppressionState reports whether the value names a
 // known reducer suppression state.
-func IsSupportedSupplyChainSuppressionState(state string) bool {
+func IsSupportedSuppressionState(state string) bool {
 	switch state {
 	case "active",
 		"not_affected",

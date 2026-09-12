@@ -91,8 +91,8 @@ to this list.
 - Request helpers (`RequestedProfile`,
   `FilterProfile`, `RequiredFindingLimit`,
   `ParseIncludeSuppressed`,
-  `IsSupportedSupplyChainSuppressionState`,
-  `ParseSupplyChainScannerSeverity`, `FindingsScannerFilters`,
+  `IsSupportedSuppressionState`,
+  `ParseScannerSeverity`, `FindingsScannerFilters`,
   `ExplanationScannerFilters`,
   `RejectUnsupportedVulnerabilityScannerFilters`,
   `SecurityAlertScannerFilters`, `FirstNonEmptyQueryParam`,
@@ -106,8 +106,8 @@ to this list.
 - Decode/normalize entry points (`DecodeFindingRow`,
   `DecodeRemediation`,
   `NormalizeSort`, `ReadinessMissingContains`,
-  `AddSupplyChainRuntimeContextFact`,
-  `RecordSupplyChainRuntimeEnvironmentEvidence`) — the staying root
+  `AddRuntimeContextFact`,
+  `RecordRuntimeEnvironmentEvidence`) — the staying root
   unit tests pinning decode and grouping behavior.
 - SQL texts and kind/query consts (`ListFindingsQuery`
   and its winners variant, `ExplainFindingQuery` and

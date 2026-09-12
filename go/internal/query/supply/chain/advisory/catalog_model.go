@@ -43,11 +43,11 @@ type CatalogFilter struct {
 	Query string
 	// KEVOnly limits the page to advisories present in the CISA KEV catalog.
 	KEVOnly bool
-	// AfterCVSS and AfterAdvisoryKey form the keyset cursor for the
-	// (cvss desc, advisory_key asc) ordering. AfterAdvisoryKey is empty for the
+	// AfterCVSS and AfterKey form the keyset cursor for the
+	// (cvss desc, advisory_key asc) ordering. AfterKey is empty for the
 	// first page.
-	AfterCVSS        float64
-	AfterAdvisoryKey string
+	AfterCVSS float64
+	AfterKey  string
 	// Limit is the page size plus one so the store can report truncation.
 	Limit int
 }

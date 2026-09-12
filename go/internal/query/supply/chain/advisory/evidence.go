@@ -33,15 +33,15 @@ type EvidenceStore interface {
 // workload anchors derive advisory lookups only from reducer-owned impact
 // findings; provider-alert-only rows are not advisory evidence anchors.
 type EvidenceFilter struct {
-	CVEID            string
-	ID               string
-	PackageID        string
-	RepositoryID     string
-	ServiceID        string
-	WorkloadID       string
-	Source           string
-	AfterAdvisoryKey string
-	Limit            int
+	CVEID        string
+	ID           string
+	PackageID    string
+	RepositoryID string
+	ServiceID    string
+	WorkloadID   string
+	Source       string
+	AfterKey     string
+	Limit        int
 	// AllowedSourceRepositoryIDs carries the scoped-token grant set (union of
 	// granted repository and ingestion-scope ids). Advisory evidence facts are
 	// global CVE/advisory data with no repository of their own, so the bare
