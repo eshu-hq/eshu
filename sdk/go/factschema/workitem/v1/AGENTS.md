@@ -24,9 +24,10 @@ and `WorkItemMetadataWarning`. It must remain independent from Eshu internals.
 ## Decode site is the query layer, not the reducer
 
 No reducer or projector domain decodes `work_item.*` payloads. The decode
-sites are `go/internal/query/factschema_decode_workitem.go` (the typed seam
-wrapper the #4573 payload-usage manifest gate's `QueryDir` input scans),
-`work_item_evidence_store.go`/`work_item_evidence.go`, and
+sites are `go/internal/query/workitem/factschema_decode.go` (the typed seam wrapper
+the #4573 payload-usage manifest gate's `QueryDir` input scans, moved from
+root's `factschema_decode_workitem.go` in #6642),
+`workitem/store.go`/`workitem/evidence.go`, and
 `incident_context_review_store.go`. When you change a struct's shape here,
 check those query-layer files for a required-field regression before
 assuming the reducer-side tests are the only signal.

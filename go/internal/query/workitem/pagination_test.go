@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
 import (
 	"context"
@@ -82,7 +82,7 @@ func TestBuildWorkItemEvidencePageDerivesTruncationFromFetchedFactsNotDecodedRow
 
 	// fetchLimit=4 means the caller requested a page of 3 (fetchLimit-1) and
 	// the store fetched one extra lookahead fact, matching
-	// PostgresWorkItemEvidenceStore's "+1" convention.
+	// PostgresEvidenceStore's "+1" convention.
 	page := buildWorkItemEvidencePage(facts, 4)
 
 	if !page.Truncated {
@@ -136,7 +136,7 @@ func TestBuildWorkItemEvidencePageNotTruncatedKeepsAllDecodedRows(t *testing.T) 
 	}
 }
 
-// rawFactWorkItemEvidenceStore is a WorkItemEvidenceStore fake that stores raw
+// rawFactWorkItemEvidenceStore is an EvidenceStore fake that stores raw
 // (undecoded) facts and calls the real buildWorkItemEvidencePage, exercising
 // the actual production pagination logic end-to-end through the HTTP handler
 // rather than a hand-built stand-in.
@@ -146,8 +146,8 @@ type rawFactWorkItemEvidenceStore struct {
 
 func (s *rawFactWorkItemEvidenceStore) ListWorkItemEvidence(
 	_ context.Context,
-	filter WorkItemEvidenceFilter,
-) (WorkItemEvidencePage, error) {
+	filter EvidenceFilter,
+) (EvidencePage, error) {
 	return buildWorkItemEvidencePage(s.facts, filter.Limit), nil
 }
 
@@ -201,7 +201,7 @@ func TestWorkItemListEvidenceHandlerAdvancesPastMalformedFactInsideWindow(t *tes
 			},
 		},
 	}
-	handler := &WorkItemHandler{Evidence: store}
+	handler := &Handler{Evidence: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

@@ -29,7 +29,7 @@ reducer evidence proves them.
 ## Committed reproducible evidence
 
 **Bounded lookup, cursor pagination, missing-evidence, and filter bounds** —
-`go/internal/query/work_item_evidence_test.go`:
+`go/internal/query/workitem/evidence_test.go`:
 `TestWorkItemListEvidenceRequiresScopeAndLimit`,
 `TestWorkItemListEvidenceUsesBoundedStoreAndCursor`,
 `TestWorkItemEvidenceEmptyResultReportsMissingEvidence`,
@@ -37,26 +37,27 @@ reducer evidence proves them.
 `TestWorkItemEvidenceFactKindsMatchRegistrySet`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestWorkItemListEvidence -count=1
-cd go && go test ./internal/query -run 'TestWorkItemEvidenceEmptyResultReportsMissingEvidence|TestNormalizeWorkItemEvidenceFilterBoundsLimitAndFreshness|TestWorkItemEvidenceFactKindsMatchRegistrySet' -count=1
+cd go && go test ./internal/query/workitem -run TestWorkItemListEvidence -count=1
+cd go && go test ./internal/query/workitem -run 'TestWorkItemEvidenceEmptyResultReportsMissingEvidence|TestNormalizeWorkItemEvidenceFilterBoundsLimitAndFreshness|TestWorkItemEvidenceFactKindsMatchRegistrySet' -count=1
 ```
 
 **Scope, pagination, and SQL contract** —
-`go/internal/query/work_item_evidence_scope_test.go`:
-`TestAuthMiddlewareWithScopedTokensAllowsWorkItemEvidenceRoute`,
+`go/internal/query/auth_scoped_routes_work_item_test.go`:
+`TestAuthMiddlewareWithScopedTokensAllowsWorkItemEvidenceRoute`;
+`go/internal/query/workitem/scope_test.go`:
 `TestWorkItemEvidenceScopedEmptyGrantReturnsEmptyWithoutStoreRead`,
 `TestWorkItemEvidenceSQLAppliesLinkedRepositoryGrantPredicate`, and
 `TestWorkItemEvidenceStoreBindsMultiRepoGrantArrayBeforeLimit`;
-`go/internal/query/work_item_evidence_pagination_test.go`:
+`go/internal/query/workitem/pagination_test.go`:
 `TestBuildWorkItemEvidencePageDerivesTruncationFromFetchedFactsNotDecodedRows`
 and `TestWorkItemListEvidenceHandlerAdvancesPastMalformedFactInsideWindow`;
-and `go/internal/query/work_item_evidence_sql_test.go`:
+and `go/internal/query/workitem/sql_test.go`:
 `TestWorkItemEvidenceQueryUsesActiveFactReadModel` and
 `TestWorkItemEvidenceQueryAvoidsRawURLMatching` (proves raw URLs are not used
 as a matching key, consistent with the no-raw-URL contract). Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run 'WorkItemEvidence|WorkItemListEvidence' -count=1
+cd go && go test ./internal/query ./internal/query/workitem -run 'WorkItemEvidence|WorkItemListEvidence' -count=1
 ```
 
 **Deployed-services target-story readback** —

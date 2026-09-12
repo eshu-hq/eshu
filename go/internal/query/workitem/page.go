@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
-// WorkItemEvidencePage is one bounded work-item evidence page: the
+// EvidencePage is one bounded work-item evidence page: the
 // typed-decoded, response-ready rows for the visible window, plus pagination
 // facts derived from the RAW fetched fact count and fact_id sequence — never
 // from len(Rows). A fact inside the visible window that fails typed decode is
@@ -12,12 +12,12 @@ package query
 // are computed from how many facts were actually fetched, so a malformed fact
 // in the middle of a page can never make a truncated page report itself
 // complete and hide the evidence beyond it (#4733).
-type WorkItemEvidencePage struct {
+type EvidencePage struct {
 	// Rows is every fact in the visible window (the first requested-limit
 	// facts of the fetch) that decoded successfully, in fetch order. It may be
 	// shorter than the requested limit when one or more facts in the window
 	// failed typed decode.
-	Rows []WorkItemEvidenceRow
+	Rows []EvidenceRow
 	// Truncated reports whether more facts exist beyond the visible window:
 	// true when the store fetched more than the requested limit of facts (the
 	// "+1" lookahead fact was present), independent of how many of the
@@ -36,8 +36,8 @@ type WorkItemEvidencePage struct {
 // facts decoded (#4733). facts is the full fetch window in fetch order
 // (fact_id ascending); fetchLimit is the store's "+1" lookahead fetch bound —
 // the caller's requested page size plus one, the same convention
-// PostgresWorkItemEvidenceStore.ListWorkItemEvidence has always used for its
-// SQL LIMIT parameter.
+// PostgresEvidenceStore.ListWorkItemEvidence has always used for its SQL
+// LIMIT parameter.
 //
 // The visible window is the first fetchLimit-1 facts. Truncated is true when
 // MORE than fetchLimit-1 facts were fetched (the lookahead fact is present),
@@ -45,7 +45,7 @@ type WorkItemEvidencePage struct {
 // whether that fact itself decoded — so a fact dropped mid-window by a failed
 // typed decode can never make a truncated page look complete or corrupt the
 // forward cursor.
-func buildWorkItemEvidencePage(facts []workItemEvidenceFactRow, fetchLimit int) WorkItemEvidencePage {
+func buildWorkItemEvidencePage(facts []workItemEvidenceFactRow, fetchLimit int) EvidencePage {
 	visibleLimit := fetchLimit - 1
 	if visibleLimit < 0 {
 		visibleLimit = 0
@@ -55,7 +55,7 @@ func buildWorkItemEvidencePage(facts []workItemEvidenceFactRow, fetchLimit int) 
 	if truncated {
 		window = facts[:visibleLimit]
 	}
-	page := WorkItemEvidencePage{
+	page := EvidencePage{
 		Rows:      buildWorkItemEvidenceRows(window),
 		Truncated: truncated,
 	}

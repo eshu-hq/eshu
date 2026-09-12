@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
 import (
 	"context"
@@ -12,48 +12,55 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/decode"
 )
 
 const (
-	workItemEvidenceCapability = "work_item.evidence.list"
-	workItemEvidenceMaxLimit   = 200
+	// EvidenceCapability is the capability this route serves its truth
+	// envelope under. Package query keeps this value available as
+	// workItemEvidenceCapability through a forward in work_item_alias.go,
+	// since contract_work_item.go's capability-matrix registration reads
+	// that unexported root spelling (#6642).
+	EvidenceCapability = "work_item.evidence.list"
+	evidenceMaxLimit   = 200
 
-	// WorkItemEvidenceStateExactProviderFact marks a source-reported Jira fact.
-	WorkItemEvidenceStateExactProviderFact = "exact_provider_fact"
-	// WorkItemEvidenceStateUnsupportedLinkType marks a Jira remote link whose
+	// EvidenceStateExactProviderFact marks a source-reported Jira fact.
+	EvidenceStateExactProviderFact = "exact_provider_fact"
+	// EvidenceStateUnsupportedLinkType marks a Jira remote link whose
 	// target provider or link shape is not promoted by Eshu.
-	WorkItemEvidenceStateUnsupportedLinkType = "unsupported_link_type"
-	// WorkItemEvidenceStateMissingEvidence marks an empty scoped read.
-	WorkItemEvidenceStateMissingEvidence = "missing_evidence"
-	// WorkItemEvidenceStateStaleEvidence marks source evidence identified as
+	EvidenceStateUnsupportedLinkType = "unsupported_link_type"
+	// EvidenceStateMissingEvidence marks an empty scoped read.
+	EvidenceStateMissingEvidence = "missing_evidence"
+	// EvidenceStateStaleEvidence marks source evidence identified as
 	// stale by upstream facts or freshness metadata.
-	WorkItemEvidenceStateStaleEvidence = "stale_evidence"
-	// WorkItemEvidenceStatePermissionHidden marks provider evidence hidden by
+	EvidenceStateStaleEvidence = "stale_evidence"
+	// EvidenceStatePermissionHidden marks provider evidence hidden by
 	// Jira permissions or issue security.
-	WorkItemEvidenceStatePermissionHidden = "permission_hidden"
-	// WorkItemEvidenceStateRejectedUnsafePayload marks malformed or unsafe
+	EvidenceStatePermissionHidden = "permission_hidden"
+	// EvidenceStateRejectedUnsafePayload marks malformed or unsafe
 	// source payloads retained only as bounded warning evidence.
-	WorkItemEvidenceStateRejectedUnsafePayload = "rejected_unsafe_payload"
-	// WorkItemEvidenceStateMetadataWarning marks a work_item.metadata_warning
+	EvidenceStateRejectedUnsafePayload = "rejected_unsafe_payload"
+	// EvidenceStateMetadataWarning marks a work_item.metadata_warning
 	// fact: metadata COLLECTION for a scope was blocked (archived, unsupported,
 	// or permission-hidden) rather than the source reporting an ordinary fact.
-	// It is deliberately distinct from WorkItemEvidenceStatePermissionHidden,
+	// It is deliberately distinct from EvidenceStatePermissionHidden,
 	// which marks the RECORD itself as hidden: a metadata warning says the
 	// collector could not read a class of metadata, not that a specific issue is
 	// invisible. The specific reason lives in the row's WarningReason field, so
 	// the state stays a stable "this is a collection warning" label independent
 	// of the reason token.
-	WorkItemEvidenceStateMetadataWarning = "metadata_warning"
+	EvidenceStateMetadataWarning = "metadata_warning"
 )
 
-// WorkItemEvidenceStore reads bounded Jira/work-item source facts.
-type WorkItemEvidenceStore interface {
-	ListWorkItemEvidence(context.Context, WorkItemEvidenceFilter) (WorkItemEvidencePage, error)
+// EvidenceStore reads bounded Jira/work-item source facts.
+type EvidenceStore interface {
+	ListWorkItemEvidence(context.Context, EvidenceFilter) (EvidencePage, error)
 }
 
-// WorkItemEvidenceFilter bounds direct work-item evidence reads to a source,
+// EvidenceFilter bounds direct work-item evidence reads to a source,
 // work-item identity, project, URL fingerprint, or observation window.
-type WorkItemEvidenceFilter struct {
+type EvidenceFilter struct {
 	ScopeID            string
 	ProjectKey         string
 	WorkItemKey        string
@@ -74,10 +81,10 @@ type WorkItemEvidenceFilter struct {
 	AllowedRepositoryIDs []string
 }
 
-// WorkItemEvidenceRow is one redacted source-fact row from a work-item
+// EvidenceRow is one redacted source-fact row from a work-item
 // collector. It never exposes raw Jira URLs, remote-link URLs, summaries, user
 // identities, or provider response bodies.
-type WorkItemEvidenceRow struct {
+type EvidenceRow struct {
 	FactID                 string `json:"fact_id"`
 	FactKind               string `json:"fact_kind"`
 	ScopeID                string `json:"scope_id,omitempty"`
@@ -152,7 +159,7 @@ type workItemEvidenceFactRow struct {
 	Payload          map[string]any
 }
 
-func normalizeWorkItemEvidenceFilter(filter WorkItemEvidenceFilter) WorkItemEvidenceFilter {
+func normalizeWorkItemEvidenceFilter(filter EvidenceFilter) EvidenceFilter {
 	filter.ScopeID = strings.TrimSpace(filter.ScopeID)
 	filter.ProjectKey = strings.ToUpper(strings.TrimSpace(filter.ProjectKey))
 	filter.WorkItemKey = strings.ToUpper(strings.TrimSpace(filter.WorkItemKey))
@@ -170,7 +177,7 @@ func normalizeWorkItemEvidenceFilter(filter WorkItemEvidenceFilter) WorkItemEvid
 	return filter
 }
 
-func (f WorkItemEvidenceFilter) hasScope() bool {
+func (f EvidenceFilter) hasScope() bool {
 	return strings.TrimSpace(f.ScopeID) != "" ||
 		strings.TrimSpace(f.ProjectKey) != "" ||
 		strings.TrimSpace(f.WorkItemKey) != "" ||
@@ -180,7 +187,7 @@ func (f WorkItemEvidenceFilter) hasScope() bool {
 }
 
 // buildWorkItemEvidenceRows decodes each fact through the typed
-// sdk/go/factschema/workitem/v1 seam and shapes it into a WorkItemEvidenceRow.
+// sdk/go/factschema/workitem/v1 seam and shapes it into an EvidenceRow.
 // A fact whose payload is missing a required identity anchor (per its kind's
 // typed struct, see workitem/v1/README.md) is classified input_invalid by the
 // decode seam and DROPPED from the result — logged at debug level for
@@ -191,8 +198,8 @@ func (f WorkItemEvidenceFilter) hasScope() bool {
 // the same way today because this is a best-effort list read, not a durable
 // write path with its own dead-letter queue; a future schema-major rollout
 // would need to widen this behavior deliberately.
-func buildWorkItemEvidenceRows(facts []workItemEvidenceFactRow) []WorkItemEvidenceRow {
-	rows := make([]WorkItemEvidenceRow, 0, len(facts))
+func buildWorkItemEvidenceRows(facts []workItemEvidenceFactRow) []EvidenceRow {
+	rows := make([]EvidenceRow, 0, len(facts))
 	for _, fact := range facts {
 		row, ok := decodeWorkItemEvidenceRow(fact)
 		if !ok {
@@ -203,17 +210,17 @@ func buildWorkItemEvidenceRows(facts []workItemEvidenceFactRow) []WorkItemEviden
 	return rows
 }
 
-// decodeWorkItemEvidenceRow decodes one fact row into a WorkItemEvidenceRow
+// decodeWorkItemEvidenceRow decodes one fact row into an EvidenceRow
 // through the typed decode seam matching its fact kind. ok is false when the
-// fact failed decode (a *queryDecodeError, logged at debug level); the caller
+// fact failed decode (a *decode.Error, logged at debug level); the caller
 // drops the fact from the result set rather than emitting an empty-identity
 // row. An unrecognized fact kind also returns ok=false rather than a
 // zero-value row, matching the historical behavior of the raw-map lookups
 // (which would have returned all-empty fields for an unknown kind, never
-// surfaced as an evidence row in practice since workItemEvidenceFactKinds
+// surfaced as an evidence row in practice since EvidenceFactKinds
 // bounds the SQL read).
-func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRow, bool) {
-	base := WorkItemEvidenceRow{
+func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (EvidenceRow, bool) {
+	base := EvidenceRow{
 		FactID:           fact.FactID,
 		FactKind:         fact.FactKind,
 		ScopeID:          fact.ScopeID,
@@ -227,133 +234,133 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 		record, err := decodeWorkItemRecord(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = record.Provider
 		base.WorkItemKey = record.WorkItemKey
 		base.ProviderWorkItemID = record.ProviderWorkItemID
-		base.ProjectID = workItemDerefString(record.ProjectID)
-		base.ProjectKey = workItemDerefString(record.ProjectKey)
-		base.IssueTypeID = workItemDerefString(record.IssueTypeID)
-		base.IssueTypeName = workItemDerefString(record.IssueTypeName)
-		base.StatusID = workItemDerefString(record.StatusID)
-		base.StatusName = workItemDerefString(record.StatusName)
-		base.CreatedAt = workItemDerefString(record.CreatedAt)
-		base.UpdatedAt = workItemDerefString(record.UpdatedAt)
-		base.ResolvedAt = workItemDerefString(record.ResolvedAt)
-		base.RedactionPolicyVersion = workItemDerefString(record.RedactionPolicyVersion)
+		base.ProjectID = derefString(record.ProjectID)
+		base.ProjectKey = derefString(record.ProjectKey)
+		base.IssueTypeID = derefString(record.IssueTypeID)
+		base.IssueTypeName = derefString(record.IssueTypeName)
+		base.StatusID = derefString(record.StatusID)
+		base.StatusName = derefString(record.StatusName)
+		base.CreatedAt = derefString(record.CreatedAt)
+		base.UpdatedAt = derefString(record.UpdatedAt)
+		base.ResolvedAt = derefString(record.ResolvedAt)
+		base.RedactionPolicyVersion = derefString(record.RedactionPolicyVersion)
 
 	case "work_item.transition":
 		transition, err := decodeWorkItemTransition(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = transition.Provider
-		base.WorkItemKey = workItemDerefString(transition.WorkItemKey)
-		base.ProviderWorkItemID = workItemDerefString(transition.ProviderWorkItemID)
+		base.WorkItemKey = derefString(transition.WorkItemKey)
+		base.ProviderWorkItemID = derefString(transition.ProviderWorkItemID)
 		base.ProviderChangelogID = transition.ProviderChangelogID
-		base.Field = workItemDerefString(transition.Field)
-		base.From = workItemDerefString(transition.From)
-		base.To = workItemDerefString(transition.To)
-		base.ValueRedacted = workItemDerefBool(transition.ValueRedacted)
-		base.RedactionPolicyVersion = workItemDerefString(transition.RedactionPolicyVersion)
+		base.Field = derefString(transition.Field)
+		base.From = derefString(transition.From)
+		base.To = derefString(transition.To)
+		base.ValueRedacted = derefBool(transition.ValueRedacted)
+		base.RedactionPolicyVersion = derefString(transition.RedactionPolicyVersion)
 
 	case "work_item.external_link":
 		link, err := decodeWorkItemExternalLink(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = link.Provider
-		base.WorkItemKey = workItemDerefString(link.WorkItemKey)
-		base.ProviderWorkItemID = workItemDerefString(link.ProviderWorkItemID)
-		base.ProviderRemoteLinkID = workItemDerefString(link.ProviderRemoteLinkID)
-		base.GlobalID = workItemDerefString(link.GlobalID)
-		base.ApplicationName = workItemDerefString(link.ApplicationName)
-		base.ApplicationType = workItemDerefString(link.ApplicationType)
-		base.Relationship = workItemDerefString(link.Relationship)
-		base.URLFingerprint = workItemDerefString(link.URLFingerprint)
-		base.URLPresent = workItemDerefBool(link.URLPresent)
-		base.URLRedacted = workItemDerefBool(link.URLRedacted)
-		base.TitlePresent = workItemDerefBool(link.TitlePresent)
-		base.SummaryPresent = workItemDerefBool(link.SummaryPresent)
-		base.AnchorClass = workItemDerefString(link.AnchorClass)
-		base.ProviderSupportState = workItemDerefString(link.ProviderSupportState)
-		base.RedactionPolicyVersion = workItemDerefString(link.RedactionPolicyVersion)
-		base.LinkedRepositoryID = workItemDerefString(link.LinkedRepositoryID)
+		base.WorkItemKey = derefString(link.WorkItemKey)
+		base.ProviderWorkItemID = derefString(link.ProviderWorkItemID)
+		base.ProviderRemoteLinkID = derefString(link.ProviderRemoteLinkID)
+		base.GlobalID = derefString(link.GlobalID)
+		base.ApplicationName = derefString(link.ApplicationName)
+		base.ApplicationType = derefString(link.ApplicationType)
+		base.Relationship = derefString(link.Relationship)
+		base.URLFingerprint = derefString(link.URLFingerprint)
+		base.URLPresent = derefBool(link.URLPresent)
+		base.URLRedacted = derefBool(link.URLRedacted)
+		base.TitlePresent = derefBool(link.TitlePresent)
+		base.SummaryPresent = derefBool(link.SummaryPresent)
+		base.AnchorClass = derefString(link.AnchorClass)
+		base.ProviderSupportState = derefString(link.ProviderSupportState)
+		base.RedactionPolicyVersion = derefString(link.RedactionPolicyVersion)
+		base.LinkedRepositoryID = derefString(link.LinkedRepositoryID)
 
 	case "work_item.project_metadata":
 		metadata, err := decodeWorkItemProjectMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.ProjectID = workItemDerefString(metadata.ProjectID)
-		base.ProjectKey = workItemDerefString(metadata.ProjectKey)
-		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
+		base.ProjectID = derefString(metadata.ProjectID)
+		base.ProjectKey = derefString(metadata.ProjectKey)
+		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.issue_type_metadata":
 		metadata, err := decodeWorkItemIssueTypeMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.ProjectID = workItemDerefString(metadata.ProjectID)
+		base.ProjectID = derefString(metadata.ProjectID)
 		base.IssueTypeID = metadata.IssueTypeID
-		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
+		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.status_metadata":
 		metadata, err := decodeWorkItemStatusMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.ProjectID = workItemDerefString(metadata.ProjectID)
+		base.ProjectID = derefString(metadata.ProjectID)
 		base.StatusID = metadata.StatusID
-		base.StatusName = workItemDerefString(metadata.StatusName)
-		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
+		base.StatusName = derefString(metadata.StatusName)
+		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.workflow_metadata":
 		metadata, err := decodeWorkItemWorkflowMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.ProjectID = workItemDerefString(metadata.ProjectID)
-		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
+		base.ProjectID = derefString(metadata.ProjectID)
+		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.field_metadata":
 		metadata, err := decodeWorkItemFieldMetadata(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = metadata.Provider
-		base.RedactionPolicyVersion = workItemDerefString(metadata.RedactionPolicyVersion)
+		base.RedactionPolicyVersion = derefString(metadata.RedactionPolicyVersion)
 
 	case "work_item.metadata_warning":
 		warning, err := decodeWorkItemMetadataWarning(workItemDecodeInput{FactID: fact.FactID, SchemaVersion: fact.SchemaVersion, Payload: fact.Payload})
 		if err != nil {
 			logWorkItemEvidenceDecodeDrop(err)
-			return WorkItemEvidenceRow{}, false
+			return EvidenceRow{}, false
 		}
 		base.Provider = warning.Provider
 		base.MetadataType = warning.MetadataType
 		base.WarningReason = warning.Reason
-		base.ProviderIDFingerprint = workItemDerefString(warning.ProviderIDFingerprint)
-		base.RedactionPolicyVersion = workItemDerefString(warning.RedactionPolicyVersion)
+		base.ProviderIDFingerprint = derefString(warning.ProviderIDFingerprint)
+		base.RedactionPolicyVersion = derefString(warning.RedactionPolicyVersion)
 
 	default:
-		// workItemEvidenceFactKinds bounds the SQL read to the kinds this
+		// EvidenceFactKinds bounds the SQL read to the kinds this
 		// switch handles; an unrecognized kind here would mean the SQL kind
 		// list and this switch drifted apart. Drop rather than emit a
 		// zero-identity row.
-		return WorkItemEvidenceRow{}, false
+		return EvidenceRow{}, false
 	}
 
 	base.EvidenceState = workItemEvidenceState(fact)
@@ -366,12 +373,12 @@ func decodeWorkItemEvidenceRow(fact workItemEvidenceFactRow) (WorkItemEvidenceRo
 // dead-letter queue entry (there is no queue on this path), so a debug-level
 // structured log is the visibility contract: an operator can search fact_id,
 // fact_kind, and classification to find exactly which malformed fact was
-// excluded and why. EVERY decode drop is a *queryDecodeError, so fact_id and
+// excluded and why. EVERY decode drop is a *decode.Error, so fact_id and
 // fact_kind are logged for all of them (a missing/null required field via
 // input_invalid AND an unsupported schema major alike); missing_field is added
 // only when the failure is attributable to one field.
 func logWorkItemEvidenceDecodeDrop(err error) {
-	var decodeErr *queryDecodeError
+	var decodeErr *decode.Error
 	if !errors.As(err, &decodeErr) {
 		slog.Debug("work-item evidence fact dropped from list: decode error", slog.String("error", err.Error()))
 		return

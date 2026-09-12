@@ -304,30 +304,31 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 		}},
 	},
 
-	// WorkItemHandler.listWorkItemEvidence -> h.Evidence
-	// (PostgresWorkItemEvidenceStore): fact_kind = ANY($1) bound to
+	// workitem.Handler.listWorkItemEvidence -> h.Evidence
+	// (workitem.PostgresEvidenceStore): fact_kind = ANY($1) bound to
 	// facts.WorkItemFactKinds() — the work_item.* source family
-	// (work_item_evidence_read_kinds.go:22, work_item_evidence_sql.go:32),
+	// (workitem/read_kinds.go, EvidenceFactKinds; workitem/sql.go, the
+	// fact.fact_kind = ANY($1::text[]) predicate),
 	// whose registry family declares reducer_domain
 	// incident_repository_correlation (specs/fact-kind-registry.v1.yaml:543).
 	"GET /api/v0/work-items/evidence": {
-		RegistrationFile: "go/internal/query/work_item_evidence_handler.go",
-		HandlerStruct:    "WorkItemHandler",
-		StructFile:       "go/internal/query/work_item_evidence_handler.go",
+		RegistrationFile: "go/internal/query/workitem/handler.go",
+		HandlerStruct:    "Handler",
+		StructFile:       "go/internal/query/workitem/handler.go",
 		Method:           "listWorkItemEvidence",
-		MethodFile:       "go/internal/query/work_item_evidence_handler.go",
+		MethodFile:       "go/internal/query/workitem/handler.go",
 		ScanFiles: []string{
-			"go/internal/query/work_item_evidence_handler.go",
-			"go/internal/query/work_item_evidence_sql.go",
-			"go/internal/query/work_item_evidence_read_kinds.go",
-			"go/internal/query/work_item_evidence_store.go",
+			"go/internal/query/workitem/handler.go",
+			"go/internal/query/workitem/sql.go",
+			"go/internal/query/workitem/read_kinds.go",
+			"go/internal/query/workitem/store.go",
 		},
 		Served: []routeServedDomain{{
 			Domain:     "incident_repository_correlation",
 			StoreField: "Evidence",
-			StoreType:  "WorkItemEvidenceStore",
+			StoreType:  "EvidenceStore",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/work_item_evidence_read_kinds.go", Marker: "facts.WorkItemFactKinds()"},
+				{File: "go/internal/query/workitem/read_kinds.go", Marker: "facts.WorkItemFactKinds()"},
 				{File: "go/internal/facts/work_item.go", Marker: `"work_item.record"`},
 			},
 		}},

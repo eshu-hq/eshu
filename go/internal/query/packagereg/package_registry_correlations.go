@@ -340,7 +340,7 @@ func decodePackageRegistryCorrelationRow(
 // logPackageRegistryCorrelationDecodeDrop logs one dropped package
 // correlation fact at debug level, naming the fact id, fact kind, and missing
 // field so an operator can locate the malformed row in fact_records. Mirrors
-// work_item_evidence.go's logWorkItemEvidenceDecodeDrop.
+// internal/query/workitem/evidence.go's logWorkItemEvidenceDecodeDrop.
 func logPackageRegistryCorrelationDecodeDrop(err error) {
 	var decodeErr *decode.Error
 	if !errors.As(err, &decodeErr) {

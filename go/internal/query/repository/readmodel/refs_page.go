@@ -137,8 +137,8 @@ func SortRepositoryRefsForPaging(refs []querycontract.RepositoryRef) {
 // follows window, used by
 // callers to derive the deprecated tags_truncated field without a second
 // pass over the full list. truncated and nextCursor follow the
-// WorkItemEvidencePage convention (work_item_evidence_page.go): truncated is
-// true exactly when more refs exist beyond window, and nextCursor -- set
+// internal/query/workitem.EvidencePage convention (workitem/page.go):
+// truncated is true exactly when more refs exist beyond window, and nextCursor -- set
 // only when truncated -- is window's last ref's own sort key, so paging
 // forward never skips or repeats a ref regardless of concurrent ref churn.
 func RefPageWindow(repoID string, refs []querycontract.RepositoryRef, cursor *RefPageCursor, limit int) (window, remainder []querycontract.RepositoryRef, truncated bool, nextCursor string) {

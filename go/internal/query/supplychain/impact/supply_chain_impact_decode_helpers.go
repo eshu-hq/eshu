@@ -62,7 +62,7 @@ type supplyChainFactDecodeInput struct {
 
 // supplyChainDefaultSchemaMajorVersion is the schema version this file
 // assumes when a row carries none, matching root package query's
-// queryDefaultSchemaMajorVersion (factschema_decode_workitem.go). It is a
+// queryDefaultSchemaMajorVersion (factschema_decode_shared.go). It is a
 // major-1 version because every in-tree supply-chain source-fact emitter
 // stamps a concrete major-1 version; the Decode seam dispatches on the major
 // component only. Kept as this family's own copy rather than an import: the
@@ -163,10 +163,11 @@ func decodeServiceCatalogRepositoryLink(in supplyChainFactDecodeInput) (servicec
 }
 
 // derefString returns the value a *string points at, or "" when it is nil.
-// Copied from root package query's workItemDerefString
-// (factschema_decode_workitem.go): the staying work-item seam owns that
-// name, so the #6060 family move cannot take it, and an unexported root
-// symbol cannot be called across a package boundary. Named for what it does
+// Copied from root package query's derefString
+// (factschema_decode_shared.go, named workItemDerefString there before
+// #6642 destuttered it): root decode files still call it, so the #6060
+// family move could not take it, and an unexported root symbol cannot be
+// called across a package boundary. Named for what it does
 // here rather than the root file it came from: nothing in this package is
 // work-item-shaped (same rationale as advisory's derefString).
 func derefString(value *string) string {

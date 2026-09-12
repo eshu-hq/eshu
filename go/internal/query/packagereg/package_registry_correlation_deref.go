@@ -7,11 +7,14 @@ package packagereg
 // off the reducer package correlation structs
 // (sdk/go/factschema/reducerderived/v1) and needs nil-safe deref semantics.
 //
-// Root package query has the same two helpers as workItemDerefString and
-// workItemDerefBool in factschema_decode_workitem.go. They stay there: many
-// root decode files call them (work_item_evidence.go, incident_context_*.go,
-// supply_chain_advisory_evidence_model.go, factschema_decode_supplychain.go),
-// so #6060's family move cannot take them, and an unexported root symbol
+// Root package query has the same helper as derefString in
+// factschema_decode_shared.go (named workItemDerefString there before #6642
+// destuttered it; the workItemDerefBool twin was dropped in the same move,
+// since no root caller needed it any more). derefString stays there: its
+// only remaining root caller is factschema_decode_supplychain.go --
+// work_item_evidence.go moved to internal/query/workitem/evidence.go and
+// calls its own package-local derefString now, so it no longer needs root's
+// -- so #6060's family move cannot take it, and an unexported root symbol
 // cannot be called across a package boundary. Root exports no equivalent to
 // wrap, so this family carries its own copy of the same trivial logic rather
 // than a forwarder.

@@ -110,7 +110,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 	// change.record read by /incidents/{id}/context) and work_item
 	// (work_item.* kinds read by /work-items/evidence via
 	// facts.WorkItemFactKinds()).
-	"incident_repository_correlation":  {Markers: []string{"'incident.record'", "'incident.lifecycle_event'", "'change.record'", "facts.WorkItemFactKinds()"}, StoreTypes: []string{"IncidentContextStore", "WorkItemEvidenceStore"}},
+	"incident_repository_correlation":  {Markers: []string{"'incident.record'", "'incident.lifecycle_event'", "'change.record'", "facts.WorkItemFactKinds()"}, StoreTypes: []string{"IncidentContextStore", "WorkItemEvidenceStore", "workitem.EvidenceStore"}},
 	"incident_routing_materialization": {Markers: []string{"incident_routing.applied_pagerduty_resource", "incident_routing.observed_pagerduty_service"}},
 
 	"kubernetes_correlation":             {Markers: []string{"reducer_kubernetes_correlation"}, StoreTypes: []string{"KubernetesCorrelationStore"}},

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package workitem
 
 // listWorkItemEvidenceQuery reads one bounded page of active work-item source
 // facts. The scoped-token grant set ($9) intersects each fact's durable
