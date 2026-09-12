@@ -8,7 +8,7 @@ set -euo pipefail
 #   - unauthenticated reads are rejected (401),
 #   - an admin (all-scopes) token sees every ingested repository,
 #   - each team's scoped token reads ONLY its own granted repository through the
-#     repository list/count route (allowed in-scope read),
+#     repository list/count route and its selector resolves that exact repository,
 #   - each team's scoped token CANNOT see the other team's repository in that
 #     list (denied cross-scope read), and the single-repository context selector
 #     for the other team's repo fails closed without disclosing existence
@@ -90,9 +90,9 @@ print_checks() {
 		'two-team governance cross-scope denial proof checks:' \
 		'  1. unauthenticated: API and MCP repository reads return 401 with no body' \
 		'  2. admin: all-scopes token enumerates at least two repositories' \
-		'  3. team-a allowed: team-A scoped token API+MCP list includes only its own repo (count==1)' \
+		'  3. team-a allowed: API+MCP list only its own repo and its selector returns that repo (200)' \
 			"  4. team-a denied: team-A list excludes team-B's repo; selector returns non-disclosing 403 permission_denied or 404 not_found" \
-		'  5. team-b allowed: team-B scoped token API+MCP list includes only its own repo (count==1)' \
+		'  5. team-b allowed: API+MCP list only its own repo and its selector returns that repo (200)' \
 			"  6. team-b denied: team-B list excludes team-A's repo; selector returns non-disclosing 403 permission_denied or 404 not_found" \
 		'  7. parity: API and MCP scoped readbacks agree per team (same allowed/denied verdicts)' \
 		'  8. provenance: records eshu_commit, backend, registry token count, metrics handle' \
@@ -156,26 +156,35 @@ admin_count="$(json_num "${admin}" repository_count)"
 # which MUST be a non-disclosing 403 or 404).
 check_team() {
 	local file="$1" label="$2"
+	local expected_own
+	expected_own="$(json_str "${file}" own_repo)"
+	[[ -n "${expected_own}" ]] || die "${label} artifact missing own_repo"
 	for surface in api mcp; do
-		local count own other sel
+		local count own own_sel own_sel_id other other_sel
 		count="$(json_num "${file}" "${surface}_repository_count")"
 		own="$(json_str "${file}" "${surface}_own_repo_present")"
+		own_sel="$(json_num "${file}" "${surface}_own_repo_selector_status")"
+		own_sel_id="$(json_str "${file}" "${surface}_own_repo_selector_repository_id")"
 		other="$(json_str "${file}" "${surface}_other_repo_present")"
-		sel="$(json_num "${file}" "${surface}_other_repo_selector_status")"
+		other_sel="$(json_num "${file}" "${surface}_other_repo_selector_status")"
 
-		# Allowed in-scope read: own repo present and exactly one repo visible.
+		# Allowed in-scope read: list and selector resolve the same granted repo.
 		require_eq "${own}" "true" "${label} ${surface} own repository present"
 		require_eq "${count}" "1" "${label} ${surface} scoped repository count"
+		require_eq "${own_sel}" "200" "${label} ${surface} own selector status"
+		require_eq "${own_sel_id}" "${expected_own}" "${label} ${surface} own selector repository id"
 		# Denied cross-scope read: other team's repo absent from the list and the
 		# single-repository context selector for it fails closed without exposing
 		# whether the repository exists.
 		require_eq "${other}" "false" "${label} ${surface} cross-scope repository leaked"
-		require_non_disclosing_selector_status "${sel}" "${label} ${surface} cross-scope selector status"
+		require_non_disclosing_selector_status "${other_sel}" "${label} ${surface} cross-scope selector status"
 	done
 
 	# 7. Parity: API and MCP must agree on every verdict for this team.
 	require_eq "$(json_num "${file}" api_repository_count)" "$(json_num "${file}" mcp_repository_count)" "${label} API/MCP count parity"
 	require_eq "$(json_str "${file}" api_own_repo_present)" "$(json_str "${file}" mcp_own_repo_present)" "${label} API/MCP own-repo parity"
+	require_eq "$(json_num "${file}" api_own_repo_selector_status)" "$(json_num "${file}" mcp_own_repo_selector_status)" "${label} API/MCP own-selector status parity"
+	require_eq "$(json_str "${file}" api_own_repo_selector_repository_id)" "$(json_str "${file}" mcp_own_repo_selector_repository_id)" "${label} API/MCP own-selector identity parity"
 	require_eq "$(json_str "${file}" api_other_repo_present)" "$(json_str "${file}" mcp_other_repo_present)" "${label} API/MCP cross-scope parity"
 	require_eq "$(json_num "${file}" api_other_repo_selector_status)" "$(json_num "${file}" mcp_other_repo_selector_status)" "${label} API/MCP selector parity"
 }

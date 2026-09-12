@@ -4,10 +4,14 @@
   "other_repo": "repo-beta",
   "api_repository_count": 1,
   "api_own_repo_present": "true",
+  "api_own_repo_selector_status": 200,
+  "api_own_repo_selector_repository_id": "repo-alpha",
   "api_other_repo_present": "false",
   "api_other_repo_selector_status": 404,
   "mcp_repository_count": 1,
   "mcp_own_repo_present": "true",
+  "mcp_own_repo_selector_status": 200,
+  "mcp_own_repo_selector_repository_id": "repo-alpha",
   "mcp_other_repo_present": "false",
   "mcp_other_repo_selector_status": 404
 }

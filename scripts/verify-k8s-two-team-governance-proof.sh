@@ -8,7 +8,8 @@ set -euo pipefail
 #
 #   - unauthenticated reads are rejected (401),
 #   - an admin (all-scopes) token sees every seeded repository,
-#   - each team's scoped token reads ONLY its own repository (allowed in-scope),
+#   - each team's scoped token lists only its own repository and its selector
+#     resolves that exact repository (allowed in-scope),
 #   - each team's scoped token CANNOT see the other team's repository, and the
 #     other team's single-repository selector fails closed without disclosing
 #     existence (403 or 404),
@@ -29,7 +30,6 @@ artifacts_dir=""
 readonly expected_backend_image="timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962"
 readonly expected_index_digest="sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962"
 readonly expected_amd64_digest="sha256:c0b5f73c55bd56a6764d1833665252b98a30b332248f0233f5f4eab4dc0d2ca1"
-readonly expected_arm64_digest="sha256:d787abe61d92c67761bdbd21ae5224aad904f2a13283d46d13fdfb6269b86b7b"
 
 usage() {
 	# printf, not a heredoc: Homebrew bash >= 5.1 writes an entire heredoc
@@ -95,9 +95,9 @@ print_checks() {
 		'live K8s two-team governance cross-scope denial proof checks:' \
 		'  1. unauthenticated: API and MCP repository reads return 401' \
 		'  2. admin: all-scopes token enumerates at least two repositories' \
-		'  3. team-a allowed: team-A scoped token API+MCP list includes only its own repo (count==1)' \
+		'  3. team-a allowed: API+MCP list only its own repo and its selector returns that repo (200)' \
 			"  4. team-a denied: team-A list excludes team-B's repo; selector returns non-disclosing 403 permission_denied or 404 not_found" \
-		'  5. team-b allowed: team-B scoped token API+MCP list includes only its own repo (count==1)' \
+		'  5. team-b allowed: API+MCP list only its own repo and its selector returns that repo (200)' \
 			"  6. team-b denied: team-B list excludes team-A's repo; selector returns non-disclosing 403 permission_denied or 404 not_found" \
 		'  7. parity: API and MCP scoped readbacks agree per team' \
 		'  8. network policy: api + mcp NetworkPolicies applied in-cluster with restricted egress' \
@@ -153,19 +153,28 @@ admin_count="$(json_num "${admin}" repository_count)"
 # 3-7. Per-team allowed/denied/parity.
 check_team() {
 	local file="$1" label="$2"
+	local expected_own
+	expected_own="$(json_str "${file}" own_repo)"
+	[[ -n "${expected_own}" ]] || die "${label} artifact missing own_repo"
 	for surface in api mcp; do
-		local count own other sel
+		local count own own_sel own_sel_id other other_sel
 		count="$(json_num "${file}" "${surface}_repository_count")"
 		own="$(json_str "${file}" "${surface}_own_repo_present")"
+		own_sel="$(json_num "${file}" "${surface}_own_repo_selector_status")"
+		own_sel_id="$(json_str "${file}" "${surface}_own_repo_selector_repository_id")"
 		other="$(json_str "${file}" "${surface}_other_repo_present")"
-		sel="$(json_num "${file}" "${surface}_other_repo_selector_status")"
+		other_sel="$(json_num "${file}" "${surface}_other_repo_selector_status")"
 		require_eq "${own}" "true" "${label} ${surface} own repository present"
 		require_eq "${count}" "1" "${label} ${surface} scoped repository count"
+		require_eq "${own_sel}" "200" "${label} ${surface} own selector status"
+		require_eq "${own_sel_id}" "${expected_own}" "${label} ${surface} own selector repository id"
 		require_eq "${other}" "false" "${label} ${surface} cross-scope repository leaked"
-		require_non_disclosing_selector_status "${sel}" "${label} ${surface} cross-scope selector status"
+		require_non_disclosing_selector_status "${other_sel}" "${label} ${surface} cross-scope selector status"
 	done
 	require_eq "$(json_num "${file}" api_repository_count)" "$(json_num "${file}" mcp_repository_count)" "${label} API/MCP count parity"
 	require_eq "$(json_str "${file}" api_own_repo_present)" "$(json_str "${file}" mcp_own_repo_present)" "${label} API/MCP own-repo parity"
+	require_eq "$(json_num "${file}" api_own_repo_selector_status)" "$(json_num "${file}" mcp_own_repo_selector_status)" "${label} API/MCP own-selector status parity"
+	require_eq "$(json_str "${file}" api_own_repo_selector_repository_id)" "$(json_str "${file}" mcp_own_repo_selector_repository_id)" "${label} API/MCP own-selector identity parity"
 	require_eq "$(json_str "${file}" api_other_repo_present)" "$(json_str "${file}" mcp_other_repo_present)" "${label} API/MCP cross-scope parity"
 	require_eq "$(json_num "${file}" api_other_repo_selector_status)" "$(json_num "${file}" mcp_other_repo_selector_status)" "${label} API/MCP selector parity"
 }
@@ -192,17 +201,13 @@ require_eq "$(json_str "${provenance}" backend_version)" "NornicDB v1.3.1" "prov
 require_eq "$(json_str "${provenance}" backend_source_revision)" "unavailable" "official image source revision status"
 
 backend_platform="$(json_str "${provenance}" backend_platform)"
-case "${backend_platform}" in
-	linux/amd64) expected_platform_digest="${expected_amd64_digest}" ;;
-	linux/arm64) expected_platform_digest="${expected_arm64_digest}" ;;
-	*) die "provenance backend_platform '${backend_platform}' is not a published v1.3.1 platform" ;;
-esac
+require_eq "${backend_platform}" "linux/amd64" "live-proven NornicDB platform"
 backend_runtime_image_id="$(json_str "${provenance}" backend_runtime_image_id)"
 [[ "${backend_runtime_image_id}" == *"timothyswt/nornicdb-cpu-bge@"* ]] \
 	|| die "provenance backend_runtime_image_id '${backend_runtime_image_id}' is not the expected repository"
 case "${backend_runtime_image_id}" in
-	*@"${expected_platform_digest}"|*@"${expected_index_digest}") ;;
-	*) die "provenance backend_runtime_image_id '${backend_runtime_image_id}' matches neither the immutable v1.3.1 index nor ${backend_platform} digest ${expected_platform_digest}" ;;
+	*@"${expected_amd64_digest}"|*@"${expected_index_digest}") ;;
+	*) die "provenance backend_runtime_image_id '${backend_runtime_image_id}' matches neither the immutable v1.3.1 index nor linux/amd64 digest ${expected_amd64_digest}" ;;
 esac
 rg --quiet '"eshu_commit"[[:space:]]*:[[:space:]]*"unknown"' "${provenance}" \
 	&& die "provenance eshu_commit is unknown (capture ran outside a checkout)"

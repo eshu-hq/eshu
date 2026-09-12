@@ -56,7 +56,7 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 selector_403_dir="${tmp_dir}/selector-403"
 cp -R "${fixtures}/good" "${selector_403_dir}"
 for team in team-a team-b; do
-	sed 's/_selector_status": 404/_selector_status": 403/g' \
+	sed 's/_other_repo_selector_status": 404/_other_repo_selector_status": 403/g' \
 		"${fixtures}/good/${team}.json" >"${selector_403_dir}/${team}.json"
 done
 bash "${verifier}" --artifacts "${selector_403_dir}" >/dev/null \
@@ -64,10 +64,38 @@ bash "${verifier}" --artifacts "${selector_403_dir}" >/dev/null \
 
 mixed_selector_dir="${tmp_dir}/mixed-selector"
 cp -R "${fixtures}/good" "${mixed_selector_dir}"
-sed '0,/_selector_status": 404/s//_selector_status": 403/' \
+sed '0,/_other_repo_selector_status": 404/s//_other_repo_selector_status": 403/' \
 	"${fixtures}/good/team-a.json" >"${mixed_selector_dir}/team-a.json"
 if bash "${verifier}" --artifacts "${mixed_selector_dir}" >/dev/null 2>&1; then
 	die "verifier accepted API/MCP selector-status divergence"
+fi
+
+for surface in api mcp; do
+	missing_own_status_dir="${tmp_dir}/missing-${surface}-own-status"
+	cp -R "${fixtures}/good" "${missing_own_status_dir}"
+	sed "/${surface}_own_repo_selector_status/d" \
+		"${fixtures}/good/team-a.json" >"${missing_own_status_dir}/team-a.json"
+	if bash "${verifier}" --artifacts "${missing_own_status_dir}" >/dev/null 2>&1; then
+		die "verifier accepted missing ${surface} own-repository selector status"
+	fi
+
+	for status in 0 204 403 404 500; do
+		bad_own_status_dir="${tmp_dir}/bad-${surface}-own-status-${status}"
+		cp -R "${fixtures}/good" "${bad_own_status_dir}"
+		sed "0,/${surface}_own_repo_selector_status\": 200/s//${surface}_own_repo_selector_status\": ${status}/" \
+			"${fixtures}/good/team-a.json" >"${bad_own_status_dir}/team-a.json"
+		if bash "${verifier}" --artifacts "${bad_own_status_dir}" >/dev/null 2>&1; then
+			die "verifier accepted ${surface} own-repository selector status ${status}"
+		fi
+	done
+done
+
+wrong_own_id_dir="${tmp_dir}/wrong-own-id"
+cp -R "${fixtures}/good" "${wrong_own_id_dir}"
+sed '0,/api_own_repo_selector_repository_id": "repository:repoTeamAlpha"/s//api_own_repo_selector_repository_id": "repository:repoTeamBeta"/' \
+	"${fixtures}/good/team-a.json" >"${wrong_own_id_dir}/team-a.json"
+if bash "${verifier}" --artifacts "${wrong_own_id_dir}" >/dev/null 2>&1; then
+	die "verifier accepted the wrong own-repository selector identity"
 fi
 
 # Backend provenance accepts either the platform child or an exact index
@@ -78,8 +106,9 @@ sed \
 	-e 's/"backend_platform": "linux\/amd64"/"backend_platform": "linux\/arm64"/' \
 	-e "s#${expected_amd64_image_id}#${expected_arm64_image_id}#" \
 	"${fixtures}/good/provenance.json" >"${arm64_dir}/provenance.json"
-bash "${verifier}" --artifacts "${arm64_dir}" >/dev/null \
-	|| die "verifier rejected valid arm64 manifest provenance"
+if bash "${verifier}" --artifacts "${arm64_dir}" >/dev/null 2>&1; then
+	die "verifier accepted arm64 provenance without live backend proof"
+fi
 
 index_dir="${tmp_dir}/index-reporting-runtime"
 cp -R "${fixtures}/good" "${index_dir}"

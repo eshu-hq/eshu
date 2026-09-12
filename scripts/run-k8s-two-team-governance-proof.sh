@@ -386,21 +386,33 @@ capture_team() {
 	printf '%s\n' "${api_ids}" | contains_id "${other}" && api_other=true || true
 	printf '%s\n' "${mcp_ids}" | contains_id "${own}"   && mcp_own=true   || true
 	printf '%s\n' "${mcp_ids}" | contains_id "${other}" && mcp_other=true || true
-	local api_sel mcp_sel
-	api_sel="$(http_status -H "Authorization: Bearer ${token}" "${api_base}/api/v0/repositories/${other}/context")"
-	mcp_sel="$(http_status -H "Authorization: Bearer ${token}" "${mcp_base}/api/v0/repositories/${other}/context")"
+	local api_own_body mcp_own_body api_own_sel mcp_own_sel api_own_sel_id mcp_own_sel_id
+	api_own_body="${work_dir}/$(basename "${file}").api-own.json"
+	mcp_own_body="${work_dir}/$(basename "${file}").mcp-own.json"
+	api_own_sel="$(curl -sS -o "${api_own_body}" -w '%{http_code}' -H "Authorization: Bearer ${token}" "${api_base}/api/v0/repositories/${own}/context")"
+	mcp_own_sel="$(curl -sS -o "${mcp_own_body}" -w '%{http_code}' -H "Authorization: Bearer ${token}" "${mcp_base}/api/v0/repositories/${own}/context")"
+	api_own_sel_id="$(jq -er '.repository.id | strings | select(length > 0)' "${api_own_body}")" || die "API own selector did not return repository.id"
+	mcp_own_sel_id="$(jq -er '.repository.id | strings | select(length > 0)' "${mcp_own_body}")" || die "MCP own selector did not return repository.id"
+	rm -f "${api_own_body}" "${mcp_own_body}"
+	local api_other_sel mcp_other_sel
+	api_other_sel="$(http_status -H "Authorization: Bearer ${token}" "${api_base}/api/v0/repositories/${other}/context")"
+	mcp_other_sel="$(http_status -H "Authorization: Bearer ${token}" "${mcp_base}/api/v0/repositories/${other}/context")"
 	cat >"${file}" <<JSON
 {
   "own_repo": "${own}",
   "other_repo": "${other}",
   "api_repository_count": ${api_count},
   "api_own_repo_present": "${api_own}",
+  "api_own_repo_selector_status": ${api_own_sel},
+  "api_own_repo_selector_repository_id": "${api_own_sel_id}",
   "api_other_repo_present": "${api_other}",
-  "api_other_repo_selector_status": ${api_sel},
+  "api_other_repo_selector_status": ${api_other_sel},
   "mcp_repository_count": ${mcp_count},
   "mcp_own_repo_present": "${mcp_own}",
+  "mcp_own_repo_selector_status": ${mcp_own_sel},
+  "mcp_own_repo_selector_repository_id": "${mcp_own_sel_id}",
   "mcp_other_repo_present": "${mcp_other}",
-  "mcp_other_repo_selector_status": ${mcp_sel}
+  "mcp_other_repo_selector_status": ${mcp_other_sel}
 }
 JSON
 }
