@@ -1,0 +1,51 @@
+# Agent instructions: go/internal/query/taghistory
+
+Read `README.md` here before changing anything in this directory. It carries the
+two constraints below with the evidence behind them.
+
+## Never collapse the two reads into one statement
+
+`Cypher` and `BuiltFromCypher` are deliberately separate single-clause reads
+joined in Go. A two-MATCH grant join returned **zero rows** on the pinned
+NornicDB build and on upstream v1.3.1 for a seed whose correct answer was two
+rows. A "simplification" that merges them silently withholds every row a scoped
+caller is entitled to. If you believe the backend has been fixed, prove it on
+the pinned build first and record the run in
+`docs/internal/evidence/6564-tag-history-grant-binding.md`.
+
+## Never make a page look complete when it is not
+
+Three properties are load-bearing for tenant isolation and must survive any
+refactor. Changing one without the others reopens a disclosure the review
+already caught:
+
+1. A grant-filtered page is refilled to `limit` VISIBLE rows. `count` below
+   `limit` must mean the history ended or the read cap stopped the scan — never
+   "the filter removed some from this window".
+2. `Truncated` is true whenever raw history remains beyond `NextOffset`,
+   including when `MaxRefillReads` stopped the scan. A capped page is not a
+   complete page.
+3. `NextOffset` never reaches the wire as an integer. The handler encodes it
+   with `EncodeCursor`; the distance it advanced past the returned rows is the
+   count of withheld rows.
+
+`MaxRefillReads` bounds per-request cost and is justified from measured lookup
+latency in the evidence doc. Raising it multiplies the worst case — re-measure
+before changing it, and prefer the remote instance for any timing claim.
+
+## Bounds are enforced, not declared
+
+`BuiltFromMaxKeys` and `BuiltFromMaxRows` back the `max_keys` / `max_results`
+this package's symbols register in
+`go/internal/queryplan/testdata/query-source-coverage.yaml`. Keep them in
+agreement, and keep the overflow behaviour fail-closed. Do not add a Cypher
+`LIMIT` to `BuiltFromCypher`: truncating there drops BUILT_FROM edges the caller
+is entitled to, which is a wrong answer rather than a bounded one.
+
+Changing either statement's text invalidates the live proof in the evidence doc.
+Re-run it on the pinned build and update the doc in the same change.
+
+## Dependencies
+
+Standard library and `querycontract` only. This package must not import the
+query root; that direction is what lets the query root import it.

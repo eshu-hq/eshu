@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
 )
 
 // fakeTagHistoryGraphReader records the last query and returns canned rows so
@@ -166,12 +168,16 @@ func TestTagHistoryHandlerTruncationAndCursor(t *testing.T) {
 	if got := data["truncated"]; got != true {
 		t.Fatalf("truncated = %#v, want true", got)
 	}
-	cursor, ok := data["next_cursor"].(map[string]any)
+	token, ok := data["next_cursor"].(string)
 	if !ok {
-		t.Fatalf("next_cursor = %#v, want object", data["next_cursor"])
+		t.Fatalf("next_cursor = %#v, want an opaque token string", data["next_cursor"])
 	}
-	if got, want := cursor["offset"], float64(11); got != want {
-		t.Fatalf("next_cursor.offset = %#v, want %#v", got, want)
+	offset, err := taghistory.DecodeCursor(token, "ghcr.io/eshu-hq/demo:1.0.0", 1)
+	if err != nil {
+		t.Fatalf("taghistory.DecodeCursor() error = %v, want the token this page issued to decode", err)
+	}
+	if got, want := offset, 11; got != want {
+		t.Fatalf("cursor offset = %d, want %d", got, want)
 	}
 }
 

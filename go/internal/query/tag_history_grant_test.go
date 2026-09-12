@@ -283,31 +283,26 @@ func TestTagHistoryScopedCallerBuiltFromErrorFailsClosed(t *testing.T) {
 	}
 }
 
-// TestTagHistoryScopedCallerTruncationFollowsUnfilteredWindow pins the
-// pagination contract shared with the change-surface route
-// (impact_change_surface_traversal.go): truncated and next_cursor are computed
-// from the raw limit+1 read before the grant filter, so a scoped page can hold
-// fewer than limit rows while still reporting truncation and advancing the
-// cursor over the unfiltered window.
-func TestTagHistoryScopedCallerTruncationFollowsUnfilteredWindow(t *testing.T) {
+// TestTagHistoryScopedWindowExcludesLimitPlusOneSentinel proves each refill
+// window reads limit+1 rows only to learn whether history continues: the
+// sentinel row is trimmed before the grant filter, so it is never looked up and
+// never leaks into a page.
+//
+// This replaces TestTagHistoryScopedCallerTruncationFollowsUnfilteredWindow,
+// which pinned the pre-#6564-review contract where truncated and next_cursor
+// came from the raw pre-filter window. That contract is gone: a scoped page is
+// now refilled (tag_history_refill_test.go).
+func TestTagHistoryScopedWindowExcludesLimitPlusOneSentinel(t *testing.T) {
 	t.Parallel()
 
 	graph := tagHistoryGrantMatrix()
 	graph.tagRows = graph.tagRows[:3] // t1, t2, t3 == limit+1 for limit=2
-	w := serveTagHistoryAs(t, graph, scopedTagHistoryAuth("repo-granted"), tagHistoryGrantTarget+"&limit=2&offset=4")
-	data := decodeTagHistoryBody(t, w)
-	if got, want := tagHistoryResultTags(t, data), []string{"t1"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("tags = %v, want %v", got, want)
+	w := serveTagHistoryAs(t, graph, scopedTagHistoryAuth("repo-granted"), tagHistoryGrantTarget+"&limit=2")
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got := data["truncated"]; got != true {
-		t.Fatalf("truncated = %#v, want true", got)
-	}
-	cursor, ok := data["next_cursor"].(map[string]any)
-	if !ok {
-		t.Fatalf("next_cursor = %#v, want object", data["next_cursor"])
-	}
-	if got, want := cursor["offset"], float64(6); got != want {
-		t.Fatalf("next_cursor.offset = %#v, want %#v", got, want)
+	if got, want := graph.calls[0].params["limit"], 3; got != want {
+		t.Fatalf("tag read limit = %#v, want %#v (limit+1 sentinel)", got, want)
 	}
 	if got, want := graph.calls[1].params["digests"], []string{"sha256:d1", "sha256:d2"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("BUILT_FROM digests = %#v, want %#v (the limit+1 sentinel row is not looked up)", got, want)

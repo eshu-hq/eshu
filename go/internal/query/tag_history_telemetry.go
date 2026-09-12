@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -24,7 +25,27 @@ const (
 	spanAttrTagHistoryUngrantedCount       = "eshu.query.tag_history.withheld_ungranted_count"
 	spanAttrTagHistoryUnattributedCount    = "eshu.query.tag_history.withheld_unattributed_count"
 	spanAttrTagHistoryPreviousBlankedCount = "eshu.query.tag_history.previous_digest_blanked_count"
+	spanAttrTagHistoryRefillReads          = "eshu.query.tag_history.refill_reads"
+	spanAttrTagHistoryRefillCapReached     = "eshu.query.tag_history.refill_read_cap_reached"
 )
+
+// annotateTagHistoryRefill records how much work one scoped page's refill did.
+// reads is the number of taghistory.Cypher windows the request consumed, and
+// capReached says the page stopped on taghistory.MaxRefillReads rather than on a
+// full page or the end of the history -- the signal an operator needs at 3 AM
+// to tell "this caller's grant covers a thin slice of a busy tag" from "the
+// route is slow", since a capped page is also the page that pays the most
+// BUILT_FROM lookups. Both are bounded scalars, never digests or repository
+// ids.
+func annotateTagHistoryRefill(span trace.Span, reads int, capReached bool) {
+	if span == nil {
+		return
+	}
+	span.SetAttributes(
+		attribute.Int(spanAttrTagHistoryRefillReads, reads),
+		attribute.Bool(spanAttrTagHistoryRefillCapReached, capReached),
+	)
+}
 
 // Bounded disposition values for the scoped-rows counter
 // (eshu_dp_query_container_image_tag_history_scoped_rows_total).
@@ -35,29 +56,18 @@ const (
 	tagHistoryDispositionPreviousDigestBlanked = "previous_digest_blanked"
 )
 
-// tagHistoryGrantCounts tallies what one scoped page's grant filter did.
-// withheldUngranted rows had BUILT_FROM edges, none to a granted repository;
-// withheldUnattributed rows had no BUILT_FROM edge at all, which is the
-// coverage cost an operator watches to see how much history a scoped caller
-// cannot reach.
-type tagHistoryGrantCounts struct {
-	kept                  int
-	withheldUngranted     int
-	withheldUnattributed  int
-	previousDigestBlanked int
-}
-
-// annotateSpan writes the bounded filter counts onto the handler span.
-func (c tagHistoryGrantCounts) annotateSpan(span trace.Span) {
+// annotateTagHistoryGrantCounts writes the bounded filter counts one scoped
+// page's grant filter produced (taghistory.GrantCounts) onto the handler span.
+func annotateTagHistoryGrantCounts(span trace.Span, counts taghistory.GrantCounts) {
 	if span == nil {
 		return
 	}
 	span.SetAttributes(
 		attribute.Bool(spanAttrTagHistoryGrantFiltered, true),
-		attribute.Int(spanAttrTagHistoryKeptCount, c.kept),
-		attribute.Int(spanAttrTagHistoryUngrantedCount, c.withheldUngranted),
-		attribute.Int(spanAttrTagHistoryUnattributedCount, c.withheldUnattributed),
-		attribute.Int(spanAttrTagHistoryPreviousBlankedCount, c.previousDigestBlanked),
+		attribute.Int(spanAttrTagHistoryKeptCount, counts.Kept),
+		attribute.Int(spanAttrTagHistoryUngrantedCount, counts.WithheldUngranted),
+		attribute.Int(spanAttrTagHistoryUnattributedCount, counts.WithheldUnattributed),
+		attribute.Int(spanAttrTagHistoryPreviousBlankedCount, counts.PreviousDigestBlanked),
 	)
 }
 
@@ -135,7 +145,7 @@ func initTagHistoryQueryInstruments() {
 // attributes to anyone -- the coverage cost of binding tag history through
 // BUILT_FROM (#6564). Zero counts are skipped rather than recorded as zero
 // increments.
-func recordTagHistoryScopedRows(ctx context.Context, counts tagHistoryGrantCounts) {
+func recordTagHistoryScopedRows(ctx context.Context, counts taghistory.GrantCounts) {
 	initTagHistoryQueryInstruments()
 	if tagHistoryScopedRows == nil {
 		return
@@ -144,10 +154,10 @@ func recordTagHistoryScopedRows(ctx context.Context, counts tagHistoryGrantCount
 		disposition string
 		value       int
 	}{
-		{tagHistoryDispositionKept, counts.kept},
-		{tagHistoryDispositionWithheldUngranted, counts.withheldUngranted},
-		{tagHistoryDispositionWithheldUnattributed, counts.withheldUnattributed},
-		{tagHistoryDispositionPreviousDigestBlanked, counts.previousDigestBlanked},
+		{tagHistoryDispositionKept, counts.Kept},
+		{tagHistoryDispositionWithheldUngranted, counts.WithheldUngranted},
+		{tagHistoryDispositionWithheldUnattributed, counts.WithheldUnattributed},
+		{tagHistoryDispositionPreviousDigestBlanked, counts.PreviousDigestBlanked},
 	} {
 		if entry.value == 0 {
 			continue

@@ -61,11 +61,20 @@ func identitiesRequest(args routecontract.Arguments) routecontract.Request {
 //
 // repository_id and tag are both required, and the handler composes them into
 // the image_ref it anchors on, rejecting a repository_id without the
-// oci-registry:// prefix. limit and offset are offset-paged rather than
-// cursor-paged here; the handler applies the same default of 50 on an empty
-// limit and owns the 1-200 bound and the non-negative offset check.
+// oci-registry:// prefix. The handler applies the same default of 50 on an
+// empty limit and owns the 1-200 bound and the non-negative offset check.
+//
+// Both continuations are forwarded because the route serves two caller classes
+// (#6564): cursor is the opaque token every caller should follow and the ONLY
+// one a scoped token may use, while offset stays for unscoped/shared-key
+// callers. The offset default of 0 is load-bearing rather than cosmetic --
+// the handler refuses a non-zero offset from a scoped caller, and 0 names the
+// start of the history for everyone, so this default keeps a scoped page-one
+// call working while a forwarded non-zero offset correctly 400s. An empty
+// cursor key is inert: the handler reads it only when non-empty.
 func tagHistoryRequest(args routecontract.Arguments) routecontract.Request {
 	return routecontract.Request{Method: "GET", Path: "/api/v0/images/tag-history", Query: map[string]string{
+		"cursor":        args.String("cursor"),
 		"limit":         strconv.Itoa(args.IntOr("limit", 50)),
 		"offset":        strconv.Itoa(args.IntOr("offset", 0)),
 		"repository_id": args.String("repository_id"),

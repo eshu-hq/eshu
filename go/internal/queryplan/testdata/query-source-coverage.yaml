@@ -253,23 +253,37 @@ source_coverage:
           source_sha256: 9fc660f9781e465a29e7f6181520ee9d71bcc4b7225d535cfdc3b7d7c15fd229
           label: ContainerImage
           max_results: 201
-  - file: tag_history.go
+  - file: taghistory/page.go
     calls:
-      - symbol: "(*TagHistoryHandler).listTagHistory"
+      # The image_ref-anchored tag read. It moved out of listTagHistory when a
+      # grant-filtered page gained refill (#6564 review): the handler now reads
+      # up to taghistory.MaxRefillReads of these windows per request, each still
+      # the same single-key, limit+1-bounded statement.
+      - symbol: "ReadWindow"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: "852284d7226c2888a26356ba57675ae2d86127938e647356fb9205393c5b2996"
+          source_sha256: "197ef68864975cab63efd509c3c761f479981c442e354dc5cb2d8537c45b793f"
           key_bound: single_key
           max_results: 201
-      - symbol: "(*TagHistoryHandler).lookupBuiltFromRepositories"
+  - file: taghistory/builtfrom.go
+    calls:
+      # max_results is the FAN-OUT bound, not the key count: the statement
+      # returns one row per BUILT_FROM edge, so a multi-source image yields
+      # more rows than keys (a 400-key probe returned 440 rows). 1200 is
+      # 3x the 400-key bound, the same ratio the peer entry
+      # fetchOCIImagesByDigest registers (250 keys / 750 results), and both
+      # numbers are ENFORCED in Go by taghistory.BuiltFromMaxKeys and
+      # taghistory.BuiltFromMaxRows, which fail the read closed on overflow
+      # rather than adding a Cypher LIMIT that would drop granted edges.
+      - symbol: "LookupBuiltFromRepositories"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: "411a4dcd9128c2b293e5abf8f1b957cc669f3e9f672164872cfb099051b1ee49"
+          source_sha256: "a979c76a7e24083e11d551b93f93272a41d69f5ed24f4e040697afb4fae533ee"
           key_bound: bounded_key_batch
           max_keys: 400
-          max_results: 400
+          max_results: 1200
   - file: impact/handler.go
     calls:
       - {symbol: "(*Handler).explainDependencyPath", count: 1, non_hot: {class: keyed_support, source_sha256: 3c3efdeafb018a235d55ed2b2cabf6959f484d8d7972beae169e70be1543d803, key_bound: bounded_key_batch, max_keys: 2, max_results: 1}}

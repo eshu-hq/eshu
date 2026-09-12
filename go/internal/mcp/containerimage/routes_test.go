@@ -33,6 +33,7 @@ var queryKeys = map[string][]string{
 		"source_repository_id",
 	},
 	"list_container_image_tag_history": {
+		"cursor",
 		"limit",
 		"offset",
 		"repository_id",
@@ -73,6 +74,7 @@ var wantPaths = map[string]string{
 // shared value. unused_decoy must never reach a query.
 var populatedArguments = routecontract.Arguments{
 	"after_identity_id":    "container-image-identity-1",
+	"cursor":               "eyJ2IjoxLCJyZWYiOiJnaGNyLmlvL2VzaHUtaHEvYXBpOjEuMi4zIiwibCI6MjUsIm8iOjd9",
 	"digest":               "sha256:0f1e2d3c4b5a69788796a5b4c3d2e1f00112233445566778899aabbccddeeff0",
 	"group_by":             "identity_strength",
 	"image_ref":            "ghcr.io/eshu-hq/api:1.2.3",
@@ -98,6 +100,7 @@ var wantPopulatedRequests = map[string]routecontract.Request{
 		"source_repository_id": "github.com/eshu-hq/eshu",
 	}},
 	"list_container_image_tag_history": {Method: "GET", Path: "/api/v0/images/tag-history", Query: map[string]string{
+		"cursor":        "eyJ2IjoxLCJyZWYiOiJnaGNyLmlvL2VzaHUtaHEvYXBpOjEuMi4zIiwibCI6MjUsIm8iOjd9",
 		"limit":         "25",
 		"offset":        "7",
 		"repository_id": "oci-registry://ghcr.io/eshu-hq/api",
@@ -245,10 +248,10 @@ func TestRouteCarriesEveryContainerImageQueryKey(t *testing.T) {
 	// test. Leaking one across would send a filter the handler ignores or,
 	// worse, a paging key the route does not support.
 	foreignKeys := map[string][]string{
-		"list_container_image_identities":        {"offset", "group_by", "tag"},
+		"list_container_image_identities":        {"offset", "group_by", "tag", "cursor"},
 		"list_container_image_tag_history":       {"digest", "image_ref", "outcome", "group_by", "source_repository_id", "after_identity_id"},
-		"count_container_image_identities":       {"limit", "offset", "group_by", "tag", "after_identity_id"},
-		"get_container_image_identity_inventory": {"tag", "after_identity_id"},
+		"count_container_image_identities":       {"limit", "offset", "group_by", "tag", "after_identity_id", "cursor"},
+		"get_container_image_identity_inventory": {"tag", "after_identity_id", "cursor"},
 	}
 
 	for _, toolName := range familyTools {
@@ -444,6 +447,7 @@ func TestRouteHandlesNilAndTypedNilContainerImageArguments(t *testing.T) {
 			"source_repository_id": "",
 		}},
 		"list_container_image_tag_history": {Method: "GET", Path: "/api/v0/images/tag-history", Query: map[string]string{
+			"cursor":        "",
 			"limit":         "50",
 			"offset":        "0",
 			"repository_id": "",
