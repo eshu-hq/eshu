@@ -106,21 +106,21 @@ rows:
     capability: secrets_iam.identity_trust_chains.list
     api_routes: ["GET /api/v0/secrets-iam/identity-trust-chains"]
     mcp_tools: ["list_secrets_iam_identity_trust_chains"]
-    source_fact: {ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainQueryUsesActiveFactReadModel|TestSecretsIAMIdentityTrustChainsTruthLabel)$' -count=1"}
+    source_fact: {ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMIdentityTrustChainQueryUsesActiveFactReadModel|TestSecretsIAMIdentityTrustChainsTruthLabel)$' -count=1"}
     continuity:
-      projection: {ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsUsesBoundedStore|TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
-      api: {ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit|TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
+      projection: {ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMListIdentityTrustChainsUsesBoundedStore|TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
+      api: {ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit|TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
       mcp: {ref: "go test ./internal/mcp -run '^(TestSecretsIAMToolsRegisteredAndRoutable)$' -count=1"}
     empty_states:
       no_provider: {ref: "go test ./internal/query -run '^(TestSecretsIAMEndpointsUnsupportedOnLocalLightweight)$' -count=1"}
-      no_collector: {ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
-      empty: {ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit)$' -count=1"}
+      no_collector: {ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
+      empty: {ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit)$' -count=1"}
     negative_cases:
-      - {case: empty_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit)$' -count=1"}
-      - {case: missing_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
-      - {case: stale_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
-      - {case: truncated_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMListIdentityTrustChainsUsesBoundedStore)$' -count=1"}
-      - {case: inaccessible_evidence, ref: "go test ./internal/query -run '^(TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
+      - {case: empty_evidence, ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMListIdentityTrustChainsRequiresScopeAndLimit)$' -count=1"}
+      - {case: missing_evidence, ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
+      - {case: stale_evidence, ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMIdentityTrustChainsUnsupportedWhenBackendUnavailable)$' -count=1"}
+      - {case: truncated_evidence, ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMListIdentityTrustChainsUsesBoundedStore)$' -count=1"}
+      - {case: inaccessible_evidence, ref: "go test ./internal/query/secrets -run '^(TestSecretsIAMIdentityTrustChainFilterRejectsNilDB)$' -count=1"}
     properties: *required_properties
 
   - id: change-risk-developer-plan

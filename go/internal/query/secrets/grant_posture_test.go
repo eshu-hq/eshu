@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package secrets
 
 import (
 	"context"
@@ -73,7 +73,7 @@ func TestGraphSecretsIAMGrantPostureStoreSummarize(t *testing.T) {
 			return nil
 		},
 	}
-	store := NewGraphSecretsIAMGrantPostureStore(graph)
+	store := NewGraphIAMGrantPostureStore(graph)
 
 	posture, err := store.SummarizeS3ExternalPrincipalGrantPosture(context.Background(), "scope-1")
 	if err != nil {
@@ -112,7 +112,7 @@ func TestGraphSecretsIAMGrantPostureStoreSummarize(t *testing.T) {
 func TestGraphSecretsIAMGrantPostureStoreEmptyScopeYieldsZeroPosture(t *testing.T) {
 	t.Parallel()
 
-	store := NewGraphSecretsIAMGrantPostureStore(&grantPostureStubGraph{})
+	store := NewGraphIAMGrantPostureStore(&grantPostureStubGraph{})
 	posture, err := store.SummarizeS3ExternalPrincipalGrantPosture(context.Background(), "scope-empty")
 	if err != nil {
 		t.Fatalf("SummarizeS3ExternalPrincipalGrantPosture: %v", err)
@@ -126,12 +126,12 @@ func TestGraphSecretsIAMGrantPostureStoreEmptyScopeYieldsZeroPosture(t *testing.
 func TestGraphSecretsIAMGrantPostureStoreRequiresGraphAndScope(t *testing.T) {
 	t.Parallel()
 
-	if _, err := (GraphSecretsIAMGrantPostureStore{}).SummarizeS3ExternalPrincipalGrantPosture(
+	if _, err := (GraphIAMGrantPostureStore{}).SummarizeS3ExternalPrincipalGrantPosture(
 		context.Background(), "scope-1",
 	); err == nil || !strings.Contains(err.Error(), "graph is required") {
 		t.Fatalf("nil-graph error = %v", err)
 	}
-	if _, err := NewGraphSecretsIAMGrantPostureStore(&grantPostureStubGraph{}).SummarizeS3ExternalPrincipalGrantPosture(
+	if _, err := NewGraphIAMGrantPostureStore(&grantPostureStubGraph{}).SummarizeS3ExternalPrincipalGrantPosture(
 		context.Background(), "",
 	); err == nil || !strings.Contains(err.Error(), "scope_id is required") {
 		t.Fatalf("empty-scope error = %v", err)
@@ -141,7 +141,7 @@ func TestGraphSecretsIAMGrantPostureStoreRequiresGraphAndScope(t *testing.T) {
 func TestGraphSecretsIAMGrantPostureStorePropagatesGraphError(t *testing.T) {
 	t.Parallel()
 
-	store := NewGraphSecretsIAMGrantPostureStore(&grantPostureStubGraph{err: fmt.Errorf("boom")})
+	store := NewGraphIAMGrantPostureStore(&grantPostureStubGraph{err: fmt.Errorf("boom")})
 	if _, err := store.SummarizeS3ExternalPrincipalGrantPosture(context.Background(), "scope-1"); err == nil ||
 		!strings.Contains(err.Error(), "boom") {
 		t.Fatalf("graph error = %v, want wrapped boom", err)
@@ -153,7 +153,7 @@ func TestSecretsIAMGrantFlagCountRejectsOffAllowlistFlag(t *testing.T) {
 
 	// The flag property name is interpolated into the Cypher, so the allow-list
 	// guard is the defense that keeps it injection-safe (mirrors the SQL bucket
-	// field allow-list in secrets_iam_summary.go).
+	// field allow-list in summary.go).
 	if _, err := secretsIAMGrantFlagCountCypher("scope_id = '' OR true"); err == nil ||
 		!strings.Contains(err.Error(), "unsupported grant flag") {
 		t.Fatalf("off-allowlist flag error = %v", err)

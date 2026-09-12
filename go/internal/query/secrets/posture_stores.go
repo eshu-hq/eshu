@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package secrets
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -25,18 +27,18 @@ type secretsIAMReadQueryer interface {
 
 // --- Privilege posture observations -----------------------------------------
 
-// SecretsIAMPrivilegePostureObservationStore reads reducer-owned privilege
+// IAMPrivilegePostureObservationStore reads reducer-owned privilege
 // posture observations: risky broad or partial posture evidence (for example a
 // role with external trust and no sts:ExternalId) that must never be promoted
 // to an exact path.
-type SecretsIAMPrivilegePostureObservationStore interface {
-	ListSecretsIAMPrivilegePostureObservations(context.Context, SecretsIAMPrivilegePostureObservationFilter) ([]SecretsIAMPrivilegePostureObservationRow, error)
+type IAMPrivilegePostureObservationStore interface {
+	ListSecretsIAMPrivilegePostureObservations(context.Context, IAMPrivilegePostureObservationFilter) ([]IAMPrivilegePostureObservationRow, error)
 }
 
-// SecretsIAMPrivilegePostureObservationFilter bounds reads to a reducer scope,
+// IAMPrivilegePostureObservationFilter bounds reads to a reducer scope,
 // observation, risk type, severity, or state. A scope or observation anchor is
 // required so a read never scans the whole fact store.
-type SecretsIAMPrivilegePostureObservationFilter struct {
+type IAMPrivilegePostureObservationFilter struct {
 	ScopeID            string
 	ObservationID      string
 	RiskType           string
@@ -46,9 +48,9 @@ type SecretsIAMPrivilegePostureObservationFilter struct {
 	Limit              int
 }
 
-// SecretsIAMPrivilegePostureObservationRow is one durable privilege posture
+// IAMPrivilegePostureObservationRow is one durable privilege posture
 // observation fact.
-type SecretsIAMPrivilegePostureObservationRow struct {
+type IAMPrivilegePostureObservationRow struct {
 	ObservationID      string
 	RiskType           string
 	Severity           string
@@ -59,26 +61,26 @@ type SecretsIAMPrivilegePostureObservationRow struct {
 	EvidenceFactIDs    []string
 }
 
-// PostgresSecretsIAMPrivilegePostureObservationStore reads active privilege
+// PostgresIAMPrivilegePostureObservationStore reads active privilege
 // posture observation facts from Postgres using bounded payload predicates.
-type PostgresSecretsIAMPrivilegePostureObservationStore struct {
+type PostgresIAMPrivilegePostureObservationStore struct {
 	DB secretsIAMReadQueryer
 }
 
-// NewPostgresSecretsIAMPrivilegePostureObservationStore creates the
+// NewPostgresIAMPrivilegePostureObservationStore creates the
 // Postgres-backed privilege posture observation read model.
-func NewPostgresSecretsIAMPrivilegePostureObservationStore(
+func NewPostgresIAMPrivilegePostureObservationStore(
 	db secretsIAMReadQueryer,
-) PostgresSecretsIAMPrivilegePostureObservationStore {
-	return PostgresSecretsIAMPrivilegePostureObservationStore{DB: db}
+) PostgresIAMPrivilegePostureObservationStore {
+	return PostgresIAMPrivilegePostureObservationStore{DB: db}
 }
 
 // ListSecretsIAMPrivilegePostureObservations returns one bounded page of active
 // reducer privilege posture observation facts.
-func (s PostgresSecretsIAMPrivilegePostureObservationStore) ListSecretsIAMPrivilegePostureObservations(
+func (s PostgresIAMPrivilegePostureObservationStore) ListSecretsIAMPrivilegePostureObservations(
 	ctx context.Context,
-	filter SecretsIAMPrivilegePostureObservationFilter,
-) ([]SecretsIAMPrivilegePostureObservationRow, error) {
+	filter IAMPrivilegePostureObservationFilter,
+) ([]IAMPrivilegePostureObservationRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("secrets/IAM privilege posture observation database is required")
 	}
@@ -106,7 +108,7 @@ func (s PostgresSecretsIAMPrivilegePostureObservationStore) ListSecretsIAMPrivil
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]SecretsIAMPrivilegePostureObservationRow, 0, filter.Limit)
+	out := make([]IAMPrivilegePostureObservationRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
 		var payloadBytes []byte
@@ -117,15 +119,15 @@ func (s PostgresSecretsIAMPrivilegePostureObservationStore) ListSecretsIAMPrivil
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 			return nil, fmt.Errorf("decode secrets/IAM privilege posture observation: %w", err)
 		}
-		out = append(out, SecretsIAMPrivilegePostureObservationRow{
+		out = append(out, IAMPrivilegePostureObservationRow{
 			ObservationID:      factID,
-			RiskType:           StringVal(payload, "risk_type"),
-			Severity:           StringVal(payload, "severity"),
-			State:              StringVal(payload, "state"),
-			Confidence:         StringVal(payload, "confidence"),
-			SubjectFingerprint: StringVal(payload, "subject_fingerprint"),
-			Reason:             StringVal(payload, "reason"),
-			EvidenceFactIDs:    StringSliceVal(payload, "evidence_fact_ids"),
+			RiskType:           querycontract.StringVal(payload, "risk_type"),
+			Severity:           querycontract.StringVal(payload, "severity"),
+			State:              querycontract.StringVal(payload, "state"),
+			Confidence:         querycontract.StringVal(payload, "confidence"),
+			SubjectFingerprint: querycontract.StringVal(payload, "subject_fingerprint"),
+			Reason:             querycontract.StringVal(payload, "reason"),
+			EvidenceFactIDs:    querycontract.StringSliceVal(payload, "evidence_fact_ids"),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -157,22 +159,22 @@ ORDER BY fact.fact_id ASC
 LIMIT $8
 `
 
-func (f SecretsIAMPrivilegePostureObservationFilter) hasScope() bool {
+func (f IAMPrivilegePostureObservationFilter) hasScope() bool {
 	return f.ScopeID != "" || f.ObservationID != ""
 }
 
 // --- Secret access paths -----------------------------------------------------
 
-// SecretsIAMSecretAccessPathStore reads reducer-owned Vault policy-to-KV
+// IAMSecretAccessPathStore reads reducer-owned Vault policy-to-KV
 // metadata access paths reachable from an exact identity chain.
-type SecretsIAMSecretAccessPathStore interface {
-	ListSecretsIAMSecretAccessPaths(context.Context, SecretsIAMSecretAccessPathFilter) ([]SecretsIAMSecretAccessPathRow, error)
+type IAMSecretAccessPathStore interface {
+	ListSecretsIAMSecretAccessPaths(context.Context, IAMSecretAccessPathFilter) ([]IAMSecretAccessPathRow, error)
 }
 
-// SecretsIAMSecretAccessPathFilter bounds reads to a reducer scope, path, parent
+// IAMSecretAccessPathFilter bounds reads to a reducer scope, path, parent
 // chain, Vault mount join key, or state. A scope, chain, or mount anchor is
 // required.
-type SecretsIAMSecretAccessPathFilter struct {
+type IAMSecretAccessPathFilter struct {
 	ScopeID           string
 	PathID            string
 	ChainID           string
@@ -182,8 +184,8 @@ type SecretsIAMSecretAccessPathFilter struct {
 	Limit             int
 }
 
-// SecretsIAMSecretAccessPathRow is one durable secret access path fact.
-type SecretsIAMSecretAccessPathRow struct {
+// IAMSecretAccessPathRow is one durable secret access path fact.
+type IAMSecretAccessPathRow struct {
 	PathID             string
 	ChainID            string
 	State              string
@@ -195,26 +197,26 @@ type SecretsIAMSecretAccessPathRow struct {
 	EvidenceFactIDs    []string
 }
 
-// PostgresSecretsIAMSecretAccessPathStore reads active secret access path facts
+// PostgresIAMSecretAccessPathStore reads active secret access path facts
 // from Postgres using bounded payload predicates.
-type PostgresSecretsIAMSecretAccessPathStore struct {
+type PostgresIAMSecretAccessPathStore struct {
 	DB secretsIAMReadQueryer
 }
 
-// NewPostgresSecretsIAMSecretAccessPathStore creates the Postgres-backed secret
+// NewPostgresIAMSecretAccessPathStore creates the Postgres-backed secret
 // access path read model.
-func NewPostgresSecretsIAMSecretAccessPathStore(
+func NewPostgresIAMSecretAccessPathStore(
 	db secretsIAMReadQueryer,
-) PostgresSecretsIAMSecretAccessPathStore {
-	return PostgresSecretsIAMSecretAccessPathStore{DB: db}
+) PostgresIAMSecretAccessPathStore {
+	return PostgresIAMSecretAccessPathStore{DB: db}
 }
 
 // ListSecretsIAMSecretAccessPaths returns one bounded page of active reducer
 // secret access path facts.
-func (s PostgresSecretsIAMSecretAccessPathStore) ListSecretsIAMSecretAccessPaths(
+func (s PostgresIAMSecretAccessPathStore) ListSecretsIAMSecretAccessPaths(
 	ctx context.Context,
-	filter SecretsIAMSecretAccessPathFilter,
-) ([]SecretsIAMSecretAccessPathRow, error) {
+	filter IAMSecretAccessPathFilter,
+) ([]IAMSecretAccessPathRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("secrets/IAM secret access path database is required")
 	}
@@ -242,7 +244,7 @@ func (s PostgresSecretsIAMSecretAccessPathStore) ListSecretsIAMSecretAccessPaths
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]SecretsIAMSecretAccessPathRow, 0, filter.Limit)
+	out := make([]IAMSecretAccessPathRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
 		var payloadBytes []byte
@@ -253,16 +255,16 @@ func (s PostgresSecretsIAMSecretAccessPathStore) ListSecretsIAMSecretAccessPaths
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 			return nil, fmt.Errorf("decode secrets/IAM secret access path: %w", err)
 		}
-		out = append(out, SecretsIAMSecretAccessPathRow{
+		out = append(out, IAMSecretAccessPathRow{
 			PathID:             factID,
-			ChainID:            StringVal(payload, "chain_id"),
-			State:              StringVal(payload, "state"),
-			Confidence:         StringVal(payload, "confidence"),
-			KVPathFingerprint:  StringVal(payload, "kv_path_fingerprint"),
-			VaultMountJoinKey:  StringVal(payload, "vault_mount_join_key"),
-			VaultPolicyJoinKey: StringVal(payload, "vault_policy_join_key"),
-			Capabilities:       StringSliceVal(payload, "capabilities"),
-			EvidenceFactIDs:    StringSliceVal(payload, "evidence_fact_ids"),
+			ChainID:            querycontract.StringVal(payload, "chain_id"),
+			State:              querycontract.StringVal(payload, "state"),
+			Confidence:         querycontract.StringVal(payload, "confidence"),
+			KVPathFingerprint:  querycontract.StringVal(payload, "kv_path_fingerprint"),
+			VaultMountJoinKey:  querycontract.StringVal(payload, "vault_mount_join_key"),
+			VaultPolicyJoinKey: querycontract.StringVal(payload, "vault_policy_join_key"),
+			Capabilities:       querycontract.StringSliceVal(payload, "capabilities"),
+			EvidenceFactIDs:    querycontract.StringSliceVal(payload, "evidence_fact_ids"),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -294,22 +296,22 @@ ORDER BY fact.fact_id ASC
 LIMIT $8
 `
 
-func (f SecretsIAMSecretAccessPathFilter) hasScope() bool {
+func (f IAMSecretAccessPathFilter) hasScope() bool {
 	return f.ScopeID != "" || f.PathID != "" || f.ChainID != "" || f.VaultMountJoinKey != ""
 }
 
 // --- Posture gaps ------------------------------------------------------------
 
-// SecretsIAMPostureGapStore reads reducer-owned posture gaps: missing, stale,
+// IAMPostureGapStore reads reducer-owned posture gaps: missing, stale,
 // hidden, or unsupported evidence that prevents exact trust-chain truth.
-type SecretsIAMPostureGapStore interface {
-	ListSecretsIAMPostureGaps(context.Context, SecretsIAMPostureGapFilter) ([]SecretsIAMPostureGapRow, error)
+type IAMPostureGapStore interface {
+	ListSecretsIAMPostureGaps(context.Context, IAMPostureGapFilter) ([]IAMPostureGapRow, error)
 }
 
-// SecretsIAMPostureGapFilter bounds reads to a reducer scope, gap, gap type,
+// IAMPostureGapFilter bounds reads to a reducer scope, gap, gap type,
 // ServiceAccount join key, or state. A scope, gap, or ServiceAccount anchor is
 // required.
-type SecretsIAMPostureGapFilter struct {
+type IAMPostureGapFilter struct {
 	ScopeID               string
 	GapID                 string
 	GapType               string
@@ -319,8 +321,8 @@ type SecretsIAMPostureGapFilter struct {
 	Limit                 int
 }
 
-// SecretsIAMPostureGapRow is one durable posture gap fact.
-type SecretsIAMPostureGapRow struct {
+// IAMPostureGapRow is one durable posture gap fact.
+type IAMPostureGapRow struct {
 	GapID                 string
 	GapType               string
 	State                 string
@@ -331,26 +333,26 @@ type SecretsIAMPostureGapRow struct {
 	UnsupportedLayers     []string
 }
 
-// PostgresSecretsIAMPostureGapStore reads active posture gap facts from Postgres
+// PostgresIAMPostureGapStore reads active posture gap facts from Postgres
 // using bounded payload predicates.
-type PostgresSecretsIAMPostureGapStore struct {
+type PostgresIAMPostureGapStore struct {
 	DB secretsIAMReadQueryer
 }
 
-// NewPostgresSecretsIAMPostureGapStore creates the Postgres-backed posture gap
+// NewPostgresIAMPostureGapStore creates the Postgres-backed posture gap
 // read model.
-func NewPostgresSecretsIAMPostureGapStore(
+func NewPostgresIAMPostureGapStore(
 	db secretsIAMReadQueryer,
-) PostgresSecretsIAMPostureGapStore {
-	return PostgresSecretsIAMPostureGapStore{DB: db}
+) PostgresIAMPostureGapStore {
+	return PostgresIAMPostureGapStore{DB: db}
 }
 
 // ListSecretsIAMPostureGaps returns one bounded page of active reducer posture
 // gap facts.
-func (s PostgresSecretsIAMPostureGapStore) ListSecretsIAMPostureGaps(
+func (s PostgresIAMPostureGapStore) ListSecretsIAMPostureGaps(
 	ctx context.Context,
-	filter SecretsIAMPostureGapFilter,
-) ([]SecretsIAMPostureGapRow, error) {
+	filter IAMPostureGapFilter,
+) ([]IAMPostureGapRow, error) {
 	if s.DB == nil {
 		return nil, fmt.Errorf("secrets/IAM posture gap database is required")
 	}
@@ -378,7 +380,7 @@ func (s PostgresSecretsIAMPostureGapStore) ListSecretsIAMPostureGaps(
 	}
 	defer func() { _ = rows.Close() }()
 
-	out := make([]SecretsIAMPostureGapRow, 0, filter.Limit)
+	out := make([]IAMPostureGapRow, 0, filter.Limit)
 	for rows.Next() {
 		var factID string
 		var payloadBytes []byte
@@ -389,15 +391,15 @@ func (s PostgresSecretsIAMPostureGapStore) ListSecretsIAMPostureGaps(
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 			return nil, fmt.Errorf("decode secrets/IAM posture gap: %w", err)
 		}
-		out = append(out, SecretsIAMPostureGapRow{
+		out = append(out, IAMPostureGapRow{
 			GapID:                 factID,
-			GapType:               StringVal(payload, "gap_type"),
-			State:                 StringVal(payload, "state"),
-			Reason:                StringVal(payload, "reason"),
-			ServiceAccountJoinKey: StringVal(payload, "service_account_join_key"),
-			EvidenceFactIDs:       StringSliceVal(payload, "evidence_fact_ids"),
-			MissingEvidence:       StringSliceVal(payload, "missing_evidence"),
-			UnsupportedLayers:     StringSliceVal(payload, "unsupported_layers"),
+			GapType:               querycontract.StringVal(payload, "gap_type"),
+			State:                 querycontract.StringVal(payload, "state"),
+			Reason:                querycontract.StringVal(payload, "reason"),
+			ServiceAccountJoinKey: querycontract.StringVal(payload, "service_account_join_key"),
+			EvidenceFactIDs:       querycontract.StringSliceVal(payload, "evidence_fact_ids"),
+			MissingEvidence:       querycontract.StringSliceVal(payload, "missing_evidence"),
+			UnsupportedLayers:     querycontract.StringSliceVal(payload, "unsupported_layers"),
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -429,6 +431,6 @@ ORDER BY fact.fact_id ASC
 LIMIT $8
 `
 
-func (f SecretsIAMPostureGapFilter) hasScope() bool {
+func (f IAMPostureGapFilter) hasScope() bool {
 	return f.ScopeID != "" || f.GapID != "" || f.ServiceAccountJoinKey != ""
 }

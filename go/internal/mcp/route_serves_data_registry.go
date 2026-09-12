@@ -121,11 +121,11 @@ var domainDataSignatures = map[string]domainDataSignature{
 	// s3_external_principal_grant_materialization writes
 	// (:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal) graph truth
 	// (storage/cypher/s3_external_principal_grant_writer.go), served since
-	// #5643 by GraphSecretsIAMGrantPostureStore on
-	// "GET /api/v0/secrets-iam/posture-summary" (secrets_iam_grant_posture.go).
+	// #5643 by secrets.GraphIAMGrantPostureStore on
+	// "GET /api/v0/secrets-iam/posture-summary" (secrets/grant_posture.go).
 	"s3_external_principal_grant_materialization": {Markers: []string{":ExternalPrincipal", "s3_external_principal_grant"}},
 
-	"secrets_iam_trust_chain":       {Markers: []string{"reducer_secrets_iam_identity_trust_chain", "reducer_secrets_iam_posture_gap"}, StoreTypes: []string{"SecretsIAMPostureSummaryStore"}},
+	"secrets_iam_trust_chain":       {Markers: []string{"reducer_secrets_iam_identity_trust_chain", "reducer_secrets_iam_posture_gap"}, StoreTypes: []string{"IAMPostureSummaryStore"}},
 	"sbom_attestation_attachment":   {Markers: []string{"reducer_sbom_attestation_attachment"}, StoreTypes: []string{"SBOMAttestationAttachmentStore"}},
 	"security_alert_reconciliation": {Markers: []string{"reducer_security_alert_reconciliation"}, StoreTypes: []string{"SecurityAlertReconciliationStore"}},
 

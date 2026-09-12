@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package secrets
 
 import (
 	"context"
@@ -10,48 +10,50 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 type recordingPrivilegePostureStore struct {
-	rows       []SecretsIAMPrivilegePostureObservationRow
-	lastFilter SecretsIAMPrivilegePostureObservationFilter
+	rows       []IAMPrivilegePostureObservationRow
+	lastFilter IAMPrivilegePostureObservationFilter
 }
 
 func (s *recordingPrivilegePostureStore) ListSecretsIAMPrivilegePostureObservations(
-	_ context.Context, filter SecretsIAMPrivilegePostureObservationFilter,
-) ([]SecretsIAMPrivilegePostureObservationRow, error) {
+	_ context.Context, filter IAMPrivilegePostureObservationFilter,
+) ([]IAMPrivilegePostureObservationRow, error) {
 	s.lastFilter = filter
-	return append([]SecretsIAMPrivilegePostureObservationRow(nil), s.rows...), nil
+	return append([]IAMPrivilegePostureObservationRow(nil), s.rows...), nil
 }
 
 type recordingSecretAccessPathStore struct {
-	rows       []SecretsIAMSecretAccessPathRow
-	lastFilter SecretsIAMSecretAccessPathFilter
+	rows       []IAMSecretAccessPathRow
+	lastFilter IAMSecretAccessPathFilter
 }
 
 func (s *recordingSecretAccessPathStore) ListSecretsIAMSecretAccessPaths(
-	_ context.Context, filter SecretsIAMSecretAccessPathFilter,
-) ([]SecretsIAMSecretAccessPathRow, error) {
+	_ context.Context, filter IAMSecretAccessPathFilter,
+) ([]IAMSecretAccessPathRow, error) {
 	s.lastFilter = filter
-	return append([]SecretsIAMSecretAccessPathRow(nil), s.rows...), nil
+	return append([]IAMSecretAccessPathRow(nil), s.rows...), nil
 }
 
 type recordingPostureGapStore struct {
-	rows       []SecretsIAMPostureGapRow
-	lastFilter SecretsIAMPostureGapFilter
+	rows       []IAMPostureGapRow
+	lastFilter IAMPostureGapFilter
 }
 
 func (s *recordingPostureGapStore) ListSecretsIAMPostureGaps(
-	_ context.Context, filter SecretsIAMPostureGapFilter,
-) ([]SecretsIAMPostureGapRow, error) {
+	_ context.Context, filter IAMPostureGapFilter,
+) ([]IAMPostureGapRow, error) {
 	s.lastFilter = filter
-	return append([]SecretsIAMPostureGapRow(nil), s.rows...), nil
+	return append([]IAMPostureGapRow(nil), s.rows...), nil
 }
 
 func TestSecretsIAMPostureEndpointsRequireScopeAndLimit(t *testing.T) {
 	t.Parallel()
 
-	handler := &SecretsIAMHandler{
+	handler := &Handler{
 		PrivilegePostureObservations: &recordingPrivilegePostureStore{},
 		SecretAccessPaths:            &recordingSecretAccessPathStore{},
 		PostureGaps:                  &recordingPostureGapStore{},
@@ -86,12 +88,12 @@ func TestSecretsIAMPrivilegePostureObservationsListsWithCursor(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingPrivilegePostureStore{
-		rows: []SecretsIAMPrivilegePostureObservationRow{
+		rows: []IAMPrivilegePostureObservationRow{
 			{ObservationID: "obs-1", RiskType: "external_trust_without_external_id", Severity: "high", State: "partial"},
 			{ObservationID: "obs-2", RiskType: "wildcard_action", State: "partial"},
 		},
 	}
-	handler := &SecretsIAMHandler{PrivilegePostureObservations: store}
+	handler := &Handler{PrivilegePostureObservations: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -110,9 +112,9 @@ func TestSecretsIAMPrivilegePostureObservationsListsWithCursor(t *testing.T) {
 		t.Fatalf("Limit = %d, want %d (over-fetch by one)", got, want)
 	}
 	var resp struct {
-		Rows      []SecretsIAMPrivilegePostureObservationResult `json:"privilege_posture_observations"`
-		Truncated bool                                          `json:"truncated"`
-		Cursor    map[string]string                             `json:"next_cursor"`
+		Rows      []IAMPrivilegePostureObservationResult `json:"privilege_posture_observations"`
+		Truncated bool                                   `json:"truncated"`
+		Cursor    map[string]string                      `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -126,11 +128,11 @@ func TestSecretsIAMSecretAccessPathsThreadsChainAnchor(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSecretAccessPathStore{
-		rows: []SecretsIAMSecretAccessPathRow{
+		rows: []IAMSecretAccessPathRow{
 			{PathID: "p-1", ChainID: "c-1", State: "exact", VaultPolicyJoinKey: "sha256:pol", Capabilities: []string{"read"}},
 		},
 	}
-	handler := &SecretsIAMHandler{SecretAccessPaths: store}
+	handler := &Handler{SecretAccessPaths: store}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -150,7 +152,7 @@ func TestSecretsIAMSecretAccessPathsThreadsChainAnchor(t *testing.T) {
 func TestSecretsIAMPostureGapsUnsupportedWhenBackendUnavailable(t *testing.T) {
 	t.Parallel()
 
-	handler := &SecretsIAMHandler{PostureGaps: nil, Profile: ProfileProduction}
+	handler := &Handler{PostureGaps: nil, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -167,13 +169,13 @@ func TestSecretsIAMPostureGapsUnsupportedWhenBackendUnavailable(t *testing.T) {
 func TestSecretsIAMPostureGapsTruthLabel(t *testing.T) {
 	t.Parallel()
 
-	store := &recordingPostureGapStore{rows: []SecretsIAMPostureGapRow{{GapID: "g-1", GapType: "missing_evidence", State: "unresolved"}}}
-	handler := &SecretsIAMHandler{PostureGaps: store, Profile: ProfileProduction}
+	store := &recordingPostureGapStore{rows: []IAMPostureGapRow{{GapID: "g-1", GapType: "missing_evidence", State: "unresolved"}}}
+	handler := &Handler{PostureGaps: store, Profile: querycontract.ProfileProduction}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/secrets-iam/posture-gaps?scope_id=s&limit=10", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -181,12 +183,12 @@ func TestSecretsIAMPostureGapsTruthLabel(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	var resp struct {
-		Truth *TruthEnvelope `json:"truth"`
+		Truth *querycontract.TruthEnvelope `json:"truth"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if resp.Truth == nil || resp.Truth.Capability != secretsIAMPostureGapsCapability {
+	if resp.Truth == nil || resp.Truth.Capability != IAMPostureGapsCapability {
 		t.Fatalf("unexpected truth envelope: %+v", resp.Truth)
 	}
 }
@@ -218,20 +220,20 @@ func TestSecretsIAMPostureQueriesUseActiveFactReadModel(t *testing.T) {
 func TestSecretsIAMPostureStoresRejectNilDBAndUnboundedScope(t *testing.T) {
 	t.Parallel()
 
-	if _, err := (PostgresSecretsIAMPrivilegePostureObservationStore{}).ListSecretsIAMPrivilegePostureObservations(
-		context.Background(), SecretsIAMPrivilegePostureObservationFilter{ScopeID: "s", Limit: 10},
+	if _, err := (PostgresIAMPrivilegePostureObservationStore{}).ListSecretsIAMPrivilegePostureObservations(
+		context.Background(), IAMPrivilegePostureObservationFilter{ScopeID: "s", Limit: 10},
 	); err == nil ||
 		!strings.Contains(err.Error(), "database is required") {
 		t.Fatalf("privilege posture nil-DB error = %v", err)
 	}
-	if _, err := (PostgresSecretsIAMSecretAccessPathStore{DB: failingSecretsIAMTrustChainQueryer{t: t}}).ListSecretsIAMSecretAccessPaths(
-		context.Background(), SecretsIAMSecretAccessPathFilter{Limit: 10},
+	if _, err := (PostgresIAMSecretAccessPathStore{DB: failingSecretsIAMTrustChainQueryer{t: t}}).ListSecretsIAMSecretAccessPaths(
+		context.Background(), IAMSecretAccessPathFilter{Limit: 10},
 	); err == nil ||
 		!strings.Contains(err.Error(), "is required") {
 		t.Fatalf("secret access path unbounded-scope error = %v", err)
 	}
-	if _, err := (PostgresSecretsIAMPostureGapStore{DB: failingSecretsIAMTrustChainQueryer{t: t}}).ListSecretsIAMPostureGaps(
-		context.Background(), SecretsIAMPostureGapFilter{Limit: 10},
+	if _, err := (PostgresIAMPostureGapStore{DB: failingSecretsIAMTrustChainQueryer{t: t}}).ListSecretsIAMPostureGaps(
+		context.Background(), IAMPostureGapFilter{Limit: 10},
 	); err == nil ||
 		!strings.Contains(err.Error(), "is required") {
 		t.Fatalf("posture gap unbounded-scope error = %v", err)
