@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package playbook
 
 import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // queryToContextPlaybookIDs is the third-wave family that starts from semantic
@@ -22,7 +24,7 @@ func TestCatalogIncludesQueryToContextPlaybooks(t *testing.T) {
 	t.Parallel()
 
 	seen := map[string]string{}
-	for _, pb := range PlaybookCatalog() {
+	for _, pb := range Catalog() {
 		seen[pb.ID] = pb.Version
 	}
 	for _, id := range queryToContextPlaybookIDs {
@@ -39,7 +41,7 @@ func TestQueryToContextPlaybooksStartWithSemanticSearch(t *testing.T) {
 		id := id
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
-			pb, ok := LookupPlaybook(id)
+			pb, ok := Lookup(id)
 			if !ok {
 				t.Fatalf("playbook %q missing", id)
 			}
@@ -47,7 +49,7 @@ func TestQueryToContextPlaybooksStartWithSemanticSearch(t *testing.T) {
 				t.Fatalf("playbook %q must start with search_semantic_context, got %#v", id, pb.Steps)
 			}
 			// Search is read-only context discovery: derived truth, never canonical.
-			if pb.Steps[0].ExpectedTruth != AnswerTruthDerived {
+			if pb.Steps[0].ExpectedTruth != querycontract.AnswerTruthDerived {
 				t.Fatalf("search step expected_truth = %q, want derived", pb.Steps[0].ExpectedTruth)
 			}
 			// The search step opts into graph-neighborhood reranking so its
@@ -55,10 +57,10 @@ func TestQueryToContextPlaybooksStartWithSemanticSearch(t *testing.T) {
 			rerankSet := false
 			boundedLimit := false
 			for _, p := range pb.Steps[0].Params {
-				if p.Name == "rerank" && p.source() == PlaybookParamConstBool && p.ConstBool {
+				if p.Name == "rerank" && p.source() == ParamConstBool && p.ConstBool {
 					rerankSet = true
 				}
-				if p.Name == "limit" && p.source() == PlaybookParamConstInt && p.ConstInt > 0 {
+				if p.Name == "limit" && p.source() == ParamConstInt && p.ConstInt > 0 {
 					boundedLimit = true
 				}
 			}
@@ -75,7 +77,7 @@ func TestQueryToContextPlaybooksStartWithSemanticSearch(t *testing.T) {
 func TestQueryToContextResolveIsDeterministicAndBounded(t *testing.T) {
 	t.Parallel()
 
-	pb, ok := LookupPlaybook("query_to_service_context")
+	pb, ok := Lookup("query_to_service_context")
 	if !ok {
 		t.Fatal("query_to_service_context missing")
 	}
@@ -131,7 +133,7 @@ func TestQueryToContextPerFamilyHandoff(t *testing.T) {
 		"query_to_supply_chain_context": "explain_supply_chain_impact",
 	}
 	for id, readback := range want {
-		pb, ok := LookupPlaybook(id)
+		pb, ok := Lookup(id)
 		if !ok {
 			t.Fatalf("playbook %q missing", id)
 		}
@@ -150,7 +152,7 @@ func TestQueryToContextPerFamilyHandoff(t *testing.T) {
 func TestQueryToContextResolveRejectsMissingRequiredInput(t *testing.T) {
 	t.Parallel()
 
-	pb, ok := LookupPlaybook("query_to_incident_context")
+	pb, ok := Lookup("query_to_incident_context")
 	if !ok {
 		t.Fatal("query_to_incident_context missing")
 	}
@@ -167,7 +169,7 @@ func TestQueryToContextPlaybooksDeclareReadinessFailureModes(t *testing.T) {
 	// truncation.
 	wantSubstrings := []string{"search", "no ", "stale", "ambiguous", "truncat"}
 	for _, id := range queryToContextPlaybookIDs {
-		pb, ok := LookupPlaybook(id)
+		pb, ok := Lookup(id)
 		if !ok {
 			t.Fatalf("playbook %q missing", id)
 		}
@@ -183,27 +185,27 @@ func TestQueryToContextPlaybooksDeclareReadinessFailureModes(t *testing.T) {
 func TestPlaybookParamRejectsMultipleValueSources(t *testing.T) {
 	t.Parallel()
 
-	bad := QueryPlaybook{
+	bad := Definition{
 		ID:           "bad_multi_source",
 		Name:         "bad",
 		Version:      "1.0.0",
 		PromptFamily: "bad",
-		RequiredInputs: []PlaybookInput{
-			{Name: "repo_id", Type: PlaybookInputIdentifier, Required: true},
+		RequiredInputs: []Input{
+			{Name: "repo_id", Type: InputIdentifier, Required: true},
 		},
-		Steps: []PlaybookStep{
+		Steps: []Step{
 			{
 				ID:   "step",
 				Tool: "search_semantic_context",
-				Params: []PlaybookParam{
+				Params: []Param{
 					// Declares both an input binding and a constant int.
 					{Name: "limit", FromInput: "repo_id", ConstInt: 5, hasConstInt: true},
 				},
-				ExpectedTruth:    AnswerTruthDerived,
+				ExpectedTruth:    querycontract.AnswerTruthDerived,
 				EvidenceExpected: "x",
 			},
 		},
-		FailureModes: []PlaybookFailureMode{
+		FailureModes: []FailureMode{
 			{Condition: "c", Meaning: "m", Fallback: "f"},
 		},
 	}
@@ -216,7 +218,7 @@ func TestQueryToContextBoolParamResolvesAsBool(t *testing.T) {
 	t.Parallel()
 
 	// A const_bool param resolves to a real bool, not the string "true".
-	pb, _ := LookupPlaybook("query_to_service_context")
+	pb, _ := Lookup("query_to_service_context")
 	resolved, err := pb.Resolve(map[string]string{"repo_id": "r", "query": "q"})
 	if err != nil {
 		t.Fatalf("resolve error = %v", err)
@@ -230,7 +232,7 @@ func TestQueryToContextBoolParamResolvesAsBool(t *testing.T) {
 	}
 }
 
-func joinFailureConditions(pb QueryPlaybook) string {
+func joinFailureConditions(pb Definition) string {
 	parts := make([]string, 0, len(pb.FailureModes))
 	for _, fm := range pb.FailureModes {
 		parts = append(parts, fm.Condition)

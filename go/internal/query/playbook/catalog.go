@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package playbook
 
-// PlaybookCatalog returns the versioned, deterministic catalog of query
+import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
+
+// Catalog returns the versioned, deterministic catalog of query
 // playbooks. The catalog is the single source of truth for starter-prompt and
 // cookbook workflows expressed as machine-readable, bounded tool sequences. The
 // returned slice is freshly built on each call, so callers may not mutate shared
@@ -14,8 +16,8 @@ package query
 // limits, and states an expected truth class from the AnswerPacket taxonomy. No
 // step exposes raw Cypher. Each playbook declares the failure modes a caller
 // must handle and the recommended fallback for each.
-func PlaybookCatalog() []QueryPlaybook {
-	return []QueryPlaybook{
+func Catalog() []Definition {
+	return []Definition{
 		serviceStoryCitationPlaybook(),
 		repositoryCodeTopicInvestigationPlaybook(),
 		documentationTruthCitationPlaybook(),
@@ -38,36 +40,36 @@ func PlaybookCatalog() []QueryPlaybook {
 // serviceStoryCitationPlaybook answers "tell me the story of this service and
 // cite the evidence". It pulls the one-call service dossier, then hydrates the
 // returned evidence handles into a bounded citation packet.
-func serviceStoryCitationPlaybook() QueryPlaybook {
-	return QueryPlaybook{
+func serviceStoryCitationPlaybook() Definition {
+	return Definition{
 		ID:           "service_story_citation",
 		Name:         "Service story with citation packet",
 		Version:      "1.0.0",
 		PromptFamily: "service.story",
 		Description: "Answer a service story prompt and back it with a bounded citation " +
 			"packet built from the evidence handles the dossier returns.",
-		RequiredInputs: []PlaybookInput{
+		RequiredInputs: []Input{
 			{
 				Name:        "service_name",
-				Type:        PlaybookInputIdentifier,
+				Type:        InputIdentifier,
 				Required:    true,
 				Description: "Service name or canonical workload identifier to tell the story for.",
 			},
 			{
 				Name:        "environment",
-				Type:        PlaybookInputString,
+				Type:        InputString,
 				Required:    false,
 				Description: "Optional environment context such as prod or staging.",
 			},
 		},
-		Steps: []PlaybookStep{
+		Steps: []Step{
 			{
 				ID:               "service_dossier",
 				Tool:             "get_service_story",
 				Params:           serviceStoryParams(),
-				ExpectedTruth:    AnswerTruthDeterministic,
+				ExpectedTruth:    querycontract.AnswerTruthDeterministic,
 				EvidenceExpected: "one-call service dossier: identity, API surface, deployment lanes, dependencies, consumers, and addressable evidence handles",
-				Drilldowns: []PlaybookDrilldown{
+				Drilldowns: []Drilldown{
 					{Tool: "get_service_context", Reason: "drill into raw service context when the dossier is not enough"},
 					{Tool: "trace_deployment_chain", Reason: "walk the deployment graph when chain details are needed"},
 				},
@@ -75,10 +77,10 @@ func serviceStoryCitationPlaybook() QueryPlaybook {
 			{
 				ID:               "evidence_citations",
 				Tool:             "build_evidence_citation_packet",
-				Params:           []PlaybookParam{limitParam("limit", 10)},
-				ExpectedTruth:    AnswerTruthCodeHint,
+				Params:           []Param{LimitParam("limit", 10)},
+				ExpectedTruth:    querycontract.AnswerTruthCodeHint,
 				EvidenceExpected: "ranked source, docs, manifest, and deployment citations hydrated from the dossier evidence handles",
-				Drilldowns: []PlaybookDrilldown{
+				Drilldowns: []Drilldown{
 					{Tool: "get_relationship_evidence", Reason: "dereference durable source evidence for a specific relationship"},
 				},
 			},
@@ -87,15 +89,15 @@ func serviceStoryCitationPlaybook() QueryPlaybook {
 	}
 }
 
-func serviceStoryParams() []PlaybookParam {
-	return []PlaybookParam{
-		inputParam("workload_id", "service_name"),
-		inputParam("environment", "environment"),
+func serviceStoryParams() []Param {
+	return []Param{
+		InputParam("workload_id", "service_name"),
+		InputParam("environment", "environment"),
 	}
 }
 
-func serviceStoryFailureModes() []PlaybookFailureMode {
-	return []PlaybookFailureMode{
+func serviceStoryFailureModes() []FailureMode {
+	return []FailureMode{
 		{
 			Condition: "service not found",
 			Meaning:   "no workload matched the service_name selector; the answer is unsupported",
@@ -116,41 +118,41 @@ func serviceStoryFailureModes() []PlaybookFailureMode {
 
 // repositoryCodeTopicInvestigationPlaybook answers "how does this repository
 // handle X" with ranked evidence and a relationship-story drilldown.
-func repositoryCodeTopicInvestigationPlaybook() QueryPlaybook {
-	return QueryPlaybook{
+func repositoryCodeTopicInvestigationPlaybook() Definition {
+	return Definition{
 		ID:           "repository_code_topic_investigation",
 		Name:         "Repository code-topic investigation with drilldown",
 		Version:      "1.0.0",
 		PromptFamily: "code.topic",
 		Description: "Investigate a code topic within a repository, return ranked files and " +
 			"symbols, then read the source behind the top evidence.",
-		RequiredInputs: []PlaybookInput{
+		RequiredInputs: []Input{
 			{
 				Name:        "topic",
-				Type:        PlaybookInputString,
+				Type:        InputString,
 				Required:    true,
 				Description: "Natural-language topic or behavior to investigate.",
 			},
 			{
 				Name:        "repo_id",
-				Type:        PlaybookInputIdentifier,
+				Type:        InputIdentifier,
 				Required:    false,
 				Description: "Optional canonical repository identifier to scope the investigation.",
 			},
 		},
-		Steps: []PlaybookStep{
+		Steps: []Step{
 			{
 				ID:   "topic_investigation",
 				Tool: "investigate_code_topic",
-				Params: []PlaybookParam{
-					inputParam("topic", "topic"),
-					inputParam("repo_id", "repo_id"),
-					constStringParam("intent", "explain_flow"),
-					limitParam("limit", 25),
+				Params: []Param{
+					InputParam("topic", "topic"),
+					InputParam("repo_id", "repo_id"),
+					ConstStringParam("intent", "explain_flow"),
+					LimitParam("limit", 25),
 				},
-				ExpectedTruth:    AnswerTruthCodeHint,
+				ExpectedTruth:    querycontract.AnswerTruthCodeHint,
 				EvidenceExpected: "ranked files and symbols with coverage metadata, truncation flag, and next-call handles for source reads",
-				Drilldowns: []PlaybookDrilldown{
+				Drilldowns: []Drilldown{
 					{Tool: "find_symbol", Reason: "resolve a specific symbol surfaced in the ranked evidence"},
 					{Tool: "search_file_content", Reason: "widen the search when ranked evidence is thin"},
 				},
@@ -158,10 +160,10 @@ func repositoryCodeTopicInvestigationPlaybook() QueryPlaybook {
 			{
 				ID:               "relationship_story",
 				Tool:             "get_code_relationship_story",
-				Params:           []PlaybookParam{limitParam("limit", 25)},
-				ExpectedTruth:    AnswerTruthDeterministic,
+				Params:           []Param{LimitParam("limit", 25)},
+				ExpectedTruth:    querycontract.AnswerTruthDeterministic,
 				EvidenceExpected: "graph-backed relationship story for the top entity, explaining callers, callees, and ownership",
-				Drilldowns: []PlaybookDrilldown{
+				Drilldowns: []Drilldown{
 					{Tool: "get_file_lines", Reason: "read the exact source lines behind a cited entity"},
 				},
 			},
@@ -170,8 +172,8 @@ func repositoryCodeTopicInvestigationPlaybook() QueryPlaybook {
 	}
 }
 
-func codeTopicFailureModes() []PlaybookFailureMode {
-	return []PlaybookFailureMode{
+func codeTopicFailureModes() []FailureMode {
+	return []FailureMode{
 		{
 			Condition: "no evidence groups returned",
 			Meaning:   "the topic matched nothing in scope; the answer is unsupported, not empty fact",
@@ -193,38 +195,38 @@ func codeTopicFailureModes() []PlaybookFailureMode {
 // documentationTruthCitationPlaybook answers "what do the docs say about X and
 // is it still true" with a bounded documentation evidence packet plus a
 // freshness check.
-func documentationTruthCitationPlaybook() QueryPlaybook {
-	return QueryPlaybook{
+func documentationTruthCitationPlaybook() Definition {
+	return Definition{
 		ID:           "documentation_truth_citation",
 		Name:         "Documentation truth with citation",
 		Version:      "1.0.0",
 		PromptFamily: "documentation.truth",
 		Description: "Resolve a documentation finding into a bounded evidence packet and " +
 			"confirm the packet is still current before citing it.",
-		RequiredInputs: []PlaybookInput{
+		RequiredInputs: []Input{
 			{
 				Name:        "finding_id",
-				Type:        PlaybookInputIdentifier,
+				Type:        InputIdentifier,
 				Required:    true,
 				Description: "Documentation finding identifier to cite.",
 			},
 		},
-		Steps: []PlaybookStep{
+		Steps: []Step{
 			{
 				ID:               "evidence_packet",
 				Tool:             "get_documentation_evidence_packet",
-				Params:           []PlaybookParam{inputParam("finding_id", "finding_id")},
-				ExpectedTruth:    AnswerTruthSemanticObservation,
+				Params:           []Param{InputParam("finding_id", "finding_id")},
+				ExpectedTruth:    querycontract.AnswerTruthSemanticObservation,
 				EvidenceExpected: "bounded documentation evidence packet for the finding, with packet identifier and version",
-				Drilldowns: []PlaybookDrilldown{
+				Drilldowns: []Drilldown{
 					{Tool: "list_documentation_findings", Reason: "list neighboring findings when the packet alone is insufficient"},
 				},
 			},
 			{
 				ID:               "freshness_check",
 				Tool:             "check_documentation_evidence_packet_freshness",
-				Params:           []PlaybookParam{},
-				ExpectedTruth:    AnswerTruthDeterministic,
+				Params:           []Param{},
+				ExpectedTruth:    querycontract.AnswerTruthDeterministic,
 				EvidenceExpected: "current-or-stale verdict for the saved packet version so the citation is not stale",
 				Drilldowns:       nil,
 			},
@@ -233,8 +235,8 @@ func documentationTruthCitationPlaybook() QueryPlaybook {
 	}
 }
 
-func documentationFailureModes() []PlaybookFailureMode {
-	return []PlaybookFailureMode{
+func documentationFailureModes() []FailureMode {
+	return []FailureMode{
 		{
 			Condition: "finding not found",
 			Meaning:   "no documentation finding matched finding_id; the answer is unsupported",

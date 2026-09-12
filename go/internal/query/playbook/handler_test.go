@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package playbook
 
 import (
 	"bytes"
@@ -9,19 +9,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 func TestQueryPlaybookHandlerListsCatalogWithWorkflowPlanTruth(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	router := &APIRouter{
-		Playbooks: &QueryPlaybookHandler{Profile: ProfileProduction},
-	}
-	router.Mount(mux)
+	handler := &Handler{Profile: querycontract.ProfileProduction}
+	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/query-playbooks", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -29,7 +29,7 @@ func TestQueryPlaybookHandlerListsCatalogWithWorkflowPlanTruth(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
 
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
@@ -39,10 +39,10 @@ func TestQueryPlaybookHandlerListsCatalogWithWorkflowPlanTruth(t *testing.T) {
 	if envelope.Truth == nil {
 		t.Fatal("truth envelope is nil")
 	}
-	if got, want := envelope.Truth.Capability, CapabilityQueryPlaybooks; got != want {
+	if got, want := envelope.Truth.Capability, Capability; got != want {
 		t.Fatalf("truth capability = %q, want %q", got, want)
 	}
-	if got, want := envelope.Truth.Basis, TruthBasisRuntimeState; got != want {
+	if got, want := envelope.Truth.Basis, querycontract.TruthBasisRuntimeState; got != want {
 		t.Fatalf("truth basis = %q, want %q", got, want)
 	}
 
@@ -54,7 +54,7 @@ func TestQueryPlaybookHandlerListsCatalogWithWorkflowPlanTruth(t *testing.T) {
 	if !ok || len(playbooks) == 0 {
 		t.Fatalf("playbooks = %#v, want non-empty list", data["playbooks"])
 	}
-	if got, want := int(data["count"].(float64)), len(PlaybookCatalog()); got != want {
+	if got, want := int(data["count"].(float64)), len(Catalog()); got != want {
 		t.Fatalf("count = %d, want %d", got, want)
 	}
 }
@@ -63,14 +63,12 @@ func TestQueryPlaybookHandlerResolvesBoundedCallSequence(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	router := &APIRouter{
-		Playbooks: &QueryPlaybookHandler{Profile: ProfileProduction},
-	}
-	router.Mount(mux)
+	handler := &Handler{Profile: querycontract.ProfileProduction}
+	handler.Mount(mux)
 
 	body := bytes.NewBufferString(`{"playbook_id":"service_story_citation","inputs":{"service_name":"payments-api","environment":"prod"}}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/query-playbooks/resolve", body)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -82,8 +80,8 @@ func TestQueryPlaybookHandlerResolvesBoundedCallSequence(t *testing.T) {
 		Data struct {
 			Resolved ResolvedPlaybook `json:"resolved"`
 		} `json:"data"`
-		Truth *TruthEnvelope `json:"truth"`
-		Error *ErrorEnvelope `json:"error"`
+		Truth *querycontract.TruthEnvelope `json:"truth"`
+		Error *querycontract.ErrorEnvelope `json:"error"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
@@ -91,7 +89,7 @@ func TestQueryPlaybookHandlerResolvesBoundedCallSequence(t *testing.T) {
 	if envelope.Error != nil {
 		t.Fatalf("envelope error = %+v, want nil", envelope.Error)
 	}
-	if envelope.Truth == nil || envelope.Truth.Capability != CapabilityQueryPlaybooks {
+	if envelope.Truth == nil || envelope.Truth.Capability != Capability {
 		t.Fatalf("truth = %+v, want query playbook capability", envelope.Truth)
 	}
 	if got, want := envelope.Data.Resolved.PlaybookID, "service_story_citation"; got != want {
@@ -109,13 +107,11 @@ func TestQueryPlaybookHandlerRejectsUnknownPlaybookWithBoundedError(t *testing.T
 	t.Parallel()
 
 	mux := http.NewServeMux()
-	router := &APIRouter{
-		Playbooks: &QueryPlaybookHandler{Profile: ProfileProduction},
-	}
-	router.Mount(mux)
+	handler := &Handler{Profile: querycontract.ProfileProduction}
+	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/query-playbooks/resolve", bytes.NewBufferString(`{"playbook_id":"missing","inputs":{}}`))
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
@@ -123,17 +119,17 @@ func TestQueryPlaybookHandlerRejectsUnknownPlaybookWithBoundedError(t *testing.T
 		t.Fatalf("status = %d, want %d; body=%s", got, want, rec.Body.String())
 	}
 
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(rec.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v", err)
 	}
 	if envelope.Error == nil {
 		t.Fatal("error = nil, want bounded not_found error")
 	}
-	if got, want := envelope.Error.Code, ErrorCodeNotFound; got != want {
+	if got, want := envelope.Error.Code, querycontract.ErrorCodeNotFound; got != want {
 		t.Fatalf("error code = %q, want %q", got, want)
 	}
-	if got, want := envelope.Error.Capability, CapabilityQueryPlaybooks; got != want {
+	if got, want := envelope.Error.Capability, Capability; got != want {
 		t.Fatalf("error capability = %q, want %q", got, want)
 	}
 }

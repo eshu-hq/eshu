@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package playbook
 
 import (
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // TestCatalogStabilityGolden pins the catalog identity: the set of playbook IDs
@@ -16,7 +18,7 @@ import (
 func TestCatalogStabilityGolden(t *testing.T) {
 	t.Parallel()
 
-	want := []PlaybookVersionRef{
+	want := []VersionRef{
 		{ID: "service_story_citation", Version: "1.0.0"},
 		{ID: "repository_code_topic_investigation", Version: "1.0.0"},
 		{ID: "documentation_truth_citation", Version: "1.0.0"},
@@ -35,7 +37,7 @@ func TestCatalogStabilityGolden(t *testing.T) {
 		{ID: "demo_observability_to_workload", Version: "1.0.0"},
 	}
 
-	got := PlaybookCatalogVersions()
+	got := CatalogVersions()
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("catalog version drift:\n got=%#v\nwant=%#v", got, want)
 	}
@@ -47,7 +49,7 @@ func TestCatalogStabilityGolden(t *testing.T) {
 func TestCatalogValidatesStatically(t *testing.T) {
 	t.Parallel()
 
-	for _, pb := range PlaybookCatalog() {
+	for _, pb := range Catalog() {
 		pb := pb
 		t.Run(pb.ID, func(t *testing.T) {
 			t.Parallel()
@@ -65,24 +67,24 @@ func TestRawCypherStepsRejected(t *testing.T) {
 	t.Parallel()
 
 	for _, tool := range rawCypherTools() {
-		bad := QueryPlaybook{
+		bad := Definition{
 			ID:           "bad",
 			Name:         "bad",
 			Version:      "1.0.0",
 			PromptFamily: "bad",
-			RequiredInputs: []PlaybookInput{
-				{Name: "x", Type: PlaybookInputString, Required: true},
+			RequiredInputs: []Input{
+				{Name: "x", Type: InputString, Required: true},
 			},
-			Steps: []PlaybookStep{
+			Steps: []Step{
 				{
 					ID:               "s1",
 					Tool:             tool,
-					Params:           []PlaybookParam{{Name: "x", FromInput: "x"}},
-					ExpectedTruth:    AnswerTruthDeterministic,
+					Params:           []Param{{Name: "x", FromInput: "x"}},
+					ExpectedTruth:    querycontract.AnswerTruthDeterministic,
 					EvidenceExpected: "n/a",
 				},
 			},
-			FailureModes: []PlaybookFailureMode{
+			FailureModes: []FailureMode{
 				{Condition: "x", Meaning: "y", Fallback: "z"},
 			},
 		}
@@ -98,7 +100,7 @@ func TestRawCypherStepsRejected(t *testing.T) {
 func TestResolveServiceStoryDeterministic(t *testing.T) {
 	t.Parallel()
 
-	pb, ok := LookupPlaybook("service_story_citation")
+	pb, ok := Lookup("service_story_citation")
 	if !ok {
 		t.Fatal("service_story_citation playbook missing from catalog")
 	}
@@ -146,7 +148,7 @@ func TestResolveServiceStoryDeterministic(t *testing.T) {
 func TestResolveCodeTopicDeterministic(t *testing.T) {
 	t.Parallel()
 
-	pb, ok := LookupPlaybook("repository_code_topic_investigation")
+	pb, ok := Lookup("repository_code_topic_investigation")
 	if !ok {
 		t.Fatal("repository_code_topic_investigation playbook missing from catalog")
 	}
@@ -175,7 +177,7 @@ func TestResolveCodeTopicDeterministic(t *testing.T) {
 func TestResolveMissingRequiredInput(t *testing.T) {
 	t.Parallel()
 
-	pb, _ := LookupPlaybook("service_story_citation")
+	pb, _ := Lookup("service_story_citation")
 	if _, err := pb.Resolve(map[string]string{}); err == nil {
 		t.Fatal("expected error when required input service_name is missing")
 	}
@@ -186,7 +188,7 @@ func TestResolveMissingRequiredInput(t *testing.T) {
 func TestResolveUnknownInputRejected(t *testing.T) {
 	t.Parallel()
 
-	pb, _ := LookupPlaybook("service_story_citation")
+	pb, _ := Lookup("service_story_citation")
 	_, err := pb.Resolve(map[string]string{"service_name": "x", "not_declared": "y"})
 	if err == nil {
 		t.Fatal("expected error for undeclared input")
@@ -199,25 +201,25 @@ func TestResolveUnknownInputRejected(t *testing.T) {
 func TestEveryStepToolNameInValidSet(t *testing.T) {
 	t.Parallel()
 
-	names := PlaybookToolNames()
+	names := ToolNames()
 	if len(names) == 0 {
-		t.Fatal("PlaybookToolNames returned no names")
+		t.Fatal("ToolNames returned no names")
 	}
 	sorted := append([]string(nil), names...)
 	sort.Strings(sorted)
 	for i := 1; i < len(sorted); i++ {
 		if sorted[i] == sorted[i-1] {
-			t.Fatalf("PlaybookToolNames has duplicate %q", sorted[i])
+			t.Fatalf("ToolNames has duplicate %q", sorted[i])
 		}
 	}
 	for _, name := range names {
 		if strings.TrimSpace(name) == "" {
-			t.Fatal("empty tool name in PlaybookToolNames")
+			t.Fatal("empty tool name in ToolNames")
 		}
 	}
 }
 
-func mustResolve(t *testing.T, pb QueryPlaybook, inputs map[string]string) ResolvedPlaybook {
+func mustResolve(t *testing.T, pb Definition, inputs map[string]string) ResolvedPlaybook {
 	t.Helper()
 	resolved, err := pb.Resolve(inputs)
 	if err != nil {

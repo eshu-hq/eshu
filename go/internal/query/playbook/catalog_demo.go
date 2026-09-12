@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package playbook
+
+import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 // Demo first-five-questions catalog entries (issue #4745).
 //
@@ -16,7 +18,7 @@ package query
 // the MCP/API surfaces can list and resolve them the same way as any other
 // playbook; each wraps exactly one existing, already-registered MCP tool with
 // the bounded arguments the manifest requires and introduces no new query
-// capability. They are registered in PlaybookCatalog (query_playbook_catalog.go)
+// capability. They are registered in Catalog (catalog.go)
 // alongside every other wave.
 
 // demoDeploymentToCloudResourcePlaybook answers demo question
@@ -27,33 +29,33 @@ package query
 // pinned over trace_deployment_chain because the golden-corpus-gate run
 // returned an empty cloud_resources for trace_deployment_chain while this tool
 // returned the digest-joined workload -> image correlation (rc-4).
-func demoDeploymentToCloudResourcePlaybook() QueryPlaybook {
-	return QueryPlaybook{
+func demoDeploymentToCloudResourcePlaybook() Definition {
+	return Definition{
 		ID:           "demo_deployment_to_cloud_resource",
 		Name:         "Demo: deployment to cloud resource",
 		Version:      "1.0.0",
 		PromptFamily: "demo.deployment_to_cloud_resource",
 		Description: "Answer the demo deployment-to-cloud-resource question by listing the " +
 			"reducer-owned Kubernetes workload -> image correlations for a cluster.",
-		RequiredInputs: []PlaybookInput{
+		RequiredInputs: []Input{
 			{
 				Name:        "cluster_id",
-				Type:        PlaybookInputIdentifier,
+				Type:        InputIdentifier,
 				Required:    true,
 				Description: "Cluster ID to anchor the Kubernetes correlation lookup, e.g. supply-chain-demo.",
 			},
 		},
-		Steps: []PlaybookStep{
+		Steps: []Step{
 			{
 				ID:   "kubernetes_correlations",
 				Tool: "list_kubernetes_correlations",
-				Params: []PlaybookParam{
-					inputParam("cluster_id", "cluster_id"),
-					limitParam("limit", 50),
+				Params: []Param{
+					InputParam("cluster_id", "cluster_id"),
+					LimitParam("limit", 50),
 				},
-				ExpectedTruth:    AnswerTruthDerived,
+				ExpectedTruth:    querycontract.AnswerTruthDerived,
 				EvidenceExpected: "digest-joined Kubernetes workload -> OCI image correlations for the cluster, with outcome and join_mode per row",
-				Drilldowns: []PlaybookDrilldown{
+				Drilldowns: []Drilldown{
 					{Tool: "get_service_story", Reason: "drill into the owning service dossier when a workload correlation is selected"},
 				},
 			},
@@ -71,33 +73,33 @@ func demoDeploymentToCloudResourcePlaybook() QueryPlaybook {
 // carries advisory evidence with no CVE-to-component impact finding, so it is
 // pinned to the cross-repo dependency correlation the corpus actually proves
 // (rc-3).
-func demoDependencyCrossRepoPlaybook() QueryPlaybook {
-	return QueryPlaybook{
+func demoDependencyCrossRepoPlaybook() Definition {
+	return Definition{
 		ID:           "demo_dependency_cross_repo",
 		Name:         "Demo: cross-repo dependency",
 		Version:      "1.0.0",
 		PromptFamily: "demo.dependency_cross_repo",
 		Description: "Answer the demo cross-repo dependency question by listing the reducer-owned " +
 			"package consumption correlations for a package.",
-		RequiredInputs: []PlaybookInput{
+		RequiredInputs: []Input{
 			{
 				Name:        "package_id",
-				Type:        PlaybookInputIdentifier,
+				Type:        InputIdentifier,
 				Required:    true,
 				Description: "Package.uid to anchor the package registry correlation lookup, e.g. github.com/acme/lib-common.",
 			},
 		},
-		Steps: []PlaybookStep{
+		Steps: []Step{
 			{
 				ID:   "package_registry_correlations",
 				Tool: "list_package_registry_correlations",
-				Params: []PlaybookParam{
-					inputParam("package_id", "package_id"),
-					limitParam("limit", 50),
+				Params: []Param{
+					InputParam("package_id", "package_id"),
+					LimitParam("limit", 50),
 				},
-				ExpectedTruth:    AnswerTruthDerived,
+				ExpectedTruth:    querycontract.AnswerTruthDerived,
 				EvidenceExpected: "manifest-backed consumption correlations naming the repository that depends on the package, with relationship_kind and outcome per row",
-				Drilldowns: []PlaybookDrilldown{
+				Drilldowns: []Drilldown{
 					{Tool: "list_package_registry_dependencies", Reason: "inspect the underlying package-native dependency edges when consumption alone is not enough"},
 				},
 			},
@@ -113,33 +115,33 @@ func demoDependencyCrossRepoPlaybook() QueryPlaybook {
 // provider, matching the HTTP route
 // GET /api/v0/observability/coverage/correlations?provider=tempo&limit=50 that
 // specs/demo-first-answers.v1.yaml pins for this question.
-func demoObservabilityToWorkloadPlaybook() QueryPlaybook {
-	return QueryPlaybook{
+func demoObservabilityToWorkloadPlaybook() Definition {
+	return Definition{
 		ID:           "demo_observability_to_workload",
 		Name:         "Demo: observability to workload",
 		Version:      "1.0.0",
 		PromptFamily: "demo.observability_to_workload",
 		Description: "Answer the demo observability-to-workload question by listing the " +
 			"reducer-owned observability coverage correlations for a provider.",
-		RequiredInputs: []PlaybookInput{
+		RequiredInputs: []Input{
 			{
 				Name:        "provider",
-				Type:        PlaybookInputString,
+				Type:        InputString,
 				Required:    true,
 				Description: "Observability provider to scope coverage correlation lookup, e.g. tempo.",
 			},
 		},
-		Steps: []PlaybookStep{
+		Steps: []Step{
 			{
 				ID:   "observability_coverage_correlations",
 				Tool: "list_observability_coverage_correlations",
-				Params: []PlaybookParam{
-					inputParam("provider", "provider"),
-					limitParam("limit", 50),
+				Params: []Param{
+					InputParam("provider", "provider"),
+					LimitParam("limit", 50),
 				},
-				ExpectedTruth:    AnswerTruthDerived,
+				ExpectedTruth:    querycontract.AnswerTruthDerived,
 				EvidenceExpected: "observability coverage correlations naming the covered workload or resource, with coverage_status and freshness per row",
-				Drilldowns: []PlaybookDrilldown{
+				Drilldowns: []Drilldown{
 					{Tool: "get_service_story", Reason: "drill into the owning service dossier when a covered workload is selected"},
 				},
 			},
@@ -151,8 +153,8 @@ func demoObservabilityToWorkloadPlaybook() QueryPlaybook {
 // demoFailureModes declares the shared failure modes for the demo single-step
 // catalog entries: each wraps exactly one bounded list call, so the failure
 // surface is empty result, truncation, or an unready reducer generation.
-func demoFailureModes(scope string) []PlaybookFailureMode {
-	return []PlaybookFailureMode{
+func demoFailureModes(scope string) []FailureMode {
+	return []FailureMode{
 		{
 			Condition: "no correlations returned",
 			Meaning:   scope + " matched no rows in scope; the answer is unsupported, not an empty fact",

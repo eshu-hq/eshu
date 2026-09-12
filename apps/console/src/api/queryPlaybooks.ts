@@ -4,8 +4,8 @@
 // (POST /api/v0/query-playbooks/resolve). Both endpoints read only the
 // in-process playbook catalog -- never Postgres or a graph backend -- and this
 // module only normalizes their envelope payloads to the console's camelCase
-// view model. See go/internal/query/query_playbook.go and
-// query_playbook_handler.go for the wire contract.
+// view model. See go/internal/query/playbook/definition.go and
+// go/internal/query/playbook/handler.go for the wire contract.
 import type { EshuApiClient } from "./client";
 import { EshuEnvelopeError, type EshuTruth } from "./envelope";
 

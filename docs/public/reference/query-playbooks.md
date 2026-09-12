@@ -12,10 +12,12 @@ For missing-evidence-driven workflow discovery, use
 a fixed ordered call sequence; investigation workflows choose bounded next calls
 from caller-provided missing-evidence state.
 
-The implementation lives in `go/internal/query/query_playbook.go` (contract and
-resolution), `go/internal/query/query_playbook_validate.go` (structural
-validation), and `go/internal/query/query_playbook_catalog.go` (the versioned
-catalog). Read the [Truth Label Protocol](truth-label-protocol.md) and the
+The implementation lives in `go/internal/query/playbook/definition.go` (contract
+and resolution), `go/internal/query/playbook/validate.go` (structural
+validation), and `go/internal/query/playbook/catalog.go` (the versioned
+catalog); root package `query` keeps every pre-move exported spelling through
+`go/internal/query/query_playbook_alias.go` (#6642). Read the
+[Truth Label Protocol](truth-label-protocol.md) and the
 [Answer Packet Contract](answer-packets.md) first: a playbook reuses the
 `AnswerTruthClass` taxonomy and the `recommended_next_calls` / evidence-handle
 shapes already defined there rather than introducing new ones.
