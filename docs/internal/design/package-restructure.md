@@ -1070,7 +1070,7 @@ admission, retry, and telemetry. The provider security-alert scheduler is the
 second extraction under `internal/coordinator/securityalert`: the child owns
 its request and planner while root keeps the same scheduling, plan-key,
 admission, retry, and telemetry responsibilities. The hosted SBOM-attestation
-scheduler is the third extraction under `internal/coordinator/sbomattestation`
+scheduler is the third extraction at `internal/coordinator/sbom/attestation`
 with the same boundary. The Vault metadata scheduler is the fourth extraction
 under `internal/coordinator/vaultlive`; its pure planner moves while root keeps
 scheduling, admission, retries, and telemetry. The Grafana Tempo scheduler is

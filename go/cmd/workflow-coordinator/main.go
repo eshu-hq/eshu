@@ -32,7 +32,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tempo"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
@@ -187,7 +187,7 @@ func run(parent context.Context) error {
 		OCIRegistryPlanner:                ociregistry.WorkPlanner{},
 		PackageRegistryPlanner:            coordinator.PackageRegistryWorkPlanner{},
 		VulnerabilityIntelligencePlanner:  coordinator.VulnerabilityIntelligenceWorkPlanner{},
-		SBOMAttestationPlanner:            sbomattestation.WorkPlanner{},
+		SBOMAttestationPlanner:            attestation.WorkPlanner{},
 		ScannerWorkerPlanner:              scannerworker.WorkPlanner{},
 		SecurityAlertPlanner:              securityalert.WorkPlanner{},
 		CICDRunPlanner:                    cicdrun.WorkPlanner{},

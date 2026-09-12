@@ -143,7 +143,7 @@ and telemetry.
   KEEP IN ROOT <- projector: failure_classification.go + decisions.go + retry. [5 non-test / 3 test = 8] shared-core
   KEEP IN ROOT <- coordinator: service.go + config.go + metrics.go + governanc [5 non-test / 3 test = 8] shared-core
   KEEP IN ROOT <- coordinator: owned_package_target_helpers.go + derived_targe [3 non-test / 3 test = 6] shared-core
-  one subpackage per provider (grafana, jira, loki, tempo, vaultlive, metrics for Prometheus/Mimir, ociregistry, sbomattestation, scannerworker, securityalert, cicdrun, packageregistry, pagerduty, gcp, scheduled, extension, vulnerabilityintelligence), implementing the root-defined Planner interface (Go's structural interface satisfaction keeps this compiling across the package boundary) <- coordinator: per-provider _scheduler.go halves (self-contain [~17 non-test / ~17 test = ~34] clean
+  one subpackage per provider (grafana, jira, loki, tempo, vaultlive, metrics for Prometheus/Mimir, ociregistry, sbom/attestation, scannerworker, securityalert, cicdrun, packageregistry, pagerduty, gcp, scheduled, extension, vulnerabilityintelligence), implementing the root-defined Planner interface (Go's structural interface satisfaction keeps this compiling across the package boundary) <- coordinator: per-provider _scheduler.go halves (self-contain [~17 non-test / ~17 test = ~34] clean
   MUST STAY IN ROOT unless Service is redesigned into composed per-provider sub-structs (separate design decision, not a file move) <- coordinator: per-provider _service.go halves — methods on th [~30 non-test / ~35 test = ~65] tangled
   KEEP IN ROOT <- coordinator: workflow_tenant_grants* + installed_advisory_ta [7 non-test / 5 test = 12] shared-core
 ```

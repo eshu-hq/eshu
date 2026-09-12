@@ -33,7 +33,8 @@ live in the repository today.
 | `go/internal/coordinator/planner/metrics/` | Prometheus/Mimir scheduler request validation, target filtering, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/scannerworker/` | scanner-worker scheduler configuration validation, requested-scope privacy, and deterministic workflow planning |
 | `go/internal/coordinator/securityalert/` | provider security-alert scheduler request validation and deterministic workflow planning |
-| `go/internal/coordinator/sbomattestation/` | hosted SBOM and attestation scheduler request validation and deterministic workflow planning |
+| `go/internal/coordinator/sbom/` | documentation-only namespace for coordinator-side SBOM and attestation planning contracts |
+| `go/internal/coordinator/sbom/attestation/` | hosted SBOM and attestation scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/planner/tempo/` | Grafana Tempo scheduler request validation, target filtering, and deterministic workflow planning |
 | `go/internal/coordinator/planner/tfstate/` | Terraform-state scheduler request and plan-key validation, discovery-candidate resolution, locator-free requested-scope construction, and deterministic workflow planning |
 | `go/internal/coordinator/vaultlive/` | Vault metadata scheduler request validation and deterministic workflow planning |
