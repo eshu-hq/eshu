@@ -72,9 +72,9 @@ The statement text does not change. The same builders run, producing the same
 bound `$repo_ids` list, and it can only shrink.
 
 REPORTED — `docs/internal/evidence/5998-rationale-retract-probe-guard.md`,
-lines 120-141, measured this exact whole-repository retract `DELETE` on
-NornicDB `eshu-nornicdb-pr290:3722b483c02c` (still the `docker-compose.yaml`
-pin on this branch, line 10):
+lines 120-141, measured this exact whole-repository retract `DELETE` on the
+then-active NornicDB `eshu-nornicdb-pr290:3722b483c02c` Compose pin. #6162
+later replaced that source build with the published v1.3.1 digest:
 
 - 18.603s / 17.653s / 18.071s on a 1,675,949-relationship store, while
   deleting **zero** rows.

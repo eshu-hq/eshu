@@ -14,7 +14,7 @@ The OCI index contains the following Linux manifests:
 | Platform | Manifest digest | Validation in this change |
 | --- | --- | --- |
 | `linux/amd64` | `sha256:c0b5f73c55bd56a6764d1833665252b98a30b332248f0233f5f4eab4dc0d2ca1` | Docker runtime and live Eshu proof |
-| `linux/arm64` | `sha256:d787abe61d92c67761bdbd21ae5224aad904f2a13283d46d13fdfb6269b86b7b` | Manifest and verifier branch only; no arm64 runtime claim |
+| `linux/arm64` | `sha256:d787abe61d92c67761bdbd21ae5224aad904f2a13283d46d13fdfb6269b86b7b` | Manifest inventory and rejecting verifier fixture only; no arm64 runtime claim |
 
 The amd64 container reported `NornicDB v1.3.1`. The published image has no
 OCI source-revision label, so the immutable index digest, selected platform
