@@ -1,0 +1,23 @@
+go/internal/query/supplychain/findings_aggregates_handler.go
+  s_f6a79aa2bc39c6::t_ec0928ffe3f907 15-18
+go/internal/query/supplychain/container_image_identity_aggregates_handler.go
+  s_f6a79aa2bc39c6::t_c0399480f4f0b0 14-17
+go/internal/query/supplychain/handler.go
+  s_f6a79aa2bc39c6::t_35a25c238a0e36 14-19,28-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bccfef1fa2f11394f760d1614fdecc464f389889",
+  "prompts": {},
+  "sessions": {
+    "s_f6a79aa2bc39c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f1b90b00-dcbf-4bb6-8e68-08bc29b6bfaf",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
