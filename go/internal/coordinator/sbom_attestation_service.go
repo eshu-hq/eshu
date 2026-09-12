@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package coordinator //nolint:dirgate // SBOM scheduling and durable admission remain on root Service methods.
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -17,7 +17,7 @@ import (
 // SBOMAttestationPlanner plans hosted SBOM/attestation workflow rows from
 // collector instance configuration.
 type SBOMAttestationPlanner interface {
-	PlanSBOMAttestationWork(context.Context, sbomattestation.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
+	PlanSBOMAttestationWork(context.Context, attestation.PlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
 func (s Service) scheduleSBOMAttestationWork(
@@ -35,7 +35,7 @@ func (s Service) scheduleSBOMAttestationWork(
 		if s.SBOMAttestationPlanner == nil {
 			return fmt.Errorf("SBOM attestation planner is required for active sbom_attestation collectors")
 		}
-		run, items, err := s.SBOMAttestationPlanner.PlanSBOMAttestationWork(ctx, sbomattestation.PlanRequest{
+		run, items, err := s.SBOMAttestationPlanner.PlanSBOMAttestationWork(ctx, attestation.PlanRequest{
 			Instance:   instance,
 			ObservedAt: observedAt,
 			PlanKey:    s.sbomAttestationPlanKey(instance, observedAt),

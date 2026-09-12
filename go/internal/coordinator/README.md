@@ -16,7 +16,7 @@ implementation; root retains its interface, scheduling position, and durable
 admission path.
 The `securityalert` child owns the provider security-alert planning request and
 planner implementation under the same boundary.
-The `sbomattestation` child owns the hosted SBOM-attestation planning request
+The `sbom/attestation` child owns the hosted SBOM-attestation planning request
 and planner while root retains scheduling and durable admission.
 The `vaultlive` child owns the Vault metadata planning request and planner
 under the same boundary; root retains scheduling, admission, retries, and
@@ -141,7 +141,7 @@ one enabled bounded scope; invalid configurations fail validation.
   batched across packages within one ecosystem while keeping scope IDs below
   indexed workflow tuple limits.
 - `SBOMAttestationPlanner` — the root interface implemented by
-  `sbomattestation.WorkPlanner`, which plans hosted SBOM and attestation collection
+  `attestation.WorkPlanner`, which plans hosted SBOM and attestation collection
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.
 - `CICDRunPlanner` — the root structural interface implemented by
@@ -225,7 +225,7 @@ one enabled bounded scope; invalid configurations fail validation.
   planner implementation.
 - `internal/coordinator/securityalert` — provider security-alert plan request
   and deterministic planner implementation.
-- `internal/coordinator/sbomattestation` — hosted SBOM-attestation plan request
+- `internal/coordinator/sbom/attestation` — hosted SBOM-attestation plan request
   and deterministic planner implementation.
 - `internal/coordinator/scannerworker` — scanner-worker request validation,
   requested-scope privacy, and deterministic planning.

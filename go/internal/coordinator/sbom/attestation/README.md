@@ -1,8 +1,8 @@
-# SBOM-attestation scheduler
+# SBOM and attestation scheduler
 
 ## Purpose
 
-`sbomattestation` plans one workflow work item per configured hosted SBOM or
+`sbom/attestation` plans one workflow work item per configured hosted SBOM or
 attestation target without reading the document or contacting its provider.
 
 ## Ownership boundary
@@ -42,9 +42,13 @@ No-Regression Evidence: focused child tests call the production planner. The
 recursive coordinator and workflow-coordinator tests compile the root
 interface, service call, and concrete child wiring. Scoped race, build, and vet
 checks cover the same boundary without changing the planner's runtime path.
+This leaf is an ownership seam, not an independently deployable or extractable
+service; it still depends on repository-local workflow, fact, and scope
+contracts.
 
 ## Related docs
 
 - `go/internal/coordinator/README.md`
+- `go/internal/coordinator/sbom/README.md`
 - `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

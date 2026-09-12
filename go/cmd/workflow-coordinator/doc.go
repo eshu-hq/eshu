@@ -11,7 +11,7 @@
 // telemetry, opens Postgres, builds coordinator.Service
 // from the configured workflow store, governance audit sink, metrics, and
 // provider-family planners (including cicd/run, securityalert,
-// sbomattestation, scannerworker, gcp, grafana, loki,
+// sbom/attestation, scannerworker, gcp, grafana, loki,
 // jira, pagerduty, metrics, tempo, vaultlive, and
 // extension scheduler planners), and hosts it through
 // app.NewHostedWithStatusServer. The hosted runtime exposes `/healthz`,

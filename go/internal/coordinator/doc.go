@@ -30,7 +30,7 @@
 // configured GitHub Actions repository targets while this package keeps the
 // structural planner interface and scheduling position. The securityalert
 // child package owns the equivalent provider security-alert planner while this
-// package retains scheduling and durable admission. The sbomattestation child
+// package retains scheduling and durable admission. The sbom/attestation child
 // follows the same boundary for hosted SBOM and attestation targets. The
 // vaultlive child owns deterministic Vault metadata planning while this
 // package retains scheduling, admission, retries, and telemetry.

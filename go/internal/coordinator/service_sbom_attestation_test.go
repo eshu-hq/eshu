@@ -8,18 +8,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/sbomattestation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 type fakeSBOMAttestationPlanner struct {
-	requests []sbomattestation.PlanRequest
+	requests []attestation.PlanRequest
 	run      workflow.Run
 	items    []workflow.WorkItem
 }
 
-func (f *fakeSBOMAttestationPlanner) PlanSBOMAttestationWork(_ context.Context, request sbomattestation.PlanRequest) (workflow.Run, []workflow.WorkItem, error) {
+func (f *fakeSBOMAttestationPlanner) PlanSBOMAttestationWork(_ context.Context, request attestation.PlanRequest) (workflow.Run, []workflow.WorkItem, error) {
 	f.requests = append(f.requests, request)
 	return f.run, append([]workflow.WorkItem(nil), f.items...), nil
 }
