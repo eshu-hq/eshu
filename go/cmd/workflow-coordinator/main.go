@@ -35,7 +35,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
-	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
+	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"

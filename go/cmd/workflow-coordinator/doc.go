@@ -12,7 +12,7 @@
 // from the configured workflow store, governance audit sink, metrics, and
 // provider-family planners (including cicd/run, securityalert,
 // sbom/attestation, scannerworker, gcp, grafana, loki,
-// jira, pagerduty, metrics, tempo, vaultlive, and
+// jira, pagerduty, metrics, tempo, vault/live, and
 // extension scheduler planners), and hosts it through
 // app.NewHostedWithStatusServer. The hosted runtime exposes `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status`.

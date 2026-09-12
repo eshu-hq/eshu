@@ -1,16 +1,17 @@
-# Vault-live scheduler
+# Vault live scheduler
 
 ## Purpose
 
-`vaultlive` plans one workflow work item per configured Vault metadata target
-without contacting Vault or resolving credentials.
+`coordinator/vault/live` plans one workflow work item per configured Vault
+metadata target without contacting Vault or resolving credentials.
 
 ## Ownership boundary
 
 This package owns `PlanRequest`, configuration validation, and deterministic
 workflow-row construction. The parent coordinator retains the planner
 interface, scheduling order, plan-key clock, durable admission, retries, and
-telemetry. Methods on `coordinator.Service` remain in the parent package.
+telemetry. Methods on `coordinator.Service` remain in the coordinator root.
+This is an in-process planner seam, not an independently deployable service.
 
 ## Exported surface
 
@@ -55,5 +56,6 @@ path.
 ## Related docs
 
 - `go/internal/coordinator/README.md`
+- `go/internal/coordinator/vault/README.md`
 - `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

@@ -16,7 +16,7 @@ retains the `OCIRegistryPlanner` interface, scheduling order, the plan-key
 clock, durable open-target admission, retries, and telemetry. Methods on
 `coordinator.Service` remain in the parent package (`oci_registry_service.go`).
 
-Unlike sibling extractions (`gcp`, `metrics`, `vaultlive`), the
+Unlike sibling extractions (`gcp`, `metrics`, `vault/live`), the
 `OCIRegistryPlanner` interface itself stays in `service.go` rather than moving
 into `oci_registry_service.go`: issue #6057 scopes this PR to the
 `_scheduler.go` half only and treats decomposing `Service`'s interface block

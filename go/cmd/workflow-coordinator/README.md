@@ -62,7 +62,8 @@ flowchart TB
    advisory target readers, the `cicd/run` planner (aliased as `cicdrun`),
    `securityalert`, `sbom/attestation`, `scannerworker`, `gcp`, `grafana`,
    `loki`, `jira`, `pagerduty`, `metrics`,
-   `tempo`, `vaultlive`, and `extension` planners,
+   `tempo`, `vault/live` (aliased as `coordinatorvaultlive`), and `extension`
+   planners,
    scheduled AWS and AWS freshness planners, plus freshness trigger stores,
    and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
@@ -161,7 +162,7 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   Tempo trace-signal targets
 - `internal/coordinator/planner/tfstate` — concrete scheduler wiring for
   Terraform-state drift targets
-- `internal/coordinator/vaultlive` — concrete scheduler wiring for Vault
+- `internal/coordinator/vault/live` — concrete scheduler wiring for Vault
   metadata targets
 - `internal/workflow` — type contracts consumed by `coordinator.Service`
 - `internal/storage/postgres` — `NewWorkflowControlStore`, `NewStatusStore`;

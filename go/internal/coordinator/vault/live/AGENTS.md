@@ -1,11 +1,12 @@
-# AGENTS.md - internal/coordinator/vaultlive guidance
+# AGENTS.md - internal/coordinator/vault/live guidance
 
 ## Read first
 
-1. `README.md` for ownership and invariants.
-2. `planner.go` for validation and deterministic identities.
-3. `../vault_live_service.go` for root scheduling and admission.
-4. `../planner/contract/README.md` for plan-key grammar.
+1. `go/internal/coordinator/vault/live/README.md` for ownership and invariants.
+2. `go/internal/coordinator/vault/live/planner.go` for validation and
+   deterministic identities.
+3. `../../vault_live_service.go` for root scheduling and admission.
+4. `../../planner/contract/README.md` for plan-key grammar.
 
 ## Invariants
 
