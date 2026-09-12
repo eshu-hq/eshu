@@ -1,0 +1,259 @@
+go/internal/query/querycontract/unauthorized.go
+  s_a9c3fec2661ba1::t_86eeff023e4e0b 1-43,44,47-185
+  s_0bdd7ddd71ec09::t_11b64b5084a203 45-46
+go/internal/query/auth_audit.go
+  s_a9c3fec2661ba1::t_f55539c095524b 324-326,328-344
+  s_a9c3fec2661ba1::t_52ec442cdadb75 14
+  s_a9c3fec2661ba1::t_14d3f8d5a84cdc 323,346
+go/internal/query/queryauth/README.md
+  s_e8ab01ccdfa8e2::t_0d295f6f25b90f 101-123
+  s_a9c3fec2661ba1::t_cd115d8320d7fd 8-11,15-32,37,39-48,52-55
+go/internal/query/auth_oauth_discovery.go
+  s_a9c3fec2661ba1::t_30a9113e06d08c 11-12
+  s_a9c3fec2661ba1::t_3349a273af1dcb 82-86
+go/internal/query/queryauth/session_timeouts.go
+  s_a9c3fec2661ba1::t_1338921f2fb149 1-60
+go/internal/query/auth_oauth_challenge_context.go
+  s_a9c3fec2661ba1::t_4e817a0c77cced 9-10,29-34,36
+go/internal/query/sign_in_policy_types.go
+  s_a9c3fec2661ba1::t_dcd25717b6bec2 10-11,35-38,50-52,66-67
+go/internal/query/queryauth/AGENTS.md
+  s_a9c3fec2661ba1::t_96c7343bfff927 43-55,71-76
+go/internal/query/session_timeout_policy.go
+  s_a9c3fec2661ba1::t_02f0bcd974a743 9-10,13-16,24
+go/internal/query/queryauth/audit_actor.go
+  s_a9c3fec2661ba1::t_42d7c6c501e81f 1-55
+go/internal/query/queryauth/browser_session_types.go
+  s_a9c3fec2661ba1::t_23b483229abb45 1-117
+go/internal/query/browser_session_handler.go
+  s_a9c3fec2661ba1::t_1b3cf2ae2c5662 346-350,360,363-365,367
+  s_a9c3fec2661ba1::t_64716d5cc69b42 12-13,16-19,21-22,27-29,32-33
+  s_a9c3fec2661ba1::t_308ebb781ff578 65-68,70-72
+go/internal/query/queryauth/session_cookies.go
+  s_a9c3fec2661ba1::t_83ec7a41df16bd 1-213,215-224,226-259,261-279,281-292
+go/internal/query/querycontract/doc.go
+  s_a9c3fec2661ba1::t_def5cf83952eac 73-90
+  s_e8ab01ccdfa8e2::t_30abf574283006 91-93
+go/internal/query/auth_oauth_challenge_test.go
+  s_a9c3fec2661ba1::t_427136ae7de207 132-138
+go/internal/query/querycontract/permission_denied.go
+  s_a9c3fec2661ba1::t_84a42f14574284 1-40
+go/internal/query/querycontract/AGENTS.md
+  s_a9c3fec2661ba1::t_0371387ec0404b 42-56
+go/internal/query/querycontract/README.md
+  s_e8ab01ccdfa8e2::t_a2a2cc961fb379 72-76
+  s_a9c3fec2661ba1::t_a8f0bbb96d2fcd 77-82
+  s_a9c3fec2661ba1::t_96c25b72617984 41-42
+  s_e8ab01ccdfa8e2::t_8e03eb70de85e0 83-88
+go/internal/query/README.md
+  s_a9c3fec2661ba1::t_4fc3558d5757e9 1190-1191
+  s_e8ab01ccdfa8e2::t_23ca1a86f88f27 1192,1210
+go/internal/query/queryauth/session_cookies_test.go
+  s_a9c3fec2661ba1::t_da6013a5039161 1-111
+go/internal/query/browser_session_cookie_secure.go
+  s_a9c3fec2661ba1::t_0cd22e9194ea98 9-10,15-19,21-22,24-26,29-31,33,36-37,39,47-53
+go/internal/query/permission_catalog.go
+  s_a9c3fec2661ba1::t_b33a6d4d1d4a47 39-43,45,48-49,51
+  s_a9c3fec2661ba1::t_3397ba89076ff4 11
+go/internal/query/queryauth/sign_in_policy.go
+  s_a9c3fec2661ba1::t_5bb2a7044bfd66 1-23,26-36
+  s_a9c3fec2661ba1::t_2838e7ccd7553b 24-25
+go/internal/query/documentation.go
+  s_a9c3fec2661ba1::t_87240271f4012d 433-437,439
+go/internal/query/browser_session_cookie_secure_test.go
+  s_a9c3fec2661ba1::t_8c5a0876616190 87-91
+go/internal/query/auth.go
+  s_a9c3fec2661ba1::t_4353cbded1bc65 66-69,71-77
+  s_a9c3fec2661ba1::t_3026f22dcfba96 341-342,344,347-350,352
+  s_a9c3fec2661ba1::t_8f7d20e4fb98f6 15
+  s_a9c3fec2661ba1::t_9f4233a093fc57 380-382,383,388
+  s_a9c3fec2661ba1::t_d35e9b08f7c7e3 117-119
+  s_0bdd7ddd71ec09::t_9a18d9abd00d9f 384-386
+go/internal/query/queryauth/doc.go
+  s_a9c3fec2661ba1::t_b5d2eed692f879 25-45
+go/internal/query/querycontract/unauthorized_test.go
+  s_a9c3fec2661ba1::t_e4d85d805cd85a 1-110
+apps/console/src/pages/tokens/CreateApiTokenControl.tsx
+  s_0bdd7ddd71ec09::t_abd7f9e76e401e 8
+go/internal/query/auth_posture.go
+  s_0bdd7ddd71ec09::t_3f48215964333e 32
+go/internal/query/identity_api_tokens_test.go
+  s_20619b84b079ff::t_d9663358aeb8b6 18-31
+  s_20619b84b079ff::t_8680f793c5dcf7 72,160
+  s_0bdd7ddd71ec09::t_6191fde496fb8f 398
+go/internal/query/identity_handler_fakes_test.go
+  s_0bdd7ddd71ec09::t_4b5766a2421a51 12-14
+go/internal/query/local/doc.go
+  s_20619b84b079ff::t_b13d210758ea22 1-33
+go/internal/query/local/handler_test.go
+  s_20619b84b079ff::t_30ef53687091c6 1-7,10-111,142-160,162-325,327-389
+  s_20619b84b079ff::t_f0c9e74b289351 390
+  s_0bdd7ddd71ec09::t_e94a43a6eb5800 391-395
+  s_20619b84b079ff::t_44e1173e2def3b 9
+  s_0bdd7ddd71ec09::t_578fe1f9a53c98 8
+  s_0bdd7ddd71ec09::t_bb0d5b88c10e9f 112-141
+  s_0bdd7ddd71ec09::t_b8fb196cffef91 326
+  s_20619b84b079ff::t_4c7e957c72f5ca 161
+go/internal/query/local/api_tokens.go
+  s_0bdd7ddd71ec09::t_1d30201ade5fd5 349
+  s_e8ab01ccdfa8e2::t_d63f581467c53e 4,25-26,43-44,58-59,76,80,113,120-121,123,126,128,132,139,171,174,187,192-193,202,215,221,225,235,248,254,258-259,270,283,296,301-302,310,314-315,317,329,333,358,368-369,388,394-396,400,402,404,410,418
+  s_20619b84b079ff::t_6fcd259d072046 16-17
+apps/console/e2e/totpCode.test.ts
+  s_e8ab01ccdfa8e2::t_cbc050e36e93f4 13
+docs/public/observability/telemetry-coverage.md
+  s_20619b84b079ff::t_c70acdcd022655 820
+go/internal/query/local/README.md
+  s_0bdd7ddd71ec09::t_6449ea068a48be 168
+  s_20619b84b079ff::t_0a04868aab901d 1-65,69-167,169-235,239,261-283
+  s_0bdd7ddd71ec09::t_376013a0d4cbe4 66-68
+  s_0bdd7ddd71ec09::t_e18b60b502cf58 236-238,240-260
+go/internal/query/local/audit_test.go
+  s_0bdd7ddd71ec09::t_26ad618fd609df 53-54,56-61
+  s_20619b84b079ff::t_e6eeb34d54561c 1-11,13-52,55,62-65
+  s_20619b84b079ff::t_37739bb554c2e9 12
+go/internal/query/local/types.go
+  s_20619b84b079ff::t_5bfeb7f60e4df3 4,13,15-16,19-31,34-35,52-53,68-69,84-85,96-97,100-110,113,116,122,135-137,139,143-144,153,158,174-175,184-185,190-191,206-207,212-219
+  s_20619b84b079ff::t_37eaedef02e1d7 9-10
+go/internal/query/local/AGENTS.md
+  s_20619b84b079ff::t_09b07f44d28507 1-121
+go/internal/query/local/api_tokens_test.go
+  s_20619b84b079ff::t_c34122253957b0 1-144
+apps/console/e2e/authE2ELocalMemberFlow.ts
+  s_0bdd7ddd71ec09::t_53c8a7507b8a47 397-398
+go/internal/query/local/api_tokens_self_service.go
+  s_e8ab01ccdfa8e2::t_270fa23010257a 4,30-31,33-34,36,41-42,51,65-66,69,82,86,91,97,102,107
+  s_0bdd7ddd71ec09::t_06644b2510bd11 19-21
+  s_20619b84b079ff::t_9fe621cf736c99 13-14
+go/internal/storage/postgres/identity_bootstrap_credential_recovery_scope_live_test.go
+  s_0bdd7ddd71ec09::t_8ae80959781e37 29
+go/internal/query/local/totp_test.go
+  s_0bdd7ddd71ec09::t_5f17686585a64e 95
+  s_20619b84b079ff::t_4d178f835e437c 1-94,96-112
+apps/console/e2e/totpCode.ts
+  s_e8ab01ccdfa8e2::t_c442ae340782fe 9
+go/internal/query/local/profile.go
+  s_20619b84b079ff::t_c6990e4350512c 4,11,18,27,29,36-37,39-40,43,46,55,58,61,64,71,73
+go/internal/query/identity_totp_test.go
+  s_0bdd7ddd71ec09::t_a610f72ab28e2e 244
+  s_20619b84b079ff::t_0e3c8a8bf1f12a 23
+  s_0bdd7ddd71ec09::t_4666c33cfd4522 240-243
+  s_20619b84b079ff::t_409c16f34bfb29 22,24-35
+  s_4a0f86aa680964::t_5fb8dd5ece11ec 92
+  s_20619b84b079ff::t_cd57584d6ec23e 214-223,256
+go/internal/query/auth_scoped_routes_completeness_helpers_test.go
+  s_0bdd7ddd71ec09::t_d473ba3f2655ad 143
+go/internal/query/local_identity_alias.go
+  s_20619b84b079ff::t_ebe327e3bbb733 8
+  s_20619b84b079ff::t_ab84d64723694e 190-193,199-201,204-205
+  s_20619b84b079ff::t_86039a0b21ed59 1-7,9-189,194-198,202-203,206-213
+go/internal/query/local/handler_fakes_test.go
+  s_20619b84b079ff::t_719c89209500df 1-211
+go/internal/query/local/totp.go
+  s_e8ab01ccdfa8e2::t_b7849f9688e1ba 4,29,64,69,73-74,76,81,87,91,97,102,112,115,122,126,136,140-141,143,147-148,154,158,161,168
+  s_20619b84b079ff::t_24291df24054b2 16-17
+  s_0bdd7ddd71ec09::t_30c634b721b70c 176
+scripts/moved-file-refs-allowlist.txt
+  s_20619b84b079ff::t_13a0c15b1de5fe 73-82
+go/internal/query/sign_in_policy_reads.go
+  s_0bdd7ddd71ec09::t_beb103b3c17d17 37
+go/internal/storage/postgres/identity_local_mfa_all_users_login_test.go
+  s_0bdd7ddd71ec09::t_4ebab54df8a097 223
+  s_e8ab01ccdfa8e2::t_2fa67df5d05449 193
+go/internal/query/auth_browser_session_route_policy.go
+  s_0bdd7ddd71ec09::t_230e8803143350 305,307
+  s_0bdd7ddd71ec09::t_7f2dfda5c5ac73 317
+apps/console/src/api/authSession.ts
+  s_e8ab01ccdfa8e2::t_733c3bd4089727 38,47,73
+go/internal/query/local/requests.go
+  s_20619b84b079ff::t_cd6f36b91078d7 10-11
+  s_0bdd7ddd71ec09::t_84efccdeef2796 107-112
+  s_e8ab01ccdfa8e2::t_376b1eb1556f7f 4,113-114,117,125-126,130-131,135-136
+go/internal/query/local/sign_in_policy_gate.go
+  s_20619b84b079ff::t_c2f63d32fd33d8 4,23,60,87,102
+apps/console/src/api/userProfile.ts
+  s_e8ab01ccdfa8e2::t_c66c3b28ce89ac 13
+go/internal/query/local/handler.go
+  s_e8ab01ccdfa8e2::t_3000d584de0bd7 4,20,22-25,33,42,49,64,69-70,76,84,87,91-92,95,99-100,105,109,117,122-123,127-128,130,137,156,160,179,186,195,200-201,219,222,226-227,231,237,241,244,251,256-257,262,265-266,268-269,272,276,280,283,286,295,300-301,306,309-310,314,318,334,339-340,345,349-350,354,356,363,380,387,396,401-402,405-406,410,414,421,430,434-435,438
+  s_20619b84b079ff::t_4a4559ce990f09 13-14
+  s_0bdd7ddd71ec09::t_274964feea7d38 37
+go/internal/query/admin/provider/config/types.go
+  s_0bdd7ddd71ec09::t_78a487ea7ba048 16
+go/internal/query/auth_posture_test.go
+  s_0bdd7ddd71ec09::t_04da175a5fb2d2 129
+apps/console/src/pages/LoginPage.test.tsx
+  s_0bdd7ddd71ec09::t_3c5606796d6316 294
+go/internal/query/identity_handler_test.go
+  s_0bdd7ddd71ec09::t_009b66944b1aaa 354
+go/internal/query/local/helpers_test.go
+  s_20619b84b079ff::t_efb3f3d6d2e703 6-9,11-35
+  s_4a0f86aa680964::t_4eb1354f86d670 4
+go/internal/query/local/helpers.go
+  s_20619b84b079ff::t_32dc5a4bfcd855 4,21,26-27,35,39-40,43,51,55,63,68-69,72-73,78,85,88,93,97,102,105,111,121-122,124-125,131-132,138,141,146-148,150-151,155-156,160-161,165-166,178-180,197-198,200-202,209,212,215,217-218,225-226,228-229,231,234,238,240,246-249,255-257,259,265,272,276,279,283,287-288,291,303,311,326,336,341,345,355
+  s_20619b84b079ff::t_5dcd4a7c68f408 16-17
+  s_20619b84b079ff::t_8bf022546de835 362,366,370-372,374-376,380-388,398-403,406
+go/internal/query/admin/audit/actor.go
+  s_0bdd7ddd71ec09::t_f6e0936c798fe5 74
+  s_4a0f86aa680964::t_2d9b3720cdfa38 73,86
+  s_0bdd7ddd71ec09::t_80e1d943a79cd6 87
+  s_0bdd7ddd71ec09::t_d073d71eacce9f 94
+go/internal/storage/postgres/identity_local.go
+  s_e8ab01ccdfa8e2::t_1a3223c6ace4b8 211
+apps/console/src/api/authSession.test.ts
+  s_e8ab01ccdfa8e2::t_38ade543d6b794 3
+apps/console/src/api/totpEnrollment.ts
+  s_e8ab01ccdfa8e2::t_e9e1b456679f0e 15
+go/internal/query/audit_actor_class_test.go
+  s_20619b84b079ff::t_199e949a0cf6bd 63-68
+scripts/lib/dirgate-grandfather.tsv
+  s_4a0f86aa680964::t_3b43c785e7769e 87
+tools/golangci-lint-dirgate/grandfather.go
+  s_4a0f86aa680964::t_318e7bfc64ed45 33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d4f99e0ab2b57462d0a5931f5071a0a619e4ea28",
+  "prompts": {},
+  "sessions": {
+    "s_0bdd7ddd71ec09": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea81717a-115c-4bf5-8481-31c519cd28c3",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_20619b84b079ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b939c33a-882a-4d7f-b5f9-9a4208d8a3f0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    },
+    "s_a9c3fec2661ba1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00551667-7c98-414f-9526-5226791a2172",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
