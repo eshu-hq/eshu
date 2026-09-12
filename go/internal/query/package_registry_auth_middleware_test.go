@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// These two tests moved back from internal/query/packagereg with the rest of
+// These two tests moved back from the package-registry leaf (then internal/query/packagereg) with the rest of
 // the package-registry handler family's tests (#6060), because they exercise
 // AuthMiddlewareWithScopedTokens's route allowlist directly against a stub
 // terminal handler -- neither calls PackageRegistryHandler or Mount, so they
@@ -59,7 +59,7 @@ func TestAuthMiddlewareWithScopedTokensAllowsPackageRegistryCorrelationRoute(t *
 // TestAuthMiddlewareWithScopedTokensRejectsPackageRegistryAdjacentRoutes)
 // because they sat in pendingRowFilteringRoutes; each handler now applies
 // its own visibility/correlation-grant gate
-// (packagereg/package_registry_scoped_access.go) on top of this middleware
+// (package/registry/scoped_access.go) on top of this middleware
 // allowlist entry.
 func TestAuthMiddlewareWithScopedTokensAllowsPackageRegistryIdentityRoutes(t *testing.T) {
 	t.Parallel()

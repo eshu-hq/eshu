@@ -116,7 +116,7 @@ var domainDataSignatures = map[string]domainDataSignature{
 	"kubernetes_correlation":             {Markers: []string{"reducer_kubernetes_correlation"}, StoreTypes: []string{"KubernetesCorrelationStore"}},
 	"observability_coverage_correlation": {Markers: []string{"reducer_observability_coverage_correlation"}, StoreTypes: []string{"ObservabilityCoverageCorrelationStore"}},
 	"container_image_identity":           {Markers: []string{":ContainerImage", "reducer_container_image_identity"}},
-	"package_source_correlation":         {Markers: []string{":Package"}, StoreTypes: []string{"PackageRegistryCorrelationStore"}},
+	"package_source_correlation":         {Markers: []string{":Package"}, StoreTypes: []string{"registry.CorrelationStore"}},
 
 	// s3_external_principal_grant_materialization writes
 	// (:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal) graph truth

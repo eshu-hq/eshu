@@ -20,7 +20,7 @@ import (
 // field), returns a *decode.Error (the leaf that lets a handler family
 // classify a decode failure without importing root package query) so the
 // caller drops the fact's contribution instead of fabricating a zero-valued
-// row. The shape mirrors packagereg's
+// row. The shape mirrors the registry family's
 // factschema_decode_package_correlations.go, the landed #6060 precedent for
 // a family that carries its own decode seam.
 //
@@ -63,7 +63,7 @@ type supplyChainFactDecodeInput struct {
 // stamps a concrete major-1 version; the Decode seam dispatches on the major
 // component only. Kept as this family's own copy rather than an import: the
 // root constant is unexported and this trivial literal has no shared-drift
-// risk (same rationale as packagereg's
+// risk (same rationale as the registry family's
 // packageCorrelationDefaultSchemaMajorVersion).
 const supplyChainDefaultSchemaMajorVersion = "1.0.0"
 

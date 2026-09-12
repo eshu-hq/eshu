@@ -61,7 +61,7 @@ Internal packages, all of them leaves that never import root package `query`:
   `StringSliceVal` row-value decoders (root forwards to the same
   functions, so behavior is identical on both sides of the move).
 - `internal/query/decode` — the classified decode failure the four
-  vulnerability decode wrappers return (packagereg precedent).
+  vulnerability decode wrappers return (the registry family's precedent).
 - `internal/storage/postgres/pgarray` — the array scan/build surface the
   stores read and write through.
 

@@ -522,7 +522,7 @@ paired with the version count that actually belongs to the third package.
 Any handler composing `OPTIONAL MATCH` with an aggregate (`count()`, `sum()`,
 `collect()`, etc.) over the anchor's non-aggregate columns silently drops
 every zero-match row instead of returning it with a zero/empty aggregate.
-`packageRegistryPackagesCypher` (`go/internal/query/package_registry_cypher.go`,
+`packageRegistryPackagesCypher` (`go/internal/query/package/registry/cypher.go`,
 issue #5167) served this exact shape for
 `GET /api/v0/package-registry/packages`: a zero-version `Package` vanished
 from every ecosystem-scoped list read, and an exact `package_id` lookup for a
@@ -573,8 +573,8 @@ RETURN p.uid AS package_id, count(r) AS version_count
 
 Any package uid absent from this query's result has zero matches; the caller
 zero-fills it (`packageRegistryVersionCountsCypher` +
-`PackageRegistryHandler.attachPackageVersionCounts` in
-`go/internal/query/package_registry.go`). Do not reintroduce
+`registry.Handler.attachPackageVersionCounts` in
+`go/internal/query/package/registry/handler.go`). Do not reintroduce
 `OPTIONAL MATCH` + aggregate over an anchor's own projected columns on this
 backend; do not "fix" it with a pattern comprehension or a `WITH`+`collect`
 without proving it live first, both silently under-count in a way that looks
@@ -637,7 +637,7 @@ matches from every value of that property) and a latent performance
 regression (the intended selective anchor is defeated, forcing a full label
 scan). Found while proving the F-6/W5b (#5167) tenant-scoping theory for
 `packageRegistryPackagesCypher`'s ecosystem-browse branch
-(`go/internal/query/package_registry_cypher.go`,
+(`go/internal/query/package/registry/cypher.go`,
 `packageRegistryPackagesScopedEcosystemCypher`), which was designed against
 this exact composition and had to be rewritten to the WHERE-only combined form
 before it could ship. Never append a `WHERE` clause referencing a different

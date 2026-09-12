@@ -11,7 +11,7 @@ package query
 // IaCHandler is implemented in iac.go
 // ImpactHandler is implemented in impact.go
 // StatusHandler is implemented in status.go
-// PackageRegistryHandler is implemented in package_registry.go
+// PackageRegistryHandler is implemented in package/registry/handler.go
 
 // CompareHandler is implemented in compare.go
 // Handler is implemented in admin/handler.go, admin/facts.go,

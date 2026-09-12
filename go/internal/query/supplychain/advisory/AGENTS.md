@@ -20,7 +20,7 @@ Read `doc.go` and `README.md` first.
   pin the drop, not the error type — but the next family copying this seam
   copies the constructor call too, so keep it on the leaf.
 - `supplyChainDefaultSchemaMajorVersion` MUST stay `"1.0.0"` and MUST stay
-  a family-local copy (packagereg precedent). It mirrors root's
+  a family-local copy (the registry family's precedent). It mirrors root's
   `queryDefaultSchemaMajorVersion`; if the schema major ever moves, both
   change together — rg for both names.
 - `derefString`, `derefFloat64`, `mapVal`, `stringMapSliceVal` are

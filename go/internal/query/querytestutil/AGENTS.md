@@ -23,16 +23,17 @@
      its own -- `go build ./internal/query/querytestutil` succeeds -- so a
      `go build` will not tell you.
    - **A handler family is NOT caught**, and is caught even less often than
-     it first appears. Importing `packagereg` from here compiles fine: root
+     it first appears. Importing `registry` (the package-registry family,
+     `internal/query/package/registry`) from here compiles fine: root
      and this package merely share that dependency, which is not a cycle. A
      cycle needs that family's tests to import this package back, and only
      the INTERNAL test package triggers it. Measured, all three legs planted:
 
      | plant | result |
      | --- | --- |
-     | this package imports `packagereg` | exit 0, no cycle |
-     | plus `package packagereg` (internal) importing this one | exit 1, `import cycle not allowed in test` |
-     | plus `package packagereg_test` (external) importing this one | exit 0, no cycle |
+     | this package imports `registry` | exit 0, no cycle |
+     | plus `package registry` (internal) importing this one | exit 1, `import cycle not allowed in test` |
+     | plus `package registry_test` (external) importing this one | exit 0, no cycle |
 
      So whether the ban bites depends on how the family writes its tests, and
      on whether they use this package at all:
@@ -43,9 +44,10 @@
        its in-package tests import `querytestutil`, so promoting its
        index-store fake here was rejected by the compiler, not by review.
      - Family tests are INTERNAL and do not import this package -> not
-       caught. `packagereg` is in this state today: 22 of 22 test files are
-       `package packagereg`, none importing this one.
-     - Family tests are EXTERNAL (`package packagereg_test`) -> never caught,
+       caught. The package-registry family (`registry`) is in this state
+       today: 22 of 22 test files are `package registry`, none importing
+       this one.
+     - Family tests are EXTERNAL (`package registry_test`) -> never caught,
        even when they do import this package.
 
      Do not read the first case as the rule. Two of the three shapes compile
@@ -114,8 +116,8 @@ and `SemanticSearchHTTPRequest` — which name only `internal/searchdocs` and
 drive that route -- the four in the session-permission sweep
 (`session_permission_enforcement_test.go`, all reaching it through
 `runSemanticSearch`) and the OpenAPI `languages` wire-contract test
-(`semantic_search_language_wire_contract_test.go`) -- matching the `packagereg`
-precedent (`package_registry_family_test_doubles_test.go`, #6399). Count it with
+(`semantic_search_language_wire_contract_test.go`) -- matching the registry
+family's precedent (`package_registry_family_test_doubles_test.go`, #6399). Count it with
 `rg -n 'stubSemanticSearchIndex|runSemanticSearch\(' go/internal/query/*_test.go`
 rather than from this sentence; the scoped-token admission test is NOT one of
 them, since it uses `fakeScopedTokenResolver` and never touches the stub.
@@ -144,8 +146,8 @@ and 80 -- while 93 build one with a composite literal. Count constructions, not
 mentions.
 
 Measure that root-only. A git pathspec of `go/internal/query/*.go` crosses a
-directory separator and returns 126, because `packagereg`'s own double names
-root's in a comment. That file is not a call site.
+directory separator and returns 126, because the registry family's own double
+names root's in a comment. That file is not a call site.
 
 Its adapter forwards through a single `promoted()` converter rather than
 mapping its 29 fields by hand at each call site. That is the shape to copy

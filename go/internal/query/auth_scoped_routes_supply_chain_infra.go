@@ -208,13 +208,13 @@ func scopedPackageRegistryCorrelationRoute(r *http.Request) bool {
 // precedent already exposes to scoped tokens), and private/unknown rows
 // require a bounded LIMIT-1 correlation-grant probe reusing the exact
 // predicate the already-shipped scoped correlations route exposes
-// (package_registry_correlations.go, including the
+// (package/registry/correlations.go, including the
 // candidate_repository_ids ?| branch) before ever being returned; a probe
 // miss returns the same empty page as a nonexistent package (no existence
 // oracle). The aggregate routes (count, inventory) instead force
 // visibility='public' onto the caller's filter, or return an empty envelope
 // without a store read if the caller explicitly asked for private/unknown.
-// See go/internal/query/packagereg/package_registry_scoped_access.go for the
+// See go/internal/query/package/registry/scoped_access.go for the
 // gate implementation.
 func scopedPackageRegistryIdentityRoute(r *http.Request) bool {
 	if r.Method != http.MethodGet {

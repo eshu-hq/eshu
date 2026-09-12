@@ -29,8 +29,8 @@ import (
 //
 // It registers through OwnershipSupport in capabilities.go -- the same
 // constructor a follow-up lane should point root's row at -- never a copy
-// of its fields. A copied row is what the packagereg TestMain still
-// carries, under a comment asking the next editor to keep it in sync;
+// of its fields. A copied row is what the registry family's TestMain
+// still carries, under a comment asking the next editor to keep it in sync;
 // nothing enforces that, and the semanticsearch TestMain already had to
 // relearn the lesson when two fields flipped while its tests stayed green
 // against a profile production no longer served.

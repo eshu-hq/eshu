@@ -23,7 +23,7 @@ func scopedPackageRegistryRequest(method, target string) *http.Request {
 }
 
 // TestPackageRegistryListPackagesMapsGraphReadAvailabilityErrors covers the
-// primary package-anchor graph read in listPackages (package_registry.go).
+// primary package-anchor graph read in listPackages (package/registry/handler.go).
 func TestPackageRegistryListPackagesMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
@@ -78,7 +78,7 @@ func TestPackageRegistryListPackagesMapsVersionCountGraphReadAvailabilityErrors(
 }
 
 // TestPackageRegistryListVersionsMapsGraphReadAvailabilityErrors covers the
-// graph read in listVersions (package_registry.go).
+// graph read in listVersions (package/registry/handler.go).
 func TestPackageRegistryListVersionsMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
@@ -100,7 +100,7 @@ func TestPackageRegistryListVersionsMapsGraphReadAvailabilityErrors(t *testing.T
 }
 
 // TestPackageRegistryListDependenciesMapsGraphReadAvailabilityErrors covers
-// the graph read in listDependencies (package_registry.go).
+// the graph read in listDependencies (package/registry/handler.go).
 func TestPackageRegistryListDependenciesMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
@@ -124,7 +124,7 @@ func TestPackageRegistryListDependenciesMapsGraphReadAvailabilityErrors(t *testi
 // TestPackageRegistryPackagesGatePackageIDAnchorMapsGraphReadAvailabilityErrors
 // covers resolvePackageRegistryAnchorGate's graph visibility read from the
 // package_id-anchored branch of packageRegistryPackagesGate
-// (package_registry_scoped_gates.go), for a scoped caller.
+// (package/registry/scoped_gates.go), for a scoped caller.
 func TestPackageRegistryPackagesGatePackageIDAnchorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
@@ -147,7 +147,7 @@ func TestPackageRegistryPackagesGatePackageIDAnchorMapsGraphReadAvailabilityErro
 // TestPackageRegistryPackagesGateNameAnchorMapsGraphReadAvailabilityErrors
 // covers packageRegistryNameAnchorCandidates's graph read from the
 // name+ecosystem branch of packageRegistryPackagesGate
-// (package_registry_scoped_gates.go), for a scoped caller.
+// (package/registry/scoped_gates.go), for a scoped caller.
 func TestPackageRegistryPackagesGateNameAnchorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
@@ -169,7 +169,7 @@ func TestPackageRegistryPackagesGateNameAnchorMapsGraphReadAvailabilityErrors(t 
 
 // TestPackageRegistryVersionsGateMapsGraphReadAvailabilityErrors covers
 // resolvePackageRegistryAnchorGate's graph visibility read from
-// packageRegistryVersionsGate (package_registry_scoped_gates.go), for a
+// packageRegistryVersionsGate (package/registry/scoped_gates.go), for a
 // scoped caller.
 func TestPackageRegistryVersionsGateMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -192,7 +192,7 @@ func TestPackageRegistryVersionsGateMapsGraphReadAvailabilityErrors(t *testing.T
 
 // TestPackageRegistryDependenciesGateVersionAnchorMapsGraphReadAvailabilityErrors
 // covers packageRegistryVersionAnchorPackageID's graph read from
-// packageRegistryDependenciesGate (package_registry_scoped_gates.go), for a
+// packageRegistryDependenciesGate (package/registry/scoped_gates.go), for a
 // scoped caller resolving a version_id anchor.
 func TestPackageRegistryDependenciesGateVersionAnchorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -216,7 +216,7 @@ func TestPackageRegistryDependenciesGateVersionAnchorMapsGraphReadAvailabilityEr
 // TestPackageRegistryDependenciesGateAnchorMapsGraphReadAvailabilityErrors
 // covers resolvePackageRegistryAnchorGate's graph visibility read from the
 // final anchor gate in packageRegistryDependenciesGate
-// (package_registry_scoped_gates.go), for a scoped caller anchored directly
+// (package/registry/scoped_gates.go), for a scoped caller anchored directly
 // on package_id (skipping version_id resolution).
 func TestPackageRegistryDependenciesGateAnchorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -239,7 +239,7 @@ func TestPackageRegistryDependenciesGateAnchorMapsGraphReadAvailabilityErrors(t 
 
 // TestPackageRegistryDependenciesGateSentinelProbeMapsGraphReadAvailabilityErrors
 // covers the sentinel-anchor correlation probe in packageRegistryDependenciesGate
-// (package_registry_scoped_gates.go): a version_id that does not resolve to a
+// (package/registry/scoped_gates.go): a version_id that does not resolve to a
 // package still issues the same visibility-lookup + correlation-probe
 // sequence a resolving anchor would, against a sentinel package_id, and that
 // probe's graph read must map the same way.

@@ -6,25 +6,26 @@ package query
 import (
 	"context"
 
-	"github.com/eshu-hq/eshu/go/internal/query/packagereg"
+	"github.com/eshu-hq/eshu/go/internal/query/package/registry"
 )
 
 // This file carries this package's own copies of three PackageRegistryHandler
-// test doubles that also live in internal/query/packagereg's _test.go files
-// (recordingPackageRegistryGraphReader, recordingPackageRegistryCorrelationStore,
+// test doubles that also live in internal/query/package/registry's _test.go
+// files (recordingPackageRegistryGraphReader, recordingPackageRegistryCorrelationStore,
 // stubPackageRegistryAggregateStore). Duplication here is not a seam gap: Go
 // never compiles a package's _test.go files into anything another package can
-// import, so no export level fixes this, on either side of the #6060 move.
+// import, so no export level fixes this, on either side of the #6060 move
+// (or the #6642 Part D rename that followed it).
 // These roots test files predate the move and are not package-registry-only
 // (graphReadSweepCases()/assertGraphReadSweepResponse() are shared across ~20
 // root graph-read-availability suites, and collector_list_readiness_handler_test.go
 // exercises 4 unrelated handler families in one table), so they stay in root
-// rather than moving into packagereg with the family.
+// rather than moving into the registry family package.
 
 // recordingPackageRegistryGraphReader is a minimal querycontract.GraphQuery
 // double for the root package-registry graph-read-availability sweep and the
-// collector-readiness handler table. It mirrors packagereg's test double of
-// the same name; see that type's doc comment for the full runRowsQueue/
+// collector-readiness handler table. It mirrors the registry family's test
+// double of the same name; see that type's doc comment for the full runRowsQueue/
 // errByCall call-sequencing contract this copy also implements.
 type recordingPackageRegistryGraphReader struct {
 	runRows      []map[string]any
@@ -59,33 +60,32 @@ func (*recordingPackageRegistryGraphReader) RunSingle(
 }
 
 // recordingPackageRegistryCorrelationStore is a minimal
-// packagereg.PackageRegistryCorrelationStore double for root's
-// repository-selector and collector-readiness handler tests. It mirrors
-// packagereg's test double of the same name, trimmed to the plumbing those
-// root tests assert on (rows, lastFilter); it does not model the raw-fact
-// window/truncation contract packagereg's pagination-focused fakes cover.
+// registry.CorrelationStore double for root's repository-selector and
+// collector-readiness handler tests. It mirrors the registry family's test
+// double of the same name, trimmed to the plumbing those root tests assert on
+// (rows, lastFilter); it does not model the raw-fact window/truncation
+// contract the registry family's pagination-focused fakes cover.
 type recordingPackageRegistryCorrelationStore struct {
-	rows       []packagereg.PackageRegistryCorrelationRow
-	lastFilter packagereg.PackageRegistryCorrelationFilter
+	rows       []registry.CorrelationRow
+	lastFilter registry.CorrelationFilter
 }
 
 func (s *recordingPackageRegistryCorrelationStore) ListPackageRegistryCorrelations(
 	_ context.Context,
-	filter packagereg.PackageRegistryCorrelationFilter,
-) (packagereg.PackageRegistryCorrelationPage, error) {
+	filter registry.CorrelationFilter,
+) (registry.CorrelationPage, error) {
 	s.lastFilter = filter
-	rows := append([]packagereg.PackageRegistryCorrelationRow(nil), s.rows...)
+	rows := append([]registry.CorrelationRow(nil), s.rows...)
 	truncated := filter.Limit > 0 && len(rows) > filter.Limit
 	if truncated {
 		rows = rows[:filter.Limit]
 	}
-	return packagereg.PackageRegistryCorrelationPage{Rows: rows, Truncated: truncated, WindowFactCount: len(rows)}, nil
+	return registry.CorrelationPage{Rows: rows, Truncated: truncated, WindowFactCount: len(rows)}, nil
 }
 
-// stubPackageRegistryAggregateStore is a minimal
-// packagereg.PackageRegistryAggregateStore double for root's aggregate
-// graph-read-availability sweep, trimmed to the error-injection fields those
-// tests need.
+// stubPackageRegistryAggregateStore is a minimal registry.AggregateStore
+// double for root's aggregate graph-read-availability sweep, trimmed to the
+// error-injection fields those tests need.
 type stubPackageRegistryAggregateStore struct {
 	countErr     error
 	inventoryErr error
@@ -93,21 +93,21 @@ type stubPackageRegistryAggregateStore struct {
 
 func (s *stubPackageRegistryAggregateStore) CountPackageRegistryPackages(
 	context.Context,
-	packagereg.PackageRegistryAggregateFilter,
-) (packagereg.PackageRegistryAggregateCount, error) {
+	registry.AggregateFilter,
+) (registry.AggregateCount, error) {
 	if s.countErr != nil {
-		return packagereg.PackageRegistryAggregateCount{}, s.countErr
+		return registry.AggregateCount{}, s.countErr
 	}
-	return packagereg.PackageRegistryAggregateCount{}, nil
+	return registry.AggregateCount{}, nil
 }
 
 func (s *stubPackageRegistryAggregateStore) PackageRegistryPackageInventory(
 	context.Context,
-	packagereg.PackageRegistryAggregateFilter,
-	packagereg.PackageRegistryInventoryDimension,
+	registry.AggregateFilter,
+	registry.InventoryDimension,
 	int,
 	int,
-) ([]packagereg.PackageRegistryInventoryRow, error) {
+) ([]registry.InventoryRow, error) {
 	if s.inventoryErr != nil {
 		return nil, s.inventoryErr
 	}

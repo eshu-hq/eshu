@@ -12,7 +12,7 @@ import (
 // (contract_supply_chain.go), which owns the router and always links into
 // the production binary. Both root's init and this package's TestMain call
 // these constructors, so production and the hub test binary exercise the
-// same gate from a single declaration (packagereg/semanticsearch
+// same gate from a single declaration (the registry/semanticsearch family
 // precedent, #6060).
 
 // LightweightExactSupport is the support row for the vulnerability-scanner
