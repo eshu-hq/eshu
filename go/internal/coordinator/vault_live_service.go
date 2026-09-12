@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package coordinator //nolint:dirgate // Vault scheduling and durable admission remain root Service ownership.
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vaultlive"
+	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )

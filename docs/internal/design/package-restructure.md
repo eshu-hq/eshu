@@ -1072,8 +1072,8 @@ its request and planner while root keeps the same scheduling, plan-key,
 admission, retry, and telemetry responsibilities. The hosted SBOM-attestation
 scheduler is the third extraction at `internal/coordinator/sbom/attestation`
 with the same boundary. The Vault metadata scheduler is the fourth extraction
-under `internal/coordinator/vaultlive`; its pure planner moves while root keeps
-scheduling, admission, retries, and telemetry. The Grafana Tempo scheduler is
+at `internal/coordinator/vault/live`; its pure in-process planner moves while
+root keeps scheduling, admission, retries, and telemetry. The Tempo scheduler is
 the fifth extraction under `internal/coordinator/planner/tempo`; its
 deterministic request validation, target filtering, and workflow-row
 construction move while root keeps service scheduling, the plan-key clock,

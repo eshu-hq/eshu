@@ -41,6 +41,10 @@
      `service_scanner_worker.go` — the extracted scanner-worker planner and its
      root scheduling seam; runtime-local paths stay out of requested-scope
      metadata
+   - `go/internal/coordinator/vault/live/planner.go` and
+     `vault_live_service.go` — the nested Vault metadata planner and its root
+     scheduling seam; preserve opaque scope identities, configured work-item
+     order, sorted requested-scope metadata, and connection-material privacy
    - `go/internal/coordinator/planner/gcp/planner.go` and `gcp_service.go` —
      the extracted GCP Cloud Asset Inventory planner and root seam; preserve
      explicit `live_collection_enabled` opt-in, sorted scope order, default
