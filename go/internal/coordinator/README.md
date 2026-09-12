@@ -24,7 +24,7 @@ retries, and telemetry.
 The `tempo` child owns the Tempo trace-signal planning request and pure
 planner; root retains scheduling order, tenant and egress filtering, the
 plan-key clock, durable admission, retries, and telemetry.
-The `loki`, `metrics`, `ociregistry`, and `tfstate`
+The `loki`, `metrics`, `oci/registry`, and `tfstate`
 children own planning for Loki, Prometheus/Mimir, OCI registry, and
 Terraform-state targets; root retains scheduling order, tenant and egress
 filtering, the plan-key clock, durable admission, retries, and telemetry.
@@ -119,8 +119,8 @@ one enabled bounded scope; invalid configurations fail validation.
   `tfstate.WorkPlanner`. Its `BackendFacts` port returns Terraform
   backend block and Terragrunt remote_state candidates already resolved into
   their underlying backend kind, so the planner stays on one scheduler shape.
-- `OCIRegistryPlanner` — the root interface implemented by
-  `ociregistry.WorkPlanner`, which plans OCI registry collection runs from
+- `OCIRegistryPlanner` — the root interface implemented by the `oci/registry`
+  leaf's `WorkPlanner` (imported as `ociregistry`), which plans runs from
   configured repository targets without opening registry connections. Each
   target becomes one claimable work item keyed by the normalized registry
   repository scope.

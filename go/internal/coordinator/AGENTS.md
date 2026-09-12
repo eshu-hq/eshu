@@ -52,7 +52,7 @@
      and `config.go` call `gcp.EnabledScopes` and
      `gcp.ValidateClaimSchedulerConfiguration` instead of reaching into
      the child's private configuration types
-   - `go/internal/coordinator/ociregistry/planner.go` and
+   - `go/internal/coordinator/oci/registry/planner.go` and
      `oci_registry_service.go` — the extracted OCI registry planner and root
      seam; preserve per-provider identity resolution across Docker Hub, GHCR,
      ECR, Google Artifact Registry, Azure Container Registry, JFrog, and
@@ -72,14 +72,14 @@
      is not pure: it carries `GitReadiness` and `BackendFacts` ports and calls
      them while planning, which is why `main.go` constructs it with fields.
      Its plan-key validator stays local and stricter than
-     `contract.ValidateSafePlanKey`. As with `ociregistry`, the
+     `contract.ValidateSafePlanKey`. As with `oci/registry`, the
      `TerraformStatePlanner` interface itself stays in `service.go` — issue
      #6057 scopes this move to the `_scheduler.go` half only
    - `go/internal/coordinator/planner/aws/freshness/planner.go` and
      `service_aws_freshness.go` — the extracted AWS freshness planner and root
      seam; preserve trigger coalescing by freshness key, sorted target order,
      the per-account `FairnessKey`, and the rule that an unauthorized target
-     fails the batch instead of being dropped. Unlike `ociregistry`'s
+     fails the batch instead of being dropped. Unlike `oci/registry`'s
      `firstNonBlank`, the shared `target_scopes` parsing is exported rather
      than copied: `ParseTargetScopes` and `TargetAuthorized` are ~80 lines of
      decoding plus the authorization predicate, and root's
@@ -145,10 +145,10 @@
   planner into the `tfstate` child (`planner/tfstate/planner.go`). The
   root `firstNonBlank` helper (`owned_package_target_helpers.go`) remains with
   its package-registry and vulnerability-intelligence consumers; the extracted
-  `ociregistry` child keeps its own identical copy rather than importing root.
+  `oci/registry` child keeps its own identical copy rather than importing root.
   Terraform-state keeps its separate validator. The root `firstNonBlank`
   helper (`owned_package_target_helpers.go`) remains with its package-registry
-  and vulnerability-intelligence consumers; the extracted `ociregistry` child
+  and vulnerability-intelligence consumers; the extracted `oci/registry` child
   keeps its own identical copy rather than importing root. AWS target-scope
   parsing goes the other way: `freshness.ParseTargetScopes` and
   `TargetAuthorized` are the single definition, and `service_aws_freshness.go`

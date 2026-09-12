@@ -27,7 +27,7 @@
   `findAWSFreshnessInstance` filter and this planner's rejection are two halves
   of one authorization decision; do not fork a second copy at root to avoid the
   import. This is the `gcp` precedent (`EnabledScopes`,
-  `ValidateClaimSchedulerConfiguration`), not the `ociregistry` `firstNonBlank`
+  `ValidateClaimSchedulerConfiguration`), not the `oci/registry` `firstNonBlank`
   one — that precedent is for genuinely tiny pure helpers, and this block is
   ~80 lines of decoding plus the authorization predicate.
 - Do not read `scheduled_scan_enabled` here. It shares the configuration

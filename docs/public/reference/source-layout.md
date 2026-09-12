@@ -23,6 +23,8 @@ live in the repository today.
 | `go/internal/coordinator/cicd/` | documentation-only namespace for coordinator-side CI/CD planning contracts |
 | `go/internal/coordinator/cicd/run/` | CI/CD run scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/component/activation/` | dependency-neutral generic component-activation configuration parsing and validation shared by the component-extension planner and unrelated root scheduling/audit files |
+| `go/internal/coordinator/oci/` | documentation-only namespace for coordinator-side OCI planning contracts |
+| `go/internal/coordinator/oci/registry/` | OCI registry request validation, repository identity normalization, and deterministic workflow planning |
 | `go/internal/coordinator/planner/component/extension/` | generic component-extension scheduler activation-scoped workflow planning |
 | `go/internal/coordinator/planner/gcp/` | GCP Cloud Asset Inventory scheduler scope configuration parsing, validation, and deterministic workflow planning |
 | `go/internal/coordinator/planner/grafana/` | Grafana scheduler request validation, target filtering, privacy, and deterministic workflow planning |

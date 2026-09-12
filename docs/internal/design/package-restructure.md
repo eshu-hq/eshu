@@ -1058,11 +1058,9 @@ earlier families received there, so this extraction's "family (#6057)" bullet
 was left out rather than forcing a same-PR trim of unrelated prior bullets;
 the full detail lives in the child's own `AGENTS.md` and `README.md`
 instead.
-Coordinator `_scheduler.go` halves extract cleanly
-(they implement a root Planner interface); the `_service.go` halves are
-methods on the shared `Service` struct and stay until Service is
-decomposed — a design decision, not a file move. Shared plan-key validation now
-lives in dependency-neutral `internal/coordinator/planner/contract`. The CI/CD
+Coordinator `_scheduler.go` halves extract through root Planner interfaces.
+The `_service.go` halves remain on `Service` until its separate decomposition.
+Shared plan-key validation lives in `internal/coordinator/planner/contract`. The CI/CD
 run scheduler now demonstrates the first provider extraction, now nested under
 `internal/coordinator/cicd/run`: the child owns its request and planner while
 root keeps the structural interface, scheduling order, durable open-target
@@ -1070,11 +1068,13 @@ admission, retry, and telemetry. The provider security-alert scheduler is the
 second extraction under `internal/coordinator/securityalert`: the child owns
 its request and planner while root keeps the same scheduling, plan-key,
 admission, retry, and telemetry responsibilities. The hosted SBOM-attestation
-scheduler is the third extraction at `internal/coordinator/sbom/attestation`
-with the same boundary. The Vault metadata scheduler is the fourth extraction
-at `internal/coordinator/vault/live`; its pure in-process planner moves while
-root keeps scheduling, admission, retries, and telemetry. The Tempo scheduler is
-the fifth extraction under `internal/coordinator/planner/tempo`; its
+scheduler is third at `internal/coordinator/sbom/attestation`, with the same
+boundary. Vault metadata is fourth at `internal/coordinator/vault/live`; its
+pure planner moved while root kept scheduling, admission, retries, and
+telemetry. The OCI registry planner now lives at
+`internal/coordinator/oci/registry`. Its pure planning is unchanged; its eight
+collector dependencies remain future extraction work. The Tempo scheduler is
+fifth under `internal/coordinator/planner/tempo`; its
 deterministic request validation, target filtering, and workflow-row
 construction move while root keeps service scheduling, the plan-key clock,
 tenant and egress filtering, durable admission, retries, and telemetry. The

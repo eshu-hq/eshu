@@ -2,14 +2,14 @@
 
 ## Purpose
 
-`ociregistry` plans one workflow work item per configured OCI registry
+`coordinator/oci/registry` plans one workflow work item per configured OCI registry
 repository target — Docker Hub, GHCR, ECR, Google Artifact Registry, Azure
 Container Registry, JFrog, and Harbor — without opening a registry connection
 or resolving credentials.
 
 ## Ownership boundary
 
-This package owns `PlanRequest`, configured-target parsing and field
+This leaf package owns `PlanRequest`, configured-target parsing and field
 normalization, per-provider repository identity resolution, duplicate-target
 rejection, and deterministic workflow-row construction. The parent coordinator
 retains the `OCIRegistryPlanner` interface, scheduling order, the plan-key
@@ -40,7 +40,11 @@ See `doc.go` for the godoc contract.
 target into the shared normalized repository identity. `contract`
 validates plan keys. `facts`, `scope`, and `workflow` provide stable
 identities and durable row contracts. This package does not import its parent
-and performs no I/O.
+and performs no I/O. These eight collector dependencies remain future service
+extraction work: the shared `internal/collector/ociregistry` identity package
+plus its `acr`, `dockerhub`, `ecr`, `gar`, `ghcr`, `harbor`, and `jfrog`
+provider adapters. The nested path makes ownership explicit but does not make
+this leaf independently extractable.
 
 ## Telemetry
 
@@ -83,19 +87,21 @@ claim status, and the existing admission logs.
   and carries only `scope_id`, `provider`, and `repository` — never
   credentials, base URLs, or tag limits.
 
-No-Regression Evidence: `go test ./internal/coordinator/ociregistry ./internal/coordinator -count=1`
-proves request validation, configured-target parsing and normalization,
+No-Regression Evidence:
+`go test ./internal/coordinator/oci/registry ./internal/coordinator -count=1`
+proves request validation, configured-target parsing, normalization,
 per-provider identity resolution across all seven providers including the
 GHCR default-host and lowercase paths, duplicate normalized-target rejection
 (asserted on the specific error text and colliding scope ID, not merely a
 non-nil error), blank-configuration rejection, run, work-item, generation and
 fairness identities pinned byte-for-byte by
-`TestOCIRegistryWorkPlannerPinsExactIdentityStrings`, and the root
-scheduling/admission wiring through `fakeOCIRegistryPlanner`. This is a same-behavior file move: no lease,
-conflict-key, retry, batching, or ordering change.
+`TestOCIRegistryWorkPlannerPinsExactIdentityStrings`, and root admission wiring
+through `fakeOCIRegistryPlanner`. This is a behavior-preserving file move: no
+lease, conflict-key, retry, batching, or ordering change.
 
 ## Related docs
 
 - `go/internal/coordinator/README.md`
+- `go/internal/coordinator/oci/README.md`
 - `docs/internal/design/package-restructure.md`
 - `docs/public/reference/source-layout.md`

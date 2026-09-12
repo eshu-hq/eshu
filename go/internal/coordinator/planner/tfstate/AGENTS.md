@@ -8,7 +8,7 @@
 3. `../../tfstate_service.go` for root scheduling, the plan-key clock, the
    waiting-on-git-generation continue path, and durable admission.
 4. `../../service.go` for the `TerraformStatePlanner` interface — like
-   `ociregistry`, it stays there rather than moving into `tfstate_service.go`
+   `oci/registry`, it stays there rather than moving into `tfstate_service.go`
    (issue #6057: Service decomposition is a separate design decision).
 5. `../../../collector/terraformstate` for `DiscoveryResolver`,
    `CandidatePlanningID`, and the two port interfaces this planner depends on.
@@ -33,10 +33,10 @@
 - Preserve requested-scope metadata privacy: only `scope_id`, `candidate_id`,
   `source`, and `backend_kind`, sorted by `candidate_id` — never bucket, key,
   region, version ID, or role ARN.
-- Unlike `ociregistry`, this extraction duplicated no root helper. Every
+- Unlike `oci/registry`, this extraction duplicated no root helper. Every
   private function here has no other caller in the repository, so if you find
   yourself needing one of root's helpers, prefer copying a small pure function
-  over exporting it — the same call `ociregistry` made for `firstNonBlank`.
+  over exporting it — the same call `oci/registry` made for `firstNonBlank`.
 
 ## Common changes
 

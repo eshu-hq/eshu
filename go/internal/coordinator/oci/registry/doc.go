@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package ociregistry plans workflow rows for configured OCI registry
+// Package registry plans workflow rows for configured OCI registry
 // repository targets without opening any registry connection.
 //
 // WorkPlanner validates one enabled, claim-capable collector instance,
@@ -12,4 +12,4 @@
 // target. The parent coordinator owns scheduling order, the plan-key clock,
 // durable open-target admission, retries, and telemetry; this package
 // resolves no credentials and calls no registry API.
-package ociregistry
+package registry

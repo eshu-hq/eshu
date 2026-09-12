@@ -24,8 +24,8 @@ import (
 //     (migration 092c), which only returns a row once the owning scope's
 //     generation is the scope's active generation AND that generation's status
 //     is 'active'. The scopes carrying image manifests are the OCI registry
-//     collector's, registered with scope.CollectorOCIRegistry by
-//     internal/coordinator/oci_registry_scheduler.go and projected by
+//     collector's, planned with scope.CollectorOCIRegistry by
+//     internal/coordinator/oci/registry/planner.go and projected by
 //     internal/projector/oci_registry_canonical.go.
 //   - ci_cd_run_correlation -> ci_cd_run. Its intent is triggered by ci.run
 //     evidence (internal/projector/cicdruncorrelation/correlation_intents.go),

@@ -50,7 +50,7 @@ Two root files depend on this parsing for reasons of their own:
 - `scheduled/planner.go` — a different, extracted family — calls
   `ParseTargetScopes` and plans from `[]TargetScope`.
 
-`ociregistry` (#6491) kept its own copy of the five-line pure `firstNonBlank`
+`oci/registry` (#6491) keeps its own copy of the five-line pure `firstNonBlank`
 helper rather than exporting it, and that remains right for a helper of that
 size. This block is not that: it is roughly eighty lines of configuration
 decoding plus the authorization predicate, and root's routing filter and the
