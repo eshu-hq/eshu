@@ -5,27 +5,54 @@
 The request-scoped authorization bounds a query handler enforces: which mode
 authenticated the caller, which tenant and workspace they belong to, and which
 scope and repository ids they may read. Plus the context slot those bounds
-travel in, and the permission-catalog predicates a handler asks before serving.
+travel in, the permission-catalog predicates a handler asks before serving,
+and (#6642) the browser-session cookie/type shapes, session-timeout
+resolution, read-only sign-in policy, and audit-actor classification the
+local-identity and setup family moves need.
 
 ## Ownership boundary
 
-This package owns the `AuthContext` shape, its context key, and the
-permission-catalog feature and data-class predicates. It does not authenticate
-anyone. Middleware, token resolution, session handling, and CSRF
-enforcement stay in the root query package; this holds only what a handler needs
-to read once a request is already authenticated.
+This package owns the `AuthContext` shape, its context key, the
+permission-catalog feature and data-class predicates, and the five #6642
+subjects below. It does not authenticate anyone. Middleware, token
+resolution, session handling, and CSRF enforcement stay in the root query
+package; this holds only what a handler needs to read once a request is
+already authenticated, plus the wire shapes those handlers exchange.
+
+| Subject | File here | What root keeps |
+| --- | --- | --- |
+| Browser session cookies | `session_cookies.go` | exported const/type aliases and function forwarders |
+| Browser session wire types | `browser_session_types.go` | exported type aliases and function forwarders |
+| Session timeout resolution | `session_timeouts.go` | function forwarder |
+| Read-only sign-in policy | `sign_in_policy.go` | exported type aliases; root keeps the write-side `SignInPolicyUpdateRequest`/`SignInPolicyMutationStore`/sentinel errors, which no hoisted symbol needs |
+| Audit actor classification | `audit_actor.go` | exported type alias and function forwarder |
+
+`unauthorizedResponse` and `writePermissionDeniedEnvelope` did NOT move
+here -- see [doc.go](doc.go) for why, and `querycontract.WriteUnauthorized` /
+`querycontract.WritePermissionDenied` for where they live instead.
 
 ## Exported surface
 
 `AuthContext`, `AuthMode` and its three constants, `AuthContextFromContext`,
-`ContextWithAuthContext`, and `CleanedStrings`. Plus the permission-catalog
+`ContextWithAuthContext`, and `CleanedStrings`. The permission-catalog
 surface: `AllowsPermissionFeature`, `AllowsPermissionDataClasses`,
-`PermissionFeatureAskSearch`, and `PermissionDataClassesAskSearch`. See
-[doc.go](doc.go).
+`PermissionFeatureAskSearch`, and `PermissionDataClassesAskSearch`. The
+#6642 surface: `CookieSecureMode` and its constants/validators,
+`BrowserSessionCookieName` and its siblings, `DefaultBrowserSessionIdleTimeout`,
+`DefaultBrowserSessionAbsoluteTimeout`, `BrowserSessionSecretHash`,
+`WriteBrowserSessionCookies`, `BrowserSessionStore`,
+`BrowserSessionCreateRecord`, `BrowserSessionResponse`,
+`BrowserSessionAuthResponse`, `NormalizeBrowserSessionAuthContext`,
+`BrowserSessionAuthResponseFor`, `ResolveSessionTimeouts`, `SignInPolicy`,
+`SignInPolicyReadStore`, `GovernanceAuditAppender`, and `ActorClassForAuth`.
+See [doc.go](doc.go).
 
 ## Dependencies
 
-The Go standard library only: `context` and `strings`.
+The Go standard library, plus `internal/governanceaudit` for the
+`governanceaudit.Event`/`governanceaudit.ActorClass` types
+`GovernanceAuditAppender` and `ActorClassForAuth` carry. Neither brings a
+transitive dependency on the root query package or `querycontract`.
 
 ## Telemetry
 
@@ -70,6 +97,29 @@ caller granted one would be denied by the other.
 `CleanedStrings` preserves order while trimming, dropping empties, and
 de-duplicating. Allow-list comparisons depend on it, so a change to its
 semantics is an authorization change.
+
+## Performance and observability of the session seam (#6642)
+
+No-Regression Evidence (#6642 seam, baseline 11c6ab9b8): the hot file this change touches is
+root's `auth_audit.go`, where `actorClassForAuth` became a one-line forwarder
+to `ActorClassForAuth` in `audit_actor.go`; the function body moved
+verbatim, so the audit actor-class decision runs the same branches on the
+same `AuthContext` fields. Baseline `origin/main` vs this branch:
+`go build ./...`, `go vet ./internal/query/...`, `go test
+./internal/query/... -count=1` and the root, `queryauth` and `querycontract`
+test-name union are unchanged (nothing dropped, added, or duplicated); no
+Cypher, SQL, queue, lease, or worker path is involved, so there is no
+throughput or latency surface to measure beyond one extra call frame per
+audit record, which the compiler inlines.
+
+No-Observability-Change (#6642 seam): no metric, span, log, or status
+surface is added, removed, or renamed. `ActorClassForAuth` still returns
+the same `governanceaudit.ActorClass` values for the same inputs, so audit
+records keep their actor-class labels, and the 401 and 403 envelopes written
+by `querycontract.WriteUnauthorized` and `WritePermissionDenied` keep their
+exact status codes, error codes and `WWW-Authenticate` values, and derive
+their correlation identifiers the same way (request header first, then a
+fresh random hex value).
 
 ## Related docs
 

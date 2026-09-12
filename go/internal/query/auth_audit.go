@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
 const governanceAuditAppendTimeout = 500 * time.Millisecond
@@ -319,48 +320,30 @@ func recordScopedReadAuthorized(r *http.Request, allowedAudit GovernanceAuditApp
 	_ = allowedAudit.Append(r.Context(), []governanceaudit.Event{event})
 }
 
-// actorClassForAuth maps the credential a caller presented to the governance
-// audit actor class every emitter in this package stamps: a cookie session is
-// browser_session, a scoped or OIDC bearer is scoped_token, and the legacy
-// shared bearer is shared_token. Route denials, allowed reads, identity
-// mutations, and admin recovery actions all use it, so one credential maps to
-// one class across the audit vocabulary and an operator filtering by
-// actor_class sees one population per credential (#6566). ActorClassOperator
-// is not produced here: it is reserved for a human asserting an identity
-// through an SSO login (sso_login_audit.go), which carries no AuthContext.
+// actorClassForAuth forwards to queryauth.ActorClassForAuth. The
+// credential-to-actor-class mapping and the reason the switch has no
+// default moved there for #6642 so a handler-family subpackage can classify
+// an AuthContext for its own audit rows without importing this package.
 //
-// Callers own the subject-hash rule, and each emitter keeps the rule it had
-// before #6566. Every class this returns except anonymous is identity-bearing.
-// Route denials, allowed reads, and admin recovery downgrade to anonymous when
-// the hash is blank. The shared bearer, which never carries a per-subject
-// hash, gets the stable synthetic identity sharedAdminActorIDHash on identity
-// mutations and recovery. Local-identity rows substitute localIdentityHash of
-// the mode for every mode. An identity mutation by a cookie or scoped caller
-// with a blank hash keeps its class with no hash, and the store's write-path
-// validation (NormalizeEvent at Append) rejects that row; the emitter logs
-// the failure and the request succeeds without an audit row.
-//
-// The switch names every AuthMode member and has no default on purpose. A
-// default would quietly file a mode added later under whichever class it
-// named, and the audit row would then lie about who acted; with no default
-// the exhaustive linter fails the build until the new mode is given a class
-// of its own. Only a blank mode reaches the final return: an AuthContext
-// nobody authenticated, and that is anonymous. Two callers reach it: the empty
-// context a failed local login carries, and the open posture where auth
-// enforcement is not configured and authMiddlewareWithRoutePolicy passes a
-// headerless, cookieless request through with no context. In that posture an
-// admin_recovery_action row is anonymous, where before #6566 adminRecoveryActor
-// stamped it shared_token with the synthetic identity.
+// The #6566 subject-hash conventions stay with the emitters in this
+// package, because they name this package's identifiers: every class the
+// function returns except anonymous is identity-bearing. Route denials,
+// allowed reads, and admin recovery downgrade to anonymous when the hash
+// is blank. The shared bearer, which never carries a per-subject hash,
+// gets the stable synthetic identity sharedAdminActorIDHash on identity
+// mutations and recovery. Local-identity rows substitute localIdentityHash
+// of the mode for every mode. An identity mutation by a cookie or scoped
+// caller with a blank hash keeps its class with no hash, and the store's
+// write-path validation (NormalizeEvent at Append) rejects that row; the
+// emitter logs the failure and the request succeeds without an audit row.
+// Two callers reach the anonymous return: the empty context a failed local
+// login carries, and the open posture where auth enforcement is not
+// configured and authMiddlewareWithRoutePolicy passes a headerless,
+// cookieless request through with no context. In that posture an
+// admin_recovery_action row is anonymous, where before #6566
+// adminRecoveryActor stamped it shared_token with the synthetic identity.
 func actorClassForAuth(auth AuthContext) governanceaudit.ActorClass {
-	switch auth.Mode {
-	case AuthModeBrowserSession:
-		return governanceaudit.ActorClassBrowserSession
-	case AuthModeScoped:
-		return governanceaudit.ActorClassScopedToken
-	case AuthModeShared:
-		return governanceaudit.ActorClassSharedToken
-	}
-	return governanceaudit.ActorClassAnonymous
+	return queryauth.ActorClassForAuth(auth)
 }
 
 func safeAuditCorrelationID(value string) string {

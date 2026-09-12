@@ -38,6 +38,8 @@ subpackage can call the same logic without an import cycle (#6060):
 | Story-collection helpers | `story_collection_helpers.go` | root and `impact/` callers reference directly |
 | Story-row helpers | `story_row_helpers.go` | root and `impact/` callers reference directly, including `CapMapRows` |
 | Scoped workload WHERE clause | `workload_where_clause.go` | root workload-context callers reference directly |
+| Permission-denied envelope and gate | `permission_denied.go` | function forwarders `writePermissionDeniedEnvelope`/`requirePermissionFeature` |
+| Unauthorized (401) response, OAuth-challenge types, correlation ID | `unauthorized.go` | exported type alias (`OAuthChallengePolicy`) and function forwarders (`unauthorizedResponse`, `requestWithOAuthChallenge`, `documentationCorrelationID`); `oauthWWWAuthenticateChallengeForRequest` keeps no root forwarder because its only caller moved with it |
 
 Root's compatibility shape is not uniform, and the difference matters when
 adding to this list. A sentinel error compared with `errors.Is` has to be the
@@ -67,12 +69,23 @@ types and wraps the functions so existing imports keep their current API.
 
 ## Dependencies
 
-The package uses the Go standard library plus two standard-library-only leaves:
-`internal/scope`, for the `scope.CollectorKind` the `CollectorListReadinessStore`
-port carries, and `internal/query/queryauth`, for the `AuthContext` that
-`RepositoryAccessFilterFromContext` reads. Neither brings a transitive
-dependency and neither creates a cycle. `GraphQuery` and `ContentStore` are consumer-owned
-ports; concrete adapters remain outside this leaf package.
+The package uses the Go standard library plus four internal packages. Two
+are stdlib-only leaves: `internal/scope`, for the `scope.CollectorKind` the
+`CollectorListReadinessStore` port carries, and `internal/environment`, which
+`hostname_environment.go` reads. `internal/query/queryauth` supplies the
+`AuthContext` that `RepositoryAccessFilterFromContext` reads and (#6642) the
+`queryauth.AllowsPermissionFeature` predicate `RequirePermissionFeature`
+calls; `queryauth` itself imports only the standard library and the
+stdlib-only `internal/governanceaudit` (for `ActorClassForAuth`, #6642).
+`internal/storage/cypher`, which `edge_materialization_coverage.go` reads,
+is not a leaf: it brings `internal/graph`, `internal/projector`,
+`internal/reducer` and `internal/telemetry` into this package's transitive
+closure, an edge that predates #6642. None of these edges creates a cycle.
+This is also why `unauthorizedResponse`/`writePermissionDeniedEnvelope`
+moved here instead of into `queryauth` for #6642: `queryauth` cannot import
+this package back (a cycle), so the response-writing side of the auth seam
+lives on this side of the one-way edge. `GraphQuery` and `ContentStore` are
+consumer-owned ports; concrete adapters remain outside this package.
 
 A new import here is a contract change, not a detail. The point of this package
 is that a family can depend on it for types without inheriting a runtime: the

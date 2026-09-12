@@ -70,4 +70,24 @@
 // The Available field several of these carry is a fallback signal, not an
 // emptiness one. A caller that reads a zero-value read model as "nothing
 // found" reports a repository with real data as having none.
-package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: B2 promotes 10 seams here, and lane A direction-B added its own (50 non-test files vs the 40-file cap) because root, impact/, and upcoming families must share them without an import cycle; the split is tracked in #6597, not done mid-move.
+//
+// #6642 added the auth-adjacent 401/403 response writers: WriteUnauthorized
+// (moved from root's unauthorizedResponse), WritePermissionDenied (moved from
+// root's writePermissionDeniedEnvelope), and RequirePermissionFeature (moved
+// from root's requirePermissionFeature). They live here rather than in
+// queryauth -- the more auth-shaped leaf -- because they need this package's
+// own WriteJSON/ResponseEnvelope/ErrorEnvelope/ErrorCode primitives, and
+// queryauth cannot import querycontract: querycontract already imports
+// queryauth (RepositoryAccessFilterFromContext reads AuthContext), so the
+// reverse edge would cycle. WriteUnauthorized's WWW-Authenticate header
+// needed a types-only hoist alongside it -- OAuthChallengePolicy (the
+// interface only; root's PostureOAuthChallengePolicy, DeriveAuthPosture, and
+// OAuthProtectedResourceHandler all stay in root untouched), its context-key
+// pair (RequestWithOAuthChallenge / the unexported reader), and
+// OAuthWWWAuthenticateChallengeForRequest -- plus the stdlib-only
+// DocumentationCorrelationID it also calls. Root keeps a type alias and thin
+// function forwarders at every original declaration site that still has a
+// root caller (the WWW-Authenticate lookup's only caller moved with it, so
+// it keeps none), and cmd/mcp-server, auth_constructors.go, and every
+// other existing caller compile unchanged.
+package querycontract //nolint:dirgate // Shared-seam home for #6060 family moves: B2 promotes 10 seams here, and lane A direction-B added its own (56 non-test files vs the 40-file cap) because root, impact/, and upcoming families must share them without an import cycle; the split is tracked in #6597, not done mid-move.

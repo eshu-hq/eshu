@@ -4,58 +4,33 @@
 package query
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
+// The two timeout defaults are compatibility aliases: they moved to
+// queryauth (#6642) so a handler-family subpackage can name them without
+// importing this package; see queryauth for the doc comments.
+// browserSessionSecretBytes stays here, unexported and unmoved.
 const (
-	// DefaultBrowserSessionIdleTimeout is the dashboard browser session idle window.
-	DefaultBrowserSessionIdleTimeout = 30 * time.Minute
-	// DefaultBrowserSessionAbsoluteTimeout is the maximum browser session lifetime.
-	DefaultBrowserSessionAbsoluteTimeout = 12 * time.Hour
+	DefaultBrowserSessionIdleTimeout     = queryauth.DefaultBrowserSessionIdleTimeout
+	DefaultBrowserSessionAbsoluteTimeout = queryauth.DefaultBrowserSessionAbsoluteTimeout
 	browserSessionSecretBytes            = 32
 )
 
 // BrowserSessionStore is the write surface for server-managed dashboard
-// sessions. Implementations must persist only hashed session and CSRF values.
-type BrowserSessionStore interface {
-	CreateBrowserSession(context.Context, BrowserSessionCreateRecord) error
-	RevokeBrowserSession(context.Context, string, time.Time) error
-	SwitchBrowserSessionWorkspace(context.Context, string, string, string, time.Time) (AuthContext, bool, error)
-}
+// sessions. It lives in queryauth (#6642) so a handler-family subpackage can
+// name it without importing this package.
+type BrowserSessionStore = queryauth.BrowserSessionStore
 
 // BrowserSessionCreateRecord is the hash-only session row requested by the
-// HTTP handler.
-type BrowserSessionCreateRecord struct {
-	SessionHash                  string
-	CSRFTokenHash                string
-	TenantID                     string
-	WorkspaceID                  string
-	SubjectIDHash                string
-	SubjectClass                 string
-	PolicyRevisionHash           string
-	RoleIDs                      []string
-	AllScopes                    bool
-	PermissionCatalogEnforced    bool
-	AllowedScopeIDs              []string
-	AllowedRepositoryIDs         []string
-	AllowedPermissionFeatures    []string
-	AllowedPermissionDataClasses []string
-	ExternalProviderConfigID     string
-	ExternalSubjectIDHash        string
-	ExternalGroupHashes          []string
-	ExternalAuthValidatedAt      time.Time
-	ExternalAuthStaleAfter       time.Time
-	IssuedAt                     time.Time
-	LastSeenAt                   time.Time
-	IdleExpiresAt                time.Time
-	AbsoluteExpiresAt            time.Time
-	UpdatedAt                    time.Time
-}
+// HTTP handler. It lives in queryauth (#6642).
+type BrowserSessionCreateRecord = queryauth.BrowserSessionCreateRecord
 
 // BrowserSessionExternalAuthProof carries hash-only external IdP proof metadata
 // for sessions that must reauthenticate after a bounded staleness window.
@@ -87,32 +62,14 @@ type BrowserSessionHandler struct {
 	SignInPolicy SignInPolicyReadStore
 }
 
-// BrowserSessionResponse is returned by browser session routes.
-type BrowserSessionResponse struct {
-	Auth              BrowserSessionAuthResponse `json:"auth"`
-	CSRFToken         string                     `json:"csrf_token,omitempty"`
-	IdleExpiresAt     time.Time                  `json:"idle_expires_at,omitempty"`
-	AbsoluteExpiresAt time.Time                  `json:"absolute_expires_at,omitempty"`
-}
+// BrowserSessionResponse is returned by browser session routes. It lives in
+// queryauth (#6642) so a handler-family subpackage can name it without
+// importing this package.
+type BrowserSessionResponse = queryauth.BrowserSessionResponse
 
-// BrowserSessionAuthResponse is the public JSON view of a request auth context.
-type BrowserSessionAuthResponse struct {
-	Mode                      AuthMode `json:"mode"`
-	TenantID                  string   `json:"tenant_id,omitempty"`
-	WorkspaceID               string   `json:"workspace_id,omitempty"`
-	SubjectClass              string   `json:"subject_class,omitempty"`
-	SubjectIDHash             string   `json:"subject_id_hash,omitempty"`
-	PolicyRevisionHash        string   `json:"policy_revision_hash,omitempty"`
-	RoleIDs                   []string `json:"role_ids,omitempty"`
-	AllScopes                 bool     `json:"all_scopes"`
-	AllowedScopeIDs           []string `json:"allowed_scope_ids,omitempty"`
-	AllowedRepositoryIDs      []string `json:"allowed_repository_ids,omitempty"`
-	PermissionCatalogEnforced bool     `json:"permission_catalog_enforced"`
-	AllowedPermissionFeatures []string `json:"allowed_permission_features,omitempty"`
-	// ExternalProviderConfigID is the stored OIDC/SAML provider config ID for
-	// sessions established via an external IdP. Omitted for local sessions.
-	ExternalProviderConfigID string `json:"external_provider_config_id,omitempty"`
-}
+// BrowserSessionAuthResponse is the public JSON view of a request auth
+// context. It lives in queryauth (#6642).
+type BrowserSessionAuthResponse = queryauth.BrowserSessionAuthResponse
 
 // Mount registers browser session routes.
 func (h *BrowserSessionHandler) Mount(mux *http.ServeMux) {
@@ -386,6 +343,11 @@ func requestUsesBrowserSession(r *http.Request) bool {
 	return auth.Mode == AuthModeBrowserSession
 }
 
+// writeBrowserSessionCookies forwards to queryauth.WriteBrowserSessionCookies.
+// The implementation, and its unexported helpers (clearBrowserSessionCookies,
+// browserSessionCookieSecure, browserSessionCookieNames), moved there for
+// #6642 so a handler-family subpackage can issue and clear browser session
+// cookies without importing this package.
 func writeBrowserSessionCookies(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -395,104 +357,12 @@ func writeBrowserSessionCookies(
 	expiresAt time.Time,
 	maxAge int,
 ) {
-	if maxAge <= 0 {
-		clearBrowserSessionCookies(w)
-		return
-	}
-	secure := browserSessionCookieSecure(r, mode)
-	sessionName, csrfName := browserSessionCookieNames(secure)
-	expires := expiresAt.UTC()
-	http.SetCookie(w, &http.Cookie{
-		Name:     sessionName,
-		Value:    sessionSecret,
-		Path:     "/",
-		MaxAge:   maxAge,
-		Expires:  expires,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     csrfName,
-		Value:    csrfSecret,
-		Path:     "/",
-		MaxAge:   maxAge,
-		Expires:  expires,
-		HttpOnly: false,
-		Secure:   secure,
-		SameSite: http.SameSiteStrictMode,
-	})
+	queryauth.WriteBrowserSessionCookies(w, r, mode, sessionSecret, csrfSecret, expiresAt, maxAge)
 }
 
-// clearBrowserSessionCookies expires both the __Host--prefixed cookie
-// variant and the bare insecure variant used by CookieSecureAuto's loopback
-// relaxation (#4964), so logout removes whichever variant the browser
-// actually holds regardless of which mode issued it — the handler has no
-// durable record of which name a given browser used. The __Host- clear must
-// keep Secure=true: RFC 6265bis applies the same __Host- validity criteria
-// to a deleting Set-Cookie as to a creating one, and browsers additionally
-// ignore any Secure Set-Cookie (creating or deleting) received over a
-// non-HTTPS connection. The bare-name clear must use Secure=false for the
-// mirror-image reason: it is the variant a plain-HTTP loopback browser can
-// actually hold, and a Secure Set-Cookie sent back over that same
-// connection would be ignored, leaving the cookie stuck.
-func clearBrowserSessionCookies(w http.ResponseWriter) {
-	expired := time.Unix(0, 0).UTC()
-	sessionVariants := []struct {
-		name   string
-		secure bool
-	}{
-		{BrowserSessionCookieName, true},
-		{BrowserSessionCookieNameInsecure, false},
-	}
-	for _, v := range sessionVariants {
-		http.SetCookie(w, &http.Cookie{
-			Name:     v.name,
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			Expires:  expired,
-			HttpOnly: true,
-			Secure:   v.secure,
-			SameSite: http.SameSiteStrictMode,
-		})
-	}
-	csrfVariants := []struct {
-		name   string
-		secure bool
-	}{
-		{BrowserSessionCSRFCookieName, true},
-		{BrowserSessionCSRFCookieNameInsecure, false},
-	}
-	for _, v := range csrfVariants {
-		http.SetCookie(w, &http.Cookie{
-			Name:     v.name,
-			Value:    "",
-			Path:     "/",
-			MaxAge:   -1,
-			Expires:  expired,
-			HttpOnly: false,
-			Secure:   v.secure,
-			SameSite: http.SameSiteStrictMode,
-		})
-	}
-}
-
+// browserSessionAuthResponse forwards to queryauth.BrowserSessionAuthResponseFor.
+// The implementation moved there for #6642, renamed to avoid colliding with
+// the BrowserSessionAuthResponse type queryauth also exports.
 func browserSessionAuthResponse(auth AuthContext) BrowserSessionAuthResponse {
-	auth = normalizeBrowserSessionAuthContext(auth)
-	return BrowserSessionAuthResponse{
-		Mode:                      auth.Mode,
-		TenantID:                  auth.TenantID,
-		WorkspaceID:               auth.WorkspaceID,
-		SubjectClass:              auth.SubjectClass,
-		SubjectIDHash:             auth.SubjectIDHash,
-		PolicyRevisionHash:        auth.PolicyRevisionHash,
-		RoleIDs:                   append([]string(nil), auth.RoleIDs...),
-		AllScopes:                 auth.AllScopes,
-		AllowedScopeIDs:           append([]string(nil), auth.AllowedScopeIDs...),
-		AllowedRepositoryIDs:      append([]string(nil), auth.AllowedRepositoryIDs...),
-		PermissionCatalogEnforced: auth.PermissionCatalogEnforced,
-		AllowedPermissionFeatures: append([]string(nil), auth.AllowedPermissionFeatures...),
-		ExternalProviderConfigID:  auth.ExternalProviderConfigID,
-	}
+	return queryauth.BrowserSessionAuthResponseFor(auth)
 }

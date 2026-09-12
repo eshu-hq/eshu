@@ -40,6 +40,19 @@ and treat every change here as a security change.
   spec never grants, which is a 403 for every catalog-enforced caller with no
   gate to catch it.
 
+- (#6642) `WriteBrowserSessionCookies` and its helpers (`browserSessionCookieSecure`,
+  `browserSessionCookieNames`, `clearBrowserSessionCookies`) MUST keep the
+  __Host- vs bare cookie-name pairing exactly as documented in
+  `session_cookies.go`: a __Host--prefixed cookie sent with `Secure=false` is
+  invalid per RFC 6265bis and browsers reject it outright (#4964).
+- (#6642) This package MUST NOT import `querycontract`. `querycontract`
+  already imports this package (`RepositoryAccessFilterFromContext` reads
+  `AuthContext`), so the reverse edge would cycle. That is why
+  `unauthorizedResponse` and `writePermissionDeniedEnvelope` live in
+  `querycontract` instead of here, even though they are auth-adjacent --
+  see `querycontract.WriteUnauthorized` and
+  `querycontract.WritePermissionDenied`.
+
 ## Common changes
 
 Adding a field to `AuthContext`: check every place that constructs one
@@ -55,3 +68,9 @@ The last two are external consumers of the aliased type and are what prove the
 alias still holds. `./internal/query/...` covers both permission-predicate
 consumers: root's ask handler and the semantic-search family. Confirm the auth suite ran a real case count rather than
 matching zero.
+
+For the #6642 browser-session/timeout/sign-in-policy/audit-actor surface,
+also run `go test ./internal/query/queryauth ./internal/query/querycontract -list '.*'`
+and confirm the printed test names union with root package `query`'s own
+list to the pre-move set -- no test should be dropped, duplicated, or
+silently renamed by a future move that touches these files.

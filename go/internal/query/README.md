@@ -1187,9 +1187,9 @@ live in [evidence-notes.md](evidence-notes.md).
   Unsafe cookie-authenticated requests require `X-Eshu-CSRF`, and shared API
   keys stay on the bearer path because they do not carry tenant/workspace
   bounds for session creation.
-- `writeBrowserSessionCookies` (`browser_session_handler.go`) decides the
-  Secure cookie attribute per request via `browserSessionCookieSecure`
-  (`browser_session_cookie_secure.go`), gated by each cookie-issuing handler's
+- `writeBrowserSessionCookies` (`browser_session_handler.go`, a forwarder to
+  `queryauth.WriteBrowserSessionCookies`) decides the Secure cookie attribute
+  per request via `browserSessionCookieSecure` (`queryauth/session_cookies.go`), gated by each handler's
   `CookieSecure` field (`CookieSecureMode`, env `ESHU_AUTH_COOKIE_SECURE`,
   default `auto`). `cmd/api` resolves the env value once at startup with
   `ValidateCookieSecureMode`, which fails startup closed on an unrecognized
@@ -1207,7 +1207,7 @@ live in [evidence-notes.md](evidence-notes.md).
 - `BrowserSessionCookieName`/`BrowserSessionCSRFCookieName` (`auth.go`) use
   the `__Host-` prefix (RFC 6265bis), which browsers reject outright unless
   Secure is set — so a relaxed, non-Secure cookie cannot use that name.
-  `browserSessionCookieNames` (`browser_session_cookie_secure.go`) selects the
+  `browserSessionCookieNames` (`queryauth/session_cookies.go`) selects the
   `__Host-` names when Secure and the bare `BrowserSessionCookieNameInsecure`/
   `BrowserSessionCSRFCookieNameInsecure` names when relaxed; every read path
   (`tryBrowserSessionAuth` in `auth.go`, `browserSessionHashFromCookie` in

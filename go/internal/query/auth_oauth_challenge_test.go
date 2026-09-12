@@ -129,89 +129,13 @@ func (f *fakeOAuthChallengePolicy) OAuthChallenge(context.Context) (string, stri
 	return f.metadataURL, f.scope, f.ok
 }
 
-func TestOAuthWWWAuthenticateChallenge_NilPolicy_BareBearer(t *testing.T) {
-	t.Parallel()
-
-	got := oauthWWWAuthenticateChallenge(context.Background(), nil)
-	if got != "Bearer" {
-		t.Fatalf("oauthWWWAuthenticateChallenge(nil) = %q, want %q", got, "Bearer")
-	}
-}
-
-func TestOAuthWWWAuthenticateChallenge_PolicyNotOK_BareBearer(t *testing.T) {
-	t.Parallel()
-
-	got := oauthWWWAuthenticateChallenge(context.Background(), &fakeOAuthChallengePolicy{ok: false})
-	if got != "Bearer" {
-		t.Fatalf("oauthWWWAuthenticateChallenge() = %q, want bare %q when policy reports not-ok", got, "Bearer")
-	}
-}
-
-func TestOAuthWWWAuthenticateChallenge_PolicyOK_AddsResourceMetadataAndScope(t *testing.T) {
-	t.Parallel()
-
-	got := oauthWWWAuthenticateChallenge(context.Background(), &fakeOAuthChallengePolicy{
-		metadataURL: "https://eshu.example.test/.well-known/oauth-protected-resource",
-		scope:       "openid profile email groups",
-		ok:          true,
-	})
-	want := `Bearer resource_metadata="https://eshu.example.test/.well-known/oauth-protected-resource", scope="openid profile email groups"`
-	if got != want {
-		t.Fatalf("oauthWWWAuthenticateChallenge() = %q, want %q", got, want)
-	}
-}
-
-func TestOAuthWWWAuthenticateChallenge_DelimiterInPolicyValue_BareBearer(t *testing.T) {
-	t.Parallel()
-
-	// Defense in depth: a policy that (contrary to wiring-time validation)
-	// hands back a metadata URL or scope carrying a quote or CRLF must degrade
-	// to a bare challenge, never inject the delimiter into the header value.
-	for _, tc := range []struct {
-		name        string
-		metadataURL string
-		scope       string
-	}{
-		{"quoted metadata url", `https://eshu.example.test/.well-known/oauth-protected-resource"`, "openid"},
-		{"crlf metadata url", "https://eshu.example.test/.well-known/oauth-protected-resource\r\nX-Injected: 1", "openid"},
-		{"quoted scope", "https://eshu.example.test/.well-known/oauth-protected-resource", `openid"`},
-	} {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := oauthWWWAuthenticateChallenge(context.Background(), &fakeOAuthChallengePolicy{
-				metadataURL: tc.metadataURL,
-				scope:       tc.scope,
-				ok:          true,
-			})
-			if got != "Bearer" {
-				t.Fatalf("oauthWWWAuthenticateChallenge() = %q, want bare %q when a policy value carries a header delimiter", got, "Bearer")
-			}
-		})
-	}
-}
-
-func TestOAuthWWWAuthenticateChallenge_PolicyOK_EmptyScopeOmitsScopeParam(t *testing.T) {
-	t.Parallel()
-
-	got := oauthWWWAuthenticateChallenge(context.Background(), &fakeOAuthChallengePolicy{
-		metadataURL: "https://eshu.example.test/.well-known/oauth-protected-resource",
-		ok:          true,
-	})
-	want := `Bearer resource_metadata="https://eshu.example.test/.well-known/oauth-protected-resource"`
-	if got != want {
-		t.Fatalf("oauthWWWAuthenticateChallenge() = %q, want %q", got, want)
-	}
-}
-
-func TestOAuthWWWAuthenticateChallenge_PolicyOKEmptyMetadataURL_BareBearer(t *testing.T) {
-	t.Parallel()
-
-	got := oauthWWWAuthenticateChallenge(context.Background(), &fakeOAuthChallengePolicy{ok: true})
-	if got != "Bearer" {
-		t.Fatalf("oauthWWWAuthenticateChallenge() = %q, want bare %q when metadataURL is empty even if ok=true", got, "Bearer")
-	}
-}
+// The six TestOAuthWWWAuthenticateChallenge_* white-box tests of
+// oauthWWWAuthenticateChallenge moved to
+// internal/query/querycontract/unauthorized_test.go under the same names
+// (#6642): that unexported function moved to querycontract alongside
+// WriteUnauthorized and has no root forwarder. This file keeps
+// fakeOAuthChallengePolicy (below) for the middleware-stack tests that
+// stayed here.
 
 // TestAuthMiddlewareWithOAuthChallenge_Unauthenticated_AddsResourceMetadata
 // proves issue #5163 (F-2) acceptance criterion #1's challenge shape: an

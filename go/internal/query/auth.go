@@ -5,16 +5,14 @@ package query
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // publicHTTPPaths lists routes that bypass authentication.
@@ -65,27 +63,18 @@ const (
 	AuthModeBrowserSession = queryauth.AuthModeBrowserSession
 )
 
+// Compatibility constants preserve this package's public contract. The
+// cookie names moved to queryauth (#6642) so a handler-family subpackage can
+// name them without importing this package; see queryauth for the doc
+// comments.
 const (
-	// BrowserSessionCookieName is the host-scoped HttpOnly dashboard session
-	// cookie, set only when the Secure attribute is applied. The __Host-
-	// prefix (RFC 6265bis) requires Secure, no Domain attribute, and Path=/;
-	// browsers reject the cookie outright if Secure is missing.
-	BrowserSessionCookieName = "__Host-eshu_session"
-	// BrowserSessionCSRFCookieName is the readable host-scoped CSRF cookie,
-	// set only when the Secure attribute is applied. See BrowserSessionCookieName.
-	BrowserSessionCSRFCookieName = "__Host-eshu_csrf"
-	// BrowserSessionCookieNameInsecure is the dashboard session cookie name
-	// used only when CookieSecureAuto relaxes Secure for a plain-HTTP
-	// loopback origin (#4964). It cannot use the __Host- prefix: a
-	// __Host--prefixed cookie sent with Secure=false is invalid per RFC
-	// 6265bis and browsers silently drop it, which would reintroduce the
-	// exact silent session-loss bug #4964 fixes. Readers must check both
-	// this name and BrowserSessionCookieName.
-	BrowserSessionCookieNameInsecure = "eshu_session"
-	// BrowserSessionCSRFCookieNameInsecure is the readable CSRF cookie name
-	// used alongside BrowserSessionCookieNameInsecure. See its doc comment.
-	BrowserSessionCSRFCookieNameInsecure = "eshu_csrf"
-	// BrowserSessionCSRFHeaderName is required on unsafe dashboard session requests.
+	BrowserSessionCookieName             = queryauth.BrowserSessionCookieName
+	BrowserSessionCSRFCookieName         = queryauth.BrowserSessionCSRFCookieName
+	BrowserSessionCookieNameInsecure     = queryauth.BrowserSessionCookieNameInsecure
+	BrowserSessionCSRFCookieNameInsecure = queryauth.BrowserSessionCSRFCookieNameInsecure
+	// BrowserSessionCSRFHeaderName is required on unsafe dashboard session
+	// requests. Not part of the #6642 hoist: only this package's own
+	// tryBrowserSessionAuth reads it.
 	BrowserSessionCSRFHeaderName = "X-Eshu-CSRF"
 )
 
@@ -125,9 +114,9 @@ type BrowserSessionResolver interface {
 }
 
 // GovernanceAuditAppender records validation-safe governance audit events.
-type GovernanceAuditAppender interface {
-	Append(context.Context, []governanceaudit.Event) error
-}
+// It lives in queryauth (#6642) so a handler-family subpackage can accept an
+// audit appender without importing this package.
+type GovernanceAuditAppender = queryauth.GovernanceAuditAppender
 
 // AuthContextFromContext returns the authenticated request context, if any.
 func AuthContextFromContext(ctx context.Context) (AuthContext, bool) {
@@ -349,23 +338,18 @@ func browserSessionRequiresCSRF(method string) bool {
 }
 
 // BrowserSessionSecretHash returns the durable hash for a session or CSRF
-// secret. It returns an empty string for blank input so missing CSRF headers
-// cannot hash into a meaningful value.
+// secret. It lives in queryauth (#6642); this forwarder keeps every existing
+// call site unchanged.
 func BrowserSessionSecretHash(secret string) string {
-	secret = strings.TrimSpace(secret)
-	if secret == "" {
-		return ""
-	}
-	sum := sha256.Sum256([]byte(secret))
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return queryauth.BrowserSessionSecretHash(secret)
 }
 
+// normalizeBrowserSessionAuthContext forwards to
+// queryauth.NormalizeBrowserSessionAuthContext. The implementation moved
+// there for #6642 so a handler-family subpackage can normalize a browser
+// session's auth context without importing this package.
 func normalizeBrowserSessionAuthContext(auth AuthContext) AuthContext {
-	auth = normalizeAuthContext(auth)
-	if auth.Mode == AuthModeScoped {
-		auth.Mode = AuthModeBrowserSession
-	}
-	return auth
+	return queryauth.NormalizeBrowserSessionAuthContext(auth)
 }
 
 func sharedAuthContext() AuthContext {
@@ -393,27 +377,14 @@ func constantTimeEqual(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }
 
-// unauthorizedResponse writes a 401 JSON error response. Its WWW-Authenticate
-// header is the bare "Bearer" challenge unless an OAuthChallengePolicy was
-// attached to the request context by requestWithOAuthChallenge at a genuine
-// bearer-credential denial site (issue #5163, F-2); the ~20 handler-level call
-// sites that build their own plain *http.Request never carry that context and
-// so always get the bare challenge. See auth_oauth_challenge_context.go.
+// unauthorizedResponse writes a 401 JSON error response, including the
+// OAuth-challenge-aware WWW-Authenticate header. It lives in querycontract
+// (#6642) as WriteUnauthorized, body byte-for-byte preserved; this forwarder
+// keeps every existing call site (~20, across browser_session_handler.go,
+// saml_handler.go, profile_handler.go, local_identity_api_tokens*.go,
+// browser_session_list.go, and local_identity_totp.go) unchanged.
 func unauthorizedResponse(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("WWW-Authenticate", oauthWWWAuthenticateChallengeForRequest(r.Context()))
-	if acceptsEnvelope(r) {
-		WriteJSON(w, http.StatusUnauthorized, ResponseEnvelope{Error: &ErrorEnvelope{
-			Code:          ErrorCodeUnauthenticated,
-			Message:       "authentication is required",
-			CorrelationID: documentationCorrelationID(r),
-		}})
-		return
-	}
-	WriteJSON(w, http.StatusUnauthorized, map[string]string{
-		"error_code":     string(ErrorCodeUnauthenticated),
-		"message":        "authentication is required",
-		"correlation_id": documentationCorrelationID(r),
-	})
+	querycontract.WriteUnauthorized(w, r)
 }
 
 // scopedRouteDeniedResponse writes the route-admission 403 for both refusal

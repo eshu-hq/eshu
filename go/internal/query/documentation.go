@@ -5,8 +5,6 @@ package query
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"net/http"
 	"strconv"
 	"strings"
@@ -432,15 +430,11 @@ func writeDocumentationCapabilityError(
 	WriteJSON(w, status, body)
 }
 
+// documentationCorrelationID forwards to querycontract.DocumentationCorrelationID.
+// The implementation moved there for #6642 as a dependency of
+// querycontract.WriteUnauthorized; every other existing caller (auth_audit.go,
+// sign_in_policy_mutations.go, this file) keeps its exact behavior through
+// this wrapper.
 func documentationCorrelationID(r *http.Request) string {
-	for _, header := range []string{"X-Correlation-ID", "X-Request-ID"} {
-		if value := strings.TrimSpace(r.Header.Get(header)); value != "" {
-			return value
-		}
-	}
-	var raw [16]byte
-	if _, err := rand.Read(raw[:]); err != nil {
-		return strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-	}
-	return hex.EncodeToString(raw[:])
+	return querycontract.DocumentationCorrelationID(r)
 }

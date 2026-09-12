@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -35,18 +36,17 @@ func authContextAllowsPermissionDataClasses(ctx context.Context, dataClasses ...
 	return queryauth.AllowsPermissionDataClasses(ctx, dataClasses...)
 }
 
+// requirePermissionFeature forwards to querycontract.RequirePermissionFeature.
+// It lives there (#6642), not queryauth, because it needs querycontract's
+// own WriteJSON/ResponseEnvelope/ErrorEnvelope primitives: queryauth cannot
+// import querycontract (querycontract already imports queryauth, and the
+// reverse edge would cycle).
 func requirePermissionFeature(w http.ResponseWriter, r *http.Request, capability string, feature string) bool {
-	if authContextAllowsPermissionFeature(r.Context(), feature) {
-		return true
-	}
-	writePermissionDeniedEnvelope(w, capability)
-	return false
+	return querycontract.RequirePermissionFeature(w, r, capability, feature)
 }
 
+// writePermissionDeniedEnvelope forwards to querycontract.WritePermissionDenied.
+// See requirePermissionFeature's comment for why it lives in querycontract.
 func writePermissionDeniedEnvelope(w http.ResponseWriter, capability string) {
-	WriteJSON(w, http.StatusForbidden, ResponseEnvelope{Error: &ErrorEnvelope{
-		Code:       ErrorCodePermissionDenied,
-		Message:    "permission denied",
-		Capability: capability,
-	}})
+	querycontract.WritePermissionDenied(w, capability)
 }
