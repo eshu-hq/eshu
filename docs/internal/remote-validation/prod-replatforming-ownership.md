@@ -31,7 +31,7 @@ owner; raw tags stay provenance-only and never become an owner candidate.
 ## Committed reproducible evidence
 
 **Packet composition, single-vs-ambiguous candidates, tag provenance, safety
-gating** — `go/internal/query/replatforming_ownership_test.go`:
+gating** — `go/internal/query/iac/replatforming_ownership_test.go`:
 `TestBuildOwnershipPacketCloudOnlyNoServiceMatch`,
 `TestBuildOwnershipPacketSingleServiceIsDerivedNotExact`,
 `TestBuildOwnershipPacketAmbiguousServiceCandidatesCarryReasons`,
@@ -41,7 +41,7 @@ gating** — `go/internal/query/replatforming_ownership_test.go`:
 `TestBuildOwnershipPacketSummaryReportsCandidatesAndAccount`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestBuildOwnershipPacket -count=1
+cd go && go test ./internal/query/iac -run TestBuildOwnershipPacket -count=1
 ```
 
 **Handler-level composition, profile gating, raw-tag non-leakage** —

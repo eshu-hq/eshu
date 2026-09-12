@@ -8,18 +8,32 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
+// rollupFindingARNParts splits a standard 6-part AWS ARN the same way iac's
+// unexported parseAWSManagementARN does (management_transform.go). This test
+// fixture inlines that small pure split (#6642 Part A) instead of forwarding
+// to the leaf, because parseAWSManagementARN's return type carries unexported
+// fields this package cannot read across the package boundary.
+func rollupFindingARNParts(arn string) (resourceType, resourceID string) {
+	parts := strings.SplitN(arn, ":", 6)
+	if len(parts) != 6 || parts[0] != "arn" {
+		return "", ""
+	}
+	return parts[2], parts[5]
+}
+
 func rollupFinding(arn, status, kind string, services, environments []string) IaCManagementFindingRow {
-	parsed := parseAWSManagementARN(arn)
+	resourceType, resourceID := rollupFindingARNParts(arn)
 	return IaCManagementFindingRow{
 		ID:                    "fact:" + arn,
 		Provider:              "aws",
 		AccountID:             "123456789012",
 		Region:                "us-east-1",
-		ResourceType:          parsed.resourceType,
-		ResourceID:            parsed.resourceID,
+		ResourceType:          resourceType,
+		ResourceID:            resourceID,
 		ARN:                   arn,
 		FindingKind:           kind,
 		ManagementStatus:      status,

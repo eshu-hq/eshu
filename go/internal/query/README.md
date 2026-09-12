@@ -1022,7 +1022,7 @@ filtering is tracked as a follow-up.
   `telemetry.SpanQueryResourceInvestigation`
   (`query.resource_investigation`) on resource investigation;
   `telemetry.SpanQueryDeadIaC` (`query.dead_iac`)
-  on IaC dead-code queries (`iac.go`); `telemetry.SpanQueryIaCUnmanagedResources`
+  on IaC dead-code queries (`iac/handler.go`); `telemetry.SpanQueryIaCUnmanagedResources`
   (`query.iac_unmanaged_resources`) on AWS management finding list queries,
   `telemetry.SpanQueryIaCManagementStatus` (`query.iac_management_status`) on
   exact status reads, and `telemetry.SpanQueryIaCManagementExplanation`

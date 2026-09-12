@@ -12,7 +12,7 @@ import (
 )
 
 // These tests cover the repository-selector graph read itself
-// (resolveRepositorySelectorExactForAccess, invoked via
+// (queryselector.ResolveExactForAccess, invoked via
 // resolveRepositorySelectorForRequestWithAccess or directly), not a handler's
 // downstream graph read. A canonical-looking selector such as "repo-1" short
 // circuits looksCanonicalRepositoryID and never reaches the graph, so every
@@ -94,7 +94,7 @@ func TestContainerImageIdentitiesSelectorMapsGraphReadAvailabilityErrors(t *test
 // TestGetRepositoryContentSelectorMapsGraphReadAvailabilityErrors covers
 // getRepositoryContent's resolveRepositoryPathSelector call
 // (repository/content.go via repository/selectors.go), a repository route
-// using the non-writing resolveRepositorySelectorExactForAccess variant that
+// using the non-writing queryselector.ResolveExactForAccess variant that
 // the caller itself must guard.
 func TestGetRepositoryContentSelectorMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -116,7 +116,7 @@ func TestGetRepositoryContentSelectorMapsGraphReadAvailabilityErrors(t *testing.
 }
 
 // TestResolveEntitySelectorMapsGraphReadAvailabilityErrors covers
-// resolveEntity's repo_id-anchored resolveRepositorySelectorExactForAccess
+// resolveEntity's repo_id-anchored queryselector.ResolveExactForAccess
 // call (entity/handler.go), distinct from the sibling
 // TestResolveEntityMapsGraphReadAvailabilityErrors in
 // graph_read_error_repository_entity_test.go, which uses the canonical-looking

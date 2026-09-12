@@ -234,13 +234,13 @@ source_coverage:
   - file: graph_entity_inventory.go
     calls:
       - {symbol: "(*GraphEntityInventoryHandler).listEntities", count: 2, source_sha256: 8e1da79218bea919422ff65730c13968e0621495e9c28d30464c9477d1a2b5a7, entry_ids: [QP-GRAPH-ENTITY-COUNT, QP-GRAPH-ENTITY-LIST]}
-  - file: iac_resources.go
+  - file: iac/resources.go
     calls:
-      - symbol: "(*IaCHandler).listResources"
+      - symbol: "(*Handler).listResources"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: 9f7a90007d7d7bc8ca2120b30b15d783e749f1cfc3308582e5c19774689fb820
+          source_sha256: 0174482dc973e28479db2ea4145108280c422e802f49123681cfe2fcdefe10be
           key_bound: bounded_key_batch
           max_keys: 201
           max_results: 201

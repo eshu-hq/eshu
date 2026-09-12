@@ -21,7 +21,7 @@ const canonicalPhaseTerraformState = "terraform_state"
 // terraformStateUID vs a 12-hex blake2s content-entity ID) but shared one
 // label, which meant no query could distinguish "declared in config",
 // "applied in state", or "both" without inspecting evidence_source and
-// guessing at property shape (see the now-simplified iac_resources.go). See
+// guessing at property shape (see the now-simplified query/iac/resources.go). See
 // tfstate_canonical_writer_retract.go for the migration that relabels
 // pre-#5443 TerraformResource nodes carrying evidence_source =
 // 'projector/tfstate' and the retraction that clears genuinely stale ones.

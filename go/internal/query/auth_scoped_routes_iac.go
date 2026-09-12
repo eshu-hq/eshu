@@ -20,14 +20,14 @@ import "net/http"
 // scopedIaCManagementRoute and scopedReplatformingPlanFamilyRoute each cover
 // several routes: every one of those handlers calls
 // normalizeIaCManagementRequest followed immediately by
-// bindIaCManagementFilterAccess (iac_management.go) before its one shared
-// store choke point, IaCManagementStore.{List,Count}UnmanagedCloudResources,
+// bindIaCManagementFilterAccess (iac/management_access.go) before its one
+// shared store choke point, IaCManagementStore.{List,Count}UnmanagedCloudResources,
 // so they share one grant-filtering proof.
 
 // scopedIaCDeadRoute reports whether the request targets the dead-IaC
-// candidate finder. handleDeadIaC (iac.go) resolves every repo_id/repo_ids
-// selector through resolveRepositorySelectorExactForAccess bound to
-// repositoryAccessFilterFromContext (the same access-filtered chain the
+// candidate finder. handleDeadIaC (iac/handler.go) resolves every
+// repo_id/repo_ids selector through queryselector.ResolveExactForAccess bound
+// to repositoryAccessFilterFromContext (the same access-filtered chain the
 // #5167 Group A single-repository routes use), so a selector naming a
 // repository outside a scoped caller's grant fails closed with a 400 before
 // either the reducer-materialized IaCReachabilityStore read or the

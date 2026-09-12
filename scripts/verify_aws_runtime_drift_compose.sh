@@ -220,7 +220,7 @@ fi
 
 echo "==> Asserting the orphaned bucket is present as a migration-plan item"
 # The migration-plan item's stable_id is the resource ARN
-# (replatforming_ownership.go: StableID = finding.ARN), so match on that. The
+# (iac/replatforming_ownership.go: StableID = finding.ARN), so match on that. The
 # orphan must surface because no Terraform state/config declares it.
 orphan_match="$(jq -r --arg arn "$FIXTURE_ORPHAN_ARN" '
 	[.plan.items[]? | select(.stable_id == $arn)] | length' "$PLAN_FILE")"

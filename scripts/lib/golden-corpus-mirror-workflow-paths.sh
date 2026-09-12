@@ -228,7 +228,7 @@ require_workflow_path "semantic policy (#5538)"                 "go/internal/sem
 require_workflow_path "semantic guard (#5538)"                  "go/internal/semanticguard/**"
 require_workflow_path "semantic profile (#5538)"                "go/internal/semanticprofile/**"
 
-# internal/iacreachability backs query/iac.go's dead-IaC analysis; the
+# internal/iacreachability backs query/iac/handler.go's dead-IaC analysis; the
 # find_dead_code / find_cross_repo_dead_code MCP shapes pin
 # data.analysis.iac_reachability_mode="not_modeled_by_code_dead_code" in the
 # B-12 snapshot.

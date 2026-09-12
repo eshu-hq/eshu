@@ -14,7 +14,7 @@ Only the query-facing item state is normalized here; no provider fact or status
 name changes.
 
 The Go contract lives in
-`go/internal/query/replatforming_source_state.go` and is covered by
+`go/internal/query/iac/replatforming_source_state.go` and is covered by
 `go/internal/query/replatforming_source_state_test.go`.
 
 ## States

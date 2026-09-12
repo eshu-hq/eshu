@@ -40,23 +40,20 @@ func driftedAttributesFromEvidence(evidence []postgres.MultiCloudRuntimeDriftEvi
 	return driftedAttributesFromKV(kvs)
 }
 
-// driftedAttributesFromAWSEvidence is driftedAttributesFromEvidence's sibling
-// for the AWS-specific evidence row shape (reducer_aws_cloud_runtime_drift_finding),
-// feeding IaCManagementFindingRow.DriftedAttributes / AWSRuntimeDriftFindingRow
-// (#5453 P2-3) the same declared_/observed_ projection
-// list_cloud_runtime_drift_findings already carries.
-func driftedAttributesFromAWSEvidence(evidence []postgres.AWSCloudRuntimeDriftEvidenceRow) []DriftedAttributeView {
-	kvs := make([]driftEvidenceKV, 0, len(evidence))
-	for _, atom := range evidence {
-		kvs = append(kvs, driftEvidenceKV{Key: atom.Key, Value: atom.Value})
-	}
-	return driftedAttributesFromKV(kvs)
-}
+// driftedAttributesFromAWSEvidence moved to the iac/ leaf (#6642 Part A,
+// iac/drifted_attributes.go, exported as DriftedAttributesFromAWSEvidence)
+// because its caller iac_management_transform.go moved there too. This
+// file's forwarder in iac_alias.go keeps this package's staying caller
+// (cloud_runtime_drift_aggregate.go) and the staying test
+// cloud_runtime_drift_aggregate_test.go spelling the root name unchanged.
+// The leaf keeps its own private copy of the KV-pairing helper below
+// (querycontract.DriftedAttributeView-typed) rather than importing this
+// unexported one, since a leaf cannot import this package without a cycle.
 
-// driftedAttributesFromKV is the shared pairing logic both evidence-row
-// adapters above delegate to: it groups every "declared_<attr>"/
-// "observed_<attr>" key pair by <attr>, in deterministic attribute-name
-// order, and drops any key that carries neither prefix.
+// driftedAttributesFromKV is the shared pairing logic driftedAttributesFromEvidence
+// delegates to: it groups every "declared_<attr>"/"observed_<attr>" key pair
+// by <attr>, in deterministic attribute-name order, and drops any key that
+// carries neither prefix.
 func driftedAttributesFromKV(kvs []driftEvidenceKV) []DriftedAttributeView {
 	declared := map[string]string{}
 	observed := map[string]string{}

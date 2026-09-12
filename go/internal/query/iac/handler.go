@@ -1,0 +1,481 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package iac
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"sort"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
+
+	"github.com/eshu-hq/eshu/go/internal/iacreachability"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+const (
+	DeadCapability   = "iac_quality.dead_iac"
+	deadFileLimit    = 10000
+	deadDefaultLimit = 100
+	deadMaxLimit     = 500
+
+	ManagementCapability              = "iac_management.find_unmanaged_resources"
+	ManagementStatusCapability        = "iac_management.get_status"
+	ManagementExplainCapability       = "iac_management.explain_status"
+	TerraformImportCapability         = "iac_management.propose_terraform_import_plan"
+	AWSRuntimeDriftFindingsCapability = "aws_runtime_drift.findings.list"
+	managementDefaultLimit            = 100
+	managementMaxLimit                = 500
+)
+
+// Handler serves infrastructure-as-code quality query routes.
+type Handler struct {
+	Content      querycontract.ContentStore
+	Reachability ReachabilityStore
+	Management   ManagementStore
+	// Inventory reads the current active-generation IaC fact inventory. The
+	// resource route uses it to prevent retained historical graph nodes from
+	// leaking into current truth and to serve authoritative search and facets.
+	Inventory InventoryStore
+	// Graph hydrates the bounded IaC resource inventory list
+	// (GET /api/v0/iac/resources) over the authoritative Terraform/IaC graph
+	// projection. Inventory and Graph are optional wiring: when either is nil the
+	// list route returns 503.
+	Graph   querycontract.GraphQuery
+	Profile querycontract.QueryProfile
+}
+
+// Mount registers IaC quality routes on the given mux.
+func (h *Handler) Mount(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v0/iac/resources", h.listResources)
+	mux.HandleFunc("POST /api/v0/iac/dead", h.handleDeadIaC)
+	mux.HandleFunc("POST /api/v0/iac/unmanaged-resources", h.handleUnmanagedCloudResources)
+	mux.HandleFunc("POST /api/v0/iac/management-status", h.handleIaCManagementStatus)
+	mux.HandleFunc("POST /api/v0/iac/management-status/explain", h.handleIaCManagementExplanation)
+	mux.HandleFunc("POST /api/v0/iac/terraform-import-plan/candidates", h.handleTerraformImportPlanCandidates)
+	mux.HandleFunc("POST /api/v0/aws/runtime-drift/findings", h.handleAWSRuntimeDriftFindings)
+	mux.HandleFunc("GET /api/v0/replatforming/selectors", h.handleReplatformingSelectors)
+	mux.HandleFunc("POST /api/v0/replatforming/rollups", h.handleReplatformingRollups)
+	mux.HandleFunc("POST "+ReplatformingPlanRoute, h.handleReplatformingPlan)
+	mux.HandleFunc("POST /api/v0/replatforming/ownership-packets", h.handleReplatformingOwnershipPackets)
+}
+
+func (h *Handler) profile() querycontract.QueryProfile {
+	if h == nil {
+		return querycontract.ProfileProduction
+	}
+	return querycontract.NormalizeQueryProfile(string(h.Profile))
+}
+
+type deadIaCRequest struct {
+	RepoID           string   `json:"repo_id"`
+	RepoIDs          []string `json:"repo_ids"`
+	Families         []string `json:"families"`
+	IncludeAmbiguous bool     `json:"include_ambiguous"`
+	Limit            int      `json:"limit"`
+	Offset           int      `json:"offset"`
+}
+
+type deadIaCFinding struct {
+	ID           string   `json:"id"`
+	Family       string   `json:"family"`
+	RepoID       string   `json:"repo_id"`
+	RepoName     string   `json:"repo_name,omitempty"`
+	Artifact     string   `json:"artifact"`
+	Reachability string   `json:"reachability"`
+	Finding      string   `json:"finding"`
+	Confidence   float64  `json:"confidence"`
+	Evidence     []string `json:"evidence"`
+	Limitations  []string `json:"limitations,omitempty"`
+}
+
+// ReachabilityStore reads reducer-materialized IaC cleanup findings.
+type ReachabilityStore interface {
+	ListLatestCleanupFindings(
+		ctx context.Context,
+		repoIDs []string,
+		families []string,
+		includeAmbiguous bool,
+		limit int,
+		offset int,
+	) ([]ReachabilityFindingRow, error)
+	CountLatestCleanupFindings(ctx context.Context, repoIDs []string, families []string, includeAmbiguous bool) (int, error)
+	HasLatestRows(ctx context.Context, repoIDs []string, families []string) (bool, error)
+}
+
+// ReachabilityFindingRow is the query-facing shape of one materialized IaC
+// cleanup row.
+type ReachabilityFindingRow struct {
+	ID           string
+	Family       string
+	RepoID       string
+	ArtifactPath string
+	Reachability string
+	Finding      string
+	Confidence   float64
+	Evidence     []string
+	Limitations  []string
+}
+
+func (h *Handler) handleDeadIaC(w http.ResponseWriter, r *http.Request) {
+	r, span := startQueryHandlerSpan(r, telemetry.SpanQueryDeadIaC, "POST /api/v0/iac/dead", DeadCapability)
+	defer span.End()
+
+	if querycontract.CapabilityUnsupported(h.profile(), DeadCapability) {
+		querycontract.WriteContractError(
+			w,
+			r,
+			http.StatusNotImplemented,
+			"dead-IaC analysis requires an explicit indexed IaC scope",
+			querycontract.ErrorCodeUnsupportedCapability,
+			DeadCapability,
+			h.profile(),
+			querycontract.RequiredProfile(DeadCapability),
+		)
+		return
+	}
+
+	var req deadIaCRequest
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	repoIDs := normalizeDeadIaCRepoScope(req)
+	if len(repoIDs) == 0 {
+		querycontract.WriteError(w, http.StatusBadRequest, "repo_id or repo_ids is required")
+		return
+	}
+	repoIDs, err := h.resolveRepositoryScope(r.Context(), repoIDs)
+	if err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	normalizeDeadIaCPaging(&req)
+	families := normalizeDeadIaCFamilies(req.Families)
+	if h != nil && h.Reachability != nil {
+		totalFindings, err := h.Reachability.CountLatestCleanupFindings(
+			r.Context(),
+			repoIDs,
+			families,
+			req.IncludeAmbiguous,
+		)
+		if err != nil {
+			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		rows, err := h.Reachability.ListLatestCleanupFindings(
+			r.Context(),
+			repoIDs,
+			families,
+			req.IncludeAmbiguous,
+			req.Limit,
+			req.Offset,
+		)
+		if err != nil {
+			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if len(rows) > 0 {
+			findings := materializedDeadIaCFindings(rows)
+			h.enrichDeadIaCRepoNames(r.Context(), findings)
+			writeMaterializedDeadIaC(w, r, h.profile(), repoIDs, findings, deadIaCPage{
+				Limit: req.Limit, Offset: req.Offset, Total: totalFindings,
+			})
+			return
+		}
+		hasRows, err := h.Reachability.HasLatestRows(r.Context(), repoIDs, families)
+		if err != nil {
+			querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if hasRows {
+			writeMaterializedDeadIaC(w, r, h.profile(), repoIDs, nil, deadIaCPage{
+				Limit: req.Limit, Offset: req.Offset, Total: totalFindings,
+			})
+			return
+		}
+	}
+	if h == nil || h.Content == nil {
+		querycontract.WriteError(w, http.StatusServiceUnavailable, "content store is required")
+		return
+	}
+
+	filesByRepo, err := loadIaCDeadFiles(r.Context(), h.Content, repoIDs)
+	if err != nil {
+		querycontract.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	findings := analyzeDeadIaC(filesByRepo, iacreachability.FamilyFilter(families), req.IncludeAmbiguous)
+	totalFindings := len(findings)
+	findings = pageDeadIaCFindings(findings, req.Limit, req.Offset)
+	h.enrichDeadIaCRepoNames(r.Context(), findings)
+
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"repo_ids":             repoIDs,
+		"findings":             findings,
+		"findings_count":       len(findings),
+		"total_findings_count": totalFindings,
+		"limit":                req.Limit,
+		"offset":               req.Offset,
+		"truncated":            deadIaCTruncated(req.Offset, len(findings), totalFindings),
+		"next_offset":          deadIaCNextOffset(req.Offset, len(findings), totalFindings),
+		"truth_basis":          "content_scope",
+		"analysis_status":      "derived_candidate_analysis",
+		"limitations": []string{
+			"bounded to the requested repository scope",
+			"dynamic templates and variable-selected references are reported as ambiguous",
+			"exact dead-IaC requires reducer-materialized usage rows",
+		},
+	}, querycontract.BuildTruthEnvelope(h.profile(), DeadCapability, querycontract.TruthBasisContentIndex, "derived from bounded IaC content references"))
+}
+
+func writeMaterializedDeadIaC(
+	w http.ResponseWriter,
+	r *http.Request,
+	profile querycontract.QueryProfile,
+	repoIDs []string,
+	findings []deadIaCFinding,
+	page deadIaCPage,
+) {
+	querycontract.WriteSuccess(w, r, http.StatusOK, map[string]any{
+		"repo_ids":             repoIDs,
+		"findings":             findings,
+		"findings_count":       len(findings),
+		"total_findings_count": page.Total,
+		"limit":                page.Limit,
+		"offset":               page.Offset,
+		"truncated":            deadIaCTruncated(page.Offset, len(findings), page.Total),
+		"next_offset":          deadIaCNextOffset(page.Offset, len(findings), page.Total),
+		"truth_basis":          "materialized_reducer_rows",
+		"analysis_status":      "materialized_reachability",
+		"limitations": []string{
+			"dynamic templates and variable-selected references are reported as ambiguous",
+		},
+	}, querycontract.BuildTruthEnvelope(profile, DeadCapability, querycontract.TruthBasisSemanticFacts, "resolved from reducer-materialized IaC reachability rows"))
+}
+
+type deadIaCPage struct {
+	Limit  int
+	Offset int
+	Total  int
+}
+
+func materializedDeadIaCFindings(rows []ReachabilityFindingRow) []deadIaCFinding {
+	findings := make([]deadIaCFinding, 0, len(rows))
+	for _, row := range rows {
+		findings = append(findings, deadIaCFinding{
+			ID:           row.ID,
+			Family:       row.Family,
+			RepoID:       row.RepoID,
+			Artifact:     row.ArtifactPath,
+			Reachability: row.Reachability,
+			Finding:      row.Finding,
+			Confidence:   row.Confidence,
+			Evidence:     append([]string(nil), row.Evidence...),
+			Limitations:  append([]string(nil), row.Limitations...),
+		})
+	}
+	return findings
+}
+
+func (h *Handler) enrichDeadIaCRepoNames(ctx context.Context, findings []deadIaCFinding) {
+	if h == nil || h.Content == nil || len(findings) == 0 {
+		return
+	}
+	repositories, err := h.Content.ListRepositories(ctx)
+	if err != nil {
+		return
+	}
+	namesByID := make(map[string]string, len(repositories))
+	for _, repo := range repositories {
+		if strings.TrimSpace(repo.ID) == "" || strings.TrimSpace(repo.Name) == "" {
+			continue
+		}
+		namesByID[repo.ID] = repo.Name
+	}
+	for i := range findings {
+		if name := namesByID[findings[i].RepoID]; name != "" {
+			findings[i].RepoName = name
+		}
+	}
+}
+
+func normalizeDeadIaCRepoScope(req deadIaCRequest) []string {
+	seen := map[string]struct{}{}
+	var repoIDs []string
+	add := func(repoID string) {
+		repoID = strings.TrimSpace(repoID)
+		if repoID == "" {
+			return
+		}
+		if _, ok := seen[repoID]; ok {
+			return
+		}
+		seen[repoID] = struct{}{}
+		repoIDs = append(repoIDs, repoID)
+	}
+	add(req.RepoID)
+	for _, repoID := range req.RepoIDs {
+		add(repoID)
+	}
+	sort.Strings(repoIDs)
+	return repoIDs
+}
+
+func normalizeDeadIaCPaging(req *deadIaCRequest) {
+	if req.Limit <= 0 {
+		req.Limit = deadDefaultLimit
+	}
+	if req.Limit > deadMaxLimit {
+		req.Limit = deadMaxLimit
+	}
+	if req.Offset < 0 {
+		req.Offset = 0
+	}
+}
+
+func pageDeadIaCFindings(findings []deadIaCFinding, limit int, offset int) []deadIaCFinding {
+	if offset >= len(findings) {
+		return nil
+	}
+	end := offset + limit
+	if end > len(findings) {
+		end = len(findings)
+	}
+	return findings[offset:end]
+}
+
+func deadIaCTruncated(offset int, returned int, total int) bool {
+	return offset+returned < total
+}
+
+func deadIaCNextOffset(offset int, returned int, total int) *int {
+	if !deadIaCTruncated(offset, returned, total) {
+		return nil
+	}
+	next := offset + returned
+	return &next
+}
+
+// resolveRepositoryScope resolves each requested dead-IaC repository selector
+// exactly, bound to the caller's grant (#5167 W4). It reuses
+// queryselector.ResolveExactForAccess with
+// querycontract.RepositoryAccessFilterFromContext -- the same access-filtered resolution
+// chain the #5167 Group A single-repository routes
+// (auth_scoped_routes_repository.go) use -- so a selector naming a repository
+// outside a scoped caller's AllowedRepositoryIDs/AllowedScopeIDs grant fails
+// with repositorySelectorNotFoundError (surfaced by handleDeadIaC as 400,
+// matching every other selector-resolution error on this route) instead of
+// silently returning cross-tenant dead-IaC findings. An all-scopes caller
+// (no AuthContext, admin, or shared-key token) is unaffected:
+// querycontract.RepositoryAccessFilterFromContext returns allowsRepositoryID true for
+// every canonical id, matching the pre-#5167 unscoped behavior.
+func (h *Handler) resolveRepositoryScope(ctx context.Context, selectors []string) ([]string, error) {
+	if h == nil || h.Content == nil {
+		return selectors, nil
+	}
+	access := querycontract.RepositoryAccessFilterFromContext(ctx)
+	resolved := make([]string, 0, len(selectors))
+	seen := make(map[string]struct{}, len(selectors))
+	for _, selector := range selectors {
+		repoID, err := queryselector.ResolveExactForAccess(ctx, nil, h.Content, selector, access)
+		if err != nil {
+			return nil, err
+		}
+		if _, ok := seen[repoID]; ok {
+			continue
+		}
+		seen[repoID] = struct{}{}
+		resolved = append(resolved, repoID)
+	}
+	sort.Strings(resolved)
+	return resolved, nil
+}
+
+func normalizeDeadIaCFamilies(raw []string) []string {
+	seen := map[string]struct{}{}
+	var families []string
+	for _, family := range raw {
+		family = strings.ToLower(strings.TrimSpace(family))
+		if family == "" {
+			continue
+		}
+		if _, ok := seen[family]; ok {
+			continue
+		}
+		seen[family] = struct{}{}
+		families = append(families, family)
+	}
+	sort.Strings(families)
+	return families
+}
+
+func loadIaCDeadFiles(ctx context.Context, content querycontract.ContentStore, repoIDs []string) (map[string][]iacreachability.File, error) {
+	filesByRepo := make(map[string][]iacreachability.File, len(repoIDs))
+	for _, repoID := range repoIDs {
+		files, err := content.ListRepoFiles(ctx, repoID, deadFileLimit)
+		if err != nil {
+			return nil, fmt.Errorf("list IaC files for %q: %w", repoID, err)
+		}
+		for i, file := range files {
+			if strings.TrimSpace(file.Content) != "" || !iacreachability.RelevantFile(file.RelativePath) {
+				continue
+			}
+			loaded, err := content.GetFileContent(ctx, repoID, file.RelativePath)
+			if err != nil {
+				return nil, fmt.Errorf("get IaC file %q from %q: %w", file.RelativePath, repoID, err)
+			}
+			if loaded != nil {
+				files[i] = *loaded
+			}
+		}
+		filesByRepo[repoID] = queryFilesToIaCFiles(files)
+	}
+	return filesByRepo, nil
+}
+
+func queryFilesToIaCFiles(files []querycontract.FileContent) []iacreachability.File {
+	result := make([]iacreachability.File, 0, len(files))
+	for _, file := range files {
+		if !iacreachability.RelevantFile(file.RelativePath) {
+			continue
+		}
+		result = append(result, iacreachability.File{
+			RepoID:       file.RepoID,
+			RelativePath: file.RelativePath,
+			Content:      file.Content,
+		})
+	}
+	return result
+}
+
+func analyzeDeadIaC(
+	filesByRepo map[string][]iacreachability.File,
+	families map[string]bool,
+	includeAmbiguous bool,
+) []deadIaCFinding {
+	rows := iacreachability.Analyze(filesByRepo, iacreachability.Options{
+		Families:         families,
+		IncludeAmbiguous: includeAmbiguous,
+	})
+	rows = iacreachability.CleanupRows(rows, includeAmbiguous)
+	findings := make([]deadIaCFinding, 0, len(rows))
+	for _, row := range rows {
+		findings = append(findings, deadIaCFinding{
+			ID:           row.ID,
+			Family:       row.Family,
+			RepoID:       row.RepoID,
+			Artifact:     row.ArtifactPath,
+			Reachability: string(row.Reachability),
+			Finding:      string(row.Finding),
+			Confidence:   row.Confidence,
+			Evidence:     append([]string(nil), row.Evidence...),
+			Limitations:  append([]string(nil), row.Limitations...),
+		})
+	}
+	return findings
+}

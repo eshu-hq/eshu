@@ -29,18 +29,18 @@ validation, truncation-and-cursor accounting, and module/type filters.
 ## Committed reproducible evidence
 
 **Handler contract, pagination, and filters** —
-`go/internal/query/iac_resources_test.go`:
+`go/internal/query/iac/resources_test.go`:
 `TestIaCResourcesHappyPath`, `TestIaCResourcesEmpty`,
 `TestIaCResourcesLimitValidation`, `TestIaCResourcesDefaultLimitWhenAbsent`,
 `TestIaCResourcesTruncationAndCursor`, `TestIaCResourcesFilters`, and
 `TestIaCResourcesModuleFilterIncludesQuotedAddresses`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestIaCResources -count=1
+cd go && go test ./internal/query/iac -run TestIaCResources -count=1
 ```
 
 **Backend-unavailable honesty** —
-`go/internal/query/iac_resources_test.go`:
+`go/internal/query/iac/resources_test.go`:
 `TestIaCResourcesReturns503WhenGraphMissing`.
 
 ## Notes
