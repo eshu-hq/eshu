@@ -42,7 +42,7 @@ No-Regression Evidence: behavior-preserving by construction — the move
 rewrites each file's `package` clause and constant names and nothing
 else, and the fragment bodies are untouched. `go build ./...` exit 0,
 `go vet ./internal/query/...` exit 0, `go test ./internal/query/...
--count=1` exit 0 across 40 packages. Test inventory, re-measured at the
+-count=1` exit 0 across 45 packages. Test inventory, re-measured at the
 final rebased head: `go test ./internal/query/... -list '.*'` yields 4,802
 `Test*` names on `origin/main` and 4,807 on the branch — a net +5, not a
 loss. `comm -23` (base-only, i.e. dropped) is empty; the 5 branch-only
@@ -80,8 +80,8 @@ when it is restored.
 (re-derived at the final rebased head onto `origin/main`, whose own
 intervening commits — including #6060's later moves of the language,
 secrets, package-registry, service, workitem, visualization and freshness
-families out of the query root — repeatedly re-pinned the row upward
-between rebases; the 114-file delta this PR's own move accounts for is
+families out of the query root — kept shrinking the row between
+rebases; the 114-file delta this PR's own move accounts for is
 unchanged each time). The digest run reports zero remaining
 `openapi`-prefixed naming violations, which is the mechanical proof that
 every non-test `openapi*.go` left root: the naming-exempt ledger only
