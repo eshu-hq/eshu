@@ -47,7 +47,7 @@ repository-wide name guess. Both ship as `confidence = 0.95`. Eshu therefore
 cannot compute per-language call-resolution accuracy, which competitors publish.
 
 `confidence` already exists in the OpenAPI `Relationship` schema
-(`go/internal/query/openapi_components.go`) but is not populated from edge
+(`go/internal/query/openapi/components.go`) but is not populated from edge
 properties; `resolution_method` does not exist anywhere yet.
 
 ## 3. Non-Goals

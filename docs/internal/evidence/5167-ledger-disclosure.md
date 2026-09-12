@@ -2,7 +2,7 @@
 
 This note exists because the performance-evidence gate is content-based: it
 flagged `go/internal/query/auth_scoped_routes_pending_row_filtering.go` and
-`go/internal/query/openapi_paths_code.go` as hot files for this branch, for
+`go/internal/query/openapi/paths/code/routes.go` as hot files for this branch, for
 prose, not code. The ledger comment for `GET /api/v0/index-status` quotes the
 unfiltered `MATCH (r:Repository) RETURN count(r)` that `getIndexStatus` runs,
 to say why the route cannot bind a grant; the OpenAPI fragment gained a `403`

@@ -384,7 +384,7 @@ Every Go package directory in `go/` has three files: `doc.go`, `README.md`, and
 MUST NOT remove scoped `AGENTS.md` files unless the replacement is proven to be
 loaded by the target harness with the same scope and precedence.
 
-MUST keep OpenAPI changes in lockstep with `go/internal/query/openapi*.go`, handler
+MUST keep OpenAPI changes in lockstep with `go/internal/query/openapi/`, handler
 tests, and [HTTP API Reference](docs/public/reference/http-api.md).
 
 ## Verification Defaults

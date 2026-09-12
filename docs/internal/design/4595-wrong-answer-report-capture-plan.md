@@ -121,11 +121,11 @@ string into any error it returns.
   be stripped from public bundles. Citation provenance is
   `{basis, rationale, source}` only (`evidence_citation_unified.go:17-21`) —
   citations do NOT carry fact IDs, and no public fact-record read route exists
-  (checked `go/internal/query/openapi_paths_*.go`; only
+  (checked `go/internal/query/openapi/`; only
   `/api/v0/documentation/facts` and the static schema-version registry). This
   drives the fact-ref design below.
 - Citations hydration route: `/api/v0/evidence/citations`
-  (`go/internal/query/openapi_paths_evidence.go:120`).
+  (`go/internal/query/openapi/paths/evidence/routes.go`).
 
 ### The canonical redaction path (HARD requirement)
 

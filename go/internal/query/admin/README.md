@@ -16,7 +16,7 @@ Layout:
 - `audit/` — the shared audit/permission glue (actor mapping, correlation,
   permission gate, identity hashes).
 
-The OpenAPI fragments documenting these routes stay in the query root. The
+The OpenAPI fragments documenting these routes live in `openapi/paths/auth/`. The
 root `admin_alias.go` keeps every pre-move `query.Admin*` spelling working
 so wiring and callers outside the family are untouched.
 

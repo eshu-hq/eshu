@@ -49,7 +49,8 @@ func syntheticRequestForRouteSurface(surface string) (*http.Request, error) {
 // TestFactKindRegistryReadSurfacesResolveToLiveRoutes's denominator in
 // go/internal/mcp/read_surface_consumer_existence_test.go), the two being
 // capable of drifting apart: a route can be declared in an
-// openapi_paths_*.go source file (and so appear in the served OpenAPI spec)
+// internal/query/openapi/paths/<family>/ fragment (and so appear in the
+// served OpenAPI spec)
 // without its handler's Mount ever being called by the production wiring
 // that builds mux, in which case a caller following the documented route
 // gets a live 404.

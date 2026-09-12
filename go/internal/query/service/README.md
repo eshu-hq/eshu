@@ -10,9 +10,8 @@ investigation, evidence, hostname, ingress-posture, and deployment-evidence
 reads, the service query enrichment with its row shaping, the service-story
 dossier/overview/evidence-graph/supply-chain-scope/trace-path shaping, and
 the family's `service_catalog.correlations.list` capability row. The OpenAPI
-fragments documenting the service routes stay in the query root
-(`openapi_paths_service_*.go`), where scripts/verify-openapi.sh requires
-every family's fragments to live.
+fragments documenting the service routes live in `openapi/paths/service/`,
+which scripts/verify-openapi.sh reaches by scanning that tree recursively.
 
 The `CatalogHandler` struct keeps its `Content`, `Correlations`,
 and `Profile` dependencies; `cmd/api` and `cmd/mcp-server` wire it through

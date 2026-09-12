@@ -18,7 +18,7 @@ import (
 
 // TestGetServiceContextAddsPartialReasons is a round-11 review follow-up to
 // #5764 (PR #5936, chatgpt-codex-connector finding 1): the OpenAPI
-// WorkloadContext schema (openapi_components_workload_session.go) documents
+// WorkloadContext schema (openapi/components_workload_session.go) documents
 // "partial_reasons" as an always-present field "so the envelope shape is
 // stable across complete and partial reads", and getWorkloadContext
 // (entity_workload_handlers.go) honors that by calling

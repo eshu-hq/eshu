@@ -20,7 +20,8 @@ import (
 
 // defaultFactRefsUnavailableReason is recorded when a caller does not supply
 // resolved fact references. Per the Slice 1 plan, no public fact-record read
-// route exists today (checked against go/internal/query/openapi_paths_*.go),
+// route exists today (checked against
+// go/internal/query/openapi/paths/<family>/),
 // so a remote capture cannot resolve FactRefs itself; resolution then happens
 // maintainer-side in a later slice via the ifa.FactLoader seam.
 const defaultFactRefsUnavailableReason = "no public fact-record read surface"

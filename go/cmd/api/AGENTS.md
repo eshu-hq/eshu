@@ -57,7 +57,7 @@
 
 - **Add a new handler family** → add the handler struct to `internal/query`,
   add a `Mount` call in `APIRouter.Mount`, wire the struct in `newRouter`
-  (`wiring_router.go`), add an `openapi_paths_*.go` fragment inside `internal/query`
+  (`wiring_router.go`), add a path fragment under `internal/query/openapi/paths/<family>/`
   and reference it in the OpenAPI assembly function, update
   `docs/public/reference/http-api.md`, run
   `go test ./cmd/api ./internal/query -count=1`. Why: all handler families
