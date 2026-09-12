@@ -2,7 +2,7 @@
 
 ## Scope
 
-Base: `a0b5ca04cd15e537041cb0ef3f1b6921235469d7`
+Base: `11c6ab9b8735ba6825b8c81f611a290e6ecaa627`
 
 This slice moves the dependency-neutral activation configuration contract from
 the historical flat path `internal/coordinator/componentactivation` to
@@ -18,6 +18,9 @@ leases, and telemetry. The activation leaf still owns only the shared JSON
 shape and validation rules.
 
 ## Rebased inventory and dependency edges
+
+The inventory and dependency statements below were remeasured against the
+rebased base above and remained identical.
 
 At the base, the leaf contained exactly five files: `AGENTS.md`, `README.md`,
 `config.go`, `config_test.go`, and `doc.go`. The destination contains those
@@ -95,7 +98,8 @@ tests selected by `Component|Activation`.
 
 ## Verification
 
-All authoritative Go commands below ran serially under
+Following the rebase to the exact base above, all authoritative Go commands
+below ran serially under
 `GOTOOLCHAIN=go1.26.6`, `CC=clang`, `CGO_CFLAGS=-std=gnu17`, an isolated
 worktree-local `GOCACHE`, and a short `GOTMPDIR` outside every worktree:
 
