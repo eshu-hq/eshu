@@ -32,7 +32,7 @@ func TestGetRepositoryStoryMapsGraphReadAvailabilityErrors(t *testing.T) {
 	}
 }
 
-// TestResolveEntityMapsGraphReadAvailabilityErrors covers entity.go's
+// TestResolveEntityMapsGraphReadAvailabilityErrors covers entity/handler.go's
 // resolveEntity repository-anchored graph Run guard.
 func TestResolveEntityMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -53,7 +53,7 @@ func TestResolveEntityMapsGraphReadAvailabilityErrors(t *testing.T) {
 	}
 }
 
-// TestResolveEntityHydrateMapsGraphReadAvailabilityErrors covers entity.go's
+// TestResolveEntityHydrateMapsGraphReadAvailabilityErrors covers entity/handler.go's
 // resolveEntity hydrateResolvedEntityRepoIdentity guard, reached once the
 // initial graph Run succeeds with a Workload-labeled row still missing its
 // repo identity.
@@ -85,7 +85,7 @@ func TestResolveEntityHydrateMapsGraphReadAvailabilityErrors(t *testing.T) {
 	}
 }
 
-// TestGetEntityContextMapsGraphReadAvailabilityErrors covers entity.go's
+// TestGetEntityContextMapsGraphReadAvailabilityErrors covers entity/handler.go's
 // getEntityContext main RunSingle guard.
 func TestGetEntityContextMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -106,7 +106,7 @@ func TestGetEntityContextMapsGraphReadAvailabilityErrors(t *testing.T) {
 	}
 }
 
-// TestGetEntityContextHydrateMapsGraphReadAvailabilityErrors covers entity.go's
+// TestGetEntityContextHydrateMapsGraphReadAvailabilityErrors covers entity/handler.go's
 // getEntityContext hydrateResolvedEntityRepoIdentity guard, reached once the
 // main RunSingle succeeds with a Workload-labeled row still missing its repo
 // identity.
@@ -138,7 +138,7 @@ func TestGetEntityContextHydrateMapsGraphReadAvailabilityErrors(t *testing.T) {
 	}
 }
 
-// TestGetServiceContextMapsGraphReadAvailabilityErrors covers entity.go's
+// TestGetServiceContextMapsGraphReadAvailabilityErrors covers entity/handler.go's
 // getServiceContext fetchServiceWorkloadContext guard.
 func TestGetServiceContextMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()

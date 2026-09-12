@@ -13,7 +13,7 @@ import (
 // EnrichEntityResultsWithContentMetadata fills sparse result-row metadata
 // from the content store. Exported for the staying root metadata tests that
 // pin enrichment against a real content reader; see #6060.
-func (h *EntityHandler) EnrichEntityResultsWithContentMetadata(
+func (h *Handler) EnrichEntityResultsWithContentMetadata(
 	ctx context.Context,
 	results []map[string]any,
 	repoID string,

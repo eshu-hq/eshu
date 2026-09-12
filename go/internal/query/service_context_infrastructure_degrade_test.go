@@ -19,7 +19,7 @@ import (
 )
 
 // TestGetServiceContextInfrastructureDegradeAttributesFailure covers a fourth
-// #5764 call site: fetchWorkloadContextForOperation (entity_workload_context.go),
+// #5764 call site: fetchWorkloadContextForOperation (entity/workload_context.go),
 // reached from getServiceContext's GET /api/v0/services/{service_name}/context.
 // Before this fix, queryRepoInfrastructure's degraded bool was routed only to
 // the stage log -- the result map never carried a limitations reason -- so a

@@ -20,7 +20,7 @@ import (
 // (r:Repository {id:$repo_id}) -- the anchor repo-a -- and applies NO grant
 // predicate to the target repository, so target.name/target.id name a
 // cross-tenant repo. This exercises the #5167 W3 P0 third-vector leak
-// (entity_workload_context.go:fetchWorkloadContextForOperation ->
+// (entity/workload_context.go:fetchWorkloadContextForOperation ->
 // queryRepoDependencies), which feeds dependencies[] on both
 // GET /services/{name}/context and GET /workloads/{id}/context. Every other
 // enrichment query returns no rows.

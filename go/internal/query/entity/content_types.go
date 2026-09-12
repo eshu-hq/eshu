@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// entity_content_types.go holds the entity type vocabularies and the
-// content-store entity lookup helpers extracted from entity.go to keep that
+// content_types.go holds the entity type vocabularies and the
+// content-store entity lookup helpers extracted from handler.go to keep that
 // file under the 500-line cap.
 
 package entity
@@ -29,7 +29,7 @@ var resolverOnlyGraphEntityTypes = map[string]string{
 // could ever return rows. They are NOT in resolverOnlyGraphEntityTypes because
 // these types ARE content-backed — that map's resolveEntityFromContent
 // short-circuit would break their content fallback. Keep each entry paired with
-// a resolveContentBackedEntityTypes entry (entity_content_types_atlantis_test.go).
+// a resolveContentBackedEntityTypes entry (content_types_atlantis_test.go).
 var graphResolvableNotLanguageQueryableEntityTypes = map[string]string{
 	"atlantis_project":  "AtlantisProject",
 	"atlantis_workflow": "AtlantisWorkflow",
@@ -86,7 +86,7 @@ func GlobalContentEntityNameFilter(typeName string) (GlobalContentEntityFilter, 
 	return GlobalContentEntityFilter{}, false
 }
 
-func (h *EntityHandler) resolveGlobalContentEntities(ctx context.Context, name, typeName string, limit int) ([]map[string]any, error) {
+func (h *Handler) resolveGlobalContentEntities(ctx context.Context, name, typeName string, limit int) ([]map[string]any, error) {
 	searcher, ok := h.Content.(querycontract.EntityNameSearcher)
 	if !ok {
 		return nil, querycontract.ErrEntityNameSearchUnavailable
@@ -115,7 +115,7 @@ func (h *EntityHandler) resolveGlobalContentEntities(ctx context.Context, name, 
 	return results, nil
 }
 
-func (h *EntityHandler) writeCanonicalContentEntityResolution(
+func (h *Handler) writeCanonicalContentEntityResolution(
 	w http.ResponseWriter,
 	r *http.Request,
 	req ResolveEntityRequest,
@@ -157,7 +157,7 @@ func (h *EntityHandler) writeCanonicalContentEntityResolution(
 	return true
 }
 
-func (h *EntityHandler) resolveCanonicalContentEntityID(
+func (h *Handler) resolveCanonicalContentEntityID(
 	ctx context.Context,
 	name string,
 	typeName string,
@@ -188,7 +188,7 @@ func (h *EntityHandler) resolveCanonicalContentEntityID(
 	return []map[string]any{contentEntityToMap(*entity)}, true, nil
 }
 
-func (h *EntityHandler) resolveEntityFromContent(
+func (h *Handler) resolveEntityFromContent(
 	ctx context.Context,
 	name string,
 	typeName string,

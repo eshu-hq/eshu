@@ -23,7 +23,7 @@ import (
 //
 // `go test ./internal/query/entity` never links root package query: this
 // package cannot import it without an import cycle (root's entity_alias.go
-// already imports this package for the EntityHandler compatibility alias,
+// already imports this package for the Handler compatibility alias,
 // #6060), so root's init() functions never run in this test binary. Without
 // this TestMain every resolve test here fails with the capability gate's
 // missing-matrix panic -- not because the handler is broken, but because no

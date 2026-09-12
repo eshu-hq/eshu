@@ -17,13 +17,13 @@ import (
 
 // fetchWorkloadContext queries graph-backed workload context with a custom
 // WHERE clause and enriches linked repositories with local context evidence.
-func (h *EntityHandler) fetchWorkloadContext(ctx context.Context, whereClause string, params map[string]any) (map[string]any, error) {
+func (h *Handler) fetchWorkloadContext(ctx context.Context, whereClause string, params map[string]any) (map[string]any, error) {
 	return h.FetchWorkloadContextForOperation(ctx, whereClause, params, "workload_context")
 }
 
 // fetchServiceWorkloadContext avoids a backend-sensitive OR predicate by
 // trying exact service-name lookup before exact workload-id lookup.
-func (h *EntityHandler) fetchServiceWorkloadContext(ctx context.Context, serviceName string, operation string) (map[string]any, error) {
+func (h *Handler) fetchServiceWorkloadContext(ctx context.Context, serviceName string, operation string) (map[string]any, error) {
 	serviceName = strings.TrimSpace(serviceName)
 	if serviceName == "" {
 		return nil, nil
@@ -51,7 +51,7 @@ func (h *EntityHandler) fetchServiceWorkloadContext(ctx context.Context, service
 
 // FetchWorkloadContextForOperation queries workload context and tags timing
 // logs with the caller operation that will render the context.
-func (h *EntityHandler) FetchWorkloadContextForOperation(ctx context.Context, whereClause string, params map[string]any, operation string) (map[string]any, error) {
+func (h *Handler) FetchWorkloadContextForOperation(ctx context.Context, whereClause string, params map[string]any, operation string) (map[string]any, error) {
 	access := querycontract.RepositoryAccessFilterFromContext(ctx)
 	if access.Empty() {
 		return nil, nil
@@ -164,7 +164,7 @@ func (h *EntityHandler) FetchWorkloadContextForOperation(ctx context.Context, wh
 			// deduping by reason, and that dedup is how a single degrade
 			// reaches answer_metadata.partial_reasons exactly once.
 			// /workloads/{id}/story builds a fresh response with no
-			// "limitations" key at all (entity_workload_handlers.go's
+			// "limitations" key at all (workload_handlers.go's
 			// getWorkloadStory) -- there the reason reaches callers only through
 			// "partial_reasons" (contextPartialReasons reads this same
 			// "limitations" slice off ctx). Without appending here, a degraded
@@ -187,7 +187,7 @@ func (h *EntityHandler) FetchWorkloadContextForOperation(ctx context.Context, wh
 
 // FetchServiceReadModelWorkloadContext exposes repositories with workload
 // identity facts even when no graph Workload node has been materialized yet.
-func (h *EntityHandler) FetchServiceReadModelWorkloadContext(ctx context.Context, serviceName string) (map[string]any, error) {
+func (h *Handler) FetchServiceReadModelWorkloadContext(ctx context.Context, serviceName string) (map[string]any, error) {
 	if h.Content == nil {
 		return nil, nil
 	}
@@ -307,7 +307,7 @@ const workloadRepositoryCandidateLimit = querycontract.ContextStoryItemLimit
 // sorts the complete bounded set in Go because NornicDB can re-plan backend
 // ORDER BY/CASE relationship reads as global scans. A stored workload repo_id
 // is preferred only after the DEFINES relationship proves it is a candidate.
-func (h *EntityHandler) FetchWorkloadRepositoryForAccess(
+func (h *Handler) FetchWorkloadRepositoryForAccess(
 	ctx context.Context,
 	workloadID string,
 	access querycontract.RepositoryAccessFilter,

@@ -18,7 +18,7 @@ import (
 func TestGetWorkloadContextReturnsEnrichedResponse(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				// Base workload query
@@ -143,7 +143,7 @@ func TestFetchWorkloadContextLogsStageTimings(t *testing.T) {
 	t.Parallel()
 
 	var logs bytes.Buffer
-	handler := &EntityHandler{
+	handler := &Handler{
 		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
@@ -197,7 +197,7 @@ func TestFetchWorkloadContextLogsStageTimings(t *testing.T) {
 func TestGetWorkloadContextReturnsNotFoundForMissingWorkload(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{},
 			RunByMatch:       map[string][]map[string]any{},
@@ -220,7 +220,7 @@ func TestGetWorkloadContextReturnsNotFoundForMissingWorkload(t *testing.T) {
 func TestGetWorkloadContextSkipsEnrichmentWhenNoRepoID(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"MATCH (w:Workload)": {
@@ -268,7 +268,7 @@ func TestGetWorkloadContextSkipsEnrichmentWhenNoRepoID(t *testing.T) {
 func TestGetServiceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $service_name": {
@@ -323,7 +323,7 @@ func TestGetServiceContextAcceptsQualifiedWorkloadID(t *testing.T) {
 func TestGetServiceStoryAcceptsPlainServiceName(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $workload_id": {
@@ -386,7 +386,7 @@ func TestGetServiceStoryAcceptsPlainServiceName(t *testing.T) {
 func TestGetServiceStoryAcceptsQualifiedWorkloadIDAndNormalizesServiceName(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $workload_id": {

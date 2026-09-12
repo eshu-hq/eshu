@@ -12,8 +12,8 @@ import (
 
 // This file hosts the pure supply-chain image-reference helpers behind the
 // service story (Issue #6060, lane B B4). They moved here from the query
-// root (service_story_supply_chain.go), whose *EntityHandler evidence
-// method must stay in package query: Go requires methods to live with their
+// root (service_story_supply_chain.go), whose *Handler evidence
+// method must stay in package entity: Go requires methods to live with their
 // receiver type. The staying enricher and the service-story seam keep
 // working through the exported homes. Bodies are unchanged modulo package
 // qualifiers and the export renames below.

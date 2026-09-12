@@ -21,7 +21,7 @@ import (
 // outside package query -- the position the staying files named in the
 // A-worklist (infra_graph_summary_packet.go, contract_code_flow.go,
 // contract_capability_matrix.go, content_reader_structural_inventory.go,
-// language/handler.go, language/metadata.go, entity_metadata.go,
+// language/handler.go, language/metadata.go, entity/metadata.go,
 // content_reader_dead_code.go, content_reader_dead_code_cross_repo.go,
 // content_reader_security_secrets.go, content_reader.go,
 // content_reader_code_topic.go, answer_packet_routes.go, and
@@ -137,7 +137,7 @@ func TestCodeSeamCrossPackageAccess(t *testing.T) {
 		t.Fatalf("deadcode.MergeStrongestDeadCodeIncomingEdge result = %+v, want confidence 0.5 retained plus HiddenConsumer merged in", got)
 	}
 
-	// ResultContentEntityType: entity_metadata.go resolves a graph result's
+	// ResultContentEntityType: entity/metadata.go resolves a graph result's
 	// content entity type through this before an entity-id metadata lookup.
 	if got := codequery.ResultContentEntityType(map[string]any{"labels": []string{"Class"}}); got != "Class" {
 		t.Fatalf("ResultContentEntityType(labels=[Class]) = %q, want Class", got)

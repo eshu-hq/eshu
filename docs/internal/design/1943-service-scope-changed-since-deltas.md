@@ -127,7 +127,7 @@ incident / observability correlators read source facts from many scopes and
 project a correlated service identity into the graph and into reducer-owned
 facts. The service dossier read-model
 (`go/internal/query/service/story_dossier.go`,
-`service/story_overview.go`, `entity_workload_context.go`) assembles a service's
+`service/story_overview.go`, `entity/workload_context.go`) assembles a service's
 deployment lanes, dependencies, evidence graph, and API surface from a
 graph-materialized `workloadContext` that spans many source scopes and
 generations.

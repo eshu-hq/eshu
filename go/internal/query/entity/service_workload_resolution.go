@@ -48,7 +48,7 @@ func (e serviceWorkloadAmbiguousError) Error() string {
 	)
 }
 
-func (h *EntityHandler) fetchServiceWorkloadContextWithSelector(
+func (h *Handler) fetchServiceWorkloadContextWithSelector(
 	ctx context.Context,
 	selector ServiceWorkloadSelector,
 	operation string,
@@ -79,7 +79,7 @@ func (h *EntityHandler) fetchServiceWorkloadContextWithSelector(
 	)
 }
 
-func (h *EntityHandler) resolveServiceWorkloadCandidate(
+func (h *Handler) resolveServiceWorkloadCandidate(
 	ctx context.Context,
 	selector ServiceWorkloadSelector,
 	operation string,
@@ -109,7 +109,7 @@ func (h *EntityHandler) resolveServiceWorkloadCandidate(
 	}
 }
 
-func (h *EntityHandler) resolveServiceTraceRepoSelector(ctx context.Context, repoSelector string) (string, error) {
+func (h *Handler) resolveServiceTraceRepoSelector(ctx context.Context, repoSelector string) (string, error) {
 	if strings.TrimSpace(repoSelector) == "" {
 		return "", nil
 	}
@@ -122,7 +122,7 @@ func (h *EntityHandler) resolveServiceTraceRepoSelector(ctx context.Context, rep
 	)
 }
 
-func (h *EntityHandler) collectServiceWorkloadCandidates(
+func (h *Handler) collectServiceWorkloadCandidates(
 	ctx context.Context,
 	selector ServiceWorkloadSelector,
 	repoID string,
@@ -178,7 +178,7 @@ func (h *EntityHandler) collectServiceWorkloadCandidates(
 	return candidates, truncated, nil
 }
 
-func (h *EntityHandler) hydrateServiceWorkloadCandidateRepoNames(ctx context.Context, candidates []ServiceWorkloadCandidate) error {
+func (h *Handler) hydrateServiceWorkloadCandidateRepoNames(ctx context.Context, candidates []ServiceWorkloadCandidate) error {
 	repoIDSet := make(map[string]struct{}, len(candidates))
 	for _, candidate := range candidates {
 		if candidate.RepoID == "" || candidate.RepoName != "" {
@@ -225,7 +225,7 @@ func (h *EntityHandler) hydrateServiceWorkloadCandidateRepoNames(ctx context.Con
 }
 
 // QueryServiceWorkloadCandidates selects service-workload candidate rows. Exported so the staying legacy queryplan test keeps driving the handler; see #6060.
-func (h *EntityHandler) QueryServiceWorkloadCandidates(
+func (h *Handler) QueryServiceWorkloadCandidates(
 	ctx context.Context,
 	whereClause string,
 	paramName string,
@@ -277,7 +277,7 @@ func (h *EntityHandler) QueryServiceWorkloadCandidates(
 	return h.serviceWorkloadCandidatesFromQuery(ctx, cypher, params, matchBasis)
 }
 
-func (h *EntityHandler) queryServiceInstanceCandidates(
+func (h *Handler) queryServiceInstanceCandidates(
 	ctx context.Context,
 	instanceWhere string,
 	selector ServiceWorkloadSelector,
@@ -314,7 +314,7 @@ func (h *EntityHandler) queryServiceInstanceCandidates(
 	return h.serviceWorkloadCandidatesFromQuery(ctx, cypher, params, matchBasis)
 }
 
-func (h *EntityHandler) serviceWorkloadCandidatesFromQuery(
+func (h *Handler) serviceWorkloadCandidatesFromQuery(
 	ctx context.Context,
 	cypher string,
 	params map[string]any,

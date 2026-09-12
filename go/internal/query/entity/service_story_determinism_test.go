@@ -219,7 +219,7 @@ func TestAttachDirectPlatformsOrdersPlatformsByStableIdentity(t *testing.T) {
 			reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 				return rows, nil
 			}}
-			handler := &EntityHandler{Neo4j: reader}
+			handler := &Handler{Neo4j: reader}
 			instances := []map[string]any{
 				{"instance_id": instanceProdA},
 				{"instance_id": instanceProdB},
@@ -366,7 +366,7 @@ func buildDeterminismServiceStoryPayloadHash(t *testing.T, shuffle bool) string 
 	if err != nil {
 		t.Fatalf("FetchWorkloadRuntimeTopology() error = %v", err)
 	}
-	handler := &EntityHandler{Neo4j: reader}
+	handler := &Handler{Neo4j: reader}
 	platformResult, err := handler.FetchWorkloadPlatformResult(t.Context(), repoID, workloadID, topology.instances)
 	if err != nil {
 		t.Fatalf("FetchWorkloadPlatformResult() error = %v", err)

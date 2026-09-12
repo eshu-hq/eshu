@@ -20,8 +20,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-// EntityHandler exposes HTTP routes for entity queries.
-type EntityHandler struct {
+// Handler exposes HTTP routes for entity queries.
+type Handler struct {
 	Neo4j                    querycontract.GraphQuery
 	Content                  querycontract.ContentStore
 	CICDRunCorrelations      querycontract.CICDRunCorrelationStore
@@ -32,11 +32,11 @@ type EntityHandler struct {
 	// Instruments backs operator-facing metrics for degraded-but-successful
 	// entity-context reads, e.g. QueryK8sSelectCandidateScanTruncated. Nil is
 	// tolerated (metric emission is skipped) so tests can construct
-	// EntityHandler without wiring the full telemetry stack.
+	// Handler without wiring the full telemetry stack.
 	Instruments *telemetry.Instruments
 	// ContentRelationships builds an entity's content-derived relationships
 	// for the GET /api/v0/entities/{entity_id}/context content fallback
-	// (getEntityContextFromContent, entity_context_content.go). It is
+	// (getEntityContextFromContent, context_content.go). It is
 	// interface-typed rather than a concrete type or func value because
 	// assertRouterFieldsWired (cmd/api, cmd/mcp-server wiring completeness
 	// tests) only inspects reflect.Interface-kind fields; a nil value here
@@ -52,7 +52,7 @@ type EntityHandler struct {
 var errContentRelationshipBuilderNotConfigured = errors.New("content relationship builder not configured")
 
 // Mount registers all entity routes on the given mux.
-func (h *EntityHandler) Mount(mux *http.ServeMux) {
+func (h *Handler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/entities/resolve", h.ResolveEntity)
 	mux.HandleFunc("GET /api/v0/entities/{entity_id}/context", h.GetEntityContext)
 	mux.HandleFunc("GET /api/v0/workloads/{workload_id}/context", h.GetWorkloadContext)
@@ -62,7 +62,7 @@ func (h *EntityHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/investigations/services/{service_name}", h.InvestigateService)
 }
 
-func (h *EntityHandler) profile() querycontract.QueryProfile {
+func (h *Handler) profile() querycontract.QueryProfile {
 	if h == nil {
 		return querycontract.ProfileProduction
 	}
@@ -147,7 +147,7 @@ func BuildResolveEntityGraphQuery(
 }
 
 // ResolveEntity resolves an entity by name and optional type/repo filters. Exported so the staying root resolve tests keep driving the handler; see #6060.
-func (h *EntityHandler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 	var req ResolveEntityRequest
 	if err := querycontract.ReadJSON(r, &req); err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
@@ -193,7 +193,7 @@ func (h *EntityHandler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 		req.RepoID = resolvedRepoID
 	}
 	if access.Empty() {
-		truth := entityResolveTruthEnvelope(h.profile())
+		truth := resolveTruthEnvelope(h.profile())
 		if req.RepoID == "" {
 			truth = globalContentEntityResolveTruthEnvelope(h.profile())
 		}
@@ -288,11 +288,11 @@ func (h *EntityHandler) ResolveEntity(w http.ResponseWriter, r *http.Request) {
 		entities, truncated = trimResolvedEntityPage(entities, limit)
 	}
 
-	querycontract.WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse(entities, limit, truncated), entityResolveTruthEnvelope(h.profile()))
+	querycontract.WriteSuccess(w, r, http.StatusOK, resolvedEntityResponse(entities, limit, truncated), resolveTruthEnvelope(h.profile()))
 }
 
 // GetEntityContext retrieves the context for a specific entity. Exported so the staying graph-read-error tests keep driving the handler; see #6060.
-func (h *EntityHandler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetEntityContext(w http.ResponseWriter, r *http.Request) {
 	entityID := querycontract.PathParam(r, "entity_id")
 	if entityID == "" {
 		querycontract.WriteError(w, http.StatusBadRequest, "entity_id is required")
@@ -364,9 +364,9 @@ func (h *EntityHandler) GetEntityContext(w http.ResponseWriter, r *http.Request)
 			querycontract.WriteError(w, http.StatusNotFound, "entity not found")
 			return
 		}
-		response["result_limits"] = entityContextResultLimits(response, entityID)
+		response["result_limits"] = contextResultLimits(response, entityID)
 		response["partial_reasons"] = querycontract.ContextPartialReasons(response)
-		querycontract.WriteSuccess(w, r, http.StatusOK, response, entityContextTruthEnvelope(h.profile()))
+		querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
 		return
 	}
 
@@ -404,13 +404,13 @@ func (h *EntityHandler) GetEntityContext(w http.ResponseWriter, r *http.Request)
 	response = enriched[0]
 	attachSemanticSummary(response)
 
-	response["result_limits"] = entityContextResultLimits(response, entityID)
+	response["result_limits"] = contextResultLimits(response, entityID)
 	response["partial_reasons"] = querycontract.ContextPartialReasons(response)
-	querycontract.WriteSuccess(w, r, http.StatusOK, response, entityContextTruthEnvelope(h.profile()))
+	querycontract.WriteSuccess(w, r, http.StatusOK, response, contextTruthEnvelope(h.profile()))
 }
 
 // GetServiceContext retrieves the context for a service by name. Exported so the staying graph-read-error tests keep driving the handler; see #6060.
-func (h *EntityHandler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetServiceContext(w http.ResponseWriter, r *http.Request) {
 	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.context_overview") {
 		querycontract.WriteContractError(
 			w,

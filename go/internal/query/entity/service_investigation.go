@@ -15,7 +15,7 @@ import (
 )
 
 // InvestigateService serves the service-investigation route. Exported so the staying graph-read-error test keeps driving the handler; see #6060.
-func (h *EntityHandler) InvestigateService(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) InvestigateService(w http.ResponseWriter, r *http.Request) {
 	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.context_overview") {
 		querycontract.WriteContractError(
 			w,

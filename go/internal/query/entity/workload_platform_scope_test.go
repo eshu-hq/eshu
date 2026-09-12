@@ -18,7 +18,7 @@ func TestFetchWorkloadPlatformRowsBatchesExactInstanceIDs(t *testing.T) {
 	t.Parallel()
 
 	runCalls := 0
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				runCalls++
@@ -94,7 +94,7 @@ func TestFetchWorkloadPlatformRowsOmitUnownedEvidenceForScopedTokens(t *testing.
 	t.Parallel()
 
 	calls := 0
-	handler := &EntityHandler{Neo4j: querytestutil.FakeWorkloadGraphReader{
+	handler := &Handler{Neo4j: querytestutil.FakeWorkloadGraphReader{
 		RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 			calls++
 			return []map[string]any{{"platform_id": "platform:unowned"}}, nil

@@ -184,8 +184,8 @@ entries:
     query_kind: cypher
     source:
       file: go/internal/query/entity/service_workload_resolution.go
-      symbol: (*EntityHandler).QueryServiceWorkloadCandidates
-      source_sha256: fdc6b119fc1e7d034e42541687d6637b34639ede0651cc9bf22681d1a6659640
+      symbol: (*Handler).QueryServiceWorkloadCandidates
+      source_sha256: c7e15b8992cf9036ff7e1755c5f6ecc93c68787feac792c962707ebab7797339
       line_hint: 228
     required_anchors:
       - label: Workload
@@ -209,9 +209,9 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/entity/entity_workload_context.go
-      symbol: (*EntityHandler).FetchWorkloadContextForOperation
-      source_sha256: 36f52c93aed8fde5f87eca4f9fc09159e259f2393c4cbdb811f88b319881d080
+      file: go/internal/query/entity/workload_context.go
+      symbol: (*Handler).FetchWorkloadContextForOperation
+      source_sha256: 422d958032fe8d37bc12c7ed086b19a9e94eaa208a3addc15aae4645714e0192
       line_hint: 54
     required_anchors:
       - label: Workload
@@ -269,9 +269,9 @@ entries:
     backend: nornicdb
     query_kind: cypher
     source:
-      file: go/internal/query/entity/entity_workload_platform.go
-      symbol: (*EntityHandler).FetchWorkloadPlatformResult
-      source_sha256: 79d0494f17862c6feda2f43275b91be64751820d84442b119ab658ec4f94f963
+      file: go/internal/query/entity/workload_platform.go
+      symbol: (*Handler).FetchWorkloadPlatformResult
+      source_sha256: 79fe5edddb6379a4d194f635adc961d05e9f41379a03ba7a3035f79c89e624e4
       line_hint: 54
     required_anchors:
       - label: Repository

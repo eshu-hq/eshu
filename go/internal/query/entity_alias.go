@@ -27,7 +27,7 @@ import (
 // EntityHandler is the entity-handler family type. Its home is entity/;
 // this alias keeps the APIRouter wiring and the cmd/api and cmd/mcp-server
 // constructors spelling query.EntityHandler unchanged. See #6060.
-type EntityHandler = entity.EntityHandler
+type EntityHandler = entity.Handler
 
 // attachSemanticSummary attaches the entity semantic summary to a result
 // row. Its home is entitysemantics; this wrapper keeps the staying

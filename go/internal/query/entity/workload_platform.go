@@ -3,11 +3,11 @@
 
 package entity
 
-// Split out of entity_workload_context.go (P3 review follow-up to #5764) to
+// Split out of workload_context.go (P3 review follow-up to #5764) to
 // keep that file under the repository's 500-line cap: this half owns the
 // direct-runtime WorkloadInstance-to-Platform edge lookup and the resulting
 // per-instance platform attachment, which FetchWorkloadContextForOperation
-// (entity_workload_context.go) and workload_runtime_topology.go call into but
+// (workload_context.go) and workload_runtime_topology.go call into but
 // do not otherwise share state with.
 
 import (
@@ -40,7 +40,7 @@ func (r workloadPlatformResult) Rows() []map[string]any {
 // repository and workload before batching exact instance ids. Exported for
 // the staying live determinism test that pins backend row selection;
 // see #6060.
-func (h *EntityHandler) FetchWorkloadPlatformRows(
+func (h *Handler) FetchWorkloadPlatformRows(
 	ctx context.Context,
 	repoID string,
 	workloadID string,
@@ -51,7 +51,7 @@ func (h *EntityHandler) FetchWorkloadPlatformRows(
 }
 
 // FetchWorkloadPlatformResult selects the attached-platform rows plus limit disclosure for one workload read. Exported for the staying live determinism test that pins backend row selection; see #6060.
-func (h *EntityHandler) FetchWorkloadPlatformResult(
+func (h *Handler) FetchWorkloadPlatformResult(
 	ctx context.Context,
 	repoID string,
 	workloadID string,

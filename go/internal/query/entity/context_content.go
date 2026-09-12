@@ -20,7 +20,7 @@ import (
 // see #6060.
 const GithubActionsSourceCacheTruncationReason = "github_actions_source_cache_truncated"
 
-func (h *EntityHandler) getEntityContextFromContent(ctx context.Context, entityID string) (map[string]any, error) {
+func (h *Handler) getEntityContextFromContent(ctx context.Context, entityID string) (map[string]any, error) {
 	if h == nil || h.Content == nil || entityID == "" {
 		return nil, nil
 	}
@@ -79,7 +79,7 @@ func (h *EntityHandler) getEntityContextFromContent(ctx context.Context, entityI
 // content_relationships.go) -- since at most one of the two typed fetches
 // runs per request. See #5343 review (truncation disclosure) and follow-up
 // #5367 (real pagination, not yet implemented).
-func (h *EntityHandler) reportK8sSelectCandidateScanTruncated(ctx context.Context, entityID string, entity *querycontract.EntityContent) {
+func (h *Handler) reportK8sSelectCandidateScanTruncated(ctx context.Context, entityID string, entity *querycontract.EntityContent) {
 	direction := "incoming"
 	if querycontract.IsK8sResourceKind(*entity, "Service") {
 		direction = "outgoing"

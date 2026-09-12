@@ -18,7 +18,7 @@ import (
 // complete query; queryselector already owns two complete MATCH statements
 // and already consumes RepositoryAccessFilter) so a handler-family
 // subpackage can hydrate the same repo identity without importing root.
-// This wrapper keeps root callers (entity.go, entity_content_types.go)
+// This wrapper keeps root callers (handler.go, content_types.go)
 // unchanged.
 func hydrateResolvedEntityRepoIdentity(
 	ctx context.Context,

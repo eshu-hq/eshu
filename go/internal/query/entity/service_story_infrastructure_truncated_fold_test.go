@@ -21,7 +21,7 @@ import (
 // round-11 review follow-up to #5764 (PR #5936, chatgpt-codex-connector
 // finding 2): when a service's resolved repository has more than
 // repositoryInfrastructureEntityLimit infrastructure rows,
-// FetchWorkloadContextForOperation (entity_workload_context.go) appends
+// FetchWorkloadContextForOperation (workload_context.go) appends
 // repository.InfrastructureTruncatedReason to the workload context's "limitations", and
 // buildServiceIdentity/the dossier whitelist loop
 // (story_dossier.go's enrichServiceStoryDossierResponseWithContext)
@@ -43,7 +43,7 @@ import (
 func TestGetServiceStoryInfrastructureTruncatedSetsResultLimitsTruncated(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.id = $workload_id": {

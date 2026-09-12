@@ -14,7 +14,7 @@
 // The root package keeps the *ContentReader route methods
 // (service_story_target_support.go,
 // service_story_target_support_source_only.go) and the entity package keeps
-// the *EntityHandler ones (entity/service_investigation.go,
+// the *Handler ones (entity/service_investigation.go,
 // entity/service_story_handler.go, entity/service_story_seam.go,
 // entity/service_story_supply_chain.go,
 // entity/service_workload_resolution.go): Go requires methods to live with

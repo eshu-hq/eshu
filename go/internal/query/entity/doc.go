@@ -2,12 +2,12 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package entity holds the entity-handler family (Issue #6060, lane B):
-// the EntityHandler HTTP surface (entity resolve, entity context, workload
+// the Handler HTTP surface (entity resolve, entity context, workload
 // context/story, service context/story, service investigation) plus every
 // file that declares one of its methods, the workload runtime-topology and
 // provisioned-platform reads behind the workload context, and the
 // platform-topology edge shaping the platform reads share. It also absorbs
-// the B4 EntityHandler service seam (service story envelope, service story
+// the B4 Handler service seam (service story envelope, service story
 // handler, supply-chain enrichment, service investigation, service workload
 // resolution): those methods moved with their receiver type.
 //

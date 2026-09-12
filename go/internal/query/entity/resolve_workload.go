@@ -15,7 +15,7 @@ import (
 
 var errWorkloadGraphUnavailable = errors.New("authoritative graph workload resolution is unavailable")
 
-func (h *EntityHandler) writeWorkloadEntityResolution(
+func (h *Handler) writeWorkloadEntityResolution(
 	w http.ResponseWriter,
 	r *http.Request,
 	req ResolveEntityRequest,
@@ -64,7 +64,7 @@ func workloadEntityResolveTruthEnvelope(profile querycontract.QueryProfile) *que
 }
 
 // ResolveWorkloadEntities resolves workload entities by name. Exported so the staying queryplan execution test keeps driving the handler; see #6060.
-func (h *EntityHandler) ResolveWorkloadEntities(
+func (h *Handler) ResolveWorkloadEntities(
 	ctx context.Context,
 	name string,
 	repoID string,
@@ -97,12 +97,12 @@ func (h *EntityHandler) ResolveWorkloadEntities(
 			"repo_id":   querycontract.StringVal(row, "repo_id"),
 			"repo_name": querycontract.StringVal(row, "repo_name"),
 		}
-		id := entityString(entity, "id")
+		id := stringField(entity, "id")
 		if id == "" {
 			continue
 		}
 		if existing, ok := entitiesByID[id]; ok {
-			if entityString(existing, "repo_id") == "" && entityString(entity, "repo_id") != "" {
+			if stringField(existing, "repo_id") == "" && stringField(entity, "repo_id") != "" {
 				existing["repo_id"] = entity["repo_id"]
 			}
 			continue
@@ -118,14 +118,14 @@ func (h *EntityHandler) ResolveWorkloadEntities(
 }
 
 // HydrateResolvedWorkloadRepoNames fills repository names on resolved workload entities. Exported so the staying queryplan execution test keeps driving the handler; see #6060.
-func (h *EntityHandler) HydrateResolvedWorkloadRepoNames(
+func (h *Handler) HydrateResolvedWorkloadRepoNames(
 	ctx context.Context,
 	entities []map[string]any,
 ) error {
 	repoIDs := make([]string, 0, len(entities))
 	for _, entity := range entities {
-		if entityString(entity, "repo_name") == "" {
-			repoIDs = append(repoIDs, entityString(entity, "repo_id"))
+		if stringField(entity, "repo_name") == "" {
+			repoIDs = append(repoIDs, stringField(entity, "repo_id"))
 		}
 	}
 	repoIDs = querycontract.UniqueSortedStrings(repoIDs)
@@ -145,8 +145,8 @@ func (h *EntityHandler) HydrateResolvedWorkloadRepoNames(
 	}
 
 	for _, entity := range entities {
-		if entityString(entity, "repo_name") == "" {
-			entity["repo_name"] = names[entityString(entity, "repo_id")]
+		if stringField(entity, "repo_name") == "" {
+			entity["repo_name"] = names[stringField(entity, "repo_id")]
 		}
 	}
 	return nil

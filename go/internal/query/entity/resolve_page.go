@@ -33,7 +33,7 @@ func resolvedEntityResponse(entities []map[string]any, limit int, truncated bool
 	}
 }
 
-func entityResolveTruthEnvelope(profile querycontract.QueryProfile) *querycontract.TruthEnvelope {
+func resolveTruthEnvelope(profile querycontract.QueryProfile) *querycontract.TruthEnvelope {
 	return querycontract.BuildTruthEnvelope(
 		profile,
 		"code_search.fuzzy_symbol",

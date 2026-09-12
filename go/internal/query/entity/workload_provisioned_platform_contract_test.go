@@ -32,7 +32,7 @@ func TestFetchProvisionedPlatformsReportsUniqueSentinel(t *testing.T) {
 		}
 		return rows, nil
 	}}
-	result, err := (&EntityHandler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")
+	result, err := (&Handler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")
 	if err != nil {
 		t.Fatalf("FetchProvisionedPlatformResult() error = %v", err)
 	}
@@ -62,7 +62,7 @@ func TestFetchProvisionedPlatformsKeepsRepositoryTopologySeparate(t *testing.T) 
 			"platform_edge":   map[string]any{"source_fact_id": "fact-platform"},
 		}}, nil
 	}}
-	handler := &EntityHandler{Neo4j: reader}
+	handler := &Handler{Neo4j: reader}
 
 	result, err := handler.FetchProvisionedPlatformResult(t.Context(), "repository:orders")
 	if err != nil {
@@ -91,7 +91,7 @@ func TestFetchProvisionedPlatformsRejectsNonJSONRelationshipProperties(t *testin
 		}}, nil
 	}}
 
-	_, err := (&EntityHandler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")
+	_, err := (&Handler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")
 	if err == nil || !strings.Contains(err.Error(), "marshal graph relationship properties") {
 		t.Fatalf("FetchProvisionedPlatformResult() error = %v, want non-JSON relationship-property error", err)
 	}
@@ -113,7 +113,7 @@ func TestFetchProvisionedPlatformsOrdersSamePlatformByRepositoryEndpoints(t *tes
 		}, nil
 	}}
 
-	result, err := (&EntityHandler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")
+	result, err := (&Handler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")
 	if err != nil {
 		t.Fatalf("FetchProvisionedPlatformResult() error = %v", err)
 	}
@@ -184,7 +184,7 @@ func buildDeterminismProvisionedPlatforms(t *testing.T, rows []map[string]any) P
 	reader := querytestutil.FakeGraphReader{RunFn: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
 		return rows, nil
 	}}
-	result, err := (&EntityHandler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")
+	result, err := (&Handler{Neo4j: reader}).FetchProvisionedPlatformResult(t.Context(), "repository:orders")
 	if err != nil {
 		t.Fatalf("FetchProvisionedPlatformResult() error = %v", err)
 	}

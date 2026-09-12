@@ -55,7 +55,7 @@ func TestFetchWorkloadDeploymentTopologyReturnsStructuredEmptyLimits(t *testing.
 		return []map[string]any{}, nil
 	}}
 
-	result, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadDeploymentTopology(
+	result, err := (&Handler{Neo4j: reader}).FetchWorkloadDeploymentTopology(
 		t.Context(), "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
 		"repository:orders", false,
 	)
@@ -92,7 +92,7 @@ func TestFetchWorkloadDeploymentTopologyOmitsUnownedRuntimeForScopedTokens(t *te
 		AllowedRepositoryIDs: []string{"repository:allowed"},
 	})
 
-	result, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadDeploymentTopology(
+	result, err := (&Handler{Neo4j: reader}).FetchWorkloadDeploymentTopology(
 		ctx, "w.id = $workload_id", map[string]any{"workload_id": "workload:orders"},
 		"repository:allowed", false,
 	)
@@ -128,7 +128,7 @@ func TestFetchWorkloadPlatformResultReportsSentinel(t *testing.T) {
 		}
 		return rows, nil
 	}}
-	result, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadPlatformResult(
+	result, err := (&Handler{Neo4j: reader}).FetchWorkloadPlatformResult(
 		t.Context(), "repository:orders", "workload:orders",
 		[]map[string]any{{"instance_id": "instance:orders:prod"}},
 	)
@@ -153,7 +153,7 @@ func TestFetchWorkloadPlatformResultRejectsNonJSONRelationshipProperties(t *test
 		}}, nil
 	}}
 
-	_, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadPlatformResult(
+	_, err := (&Handler{Neo4j: reader}).FetchWorkloadPlatformResult(
 		t.Context(), "repository:orders", "workload:orders",
 		[]map[string]any{{"instance_id": "workload-instance:orders:prod"}},
 	)

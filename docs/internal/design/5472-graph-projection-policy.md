@@ -40,7 +40,7 @@ The silent-omit surfaces identified in the terrain:
 | Story surface | Omitted link | File:line |
 | --- | --- | --- |
 | get_service_story evidence_graph | ci_cd/supply-chain links in Postgres | `service_story_seam.go:83-90`, `service_story_supply_chain.go:322-347` |
-| get_workload_story | ci_cd/image/package chain absent | `entity_workload_handlers.go:60-103` |
+| get_workload_story | ci_cd/image/package chain absent | `entity/workload_handlers.go` |
 | get_repo_story | publication/ownership/image links | `repository/story.go` |
 | trace_deployment_chain | image_ref→digest identity + which-CI-run-produced-image hop | `impact/trace_deployment.go`, `impact/trace_deployment_resources.go` |
 

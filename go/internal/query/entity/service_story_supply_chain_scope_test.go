@@ -33,7 +33,7 @@ func TestServiceStorySupplyChainEvidenceExplainsRepoOnlyImageCandidate(t *testin
 	imageStore := &serviceStoryExplainingImageIdentityStore{
 		serviceStoryImageIdentityStore: serviceStoryImageIdentityStore{rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{}},
 	}
-	handler := &EntityHandler{
+	handler := &Handler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          &serviceStorySBOMAttachmentStore{},
 	}
@@ -99,7 +99,7 @@ func TestServiceStorySupplyChainEvidenceExplainsOCIRegistryTargetOutsideScope(t 
 		},
 	}
 	sbomStore := &serviceStorySBOMAttachmentStore{}
-	handler := &EntityHandler{
+	handler := &Handler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          sbomStore,
 	}

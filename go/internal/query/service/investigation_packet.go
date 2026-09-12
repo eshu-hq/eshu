@@ -14,7 +14,7 @@ import (
 // This file hosts the pure service-investigation packet builders behind the
 // service investigation route and the service-story overview (Issue #6060,
 // lane B B4). They moved here from the query root (service_investigation.go),
-// whose *EntityHandler route method must stay in package query: Go requires
+// whose *Handler route method must stay in package entity: Go requires
 // methods to live with their receiver type. The staying route method keeps
 // serving the same packet through the exported BuildServiceInvestigationPacket
 // home. Bodies are unchanged modulo package qualifiers and the export renames

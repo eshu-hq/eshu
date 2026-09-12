@@ -18,7 +18,7 @@ func TestGetServiceContextOmitsRepoEntryPoints(t *testing.T) {
 	t.Parallel()
 
 	entryPointQueried := false
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
@@ -79,7 +79,7 @@ func TestGetServiceContextOmitsRepoEntryPoints(t *testing.T) {
 func TestFetchWorkloadContextAnchorsFollowUpQueriesByResolvedWorkloadID(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
@@ -120,7 +120,7 @@ func TestFetchWorkloadContextAnchorsFollowUpQueriesByResolvedWorkloadID(t *testi
 func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{
 				"w.name = $service_name": {
@@ -253,7 +253,7 @@ func TestGetServiceContextIncludesGraphDeploymentEvidenceWithoutContent(t *testi
 func TestGetWorkloadStoryReturnsNotFoundForMissingWorkload(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{},
 			RunByMatch:       map[string][]map[string]any{},

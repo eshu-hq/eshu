@@ -18,7 +18,7 @@ import (
 func TestResolveEntityAcceptsRepositorySelectorAlias(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})-[:REPO_CONTAINS]->(f:File)-[:CONTAINS]->(e)") {
@@ -72,7 +72,7 @@ func TestResolveEntityAcceptsRepositorySelectorAlias(t *testing.T) {
 func TestResolveEntityMissingCanonicalContentIDSkipsBroadGraphNameScan(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				t.Fatalf("missing canonical content ID reached graph name scan:\n%s", cypher)

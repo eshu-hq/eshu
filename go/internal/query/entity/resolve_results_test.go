@@ -20,7 +20,7 @@ import (
 func TestResolveEntityRanksCanonicalServiceEntitiesAheadOfAnonymousDirectories(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
@@ -141,7 +141,7 @@ func TestResolveEntityRanksCanonicalServiceEntitiesAheadOfAnonymousDirectories(t
 func TestResolveEntityBackfillsRepoIdentityForCanonicalMatches(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
@@ -246,7 +246,7 @@ func TestResolveEntityBackfillsRepoIdentityForCanonicalMatches(t *testing.T) {
 func TestResolveEntityReplacesGraphProjectionPlaceholdersWithContentRepoIdentity(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {

@@ -298,7 +298,7 @@ func buildServiceResultLimitsWithContext(buildCtx serviceStoryBuildContext) map[
 	// "truncated" field (round-11 review follow-up to #5764, PR #5936,
 	// mirroring the P3 fix already applied to getRepositoryStory in
 	// repository/handler.go): fetchWorkloadContextForOperation
-	// (entity_workload_context.go) appends repository.InfrastructureTruncatedReason to
+	// (entity/workload_context.go) appends repository.InfrastructureTruncatedReason to
 	// workloadContext["limitations"] when the infrastructure read lands past
 	// repositoryInfrastructureEntityLimit, but that reason previously reached
 	// only answer_metadata.partial_reasons -- never this "truncated" field,

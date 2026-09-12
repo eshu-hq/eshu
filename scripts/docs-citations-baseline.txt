@@ -352,12 +352,6 @@ LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/compar
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/content_reader_repository_catalog.go:107
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/content_reader_repository_catalog.go:89
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/entity.go:283
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/entity.go:58
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/entity_workload_context.go:261
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/entity_workload_context.go:280
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/entity_workload_context.go:286
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/entity_workload_context.go:286
-LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/entity_workload_handlers.go:29
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/infra_relationship_filter.go:88
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/repository_read_model_summary.go:114
 LINE docs/internal/design/5385-workload-identity-key.md go/internal/query/repository_read_model_summary.go:96

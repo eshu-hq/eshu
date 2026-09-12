@@ -67,7 +67,7 @@ func TestServiceStorySupplyChainEvidenceAttachesExactImageAndSBOM(t *testing.T) 
 			serviceStoryTestDigest: {serviceStoryAttachedSBOM(serviceStoryTestDigest)},
 		},
 	}
-	handler := &EntityHandler{
+	handler := &Handler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          sbomStore,
 	}
@@ -137,7 +137,7 @@ func TestGetServiceStoryEnvelopeIncludesSupplyChainEvidence(t *testing.T) {
 			serviceStoryTestDigest: {serviceStoryAttachedSBOM(serviceStoryTestDigest)},
 		},
 	}
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {
@@ -207,7 +207,7 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForAmbiguousTags(t *testing.T
 		},
 	}
 	sbomStore := &serviceStorySBOMAttachmentStore{}
-	handler := &EntityHandler{
+	handler := &Handler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          sbomStore,
 	}
@@ -242,7 +242,7 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForStaleIdentity(t *testing.T
 		},
 	}
 	sbomStore := &serviceStorySBOMAttachmentStore{}
-	handler := &EntityHandler{
+	handler := &Handler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          sbomStore,
 	}
@@ -284,7 +284,7 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForUnattachedSBOM(t *testing.
 			}},
 		},
 	}
-	handler := &EntityHandler{
+	handler := &Handler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          sbomStore,
 	}
@@ -351,7 +351,7 @@ func TestServiceStorySupplyChainEvidenceReportsRepoOnlyHelmValuesImageRef(t *tes
 	t.Parallel()
 
 	imageStore := &serviceStoryImageIdentityStore{rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{}}
-	handler := &EntityHandler{
+	handler := &Handler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          &serviceStorySBOMAttachmentStore{},
 	}
@@ -397,7 +397,7 @@ func TestServiceStorySupplyChainEvidenceBoundsImageRefLookups(t *testing.T) {
 		refs = append(refs, fmt.Sprintf("registry.example.com/team/api:%03d", i))
 	}
 	imageStore := &serviceStoryImageIdentityStore{rowsByImageRef: map[string][]supplychain.ContainerImageIdentityRow{}}
-	handler := &EntityHandler{
+	handler := &Handler{
 		ContainerImageIdentities: imageStore,
 		SBOMAttachments:          &serviceStorySBOMAttachmentStore{},
 	}

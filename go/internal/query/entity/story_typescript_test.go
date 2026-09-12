@@ -17,7 +17,7 @@ import (
 func TestGetEntityContextUsesGraphTypeScriptClassFamilyWithoutContent(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if got, want := params["entity_id"], "class-ts-1"; got != want {

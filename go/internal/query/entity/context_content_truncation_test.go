@@ -14,7 +14,7 @@ import (
 
 // entityContextFakeContentStore backs a single GetEntityContent lookup plus
 // a controllable ListRepoEntitiesByType, so getEntityContextFromContent (the
-// response-assembly layer entity_context_content.go) can be exercised
+// response-assembly layer context_content.go) can be exercised
 // end-to-end through buildContentRelationshipSet without a real Postgres
 // content store.
 type entityContextFakeContentStore struct {
@@ -97,7 +97,7 @@ func TestGetEntityContextFromContentDisclosesK8sSelectTruncation(t *testing.T) {
 		},
 	}
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Content: entityContextFakeContentStore{entity: &service, rows: candidates},
 		ContentRelationships: scriptedContentRelationshipBuilder{set: querycontract.ContentRelationshipSet{
 			ScanTruncated: true,
@@ -153,7 +153,7 @@ func TestGetEntityContextFromContentOmitsTruncationFieldsBelowLimit(t *testing.T
 		},
 	}
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Content:              entityContextFakeContentStore{entity: &service, rows: []querycontract.EntityContent{deployment}},
 		ContentRelationships: scriptedContentRelationshipBuilder{},
 	}
@@ -185,7 +185,7 @@ func TestGetEntityContextFromContentDisclosesTruncatedWorkflowSource(t *testing.
 		},
 	}
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Content:              entityContextFakeContentStore{entity: &workflow},
 		ContentRelationships: scriptedContentRelationshipBuilder{},
 	}
@@ -202,7 +202,7 @@ func TestGetEntityContextFromContentDisclosesTruncatedWorkflowSource(t *testing.
 	if got := querycontract.ContextPartialReasons(response); len(got) != 1 || got[0] != GithubActionsSourceCacheTruncationReason {
 		t.Fatalf("partial_reasons = %#v, want [%q]", got, GithubActionsSourceCacheTruncationReason)
 	}
-	limits := entityContextResultLimits(response, workflow.EntityID)
+	limits := contextResultLimits(response, workflow.EntityID)
 	if truncated, _ := limits["truncated"].(bool); !truncated {
 		t.Fatal("result_limits.truncated = false, want true for incomplete workflow relationship truth")
 	}

@@ -20,11 +20,12 @@ the root `query.ServiceCatalogHandler` alias unchanged.
 ## Ownership boundary
 
 This package owns handler orchestration for the service routes and the pure
-shaping behind the service reads. The `*EntityHandler` investigation/story/
-workload-resolution methods and the `*ContentReader` target-support methods
-stay in the query root: Go requires methods to live with their receiver
-type. Those stayers call into this package's exported homes (`service_alias.go`
-keeps every other caller compiling unchanged).
+shaping behind the service reads. The `*Handler` investigation/story/
+workload-resolution methods live in the `entity` package, and the
+`*ContentReader` target-support methods stay in the query root: Go requires
+methods to live with their receiver type. Those callers use this package's
+exported homes (`service_alias.go` keeps every other caller compiling
+unchanged).
 
 The deployment-trace enrichment the service enrichment consumes
 (provisioning candidates, source chains, consumer enrichment, hostname

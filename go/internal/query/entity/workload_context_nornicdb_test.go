@@ -17,7 +17,7 @@ import (
 func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafety(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, params map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "OPTIONAL MATCH") || strings.Contains(cypher, "collect(DISTINCT {") {
@@ -194,7 +194,7 @@ func TestFetchWorkloadContextUsesScalarQueriesForNornicDBOptionalProjectionSafet
 func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformShortcut(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				if !strings.Contains(cypher, "RETURN w.id as id, w.name as name, w.kind as kind") {
@@ -347,7 +347,7 @@ func TestFetchWorkloadContextPrefersInstanceRunsOnTruthOverProvisionedPlatformSh
 func TestFetchDeploymentTraceKeepsProvisionedPlatformSeparateWhenInstanceRunsOnMissing(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleFn: func(_ context.Context, cypher string, _ map[string]any) (map[string]any, error) {
 				if strings.Contains(cypher, "MATCH (r:Repository {id: $repo_id})") {

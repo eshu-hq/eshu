@@ -9,13 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// entityContextResultLimits builds the shared result_limits drilldown block
+// contextResultLimits builds the shared result_limits drilldown block
 // for an entity context payload. It caps the relationships fan-out in
 // place, reports deterministic ordering, and names the next prompt tool
 // plus the self path so callers can drill down without falling back to raw
 // Cypher. It moved with the entity family for #6060 (lane B B5): the only
 // production callers are the entity context routes.
-func entityContextResultLimits(response map[string]any, entityID string) map[string]any {
+func contextResultLimits(response map[string]any, entityID string) map[string]any {
 	relationships := querycontract.MapSliceValue(response, "relationships")
 	total := len(relationships)
 	if total > querycontract.ContextStoryItemLimit {

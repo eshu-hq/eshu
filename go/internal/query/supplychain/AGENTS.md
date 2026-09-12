@@ -66,7 +66,7 @@ not export a new symbol without adding its caller to this list.
   (via the root alias).
 - Container-image / SBOM / security-alert store ports and their
   filter/row/page/count values — the staying Postgres implementations,
-  `entity.go`, the incident-context stores, and `cmd/*` wiring (via the
+  `entity/handler.go`, the incident-context stores, and `cmd/*` wiring (via the
   root aliases). The three filter `HasScope` methods are exported because
   the staying implementations call them across the boundary (advisory
   precedent: `AdvisoryEvidenceFilter.HasScope`).
