@@ -52,7 +52,7 @@ All commands ran from the feature worktree with `GOTOOLCHAIN=go1.26.6` and
 | Ifá hostile/static mirror | `bash scripts/test-verify-ifa-fault-injection.sh` | pass; 49 cells and four-shard exact cover |
 | Kubernetes provenance verifier | `bash scripts/test-verify-k8s-two-team-governance-proof.sh` | pass for the exact index or amd64 child on `linux/amd64`; arm64, wrong index, repository, platform child, version, and invented source revision fail closed |
 | Governance selector controls | `bash scripts/test-verify-two-team-governance-proof.sh` and `bash scripts/test-verify-k8s-two-team-governance-proof.sh` | pass; own-selector missing, non-200, wrong-identity, and API/MCP divergence cases fail closed before cross-scope 403/404 evidence is accepted |
-| Helm storage migration | isolated Minikube install of chart `0.0.3-pre-release-22`, upgrade to candidate, and rollback | pass; unacknowledged upgrade blocked, acknowledged upgrade preserved both claims and mounted fresh v1.3.1 storage, rollback remounted the legacy claim, and its sentinel remained intact |
+| Helm storage migration | isolated Minikube install of chart `0.0.3-pre-release-21` at `a281fad7523b`, upgrade to candidate `0.0.3-pre-release-23`, and rollback | pass; the failed unacknowledged upgrade mutated neither the Helm revision, Deployment contract, nor PVC contract; the acknowledged upgrade switched the exact v1.2.3 image and legacy claim to the exact v1.3.1 image and fresh claim; rollback restored the old image, claim, and sentinel |
 | Remote-evidence gate selection | `bash scripts/test-verify-remote-validation-artifacts.sh` | 34 passed; runner, verifier, helper, test, and fixture paths select the gate |
 | Relationship identity | `cd go && go test ./internal/storage/cypher -run 'TestProvenanceEdgeWriterLive(LegacyRowSetMigration|SamePairAssertionIsolation)' -count=1 -v` against the exact v1.3.1 amd64 container | pass; legacy migration, duplicate delivery, eight-way concurrent delivery, retry, and scoped retract isolation |
 | R-5 replay | `bash scripts/verify-replay-tier.sh` | pass; offline graph truth and tombstone/idempotent replay completed in 87 seconds; SQL UNION branches passed live in 48 seconds |
@@ -79,12 +79,12 @@ maintenance-drain latency.
 
 ## Live local Kubernetes proof
 
-The exact implementation commit `3bcb17130` passed
+The exact implementation commit `98589eba1` passed
 `bash scripts/run-k8s-two-team-governance-proof.sh --artifacts <temporary-dir>`
 on a disposable single-node `linux/amd64` Minikube v1.39.0 / Kubernetes v1.37.0
-cluster using the Docker runtime and Calico. The 674-second (11m14s) total
-included the uncached post-rebase Eshu image build, Helm deployment, two-repo
-seed, API and MCP capture, artifact verification, and namespace cleanup.
+cluster using the Docker runtime and Calico, under a 20-minute outer bound. The
+run included the post-rebase Eshu image build, Helm deployment, two-repo seed,
+API and MCP capture, artifact verification, and namespace cleanup.
 
 The Pod specification used the immutable v1.3.1 multi-architecture index. The
 runtime reported that same immutable index, the node reported `linux/amd64`,
@@ -93,13 +93,15 @@ and the running binary reported `NornicDB v1.3.1`. The verifier passed:
 - unauthenticated API and MCP rejection;
 - admin visibility of both seeded repositories;
 - one-repository visibility for each team through both API and MCP;
+- each team's own repository selector returned `200` and the exact expected
+  repository ID through both API and MCP;
 - cross-scope omission and matching non-disclosing `404` selectors;
 - API/MCP parity;
 - four applied NetworkPolicy objects with the restricted-egress chart mode;
 - exact NornicDB provenance and artifact redaction.
 
 The normalized six-file artifact checksum was
-`sha256:9e55be4607d74c561debfffdfad2674caa55c2bb4e619465179eb79c3545b4f3`.
+`sha256:8b8e05399b5e74cb6e77b89b395d8cb070823e37ad804ac5157c985942f742fb`.
 This is local single-node evidence, not a production, managed-cluster,
 multi-node, arm64-runtime, or in-place-upgrade claim. It proves the restricted
 NetworkPolicy objects were applied on a Calico-backed cluster; it is not a
@@ -143,15 +145,23 @@ writers and preserving the old graph. The keeper uses the prior chart-authored
 PVC shape rather than API-defaulted or binder-owned fields.
 
 Two isolated Minikube upgrade/rollback runs covered defaulted and explicitly
-configured storage classes. The defaulted-class run wrote a sentinel to the
-legacy PVC, blocked the unacknowledged upgrade, mounted the fresh claim after
-acknowledgement, retained both claims, rolled back to the legacy claim, and
-read the sentinel intact. The explicit-class run rejected mismatched requested
-size and storage class before rollout, accepted matching values, and rolled
-back successfully. The supported operational migration still rebuilds from
-the durable Postgres fact store and verifies queues and graph truth before
-cutover. An older NornicDB binary must not open a volume modified by v1.3.1
-without separate reverse-compatibility proof.
+configured storage classes. The defaulted-class run began at the exact prior
+chart `0.0.3-pre-release-21`, whose running image was
+`v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`
+on the legacy PVC. It wrote and read back a sentinel, then proved an
+unacknowledged upgrade changed neither Helm revision, Deployment contract, nor
+PVC contract. The acknowledged candidate ran the exact v1.3.1 digest on only
+the fresh claim; the legacy claim kept the same UID and sentinel, while the
+fresh claim did not contain that sentinel. Rollback restored the exact prior
+image and legacy claim with the sentinel intact. Both NornicDB claims remained
+retained, and the v1.3.1 claim was unmounted after rollback. The
+explicit-class run rejected mismatched requested size and storage class before
+rollout, accepted matching values, and rolled back successfully. This proves
+storage isolation and rollback mechanics, not in-place format compatibility.
+The supported operational migration still rebuilds from the durable Postgres
+fact store and verifies queues and graph truth before cutover. An older
+NornicDB binary must not open a volume modified by v1.3.1 without separate
+reverse-compatibility proof.
 
 ## Operational signal
 
