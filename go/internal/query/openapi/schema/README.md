@@ -41,6 +41,6 @@ constant produces is unchanged.
 
 `openapi_impact_k8s_limits.go` and `openapi_supply_chain_runtime_context.go`
 also moved here in that same pass, then moved again — as `impact.K8sResourceLimits`
-and `supplychain.RuntimeContext` — once the consumer census showed each had
+and `chain.RuntimeContext` (`paths/supply/chain/`) — once the consumer census showed each had
 only one leaf consumer, not the parent-and-leaf or multi-leaf case this
 package exists for.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package supplychain
+package chain
 
 // Images is the OpenAPI path fragment documenting the `/api/v0/images` route.
 // openapi.Spec concatenates it into the published document; keep it in

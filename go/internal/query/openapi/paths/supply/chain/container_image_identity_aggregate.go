@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package supplychain
+package chain
 
 // ContainerImageIdentityAggregate is the OpenAPI path fragment documenting the
 // `/api/v0/supply-chain/container-images/identities/count`,

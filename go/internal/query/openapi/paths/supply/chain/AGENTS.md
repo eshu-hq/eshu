@@ -1,7 +1,7 @@
 # Supply-Chain OpenAPI Path Fragments — Agent Instructions
 
-Scope: `go/internal/query/openapi/paths/supplychain/` (package
-`supplychain`).
+Scope: `go/internal/query/openapi/paths/supply/chain/` (package
+`chain`).
 
 ## Ownership
 
@@ -26,7 +26,7 @@ alongside them.
   fragment as its own file and extend that composition; do not inline a
   new fragment's body into `routes.go`.
 - These are documentation fragments, not the routes themselves. A change
-  to a real `supplychain` handler's method, path, or request/response
+  to a real supply-chain handler's method, path, or request/response
   shape must be mirrored here or `scripts/verify-openapi.sh` will report
   drift.
 
@@ -45,4 +45,4 @@ Keep `scripts/verify-openapi.sh` green after any change (see
 `openapi/AGENTS.md` for what it checks), and update
 `docs/public/reference/http-api.md` in the same PR for any wire-visible
 change. Run `cd go && go build ./internal/query/...` and
-`gofmt -l internal/query/openapi/paths/supplychain` after any edit here.
+`gofmt -l internal/query/openapi/paths/supply/chain` after any edit here.

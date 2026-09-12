@@ -23,7 +23,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/search"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/service"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/status"
-	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/supplychain"
+	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/supply/chain"
 )
 
 const swaggerUIHTML = `<!doctype html>
@@ -124,19 +124,19 @@ func Spec() string {
 			infrastructure.Kubernetes+
 			infrastructure.SecretsIAM+
 			infrastructure.ObservabilityCoverage+
-			supplychain.Images+
-			supplychain.TagHistory+
-			supplychain.VulnerabilityScannerContract+
-			supplychain.ContainerImages+
-			supplychain.Routes+
-			supplychain.ImpactAggregate+
-			supplychain.SecurityAlerts+
-			supplychain.SecurityAlertAggregate+
-			supplychain.ContainerImageIdentityAggregate+
-			supplychain.AdvisoryCatalog+
-			supplychain.AdvisoryEvidence+
-			supplychain.SBOMAttestations+
-			supplychain.SBOMAttestationAttachmentAggregate+
+			chain.Images+
+			chain.TagHistory+
+			chain.VulnerabilityScannerContract+
+			chain.ContainerImages+
+			chain.Routes+
+			chain.ImpactAggregate+
+			chain.SecurityAlerts+
+			chain.SecurityAlertAggregate+
+			chain.ContainerImageIdentityAggregate+
+			chain.AdvisoryCatalog+
+			chain.AdvisoryEvidence+
+			chain.SBOMAttestations+
+			chain.SBOMAttestationAttachmentAggregate+
 			evidence.IncidentContext+
 			evidence.WorkItem+
 			evidence.VisualizationPackets+

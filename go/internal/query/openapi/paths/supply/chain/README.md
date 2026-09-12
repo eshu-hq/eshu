@@ -63,3 +63,10 @@ These 16 files moved here verbatim from the query root (Issue #6060 lane C,
 Only the package clause, file names, and (for `impact_findings.go` and
 `impact_explain.go`) the `openapi/schema` import path changed; the JSON
 each constant renders is unchanged.
+
+The directory then nested a second time, from `paths/supplychain/` (package
+`supplychain`) to `paths/supply/chain/` (package `chain`): the owner treats
+`supplychain` as a glued compound under `docs/internal/naming.md` rule 3, the
+same ruling applied to `go/internal/query/supplychain/` in a sibling PR. Only
+the package clause and the directory changed; the JSON each constant renders
+is unchanged, and the assembled document stayed byte-identical.

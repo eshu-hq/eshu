@@ -22,7 +22,7 @@ Layout:
   the bulk of the schemas and concatenates the other six in place.
 
 The route fragments live one package per family under `paths/` (`paths/auth`,
-`paths/code`, `paths/supplychain`, and the rest); `spec.go` imports each and
+`paths/code`, `paths/supply/chain`, and the rest); `spec.go` imports each and
 concatenates its exported constants in the exact order the published `paths`
 block must render them. Reordering that concatenation reorders the published
 document, not just this package's source — the JSON key order it produces is

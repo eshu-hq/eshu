@@ -652,7 +652,7 @@ reducer-owned `repository_ids`, `workload_ids`, and `service_ids` payload arrays
 so a scoped request with no matching evidence returns scoped zero instead of
 falling back to global attachment totals. The handler validates the
 `attachment_status` and `artifact_kind` filters against the same closed
-enums the list endpoint advertises in `openapi/paths/supplychain/sbom_attestations.go`,
+enums the list endpoint advertises in `openapi/paths/supply/chain/sbom_attestations.go`,
 so typos surface as 400 instead of silently returning zero counts.
 
 No-Regression Evidence: `go test ./internal/query -run

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package supplychain holds the OpenAPI path fragments for the
-// supply-chain routes: container image inventory (Images, ContainerImages),
+// Package chain holds the OpenAPI path fragments for the supply-chain
+// routes: container image inventory (Images, ContainerImages),
 // tag history (TagHistory), vulnerability scanner metadata
 // (VulnerabilityScannerContract), impact analysis (ImpactAggregate, plus the
 // unexported impactFindings and impactExplain), security alerts (SecurityAlerts,
@@ -21,4 +21,4 @@
 // openapi parent. At 16 files it is the largest leaf under paths/ and
 // closest to the 40-non-test-file directory cap the dirgate linter
 // enforces; check the cap before adding another fragment here.
-package supplychain
+package chain
