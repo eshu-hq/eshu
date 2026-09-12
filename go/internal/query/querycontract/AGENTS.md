@@ -39,6 +39,21 @@
   Naming a basis for a score that does not exist tells a caller the field was
   computed when it was not.
 
+- (#6642) `WriteUnauthorized`'s WWW-Authenticate header MUST stay
+  OAuth-challenge-aware: bare `"Bearer"` for a nil/not-ok policy or a
+  handler-level call site that never carried an `OAuthChallengePolicy`
+  (`RequestWithOAuthChallenge` was never called on that request), and the RFC
+  9728 `resource_metadata` (plus RFC 6750 `scope`) directive only when a
+  policy attached via `RequestWithOAuthChallenge` reports `ok=true` with a
+  non-empty metadata URL. This is a security-critical decision table
+  (issue #5163); do not widen or narrow which call sites can carry the
+  challenge without re-reading `unauthorized.go`'s doc comments.
+- (#6642) This package MAY import `queryauth` (already does, for
+  `RepositoryAccessFilterFromContext`); `queryauth` MUST NOT import this
+  package back, or the two leaves cycle. That is the reason
+  `WriteUnauthorized`/`WritePermissionDenied`/`RequirePermissionFeature` live
+  here instead of in the more auth-shaped `queryauth`.
+
 ## Verification
 
 Run focused `querycontract` and root `query` tests, then whole-module build and

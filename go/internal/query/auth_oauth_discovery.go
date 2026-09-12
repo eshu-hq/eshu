@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // DefaultOAuthChallengeScope is the space-delimited OAuth scope string
@@ -77,21 +79,11 @@ type OAuthProtectedResourceMetadata struct {
 
 // OAuthChallengePolicy supplies the per-request RFC 9728/RFC 6750 OAuth
 // challenge parameters a 401's WWW-Authenticate header adds (issue #5163,
-// F-2): the protected-resource-metadata document URL and the scope string a
-// client should request. Implementations must derive "is OAuth enabled"
-// from the SAME posture DeriveAuthPosture computes (provider rows + sign-in
-// policy) so the challenge and OAuthProtectedResourceHandler's own
-// enablement gate never disagree — see PostureOAuthChallengePolicy.
-// ok=false (or an empty metadataURL) leaves the challenge exactly the
-// pre-#5163 bare "Bearer" — the safe default for a nil policy, a
-// posture-derivation error, and a token-only deployment alike. See
-// unauthorizedResponse and oauthWWWAuthenticateChallenge in auth.go for the
-// one call site this is consumed from, and auth_oauth_challenge_context.go
-// for how it reaches that call site without changing unauthorizedResponse's
-// signature.
-type OAuthChallengePolicy interface {
-	OAuthChallenge(ctx context.Context) (metadataURL, scope string, ok bool)
-}
+// F-2). It lives in querycontract (#6642) as a types-only hoist alongside
+// WriteUnauthorized, which needs it: PostureOAuthChallengePolicy (below),
+// DeriveAuthPosture, and OAuthProtectedResourceHandler all stay in this
+// package untouched.
+type OAuthChallengePolicy = querycontract.OAuthChallengePolicy
 
 // OAuthAuthorizationServerLister lists the issuer URLs currently enabled for
 // IdP bearer-token validation — the exact set a token could be routed to and
