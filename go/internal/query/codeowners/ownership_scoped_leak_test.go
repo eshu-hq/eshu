@@ -81,10 +81,10 @@ func TestCodeownersOwnershipScopedCallerCannotReadUngrantedRepository(t *testing
 		return w, w.Body.String()
 	}
 
-	decode := func(t *testing.T, body string) (ownership []CodeownersOwnershipRow, effectiveOwner EffectiveRepositoryOwner) {
+	decode := func(t *testing.T, body string) (ownership []OwnershipRow, effectiveOwner EffectiveRepositoryOwner) {
 		t.Helper()
 		var resp struct {
-			Ownership      []CodeownersOwnershipRow `json:"ownership"`
+			Ownership      []OwnershipRow           `json:"ownership"`
 			EffectiveOwner EffectiveRepositoryOwner `json:"effective_owner"`
 		}
 		if err := json.Unmarshal([]byte(body), &resp); err != nil {

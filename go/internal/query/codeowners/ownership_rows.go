@@ -24,7 +24,7 @@ func loadCodeownersOwnershipRows(
 	afterRef string,
 	fetchLimit int,
 ) ([]map[string]any, error) {
-	queries := CodeownersOwnershipCyphers(
+	queries := OwnershipCyphers(
 		repoID,
 		afterOrderIndex,
 		afterPattern,

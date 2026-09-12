@@ -45,12 +45,12 @@ not export a new symbol without adding its caller to this list.
 - `Handler` -- root `handler.go` field, `cmd/api` and `cmd/mcp-server`
   wiring, staying root tests (via the root `CodeownersOwnershipHandler`
   alias).
-- `CodeownersOwnershipRow` -- the handler response rows and the moving
-  tests (kept as-is; JSON shape unchanged).
+- `OwnershipRow` -- the handler response rows and the moving
+  tests (renamed from `CodeownersOwnershipRow` in #6642 Part D; JSON shape unchanged).
 - `EffectiveRepositoryOwner`, `EffectiveOwnerSourceServiceCatalog`,
   `EffectiveOwnerSourceCodeowners` -- the handler `effective_owner`
   value and its provenance labels (kept as-is).
-- `CodeownersOwnershipCyphers`, `CodeownersLastMatchOwnerCypher`, and the
+- `OwnershipCyphers`, `LastMatchOwnerCypher`, and the
   `Cypher` field of `codeownersOwnershipGraphQuery` -- the staying
   queryplan production-binding test
   (`queryplan_legacy_production_binding_test.go`), which pins the exact

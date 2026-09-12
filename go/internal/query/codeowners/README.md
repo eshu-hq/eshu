@@ -50,7 +50,7 @@ contract (issue #5419 Phase 4), in order:
    outranks a live CODEOWNERS rule.
 2. Otherwise the repository's CODEOWNERS rules apply last-match-wins: the
    `DECLARES_CODEOWNER` edge with the highest `order_index`, resolved by
-   the dedicated descending `LIMIT 1` read (`CodeownersLastMatchOwnerCypher`,
+   the dedicated descending `LIMIT 1` read (`LastMatchOwnerCypher`,
    never the paginated ascending list).
 3. Otherwise the zero-value `EffectiveRepositoryOwner` -- not an error.
 
@@ -137,6 +137,44 @@ unchanged suites and corpus above.
 No-Observability-Change: no spans, metrics, structured logs, status
 fields, or pprof surface were added, removed, or renamed; the move adds no
 new query path, so dashboards and 3 AM triage read exactly as before.
+
+## Naming (#6642 Part D)
+
+Rules 2 and 4 of `docs/internal/naming.md` destutter this leaf: file names
+no longer repeat the `codeowners` package word, and the three exports that
+led with it are renamed to their plain-English form. Behavior, JSON shapes,
+Cypher text, and telemetry are unchanged -- only spellings moved.
+
+| Old | New |
+| --- | --- |
+| `codeowners_ownership.go` | `ownership.go` |
+| `codeowners_ownership_cypher.go` | `ownership_cypher.go` |
+| `codeowners_ownership_cypher_test.go` | `ownership_cypher_test.go` |
+| `codeowners_ownership_precedence.go` | `ownership_precedence.go` |
+| `codeowners_ownership_precedence_test.go` | `ownership_precedence_test.go` |
+| `codeowners_ownership_rows.go` | `ownership_rows.go` |
+| `codeowners_ownership_scoped_leak_test.go` | `ownership_scoped_leak_test.go` |
+| `codeowners_ownership_test.go` | `ownership_test.go` |
+| `CodeownersOwnershipRow` | `OwnershipRow` |
+| `CodeownersOwnershipCyphers` | `OwnershipCyphers` |
+| `CodeownersLastMatchOwnerCypher` | `LastMatchOwnerCypher` |
+
+No-Regression Evidence: the rename touches three exported identifiers and
+eight file names and nothing else. `git diff -M --find-renames` pairs each
+renamed file with its predecessor; every Cypher literal in this package is
+byte-identical to the pre-rename commit. The two queryplan hot-cypher
+digests bound to `OwnershipCyphers`/`LastMatchOwnerCypher` and the two
+query-source-coverage digests bound to `loadCodeownersOwnershipRows`/
+`resolveEffectiveRepositoryOwner` moved only because those recorded
+declarations spell the renamed identifiers; `go test ./internal/queryplan/...`
+and the legacy production-binding test in root package `query` are green on
+the re-pinned rows. `go test ./internal/query/... ./cmd/api ./cmd/mcp-server
+./internal/mcp -count=1` passes on the renamed tree; no benchmark delta is
+claimed because no query shape changed.
+
+No-Observability-Change: the rename touches no span, metric, capability
+string, or log key; `telemetry.SpanQueryCodeownersOwnership` and the
+`codeowners.ownership.list` capability string are unchanged.
 
 ## Gotchas / invariants
 

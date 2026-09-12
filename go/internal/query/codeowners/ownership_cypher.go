@@ -25,7 +25,7 @@ const codeownersOwnershipReturn = `RETURN rel.pattern AS pattern,
 ORDER BY rel.order_index, rel.pattern, team.ref
 LIMIT $limit`
 
-// CodeownersOwnershipCyphers builds the bounded graph reads for
+// OwnershipCyphers builds the bounded graph reads for
 // GET /api/v0/codeowners/ownership (issue #5419 Phase 4).
 //
 // It is exported for the staying queryplan production-binding test, which
@@ -56,7 +56,7 @@ LIMIT $limit`
 // the caller's limit (max 200, codeownersOwnershipMaxLimit). Each cursor branch
 // returns at most limit rows. With the API's limit+1 truncation probe and
 // maximum page size of 200, the merge holds at most 603 rows.
-func CodeownersOwnershipCyphers(
+func OwnershipCyphers(
 	repoID string,
 	afterOrderIndex int,
 	afterPattern string,
@@ -118,22 +118,22 @@ func codeownersOwnershipCursorQuery(
 	}
 }
 
-// CodeownersLastMatchOwnerCypher builds the single-row Cypher the precedence
-// resolver (codeowners_ownership_precedence.go) uses to find a repository's
+// LastMatchOwnerCypher builds the single-row Cypher the precedence
+// resolver (ownership_precedence.go) uses to find a repository's
 // last-match-wins CODEOWNERS owner: CODEOWNERS resolves ownership by the LAST
 // pattern in the file that matches, so the rule with the highest order_index
 // is the repository-wide fallback candidate. This is deliberately a separate,
 // descending-order, LIMIT-1 query rather than reusing the paginated
-// ascending-order CodeownersOwnershipCyphers list: the highest order_index row
+// ascending-order OwnershipCyphers list: the highest order_index row
 // can be arbitrarily far past the first page a caller happens to have
 // fetched, so only a dedicated DESC-ordered read finds it correctly. Same
-// anchors and non-null guards as CodeownersOwnershipCyphers; team.ref ASC
+// anchors and non-null guards as OwnershipCyphers; team.ref ASC
 // breaks a tie between two owners declared on the same last-matching line
 // deterministically.
 //
 // It is exported for the staying queryplan production-binding test, which
 // pins the exact emitted Cypher; the precedence resolver calls it directly.
-func CodeownersLastMatchOwnerCypher(repoID string) (string, map[string]any) {
+func LastMatchOwnerCypher(repoID string) (string, map[string]any) {
 	params := map[string]any{"repo_id": repoID}
 	return `MATCH (repo:Repository {id: $repo_id})-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)
 WHERE team.ref IS NOT NULL AND team.ref <> ''

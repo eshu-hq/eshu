@@ -48,7 +48,7 @@ type EffectiveRepositoryOwner struct {
 //     semantics (sdk/go/factschema/codeowners/v1.Ownership's documented
 //     contract): the DECLARES_CODEOWNER edge with the highest order_index is
 //     the last pattern in the file that would match, so its owner is the
-//     repository-wide fallback. CodeownersLastMatchOwnerCypher resolves this
+//     repository-wide fallback. LastMatchOwnerCypher resolves this
 //     with a dedicated DESC-ordered, LIMIT-1 read (see its doc comment for
 //     why the paginated ascending list cannot be reused here).
 //  3. If neither source resolves an owner, the zero-value
@@ -88,7 +88,7 @@ func resolveEffectiveRepositoryOwner(
 	if neo4j == nil {
 		return EffectiveRepositoryOwner{}, nil
 	}
-	cypher, params := CodeownersLastMatchOwnerCypher(repoID)
+	cypher, params := LastMatchOwnerCypher(repoID)
 	row, err := neo4j.RunSingle(ctx, cypher, params)
 	if err != nil {
 		return EffectiveRepositoryOwner{}, fmt.Errorf("resolve codeowners last-match owner: %w", err)
