@@ -30,17 +30,11 @@ const (
 	graphWriteRetryReasonUniqueConflict = "commit_unique_conflict"
 
 	nornicDBRelationshipSnapshotConflictMessage = "UNWIND MERGE chain relationship update failed: not found"
-	// nornicDBRelationshipCreateMissingEndpointPrefix and
-	// ...Suffix bracket the create-side sibling of the message above:
-	// "UNWIND MERGE chain relationship create failed: start node
-	// nornic:<uuid> does not exist", reported when the endpoint the statement
-	// just resolved is no longer readable -- observed live while a backend
-	// restart tore the store down mid-write. BOTH fragments are required
-	// because the uuid between them is per-node, and because matching the
-	// "create failed" prefix alone would also swallow "create failed: not
-	// found", which TestRetryingExecutorDoesNotBroadenRelationshipSnapshotRetry
-	// deliberately keeps terminal.
-	nornicDBRelationshipCreateMissingEndpointPrefix = "UNWIND MERGE chain relationship create failed: start node "
+	// These fragments bracket NornicDB's start/end node identifiers when a
+	// backend restart makes a just-resolved relationship endpoint unreadable.
+	// Both are required so the neighbouring "create failed: not found" shape
+	// remains terminal.
+	nornicDBRelationshipCreateMissingEndpointPrefix = "UNWIND MERGE chain relationship create failed: "
 	nornicDBRelationshipCreateMissingEndpointSuffix = " does not exist"
 )
 
@@ -68,8 +62,8 @@ func (r *RetryingExecutor) Execute(ctx context.Context, stmt Statement) error {
 
 // ExecuteGroup delegates to Inner.ExecuteGroup, retrying on transient Neo4j
 // errors, relationship snapshot conflicts, and commit-time UNIQUE conflicts
-// when every statement in the group is MERGE-shaped (and therefore idempotent
-// on re-execution). Without this retry, concurrent canonical writers on the
+// when every statement in the group is replay-safe and converges on
+// re-execution. Without this retry, concurrent canonical writers on the
 // same identity surface backend races as non-retryable projection failures
 // even though re-executing the group is safe by construction. Worker-knob
 // serialization (e.g. ESHU_PROJECTION_WORKERS=1) is not an acceptable
@@ -341,14 +335,15 @@ func isNornicDBMergeRelationshipSnapshotConflict(err error, cypher string) bool 
 // when NornicDB's relationship lookup cannot act on an endpoint the current
 // transaction snapshot resolved: the update-side conflict, where a
 // concurrently committed edge is no longer updatable, and the create-side
-// failure, where a just-resolved start node is no longer readable (seen while
-// a backend restart tore the store down mid-write). Both surface under
+// failure, where a just-resolved endpoint is no longer readable (seen while a
+// backend restart tore the store down mid-write). Both surface under
 // nornicDBStatementSyntaxErrorCode, which a genuinely malformed query also
 // uses, so the message carries the discrimination and every caller gates on a
-// MERGE-shaped statement before acting on the result.
+// MERGE-shaped single statement or a group whose every statement passes
+// allStatementsAreReplaySafe before acting on the result.
 //
 // Replay is safe on the create-side shape for its own reasons, not only by
-// analogy: a MERGE-shaped statement converges on re-execution, and a start node
+// analogy: a MERGE-shaped statement converges on re-execution, and an endpoint
 // that genuinely does not exist fails again and dead-letters once the retry
 // budget is spent — the same terminal outcome as classifying it terminal up
 // front, reached only after recovery was actually attempted.
@@ -367,20 +362,23 @@ func isNornicDBRelationshipSnapshotConflict(err error) bool {
 		isNornicDBRelationshipCreateMissingEndpoint(neo4jErr.Msg)
 }
 
-// isNornicDBRelationshipCreateMissingEndpoint reports whether msg is the
-// create-side missing-endpoint failure. The two fragments must genuinely
-// BRACKET the node id -- suffix after prefix -- which is the narrowness the
-// guard's justification rests on. Two unordered Contains calls would also
-// accept a message carrying the fragments in the wrong order or in unrelated
-// clauses, which is a wider match than the comment claims and than the
-// neighbouring terminal bodies deserve.
+// isNornicDBRelationshipCreateMissingEndpoint matches only start/end node
+// variants with a non-empty identifier bracketed by the exact wire fragments.
 func isNornicDBRelationshipCreateMissingEndpoint(msg string) bool {
-	start := strings.Index(msg, nornicDBRelationshipCreateMissingEndpointPrefix)
-	if start < 0 {
+	rest, found := strings.CutPrefix(msg, nornicDBRelationshipCreateMissingEndpointPrefix)
+	if !found {
 		return false
 	}
-	rest := msg[start+len(nornicDBRelationshipCreateMissingEndpointPrefix):]
-	return strings.Contains(rest, nornicDBRelationshipCreateMissingEndpointSuffix)
+	switch {
+	case strings.HasPrefix(rest, "start node "):
+		rest = strings.TrimPrefix(rest, "start node ")
+	case strings.HasPrefix(rest, "end node "):
+		rest = strings.TrimPrefix(rest, "end node ")
+	default:
+		return false
+	}
+	endpoint, found := strings.CutSuffix(rest, nornicDBRelationshipCreateMissingEndpointSuffix)
+	return found && strings.TrimSpace(endpoint) != ""
 }
 
 // isNornicDBMergeUniqueConflict treats commit-time unique conflicts from
