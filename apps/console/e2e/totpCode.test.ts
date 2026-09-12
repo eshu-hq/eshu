@@ -10,7 +10,7 @@ import { decodeBase32, generateTotpCode } from "./totpCode.ts";
 
 // rfc6238Sha1Secret is the RFC 6238 Appendix B SHA1 test seed: the ASCII
 // string "12345678901234567890", base32-encoded with no padding — exactly
-// the shape go/internal/query/local_identity_totp.go's handleBeginTOTPEnrollment
+// the shape go/internal/query/local/totp.go's handleBeginTOTPEnrollment
 // returns as the "secret" field.
 const rfc6238Sha1Secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 

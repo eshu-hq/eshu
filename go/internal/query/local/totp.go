@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package local
 
 import (
 	"encoding/base32"
@@ -13,6 +13,8 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/totp"
 )
 
@@ -24,7 +26,7 @@ const localIdentityTOTPIssuer = "Eshu"
 // localIdentityTOTPBeginRequest carries an optional client-supplied account
 // label for the authenticator app entry. The server never has the caller's
 // original login identifier (sessions carry only subject_id_hash, a
-// one-way hash — see AuthContext), so the console supplies a human label it
+// one-way hash — see queryauth.AuthContext), so the console supplies a human label it
 // already knows from its own session state; a missing label falls back to
 // a generic default. This label is cosmetic only, never used for lookup or
 // authorization.
@@ -59,45 +61,45 @@ type localIdentityTOTPConfirmRequest struct {
 // user may enroll their own second factor) and always scope to the calling
 // session's own subject — neither ever accepts a target user id from the
 // request body.
-func (h *LocalIdentityHandler) mountTOTPRoutes(mux *http.ServeMux) {
+func (h *IdentityHandler) mountTOTPRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/auth/local/mfa/totp/begin", h.handleBeginTOTPEnrollment)
 	mux.HandleFunc("POST /api/v0/auth/local/mfa/totp/confirm", h.handleConfirmTOTPEnrollment)
 }
 
-func (h *LocalIdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *http.Request) {
+func (h *IdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, r *http.Request) {
 	if !h.ready(w) {
 		return
 	}
-	auth, ok := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
+	auth, ok := queryauth.AuthContextFromContext(r.Context())
+	auth = queryauth.NormalizeAuthContext(auth)
 	if !ok || auth.SubjectIDHash == "" {
-		unauthorizedResponse(w, r)
+		querycontract.WriteUnauthorized(w, r)
 		return
 	}
 	var req localIdentityTOTPBeginRequest
 	if err := readOptionalTOTPBeginRequest(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid totp enrollment request")
+		querycontract.WriteError(w, http.StatusBadRequest, "invalid totp enrollment request")
 		return
 	}
 	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), auth.SubjectIDHash)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "resolve local identity user id failed", "err", err)
-		WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
+		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
 		return
 	}
 	if !found {
-		WriteError(w, http.StatusNotFound, "local identity not found")
+		querycontract.WriteError(w, http.StatusNotFound, "local identity not found")
 		return
 	}
 	secret, err := totp.GenerateSecret()
 	if err != nil {
 		slog.ErrorContext(r.Context(), "generate totp secret failed", "err", err)
-		WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
+		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
 		return
 	}
 	factorID := h.newID()
 	if factorID == "" {
-		WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
+		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
 		return
 	}
 	uri, err := totp.ProvisioningURI(totp.ProvisioningURIParams{
@@ -107,21 +109,21 @@ func (h *LocalIdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, 
 	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "build totp provisioning uri failed", "err", err)
-		WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
+		querycontract.WriteError(w, http.StatusInternalServerError, "failed to begin totp enrollment")
 		return
 	}
-	if err := h.Store.BeginLocalIdentityTOTPEnrollment(r.Context(), LocalIdentityTOTPEnrollmentBegin{
+	if err := h.Store.BeginLocalIdentityTOTPEnrollment(r.Context(), IdentityTOTPEnrollmentBegin{
 		UserID:          userID,
 		FactorID:        factorID,
 		SecretPlaintext: secret,
 		CreatedAt:       h.now(),
 	}); err != nil {
 		h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionDenied, "totp_enrollment_begin_failed", auth.SubjectIDHash)
-		WriteError(w, http.StatusBadRequest, "failed to begin totp enrollment")
+		querycontract.WriteError(w, http.StatusBadRequest, "failed to begin totp enrollment")
 		return
 	}
 	h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionAllowed, "totp_enrollment_begin", auth.SubjectIDHash)
-	WriteJSON(w, http.StatusCreated, localIdentityTOTPBeginResponse{
+	querycontract.WriteJSON(w, http.StatusCreated, localIdentityTOTPBeginResponse{
 		FactorID:      factorID,
 		OTPAuthURI:    uri,
 		Secret:        base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(secret),
@@ -131,39 +133,39 @@ func (h *LocalIdentityHandler) handleBeginTOTPEnrollment(w http.ResponseWriter, 
 	})
 }
 
-func (h *LocalIdentityHandler) handleConfirmTOTPEnrollment(w http.ResponseWriter, r *http.Request) {
+func (h *IdentityHandler) handleConfirmTOTPEnrollment(w http.ResponseWriter, r *http.Request) {
 	if !h.ready(w) {
 		return
 	}
-	auth, ok := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
+	auth, ok := queryauth.AuthContextFromContext(r.Context())
+	auth = queryauth.NormalizeAuthContext(auth)
 	if !ok || auth.SubjectIDHash == "" {
-		unauthorizedResponse(w, r)
+		querycontract.WriteUnauthorized(w, r)
 		return
 	}
 	var req localIdentityTOTPConfirmRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid totp confirm request")
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, "invalid totp confirm request")
 		return
 	}
 	userID, found, err := h.Store.ResolveLocalIdentityUserID(r.Context(), auth.SubjectIDHash)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "resolve local identity user id failed", "err", err)
-		WriteError(w, http.StatusInternalServerError, "failed to confirm totp enrollment")
+		querycontract.WriteError(w, http.StatusInternalServerError, "failed to confirm totp enrollment")
 		return
 	}
 	if !found {
-		WriteError(w, http.StatusNotFound, "local identity not found")
+		querycontract.WriteError(w, http.StatusNotFound, "local identity not found")
 		return
 	}
-	if err := h.Store.ConfirmLocalIdentityTOTPEnrollment(r.Context(), LocalIdentityTOTPEnrollmentConfirm{
+	if err := h.Store.ConfirmLocalIdentityTOTPEnrollment(r.Context(), IdentityTOTPEnrollmentConfirm{
 		UserID:   userID,
 		FactorID: strings.TrimSpace(req.FactorID),
 		Code:     req.Code,
 		Now:      h.now(),
 	}); err != nil {
 		h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionDenied, "totp_enrollment_confirm_failed", auth.SubjectIDHash)
-		WriteError(w, http.StatusBadRequest, "failed to confirm totp enrollment")
+		querycontract.WriteError(w, http.StatusBadRequest, "failed to confirm totp enrollment")
 		return
 	}
 	h.auditLocalIdentity(r, governanceaudit.EventTypeMFALifecycle, governanceaudit.DecisionAllowed, "totp_enrollment_confirmed", auth.SubjectIDHash)
@@ -171,7 +173,7 @@ func (h *LocalIdentityHandler) handleConfirmTOTPEnrollment(w http.ResponseWriter
 }
 
 // readOptionalTOTPBeginRequest mirrors readOptionalAPITokenRevokeRequest
-// (local_identity_api_tokens.go): an empty body is valid (account_label is
+// (api_tokens.go): an empty body is valid (account_label is
 // optional), but malformed JSON is still rejected.
 func readOptionalTOTPBeginRequest(r *http.Request, req *localIdentityTOTPBeginRequest) error {
 	if r == nil || r.Body == nil {

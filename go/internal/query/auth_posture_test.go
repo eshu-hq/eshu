@@ -126,7 +126,7 @@ func TestDeriveAuthPostureEmptyTenantIDFailsSafe(t *testing.T) {
 // SignInPolicyReadHandler.handlePublicGet: a transient policy-store outage
 // must never hide the local login form (this field is a UX hint, never the
 // real enforcement boundary — requireSSODecision in
-// local_identity_sign_in_policy_gate.go is unaffected by it).
+// local/sign_in_policy_gate.go is unaffected by it).
 func TestDeriveAuthPosturePolicyReadErrorFailsOpenLocalLoginOffered(t *testing.T) {
 	t.Parallel()
 

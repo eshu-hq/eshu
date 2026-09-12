@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package local
 
 import (
 	"encoding/json"
@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 const (
@@ -20,8 +22,8 @@ const (
 	localIdentityAPITokenClassServicePrincipal = "service_principal"
 )
 
-// LocalIdentityAPITokenCreate stores one hash-only generated API token.
-type LocalIdentityAPITokenCreate struct {
+// IdentityAPITokenCreate stores one hash-only generated API token.
+type IdentityAPITokenCreate struct {
 	TokenID            string
 	TokenHash          string
 	TokenClass         string
@@ -38,8 +40,8 @@ type LocalIdentityAPITokenCreate struct {
 	ExpiresAt          time.Time
 }
 
-// LocalIdentityAPITokenRevoke revokes one active generated API token.
-type LocalIdentityAPITokenRevoke struct {
+// IdentityAPITokenRevoke revokes one active generated API token.
+type IdentityAPITokenRevoke struct {
 	TokenID     string
 	TenantID    string
 	WorkspaceID string
@@ -53,8 +55,8 @@ type LocalIdentityAPITokenRevoke struct {
 	OwnerSubjectIDHash string
 }
 
-// LocalIdentityAPITokenRotate atomically replaces one generated API token.
-type LocalIdentityAPITokenRotate struct {
+// IdentityAPITokenRotate atomically replaces one generated API token.
+type IdentityAPITokenRotate struct {
 	OldTokenID      string
 	NewTokenID      string
 	NewTokenHash    string
@@ -71,11 +73,11 @@ type LocalIdentityAPITokenRotate struct {
 	OwnerSubjectIDHash string
 }
 
-// ErrLocalIdentityAPITokenNotFound reports that a self-service revoke or rotate
+// ErrIdentityAPITokenNotFound reports that a self-service revoke or rotate
 // matched no active token the caller owns (issue #5164). Handlers translate it
 // into a non-disclosing 404 so a caller cannot probe another subject's token
 // existence by observing a different error.
-var ErrLocalIdentityAPITokenNotFound = errors.New("local identity api token not found")
+var ErrIdentityAPITokenNotFound = errors.New("local identity api token not found")
 
 type localIdentityAPITokenCreateRequest struct {
 	TokenClass         string    `json:"token_class"`
@@ -108,33 +110,33 @@ type localIdentityAPITokenResponse struct {
 	ExpiresAt  time.Time `json:"expires_at,omitempty"`
 }
 
-func (h *LocalIdentityHandler) mountAPITokenRoutes(mux *http.ServeMux) {
+func (h *IdentityHandler) mountAPITokenRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/auth/local/api-tokens", h.handleListAPITokens)
 	mux.HandleFunc("POST /api/v0/auth/local/api-tokens", h.handleCreateAPIToken)
 	mux.HandleFunc("POST /api/v0/auth/local/api-tokens/{token_id}/revoke", h.handleRevokeAPIToken)
 	mux.HandleFunc("POST /api/v0/auth/local/api-tokens/{token_id}/rotate", h.handleRotateAPIToken)
 }
 
-func (h *LocalIdentityHandler) handleListAPITokens(w http.ResponseWriter, r *http.Request) {
-	auth, ok := AuthContextFromContext(r.Context())
+func (h *IdentityHandler) handleListAPITokens(w http.ResponseWriter, r *http.Request) {
+	auth, ok := queryauth.AuthContextFromContext(r.Context())
 	if !ok {
-		unauthorizedResponse(w, r)
+		querycontract.WriteUnauthorized(w, r)
 		return
 	}
-	auth = normalizeAuthContext(auth)
+	auth = queryauth.NormalizeAuthContext(auth)
 	if auth.SubjectIDHash == "" {
-		unauthorizedResponse(w, r)
+		querycontract.WriteUnauthorized(w, r)
 		return
 	}
 	if h.Store == nil {
-		WriteError(w, http.StatusServiceUnavailable, "identity store unavailable")
+		querycontract.WriteError(w, http.StatusServiceUnavailable, "identity store unavailable")
 		return
 	}
 	now := h.now()
 	items, err := h.Store.ListAPITokensBySubject(r.Context(), auth.SubjectIDHash, now)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "list api tokens by subject failed", "err", err)
-		WriteError(w, http.StatusInternalServerError, "failed to list api tokens")
+		querycontract.WriteError(w, http.StatusInternalServerError, "failed to list api tokens")
 		return
 	}
 	// display_label (issue #3708) is the real, non-secret operator-facing
@@ -166,10 +168,10 @@ func (h *LocalIdentityHandler) handleListAPITokens(w http.ResponseWriter, r *htt
 		}
 		out = append(out, t)
 	}
-	WriteJSON(w, http.StatusOK, map[string]any{"tokens": out})
+	querycontract.WriteJSON(w, http.StatusOK, map[string]any{"tokens": out})
 }
 
-func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *http.Request) {
+func (h *IdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *http.Request) {
 	if !h.ready(w) {
 		return
 	}
@@ -182,13 +184,13 @@ func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *ht
 		r,
 		governanceaudit.EventTypeTokenLifecycle,
 		"tokens.create",
-		permissionFeatureTokens,
+		queryauth.PermissionFeatureTokens,
 	) {
 		return
 	}
 	var req localIdentityAPITokenCreateRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid local identity api token request")
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, "invalid local identity api token request")
 		return
 	}
 	if auth.AllScopes {
@@ -197,7 +199,7 @@ func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *ht
 		// an explicit user_id mints a token for another user.
 		if err := h.resolveSelfServiceAPITokenUserID(r, &req); err != nil {
 			slog.ErrorContext(r.Context(), "resolve self-service api token user id failed", "err", err)
-			WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")
+			querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")
 			return
 		}
 	} else if !h.enforceSelfServiceTokenCreateScope(w, r, &req, auth) {
@@ -210,17 +212,17 @@ func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *ht
 	var err error
 	apiToken, err = h.newSecret()
 	if tokenID == "" || err != nil || apiToken == "" {
-		WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")
+		querycontract.WriteError(w, http.StatusInternalServerError, "failed to create local identity api token")
 		return
 	}
 	record := h.buildAPITokenCreateRecord(r, req, tokenID, apiToken, now)
 	if err := h.Store.CreateLocalIdentityAPIToken(r.Context(), record); err != nil {
 		h.auditLocalIdentity(r, governanceaudit.EventTypeTokenLifecycle, governanceaudit.DecisionDenied, "api_token_issue_failed", "")
-		WriteError(w, http.StatusBadRequest, "failed to create local identity api token")
+		querycontract.WriteError(w, http.StatusBadRequest, "failed to create local identity api token")
 		return
 	}
 	h.auditLocalIdentity(r, governanceaudit.EventTypeTokenLifecycle, governanceaudit.DecisionAllowed, "api_token_issued", "")
-	WriteJSON(w, http.StatusCreated, localIdentityAPITokenResponse{
+	querycontract.WriteJSON(w, http.StatusCreated, localIdentityAPITokenResponse{
 		Status:     "created",
 		TokenID:    record.TokenID,
 		TokenClass: record.TokenClass,
@@ -230,7 +232,7 @@ func (h *LocalIdentityHandler) handleCreateAPIToken(w http.ResponseWriter, r *ht
 	})
 }
 
-func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *http.Request) {
+func (h *IdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *http.Request) {
 	if !h.ready(w) {
 		return
 	}
@@ -243,18 +245,18 @@ func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *ht
 		r,
 		governanceaudit.EventTypeTokenLifecycle,
 		"tokens.revoke",
-		permissionFeatureTokens,
+		queryauth.PermissionFeatureTokens,
 	) {
 		return
 	}
 	var req localIdentityAPITokenRevokeRequest
 	if err := readOptionalAPITokenRevokeRequest(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid local identity api token revoke request")
+		querycontract.WriteError(w, http.StatusBadRequest, "invalid local identity api token revoke request")
 		return
 	}
 	tenantID, workspaceID := localIdentityAPITokenScope(req.TenantID, req.WorkspaceID, auth)
-	revoke := LocalIdentityAPITokenRevoke{
-		TokenID:            PathParam(r, "token_id"),
+	revoke := IdentityAPITokenRevoke{
+		TokenID:            querycontract.PathParam(r, "token_id"),
 		TenantID:           tenantID,
 		WorkspaceID:        workspaceID,
 		RevokedAt:          h.now(),
@@ -265,7 +267,7 @@ func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *ht
 		if h.writeSelfServiceTokenNotFound(w, revoke.OwnerSubjectIDHash, err) {
 			return
 		}
-		WriteError(w, http.StatusBadRequest, "failed to revoke local identity api token")
+		querycontract.WriteError(w, http.StatusBadRequest, "failed to revoke local identity api token")
 		return
 	}
 	h.auditLocalIdentity(
@@ -278,7 +280,7 @@ func (h *LocalIdentityHandler) handleRevokeAPIToken(w http.ResponseWriter, r *ht
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *http.Request) {
+func (h *IdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *http.Request) {
 	if !h.ready(w) {
 		return
 	}
@@ -291,13 +293,13 @@ func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *ht
 		r,
 		governanceaudit.EventTypeTokenLifecycle,
 		"tokens.rotate",
-		permissionFeatureTokens,
+		queryauth.PermissionFeatureTokens,
 	) {
 		return
 	}
 	var req localIdentityAPITokenRotateRequest
-	if err := ReadJSON(r, &req); err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid local identity api token rotation request")
+	if err := querycontract.ReadJSON(r, &req); err != nil {
+		querycontract.WriteError(w, http.StatusBadRequest, "invalid local identity api token rotation request")
 		return
 	}
 	now := h.now()
@@ -305,14 +307,14 @@ func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *ht
 	var err error
 	apiToken, err = h.newSecret()
 	if tokenID == "" || err != nil || apiToken == "" {
-		WriteError(w, http.StatusInternalServerError, "failed to rotate local identity api token")
+		querycontract.WriteError(w, http.StatusInternalServerError, "failed to rotate local identity api token")
 		return
 	}
 	tenantID, workspaceID := localIdentityAPITokenScope(req.TenantID, req.WorkspaceID, auth)
-	rotation := LocalIdentityAPITokenRotate{
-		OldTokenID:         PathParam(r, "token_id"),
+	rotation := IdentityAPITokenRotate{
+		OldTokenID:         querycontract.PathParam(r, "token_id"),
 		NewTokenID:         tokenID,
-		NewTokenHash:       localIdentityHash(apiToken),
+		NewTokenHash:       IdentityHash(apiToken),
 		TenantID:           tenantID,
 		WorkspaceID:        workspaceID,
 		RotatedAt:          now,
@@ -324,11 +326,11 @@ func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *ht
 		if h.writeSelfServiceTokenNotFound(w, rotation.OwnerSubjectIDHash, err) {
 			return
 		}
-		WriteError(w, http.StatusBadRequest, "failed to rotate local identity api token")
+		querycontract.WriteError(w, http.StatusBadRequest, "failed to rotate local identity api token")
 		return
 	}
 	h.auditLocalIdentity(r, governanceaudit.EventTypeTokenLifecycle, governanceaudit.DecisionAllowed, "api_token_rotated", "")
-	WriteJSON(w, http.StatusCreated, localIdentityAPITokenResponse{
+	querycontract.WriteJSON(w, http.StatusCreated, localIdentityAPITokenResponse{
 		Status:    "rotated",
 		TokenID:   tokenID,
 		APIToken:  apiToken,
@@ -344,7 +346,7 @@ func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *ht
 // self-service "create my own token" form structurally cannot supply
 // user_id — it has no way to learn it. This mirrors the same resolution
 // self-service TOTP enrollment already performs for the identical problem
-// (handleBeginTOTPEnrollment in local_identity_totp.go).
+// (handleBeginTOTPEnrollment in totp.go).
 //
 // This only ever fills a BLANK user_id. An explicit user_id in the request
 // body — the existing all-scope admin flow that mints a token for a
@@ -353,7 +355,7 @@ func (h *LocalIdentityHandler) handleRotateAPIToken(w http.ResponseWriter, r *ht
 // unaffected. Service-principal tokens are never self-resolved: a service
 // principal is not the human caller's own identity, so its token is always
 // minted by explicitly naming service_principal_id.
-func (h *LocalIdentityHandler) resolveSelfServiceAPITokenUserID(
+func (h *IdentityHandler) resolveSelfServiceAPITokenUserID(
 	r *http.Request,
 	req *localIdentityAPITokenCreateRequest,
 ) error {
@@ -363,8 +365,8 @@ func (h *LocalIdentityHandler) resolveSelfServiceAPITokenUserID(
 	if localIdentityDefault(req.TokenClass, localIdentityAPITokenClassPersonal) != localIdentityAPITokenClassPersonal {
 		return nil
 	}
-	auth, ok := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
+	auth, ok := queryauth.AuthContextFromContext(r.Context())
+	auth = queryauth.NormalizeAuthContext(auth)
 	if !ok || auth.SubjectIDHash == "" {
 		return nil
 	}
@@ -383,29 +385,29 @@ func (h *LocalIdentityHandler) resolveSelfServiceAPITokenUserID(
 	return nil
 }
 
-func (h *LocalIdentityHandler) buildAPITokenCreateRecord(
+func (h *IdentityHandler) buildAPITokenCreateRecord(
 	r *http.Request,
 	req localIdentityAPITokenCreateRequest,
 	tokenID string,
 	apiToken string,
 	issuedAt time.Time,
-) LocalIdentityAPITokenCreate {
-	auth, _ := AuthContextFromContext(r.Context())
-	auth = normalizeAuthContext(auth)
+) IdentityAPITokenCreate {
+	auth, _ := queryauth.AuthContextFromContext(r.Context())
+	auth = queryauth.NormalizeAuthContext(auth)
 	tenantID, workspaceID := localIdentityAPITokenScope(req.TenantID, req.WorkspaceID, auth)
 	policyRevision := strings.TrimSpace(auth.PolicyRevisionHash)
 	if policyRevision == "" {
-		policyRevision = localIdentityPolicyRevision(tenantID, workspaceID)
+		policyRevision = PolicyRevision(tenantID, workspaceID)
 	}
-	return LocalIdentityAPITokenCreate{
+	return IdentityAPITokenCreate{
 		TokenID:            tokenID,
-		TokenHash:          localIdentityHash(apiToken),
+		TokenHash:          IdentityHash(apiToken),
 		TokenClass:         localIdentityDefault(req.TokenClass, localIdentityAPITokenClassPersonal),
 		TenantID:           tenantID,
 		WorkspaceID:        workspaceID,
 		UserID:             strings.TrimSpace(req.UserID),
 		ServicePrincipalID: strings.TrimSpace(req.ServicePrincipalID),
-		DisplayHandleHash:  localIdentityHash(req.DisplayLabel),
+		DisplayHandleHash:  IdentityHash(req.DisplayLabel),
 		DisplayLabel:       strings.TrimSpace(req.DisplayLabel),
 		PolicyRevisionHash: policyRevision,
 		IssuedAt:           issuedAt,
@@ -413,7 +415,7 @@ func (h *LocalIdentityHandler) buildAPITokenCreateRecord(
 	}
 }
 
-func localIdentityAPITokenScope(reqTenantID string, reqWorkspaceID string, auth AuthContext) (string, string) {
+func localIdentityAPITokenScope(reqTenantID string, reqWorkspaceID string, auth queryauth.AuthContext) (string, string) {
 	authTenantID := strings.TrimSpace(auth.TenantID)
 	authWorkspaceID := strings.TrimSpace(auth.WorkspaceID)
 	if authTenantID != "" || authWorkspaceID != "" {

@@ -302,9 +302,9 @@ func scopedBearerRouteDenialReason(
 //     nothing about the session's SUBJECT to that tenant, so an all-scope
 //     session can change which tenant it is bound to and then read the new
 //     one through these same routes. (#6450 item 4.)
-//  2. localIdentityAPITokenScope (local_identity_api_tokens.go) falls back to
+//  2. localIdentityAPITokenScope (local/api_tokens.go) falls back to
 //     a body-supplied tenant and workspace when AuthContext carries neither,
-//     and selfServiceTokenOwner (local_identity_api_tokens_selfservice.go)
+//     and selfServiceTokenOwner (local/api_tokens_self_service.go)
 //     returns an empty owner hash for any all-scope caller, dropping the
 //     ownership predicate. The demonstrated exposure there is token minting
 //     for any tenant-less credential, a shared key being the example the
@@ -314,7 +314,7 @@ func scopedBearerRouteDenialReason(
 //     (browser_session_handler.go, "tenant_id and workspace_id are required
 //     to create a browser session") and SAML does the same (saml_handler.go's
 //     createSession), but issueLocalSessionCookies
-//     (local_identity_handler_helpers.go), shared by local login, break-glass
+//     (local/helpers.go), shared by local login, break-glass
 //     and the setup wizard, copies auth.TenantID and auth.WorkspaceID through
 //     with no non-blank guard, and the CreateBrowserSession choke point
 //     validates neither. Caller shape (f) in the split table is therefore a

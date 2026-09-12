@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package local
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 // authenticates anyone; it only decides whether an already-proven identity
 // is allowed to receive a session. Since issue #5001 (P2 review finding,
 // PR #5049), handleLogin also calls this for a password-verified, MFA-PENDING
-// non-admin (LocalIdentityAuthMFARequired, not yet Authenticated) to enforce
+// non-admin (IdentityAuthMFARequired, not yet Authenticated) to enforce
 // require_sso precedence: such a non-admin can never complete the pending MFA
 // challenge through local login when require_sso is also on, so the correct
 // response is the same 403 this function already drives for an authenticated
@@ -57,7 +57,7 @@ import (
 //     above) — the original "lock out every local login including
 //     break-glass" concern does not apply. The error is logged so an
 //     operator sees the gap.
-func (h *LocalIdentityHandler) requireSSODecision(ctx context.Context, auth LocalIdentityAuthContext) (allowed bool, decision string) {
+func (h *IdentityHandler) requireSSODecision(ctx context.Context, auth IdentityAuthContext) (allowed bool, decision string) {
 	if h.SignInPolicy == nil {
 		return true, "not_required"
 	}
@@ -84,7 +84,7 @@ func (h *LocalIdentityHandler) requireSSODecision(ctx context.Context, auth Loca
 // fails open (logged) rather than blocking every invitation on a transient
 // read failure — this gate is a provisioning control, not the require_sso
 // lockout-prevention guardrail, so open failure is the lower-risk default.
-func (h *LocalIdentityHandler) allowLocalUserCreation(ctx context.Context, tenantID string) bool {
+func (h *IdentityHandler) allowLocalUserCreation(ctx context.Context, tenantID string) bool {
 	if h.SignInPolicy == nil || tenantID == "" {
 		return true
 	}
@@ -99,7 +99,7 @@ func (h *LocalIdentityHandler) allowLocalUserCreation(ctx context.Context, tenan
 // recordRequireSSOLoginGate increments AuthRequireSSOLoginGateTotal, the OTEL
 // signal on the require_sso login-enforcement path. A nil h.Instruments is a
 // no-op.
-func (h *LocalIdentityHandler) recordRequireSSOLoginGate(ctx context.Context, decision string) {
+func (h *IdentityHandler) recordRequireSSOLoginGate(ctx context.Context, decision string) {
 	if h == nil || h.Instruments == nil || h.Instruments.AuthRequireSSOLoginGateTotal == nil {
 		return
 	}

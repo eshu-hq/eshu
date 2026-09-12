@@ -13,7 +13,7 @@ import (
 // providerConfigIDBytes/providerConfigRevisionIDBytes size the random
 // identifiers generated for a new provider config / revision. 18 raw bytes
 // base64url-encodes to 24 characters — comparable entropy to the existing
-// newSecret() pattern (local_identity_handler_helpers.go) used for invite
+// newSecret() pattern (local/helpers.go) used for invite
 // codes and session tokens elsewhere in this package.
 const (
 	providerConfigIDBytes         = 18

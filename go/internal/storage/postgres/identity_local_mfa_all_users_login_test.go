@@ -190,7 +190,7 @@ func TestAuthenticateLocalIdentityNonAdminPolicyOffAuthenticatesWithPasswordOnly
 // the login-time require_mfa_for_all_users read fails CLOSED for a non-admin:
 // a read error denies the login (no session issued) rather than silently
 // skipping the check, mirroring the require_sso non-admin fail-closed stance
-// in go/internal/query/local_identity_sign_in_policy_gate.go.
+// in go/internal/query/local/sign_in_policy_gate.go.
 func TestAuthenticateLocalIdentityMFAAllUsersPolicyReadErrorDeniesLogin(t *testing.T) {
 	t.Parallel()
 
@@ -220,7 +220,7 @@ func TestAuthenticateLocalIdentityMFAAllUsersPolicyReadErrorDeniesLogin(t *testi
 // path must NEVER read that policy for an admin. Before this fix the read was
 // unconditional, so an identity_sign_in_policies outage denied a local ADMIN
 // login before the handler's documented policy_read_error_admin_allowed
-// break-glass path (local_identity_sign_in_policy_gate.go) ever got a chance
+// break-glass path (local/sign_in_policy_gate.go) ever got a chance
 // to apply. This test stages NO second queryResponses entry at all: if the
 // admin path issues a second QueryContext call for any reason, the fake
 // returns "unexpected query" and the login fails, proving the absence of the

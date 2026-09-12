@@ -9,9 +9,9 @@ import (
 )
 
 // fakeLocalIdentityStore is the shared LocalIdentityProfileLister test
-// double for local_identity_handler_test.go, local_identity_api_tokens_test.go,
-// local_identity_totp_test.go, and browser_session_authz_permission_test.go.
-// Split into its own file (from local_identity_handler_test.go) to stay
+// double for identity_handler_test.go, identity_api_tokens_test.go,
+// identity_totp_test.go, and browser_session_authz_permission_test.go.
+// Split into its own file (from identity_handler_test.go) to stay
 // under the repo's 500-line file cap.
 type fakeLocalIdentityStore struct {
 	bootstrap       LocalIdentityBootstrapRecord

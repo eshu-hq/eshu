@@ -70,8 +70,8 @@ func RecoveryActor(auth queryauth.AuthContext) (governanceaudit.ActorClass, stri
 }
 
 // IdentityHash hashes a local-identity value for audit and storage
-// comparison. Repointed from localIdentityHash
-// (internal/query/local_identity_handler_helpers.go): blank stays blank,
+// comparison. Repointed from IdentityHash
+// (internal/query/local/helpers.go): blank stays blank,
 // otherwise sha256 hex with the sha256: prefix.
 func IdentityHash(value string) string {
 	value = strings.TrimSpace(value)
@@ -83,15 +83,15 @@ func IdentityHash(value string) string {
 }
 
 // IdentityPolicyRevision derives the policy-revision hash for a tenant and
-// workspace. Repointed from localIdentityPolicyRevision
-// (internal/query/local_identity_requests.go).
+// workspace. Repointed from PolicyRevision
+// (internal/query/local/requests.go).
 func IdentityPolicyRevision(tenantID string, workspaceID string) string {
 	return IdentityHash(strings.TrimSpace(tenantID) + ":" + strings.TrimSpace(workspaceID))
 }
 
 // AuthWorkspaceID resolves the caller's workspace from the request's auth
 // context. Repointed from authWorkspaceID
-// (internal/query/local_identity_requests.go) via queryauth, which owns the
+// (internal/query/local/requests.go) via queryauth, which owns the
 // context key and the normalization.
 func AuthWorkspaceID(r *http.Request) string {
 	auth, _ := queryauth.AuthContextFromContext(r.Context())

@@ -10,7 +10,7 @@
 // (the handler resolves user_id from the session subject and rejects a foreign
 // user_id or a service principal), and revoke/rotate are scoped in the store to
 // a token the caller owns — a token the caller does not own returns 404, never
-// touching it (go/internal/query/local_identity_api_tokens.go +
+// touching it (go/internal/query/local/api_tokens.go +
 // identity_api_token_lifecycle.go). The "forbidden" result is retained for the
 // catalog-enforced (SSO) posture, where the `tokens` permission feature can be
 // withheld; in the default no-SSO posture every authenticated user passes.

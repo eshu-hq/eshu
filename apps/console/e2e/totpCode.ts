@@ -6,7 +6,7 @@
 // forbids a new npm dependency, so this reimplements the RFC 4226/6238 math
 // with node:crypto's HMAC only — deliberately mirroring
 // go/internal/totp/totp.go's hotp() byte-for-byte (HMAC-SHA1, RFC 4226 §5.3
-// dynamic truncation) and go/internal/query/local_identity_totp.go's
+// dynamic truncation) and go/internal/query/local/totp.go's
 // base32.StdEncoding.WithPadding(base32.NoPadding) secret encoding, so this
 // client-side code computes the exact same code the server's
 // go/internal/totp.Verify would accept for the same secret/time/step/digits.
