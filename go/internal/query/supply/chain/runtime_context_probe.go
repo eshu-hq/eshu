@@ -52,8 +52,11 @@ type supplyChainImpactRuntimeEnvironmentReader interface {
 	) (map[string]map[string]string, error)
 }
 
-const MaxSupplyChainRuntimeEnvironmentCandidates = ImpactFindingMaxLimit
+const MaxRuntimeEnvironmentCandidates = ImpactFindingMaxLimit
 
+// RuntimeEnvironmentPlan pairs one finding's runtime-environment candidates
+// with the probe metadata describing the bounded confirmation work still
+// needed for them.
 type RuntimeEnvironmentPlan struct {
 	candidates []impact.RuntimeEnvironmentCandidate
 	metadata   *impact.RuntimeEnvironmentEvidenceProbe
@@ -124,7 +127,7 @@ func (h *Handler) applySupplyChainRuntimeContext(
 	byDigest := map[string]map[string]string{}
 	environmentPlans := make([]RuntimeEnvironmentPlan, len(rows))
 	if environmentReader, ok := h.ImpactFindings.(supplyChainImpactRuntimeEnvironmentReader); ok && environmentReader != nil {
-		candidates, plans := PlanSupplyChainRuntimeEnvironmentCandidates(rows, byRepo)
+		candidates, plans := PlanRuntimeEnvironmentCandidates(rows, byRepo)
 		environmentPlans = plans
 		if len(candidates) > 0 {
 			byDigest, err = environmentReader.ListSupplyChainImpactRuntimeEnvironmentEvidence(
@@ -184,7 +187,7 @@ func supplyChainRuntimeEnvironmentEvidenceForPlan(
 	return out
 }
 
-func PlanSupplyChainRuntimeEnvironmentCandidates(
+func PlanRuntimeEnvironmentCandidates(
 	rows []impact.FindingRow,
 	byRepo map[string]impact.RuntimeContext,
 ) ([]impact.RuntimeEnvironmentCandidate, []RuntimeEnvironmentPlan) {
@@ -207,7 +210,7 @@ func PlanSupplyChainRuntimeEnvironmentCandidates(
 			})
 		}
 	}
-	remaining := MaxSupplyChainRuntimeEnvironmentCandidates
+	remaining := MaxRuntimeEnvironmentCandidates
 	for round := 0; remaining > 0; round++ {
 		progress := false
 		for rowIndex := range available {

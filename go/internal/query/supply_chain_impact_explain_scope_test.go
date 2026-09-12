@@ -42,7 +42,7 @@ func TestSupplyChainExplainImpactAcceptsAdvisoryOperationalAnchors(t *testing.T)
 			t.Parallel()
 
 			store := &recordingSupplyChainImpactExplanationStore{
-				err: impact.ErrSupplyChainImpactExplanationNotFound,
+				err: impact.ErrExplanationNotFound,
 			}
 			handler := &SupplyChainHandler{ImpactExplanations: store}
 			mux := http.NewServeMux()

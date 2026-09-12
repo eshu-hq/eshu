@@ -275,9 +275,9 @@ func TestSupplyChainImpactAggregateInventoryReturnsBuckets(t *testing.T) {
 
 	store := &stubSupplyChainImpactAggregateStore{
 		inventory: []impact.InventoryRow{
-			{Dimension: impact.InventoryByImpactStatus, Value: "affected_exact", Count: 12},
-			{Dimension: impact.InventoryByImpactStatus, Value: "affected_derived", Count: 3},
-			{Dimension: impact.InventoryByImpactStatus, Value: "not_affected_known_fixed", Count: 1},
+			{Dimension: impact.InventoryByStatus, Value: "affected_exact", Count: 12},
+			{Dimension: impact.InventoryByStatus, Value: "affected_derived", Count: 3},
+			{Dimension: impact.InventoryByStatus, Value: "not_affected_known_fixed", Count: 1},
 		},
 	}
 	handler := &SupplyChainHandler{ImpactAggregates: store}
@@ -291,7 +291,7 @@ func TestSupplyChainImpactAggregateInventoryReturnsBuckets(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if store.lastDimension != impact.InventoryByImpactStatus {
+	if store.lastDimension != impact.InventoryByStatus {
 		t.Fatalf("dimension = %q, want impact_status", store.lastDimension)
 	}
 	if store.lastLimit != 11 {

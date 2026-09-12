@@ -16,12 +16,12 @@ import (
 )
 
 var (
-	// ErrSupplyChainImpactExplanationNotFound means the bounded explain scope
+	// ErrExplanationNotFound means the bounded explain scope
 	// did not match an active reducer-owned impact finding.
-	ErrSupplyChainImpactExplanationNotFound = errors.New("supply chain impact explanation not found")
-	// ErrSupplyChainImpactExplanationAmbiguous means the bounded explain scope
+	ErrExplanationNotFound = errors.New("supply chain impact explanation not found")
+	// ErrExplanationAmbiguous means the bounded explain scope
 	// matched more than one active finding and needs a narrower anchor.
-	ErrSupplyChainImpactExplanationAmbiguous = errors.New("supply chain impact explanation scope is ambiguous")
+	ErrExplanationAmbiguous = errors.New("supply chain impact explanation scope is ambiguous")
 )
 
 type supplyChainImpactExplanationAmbiguousError struct {
@@ -29,11 +29,11 @@ type supplyChainImpactExplanationAmbiguousError struct {
 }
 
 func (e *supplyChainImpactExplanationAmbiguousError) Error() string {
-	return ErrSupplyChainImpactExplanationAmbiguous.Error()
+	return ErrExplanationAmbiguous.Error()
 }
 
 func (e *supplyChainImpactExplanationAmbiguousError) Is(target error) bool {
-	return target == ErrSupplyChainImpactExplanationAmbiguous
+	return target == ErrExplanationAmbiguous
 }
 
 func newSupplyChainImpactExplanationAmbiguousError(candidateCount int) error {
@@ -43,12 +43,14 @@ func newSupplyChainImpactExplanationAmbiguousError(candidateCount int) error {
 	return &supplyChainImpactExplanationAmbiguousError{candidateCount: candidateCount}
 }
 
+// ExplanationAmbiguousCandidateCount reports how many candidates an
+// ambiguous-scope explain error matched, or 0 when err is not that error.
 func ExplanationAmbiguousCandidateCount(err error) int {
 	var ambiguous *supplyChainImpactExplanationAmbiguousError
 	if errors.As(err, &ambiguous) && ambiguous.candidateCount > 0 {
 		return ambiguous.candidateCount
 	}
-	if errors.Is(err, ErrSupplyChainImpactExplanationAmbiguous) {
+	if errors.Is(err, ErrExplanationAmbiguous) {
 		return 2
 	}
 	return 0
@@ -56,21 +58,21 @@ func ExplanationAmbiguousCandidateCount(err error) int {
 
 // ExplainSupplyChainImpact returns exactly one active impact finding plus the
 // evidence fact previews referenced by the finding.
-func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
+func (s PostgresFindingStore) ExplainSupplyChainImpact(
 	ctx context.Context,
 	filter ExplanationFilter,
 ) (ExplanationRow, error) {
 	if s.DB == nil {
 		return ExplanationRow{}, fmt.Errorf("supply chain impact finding database is required")
 	}
-	filter = TrimSupplyChainImpactExplanationFilter(filter)
+	filter = TrimExplanationFilter(filter)
 	if !filter.HasBoundedScope() {
 		return ExplanationRow{}, fmt.Errorf("finding_id or advisory/cve plus package, repository, or subject digest is required")
 	}
 	args := supplyChainImpactExplanationQueryArgs(filter, s.Now)
-	query := ExplainSupplyChainImpactFindingQuery
+	query := ExplainFindingQuery
 	if filter.FindingID != "" {
-		query = ExplainSupplyChainImpactFindingByPublicIDQuery
+		query = ExplainFindingByPublicIDQuery
 	}
 	findings, err := s.loadSupplyChainImpactExplanationFindings(ctx, query, args)
 	if err != nil {
@@ -79,7 +81,7 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 	if filter.FindingID != "" && len(findings) == 0 {
 		findings, err = s.loadSupplyChainImpactExplanationFindings(
 			ctx,
-			ExplainSupplyChainImpactFindingQuery,
+			ExplainFindingQuery,
 			args,
 		)
 		if err != nil {
@@ -88,7 +90,7 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 	}
 	switch len(findings) {
 	case 0:
-		return ExplanationRow{}, ErrSupplyChainImpactExplanationNotFound
+		return ExplanationRow{}, ErrExplanationNotFound
 	case 1:
 	default:
 		return ExplanationRow{}, newSupplyChainImpactExplanationAmbiguousError(len(findings))
@@ -103,7 +105,7 @@ func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
 	}, nil
 }
 
-func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactExplanationFindings(
+func (s PostgresFindingStore) loadSupplyChainImpactExplanationFindings(
 	ctx context.Context,
 	query string,
 	args []any,
@@ -126,7 +128,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactExplanationF
 		if err := rows.Scan(&factID, &sourceConfidence, &payloadBytes); err != nil {
 			return nil, fmt.Errorf("explain supply chain impact finding: %w", err)
 		}
-		finding, err := DecodeSupplyChainImpactFindingRow(factID, sourceConfidence, payloadBytes)
+		finding, err := DecodeFindingRow(factID, sourceConfidence, payloadBytes)
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +140,7 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactExplanationF
 	return findings, nil
 }
 
-func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFacts(
+func (s PostgresFindingStore) loadSupplyChainImpactEvidenceFacts(
 	ctx context.Context,
 	factIDs []string,
 ) ([]EvidenceFact, error) {
@@ -198,13 +200,13 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 	return out, nil
 }
 
-var ExplainSupplyChainImpactFindingByPublicIDQuery = buildExplainSupplyChainImpactFindingQuery(
+var ExplainFindingByPublicIDQuery = buildExplainSupplyChainImpactFindingQuery(
 	`
     AND fact.payload->>'finding_id' = $2`,
 	"",
 )
 
-var ExplainSupplyChainImpactFindingQuery = buildExplainSupplyChainImpactFindingQuery(
+var ExplainFindingQuery = buildExplainSupplyChainImpactFindingQuery(
 	"",
 	`
   WHERE $2 = ''
@@ -327,7 +329,7 @@ WHERE fact.fact_id = ANY($1::text[])
 ORDER BY fact.fact_id ASC
 `
 
-func TrimSupplyChainImpactExplanationFilter(
+func TrimExplanationFilter(
 	filter ExplanationFilter,
 ) ExplanationFilter {
 	filter.FindingID = strings.TrimSpace(filter.FindingID)

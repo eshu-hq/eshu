@@ -14,7 +14,7 @@ import (
 func TestBuildSupplyChainImpactReadinessClassifiesNotConfigured(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -39,7 +39,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesNotConfigured(t *testing.T) {
 func TestBuildSupplyChainImpactReadinessClassifiesEvidenceIncomplete(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -60,7 +60,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesEvidenceIncomplete(t *testing.
 func TestBuildSupplyChainImpactReadinessClassifiesReadyZeroFindings(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -93,7 +93,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesStaleAdvisoryAsIncomplete(t *t
 	// answer, even when owned package and package-registry joins are fresh.
 	// API and MCP callers must not receive ready_zero_findings for a
 	// zero-finding page backed by stale advisory metadata.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -119,7 +119,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesStaleAdvisoryAsIncomplete(t *t
 func TestBuildSupplyChainImpactReadinessClassifiesReadyWithFindings(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		[]impact.FindingResult{
 			{FindingID: "finding-1", Status: "affected_exact"},
@@ -152,7 +152,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesTargetIncomplete(t *testing.T)
 	// target_incomplete only fires when scope-relevant advisory evidence is
 	// still missing; an in-flight snapshot for any source can flip the state
 	// only when the scope has no advisory facts yet.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -178,7 +178,7 @@ func TestBuildSupplyChainImpactReadinessScopeGuardsTargetIncomplete(t *testing.T
 	// An in-flight snapshot for an unrelated source must NOT downgrade a
 	// scope whose advisory evidence is already collected. Otherwise normal
 	// staggered ingestion makes ready_zero_findings unreachable.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		nil,
 		false,
@@ -207,7 +207,7 @@ func TestBuildSupplyChainImpactReadinessClearsMissingOnReadyWithFindings(t *test
 	// findings + missing-evidence reasons must not coexist in the envelope:
 	// once the reducer admitted a finding, missing_evidence becomes
 	// internally contradictory and is dropped.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		[]impact.FindingResult{
 			{FindingID: "finding-1", Status: "affected_exact"},
@@ -226,7 +226,7 @@ func TestBuildSupplyChainImpactReadinessClearsMissingOnReadyWithFindings(t *test
 func TestBuildSupplyChainImpactReadinessUnavailable(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadinessUnavailable(
+	envelope := impact.BuildReadinessUnavailable(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		[]impact.FindingResult{{FindingID: "finding-1", Status: "affected_exact"}},
 		true,
@@ -253,7 +253,7 @@ func TestBuildSupplyChainImpactReadinessRejectsRepoOnlyRegistryAsOwnedPackages(t
 	// repository-anchored request with only registry evidence must still
 	// surface MissingEvidenceOwnedPackages so the reviewer-flagged
 	// "registry count suppresses missing owned packages" path stays closed.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -278,7 +278,7 @@ func TestBuildSupplyChainImpactReadinessAcceptsRegistryForPackageAnchor(t *testi
 	// When the caller anchors on a specific package_id, registry evidence
 	// for that package IS owned-package proof; the reviewer fix must not
 	// over-correct away the normal package-anchor flow.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{PackageID: "pkg:npm/example"},
 		nil,
 		false,
@@ -300,7 +300,7 @@ func TestBuildSupplyChainImpactReadinessAcceptsRegistryForPackageAnchor(t *testi
 func TestBuildSupplyChainImpactReadinessAggregatesFreshness(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		nil,
 		false,
@@ -319,7 +319,7 @@ func TestBuildSupplyChainImpactReadinessAggregatesFreshness(t *testing.T) {
 func TestBuildSupplyChainImpactReadinessNormalizesEvidenceSources(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		nil,
 		false,
@@ -349,7 +349,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedEcosystem(t *testin
 	// resolve (no advisory matched and no finding emitted). Readiness must
 	// surface this as unsupported, not as ready_zero_findings, so callers
 	// cannot mistake "we cannot match this" for "clean".
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -382,7 +382,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedPackageManagerFile(
 	// Eshu parsed a package-manager file but recorded an unsupported lockfile
 	// feature; readiness must surface the observation as unsupported instead
 	// of admitting clean evidence.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -419,7 +419,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedDependencySource(t 
 	// is not registry-resolvable package consumption. Surface it as an
 	// unsupported target with a stable reason code instead of letting the
 	// scope look clean or merely absent.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -460,7 +460,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedSBOMTarget(t *testi
 	// or malformed_document; readiness must surface that the subject digest
 	// has unsupported target evidence so callers do not mistake "nothing
 	// matched" for "no SBOM evidence".
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{SubjectDigest: "sha256:deadbeef"},
 		nil,
 		false,
@@ -486,7 +486,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedSBOMTarget(t *testi
 func TestBuildSupplyChainImpactReadinessClassifiesMissingSBOMOrImageEvidence(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{SubjectDigest: "sha256:missing"},
 		nil,
 		false,
@@ -510,7 +510,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesPackageRegistryMetadataTooLarg
 	// The package-registry collector observed the requested package but the
 	// metadata document exceeded the configured byte limit. That is an
 	// explicit source coverage gap, not a clean zero-finding result.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{PackageID: "pkg:npm/oversized"},
 		nil,
 		false,
@@ -548,7 +548,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedImageTarget(t *test
 	// A container image was observed but no supported analyzer matched the
 	// image content; readiness must surface unsupported instead of admitting
 	// the image as covered.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{SubjectDigest: "sha256:cafefade"},
 		nil,
 		false,
@@ -582,7 +582,7 @@ func TestBuildSupplyChainImpactReadinessUnsupportedOutranksReadyZeroFindings(t *
 	// "ready_zero_findings" while there is real coverage Eshu cannot match,
 	// which is exactly the "clean" misread the unsupported state is
 	// supposed to prevent.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -613,7 +613,7 @@ func TestBuildSupplyChainImpactReadinessUnsupportedDropsEntriesWithoutReason(t *
 	// during normalization so the envelope cannot publish a contract
 	// violation, and a scope with only-blank-reason entries falls back to
 	// the non-unsupported classification.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -643,7 +643,7 @@ func TestBuildSupplyChainImpactReadinessUnsupportedDoesNotCollapseMissingEvidenc
 	// missing_evidence=owned_packages. It MUST NOT slide into unsupported,
 	// otherwise callers cannot tell "we never collected this" from "we
 	// observed something but cannot match it".
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -674,7 +674,7 @@ func TestBuildSupplyChainImpactReadinessUnsupportedSurfacesAlongsideFindings(t *
 	// stays ready_with_findings (the reducer did decide) but unsupported
 	// target counts remain visible so operators can see hidden coverage gaps
 	// without being told the result is clean for unsupported families.
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		[]impact.FindingResult{
 			{FindingID: "finding-1", Status: "affected_exact"},
@@ -704,7 +704,7 @@ func TestBuildSupplyChainImpactReadinessUnsupportedSurfacesAlongsideFindings(t *
 func TestBuildSupplyChainImpactReadinessUnsupportedNormalizesAndSortsTargets(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
@@ -738,7 +738,7 @@ func TestBuildSupplyChainImpactReadinessUnsupportedNormalizesAndSortsTargets(t *
 func TestBuildSupplyChainImpactReadinessExposesSourceSnapshotCacheMetadata(t *testing.T) {
 	t.Parallel()
 
-	envelope := impact.BuildSupplyChainImpactReadiness(
+	envelope := impact.BuildReadiness(
 		impact.TargetScope{CVEID: "CVE-2026-0001"},
 		nil,
 		false,

@@ -18,7 +18,7 @@ func TestSupplyChainExplainImpactAcceptsWorkloadAndServiceAnchors(t *testing.T) 
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	handler := &SupplyChainHandler{ImpactExplanations: store}
 	mux := http.NewServeMux()
@@ -60,7 +60,7 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesUnsupportedEcosystem(t *testi
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
 		snapshot: impact.ReadinessSnapshot{
@@ -111,7 +111,7 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesPermissionHiddenSourceState(t
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
 		snapshot: impact.ReadinessSnapshot{
@@ -165,7 +165,7 @@ func TestSupplyChainExplainImpactNoEvidenceDoesNotMarkDerivedAnchorReady(t *test
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
 		snapshot: impact.ReadinessSnapshot{
@@ -217,8 +217,8 @@ func TestSupplyChainExplainImpactQueryFiltersWorkloadAndServiceAnchors(t *testin
 		"runtime_filter.repository_id = fact.payload->>'repository_id'",
 		"$10 = '' OR fact.payload->>'image_ref' = $10",
 	} {
-		if !strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, want) {
-			t.Fatalf("impact.ExplainSupplyChainImpactFindingQuery missing %q:\n%s", want, impact.ExplainSupplyChainImpactFindingQuery)
+		if !strings.Contains(impact.ExplainFindingQuery, want) {
+			t.Fatalf("impact.ExplainFindingQuery missing %q:\n%s", want, impact.ExplainFindingQuery)
 		}
 	}
 
@@ -226,11 +226,11 @@ func TestSupplyChainExplainImpactQueryFiltersWorkloadAndServiceAnchors(t *testin
 		"fact.payload->'workload_ids' ? $8",
 		"fact.payload->'service_ids' ? $9",
 	} {
-		if strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, staleMembership) {
+		if strings.Contains(impact.ExplainFindingQuery, staleMembership) {
 			t.Fatalf(
-				"impact.ExplainSupplyChainImpactFindingQuery contains stale baked membership %q:\n%s",
+				"impact.ExplainFindingQuery contains stale baked membership %q:\n%s",
 				staleMembership,
-				impact.ExplainSupplyChainImpactFindingQuery,
+				impact.ExplainFindingQuery,
 			)
 		}
 	}

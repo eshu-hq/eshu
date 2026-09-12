@@ -26,13 +26,13 @@ type advisoryEvidenceAccumulator struct {
 	rangeValues     map[string]string
 }
 
-// BuildAdvisoryEvidenceRows groups scanned source-fact rows into canonical
+// BuildEvidenceRows groups scanned source-fact rows into canonical
 // advisory evidence rows. Exported for the staying root evidence tests and
 // the Postgres evidence store in this package.
-func BuildAdvisoryEvidenceRows(facts []EvidenceFactRow) []EvidenceRow {
+func BuildEvidenceRows(facts []EvidenceFactRow) []EvidenceRow {
 	groups := map[string]*advisoryEvidenceAccumulator{}
 	for _, fact := range facts {
-		key := CanonicalAdvisoryKey(fact.Payload)
+		key := CanonicalKey(fact.Payload)
 		if key == "" {
 			continue
 		}
@@ -315,10 +315,10 @@ func (a *advisoryEvidenceAccumulator) finish() EvidenceRow {
 	return a.row
 }
 
-// CanonicalAdvisoryKey returns the canonical grouping key for one source
+// CanonicalKey returns the canonical grouping key for one source
 // payload. Exported for the staying root evidence tests, which pin key
 // normalization.
-func CanonicalAdvisoryKey(payload map[string]any) string {
+func CanonicalKey(payload map[string]any) string {
 	if cve := firstCVEID(payload); cve != "" {
 		return cve
 	}

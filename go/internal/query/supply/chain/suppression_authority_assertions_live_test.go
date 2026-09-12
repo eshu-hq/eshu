@@ -13,8 +13,8 @@ import (
 func assertSuppressionAuthorityFilter(
 	t *testing.T,
 	ctx context.Context,
-	store impact.PostgresSupplyChainImpactFindingStore,
-	aggregates impact.PostgresSupplyChainImpactAggregateStore,
+	store impact.PostgresFindingStore,
+	aggregates impact.PostgresAggregateStore,
 	suppressionState string,
 	includeSuppressed bool,
 	wantCount int,
@@ -56,8 +56,8 @@ func assertSuppressionAuthorityFilter(
 func assertSuppressionAuthorityState(
 	t *testing.T,
 	ctx context.Context,
-	store impact.PostgresSupplyChainImpactFindingStore,
-	aggregates impact.PostgresSupplyChainImpactAggregateStore,
+	store impact.PostgresFindingStore,
+	aggregates impact.PostgresAggregateStore,
 	includeSuppressed bool,
 	wantCount int,
 	wantState string,
@@ -155,7 +155,7 @@ func assertSuppressionAuthorityBucketMap(
 func assertSuppressionAuthorityCursor(
 	t *testing.T,
 	ctx context.Context,
-	store impact.PostgresSupplyChainImpactFindingStore,
+	store impact.PostgresFindingStore,
 ) {
 	t.Helper()
 	first, err := store.ListSupplyChainImpactFindings(ctx, impact.FindingFilter{
@@ -186,7 +186,7 @@ func assertSuppressionAuthorityCursor(
 func assertSuppressionExpiryEdgeCases(
 	t *testing.T,
 	ctx context.Context,
-	store impact.PostgresSupplyChainImpactFindingStore,
+	store impact.PostgresFindingStore,
 ) {
 	t.Helper()
 	for _, tc := range []struct {

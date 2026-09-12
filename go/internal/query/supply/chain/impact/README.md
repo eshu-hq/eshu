@@ -26,17 +26,17 @@ and the profile, limit, and vocabulary constants.
 
 It does not own auth, the HTTP handlers, the response envelope,
 capability registration, or the runtime probes that attach read-time
-evidence to rows — those stay in root package `query` until the hub
-PR3 (see below).
+evidence to rows.
 
-Root package `query` keeps the handlers
-(`supply_chain_impact_*_handler.go`, `security_alerts.go`,
-the investigation-packet files), the capability matrix rows
-(`contract_supply_chain.go`), the `SupplyChainHandler` struct, the
-probes (`*_probe.go`, `findings_scope.go`), and the
-compatibility alias file (`compat_supply_chain.go`) with the
-store types, constructors, and read-model types `cmd/api`,
-`cmd/mcp-server`, `internal/serviceintelhttp`, and `internal/cli`
+The supply-chain hub (`internal/query/supply/chain`, hub PR3, #6060)
+keeps the handlers (`findings_handler.go`, `explain_handler.go`,
+`findings_aggregates_handler.go`, `security_alerts.go`, the
+investigation-packet files), the `Handler` struct, and the probes
+(`*_probe.go`, `findings_scope.go`). Root package `query` keeps only the
+capability matrix rows (`contract_supply_chain.go`) and the compatibility
+alias file (`compat_supply_chain.go`, #6642) with the store types,
+constructors, and read-model types `cmd/api`, `cmd/mcp-server`,
+`internal/serviceintelhttp`, and `internal/cli`
 still call as `query.NewPostgres*` / `query.SupplyChainImpact*`.
 Root performs capability registration deliberately: root owns the
 router and always links into the production binary.
@@ -48,35 +48,35 @@ The store ports (`FindingStore`,
 `ReadinessStore`,
 `VulnerabilitySuppressionMutationStore`) and the Postgres
 implementations with their constructors
-(`NewPostgresSupplyChainImpactFindingStore` with its
-`WithReadModel` variant, `NewPostgresSupplyChainImpactAggregateStore`,
-`NewPostgresSupplyChainImpactReadinessStore`,
+(`NewPostgresFindingStore` with its
+`WithReadModel` variant, `NewPostgresAggregateStore`,
+`NewPostgresReadinessStore`,
 `NewPostgresVulnerabilitySuppressionMutationStore`) and queryer ports
 (`FindingQueryer`,
 `AggregateQueryer`,
 `ReadinessQueryer`), the values crossing those ports
 (filters, rows, results, envelopes, path hops, remediation,
 provenance), the builder entry points
-(`BuildSupplyChainImpactExplanation` and its no-evidence/ambiguous
-variants, `BuildSupplyChainImpactReadiness` and its unavailable
-variant, `BuildSupplyChainImpactFindingResult`), the SQL texts
-(`ListSupplyChainImpactFindingsQuery` and its winners variant,
-`ExplainSupplyChainImpactFindingQuery`, the aggregates/readiness/
+(`BuildExplanation` and its no-evidence/ambiguous
+variants, `BuildReadiness` and its unavailable
+variant, `BuildFindingResult`), the SQL texts
+(`ListFindingsQuery` and its winners variant,
+`ExplainFindingQuery`, the aggregates/readiness/
 runtime/suppression texts), the request helpers the staying handlers
-call (`RequestedSupplyChainImpactProfile`, `FilterProfile`,
-`RequiredSupplyChainImpactFindingLimit`,
-`ParseSupplyChainImpactIncludeSuppressed`,
+call (`RequestedProfile`, `FilterProfile`,
+`RequiredFindingLimit`,
+`ParseIncludeSuppressed`,
 `IsSupportedSupplyChainSuppressionState`,
 `ParseSupplyChainScannerSeverity`, the scanner-filter sets and
 `RejectUnsupportedVulnerabilityScannerFilters`,
 `FirstNonEmptyQueryParam`,
-`TrimSupplyChainImpactExplanationFilter`,
+`TrimExplanationFilter`,
 `ExplanationAmbiguousCandidateCount`,
 `FindingReadinessScope`, `PriorityFilter` with its
 bucket/score helpers, `HasScope`/`HasBoundedScope`/`ReadinessScope`),
-the decode entry points (`DecodeSupplyChainImpactFindingRow`,
-`DecodeSupplyChainImpactRemediation`,
-`NormalizeSupplyChainImpactSort`, `ReadinessMissingContains`,
+the decode entry points (`DecodeFindingRow`,
+`DecodeRemediation`,
+`NormalizeSort`, `ReadinessMissingContains`,
 `AddSupplyChainRuntimeContextFact`,
 `RecordSupplyChainRuntimeEnvironmentEvidence`), the profile, limit,
 fact-kind, vocabulary, readiness-state, evidence-family, and

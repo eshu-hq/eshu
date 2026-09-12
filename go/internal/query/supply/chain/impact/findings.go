@@ -266,13 +266,15 @@ type AdvisorySource struct {
 	WithdrawnAt     string `json:"withdrawn_at,omitempty"`
 }
 
+// FindingQueryer is the minimal Postgres surface PostgresFindingStore needs;
+// *sql.DB satisfies it.
 type FindingQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-// PostgresSupplyChainImpactFindingStore reads active impact finding facts from
+// PostgresFindingStore reads active impact finding facts from
 // Postgres using scoped payload predicates.
-type PostgresSupplyChainImpactFindingStore struct {
+type PostgresFindingStore struct {
 	DB FindingQueryer
 	// Now supplies the single UTC clock value used to evaluate suppression
 	// expiry for one list or explain call. It defaults to time.Now.
@@ -287,26 +289,29 @@ type PostgresSupplyChainImpactFindingStore struct {
 	ReadFromWinners bool
 }
 
-// NewPostgresSupplyChainImpactFindingStore creates the Postgres-backed impact
+// NewPostgresFindingStore creates the Postgres-backed impact
 // finding read model.
-func NewPostgresSupplyChainImpactFindingStore(
+func NewPostgresFindingStore(
 	db FindingQueryer,
-) PostgresSupplyChainImpactFindingStore {
-	return PostgresSupplyChainImpactFindingStore{DB: db}
+) PostgresFindingStore {
+	return PostgresFindingStore{DB: db}
 }
 
-// NewPostgresSupplyChainImpactFindingStoreWithReadModel creates the store with
+// NewPostgresFindingStoreWithReadModel creates the store with
 // the #3389 Phase 2 read gate set. readFromWinners=true serves the list from the
 // maintained supply_chain_impact_canonical_winners read model; false keeps the
 // legacy read-time dedup. The wiring resolves readFromWinners from an operator
 // env gate.
-func NewPostgresSupplyChainImpactFindingStoreWithReadModel(
+func NewPostgresFindingStoreWithReadModel(
 	db FindingQueryer,
 	readFromWinners bool,
-) PostgresSupplyChainImpactFindingStore {
-	return PostgresSupplyChainImpactFindingStore{DB: db, ReadFromWinners: readFromWinners}
+) PostgresFindingStore {
+	return PostgresFindingStore{DB: db, ReadFromWinners: readFromWinners}
 }
 
+// SuppressionReadAt returns the single UTC clock value one list or explain
+// call uses to evaluate suppression expiry; now defaults to time.Now when
+// nil.
 func SuppressionReadAt(now func() time.Time) time.Time {
 	if now == nil {
 		return time.Now().UTC()
@@ -314,14 +319,14 @@ func SuppressionReadAt(now func() time.Time) time.Time {
 	return now().UTC()
 }
 
-// SelectSupplyChainImpactWinnersWatermarkQuery reads the maintainer watermark
+// SelectWinnersWatermarkQuery reads the maintainer watermark
 // from the singleton supply_chain_impact_winners_materialization row. The
 // watermark is upserted by the same atomic resweep that reconciles the winners
 // table, so it survives a resweep that produced zero active winners. Reading the
 // watermark (not winner-row presence) lets the caller distinguish "never
 // populated" (no row) from "reswept to zero findings" (row present, winners table
 // empty) — the latter is a legitimate fresh empty result, not a building state.
-const SelectSupplyChainImpactWinnersWatermarkQuery = `
+const SelectWinnersWatermarkQuery = `
 SELECT materialized_at
 FROM supply_chain_impact_winners_materialization
 LIMIT 1`
@@ -346,7 +351,7 @@ type WinnersFreshness struct {
 // enabled. On the winners path it issues the bounded LIMIT 1 watermark query;
 // ServingFromWinners is reported true even when the probe errors so the handler
 // reports the freshness unavailable rather than falsely fresh.
-func (s PostgresSupplyChainImpactFindingStore) SupplyChainImpactWinnersWatermark(
+func (s PostgresFindingStore) SupplyChainImpactWinnersWatermark(
 	ctx context.Context,
 ) (WinnersFreshness, error) {
 	if !s.ReadFromWinners {
@@ -355,7 +360,7 @@ func (s PostgresSupplyChainImpactFindingStore) SupplyChainImpactWinnersWatermark
 	if s.DB == nil {
 		return WinnersFreshness{ServingFromWinners: true}, fmt.Errorf("supply chain impact finding database is required")
 	}
-	rows, err := s.DB.QueryContext(ctx, SelectSupplyChainImpactWinnersWatermarkQuery)
+	rows, err := s.DB.QueryContext(ctx, SelectWinnersWatermarkQuery)
 	if err != nil {
 		return WinnersFreshness{ServingFromWinners: true}, fmt.Errorf("read supply chain impact winners watermark: %w", err)
 	}
@@ -376,7 +381,7 @@ func (s PostgresSupplyChainImpactFindingStore) SupplyChainImpactWinnersWatermark
 
 // ListSupplyChainImpactFindings returns one bounded page of active reducer
 // impact findings.
-func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
+func (s PostgresFindingStore) ListSupplyChainImpactFindings(
 	ctx context.Context,
 	filter FindingFilter,
 ) ([]FindingRow, error) {
@@ -390,11 +395,11 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)
 	}
 
-	query := ListSupplyChainImpactFindingsQuery
+	query := ListFindingsQuery
 	if s.ReadFromWinners &&
 		len(filter.AllowedRepositoryIDs) == 0 &&
 		len(filter.AllowedScopeIDs) == 0 {
-		query = ListSupplyChainImpactFindingsFromWinnersQuery
+		query = ListFindingsFromWinnersQuery
 	}
 	rows, err := s.DB.QueryContext(
 		ctx,
@@ -416,7 +421,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.MinPriorityScore,
 		filter.ImageRef,
 		filter.AfterFindingID,
-		NormalizeSupplyChainImpactSort(filter.Sort),
+		NormalizeSort(filter.Sort),
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,
@@ -437,7 +442,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		if err := rows.Scan(&factID, &sourceConfidence, &payloadBytes); err != nil {
 			return nil, fmt.Errorf("list supply chain impact findings: %w", err)
 		}
-		row, err := DecodeSupplyChainImpactFindingRow(factID, sourceConfidence, payloadBytes)
+		row, err := DecodeFindingRow(factID, sourceConfidence, payloadBytes)
 		if err != nil {
 			return nil, err
 		}

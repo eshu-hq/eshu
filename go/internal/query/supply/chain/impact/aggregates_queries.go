@@ -9,6 +9,8 @@ package impact
 // grants ($18/$19) — before any count, grouping, ordering, limit, or offset so
 // aggregate totals and inventory buckets never include unauthorized rows.
 
+// AggregateCanonicalFactsCTE is the shared canonical-facts CTE every
+// aggregate/inventory query below builds on; see the package comment above.
 var AggregateCanonicalFactsCTE = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$8", "$9", "$10", "$18", "$19") + `,
 source_candidates AS (
@@ -157,6 +159,9 @@ canonical_facts AS (
 )
 `
 
+// AggregateCountQuery returns the total finding count and the per-status
+// breakdown (affected/affected_exact/affected_derived/possibly_affected/
+// not_affected) over the canonical, scope-bounded fact set.
 var AggregateCountQuery = AggregateCanonicalFactsCTE + `
 SELECT
 	COUNT(*) AS total,
@@ -168,6 +173,8 @@ SELECT
 FROM canonical_facts;
 `
 
+// AggregatePriorityCountQuery groups the canonical, scope-bounded fact set
+// by priority bucket, treating an unset bucket as "unknown".
 var AggregatePriorityCountQuery = AggregateCanonicalFactsCTE + `
 SELECT
 	COALESCE(NULLIF(fact.priority_bucket, ''), 'unknown') AS bucket,
@@ -176,6 +183,8 @@ FROM canonical_facts AS fact
 GROUP BY bucket;
 `
 
+// AggregateSeverityCountQuery groups the canonical, scope-bounded fact set
+// by severity bucket, treating an unset bucket as "none".
 var AggregateSeverityCountQuery = AggregateCanonicalFactsCTE + `
 SELECT
 	COALESCE(NULLIF(fact.severity_bucket, ''), 'none') AS bucket,
@@ -186,6 +195,9 @@ GROUP BY bucket;
 
 const supplyChainImpactInventoryGroupExpressionPlaceholder = "__SUPPLY_CHAIN_IMPACT_GROUP_EXPRESSION__"
 
+// InventoryQueryTemplate groups the canonical, scope-bounded fact set by a
+// caller-selected dimension. The group-expression placeholder is substituted
+// with one of the InventoryBy* SQL expressions before the query runs.
 var InventoryQueryTemplate = AggregateCanonicalFactsCTE + `
 SELECT ` + supplyChainImpactInventoryGroupExpressionPlaceholder + ` AS bucket, COUNT(*) AS bucket_count
 FROM canonical_facts AS fact

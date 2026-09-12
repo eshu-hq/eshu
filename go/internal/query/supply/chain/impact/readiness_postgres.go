@@ -14,25 +14,27 @@ import (
 
 const supplyChainImpactReadinessFreshnessWindow = 14 * 24 * time.Hour
 
+// ReadinessQueryer is the minimal Postgres surface PostgresReadinessStore
+// needs; *sql.DB satisfies it.
 type ReadinessQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
-// PostgresSupplyChainImpactReadinessStore reads bounded source-fact counts and
+// PostgresReadinessStore reads bounded source-fact counts and
 // freshness per evidence family from the active fact-record snapshot. It never
 // invents findings or duplicates reducer matching: it only reports counts and
 // observed-at timestamps the API handler classifies into a readiness state.
-type PostgresSupplyChainImpactReadinessStore struct {
+type PostgresReadinessStore struct {
 	DB              ReadinessQueryer
 	FreshnessWindow time.Duration
 }
 
-// NewPostgresSupplyChainImpactReadinessStore creates a Postgres-backed
+// NewPostgresReadinessStore creates a Postgres-backed
 // readiness store with the default 14-day freshness window.
-func NewPostgresSupplyChainImpactReadinessStore(
+func NewPostgresReadinessStore(
 	db ReadinessQueryer,
-) PostgresSupplyChainImpactReadinessStore {
-	return PostgresSupplyChainImpactReadinessStore{
+) PostgresReadinessStore {
+	return PostgresReadinessStore{
 		DB:              db,
 		FreshnessWindow: supplyChainImpactReadinessFreshnessWindow,
 	}
@@ -47,7 +49,7 @@ func NewPostgresSupplyChainImpactReadinessStore(
 // service, environment, ecosystem, severity, or impact_status are echoed in the
 // target scope but do not open a source-fact scan by themselves, because source
 // facts do not carry those reducer-owned attributes.
-func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
+func (s PostgresReadinessStore) ReadSupplyChainImpactReadiness(
 	ctx context.Context,
 	query ReadinessQuery,
 ) (ReadinessSnapshot, error) {
@@ -65,7 +67,7 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 
 	rows, err := s.DB.QueryContext(
 		ctx,
-		ListSupplyChainImpactReadinessQuery,
+		ListReadinessQuery,
 		pgarray.Array(vulnerabilityAdvisoryFactKinds),
 		pgarray.Array(vulnerabilityExploitabilityFactKinds),
 		pgarray.Array(packageConsumptionCorrelationFactKinds),

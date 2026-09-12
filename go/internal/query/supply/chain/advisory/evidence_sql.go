@@ -12,11 +12,11 @@ var advisoryEvidenceFactKinds = []string{
 	"vulnerability.reference",
 }
 
-// ListAdvisoryEvidenceQuery returns one bounded page of source-only advisory
+// ListEvidenceQuery returns one bounded page of source-only advisory
 // evidence facts. Exported for the staying root evidence tests and the
 // vulnerability snapshot lockstep test, which pin its CTE shape and grant
 // predicate placement.
-const ListAdvisoryEvidenceQuery = `
+const ListEvidenceQuery = `
 WITH explicit_lookup_ids AS MATERIALIZED (
     SELECT DISTINCT TRIM(value) AS value
     FROM unnest($2::text[]) AS input(value)

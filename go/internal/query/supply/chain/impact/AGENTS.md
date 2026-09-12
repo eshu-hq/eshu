@@ -38,9 +38,9 @@ Read `doc.go` and `README.md` first.
   gates the store, and the staying root handlers gate before it.
   Widening either gate enables unscoped reads over the whole impact
   corpus.
-- The findings SQL MUST keep its bounded placeholder-bound shape: the
-  root placeholder-binding test parses
-  `supplychain/impact/findings.go` and pins the
+- The findings SQL MUST keep its bounded placeholder-bound shape: the hub's
+  placeholder-binding test (`runtime_filter_args_test.go`) parses
+  `impact/findings.go` and pins the
   production `QueryContext` argument list against both list-query
   variants. Adding a placeholder without updating the production call
   (or vice versa) fails that test by design.
@@ -57,9 +57,9 @@ caller, a method call site, or a carried pre-existing export — no
 speculative API. Do not export a new symbol without adding its caller
 to this list.
 
-- Store constructors `NewPostgresSupplyChainImpactFindingStore` (plus
-  the `WithReadModel` variant), `NewPostgresSupplyChainImpactAggregateStore`,
-  `NewPostgresSupplyChainImpactReadinessStore`,
+- Store constructors `NewPostgresFindingStore` (plus
+  the `WithReadModel` variant), `NewPostgresAggregateStore`,
+  `NewPostgresReadinessStore`,
   `NewPostgresVulnerabilitySuppressionMutationStore` — `cmd/api` and
   `cmd/mcp-server` wiring via the root aliases, plus the staying root
   store tests. The queryer ports (`FindingQueryer`,
@@ -83,34 +83,34 @@ to this list.
   `ReadinessEnvelope/Query/Snapshot/State`) — the
   staying handlers, probes, investigation packets, `serviceintelhttp`,
   `internal/cli`, and the staying root tests.
-- Builders (`BuildSupplyChainImpactExplanation` and its no-evidence /
-  ambiguous variants, `BuildSupplyChainImpactReadiness` and its
-  unavailable variant, `BuildSupplyChainImpactFindingResult`) — the
+- Builders (`BuildExplanation` and its no-evidence /
+  ambiguous variants, `BuildReadiness` and its
+  unavailable variant, `BuildFindingResult`) — the
   staying explain/findings handlers, the investigation packets, and
   the probe tests.
-- Request helpers (`RequestedSupplyChainImpactProfile`,
-  `FilterProfile`, `RequiredSupplyChainImpactFindingLimit`,
-  `ParseSupplyChainImpactIncludeSuppressed`,
+- Request helpers (`RequestedProfile`,
+  `FilterProfile`, `RequiredFindingLimit`,
+  `ParseIncludeSuppressed`,
   `IsSupportedSupplyChainSuppressionState`,
   `ParseSupplyChainScannerSeverity`, `FindingsScannerFilters`,
   `ExplanationScannerFilters`,
   `RejectUnsupportedVulnerabilityScannerFilters`,
   `SecurityAlertScannerFilters`, `FirstNonEmptyQueryParam`,
-  `TrimSupplyChainImpactExplanationFilter`,
+  `TrimExplanationFilter`,
   `ExplanationAmbiguousCandidateCount`,
   `FindingReadinessScope`, `PriorityFilter` with
-  `ValidSupplyChainImpactPriorityBucket` and
-  `OptionalSupplyChainImpactMinPriorityScore`) — the staying
+  `ValidPriorityBucket` and
+  `OptionalMinPriorityScore`) — the staying
   findings/aggregates/explain handlers, the security-alert handlers,
   the investigation packets, and `sbom_attachments.go`.
-- Decode/normalize entry points (`DecodeSupplyChainImpactFindingRow`,
-  `DecodeSupplyChainImpactRemediation`,
-  `NormalizeSupplyChainImpactSort`, `ReadinessMissingContains`,
+- Decode/normalize entry points (`DecodeFindingRow`,
+  `DecodeRemediation`,
+  `NormalizeSort`, `ReadinessMissingContains`,
   `AddSupplyChainRuntimeContextFact`,
   `RecordSupplyChainRuntimeEnvironmentEvidence`) — the staying root
   unit tests pinning decode and grouping behavior.
-- SQL texts and kind/query consts (`ListSupplyChainImpactFindingsQuery`
-  and its winners variant, `ExplainSupplyChainImpactFindingQuery` and
+- SQL texts and kind/query consts (`ListFindingsQuery`
+  and its winners variant, `ExplainFindingQuery` and
   its public-ID variant, the aggregates/readiness/runtime/suppression
   texts, `FindingFactKind`,
   `RuntimeContextFactKinds`,
@@ -148,13 +148,13 @@ to this list.
   and receivers, never package-qualified; the staying doubles
   implement them.
 - Carried pre-existing exports (row/response struct types,
-  `ExplainSupplyChainImpactFindingByPublicIDQuery` companions,
+  `ExplainFindingByPublicIDQuery` companions,
   closed-vocabulary members with no current outside caller such as
   `EvidenceFamilySBOMAttestation`,
   `EvidenceFamilyScannerWorkerAnalysis`,
   `EvidenceFamilyVulnerabilityOSPackage`,
   `MissingEvidencePackageRegistryMetadata`,
-  `ListSupplyChainImpactReadinessQueryCore`,
+  `ListReadinessQueryCore`,
   `SourceStateWindow`,
   `VersionResolutionCorroboration`,
   `ProviderAlertAnchor`) — exported before the move and
@@ -198,8 +198,8 @@ Everything else stays in root package `query` for this lane — do not
   Only `runtime_digest_route_live` stays in root: it drives the hub
   handler through `Mount` with the staying `recording*` stores.
 - The SQL-shape, decode, and placeholder tests pin moved texts from
-  root as `impact.X` (including the placeholder-binding test, which
-  parses `supplychain/impact/findings.go` by its
+  root as `impact.X` (including the hub's placeholder-binding test, which
+  parses `impact/findings.go` by its
   new path).
 
 ## Shared test fixtures

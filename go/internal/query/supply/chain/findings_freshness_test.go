@@ -22,7 +22,7 @@ func TestSupplyChainImpactWinnersWatermarkGate(t *testing.T) {
 	t.Parallel()
 
 	recOff := &recordingImpactQueryer{}
-	storeOff := impact.NewPostgresSupplyChainImpactFindingStoreWithReadModel(recOff, false)
+	storeOff := impact.NewPostgresFindingStoreWithReadModel(recOff, false)
 	off, err := storeOff.SupplyChainImpactWinnersWatermark(context.Background())
 	if err != nil {
 		t.Fatalf("gate-off watermark returned error: %v", err)
@@ -35,7 +35,7 @@ func TestSupplyChainImpactWinnersWatermarkGate(t *testing.T) {
 	}
 
 	recOn := &recordingImpactQueryer{}
-	storeOn := impact.NewPostgresSupplyChainImpactFindingStoreWithReadModel(recOn, true)
+	storeOn := impact.NewPostgresFindingStoreWithReadModel(recOn, true)
 	on, err := storeOn.SupplyChainImpactWinnersWatermark(context.Background())
 	if err == nil {
 		t.Fatal("recordingImpactQueryer always errors; expected the probe error to propagate")
@@ -43,7 +43,7 @@ func TestSupplyChainImpactWinnersWatermarkGate(t *testing.T) {
 	if !on.ServingFromWinners {
 		t.Fatal("gate-on read must report serving from winners even when the probe errors")
 	}
-	if recOn.lastQuery != impact.SelectSupplyChainImpactWinnersWatermarkQuery {
+	if recOn.lastQuery != impact.SelectWinnersWatermarkQuery {
 		t.Fatalf("gate-on read issued the wrong probe query: %q", recOn.lastQuery)
 	}
 }

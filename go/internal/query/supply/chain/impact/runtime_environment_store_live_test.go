@@ -49,7 +49,7 @@ func TestRuntimeEnvironmentEvidenceHotDigestUsesArtifactIndexLive(t *testing.T) 
 	)
 
 	started := time.Now()
-	got, err := (PostgresSupplyChainImpactFindingStore{DB: db}).
+	got, err := (PostgresFindingStore{DB: db}).
 		ListSupplyChainImpactRuntimeEnvironmentEvidence(ctx, candidates, nil, nil)
 	if err != nil {
 		t.Fatalf("ListSupplyChainImpactRuntimeEnvironmentEvidence(): %v", err)
@@ -98,7 +98,7 @@ func TestRuntimeEnvironmentEvidenceCurrentAuthorizedTruthMatrixLive(t *testing.T
 			Environment:   "prod",
 		})
 	}
-	got, err := (PostgresSupplyChainImpactFindingStore{DB: db}).
+	got, err := (PostgresFindingStore{DB: db}).
 		ListSupplyChainImpactRuntimeEnvironmentEvidence(
 			ctx,
 			candidates,

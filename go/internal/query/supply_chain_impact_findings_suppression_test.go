@@ -166,8 +166,8 @@ func TestListSupplyChainImpactFindingsQueryHandlesSuppressionPredicates(t *testi
 		"$21::boolean",
 		"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing suppression predicate %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListFindingsQuery, want) {
+			t.Fatalf("impact.ListFindingsQuery missing suppression predicate %q:\n%s", want, impact.ListFindingsQuery)
 		}
 	}
 }
@@ -190,9 +190,9 @@ func TestDecodeSupplyChainImpactFindingRowDecodesSuppressionBlock(t *testing.T) 
         }
     }`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "inferred", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.Suppression == nil {
 		t.Fatal("Suppression = nil, want decoded suppression block")
@@ -216,9 +216,9 @@ func TestDecodeSupplyChainImpactFindingRowFallsBackToTopLevelState(t *testing.T)
         "impact_status": "affected_exact",
         "suppression_state": "active"
     }`)
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-2", "inferred", payload)
+	row, err := impact.DecodeFindingRow("finding-2", "inferred", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.Suppression == nil || row.Suppression.State != "active" {
 		t.Fatalf("Suppression = %#v, want top-level state to populate active row", row.Suppression)

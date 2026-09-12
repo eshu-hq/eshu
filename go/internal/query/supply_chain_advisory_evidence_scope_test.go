@@ -127,7 +127,7 @@ func TestPageAdvisoryEvidenceRowsTrustsImpactScopeForAdvisoryAliases(t *testing.
 		CanonicalID: "CVE-2026-0001",
 		CVEIDs:      []string{"CVE-2026-0001"},
 	}}
-	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.EvidenceFilter{
+	got := advisory.PageEvidenceRows(rows, advisory.EvidenceFilter{
 		ID:           "GHSA-aaaa-bbbb-cccc",
 		RepositoryID: "repo://example/api",
 		Limit:        10,

@@ -143,7 +143,7 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 
 	dimension := impact.InventoryDimension(querycontract.QueryParam(r, "group_by"))
 	if dimension == "" {
-		dimension = impact.InventoryByImpactStatus
+		dimension = impact.InventoryByStatus
 	}
 	if !isSupportedSupplyChainImpactDimension(dimension) {
 		querycontract.WriteError(w, http.StatusBadRequest, "group_by must be one of impact_status, priority_bucket, severity, repository_id, ecosystem")
@@ -187,7 +187,7 @@ func (h *Handler) impactInventory(w http.ResponseWriter, r *http.Request) {
 		"group_by":          string(dimension),
 		"detection_profile": profile,
 		"truncated":         truncated,
-		"next_offset":       NextSupplyChainImpactAggregateOffset(offset, limit, truncated),
+		"next_offset":       NextImpactAggregateOffset(offset, limit, truncated),
 		"scope":             supplyChainImpactAggregateScope(filter),
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
@@ -207,7 +207,7 @@ func (h *Handler) supplyChainImpactAggregateFilterFromRequest(
 	if !ok {
 		return impact.AggregateFilter{}, false
 	}
-	profile, ok := impact.RequestedSupplyChainImpactProfile(w, r)
+	profile, ok := impact.RequestedProfile(w, r)
 	if !ok {
 		return impact.AggregateFilter{}, false
 	}
@@ -220,11 +220,11 @@ func (h *Handler) supplyChainImpactAggregateFilterFromRequest(
 		return impact.AggregateFilter{}, false
 	}
 	priorityBucket := querycontract.QueryParam(r, "priority_bucket")
-	if priorityBucket != "" && !impact.ValidSupplyChainImpactPriorityBucket(priorityBucket) {
+	if priorityBucket != "" && !impact.ValidPriorityBucket(priorityBucket) {
 		querycontract.WriteError(w, http.StatusBadRequest, "priority_bucket must be critical, high, medium, low, or informational")
 		return impact.AggregateFilter{}, false
 	}
-	minPriorityScore, err := impact.OptionalSupplyChainImpactMinPriorityScore(r)
+	minPriorityScore, err := impact.OptionalMinPriorityScore(r)
 	if err != nil {
 		querycontract.WriteError(w, http.StatusBadRequest, err.Error())
 		return impact.AggregateFilter{}, false
@@ -234,7 +234,7 @@ func (h *Handler) supplyChainImpactAggregateFilterFromRequest(
 		querycontract.WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
 		return impact.AggregateFilter{}, false
 	}
-	includeSuppressed, ok := impact.ParseSupplyChainImpactIncludeSuppressed(w, r)
+	includeSuppressed, ok := impact.ParseIncludeSuppressed(w, r)
 	if !ok {
 		return impact.AggregateFilter{}, false
 	}
@@ -327,7 +327,7 @@ func supplyChainImpactAggregateScope(filter impact.AggregateFilter) map[string]s
 
 func isSupportedSupplyChainImpactDimension(d impact.InventoryDimension) bool {
 	switch d {
-	case impact.InventoryByImpactStatus,
+	case impact.InventoryByStatus,
 		impact.InventoryByPriorityBucket,
 		impact.InventoryBySeverity,
 		impact.InventoryByRepository,
@@ -386,11 +386,11 @@ func parseSupplyChainImpactAggregateOffset(w http.ResponseWriter, r *http.Reques
 	return parsed, true
 }
 
-// NextSupplyChainImpactAggregateOffset returns the next offset when a truncated
+// NextImpactAggregateOffset returns the next offset when a truncated
 // page can be continued without exceeding the documented offset bound, and nil
 // otherwise. Callers serialize the nil as JSON null so generated clients see a
 // clean end-of-stream marker instead of an out-of-contract integer.
-func NextSupplyChainImpactAggregateOffset(offset, limit int, truncated bool) any {
+func NextImpactAggregateOffset(offset, limit int, truncated bool) any {
 	if !truncated {
 		return nil
 	}

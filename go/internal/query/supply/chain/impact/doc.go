@@ -2,11 +2,11 @@
 // Copyright (c) 2025-2026 eshu-hq
 
 // Package impact implements the supply-chain impact query read models: the
-// reducer-owned vulnerability impact findings (PostgresSupplyChainImpactFindingStore,
+// reducer-owned vulnerability impact findings (PostgresFindingStore,
 // bounded list/explain reads over active impact-finding facts), the impact
-// aggregates (PostgresSupplyChainImpactAggregateStore, counts and inventory
+// aggregates (PostgresAggregateStore, counts and inventory
 // rollups), the evidence-readiness snapshots
-// (PostgresSupplyChainImpactReadinessStore, per-family counts and freshness),
+// (PostgresReadinessStore, per-family counts and freshness),
 // the read-time runtime-context and runtime-environment evidence joins, the
 // scanner-filter and suppression-mutation Postgres adapters, and the
 // remediation, path, priority, version-resolution, and source-state read

@@ -196,14 +196,14 @@ type ExplanationFreshness struct {
 	EvidenceFactCount int    `json:"evidence_fact_count"`
 }
 
-// BuildSupplyChainImpactExplanation shapes a durable impact finding and its
+// BuildExplanation shapes a durable impact finding and its
 // referenced evidence facts into one bounded explain response.
-func BuildSupplyChainImpactExplanation(
+func BuildExplanation(
 	filter ExplanationFilter,
 	row ExplanationRow,
 	readiness ReadinessEnvelope,
 ) ExplanationResult {
-	finding := BuildSupplyChainImpactFindingResult(&row.Finding)
+	finding := BuildFindingResult(&row.Finding)
 	advisory := buildSupplyChainAdvisoryExplanation(row)
 	component := buildSupplyChainComponentExplanation(row)
 	version := buildSupplyChainVersionExplanation(row, advisory, component)
@@ -231,9 +231,9 @@ func BuildSupplyChainImpactExplanation(
 	}
 }
 
-// BuildSupplyChainImpactNoEvidenceExplanation returns a bounded explanation for
+// BuildNoEvidenceExplanation returns a bounded explanation for
 // a valid scope where no reducer-owned impact finding currently exists.
-func BuildSupplyChainImpactNoEvidenceExplanation(
+func BuildNoEvidenceExplanation(
 	filter ExplanationFilter,
 	readiness ReadinessEnvelope,
 ) ExplanationResult {
@@ -259,9 +259,9 @@ func BuildSupplyChainImpactNoEvidenceExplanation(
 	}
 }
 
-// BuildSupplyChainImpactAmbiguousExplanation returns a bounded refusal envelope
+// BuildAmbiguousExplanation returns a bounded refusal envelope
 // for a valid scope that matches multiple reducer-owned impact findings.
-func BuildSupplyChainImpactAmbiguousExplanation(
+func BuildAmbiguousExplanation(
 	filter ExplanationFilter,
 	readiness ReadinessEnvelope,
 	candidateCount int,

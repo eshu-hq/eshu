@@ -34,8 +34,8 @@ const (
 func assertSupplyChainRuntimeNormalizationLive(
 	t *testing.T,
 	ctx context.Context,
-	findingStore impact.PostgresSupplyChainImpactFindingStore,
-	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresFindingStore,
+	aggregateStore impact.PostgresAggregateStore,
 ) {
 	t.Helper()
 
@@ -144,7 +144,7 @@ func assertSupplyChainRuntimeNormalizationLive(
 		})
 	}
 
-	contextStore := impact.NewPostgresSupplyChainImpactFindingStore(findingStore.DB)
+	contextStore := impact.NewPostgresFindingStore(findingStore.DB)
 	contexts, err := contextStore.ListSupplyChainImpactRuntimeContext(
 		ctx,
 		[]string{runtimeFilterLiveRepository},
@@ -218,8 +218,8 @@ func assertSupplyChainRuntimeNormalizationLive(
 func assertSupplyChainRuntimeNormalizationFilterLive(
 	t *testing.T,
 	ctx context.Context,
-	findingStore impact.PostgresSupplyChainImpactFindingStore,
-	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresFindingStore,
+	aggregateStore impact.PostgresAggregateStore,
 	workloadID string,
 	serviceID string,
 	environment string,
@@ -256,7 +256,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 	inventory, err := aggregateStore.SupplyChainImpactInventory(
 		ctx,
 		aggregateFilter,
-		impact.InventoryByImpactStatus,
+		impact.InventoryByStatus,
 		10,
 		0,
 	)
@@ -279,7 +279,7 @@ func assertSupplyChainRuntimeNormalizationFilterLive(
 		ServiceID:       serviceID,
 		AllowedScopeIDs: []string{runtimeFilterLiveScopeA},
 	})
-	if want == 0 && !errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
+	if want == 0 && !errors.Is(err, impact.ErrExplanationNotFound) {
 		t.Fatalf("explain normalized runtime filter error = %v, want not found", err)
 	}
 	if want == 1 && err != nil {

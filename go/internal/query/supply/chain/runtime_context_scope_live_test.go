@@ -15,7 +15,7 @@ import (
 func assertSupplyChainRuntimeContextScopesLive(
 	t *testing.T,
 	ctx context.Context,
-	store impact.PostgresSupplyChainImpactFindingStore,
+	store impact.PostgresFindingStore,
 ) {
 	t.Helper()
 	for _, tc := range []struct {
@@ -86,8 +86,8 @@ func assertSupplyChainRuntimeContextScopesLive(
 func assertSupplyChainConflictingAnchorFiltersLive(
 	t *testing.T,
 	ctx context.Context,
-	findingStore impact.PostgresSupplyChainImpactFindingStore,
-	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresFindingStore,
+	aggregateStore impact.PostgresAggregateStore,
 ) {
 	t.Helper()
 	for _, tc := range []struct {
@@ -134,7 +134,7 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 			inventory, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
-				impact.InventoryByImpactStatus,
+				impact.InventoryByStatus,
 				10,
 				0,
 			)
@@ -155,7 +155,7 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 				AllowedRepositoryIDs: []string{runtimeFilterLiveDecoyRepo},
 				AllowedScopeIDs:      []string{runtimeFilterLiveScopeA},
 			})
-			if !errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
+			if !errors.Is(err, impact.ErrExplanationNotFound) {
 				t.Fatalf("explain conflicting anchor error = %v, want not found", err)
 			}
 		})
@@ -165,8 +165,8 @@ func assertSupplyChainConflictingAnchorFiltersLive(
 func assertSupplyChainStaleBakedFiltersLive(
 	t *testing.T,
 	ctx context.Context,
-	findingStore impact.PostgresSupplyChainImpactFindingStore,
-	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresFindingStore,
+	aggregateStore impact.PostgresAggregateStore,
 ) {
 	t.Helper()
 	for _, tc := range []struct {
@@ -213,7 +213,7 @@ func assertSupplyChainStaleBakedFiltersLive(
 			inventory, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
-				impact.InventoryByImpactStatus,
+				impact.InventoryByStatus,
 				10,
 				0,
 			)
@@ -233,7 +233,7 @@ func assertSupplyChainStaleBakedFiltersLive(
 				ServiceID:       tc.serviceID,
 				AllowedScopeIDs: []string{runtimeFilterLiveScopeA},
 			})
-			if !errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
+			if !errors.Is(err, impact.ErrExplanationNotFound) {
 				t.Fatalf("explain stale baked selector error = %v, want not found", err)
 			}
 		})

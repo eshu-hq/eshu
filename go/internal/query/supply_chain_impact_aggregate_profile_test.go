@@ -35,7 +35,7 @@ func TestSupplyChainImpactAggregateRoutesUseListProfileDefaults(t *testing.T) {
 			BySeverity:       map[string]int{"high": 1},
 		},
 		inventory: []impact.InventoryRow{{
-			Dimension: impact.InventoryByImpactStatus,
+			Dimension: impact.InventoryByStatus,
 			Value:     "affected_exact",
 			Count:     1,
 		}},
@@ -115,8 +115,8 @@ func TestSupplyChainImpactAggregateRoutesComprehensiveProfileIncludesPossiblyAff
 			BySeverity:       map[string]int{"high": 1, "medium": 1},
 		},
 		inventory: []impact.InventoryRow{
-			{Dimension: impact.InventoryByImpactStatus, Value: "affected_exact", Count: 1},
-			{Dimension: impact.InventoryByImpactStatus, Value: "possibly_affected", Count: 1},
+			{Dimension: impact.InventoryByStatus, Value: "affected_exact", Count: 1},
+			{Dimension: impact.InventoryByStatus, Value: "possibly_affected", Count: 1},
 		},
 	}
 	handler := &SupplyChainHandler{
@@ -198,7 +198,7 @@ func TestSupplyChainImpactAggregateRoutesKeepSuppressionSeparateFromProfile(t *t
 			BySeverity:       map[string]int{"high": 1},
 		},
 		inventory: []impact.InventoryRow{{
-			Dimension: impact.InventoryByImpactStatus,
+			Dimension: impact.InventoryByStatus,
 			Value:     "affected_exact",
 			Count:     1,
 		}},

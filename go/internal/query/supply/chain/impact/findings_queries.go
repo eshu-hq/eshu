@@ -3,10 +3,15 @@
 
 package impact
 
+// FindingFactKind is the reducer-derived fact kind backing the impact
+// finding read model.
 const FindingFactKind = "reducer_supply_chain_impact_finding"
 
 const supplyChainImpactOperatorSuppressionScopeID = "operator:vulnerability_suppressions"
 
+// CanonicalFindingKeySQL builds one finding's canonical dedup key from its
+// scoping fields, so the same underlying finding collapses to one row
+// regardless of which source facts produced it.
 const CanonicalFindingKeySQL = `CONCAT_WS('|',
          COALESCE(NULLIF(fact.payload->>'cve_id', ''), NULLIF(fact.payload->>'advisory_id', ''), ''),
          COALESCE(fact.payload->>'advisory_id', ''),
@@ -117,7 +122,7 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
   END`
 }
 
-// ListSupplyChainImpactFindingsFromWinnersQuery is the #3389 Phase 2 read that
+// ListFindingsFromWinnersQuery is the #3389 Phase 2 read that
 // serves the same page from the maintained supply_chain_impact_canonical_winners
 // read model instead of deduplicating at read time. The winners table already
 // holds one row per canonical_key (the same winner the ROW_NUMBER dedup picks),
@@ -126,7 +131,7 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // window, no sort spill) and joins fact_records by winner_fact_id only for the
 // page payloads.
 //
-// It takes the SAME 24-parameter slice as ListSupplyChainImpactFindingsQuery so
+// It takes the SAME 24-parameter slice as ListFindingsQuery so
 // the store can swap queries without rebuilding args; $1 (fact_kind) is not a
 // filter here because the winners table is impact-only, but it is referenced in a
 // trivially-true guard so every bound parameter is used.
@@ -136,7 +141,7 @@ func supplyChainImpactPayloadWithSuppressionOverlaySQL(
 // NOT re-join the active-generation tables — that join defeats O(page) (measured)
 // and the maintainer already excludes inactive winners. Output is byte-identical
 // to the read-time-dedup query (verified across the filter/sort/cursor matrix).
-var ListSupplyChainImpactFindingsFromWinnersQuery = `
+var ListFindingsFromWinnersQuery = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
 ` + supplyChainImpactOperatorCandidatesCTE("$1") + `,
 operator_overrides AS MATERIALIZED (

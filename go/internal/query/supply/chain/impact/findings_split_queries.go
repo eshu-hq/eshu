@@ -3,11 +3,11 @@
 
 package impact
 
-// ListSupplyChainImpactFindingsQuery ranks only narrow source/operator metadata,
+// ListFindingsQuery ranks only narrow source/operator metadata,
 // applies suppression and pagination, then fetches JSON payloads for the bounded
 // page. Keeping payloads out of the canonical-key sorts avoids width-driven
 // spills while preserving source-owned finding truth and operator-only overlays.
-var ListSupplyChainImpactFindingsQuery = `
+var ListFindingsQuery = `
 WITH ` + supplyChainImpactRuntimeFilterCTE("$9", "$10", "$11", "$22", "$23") + `,
 source_candidates AS (
   SELECT fact.fact_id,

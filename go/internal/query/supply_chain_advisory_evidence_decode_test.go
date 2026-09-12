@@ -37,7 +37,7 @@ func TestBuildAdvisoryEvidenceRowsDropsSourceEvidenceMissingRequiredField(t *tes
 		}`),
 	}
 
-	got := advisory.BuildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (grouped by cve_id)", len(got))
 	}
@@ -61,7 +61,7 @@ func TestBuildAdvisoryEvidenceRowsDropsAffectedPackageMissingRequiredField(t *te
 		}`),
 	}
 
-	got := advisory.BuildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (grouped by cve_id)", len(got))
 	}
@@ -90,7 +90,7 @@ func TestBuildAdvisoryEvidenceRowsDropsUnsupportedSchemaMajor(t *testing.T) {
 		}`),
 	}
 
-	got := advisory.BuildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1 (grouped by cve_id)", len(got))
 	}
@@ -115,7 +115,7 @@ func TestBuildAdvisoryEvidenceRowsAbsentSchemaVersionDecodesAsV1(t *testing.T) {
 		}`),
 	}
 
-	got := advisory.BuildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1", len(got))
 	}

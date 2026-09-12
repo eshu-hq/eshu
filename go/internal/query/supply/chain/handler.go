@@ -28,8 +28,8 @@ const (
 	// ImpactFindingMaxLimit does NOT bound the impact-findings route's page
 	// size (that bound is impact.supplyChainImpactFindingMaxLimit, a
 	// deliberate family-local copy of the same value -- see
-	// supplychain/impact/AGENTS.md). It exists only to derive
-	// MaxSupplyChainRuntimeEnvironmentCandidates (runtime_context_probe.go).
+	// supply/chain/impact/AGENTS.md). It exists only to derive
+	// MaxRuntimeEnvironmentCandidates (runtime_context_probe.go).
 	ImpactFindingMaxLimit               = 200
 	ContainerImageIdentityMaxLimit      = 200
 	SecurityAlertReconciliationMaxLimit = 200

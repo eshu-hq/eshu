@@ -26,10 +26,10 @@ func TestSupplyChainRuntimeRepositoryDecoderIsSharedByFilterAndHydration(t *test
 		"fact.scope_id",
 		"runtime_repository",
 	)
-	if !strings.Contains(SelectSupplyChainImpactRuntimeContextQuery, hydrationJoin) {
+	if !strings.Contains(SelectRuntimeContextQuery, hydrationJoin) {
 		t.Fatal("runtime-context hydration query does not contain the shared repository decoder")
 	}
-	if !strings.Contains(SelectSupplyChainImpactRuntimeContextQuery,
+	if !strings.Contains(SelectRuntimeContextQuery,
 		"runtime_repository.repository_id = ANY($3::text[])") {
 		t.Fatal("runtime-context hydration does not authorize the canonical decoded repository")
 	}

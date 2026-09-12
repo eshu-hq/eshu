@@ -53,13 +53,13 @@ not export a new symbol without adding its caller to this list.
   root handler limit checks and the root catalog/evidence tests.
 - `EvidenceMaxFactRows`, `EvidenceFactCapacity` — the
   root evidence tests (`FactCapacity` also bounds the store's scan).
-- `NormalizeAdvisoryEvidenceFilter`, `NormalizeAdvisoryCatalogFilter`,
+- `NormalizeEvidenceFilter`, `NormalizeCatalogFilter`,
   `EvidenceFilter.HasScope` — the staying root handlers
   (evidence, vulnerability-detail) and the root tests.
-- `BuildAdvisoryEvidenceRows`, `EvidenceFactRow`,
-  `CanonicalAdvisoryKey`, `PageAdvisoryEvidenceRows`,
-  `EvidenceLookupIDs`, `ListAdvisoryEvidenceQuery`,
-  `ListAdvisoryCatalogQuery` — the root evidence/catalog/SQL tests, which
+- `BuildEvidenceRows`, `EvidenceFactRow`,
+  `CanonicalKey`, `PageEvidenceRows`,
+  `EvidenceLookupIDs`, `ListEvidenceQuery`,
+  `ListCatalogQuery` — the root evidence/catalog/SQL tests, which
   pin grouping, paging, normalization, and SQL shape.
 - `EvidenceQueryer` — the constructor parameter the root tests,
   the root alias forwarders, and `cmd/*` wiring name.

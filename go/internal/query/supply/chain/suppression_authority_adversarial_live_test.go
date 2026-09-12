@@ -13,12 +13,12 @@ import (
 func assertSuppressionAuthorityCloneDriftAndOrphan(
 	t *testing.T,
 	ctx context.Context,
-	direct impact.PostgresSupplyChainImpactFindingStore,
-	materialized impact.PostgresSupplyChainImpactFindingStore,
+	direct impact.PostgresFindingStore,
+	materialized impact.PostgresFindingStore,
 ) {
 	t.Helper()
 
-	for name, store := range map[string]impact.PostgresSupplyChainImpactFindingStore{
+	for name, store := range map[string]impact.PostgresFindingStore{
 		"direct":       direct,
 		"materialized": materialized,
 	} {

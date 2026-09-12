@@ -111,7 +111,7 @@ func TestBuildSupplyChainImpactReadinessDistinguishesSourceStates(t *testing.T) 
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			envelope := BuildSupplyChainImpactReadiness(
+			envelope := BuildReadiness(
 				TargetScope{CVEID: "CVE-2026-0001"},
 				nil,
 				false,

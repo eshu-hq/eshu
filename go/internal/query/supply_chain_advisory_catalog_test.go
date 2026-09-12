@@ -223,7 +223,7 @@ func TestSupplyChainListAdvisoryCatalogAcceptsCursor(t *testing.T) {
 func TestNormalizeAdvisoryCatalogFilterUppercasesCursorKey(t *testing.T) {
 	t.Parallel()
 
-	got := advisory.NormalizeAdvisoryCatalogFilter(advisory.CatalogFilter{
+	got := advisory.NormalizeCatalogFilter(advisory.CatalogFilter{
 		Severity:         " HIGH ",
 		Ecosystem:        " npm ",
 		Query:            " cve-2021 ",
@@ -246,7 +246,7 @@ func TestNormalizeAdvisoryCatalogFilterUppercasesCursorKey(t *testing.T) {
 func TestPostgresAdvisoryCatalogStoreRejectsPaginationLimit(t *testing.T) {
 	t.Parallel()
 
-	store := advisory.NewPostgresAdvisoryCatalogStore(unusedAdvisoryEvidenceQueryer{})
+	store := advisory.NewPostgresCatalogStore(unusedAdvisoryEvidenceQueryer{})
 	_, err := store.ListAdvisoryCatalog(context.Background(), advisory.CatalogFilter{
 		Limit: advisory.CatalogMaxLimit + 2,
 	})
@@ -262,7 +262,7 @@ func TestPostgresAdvisoryCatalogStoreRejectsPaginationLimit(t *testing.T) {
 func TestPostgresAdvisoryCatalogStoreRequiresDB(t *testing.T) {
 	t.Parallel()
 
-	store := advisory.PostgresAdvisoryCatalogStore{}
+	store := advisory.PostgresCatalogStore{}
 	_, err := store.ListAdvisoryCatalog(context.Background(), advisory.CatalogFilter{Limit: 10})
 	if err == nil {
 		t.Fatal("ListAdvisoryCatalog() error = nil, want missing-db error")

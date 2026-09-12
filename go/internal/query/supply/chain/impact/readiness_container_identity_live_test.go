@@ -53,7 +53,7 @@ func TestSupplyChainImpactReadinessMutableRefIncludesEveryCurrentDigestLive(t *t
 		pgarray.Array(vulnerabilityOSPackageFactKinds),
 		pgarray.Array(scannerWorkerAnalysisFactKinds),
 	}
-	rows, err := db.QueryContext(ctx, ListSupplyChainImpactReadinessQuery, args...)
+	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 	if err != nil {
 		t.Fatalf("query production readiness shape: %v", err)
 	}

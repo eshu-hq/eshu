@@ -51,7 +51,7 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	filter := advisory.NormalizeAdvisoryEvidenceFilter(advisory.EvidenceFilter{
+	filter := advisory.NormalizeEvidenceFilter(advisory.EvidenceFilter{
 		CVEID:                      querycontract.QueryParam(r, "cve_id"),
 		ID:                         querycontract.QueryParam(r, "advisory_id"),
 		PackageID:                  querycontract.QueryParam(r, "package_id"),
@@ -108,7 +108,7 @@ func (h *Handler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
 }
 
 func advisoryEvidenceResponseScope(filter advisory.EvidenceFilter) map[string]string {
-	filter = advisory.NormalizeAdvisoryEvidenceFilter(filter)
+	filter = advisory.NormalizeEvidenceFilter(filter)
 	scope := make(map[string]string, 6)
 	if filter.CVEID != "" {
 		scope["cve_id"] = filter.CVEID

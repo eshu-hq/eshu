@@ -31,9 +31,9 @@ func TestDecodeSupplyChainImpactFindingRowPreservesReachabilityEnvelope(t *testi
 		}
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-reachability", "observed", payload)
+	row, err := impact.DecodeFindingRow("finding-reachability", "observed", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.Status != "affected_exact" {
 		t.Fatalf("Status = %q, want affected_exact", row.Status)
@@ -75,9 +75,9 @@ func TestDecodeSupplyChainImpactFindingRowPreservesJSTSReachabilitySeparatelyFro
 		}
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-js-ts-reachability", "observed", payload)
+	row, err := impact.DecodeFindingRow("finding-js-ts-reachability", "observed", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.Status != "affected_exact" {
 		t.Fatalf("Status = %q, want affected_exact", row.Status)

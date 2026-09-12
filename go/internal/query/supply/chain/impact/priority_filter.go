@@ -18,23 +18,26 @@ const (
 	supplyChainImpactSortPriorityScoreAsc  = "priority_score_asc"
 )
 
+// PriorityFilter parses and validates the priority_bucket, min_priority_score,
+// and sort query params from a findings-list request, returning a request
+// error when any value is unsupported.
 func PriorityFilter(r *http.Request) (string, int, string, error) {
 	bucket := querycontract.QueryParam(r, "priority_bucket")
-	if bucket != "" && !ValidSupplyChainImpactPriorityBucket(bucket) {
+	if bucket != "" && !ValidPriorityBucket(bucket) {
 		return "", 0, "", fmt.Errorf("priority_bucket must be critical, high, medium, low, or informational")
 	}
-	minScore, err := OptionalSupplyChainImpactMinPriorityScore(r)
+	minScore, err := OptionalMinPriorityScore(r)
 	if err != nil {
 		return "", 0, "", err
 	}
-	sort := NormalizeSupplyChainImpactSort(querycontract.QueryParam(r, "sort"))
+	sort := NormalizeSort(querycontract.QueryParam(r, "sort"))
 	if !validSupplyChainImpactSort(sort) {
 		return "", 0, "", fmt.Errorf("sort must be finding_id, priority, priority_score_desc, or priority_score_asc")
 	}
 	return bucket, minScore, sort, nil
 }
 
-func OptionalSupplyChainImpactMinPriorityScore(r *http.Request) (int, error) {
+func OptionalMinPriorityScore(r *http.Request) (int, error) {
 	raw := querycontract.QueryParam(r, "min_priority_score")
 	if raw == "" {
 		return 0, nil
@@ -46,7 +49,7 @@ func OptionalSupplyChainImpactMinPriorityScore(r *http.Request) (int, error) {
 	return score, nil
 }
 
-func ValidSupplyChainImpactPriorityBucket(bucket string) bool {
+func ValidPriorityBucket(bucket string) bool {
 	switch bucket {
 	case "critical", "high", "medium", "low", "informational":
 		return true
@@ -55,7 +58,7 @@ func ValidSupplyChainImpactPriorityBucket(bucket string) bool {
 	}
 }
 
-func NormalizeSupplyChainImpactSort(sort string) string {
+func NormalizeSort(sort string) string {
 	switch strings.TrimSpace(sort) {
 	case "", supplyChainImpactSortFindingID:
 		return supplyChainImpactSortFindingID

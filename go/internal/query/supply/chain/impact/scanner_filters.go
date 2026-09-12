@@ -13,6 +13,8 @@ import (
 
 type scannerFilterSet map[string]struct{}
 
+// FindingsScannerFilters is the set of query-param filter names the findings
+// route accepts, used to reject an unsupported filter.
 func FindingsScannerFilters() scannerFilterSet {
 	return scannerFilterSet{
 		"advisory_id": {}, "cve_id": {}, "ecosystem": {}, "environment": {},
@@ -22,6 +24,8 @@ func FindingsScannerFilters() scannerFilterSet {
 	}
 }
 
+// ExplanationScannerFilters is the set of query-param filter names the
+// explain route accepts, used to reject an unsupported filter.
 func ExplanationScannerFilters() scannerFilterSet {
 	return scannerFilterSet{
 		"advisory_id": {}, "cve_id": {}, "finding_id": {}, "package_id": {},

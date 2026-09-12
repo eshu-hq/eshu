@@ -235,8 +235,8 @@ func TestApplySupplyChainRuntimeContextCapsRepeatedDigestPageEvidenceAtCandidate
 		}
 		totalEvidence += len(row.RuntimeContext.EnvironmentEvidence)
 	}
-	if totalEvidence > MaxSupplyChainRuntimeEnvironmentCandidates {
-		t.Fatalf("serialized exact-digest evidence entries = %d, want <= %d", totalEvidence, MaxSupplyChainRuntimeEnvironmentCandidates)
+	if totalEvidence > MaxRuntimeEnvironmentCandidates {
+		t.Fatalf("serialized exact-digest evidence entries = %d, want <= %d", totalEvidence, MaxRuntimeEnvironmentCandidates)
 	}
 }
 

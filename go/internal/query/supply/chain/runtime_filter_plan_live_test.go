@@ -121,7 +121,7 @@ FROM generate_series(1, 100000) AS sample`,
 	for sample := 1; sample <= 200; sample++ {
 		contextCandidates = append(contextCandidates, fmt.Sprintf("repository:5747:perf:%d", sample))
 	}
-	contextStore := impact.NewPostgresSupplyChainImpactFindingStore(tx)
+	contextStore := impact.NewPostgresFindingStore(tx)
 	contexts, err := contextStore.ListSupplyChainImpactRuntimeContext(
 		ctx,
 		contextCandidates,
@@ -139,7 +139,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"runtime_context_200_candidates",
-		impact.SelectSupplyChainImpactRuntimeContextQuery,
+		impact.SelectRuntimeContextQuery,
 		pgarray.Array(impact.RuntimeContextFactKinds),
 		pgarray.Array(contextCandidates),
 		pgarray.Array(contextCandidates),
@@ -163,7 +163,7 @@ FROM generate_series(1, 100000) AS sample`,
 	}{
 		{
 			name:  "legacy_workload_scalar",
-			query: impact.ListSupplyChainImpactFindingsQuery,
+			query: impact.ListFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"workload:5747:scalar",
@@ -174,7 +174,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "legacy_workload_entity_key",
-			query: impact.ListSupplyChainImpactFindingsQuery,
+			query: impact.ListFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"workload:5747:entity-key",
@@ -185,7 +185,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "legacy_service",
-			query: impact.ListSupplyChainImpactFindingsQuery,
+			query: impact.ListFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"",
@@ -196,7 +196,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "legacy_environment",
-			query: impact.ListSupplyChainImpactFindingsQuery,
+			query: impact.ListFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"",
@@ -207,7 +207,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "legacy_environment_high_cardinality",
-			query: impact.ListSupplyChainImpactFindingsQuery,
+			query: impact.ListFindingsQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"",
@@ -218,7 +218,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:   "legacy_combined",
-			query:  impact.ListSupplyChainImpactFindingsQuery,
+			query:  impact.ListFindingsQuery,
 			filter: baseFilter,
 			wantIndexes: []string{
 				"fact_records_workload_identity_workload_idx",
@@ -228,7 +228,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:   "winners_combined",
-			query:  impact.ListSupplyChainImpactFindingsFromWinnersQuery,
+			query:  impact.ListFindingsFromWinnersQuery,
 			filter: baseFilter,
 			wantIndexes: []string{
 				"fact_records_workload_identity_workload_idx",
@@ -238,7 +238,7 @@ FROM generate_series(1, 100000) AS sample`,
 		},
 		{
 			name:  "winners_environment_high_cardinality",
-			query: impact.ListSupplyChainImpactFindingsFromWinnersQuery,
+			query: impact.ListFindingsFromWinnersQuery,
 			filter: withSupplyChainRuntimeFilterDimensions(
 				baseFilter,
 				"",
@@ -304,7 +304,7 @@ FROM generate_series(1, 100000) AS sample`,
 		DetectionProfile:     "comprehensive",
 		AllowedRepositoryIDs: []string{runtimeFilterLiveRepository},
 	}
-	highCardinalityCount, err := impact.NewPostgresSupplyChainImpactAggregateStore(tx).
+	highCardinalityCount, err := impact.NewPostgresAggregateStore(tx).
 		CountSupplyChainImpactFindings(ctx, highCardinalityAggregate)
 	if err != nil {
 		t.Fatalf("count high-cardinality environment findings: %v", err)
@@ -384,7 +384,7 @@ FROM generate_series(1, 100000) AS sample`,
 		ctx,
 		tx,
 		"explain_workload_service",
-		impact.ExplainSupplyChainImpactFindingQuery,
+		impact.ExplainFindingQuery,
 		supplyChainRuntimeFilterExplainArgs(impact.ExplanationFilter{
 			CVEID:                runtimeFilterLiveCVE,
 			PackageID:            runtimeFilterLivePackage,
@@ -434,7 +434,7 @@ func supplyChainRuntimeFilterListArgs(filter impact.FindingFilter) []any {
 		filter.MinPriorityScore,
 		filter.ImageRef,
 		filter.AfterFindingID,
-		impact.NormalizeSupplyChainImpactSort(filter.Sort),
+		impact.NormalizeSort(filter.Sort),
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,

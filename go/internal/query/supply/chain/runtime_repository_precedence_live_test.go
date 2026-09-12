@@ -36,8 +36,8 @@ type runtimeRepositoryPrecedenceCase struct {
 func assertSupplyChainRuntimeRepositoryPrecedenceLive(
 	t *testing.T,
 	ctx context.Context,
-	findingStore impact.PostgresSupplyChainImpactFindingStore,
-	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresFindingStore,
+	aggregateStore impact.PostgresAggregateStore,
 ) {
 	t.Helper()
 	for _, tc := range []runtimeRepositoryPrecedenceCase{
@@ -128,7 +128,7 @@ func assertSupplyChainRuntimeRepositoryPrecedenceLive(
 func assertRuntimeRepositoryPrecedenceHydration(
 	t *testing.T,
 	ctx context.Context,
-	store impact.PostgresSupplyChainImpactFindingStore,
+	store impact.PostgresFindingStore,
 	tc runtimeRepositoryPrecedenceCase,
 	repositoryID string,
 	wantSelector bool,
@@ -162,8 +162,8 @@ func assertRuntimeRepositoryPrecedenceHydration(
 func assertRuntimeRepositoryPrecedenceFilter(
 	t *testing.T,
 	ctx context.Context,
-	findingStore impact.PostgresSupplyChainImpactFindingStore,
-	aggregateStore impact.PostgresSupplyChainImpactAggregateStore,
+	findingStore impact.PostgresFindingStore,
+	aggregateStore impact.PostgresAggregateStore,
 	tc runtimeRepositoryPrecedenceCase,
 	repositoryID string,
 	packageID string,
@@ -202,7 +202,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 	inventory, err := aggregateStore.SupplyChainImpactInventory(
 		ctx,
 		aggregateFilter,
-		impact.InventoryByImpactStatus,
+		impact.InventoryByStatus,
 		10,
 		0,
 	)
@@ -225,7 +225,7 @@ func assertRuntimeRepositoryPrecedenceFilter(
 		ServiceID:            tc.serviceID,
 		AllowedRepositoryIDs: []string{repositoryID},
 	})
-	if want == 0 && !errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
+	if want == 0 && !errors.Is(err, impact.ErrExplanationNotFound) {
 		t.Fatalf("explain %s for %s error = %v, want not found", tc.name, repositoryID, err)
 	}
 	if want == 1 && err != nil {

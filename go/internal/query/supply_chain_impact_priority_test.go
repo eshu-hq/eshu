@@ -136,9 +136,9 @@ func TestDecodeSupplyChainImpactFindingRowPreservesPriority(t *testing.T) {
 		]
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-priority", "inferred", payload)
+	row, err := impact.DecodeFindingRow("finding-priority", "inferred", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if got, want := row.PriorityScore, 72; got != want {
 		t.Fatalf("PriorityScore = %d, want %d", got, want)
@@ -164,8 +164,8 @@ func TestSupplyChainImpactFindingQuerySupportsPriorityFiltersAndSort(t *testing.
 		"$18 = 'priority_score_asc'",
 		"fact_id ASC",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListFindingsQuery, want) {
+			t.Fatalf("impact.ListFindingsQuery missing %q:\n%s", want, impact.ListFindingsQuery)
 		}
 	}
 }

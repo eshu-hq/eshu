@@ -46,7 +46,7 @@ func (h *Handler) writeEmptyImpactFindingsPage(
 		"limit":             limit,
 		"truncated":         false,
 		"detection_profile": profile,
-		"readiness":         impact.BuildSupplyChainImpactReadinessUnavailable(impact.TargetScope{}, nil, false),
+		"readiness":         impact.BuildReadinessUnavailable(impact.TargetScope{}, nil, false),
 	}
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
@@ -65,8 +65,8 @@ func (h *Handler) writeEmptyImpactFindingsPage(
 // unavailable rather than falsely clean.
 func (h *Handler) writeEmptyImpactExplanation(w http.ResponseWriter, r *http.Request) {
 	filter := impact.ExplanationFilter{}
-	readiness := impact.BuildSupplyChainImpactReadinessUnavailable(impact.TargetScope{}, nil, false)
-	body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
+	readiness := impact.BuildReadinessUnavailable(impact.TargetScope{}, nil, false)
+	body := impact.BuildNoEvidenceExplanation(filter, readiness)
 	querycontract.WriteSuccess(w, r, http.StatusOK, body, querycontract.BuildTruthEnvelope(
 		h.profile(),
 		ImpactExplanationCapability,

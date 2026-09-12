@@ -77,8 +77,8 @@ func TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows(t *testing.T) {
 		"effective_suppression_state",
 		"has_payload_finding_id",
 	} {
-		if !strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, want) {
-			t.Fatalf("impact.ExplainSupplyChainImpactFindingQuery missing canonical dedupe marker %q:\n%s", want, impact.ExplainSupplyChainImpactFindingQuery)
+		if !strings.Contains(impact.ExplainFindingQuery, want) {
+			t.Fatalf("impact.ExplainFindingQuery missing canonical dedupe marker %q:\n%s", want, impact.ExplainFindingQuery)
 		}
 	}
 }
@@ -86,8 +86,8 @@ func TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows(t *testing.T) {
 func TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, "COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id") {
-		t.Fatalf("explain query must not expose raw fact_id as legacy finding_id fallback:\n%s", impact.ExplainSupplyChainImpactFindingQuery)
+	if strings.Contains(impact.ExplainFindingQuery, "COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id") {
+		t.Fatalf("explain query must not expose raw fact_id as legacy finding_id fallback:\n%s", impact.ExplainFindingQuery)
 	}
 	for _, want := range []string{
 		"NULLIF(fact.payload->>'finding_id', '')",
@@ -96,8 +96,8 @@ func TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable(t *test
 		"has_payload_finding_id DESC",
 		"fact_id ASC",
 	} {
-		if !strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, want) {
-			t.Fatalf("explain query missing rolling-upgrade canonical finding marker %q:\n%s", want, impact.ExplainSupplyChainImpactFindingQuery)
+		if !strings.Contains(impact.ExplainFindingQuery, want) {
+			t.Fatalf("explain query missing rolling-upgrade canonical finding marker %q:\n%s", want, impact.ExplainFindingQuery)
 		}
 	}
 }
@@ -311,7 +311,7 @@ func TestBuildSupplyChainImpactExplanationCoversEvidenceClasses(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := impact.BuildSupplyChainImpactExplanation(
+			got := impact.BuildExplanation(
 				impact.ExplanationFilter{FindingID: tc.row.Finding.FindingID},
 				tc.row,
 				impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
@@ -348,7 +348,7 @@ func TestSupplyChainExplainImpactNoEvidenceResponse(t *testing.T) {
 		},
 	}
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	handler := &SupplyChainHandler{ImpactExplanations: store, Readiness: readiness}
 	mux := http.NewServeMux()
@@ -481,10 +481,10 @@ func explanationFact(factID, factKind string, payload map[string]any) impact.Evi
 func TestSupplyChainExplainImpactStoreErrorSentinelIdentity(t *testing.T) {
 	t.Parallel()
 
-	if !errors.Is(fmt.Errorf("wrap: %w", impact.ErrSupplyChainImpactExplanationNotFound), impact.ErrSupplyChainImpactExplanationNotFound) {
-		t.Fatal("impact.ErrSupplyChainImpactExplanationNotFound must support errors.Is")
+	if !errors.Is(fmt.Errorf("wrap: %w", impact.ErrExplanationNotFound), impact.ErrExplanationNotFound) {
+		t.Fatal("impact.ErrExplanationNotFound must support errors.Is")
 	}
-	if !errors.Is(fmt.Errorf("wrap: %w", impact.ErrSupplyChainImpactExplanationAmbiguous), impact.ErrSupplyChainImpactExplanationAmbiguous) {
-		t.Fatal("impact.ErrSupplyChainImpactExplanationAmbiguous must support errors.Is")
+	if !errors.Is(fmt.Errorf("wrap: %w", impact.ErrExplanationAmbiguous), impact.ErrExplanationAmbiguous) {
+		t.Fatal("impact.ErrExplanationAmbiguous must support errors.Is")
 	}
 }

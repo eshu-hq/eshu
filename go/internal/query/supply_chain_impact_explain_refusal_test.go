@@ -23,7 +23,7 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 		},
 	}
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationAmbiguous,
+		err: impact.ErrExplanationAmbiguous,
 	}
 	handler := &SupplyChainHandler{ImpactExplanations: store, Readiness: readiness}
 	mux := http.NewServeMux()
@@ -97,7 +97,7 @@ func TestSupplyChainExplainImpactAmbiguousScope(t *testing.T) {
 func TestSupplyChainImpactAmbiguousExplanationUsesCandidateCount(t *testing.T) {
 	t.Parallel()
 
-	body := impact.BuildSupplyChainImpactAmbiguousExplanation(
+	body := impact.BuildAmbiguousExplanation(
 		impact.ExplanationFilter{AdvisoryID: "GHSA-ambiguous", RepositoryID: "repo://example/api"},
 		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyZeroFindings},
 		4,

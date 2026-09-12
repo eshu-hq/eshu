@@ -73,7 +73,7 @@ func TestSupplyChainImpactReadinessScanTierQueryPlanLive(t *testing.T) {
 	var raw []byte
 	if err := db.QueryRowContext(
 		ctx,
-		"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+ListSupplyChainImpactReadinessQuery,
+		"EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) "+ListReadinessQuery,
 		args...,
 	).Scan(&raw); err != nil {
 		t.Fatalf("EXPLAIN production scan-tier readiness query: %v", err)
@@ -90,7 +90,7 @@ func TestSupplyChainImpactReadinessScanTierQueryPlanLive(t *testing.T) {
 	}
 
 	// Correctness: the scanned target image's evidence must actually surface.
-	rows, err := db.QueryContext(ctx, ListSupplyChainImpactReadinessQuery, args...)
+	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 	if err != nil {
 		t.Fatalf("query production shape: %v", err)
 	}
@@ -190,7 +190,7 @@ ANALYZE scope_generations;
 		pgarray.Array(vulnerabilityOSPackageFactKinds),
 		pgarray.Array(scannerWorkerAnalysisFactKinds),
 	}
-	rows, err := db.QueryContext(ctx, ListSupplyChainImpactReadinessQuery, args...)
+	rows, err := db.QueryContext(ctx, ListReadinessQuery, args...)
 	if err != nil {
 		t.Fatalf("query production shape: %v", err)
 	}

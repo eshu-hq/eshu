@@ -20,7 +20,7 @@ import (
 func TestBuildSupplyChainImpactReadinessScanTierProvesScannedImage(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildSupplyChainImpactReadiness(
+	envelope := BuildReadiness(
 		TargetScope{SubjectDigest: "sha256:scanned-distroless"},
 		nil,
 		false,
@@ -56,7 +56,7 @@ func TestBuildSupplyChainImpactReadinessScanTierProvesScannedImage(t *testing.T)
 func TestBuildSupplyChainImpactReadinessScanTierEvidenceAvoidsNotConfigured(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildSupplyChainImpactReadiness(
+	envelope := BuildReadiness(
 		TargetScope{SubjectDigest: "sha256:scanned-with-packages"},
 		nil,
 		false,
@@ -81,7 +81,7 @@ func TestBuildSupplyChainImpactReadinessScanTierEvidenceAvoidsNotConfigured(t *t
 func TestBuildSupplyChainImpactReadinessNeverScannedStaysEvidenceIncomplete(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildSupplyChainImpactReadiness(
+	envelope := BuildReadiness(
 		TargetScope{SubjectDigest: "sha256:never-scanned"},
 		nil,
 		false,
@@ -106,7 +106,7 @@ func TestBuildSupplyChainImpactReadinessNeverScannedStaysEvidenceIncomplete(t *t
 func TestBuildSupplyChainImpactReadinessNormalizesScanTierFamilies(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildSupplyChainImpactReadiness(
+	envelope := BuildReadiness(
 		TargetScope{SubjectDigest: "sha256:normalize-scan-tier"},
 		nil,
 		false,

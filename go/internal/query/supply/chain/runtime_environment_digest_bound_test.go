@@ -58,13 +58,13 @@ func TestApplySupplyChainRuntimeContextCapsOneRepositoryEnvironmentEvidenceAtPag
 	t.Parallel()
 
 	row := osPackageFindingRowForRuntimeContext()
-	const environmentCount = MaxSupplyChainRuntimeEnvironmentCandidates + 1
+	const environmentCount = MaxRuntimeEnvironmentCandidates + 1
 	repositoryEnvironments := make([]string, 0, environmentCount)
-	confirmed := make(map[string]string, MaxSupplyChainRuntimeEnvironmentCandidates)
+	confirmed := make(map[string]string, MaxRuntimeEnvironmentCandidates)
 	for index := 0; index < environmentCount; index++ {
 		environment := fmt.Sprintf("environment-%03d", index)
 		repositoryEnvironments = append(repositoryEnvironments, environment)
-		if index < MaxSupplyChainRuntimeEnvironmentCandidates {
+		if index < MaxRuntimeEnvironmentCandidates {
 			confirmed[environment] = impact.RuntimeEnvironmentEvidenceDeployEvent
 		}
 	}
@@ -89,22 +89,22 @@ func TestApplySupplyChainRuntimeContextCapsOneRepositoryEnvironmentEvidenceAtPag
 	if resolved == nil {
 		t.Fatal("runtime context = nil")
 	}
-	if got := len(resolved.EnvironmentEvidence); got > MaxSupplyChainRuntimeEnvironmentCandidates {
+	if got := len(resolved.EnvironmentEvidence); got > MaxRuntimeEnvironmentCandidates {
 		t.Fatalf(
 			"serialized environment evidence entries = %d, want <= %d",
 			got,
-			MaxSupplyChainRuntimeEnvironmentCandidates,
+			MaxRuntimeEnvironmentCandidates,
 		)
 	}
 	probe := resolved.EnvironmentEvidenceProbe
-	if probe == nil || probe.CandidateLimit != MaxSupplyChainRuntimeEnvironmentCandidates || !probe.CandidatesTruncated {
+	if probe == nil || probe.CandidateLimit != MaxRuntimeEnvironmentCandidates || !probe.CandidatesTruncated {
 		t.Fatalf(
 			"environment evidence probe = %#v, want candidate_limit=%d and truncated=true",
 			probe,
-			MaxSupplyChainRuntimeEnvironmentCandidates,
+			MaxRuntimeEnvironmentCandidates,
 		)
 	}
-	if got := len(store.EnvCandidates); got != MaxSupplyChainRuntimeEnvironmentCandidates {
-		t.Fatalf("set-based lookup candidates = %d, want %d", got, MaxSupplyChainRuntimeEnvironmentCandidates)
+	if got := len(store.EnvCandidates); got != MaxRuntimeEnvironmentCandidates {
+		t.Fatalf("set-based lookup candidates = %d, want %d", got, MaxRuntimeEnvironmentCandidates)
 	}
 }

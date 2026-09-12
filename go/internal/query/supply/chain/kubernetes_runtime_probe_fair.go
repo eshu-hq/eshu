@@ -16,7 +16,11 @@ import (
 )
 
 const (
-	KubernetesRuntimeProbeMaxConcurrency         = 32
+	// KubernetesRuntimeProbeMaxConcurrency bounds the number of concurrent
+	// graph reads the fair-share planner issues for one page.
+	KubernetesRuntimeProbeMaxConcurrency = 32
+	// KubernetesRuntimeProbeMaxAllScopesCandidates bounds how many candidates
+	// the fair-share planner considers across all scopes before truncating.
 	KubernetesRuntimeProbeMaxAllScopesCandidates = 400
 )
 

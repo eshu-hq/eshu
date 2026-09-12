@@ -6,7 +6,7 @@
 // page of canonical advisories with no anchor required) and the source-only
 // vulnerability advisory evidence detail (EvidenceStore, canonical
 // advisory identities with per-source severity, affected-package/product,
-// EPSS, KEV, and reference evidence grouped by BuildAdvisoryEvidenceRows),
+// EPSS, KEV, and reference evidence grouped by BuildEvidenceRows),
 // both served from active vulnerability source facts in Postgres.
 //
 // It moved out of root package query (#6060 lane A) so this family can be
@@ -20,7 +20,7 @@
 //
 // Two contracts callers must hold. A store reading through
 // EvidenceQueryer must return rows for the exact
-// ListAdvisoryEvidenceQuery parameter order; the evidence filter must carry
+// ListEvidenceQuery parameter order; the evidence filter must carry
 // an anchor (HasScope), because an unscoped read over the whole
 // vulnerability fact corpus is rejected before any SQL runs. A caller
 // reading EvidenceRow must treat a dropped Sources entry as a

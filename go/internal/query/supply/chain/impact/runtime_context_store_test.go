@@ -420,7 +420,7 @@ func TestListSupplyChainImpactRuntimeContextNilDBFailsLoud(t *testing.T) {
 
 	// A nil-DB store must fail loud like the sibling list read — a silent
 	// honest-empty on every finding reads as "nothing runs this" to a caller.
-	store := PostgresSupplyChainImpactFindingStore{}
+	store := PostgresFindingStore{}
 	_, err := store.ListSupplyChainImpactRuntimeContext(
 		context.Background(),
 		[]string{"repository:r_217415d9"},
@@ -466,7 +466,7 @@ func TestRuntimeEnvironmentEvidenceQueryUsesCurrentAuthorizedExactPairs(t *testi
 func TestListSupplyChainImpactRuntimeEnvironmentEvidenceFailsLoud(t *testing.T) {
 	t.Parallel()
 
-	store := PostgresSupplyChainImpactFindingStore{}
+	store := PostgresFindingStore{}
 	_, err := store.ListSupplyChainImpactRuntimeEnvironmentEvidence(
 		context.Background(),
 		[]RuntimeEnvironmentCandidate{{SubjectDigest: "sha256:subject", Environment: "prod"}},

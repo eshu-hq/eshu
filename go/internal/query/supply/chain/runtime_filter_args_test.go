@@ -64,8 +64,8 @@ func TestSupplyChainRuntimeFilterListArgsMatchQueryPlaceholders(t *testing.T) {
 	args := supplyChainRuntimeFilterListArgs(impact.FindingFilter{})
 
 	for name, query := range map[string]string{
-		"list direct":       impact.ListSupplyChainImpactFindingsQuery,
-		"list materialized": impact.ListSupplyChainImpactFindingsFromWinnersQuery,
+		"list direct":       impact.ListFindingsQuery,
+		"list materialized": impact.ListFindingsFromWinnersQuery,
 	} {
 		t.Run(name, func(t *testing.T) {
 			want := highestPlaceholder(t, query)
@@ -151,8 +151,8 @@ func TestListSupplyChainImpactFindingsBindsEveryPlaceholder(t *testing.T) {
 	got := productionQueryArgCount(t, "impact/findings.go", "ListSupplyChainImpactFindings")
 
 	for name, query := range map[string]string{
-		"list direct":       impact.ListSupplyChainImpactFindingsQuery,
-		"list materialized": impact.ListSupplyChainImpactFindingsFromWinnersQuery,
+		"list direct":       impact.ListFindingsQuery,
+		"list materialized": impact.ListFindingsFromWinnersQuery,
 	} {
 		t.Run(name, func(t *testing.T) {
 			want := highestPlaceholder(t, query)

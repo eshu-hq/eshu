@@ -101,7 +101,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidencePromotesExactDigest(t *testing
 	if got := rows[0].KubernetesRuntimeWorkloadRefs; len(got) != 1 || got[0].UID != "kw-1" || got[0].Namespace != "payments" {
 		t.Fatalf("runtime workload refs = %#v, want exact authorized kw-1", got)
 	}
-	if got := impact.BuildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; got != string(truth.TierRuntimeConfirmed) {
+	if got := impact.BuildFindingResult(&rows[0]).DeploymentTruthTier; got != string(truth.TierRuntimeConfirmed) {
 		t.Fatalf("deployment truth tier = %q, want %q", got, truth.TierRuntimeConfirmed)
 	}
 	if len(rows[1].KubernetesRuntimeWorkloadRefs) != 0 {
@@ -133,7 +133,7 @@ func TestApplySupplyChainKubernetesRuntimeEvidenceExcludesDeniedOwnerOrEdge(t *t
 	if inventory.allScopes {
 		t.Fatal("inventory allScopes = true for scoped caller")
 	}
-	if got := impact.BuildSupplyChainImpactFindingResult(&rows[0]).DeploymentTruthTier; got != string(truth.TierProvenanceCIDeclared) {
+	if got := impact.BuildFindingResult(&rows[0]).DeploymentTruthTier; got != string(truth.TierProvenanceCIDeclared) {
 		t.Fatalf("tier = %q, want %q without authorized runtime evidence", got, truth.TierProvenanceCIDeclared)
 	}
 }

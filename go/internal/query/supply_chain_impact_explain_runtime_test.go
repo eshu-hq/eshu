@@ -13,7 +13,7 @@ import (
 func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-runtime"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
@@ -82,7 +82,7 @@ func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *te
 func TestBuildSupplyChainImpactExplanationReturnsSemanticMissingHops(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-repo-only"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
@@ -137,7 +137,7 @@ func TestBuildSupplyChainImpactExplanationReturnsSemanticMissingHops(t *testing.
 func TestBuildSupplyChainImpactExplanationMapsPreciseRuntimeMissingHops(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-workload-only"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
@@ -177,7 +177,7 @@ func TestBuildSupplyChainImpactExplanationMapsPreciseRuntimeMissingHops(t *testi
 func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-catalog-anchor"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
@@ -230,7 +230,7 @@ func TestBuildSupplyChainImpactExplanationUsesCatalogAnchorMissingReason(t *test
 func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-catalog-repo-only"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
@@ -283,7 +283,7 @@ func TestBuildSupplyChainImpactExplanationKeepsRepositoryOnlyCatalogHop(t *testi
 func TestBuildSupplyChainImpactExplanationReturnsDeploymentLaneHopWithoutEnvironment(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-deployment-lane"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{

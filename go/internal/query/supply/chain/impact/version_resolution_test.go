@@ -289,7 +289,7 @@ func TestSupplyChainVersionResolutionDeclaredRefNeverEmitted(t *testing.T) {
 }
 
 // TestBuildSupplyChainImpactFindingResultSetsVersionResolution proves the
-// resolver is wired into BuildSupplyChainImpactFindingResult, the same
+// resolver is wired into BuildFindingResult, the same
 // pattern DeploymentTruthTier already uses (#5452).
 func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) {
 	t.Parallel()
@@ -300,7 +300,7 @@ func TestBuildSupplyChainImpactFindingResultSetsVersionResolution(t *testing.T) 
 		CIDeclaredArtifactDigest: digest,
 	}
 
-	result := BuildSupplyChainImpactFindingResult(&row)
+	result := BuildFindingResult(&row)
 	if result.VersionResolutionTier != string(truth.TierProvenanceCIDeclared) {
 		t.Fatalf("VersionResolutionTier = %q, want %q", result.VersionResolutionTier, truth.TierProvenanceCIDeclared)
 	}
@@ -331,7 +331,7 @@ func TestBuildSupplyChainImpactFindingResultAllocationBudget(t *testing.T) {
 	}
 
 	allocations := testing.AllocsPerRun(1000, func() {
-		_ = BuildSupplyChainImpactFindingResult(&row)
+		_ = BuildFindingResult(&row)
 	})
 	if allocations > 1 {
 		t.Fatalf("allocations per result = %.0f, want <= 1", allocations)
@@ -378,6 +378,6 @@ func BenchmarkBuildSupplyChainImpactFindingResult(b *testing.B) {
 
 	b.ReportAllocs()
 	for b.Loop() {
-		supplyChainImpactFindingResultBenchmarkSink = BuildSupplyChainImpactFindingResult(&row)
+		supplyChainImpactFindingResultBenchmarkSink = BuildFindingResult(&row)
 	}
 }

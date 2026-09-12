@@ -92,9 +92,9 @@ ALTER TABLE supply_chain_impact_canonical_winners
 		t.Fatalf("canonical winners = %d, want %d", winnerCount, suppressionPathsCanonical)
 	}
 
-	direct := NewPostgresSupplyChainImpactFindingStore(db)
-	materialized := NewPostgresSupplyChainImpactFindingStoreWithReadModel(db, true)
-	aggregates := NewPostgresSupplyChainImpactAggregateStore(db)
+	direct := NewPostgresFindingStore(db)
+	materialized := NewPostgresFindingStoreWithReadModel(db, true)
+	aggregates := NewPostgresAggregateStore(db)
 	listFilter := FindingFilter{
 		DetectionProfile:  "precise",
 		PriorityBucket:    "high",
@@ -238,10 +238,10 @@ ALTER TABLE supply_chain_impact_canonical_winners
 	aggregateArgs := suppressionAggregatePlanArgs(aggregateFilter, readAt)
 	plans := map[string]suppressionQueryPlanProof{
 		"direct_list": explainSuppressionQueryPlan(
-			t, ctx, db, ListSupplyChainImpactFindingsQuery, listArgs...,
+			t, ctx, db, ListFindingsQuery, listArgs...,
 		),
 		"materialized_list": explainSuppressionQueryPlan(
-			t, ctx, db, ListSupplyChainImpactFindingsFromWinnersQuery, listArgs...,
+			t, ctx, db, ListFindingsFromWinnersQuery, listArgs...,
 		),
 		"aggregate_count": explainSuppressionQueryPlan(
 			t, ctx, db, AggregateCountQuery, aggregateArgs...,
@@ -250,7 +250,7 @@ ALTER TABLE supply_chain_impact_canonical_winners
 			t, ctx, db, AggregatePriorityCountQuery, aggregateArgs...,
 		),
 		"explain": explainSuppressionQueryPlan(
-			t, ctx, db, ExplainSupplyChainImpactFindingByPublicIDQuery,
+			t, ctx, db, ExplainFindingByPublicIDQuery,
 			suppressionExplainPlanArgs(readAt)...,
 		),
 	}

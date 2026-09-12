@@ -3,7 +3,7 @@
 
 package advisory
 
-// ListAdvisoryCatalogQuery lists a bounded, browsable page of canonical
+// ListCatalogQuery lists a bounded, browsable page of canonical
 // vulnerability advisories from active vulnerability source facts. Exported
 // for the root catalog tests, which pin its bounded-scan shape.
 //
@@ -42,7 +42,7 @@ package advisory
 // stay eligible) and the legs feed one GROUP BY, leaving a single
 // O(active vulnerability facts) aggregate pass with no nested-loop blowup.
 // Output is byte-identical to the previous shape.
-const ListAdvisoryCatalogQuery = `
+const ListCatalogQuery = `
 WITH vuln_facts AS (
     SELECT
         UPPER(TRIM(COALESCE(

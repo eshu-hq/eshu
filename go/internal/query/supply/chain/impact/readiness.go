@@ -216,10 +216,10 @@ const (
 	MissingEvidenceReadinessUnavailable = "readiness_unavailable"
 )
 
-// BuildSupplyChainImpactReadiness combines the bounded findings page with a
+// BuildReadiness combines the bounded findings page with a
 // source-evidence snapshot to produce one readiness envelope. The function is
 // deterministic and never mutates its inputs.
-func BuildSupplyChainImpactReadiness(
+func BuildReadiness(
 	scope TargetScope,
 	findings []FindingResult,
 	truncated bool,
@@ -269,10 +269,10 @@ func BuildSupplyChainImpactReadiness(
 	}
 }
 
-// BuildSupplyChainImpactReadinessUnavailable returns a readiness envelope used
+// BuildReadinessUnavailable returns a readiness envelope used
 // when the readiness lookup itself failed. The findings page is still returned
 // to the caller but the envelope explicitly says coverage cannot be classified.
-func BuildSupplyChainImpactReadinessUnavailable(
+func BuildReadinessUnavailable(
 	scope TargetScope,
 	findings []FindingResult,
 	truncated bool,

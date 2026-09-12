@@ -45,7 +45,7 @@ var RuntimeContextFactKinds = []string{
 	cicdRunCorrelationFactKind,
 }
 
-// SelectSupplyChainImpactRuntimeContextQuery loads active runtime-context
+// SelectRuntimeContextQuery loads active runtime-context
 // facts whose canonical repository anchor matches a candidate repository id.
 // The shared decoder applies the reducer's precedence: payload repository_id
 // or repo_id; one selected scope (payload scope_id, falling back to envelope
@@ -89,7 +89,7 @@ WHERE fact.fact_kind = ANY($1::text[])
       )
   AND runtime_repository.repository_id = ANY($2::text[])`
 
-var SelectSupplyChainImpactRuntimeContextQuery = fmt.Sprintf(
+var SelectRuntimeContextQuery = fmt.Sprintf(
 	selectSupplyChainImpactRuntimeContextQueryTemplate,
 	supplyChainRuntimeRepositoryDecoderJoin(
 		"fact.payload",
@@ -112,7 +112,7 @@ var SelectSupplyChainImpactRuntimeContextQuery = fmt.Sprintf(
 // or superseded fact never surfaces as current truth. When either grant slice
 // is non-empty, only facts authorized by that repository-or-scope union are
 // folded into the response; both empty retains unrestricted behavior.
-func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeContext(
+func (s PostgresFindingStore) ListSupplyChainImpactRuntimeContext(
 	ctx context.Context,
 	repositoryIDs []string,
 	allowedRepositoryIDs []string,
@@ -130,7 +130,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeConte
 	}
 	rows, err := s.DB.QueryContext(
 		ctx,
-		SelectSupplyChainImpactRuntimeContextQuery,
+		SelectRuntimeContextQuery,
 		pgarray.Array(RuntimeContextFactKinds),
 		pgarray.Array(repositoryIDs),
 		pgarray.Array(allowedRepositoryIDs),

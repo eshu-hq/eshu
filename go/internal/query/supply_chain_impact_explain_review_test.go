@@ -13,7 +13,7 @@ import (
 func TestBuildSupplyChainImpactExplanationOmitsEmptyDependencyChain(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-empty-chain"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
@@ -42,7 +42,7 @@ func TestBuildSupplyChainImpactExplanationOmitsEmptyDependencyChain(t *testing.T
 func TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForMissingEvidence(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-evidence-chain"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{
@@ -77,7 +77,7 @@ func TestBuildSupplyChainImpactExplanationUsesEvidenceDerivedDependencyChainForM
 func TestBuildSupplyChainImpactExplanationDoesNotTreatClockPathAsLockfile(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-clock-path"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{

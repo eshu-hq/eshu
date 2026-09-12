@@ -74,7 +74,7 @@ func suppressionListPlanArgs(
 		filter.MinPriorityScore,
 		filter.ImageRef,
 		filter.AfterFindingID,
-		NormalizeSupplyChainImpactSort(filter.Sort),
+		NormalizeSort(filter.Sort),
 		filter.Limit,
 		filter.SuppressionState,
 		filter.IncludeSuppressed,

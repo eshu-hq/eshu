@@ -35,14 +35,14 @@ func TestSupplyChainImpactReadGateSelectsQuery(t *testing.T) {
 		fromWinners bool
 		wantQuery   string
 	}{
-		{"legacy", false, impact.ListSupplyChainImpactFindingsQuery},
-		{"winners", true, impact.ListSupplyChainImpactFindingsFromWinnersQuery},
+		{"legacy", false, impact.ListFindingsQuery},
+		{"winners", true, impact.ListFindingsFromWinnersQuery},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			rec := &recordingImpactQueryer{}
-			store := impact.NewPostgresSupplyChainImpactFindingStoreWithReadModel(rec, tc.fromWinners)
+			store := impact.NewPostgresFindingStoreWithReadModel(rec, tc.fromWinners)
 			_, _ = store.ListSupplyChainImpactFindings(context.Background(), filter)
 			if rec.lastQuery != tc.wantQuery {
 				t.Fatalf("%s gate issued the wrong query", tc.name)
@@ -76,7 +76,7 @@ func TestSupplyChainImpactWinnersReadEnabled(t *testing.T) {
 func TestSupplyChainImpactWinnersReadQueryShape(t *testing.T) {
 	t.Parallel()
 
-	q := impact.ListSupplyChainImpactFindingsFromWinnersQuery
+	q := impact.ListFindingsFromWinnersQuery
 	for _, want := range []string{
 		"FROM supply_chain_impact_canonical_winners AS w",
 		"JOIN fact_records AS refetch",

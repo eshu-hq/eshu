@@ -134,7 +134,7 @@ func TestPlanSupplyChainRuntimeEnvironmentCandidatesSharesPageBudgetFairly(t *te
 			Environments:  []string{"staging", "production", "production"},
 		}
 	}
-	candidates, plans := PlanSupplyChainRuntimeEnvironmentCandidates(rows, nil)
+	candidates, plans := PlanRuntimeEnvironmentCandidates(rows, nil)
 	if got, want := len(candidates), ImpactFindingMaxLimit; got != want {
 		t.Fatalf("SQL candidates = %d, want %d", got, want)
 	}
@@ -158,7 +158,7 @@ func TestPlanSupplyChainRuntimeEnvironmentCandidatesDeduplicatesSQLPairs(t *test
 		{SubjectDigest: "sha256:shared", Environments: []string{"production"}},
 		{SubjectDigest: "sha256:shared", Environments: []string{"production"}},
 	}
-	candidates, plans := PlanSupplyChainRuntimeEnvironmentCandidates(rows, nil)
+	candidates, plans := PlanRuntimeEnvironmentCandidates(rows, nil)
 	if got := len(candidates); got != 1 {
 		t.Fatalf("SQL candidates = %d, want one deduplicated pair", got)
 	}

@@ -26,8 +26,8 @@ type AggregateStore interface {
 type InventoryDimension string
 
 const (
-	// InventoryByImpactStatus groups by reducer impact_status.
-	InventoryByImpactStatus InventoryDimension = "impact_status"
+	// InventoryByStatus groups by reducer impact_status.
+	InventoryByStatus InventoryDimension = "impact_status"
 	// InventoryByPriorityBucket groups by reducer priority_bucket.
 	InventoryByPriorityBucket InventoryDimension = "priority_bucket"
 	// InventoryBySeverity groups by CVSS severity bucket
@@ -102,31 +102,33 @@ type InventoryRow struct {
 	Count     int                `json:"count"`
 }
 
-// PostgresSupplyChainImpactAggregateStore reads aggregate counts directly
+// PostgresAggregateStore reads aggregate counts directly
 // from reducer-owned impact findings facts.
-type PostgresSupplyChainImpactAggregateStore struct {
+type PostgresAggregateStore struct {
 	DB AggregateQueryer
 	// Now supplies the single UTC clock value shared by every SQL statement
 	// in one aggregate call. It defaults to time.Now.
 	Now func() time.Time
 }
 
+// AggregateQueryer is the minimal Postgres surface PostgresAggregateStore
+// needs; *sql.DB satisfies it.
 type AggregateQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
-// NewPostgresSupplyChainImpactAggregateStore creates the Postgres-backed
+// NewPostgresAggregateStore creates the Postgres-backed
 // aggregate store.
-func NewPostgresSupplyChainImpactAggregateStore(
+func NewPostgresAggregateStore(
 	db AggregateQueryer,
-) PostgresSupplyChainImpactAggregateStore {
-	return PostgresSupplyChainImpactAggregateStore{DB: db}
+) PostgresAggregateStore {
+	return PostgresAggregateStore{DB: db}
 }
 
 // CountSupplyChainImpactFindings returns the cheap-summary totals envelope
 // for the scoped supply-chain impact slice.
-func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
+func (s PostgresAggregateStore) CountSupplyChainImpactFindings(
 	ctx context.Context,
 	filter AggregateFilter,
 ) (AggregateCount, error) {
@@ -184,7 +186,7 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 	return count, nil
 }
 
-func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
+func (s PostgresAggregateStore) fillPriorityBuckets(
 	ctx context.Context,
 	filter AggregateFilter,
 	readAt time.Time,
@@ -229,7 +231,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 	return rows.Err()
 }
 
-func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
+func (s PostgresAggregateStore) fillSeverityBuckets(
 	ctx context.Context,
 	filter AggregateFilter,
 	readAt time.Time,
@@ -277,7 +279,7 @@ func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 // SupplyChainImpactInventory returns a paginated grouped count along the
 // requested dimension. Limit and offset must already be normalized by the
 // caller.
-func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
+func (s PostgresAggregateStore) SupplyChainImpactInventory(
 	ctx context.Context,
 	filter AggregateFilter,
 	dimension InventoryDimension,
@@ -293,7 +295,7 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	}
 	// The handler asks for one extra row to detect truncation, so the store
 	// accepts up to MaxLimit+1 for that internal pagination probe (mirrors
-	// PostgresSupplyChainImpactFindingStore.ListSupplyChainImpactFindings).
+	// PostgresFindingStore.ListSupplyChainImpactFindings).
 	if limit <= 0 || limit > AggregateMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", AggregateMaxLimit+1)
 	}
@@ -369,7 +371,7 @@ func InventoryQuery(groupExpr string) string {
 // known enum values are accepted, so the substitution stays parameter-safe.
 func supplyChainImpactInventoryGroupExpression(dimension InventoryDimension) (string, error) {
 	switch dimension {
-	case InventoryByImpactStatus:
+	case InventoryByStatus:
 		return "COALESCE(NULLIF(fact.impact_status, ''), 'unknown')", nil
 	case InventoryByPriorityBucket:
 		return "COALESCE(NULLIF(fact.priority_bucket, ''), 'unknown')", nil

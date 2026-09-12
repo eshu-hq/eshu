@@ -37,10 +37,10 @@ type Remediation struct {
 	MissingEvidence        []string             `json:"missing_evidence,omitempty"`
 }
 
-// DecodeSupplyChainImpactRemediation decodes the remediation block off a
+// DecodeRemediation decodes the remediation block off a
 // reducer-owned finding payload. Returns nil when the payload does not
 // carry a remediation row (older facts written before #595 landed).
-func DecodeSupplyChainImpactRemediation(payload map[string]any) *Remediation {
+func DecodeRemediation(payload map[string]any) *Remediation {
 	raw, ok := payload["remediation"].(map[string]any)
 	if !ok || len(raw) == 0 {
 		return nil

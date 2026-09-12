@@ -70,7 +70,7 @@ func TestSupplyChainListAdvisoryEvidenceRequiresScopeAndLimit(t *testing.T) {
 func TestPostgresAdvisoryEvidenceStoreReportsPaginationLimit(t *testing.T) {
 	t.Parallel()
 
-	store := advisory.NewPostgresAdvisoryEvidenceStore(unusedAdvisoryEvidenceQueryer{})
+	store := advisory.NewPostgresEvidenceStore(unusedAdvisoryEvidenceQueryer{})
 
 	_, err := store.ListAdvisoryEvidence(context.Background(), advisory.EvidenceFilter{
 		CVEID: "CVE-2026-0001",
@@ -88,7 +88,7 @@ func TestPostgresAdvisoryEvidenceStoreReportsPaginationLimit(t *testing.T) {
 func TestNormalizeAdvisoryEvidenceFilterCanonicalizesIdentityInputs(t *testing.T) {
 	t.Parallel()
 
-	got := advisory.NormalizeAdvisoryEvidenceFilter(advisory.EvidenceFilter{
+	got := advisory.NormalizeEvidenceFilter(advisory.EvidenceFilter{
 		CVEID:            " cve-2026-0001 ",
 		ID:               " gHsA-aaaa-bbbb-cccc ",
 		PackageID:        " pkg:npm/example ",
@@ -196,7 +196,7 @@ func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
 		{Key: "OSV-2026-0001"},
 	}
 
-	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.EvidenceFilter{
+	got := advisory.PageEvidenceRows(rows, advisory.EvidenceFilter{
 		AfterAdvisoryKey: "ghsa-AAAA-bbbb-cccc",
 		Limit:            1,
 	})
@@ -204,7 +204,7 @@ func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
 		t.Fatalf("page after mixed-case GHSA = %#v, want OSV row", got)
 	}
 
-	got = advisory.PageAdvisoryEvidenceRows(rows, advisory.EvidenceFilter{
+	got = advisory.PageEvidenceRows(rows, advisory.EvidenceFilter{
 		AfterAdvisoryKey: "cve-2026-0001",
 		Limit:            1,
 	})
@@ -222,7 +222,7 @@ func TestPageAdvisoryEvidenceRowsKeepsCVEAnchorScoped(t *testing.T) {
 		{Key: "CVE-2026-0003", CanonicalID: "CVE-2026-0003", CVEIDs: []string{"CVE-2026-0003"}},
 	}
 
-	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.EvidenceFilter{CVEID: "CVE-2026-0001", Limit: 10})
+	got := advisory.PageEvidenceRows(rows, advisory.EvidenceFilter{CVEID: "CVE-2026-0001", Limit: 10})
 	if len(got) != 1 || got[0].CanonicalID != "CVE-2026-0001" {
 		t.Fatalf("CVE-scoped page = %#v, want only CVE-2026-0001", got)
 	}
@@ -255,7 +255,7 @@ func TestPageAdvisoryEvidenceRowsKeepsPackageAnchorBroad(t *testing.T) {
 		},
 	}
 
-	got := advisory.PageAdvisoryEvidenceRows(rows, advisory.EvidenceFilter{PackageID: "pkg:npm/example", Limit: 10})
+	got := advisory.PageEvidenceRows(rows, advisory.EvidenceFilter{PackageID: "pkg:npm/example", Limit: 10})
 	if len(got) != 2 {
 		t.Fatalf("package-scoped page length = %d, want 2: %#v", len(got), got)
 	}
@@ -345,7 +345,7 @@ func TestBuildAdvisoryEvidenceRowsMergesSourceOnlyEvidence(t *testing.T) {
 		}`),
 	}
 
-	got := advisory.BuildAdvisoryEvidenceRows(rows)
+	got := advisory.BuildEvidenceRows(rows)
 	if len(got) != 1 {
 		t.Fatalf("len(rows) = %d, want 1: %#v", len(got), got)
 	}
@@ -396,7 +396,7 @@ func TestBuildAdvisoryEvidenceRowsMergesSourceOnlyEvidence(t *testing.T) {
 func TestCanonicalAdvisoryKeyNormalizesMixedCaseGHSA(t *testing.T) {
 	t.Parallel()
 
-	got := advisory.CanonicalAdvisoryKey(map[string]any{"advisory_id": "gHsA-aaaa-bbbb-cccc"})
+	got := advisory.CanonicalKey(map[string]any{"advisory_id": "gHsA-aaaa-bbbb-cccc"})
 	if want := "GHSA-aaaa-bbbb-cccc"; got != want {
 		t.Fatalf("canonicalAdvisoryKey() = %q, want %q", got, want)
 	}

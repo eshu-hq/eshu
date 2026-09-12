@@ -8,7 +8,7 @@ import "testing"
 func TestBuildSupplyChainImpactReadinessClassifiesNuGetReadyZeroFindings(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildSupplyChainImpactReadiness(
+	envelope := BuildReadiness(
 		TargetScope{RepositoryID: "repo://example/dotnet-worker"},
 		nil,
 		false,

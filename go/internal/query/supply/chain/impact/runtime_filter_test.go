@@ -18,12 +18,12 @@ func TestSupplyChainImpactRuntimeFiltersResolveCurrentRepositoryContext(t *testi
 	}{
 		{
 			name:           "legacy_list",
-			query:          ListSupplyChainImpactFindingsQuery,
+			query:          ListFindingsQuery,
 			repositoryExpr: "fact.payload->>'repository_id'",
 		},
 		{
 			name:           "winners_list",
-			query:          ListSupplyChainImpactFindingsFromWinnersQuery,
+			query:          ListFindingsFromWinnersQuery,
 			repositoryExpr: "w.repository_id",
 		},
 		{
@@ -33,7 +33,7 @@ func TestSupplyChainImpactRuntimeFiltersResolveCurrentRepositoryContext(t *testi
 		},
 		{
 			name:           "explain",
-			query:          ExplainSupplyChainImpactFindingQuery,
+			query:          ExplainFindingQuery,
 			repositoryExpr: "fact.payload->>'repository_id'",
 		},
 	} {
@@ -65,7 +65,7 @@ func TestSupplyChainImpactRuntimeFiltersNeverUseStaleBakedMembership(t *testing.
 	}{
 		{
 			name:  "legacy_list",
-			query: ListSupplyChainImpactFindingsQuery,
+			query: ListFindingsQuery,
 			forbidden: []string{
 				"OR fact.payload->'service_ids' ?",
 				"OR fact.payload->'workload_ids' ?",
@@ -74,7 +74,7 @@ func TestSupplyChainImpactRuntimeFiltersNeverUseStaleBakedMembership(t *testing.
 		},
 		{
 			name:  "winners_list",
-			query: ListSupplyChainImpactFindingsFromWinnersQuery,
+			query: ListFindingsFromWinnersQuery,
 			forbidden: []string{
 				"OR w.service_ids ?",
 				"OR w.workload_ids ?",
@@ -92,7 +92,7 @@ func TestSupplyChainImpactRuntimeFiltersNeverUseStaleBakedMembership(t *testing.
 		},
 		{
 			name:  "explain",
-			query: ExplainSupplyChainImpactFindingQuery,
+			query: ExplainFindingQuery,
 			forbidden: []string{
 				"OR fact.payload->'service_ids' ?",
 				"OR fact.payload->'workload_ids' ?",
@@ -153,13 +153,13 @@ func TestSupplyChainImpactRuntimeFiltersApplyCallerGrantBeforeMembership(t *test
 	}{
 		{
 			name:              "legacy_list",
-			query:             ListSupplyChainImpactFindingsQuery,
+			query:             ListFindingsQuery,
 			repositoriesParam: "$22",
 			scopesParam:       "$23",
 		},
 		{
 			name:              "winners_list",
-			query:             ListSupplyChainImpactFindingsFromWinnersQuery,
+			query:             ListFindingsFromWinnersQuery,
 			repositoriesParam: "$22",
 			scopesParam:       "$23",
 		},
@@ -171,7 +171,7 @@ func TestSupplyChainImpactRuntimeFiltersApplyCallerGrantBeforeMembership(t *test
 		},
 		{
 			name:              "explain",
-			query:             ExplainSupplyChainImpactFindingQuery,
+			query:             ExplainFindingQuery,
 			repositoriesParam: "$11",
 			scopesParam:       "$12",
 		},
@@ -213,7 +213,7 @@ func TestSupplyChainImpactInventoryGroupExpressionEnumIsClosed(t *testing.T) {
 	t.Parallel()
 
 	cases := []InventoryDimension{
-		InventoryByImpactStatus,
+		InventoryByStatus,
 		InventoryByPriorityBucket,
 		InventoryBySeverity,
 		InventoryByRepository,

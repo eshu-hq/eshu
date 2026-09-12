@@ -136,9 +136,9 @@ func TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence(t *testing.
 		"environment_evidence": {"prod": "deploy_event", "staging": "declared"}
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "exact", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if got, want := row.EnvironmentEvidence["prod"], "deploy_event"; got != want {
 		t.Fatalf("EnvironmentEvidence[prod] = %q, want %q", got, want)
@@ -160,9 +160,9 @@ func TestDecodeSupplyChainImpactFindingRowToleratesAbsentEnvironmentEvidence(t *
 		"environments": ["prod"]
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "exact", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.EnvironmentEvidence != nil {
 		t.Fatalf("EnvironmentEvidence = %#v, want nil for a row predating #5426", row.EnvironmentEvidence)

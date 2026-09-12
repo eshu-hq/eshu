@@ -13,7 +13,7 @@ import (
 func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
+	got := impact.BuildExplanation(
 		impact.ExplanationFilter{FindingID: "finding-repository-catalog-only"},
 		impact.ExplanationRow{
 			Finding: impact.FindingRow{

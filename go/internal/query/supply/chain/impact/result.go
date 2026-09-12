@@ -162,7 +162,7 @@ type ReachabilityResult struct {
 	MissingEvidence  []string `json:"missing_evidence,omitempty"`
 }
 
-func BuildSupplyChainImpactFindingResult(row *FindingRow) FindingResult {
+func BuildFindingResult(row *FindingRow) FindingResult {
 	result := FindingResult(*row)
 	result.MissingEvidence = normalizedSupplyChainImpactMissingEvidence(row)
 	result.DeploymentTruthTier = string(supplyChainDeploymentTruthTier(row))

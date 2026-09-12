@@ -12,12 +12,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// RequestedSupplyChainImpactProfile reads the `profile` query parameter,
+// RequestedProfile reads the `profile` query parameter,
 // rejects unknown values with a 400, and defaults to precise. `precise`
 // returns only findings with an exact installed-version anchor.
 // `comprehensive` returns every owned-anchor finding, including range-only,
 // SBOM/CPE-derived, malformed, and missing-version rows.
-func RequestedSupplyChainImpactProfile(w http.ResponseWriter, r *http.Request) (string, bool) {
+func RequestedProfile(w http.ResponseWriter, r *http.Request) (string, bool) {
 	raw := strings.TrimSpace(querycontract.QueryParam(r, "profile"))
 	if raw == "" {
 		return ProfilePrecise, true
@@ -41,9 +41,9 @@ func FilterProfile(profile string) string {
 	return ""
 }
 
-// RequiredSupplyChainImpactFindingLimit enforces an explicit, bounded page size
+// RequiredFindingLimit enforces an explicit, bounded page size
 // for the impact findings surface.
-func RequiredSupplyChainImpactFindingLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
+func RequiredFindingLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
 	raw := querycontract.QueryParam(r, "limit")
 	if raw == "" {
 		querycontract.WriteError(w, http.StatusBadRequest, "limit is required")
@@ -75,10 +75,10 @@ func IsSupportedSupplyChainSuppressionState(state string) bool {
 	}
 }
 
-// ParseSupplyChainImpactIncludeSuppressed parses the optional
+// ParseIncludeSuppressed parses the optional
 // include_suppressed boolean. Default false, so callers see only findings the
 // reducer considers actionable. Anything other than true/false returns 400.
-func ParseSupplyChainImpactIncludeSuppressed(w http.ResponseWriter, r *http.Request) (bool, bool) {
+func ParseIncludeSuppressed(w http.ResponseWriter, r *http.Request) (bool, bool) {
 	raw := querycontract.QueryParam(r, "include_suppressed")
 	if raw == "" {
 		return false, true
@@ -171,7 +171,7 @@ func appendUniqueString(values *[]string, candidate string) {
 }
 
 // stringMapVal extracts a string map from a payload value.
-// Family-local copy of supplychain/alerts' exported StringMapVal
+// Family-local copy of supply/chain/alerts' exported StringMapVal
 // (store.go, formerly root package query's security_alert_reconciliation.go
 // before the #6642 move); see compactStrings for why it is copied. MUST stay
 // behavior-identical to its source.

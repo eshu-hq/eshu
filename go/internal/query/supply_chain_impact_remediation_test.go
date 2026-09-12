@@ -143,9 +143,9 @@ func TestDecodeSupplyChainImpactRemediationPreservesMatchAndSourceTruth(t *testi
 		},
 	}
 
-	remediation := impact.DecodeSupplyChainImpactRemediation(payload)
+	remediation := impact.DecodeRemediation(payload)
 	if remediation == nil {
-		t.Fatal("impact.DecodeSupplyChainImpactRemediation() = nil, want remediation")
+		t.Fatal("impact.DecodeRemediation() = nil, want remediation")
 	}
 	if remediation.MatchReason != "maven_range_match" {
 		t.Fatalf("MatchReason = %q, want maven_range_match", remediation.MatchReason)

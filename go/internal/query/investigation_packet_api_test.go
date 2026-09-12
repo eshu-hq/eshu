@@ -26,7 +26,7 @@ func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {
 			{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 		},
 	}
-	readiness := impact.BuildSupplyChainImpactReadiness(
+	readiness := impact.BuildReadiness(
 		impact.FindingReadinessScope(row.Finding, filter),
 		[]impact.FindingResult{impact.FindingResult(row.Finding)},
 		false,
@@ -39,7 +39,7 @@ func TestInvestigationPacketAPISupplyChainMatchesSharedBuilder(t *testing.T) {
 		"resolved from one reducer-owned impact finding and its bounded evidence fact ids; reachability and deployment anchors are reported only when evidence exists",
 	)
 	expected, err := BuildSupplyChainImpactPacket(
-		impact.BuildSupplyChainImpactExplanation(filter, row, readiness),
+		impact.BuildExplanation(filter, row, readiness),
 		truth,
 		nil,
 	)

@@ -155,8 +155,8 @@ func TestSupplyChainImpactFindingQueryUsesDetectionProfileFilter(t *testing.T) {
 		"swift_semver_affected_range",
 		"swift_semver_known_fixed",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListFindingsQuery, want) {
+			t.Fatalf("impact.ListFindingsQuery missing %q:\n%s", want, impact.ListFindingsQuery)
 		}
 	}
 }
@@ -218,9 +218,9 @@ func TestDecodeSupplyChainImpactFindingRowBackfillsLegacyPreciseProfile(t *testi
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			row, err := impact.DecodeSupplyChainImpactFindingRow("finding-legacy-precise-"+tc.name, "inferred", tc.payload)
+			row, err := impact.DecodeFindingRow("finding-legacy-precise-"+tc.name, "inferred", tc.payload)
 			if err != nil {
-				t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+				t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 			}
 			if got, want := row.DetectionProfile, impact.ProfilePrecise; got != want {
 				t.Fatalf("DetectionProfile = %q, want %q for legacy fact qualifying as precise", got, want)
@@ -263,9 +263,9 @@ func TestDecodeSupplyChainImpactFindingRowBackfillsLegacyComprehensiveProfile(t 
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			row, err := impact.DecodeSupplyChainImpactFindingRow("finding-legacy-"+tc.name, "inferred", tc.payload)
+			row, err := impact.DecodeFindingRow("finding-legacy-"+tc.name, "inferred", tc.payload)
 			if err != nil {
-				t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+				t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 			}
 			if got, want := row.DetectionProfile, impact.ProfileComprehensive; got != want {
 				t.Fatalf("DetectionProfile = %q, want %q", got, want)
@@ -284,9 +284,9 @@ func TestDecodeSupplyChainImpactFindingRowPreservesDetectionProfile(t *testing.T
             "detection_profile": "precise"
         }`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "inferred", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if got, want := row.DetectionProfile, impact.ProfilePrecise; got != want {
 		t.Fatalf("DetectionProfile = %q, want %q", got, want)

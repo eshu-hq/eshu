@@ -71,8 +71,8 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 
 	seedSupplyChainRuntimeFilterLiveFacts(t, ctx, tx)
 
-	findingStore := impact.NewPostgresSupplyChainImpactFindingStore(tx)
-	aggregateStore := impact.NewPostgresSupplyChainImpactAggregateStore(tx)
+	findingStore := impact.NewPostgresFindingStore(tx)
+	aggregateStore := impact.NewPostgresAggregateStore(tx)
 	allowedScopes := []string{runtimeFilterLiveScopeA}
 
 	for _, tc := range []struct {
@@ -120,7 +120,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 			inventory, err := aggregateStore.SupplyChainImpactInventory(
 				ctx,
 				aggregateFilter,
-				impact.InventoryByImpactStatus,
+				impact.InventoryByStatus,
 				10,
 				0,
 			)
@@ -201,7 +201,7 @@ func TestSupplyChainImpactRuntimeFiltersEnforceScopedTruthLive(t *testing.T) {
 func assertSupplyChainRuntimeFilterListCount(
 	t *testing.T,
 	ctx context.Context,
-	store impact.PostgresSupplyChainImpactFindingStore,
+	store impact.PostgresFindingStore,
 	filter impact.FindingFilter,
 	readFromWinners bool,
 	want int,

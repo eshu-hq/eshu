@@ -307,7 +307,7 @@ func TestPostgresSupplyChainImpactReadinessSkipsImpactStatusOnlyScope(t *testing
 	// would be expensive and would report unrelated counts as evidence.
 	// The store must short-circuit BEFORE issuing the SQL.
 	db := &rejectingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	snapshot, err := store.ReadSupplyChainImpactReadiness(
 		context.Background(),
 		impact.ReadinessQuery{Status: "affected_exact"},
@@ -327,7 +327,7 @@ func TestPostgresSupplyChainImpactReadinessSkipsAdvisoryOnlyScope(t *testing.T) 
 	t.Parallel()
 
 	db := &rejectingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	snapshot, err := store.ReadSupplyChainImpactReadiness(
 		context.Background(),
 		impact.ReadinessQuery{AdvisoryID: "GHSA-aaaa-bbbb-cccc"},
@@ -350,7 +350,7 @@ func TestPostgresSupplyChainImpactReadinessScansForFactAnchoredScope(t *testing.
 	// (cve_id / package_id / repository_id / subject_digest), the store
 	// must still issue the SQL so the short-circuit above is narrow.
 	db := &countingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
 		impact.ReadinessQuery{CVEID: "CVE-2026-0001", Status: "affected_exact"},
@@ -364,7 +364,7 @@ func TestPostgresSupplyChainImpactReadinessScansForImageRefScope(t *testing.T) {
 	t.Parallel()
 
 	db := &countingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
 		impact.ReadinessQuery{ImageRef: "registry.example.com/team/api:prod"},
@@ -407,7 +407,7 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 	// every other family, or the new CTEs' fact_kind = ANY(...) predicates
 	// would bind against the wrong (or a missing) parameter.
 	db := &argCapturingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
 		impact.ReadinessQuery{SubjectDigest: "sha256:scan-tier-args"},

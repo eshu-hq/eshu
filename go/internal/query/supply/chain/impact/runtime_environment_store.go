@@ -74,7 +74,7 @@ var selectSupplyChainImpactRuntimeEnvironmentEvidenceQuery = fmt.Sprintf(
 // CI/CD correlation facts. Candidate names select the read only; baked evidence
 // values are never trusted. The grouped result contains at most one row per
 // input pair and deploy_event wins over declared across matching facts.
-func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
+func (s PostgresFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
 	ctx context.Context,
 	candidates []RuntimeEnvironmentCandidate,
 	allowedRepositoryIDs []string,

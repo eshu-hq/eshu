@@ -14,10 +14,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// KubernetesRuntimeProbeMaxResults bounds one Kubernetes runtime probe page.
 const KubernetesRuntimeProbeMaxResults = 200
 
 const (
+	// KubernetesRuntimeEvidenceSource labels a Kubernetes runtime-evidence
+	// probe result's source for the response envelope.
 	KubernetesRuntimeEvidenceSource = "reducer/kubernetes-correlation"
+	// KubernetesRuntimeResolutionMode records that the probe resolves
+	// workloads by exact subject digest, not by tag or repository.
 	KubernetesRuntimeResolutionMode = "digest"
 )
 

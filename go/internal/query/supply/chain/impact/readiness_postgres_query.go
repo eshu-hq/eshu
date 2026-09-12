@@ -3,11 +3,11 @@
 
 package impact
 
-const ListSupplyChainImpactReadinessQuery = ListSupplyChainImpactReadinessQueryCore +
+const ListReadinessQuery = ListReadinessQueryCore +
 	listSupplyChainImpactReadinessQueryUnsupportedAndSource +
 	listSupplyChainImpactReadinessQuerySelect
 
-const ListSupplyChainImpactReadinessQueryCore = `
+const ListReadinessQueryCore = `
 WITH advisory_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact

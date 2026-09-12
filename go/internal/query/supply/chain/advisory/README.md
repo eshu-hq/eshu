@@ -15,20 +15,19 @@ deployment impact.
 
 This package owns the two read models: the catalog and evidence store
 ports, their Postgres implementations, the bounded SQL texts, the
-fact-grouping read model (`BuildAdvisoryEvidenceRows`), the typed
+fact-grouping read model (`BuildEvidenceRows`), the typed
 factschema decode wrappers for the four vulnerability kinds, and the
 capability and limit constants. It does not own auth, the HTTP handlers,
 the response envelope, or capability registration.
 
 The HTTP handlers live in the supply-chain hub
-(`internal/query/supply/chain`: `supply_chain_advisory_*_handler.go`,
+(`internal/query/supply/chain`: `catalog_handler.go`, `evidence_handler.go`,
 `vulnerability_detail_handler.go`) since hub PR3 (#6060);
 the unit tests that need only hub symbols moved with them, reaching this
 store directly. Root package `query` keeps the capability matrix rows
-(`contract_supply_chain.go`), the `SupplyChainHandler` compatibility alias
-(`compat_supply_chain.go`), and the minimal store alias file
-(`compat_supply_chain.go`) with the two store types and
-constructors `cmd/api` and `cmd/mcp-server` still call as
+(`contract_supply_chain.go`) and the `SupplyChainHandler` compatibility alias
+plus the store alias/constructor stanza (both in the single compat bucket
+`compat_supply_chain.go`, #6642) `cmd/api` and `cmd/mcp-server` still call as
 `query.NewPostgresAdvisory*`. Root performs capability registration
 deliberately: root owns the router and always links into the production
 binary.
@@ -39,12 +38,12 @@ The store ports `CatalogStore` and `EvidenceStore`, the
 Postgres implementations and their constructors, the values crossing those
 ports (`CatalogFilter`, `CatalogPage`, `CatalogRow`,
 `EvidenceFilter`, `EvidenceRow` and its evidence structs),
-the grouping entry point `BuildAdvisoryEvidenceRows` with its fact-row and
-key helpers (`EvidenceFactRow`, `CanonicalAdvisoryKey`,
-`PageAdvisoryEvidenceRows`, `EvidenceLookupIDs`,
-`NormalizeAdvisoryEvidenceFilter`, `NormalizeAdvisoryCatalogFilter`,
-`EvidenceFactCapacity`), the SQL texts (`ListAdvisoryCatalogQuery`,
-`ListAdvisoryEvidenceQuery`), the capability and bound constants
+the grouping entry point `BuildEvidenceRows` with its fact-row and
+key helpers (`EvidenceFactRow`, `CanonicalKey`,
+`PageEvidenceRows`, `EvidenceLookupIDs`,
+`NormalizeEvidenceFilter`, `NormalizeCatalogFilter`,
+`EvidenceFactCapacity`), the SQL texts (`ListCatalogQuery`,
+`ListEvidenceQuery`), the capability and bound constants
 (`CatalogCapability`, `EvidenceCapability`,
 `CatalogMaxLimit`, `EvidenceMaxLimit`,
 `EvidenceMaxFactRows`), and the shared seams other root read

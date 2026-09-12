@@ -36,11 +36,11 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	limit, ok := impact.RequiredSupplyChainImpactFindingLimit(w, r)
+	limit, ok := impact.RequiredFindingLimit(w, r)
 	if !ok {
 		return
 	}
-	profile, ok := impact.RequestedSupplyChainImpactProfile(w, r)
+	profile, ok := impact.RequestedProfile(w, r)
 	if !ok {
 		return
 	}
@@ -65,7 +65,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		querycontract.WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
 		return
 	}
-	includeSuppressed, ok := impact.ParseSupplyChainImpactIncludeSuppressed(w, r)
+	includeSuppressed, ok := impact.ParseIncludeSuppressed(w, r)
 	if !ok {
 		return
 	}
@@ -188,7 +188,7 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 	)
 	results := make([]impact.FindingResult, 0, len(rows))
 	for i := range rows {
-		results = append(results, impact.BuildSupplyChainImpactFindingResult(&rows[i]))
+		results = append(results, impact.BuildFindingResult(&rows[i]))
 	}
 	scope := impact.TargetScope{
 		CVEID:         filter.CVEID,
@@ -212,9 +212,9 @@ func (h *Handler) listImpactFindings(w http.ResponseWriter, r *http.Request) {
 		// return the findings with a `readiness_unavailable` envelope so
 		// callers cannot misread zero findings as safe and can retry the
 		// readiness lookup separately.
-		readiness = impact.BuildSupplyChainImpactReadinessUnavailable(scope, results, truncated)
+		readiness = impact.BuildReadinessUnavailable(scope, results, truncated)
 	} else {
-		readiness = impact.BuildSupplyChainImpactReadiness(scope, results, truncated, snapshot)
+		readiness = impact.BuildReadiness(scope, results, truncated, snapshot)
 	}
 	body := map[string]any{
 		"findings":          results,

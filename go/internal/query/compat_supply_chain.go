@@ -13,16 +13,17 @@ import (
 )
 
 // compat_supply_chain.go merges the three pre-#6642 root alias files
-// (chain_hub_alias.go, chain_advisory_alias.go, chain_impact_alias.go) into
-// one compat bucket so no root file's name collides with the new
-// go/internal/query/supply subpackage (dirgate's sibling-word naming rule).
-// Only the right-hand sides below point at the new supply/chain paths;
-// every left-hand alias spelling is unchanged, so cmd/api, cmd/mcp-server,
-// the staying supply-chain handlers/probes/tests, internal/serviceintelhttp,
-// internal/cli, and internal/storage tests keep compiling unchanged. Three
-// labeled sections below match the three files this replaces.
+// (supply_chain_hub_alias.go, supply_chain_advisory_alias.go,
+// supply_chain_impact_alias.go) into one compat bucket so no root file's name
+// collides with the new go/internal/query/supply subpackage (dirgate's
+// sibling-word naming rule). Only the right-hand sides below point at the new
+// supply/chain paths; every left-hand alias spelling is unchanged, so
+// cmd/api, cmd/mcp-server, the staying supply-chain handlers/probes/tests,
+// internal/serviceintelhttp, internal/cli, and internal/storage tests keep
+// compiling unchanged. Three labeled sections below match the three files
+// this replaces.
 
-// === Hub aliases (formerly chain_hub_alias.go) ===
+// === Hub aliases (formerly supply_chain_hub_alias.go) ===
 
 // This section preserves the root package query surface cmd/api,
 // cmd/mcp-server, staying stores, and staying tests still use for the
@@ -203,7 +204,7 @@ const (
 )
 
 // stringMapVal stringifies a map payload field. Its home is
-// supplychain/alerts/ (StringMapVal); this forward keeps
+// supply/chain/alerts/ (StringMapVal); this forward keeps
 // sbom_attestation_attachments.go and sbom_attestation_attachment_rows.go
 // spelling the unqualified name unchanged. See #6642.
 func stringMapVal(payload map[string]any, key string) map[string]string {
@@ -211,14 +212,14 @@ func stringMapVal(payload map[string]any, key string) map[string]string {
 }
 
 // PostgresSecurityAlertReconciliationStore reads active provider alert
-// reconciliation facts from Postgres. Its home is supplychain/alerts/
+// reconciliation facts from Postgres. Its home is supply/chain/alerts/
 // (PostgresStore); this alias keeps the cmd/api and cmd/mcp-server wiring
 // spelling query.PostgresSecurityAlertReconciliationStore unchanged. See
 // #6642.
 type PostgresSecurityAlertReconciliationStore = alerts.PostgresStore
 
 // NewPostgresSecurityAlertReconciliationStore creates the Postgres-backed
-// provider alert reconciliation read model. Its home is supplychain/alerts/
+// provider alert reconciliation read model. Its home is supply/chain/alerts/
 // (NewPostgresStore); this forwarder keeps cmd/api and cmd/mcp-server wiring
 // calling query.NewPostgresSecurityAlertReconciliationStore unchanged, passing
 // the *sql.DB main always passed (it satisfies alerts.Queryer). See #6642.
@@ -228,14 +229,14 @@ func NewPostgresSecurityAlertReconciliationStore(db alerts.Queryer) PostgresSecu
 
 // PostgresSecurityAlertReconciliationAggregateStore reads aggregate counts
 // directly from reducer-owned reconciliation facts. Its home is
-// supplychain/alerts/ (PostgresAggregateStore); this alias keeps the cmd/api
+// supply/chain/alerts/ (PostgresAggregateStore); this alias keeps the cmd/api
 // and cmd/mcp-server wiring spelling
 // query.PostgresSecurityAlertReconciliationAggregateStore unchanged. See
 // #6642.
 type PostgresSecurityAlertReconciliationAggregateStore = alerts.PostgresAggregateStore
 
 // NewPostgresSecurityAlertReconciliationAggregateStore creates the
-// Postgres-backed aggregate store. Its home is supplychain/alerts/
+// Postgres-backed aggregate store. Its home is supply/chain/alerts/
 // (NewPostgresAggregateStore); this forwarder keeps cmd/api and
 // cmd/mcp-server wiring calling
 // query.NewPostgresSecurityAlertReconciliationAggregateStore unchanged,
@@ -297,7 +298,7 @@ func nextSecurityAlertReconciliationAggregateOffset(offset, limit int, truncated
 }
 
 func nextSupplyChainImpactAggregateOffset(offset, limit int, truncated bool) any {
-	return supplychain.NextSupplyChainImpactAggregateOffset(offset, limit, truncated)
+	return supplychain.NextImpactAggregateOffset(offset, limit, truncated)
 }
 
 // sbomAttestationAttachmentAggregateScope builds the scope envelope the
@@ -324,7 +325,7 @@ var (
 	_ KubernetesWorkloadCurrentInventoryFilter = (*PostgresKubernetesRuntimeWorkloadStore)(nil)
 )
 
-// === Advisory aliases (formerly chain_advisory_alias.go) ===
+// === Advisory aliases (formerly supply_chain_advisory_alias.go) ===
 
 // This section preserves the root package query surface cmd/api and
 // cmd/mcp-server still use for the advisory read models. The implementation
@@ -335,26 +336,26 @@ var (
 // constructor-level compatibility cmd/* needs until then.
 
 // PostgresAdvisoryCatalogStore reads a bounded, browsable page of canonical
-// vulnerability advisories. See advisory.PostgresAdvisoryCatalogStore.
-type PostgresAdvisoryCatalogStore = advisory.PostgresAdvisoryCatalogStore
+// vulnerability advisories. See advisory.PostgresCatalogStore.
+type PostgresAdvisoryCatalogStore = advisory.PostgresCatalogStore
 
 // PostgresAdvisoryEvidenceStore reads active vulnerability source facts and
 // groups them into canonical advisory evidence rows. See
-// advisory.PostgresAdvisoryEvidenceStore.
-type PostgresAdvisoryEvidenceStore = advisory.PostgresAdvisoryEvidenceStore
+// advisory.PostgresEvidenceStore.
+type PostgresAdvisoryEvidenceStore = advisory.PostgresEvidenceStore
 
 // NewPostgresAdvisoryCatalogStore constructs the Postgres-backed catalog
 // read model. Forwards unchanged to
-// advisory.NewPostgresAdvisoryCatalogStore.
+// advisory.NewPostgresCatalogStore.
 func NewPostgresAdvisoryCatalogStore(db advisory.EvidenceQueryer) PostgresAdvisoryCatalogStore {
-	return advisory.NewPostgresAdvisoryCatalogStore(db)
+	return advisory.NewPostgresCatalogStore(db)
 }
 
 // NewPostgresAdvisoryEvidenceStore constructs the Postgres-backed advisory
 // evidence read model. Forwards unchanged to
-// advisory.NewPostgresAdvisoryEvidenceStore.
+// advisory.NewPostgresEvidenceStore.
 func NewPostgresAdvisoryEvidenceStore(db advisory.EvidenceQueryer) PostgresAdvisoryEvidenceStore {
-	return advisory.NewPostgresAdvisoryEvidenceStore(db)
+	return advisory.NewPostgresEvidenceStore(db)
 }
 
 // listAdvisoryCatalogQuery and listAdvisoryEvidenceQuery re-expose the
@@ -366,11 +367,11 @@ func NewPostgresAdvisoryEvidenceStore(db advisory.EvidenceQueryer) PostgresAdvis
 // away in hub PR3 when the tests move into the advisory package with the
 // handlers they drive.
 var (
-	listAdvisoryCatalogQuery  = advisory.ListAdvisoryCatalogQuery
-	listAdvisoryEvidenceQuery = advisory.ListAdvisoryEvidenceQuery
+	listAdvisoryCatalogQuery  = advisory.ListCatalogQuery
+	listAdvisoryEvidenceQuery = advisory.ListEvidenceQuery
 )
 
-// === Impact aliases (formerly chain_impact_alias.go) ===
+// === Impact aliases (formerly supply_chain_impact_alias.go) ===
 
 // This section preserves the root package query surface cmd/api,
 // cmd/mcp-server, the staying supply-chain handlers, probes, and tests still
@@ -449,16 +450,16 @@ type (
 	SupplyChainImpactInventoryRow                 = impact.InventoryRow
 	SupplyChainImpactPathHop                      = impact.PathHop
 	SupplyChainImpactReadinessEnvelope            = impact.ReadinessEnvelope
-	PostgresSupplyChainImpactFindingStore         = impact.PostgresSupplyChainImpactFindingStore
-	PostgresSupplyChainImpactAggregateStore       = impact.PostgresSupplyChainImpactAggregateStore
-	PostgresSupplyChainImpactReadinessStore       = impact.PostgresSupplyChainImpactReadinessStore
+	PostgresSupplyChainImpactFindingStore         = impact.PostgresFindingStore
+	PostgresSupplyChainImpactAggregateStore       = impact.PostgresAggregateStore
+	PostgresSupplyChainImpactReadinessStore       = impact.PostgresReadinessStore
 	PostgresVulnerabilitySuppressionMutationStore = impact.PostgresVulnerabilitySuppressionMutationStore
 )
 
 const (
 	SupplyChainImpactAggregateMaxLimit       = impact.AggregateMaxLimit
 	ReadinessStateReadyWithFindings          = impact.ReadinessStateReadyWithFindings
-	SupplyChainImpactInventoryByImpactStatus = impact.InventoryByImpactStatus
+	SupplyChainImpactInventoryByImpactStatus = impact.InventoryByStatus
 	SupplyChainImpactWinnersReadEnv          = impact.WinnersReadEnv
 )
 
@@ -467,19 +468,19 @@ func SupplyChainImpactWinnersReadEnabled(value string) bool {
 }
 
 func NewPostgresSupplyChainImpactFindingStore(db impact.FindingQueryer) PostgresSupplyChainImpactFindingStore {
-	return impact.NewPostgresSupplyChainImpactFindingStore(db)
+	return impact.NewPostgresFindingStore(db)
 }
 
 func NewPostgresSupplyChainImpactFindingStoreWithReadModel(db impact.FindingQueryer, readFromWinners bool) PostgresSupplyChainImpactFindingStore {
-	return impact.NewPostgresSupplyChainImpactFindingStoreWithReadModel(db, readFromWinners)
+	return impact.NewPostgresFindingStoreWithReadModel(db, readFromWinners)
 }
 
 func NewPostgresSupplyChainImpactAggregateStore(db impact.AggregateQueryer) PostgresSupplyChainImpactAggregateStore {
-	return impact.NewPostgresSupplyChainImpactAggregateStore(db)
+	return impact.NewPostgresAggregateStore(db)
 }
 
 func NewPostgresSupplyChainImpactReadinessStore(db impact.ReadinessQueryer) PostgresSupplyChainImpactReadinessStore {
-	return impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	return impact.NewPostgresReadinessStore(db)
 }
 
 func NewPostgresVulnerabilitySuppressionMutationStore(db *sql.DB) *PostgresVulnerabilitySuppressionMutationStore {
@@ -493,4 +494,4 @@ func NewPostgresVulnerabilitySuppressionMutationStore(db *sql.DB) *PostgresVulne
 // as the container-image query tests show), so the tests keep the exact
 // pre-move call shape through this shim. It goes away in hub PR3 when the
 // tests move into the impact package with the handlers they drive.
-var listSupplyChainImpactReadinessQuery = impact.ListSupplyChainImpactReadinessQuery
+var listSupplyChainImpactReadinessQuery = impact.ListReadinessQuery

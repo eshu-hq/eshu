@@ -13,13 +13,13 @@ import (
 func assertScopedSuppressionAuthority(
 	t *testing.T,
 	ctx context.Context,
-	direct impact.PostgresSupplyChainImpactFindingStore,
-	materialized impact.PostgresSupplyChainImpactFindingStore,
-	aggregates impact.PostgresSupplyChainImpactAggregateStore,
+	direct impact.PostgresFindingStore,
+	materialized impact.PostgresFindingStore,
+	aggregates impact.PostgresAggregateStore,
 ) {
 	t.Helper()
 
-	for name, store := range map[string]impact.PostgresSupplyChainImpactFindingStore{
+	for name, store := range map[string]impact.PostgresFindingStore{
 		"direct":       direct,
 		"materialized": materialized,
 	} {

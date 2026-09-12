@@ -12,7 +12,7 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForStalePackageMetadata(t *te
 	// join source. A stale registry observation must remain visible as stale
 	// freshness and must not be converted into a clean ready_zero_findings
 	// answer just because advisory and registry fact counts are non-zero.
-	envelope := BuildSupplyChainImpactReadiness(
+	envelope := BuildReadiness(
 		TargetScope{PackageID: "pkg:npm/example"},
 		nil,
 		false,
@@ -48,7 +48,7 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForMissingPackageMetadata(t *
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			envelope := BuildSupplyChainImpactReadiness(
+			envelope := BuildReadiness(
 				tt.scope,
 				nil,
 				false,
@@ -72,7 +72,7 @@ func TestBuildSupplyChainImpactReadinessFailsClosedForMissingPackageMetadata(t *
 func TestBuildSupplyChainImpactReadinessKeepsFreshPackageMetadataReady(t *testing.T) {
 	t.Parallel()
 
-	envelope := BuildSupplyChainImpactReadiness(
+	envelope := BuildReadiness(
 		TargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,

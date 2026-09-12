@@ -86,7 +86,7 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 		h.PacketResponder.RespondSupplyChainImpactScopeRefusal(w, r)
 		return
 	}
-	filter := impact.TrimSupplyChainImpactExplanationFilter(impact.ExplanationFilter{
+	filter := impact.TrimExplanationFilter(impact.ExplanationFilter{
 		FindingID:     querycontract.QueryParam(r, "finding_id"),
 		AdvisoryID:    querycontract.QueryParam(r, "advisory_id"),
 		CVEID:         querycontract.QueryParam(r, "cve_id"),
@@ -116,9 +116,9 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	row, err := h.ImpactExplanations.ExplainSupplyChainImpact(r.Context(), filter)
-	if errors.Is(err, impact.ErrSupplyChainImpactExplanationNotFound) {
+	if errors.Is(err, impact.ErrExplanationNotFound) {
 		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
-		body := impact.BuildSupplyChainImpactNoEvidenceExplanation(filter, readiness)
+		body := impact.BuildNoEvidenceExplanation(filter, readiness)
 		truth := querycontract.BuildTruthEnvelope(
 			h.profile(),
 			ImpactExplanationCapability,
@@ -128,9 +128,9 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 		h.PacketResponder.RespondSupplyChainImpactPacket(w, r, body, truth)
 		return
 	}
-	if errors.Is(err, impact.ErrSupplyChainImpactExplanationAmbiguous) {
+	if errors.Is(err, impact.ErrExplanationAmbiguous) {
 		readiness := h.readSupplyChainImpactReadinessForScope(r, filter.ReadinessScope(), nil, false)
-		body := impact.BuildSupplyChainImpactAmbiguousExplanation(
+		body := impact.BuildAmbiguousExplanation(
 			filter,
 			readiness,
 			impact.ExplanationAmbiguousCandidateCount(err),
@@ -152,7 +152,7 @@ func (h *Handler) getImpactPacket(w http.ResponseWriter, r *http.Request) {
 	scope := impact.FindingReadinessScope(row.Finding, filter)
 	findingResult := impact.FindingResult(row.Finding)
 	readiness := h.readSupplyChainImpactReadinessForScope(r, scope, []impact.FindingResult{findingResult}, false)
-	body := impact.BuildSupplyChainImpactExplanation(filter, row, readiness)
+	body := impact.BuildExplanation(filter, row, readiness)
 	truth := querycontract.BuildTruthEnvelope(
 		h.profile(),
 		ImpactExplanationCapability,

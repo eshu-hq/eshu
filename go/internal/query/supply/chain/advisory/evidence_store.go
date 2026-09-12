@@ -39,25 +39,25 @@ type EvidenceFactRow struct {
 	Payload       map[string]any
 }
 
-// PostgresAdvisoryEvidenceStore reads active vulnerability source facts and
+// PostgresEvidenceStore reads active vulnerability source facts and
 // groups them into canonical advisory evidence rows.
-type PostgresAdvisoryEvidenceStore struct {
+type PostgresEvidenceStore struct {
 	DB EvidenceQueryer
 }
 
-// NewPostgresAdvisoryEvidenceStore creates the Postgres-backed advisory
+// NewPostgresEvidenceStore creates the Postgres-backed advisory
 // evidence read model.
-func NewPostgresAdvisoryEvidenceStore(db EvidenceQueryer) PostgresAdvisoryEvidenceStore {
-	return PostgresAdvisoryEvidenceStore{DB: db}
+func NewPostgresEvidenceStore(db EvidenceQueryer) PostgresEvidenceStore {
+	return PostgresEvidenceStore{DB: db}
 }
 
 // ListAdvisoryEvidence returns one bounded page of source-only advisory
 // evidence.
-func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
+func (s PostgresEvidenceStore) ListAdvisoryEvidence(
 	ctx context.Context,
 	filter EvidenceFilter,
 ) ([]EvidenceRow, error) {
-	filter = NormalizeAdvisoryEvidenceFilter(filter)
+	filter = NormalizeEvidenceFilter(filter)
 	if s.DB == nil {
 		return nil, fmt.Errorf("advisory evidence database is required")
 	}
@@ -69,7 +69,7 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	}
 	rows, err := s.DB.QueryContext(
 		ctx,
-		ListAdvisoryEvidenceQuery,
+		ListEvidenceQuery,
 		pgarray.Array(advisoryEvidenceFactKinds),
 		pgarray.Array(EvidenceLookupIDs(filter)),
 		pgarray.Array(advisoryEvidencePackageIDs(filter)),
@@ -112,7 +112,7 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list advisory evidence: %w", err)
 	}
-	return PageAdvisoryEvidenceRows(BuildAdvisoryEvidenceRows(facts), filter), nil
+	return PageEvidenceRows(BuildEvidenceRows(facts), filter), nil
 }
 
 // HasScope reports whether the filter carries any anchor the read model can
@@ -127,10 +127,10 @@ func (f EvidenceFilter) hasImpactScope() bool {
 	return f.RepositoryID != "" || f.ServiceID != "" || f.WorkloadID != ""
 }
 
-// NormalizeAdvisoryEvidenceFilter trims and canonicalizes evidence filter
+// NormalizeEvidenceFilter trims and canonicalizes evidence filter
 // inputs. Exported for the staying root evidence and vulnerability-detail
 // handlers and the root evidence tests.
-func NormalizeAdvisoryEvidenceFilter(filter EvidenceFilter) EvidenceFilter {
+func NormalizeEvidenceFilter(filter EvidenceFilter) EvidenceFilter {
 	filter.CVEID = normalizeAdvisoryLookupID(filter.CVEID)
 	filter.ID = normalizeAdvisoryLookupID(filter.ID)
 	filter.PackageID = strings.TrimSpace(filter.PackageID)
@@ -149,7 +149,7 @@ func normalizeAdvisoryLookupID(value string) string {
 // EvidenceLookupIDs returns the normalized advisory lookup ids for
 // one filter. Exported for the root evidence SQL tests.
 func EvidenceLookupIDs(filter EvidenceFilter) []string {
-	filter = NormalizeAdvisoryEvidenceFilter(filter)
+	filter = NormalizeEvidenceFilter(filter)
 	seen := map[string]struct{}{}
 	for _, value := range []string{filter.CVEID, filter.ID} {
 		addSet(seen, value)
@@ -158,7 +158,7 @@ func EvidenceLookupIDs(filter EvidenceFilter) []string {
 }
 
 func advisoryEvidencePackageIDs(filter EvidenceFilter) []string {
-	filter = NormalizeAdvisoryEvidenceFilter(filter)
+	filter = NormalizeEvidenceFilter(filter)
 	seen := map[string]struct{}{}
 	addSet(seen, filter.PackageID)
 	return SetToSortedSlice(seen)
@@ -180,9 +180,9 @@ func FormatNullTime(value sql.NullTime) string {
 	return value.Time.UTC().Format(time.RFC3339)
 }
 
-// PageAdvisoryEvidenceRows filters and keyset-pages grouped evidence rows.
+// PageEvidenceRows filters and keyset-pages grouped evidence rows.
 // Exported for the staying root evidence tests, which pin paging semantics.
-func PageAdvisoryEvidenceRows(rows []EvidenceRow, filter EvidenceFilter) []EvidenceRow {
+func PageEvidenceRows(rows []EvidenceRow, filter EvidenceFilter) []EvidenceRow {
 	rows = filterAdvisoryEvidenceRows(rows, filter)
 	start := 0
 	if after := normalizeAdvisoryLookupID(filter.AfterAdvisoryKey); after != "" {
@@ -207,7 +207,7 @@ func filterAdvisoryEvidenceRows(rows []EvidenceRow, filter EvidenceFilter) []Evi
 	if filter.CVEID == "" && filter.ID == "" && filter.PackageID == "" {
 		return rows
 	}
-	filter = NormalizeAdvisoryEvidenceFilter(filter)
+	filter = NormalizeEvidenceFilter(filter)
 	if filter.hasImpactScope() {
 		filter.CVEID = ""
 		filter.ID = ""

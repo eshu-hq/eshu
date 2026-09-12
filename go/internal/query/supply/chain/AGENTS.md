@@ -102,9 +102,9 @@ not export a new symbol without adding its caller to this list.
 - Aggregate pagination offsets (`Next*AggregateOffset`) and
   `SBOMAttestationAttachmentAggregateScope` — the staying aggregate
   tests, which pin them directly (via root forwards).
-- `PlanSupplyChainRuntimeEnvironmentCandidates`,
+- `PlanRuntimeEnvironmentCandidates`,
   `RuntimeEnvironmentPlan`,
-  `MaxSupplyChainRuntimeEnvironmentCandidates` — the staying
+  `MaxRuntimeEnvironmentCandidates` — the staying
   runtime-context tests (via root forwards).
 - `KubernetesRuntimeEvidenceSource`,
   `KubernetesRuntimeResolutionMode` — staying

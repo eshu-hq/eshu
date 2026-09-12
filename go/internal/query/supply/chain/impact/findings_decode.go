@@ -11,7 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-// DecodeSupplyChainImpactFindingRow decodes one reducer_supply_chain_impact_finding
+// DecodeFindingRow decodes one reducer_supply_chain_impact_finding
 // fact payload (findings_queries.go's
 // FindingFactKind) into the query-side row shape.
 //
@@ -19,7 +19,7 @@ import (
 // This query-side decoder remains the W2 consumer seam: it preserves the
 // existing row projection until the Postgres selection and explanation paths can
 // hydrate through sdk/go/factschema without changing filter/index behavior.
-func DecodeSupplyChainImpactFindingRow(
+func DecodeFindingRow(
 	factID string,
 	sourceConfidence string,
 	payloadBytes []byte,
@@ -84,7 +84,7 @@ func DecodeSupplyChainImpactFindingRow(
 		Provenance:               decodeSupplyChainImpactProvenance(payload),
 		DetectionProfile:         querycontract.StringVal(payload, "detection_profile"),
 		Suppression:              decodeSupplyChainSuppressionDecision(payload),
-		Remediation:              DecodeSupplyChainImpactRemediation(payload),
+		Remediation:              DecodeRemediation(payload),
 	}
 	if row.DetectionProfile == "" {
 		row.DetectionProfile = inferLegacyDetectionProfile(row.Status, row.ObservedVersion, row.MatchReason)
