@@ -34,7 +34,7 @@ evidence.
   (`main_test.go`'s `TestMain`) and root's alias file are the callers that
   need the package-local name.
 - `secretsHandlerTracer` is this package's own tracer var (the same seam
-  `packageregTracer` in `go/internal/query/packagereg/handler_tracing.go`
+  `packageregTracer` in `go/internal/query/package/registry/handler_tracing.go`
   uses): package-local, seeded from `queryspan.HandlerTracer()`. Do not
   promote it to an exported var or move the span helper back to root.
 - Every exported type, top-level func, and the five capability consts drop

@@ -13,7 +13,7 @@ import (
 // secretsHandlerTracer is this package's tracer AND the seam its span tests
 // swap. Seeding it from queryspan.HandlerTracer keeps the swap private to
 // this package rather than mutating what every other importer reads. See
-// go/internal/query/packagereg/handler_tracing.go for the identical seam.
+// go/internal/query/package/registry/handler_tracing.go for the identical seam.
 var secretsHandlerTracer = queryspan.HandlerTracer()
 
 // startQueryHandlerSpan wraps this route's HTTP handler in a stable span and

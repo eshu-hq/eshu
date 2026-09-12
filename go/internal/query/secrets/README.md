@@ -109,7 +109,7 @@ No-Observability-Change: every route keeps its span name
 (`telemetry.SpanQuerySecretsIAM*`) and `http.route`/`eshu.capability`
 attributes unchanged. `secretsHandlerTracer` is this package's own
 package-local tracer var (mirroring `packageregTracer` in
-`go/internal/query/packagereg/handler_tracing.go`), seeded from
+`go/internal/query/package/registry/handler_tracing.go`), seeded from
 `queryspan.HandlerTracer()`.
 
 ## Related docs
