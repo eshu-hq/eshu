@@ -7,7 +7,6 @@ package advisory
 // vulnerability advisories from active vulnerability source facts. Exported
 // for the root catalog tests, which pin its bounded-scan shape.
 //
-
 // Parameters:
 //
 //	$1 severity label filter, '' for any (compared case-insensitively)

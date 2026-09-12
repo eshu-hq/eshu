@@ -9,14 +9,15 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
-// ServiceCatalogCorrelationMissingReason and ServiceCatalogAnchorMissingReason
-// are the two reasons BuildFindingResult can record for a missing
-// service-catalog evidence entry: no correlation evidence was found at all,
-// versus evidence exists but does not resolve to a known service/workload
-// catalog anchor.
 const (
+	// ServiceCatalogCorrelationMissingReason is the reason
+	// BuildFindingResult records when no service-catalog correlation
+	// evidence was found at all for a finding.
 	ServiceCatalogCorrelationMissingReason = "service catalog correlation evidence missing"
-	ServiceCatalogAnchorMissingReason      = "service/workload catalog anchor missing"
+	// ServiceCatalogAnchorMissingReason is the reason BuildFindingResult
+	// records when correlation evidence exists but does not resolve to a
+	// known service/workload catalog anchor.
+	ServiceCatalogAnchorMissingReason = "service/workload catalog anchor missing"
 )
 
 // FindingResult is one reducer-owned vulnerability impact row

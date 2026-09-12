@@ -213,8 +213,9 @@ var ExplainFindingByPublicIDQuery = buildExplainSupplyChainImpactFindingQuery(
 // no identifier filter (every finding in the bounded scope matches), and a
 // non-empty $2 matches a direct fact id, finding id, or canonical key, OR'd
 // together with a canonical-key candidate match rather than falling back to
-// it. The real fallback lives in the Go caller, which tries this query only
-// when ExplainFindingByPublicIDQuery finds nothing.
+// it. Without a finding_id the store runs this query directly; with one it
+// tries ExplainFindingByPublicIDQuery first and falls back to this query
+// only when that finds nothing.
 var ExplainFindingQuery = buildExplainSupplyChainImpactFindingQuery(
 	"",
 	`
