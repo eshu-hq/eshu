@@ -64,8 +64,10 @@ func ValidPriorityBucket(bucket string) bool {
 	}
 }
 
-// NormalizeSort maps a caller-supplied sort value to its canonical query
-// constant, defaulting an empty or unrecognized value to the finding-id sort.
+// NormalizeSort trims sort and maps it to its canonical query constant: an
+// empty value defaults to the finding-id sort, and "priority" is an alias
+// for the descending priority-score sort. Any other value passes through
+// trimmed but otherwise unchanged, for PriorityFilter to reject.
 func NormalizeSort(sort string) string {
 	switch strings.TrimSpace(sort) {
 	case "", supplyChainImpactSortFindingID:

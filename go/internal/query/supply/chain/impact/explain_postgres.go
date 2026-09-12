@@ -208,9 +208,13 @@ var ExplainFindingByPublicIDQuery = buildExplainSupplyChainImpactFindingQuery(
 	"",
 )
 
-// ExplainFindingQuery explains one finding from a caller-supplied identifier
-// that may be a fact id, finding id, or canonical key, falling back to a
-// canonical-key candidate match when $2 is empty or does not match directly.
+// ExplainFindingQuery explains a finding from a caller-supplied identifier
+// that may be a fact id, finding id, or canonical key: an empty $2 applies
+// no identifier filter (every finding in the bounded scope matches), and a
+// non-empty $2 matches a direct fact id, finding id, or canonical key, OR'd
+// together with a canonical-key candidate match rather than falling back to
+// it. The real fallback lives in the Go caller, which tries this query only
+// when ExplainFindingByPublicIDQuery finds nothing.
 var ExplainFindingQuery = buildExplainSupplyChainImpactFindingQuery(
 	"",
 	`
