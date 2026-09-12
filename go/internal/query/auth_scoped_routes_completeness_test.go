@@ -123,7 +123,7 @@ func TestScopedTokenAllowlistCompleteness(t *testing.T) {
 		// also carry an x-shared-key-only OpenAPI marker (it has no OpenAPI
 		// entry to carry one). Any other missing surface is a genuinely stale
 		// ledger entry. (POST /api/v0/code/visualize was this case, #3781,
-		// until #5762 gave it a real openapi_paths_code_graph.go entry.)
+		// until #5762 gave it a real openapi/paths/code/graph.go entry.)
 		if _, excluded := knownDrift[name]; !excluded {
 			t.Errorf("%s: sharedKeyOnlyRoutes has a stale entry -- no implemented api_route surface has this name and it is not in .github/openapi-known-drift.txt; remove the entry, fix the surface name to match capabilitycatalog.LoadSurfaceInventory(), or add it to known-drift if the route is intentionally OpenAPI-excluded", name)
 			continue

@@ -2,8 +2,8 @@
 // Loaders and mutators for the DB-backed identity provider-config CRUD surface
 // (#4966, epic #4962) consumed by the Admin -> Identity & Access -> Providers
 // tab (#4967). Field names mirror the backend OpenAPI fragments verbatim
-// (go/internal/query/openapi_paths_auth_admin_provider_configs.go,
-//  openapi_components_provider_configs.go). No loader, mutator, or type here
+// (go/internal/query/openapi/paths/auth/admin_provider_configs.go,
+//  openapi/components_provider_configs.go). No loader, mutator, or type here
 // ever models a plaintext secret: has_secret, secret_fingerprint, and key_id
 // are the only secret-adjacent fields, matching the backend's own leakage
 // boundary (go/internal/query/admin_provider_config_leakage_test.go). Every

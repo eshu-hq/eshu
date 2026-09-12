@@ -222,7 +222,7 @@ func WriteBrowserSessionCookies(
 		Secure:   secure,
 		SameSite: http.SameSiteStrictMode,
 	})
-	// #nosec G124 -- same attributes as the session cookie above; Secure follows the resolved cookie mode and the insecure variant has its own CSRF cookie name
+	// #nosec G124 -- CSRF token cookie is deliberately JS-readable (HttpOnly=false): the console echoes it in X-Eshu-CSRF, which tryBrowserSessionAuth checks against the session's stored hash, so it is not a session credential; SameSite=Strict is constant and Secure follows the same loopback-only relaxation as the session cookie
 	http.SetCookie(w, &http.Cookie{
 		Name:     csrfName,
 		Value:    csrfSecret,

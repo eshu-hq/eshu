@@ -247,7 +247,7 @@ func isSupportedSBOMAttestationAttachmentDimension(d SBOMAttestationAttachmentIn
 // validateSBOMAttestationAttachmentAggregateFilters rejects out-of-contract
 // attachment_status or artifact_kind values with a 400 so typos do not
 // silently return zero counts. The closed enums match the values the list
-// endpoint advertises in openapi_paths_supply_chain_sbom.go.
+// endpoint advertises in openapi/paths/supplychain/sbom_attestations.go.
 func validateSBOMAttestationAttachmentAggregateFilters(w http.ResponseWriter, filter SBOMAttestationAttachmentAggregateFilter) bool {
 	if filter.AttachmentStatus != "" && !isSupportedSBOMAttachmentStatus(filter.AttachmentStatus) {
 		querycontract.WriteError(w, http.StatusBadRequest, "attachment_status must be one of attached_verified, attached_unverified, attached_parse_only, subject_mismatch, ambiguous_subject, unknown_subject, unparseable")

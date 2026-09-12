@@ -77,7 +77,7 @@ same three flags directly on the `/impact/trace-deployment-chain` response
 as `dependents_truncated`, `consumer_repositories_truncated`, and
 `provisioning_source_chains_truncated`, mirroring the existing
 `uncorrelated_cloud_resources_truncated` field. All three are documented in
-`openapi_paths_impact.go`.
+`openapi/paths/impact/routes.go`.
 
 The 25-vs-50 mismatch that made this gap possible also leaked into the
 disclosed numbers themselves. Round 7 P2-5 found `result_limits` reporting
@@ -289,7 +289,7 @@ graph dependent(s), 0 content consumer repo(s)" with no marker. It now takes a
 `provisioning_source_chains_truncated`) rather than from a single OR, so a list
 that was not bounded is not marked as if it were.
 
-`max_depth` declares `minimum`/`maximum` in `openapi_paths_impact.go` and
+`max_depth` declares `minimum`/`maximum` in `openapi/paths/impact/routes.go` and
 declares neither on the MCP tool. The clamping rationale applies to both, so the
 split is now stated on the OpenAPI const: every sibling `max_depth` in that
 document declares both bounds, and MCP is the deliberate deviation because a

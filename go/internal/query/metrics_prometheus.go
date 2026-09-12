@@ -136,6 +136,7 @@ func (s *PrometheusMetricsTimeSeriesSource) RangeQuery(
 	}
 	end := s.now().UTC()
 	start := end.Add(-window)
+	// #nosec G704 -- scheme, host and path come only from operator config (ESHU_COLLECTOR_INSTANCES_JSON base_url/path_prefix, validated in NewPrometheusMetricsTimeSeriesSource); request input only selects constant PromQL from prometheusMetricExpressions and a validated duration step, both url.Values-encoded query params
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.queryRangeURL(expression, start, end, query.Step), nil)
 	if err != nil {
 		return nil, fmt.Errorf("build metrics time-series request: %w", err)
@@ -147,6 +148,7 @@ func (s *PrometheusMetricsTimeSeriesSource) RangeQuery(
 	if s.tenantID != "" {
 		req.Header.Set("X-Scope-OrgID", s.tenantID)
 	}
+	// #nosec G704 -- req targets the operator-configured metrics base URL built by queryRangeURL; no request-derived value can change its scheme, host, or path
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("query metrics time-series source: %w", err)

@@ -46,7 +46,7 @@ Responses do not expose Bolt addresses, Cypher text, or raw driver errors.
 `POST /api/v0/code/visualize` was a known gap, tracked separately: it followed
 the contract at runtime but had no OpenAPI path entry at all — a gap that
 predated this contract, so it could not advertise `503`/`504` until that entry
-existed. #5762 gave it a complete `openapi_paths_code_graph.go` entry (request
+existed. #5762 gave it a complete `openapi/paths/code/graph.go` entry (request
 schema, response schema, and the `503`/`504` bounded-read responses) and
 removed it from `.github/openapi-known-drift.txt`; it now maps like every
 other guarded route and is proven by

@@ -7,16 +7,23 @@
 # Why this file exists, separately from test-verify-openapi.sh: epic #6053
 # splits go/internal/query's flat ~880-file package into handler-family
 # subpackages (#6060). A family's Mount() and its mux.HandleFunc calls move
-# into go/internal/query/<family>/, while its openapi_paths_<family>.go
-# fragment CANNOT follow — OpenAPISpec() concatenates unexported package-level
-# consts, and a Go package boundary follows the directory boundary, so a
-# fragment in a subdirectory is no longer reachable from the root package.
+# into go/internal/query/<family>/, and the route scan has to keep finding
+# them at depth.
 #
-# That split is exactly what verify-openapi.sh's route scan has to survive.
-# The two vectors below pin both directions of it: a moved handler whose
-# OpenAPI entry exists must stay GREEN (no phantom orphan), and a moved
-# handler with no OpenAPI entry must still go RED (the scan has to keep
-# biting at depth, not merely stop complaining).
+# The fragments move too, as of #6642 part C. They used to be pinned to the
+# root because OpenAPISpec() concatenated UNEXPORTED package-level consts and
+# a Go package boundary follows the directory boundary; they now live in
+# go/internal/query/openapi/paths/<family>/ and export their constants, so
+# openapi/spec.go reaches them across that boundary. Both layouts have to be
+# scanned: the flat one still exists in these fixtures and in any tree that
+# has not been migrated.
+#
+# The three vectors below pin all of it: a moved handler whose OpenAPI entry
+# exists must stay GREEN (no phantom orphan), a moved handler with no OpenAPI
+# entry must still go RED (the scan has to keep biting at depth, not merely
+# stop complaining), and a fragment that has itself moved into the nested
+# openapi/ tree must be found (deleting the fragment recursion must turn that
+# one red).
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -119,6 +126,30 @@ const openAPIPathsSupplyChain = `
 GOEOF
 }
 
+# write_nested_openapi_fragment writes the same fragment in the shape it has
+# after #6642 part C: an EXPORTED const in its own leaf package under
+# go/internal/query/openapi/paths/<family>/. Note the basename no longer
+# starts with "openapi", which is why verify-openapi.sh needs a directory
+# exclusion and not only the "!openapi_*.go" basename one.
+write_nested_openapi_fragment() {
+  local dir="$1"
+  mkdir -p "${dir}/go/internal/query/openapi/paths/supplychain"
+  cat > "${dir}/go/internal/query/openapi/paths/supplychain/impact_findings.go" << 'GOEOF'
+// SPDX-License-Identifier: MIT
+package supplychain
+
+const ImpactFindings = `
+    "/api/v0/supply-chain/impact/findings": {
+      "get": {
+        "tags": ["supply-chain"],
+        "summary": "Supply chain impact findings",
+        "responses": {"200": {"description": "OK"}}
+      }
+    }
+`
+GOEOF
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Vector 1 — green: a handler moved into go/internal/query/<family>/ whose
 # OpenAPI entry is present in the root fragment must NOT be reported as an
@@ -160,8 +191,31 @@ test_moved_handler_without_openapi_entry_red() {
     "fail"
 }
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Vector 3 — green: the fragment itself has moved into
+# go/internal/query/openapi/paths/<family>/ (#6642 part C). The route is
+# documented there and nowhere else, so the gate must find it.
+#
+# Under the depth-1 `"$query_dir"/openapi_paths_*.go` glob this FAILS: the
+# glob matches nothing, the OpenAPI route set is empty, and the served route
+# reports as MISSING_OPENAPI. It is the direct regression test for the
+# fragment recursion, and it also pins the scan exclusion -- without
+# "!**/openapi/**" the fragment file is read as a HandleFunc source instead.
+test_nested_openapi_fragment_is_found_green() {
+  local dir
+  dir="$(setup_repo "nested-fragment-documented")"
+
+  write_moved_handler "$dir"
+  write_nested_openapi_fragment "$dir"
+
+  run_verifier "$dir" \
+    "green: a fragment moved into openapi/paths/<family>/ is still scanned" \
+    "pass"
+}
+
 test_moved_handler_with_openapi_entry_green
 test_moved_handler_without_openapi_entry_red
+test_nested_openapi_fragment_is_found_green
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 

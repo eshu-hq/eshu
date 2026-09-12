@@ -22,7 +22,7 @@ package query
 //
 // The *actual* source of truth for "advertised" is not this ledger: it is
 // one of two mutually exclusive OpenAPI markers declared in each route's own
-// openapi_paths_*.go operation entry, the same JSON object as the route's
+// openapi/paths/<family>/ operation entry, the same JSON object as the route's
 // prose "Scoped tokens receive ..." description --
 // "x-scoped-token-support": true for a route a scoped BEARER TOKEN actually
 // works against, or "x-browser-session-only": true for a route that clears
@@ -67,7 +67,7 @@ package query
 // handler's actual auth.Mode requirement ("x-scoped-token-support": true if
 // a scoped bearer token works, "x-browser-session-only": true if the
 // handler requires an actual browser-session cookie) to its operation entry
-// in the relevant openapi_paths_*.go file, and add its "METHOD /path"
+// in the relevant openapi/paths/<family>/ fragment, and add its "METHOD /path"
 // surface name here. Missing any one of the three, or picking the wrong
 // marker for the handler's real auth.Mode requirement, fails
 // TestScopedTokenAllowlistCompleteness, TestScopedTokenAdvertisedRoutesReachHandlerThroughRealAuthMiddleware,

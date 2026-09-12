@@ -15,7 +15,7 @@ import "strings"
 // authenticates for real, and the redirect lands them somewhere hostile with
 // the login flow's own credibility behind it.
 //
-// Four rejections, each closing a different way to leave this origin:
+// Five rejections, each closing a different way to leave this origin:
 //
 //   - empty or whitespace-only, which carries no destination at all;
 //   - anything not starting with "/", which covers absolute URLs
@@ -23,6 +23,9 @@ import "strings"
 //     ("javascript:...", "mailto:...");
 //   - a leading "//", which a browser reads as protocol-relative — "//evil.test"
 //     is a different host, not a path on this one;
+//   - a backslash anywhere: WHATWG URL parsing treats "\" as "/" in http(s)
+//     URLs, so "/\evil.test" resolves to host evil.test exactly like
+//     "//evil.test" does — a leading-"//" check alone does not close this;
 //   - CR, LF or TAB anywhere, which are the header-injection characters: a
 //     value carrying them can split the Location header and inject a second
 //     response.
@@ -53,7 +56,12 @@ func ReturnPath(path string) string {
 	if path == "" || !strings.HasPrefix(path, "/") || strings.HasPrefix(path, "//") {
 		return ""
 	}
-	if strings.ContainsAny(path, "\r\n\t") {
+	// "\" is included alongside the header-injection characters because
+	// WHATWG URL parsing treats it as "/" in http(s) URLs: "/\evil.test"
+	// resolves to host evil.test exactly like "//evil.test" does, so it
+	// must be rejected the same way the leading-"//" check above rejects
+	// protocol-relative targets.
+	if strings.ContainsAny(path, "\\\r\n\t") {
 		return ""
 	}
 	return path

@@ -104,7 +104,7 @@ Fix: added a `what_runs_lambda_image` alias to `infraRelationshipTypeAliases`
 (`infra_relationship_filter.go`) resolving to `AWS_lambda_function_uses_image`
 with the stored case preserved (same map-value pattern P1-B established), and
 added `what_runs_lambda_image` to the MCP tool's `query_type` enum plus the
-OpenAPI `relationship_type` enum (`openapi_paths_infrastructure.go`) — the
+OpenAPI `relationship_type` enum (`openapi/paths/infrastructure/routes.go`) — the
 same three-surface shape `what_runs_image` (#5436) used for the analogous
 `RUNS_IMAGE` gap.
 

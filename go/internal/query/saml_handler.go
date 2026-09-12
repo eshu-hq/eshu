@@ -415,6 +415,7 @@ func (h *SAMLHandler) createSession(w http.ResponseWriter, r *http.Request, auth
 	// path was stored (API clients or direct ACS callers without a console).
 	safePath := authsafe.ReturnPath(returnToPath)
 	if safePath != "" {
+		// #nosec G710 -- safePath passed authsafe.ReturnPath: single leading "/", no "//" or backslash (either lets the browser read an authority), no CR/LF/TAB, so the redirect stays same-origin
 		http.Redirect(w, r, safePath, http.StatusSeeOther)
 		return
 	}

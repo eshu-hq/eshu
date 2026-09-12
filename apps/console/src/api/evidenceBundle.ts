@@ -18,7 +18,7 @@
 // the global-operator-only audit routes (#3717).
 //
 // Field names match the wire shape verbatim
-// (go/internal/evidencebundle/types.go, go/internal/query/openapi_paths_evidence_bundle.go).
+// (go/internal/evidencebundle/types.go, go/internal/query/openapi/paths/evidence/bundle.go).
 // Only the fields the panel renders are modeled; the response carries more
 // (answer/investigation packets, catalog snapshots, reproduce calls, bounds)
 // that this loader does not need to type.

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# verify-openapi.sh — diff mux.HandleFunc registrations against path definitions
-# in openapi_paths_*.go files. Exit non-zero on any drift: a HandleFunc route
-# without a matching openapi_paths entry, or an openapi_paths entry without a
-# matching HandleFunc route.
+# verify-openapi.sh — diff mux.HandleFunc registrations against the OpenAPI
+# path fragments. Exit non-zero on any drift: a HandleFunc route without a
+# matching fragment entry, or a fragment entry without a matching HandleFunc
+# route.
 #
 # Scans go/internal/query/ and go/internal/serviceintelhttp/ for HandleFunc
-# registrations. Cross-references against go/internal/query/openapi_paths_*.go.
+# registrations. Cross-references the fragments under go/internal/query/openapi/.
 #
 # Self-contained: bash scripts/verify-openapi.sh exits 0 on a clean tree.
 set -euo pipefail
@@ -33,7 +33,7 @@ handlefunc_route_file="${tmpdir}/handlefunc_routes.txt"
 : > "$handlefunc_route_file"
 
 # The query package is both a route source and the sole owner of the
-# openapi_paths_*.go contract fragments. Without it, the verifier has no
+# OpenAPI contract fragments. Without it, the verifier has no
 # contract surface to compare and must fail closed even if another route
 # source directory exists.
 if [ ! -d "$query_dir" ]; then
@@ -65,24 +65,33 @@ for dir in "${scan_dirs[@]}"; do
   #
   # The depth-1 scan this replaces assumed a subpackage owns BOTH its routes
   # and its OpenAPI fragments, so reading it would report routes this package
-  # never registered. Epic #6053's query split breaks that assumption in one
-  # direction only. A handler family moving to go/internal/query/<family>/
-  # takes its Mount() and its mux.HandleFunc calls with it, but CANNOT take
-  # its openapi_paths_<family>.go fragment: OpenAPISpec() concatenates
-  # unexported package-level consts, and a Go package boundary follows the
-  # directory boundary. The fragment stays in package query while the routes
-  # leave, so a depth-1 scan sees a documented path with no registration
-  # behind it and reports a phantom ORPHAN_OPENAPI -- and, worse, cannot see
-  # an UNDOCUMENTED subpackage route at all, reporting the surface clean.
-  # Both directions are pinned by scripts/test-verify-openapi-subpackage.sh.
+  # never registered. Epic #6053's query split breaks that assumption. A
+  # handler family moving to go/internal/query/<family>/ takes its Mount()
+  # and its mux.HandleFunc calls with it; a depth-1 scan sees a documented
+  # path with no registration behind it and reports a phantom ORPHAN_OPENAPI
+  # -- and, worse, cannot see an UNDOCUMENTED subpackage route at all,
+  # reporting the surface clean. Both directions are pinned by
+  # scripts/test-verify-openapi-subpackage.sh.
+  #
+  # Routes and fragments now move independently. Until #6642 part C the
+  # fragments could not follow their family at all, because OpenAPISpec()
+  # concatenated UNEXPORTED package-level consts and a Go package boundary
+  # follows the directory boundary. That constraint is gone: the fragments
+  # live in openapi/paths/<family>/ and export their constants, so
+  # openapi/spec.go can reach them across the boundary. Section 2 below
+  # therefore scans both the flat and the nested shape.
   #
   # "!**/testdata/**" for the same reason verify-route-coverage.sh excludes it:
   # a depth-1 scan never crossed into a subdirectory, so going recursive newly
   # exposes fixture handlers that must not be counted as real routes.
-  # "!openapi_*.go" keeps the OpenAPI component and schema files (11 of them
-  # under $query_dir today) from being read as HandleFunc sources;
-  # "!*_test.go" keeps a test helper's throwaway mux out. All are pinned by
-  # fixtures in scripts/lib/test-verify-openapi-scan-scope-cases.sh and
+  # "!openapi_*.go" keeps a flat-layout component or schema file from being
+  # read as a HandleFunc source, and "!**/openapi/**" does the same for the
+  # tree those files moved into (#6642 part C), whose basenames no longer
+  # start with "openapi". Both exclusions are needed: the flat shape still
+  # exists in the synthetic fixtures, and the real tree only matches the
+  # directory form. "!*_test.go" keeps a test helper's throwaway mux out.
+  # All are pinned by fixtures in
+  # scripts/lib/test-verify-openapi-scan-scope-cases.sh and
   # scripts/test-verify-openapi.sh.
   #
   # rg --files exits 1 (not 0, unlike `find`) when a directory has zero
@@ -94,7 +103,8 @@ for dir in "${scan_dirs[@]}"; do
   # above 1 as fatal -- the same fail-closed shape already used for the
   # known-drift scan below.
   set +e
-  rg --files -g '*.go' -g '!*_test.go' -g '!openapi_*.go' -g '!**/testdata/**' \
+  rg --files -g '*.go' -g '!*_test.go' -g '!openapi_*.go' -g '!**/openapi/**' \
+    -g '!**/testdata/**' \
     "$dir" 2>"${tmpdir}/scan_dir_err.txt" \
   >> "$gofiles_tmp"
   scan_dir_rc=$?
@@ -345,7 +355,7 @@ if [ -f "$known_drift_file" ]; then
     if [ -n "$known_drift_deferral_hits" ]; then
       echo "DEFERRAL_MARKER: a TODO/FIXME/XXX/HACK/TBD/WIP marker means this is a"
       echo "deferred gap, not a permanent exclusion -- give the route a real"
-      echo "openapi_paths_*.go entry (or a genuine permanent-exclusion"
+      echo "OpenAPI path fragment entry (or a genuine permanent-exclusion"
       echo "justification) instead:"
       while IFS= read -r hit; do
         echo "  ${known_drift_file}:${hit}"
@@ -356,7 +366,7 @@ if [ -f "$known_drift_file" ]; then
       echo "PROSE_DEFERRAL: a phrase like \"not written\", \"written yet\","
       echo "\"pending\", \"predates\", \"later\", or \"to be added/written\" is the"
       echo "same deferral claim spelled out in words -- give the route a real"
-      echo "openapi_paths_*.go entry (or a genuine permanent-exclusion"
+      echo "OpenAPI path fragment entry (or a genuine permanent-exclusion"
       echo "justification) instead:"
       while IFS= read -r hit; do
         echo "  ${known_drift_file}:${hit}"
@@ -408,15 +418,54 @@ if [ -f "$known_drift_file" ]; then
   fi
 fi
 
-# ── 2. Extract routes from openapi_paths_*.go files ─────────────────────────
+# ── 2. Extract routes from the OpenAPI path fragments ───────────────────────
 #
-# Each file is a Go string constant of JSON shape:
+# Each fragment is a Go string constant of JSON shape:
 #     "/path": {
 #       "get": {
+#
+# Two shapes have to be found, because #6060 moved the fragments (#6642,
+# part C):
+#
+#   $query_dir/openapi_paths_*.go     the historical flat layout, which the
+#                                     synthetic fixtures in
+#                                     scripts/test-verify-openapi*.sh still
+#                                     build, and
+#   $query_dir/openapi/**/*.go        the current tree, where the fragments
+#                                     live in openapi/paths/<family>/ as
+#                                     EXPORTED consts that openapi/spec.go
+#                                     concatenates.
+#
+# Scanning only the first shape is what a depth-1 glob did before the move.
+# After it, that glob matches nothing, every registered route reports as
+# MISSING_OPENAPI, and the gate fails loud -- noisy, but it would have hidden
+# the real question behind 300 lines of false drift.
 
 openapi_route_file="${tmpdir}/openapi_routes.txt"
 
+openapi_fragment_files="${tmpdir}/openapi_fragment_files.txt"
+: > "$openapi_fragment_files"
 for f in "$query_dir"/openapi_paths_*.go; do
+  [ -f "$f" ] && printf '%s\n' "$f" >> "$openapi_fragment_files"
+done
+if [ -d "${query_dir}/openapi" ]; then
+  set +e
+  rg --files -g '*.go' -g '!*_test.go' "${query_dir}/openapi" \
+    2>"${tmpdir}/fragment_scan_err.txt" >> "$openapi_fragment_files"
+  fragment_scan_rc=$?
+  set -e
+  # Same fail-closed shape as the Go file scan above: rg exits 1 for "no
+  # matching files" and 2+ for a hard error. Treating a hard error as an
+  # empty fragment set would report the whole surface as undocumented.
+  if [ "$fragment_scan_rc" -gt 1 ]; then
+    echo "OPENAPI FRAGMENT SCAN FAILED: ${query_dir}/openapi"
+    echo ""
+    cat "${tmpdir}/fragment_scan_err.txt" >&2
+    exit 1
+  fi
+fi
+
+while IFS= read -r f; do
   [ -f "$f" ] || continue
   awk '
     BEGIN { path = ""; depth = 0; path_depth = 0 }
@@ -449,7 +498,7 @@ for f in "$query_dir"/openapi_paths_*.go; do
       print toupper(raw_method) " " path
     }
   ' "$f"
-done | sort -u > "$openapi_route_file"
+done < "$openapi_fragment_files" | sort -u > "$openapi_route_file"
 
 # ── 3. Cross-reference both sets ────────────────────────────────────────────
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -245,6 +246,89 @@ func TestGitHubLoginHandlerCallbackNilAuditIsSafe(t *testing.T) {
 
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+}
+
+// TestGitHubLoginHandlerStartRejectsBackslashReturnTo covers the "/\" open-
+// redirect bypass (WHATWG URL parsing treats "\" as "/" in http(s) URLs, so
+// "/\evil.example.com" resolves the same way "//evil.example.com" does): the
+// start handler must drop it before it ever reaches StartGitHubLogin.
+func TestGitHubLoginHandlerStartRejectsBackslashReturnTo(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeGitHubLoginService{
+		start: GitHubLoginStartResponse{RedirectURL: "https://github.com/login/oauth/authorize?state=state-secret"},
+	}
+	handler := &GitHubLoginHandler{Service: service}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/auth/github/login?provider_config_id=github-dev&tenant_id=tenant_a&workspace_id=workspace_a&return_to="+url.QueryEscape("/\\evil.example.com/steal"),
+		nil,
+	)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	// Login should still redirect to GitHub; the malicious return_to is
+	// silently dropped (stored as empty string, not as an error response).
+	if rec.Code != http.StatusFound {
+		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusFound, rec.Body.String())
+	}
+	if service.startReq.ReturnToPath != "" {
+		t.Fatalf("start request ReturnToPath = %q, want empty (rejected)", service.startReq.ReturnToPath)
+	}
+}
+
+// TestGitHubLoginHandlerCallbackRejectsBackslashReturnToPath covers a
+// ReturnToPath stored before authsafe.ReturnPath closed the "/\" bypass --
+// the callback-side re-check must still reject it, falling back to the JSON
+// session response instead of redirecting off-origin.
+func TestGitHubLoginHandlerCallbackRejectsBackslashReturnToPath(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 21, 10, 0, 0, 0, time.UTC)
+	sessionStore := &fakeBrowserSessionStore{}
+	service := &fakeGitHubLoginService{
+		complete: GitHubLoginCompleteResponse{
+			Auth: AuthContext{
+				Mode:          AuthModeScoped,
+				TenantID:      "tenant_a",
+				WorkspaceID:   "workspace_a",
+				SubjectClass:  "external_github_user",
+				SubjectIDHash: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+			},
+			ProviderConfigID:  "github-dev",
+			ProviderSubjectID: "sha256:abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234",
+			ProviderProofAt:   now.Add(-time.Minute),
+			ReturnToPath:      "/\\evil.example.com",
+		},
+	}
+	handler := &GitHubLoginHandler{
+		Service: service,
+		SessionIssuer: &BrowserSessionHandler{
+			Store:           sessionStore,
+			NewSecret:       sequenceSecrets("session-secret", "csrf-secret"),
+			Now:             func() time.Time { return now },
+			IdleTimeout:     30 * time.Minute,
+			AbsoluteTimeout: 12 * time.Hour,
+		},
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/auth/github/callback?state=state-secret&code=auth-code", nil)
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d (JSON session response, not a redirect): %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	if location := rec.Header().Get("Location"); location != "" {
+		t.Fatalf("Location = %q, want no redirect", location)
 	}
 }
 

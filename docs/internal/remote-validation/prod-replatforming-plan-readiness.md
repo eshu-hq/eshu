@@ -66,7 +66,7 @@ cd go && go test ./internal/query -run TestReplatformingPlan -count=1
 ## Notes
 
 FLAG (minor gap): the plan route (`compose_replatforming_plan`,
-`go/internal/query/openapi_paths_replatforming.go`) has no dedicated OpenAPI
+`go/internal/query/openapi/paths/iac/replatforming.go`) has no dedicated OpenAPI
 spec-inclusion test analogous to
 `TestOpenAPISpecIncludesReplatformingRollups`; contract coverage here is via
 the handler/contract tests above, not an OpenAPI-declaration assertion.

@@ -6,9 +6,9 @@
 // produces an EMPTY result set, never invented data.
 //
 // Field names match the backend OpenAPI fragments verbatim
-// (go/internal/query/openapi_paths_auth_admin_reads.go,
-//  openapi_paths_auth_admin_mutations.go, openapi_paths_auth.go,
-//  openapi_paths_auth_tokens.go). No secret, hash, invite code, raw external
+// (go/internal/query/openapi/paths/auth/admin_reads.go,
+//  openapi/paths/auth/admin_mutations.go, openapi/paths/auth/routes.go,
+//  openapi/paths/auth/tokens.go). No secret, hash, invite code, raw external
 // group name, or credential handle is ever modeled or rendered: only ids,
 // opaque references (mapping_ref), statuses, classes, and timestamps.
 //

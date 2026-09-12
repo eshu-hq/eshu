@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/repository"
+
+	"github.com/eshu-hq/eshu/go/internal/query/openapi"
 )
 
 // repositoryInfrastructureFamilyLeadingWordPattern extracts a canonical
@@ -45,8 +47,8 @@ func repositoryInfrastructureTypeFamily(entityType string) string {
 }
 
 // repositoryInfrastructureDescriptionPattern extracts the "infrastructure"
-// field's OpenAPI description text from openAPIComponentsWorkloadSession
-// (openapi_components_workload_session.go), so this test reads the string
+// field's OpenAPI description text from openapi.ComponentsWorkloadSession
+// (openapi/components_workload_session.go), so this test reads the string
 // that actually ships instead of a hand-copied one that can drift from it.
 var repositoryInfrastructureDescriptionPattern = regexp.MustCompile(
 	`(?s)"infrastructure":\s*\{.*?"description":\s*"([^"]*)"`,
@@ -84,9 +86,9 @@ var repositoryInfrastructureDescriptionPattern = regexp.MustCompile(
 func TestRepositoryInfrastructureOpenAPIDescriptionNamesEveryCanonicalFamily(t *testing.T) {
 	t.Parallel()
 
-	match := repositoryInfrastructureDescriptionPattern.FindStringSubmatch(openAPIComponentsWorkloadSession)
+	match := repositoryInfrastructureDescriptionPattern.FindStringSubmatch(openapi.ComponentsWorkloadSession)
 	if match == nil {
-		t.Fatalf("openAPIComponentsWorkloadSession: infrastructure field description not found")
+		t.Fatalf("openapi.ComponentsWorkloadSession: infrastructure field description not found")
 	}
 	description := match[1]
 

@@ -146,8 +146,8 @@ these.
 | `GET /api/v0/supply-chain/vulnerabilities/{advisory_id}` | `supply_chain_vulnerability_detail_handler.go` | yes |
 | `POST /api/v0/impact/blast-radius` | `impact.go` (`findBlastRadius`) | yes |
 
-OpenAPI docs: `go/internal/query/openapi_paths_repositories.go`,
-`go/internal/query/openapi_paths_repositories_branches.go`.
+OpenAPI docs: `go/internal/query/openapi/paths/repository/routes.go`,
+`go/internal/query/openapi/paths/repository/branches.go`.
 
 ---
 

@@ -2,8 +2,8 @@
 // Loaders and mutators for the tenant sign-in policy surface (#4968, epic
 // #4962) consumed by the Admin -> Identity & Access -> Sign-in policy tab.
 // Field names mirror the backend OpenAPI fragments verbatim
-// (go/internal/query/openapi_paths_auth_sign_in_policy.go,
-//  openapi_components_sign_in_policy.go). This module never models a
+// (go/internal/query/openapi/paths/auth/sign_in_policy.go,
+//  openapi/components_sign_in_policy.go). This module never models a
 // secret — sso_admin_verified_provider_config_id is an operator-assigned
 // config id, not a credential, matching the backend's own response shape
 // (go/internal/query/sign_in_policy_reads.go signInPolicyDetailJSON).

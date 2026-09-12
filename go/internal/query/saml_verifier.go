@@ -117,6 +117,7 @@ func responseEnvelopeIDsFromSAMLResponse(samlResponse string) (string, string, e
 		ID           string `xml:"ID,attr"`
 		InResponseTo string `xml:"InResponseTo,attr"`
 	}
+	// #nosec G709 -- decodes only the unsigned Response ID/InResponseTo attributes into a two-string struct to pick the pending AuthnRequest; encoding/xml resolves no DTD/external entities and caps depth, handleACS caps the body at 1 MiB, and crewjam ParseResponse verifies the signature over these same bytes before any claim is used
 	if err := xml.Unmarshal(raw, &response); err != nil {
 		return "", "", fmt.Errorf("parse saml response envelope: %w", err)
 	}

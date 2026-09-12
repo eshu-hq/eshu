@@ -29,8 +29,10 @@ same-origin redirect, and `""` when it is not. Callers treat `""` as "no
 redirect", never as an error.
 
 It rejects: an absolute URL, a protocol-relative host (`//evil.test`), a
-non-HTTP scheme, a bare relative path with no leading `/`, and any path carrying
-CR, LF or TAB (header injection).
+non-HTTP scheme, a bare relative path with no leading `/`, a path carrying a
+backslash (`/\evil.test` — WHATWG URL parsing treats `\` as `/` in http(s)
+URLs, so this resolves to host `evil.test` exactly like `//evil.test` does),
+and any path carrying CR, LF or TAB (header injection).
 
 ## Dependencies
 
@@ -55,6 +57,36 @@ whatever it records about the request.
   gate authenticates with a static `ESHU_API_KEY` and never performs a sign-in,
   so this code is unreachable from it. See
   `scripts/lib/golden-corpus-filter-exclusions.txt`.
+
+## Security fix: the `/\` open-redirect bypass
+
+`ReturnPath` rejected a leading `//` but not a leading `/\`. WHATWG URL
+parsing treats `\` as `/` in http(s) URLs, so a browser resolves
+`/\evil.test` to host `evil.test` exactly like `//evil.test` — an
+unauthenticated attacker's `?return_to=/%5Cevil.test` link redirected a
+victim off-site after completing SAML, OIDC, or GitHub sign-in, borrowing
+Eshu's login credibility for a phishing landing page. Fixed by adding `\` to
+the existing `strings.ContainsAny` character-class check in `returnpath.go`
+— a one-character validation tightening, not a new code path.
+
+No-Regression Evidence: every existing `ReturnPath`/`SAMLHandler`/
+`OIDCLoginHandler`/`GitHubLoginHandler` return-path test still passes
+unchanged; the fix only narrows what a caller-supplied value may contain and
+touches no other branch. New regression coverage: `TestReturnPath`'s
+backslash rows in `returnpath_test.go`; `TestSAMLHandlerLoginRejectsMaliciousReturnTo`'s
+new `/\evil.example.com/steal` case and `TestSAMLHandlerACSRejectsBackslashReturnToPath`
+(the legacy-stored-row case, since `ConsumeSAMLRequest` can still return a
+pre-fix value and the redirect-time re-check must catch it); the equivalent
+start- and callback-side pairs for OIDC
+(`TestOIDCLoginHandlerStartRejectsBackslashReturnTo`,
+`TestOIDCLoginHandlerCallbackRejectsBackslashReturnToPath`) and GitHub
+(`TestGitHubLoginHandlerStartRejectsBackslashReturnTo`,
+`TestGitHubLoginHandlerCallbackRejectsBackslashReturnToPath`) in
+`go/internal/query`. All confirmed failing before the fix and passing after.
+
+No-Observability-Change: this package still emits no metric, span, or log
+(see Telemetry above); the fix changes only which values `ReturnPath`
+accepts, not what it reports.
 
 ## Related docs
 

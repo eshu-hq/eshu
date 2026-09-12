@@ -34,7 +34,7 @@ Read `doc.go` and `README.md` first.
   `content_index` truth basis; `SearchBackend="hybrid"` is set only on rows
   the fused rank actually reordered.
 - `ContentSearchMaxOffset` is wire-public (root's
-  `openapi_paths_content.go` emits it and root's OpenAPI sweep asserts it).
+  `openapi/paths/search/content.go` emits it and root's OpenAPI sweep asserts it).
   Changing the constant without updating the emitted schema fails
   `TestOpenAPISpec_ContentEntitySchemasExposeMetadata` in root -- update
   both or neither.

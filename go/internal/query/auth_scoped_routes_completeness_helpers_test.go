@@ -92,7 +92,7 @@ func openAPIBoolMarkerRoutes(t *testing.T, markerKey string) map[string]struct{}
 // openAPIScopedTokenSupportRoutes returns the "METHOD /path" surface name for
 // every operation carrying the "x-scoped-token-support": true marker
 // declared directly in its openapi_paths_*.go source (see, e.g., the "get"
-// operation in openapi_paths_repositories_freshness.go). This -- not the
+// operation in openapi/paths/repository/freshness.go). This -- not the
 // hand-maintained scopedTokenAdvertisedRoutes ledger -- is the #5154 gate's
 // actual "advertised" signal: the marker sits in the same JSON operation
 // object as the prose "Scoped tokens receive ..." description a contributor
@@ -175,7 +175,7 @@ func openAPISharedKeyOnlyRoutes(t *testing.T) map[string]struct{} {
 // x-shared-key-only OpenAPI marker or appear in the served surface inventory,
 // because it would not be part of the public OpenAPI at all. (POST
 // /api/v0/code/visualize was exactly this case, #3781, until #5762 gave it a
-// real openapi_paths_code_graph.go entry and removed it from known-drift.)
+// real openapi/paths/code/graph.go entry and removed it from known-drift.)
 // This set lets TestScopedTokenAllowlistCompleteness validate such a route by
 // Go-ledger membership alone rather than demanding a marker it deliberately
 // lacks.

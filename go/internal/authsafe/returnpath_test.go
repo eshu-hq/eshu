@@ -40,6 +40,13 @@ func TestReturnPath(t *testing.T) {
 		{"CRLF", "/dashboard\r\nSet-Cookie: a=b", ""},
 		{"TAB", "/dash\tboard", ""},
 
+		// Backslash: WHATWG URL parsing treats "\" as "/" in http(s) URLs, so
+		// a leading "/\" resolves the same way as a leading "//" does -- a
+		// different host, not a path on this one.
+		{"slash-backslash authority", "/\\evil.test", ""},
+		{"slash-backslash-slash", "/\\/evil.test", ""},
+		{"backslash mid-path", "/dash\\board", ""},
+
 		// Documented non-goal: traversal stays inside this origin, so it is the
 		// router's problem rather than the redirect's. Pinned so that if #5388's
 		// suggested ".." tightening ever lands, this expectation is what changes

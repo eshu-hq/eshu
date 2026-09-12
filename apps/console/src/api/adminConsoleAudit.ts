@@ -7,7 +7,7 @@
 // can render an operator-scope note instead of an error. See #3717.
 //
 // Field names match the backend OpenAPI verbatim
-// (go/internal/query/openapi_paths_auth_admin_reads.go). Only audit-safe fields
+// (go/internal/query/openapi/paths/auth/admin_reads.go). Only audit-safe fields
 // are modeled — never actor, scope, or policy revision hashes.
 import type { AdminAuditProvenance } from "./adminConsoleTypes";
 import { EshuApiHttpError } from "./client";
