@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -68,7 +68,7 @@ func TestLoadConfigAddsActivationHostClaimMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v, want nil", err)
 	}
-	config, ok, err := componentactivation.ParseConfig(cfg.CollectorInstances[0].Configuration)
+	config, ok, err := activation.ParseConfig(cfg.CollectorInstances[0].Configuration)
 	if err != nil {
 		t.Fatalf("ParseConfig() error = %v, want nil", err)
 	}

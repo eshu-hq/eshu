@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package componentactivation provides dependency-neutral parsing and
+// Package activation provides dependency-neutral parsing and
 // validation for the generic component-extension activation configuration
 // (`eshu.component.instance.v1`) collector instances carry in their
 // Configuration field.
@@ -15,4 +15,4 @@
 // coordinator child package, so every one of those consumers — coordinator
 // root files and extension alike — can import it without
 // creating an import cycle.
-package componentactivation
+package activation

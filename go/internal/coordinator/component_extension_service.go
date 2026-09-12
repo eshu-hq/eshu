@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package coordinator //nolint:dirgate // Root owns scheduling, policy, audit, and durable admission.
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/component/extension"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -31,7 +31,7 @@ func (s Service) scheduleComponentExtensionWork(
 		if !shouldScheduleComponentExtension(instance) {
 			continue
 		}
-		config, configOK, configErr := componentactivation.ParseConfig(instance.Configuration)
+		config, configOK, configErr := activation.ParseConfig(instance.Configuration)
 		if configErr == nil && configOK {
 			decision := s.Config.ExtensionEgressPolicy.Decide(ExtensionEgressRequest{
 				ComponentID:   config.ComponentID,
@@ -82,7 +82,7 @@ func shouldScheduleComponentExtension(instance workflow.CollectorInstance) bool 
 	if !instance.Enabled || !instance.ClaimsEnabled {
 		return false
 	}
-	_, ok, err := componentactivation.ParseConfig(instance.Configuration)
+	_, ok, err := activation.ParseConfig(instance.Configuration)
 	return ok || err != nil
 }
 

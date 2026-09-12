@@ -5,12 +5,12 @@
 1. `README.md` for the planner and activation-contract boundary.
 2. `../AGENTS.md` for planner-wide ownership rules.
 3. `extension/AGENTS.md` and
-   `../../componentactivation/AGENTS.md` before changing their shared contract.
+   `../../component/activation/AGENTS.md` before changing their shared contract.
 
 ## Invariants
 
 - Keep this package documentation-only.
-- `componentactivation` remains outside the planner subtree and imports no
+- `component/activation` remains outside the planner subtree and imports no
   coordinator planner package.
 - The extension planner consumes that neutral contract without owning it.
 - Scheduling, egress policy, audit, durable admission, retries, and telemetry

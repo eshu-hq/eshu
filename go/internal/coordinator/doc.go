@@ -102,7 +102,7 @@
 // manifest digest, runtime protocol, and a safe config handle, not raw
 // component configuration or credentials. The generic activation
 // configuration's parse and validation contract lives in the
-// dependency-neutral componentactivation package rather than in either root
+// dependency-neutral component/activation package rather than in either root
 // or the planner: root's component_activation_config.go constructs it,
 // pagerduty_service.go and governance_audit.go read it for reasons unrelated
 // to component-extension scheduling, and extension plans from

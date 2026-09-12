@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package coordinator
+package coordinator //nolint:dirgate // Root owns registry readback and collector-instance construction.
 
 import (
 	"encoding/json"
@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/component"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -97,24 +97,24 @@ func desiredInstancesForComponent(
 func componentActivationRuntimeConfig(
 	entry component.RegistryReadbackComponent,
 	manifest component.Manifest,
-	activation component.Activation,
+	registeredActivation component.Activation,
 ) (string, error) {
-	host, ok, err := component.LoadActivationHostClaimMetadata(activation.ConfigPath)
+	host, ok, err := component.LoadActivationHostClaimMetadata(registeredActivation.ConfigPath)
 	if err != nil {
 		return "", fmt.Errorf(
 			"load component activation host metadata for %q: %w",
-			strings.TrimSpace(activation.InstanceID),
+			strings.TrimSpace(registeredActivation.InstanceID),
 			err,
 		)
 	}
-	config := componentactivation.Config{
-		SchemaVersion:    componentactivation.ConfigSchema,
+	config := activation.Config{
+		SchemaVersion:    activation.ConfigSchema,
 		ComponentID:      manifest.Metadata.ID,
 		ComponentVersion: manifest.Metadata.Version,
 		Publisher:        manifest.Metadata.Publisher,
 		ManifestDigest:   entry.ManifestDigest,
-		ConfigHandle:     componentConfigHandle(manifest.Metadata.ID, manifest.Metadata.Version, activation),
-		Runtime: componentactivation.RuntimeConfig{
+		ConfigHandle:     componentConfigHandle(manifest.Metadata.ID, manifest.Metadata.Version, registeredActivation),
+		Runtime: activation.RuntimeConfig{
 			SDKProtocol: manifest.Spec.Runtime.SDKProtocol,
 			Adapter:     manifest.Spec.Runtime.Adapter,
 		},

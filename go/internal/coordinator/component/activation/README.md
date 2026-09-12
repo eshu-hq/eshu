@@ -1,8 +1,8 @@
-# Component activation config
+# Component activation
 
 ## Purpose
 
-`componentactivation` owns the parse and validation contract for the
+`activation` owns the parse and validation contract for the
 generic component-extension activation configuration
 (`eshu.component.instance.v1`) that a claim-capable component collector
 instance carries in its `Configuration` field. It exists because that
@@ -86,7 +86,7 @@ status value, queue, worker, lease, retry, or runtime setting.
   that context belongs in the caller, not here — importing coordinator here
   would reintroduce the exact import cycle this package exists to avoid.
 
-No-Regression Evidence: `go test ./internal/coordinator/componentactivation -count=1`
+No-Regression Evidence: `go test ./internal/coordinator/component/activation -count=1`
 covers a blank configuration, an unrelated collector configuration, a valid
 configuration with component identity, a missing required field, an
 unsupported `runtime.sdk_protocol`, and an unsupported `runtime.adapter`.

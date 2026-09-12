@@ -7,7 +7,7 @@
    repeated planning and UTC timestamp normalization.
 3. `planner_validation_test.go` — activation-scoped work-item construction
    and the pass-through rejection of an invalid activation configuration.
-4. `../../../componentactivation/config.go` and `AGENTS.md` — the shared
+4. `../../../component/activation/config.go` and `AGENTS.md` — the shared
    activation-configuration contract this package plans from; it is NOT
    owned here.
 5. `../../../component_extension_service.go` and `../../../service_component_extension_test.go`
@@ -20,8 +20,8 @@
 This package owns pure component-extension planning: request validation,
 claim identity derivation, requested-scope privacy, and deterministic
 workflow-row construction from an already-parsed
-`componentactivation.Config`. It does not parse or validate raw activation
-configuration (that is `componentactivation.ParseConfig`'s contract), read
+`activation.Config`. It does not parse or validate raw activation
+configuration (that is `activation.ParseConfig`'s contract), read
 the component registry, read Postgres, admit or claim work, evaluate hosted
 extension egress policy, retry requests, or emit telemetry.
 
@@ -35,14 +35,14 @@ package.
 `PlanRequest`/`WorkPlanner` types satisfy the root `ComponentExtensionPlanner`
 interface structurally — root imports this package for those types, not the
 other way around. If a change here seems to need a root symbol, it almost
-certainly means the symbol belongs in `componentactivation` (if unrelated
+certainly means the symbol belongs in `component/activation` (if unrelated
 root callers also need it) or should stay a root responsibility passed in
 through `PlanRequest` (if it is scheduling context, not activation-config
 shape). This is exactly the tangle #6057's component-extension lane hit: the
 activation configuration type could not move into this package alone,
 because `pagerduty_service.go` and `governance_audit.go` — unrelated
 providers — also depend on it. It was hoisted into the dependency-neutral
-`componentactivation` package instead, the same shape `projector/intent`
+`component/activation` package instead, the same shape `projector/intent`
 uses for the projector families' equivalent problem.
 
 ## Invariants
@@ -53,13 +53,13 @@ uses for the projector families' equivalent problem.
   `RequestedScopeSet`.
 - Mint `GenerationID` and `SourceRunID` from the same identity value.
 - Keep all timestamps in UTC and all IDs deterministic for a fixed request.
-- Do not duplicate `componentactivation.ParseConfig`'s validation logic
+- Do not duplicate `activation.ParseConfig`'s validation logic
   here; call it and propagate its error.
 
 ## Verification
 
 Run focused child and parent tests first, then recursive coordinator tests and
 the scoped race suite. At minimum, run
-`go test ./internal/coordinator/componentactivation ./internal/coordinator/planner/component/extension ./internal/coordinator -count=1`.
+`go test ./internal/coordinator/component/activation ./internal/coordinator/planner/component/extension ./internal/coordinator -count=1`.
 Mutation checks must break the production assertion and must be reverted
 before broader verification.

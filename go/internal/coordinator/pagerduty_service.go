@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/componentactivation"
+	"github.com/eshu-hq/eshu/go/internal/coordinator/component/activation"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/pagerduty"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -58,7 +58,7 @@ func shouldSchedulePagerDuty(instance workflow.CollectorInstance) bool {
 	if instance.CollectorKind != scope.CollectorPagerDuty || !instance.Enabled || !instance.ClaimsEnabled {
 		return false
 	}
-	if _, ok, err := componentactivation.ParseConfig(instance.Configuration); ok || err != nil {
+	if _, ok, err := activation.ParseConfig(instance.Configuration); ok || err != nil {
 		return false
 	}
 	return true
