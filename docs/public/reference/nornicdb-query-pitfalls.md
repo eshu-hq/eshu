@@ -15,12 +15,12 @@ NornicDB source before patching.
 
 Almost every entry below was measured on `nornicdb-cpu-bge:v1.1.11`
 (`sha256:51b6174a…`) or on a `NornicDB-New` fork checkout, back when v1.1.11 was
-what `deploy/helm/eshu/values.yaml` shipped. It no longer is: #6296 moved the
-chart to `v1.2.3@sha256:4dfa887d…`, a build that self-reports version `1.2.2`.
+what `deploy/helm/eshu/values.yaml` shipped. It no longer is: the chart now
+pins `v1.3.1@sha256:ac524899…`.
 
 Read every "on the pinned build" sentence below as naming the build in that
-entry, not the build you are deploying today. None of these shapes has been
-re-measured on `sha256:4dfa887d…`, so an entry is a reason to check, not
+entry, not the build you are deploying today. Most of these shapes have not
+been re-measured on `sha256:ac524899…`, so an entry is a reason to check, not
 evidence that the behaviour is still there — or that it is gone. Re-run the
 reproduction against the digest you actually run before relying on either
 answer.
@@ -172,19 +172,19 @@ dispatch above.
 ### Validation
 
 Run the static shape guard (no backend) and the backend-required retract proof
-against the replay tier's immutable v1.2.3 pin:
+against the replay tier's immutable v1.3.1 pin:
 
 ```bash
 cd go
 go test ./internal/storage/cypher -run TestCodeCallRetractStatementsUseSingleSourceLabel -count=1
-ESHU_REPLAY_TIER_LIVE=1 bash ../scripts/verify-replay-tier.sh   # TestReducerCodeCallEdgeRetractGraphTruth, v1.2.3
+ESHU_REPLAY_TIER_LIVE=1 bash ../scripts/verify-replay-tier.sh   # TestReducerCodeCallEdgeRetractGraphTruth, v1.3.1
 ```
 
 No-Regression Evidence: the broken retract was a no-op (deleted nothing), so the
 #5116 fix has no slower prior path to regress; the fix makes the intended scoped
 retract work. The original live proof established this behavior on v1.1.11.
 The replay tier now runs `TestReducerCodeCallEdgeRetractGraphTruth` against the
-immutable v1.2.3 pin and proves the same invariants: the in-scope
+immutable v1.3.1 pin and proves the same invariants: the in-scope
 `CALLS`/`REFERENCES`/`INSTANTIATES` edges retract to zero while an out-of-scope
 repo's edge and every endpoint node survive. The per-label fan-out runs a
 bounded, fixed number of scoped deletes per retract.
@@ -518,7 +518,7 @@ RETURN nodes(path) AS chain
 
 A path whose BOTH endpoints are pre-bound in their own `MATCH` clauses was
 recorded here as working without a label on the path pattern. That was measured
-on v1.1.11 and does NOT hold on the current pin, where the shape fails to parse:
+on v1.1.11 and did NOT hold on the later v1.2.3 pin, where the shape failed to parse:
 see [NornicDB Path-Predicate Pitfalls](nornicdb-path-predicate-pitfalls.md) for
 the error, the shape that does work, and why nothing in production hits it.
 
@@ -622,14 +622,14 @@ legacy-pin workaround — it is required against current upstream.
 Two pinned images and one local build are relevant, and this shape was checked
 on all three:
 
-- `eshu-nornicdb-pr290:3722b483c02c` — the Compose default
-  (`docker-compose.yaml:10`), the local lane. The Neo4j-vs-NornicDB counts under
+- `eshu-nornicdb-pr290:3722b483c02c` — the Compose default when this shape was
+  measured. The Neo4j-vs-NornicDB counts under
   **Observed shape** above were measured here against Neo4j 2026.05.0.
 - `timothyswt/nornicdb-cpu-bge:v1.1.11` — the image most of this page's other
-  entries name, and the chart's pin at the time this was measured. #6296 has
-  since moved `deploy/helm/eshu/values.yaml` to `v1.2.3` by digest, so v1.1.11
-  is a historical build here rather than the deployed lane, and this shape has
-  not been re-run on the current pin. The ignored-label-filter behaviour
+  entries name, and the chart's pin at the time this was measured. #6296 later
+  moved `deploy/helm/eshu/values.yaml` to `v1.2.3` by digest, and this change
+  moves it again to v1.3.1. The shape has not been re-run on the current pin.
+  The ignored-label-filter behaviour
   **reproduces here too**: a `WHERE impacted:Workload` clause attached to a
   `WITH` still admitted a `File` row.
 - NornicDB `main` at `8abc2269` — a local checkout rather than a published
@@ -798,8 +798,8 @@ in NornicDB `main`.
 
 ### Observed shape
 
-Measured on the currently pinned `timothyswt/nornicdb-cpu-bge`
-`sha256:4dfa887d…` (self-reports `1.2.2`), against a graph seeded the way the
+Measured on the then-pinned `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`
+(self-reports `1.2.2`), against a graph seeded the way the
 canonical projector writes repositories, directories and files. A read with
 **two `MATCH` clauses** followed by a `WITH … count(…)` aggregation returns
 **zero rows** as soon as the `RETURN` projects anything richer than a plain

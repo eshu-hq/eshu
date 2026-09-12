@@ -101,12 +101,12 @@ has_graph_endpoint_pins() {
 	done
 }
 
-# has_nornicdb_v123_image_pin binds the live gate to the released multi-arch
-# artifact whose tag resolves to NornicDB main d9b76ae82334. A tag-only check
+# has_nornicdb_v131_image_pin binds the live gate to the released multi-arch
+# artifact proven by the restart fault cell. A tag-only check
 # would let Docker Hub retarget the proof without a repository change.
-has_nornicdb_v123_image_pin() {
+has_nornicdb_v131_image_pin() {
 	rg --quiet \
-		'^NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1\.2\.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74"$' \
+		'^NORNICDB_IMAGE="timothyswt/nornicdb-cpu-bge:v1\.3\.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962"$' \
 		"$1"
 }
 
@@ -247,8 +247,8 @@ has_provenance_tombstone_nonvacuity_guard "${script}" \
 	|| fail "gate must assert the #6258 DERIVED_FROM tombstone proof RAN; go test -run exits 0 on a regex matching nothing"
 has_graph_endpoint_pins "${script}" \
 	|| fail "gate must pin every graph-endpoint name to its own container; an unpinned name lets an ambient developer value win (#6201)"
-has_nornicdb_v123_image_pin "${script}" \
-	|| fail "gate must pin the exact published NornicDB v1.2.3 multi-arch digest (#6262)"
+has_nornicdb_v131_image_pin "${script}" \
+	|| fail "gate must pin the exact validated NornicDB v1.3.1 multi-arch digest"
 
 [[ -f "${workflow}" ]] || fail "missing ${workflow}"
 has_workflow_wiring "${workflow}" \
@@ -334,12 +334,12 @@ done
 # A commented pin or a tag with no digest must fail. These mutations keep the
 # image name visible, which defeats a whole-file substring check.
 sed '/^NORNICDB_IMAGE=/s/^/# /' "${script}" >"${tmp}/script-no-image-pin"
-if has_nornicdb_v123_image_pin "${tmp}/script-no-image-pin"; then
+if has_nornicdb_v131_image_pin "${tmp}/script-no-image-pin"; then
 	fail "a commented NornicDB image pin must not satisfy the guard"
 fi
-sed 's/@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74//' \
+sed 's/@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962//' \
 	"${script}" >"${tmp}/script-tag-only-image"
-if has_nornicdb_v123_image_pin "${tmp}/script-tag-only-image"; then
+if has_nornicdb_v131_image_pin "${tmp}/script-tag-only-image"; then
 	fail "a tag-only NornicDB image must not satisfy the immutable digest guard"
 fi
 # Repointing a pin away from this gate's own container must fail too, for EVERY

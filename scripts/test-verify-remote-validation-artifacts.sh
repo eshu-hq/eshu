@@ -349,6 +349,12 @@ if printf '%s\n' "${case11_registry_gate}" |
 else
 	record_fail "component-extension proof fixtures trigger the static contract gate"
 fi
+# Keep the Kubernetes-specific selector and hostile cases out of this file's
+# generic evidence-family loop so both contracts can evolve below the file cap.
+# shellcheck source=scripts/lib/test-remote-validation-k8s-case.sh
+. "${repo_root}/scripts/lib/test-remote-validation-k8s-case.sh"
+run_remote_validation_k8s_case "${repo_root}" "${case11_registry}" \
+	"${case11_registry_gate}" "${case11_workflow_filter}" "${case11_workflow_gate}"
 while IFS='|' read -r trigger representative; do
 	[[ -n "${trigger}" ]] || continue
 	if ! printf '%s\n' "${case11_registry_gate}" |
@@ -377,7 +383,6 @@ scripts/**/run-remote-e2e-*.sh|scripts/run-remote-e2e-example.sh
 scripts/**/verify-remote-e2e-*.sh|scripts/verify-remote-e2e-example.sh
 scripts/**/*compose*.sh|scripts/verify_example_compose.sh
 scripts/verify-golden-corpus-gate.sh|scripts/verify-golden-corpus-gate.sh
-scripts/**/run-k8s-*.sh|scripts/run-k8s-example.sh
 scripts/**/verify-hosted-*.sh|scripts/verify-hosted-example.sh
 scripts/**/*e2e*.sh|scripts/example-e2e-proof.sh
 EVIDENCE_SOURCE_TRIGGERS

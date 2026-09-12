@@ -43,6 +43,7 @@ cell_baseline() {
 	ifa_det_start_bg "${log_dir}" "reducer-baseline" reducer_pid "${bin_dir}/eshu-reducer"
 	run_drain_gate baseline
 	assert_no_dead_letters baseline
+	assert_gcp_project_edge_scopes baseline
 	capture_digest baseline
 	# Non-vacuity assertion for the SQL relationship family (#5351): the fault-free
 	# baseline graph must carry EXACTLY the nine expected SQL edges. This is what
@@ -207,6 +208,7 @@ cell_restartbackend() {
 		|| die "restart-backend-between-phase-groups: the scripted fault never fired (sentinel ${restart_sentinel} never appeared) -- inert script, not a pass. Root-cause the ifafaultinjection decorator's ExecuteGroup/ExecutePhaseGroup wiring before treating this gate as usable."
 	printf 'restart-backend-between-phase-groups: non-vacuous: sentinel fired, nornicdb restarted mid-drain\n'
 	assert_no_dead_letters restartbackend
+	assert_gcp_project_edge_scopes restartbackend
 	capture_digest restartbackend
 	assert_matches_baseline restartbackend
 	teardown_cell restartbackend

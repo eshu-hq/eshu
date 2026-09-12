@@ -9,7 +9,8 @@ set -euo pipefail
 #
 #   - team-A's token reads only team-A's repository and CANNOT see team-B's,
 #   - team-B's token reads only team-B's repository and CANNOT see team-A's,
-#   - the single-repository selector for an out-of-grant repo fails closed (404),
+#   - the out-of-grant selector returns a non-disclosing 403 permission_denied or
+#     404 not_found,
 #   - an admin (all-scopes) token sees every repository,
 #   - unauthenticated reads are rejected (401), and
 #   - the API and MCP readbacks agree (parity).
@@ -256,11 +257,10 @@ capture_team() {
 	printf '%s\n' "${mcp_ids}" | contains_id "${own}"   && mcp_own=true   || true
 	printf '%s\n' "${mcp_ids}" | contains_id "${other}" && mcp_other=true || true
 
-	# Single-repository context selector for the OTHER team's repo. This route is
-	# not in the scoped-read allowlist, so it fails closed with 403
-	# permission_denied for any scoped token (defense in depth: scoped tokens
-	# cannot reach the richer single-repository surface at all). The captured
-	# status is whatever the live server returns; the verifier asserts 403.
+	# Single-repository context selector for the OTHER team's repo. Depending on
+	# which authorization boundary rejects it, the live server returns a
+	# non-disclosing 403 permission_denied or 404 not_found. The verifier requires
+	# both surfaces to agree and rejects every other status.
 	local api_sel mcp_sel
 	api_sel="$(http_status -H "Authorization: Bearer ${token}" "${api_base}/api/v0/repositories/${other}/context")"
 	mcp_sel="$(http_status -H "Authorization: Bearer ${token}" "${mcp_base}/api/v0/repositories/${other}/context")"

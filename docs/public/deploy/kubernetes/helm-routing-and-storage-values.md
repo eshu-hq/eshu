@@ -33,12 +33,13 @@ includes orneryd/NornicDB#290 or a later compatible implementation.
 ## Bundled NornicDB
 
 `nornicdb.enabled=false` by default. When enabled, the chart renders one
-NornicDB Deployment, Service, and optional PVC. Replace the default image with
-an immutable compatible build, select `ESHU_GRAPH_BACKEND=nornicdb`, and enable
-the capability acknowledgement before routing workloads to it.
+NornicDB Deployment, Service, and optional PVC. Use the verified default digest
+or independently prove an immutable override, select
+`ESHU_GRAPH_BACKEND=nornicdb`, and enable the capability acknowledgement before
+routing workloads to it.
 
 Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
-`v1.2.3@sha256:4dfa887d990bf0b536693830830e34351c036716b0fe6dc957e1a3680e9f3c74`,
+`v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`,
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and
@@ -60,18 +61,14 @@ probes, named `http` and `bolt` container ports, and the existing Service
 targetPorts. Operators still diagnose this path through the same pod readiness,
 container logs, Service endpoints, and graph-backed Eshu readiness checks.
 
-The pin is a digest, not a tag, and the tag is not the version: a container
-started from `sha256:4dfa887d…` logs `Starting NornicDB v1.2.2` and stamps
-`"version":"1.2.2"` on its structured log lines. Read the digest when you need
-to know what is running.
+The immutable index digest is the artifact identity. A container started from
+it reports `NornicDB v1.3.1`; the published image does not carry an OCI source
+revision label, so do not substitute an absent label for digest verification.
 
-That default still cannot be enabled without a measurement. The relationship
-MERGE identity capability has never been measured against this image, and the
-predecessor it replaces (`v1.1.11`, `sha256:51b6174a…`) failed it — it
-collapsed same-endpoint relationship assertions whose identities differ only by
-properties, which the Eshu provenance writers depend on. Measure the build you
-intend to run, or mirror a verified immutable image and override
-`nornicdb.image`, before acknowledging the capability flag.
+The bundled default has passed the relationship-identity and restart graph-truth
+proofs. The acknowledgement remains explicit because it also covers external
+endpoints selected outside the chart. Verify that the effective endpoint uses
+this digest, or prove an override independently, before acknowledging the flag.
 
 The bundled NornicDB deployment is the canonical graph lane. Search index
 persistence is off because BM25/vector indexing is disabled for the graph lane.

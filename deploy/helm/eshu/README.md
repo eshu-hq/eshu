@@ -40,10 +40,10 @@ guidance belong in the public Kubernetes docs.
 - The render-safe chart defaults select external Neo4j. Any enabled workload
   whose effective environment selects `ESHU_GRAPH_BACKEND=nornicdb` fails closed unless
   `nornicdb.capabilities.relationshipMergePropertyIdentity=true`, including
-  external platform-owned endpoints. The bundled default pins
-  `timothyswt/nornicdb-cpu-bge:v1.2.3` by digest, and nobody has measured the
-  relationship-identity capability against it, so the acknowledgement stays
-  off. Verify the build you actually selected — external or bundled — before
+  external platform-owned endpoints. The bundled default pins the validated
+  `timothyswt/nornicdb-cpu-bge:v1.3.1` image by digest. The acknowledgement
+  stays off because the chart cannot prove that an operator-selected external
+  endpoint uses that artifact; verify the endpoint actually selected before
   turning it on.
 - `workspace-setup` is a non-root init container. It must keep dropped
   capabilities, avoid ownership mutation, and rely on pod `fsGroup` handling for
@@ -159,11 +159,12 @@ file is test-only and is not part of any shipped runtime profile.
 
 No-Regression Evidence: these are opt-in, empty-by-default Pod volume hooks; they
 add no Cypher, graph write, worker claim, lease, batch, queue, or concurrency
-knob and do not change the default-rendered Deployment runtime. Live proof on
-OrbStack Kubernetes v1.34.8 (single node): two-team scoped reads stay isolated
-(each team count=1, other team's repo absent, API/MCP parity), out-of-grant
-selector 403, unauthenticated 401, NetworkPolicy restricted egress applied; all
-pods reached Ready and the namespace was torn down clean. The scoped-token
+knob and do not change the default-rendered Deployment runtime. Live proof on a
+disposable single-node linux/amd64 Minikube v1.39.0 / Kubernetes v1.37.0 cluster:
+two-team scoped reads stayed isolated (each team count=1, other team's repo
+absent, API/MCP parity), out-of-grant selectors returned 404, unauthenticated
+reads returned 401, four restricted NetworkPolicies were applied, all pods
+reached Ready, and cleanup removed the namespace. The scoped-token
 authorization itself is unchanged graph/SQL already exercised by the merged
 scoped-read suites.
 

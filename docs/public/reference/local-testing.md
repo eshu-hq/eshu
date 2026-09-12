@@ -532,15 +532,13 @@ events, and the existing ingester probes after startup.
 
 ## Two-Team K8s Governance Proof
 
-`scripts/run-k8s-two-team-governance-proof.sh` deploys the Helm chart to a local
-Kubernetes cluster (OrbStack), provisions two teams' scoped tokens via a mounted
-read-only Secret, and asserts cross-scope isolation live through the API and MCP:
-each team sees only its own repositories, the other team's repository is absent,
-out-of-grant single-repo selectors return 403, unauthenticated requests return
-401, and the restricted NetworkPolicy egress is applied. `helm uninstall` plus
-namespace delete run on success and failure. `scripts/verify-hosted-governance-proof.sh`
-runs the verifier self-test (good plus bad fixtures) as part of the aggregate
-gate.
+`scripts/run-k8s-two-team-governance-proof.sh` deploys the Helm chart to a local Kubernetes cluster,
+provisions two teams' scoped tokens through a mounted read-only Secret, and tests cross-scope isolation
+through the live API and MCP. Each team sees only its own repositories; the other team's repository is
+absent; out-of-grant selectors return matching non-disclosing `403 permission_denied` or
+`404 not_found` responses; unauthenticated requests return 401; and restricted NetworkPolicy egress is
+applied. Cleanup runs on success and failure. `scripts/verify-hosted-governance-proof.sh` runs the good
+and hostile fixture self-tests as part of the aggregate gate.
 
 The chart hooks that enable this proof — `api.extraVolumes` /
 `api.extraVolumeMounts` and the matching `mcpServer.*` values — are additive and
@@ -548,15 +546,14 @@ default to `[]`, so an operator that does not opt in renders a byte-identical
 runtime. `deploy/helm/eshu/ci/governance-two-team-k8s.values.yaml` is test-only
 and is not part of a shipped runtime profile.
 
-No-Regression Evidence: the chart hooks are opt-in, empty-by-default Pod volume
-mounts; they add no Cypher, graph write, worker claim, lease, batch, queue, or
-concurrency knob and do not change the default-rendered Deployment runtime. Live
-proof on OrbStack Kubernetes v1.34.8 (single node): two-team scoped reads stay
-isolated (each team count=1, other team's repo absent, API/MCP parity),
-out-of-grant selector 403, unauthenticated 401, NetworkPolicy restricted egress
-applied; all pods reached Ready and the namespace was torn down clean. The
-scoped-token authorization itself is the unchanged graph/SQL already exercised by
-the merged scoped-read suites.
+No-Regression Evidence: the chart hooks are opt-in, empty-by-default Pod volume mounts. They add no
+Cypher, graph write, worker claim, lease, batch, queue, or concurrency knob and do not change the
+default-rendered Deployment runtime. A disposable single-node linux/amd64 Minikube v1.39.0 / Kubernetes
+v1.37.0 proof kept the two team views isolated with API/MCP parity, returned 404 for out-of-grant
+selectors and 401 for unauthenticated reads, applied four restricted NetworkPolicies, reached Ready,
+and removed the namespace. This proves rendered policy resources and bounded application behavior in
+that topology, not packet-level, managed-cluster, multi-node, arm64, or upgrade behavior. Scoped-token
+authorization remains the unchanged graph/SQL exercised by the merged scoped-read suites.
 
 No-Observability-Change: the proof reads existing spans, metrics, status, and the
 documented `/api/v0/repositories` and MCP responses; no telemetry, metric label,

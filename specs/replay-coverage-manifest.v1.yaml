@@ -543,7 +543,7 @@ coverage:
   # Provenance edges (#5712, #6258): a two-generation cassette drives the real
   # decision builders and package-private retract-first projectors through the
   # production ProvenanceEdgeWriter against the replay tier's immutable
-  # NornicDB v1.2.3 pin in scripts/verify-replay-tier.sh. Generation 2 keeps
+  # NornicDB v1.3.1 pin in scripts/verify-replay-tier.sh. Generation 2 keeps
   # every endpoint but drops the producing evidence. PUBLISHES and BUILT_FROM
   # use distinct endpoint pairs for their out-of-scope survivor controls;
   # DERIVED_FROM reuses its canonical pair under another scope to prove

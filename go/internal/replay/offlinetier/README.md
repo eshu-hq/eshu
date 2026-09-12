@@ -47,7 +47,7 @@ The default `go test` pass runs only the offline half
 (`TestCassetteMaterializationMapsNestedTree`) and skips the live tier.
 
 To run the real-backend tier, use the companion script. It pins the published
-multi-architecture NornicDB v1.2.3 image by digest, starts one lean container
+multi-architecture NornicDB v1.3.1 image by digest, starts one lean container
 with plain `docker run` (not Compose), exports the Bolt environment, runs the
 focused test, prints wall-clock time, and always tears the container down:
 

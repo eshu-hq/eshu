@@ -183,7 +183,7 @@ func TestValueFlowExpectationIsRequiredForItsOwnTriggers(t *testing.T) {
 	}
 
 	// The control. Ordinary Go work outside the value-flow surface must not pay
-	// for two Docker stacks and a NornicDB source build.
+	// for two Docker stacks, a cold NornicDB pull, and backend startup.
 	for _, control := range []string{
 		"go/internal/query/handler.go",
 		"docs/public/reference/backend-conformance.md",
