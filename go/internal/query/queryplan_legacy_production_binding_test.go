@@ -189,9 +189,9 @@ func legacyQueryplanProductionCypher(t *testing.T) map[string]string {
 	if len(sourceToolQueries) != 2 {
 		t.Fatalf("source-tool query count = %d, want 2", len(sourceToolQueries))
 	}
-	codeownersOwnershipList := codeowners.CodeownersOwnershipCyphers("proof-repository", -1, "", "", 51)[0].Cypher
-	codeownersOwnershipCursor := codeowners.CodeownersOwnershipCyphers("proof-repository", 1, "*.go", "@proof/team", 51)
-	codeownersLastMatchOwner, _ := codeowners.CodeownersLastMatchOwnerCypher("proof-repository")
+	codeownersOwnershipList := codeowners.OwnershipCyphers("proof-repository", -1, "", "", 51)[0].Cypher
+	codeownersOwnershipCursor := codeowners.OwnershipCyphers("proof-repository", 1, "*.go", "@proof/team", 51)
+	codeownersLastMatchOwner, _ := codeowners.LastMatchOwnerCypher("proof-repository")
 	return map[string]string{
 		"QP-SC-DEPS":                                      forwardDependenciesCypher("proof"),
 		"QP-SC-PKGREG-DEPS":                               packageRegistryDependencies,

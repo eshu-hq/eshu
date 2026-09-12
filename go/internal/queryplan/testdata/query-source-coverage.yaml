@@ -159,12 +159,12 @@ source_coverage:
           source_sha256: 686e4cf761bfa007c600fd3bc4006d2725ee5ce7ae9019d62804e86ed44087e0
           key_bound: single_key
           max_results: 101
-  - file: codeowners/codeowners_ownership_rows.go
+  - file: codeowners/ownership_rows.go
     calls:
-      - {symbol: "loadCodeownersOwnershipRows", count: 1, source_sha256: b11d781c504e02da250b2e0487c5deb5bf693fa8acf18d70cc3a9f2a8617dc92, entry_ids: [QP-CODEOWNERS-OWNERSHIP-LIST, QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER, QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN, QP-CODEOWNERS-OWNERSHIP-CURSOR-REF]}
-  - file: codeowners/codeowners_ownership_precedence.go
+      - {symbol: "loadCodeownersOwnershipRows", count: 1, source_sha256: 7824122719e6c884c270501670338bed3109bb97e9cb7be7c25422bc3adf086b, entry_ids: [QP-CODEOWNERS-OWNERSHIP-LIST, QP-CODEOWNERS-OWNERSHIP-CURSOR-ORDER, QP-CODEOWNERS-OWNERSHIP-CURSOR-PATTERN, QP-CODEOWNERS-OWNERSHIP-CURSOR-REF]}
+  - file: codeowners/ownership_precedence.go
     calls:
-      - {symbol: "resolveEffectiveRepositoryOwner", count: 1, source_sha256: 69783e83a6dd38912be7825516903288aac12c988651d06286fde7b4f76ee832, entry_ids: [QP-CODEOWNERS-LAST-MATCH-OWNER]}
+      - {symbol: "resolveEffectiveRepositoryOwner", count: 1, source_sha256: 5bc6fe8010838b8efff50d18d515b196ef2fb2f0031eed460b2fe7f5e1f459b1, entry_ids: [QP-CODEOWNERS-LAST-MATCH-OWNER]}
   - file: compare.go
     calls:
       - {symbol: "(*CompareHandler).environmentSnapshot", count: 2, non_hot_reason: "inventory-only support or bounded read; promote to entry_ids when designated hot"}

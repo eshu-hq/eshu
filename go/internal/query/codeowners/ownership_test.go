@@ -160,7 +160,7 @@ func TestCodeownersOwnershipDefaultsReturnBoundedPageAndEffectiveOwner(t *testin
 	}
 
 	var resp struct {
-		Ownership      []CodeownersOwnershipRow `json:"ownership"`
+		Ownership      []OwnershipRow           `json:"ownership"`
 		RepositoryID   string                   `json:"repository_id"`
 		Count          int                      `json:"count"`
 		Limit          int                      `json:"limit"`
@@ -270,8 +270,8 @@ func TestCodeownersOwnershipTruncatesAndEmitsKeysetCursor(t *testing.T) {
 	}
 
 	var resp struct {
-		Ownership  []CodeownersOwnershipRow `json:"ownership"`
-		Truncated  bool                     `json:"truncated"`
+		Ownership  []OwnershipRow `json:"ownership"`
+		Truncated  bool           `json:"truncated"`
 		NextCursor struct {
 			AfterOrderIndex int    `json:"after_order_index"`
 			AfterPattern    string `json:"after_pattern"`
@@ -334,8 +334,8 @@ func TestCodeownersOwnershipCursorThreadsKeysetParams(t *testing.T) {
 	}
 
 	var resp struct {
-		Ownership []CodeownersOwnershipRow `json:"ownership"`
-		Truncated bool                     `json:"truncated"`
+		Ownership []OwnershipRow `json:"ownership"`
+		Truncated bool           `json:"truncated"`
 		Next      struct {
 			AfterOrderIndex int    `json:"after_order_index"`
 			AfterPattern    string `json:"after_pattern"`
@@ -348,7 +348,7 @@ func TestCodeownersOwnershipCursorThreadsKeysetParams(t *testing.T) {
 	if got, want := len(resp.Ownership), 2; got != want {
 		t.Fatalf("len(ownership) = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	want := []CodeownersOwnershipRow{
+	want := []OwnershipRow{
 		{Pattern: "*.go", SourcePath: "CODEOWNERS", OrderIndex: 2, OwnerRef: "@org/team-b"},
 		{Pattern: "z*", SourcePath: "CODEOWNERS", OrderIndex: 2, OwnerRef: "@org/team-a"},
 	}

@@ -236,26 +236,26 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// Handler.ListOwnership (root's CodeownersOwnershipHandler alias) reads
 	// (repo:Repository)-[rel:DECLARES_CODEOWNER]->(team:CodeownerTeam)
 	// (codeownersOwnershipMatch in
-	// go/internal/query/codeowners/codeowners_ownership_cypher.go), written by
+	// go/internal/query/codeowners/ownership_cypher.go), written by
 	// storage/cypher/canonical_codeowners_edges.go:34-35. The handler's
 	// Correlations field (ServiceCatalogCorrelationStore) and the Repository
 	// anchor are enrichment/anchor touches — disclosed, not served.
 	"GET /api/v0/codeowners/ownership": {
-		RegistrationFile: "go/internal/query/codeowners/codeowners_ownership.go",
+		RegistrationFile: "go/internal/query/codeowners/ownership.go",
 		HandlerStruct:    "Handler",
-		StructFile:       "go/internal/query/codeowners/codeowners_ownership.go",
+		StructFile:       "go/internal/query/codeowners/ownership.go",
 		Method:           "ListOwnership",
-		MethodFile:       "go/internal/query/codeowners/codeowners_ownership.go",
+		MethodFile:       "go/internal/query/codeowners/ownership.go",
 		ScanFiles: []string{
-			"go/internal/query/codeowners/codeowners_ownership.go",
-			"go/internal/query/codeowners/codeowners_ownership_cypher.go",
-			"go/internal/query/codeowners/codeowners_ownership_rows.go",
-			"go/internal/query/codeowners/codeowners_ownership_precedence.go",
+			"go/internal/query/codeowners/ownership.go",
+			"go/internal/query/codeowners/ownership_cypher.go",
+			"go/internal/query/codeowners/ownership_rows.go",
+			"go/internal/query/codeowners/ownership_precedence.go",
 		},
 		Served: []routeServedDomain{{
 			Domain: "codeowners_ownership",
 			Evidence: []routeReadEvidence{
-				{File: "go/internal/query/codeowners/codeowners_ownership_cypher.go", Marker: "DECLARES_CODEOWNER"},
+				{File: "go/internal/query/codeowners/ownership_cypher.go", Marker: "DECLARES_CODEOWNER"},
 				{File: "go/internal/storage/cypher/canonical_codeowners_edges.go", Marker: "DECLARES_CODEOWNER"},
 			},
 		}},
@@ -264,14 +264,14 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 				Domain: "service_catalog_correlation",
 				Reason: "effective-owner enrichment only: resolveEffectiveRepositoryOwner consults reducer_service_catalog_correlation rows (via h.Correlations) to arbitrate manifest-vs-codeowners owner precedence; no correlation rows are returned. The correlations' own read surface is GET /api/v0/service-catalog/correlations",
 				Evidence: []routeReadEvidence{
-					{File: "go/internal/query/codeowners/codeowners_ownership.go", Marker: "h.Correlations"},
+					{File: "go/internal/query/codeowners/ownership.go", Marker: "h.Correlations"},
 				},
 			},
 			{
 				Domain: "code_graph_projection",
 				Reason: "anchor only: the ownership Cypher anchors on the Repository node (repo:Repository {id: $repo_id}) to reach DECLARES_CODEOWNER edges; Repository rows themselves are served by GET /api/v0/repositories",
 				Evidence: []routeReadEvidence{
-					{File: "go/internal/query/codeowners/codeowners_ownership_cypher.go", Marker: ":Repository"},
+					{File: "go/internal/query/codeowners/ownership_cypher.go", Marker: ":Repository"},
 				},
 			},
 		},

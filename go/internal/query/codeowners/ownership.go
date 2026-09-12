@@ -22,7 +22,7 @@ const (
 	codeownersOwnershipReadTimeout  = 10 * time.Second
 	// codeownersOwnershipNoCursor is the "no keyset cursor" sentinel for
 	// after_order_index (order_index is always >= 0), mirroring
-	// CodeownersOwnershipCyphers' own doc comment.
+	// OwnershipCyphers' own doc comment.
 	codeownersOwnershipNoCursor = -1
 )
 
@@ -42,10 +42,10 @@ type Handler struct {
 	Instruments  *telemetry.Instruments
 }
 
-// CodeownersOwnershipRow is one CODEOWNERS rule-to-owner declaration: a
+// OwnershipRow is one CODEOWNERS rule-to-owner declaration: a
 // single DECLARES_CODEOWNER edge from the requested repository to a
 // CodeownerTeam.
-type CodeownersOwnershipRow struct {
+type OwnershipRow struct {
 	Pattern    string `json:"pattern"`
 	SourcePath string `json:"source_path"`
 	OrderIndex int    `json:"order_index"`
@@ -157,11 +157,11 @@ func (h *Handler) ListOwnership(w http.ResponseWriter, r *http.Request) {
 	if truncated {
 		rows = rows[:limit]
 	}
-	results := make([]CodeownersOwnershipRow, 0, len(rows))
+	results := make([]OwnershipRow, 0, len(rows))
 	var lastOrderIndex int
 	var lastPattern, lastRef string
 	for _, row := range rows {
-		results = append(results, CodeownersOwnershipRow{
+		results = append(results, OwnershipRow{
 			Pattern:    querycontract.StringVal(row, "pattern"),
 			SourcePath: querycontract.StringVal(row, "source_path"),
 			OrderIndex: querycontract.IntVal(row, "order_index"),
@@ -262,7 +262,7 @@ func (h *Handler) writeEmptyCodeownersOwnership(
 	limit int,
 ) {
 	body := map[string]any{
-		"ownership":       []CodeownersOwnershipRow{},
+		"ownership":       []OwnershipRow{},
 		"repository_id":   repoID,
 		"count":           0,
 		"limit":           limit,

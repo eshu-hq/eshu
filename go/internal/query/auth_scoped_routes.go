@@ -19,7 +19,7 @@ func scopedHTTPRouteSupportsTenantFilter(r *http.Request) bool {
 	// #5419 Phase 4b: GET /api/v0/codeowners/ownership now gates both its read
 	// paths (the DECLARES_CODEOWNER graph and the service-catalog correlation
 	// store used by resolveEffectiveRepositoryOwner) on the caller's grant --
-	// see writeEmptyCodeownersOwnership in codeowners_ownership.go.
+	// see writeEmptyCodeownersOwnership in codeowners/ownership.go.
 	if r.Method == http.MethodGet && r.URL.Path == "/api/v0/codeowners/ownership" {
 		return true
 	}
