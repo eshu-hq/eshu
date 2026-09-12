@@ -322,8 +322,8 @@ func classifyRetryableGraphWriteGroupError(err error, stmts []Statement) string 
 }
 
 func isNornicDBWriteConflict(msg string) bool {
-	return strings.Contains(msg, "conflict:") &&
-		strings.Contains(msg, "changed after transaction start")
+	return strings.Contains(msg, "changed after transaction start") &&
+		(strings.Contains(msg, "conflict:") || strings.Contains(msg, "conflict detected:"))
 }
 
 // isNornicDBMergeRelationshipSnapshotConflict recognizes the pinned

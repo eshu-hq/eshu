@@ -6,6 +6,7 @@ package cypher
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,17 +16,102 @@ import (
 	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 )
 
-const observedNornicDBRelationshipSnapshotConflict = "UNWIND MERGE chain relationship update failed: not found"
+const (
+	observedNornicDBRelationshipSnapshotConflict = "UNWIND MERGE chain relationship update failed: not found"
+	observedNornicDBV131WriteConflict            = "UNWIND MERGE chain relationship update failed: conflict detected: edge nornic:123 changed after transaction start"
+)
 
 func TestClassifyTransientNeo4jErrorPrioritizesNornicDBWriteConflict(t *testing.T) {
 	t.Parallel()
 
-	err := &neo4jdriver.Neo4jError{
-		Code: nornicDBTransactionOutdatedCode,
-		Msg:  "UNWIND MERGE chain relationship update failed: conflict: edge nornic:123 changed after transaction start",
+	legacyEdge := "UNWIND MERGE chain relationship update failed: conflict: edge nornic:123 changed after transaction start"
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "legacy typed edge",
+			err:  &neo4jdriver.Neo4jError{Code: nornicDBTransactionOutdatedCode, Msg: legacyEdge},
+			want: graphWriteRetryReasonWriteConflict,
+		},
+		{
+			name: "v1.3.1 typed edge",
+			err:  &neo4jdriver.Neo4jError{Code: nornicDBTransactionOutdatedCode, Msg: observedNornicDBV131WriteConflict},
+			want: graphWriteRetryReasonWriteConflict,
+		},
+		{
+			name: "legacy typed node",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBTransactionOutdatedCode,
+				Msg:  "node update failed: conflict: node nornic:123 changed after transaction start",
+			},
+			want: graphWriteRetryReasonWriteConflict,
+		},
+		{
+			name: "v1.3.1 typed node",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBTransactionOutdatedCode,
+				Msg:  "node update failed: conflict detected: node nornic:123 changed after transaction start",
+			},
+			want: graphWriteRetryReasonWriteConflict,
+		},
+		{
+			name: "legacy raw",
+			err:  errors.New("Neo.TransientError.Transaction.Outdated: " + legacyEdge),
+			want: graphWriteRetryReasonWriteConflict,
+		},
+		{
+			name: "v1.3.1 wrapped",
+			err:  fmt.Errorf("phase group failed: %w", errors.New(observedNornicDBV131WriteConflict)),
+			want: graphWriteRetryReasonWriteConflict,
+		},
+		{
+			name: "outdated suffix without delimiter",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBTransactionOutdatedCode,
+				Msg:  "edge nornic:123 changed after transaction start",
+			},
+			want: graphWriteRetryReasonTransient,
+		},
+		{
+			name: "legacy delimiter without suffix",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBTransactionOutdatedCode,
+				Msg:  "relationship update failed: conflict: edge nornic:123",
+			},
+			want: graphWriteRetryReasonTransient,
+		},
+		{
+			name: "v1.3.1 delimiter without suffix",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBTransactionOutdatedCode,
+				Msg:  "relationship update failed: conflict detected: edge nornic:123",
+			},
+			want: graphWriteRetryReasonTransient,
+		},
+		{
+			name: "v1.3.1 delimiter missing colon",
+			err: &neo4jdriver.Neo4jError{
+				Code: nornicDBTransactionOutdatedCode,
+				Msg:  "conflict detected edge nornic:123 changed after transaction start",
+			},
+			want: graphWriteRetryReasonTransient,
+		},
+		{
+			name: "unrelated terminal",
+			err:  errors.New("relationship update failed"),
+			want: "",
+		},
 	}
-	if got := classifyTransientNeo4jError(err); got != graphWriteRetryReasonWriteConflict {
-		t.Fatalf("retry reason = %q, want %q", got, graphWriteRetryReasonWriteConflict)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := classifyTransientNeo4jError(tc.err); got != tc.want {
+				t.Fatalf("retry reason = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 

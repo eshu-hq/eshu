@@ -142,12 +142,26 @@ by v1.3.1 without separate reverse-compatibility proof.
 
 ## Operational signal
 
-No-Observability-Change: This alignment adds no Eshu runtime metric instrument
-or label, span name or attribute, structured-log field, status schema, alert,
-dashboard, worker or queue stage, or API/MCP response field. Operators retain
-the existing queue residual and dead-letter metrics and logs, graph-truth gates,
-container health checks, and NornicDB binary-version output. The Ifá GCP scope
-assertion and Kubernetes provenance JSON are bounded CI/operator proof
-artifacts, not deployed telemetry, and add no runtime signal cardinality or
-emission volume. The backend artifact changes, but Eshu's operator-facing
-observability contract does not.
+Root-Cause Evidence: PR #6657's NornicDB end-to-end job and the same focused
+test against the pinned local v1.3.1 image both failed because the backend now
+reports a relationship snapshot race with the delimiter `conflict detected:`.
+The retry classifier recognized only the older `conflict:` delimiter, so the
+retry remained safe but its bounded reason was the generic `transient_error`
+instead of `write_conflict`. The exact live failure was
+`Neo.TransientError.Transaction.Outdated` with `changed after transaction
+start`; the sibling unique-conflict and stale-attribute regressions passed.
+After accepting both exact delimiters while retaining the transaction-age
+suffix, `./scripts/verify_backend_conformance_live.sh` passed all NornicDB retry
+contracts and the related live backend regressions against v1.3.1.
+
+Observability Evidence: This alignment adds no Eshu runtime metric instrument,
+label key, reason value, span, structured-log field, status schema, alert,
+dashboard, worker or queue stage, or API/MCP response field. The exact v1.3.1
+snapshot-conflict shape now uses the existing `write_conflict` reason instead
+of the existing `transient_error` reason in
+`eshu_dp_neo4j_deadlock_retries_total`; retry count, budget, backoff, span and
+log fields, and reason cardinality are unchanged. Operators retain the existing
+queue residual and dead-letter metrics and logs, graph-truth gates, container
+health checks, and NornicDB binary-version output. The Ifá GCP scope assertion
+and Kubernetes provenance JSON remain bounded CI/operator proof artifacts, not
+deployed telemetry.
