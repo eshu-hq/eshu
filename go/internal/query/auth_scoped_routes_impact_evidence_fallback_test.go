@@ -50,7 +50,7 @@ func fallbackArtifactOverviewGraph() querytestutil.FakeGraphReaderWithSingle {
 
 // TestServiceContextFallbackArtifactOverviewScopedFiltersCrossTenantRepo is the
 // #5167 W3 P0 (third round) mutation-check for the deployment-artifact-overview
-// FALLBACK: loadServiceDeploymentEvidence (service_deployment_evidence.go) falls
+// FALLBACK: loadServiceDeploymentEvidence (deployment_evidence.go) falls
 // through to LoadDeploymentArtifactOverview -> LoadSharedRepositoryConfigArtifacts
 // -> QueryRelatedRepositoryArtifactSources exactly when the redacted graph
 // deployment_evidence set is fully empty -- which happens whenever every

@@ -21,7 +21,7 @@ import (
 // final tiebreaker that makes each comparator a total order.
 
 // TestBuildGraphDependentsBreaksTiesByRepoID proves buildGraphDependents
-// (service_contract_helpers.go), which feeds the workload-context/service-story
+// (contract_helpers.go), which feeds the workload-context/service-story
 // "dependents" field, orders same-named candidates by repo_id when the
 // display name ties, regardless of input slice order.
 func TestBuildGraphDependentsBreaksTiesByRepoID(t *testing.T) {

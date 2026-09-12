@@ -102,7 +102,7 @@ func (h *EntityHandler) InvestigateService(w http.ResponseWriter, r *http.Reques
 		querycontract.WriteError(w, http.StatusNotFound, "service not found")
 		return
 	}
-	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.ServiceQueryEnrichmentOptions{
+	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.QueryEnrichmentOptions{
 		IncludeRelatedModuleUsage: true,
 		Logger:                    h.Logger,
 		Operation:                 "service_investigation",
@@ -121,7 +121,7 @@ func (h *EntityHandler) InvestigateService(w http.ResponseWriter, r *http.Reques
 		w,
 		r,
 		http.StatusOK,
-		service.BuildServiceInvestigationPacket(serviceName, ctx, service.ServiceInvestigationOptions{
+		service.BuildServiceInvestigationPacket(serviceName, ctx, service.InvestigationOptions{
 			Environment: querycontract.QueryParam(r, "environment"),
 			Intent:      querycontract.QueryParam(r, "intent"),
 			Question:    querycontract.QueryParam(r, "question"),

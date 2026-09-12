@@ -42,7 +42,7 @@ func (h *EntityHandler) GetWorkloadContext(w http.ResponseWriter, r *http.Reques
 		querycontract.WriteError(w, http.StatusNotFound, "workload not found")
 		return
 	}
-	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.ServiceQueryEnrichmentOptions{
+	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.QueryEnrichmentOptions{
 		IncludeRelatedModuleUsage: true,
 		Logger:                    h.Logger,
 		Operation:                 "workload_context",
@@ -93,7 +93,7 @@ func (h *EntityHandler) GetWorkloadStory(w http.ResponseWriter, r *http.Request)
 		querycontract.WriteError(w, http.StatusNotFound, "workload not found")
 		return
 	}
-	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.ServiceQueryEnrichmentOptions{
+	if err := service.EnrichServiceQueryContextWithOptions(r.Context(), h.Neo4j, h.Content, ctx, service.QueryEnrichmentOptions{
 		IncludeRelatedModuleUsage: true,
 		Logger:                    h.Logger,
 		Operation:                 "workload_story",

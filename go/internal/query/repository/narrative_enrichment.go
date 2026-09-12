@@ -12,7 +12,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	artifacts "github.com/eshu-hq/eshu/go/internal/query/repositoryartifacts"
-	"github.com/eshu-hq/eshu/go/internal/query/serviceevidence"
+	"github.com/eshu-hq/eshu/go/internal/query/service/evidence"
 )
 
 type repositoryFrameworkAggregate struct {
@@ -192,14 +192,14 @@ func buildRepositoryDocumentationOverview(
 				catalogPaths = append(catalogPaths, relativePath)
 			}
 		}
-		for _, route := range serviceevidence.ExtractDocsRoutes(file.Content) {
+		for _, route := range evidence.ExtractDocsRoutes(file.Content) {
 			if _, ok := seenRoutes[route]; ok {
 				continue
 			}
 			seenRoutes[route] = struct{}{}
 			docRoutes = append(docRoutes, route)
 		}
-		if spec, ok := serviceevidence.ExtractAPISpecEvidenceWithoutRefs(file); ok {
+		if spec, ok := evidence.ExtractAPISpecEvidenceWithoutRefs(file); ok {
 			if isRepositoryAPISpecEvidence(spec) {
 				if _, ok := seenSpecs[spec.RelativePath]; !ok {
 					seenSpecs[spec.RelativePath] = struct{}{}

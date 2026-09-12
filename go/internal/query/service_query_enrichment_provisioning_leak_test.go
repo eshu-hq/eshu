@@ -22,7 +22,7 @@ import (
 // to the FAR repo with NO grant predicate, so repo.id/repo.name name a
 // cross-tenant repo. Those candidates feed workloadContext["dependents"],
 // ["consumer_repositories"], and ["provisioning_source_chains"] unfiltered
-// (service_query_enrichment.go, #5167 W3 P0 fifth vector). Every other
+// (query_enrichment.go, #5167 W3 P0 fifth vector). Every other
 // enrichment query returns no rows.
 func crossTenantProvisioningGraph() querytestutil.FakeGraphReaderWithSingle {
 	return querytestutil.FakeGraphReaderWithSingle{

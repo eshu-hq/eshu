@@ -50,7 +50,7 @@ func EvidenceBoundariesFor(readSurface string) []PostgresOnlyBoundary {
 	// get_service_story intentionally has no entries here: every Postgres-only
 	// domain it touches (ci_cd_run_correlation via response["ci_cd_evidence"];
 	// container_image_identity via response["code_to_runtime_trace"]'s
-	// image_package segment, service_story_trace_path.go:94-121) is already
+	// image_package segment, story_trace_path.go:104-131) is already
 	// served through a sibling top-level field, so there is no boundary left to
 	// disclose. See TestBuildServiceStoryResponseOmitsBoundaryForFieldAlreadyServed
 	// and TestBuildServiceStoryResponseOmitsContainerImageIdentityBoundaryForFieldAlreadyServed.

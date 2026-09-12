@@ -1,6 +1,6 @@
 # Service Catalog Read Model
 
-`ServiceCatalogHandler` reads reducer-owned
+`CatalogHandler` reads reducer-owned
 `reducer_service_catalog_correlation` facts from Postgres. Repository-scoped
 requests first resolve human repository selectors through the shared repository
 catalog resolver, then match reducer rows by either admitted `repository_id` or

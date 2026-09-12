@@ -126,8 +126,8 @@ A service is a **reducer-materialized correlation**: the
 incident / observability correlators read source facts from many scopes and
 project a correlated service identity into the graph and into reducer-owned
 facts. The service dossier read-model
-(`go/internal/query/service_story_dossier.go`,
-`service_story_overview.go`, `entity_workload_context.go`) assembles a service's
+(`go/internal/query/service/story_dossier.go`,
+`service/story_overview.go`, `entity_workload_context.go`) assembles a service's
 deployment lanes, dependencies, evidence graph, and API surface from a
 graph-materialized `workloadContext` that spans many source scopes and
 generations.
@@ -136,13 +136,13 @@ The owning store/read-model surfaces for the requested families are:
 
 | Family | Owning read surface | Backing facts / store |
 | --- | --- | --- |
-| Deployment evidence | `service_story_dossier.go` (`deployment_evidence.artifacts`), `repository_deployment_evidence_read_model.go` | graph-materialized deployment relationships across repo scopes |
-| Runtime evidence | `service_story_dossier.go` deployment lanes / instances | graph-materialized runtime instances across cluster/environment scopes |
-| Dependencies | `service_story_dossier.go` upstream/downstream | graph relationships across repo scopes |
+| Deployment evidence | `service/story_dossier.go` (`deployment_evidence.artifacts`), `repository_deployment_evidence_read_model.go` | graph-materialized deployment relationships across repo scopes |
+| Runtime evidence | `service/story_dossier.go` deployment lanes / instances | graph-materialized runtime instances across cluster/environment scopes |
+| Dependencies | `service/story_dossier.go` upstream/downstream | graph relationships across repo scopes |
 | Docs | `documentation_target_read_model.go` | `documentation_source` scope facts keyed to `service_id` payload |
 | Incidents | `incident_routing_evidence_loader.go` | PagerDuty / Jira provider scope facts keyed to `service_id` payload |
 | Vulnerabilities | `supply_chain_advisory_evidence.go`, `supply_chain_impact_*` | scanner / advisory provider scope facts keyed to `service_id`/image payload |
-| Ownership | `service_catalog_correlations.go` (`reducer_service_catalog_correlation` fact, `owner_ref`) | reducer-owned correlation facts under the source catalog scope |
+| Ownership | `service/catalog_correlations.go` (`reducer_service_catalog_correlation` fact, `owner_ref`) | reducer-owned correlation facts under the source catalog scope |
 
 ## Why the #1799 generation-diff model does not transfer
 
@@ -190,7 +190,7 @@ match `updated`/`unchanged`.
 Even setting keys aside, the families are read by joining
 `ingestion_scopes.active_generation_id = fact.generation_id` and
 `generation.status = 'active'` (see `listServiceCatalogCorrelationsQuery` in
-`service_catalog_correlations.go`). The read model only ever exposes the
+`service/catalog_correlations.go`). The read model only ever exposes the
 **current active** correlation per source scope. There is no durable, queryable
 "the service as of prior reference R" snapshot to compare against. The
 `materialization_status` field (`identity_only` vs materialized) is a

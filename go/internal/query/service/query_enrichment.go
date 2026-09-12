@@ -1,0 +1,366 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package service
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/impacttrace"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+// QueryEnrichmentOptions controls how much graph-derived enrichment
+// EnrichServiceQueryContextWithOptions adds to a service's workload
+// context. It is shared by every route that runs this enrichment (service
+// workload context and story, /investigations/services/{name}, and
+// /impact/trace-deployment-chain), so a field here changes behavior for all
+// of them.
+type QueryEnrichmentOptions struct {
+	// DirectOnly, when true, skips the indirect provisioning-candidate graph
+	// traversal entirely: no dependents, consumer_repositories, or
+	// provisioning_source_chains are computed, only direct evidence.
+	DirectOnly bool
+	// IncludeRelatedModuleUsage runs the provisioning-candidate traversal
+	// even when DirectOnly is true, so a caller can request the related
+	// module usage signal alone without paying for the full indirect
+	// dependents/consumers/chains enrichment.
+	IncludeRelatedModuleUsage bool
+	// MaxDepth bounds the provisioning-candidate graph traversal via
+	// querycontract.BoundedTraceEnrichmentLimit; it is clamped, not passed
+	// through unchecked.
+	MaxDepth int
+	// Logger receives per-stage timing logs (StartServiceQueryStage); a nil
+	// Logger disables that logging, it does not panic.
+	Logger *slog.Logger
+	// Operation names the enrichment operation for per-stage logging and
+	// defaults to "service_context" when left blank.
+	Operation string
+}
+
+func EnrichServiceQueryContextWithOptions(
+	ctx context.Context,
+	graph querycontract.GraphQuery,
+	content querycontract.ContentStore,
+	workloadContext map[string]any,
+	opts QueryEnrichmentOptions,
+) error {
+	delete(workloadContext, "entry_points")
+	if len(workloadContext) == 0 {
+		return nil
+	}
+
+	repoID := querycontract.SafeStr(workloadContext, "repo_id")
+	serviceName := querycontract.SafeStr(workloadContext, "name")
+	operation := opts.Operation
+	if operation == "" {
+		operation = "service_context"
+	}
+	timer := StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_api_surface")
+	if graphAPISurface := queryServiceGraphAPISurface(ctx, graph, repoID); len(graphAPISurface) > 0 {
+		workloadContext["api_surface"] = graphAPISurface
+	}
+	timer.Done(ctx, slog.Bool("has_result", len(querycontract.MapValue(workloadContext, "api_surface")) > 0))
+	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_deployment_evidence")
+	graphEvidence, err := queryServiceGraphDeploymentEvidence(ctx, graph, content, repoID)
+	if err != nil {
+		timer.Done(ctx, slog.Bool("error", true))
+		return fmt.Errorf("load graph deployment evidence: %w", err)
+	}
+	if len(graphEvidence) > 0 {
+		workloadContext["deployment_evidence"] = graphEvidence
+	}
+	timer.Done(ctx, slog.Bool("has_result", len(querycontract.MapValue(workloadContext, "deployment_evidence")) > 0))
+	if repoID == "" || serviceName == "" || content == nil {
+		return nil
+	}
+
+	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "service_evidence_content")
+	evidence, err := LoadServiceQueryEvidence(ctx, content, repoID, serviceName)
+	timer.Done(
+		ctx,
+		slog.Int("hostname_count", len(evidence.Hostnames)),
+		slog.Int("environment_count", len(evidence.Environments)),
+	)
+	if err != nil {
+		return fmt.Errorf("load service query evidence: %w", err)
+	}
+
+	// Load framework-detected routes from fact_records when ContentReader
+	// is available (it has access to the same Postgres database).
+	if content != nil {
+		timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "framework_routes")
+		frameworkRoutes, err := content.ListFrameworkRoutes(ctx, repoID)
+		timer.Done(ctx, slog.Int("row_count", len(frameworkRoutes)))
+		if err != nil {
+			return fmt.Errorf("load framework routes: %w", err)
+		}
+		evidence.FrameworkRoutes = frameworkRoutes
+	}
+
+	if hostnames := buildServiceHostnameRows(evidence.Hostnames); len(hostnames) > 0 {
+		workloadContext["hostnames"] = hostnames
+	}
+	if candidates := buildServiceEntrypointCandidateRows(evidence.EntrypointCandidates); len(candidates) > 0 {
+		workloadContext["entrypoint_candidates"] = candidates
+	}
+	if entrypoints := buildServiceEntrypoints(workloadContext, evidence); len(entrypoints) > 0 {
+		workloadContext["entrypoints"] = entrypoints
+	}
+
+	instanceEnvironments, _ := workloadContext["instances"].([]map[string]any)
+	observedEnvironments := querycontract.MergeStringSets(
+		distinctSortedInstanceField(instanceEnvironments, "environment"),
+		serviceEvidenceEnvironmentNames(evidence.Environments),
+	)
+	if len(observedEnvironments) > 0 {
+		workloadContext["observed_config_environments"] = observedEnvironments
+	}
+
+	if apiSurface := buildServiceAPISurface(evidence); len(apiSurface) > 0 && len(querycontract.MapValue(workloadContext, "api_surface")) == 0 {
+		workloadContext["api_surface"] = apiSurface
+	}
+	if networkPaths := buildServiceNetworkPaths(workloadContext, querycontract.MapSliceValue(workloadContext, "entrypoints")); len(networkPaths) > 0 {
+		workloadContext["network_paths"] = networkPaths
+	}
+
+	if graph != nil {
+		hostnames := serviceEvidenceHostnames(evidence)
+		traceLimit := querycontract.BoundedTraceEnrichmentLimit(opts.MaxDepth)
+		candidates := []impacttrace.ProvisioningRepositoryCandidate{}
+		// #5720 round-2 P1-1: impacttrace.QueryProvisioningRepositoryCandidates is the
+		// sole production feeder for dependents, consumer_repositories, and
+		// provisioning_source_chains, so its truncated bool is the one
+		// disclosure signal all three fields need -- carried on
+		// workloadContext as *_truncated so BuildServiceDownstreamConsumers
+		// and buildServiceResultLimitsWithContext (story_dossier.go)
+		// can report truncated: true even though every one of these lists
+		// stays well under serviceStoryItemLimit (50) on the default
+		// indirect-evidence search limit (25).
+		var candidatesTruncated bool
+		if !opts.DirectOnly || opts.IncludeRelatedModuleUsage {
+			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_provisioning_candidates")
+			candidates, candidatesTruncated, err = impacttrace.QueryProvisioningRepositoryCandidates(ctx, graph, repoID, traceLimit)
+			if err != nil {
+				timer.Done(ctx, slog.Int("row_count", len(candidates)))
+				return fmt.Errorf("load graph provisioning candidates: %w", err)
+			}
+			// #5167 W3 P0 (fifth vector): impacttrace.QueryProvisioningRepositoryCandidates
+			// anchors on the service's own grant-verified repo and traverses to the
+			// FAR provisioning/consuming repository with no grant predicate, so a
+			// scoped caller could otherwise read a cross-tenant repo's id/name.
+			// Bind the candidates to the caller's grant here -- the single point
+			// every route that runs this enrichment (service/workload context and
+			// story, /investigations/services/{name}, and
+			// /impact/trace-deployment-chain) shares -- before BuildGraphDependents,
+			// impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates, and
+			// impacttrace.LoadProvisioningSourceChainsFromCandidates derive the dependents,
+			// consumer_repositories, and provisioning_source_chains fields from it.
+			// Deny-by-default when scoped; all-scopes/shared/admin unaffected.
+			candidates = impact.FilterProvisioningRepositoryCandidatesForAccess(candidates, querycontract.RepositoryAccessFilterFromContext(ctx))
+			timer.Done(ctx, slog.Int("row_count", len(candidates)))
+		}
+		if !opts.DirectOnly {
+			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "graph_dependents")
+			if dependents := BuildGraphDependents(candidates); len(dependents) > 0 {
+				workloadContext["dependents"] = dependents
+			}
+			// #5720 round-7 P1-4: the disclosure is deliberately set outside
+			// the len(dependents) > 0 guard. The backend applies LIMIT before
+			// filterProvisioningRepositoryCandidatesForAccess runs above, so a
+			// scoped caller whose granted repositories all sort after the
+			// `ORDER BY repo.name, repo.id` cut has every returned row removed
+			// by the filter. Under a guarded flag that caller received neither
+			// dependents nor a truncation signal -- an empty answer that
+			// silently reads as complete while their own dependents sat past
+			// the cut.
+			//
+			// #5720 round-8 P2-1: round 7 justified this as "the dropped rows
+			// were never read, so they cannot be shown to fall outside the
+			// grant." That reasoned about what the server knows, not what the
+			// client can infer, and it was wrong. candidatesTruncated is
+			// computed from the raw pre-authorization read, so it fires on
+			// GLOBAL row cardinality no matter how narrow the caller's grant
+			// is. Paired with the max_depth x 10 scaling (capped at 100), a
+			// scoped caller can sweep max_depth over 1..10 and read the flag at
+			// bounds 10, 20, ... 100, recovering the global
+			// provisioning-candidate row count to within 10 across [10,100].
+			// That is a coarse cardinality oracle over out-of-grant data.
+			//
+			// The behavior stays anyway. Suppressing the flag for scoped
+			// callers reintroduces round 7's false negative, and on an
+			// evidence-backed-truth product a silent false claim of
+			// completeness is the worse failure. No repository identity leaks
+			// -- only a bucketed count -- and the caller is already authorized
+			// for the service the count hangs off. The public docs say plainly
+			// that these flags are a global signal rather than a grant-relative
+			// one; see docs/public/reference/http-api/context-and-stories.md.
+			if candidatesTruncated {
+				workloadContext["dependents_truncated"] = true
+			}
+			timer.Done(ctx, slog.Int("row_count", len(candidates)))
+
+			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "consumer_repository_enrichment")
+			// #5720 round-9 P1-1: evidence.filesTruncated is source 0 of the
+			// enumeration on impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates.
+			// `hostnames` above is derived from the file list
+			// LoadServiceQueryEvidence read at serviceEvidenceFileLimit, so a
+			// full page there means a hostname past the cut was never
+			// extracted and never searched for. It is deliberately NOT ORed
+			// into dependents_truncated or
+			// provisioning_source_chains_truncated: both derive from the
+			// candidate slice, which this file read does not touch, so
+			// stamping them would report a bound that never applied to those
+			// lists.
+			consumers, consumersTruncated, err := impacttrace.LoadConsumerRepositoryEnrichmentFromCandidates(ctx, graph, content, repoID, serviceName, hostnames, traceLimit, candidates, candidatesTruncated, evidence.filesTruncated)
+			timer.Done(ctx, slog.Int("row_count", len(consumers)))
+			if err != nil {
+				return fmt.Errorf("load consumer repository enrichment: %w", err)
+			}
+			if len(consumers) > 0 {
+				workloadContext["consumer_repositories"] = consumers
+			}
+			// #5720 round-7 P1-4: same emptied-by-filter reasoning as
+			// dependents_truncated above -- the access filter runs over the
+			// candidate slice this enrichment feeds in, so an entirely
+			// filtered-away consumer list must still disclose that the read
+			// underneath it hit its bound.
+			if consumersTruncated {
+				workloadContext["consumer_repositories_truncated"] = true
+			}
+		}
+
+		if opts.IncludeRelatedModuleUsage {
+			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "provisioning_source_chains")
+			provisioningChains, err := impacttrace.LoadProvisioningSourceChainsFromCandidates(ctx, content, candidates)
+			timer.Done(ctx, slog.Int("row_count", len(provisioningChains)))
+			if err != nil {
+				return fmt.Errorf("load provisioning source chains: %w", err)
+			}
+			if len(provisioningChains) > 0 {
+				workloadContext["provisioning_source_chains"] = provisioningChains
+			}
+			// #5720 round-7 P1-4: same emptied-by-filter reasoning as
+			// dependents_truncated above.
+			if candidatesTruncated {
+				workloadContext["provisioning_source_chains_truncated"] = true
+			}
+		}
+		if len(querycontract.MapSliceValue(workloadContext, "cloud_resources")) == 0 {
+			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "cloud_resource_dependencies")
+			workloadID := querycontract.SafeStr(workloadContext, "id")
+			cloudResources, err := impacttrace.LoadMaterializedServiceCloudResourceDependencies(
+				ctx,
+				graph,
+				repoID,
+				workloadID,
+				serviceStoryItemLimit,
+			)
+			timer.Done(ctx, slog.Int("row_count", len(cloudResources)))
+			if err != nil {
+				return fmt.Errorf("load service cloud resource dependencies: %w", err)
+			}
+			if len(cloudResources) > 0 {
+				workloadContext["cloud_resources"] = cloudResources
+				delete(workloadContext, "uncorrelated_cloud_resources")
+			}
+		}
+		if len(querycontract.MapSliceValue(workloadContext, "cloud_resources")) == 0 {
+			timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "uncorrelated_cloud_resource_candidates")
+			cloudCandidates, cloudCandidatesTruncated, err := impacttrace.LoadUncorrelatedCloudResourceCandidatesBounded(ctx, graph, serviceName, serviceStoryItemLimit)
+			timer.Done(
+				ctx,
+				slog.Int("row_count", len(cloudCandidates)),
+				slog.Bool("truncated", cloudCandidatesTruncated),
+			)
+			if err != nil {
+				return fmt.Errorf("load uncorrelated cloud resource candidates: %w", err)
+			}
+			if len(cloudCandidates) > 0 {
+				workloadContext["uncorrelated_cloud_resources"] = cloudCandidates
+				if cloudCandidatesTruncated {
+					workloadContext["uncorrelated_cloud_resources_truncated"] = true
+				}
+			}
+		}
+
+		// Ingress posture (WAF coverage + TLS termination) is derived strictly
+		// from the two materialized AWS protection edges on the service's own
+		// internet-facing edge resources. It runs at most one bounded graph query,
+		// and only when such an edge resource is present, so the few-seconds
+		// context SLA is preserved. With no edge resource it reports an honest
+		// unproven posture rather than implying protection.
+		timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "ingress_posture")
+		ingressPosture, err := loadServiceIngressPosture(ctx, graph, querycontract.MapSliceValue(workloadContext, "cloud_resources"))
+		timer.Done(
+			ctx,
+			slog.String("waf_coverage", querycontract.StringVal(ingressPosture, "waf_coverage")),
+			slog.String("tls_termination", querycontract.StringVal(ingressPosture, "tls_termination")),
+			slog.Int("edge_count", querycontract.IntVal(ingressPosture, "edge_count")),
+		)
+		if err != nil {
+			return fmt.Errorf("load service ingress posture: %w", err)
+		}
+		if len(ingressPosture) > 0 {
+			workloadContext["ingress_posture"] = ingressPosture
+		}
+	}
+
+	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "documentation_overview")
+	documentationOverview := buildServiceDocumentationOverview(ctx, graph, workloadContext, evidence)
+	targetDocumentation, err := loadServiceStoryTargetDocumentationForOperation(ctx, content, workloadContext, operation)
+	timer.Done(
+		ctx,
+		slog.Bool("has_result", len(documentationOverview) > 0 || len(targetDocumentation) > 0),
+		slog.Bool("has_target_documentation", len(targetDocumentation) > 0),
+		slog.Int("target_documentation_finding_count", querycontract.IntVal(targetDocumentation, "finding_count")),
+		slog.Bool("error", err != nil),
+	)
+	if err != nil {
+		return fmt.Errorf("load service story target documentation: %w", err)
+	}
+	documentationOverview = querycontract.AttachStoryTargetDocumentation(documentationOverview, targetDocumentation)
+	if len(documentationOverview) > 0 {
+		workloadContext["documentation_overview"] = documentationOverview
+	}
+	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "deployment_evidence")
+	deploymentEvidence, err := loadServiceDeploymentEvidence(ctx, graph, content, workloadContext)
+	timer.Done(ctx, slog.Bool("has_result", len(deploymentEvidence) > 0))
+	if err != nil {
+		return fmt.Errorf("load service deployment evidence: %w", err)
+	}
+	if len(deploymentEvidence) > 0 {
+		if graphEvidence := querycontract.MapValue(workloadContext, "deployment_evidence"); len(graphEvidence) > 0 {
+			deploymentEvidence = mergeServiceDeploymentEvidence(deploymentEvidence, graphEvidence)
+		}
+		workloadContext["deployment_evidence"] = deploymentEvidence
+	}
+	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "support_target_evidence")
+	targetSupport, err := loadServiceStoryTargetSupportForOperation(ctx, content, workloadContext, operation)
+	timer.Done(
+		ctx,
+		slog.Bool("has_result", len(targetSupport) > 0),
+		slog.Int("target_support_evidence_count", querycontract.IntVal(targetSupport, "evidence_count")),
+		slog.Bool("error", err != nil),
+	)
+	if err != nil {
+		return fmt.Errorf("load service story target support: %w", err)
+	}
+	if len(targetSupport) > 0 {
+		workloadContext["target_support"] = targetSupport
+	}
+	buildCtx := newServiceStoryBuildContext(workloadContext)
+	if supportOverview := buildServiceSupportOverviewWithContext(buildCtx); len(supportOverview) > 0 {
+		workloadContext["support_overview"] = supportOverview
+	}
+	timer = StartServiceQueryStage(ctx, opts.Logger, operation, serviceName, repoID, "overview_assembly")
+	workloadContext["deployment_overview"] = buildServiceDeploymentOverviewWithContext(buildCtx)
+	workloadContext["story_sections"] = buildServiceStorySectionsWithContext(buildCtx)
+	cacheServiceStoryBuildContext(buildCtx)
+	timer.Done(ctx)
+
+	return nil
+}

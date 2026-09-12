@@ -107,7 +107,7 @@ func (cr *ContentReader) ServiceStoryTargetSupportEvidence(
 }
 
 func buildServiceStoryTargetSupportSQL(filter serviceStoryTargetSupportFilter) (string, []any) {
-	refs := service.ServiceStorySupportTargetRefs(filter)
+	refs := service.StorySupportTargetRefs(filter)
 	if len(refs) == 0 {
 		return "", nil
 	}
@@ -167,7 +167,7 @@ func buildStoryTargetSupport(
 	facts []map[string]any,
 	truncated bool,
 ) map[string]any {
-	refs := service.ServiceStorySupportTargetRefs(filter)
+	refs := service.StorySupportTargetRefs(filter)
 	evidence := make([]map[string]any, 0, len(facts))
 	ambiguous := make([]map[string]any, 0)
 	for _, fact := range facts {
@@ -175,7 +175,7 @@ func buildStoryTargetSupport(
 			ambiguous = append(ambiguous, serviceStorySupportEvidenceRow(fact))
 			continue
 		}
-		if !service.ServiceStorySupportPayloadMatchesTargetRefs(fact, refs) {
+		if !service.StorySupportPayloadMatchesTargetRefs(fact, refs) {
 			continue
 		}
 		evidence = append(evidence, serviceStorySupportEvidenceRow(fact))

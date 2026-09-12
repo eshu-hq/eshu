@@ -13,7 +13,7 @@
   here cycles, including from `_test.go` files in this package. Tests that
   need root doubles use `querytestutil`, never the root.
 - Import `impact`/`impacttrace`, `repository`/`repositoryartifacts`,
-  `serviceevidence`, and `supplychain`, never the reverse. Those leaves must
+  `service/evidence`, and `supplychain`, never the reverse. Those leaves must
   not import this package: several service files already import them, so a
   back-import cycles.
 - `RepositoryAccessFilter` values must be derived from the request's

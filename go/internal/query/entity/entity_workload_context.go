@@ -153,9 +153,9 @@ func (h *EntityHandler) FetchWorkloadContextForOperation(ctx context.Context, wh
 			// surfaces this reason through TWO independent copies on the
 			// dossier response (P3 review follow-up, correcting the prior
 			// wrong description here): buildServiceIdentity
-			// (service_story_dossier.go:57-74) writes it into
+			// (service/story_dossier.go:64) writes it into
 			// response["service_identity"]["limitations"], and the sibling
-			// whitelist loop (service_story_dossier.go:23-36) separately
+			// whitelist loop (service/story_dossier.go:29) separately
 			// mirrors workloadContext["limitations"] onto the response's own
 			// top-level "limitations" key. Either copy alone is sufficient:
 			// answerMetadataLimitations (answer_metadata.go) reads both

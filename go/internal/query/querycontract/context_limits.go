@@ -66,7 +66,7 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	if consumerTotal > 0 {
 		ctx["consumer_repositories"] = cappedConsumers
 	}
-	// #5720 PR #5933 review fix (Codex, service_query_enrichment.go:190):
+	// #5720 PR #5933 review fix (Codex, query_enrichment.go:190):
 	// dependents_truncated, consumer_repositories_truncated, and
 	// provisioning_source_chains_truncated are set on ctx whenever the
 	// provisioning-candidate, evidence-file, hostname, or consumer-search
@@ -76,7 +76,7 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	// this OR, a caller could see result_limits.truncated: false next to a
 	// true dependents_truncated on this route family, the false-complete
 	// signal these flags exist to prevent. buildServiceResultLimitsWithContext
-	// (service_story_dossier.go) already ORs the same flags into the service
+	// (service/story_dossier.go) already ORs the same flags into the service
 	// story result_limits; this closes the same gap for
 	// GET /api/v0/workloads/{id}/context and /story.
 	//

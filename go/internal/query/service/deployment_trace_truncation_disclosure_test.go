@@ -90,7 +90,7 @@ func TestQueryProvisioningRepositoryCandidatesDisclosesTruncation(t *testing.T) 
 }
 
 // TestBuildServiceDownstreamConsumersDisclosesUpstreamTruncation proves
-// BuildServiceDownstreamConsumers (service_story_dossier.go) reports
+// BuildServiceDownstreamConsumers (story_dossier.go) reports
 // truncated: true when the workload context carries a truncated signal from
 // the provisioning-candidate read, even though neither returned list is long
 // enough to exceed serviceStoryItemLimit (50) on its own -- the #5720
@@ -273,7 +273,7 @@ func TestServiceInvestigationCoverageDisclosesProvisioningReadTruncation(t *test
 	}
 	coverageFor := func(t *testing.T, extra map[string]any) map[string]any {
 		t.Helper()
-		packet := BuildServiceInvestigationPacket("orders-api", investigationContext(extra), ServiceInvestigationOptions{})
+		packet := BuildServiceInvestigationPacket("orders-api", investigationContext(extra), InvestigationOptions{})
 		return querycontract.MapValue(packet, "coverage_summary")
 	}
 

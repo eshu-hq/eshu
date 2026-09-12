@@ -117,7 +117,7 @@ survive compilation.
 
 The same run covers `FloatVal`: `can inline relationshipFloatVal`, then both
 `inlining call to relationshipFloatVal` and `inlining call to
-querycontract.FloatVal` at all 11 call sites (`service_story_limits.go:60`
+querycontract.FloatVal` at all 11 call sites (`story_limits.go:64`
 shows each hop twice, once per call on that line). The two-hop shape is
 identical to the other four, and it collapses the same way.
 

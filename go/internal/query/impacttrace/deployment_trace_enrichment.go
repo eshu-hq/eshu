@@ -26,7 +26,7 @@ import (
 
 // QueryProvisioningRepositoryCandidates is the sole production feeder for
 // the workload-context dependents, consumer_repositories, and
-// provisioning_source_chains fields (service/service_query_enrichment.go).
+// provisioning_source_chains fields (service/query_enrichment.go).
 // Pinned by the staying deployment_trace_truncation_disclosure_test.go via
 // the root forwarder, and by the service enrichment production path. #5720
 // round-2 P1-1: the returned truncated bool is required, not cosmetic --
@@ -155,7 +155,7 @@ func QueryProvisioningRepositoryCandidates(
 
 // LoadProvisioningSourceChainsFromCandidates loads the provisioning source
 // chains for the pre-read candidate slice. Pinned by the service enrichment
-// production path (service/service_query_enrichment.go) and the staying
+// production path (service/query_enrichment.go) and the staying
 // loadProvisioningSourceChainsWithLimit wrapper.
 func LoadProvisioningSourceChainsFromCandidates(
 	ctx context.Context,
@@ -216,7 +216,7 @@ func LoadProvisioningSourceChainsFromCandidates(
 // LoadConsumerRepositoryEnrichmentFromCandidates merges graph-derived
 // provisioning candidates with content-evidence consumer matches into the
 // consumer_repositories field. Pinned by the service enrichment production
-// path (service/service_query_enrichment.go), the staying
+// path (service/query_enrichment.go), the staying
 // deployment_trace_overflow_regression_test.go and
 // deployment_trace_truncation_disclosure_test.go via the root forwarder,
 // and the moving service evidence-bound and determinism tests.
@@ -309,14 +309,14 @@ func LoadProvisioningSourceChainsFromCandidates(
 // criterion drift; the first three below are the ones a reader who inherits the
 // drifted reading finds next.
 //
-//   - isServiceEvidenceCandidate (service/service_evidence.go) -- a 10-extension
+//   - isServiceEvidenceCandidate (service/query_evidence.go) -- a 10-extension
 //     whitelist plus a 12-keyword path filter, applied to every listed file
 //     before a single hostname is extracted. A hostname living only in
 //     terraform/main.tf, Dockerfile, nginx/nginx.conf or .env.production is
 //     never extracted, so a consumer reachable only through it never enters
 //     this set and the flag stays false. Same shape as the affinity narrowing,
 //     one layer earlier: a relevance predicate, not a cap.
-//   - exactObservedHostnameCandidates (service/service_hostname_evidence.go)
+//   - exactObservedHostnameCandidates (service/hostname_evidence.go)
 //     -- keeps only Classification == "exact_hostname". Ambiguous candidates
 //     reach the caller as entrypoint_candidates but are never searched for.
 //     Also a relevance predicate.
@@ -334,7 +334,7 @@ func LoadProvisioningSourceChainsFromCandidates(
 //   - ContentReader.ListFrameworkRoutes -- frameworkRouteEvidenceLimit (50), a
 //     SQL LIMIT with no truncation channel, also on a different set. Its rows
 //     land only on ServiceQueryEvidence.FrameworkRoutes, which
-//     service/service_query_enrichment_rows.go reads to build api_surface
+//     service/query_enrichment_rows.go reads to build api_surface
 //     endpoints; no hostname, candidate, or consumer search touches it.
 //     Recorded so the next round does not re-derive that it cannot reach
 //     these arrays.

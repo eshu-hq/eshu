@@ -16,7 +16,7 @@ import (
 // GET /api/v0/services/{service_name}/context both $ref the WorkloadContext
 // schema and return dependents_truncated, consumer_repositories_truncated,
 // and provisioning_source_chains_truncated at the top level
-// (service_query_enrichment.go sets them directly on the workload context map
+// (query_enrichment.go sets them directly on the workload context map
 // WriteSuccess serializes). The schema had drifted from that wire payload by
 // not declaring any of the three. Kept in its own file rather than
 // openapi_test.go, which already sits at the repository's 500-line cap.

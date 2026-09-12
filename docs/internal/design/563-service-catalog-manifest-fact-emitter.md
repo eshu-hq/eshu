@@ -27,7 +27,7 @@ shipped:
   `service_catalog_correlation_index.go`, `service_catalog_correlation_writer.go`
   (#561), writing the provenance-only `reducer_service_catalog_correlation`
   fact with six outcomes.
-- Read surface: `go/internal/query/service_catalog_correlations.go` (#560) and
+- Read surface: `go/internal/query/service/catalog_correlations.go` (#560) and
   MCP tool `list_service_catalog_correlations`
   (`go/internal/mcp/service/catalog_tools.go`).
 - Telemetry counter: `Instruments.ServiceCatalogCorrelations`

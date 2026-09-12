@@ -174,8 +174,8 @@ func TestWorkloadContextResultLimitsNotTruncatedUnderLimit(t *testing.T) {
 }
 
 // TestWorkloadContextResultLimitsReflectsUpstreamTruncationFlags is the PR
-// #5933 review fix (Codex, service_query_enrichment.go:190).
-// service_query_enrichment.go sets dependents_truncated,
+// #5933 review fix (Codex, query_enrichment.go:190).
+// query_enrichment.go sets dependents_truncated,
 // consumer_repositories_truncated, and provisioning_source_chains_truncated on
 // the workload context whenever the provisioning-candidate, evidence-file,
 // hostname, or consumer-search reads underneath those lists hit their own
@@ -185,7 +185,7 @@ func TestWorkloadContextResultLimitsNotTruncatedUnderLimit(t *testing.T) {
 // /api/v0/workloads/{id}/context or /story could see false next to a true
 // dependents_truncated: the exact false-complete signal these flags exist to
 // prevent (docs/public/reference/http-api/context-and-stories.md), and the
-// same signal buildServiceResultLimitsWithContext (service_story_dossier.go)
+// same signal buildServiceResultLimitsWithContext (story_dossier.go)
 // already ORs in for the service story route.
 func TestWorkloadContextResultLimitsReflectsUpstreamTruncationFlags(t *testing.T) {
 	t.Parallel()

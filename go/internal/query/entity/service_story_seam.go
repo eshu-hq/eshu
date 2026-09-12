@@ -30,7 +30,7 @@ import (
 // inherits the same scoped-token and profile semantics as the HTTP route.
 func (h *EntityHandler) BuildServiceStoryEnvelope(
 	ctx context.Context,
-	selector service.ServiceWorkloadSelector,
+	selector service.WorkloadSelector,
 	operation string,
 ) (data map[string]any, truth *querycontract.TruthEnvelope, status int, errEnv *querycontract.ErrorEnvelope) {
 	if querycontract.CapabilityUnsupported(h.profile(), "platform_impact.context_overview") {
@@ -61,7 +61,7 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 		return nil, nil, http.StatusNotFound, serviceStoryNotFoundError()
 	}
 
-	if err := service.EnrichServiceQueryContextWithOptions(ctx, h.Neo4j, h.Content, workloadCtx, service.ServiceQueryEnrichmentOptions{
+	if err := service.EnrichServiceQueryContextWithOptions(ctx, h.Neo4j, h.Content, workloadCtx, service.QueryEnrichmentOptions{
 		IncludeRelatedModuleUsage: true,
 		Logger:                    h.Logger,
 		Operation:                 operation,
@@ -91,7 +91,7 @@ func (h *EntityHandler) BuildServiceStoryEnvelope(
 			timer.Done(ctx, slog.Bool("error", true))
 			return nil, nil, http.StatusInternalServerError, serviceStoryInternalError("enrich service story supply chain evidence", err)
 		}
-		imagePackage := service.ServiceStorySupplyChainImagePackage(workloadCtx)
+		imagePackage := service.StorySupplyChainImagePackage(workloadCtx)
 		timer.Done(
 			ctx,
 			slog.Int("image_ref_count", len(querycontract.StringSliceVal(imagePackage, "candidate_image_refs"))),

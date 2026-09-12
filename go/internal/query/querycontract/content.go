@@ -174,7 +174,7 @@ type ServiceAPIEndpointEvidence struct {
 // returns the raw content of the referenced file. An empty string with a nil
 // error means the reference resolved to nothing the repository holds; a read
 // failure is returned as an error and never collapsed into that same empty
-// string (#5720 round 10). The port lives here so both the serviceevidence
+// string (#5720 round 10). The port lives here so both the service/evidence
 // leaf (which implements the parsing) and root callers share one type
 // without importing each other (#6060, lane B B3).
 type SpecFileResolver func(baseRelativePath, ref string) (string, error)

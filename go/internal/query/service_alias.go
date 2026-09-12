@@ -26,7 +26,7 @@ import (
 // is service/; this alias keeps the APIRouter wiring and the cmd/api and
 // cmd/mcp-server constructors spelling query.ServiceCatalogHandler
 // unchanged. See #6060.
-type ServiceCatalogHandler = service.ServiceCatalogHandler
+type ServiceCatalogHandler = service.CatalogHandler
 
 // PostgresServiceCatalogCorrelationStore is the Postgres-backed service
 // catalog correlation read model. Its home is service/; this alias keeps
@@ -45,17 +45,17 @@ var NewPostgresServiceCatalogCorrelationStore = service.NewPostgresServiceCatalo
 // correlations. Its canonical home is querycontract (via service/); this
 // alias keeps the freshness, incident, repository, and codeowners stayers
 // spelling query.ServiceCatalogCorrelationStore unchanged. See #6060.
-type ServiceCatalogCorrelationStore = service.ServiceCatalogCorrelationStore
+type ServiceCatalogCorrelationStore = service.CatalogCorrelationStore
 
 // ServiceCatalogCorrelationFilter bounds catalog reads. Its canonical home
 // is querycontract (via service/); this alias keeps the freshness and
 // incident stayers spelling the query name unchanged. See #6060.
-type ServiceCatalogCorrelationFilter = service.ServiceCatalogCorrelationFilter
+type ServiceCatalogCorrelationFilter = service.CatalogCorrelationFilter
 
 // ServiceCatalogCorrelationRow is one durable service-catalog correlation
 // fact. Its canonical home is querycontract (via service/); this alias
 // keeps the incident stayer spelling the query name unchanged. See #6060.
-type ServiceCatalogCorrelationRow = service.ServiceCatalogCorrelationRow
+type ServiceCatalogCorrelationRow = service.CatalogCorrelationRow
 
 // errServiceCatalogOutsideGrantNeedsAGrant refuses an outside-grant read
 // that carries no grant at all. Its home is service/; this variable keeps
@@ -67,21 +67,21 @@ var errServiceCatalogOutsideGrantNeedsAGrant = service.ErrServiceCatalogOutsideG
 // service-story composers. Its home is service/; this alias keeps
 // serviceintelhttp and the staying EntityHandler seam spelling the query
 // name unchanged. See #6060.
-type ServiceWorkloadSelector = service.ServiceWorkloadSelector
+type ServiceWorkloadSelector = service.WorkloadSelector
 
 // ServiceQueryEvidence groups content-derived service evidence. Its home is
 // service/; this alias keeps the staying compare handler spelling the query
 // name unchanged. See #6060.
-type ServiceQueryEvidence = service.ServiceQueryEvidence
+type ServiceQueryEvidence = service.QueryEvidence
 
 // ServiceEvidenceReader is the content-store surface service evidence
 // reads through. Its home is service/; this alias keeps the staying compare
 // handler field spelling the query name unchanged. See #6060.
-type ServiceEvidenceReader = service.ServiceEvidenceReader
+type ServiceEvidenceReader = service.EvidenceReader
 
 // serviceEvidenceReader is the package-local spelling of
 // ServiceEvidenceReader, kept for the staying compare handler field.
-type serviceEvidenceReader = service.ServiceEvidenceReader
+type serviceEvidenceReader = service.EvidenceReader
 
 // FrameworkRouteEvidence is one framework route evidence shape. Its canonical
 // home is querycontract (via service/); this alias keeps the staying
@@ -96,22 +96,22 @@ type FrameworkRouteEntryEvidence = service.FrameworkRouteEntryEvidence
 // ServiceAPISpecEvidence summarizes an OpenAPI spec file. Its canonical home
 // is querycontract (via service/); this alias keeps staying callers spelling
 // the query name unchanged. See #6060.
-type ServiceAPISpecEvidence = service.ServiceAPISpecEvidence
+type ServiceAPISpecEvidence = service.APISpecEvidence
 
 // ServiceAPIEndpointEvidence summarizes one API endpoint. Its canonical home
 // is querycontract (via service/); this alias keeps staying callers spelling
 // the query name unchanged. See #6060.
-type ServiceAPIEndpointEvidence = service.ServiceAPIEndpointEvidence
+type ServiceAPIEndpointEvidence = service.APIEndpointEvidence
 
 // serviceQueryEnrichmentOptions tunes the service query enrichment. Its home
 // is service/; this alias keeps the staying entity handlers and the
 // deployment-trace wrapper spelling the package-local name unchanged.
-type serviceQueryEnrichmentOptions = service.ServiceQueryEnrichmentOptions
+type serviceQueryEnrichmentOptions = service.QueryEnrichmentOptions
 
 // serviceStoryImageCandidateParts is one parsed image-candidate shape. Its
 // home is service/; this alias keeps the staying container-image
 // explanation spelling the package-local name unchanged.
-type serviceStoryImageCandidateParts = service.ServiceStoryImageCandidateParts
+type serviceStoryImageCandidateParts = service.StoryImageCandidateParts
 
 // serviceStoryItemLimit bounds service-story item reads. The canonical value
 // lives in querycontract; this declaration keeps the staying supply-chain
@@ -143,7 +143,7 @@ func enrichServiceQueryContext(
 	content ContentStore,
 	workloadContext map[string]any,
 ) error {
-	return service.EnrichServiceQueryContextWithOptions(ctx, graph, content, workloadContext, service.ServiceQueryEnrichmentOptions{
+	return service.EnrichServiceQueryContextWithOptions(ctx, graph, content, workloadContext, service.QueryEnrichmentOptions{
 		IncludeRelatedModuleUsage: true,
 		Operation:                 "service_context",
 	})
@@ -153,7 +153,7 @@ func enrichServiceQueryContext(
 // service-catalog correlation rows. Its home is service/; this alias keeps
 // the staying supply-chain anchor test spelling the package-local name
 // unchanged. See #6060.
-const serviceCatalogCorrelationFactKind = service.ServiceCatalogCorrelationFactKind
+const serviceCatalogCorrelationFactKind = service.CatalogCorrelationFactKind
 
 // buildServiceStoryResponse assembles the service-story wire response. Its
 // home is service/; this forwarder keeps the staying service seam and the
@@ -193,7 +193,7 @@ func appendUniqueString(values *[]string, value string) {
 // row behind the service-catalog correlations read. Its home is service/;
 // this alias keeps the staying catalog authz test spelling the query name
 // unchanged. See #6060.
-type ServiceCatalogLocalDescriptorEvidenceRow = service.ServiceCatalogLocalDescriptorEvidenceRow
+type ServiceCatalogLocalDescriptorEvidenceRow = service.CatalogLocalDescriptorEvidenceRow
 
 // indirectEvidenceHostnameLimit bounds the surviving hostname list behind
 // consumer enrichment. Its home is impacttrace/; this declaration keeps the

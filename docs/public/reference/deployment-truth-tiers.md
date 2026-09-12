@@ -109,7 +109,7 @@ matter of wiring more evidence into the existing classifier, not changing
 the tier semantics above.
 
 - **Service story** (`deployment_overview.deployment_truth_tier`,
-  `go/internal/query/service_story_overview.go`): `hasLiveEvidence` and
+  `go/internal/query/service/story_overview.go`): `hasLiveEvidence` and
   `hasDeploymentSources` are hardcoded `false`, so a workload
   `trace_deployment_chain` reports as `runtime_confirmed` can report only
   `config_only` or no tier at all from the service story surface for the

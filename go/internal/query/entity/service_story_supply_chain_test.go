@@ -95,7 +95,7 @@ func TestServiceStorySupplyChainEvidenceAttachesExactImageAndSBOM(t *testing.T) 
 		t.Fatalf("SBOM attachment Limit = %d, want probe limit %d", got, want)
 	}
 
-	segment := service.ServiceTraceImagePackageSegment(ctx)
+	segment := service.TraceImagePackageSegment(ctx)
 	if got, want := querycontract.StringVal(segment, "status"), "exact"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
@@ -219,7 +219,7 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForAmbiguousTags(t *testing.T
 	if got := len(sbomStore.filters); got != 0 {
 		t.Fatalf("SBOM attachment store calls = %d, want none for ambiguous image tag", got)
 	}
-	segment := service.ServiceTraceImagePackageSegment(ctx)
+	segment := service.TraceImagePackageSegment(ctx)
 	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
@@ -254,7 +254,7 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForStaleIdentity(t *testing.T
 	if got := len(sbomStore.filters); got != 0 {
 		t.Fatalf("SBOM attachment store calls = %d, want none for stale image identity", got)
 	}
-	segment := service.ServiceTraceImagePackageSegment(ctx)
+	segment := service.TraceImagePackageSegment(ctx)
 	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
@@ -293,7 +293,7 @@ func TestServiceStorySupplyChainEvidenceFailsClosedForUnattachedSBOM(t *testing.
 	if err := handler.enrichServiceStorySupplyChainEvidence(context.Background(), ctx); err != nil {
 		t.Fatalf("enrichServiceStorySupplyChainEvidence() error = %v, want nil", err)
 	}
-	segment := service.ServiceTraceImagePackageSegment(ctx)
+	segment := service.TraceImagePackageSegment(ctx)
 	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
@@ -369,7 +369,7 @@ func TestServiceStorySupplyChainEvidenceReportsRepoOnlyHelmValuesImageRef(t *tes
 	if got := len(imageStore.filters); got != 0 {
 		t.Fatalf("image identity store calls = %d, want none for repo-only candidate", got)
 	}
-	segment := service.ServiceTraceImagePackageSegment(ctx)
+	segment := service.TraceImagePackageSegment(ctx)
 	if got, want := querycontract.StringVal(segment, "status"), "missing_evidence"; got != want {
 		t.Fatalf("image_package status = %q, want %q; segment=%#v", got, want, segment)
 	}
@@ -409,7 +409,7 @@ func TestServiceStorySupplyChainEvidenceBoundsImageRefLookups(t *testing.T) {
 	if got, want := len(imageStore.filters), querycontract.ServiceStoryItemLimit; got != want {
 		t.Fatalf("image identity store calls = %d, want capped %d", got, want)
 	}
-	segment := service.ServiceTraceImagePackageSegment(ctx)
+	segment := service.TraceImagePackageSegment(ctx)
 	if got, want := querycontract.IntVal(segment, "candidate_image_ref_count"), len(refs); got != want {
 		t.Fatalf("candidate_image_ref_count = %d, want %d", got, want)
 	}

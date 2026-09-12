@@ -19,7 +19,7 @@ import (
 func TestBuildServiceStoryEnvelopeRequiresServiceName(t *testing.T) {
 	t.Parallel()
 	handler := &EntityHandler{Profile: querycontract.ProfileProduction}
-	data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), service.ServiceWorkloadSelector{}, "service_story")
+	data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), service.WorkloadSelector{}, "service_story")
 	if data != nil || truth != nil {
 		t.Fatalf("missing service name should yield no data/truth, got data=%v truth=%v", data, truth)
 	}
@@ -40,7 +40,7 @@ func TestBuildServiceStoryEnvelopeMissingServiceReturnsNotFound(t *testing.T) {
 		},
 		Profile: querycontract.ProfileProduction,
 	}
-	data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), service.ServiceWorkloadSelector{ServiceName: "missing"}, "service_story")
+	data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), service.WorkloadSelector{ServiceName: "missing"}, "service_story")
 	if data != nil || truth != nil {
 		t.Fatalf("missing service should yield no data/truth")
 	}
@@ -56,7 +56,7 @@ func TestBuildServiceStoryEnvelopeUnsupportedCapability(t *testing.T) {
 	t.Parallel()
 	// Local lightweight profile does not support the platform context capability.
 	handler := &EntityHandler{Profile: querycontract.ProfileLocalLightweight}
-	_, _, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), service.ServiceWorkloadSelector{ServiceName: "checkout"}, "service_story")
+	_, _, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), service.WorkloadSelector{ServiceName: "checkout"}, "service_story")
 	if status != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want 501; errEnv=%#v", status, errEnv)
 	}
@@ -100,7 +100,7 @@ func TestBuildServiceStoryEnvelopeMapsGraphReadAvailabilityErrors(t *testing.T) 
 			}
 
 			data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(
-				context.Background(), service.ServiceWorkloadSelector{ServiceName: "orders-api"}, "service_story",
+				context.Background(), service.WorkloadSelector{ServiceName: "orders-api"}, "service_story",
 			)
 
 			if data != nil || truth != nil {

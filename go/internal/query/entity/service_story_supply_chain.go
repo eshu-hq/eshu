@@ -43,7 +43,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 	}
 
 	for _, imageRef := range imageRefs {
-		if detail, ok := service.ServiceStoryRepoOnlyImageCandidateDetail(imageRef); ok {
+		if detail, ok := service.StoryRepoOnlyImageCandidateDetail(imageRef); ok {
 			missing = append(missing, querycontract.StringVal(detail, "reason"))
 			missingDetails = append(missingDetails, detail)
 			continue
@@ -57,7 +57,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 		}
 		identity, reason := serviceStoryAdmissibleImageIdentity(identities)
 		if reason != "" {
-			detail, replacementReason, err := service.ServiceStoryImageCandidateMissingExplanation(
+			detail, replacementReason, err := service.StoryImageCandidateMissingExplanation(
 				ctx,
 				h.ContainerImageIdentities,
 				imageRef,
@@ -85,12 +85,12 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 		}
 		missing = append(missing, attachments.MissingEvidence...)
 		for _, reason := range attachments.MissingEvidence {
-			missingDetails = append(missingDetails, service.ServiceStorySBOMMissingExplanation(imageRef, identity, reason))
+			missingDetails = append(missingDetails, service.StorySBOMMissingExplanation(imageRef, identity, reason))
 		}
 		sboms, reason := serviceStoryAdmissibleSBOMAttachments(identity.Digest, attachments.Attachments)
 		if reason != "" {
 			missing = append(missing, reason)
-			missingDetails = append(missingDetails, service.ServiceStorySBOMMissingExplanation(imageRef, identity, reason))
+			missingDetails = append(missingDetails, service.StorySBOMMissingExplanation(imageRef, identity, reason))
 			continue
 		}
 		for _, sbom := range sboms {
@@ -107,7 +107,7 @@ func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Contex
 	serviceStorySetSupplyChainImagePackage(workloadContext, map[string]any{
 		"evidence":                  evidence,
 		"missing_evidence":          querycontract.UniqueSortedStrings(missing),
-		"missing_evidence_details":  service.ServiceStoryUniqueMissingDetails(missingDetails),
+		"missing_evidence_details":  service.StoryUniqueMissingDetails(missingDetails),
 		"candidate_image_ref_count": len(allImageRefs),
 		"candidate_image_refs":      imageRefs,
 		"image_refs_truncated":      truncated,
@@ -140,7 +140,7 @@ func serviceStoryImageRefsFromDeploymentRow(row map[string]any) []string {
 			}
 		}
 	}
-	if value := service.ServiceStoryMatchedImageRef(row); value != "" {
+	if value := service.StoryMatchedImageRef(row); value != "" {
 		refs = append(refs, value)
 	}
 	return refs
