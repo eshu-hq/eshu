@@ -30,10 +30,10 @@ Layout:
   vulnerability suppressions.
 
 `impact_findings.go` and `impact_explain.go` both reference `RuntimeContext`
-from this package's `runtime_context.go`, the read-time-resolved fragment
-also consumed elsewhere in the components block — see
-`openapi/schema/README.md` for why that fragment lives outside this
-package. No other file here imports `openapi/schema`.
+from this package's `runtime_context.go` — the read-time-resolved runtime
+context fragment the findings-list and impact-explain responses share, and
+the only fragment either of them reads. Nothing outside this leaf consumes
+it, and no file here imports `openapi/schema`.
 
 At 16 files this is the largest leaf under `paths/`, closer than any other
 family to the 40-non-test-file-per-directory cap the `dirgate` linter

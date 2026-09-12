@@ -15,12 +15,12 @@ alongside them.
 
 - This package MUST NOT import `openapi` — the parent imports this
   package, and the reverse would cycle.
-- `impact_findings.go` and `impact_explain.go` both reference `RuntimeContext`
-  from `runtime_context.go` in this package. Do not duplicate that JSON
-  if a third file in this package later needs the same shape — extend the
-  shared import instead, and do not move the fragment itself into this
-  package (it would recreate the cycle `openapi/schema` exists to avoid;
-  see `openapi/schema/AGENTS.md`).
+- `impact_findings.go` and `impact_explain.go` both reference
+  `RuntimeContext` from `runtime_context.go` in this package — a plain
+  same-package reference, no import. If a third file here needs the same
+  shape, reference `RuntimeContext` rather than duplicating the JSON. Move
+  it to `openapi/schema` only if a consumer outside this leaf appears; see
+  `openapi/schema/AGENTS.md` for the rule that governs that package.
 - `routes.go` composes three other files' constants and holds none of its
   own — the one file in this package that does not follow the
   one-constant-per-file shape the rest use. Add a new route family's
