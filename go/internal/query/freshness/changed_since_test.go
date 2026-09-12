@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -50,7 +51,7 @@ func TestChangedSinceRejectsConflictingScopeSelectorsBeforeRead(t *testing.T) {
 }
 
 func newChangedSinceMux(reader ChangedSinceReader) *http.ServeMux {
-	handler := &FreshnessHandler{ChangedSince: reader, Profile: ProfileLocalAuthoritative}
+	handler := &Handler{ChangedSince: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	return mux
@@ -78,7 +79,7 @@ func TestChangedSinceUnchangedProducesNoFalseDeltas(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Truth == nil || envelope.Truth.Freshness.State != FreshnessFresh {
+	if envelope.Truth == nil || envelope.Truth.Freshness.State != querycontract.FreshnessFresh {
 		t.Fatalf("expected fresh truth, got %+v", envelope.Truth)
 	}
 	data := envelope.Data.(map[string]any)
@@ -155,7 +156,7 @@ func TestChangedSinceUnavailableMapsToUnavailableFreshness(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Truth.Freshness.State != FreshnessUnavailable {
+	if envelope.Truth.Freshness.State != querycontract.FreshnessUnavailable {
 		t.Fatalf("freshness = %q, want unavailable", envelope.Truth.Freshness.State)
 	}
 	data := envelope.Data.(map[string]any)
@@ -186,14 +187,14 @@ func TestChangedSinceRetentionExpiredReasonSurfaces(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Truth.Freshness.State != FreshnessUnavailable {
+	if envelope.Truth.Freshness.State != querycontract.FreshnessUnavailable {
 		t.Fatalf("freshness = %q, want unavailable", envelope.Truth.Freshness.State)
 	}
 	if !strings.Contains(envelope.Truth.Freshness.Detail, "retention") {
 		t.Fatalf("freshness detail = %q, want retention context", envelope.Truth.Freshness.Detail)
 	}
-	if envelope.Truth.Freshness.Cause != FreshnessCauseRetentionExpired {
-		t.Fatalf("freshness cause = %q, want %q", envelope.Truth.Freshness.Cause, FreshnessCauseRetentionExpired)
+	if envelope.Truth.Freshness.Cause != CauseRetentionExpired {
+		t.Fatalf("freshness cause = %q, want %q", envelope.Truth.Freshness.Cause, CauseRetentionExpired)
 	}
 	if envelope.Truth.Freshness.NextCheck == nil {
 		t.Fatalf("freshness next_check = nil, want generation lifecycle drilldown")
@@ -228,7 +229,7 @@ func TestChangedSinceBuildingMapsToBuildingFreshness(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Truth.Freshness.State != FreshnessBuilding {
+	if envelope.Truth.Freshness.State != querycontract.FreshnessBuilding {
 		t.Fatalf("freshness = %q, want building", envelope.Truth.Freshness.State)
 	}
 }
@@ -244,7 +245,7 @@ func TestChangedSinceUnknownScopeNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Error == nil || envelope.Error.Code != ErrorCodeScopeNotFound {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeScopeNotFound {
 		t.Fatalf("expected scope_not_found, got %+v", envelope.Error)
 	}
 }
@@ -266,7 +267,7 @@ func TestChangedSinceUnknownSinceGenerationNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Error == nil || envelope.Error.Code != ErrorCodeNotFound {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeNotFound {
 		t.Fatalf("expected not_found, got %+v", envelope.Error)
 	}
 }
@@ -324,7 +325,7 @@ func TestChangedSinceRejectsBadSampleLimit(t *testing.T) {
 func TestChangedSinceNilReaderUnavailable(t *testing.T) {
 	t.Parallel()
 
-	handler := &FreshnessHandler{Profile: ProfileLocalAuthoritative}
+	handler := &Handler{Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

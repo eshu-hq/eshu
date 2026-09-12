@@ -405,22 +405,31 @@
 // docs/public/reference/investigation-evidence-packet.md; the supply-chain
 // (#3141) and deployable-unit/drift (#3142) emitters wire real data into it.
 //
-// FreshnessHandler serves two bounded freshness drilldowns. The generation
-// lifecycle drilldown at GET /api/v0/freshness/generations under the
-// freshness.generation_lifecycle capability reads through the
-// GenerationLifecycleReader port; it is bounded by limit, ordered
-// deterministically, and reports truncated, with scope_not_found or not_found
-// for a named selector that matches nothing and a building freshness state when
-// a returned scope has a pending or in-flight generation. The changed-since
-// summary at GET /api/v0/freshness/changed-since under the
-// freshness.changed_since capability reads through the ChangedSinceReader port;
-// it diffs a prior generation's fact set against the current active generation's
-// fact set keyed by stable_fact_key into per-category (files, content entities,
-// facts) added/updated/unchanged/retired/superseded counts plus bounded sample
-// handles, returns scope_not_found/not_found for unresolved selectors, and maps
-// a scope with no current active generation to an explicit unavailable diff
-// rather than zero deltas. Both ports are implemented by the Postgres status
-// store so the handler never depends on a concrete database driver.
+// FreshnessHandler serves two bounded freshness drilldowns plus a
+// service-scope changed-since summary. Its home is now freshness/
+// (#6642 Part A); FreshnessHandler is an alias for freshness.Handler, and
+// GenerationLifecycleReader/ChangedSinceReader/ServiceChangedSinceReader are
+// aliases for the matching freshness reader ports -- see freshness/doc.go for
+// the full contract. The generation lifecycle drilldown at GET
+// /api/v0/freshness/generations under the freshness.generation_lifecycle
+// capability reads through the GenerationLifecycleReader port; it is bounded
+// by limit, ordered deterministically, and reports truncated, with
+// scope_not_found or not_found for a named selector that matches nothing and
+// a building freshness state when a returned scope has a pending or
+// in-flight generation. The changed-since summary at GET
+// /api/v0/freshness/changed-since under the freshness.changed_since
+// capability reads through the ChangedSinceReader port; it diffs a prior
+// generation's fact set against the current active generation's fact set
+// keyed by stable_fact_key into per-category (files, content entities,
+// facts) added/updated/unchanged/retired/superseded counts plus bounded
+// sample handles, returns scope_not_found/not_found for unresolved
+// selectors, and maps a scope with no current active generation to an
+// explicit unavailable diff rather than zero deltas. All three ports are
+// implemented by the Postgres status store so the handler never depends on a
+// concrete database driver. The root StatusHandler.getFreshnessCausality
+// method (status_freshness_causality.go) stays in root -- its receiver is
+// declared in status.go -- and forwards to freshness.CausalityFromRawAndReport
+// and freshness.NextCheckAsRecommendedCall through freshness_alias.go.
 //
 // Handler.listInputInvalidFacts (admin/inputinvalid.go) serves the bounded
 // durable per-fact quarantine read at POST

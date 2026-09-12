@@ -332,7 +332,7 @@ watermark through `PostgresSearchVectorReadyStore.SearchVectorReadyWatermark`
 the same `searchembedruntime.Config` the vector search backend uses) and
 downgrades the `POST /api/v0/search/semantic` truth envelope with the closed
 `pending_search_vector` `FreshnessCause`
-(`go/internal/query/freshness_causality.go`) when the watermark has never been
+(`go/internal/query/querycontract/freshness.go`) when the watermark has never been
 published or is older than a 2-minute freshness window (matching the
 `SearchVectorBuildRunner` ~30s default poll cadence with headroom); the
 `applySearchVectorFreshness` mapping lives in

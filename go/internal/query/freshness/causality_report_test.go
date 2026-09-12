@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"testing"
@@ -10,7 +10,7 @@ import (
 	statuspkg "github.com/eshu-hq/eshu/go/internal/status"
 )
 
-func causeStatus(t *testing.T, fc FreshnessCausality, cause FreshnessCause) FreshnessCauseStatus {
+func causeStatus(t *testing.T, fc Causality, cause Cause) CauseStatus {
 	t.Helper()
 	for _, c := range fc.Causes {
 		if c.Cause == cause {
@@ -18,7 +18,7 @@ func causeStatus(t *testing.T, fc FreshnessCausality, cause FreshnessCause) Fres
 		}
 	}
 	t.Fatalf("cause %q not present in causality projection", cause)
-	return FreshnessCauseStatus{}
+	return CauseStatus{}
 }
 
 func TestFreshnessCausalityFreshWhenNoSignals(t *testing.T) {
@@ -54,10 +54,10 @@ func TestFreshnessCausalityBuildingOnPendingGenerationAndBacklog(t *testing.T) {
 	if fc.State != "building" {
 		t.Fatalf("state = %q, want building (catch-up work)", fc.State)
 	}
-	if !causeStatus(t, fc, FreshnessCausePendingRepoGeneration).Observed {
+	if !causeStatus(t, fc, CausePendingRepoGeneration).Observed {
 		t.Fatalf("pending_repo_generation should be observed")
 	}
-	if !causeStatus(t, fc, FreshnessCauseReducerBacklog).Observed {
+	if !causeStatus(t, fc, CauseReducerBacklog).Observed {
 		t.Fatalf("reducer_backlog should be observed")
 	}
 	if fc.PendingProjection.Outstanding != 7 {
@@ -82,7 +82,7 @@ func TestFreshnessCausalityAggregatesPendingProjectionBeforeDomainCap(t *testing
 		t.Fatalf("test setup expected capped report domains = %d, got %d", statuspkg.DefaultOptions().DomainLimit, len(report.DomainBacklogs))
 	}
 
-	fc := freshnessCausalityFromRawAndReport(raw, report)
+	fc := CausalityFromRawAndReport(raw, report)
 	if fc.PendingProjection.Outstanding != 21 {
 		t.Fatalf("pending projection outstanding = %d, want all raw domains sum 21", fc.PendingProjection.Outstanding)
 	}
@@ -104,17 +104,17 @@ func TestFreshnessCausalityStaleOnDeadLetter(t *testing.T) {
 	if fc.State != "stale" {
 		t.Fatalf("state = %q, want stale (stuck dead letters)", fc.State)
 	}
-	if !causeStatus(t, fc, FreshnessCauseDeadLetteredDomain).Observed {
+	if !causeStatus(t, fc, CauseDeadLetteredDomain).Observed {
 		t.Fatalf("dead_lettered_domain should be observed")
 	}
 }
 
 func TestFreshnessCausalityPerAnswerCausesNotClusterObserved(t *testing.T) {
 	fc := freshnessCausalityFromReport(statuspkg.Report{AsOf: time.Date(2026, 6, 19, 3, 0, 0, 0, time.UTC)})
-	for _, cause := range []FreshnessCause{
-		FreshnessCauseContentCoverageUnavailable,
-		FreshnessCauseUnsupportedProfile,
-		FreshnessCauseRetentionExpired,
+	for _, cause := range []Cause{
+		CauseContentCoverageUnavailable,
+		CauseUnsupportedProfile,
+		CauseRetentionExpired,
 	} {
 		c := causeStatus(t, fc, cause)
 		if c.Observability != "per_answer" {

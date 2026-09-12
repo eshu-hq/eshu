@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"time"
@@ -24,38 +24,38 @@ const (
 	freshnessCausalityStale    = "stale"
 )
 
-// FreshnessCausality is the operator read model for stale-answer and graph
-// retraction causality. It enumerates every closed FreshnessCause, marks which
+// Causality is the operator read model for stale-answer and graph
+// retraction causality. It enumerates every closed Cause, marks which
 // are currently observed in the runtime, and summarizes the generation lifecycle
 // and pending projection work that drive catch-up. It is a pure projection of an
 // already-loaded status Report and performs no I/O.
-type FreshnessCausality struct {
+type Causality struct {
 	// State is the overall freshness verdict (fresh|building|stale).
 	State string
 	// Causes enumerates all seven closed freshness causes with observation.
-	Causes []FreshnessCauseStatus
+	Causes []CauseStatus
 	// Generations summarizes the active/pending/retired generation lifecycle.
-	Generations FreshnessGenerations
+	Generations Generations
 	// PendingProjection summarizes outstanding and dead-lettered projection work.
-	PendingProjection FreshnessPendingProjection
+	PendingProjection PendingProjection
 	// RecentTransitions are recent generation lifecycle rows (activations and
 	// supersessions/retractions) for causality drilldown.
-	RecentTransitions []FreshnessTransition
+	RecentTransitions []Transition
 }
 
-// FreshnessCauseStatus is one closed cause, whether it is currently observed,
+// CauseStatus is one closed cause, whether it is currently observed,
 // how it can be observed, and its bounded drilldown.
-type FreshnessCauseStatus struct {
-	Cause         FreshnessCause
+type CauseStatus struct {
+	Cause         Cause
 	Observed      bool
 	Observability string
 	Detail        string
-	NextCheck     FreshnessNextCheck
+	NextCheck     NextCheck
 }
 
-// FreshnessGenerations summarizes the generation lifecycle. Superseded counts
+// Generations summarizes the generation lifecycle. Superseded counts
 // retired generations whose evidence has been or will be retracted.
-type FreshnessGenerations struct {
+type Generations struct {
 	Active     int
 	Pending    int
 	Completed  int
@@ -63,16 +63,16 @@ type FreshnessGenerations struct {
 	Failed     int
 }
 
-// FreshnessPendingProjection summarizes projection work still owed before the
+// PendingProjection summarizes projection work still owed before the
 // graph catches up to the active generation.
-type FreshnessPendingProjection struct {
+type PendingProjection struct {
 	Outstanding int
 	DeadLetter  int
 	Domains     int
 }
 
-// FreshnessTransition is one recent generation lifecycle row.
-type FreshnessTransition struct {
+// Transition is one recent generation lifecycle row.
+type Transition struct {
 	ScopeID       string
 	GenerationID  string
 	Status        string
@@ -84,23 +84,26 @@ type FreshnessTransition struct {
 
 // freshnessCausalityFromReport projects a status Report into the freshness
 // causality read model without any I/O.
-func freshnessCausalityFromReport(report status.Report) FreshnessCausality {
-	return freshnessCausalityFromRawAndReport(status.RawSnapshot{
+func freshnessCausalityFromReport(report status.Report) Causality {
+	return CausalityFromRawAndReport(status.RawSnapshot{
 		DomainBacklogs: report.DomainBacklogs,
 	}, report)
 }
 
-// freshnessCausalityFromRawAndReport projects freshness causality from the
+// CausalityFromRawAndReport projects freshness causality from the
 // uncapped raw snapshot plus the normalized status report. Pending projection
 // totals must use raw domain backlog rows because Report.DomainBacklogs is a
-// top-domain preview capped for status rendering.
-func freshnessCausalityFromRawAndReport(raw status.RawSnapshot, report status.Report) FreshnessCausality {
+// top-domain preview capped for status rendering. Exported (#6642) because
+// root package query's staying status_freshness_causality.go
+// (StatusHandler.getFreshnessCausality) calls it through the
+// freshnessCausalityFromRawAndReport forwarder in freshness_alias.go.
+func CausalityFromRawAndReport(raw status.RawSnapshot, report status.Report) Causality {
 	signals := deriveFreshnessSignals(raw, report)
 
-	fc := FreshnessCausality{
+	fc := Causality{
 		Causes:      buildFreshnessCauseStatuses(signals),
 		Generations: freshnessGenerations(report.GenerationHistory),
-		PendingProjection: FreshnessPendingProjection{
+		PendingProjection: PendingProjection{
 			Outstanding: signals.outstanding,
 			DeadLetter:  signals.deadLetter,
 			Domains:     signals.backlogDomains,
@@ -168,27 +171,27 @@ func freshnessState(s freshnessSignals) string {
 	return freshnessCausalityFresh
 }
 
-func buildFreshnessCauseStatuses(s freshnessSignals) []FreshnessCauseStatus {
-	runtimeObserved := map[FreshnessCause]bool{
-		FreshnessCausePendingRepoGeneration:      s.pendingGenerations,
-		FreshnessCauseReducerBacklog:             s.reducerBacklog,
-		FreshnessCauseDeadLetteredDomain:         s.deadLetteredDomain,
-		FreshnessCauseMissingCollectorCompletion: s.missingCompletion,
+func buildFreshnessCauseStatuses(s freshnessSignals) []CauseStatus {
+	runtimeObserved := map[Cause]bool{
+		CausePendingRepoGeneration:      s.pendingGenerations,
+		CauseReducerBacklog:             s.reducerBacklog,
+		CauseDeadLetteredDomain:         s.deadLetteredDomain,
+		CauseMissingCollectorCompletion: s.missingCompletion,
 	}
-	perAnswer := map[FreshnessCause]bool{
-		FreshnessCauseContentCoverageUnavailable: true,
-		FreshnessCauseUnsupportedProfile:         true,
-		FreshnessCauseRetentionExpired:           true,
+	perAnswer := map[Cause]bool{
+		CauseContentCoverageUnavailable: true,
+		CauseUnsupportedProfile:         true,
+		CauseRetentionExpired:           true,
 	}
 
-	statuses := make([]FreshnessCauseStatus, 0, len(orderedFreshnessCauses))
+	statuses := make([]CauseStatus, 0, len(orderedFreshnessCauses))
 	for _, cause := range orderedFreshnessCauses {
-		nextCheck, _ := FreshnessCauseNextCheck(cause)
+		nextCheck, _ := CauseNextCheck(cause)
 		observability := freshnessObservabilityRuntime
 		if perAnswer[cause] {
 			observability = freshnessObservabilityPerAnswer
 		}
-		statuses = append(statuses, FreshnessCauseStatus{
+		statuses = append(statuses, CauseStatus{
 			Cause:         cause,
 			Observed:      runtimeObserved[cause],
 			Observability: observability,
@@ -201,18 +204,18 @@ func buildFreshnessCauseStatuses(s freshnessSignals) []FreshnessCauseStatus {
 
 // orderedFreshnessCauses lists the closed causes in a stable, operator-facing
 // order: runtime catch-up first, then stuck, then per-answer classes.
-var orderedFreshnessCauses = []FreshnessCause{
-	FreshnessCausePendingRepoGeneration,
-	FreshnessCauseReducerBacklog,
-	FreshnessCauseDeadLetteredDomain,
-	FreshnessCauseMissingCollectorCompletion,
-	FreshnessCauseContentCoverageUnavailable,
-	FreshnessCauseUnsupportedProfile,
-	FreshnessCauseRetentionExpired,
+var orderedFreshnessCauses = []Cause{
+	CausePendingRepoGeneration,
+	CauseReducerBacklog,
+	CauseDeadLetteredDomain,
+	CauseMissingCollectorCompletion,
+	CauseContentCoverageUnavailable,
+	CauseUnsupportedProfile,
+	CauseRetentionExpired,
 }
 
-func freshnessGenerations(h status.GenerationHistorySnapshot) FreshnessGenerations {
-	return FreshnessGenerations{
+func freshnessGenerations(h status.GenerationHistorySnapshot) Generations {
+	return Generations{
 		Active:     h.Active,
 		Pending:    h.Pending,
 		Completed:  h.Completed,
@@ -221,10 +224,10 @@ func freshnessGenerations(h status.GenerationHistorySnapshot) FreshnessGeneratio
 	}
 }
 
-func freshnessTransitions(rows []status.GenerationTransitionSnapshot) []FreshnessTransition {
-	out := make([]FreshnessTransition, 0, len(rows))
+func freshnessTransitions(rows []status.GenerationTransitionSnapshot) []Transition {
+	out := make([]Transition, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, FreshnessTransition{
+		out = append(out, Transition{
 			ScopeID:       row.ScopeID,
 			GenerationID:  row.GenerationID,
 			Status:        row.Status,

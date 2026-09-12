@@ -33,7 +33,7 @@ zero deltas.
 ## Committed reproducible evidence
 
 **Handler contract, verdict separation, and not-found/unavailable states** —
-`go/internal/query/freshness_changed_since_test.go`:
+`go/internal/query/freshness/changed_since_test.go`:
 `TestChangedSinceRejectsConflictingScopeSelectorsBeforeRead`,
 `TestChangedSinceUnchangedProducesNoFalseDeltas`,
 `TestChangedSinceAllVerdictsSurfaceSeparately`,
@@ -42,7 +42,7 @@ zero deltas.
 `TestChangedSinceUnknownSinceGenerationNotFound`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestChangedSince -count=1
+cd go && go test ./internal/query/freshness -run TestChangedSince -count=1
 ```
 
 **Single-owner selector and sequenced-response correctness (design/regression

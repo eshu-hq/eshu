@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -31,7 +32,7 @@ func (r *recordingGenerationLifecycleReader) ListGenerationLifecycle(
 }
 
 func newFreshnessMux(reader GenerationLifecycleReader) *http.ServeMux {
-	handler := &FreshnessHandler{Generations: reader, Profile: ProfileLocalAuthoritative}
+	handler := &Handler{Generations: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	return mux
@@ -40,15 +41,15 @@ func newFreshnessMux(reader GenerationLifecycleReader) *http.ServeMux {
 func doFreshnessRequest(t *testing.T, mux *http.ServeMux, target string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, target, nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	return w
 }
 
-func decodeFreshnessEnvelope(t *testing.T, w *httptest.ResponseRecorder) ResponseEnvelope {
+func decodeFreshnessEnvelope(t *testing.T, w *httptest.ResponseRecorder) querycontract.ResponseEnvelope {
 	t.Helper()
-	var envelope ResponseEnvelope
+	var envelope querycontract.ResponseEnvelope
 	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
 		t.Fatalf("decode envelope: %v; body = %s", err, w.Body.String())
 	}
@@ -79,7 +80,7 @@ func TestFreshnessGenerationLifecycleActive(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Truth == nil || envelope.Truth.Freshness.State != FreshnessFresh {
+	if envelope.Truth == nil || envelope.Truth.Freshness.State != querycontract.FreshnessFresh {
 		t.Fatalf("expected fresh truth, got %+v", envelope.Truth)
 	}
 	data, _ := envelope.Data.(map[string]any)
@@ -110,7 +111,7 @@ func TestFreshnessGenerationLifecyclePendingMarksBuilding(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Truth.Freshness.State != FreshnessBuilding {
+	if envelope.Truth.Freshness.State != querycontract.FreshnessBuilding {
 		t.Fatalf("freshness = %q, want building", envelope.Truth.Freshness.State)
 	}
 }
@@ -180,7 +181,7 @@ func TestFreshnessGenerationLifecycleSupersededUnchanged(t *testing.T) {
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
 	// No pending/outstanding rows -> fresh, not building.
-	if envelope.Truth.Freshness.State != FreshnessFresh {
+	if envelope.Truth.Freshness.State != querycontract.FreshnessFresh {
 		t.Fatalf("freshness = %q, want fresh", envelope.Truth.Freshness.State)
 	}
 }
@@ -196,7 +197,7 @@ func TestFreshnessGenerationLifecycleUnknownScopeNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Error == nil || envelope.Error.Code != ErrorCodeScopeNotFound {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeScopeNotFound {
 		t.Fatalf("expected scope_not_found, got %+v", envelope.Error)
 	}
 }
@@ -212,7 +213,7 @@ func TestFreshnessGenerationLifecycleUnknownGenerationNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404; body = %s", w.Code, w.Body.String())
 	}
 	envelope := decodeFreshnessEnvelope(t, w)
-	if envelope.Error == nil || envelope.Error.Code != ErrorCodeNotFound {
+	if envelope.Error == nil || envelope.Error.Code != querycontract.ErrorCodeNotFound {
 		t.Fatalf("expected not_found, got %+v", envelope.Error)
 	}
 }
@@ -263,7 +264,7 @@ func TestFreshnessGenerationLifecycleRejectsBadStatus(t *testing.T) {
 func TestFreshnessGenerationLifecycleNilReaderUnavailable(t *testing.T) {
 	t.Parallel()
 
-	handler := &FreshnessHandler{Profile: ProfileLocalAuthoritative}
+	handler := &Handler{Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

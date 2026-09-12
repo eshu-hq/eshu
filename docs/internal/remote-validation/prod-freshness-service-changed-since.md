@@ -34,7 +34,7 @@ of fabricated zero deltas.
 ## Committed reproducible evidence
 
 **Handler contract, required-parameter validation, and not-found/unavailable
-states** — `go/internal/query/freshness_service_changed_since_test.go`:
+states** — `go/internal/query/freshness/service_changed_since_test.go`:
 `TestServiceChangedSinceUnchangedProducesNoFalseDeltas`,
 `TestServiceChangedSinceUnknownServiceNotFound`,
 `TestServiceChangedSinceUnavailableWhenNoActiveGeneration`,
@@ -43,7 +43,7 @@ states** — `go/internal/query/freshness_service_changed_since_test.go`:
 `TestServiceChangedSinceRequiresSinceReference`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestServiceChangedSince -count=1
+cd go && go test ./internal/query/freshness -run TestServiceChangedSince -count=1
 ```
 
 ## Notes

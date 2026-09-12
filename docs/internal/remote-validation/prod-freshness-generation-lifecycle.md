@@ -32,7 +32,7 @@ confidence.
 ## Committed reproducible evidence
 
 **Handler contract across every lifecycle state and not-found path** —
-`go/internal/query/freshness_generations_test.go`:
+`go/internal/query/freshness/generations_test.go`:
 `TestFreshnessGenerationLifecycleActive`,
 `TestFreshnessGenerationLifecyclePendingMarksBuilding`,
 `TestFreshnessGenerationLifecycleFailedCarriesFailure`,
@@ -42,7 +42,7 @@ confidence.
 `TestFreshnessGenerationLifecycleBroadScanEmptyIsNotNotFound`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestFreshnessGenerationLifecycle -count=1
+cd go && go test ./internal/query/freshness -run TestFreshnessGenerationLifecycle -count=1
 ```
 
 ## Notes

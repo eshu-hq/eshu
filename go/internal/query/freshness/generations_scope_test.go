@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package freshness
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/status"
 )
 
@@ -37,7 +39,7 @@ func TestGenerationLifecycleBindsGrantForGenerationIDOnlyQuery(t *testing.T) {
 	t.Parallel()
 
 	reader := &recordingGenerations{}
-	handler := &FreshnessHandler{Generations: reader, Profile: ProfileLocalAuthoritative}
+	handler := &Handler{Generations: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -46,9 +48,9 @@ func TestGenerationLifecycleBindsGrantForGenerationIDOnlyQuery(t *testing.T) {
 		"/api/v0/freshness/generations?generation_id=someone-elses-generation",
 		nil,
 	)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{
-		Mode:                 AuthModeScoped,
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
+		Mode:                 queryauth.AuthModeScoped,
 		TenantID:             "tenant-a",
 		WorkspaceID:          "workspace-a",
 		AllowedRepositoryIDs: []string{"repo-a"},
@@ -73,13 +75,13 @@ func TestGenerationLifecycleLeavesSharedKeyUnbounded(t *testing.T) {
 	t.Parallel()
 
 	reader := &recordingGenerations{}
-	handler := &FreshnessHandler{Generations: reader, Profile: ProfileLocalAuthoritative}
+	handler := &Handler{Generations: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/freshness/generations?repository=repo-b", nil)
-	req.Header.Set("Accept", EnvelopeMIMEType)
-	req = req.WithContext(ContextWithAuthContext(req.Context(), AuthContext{Mode: AuthModeShared}))
+	req.Header.Set("Accept", querycontract.EnvelopeMIMEType)
+	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{Mode: queryauth.AuthModeShared}))
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
