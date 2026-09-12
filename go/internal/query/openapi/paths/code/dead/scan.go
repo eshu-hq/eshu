@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package code
+package dead
 
-// DeadCodeScan is the OpenAPI path fragment documenting the
-// `/api/v0/code/dead-code` route. openapi.Spec concatenates it into the
-// published document; keep it in lockstep with the handlers and
-// docs/public/reference/http-api.md.
-const DeadCodeScan = `
+// Scan is the OpenAPI path fragment documenting the `/api/v0/code/dead-code`
+// route. openapi.Spec concatenates it into the published document; keep it
+// in lockstep with the handlers and docs/public/reference/http-api.md.
+const Scan = `
     "/api/v0/code/dead-code": {
       "post": {
         "tags": ["code"],

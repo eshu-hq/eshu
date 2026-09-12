@@ -6,19 +6,18 @@ Scope: `go/internal/query/openapi/paths/code/` (package `code`).
 
 This leaf owns the OpenAPI path fragments for the code-search and
 static-analysis routes: `Routes`, `Symbols`, `Quality`, `Security`,
-`RouteToCaller`, `Graph`, `Flow`, `Owners`, `DeadCodeScan`, and, from the
-single file `dead.go`, both `DeadCodeInvestigation` and
-`CrossRepoDeadCode`. `openapi/spec.go` concatenates all ten identifiers.
+`RouteToCaller`, `Graph`, `Flow`, and `Owners`. Dead-code detection
+(`Investigation`, `Scan`, `CrossRepo`) lives in the `dead/` subpackage —
+see `dead/AGENTS.md`. `openapi/spec.go` imports both this package and
+`dead` and concatenates all ten identifiers.
 
 - This package MUST NOT import `openapi` — the parent imports this
-  package, and the reverse would cycle.
-- `dead.go` declaring two constants is a deliberate exception, not a
-  precedent to generalize. Do not treat "one constant per file" as a rule
-  enforced anywhere in this package; check each file's actual `const`
-  declarations before assuming the pattern holds, and do not add a second
-  constant to any other file here without a reason as strong as
-  `dead.go`'s (two closely related dead-code fragments that read
-  better as one file than two).
+  package, and the reverse would cycle. It also MUST NOT import `dead` —
+  `dead` never imports `code`, so nothing forces the reverse, but keeping
+  it one-directional (spec.go depends on both, neither depends on the
+  other) avoids inventing a coupling this split doesn't need.
+- Each file here holds exactly one exported string constant; that pattern
+  is now uniform across this package, unlike before the `dead/` split.
 - These are documentation fragments, not the routes themselves. A change
   to a real `code` handler's method, path, or request/response shape must
   be mirrored here or `scripts/verify-openapi.sh` will report drift.

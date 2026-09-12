@@ -14,6 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/cicd"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/cloud"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/code"
+	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/code/dead"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/evidence"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/freshness"
 	"github.com/eshu-hq/eshu/go/internal/query/openapi/paths/iac"
@@ -83,9 +84,9 @@ func Spec() string {
 			code.Graph+
 			code.Quality+
 			code.Security+
-			code.DeadCodeScan+
-			code.DeadCodeInvestigation+
-			code.CrossRepoDeadCode+
+			dead.Scan+
+			dead.Investigation+
+			dead.CrossRepo+
 			code.Symbols+
 			code.Flow+
 			iac.Routes+
