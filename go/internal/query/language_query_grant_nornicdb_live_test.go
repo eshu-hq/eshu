@@ -94,6 +94,15 @@ func liveGrantUnscopedAccess() repositoryAccessFilter {
 	return repositoryAccessFilter{AllScopes: true}
 }
 
+// liveGrantEveryRepositoryID is both seeded repositories, which is what an
+// unscoped caller's Directory statement UNWINDs (#6541). Since that builder
+// seeks directories by repo_id instead of walking to a Repository, an unscoped
+// caller has no grant to derive the list from: production reads it from the
+// graph (language.Handler.allRepositoryIDs) and these tests name it.
+func liveGrantEveryRepositoryID() []string {
+	return []string{liveGrantRepo, liveGrantOtherRepo}
+}
+
 func openLiveGrantDriver(ctx context.Context, t *testing.T) neo4jdriver.DriverWithContext {
 	t.Helper()
 
@@ -242,7 +251,7 @@ func TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder(t *testing.T) {
 	build := func(label string, limit int) func(repositoryAccessFilter) (string, map[string]any) {
 		return func(access repositoryAccessFilter) (string, map[string]any) {
 			return language.BuildCypherWithSemanticFilter(
-				liveGrantLanguage, label, "", "", limit, "", "", access,
+				liveGrantLanguage, label, "", "", limit, "", "", access, nil,
 			)
 		}
 	}
@@ -252,18 +261,23 @@ func TestLiveNornicDBLanguageQueryGrantBindsEveryBuilder(t *testing.T) {
 		{name: "buildRepositoryCypher", build: build("Repository", 1)},
 		// File and entity: ORDER BY relative_path, and the out-of-grant paths
 		// sort first.
-		// Directory: ORDER BY file_count DESC. Each out-of-grant directory holds
-		// two files; the granted repository's two hold one each, and the second
-		// of them is nested a level down, so this also proves the rewritten
-		// builder still walks the depth-N CONTAINS chain the projector writes.
-		{name: "buildDirectoryCypher", build: build("Directory", 3)},
+		//
+		// Directory is NOT here since #6541. Its grant is the UNWOUND
+		// repository-id list rather than a predicate, so an out-of-grant row
+		// cannot be produced at all and the squeeze control has nothing to
+		// speak about; and this build applies ORDER BY/LIMIT once per unwound
+		// id, so an unscoped two-repository page holds each repository's own
+		// top rows instead of filling with the larger one's. Its grant is
+		// proved end to end, with an impossible-grant control, by
+		// TestLiveNornicDBDirectoryLanguageQueryHonoursTheGrant in
+		// internal/query/language.
 		{name: "buildFileCypher", build: build("File", 2)},
 		{name: "buildEntityCypherWithSemanticFilter", build: build("Function", 2)},
 		{
 			name: "buildEntityCypherWithSemanticFilter guard",
 			build: func(access repositoryAccessFilter) (string, map[string]any) {
 				return language.BuildCypherWithSemanticFilter(
-					liveGrantLanguage, "Function", "", "", 2, "semantic_kind", "guard", access,
+					liveGrantLanguage, "Function", "", "", 2, "semantic_kind", "guard", access, nil,
 				)
 			},
 		},

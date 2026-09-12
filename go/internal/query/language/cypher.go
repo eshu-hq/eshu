@@ -16,7 +16,7 @@ import (
 func buildLanguageCypher(language, label, query, repoID string, limit int) (string, map[string]any) {
 	return BuildCypherWithSemanticFilter(
 		language, label, query, repoID, limit, "", "",
-		querycontract.RepositoryAccessFilter{AllScopes: true},
+		querycontract.RepositoryAccessFilter{AllScopes: true}, nil,
 	)
 }
 
@@ -27,11 +27,20 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // every WITH, ORDER BY and LIMIT, and merges the grant arrays into the params
 // through GraphParams.
 //
-// All four builders now emit a single MATCH clause, so the grant lands in the
-// anchoring MATCH's own WHERE in every one of them. buildDirectoryCypher used
-// to be the exception -- two MATCH clauses with the WHERE on the second while
-// `r` was bound in the first -- and it was rewritten to one clause for a
-// backend reason of its own, described on that function.
+// Three of the four builders emit a single MATCH clause, so the grant lands in
+// the anchoring MATCH's own WHERE in each of them. buildDirectoryCypher is the
+// exception since #6541: it binds no Repository at all, and carries the grant
+// as the resolved repository-id list it UNWINDs, which directoryRepoIDs
+// supplies. Its doc comment carries the measurement behind that shape.
+//
+// directoryRepoIDs is the resolved, deduplicated repository-id list the
+// Directory branch UNWINDs, and is ignored by the other three. It is a
+// parameter rather than something this function derives from access because an
+// unscoped admin caller's list cannot be derived at all: it has to be read from
+// the graph, which needs a context and a reader this pure builder has neither
+// of. Handler.languageQueryGraphRows resolves it for every caller class and is
+// the only production caller; a scoped or repository-anchored caller's list IS
+// derived here, so only the unscoped case depends on the argument.
 //
 // The Repository binding is non-optional in all four patterns, so the condition
 // decides row membership rather than nulling a projection (the OPTIONAL MATCH
@@ -52,14 +61,23 @@ func buildLanguageCypher(language, label, query, repoID string, limit int) (stri
 // docs/internal/evidence/6546-language-query-extension-filter.md and the live
 // proof in TestLiveNornicDBLanguageQueryAdmitsOnlyTheRequestedLanguage.
 //
-// No-Regression Evidence: this move (#6642) does not change any Cypher text,
-// anchor, index dependency, or fan-out -- every statement below is
-// byte-identical to its pre-move source in package query's
-// language_query_cypher.go, verified by the queryplan source_sha256 pin (see
-// README.md) and the frozen-text tests that moved with this file
-// (cypher_shipped_text_test.go). No-Observability-Change: the span this
-// route emits (SpanQueryLanguageQuery) and its route/capability attributes
-// are unchanged; see handler.go.
+// Performance Evidence: the #6642 move changed no Cypher text, and every
+// statement below except the Directory one is still byte-identical to its
+// pre-move source in package query's language_query_cypher.go, verified by the
+// queryplan source_sha256 pin (see README.md) and the frozen-text tests that
+// moved with this file (cypher_shipped_text_test.go). buildDirectoryCypher was
+// then REWRITTEN by #6541: it replaced an unbounded
+// `<-[:REPO_CONTAINS|CONTAINS*]-` walk, measured at 34.5s for a caller granted
+// one repository and 2m01s for one granted fifty on a 50-repository corpus,
+// with an indexed repo_id seek measured at 53ms against 4.964s for the same
+// aggregation reached through a WHERE. Its correctness proof on two NornicDB
+// builds and the corpus-timing recipe are in
+// docs/internal/evidence/6541-directory-query-s2.md.
+// Observability Evidence: the span this route emits (SpanQueryLanguageQuery)
+// and its route/capability attributes are unchanged (see handler.go), and the
+// Directory branch adds Handler.logDirectoryRead, which records the grant
+// width, the rows the backend returned, the rows kept after truncation, and
+// how many repositories the name lookup resolved.
 func BuildCypherWithSemanticFilter(
 	language,
 	label,
@@ -69,6 +87,7 @@ func BuildCypherWithSemanticFilter(
 	semanticFilterKey string,
 	semanticFilterValue string,
 	access querycontract.RepositoryAccessFilter,
+	directoryRepoIDs []string,
 ) (string, map[string]any) {
 	language = canonicalLanguage(language)
 	// Only $languages and $limit are referenced by the builders below; the
@@ -81,7 +100,15 @@ func BuildCypherWithSemanticFilter(
 	case "Repository":
 		return buildRepositoryCypher(language, query, repoID, limit, access)
 	case "Directory":
-		return buildDirectoryCypher(language, query, repoID, params, access)
+		// A scoped or repository-anchored caller's list follows from the grant
+		// alone, so it is derived here and directoryRepoIDs is ignored. Only an
+		// unscoped caller that named no repository needs the caller's list,
+		// because that one cannot be derived without reading the graph.
+		ids, everyRepository := directoryRepositoryIDsForGrant(access, repoID)
+		if everyRepository {
+			ids = directoryRepoIDs
+		}
+		return buildDirectoryCypher(language, query, ids, params)
 	case "File":
 		return buildFileCypher(language, query, repoID, params, access)
 	default:
@@ -135,53 +162,67 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 }
 
 // buildDirectoryCypher returns a query for directories containing files in the
-// given language.
+// given language, seeking each granted repository's directories by an indexed
+// `repo_id` rather than walking to a Repository node at all.
 //
-// The three-node join is written as ONE linear pattern rather than the two
-// MATCH clauses it used to be, and that is a correctness fix, not style. On the
-// pinned NornicDB build a read with two MATCH clauses followed by a
-// `WITH ... count(...)` aggregation returns ZERO rows as soon as the RETURN
-// projects anything richer than a plain property or a literal -- `labels(d)`
-// here, but `coalesce(...)` and a list construction do it too. It is a row
-// drop, not an error, so this route answered `entity_type: "directory"` with an
-// empty list on the default backend for every caller and said nothing about it.
-// One MATCH clause evaluates the identical join correctly. The reproduction and
-// the nine-probe bisection are in
-// TestLiveNornicDBLanguageQueryDirectoryTwoClauseShapeReturnsNothing and in
-// docs/public/reference/nornicdb-query-pitfalls.md.
+// This is the #6541 shape, and both halves of it are forced by measurement.
 //
-// The direction is anchored at File deliberately. Writing the same single
-// clause forward from Repository --
-// `(r:Repository)-[:REPO_CONTAINS|CONTAINS*]->(d:Directory)-[:CONTAINS]->(f:File)`
-// -- was measured on the same build and returns WRONG counts: a nested
-// directory's file is folded into its parent's `file_count` and the nested
-// directory disappears from the answer. Anchoring at File keeps the last
-// CONTAINS hop out of the variable-length chain, so `d` binds to the directory
-// that directly holds each file, which is what `count(f)` has to mean.
-func buildDirectoryCypher(language, query, repoID string, params map[string]any, access querycontract.RepositoryAccessFilter) (string, map[string]any) {
+// The seek is why it is fast. The statement it replaced walked
+// `(f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)`
+// and cost 34.5s for a caller granted one repository and 2m01s for one granted
+// fifty on the issue's 50-repository corpus, against a published 800ms budget
+// and a 10s production deadline. An inline property inside a MATCH pattern is
+// served by an index seek on this build while the identical predicate in a
+// WHERE is not: the same aggregation measured 53ms against 4.964s. The seek
+// needs the directory_repo_id index (go/internal/graph/schema_tables_indexes.go)
+// to be a seek at all.
+//
+// The MISSING Repository join is why it is correct. Projecting `r.name` needs a
+// second pattern, and on BOTH the v1.2.1 pin and v1.3.1 every way of adding one
+// is wrong: a trailing `MATCH (r:Repository {id: d.repo_id})` after the
+// aggregation returns the literal STRING "r.name" in that column once the
+// statement carries either this WHERE or this RETURN's `labels()` and aliases,
+// a comma two-part pattern collapses the grouping, and `WITH ... ORDER BY ...
+// LIMIT` followed by a MATCH drops the LIMIT. So `repo_name` is filled by the
+// handler instead, from a second bounded read keyed on the `repo_id` this
+// statement projects (Handler.directoryRepositoryNames). The projected columns
+// are unchanged.
+//
+// The row bound is NOT self-sufficient either, and the handler finishes it:
+// this build applies `ORDER BY ... LIMIT` once per UNWOUND id rather than to
+// the whole result, so the statement can return up to limit x len(repoIDs)
+// rows. sortAndTruncateDirectoryRows re-sorts and truncates, which is correct
+// under both that behaviour and Neo4j's global LIMIT. The measurements are in
+// docs/internal/evidence/6541-directory-query-s2.md and the live proof in
+// TestLiveNornicDBDirectoryLanguageQueryCountsNestedDirectories.
+//
+// repoIDs MUST already be deduplicated. On both pinned builds a repeated id
+// returns the same directory TWICE with its file_count intact, because
+// everything after the UNWIND runs once per id; a backend that aggregates the
+// whole result at once would instead count that directory's files twice. Either
+// way the page is wrong. entity_id and file_path stay null for every row,
+// because the canonical projector writes neither `d.id` nor `d.relative_path`;
+// that predates this change and is not fixed here.
+func buildDirectoryCypher(language, query string, repoIDs []string, params map[string]any) (string, map[string]any) {
 	params["languages"] = graphLanguageSpellings(language)
+	params["repo_ids"] = repoIDs
 
 	cypher := `
-		MATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)
+		UNWIND $repo_ids AS rid
+		MATCH (d:Directory {repo_id: rid})-[:CONTAINS]->(f:File)
 		WHERE f.language IN $languages
 	`
 
-	if repoID != "" {
-		cypher += " AND r.id = $repo_id"
-		params["repo_id"] = repoID
-	}
-	cypher += access.GraphPredicate("r")
-	params = access.GraphParams(params)
 	if query != "" {
 		cypher += " AND d.name CONTAINS $query"
 		params["query"] = query
 	}
 
 	cypher += `
-		WITH d, r, count(f) as file_count
+		WITH d, count(f) as file_count
 		RETURN d.id as entity_id, d.name as name, labels(d) as labels,
 		       d.relative_path as file_path,
-		       r.id as repo_id, r.name as repo_name,
+		       d.repo_id as repo_id,
 		       file_count
 		ORDER BY file_count DESC
 		LIMIT $limit

@@ -21,20 +21,25 @@ func TestSchemaApplicationsDeclareCompatibilityDecision(t *testing.T) {
 			name:        "neo4j",
 			backend:     SchemaBackendNeo4j,
 			fingerprint: graphSchemaNeo4jFingerprint,
-			// Empty on purpose. The #6102 Module (name, lang) identity cutover
-			// changes what canonical writers MERGE on, so no earlier writer may
-			// write against this schema: an older one resolves an import-edge
-			// target by module name alone and binds whichever language node it
-			// finds. What that schema itself admitted is retained under
+			// Exactly one predecessor: the #6541 directory_repo_id index is a
+			// read-side addition, so a writer on the schema immediately before
+			// it writes the identical graph and stays admitted.
+			//
+			// That predecessor is the #6102 Module (name, lang) identity
+			// cutover tip, and the chain stops there. The cutover changed what
+			// canonical writers MERGE on, so no writer older than it may write
+			// against this schema: an older one resolves an import-edge target
+			// by module name alone and binds whichever language node it finds.
+			// What that schema itself admitted is retained under
 			// graphSchemaNeo4jPreModuleIdentityFingerprint and asserted by
 			// TestPreModuleIdentitySchemaApplicationCarriesTheChainItAdmitted.
-			compatible: []string{},
+			compatible: []string{graphSchemaNeo4jPreDirectoryRepoIDIndexFingerprint},
 		},
 		{
 			name:        "nornicdb",
 			backend:     SchemaBackendNornicDB,
 			fingerprint: graphSchemaNornicDBFingerprint,
-			compatible:  []string{},
+			compatible:  []string{graphSchemaNornicDBPreDirectoryRepoIDIndexFingerprint},
 		},
 	}
 

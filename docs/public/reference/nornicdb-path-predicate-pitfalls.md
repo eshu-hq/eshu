@@ -1,15 +1,98 @@
 # NornicDB Path-Predicate Pitfalls
 
-Two measured behaviours of the pinned NornicDB build that decide how a
-variable-length traversal can be bounded. Split out of
+Measured behaviours of pinned NornicDB builds that decide how a read can be
+bounded and filtered. It began as the two entries that decide how a
+variable-length traversal is bounded, split out of
 [NornicDB Query-Shape Pitfalls](nornicdb-query-pitfalls.md) because both are
-long enough to read on their own, and both are load-bearing for the code-family
-routes that traverse `CALLS` and `INHERITS`.
+long enough to read on their own and both are load-bearing for the code-family
+routes that traverse `CALLS` and `INHERITS`. New entries land here rather than
+on that page because it is pinned at its current length in
+`scripts/lib/markdown-line-cap-grandfather.tsv` and may not grow.
 
-Everything here was measured against the then-pinned
+Unless an entry says otherwise, it was measured against the then-pinned
 `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`. A different build may
 behave differently, and the live tests named in each section are what would say
-so.
+so. The last two entries are measured on **two** builds and name both.
+
+## Pitfall: `ORDER BY` And `LIMIT` After `UNWIND` Apply Once Per Unwound Row
+
+### Observed shape
+
+Measured on BOTH `eshu-nornicdb-pr290:3722b483c02c` (self-reports 1.2.1) and
+`timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac524899…` (self-reports 1.3.1), over
+Bolt and over HTTP, on a two-repository fixture holding eight directories:
+
+```cypher
+UNWIND $repo_ids AS rid
+MATCH (d:Directory {repo_id: rid})-[:CONTAINS]->(f:File)
+WHERE f.language IN $languages
+WITH d, count(f) AS file_count
+RETURN d.name AS name, d.repo_id AS repo_id, file_count
+ORDER BY file_count DESC
+LIMIT $limit
+```
+
+With `$repo_ids` naming two repositories and `$limit` 2, this returns **four**
+rows, not two: the two largest directories of the first repository followed by
+the two largest of the second. Each group is correctly ordered and correctly
+cut to the limit; what never happens is the ordering and cut across the whole
+result. A single-element `$repo_ids` returns 2, which is why the defect hides
+on a one-repository fixture.
+
+The counts and the grouping are correct. Only the row bound is wrong, and it is
+wrong in the safe direction — too many rows, never too few.
+
+### Consequence
+
+A statement that UNWINDs a list cannot rely on its own `ORDER BY ... LIMIT` to
+produce a page. A caller that trusts it serves up to `limit x len(list)` rows.
+
+### Rule
+
+Re-sort and truncate in the caller. That is correct on both backends rather than
+a workaround for one: the global top-N is always contained in the union of the
+per-group top-Ns, so Neo4j's global `LIMIT` makes the re-sort a no-op while
+NornicDB's per-id bound makes it the step that produces the page. Keep the
+`ORDER BY ... LIMIT` in the statement too, since it is what bounds each group.
+
+`buildDirectoryCypher` (`go/internal/query/language/cypher.go`) is shaped
+this way, and `sortAndTruncateDirectoryRows` is the caller's half. Live pin:
+`TestLiveNornicDBDirectoryLanguageQueryTruncatesToTheGlobalTopN`
+(`go/internal/query/language/directory_nornicdb_live_test.go`, build tag
+`live_nornicdb_language_imports_grant`). Measurements:
+`docs/internal/evidence/6541-directory-query-s2.md`.
+
+## Pitfall: An `UNWIND` Variable And A `RETURN` Alias Of The Same Name Collide
+
+### Observed shape
+
+On both builds named above:
+
+```cypher
+UNWIND $repo_ids AS id
+MATCH (r:Repository {id: id})
+RETURN r.id AS id, r.name AS name
+```
+
+The `name` column is correct. The `id` column comes back keyed by the FIRST
+bound literal instead of by `id` — a driver reading the row by the alias it
+asked for finds nothing under it. Renaming the loop variable fixes it:
+
+```cypher
+UNWIND $repo_ids AS rid
+MATCH (r:Repository {id: rid})
+RETURN r.id AS repo_id, r.name AS repo_name
+```
+
+That form returns both columns correctly on both builds, and an empty
+`$repo_ids` returns zero rows rather than every repository.
+
+### Rule
+
+Never reuse an `UNWIND` variable name as a `RETURN` alias. The failure is a
+wrongly-named column rather than an error, so it reaches the caller as a
+missing value rather than as a failure. `directoryRepositoryNames`
+(`go/internal/query/language/directory.go`) uses the second form.
 
 ## Correction: The Pre-Bound-Endpoint `shortestPath` Shape Does Not Parse
 

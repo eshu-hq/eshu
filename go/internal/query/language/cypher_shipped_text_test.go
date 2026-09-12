@@ -13,20 +13,28 @@ import (
 )
 
 // TestLanguageQueryBuildersBindTheGrantInTheShippedCypher is the same guard for
-// the four Cypher builders behind BuildCypherWithSemanticFilter. The
-// condition has to appear in the anchoring MATCH's own WHERE, ahead of every
-// WITH, ORDER BY and LIMIT.
+// the Cypher builders behind BuildCypherWithSemanticFilter that bind a
+// Repository. The condition has to appear in the anchoring MATCH's own WHERE,
+// ahead of every WITH, ORDER BY and LIMIT.
+//
+// Directory is NOT one of them since #6541. That builder binds no Repository at
+// all -- it seeks directories by the indexed repo_id it UNWINDs -- so there is
+// no `r` alias for this predicate to sit on, and its grant is the resolved
+// repository-id list instead. The equivalent guard for it, that the list is
+// exactly what the old predicate admitted and that it reaches the anchoring
+// MATCH, is TestBuildDirectoryCypherBindsTheGrantAsARepositoryIDList in
+// directory_test.go.
 func TestLanguageQueryBuildersBindTheGrantInTheShippedCypher(t *testing.T) {
 	t.Parallel()
 
 	scoped := querycontract.RepositoryAccessFilter{AllowedRepositoryIDs: []string{querytestutil.CodeGrantGrantedRepo}}
 	want := "(r.id IN $allowed_repository_ids OR r.id IN $allowed_scope_ids)"
 
-	for _, label := range []string{"Repository", "Directory", "File", "Function"} {
+	for _, label := range []string{"Repository", "File", "Function"} {
 		t.Run(label, func(t *testing.T) {
 			t.Parallel()
 
-			cypher, params := BuildCypherWithSemanticFilter("go", label, "", "", 50, "", "", scoped)
+			cypher, params := BuildCypherWithSemanticFilter("go", label, "", "", 50, "", "", scoped, nil)
 			normalized := querycontract.NormalizeCypherWhitespace(cypher)
 			if !strings.Contains(normalized, want) {
 				t.Fatalf("%s builder missing %q:\n%s", label, want, normalized)
@@ -146,15 +154,22 @@ var frozenUnscopedRepositoryCypher = frozenCypherLines(
 	"\t",
 )
 
+// frozenUnscopedDirectoryCypher is the #6541 shape: the directory statement
+// seeks each repository's directories by the indexed repo_id it UNWINDs and
+// binds no Repository, so it projects repo_id and NOT repo_name. The handler
+// fills repo_name from a second bounded read, and re-sorts and truncates the
+// page, because this build applies ORDER BY/LIMIT once per unwound id. Both
+// halves are measured on buildDirectoryCypher's doc comment.
 var frozenUnscopedDirectoryCypher = frozenCypherLines(
 	"",
-	"\t\tMATCH (f:File)<-[:CONTAINS]-(d:Directory)<-[:REPO_CONTAINS|CONTAINS*]-(r:Repository)",
+	"\t\tUNWIND $repo_ids AS rid",
+	"\t\tMATCH (d:Directory {repo_id: rid})-[:CONTAINS]->(f:File)",
 	"\t\tWHERE f.language IN $languages",
 	"\t",
-	"\t\tWITH d, r, count(f) as file_count",
+	"\t\tWITH d, count(f) as file_count",
 	"\t\tRETURN d.id as entity_id, d.name as name, labels(d) as labels,",
 	"\t\t       d.relative_path as file_path,",
-	"\t\t       r.id as repo_id, r.name as repo_name,",
+	"\t\t       d.repo_id as repo_id,",
 	"\t\t       file_count",
 	"\t\tORDER BY file_count DESC",
 	"\t\tLIMIT $limit",

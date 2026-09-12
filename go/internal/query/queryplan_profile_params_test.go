@@ -143,6 +143,7 @@ func queryplanProfileParamMatchesType(value any, wantType string) bool {
 func queryplanProfileParams() map[string]any {
 	return map[string]any{
 		"account_id":             "proof-account",
+		"repo_ids":               []string{"proof-repository"},
 		"after_id":               "proof-id",
 		"after_dependency_id":    "proof-dependency",
 		"after_edge":             "proof-edge",

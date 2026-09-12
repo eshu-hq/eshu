@@ -10,6 +10,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/codemodel"
 	"github.com/eshu-hq/eshu/go/internal/query/codequery/metrics"
 	"github.com/eshu-hq/eshu/go/internal/query/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/language"
 	"github.com/eshu-hq/eshu/go/internal/queryplan"
 )
 
@@ -67,10 +68,17 @@ func handlerQueryplanProductionCypher() map[string]string {
 		10,
 		allAccess,
 	)
+	directoryCypher, _ := language.BuildCypherWithSemanticFilter(
+		"go", "Directory", "", "", 10, "", "", allAccess, []string{"proof-repository"},
+	)
 
 	return map[string]string{
 		"QP-ENTITY-RESOLVE-REPOSITORY": entityCypher,
 		"QP-CODE-SEARCH-REPOSITORY":    codeCypher,
+		// The unscoped rendering, which is the one an admin caller runs. A
+		// scoped caller renders the identical text and differs only in the
+		// bound repository-id list; both are enumerated in the variant family.
+		"QP-LANGUAGE-DIRECTORY": directoryCypher,
 		// access is set explicitly on every import-dependency request below.
 		// Since #5167 batch 2a these builders render the caller's repository
 		// grant, and repositoryAccessFilter's zero value is a SCOPED filter with

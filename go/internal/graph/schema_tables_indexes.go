@@ -17,6 +17,17 @@ var schemaPerformanceIndexes = []string{
 	// instead of scanning every code-entity label in large corpora.
 	"CREATE INDEX function_repo_id IF NOT EXISTS FOR (f:Function) ON (f.repo_id)",
 	"CREATE INDEX function_path IF NOT EXISTS FOR (f:Function) ON (f.path)",
+	// The directory language-query route (#6541) seeks a granted repository's
+	// directories by `(d:Directory {repo_id: rid})` instead of walking a
+	// variable-length CONTAINS chain to a Repository node. On the pinned
+	// NornicDB build an inline property inside a MATCH pattern is served by an
+	// index seek while the identical predicate in a WHERE is not, so this
+	// index is what makes that anchor a seek rather than a Directory label
+	// scan: the same aggregation measured 53ms as a seek against 4.964s
+	// through a WHERE at a grant of one repository. It is declared for both
+	// backends because the query-plan gate profiles the statement on Neo4j,
+	// where the anchor must plan as NodeIndexSeek.
+	"CREATE INDEX directory_repo_id IF NOT EXISTS FOR (d:Directory) ON (d.repo_id)",
 	"CREATE INDEX shell_command_repo_id IF NOT EXISTS FOR (s:ShellCommand) ON (s.repo_id)",
 	"CREATE INDEX shell_command_path IF NOT EXISTS FOR (s:ShellCommand) ON (s.path)",
 	"CREATE INDEX class_repo_id IF NOT EXISTS FOR (c:Class) ON (c.repo_id)",
