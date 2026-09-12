@@ -503,6 +503,22 @@ app.kubernetes.io/component: vault-live-collector
 {{- printf "%s-nornicdb" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.nornicdbLegacyClaimName" -}}
+{{- printf "%s-data" (include "eshu.nornicdbFullname" .) -}}
+{{- end -}}
+
+{{- define "eshu.nornicdbManagedClaimName" -}}
+{{- printf "%s-v131-data" (include "eshu.nornicdbFullname" .) -}}
+{{- end -}}
+
+{{- define "eshu.nornicdbClaimName" -}}
+{{- if .Values.nornicdb.persistence.existingClaim -}}
+{{- .Values.nornicdb.persistence.existingClaim -}}
+{{- else -}}
+{{- include "eshu.nornicdbManagedClaimName" . -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "eshu.nornicdbSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: nornicdb

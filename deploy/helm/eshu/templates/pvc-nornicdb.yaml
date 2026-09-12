@@ -1,8 +1,50 @@
-{{- if and .Values.nornicdb.enabled .Values.nornicdb.persistence.enabled }}
+{{- $legacyClaimName := include "eshu.nornicdbLegacyClaimName" . -}}
+{{- $legacyClaim := lookup "v1" "PersistentVolumeClaim" .Release.Namespace $legacyClaimName -}}
+{{- if and $legacyClaim (not .Values.nornicdb.persistence.allowFreshVolumeMigration) -}}
+{{- fail (printf "legacy NornicDB PVC %s exists; stop NornicDB, snapshot or back up the graph, then set nornicdb.persistence.allowFreshVolumeMigration=true to create fresh v1.3.1 storage and rebuild the graph from Postgres facts" $legacyClaimName) -}}
+{{- end -}}
+{{- if $legacyClaim }}
+{{- $liveAccessModes := dig "spec" "accessModes" (list) $legacyClaim -}}
+{{- if or (ne (len $liveAccessModes) 1) (not (has "ReadWriteOnce" $liveAccessModes)) -}}
+{{- fail (printf "legacy NornicDB PVC %s access modes do not match the prior chart contract; restore the original release values or preserve and migrate the claim out of band" $legacyClaimName) -}}
+{{- end -}}
+{{- $liveSize := toString (dig "spec" "resources" "requests" "storage" "" $legacyClaim) -}}
+{{- if ne $liveSize (toString .Values.nornicdb.persistence.size) -}}
+{{- fail (printf "legacy NornicDB PVC %s requests %s but the release values request %s; restore the original release values or preserve and migrate the claim out of band" $legacyClaimName $liveSize .Values.nornicdb.persistence.size) -}}
+{{- end -}}
+{{- if .Values.nornicdb.persistence.storageClass -}}
+{{- $liveStorageClass := toString (dig "spec" "storageClassName" "" $legacyClaim) -}}
+{{- if ne $liveStorageClass .Values.nornicdb.persistence.storageClass -}}
+{{- fail (printf "legacy NornicDB PVC %s uses storage class %s but the release values request %s; restore the original release values or preserve and migrate the claim out of band" $legacyClaimName $liveStorageClass .Values.nornicdb.persistence.storageClass) -}}
+{{- end -}}
+{{- end -}}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "eshu.nornicdbFullname" . }}-data
+  name: {{ $legacyClaimName }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nornicdb-legacy-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.nornicdb.persistence.storageClass }}
+  storageClassName: {{ .Values.nornicdb.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.nornicdb.persistence.size }}
+---
+{{- end }}
+{{- if and .Values.nornicdb.enabled .Values.nornicdb.persistence.enabled (not .Values.nornicdb.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "eshu.nornicdbManagedClaimName" . }}
+  annotations:
+    helm.sh/resource-policy: keep
   labels:
     {{- include "eshu.labels" . | nindent 4 }}
     app.kubernetes.io/component: nornicdb

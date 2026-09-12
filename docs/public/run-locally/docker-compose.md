@@ -185,8 +185,8 @@ for a prebuilt local tag. Compose no longer contains a NornicDB source-build
 stanza; build a local comparison image separately, then select it with
 `NORNICDB_IMAGE=<local-tag> NORNICDB_PULL_POLICY=never`.
 
-Leave `NORNICDB_PLATFORM` unset for normal local runs so Docker selects the host
-architecture.
+The default pins `NORNICDB_PLATFORM=linux/amd64`, the only platform with live
+v1.3.1 proof. Use a separate Compose project and fresh graph volume for unsupported arm64 experiments.
 
 Normal `docker compose up --build` builds the Eshu services and pulls NornicDB
 only when its immutable image is absent. To cache the backend before starting:
@@ -212,8 +212,8 @@ not a provenance failure; the immutable image digest is the artifact identity.
 
 Changing the default image does not make an existing graph volume safe to
 reuse automatically. For an upgrade, stop every Eshu graph writer, preserve a
-snapshot or copy of the old `nornicdb_data` volume, start v1.3.1 on a fresh
-graph volume, and follow [Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md)
+snapshot or copy of the old `nornicdb_data` volume; v1.3.1 creates
+`nornicdb_v131_data`, leaving the legacy volume untouched. Follow [Rebuild the graph from facts](../operate/graph-rebuild-from-facts.md)
 using the preserved Postgres fact store. Verify terminal queues and the
 required API/MCP graph truth before cutting traffic over.
 

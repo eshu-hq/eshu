@@ -391,7 +391,7 @@ wipe_graph() {
 
 	echo "Wiping the graph volume (Postgres is preserved)..."
 	"${COMPOSE_CMD[@]}" rm -sf nornicdb >/dev/null
-	docker volume rm "${COMPOSE_PROJECT}_nornicdb_data" >/dev/null
+	docker volume rm "${COMPOSE_PROJECT}_nornicdb_v131_data" >/dev/null
 	"${COMPOSE_CMD[@]}" up -d nornicdb >/dev/null
 	wait_for_http "${GRAPH_BASE}/health" 60
 
@@ -492,7 +492,7 @@ echo "=== Phase 1: index the corpus ==="
 "${COMPOSE_CMD[@]}" down -v --remove-orphans >/dev/null 2>&1 || true
 docker ps -a --format '{{.Names}}' | rg "^${COMPOSE_PROJECT}-" \
 	| xargs -r docker rm -f >/dev/null 2>&1 || true
-docker volume rm "${COMPOSE_PROJECT}_nornicdb_data" >/dev/null 2>&1 || true
+docker volume rm "${COMPOSE_PROJECT}_nornicdb_v131_data" >/dev/null 2>&1 || true
 "${COMPOSE_CMD[@]}" up -d --build >/dev/null
 wait_for_service_exit bootstrap-index "$BOOTSTRAP_TIMEOUT"
 wait_for_http "${API_BASE}/health" 120

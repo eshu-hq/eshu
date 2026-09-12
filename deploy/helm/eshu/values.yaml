@@ -1130,9 +1130,18 @@ nornicdb:
       memory: 64Gi
   persistence:
     enabled: true
+    # Set only for an operator-provisioned, v1.3.1-compatible claim. The chart
+    # refuses its legacy pre-v1.3.1 claim because the on-disk format is unsafe
+    # to reuse across this upgrade boundary.
+    existingClaim: ""
+    # A live upgrade that discovers the legacy chart-owned claim fails closed
+    # until the operator has stopped NornicDB and protected the old graph.
+    allowFreshVolumeMigration: false
     storageClass: ""
     size: 500Gi
-  nodeSelector: {}
+  # The pinned image has live backend proof only on linux/amd64.
+  nodeSelector:
+    kubernetes.io/arch: amd64
   tolerations: []
   affinity: {}
 

@@ -202,7 +202,7 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | `NORNICDB_ENABLE_PPROF` | `false` | NornicDB process | Enables NornicDB profiling. |
 | `NORNICDB_ADDRESS`, `NORNICDB_BOLT_PORT`, `NORNICDB_HTTP_PORT`, `NORNICDB_DATA_DIR`, `NORNICDB_AUTH`, `NORNICDB_DEFAULT_DATABASE`, `NORNICDB_HEADLESS`, `NORNICDB_MCP_ENABLED` | local Eshu service sets these in process mode | NornicDB process | External NornicDB process configuration. |
 | `NORNICDB_IMAGE` | `timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962` in default Compose | Docker Compose | NornicDB image override. Set with `NORNICDB_PULL_POLICY` for controlled comparisons. |
-| `NORNICDB_PLATFORM` | unset | Docker Compose | Optional platform override; unset lets Docker choose host architecture. |
+| `NORNICDB_PLATFORM` | `linux/amd64` | Docker Compose | Platform override for the bundled backend. Only the amd64 default has live v1.3.1 proof; use a separate project and fresh graph volume for unsupported architecture experiments. |
 | `NORNICDB_PULL_POLICY` | `missing` in default Compose and tier-2 v25 proof | Docker Compose | Reuses the immutable digest after the first pull. Use `always` when a run must contact the registry or `never` with a prebuilt local tag. |
 | `NORNICDB_PERSIST_SEARCH_INDEXES` | `false` in Eshu Compose and Helm | NornicDB container | Keeps disabled BM25/vector search indexes from creating canonical graph restart artifacts. |
 | `NORNICDB_SEARCH_BM25_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps BM25 indexing off for the canonical graph lane. |

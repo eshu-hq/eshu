@@ -340,6 +340,6 @@ services:
       start_period: 5s
 
 volumes:
-  nornicdb_data:
+  nornicdb_v131_data:
   postgres_data:
   eshu_e2e_data:

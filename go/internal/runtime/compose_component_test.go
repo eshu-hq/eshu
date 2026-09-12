@@ -48,6 +48,9 @@ func assertComposeNamedVolume(t *testing.T, service composeService, source strin
 	t.Helper()
 
 	for _, volume := range service.Volumes {
+		if short, ok := volume.(string); ok && short == source+":"+target {
+			return
+		}
 		fields, ok := volume.(map[string]any)
 		if !ok {
 			continue

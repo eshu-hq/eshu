@@ -1483,6 +1483,14 @@
           "type": "object",
           "properties": {
             "enabled": { "type": "boolean" },
+            "existingClaim": {
+              "type": "string",
+              "description": "Operator-provisioned v1.3.1-compatible PVC to mount instead of creating a managed claim."
+            },
+            "allowFreshVolumeMigration": {
+              "type": "boolean",
+              "description": "Acknowledges that a live upgrade may preserve the legacy PVC while creating fresh v1.3.1 storage for a graph rebuild."
+            },
             "storageClass": { "type": "string" },
             "size": { "type": "string", "minLength": 1 }
           }

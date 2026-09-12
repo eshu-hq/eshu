@@ -255,6 +255,6 @@ services:
         condition: service_healthy
 
 volumes:
-  nornicdb_data:
+  nornicdb_v131_data:
   postgres_data:
   eshu_demo_data:

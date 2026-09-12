@@ -45,6 +45,11 @@ guidance belong in the public Kubernetes docs.
   stays off because the chart cannot prove that an operator-selected external
   endpoint uses that artifact; verify the endpoint actually selected before
   turning it on.
+- Bundled v1.3.1 defaults to the live-proven amd64 platform and a retained,
+  versioned PVC. A live upgrade preserves any legacy chart-owned PVC and fails
+  closed until `nornicdb.persistence.allowFreshVolumeMigration=true`
+  acknowledges fresh storage and a graph rebuild. `existingClaim` accepts only
+  an operator-provisioned v1.3.1-compatible claim, never the legacy claim name.
 - `workspace-setup` is a non-root init container. It must keep dropped
   capabilities, avoid ownership mutation, and rely on pod `fsGroup` handling for
   supported persistent volumes.

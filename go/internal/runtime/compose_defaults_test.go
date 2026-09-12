@@ -15,6 +15,7 @@ import (
 type composeDocument struct {
 	Include  []string                  `yaml:"include"`
 	Services map[string]composeService `yaml:"services"`
+	Volumes  map[string]any            `yaml:"volumes"`
 }
 
 type composeService struct {
@@ -23,6 +24,7 @@ type composeService struct {
 	Entrypoint  any            `yaml:"entrypoint"`
 	Healthcheck map[string]any `yaml:"healthcheck"`
 	Image       string         `yaml:"image"`
+	Platform    string         `yaml:"platform"`
 	Ports       []any          `yaml:"ports"`
 	Profiles    []string       `yaml:"profiles"`
 	Restart     string         `yaml:"restart"`

@@ -59,24 +59,34 @@ func TestNornicDBRuntimeReadmeTracksV131PublishedDefault(t *testing.T) {
 	t.Parallel()
 
 	docs := readRepositoryFile(t, "../../..", "go/internal/runtime/README.md")
-	want := "Compose pulls the immutable NornicDB v1.3.1 multi-architecture image"
+	want := "Compose pulls the immutable NornicDB v1.3.1 image by default"
 	if !strings.Contains(strings.Join(strings.Fields(docs), " "), want) {
 		t.Fatalf("runtime README missing current NornicDB published-image contract %q", want)
 	}
 }
 
-func TestNornicDBComposeDoesNotForceAmd64Platform(t *testing.T) {
+func TestNornicDBComposeDefaultsToLiveProvenAmd64Platform(t *testing.T) {
 	t.Parallel()
 
-	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
-	oldDefault := "platform: ${NORNICDB_PLATFORM:-linux/amd64}"
-	if strings.Contains(content, oldDefault) {
-		t.Fatalf("docker-compose.yaml still forces amd64 with %q", oldDefault)
+	doc := readComposeDocument(t, "docker-compose.yaml")
+	service := requireComposeService(t, doc, "nornicdb")
+	want := "${NORNICDB_PLATFORM:-linux/amd64}"
+	if service.Platform != want {
+		t.Fatalf("nornicdb platform = %q, want live-proven default %q", service.Platform, want)
 	}
+}
 
-	want := "platform: ${NORNICDB_PLATFORM:-}"
-	if !strings.Contains(content, want) {
-		t.Fatalf("docker-compose.yaml must leave NORNICDB_PLATFORM empty by default, want %q", want)
+func TestNornicDBComposeDefaultsToFreshV131GraphVolume(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.yaml")
+	service := requireComposeService(t, doc, "nornicdb")
+	assertComposeNamedVolume(t, service, "nornicdb_v131_data", "/data")
+	if _, ok := doc.Volumes["nornicdb_v131_data"]; !ok {
+		t.Fatal("docker-compose.yaml does not declare the v1.3.1 graph volume")
+	}
+	if _, ok := doc.Volumes["nornicdb_data"]; ok {
+		t.Fatal("docker-compose.yaml still declares the pre-v1.3.1 graph volume")
 	}
 }
 

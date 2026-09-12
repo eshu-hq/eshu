@@ -84,15 +84,28 @@ explicit because it also covers operator-selected external endpoints the chart
 cannot identify. Confirm the selected endpoint uses the verified digest, or
 independently prove an override, before setting it to `true`.
 
+The bundled backend defaults to `kubernetes.io/arch: amd64`, the platform with
+live v1.3.1 proof. Global `nodeSelector` values are merged with
+`nornicdb.nodeSelector`, and the component value wins on duplicate keys. Do not
+select arm64 for production evidence until that image child passes the same
+live backend contract.
+
 Replace `password` with your own strong password (min 12 chars, mixed case +
 digit) or set `neo4j.auth.secretName` to an existing Kubernetes Secret instead;
 the chart requires one or the other and fails the render otherwise.
 
-For an existing NornicDB PVC, do not let a Helm image change implicitly define
-the storage migration. Scale graph writers down, preserve a VolumeSnapshot or
-equivalent copy of the old PVC, provision a fresh graph PVC for v1.3.1, and
-follow [Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md)
-from the preserved Postgres store. Cut over only after queues are terminal and
+Managed v1.3.1 installs use the versioned
+`<release>-nornicdb-v131-data` PVC and annotate it for Helm retention. A live
+upgrade that finds the legacy `<release>-nornicdb-data` PVC fails closed until
+the operator stops graph writers, snapshots or backs up that PVC, and sets
+`nornicdb.persistence.allowFreshVolumeMigration=true`. The chart then keeps the
+legacy PVC while mounting fresh v1.3.1 storage. Use
+`nornicdb.persistence.existingClaim` only for an operator-provisioned,
+v1.3.1-compatible PVC; the chart rejects the legacy claim name.
+
+After the fresh volume is mounted, follow
+[Rebuild the graph from facts](../../operate/graph-rebuild-from-facts.md) from
+the preserved Postgres store. Cut over only after queues are terminal and
 required API/MCP graph truth passes. Roll back with the preserved old PVC or a
 fresh rebuild; never attach an older binary to a PVC modified by v1.3.1 without
 proof for that exact reverse transition.
