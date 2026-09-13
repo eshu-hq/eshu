@@ -457,8 +457,10 @@ graph-write route surface.
   `merge_then_create_repo_scan_test.go` fails the build if this shape reappears
   as any textually visible instance under `go/cmd` or `go/internal` — a
   literal, a `+` chain of literals, or a package-level (not function-local)
-  string const/var in the same file. It is a text scan, not a Cypher parser or
-  a proof of absence; see the test's doc comments for its full, current limits.
+  string const/var in the same file. Both `MERGE (` and `CREATE (` are matched
+  plain or named-path (`MERGE p = (`, `CREATE p=(`, backtick-quoted path names
+  too). It is a text scan, not a Cypher parser or a proof of absence; see the
+  test's doc comments for its full, current limits.
 
 ## What NOT to change without an ADR
 

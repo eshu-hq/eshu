@@ -17,23 +17,32 @@ import (
 	"testing"
 )
 
+// pathBindingFragment is the regex fragment shared by mergeOpenPattern and
+// createClausePattern for an optional named-path binding -- Cypher's
+// `path = (...)` form, where a MERGE or CREATE clause names the whole path it
+// opens. It accepts a plain identifier or a backtick-quoted one, then "=".
+// Both surrounding patterns require this fragment (when present) to sit
+// directly between the keyword and its opening paren, with no other text in
+// between.
+const pathBindingFragment = "(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*"
+
 // mergeOpenPattern and createClausePattern locate the MERGE and CREATE clause
 // keywords hasNodeMergeThenCreate scans for. Both are case-insensitive with
 // \b word boundaries so e.g. "UNMERGED" or "RECREATE" never count as the
 // keyword, and \s* tolerates any amount of whitespace (including a newline)
 // between the keyword and its opening paren, so "MERGE(", "merge  (", and
-// "MERGE\n(" all match the same as "MERGE (". createClausePattern requires
-// CREATE be followed, after optional whitespace and an optional path binding
-// (a plain identifier or a backtick-quoted one, then "="), by "(" -- so it
-// matches a real CREATE clause opening a node/relationship pattern, plain
-// (CREATE followed directly by "(") or named-path (a path variable and "="
-// between CREATE and "(", with the variable optionally backtick-quoted), and
-// never "ON CREATE SET" -- there, after CREATE and its whitespace, "SET" is
-// not itself followed by "=", and no "(" follows either, so neither the
-// optional-path branch nor the bare "(" branch matches.
+// "MERGE\n(" all match the same as "MERGE (". Both also accept an optional
+// pathBindingFragment between the keyword and "(", so a named-path clause
+// (`MERGE p = (...)`, `CREATE p = (...)`, `CREATE p=(...)`) matches the same
+// as the plain form. createClausePattern in particular never matches
+// "ON CREATE SET" -- there, after CREATE and its whitespace, "SET" is not
+// itself followed by "=", and no "(" follows either, so neither the
+// optional-path branch nor the bare "(" branch matches. The same holds for
+// "ON MATCH SET" against mergeOpenPattern's "MATCH" text, though that text
+// never reaches mergeOpenPattern at all since it only matches "MERGE".
 var (
-	mergeOpenPattern    = regexp.MustCompile(`(?i)\bMERGE\s*\(`)
-	createClausePattern = regexp.MustCompile("(?i)\\bCREATE\\s*(?:(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*)?\\(")
+	mergeOpenPattern    = regexp.MustCompile("(?i)\\bMERGE\\s*(?:" + pathBindingFragment + ")?\\(")
+	createClausePattern = regexp.MustCompile("(?i)\\bCREATE\\s*(?:" + pathBindingFragment + ")?\\(")
 )
 
 // hasNodeMergeThenCreate flags the exact statement class orneryd/NornicDB#359

@@ -99,6 +99,26 @@ CREATE (n)-[:HAS_TAG]->(:Tag {name:$tag})`,
 			want:  false,
 		},
 		{
+			name:  "a lone named-path MERGE followed by CREATE flags",
+			value: `MERGE p = (s:Workload {id:$s})-[:R]->(t:Workload {id:$t}) CREATE (x:AuditEvent {id:$eventId})`,
+			want:  true,
+		},
+		{
+			name:  "named-path MERGE followed by named-path CREATE flags",
+			value: `MERGE p=(s:Workload {id:$s})-[:R]->(t:Workload {id:$t}) MATCH (x:AuditEvent {id:$eventId}) CREATE p2 = (x)-[:LOGGED]->(t)`,
+			want:  true,
+		},
+		{
+			name:  "ON CREATE SET assigning a parenthesized expression after a plain MERGE stays clean",
+			value: `MERGE (n:Repository {id:$id}) ON CREATE SET x = (1 + 2)`,
+			want:  false,
+		},
+		{
+			name:  "ON MATCH SET assigning a parenthesized expression after a plain MERGE stays clean",
+			value: `MERGE (n:Repository {id:$id}) ON MATCH SET x = (1 + 2)`,
+			want:  false,
+		},
+		{
 			name:  "CREATE in a different statement (after a semicolon) does not count",
 			value: `MERGE (n:Repository {id:$id}) SET n.last_seen = $now; CREATE (:AuditEvent {id:$eventId})`,
 			want:  false,

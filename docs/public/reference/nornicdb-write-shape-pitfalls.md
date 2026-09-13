@@ -114,13 +114,16 @@ Eshu's own Cypher.
 `go test ./internal/storage/cypher -run
 'TestNoNodeMergeThenCreateCyphersAcrossRepo' -count=1` is the static guard: it
 walks every non-test `.go` file under `go/cmd` and `go/internal`, extracts
-every string literal, and fails if any of them contain a node `MERGE (`
-pattern followed later in the same statement by a real `CREATE (` clause.
+every string literal, and fails if any of them contain a `MERGE (` pattern —
+plain or named-path (`MERGE p = (`, `MERGE p=(`) — followed later in the same
+statement by a real `CREATE (` clause, itself plain or named-path
+(`CREATE p = (`, `CREATE p=(`). Both accept a backtick-quoted path name too.
 `MERGE (n) ON CREATE SET ...` and `ON MATCH SET ...` do not trip it — `CREATE`
-there is followed by `SET`, not `(`, so it never matches the clause pattern —
-and a `CREATE` in a different statement (past a `;`, or in a separate string
-constant) does not either. See `merge_then_create_repo_scan_test.go` for the
-unit-level proof of both exclusions and the scan itself.
+there is followed by `SET`, not `(` and not a `path =` binding, so it never
+matches the clause pattern — and a `CREATE` in a different statement (past a
+`;`, or in a separate string constant) does not either. See
+`merge_then_create_repo_scan_test.go` for the unit-level proof of both
+exclusions and the scan itself.
 
 This is a textual scan, not a Cypher parser, and its coverage is narrower than
 "anywhere in the tree": it resolves a `+` chain of string literals and
