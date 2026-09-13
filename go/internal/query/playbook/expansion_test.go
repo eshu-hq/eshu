@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package playbook
 
 import (
 	"strings"
@@ -19,8 +19,8 @@ func TestCatalogIncludesSecondWavePlaybooks(t *testing.T) {
 		"hosted_onboarding_governance_status": "1.0.0",
 		"change_surface_source_investigation": "1.0.0",
 	}
-	seen := make(map[string]string, len(PlaybookCatalog()))
-	for _, pb := range PlaybookCatalog() {
+	seen := make(map[string]string, len(Catalog()))
+	for _, pb := range Catalog() {
 		seen[pb.ID] = pb.Version
 	}
 	for id, version := range want {
@@ -44,7 +44,7 @@ func TestSecondWavePlaybooksDeclareAnswerExperienceContracts(t *testing.T) {
 		id := id
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
-			pb, ok := LookupPlaybook(id)
+			pb, ok := Lookup(id)
 			if !ok {
 				t.Fatalf("playbook %q missing", id)
 			}
@@ -62,7 +62,7 @@ func TestSecondWavePlaybooksDeclareAnswerExperienceContracts(t *testing.T) {
 	}
 }
 
-func assertPlaybookHasRequiredInput(t *testing.T, pb QueryPlaybook) {
+func assertPlaybookHasRequiredInput(t *testing.T, pb Definition) {
 	t.Helper()
 
 	for _, input := range pb.RequiredInputs {
@@ -73,7 +73,7 @@ func assertPlaybookHasRequiredInput(t *testing.T, pb QueryPlaybook) {
 	t.Fatalf("playbook %q has no required input", pb.ID)
 }
 
-func assertPlaybookHasBoundedStep(t *testing.T, pb QueryPlaybook) {
+func assertPlaybookHasBoundedStep(t *testing.T, pb Definition) {
 	t.Helper()
 
 	for _, step := range pb.Steps {
@@ -86,7 +86,7 @@ func assertPlaybookHasBoundedStep(t *testing.T, pb QueryPlaybook) {
 	t.Fatalf("playbook %q has no positive default limit", pb.ID)
 }
 
-func assertPlaybookCoversFailureModes(t *testing.T, pb QueryPlaybook, want []string) {
+func assertPlaybookCoversFailureModes(t *testing.T, pb Definition, want []string) {
 	t.Helper()
 
 	joined := ""

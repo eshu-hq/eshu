@@ -340,8 +340,9 @@
 // config handles, and policy diagnostics without server-local manifest or
 // activation config paths.
 //
-// QueryPlaybook is a deterministic, bounded, versioned data description of a
-// common starter-prompt or cookbook workflow. A playbook names the ordered
+// QueryPlaybook (aliased into internal/query/playbook as Definition, #6642)
+// is a deterministic, bounded, versioned data description of a common
+// starter-prompt or cookbook workflow. A playbook names the ordered
 // first-class tool calls (never raw Cypher), their bounded parameters with
 // default limits, the expected AnswerTruthClass and evidence per step, optional
 // drilldowns, and the declared failure modes with recommended fallbacks. It is
@@ -353,8 +354,9 @@
 // every referenced tool against the read-only registry without an import cycle.
 // QueryPlaybookHandler exposes the same catalog and resolver through read-only
 // API/MCP/CLI surfaces with workflow-plan truth; those surfaces do not execute
-// calls, read graph or Postgres state, or expose raw Cypher.
-// The contract and catalog are documented in
+// calls, read graph or Postgres state, or expose raw Cypher. See
+// playbook/doc.go and playbook/README.md for the full contract and move
+// evidence. The contract and catalog are documented in
 // docs/public/reference/query-playbooks.md.
 // InvestigationWorkflow is the sibling guided-investigation catalog for
 // missing-evidence-driven next calls. It declares the input shape, required and

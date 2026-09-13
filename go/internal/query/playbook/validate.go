@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package playbook
 
 import (
 	"fmt"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
 // rawCypherTools lists the tool names that expose raw graph query languages.
@@ -19,7 +21,7 @@ func rawCypherTools() []string {
 	}
 }
 
-func isRawCypherTool(tool string) bool {
+func IsRawCypherTool(tool string) bool {
 	for _, raw := range rawCypherTools() {
 		if tool == raw {
 			return true
@@ -32,7 +34,7 @@ func isRawCypherTool(tool string) bool {
 // least one bounded step, valid input references, declared expectations, and no
 // raw Cypher step. It performs no I/O and is safe to call at package init or in
 // tests. It returns the first violation found.
-func (pb QueryPlaybook) Validate() error {
+func (pb Definition) Validate() error {
 	if strings.TrimSpace(pb.ID) == "" {
 		return fmt.Errorf("playbook ID is required")
 	}
@@ -79,13 +81,13 @@ func (pb QueryPlaybook) Validate() error {
 
 // validateInputs checks the declared inputs and returns the declared-name set
 // used to validate step parameter references.
-func (pb QueryPlaybook) validateInputs() (map[string]struct{}, error) {
+func (pb Definition) validateInputs() (map[string]struct{}, error) {
 	declared := make(map[string]struct{}, len(pb.RequiredInputs))
 	for _, in := range pb.RequiredInputs {
 		if strings.TrimSpace(in.Name) == "" {
 			return nil, fmt.Errorf("playbook %q: input name is required", pb.ID)
 		}
-		if in.Type != PlaybookInputString && in.Type != PlaybookInputIdentifier {
+		if in.Type != InputString && in.Type != InputIdentifier {
 			return nil, fmt.Errorf("playbook %q: input %q has unknown type %q", pb.ID, in.Name, in.Type)
 		}
 		if _, dup := declared[in.Name]; dup {
@@ -96,14 +98,14 @@ func (pb QueryPlaybook) validateInputs() (map[string]struct{}, error) {
 	return declared, nil
 }
 
-func (s PlaybookStep) validate(playbookID string, index int, declaredInputs map[string]struct{}) error {
+func (s Step) validate(playbookID string, index int, declaredInputs map[string]struct{}) error {
 	if strings.TrimSpace(s.ID) == "" {
 		return fmt.Errorf("playbook %q: step %d is missing an ID", playbookID, index)
 	}
 	if strings.TrimSpace(s.Tool) == "" {
 		return fmt.Errorf("playbook %q: step %q is missing a tool", playbookID, s.ID)
 	}
-	if isRawCypherTool(s.Tool) {
+	if IsRawCypherTool(s.Tool) {
 		return fmt.Errorf("playbook %q: step %q references raw query tool %q, which is not permitted in a playbook", playbookID, s.ID, s.Tool)
 	}
 	if strings.TrimSpace(s.EvidenceExpected) == "" {
@@ -119,14 +121,14 @@ func (s PlaybookStep) validate(playbookID string, index int, declaredInputs map[
 		if strings.TrimSpace(d.Tool) == "" {
 			return fmt.Errorf("playbook %q: step %q has a drilldown with no tool", playbookID, s.ID)
 		}
-		if isRawCypherTool(d.Tool) {
+		if IsRawCypherTool(d.Tool) {
 			return fmt.Errorf("playbook %q: step %q drilldown references raw query tool %q", playbookID, s.ID, d.Tool)
 		}
 	}
 	return nil
 }
 
-func (s PlaybookStep) validateParams(playbookID string, declaredInputs map[string]struct{}) error {
+func (s Step) validateParams(playbookID string, declaredInputs map[string]struct{}) error {
 	seenParam := make(map[string]struct{}, len(s.Params))
 	for _, param := range s.Params {
 		if strings.TrimSpace(param.Name) == "" {
@@ -136,7 +138,7 @@ func (s PlaybookStep) validateParams(playbookID string, declaredInputs map[strin
 			return fmt.Errorf("playbook %q: step %q has duplicate param %q", playbookID, s.ID, param.Name)
 		}
 		seenParam[param.Name] = struct{}{}
-		if err := param.validateSingleSource(playbookID, s.ID); err != nil {
+		if err := param.ValidateSingleSource(playbookID, s.ID); err != nil {
 			return err
 		}
 		if param.FromInput != "" {
@@ -148,11 +150,11 @@ func (s PlaybookStep) validateParams(playbookID string, declaredInputs map[strin
 	return nil
 }
 
-// validateSingleSource rejects a param that declares more than one value
+// ValidateSingleSource rejects a param that declares more than one value
 // source. A param must bind from exactly one of an input, a constant int, a
 // constant bool, or a constant string; declaring several is an authoring error
 // that source() would resolve silently by precedence.
-func (p PlaybookParam) validateSingleSource(playbookID, stepID string) error {
+func (p Param) ValidateSingleSource(playbookID, stepID string) error {
 	sources := 0
 	if p.FromInput != "" {
 		sources++
@@ -172,10 +174,10 @@ func (p PlaybookParam) validateSingleSource(playbookID, stepID string) error {
 	return nil
 }
 
-func knownTruthClass(c AnswerTruthClass) bool {
+func knownTruthClass(c querycontract.AnswerTruthClass) bool {
 	switch c {
-	case AnswerTruthDeterministic, AnswerTruthDerived, AnswerTruthFallback,
-		AnswerTruthSemanticObservation, AnswerTruthCodeHint, AnswerTruthUnsupported:
+	case querycontract.AnswerTruthDeterministic, querycontract.AnswerTruthDerived, querycontract.AnswerTruthFallback,
+		querycontract.AnswerTruthSemanticObservation, querycontract.AnswerTruthCodeHint, querycontract.AnswerTruthUnsupported:
 		return true
 	default:
 		return false

@@ -359,7 +359,7 @@ func validateWorkflowCall(workflowID string, call WorkflowNextCall, declared map
 		if strings.TrimSpace(param.Name) == "" {
 			return fmt.Errorf("workflow %q: next call %q has an unnamed param", workflowID, call.ID)
 		}
-		if err := param.validateSingleSource(workflowID, call.ID); err != nil {
+		if err := param.ValidateSingleSource(workflowID, call.ID); err != nil {
 			return err
 		}
 		if param.FromInput != "" {
