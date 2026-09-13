@@ -64,6 +64,41 @@ CREATE (n)-[:HAS_TAG]->(:Tag {name:$tag})`,
 			want: true,
 		},
 		{
+			name:  "named-path CREATE with spaces around the equals sign still matches",
+			value: `MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) CREATE p = (s)-[:DEPENDS_ON]->(t)`,
+			want:  true,
+		},
+		{
+			name:  "named-path CREATE with no spaces around the equals sign still matches",
+			value: `MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) CREATE p=(s)-[:R]->(t)`,
+			want:  true,
+		},
+		{
+			name:  "lowercase named-path CREATE still matches",
+			value: `merge (s:Workload {id:$s}) merge (t:Workload {id:$t}) create path = (s)-[:DEPENDS_ON]->(t)`,
+			want:  true,
+		},
+		{
+			name:  "ON CREATE SET assigning a map is not a named-path CREATE",
+			value: `MERGE (n:Repository {id:$id}) ON CREATE SET n = $props`,
+			want:  false,
+		},
+		{
+			name:  "ON CREATE SET with a parenthesized arithmetic expression is not a named-path CREATE",
+			value: `MERGE (n:Repository {id:$id}) ON CREATE SET n.x = (1 + 2)`,
+			want:  false,
+		},
+		{
+			name:  "ON CREATE SET with += is not a named-path CREATE",
+			value: `MERGE (n:Repository {id:$id}) ON CREATE SET n += $p`,
+			want:  false,
+		},
+		{
+			name:  "ON MATCH SET with a parenthesized expression has no CREATE at all",
+			value: `MERGE (n:Repository {id:$id}) ON MATCH SET n.y = (2)`,
+			want:  false,
+		},
+		{
 			name:  "CREATE in a different statement (after a semicolon) does not count",
 			value: `MERGE (n:Repository {id:$id}) SET n.last_seen = $now; CREATE (:AuditEvent {id:$eventId})`,
 			want:  false,

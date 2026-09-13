@@ -23,12 +23,17 @@ import (
 // keyword, and \s* tolerates any amount of whitespace (including a newline)
 // between the keyword and its opening paren, so "MERGE(", "merge  (", and
 // "MERGE\n(" all match the same as "MERGE (". createClausePattern requires
-// CREATE be immediately followed by "(" (modulo whitespace), so it matches a
-// real CREATE clause opening a node/relationship pattern and never
-// "ON CREATE SET" -- there CREATE is followed by "SET", not "(".
+// CREATE be followed, after optional whitespace and an optional path binding
+// (a plain identifier or a backtick-quoted one, then "="), by "(" -- so it
+// matches a real CREATE clause opening a node/relationship pattern, plain
+// (CREATE followed directly by "(") or named-path (a path variable and "="
+// between CREATE and "(", with the variable optionally backtick-quoted), and
+// never "ON CREATE SET" -- there, after CREATE and its whitespace, "SET" is
+// not itself followed by "=", and no "(" follows either, so neither the
+// optional-path branch nor the bare "(" branch matches.
 var (
 	mergeOpenPattern    = regexp.MustCompile(`(?i)\bMERGE\s*\(`)
-	createClausePattern = regexp.MustCompile(`(?i)\bCREATE\s*\(`)
+	createClausePattern = regexp.MustCompile("(?i)\\bCREATE\\s*(?:(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*)?\\(")
 )
 
 // hasNodeMergeThenCreate flags the exact statement class orneryd/NornicDB#359
@@ -340,8 +345,8 @@ func TestNoNodeMergeThenCreateCyphersAcrossRepo(t *testing.T) {
 				"clause in the same statement (orneryd/NornicDB#359: NornicDB silently drops "+
 				"the CREATE clause, reporting success with fewer nodes/relationships than "+
 				"requested). Never write a node MERGE followed by CREATE in one statement -- "+
-				"use a relationship MERGE instead of CREATE, MATCH ... MATCH ... CREATE, a "+
-				"comma-pattern CREATE, or two separate statements. Violations:\n  %s",
+				"use a relationship MERGE instead of CREATE (MERGE (s) MERGE (t) MERGE "+
+				"(s)-[:REL]->(t)) to fix it AND keep it idempotent. Violations:\n  %s",
 			len(hits), strings.Join(hits, "\n  "),
 		)
 	}

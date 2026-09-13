@@ -40,12 +40,16 @@ which is 9 commits past the upstream `v1.2.1` tag itself, a different commit,
 `66755bfba882`). Also reproduced on a source build of Eshu's Helm chart pin's
 tag commit, `nornicdb-cpu-bge` `v1.2.3` tag commit `d9b76ae82334`
 (self-reports `1.2.2`) — the published chart image itself (a separate Linux
-build of that same source) has not been run. By code read, the same
-`executeMultipleMerges`/`splitMultipleMerges` executor code — no `CREATE`
-clause boundary, no `CREATE` branch in the segment loop — is present at
-NornicDB `main` commit `145ed415` (2026-09-12), which has not been run
-against this statement. Neo4j's correct handling of the shape is proven from
-its source, not from a live run.
+build of that same source) has not been run. Neo4j's correct handling of the
+shape is proven from its source, not from a live run.
+
+Upstream fixed this in commit `ce8a76a4` on NornicDB `main`, 2026-09-13 — not
+yet in any release tag. A live run of that commit on a fresh database wrote 2
+nodes and 1 relationship for both statement forms. Neither Eshu pin includes
+the fix: not the `docker-compose.yaml` pin (`3722b483c02c`), and not the Helm
+chart's `v1.2.3` tag commit (`d9b76ae82334`). NornicDB `main` commit
+`0be4aaa5` doesn't include it either. Keep this guard until both Eshu pins
+move to or past `ce8a76a4`.
 
 ### Root cause
 
@@ -62,19 +66,39 @@ no `CREATE` branch at all. Neither the second node `MERGE` nor the `CREATE`
 executes as a result.
 
 A lone `MERGE (n) CREATE ...` with no second `MERGE`/`OPTIONAL MATCH`/`WITH`/
-`WHERE` takes a different path, `executeMerge`, where a similar swallowing of
-the `CREATE` text into the `MERGE` pattern looks likely by code read but was
-not separately reproduced — this page and the guard below both treat it as
-unsafe on the same conservative basis Eshu applies to the proven two-clause
-case.
+`WHERE` takes a different path, `executeMerge`, and this is now reproduced
+live too (on the compose pin and on NornicDB `main` commit `0be4aaa5`):
+
+```cypher
+-- BROKEN: writes ONE node and no relationship. No error.
+MERGE (s:Workload {id:'c'}) CREATE (s)-[:DEPENDS_ON]->(:Workload {id:'d'})
+```
+
+The written node's `id` property is not `'c'` — it holds the rest of the
+statement's literal text, `c'}) CREATE (s)-[:DEPENDS_ON]->(:Workload {id:'d`,
+because the `CREATE` text is swallowed into the `MERGE` pattern's own
+property parsing rather than starting a new clause. The chart's `v1.2.3` was
+not run for this lone-`MERGE` form.
 
 ### Eshu implications
 
-Never write a node `MERGE` followed by `CREATE` in one statement. These
-shapes are proven safe instead:
+Never write a node `MERGE` followed by `CREATE` in one statement. For Eshu
+writers, the only acceptable fix is a relationship `MERGE` in place of the
+`CREATE`:
 
-- a relationship `MERGE` in place of the `CREATE`
-  (`MERGE (s) MERGE (t) MERGE (s)-[:DEPENDS_ON]->(t)`);
+```cypher
+MERGE (s) MERGE (t) MERGE (s)-[:DEPENDS_ON]->(t)
+```
+
+This avoids the NornicDB drop AND keeps the statement idempotent: retrying or
+replaying it matches the existing relationship instead of creating a
+duplicate, which is this package's own invariant for every canonical writer
+(`go/internal/storage/cypher/AGENTS.md`, "no unconditional CREATE").
+
+Three other shapes also avoid the NornicDB drop, but are NOT acceptable on
+Eshu write paths, because each still runs an unconditional `CREATE` that
+duplicates the relationship on retry or replay:
+
 - `MATCH ... MATCH ... CREATE` (no `MERGE` anywhere in the statement);
 - a comma-pattern `CREATE` (multiple patterns in one `CREATE` clause, again
   with no `MERGE` in the statement);
