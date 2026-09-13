@@ -63,12 +63,25 @@ const tagObservationProjection = `RETURN t.tag AS tag,
 //
 // The keyset predicates are built by CASE in Go rather than as one guarded
 // statement on purpose. The obvious single statement would guard its optional
-// disjunct with an empty-string test on the parameter, and that is the one shape
-// known-broken here: the same pitfalls page records that an
-// empty-string-guarded OR disjunct mis-evaluates and poisons the whole
-// predicate down to zero rows. A literal-default coalesce comparison is out for
-// the same reason -- it returns zero rows on 1.2.1 and 1.2.2. Bind only the
-// parameters the chosen statement names.
+// disjunct with an empty-string test on the parameter, the shape the pitfalls
+// page records as collapsing the whole predicate to zero rows.
+//
+// That citation was re-measured on the currently pinned build rather than taken
+// on faith, and the result is narrower than the page states: the guard collapses
+// a RELATIONSHIP-anchored read, and evaluates CORRECTLY in the single-node
+// anchored shape these statements use. So the case split is not a workaround for
+// a live defect in this shape. It is kept because each case then binds only the
+// parameters it needs, and because making correctness depend on a guard whose
+// behaviour varies by anchor shape on one build -- and is changing again
+// upstream -- is a bet with no upside here. The measurements are in
+// docs/internal/evidence/6564-tag-history-keyset-pagination.md.
+//
+// What IS live on this build and does constrain every statement here: a WHERE
+// comparing a property of one node to a property of ANOTHER node is not
+// evaluated (equality returns nothing, inequality returns everything). Every
+// predicate below compares a node property to a PARAMETER or tests IS NULL,
+// which is the form that was measured correct. Do not introduce a cross-node
+// comparison here.
 const (
 	// FirstPageCypher reads the first page of one image_ref's history.
 	FirstPageCypher = `

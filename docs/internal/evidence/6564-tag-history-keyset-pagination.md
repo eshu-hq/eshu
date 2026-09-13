@@ -100,13 +100,16 @@ WHERE t.first_observed_at IS NULL AND t.uid > $after_uid
 RETURN <projection> ORDER BY t.uid LIMIT $limit
 ```
 
-They are three statements selected in Go, not one guarded statement, because the
-single statement they would collapse into needs an empty-string-guarded `OR`
-disjunct on a parameter, and the pinned build mis-evaluates that shape to ZERO
-rows (`docs/public/reference/nornicdb-query-pitfalls.md`, "An
-Empty-String-Guarded `OR` Disjunct Collapses The Whole Predicate"). A
-literal-default `coalesce` inequality is out for the same reason. Only the
-parameters the chosen statement names are bound.
+They are three statements selected in Go, not one guarded statement. The single
+statement they would collapse into needs an empty-string-guarded `OR` disjunct on
+a parameter, which `docs/public/reference/nornicdb-query-pitfalls.md` records as
+collapsing the whole predicate to zero rows. **That citation was re-measured on
+the pinned build rather than taken on faith, and it is narrower than the page
+states** — see "Re-measuring the cited defects" below. The case split is kept for
+the reasons that survive the measurement: each case binds only the parameters it
+needs, and a guarded single statement would make correctness depend on a backend
+behaviour that varies by anchor shape on this build and is changing upstream.
+Only the parameters the chosen statement names are bound.
 
 `OffsetCypher`, the `SKIP` form, is retained for unscoped and all-scope callers
 who page by the `offset` parameter. They still receive a v2 keyset
@@ -204,11 +207,11 @@ written.
 | Keyset resumption vs `SKIP` at the same point | PASS: lands exactly one row past its anchor |
 
 The IS NULL disjunct check is the one the design hinged on, because the
-mechanically similar empty-string-guarded form is known-broken on this backend.
-It was checked by CONTROL -- the same statement with the disjunct removed -- not
-by eyeballing a row count, so a collapsed predicate could not have read as a
-pass. The advice's mechanical fallback (drop the disjunct from B and step into C
-on a short window) was therefore not needed.
+mechanically similar empty-string-guarded form is recorded as broken on this
+backend. It was checked by CONTROL -- the same statement with the disjunct
+removed -- not by eyeballing a row count, so a collapsed predicate could not have
+read as a pass. The advice's mechanical fallback (drop the disjunct from B and
+step into C on a short window) was therefore not needed.
 
 One incidental finding, recorded because it cost a debugging cycle: on this build
 a string LITERAL containing `//` inside a statement fails the whole statement with
@@ -219,6 +222,59 @@ string literal.
 
 The container was removed after the work and `docker ps -a` confirmed none
 remained.
+
+## Re-measuring The Cited Defects On The Pinned Build
+
+The paragraph above originally asserted that "the pinned build mis-evaluates
+that shape". That was a CITATION, not a measurement: the pitfalls page measured
+it on `eshu-nornicdb-pr261` (a v1.1.11 base) and the page's own header says none
+of its entries has been re-measured on the image we ship, so an entry is "a
+reason to check, not evidence that the behaviour is still there -- or that it is
+gone". With the NornicDB author closing thirteen Cypher defects and cutting
+v1.3.2/v1.3.3, an unverified citation in this direction is worth no more than an
+unverified citation in the other. So it was measured, on
+`eshu-nornicdb-pr290:3722b483c02c` (NornicDB 1.2.1), every check a CONTROL PAIR
+or a control set against a seed whose contents were printed first.
+
+| Shape | Anchor | Result on the pin |
+| --- | --- | --- |
+| Optional disjunct guarded by `$p <> ''`, `$p` empty | single-node | **correct** -- identical to the same predicate without the guard |
+| Same, `$p` non-empty | single-node | **correct** |
+| Parameter-comparison disjunct `$p = '' OR ...`, `$p` empty | single-node | **correct** -- returns all rows, which is the right answer |
+| Optional disjunct guarded by `$p <> ''`, `$p` **empty** | relationship | **BROKEN -- 0 rows**, correct answer is 1 row |
+| Optional disjunct guarded by `$p <> ''`, `$p` **non-empty** | relationship | **BROKEN -- 0 rows**, correct answer is 2 rows |
+| Primary disjunct alone, no guarded `OR` | relationship | correct (so the anchor shape is not broken wholesale) |
+| Unguarded `OR` disjunct | relationship | correct (so the `OR` is not the trigger) |
+| Single-node predicate | relationship | correct |
+| Node property vs **parameter**, inequality | relationship | correct |
+| Node property vs **another node's** property, equality | relationship | **BROKEN -- 0 rows**, correct answer is 1 row |
+| Node property vs **another node's** property, inequality | relationship | **BROKEN -- all rows**, correct answer is 1 row |
+
+Three things follow, and the first two are sharper than what is currently
+written down:
+
+1. **The empty-string guard defect is anchor-shape dependent.** It collapses a
+   relationship-anchored read and evaluates correctly in the single-node-anchored
+   shape. The pitfalls page states it unconditionally.
+2. **In the relationship-anchored form it is worse than recorded.** The page says
+   it breaks when the guarded parameter is EMPTY. It returns zero rows for a
+   non-empty parameter too, so the disjunct is dead regardless of the value.
+3. **The cross-node comparison defect is not about `coalesce`.** The memory note
+   frames it as "literal-default `coalesce` inequality returns zero rows". The
+   trigger is comparing a property of one node to a property of another at all:
+   plain `a.name <> b.name` over-returns and plain `a.name = b.name` returns
+   nothing, with no `coalesce` anywhere. Comparing against a parameter is fine.
+
+None of this changes a statement in this package, and that is the point of having
+measured it. All four tag-history statements are single-node anchored, and every
+predicate compares a node property to a parameter or tests `IS NULL`; the one
+relationship-anchored statement, `BuiltFromCypher`, filters on
+`i.digest IN $digests`, a node property against a parameter. Every shape this
+route runs sits inside the region measured correct above, and the live proof
+below exercises all of them end to end.
+
+These results belong on `nornicdb-query-pitfalls.md` and in the upstream
+defect sweep, not only here.
 
 ## Live Proof
 

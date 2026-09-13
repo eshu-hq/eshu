@@ -62,11 +62,24 @@ pre-filter window across every tenant. Log them, return the fixed sentinel.
 
 `AfterKeyCypher` and `NullTailCypher` exist as separate statements chosen in Go
 because the single statement they would collapse into needs an
-empty-string-guarded `OR` disjunct on a parameter, and the pinned build
-mis-evaluates that shape down to **zero rows**
-(`docs/public/reference/nornicdb-query-pitfalls.md`). A literal-default
-`coalesce` inequality is out for the same reason. Bind only the parameters the
-chosen statement names.
+empty-string-guarded `OR` disjunct on a parameter — the shape
+`docs/public/reference/nornicdb-query-pitfalls.md` records as collapsing the
+whole predicate to **zero rows**.
+
+That was re-measured on the pinned build, and the answer is narrower than the
+page states: the guard collapses a **relationship-anchored** read, and evaluates
+correctly in the **single-node-anchored** shape these statements use. So keep the
+case split for the reasons that survive that result — each case binds only the
+parameters it needs, and a guarded single statement would make correctness depend
+on a behaviour that varies by anchor shape on one build and is changing upstream —
+not because the guard is broken in this shape. Do not "simplify" it back on the
+strength of the measurement alone.
+
+What IS live on this build and constrains every statement in this package: a
+`WHERE` comparing a property of one node to a property of **another** node is not
+evaluated — equality returns nothing, inequality returns everything. Compare a
+node property to a **parameter**, or test `IS NULL`. Never introduce a cross-node
+property comparison here. Bind only the parameters the chosen statement names.
 
 `AfterKeyCypher`'s `OR t.first_observed_at IS NULL` disjunct is load-bearing and
 is NOT that broken shape — it was measured on the pin, and
