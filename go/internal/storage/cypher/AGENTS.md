@@ -430,16 +430,22 @@ graph-write route surface.
   which candidate identities already exist via a separate query first, drop
   unconfirmed rows in Go, then `MERGE` only the confirmed subset.
 - **Do not write a node `MERGE` followed by `CREATE` in the same statement.**
-  orneryd/NornicDB#359: the pinned build (Eshu's `v1.2.1` pin through NornicDB
-  `main` 145ed415) silently drops the `CREATE` clause — the statement reports
-  success with the `MERGE`d node(s) written and the `CREATE`d node/relationship
-  never applied. See "Pitfall: A Node `MERGE` Followed By `CREATE` In One
-  Statement Silently Drops The `CREATE`" in
+  orneryd/NornicDB#359: reproduced on NornicDB v1.2.1, and by code read
+  unchanged through NornicDB `main` 145ed415 — a range that includes Eshu's
+  chart pin `v1.2.3@sha256:4dfa887d…` (self-reports `1.2.2`), though the
+  statement has not been re-run against the pinned image. The statement
+  silently drops the second `MERGE` AND the `CREATE` clause — only the first
+  `MERGE`d node is written, not "the `MERGE`d node(s)". See "Pitfall: A Node
+  `MERGE` Followed By `CREATE` In One Statement Silently Drops The Second
+  `MERGE` And The `CREATE`" in
   `docs/public/reference/nornicdb-write-shape-pitfalls.md` for the safe shapes (relationship
   `MERGE` instead of `CREATE`, `MATCH ... MATCH ... CREATE`, a comma-pattern
   `CREATE`, or two separate statements).
-  `merge_then_create_repo_scan_test.go` fails the build if this shape
-  reappears anywhere under `go/cmd` or `go/internal`.
+  `merge_then_create_repo_scan_test.go` fails the build if this shape reappears
+  as any textually visible instance under `go/cmd` or `go/internal` — a
+  literal, a `+` chain of literals, or a package-level (not function-local)
+  string const/var in the same file. It is a text scan, not a Cypher parser or
+  a proof of absence; see the test's doc comments for its full, current limits.
 
 ## What NOT to change without an ADR
 

@@ -47,15 +47,18 @@ var (
 // MERGE Followed By CREATE In One Statement Silently Drops The CREATE") for
 // the full writeup and the proven-safe alternative shapes.
 //
-// value is split on ';' before scanning, so a real CREATE clause in a
-// DIFFERENT statement never counts -- only a CREATE that textually follows a
-// MERGE( within the same statement segment does.
+// value is split on the literal character ';' before scanning, so a real
+// CREATE clause in a DIFFERENT statement never counts -- only a CREATE that
+// textually follows a MERGE( within the same statement segment does. This
+// split has no Cypher comment or string-literal awareness: a ';' inside a
+// Cypher `//` comment or inside a quoted property value ends the "statement"
+// here even though it is not a real statement boundary, which can hide a
+// violation that spans it (undercounts, never overcounts).
 //
 // This function scans one already-flattened string; it is not itself a
 // Cypher parser. scanFileHits is the layer that flattens a "+"-concatenated
 // Cypher expression into one string before calling this, and that layer's
-// doc comment states what still cannot be seen (fmt.Sprintf, cross-file
-// identifiers, and any other runtime fragment assembly).
+// doc comment states the full, current list of what still cannot be seen.
 func hasNodeMergeThenCreate(value string) bool {
 	for _, statement := range strings.Split(value, ";") {
 		mergeLoc := mergeOpenPattern.FindStringIndex(statement)
@@ -78,13 +81,18 @@ func hasNodeMergeThenCreate(value string) bool {
 // runs.
 var mergeThenCreateAllowlist = map[string]bool{}
 
-// buildFileConstIdentMap collects every top-level const/var identifier in
+// buildFileConstIdentMap collects every PACKAGE-LEVEL const/var identifier in
 // file whose declared value is a single string literal, keyed by identifier
-// name. It is intentionally shallow: an identifier whose value is itself a
-// concatenation, a function call, or anything else non-literal is left out,
-// not partially resolved. This is the "cheap" same-file identifier
-// resolution foldStringExpr uses; resolving identifiers declared in another
-// file or package is out of scope.
+// name. It walks only file.Decls, the file's top-level declarations, so a
+// function-local const or var of the identical shape (declared inside a
+// function body as an *ast.DeclStmt) is never collected and never resolves --
+// foldStringExpr's lookup simply misses it, which fails the fold and falls
+// back to scanning that function-local literal on its own. It is also
+// intentionally shallow: an identifier whose value is itself a concatenation
+// (`const chainB = chainA + "..."`), a function call, or anything else
+// non-literal is left out, not partially resolved. This is the "cheap"
+// same-file identifier resolution foldStringExpr uses; resolving identifiers
+// declared in another file or package is out of scope.
 func buildFileConstIdentMap(file *ast.File) map[string]string {
 	identMap := make(map[string]string)
 	for _, decl := range file.Decls {
@@ -117,14 +125,31 @@ func buildFileConstIdentMap(file *ast.File) map[string]string {
 }
 
 // foldStringExpr attempts to resolve expr to a single string value by
-// folding string-literal "+" concatenation and same-file identifiers found
-// in identMap (see buildFileConstIdentMap). It returns ok=false the moment
-// it hits anything it cannot resolve statically -- a function call
+// folding string-literal "+" concatenation and package-level identifiers
+// found in identMap (see buildFileConstIdentMap). It returns ok=false the
+// moment it hits anything it cannot resolve statically -- a function call
 // (fmt.Sprintf and friends), a struct/package selector, a non-string
 // operand, or an identifier not in identMap -- so a caller never scans a
 // partially-folded, misleading string. This closes the gap a plain
 // per-literal scan has on Cypher built as
 // `mergeAndCreateClause := mergePart + "CREATE (" + ... + ")"`.
+//
+// Known gaps, beyond the identifier-resolution ones on buildFileConstIdentMap:
+//   - `+=` augmented assignment is a different AST shape (*ast.AssignStmt)
+//     that this function never sees, so `q := mergePart; q += "CREATE (...)"`
+//     is invisible to the fold (the standalone "CREATE (...)" literal alone
+//     has no MERGE, so it is not flagged either).
+//   - Because "+" is left-associative and every leaf of a BinaryExpr must
+//     resolve for that node to fold, an unresolvable leaf positioned BEFORE
+//     the MERGE/CREATE literal pair (e.g. `nonLiteral() + "MERGE (...) " +
+//     "CREATE (...)"`, which parses as `(nonLiteral() + "MERGE (...) ") +
+//     "CREATE (...)"`) prevents the literal pair from ever forming its own
+//     foldable subtree, so the pair is missed. The same unresolvable leaf
+//     placed AFTER a foldable literal pair does not hide it: scanFileHits'
+//     AST walk visits and re-attempts the fold at every BinaryExpr node, so
+//     the inner `"MERGE (...) " + "CREATE (...)"` pair still folds and is
+//     caught as its own subtree before the outer node's failed fold is even
+//     reached.
 func foldStringExpr(expr ast.Expr, identMap map[string]string) (value string, ok bool) {
 	switch e := expr.(type) {
 	case *ast.BasicLit:
@@ -170,11 +195,26 @@ func foldStringExpr(expr ast.Expr, identMap map[string]string) (value string, ok
 //   - every remaining string literal not already covered by a folded
 //     expression is scanned on its own.
 //
-// What this still cannot see: fmt.Sprintf and other runtime template
-// assembly, identifiers resolved from another file or package, and any
-// concatenation leaf that is not a literal or a plain same-file constant (a
-// function call, a struct field, a package selector). A clean scan means "no
-// textually-visible violation," not "this file's Cypher is provably safe."
+// What this still cannot see (the complete, current list):
+//   - fmt.Sprintf and other runtime template assembly;
+//   - an identifier resolved from another file or package;
+//   - a function-local const or var, even one of the exact same shape as a
+//     package-level one (buildFileConstIdentMap only walks file.Decls);
+//   - `+=` augmented-assignment concatenation;
+//   - a const/var whose own declared value is itself a concatenation rather
+//     than a single string literal;
+//   - an unresolvable concatenation leaf (a function call, a struct field, a
+//     package selector) positioned BEFORE the MERGE/CREATE literal pair in a
+//     "+" chain -- left-associativity means that leaf's fold failure can
+//     prevent the pair from ever forming its own foldable subtree; the same
+//     leaf positioned after a foldable pair does not hide it (see
+//     foldStringExpr's doc comment for why);
+//   - a ';' inside a Cypher comment or a quoted string property value, which
+//     the plain-character statement-boundary split in hasNodeMergeThenCreate
+//     cannot distinguish from a real statement terminator.
+//
+// A clean scan means "no textually-visible violation," not "this file's
+// Cypher is provably safe."
 func scanFileHits(fset *token.FileSet, relPath string, file *ast.File) []string {
 	identMap := buildFileConstIdentMap(file)
 	var hits []string
@@ -426,14 +466,17 @@ MERGE (s)-[:DEPENDS_ON]->(t)`,
 
 // TestScanFileHitsFoldsStringConcatenation proves scanFileHits closes the
 // concatenation gap a plain per-literal scan has: a MERGE-then-CREATE
-// statement built as `mergePart + "CREATE (...)"` (a same-file identifier
+// statement built as `mergePart + "CREATE (...)"` (a package-level identifier
 // resolved by buildFileConstIdentMap) or as two adjacent literals joined by
 // "+" is caught even though neither half alone contains the banned shape. It
-// also proves two things must NOT be flagged: a split literal whose folded
-// text is the safe "ON CREATE SET" shape, and the honest limits -- a
-// statement assembled by fmt.Sprintf, or concatenated onto an unresolvable
-// identifier (a package selector), is invisible to a static text fold.
-// Exactly two hits are expected from five candidate statements.
+// also proves several things must NOT be flagged: a split literal whose
+// folded text is the safe "ON CREATE SET" shape, a statement assembled by
+// fmt.Sprintf, a function-local const of the identical shape as the caught
+// package-level one, and an unresolvable leaf (a package selector) that DOES
+// carry the full MERGE/CREATE text but sits to the left of it in the "+"
+// chain -- see foldStringExpr's doc comment for why left-position matters.
+// Asserts the exact set of hit lines, not just a count, so a false hit
+// silently replacing a missed real one cannot pass unnoticed.
 func TestScanFileHitsFoldsStringConcatenation(t *testing.T) {
 	t.Parallel()
 
@@ -451,7 +494,12 @@ var viaSplitOnCreateSetIsSafe = "MERGE (n:Repository {id:$id}) ON CREATE SET n.f
 
 var viaSprintfIsInvisible = fmt.Sprintf("MERGE (s:Workload {id:%s}) MERGE (t:Workload {id:%s}) %s (s)-[:DEPENDS_ON]->(t)", "a", "b", "CREATE")
 
-var viaUnresolvedIdentIsInvisible = unknownPkg.Fragment + "CREATE (n)"
+func viaFunctionLocalConstIsInvisible() string {
+	const localMergePart = "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) "
+	return localMergePart + "CREATE (s)-[:DEPENDS_ON]->(t)"
+}
+
+var viaUnresolvedLeafBeforeTheLiteralsIsInvisible = unknownPkg.Fragment + "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) " + "CREATE (s)-[:DEPENDS_ON]->(t)"
 `
 
 	fset := token.NewFileSet()
@@ -461,20 +509,31 @@ var viaUnresolvedIdentIsInvisible = unknownPkg.Fragment + "CREATE (n)"
 	}
 
 	hits := scanFileHits(fset, "fixture.go", file)
-	if len(hits) != 2 {
+	want := []string{"fixture.go:7", "fixture.go:9"} // viaSameFileConstIdent, viaTwoLiterals
+	if !slicesEqual(hits, want) {
 		t.Fatalf(
-			"scanFileHits found %d hit(s) %v, want exactly 2: viaSameFileConstIdent and "+
-				"viaTwoLiterals must be caught by folding; viaSplitOnCreateSetIsSafe must NOT "+
-				"be (its folded text is a normal MERGE action, not a CREATE clause); "+
-				"viaSprintfIsInvisible and viaUnresolvedIdentIsInvisible must NOT be either, "+
-				"since runtime template assembly and an unresolvable concatenation leaf are "+
-				"outside this scan's reach",
-			len(hits), hits,
+			"scanFileHits found %v, want exactly %v: viaSameFileConstIdent (line 7) and "+
+				"viaTwoLiterals (line 9) must be caught by folding; every other candidate must "+
+				"NOT be -- viaSplitOnCreateSetIsSafe (folded text is a normal MERGE action, not "+
+				"a CREATE clause), viaSprintfIsInvisible (runtime template assembly), "+
+				"viaFunctionLocalConstIsInvisible (only package-level consts resolve), and "+
+				"viaUnresolvedLeafBeforeTheLiteralsIsInvisible (an unresolvable leaf before the "+
+				"literal pair prevents the pair from ever forming its own foldable subtree)",
+			hits, want,
 		)
 	}
-	for _, hit := range hits {
-		if !strings.HasPrefix(hit, "fixture.go:") {
-			t.Errorf("hit %q does not reference fixture.go", hit)
+}
+
+// slicesEqual reports whether a and b contain the same strings in the same
+// order.
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
 		}
 	}
+	return true
 }

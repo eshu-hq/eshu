@@ -12,37 +12,51 @@ multi-clause and projection pitfalls.
 Use it to avoid rediscovering the same failure shape. Still check the current
 NornicDB source before patching.
 
-## Pitfall: A Node `MERGE` Followed By `CREATE` In One Statement Silently Drops The `CREATE`
+## Pitfall: A Node `MERGE` Followed By `CREATE` In One Statement Silently Drops The Second `MERGE` And The `CREATE`
 
 ### Observed shape
 
-On the pinned NornicDB build, a statement that opens with one or more node
-`MERGE` clauses and then adds a `CREATE` clause in the SAME statement silently
-drops the `CREATE`. No error is returned. The canonical repro:
+A statement that opens with a node `MERGE`, adds a second `MERGE` (or an
+`OPTIONAL MATCH`/`WITH`/`WHERE`), and then adds a `CREATE` clause in the SAME
+statement silently drops BOTH the second `MERGE` and the `CREATE`. No error is
+returned. The canonical repro:
 
 ```cypher
 -- BROKEN: reports success. Result is 1 node, 0 relationships.
 MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) CREATE (s)-[:DEPENDS_ON]->(t)
 ```
 
-Neo4j executes this shape correctly (2 nodes, 1 relationship); this is proven
-from the Neo4j source, not just observed behavior. Adding a `SET` or a second
-`CREATE` to the broken statement does not change the result — the `CREATE`
-clause stays dropped either way.
+Only `s` is written; `t` (the second `MERGE`'s node) and the `DEPENDS_ON`
+relationship are both lost. Neo4j executes this shape correctly (2 nodes, 1
+relationship) per the Neo4j Cypher source; a live Neo4j run was not part of
+this proof. Adding a `SET` or a second `CREATE` to the broken statement does
+not change the result — the loss is the same either way.
 
 ### Affected versions
 
-The Eshu pin (`v1.2.1`) through NornicDB `main` commit `145ed415` (measured
-2026-09-12).
+Reproduced on NornicDB `v1.2.1` (the headless binary). By code read, the
+routing and clause splitter described below are unchanged through NornicDB
+`main` commit `145ed415` (2026-09-12) — that range includes Eshu's chart pin
+`v1.2.3@sha256:4dfa887d…` (which self-reports version `1.2.2`), but the
+statement has not been re-run against the pinned image.
 
 ### Root cause
 
 In the affected NornicDB source, a `MERGE`-led statement with a second clause
 such as another `MERGE`, `OPTIONAL MATCH`, `WITH`, or `WHERE` routes to
 `executeMultipleMerges`. Its splitter (`splitMultipleMerges`,
-`pkg/cypher/merge.go`) does not treat `CREATE` as a clause boundary, and the
-loop that walks the split clauses has no `CREATE` branch at all — the text
-after the last recognized clause boundary is silently never executed.
+`pkg/cypher/merge.go`) does not treat `CREATE` as a clause boundary: the
+trailing `CREATE` text is glued onto the second `MERGE`'s segment and parsed
+as though it were part of that `MERGE`'s own pattern, and the segment loop has
+no `CREATE` branch at all. Neither the second node `MERGE` nor the `CREATE`
+executes as a result.
+
+A lone `MERGE (n) CREATE ...` with no second `MERGE`/`OPTIONAL MATCH`/`WITH`/
+`WHERE` takes a different path, `executeMerge`, where a similar swallowing of
+the `CREATE` text into the `MERGE` pattern looks likely by code read but was
+not separately reproduced — this page and the guard below both treat it as
+unsafe on the same conservative basis Eshu applies to the proven two-clause
+case.
 
 ### Eshu implications
 
@@ -73,6 +87,17 @@ there is followed by `SET`, not `(`, so it never matches the clause pattern —
 and a `CREATE` in a different statement (past a `;`, or in a separate string
 constant) does not either. See `merge_then_create_repo_scan_test.go` for the
 unit-level proof of both exclusions and the scan itself.
+
+This is a textual scan, not a Cypher parser, and its coverage is narrower than
+"anywhere in the tree": it resolves a `+` chain of string literals and
+package-level (not function-local) `const`/`var` identifiers defined in the
+same file, but it cannot see `fmt.Sprintf` or other runtime template assembly,
+a cross-file or cross-package identifier, `+=`, a `const`/`var` whose own value
+is itself a concatenation, an unresolvable concatenation leaf positioned
+before the literal fragments, or a `;` inside a Cypher comment or a quoted
+string property value (the statement-boundary split has no comment/string
+awareness). See the doc comments in `merge_then_create_repo_scan_test.go` for
+the complete, current list.
 
 No-Observability-Change: this entry and its guard are documentation and a
 build-time static check only. No runtime metric, span, log field, queue
