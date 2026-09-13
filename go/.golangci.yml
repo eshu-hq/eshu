@@ -584,7 +584,7 @@ linters:
       - path: 'internal/component/readback\.go'
         linters:
           - exhaustive
-      - path: 'internal/coordinator/scannerworker/planner\.go'
+      - path: 'internal/coordinator/scanner/worker/planner\.go'
         linters:
           - exhaustive
       # Collector boundary switches on a subset of upstream enum

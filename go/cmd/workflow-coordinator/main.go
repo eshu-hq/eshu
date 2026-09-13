@@ -33,7 +33,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tempo"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/planner/tfstate"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/sbom/attestation"
-	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
+	scannerworker "github.com/eshu-hq/eshu/go/internal/coordinator/scanner/worker"
 	"github.com/eshu-hq/eshu/go/internal/coordinator/securityalert"
 	coordinatorvaultlive "github.com/eshu-hq/eshu/go/internal/coordinator/vault/live"
 	runtimecfg "github.com/eshu-hq/eshu/go/internal/runtime"
