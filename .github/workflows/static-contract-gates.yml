@@ -290,6 +290,7 @@ jobs:
               - 'scripts/lib/parser_selector_matcher.go'
               - 'scripts/lib/parser_relationship_language_ledger.sh'
               - 'scripts/lib/parser_relationship_comment_only_diff.sh'
+              - 'go/cmd/token-diff/**'
               - 'scripts/lib/test-verify-parser-relationship-kit-*'
               - 'scripts/test-verify-parser-relationship-kit.sh'
               - 'scripts/verify-parser-relationship-kit.sh'
