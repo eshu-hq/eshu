@@ -46,14 +46,16 @@ package `query` (shared with entity and incident-context reads) and
 satisfy the hub ports through root's compatibility aliases.
 
 Root package `query` keeps the capability matrix
-(`contract_supply_chain.go`), the OpenAPI path fragments
-(`openapi_paths_supply_chain*.go`), the cross-cutting auth and
+(`contract_supply_chain.go`), the cross-cutting auth and
 graph-error sweeps, the `factschema_decode_supplychain.go` decoder, and
 the lane-B packet envelope (`investigation_packet_*.go`). Root owns the
 router and always links into the production binary, so capability
 registration and the `SupplyChainHandler` compatibility alias
 (`compat_supply_chain.go`) live there. `cmd/api` and `cmd/mcp-server`
-construct the handler as `query.SupplyChainHandler` exactly as before.
+construct the handler as `query.SupplyChainHandler` exactly as before. The
+OpenAPI path fragments for this family live in
+`go/internal/query/openapi/paths/supply/chain/`, assembled by
+`openapi.Spec()`.
 
 ## Exported surface
 
