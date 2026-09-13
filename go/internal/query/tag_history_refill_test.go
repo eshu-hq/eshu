@@ -6,10 +6,12 @@ package query
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -17,17 +19,56 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
 )
 
-// seededTagHistoryGraph is an offset-aware GraphQuery double. Unlike
-// fakeTagHistoryGrantGraph it honors the $offset and $limit parameters of
-// taghistory.Cypher, so a test can observe what a refilling, cursor-paged
-// handler actually reads across successive windows rather than receiving the
-// same canned slice for every window.
+// seededTagHistoryGraph is a KEYSET-aware GraphQuery double. Unlike
+// fakeTagHistoryGrantGraph it evaluates the predicate and the ORDER BY of
+// whichever tag-history statement it is handed -- first page, after-key, null
+// tail, or the unscoped SKIP form -- so a test observes what a refilling,
+// cursor-paged handler actually reads across successive windows rather than
+// receiving the same canned slice every time.
+//
+// Evaluating the predicate rather than slicing by an index is what makes these
+// tests sensitive to the keyset design instead of to a hard-coded position: a
+// statement that named the wrong parameter, or a loop that failed to advance
+// its key, changes the rows this double returns.
 type seededTagHistoryGraph struct {
-	history    []map[string]any
-	builtFrom  map[string][]string
-	tagReads   int
-	builtReads int
-	windows    [][2]int
+	history     []map[string]any
+	builtFrom   map[string][]string
+	tagReads    int
+	builtReads  int
+	windows     [][2]int
+	rawRowsRead int
+	statements  []string
+}
+
+// seededTagHistoryKey is the (first_observed_at, nullAt, uid) sort key of one
+// seeded row. A row with NO first_observed_at property is the pre-#5459 state
+// and sorts last, exactly as the pinned NornicDB build orders it.
+func seededTagHistoryKey(row map[string]any) (at string, nullAt bool, uid string) {
+	value, present := row["first_observed_at"]
+	if !present || value == nil {
+		return "", true, StringVal(row, "uid")
+	}
+	return StringVal(row, "first_observed_at"), false, StringVal(row, "uid")
+}
+
+// seededTagHistoryLess is ORDER BY t.first_observed_at, t.uid with nulls last.
+func seededTagHistoryLess(a, b map[string]any) bool {
+	aAt, aNull, aUID := seededTagHistoryKey(a)
+	bAt, bNull, bUID := seededTagHistoryKey(b)
+	if aNull != bNull {
+		return bNull
+	}
+	if !aNull && aAt != bAt {
+		return aAt < bAt
+	}
+	return aUID < bUID
+}
+
+// ordered returns the seeded history in the statements' total order.
+func (g *seededTagHistoryGraph) ordered() []map[string]any {
+	rows := append([]map[string]any(nil), g.history...)
+	sort.SliceStable(rows, func(i, j int) bool { return seededTagHistoryLess(rows[i], rows[j]) })
+	return rows
 }
 
 func (g *seededTagHistoryGraph) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
@@ -43,17 +84,81 @@ func (g *seededTagHistoryGraph) Run(_ context.Context, cypher string, params map
 		return rows, nil
 	}
 	g.tagReads++
-	offset, _ := params["offset"].(int)
+	g.statements = append(g.statements, cypher)
 	limit, _ := params["limit"].(int)
-	g.windows = append(g.windows, [2]int{offset, limit})
-	if offset >= len(g.history) {
-		return nil, nil
+	ordered := g.ordered()
+
+	var selected []map[string]any
+	switch {
+	case strings.Contains(cypher, "SKIP $offset"):
+		offset, present := params["offset"].(int)
+		if !present {
+			return nil, errors.New("the SKIP statement was run without an $offset parameter")
+		}
+		if offset < len(ordered) {
+			selected = ordered[offset:]
+		}
+	case strings.Contains(cypher, "IS NULL AND t.uid > $after_uid"):
+		afterUID, present := params["after_uid"].(string)
+		if !present {
+			return nil, errors.New("the null-tail statement was run without an $after_uid parameter")
+		}
+		if _, bound := params["after_at"]; bound {
+			return nil, errors.New("the null-tail statement bound an $after_at it does not name")
+		}
+		for _, row := range ordered {
+			_, nullAt, uid := seededTagHistoryKey(row)
+			if nullAt && uid > afterUID {
+				selected = append(selected, row)
+			}
+		}
+	case strings.Contains(cypher, "t.first_observed_at > $after_at"):
+		afterAt, atPresent := params["after_at"].(string)
+		afterUID, uidPresent := params["after_uid"].(string)
+		if !atPresent || !uidPresent {
+			return nil, errors.New("the after-key statement was run without both $after_at and $after_uid")
+		}
+		// The null tail is carried by a DISJUNCT in the statement text, so
+		// whether this double returns it is read off that text rather than
+		// hard-coded. Hard-coding it made the double insensitive to the
+		// disjunct's removal: an M1 mutation that deleted
+		// `OR t.first_observed_at IS NULL` from AfterKeyCypher SURVIVED, because
+		// the double kept adding the tail the production statement no longer
+		// asked for.
+		includeNullTail := strings.Contains(cypher, "OR t.first_observed_at IS NULL")
+		for _, row := range ordered {
+			at, nullAt, uid := seededTagHistoryKey(row)
+			switch {
+			case nullAt:
+				if includeNullTail {
+					selected = append(selected, row)
+				}
+			case at > afterAt, at == afterAt && uid > afterUID:
+				selected = append(selected, row)
+			}
+		}
+	default:
+		if _, bound := params["after_at"]; bound {
+			return nil, errors.New("the first-page statement bound an $after_at it does not name")
+		}
+		selected = ordered
 	}
-	end := offset + limit
-	if end > len(g.history) {
-		end = len(g.history)
+
+	if len(selected) > limit {
+		selected = selected[:limit]
 	}
-	return append([]map[string]any(nil), g.history[offset:end]...), nil
+	g.rawRowsRead += len(selected)
+	g.windows = append(g.windows, [2]int{len(selected), limit})
+	return append([]map[string]any(nil), selected...), nil
+}
+
+// insertGranted adds a granted observation at an explicit first_observed_at,
+// modelling a backdated or out-of-order projection landing between two requests
+// of the same walk.
+func (g *seededTagHistoryGraph) insertGranted(tag, firstObservedAt string) {
+	digest := "sha256:" + tag
+	g.history = append(g.history, tagHistoryRowMap(tag, digest, "", firstObservedAt, false))
+	g.builtFrom[digest] = []string{"repo-granted"}
 }
 
 func (*seededTagHistoryGraph) RunSingle(context.Context, string, map[string]any) (map[string]any, error) {
@@ -63,6 +168,13 @@ func (*seededTagHistoryGraph) RunSingle(context.Context, string, map[string]any)
 // newSeededTagHistoryGraph builds an ordered history from one spec per
 // observation: "granted" (BUILT_FROM repo-granted), "other" (BUILT_FROM
 // repo-other) or "none" (no BUILT_FROM edge at all, the unattributed case).
+//
+// first_observed_at is a FIXED-WIDTH millisecond string, which is what
+// ociTagObservedAtValue writes and what makes the string ORDER BY the real
+// statements use agree with seed order. A human-readable
+// "2026-06-01T00:<i>:00Z" does not: at the 800-row seeds the read-cap tests
+// need, "100" sorts before "99", so seed order and statement order would
+// disagree and every keyset assertion below would be measuring the wrong thing.
 func newSeededTagHistoryGraph(specs ...string) *seededTagHistoryGraph {
 	graph := &seededTagHistoryGraph{builtFrom: map[string][]string{}}
 	for i, spec := range specs {
@@ -71,7 +183,7 @@ func newSeededTagHistoryGraph(specs ...string) *seededTagHistoryGraph {
 			fmt.Sprintf("t%02d", i),
 			digest,
 			"",
-			fmt.Sprintf("2026-06-01T00:%02d:00Z", i),
+			seededTagHistoryObservedAt(i),
 			false,
 		))
 		switch spec {
@@ -84,11 +196,17 @@ func newSeededTagHistoryGraph(specs ...string) *seededTagHistoryGraph {
 	return graph
 }
 
+// seededTagHistoryObservedAt is the fixed-width first_observed_at of seeded row
+// i, lexicographically ordered for every seed size these tests use.
+func seededTagHistoryObservedAt(i int) string {
+	return fmt.Sprintf("17600000%05d", i)
+}
+
 // visibleTags returns the tags a scoped caller holding repo-granted is
 // entitled to, in history order.
 func (g *seededTagHistoryGraph) visibleTags() []string {
 	tags := make([]string, 0, len(g.history))
-	for _, row := range g.history {
+	for _, row := range g.ordered() {
 		if repos := g.builtFrom[StringVal(row, "resolved_digest")]; len(repos) == 1 && repos[0] == "repo-granted" {
 			tags = append(tags, StringVal(row, "tag"))
 		}
@@ -186,15 +304,18 @@ func flipTagHistoryCursorChar(c byte) string {
 }
 
 // TestTagHistoryMalformedCursorIsRejected proves a cursor that is not a cursor
-// at all, carries an unusable payload, or was issued for another image_ref or
-// another limit fails with a 400 rather than being partially trusted.
+// at all, carries an unusable payload, or was issued for another image_ref
+// fails with a 400 rather than being partially trusted.
 //
 // It is named for what it proves (#6564 re-review finding 1). The earlier name
 // said "Tampered", which claimed more than the code does: taghistory.Cursor
-// carries no MAC, so a WELL-FORMED edit -- a payload minted at any offset for
-// the caller's own image_ref and limit -- passes every check here. The
-// "edited payload" case below flips a base64 character and is caught because
-// that corrupts the encoding or the JSON, not because tampering is detected.
+// carries no MAC, so a well-formed EDIT of the key is not detected. Under the
+// keyset design that no longer matters -- an edited key can only ask for the
+// forger's own visible rows after it, which is why the limit binding this test
+// used to exercise was removed rather than kept (see
+// TestTagHistoryCursorSurvivesALimitChangeMidWalk). The "edited payload" case
+// below flips a base64 character and is caught because that corrupts the
+// encoding or the JSON, not because tampering is detected.
 func TestTagHistoryMalformedCursorIsRejected(t *testing.T) {
 	t.Parallel()
 
@@ -216,8 +337,8 @@ func TestTagHistoryMalformedCursorIsRejected(t *testing.T) {
 		"not base64":      "!!!not-a-cursor!!!",
 		"edited payload":  token[:len(token)-1] + flipTagHistoryCursorChar(token[len(token)-1]),
 		"empty payload":   "e30",
-		"unknown version": base64.RawURLEncoding.EncodeToString([]byte(`{"v":99,"ref":"ghcr.io/eshu-hq/demo:1.0.0","l":2,"o":4}`)),
-		"negative offset": base64.RawURLEncoding.EncodeToString([]byte(`{"v":1,"ref":"ghcr.io/eshu-hq/demo:1.0.0","l":2,"o":-1}`)),
+		"unknown version": base64.RawURLEncoding.EncodeToString([]byte(`{"v":99,"ref":"ghcr.io/eshu-hq/demo:1.0.0","at":"x","uid":"u"}`)),
+		"v1 offset token": base64.RawURLEncoding.EncodeToString([]byte(`{"v":1,"ref":"ghcr.io/eshu-hq/demo:1.0.0","l":2,"o":4}`)),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -234,14 +355,14 @@ func TestTagHistoryMalformedCursorIsRejected(t *testing.T) {
 		})
 	}
 
-	replay := serveTagHistoryAs(
+	both := serveTagHistoryAs(
 		t,
 		newSeededTagHistoryGraph("granted", "granted", "granted", "granted"),
 		scopedTagHistoryAuth("repo-granted"),
-		tagHistoryGrantTarget+"&limit=1&cursor="+url.QueryEscape(token),
+		tagHistoryGrantTarget+"&limit=2&offset=1&cursor="+url.QueryEscape(token),
 	)
-	if got, want := replay.Code, http.StatusBadRequest; got != want {
-		t.Fatalf("limit-replay cursor status = %d, want %d; body = %s", got, want, replay.Body.String())
+	if got, want := both.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("cursor-plus-offset status = %d, want %d; body = %s", got, want, both.Body.String())
 	}
 }
 
@@ -332,39 +453,48 @@ func TestTagHistoryCursorPagingReachesEveryVisibleRowExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestTagHistoryFullyWithheldWindowStillPages proves a page whose every read
+// TestTagHistoryFullyWithheldWindowStillPages proves a request whose every read
 // row belongs to another tenant returns a usable page: an honest empty page
 // with a cursor that resumes correctly, never a silent short page presented as
 // complete and never an endpoint the caller cannot advance past.
+//
+// The seed has to exceed the WHOLE per-request read budget, not one window.
+// With fixed MaxLimit-sized windows a shorter withheld run is stepped over
+// inside a single request and the caller never sees an empty page for it -- a
+// strict improvement over limit-sized windows, where a 40-row withheld run at
+// limit=2 cost a caller twenty empty pages and told it where each of those rows
+// sat.
 func TestTagHistoryFullyWithheldWindowStillPages(t *testing.T) {
 	t.Parallel()
 
-	specs := make([]string, 0, 41)
-	for i := 0; i < 40; i++ {
+	withheld := taghistory.MaxRefillReads * taghistory.MaxLimit
+	specs := make([]string, 0, withheld+1)
+	for range withheld {
 		specs = append(specs, "other")
 	}
 	specs = append(specs, "granted")
 
 	graph := newSeededTagHistoryGraph(specs...)
-	got, pages := pageTagHistoryByCursor(t, graph, 2, 40)
-	if want := []string{"t40"}; !reflect.DeepEqual(got, want) {
+	got, pages := pageTagHistoryByCursor(t, graph, 2, 8)
+	if want := []string{fmt.Sprintf("t%d", withheld)}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("paged tags = %v, want %v", got, want)
 	}
 	if pages < 2 {
-		t.Fatalf("pages = %d, want more than one: a fully withheld window must page on rather than end the history", pages)
+		t.Fatalf("pages = %d, want more than one: a fully withheld scan must page on rather than end the history", pages)
 	}
 }
 
 // TestTagHistoryRefillHonoursReadCap proves the refill loop is bounded: a
 // history that is entirely another tenant's stops after
 // taghistory.MaxRefillReads windows and reports that honestly, with a cursor
-// that resumes exactly where the scan stopped rather than a silent short page
-// presented as complete.
+// naming the key the scan stopped on rather than a silent short page presented
+// as complete.
 func TestTagHistoryRefillHonoursReadCap(t *testing.T) {
 	t.Parallel()
 
-	specs := make([]string, 0, 200)
-	for i := 0; i < 200; i++ {
+	raw := taghistory.MaxRefillReads * taghistory.MaxLimit
+	specs := make([]string, 0, raw+1)
+	for range raw + 1 {
 		specs = append(specs, "other")
 	}
 	graph := newSeededTagHistoryGraph(specs...)
@@ -388,12 +518,16 @@ func TestTagHistoryRefillHonoursReadCap(t *testing.T) {
 	if got := data["truncated"]; got != true {
 		t.Fatalf("truncated = %#v, want true: a capped page is not a complete page", got)
 	}
-	offset, err := taghistory.DecodeCursor(tagHistoryCursorString(t, data), "ghcr.io/eshu-hq/demo:1.0.0", limit)
+	key, err := taghistory.DecodeCursor(tagHistoryCursorString(t, data), "ghcr.io/eshu-hq/demo:1.0.0")
 	if err != nil {
 		t.Fatalf("taghistory.DecodeCursor() error = %v", err)
 	}
-	if got, want := offset, taghistory.MaxRefillReads*limit; got != want {
-		t.Fatalf("cursor offset = %d, want %d (resume exactly where the capped scan stopped)", got, want)
+	want := taghistory.Key{
+		At:  seededTagHistoryObservedAt(raw - 1),
+		UID: fmt.Sprintf("uid-sha256:d%02d", raw-1),
+	}
+	if key != want {
+		t.Fatalf("cursor key = %#v, want %#v (resume at the last raw row the capped scan reached)", key, want)
 	}
 }
 

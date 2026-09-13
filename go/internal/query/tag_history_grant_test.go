@@ -6,11 +6,15 @@ package query
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
 )
 
 // tagHistoryGrantGraphCall records one GraphQuery.Run invocation.
@@ -284,9 +288,13 @@ func TestTagHistoryScopedCallerBuiltFromErrorFailsClosed(t *testing.T) {
 }
 
 // TestTagHistoryScopedWindowExcludesLimitPlusOneSentinel proves each refill
-// window reads limit+1 rows only to learn whether history continues: the
-// sentinel row is trimmed before the grant filter, so it is never looked up and
-// never leaks into a page.
+// window reads MaxLimit+1 rows only to learn whether history continues: the
+// sentinel row is trimmed before the grant filter, so it is never looked up,
+// never counted, never kept, and never named by a cursor.
+//
+// The window is MaxLimit-sized regardless of the caller's limit (#6564
+// re-review finding 1, RefillScopedPage), which is why this seeds MaxLimit+1
+// rows at limit=2 rather than 3: the sentinel is the 201st row, not the 3rd.
 //
 // This replaces TestTagHistoryScopedCallerTruncationFollowsUnfilteredWindow,
 // which pinned the pre-#6564-review contract where truncated and next_cursor
@@ -295,17 +303,37 @@ func TestTagHistoryScopedCallerBuiltFromErrorFailsClosed(t *testing.T) {
 func TestTagHistoryScopedWindowExcludesLimitPlusOneSentinel(t *testing.T) {
 	t.Parallel()
 
-	graph := tagHistoryGrantMatrix()
-	graph.tagRows = graph.tagRows[:3] // t1, t2, t3 == limit+1 for limit=2
+	graph := &fakeTagHistoryGrantGraph{}
+	for i := 0; i <= taghistory.MaxLimit; i++ {
+		digest := fmt.Sprintf("sha256:s%04d", i)
+		graph.tagRows = append(graph.tagRows, tagHistoryRowMap(
+			fmt.Sprintf("s%04d", i), digest, "", fmt.Sprintf("17600000%05d", i), false,
+		))
+		graph.builtFromRows = append(graph.builtFromRows, map[string]any{
+			"digest": digest, "repository_id": "repo-granted",
+		})
+	}
+	sentinel := fmt.Sprintf("sha256:s%04d", taghistory.MaxLimit)
+
 	w := serveTagHistoryAs(t, graph, scopedTagHistoryAuth("repo-granted"), tagHistoryGrantTarget+"&limit=2")
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := graph.calls[0].params["limit"], 3; got != want {
-		t.Fatalf("tag read limit = %#v, want %#v (limit+1 sentinel)", got, want)
+	if got, want := graph.calls[0].params["limit"], taghistory.MaxLimit+1; got != want {
+		t.Fatalf("tag read limit = %#v, want %#v (MaxLimit+1 sentinel)", got, want)
 	}
-	if got, want := graph.calls[1].params["digests"], []string{"sha256:d1", "sha256:d2"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("BUILT_FROM digests = %#v, want %#v (the limit+1 sentinel row is not looked up)", got, want)
+	digests, ok := graph.calls[1].params["digests"].([]string)
+	if !ok {
+		t.Fatalf("BUILT_FROM digests = %#v, want []string", graph.calls[1].params["digests"])
+	}
+	if got, want := len(digests), taghistory.MaxLimit; got != want {
+		t.Fatalf("BUILT_FROM keys = %d, want %d (the window minus its sentinel row)", got, want)
+	}
+	if slices.Contains(digests, sentinel) {
+		t.Fatalf("BUILT_FROM digests include the sentinel row %q, which must be trimmed before the grant filter", sentinel)
+	}
+	if got, want := tagHistoryResultTags(t, decodeTagHistoryBody(t, w)), []string{"s0000", "s0001"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("tags = %v, want %v", got, want)
 	}
 }
 

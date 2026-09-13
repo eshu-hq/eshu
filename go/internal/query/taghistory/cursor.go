@@ -6,6 +6,7 @@ package taghistory
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -14,85 +15,114 @@ import (
 // partially trusted, the rule RepositoryRefPageCursorVersion already applies in
 // go/internal/query/repositoryreadmodel/repository_refs_page.go. Restarting
 // paging is safe: the route has no side effects.
-const CursorVersion = 1
+//
+// Version 1 was a raw row offset and is refused by this build. A client holding
+// one restarts from page one, the same deploy-boundary rule a
+// RepositoryRefPageCursorVersion bump carries.
+const CursorVersion = 2
 
-// Cursor is the continuation token GET /api/v0/images/tag-history returns in
-// place of the raw row offset (#6564 review finding 1).
+// ErrCursorRequiresUID and the other decode errors below are the only reasons
+// DecodeCursor refuses a payload. None of them is a tamper detection: the token
+// carries no MAC. They stop an unusable payload from being partially trusted.
+var ErrCursorRequiresUID = errors.New("cursor is missing its uid key")
+
+// Cursor is the continuation token GET /api/v0/images/tag-history returns.
 //
-// Before this change next_cursor was {"offset": n} taken from the raw
-// pre-filter window, so a grant-filtered caller could subtract its own count
-// from the advance and learn exactly how many rows of another tenant's history
-// the filter had withheld, and could walk the same history at limit=1 to map
-// where those rows sat in time. Two things close that: the route refills a
-// scoped page to `limit` visible rows (RefillScopedPage), so limit-count
-// carries no withheld-row information, and the continuation point leaves the
-// wire as this token instead of an integer a caller can read, increment, or
-// binary-search.
+// It is a KEYSET cursor: it names the (first_observed_at, uid) position of one
+// row in the statement's total order, and the next page is "your visible rows
+// after this position". It replaced a raw row offset (#6564 re-review finding
+// 1). An offset was a position in the PRE-FILTER history, so a scoped caller
+// that base64-decoded its own token read the frontier the grant filter had
+// advanced past, and one that re-encoded an edited offset could walk another
+// tenant's withheld history a row at a time. A key cannot do either: there is
+// no position-shaped field to read or increment, a forged key returns only the
+// forger's own visible rows, and the key a page issues names a row that page
+// already returned -- except on the fully-withheld capped page documented
+// below, which is the one residue this design does not close.
 //
-// The payload binds the token to the image_ref and the limit it was issued
-// for, so an ISSUED cursor cannot be replayed against another image's history
-// or re-aimed at a smaller page size to resume the limit=1 walk. Every
-// rejection is a 400, never a silently reset or silently empty page.
+// Three properties follow from the key rather than from a check:
 //
-// Those checks constrain a token this server issued; they do not authenticate
-// one. The encoding is reversible and carries no MAC, so a caller can mint
-// {"v":1,"ref":"<its own image_ref>","l":1,"o":N} for any N and every check
-// above passes -- the limit=1 walk over another tenant's history is narrowed to
-// callers willing to forge, not closed.
+//   - Forward-only and duplicate-free. An observation inserted behind the key
+//     between two requests does not shift the walk, so no row is returned
+//     twice; it is simply not seen, the same contract RepositoryRefPageCursor
+//     documents. An offset shifted under exactly that insert.
+//   - Valid at any page size. There is no Limit binding: it existed only to
+//     stop an offset token being re-aimed at limit=1, and a key has no position
+//     to re-aim. A caller may change limit mid-walk.
+//   - Stable across replicas and restarts. The key is a property tuple any
+//     replica can evaluate; no server-side secret exists or is needed.
 //
-// THIS IS AN OPEN DEFECT, not an accepted residual (#6564 re-review finding 1).
-// Do not describe the token as tamper-rejecting, and do not add wording anywhere
-// that presents the leak as a disclosed-and-accepted limitation: a replacement
-// is being designed (signed, keyset, or server-side cursor), and a keyset cursor
-// naming the last VISIBLE row would remove the raw frontier from the token
-// altogether rather than authenticate it. Do not build further on the raw-offset
-// payload below. Tracked in
-// docs/internal/evidence/6564-tag-history-grant-binding.md.
+// NullAt is needed because the store holds THREE timestamp states with three
+// sort positions: a stored empty string (a zero ObservedAt, written by
+// ociTagObservedAtValue in go/internal/storage/cypher), a real millisecond
+// string, and no property at all (nodes created before #5459 shipped
+// first_observed_at). The empty string needs no special case, because
+// t.first_observed_at compares greater than it for every non-empty string. "No
+// timestamp" cannot be expressed as a string value at all, and those rows sort
+// LAST (measured on the pinned build, see
+// docs/internal/evidence/6564-tag-history-keyset-pagination.md), so NullAt
+// selects the null-tail statement instead of a string comparison.
+//
+// Residue this does NOT close, disclosed on every caller-facing surface: when a
+// capped page kept no visible row at all, the token must name the last RAW row
+// scanned or the caller re-reads the same span forever. That row may be one the
+// caller may not see, so such a page discloses one withheld observation's
+// first_observed_at and uid per fully-withheld span. uid is
+// facts.StableID("OCIRegistryCanonicalNode", ...) -- a hash, not readable, but
+// a caller already holding a candidate digest can confirm it by recomputing it.
 type Cursor struct {
 	Version  int    `json:"v"`
 	ImageRef string `json:"ref"`
-	Limit    int    `json:"l"`
-	Offset   int    `json:"o"`
+	At       string `json:"at,omitempty"`
+	NullAt   bool   `json:"nt,omitempty"`
+	UID      string `json:"uid"`
 }
 
-// EncodeCursor renders the continuation offset for imageRef at limit as the
-// token next_cursor carries.
-func EncodeCursor(imageRef string, limit, offset int) string {
-	// The payload is a bounded struct of ints and strings; Marshal cannot fail.
+// EncodeCursor renders key as the token next_cursor carries for imageRef.
+func EncodeCursor(imageRef string, key Key) string {
+	// The payload is a bounded struct of a string, a bool and an int; Marshal
+	// cannot fail.
 	raw, _ := json.Marshal(Cursor{
 		Version:  CursorVersion,
 		ImageRef: imageRef,
-		Limit:    limit,
-		Offset:   offset,
+		At:       key.At,
+		NullAt:   key.NullAt,
+		UID:      key.UID,
 	})
 	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
-// DecodeCursor validates a token produced by EncodeCursor and returns its
-// continuation offset. It errors on malformed base64 or JSON, an unknown
-// version, a negative offset, a cursor issued for another image_ref, and a
-// cursor issued for another limit; callers MUST turn a non-nil error into a
-// 400.
-func DecodeCursor(raw, imageRef string, limit int) (int, error) {
+// DecodeCursor validates a token produced by EncodeCursor and returns the key
+// it names. It errors on malformed base64 or JSON, an unknown version (which
+// every version-1 offset token is), a cursor issued for another image_ref, a
+// missing uid, and a null-tail key that also carries a timestamp; callers MUST
+// turn a non-nil error into a 400.
+//
+// It does NOT error on a key that matches no current row. A retracted or
+// re-projected observation is not a paging failure: the predicate is on values,
+// not on that row still existing, so the next page is simply the rows after
+// that position. A key beyond the end of the history yields an empty,
+// untruncated page.
+func DecodeCursor(raw, imageRef string) (Key, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
-		return 0, fmt.Errorf("invalid cursor encoding: %w", err)
+		return Key{}, fmt.Errorf("invalid cursor encoding: %w", err)
 	}
 	var cursor Cursor
 	if err := json.Unmarshal(decoded, &cursor); err != nil {
-		return 0, fmt.Errorf("invalid cursor payload: %w", err)
+		return Key{}, fmt.Errorf("invalid cursor payload: %w", err)
 	}
 	if cursor.Version != CursorVersion {
-		return 0, fmt.Errorf("unsupported cursor version %d", cursor.Version)
-	}
-	if cursor.Offset < 0 {
-		return 0, fmt.Errorf("cursor offset %d is negative", cursor.Offset)
+		return Key{}, fmt.Errorf("unsupported cursor version %d", cursor.Version)
 	}
 	if cursor.ImageRef != imageRef {
-		return 0, fmt.Errorf("cursor was issued for another image_ref")
+		return Key{}, errors.New("cursor was issued for another image_ref")
 	}
-	if cursor.Limit != limit {
-		return 0, fmt.Errorf("cursor was issued for limit %d, not %d", cursor.Limit, limit)
+	if cursor.UID == "" {
+		return Key{}, ErrCursorRequiresUID
 	}
-	return cursor.Offset, nil
+	if cursor.NullAt && cursor.At != "" {
+		return Key{}, errors.New("cursor claims no first_observed_at but carries one")
+	}
+	return Key{At: cursor.At, NullAt: cursor.NullAt, UID: cursor.UID}, nil
 }

@@ -172,12 +172,16 @@ func TestTagHistoryHandlerTruncationAndCursor(t *testing.T) {
 	if !ok {
 		t.Fatalf("next_cursor = %#v, want an opaque token string", data["next_cursor"])
 	}
-	offset, err := taghistory.DecodeCursor(token, "ghcr.io/eshu-hq/demo:1.0.0", 1)
+	key, err := taghistory.DecodeCursor(token, "ghcr.io/eshu-hq/demo:1.0.0")
 	if err != nil {
 		t.Fatalf("taghistory.DecodeCursor() error = %v, want the token this page issued to decode", err)
 	}
-	if got, want := offset, 11; got != want {
-		t.Fatalf("cursor offset = %d, want %d", got, want)
+	// The old assertion here was "offset 11", the raw position after a
+	// limit=1 page at offset=10. A keyset token names the last row this page
+	// actually returned instead, which is the row the caller just read.
+	want := taghistory.Key{At: "2026-06-25T00:00:00Z", UID: "uid-sha256:aaa"}
+	if key != want {
+		t.Fatalf("cursor key = %#v, want %#v (the last row this page returned)", key, want)
 	}
 }
 

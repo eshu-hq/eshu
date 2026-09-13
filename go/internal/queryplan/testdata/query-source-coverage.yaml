@@ -255,15 +255,34 @@ source_coverage:
           max_results: 201
   - file: taghistory/page.go
     calls:
-      # The image_ref-anchored tag read. It moved out of listTagHistory when a
-      # grant-filtered page gained refill (#6564 review): the handler now reads
-      # up to taghistory.MaxRefillReads of these windows per request, each still
-      # the same single-key, limit+1-bounded statement.
+      # The image_ref-anchored tag read, in its KEYSET form (#6564 re-review
+      # finding 1). One symbol runs one of three statements chosen in Go --
+      # first page, after a timestamped key, or inside the null tail -- because
+      # the single guarded statement those would otherwise collapse into needs
+      # an empty-string-guarded OR disjunct, which the pinned build
+      # mis-evaluates to zero rows. All three are the same single-key,
+      # limit+1-bounded, single-clause read; only the WHERE differs, so one
+      # registration covers them.
+      #
+      # max_results stays 201 = MaxLimit+1: the scoped refill loop always reads
+      # MaxLimit-sized windows regardless of the caller's limit, and reads up to
+      # taghistory.MaxRefillReads of them per request.
       - symbol: "ReadWindow"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: "197ef68864975cab63efd509c3c761f479981c442e354dc5cb2d8537c45b793f"
+          source_sha256: "05c7f49031c94b2540e7a44baca61c195fd3404bee7fc4f0456b51e0944abe5a"
+          key_bound: single_key
+          max_results: 201
+      # The SKIP form, reachable only by an unscoped or all-scope caller that
+      # pages with the offset parameter (their pre-existing contract; a scoped
+      # caller is refused a non-zero offset). Same anchor, same limit+1
+      # sentinel, same bound.
+      - symbol: "ReadOffsetWindow"
+        count: 1
+        non_hot:
+          class: keyed_support
+          source_sha256: "b71fdc3d6c95b267217421f4a510e598edfec608947ee7fbea0c05f956956d5f"
           key_bound: single_key
           max_results: 201
   - file: taghistory/builtfrom.go

@@ -30,7 +30,8 @@ const (
 )
 
 // annotateTagHistoryRefill records how much work one scoped page's refill did.
-// reads is the number of taghistory.Cypher windows the request consumed, and
+// reads is the number of keyset windows the request consumed (each a fixed
+// taghistory.MaxLimit rows, not limit rows), and
 // capReached says the page stopped on taghistory.MaxRefillReads rather than on a
 // full page or the end of the history -- the signal an operator needs at 3 AM
 // to tell "this caller's grant covers a thin slice of a busy tag" from "the

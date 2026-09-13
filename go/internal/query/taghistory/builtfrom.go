@@ -202,14 +202,14 @@ func anyRepositoryGranted(repositoryIDs []string, access querycontract.Repositor
 
 // grantDigests returns one window's distinct non-empty resolved and previous
 // digests, sorted so the lookup's parameters are deterministic.
-func grantDigests(rows []Row) []string {
-	seen := make(map[string]struct{}, 2*len(rows))
-	for _, row := range rows {
-		if row.ResolvedDigest != "" {
-			seen[row.ResolvedDigest] = struct{}{}
+func grantDigests(window []WindowRow) []string {
+	seen := make(map[string]struct{}, 2*len(window))
+	for _, entry := range window {
+		if entry.Row.ResolvedDigest != "" {
+			seen[entry.Row.ResolvedDigest] = struct{}{}
 		}
-		if row.PreviousDigest != "" {
-			seen[row.PreviousDigest] = struct{}{}
+		if entry.Row.PreviousDigest != "" {
+			seen[entry.Row.PreviousDigest] = struct{}{}
 		}
 	}
 	digests := make([]string, 0, len(seen))
