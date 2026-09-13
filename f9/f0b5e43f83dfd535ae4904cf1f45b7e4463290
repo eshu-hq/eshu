@@ -1,0 +1,23 @@
+go/internal/queryplan/testdata/query-source-coverage.yaml
+  s_20be138600ef1b::t_28f04a6f7b824e 321-323
+docs/internal/evidence/6590-oci-key-batch-chunking.md
+  s_20be138600ef1b::t_28f04a6f7b824e 1-64
+go/internal/query/impact/impact_trace_deployment_oci_key_batch_test.go
+  s_20be138600ef1b::t_28f04a6f7b824e 1-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f9f0b5e43f83dfd535ae4904cf1f45b7e4463290",
+  "prompts": {},
+  "sessions": {
+    "s_20be138600ef1b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09c60-37ca-7bd2-aa27-25f84e3cef68",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
