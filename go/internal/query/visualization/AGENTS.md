@@ -62,7 +62,7 @@ Move evidence), `handler_test.go`, and `main_test.go`.
 - `main_test.go` MUST keep registering `PacketDerivationCapability`
   through `PacketDerivationSupport()` (never a copied row): this test binary
   never links root, so without it `Handler.derive` panics in the
-  truth-envelope builder. Root's `contract_capability_matrix.go` row is the
+  truth-envelope builder. `query/contract`'s `capability_matrix.go` row is the
   production registration and calls the same `PacketDerivationSupport()`
   (#6642 Part C), so there is one declaration, not two. Root's
   `TestCapabilityMatrixMatchesYAMLContract` pins the assembled row against

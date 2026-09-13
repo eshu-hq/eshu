@@ -18,7 +18,7 @@ preflight and the docs freshness guard.
 | Live MCP registry | `go/internal/mcp` (`ReadOnlyTools`) | the tool names exposed to MCP clients |
 | Surface inventory overlay | `specs/surface-inventory.v1.yaml` | surface readiness lanes plus collector fact-kind provenance contracts |
 
-The matrix and Go contract (`go/internal/query/contract.go`) remain the source
+The matrix and Go contract (`go/internal/query/contract`) remain the source
 of truth for runtime behavior. The catalog adds the editorial and reconciliation
 layer; it never changes runtime truth. See
 [Capability Conformance Spec](capability-conformance-spec.md).

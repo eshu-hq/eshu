@@ -25,8 +25,8 @@ root -- see README.md's Move evidence.
   (the classified decode-error type); if none of those has what you need, it
   does not belong here -- ask before adding a new shared home.
 - `EvidenceCapability` MUST stay `"work_item.evidence.list"` -- byte-identical
-  -- it is the route's registered capability id, read by root's
-  `contract_work_item.go` (`init()` capability-matrix registration, off-limits
+  -- it is the route's registered capability id, read by
+  `query/contract/work_item.go` (capability-matrix registration, off-limits
   to this lane per #6642 Part C) through the `workItemEvidenceCapability`
   forward in `work_item_alias.go`.
 - `EvidenceFactKinds` MUST stay exactly `facts.WorkItemFactKinds()` -- root's

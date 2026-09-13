@@ -6,7 +6,7 @@ owners:
 # Active zero-finding scopes remain visible so the console can distinguish an
 # authoritative empty result from absent collector evidence. This fragment MUST
 # stay in sync with the Go capability row in
-# go/internal/query/contract_replatforming.go.
+# go/internal/query/contract/replatforming.go.
 capabilities:
   - capability: replatforming.selector_inventory
     tools: []

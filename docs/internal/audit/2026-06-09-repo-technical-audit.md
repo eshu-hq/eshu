@@ -87,7 +87,7 @@ triple **[fact]**; the default graph backend is a niche third-party project
 - **[fact, Medium] Graph-backend default contradiction plus panic in a
   request path.** `go/internal/query/code.go:56-58` treats an empty
   `GraphBackend` as Neo4j; `go/internal/runtime/data_stores.go:82-84` and
-  `go/internal/query/contract.go:35-43` (and `docs/public/architecture.md:
+  `ParseGraphBackend` (`go/internal/query/querycontract/profile.go`) (and `docs/public/architecture.md:
   178-181`) define empty = NornicDB. The same method panics on parse failure
   (`code.go:61`) instead of returning an error. A mis-wired handler would
   silently assume the wrong backend or crash the API process.

@@ -175,7 +175,7 @@ Source check date: 2026-06-02.
 
 Sources used:
 
-- `go/internal/query/contract.go`
+- `go/internal/query/envelope_aliases.go`
 - `go/internal/query/read-models.md`
 - `go/internal/searchdocs/project.go`
 - `go/internal/storage/postgres/content_store.go`

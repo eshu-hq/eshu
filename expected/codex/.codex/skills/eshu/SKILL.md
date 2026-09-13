@@ -7,7 +7,7 @@ description: |
   instance. Profiles are local_lightweight, local_authoritative,
   local_full_stack, or production. A profile row marked unsupported MUST
   return `unsupported_capability`. Truth ceilings live in
-  specs/capability-matrix.v1.yaml and go/internal/query/contract.go. Every
+  specs/capability-matrix.v1.yaml and go/internal/query/contract. Every
   fragment's default rendering works in local_lightweight and
   local_authoritative profiles without a configured LLM provider. LLM
   augmentation is policy-gated. llm:no-provider is a first-class status,
@@ -85,8 +85,8 @@ The four profiles are:
 A profile row marked `unsupported` MUST return
 `unsupported_capability` from MCP and API surfaces. The truth ceiling
 for a capability (the maximum `truth` level the profile can return)
-lives in `specs/capability-matrix.v1.yaml` and is enforced by
-`go/internal/query/contract.go`.
+lives in `specs/capability-matrix.v1.yaml` and is enforced by the capability
+rows in `go/internal/query/contract`.
 
 ## Local First
 

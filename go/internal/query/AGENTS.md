@@ -4,10 +4,10 @@
 
 1. `go/internal/query/querycontract/` — profiles, envelopes, capability
    registration, HTTP helpers, read ports, and their content-model closure.
-2. `go/internal/query/contract.go`, `handler.go`, and `ports.go` — compatibility
+2. `go/internal/query/envelope_aliases.go`, `handler.go`, and `ports.go` — compatibility
    aliases and wrappers plus `APIRouter`; existing callers keep the root API.
-3. `go/internal/query/querycontract/capability.go` and the root `contract_*`
-   files — family registration and the canonical 139-capability order.
+3. `go/internal/query/querycontract/capability.go` and `contract/` — family
+   registration and the canonical 139-capability order (#6642 moved the rows).
 4. `go/internal/query/openapi/` — how the spec is assembled. `openapi/spec.go`
    concatenates exported constants from `openapi/paths/<family>/`, the
    components block, and `openapi/schema/`; a changed route updates its fragment.
@@ -361,9 +361,9 @@
   route reachable but not documented, not gated, or not wired to the right
   adapter.
 
-- **Add a new capability** → add an entry to `capabilityMatrix` in `contract.go`
-  with per-profile max truth levels; add the capability ID constant near the
-  existing `const` blocks if reused across handlers; call `BuildTruthEnvelope`
+- **Add a new capability** → add a `register` call with per-profile max truth
+  levels in the matching `contract/` family file, plus its ID as a literal
+  there or in root `capability_keys.go` if reused; call `BuildTruthEnvelope`
   with the new ID in the handler; update `specs/capability-matrix.v1.yaml` or a
   small fragment under `specs/capability-matrix/`, plus
   `docs/public/reference/http-api.md`. Run `go test ./internal/query -count=1`
@@ -427,8 +427,8 @@
 
 - Symptom: panic in production with `query capability ... missing from capability
   matrix` → a new handler called `BuildTruthEnvelope` with an unregistered
-  capability → add the missing entry to `capabilityMatrix` in `contract.go:134`
-  and the matching YAML spec.
+  capability → add the missing `register` call in the matching
+  `go/internal/query/contract/` family file and the matching YAML spec.
 
 - Symptom: MCP tool calls receive unexpected payload shape (missing `data`
   wrapper) → likely cause: handler used `WriteJSON` instead of `WriteSuccess`, or

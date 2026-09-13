@@ -330,16 +330,16 @@ func ReplatformingSourceStateForMultiCloudQueryState(state string) Replatforming
 }
 
 // replatformingOwnershipCapability mirrors iac.ReplatformingOwnershipCapability.
-// Its home is iac/; contract_replatforming_ownership.go (Part C, not
-// editable by this move) reads this root spelling to register the
-// capability's matrix row, so this forwarding const must keep the identical
-// string value.
+// Its home is iac/; query/contract/replatforming_ownership.go registers the
+// matrix row from its own literal, and capability_lockstep_iac_test.go asserts
+// this root spelling stays byte-identical to it, so this forwarding const must
+// keep the identical string value.
 const replatformingOwnershipCapability = iac.ReplatformingOwnershipCapability
 
 // replatformingRollupsCapability mirrors iac.ReplatformingRollupsCapability.
-// Its home is iac/; contract_replatforming_rollups.go (Part C, not editable
-// by this move) reads this root spelling to register the capability's
-// matrix row, so this forwarding const must keep the identical string value.
+// Its home is iac/; query/contract/replatforming_rollups.go registers the row
+// from its own literal, and capability_lockstep_iac_test.go asserts this root
+// spelling stays byte-identical to it, so the value must not drift.
 const replatformingRollupsCapability = iac.ReplatformingRollupsCapability
 
 // replatformingPlanRoute mirrors iac.ReplatformingPlanRoute. Its home is

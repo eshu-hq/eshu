@@ -12,7 +12,7 @@ owners:
 # derived, never exact. This fragment is intentionally separate from
 # replatforming.v1.yaml and replatforming-rollups.v1.yaml to avoid conflicts
 # with parallel work. It MUST stay in sync with the Go capability row in
-# go/internal/query/contract_replatforming_ownership.go.
+# go/internal/query/contract/replatforming_ownership.go.
 capabilities:
   - capability: replatforming.ownership.candidates
     tools:

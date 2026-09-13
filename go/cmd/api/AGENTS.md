@@ -132,7 +132,7 @@
 ## What NOT to change without an ADR
 
 - `ESHU_QUERY_PROFILE` accepted values — part of the public truth-label contract;
-  see `docs/public/reference/http-api.md` and `go/internal/query/contract.go`.
+  see `docs/public/reference/http-api.md` and `go/internal/query/envelope_aliases.go`.
 - `ESHU_GRAPH_BACKEND` accepted values — governed by the backend promotion gate;
   see `docs/public/reference/backend-conformance.md`.
 - The `AuthMiddleware` placement relative to `mountRuntimeSurface` — moving this

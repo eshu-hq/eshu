@@ -143,7 +143,7 @@ becomes a row parameter rather than a literal, matching the existing
 
 ## 7. Composition With Envelope Truth Labels
 
-The answer-level `TruthEnvelope` (`go/internal/query/contract.go`) describes the
+The answer-level `TruthEnvelope` (`go/internal/query/envelope_aliases.go`) describes the
 **provenance of the answer** (graph vs content index, freshness, backend).
 Per-edge `resolution_method` describes the **provenance of one edge inside that
 answer**. They are orthogonal and both are reported:

@@ -171,9 +171,6 @@ const (
 	securityAlertReconciliationsCapability     = supplychain.SecurityAlertReconciliationsCapability
 	supplyChainImpactAggregateCapability       = supplychain.ImpactAggregateCapability
 	// Staying callers: contract_supply_chain.go capability matrix.
-	securityAlertReconciliationAggregateCapability = supplychain.SecurityAlertReconciliationAggregateCapability
-	containerImageIdentityAggregateCapability      = supplychain.ContainerImageIdentityAggregateCapability
-	sbomAttestationAttachmentAggregateCapability   = supplychain.SBOMAttestationAttachmentAggregateCapability
 
 	sbomAttestationAttachmentMaxLimit = supplychain.SBOMAttestationAttachmentMaxLimit
 	containerImageIdentityMaxLimit    = supplychain.ContainerImageIdentityMaxLimit

@@ -28,9 +28,9 @@ moved in verbatim from root -- see README.md's Move evidence.
 - `ChangedSinceCapability`/`GenerationLifecycleCapability`/
   `ServiceChangedSinceCapability` MUST stay `"freshness.changed_since"` /
   `"freshness.generation_lifecycle"` / `"freshness.service_changed_since"` --
-  byte-identical to root's `contract_changed_since.go` /
-  `contract_freshness.go` / `contract_service_changed_since.go` constants.
-  Root's three `init()` rows call `ChangedSinceSupport()` /
+  byte-identical to `query/contract`'s `changed_since.go` /
+  `freshness.go` / `service_changed_since.go` constants.
+  Those three `init()` rows call `ChangedSinceSupport()` /
   `GenerationLifecycleSupport()` / `ServiceChangedSinceSupport()` directly
   (#6642 Part C), so the ceilings have one declaration and cannot drift.
   Root's `TestCapabilityMatrixMatchesYAMLContract` pins the assembled rows
