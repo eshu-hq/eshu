@@ -291,7 +291,7 @@ describe("LoginPage", () => {
   // /api/v0/auth/local/login) applies the identical admin-only rule whether
   // or not ?local=1 is present. These tests only prove the UI hint renders
   // correctly; server enforcement is proven in go/internal/query
-  // (local_identity_sign_in_policy_gate_test.go).
+  // (identity_sign_in_policy_gate_test.go).
   describe("require_sso sign-in policy (#4968)", () => {
     afterEach(() => {
       window.history.pushState({}, "", "/");

@@ -29,7 +29,7 @@ type AuthPosture struct {
 	// tenant's sign-in policy has require_sso=true. It is NEVER the real
 	// authorization boundary — POST /api/v0/auth/local/login enforces the
 	// identical break-glass-admin-only rule via requireSSODecision
-	// (local_identity_sign_in_policy_gate.go) regardless of this value.
+	// (local/sign_in_policy_gate.go) regardless of this value.
 	LocalLoginOffered bool `json:"local_login_offered"`
 	// SelfServiceTokensOffered reports whether an authenticated caller may
 	// self-issue a personal API token (issue #5164). It is always true

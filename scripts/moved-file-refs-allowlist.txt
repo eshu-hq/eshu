@@ -70,6 +70,16 @@ go/internal/storage/postgres/migrations/088_reducer_work_item_reopened_at.sql:go
 # query-lane PR next touches this file.
 go/internal/query/codequery/route_query_proof_matrix_test.go:go/internal/reducer/handles_route_intents.go
 
+# #6642 local-identity family move: a dated #6450 finding record that names
+# the exact root files it inspected at the time (local_identity_api_tokens.go,
+# local_identity_api_tokens_selfservice.go, local_identity_handler_helpers.go)
+# to demonstrate a tenantless token-scope/session-issuance exposure.
+# Repointing to the new go/internal/query/local/ destination would falsify
+# the "as it stood at the time" evidentiary claim the finding depends on.
+docs/internal/evidence/6450-all-scope-browser-session-admission.md:go/internal/query/local_identity_api_tokens.go
+docs/internal/evidence/6450-all-scope-browser-session-admission.md:go/internal/query/local_identity_api_tokens_selfservice.go
+docs/internal/evidence/6450-all-scope-browser-session-admission.md:go/internal/query/local_identity_handler_helpers.go
+
 # restructure-research.md is an explicitly dated 2026-08-11 measurement
 # snapshot ("Counts are a snapshot, not a contract") of the pre-restructure
 # citation inventory that justified this whole #6053/#6061 move -- its table

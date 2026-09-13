@@ -60,7 +60,12 @@ func TestActorClassForAuthMapsEveryAuthMode(t *testing.T) {
 // one rather than at a representative. The admin identity-mutation and
 // provider-config emitters moved to admin/identity/actor_test.go and
 // admin/provider/config/actor_test.go with the families they pin (#6060,
-// lane B S1); the recovery-actor mapping moved to admin/actor_test.go.
+// lane B S1); the recovery-actor mapping moved to admin/audit/actor_test.go. The
+// local-identity emitter (LocalIdentityHandler.auditLocalIdentity) moved to
+// local/audit_test.go's TestAuditLocalIdentityStampsActorClassByAuthMode
+// (#6642): once the family moved to package local, auditLocalIdentity became
+// an unexported method of a different package and this root file can no
+// longer call it directly.
 func identityMutationEmitters() []struct {
 	name string
 	emit func(r *http.Request, audit GovernanceAuditAppender)
@@ -69,13 +74,6 @@ func identityMutationEmitters() []struct {
 		name string
 		emit func(r *http.Request, audit GovernanceAuditAppender)
 	}{
-		{
-			name: "local identity",
-			emit: func(r *http.Request, audit GovernanceAuditAppender) {
-				h := &LocalIdentityHandler{Audit: audit}
-				h.auditLocalIdentity(r, governanceaudit.EventTypeBreakGlass, governanceaudit.DecisionAllowed, "break_glass_enabled", "")
-			},
-		},
 		{
 			name: "sign-in policy mutation",
 			emit: func(r *http.Request, audit GovernanceAuditAppender) {

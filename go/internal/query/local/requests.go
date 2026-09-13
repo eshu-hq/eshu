@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package query
+package local
 
 import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 )
 
 type localIdentityBootstrapRequest struct {
@@ -102,11 +104,17 @@ func localIdentityExpiry(explicit time.Time, now time.Time, duration time.Durati
 	return now.Add(duration).UTC()
 }
 
-func localIdentityPolicyRevision(tenantID string, workspaceID string) string {
-	return localIdentityHash(strings.TrimSpace(tenantID) + ":" + strings.TrimSpace(workspaceID))
+// PolicyRevision is the hash-only policy revision stamp
+// IdentityHash(trim(tenantID)+":"+trim(workspaceID)): a deterministic hash
+// of the tenant/workspace scope, not of the policy content. Storage persists
+// it on bootstrap, invitation, and break-glass rows and carries it into the
+// session's PolicyRevisionHash. Root's sign_in_policy_mutations.go reaches
+// this through the localIdentityPolicyRevision forwarder.
+func PolicyRevision(tenantID string, workspaceID string) string {
+	return IdentityHash(strings.TrimSpace(tenantID) + ":" + strings.TrimSpace(workspaceID))
 }
 
-func localIdentityOptionalID(h *LocalIdentityHandler, enabled bool) string {
+func localIdentityOptionalID(h *IdentityHandler, enabled bool) string {
 	if !enabled {
 		return ""
 	}
@@ -114,16 +122,16 @@ func localIdentityOptionalID(h *LocalIdentityHandler, enabled bool) string {
 }
 
 func authTenantID(r *http.Request) string {
-	auth, _ := AuthContextFromContext(r.Context())
-	return normalizeAuthContext(auth).TenantID
+	auth, _ := queryauth.AuthContextFromContext(r.Context())
+	return queryauth.NormalizeAuthContext(auth).TenantID
 }
 
 func authWorkspaceID(r *http.Request) string {
-	auth, _ := AuthContextFromContext(r.Context())
-	return normalizeAuthContext(auth).WorkspaceID
+	auth, _ := queryauth.AuthContextFromContext(r.Context())
+	return queryauth.NormalizeAuthContext(auth).WorkspaceID
 }
 
 func authSubjectIDHash(r *http.Request) string {
-	auth, _ := AuthContextFromContext(r.Context())
-	return normalizeAuthContext(auth).SubjectIDHash
+	auth, _ := queryauth.AuthContextFromContext(r.Context())
+	return queryauth.NormalizeAuthContext(auth).SubjectIDHash
 }

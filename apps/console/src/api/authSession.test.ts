@@ -1,6 +1,6 @@
 // authSession.test.ts — TDD tests for authSession helpers.
 // loginLocal returns a discriminated LocalLoginResult union. The backend always
-// returns a JSON body (go/internal/query/local_identity_handler_helpers.go):
+// returns a JSON body (go/internal/query/local/helpers.go):
 //   200 → {status:"authenticated", auth:{...}}  → LocalLoginResult{status:"ok"}
 //   202 → {status:"mfa_required"}               → LocalLoginResult{status:"mfa_required"}  (resolves, NOT throws)
 //   423 → EshuApiHttpError(423)                  → LocalLoginResult{status:"locked"}

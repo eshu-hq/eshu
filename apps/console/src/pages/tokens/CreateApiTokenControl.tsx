@@ -5,7 +5,7 @@
 //
 // createPersonalApiToken (api/userProfile.ts) omits user_id; the backend
 // resolves it from the caller's own session and enforces self-scope
-// (go/internal/query/local_identity_api_tokens.go
+// (go/internal/query/local/api_tokens_self_service.go
 // enforceSelfServiceTokenCreateScope), so this mints a token for the CALLER,
 // never an arbitrary target. Any authenticated user can create in the default
 // no-SSO posture; a 403 only occurs in a catalog-enforced (SSO) posture that

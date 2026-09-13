@@ -208,7 +208,7 @@ func (s *IdentitySubjectStore) AuthenticateLocalIdentity(
 	// before the policy turned on, or created while it was off, was never
 	// re-checked here at login. That gap only bit when require_sso=false
 	// (require_sso=true already blocks non-admin local login entirely via
-	// requireSSODecision in go/internal/query/local_identity_sign_in_policy_gate.go).
+	// requireSSODecision in go/internal/query/local/sign_in_policy_gate.go).
 	//
 	// Admins NEVER read this policy: an admin always requires MFA regardless
 	// of its value, so reading it would only create a way for an

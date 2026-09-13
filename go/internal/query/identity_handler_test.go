@@ -351,5 +351,5 @@ func TestHandleBreakGlassSessionReturnsExplicitUnavailableWithoutSession(t *test
 	}
 }
 
-// fakeLocalIdentityStore lives in local_identity_handler_fakes_test.go
+// fakeLocalIdentityStore lives in identity_handler_fakes_test.go
 // (split out to stay under the 500-line file cap).

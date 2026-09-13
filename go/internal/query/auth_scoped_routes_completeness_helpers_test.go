@@ -140,7 +140,7 @@ func openAPIScopedTokenSupportRoutes(t *testing.T) map[string]struct{} {
 // GET /api/v0/auth/sessions (BrowserSessionListHandler), which has the exact
 // same bug shape. All four routes were moved to this marker; every other
 // admin/all-scopes gate found in the same audit (admin_replay.go's
-// AllScopes-only replay gate, local_identity_handler_helpers.go's
+// AllScopes-only replay gate, local/helpers.go's
 // requireSharedOperator, admin_identity_reads.go's auditScope) either gates
 // on privilege level rather than auth.Mode identity, or serves a route that
 // is not marked scoped-token-supported at all, so neither is a false claim.

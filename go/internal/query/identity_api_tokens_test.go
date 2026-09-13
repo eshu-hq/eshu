@@ -15,6 +15,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
+// identityAPITokenResponseWireShape decodes the JSON body local/api_tokens.go's
+// localIdentityAPITokenResponse (unexported, package local, #6642) writes.
+// This root test can no longer name that leaf-private type directly, so it
+// keeps its own copy of the wire shape it decodes -- the two must stay in
+// sync with the fields the handler actually writes.
+type identityAPITokenResponseWireShape struct {
+	Status     string    `json:"status"`
+	TokenID    string    `json:"token_id"`
+	TokenClass string    `json:"token_class,omitempty"`
+	APIToken   string    `json:"api_token"`
+	IssuedAt   time.Time `json:"issued_at"`
+	ExpiresAt  time.Time `json:"expires_at,omitempty"`
+}
+
 func TestLocalIdentityCreatePersonalAPITokenReturnsSecretOnceAndStoresHashOnly(t *testing.T) {
 	t.Parallel()
 
@@ -55,7 +69,7 @@ func TestLocalIdentityCreatePersonalAPITokenReturnsSecretOnceAndStoresHashOnly(t
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
-	var response localIdentityAPITokenResponse
+	var response identityAPITokenResponseWireShape
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -143,7 +157,7 @@ func TestLocalIdentityRevokeAndRotateAPITokenAuditLifecycle(t *testing.T) {
 	if rotateRec.Code != http.StatusCreated {
 		t.Fatalf("rotate status = %d, want %d: %s", rotateRec.Code, http.StatusCreated, rotateRec.Body.String())
 	}
-	var response localIdentityAPITokenResponse
+	var response identityAPITokenResponseWireShape
 	if err := json.Unmarshal(rotateRec.Body.Bytes(), &response); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -381,7 +395,7 @@ func TestLocalIdentityCreateAPITokenThenListReturnsDisplayLabel(t *testing.T) {
 // request body. The handler must resolve it server-side from the session's
 // SubjectIDHash via Store.ResolveLocalIdentityUserID — the same capability
 // self-service TOTP enrollment already uses for this exact problem
-// (local_identity_totp.go handleBeginTOTPEnrollment) — rather than requiring
+// (local/totp.go handleBeginTOTPEnrollment) — rather than requiring
 // a value the console structurally cannot provide.
 func TestLocalIdentityCreatePersonalAPITokenResolvesOwnUserIDWhenOmitted(t *testing.T) {
 	t.Parallel()

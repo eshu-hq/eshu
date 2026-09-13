@@ -19,6 +19,20 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/governanceaudit"
 )
 
+// identityTOTPBeginResponseWireShape decodes the JSON body local/totp.go's
+// localIdentityTOTPBeginResponse (unexported, package local, #6642) writes.
+// This root test can no longer name that leaf-private type directly, so it
+// keeps its own copy of the wire shape it decodes -- the two must stay in
+// sync with the fields the handler actually writes.
+type identityTOTPBeginResponseWireShape struct {
+	FactorID      string `json:"factor_id"`
+	OTPAuthURI    string `json:"otpauth_uri"`
+	Secret        string `json:"secret"`
+	Issuer        string `json:"issuer"`
+	Digits        int    `json:"digits"`
+	PeriodSeconds int    `json:"period_seconds"`
+}
+
 var errLocalIdentityTOTPConfirmFixture = errors.New("totp confirm fixture error")
 
 func TestHandleBeginTOTPEnrollment_RequiresAuthenticatedSession(t *testing.T) {
@@ -75,7 +89,7 @@ func TestHandleBeginTOTPEnrollment_ReturnsProvisioningURIAndSealsSecret(t *testi
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d: %s", rec.Code, http.StatusCreated, rec.Body.String())
 	}
-	var response localIdentityTOTPBeginResponse
+	var response identityTOTPBeginResponseWireShape
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -197,12 +211,16 @@ func TestHandleConfirmTOTPEnrollment_WrongCodeReturnsBadRequest(t *testing.T) {
 
 // TestOnlyTOTPBeginResponseCarriesSecretJSONField is a static negative-
 // leakage regression (issue #4986, mirroring the #4971 E2E leakage-scan
-// shape): greps every non-test .go file in this package for a `json:"secret"`
-// or `json:"otpauth_uri"` struct tag and asserts the only file that defines
-// one is local_identity_totp.go (localIdentityTOTPBeginResponse — the one
-// response that returns the plaintext secret, exactly once, by design). A
-// future handler that accidentally re-exposes the secret on a read/status
-// surface fails this test immediately instead of shipping silently.
+// shape): greps every non-test .go file in this package tree for a
+// `json:"secret"` or `json:"otpauth_uri"` struct tag and asserts the only
+// file that defines one is local/totp.go (localIdentityTOTPBeginResponse —
+// the one response that returns the plaintext secret, exactly once, by
+// design). The exempted basename moved from local_identity_totp.go to
+// totp.go when the family moved to package local (#6642); the walk itself
+// stays rooted at go/internal/query so it still crosses into the new leaf
+// directory. A future handler that accidentally re-exposes the secret on a
+// read/status surface fails this test immediately instead of shipping
+// silently.
 func TestOnlyTOTPBeginResponseCarriesSecretJSONField(t *testing.T) {
 	t.Parallel()
 	// Recursive, not filepath.Glob("*.go") (#6060). Glob never crosses a
@@ -219,9 +237,11 @@ func TestOnlyTOTPBeginResponseCarriesSecretJSONField(t *testing.T) {
 	secretTag := regexp.MustCompile(`json:"(secret|otpauth_uri)"`)
 	var offenders []string
 	for _, path := range matches {
-		// Compare the base name: the walk now yields full paths, so the old
-		// equality against a bare filename would exempt nothing.
-		if filepath.Base(path) == "local_identity_totp.go" {
+		// Compare the slash-normalized path SUFFIX, not the bare basename: a
+		// bare "totp.go" basename match would also exempt any future
+		// queryauth/totp.go or admin/.../totp.go carrying a json:"secret"
+		// field, letting it leak silently instead of failing this guard.
+		if strings.HasSuffix(filepath.ToSlash(path), "/query/local/totp.go") {
 			continue
 		}
 		data, err := os.ReadFile(path) // #nosec G304 -- path comes from a walk of this package's own directory tree, not external input
@@ -233,7 +253,7 @@ func TestOnlyTOTPBeginResponseCarriesSecretJSONField(t *testing.T) {
 		}
 	}
 	if len(offenders) > 0 {
-		t.Fatalf("found secret/otpauth_uri JSON field(s) outside local_identity_totp.go: %v", offenders)
+		t.Fatalf("found secret/otpauth_uri JSON field(s) outside local/totp.go: %v", offenders)
 	}
 }
 

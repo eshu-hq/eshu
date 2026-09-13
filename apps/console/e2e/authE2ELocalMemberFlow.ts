@@ -394,8 +394,8 @@ export async function assertTotpLoginRejectsInvalidCode(
   }
 }
 
-// localIdentityHash mirrors local_identity_handler_helpers.go's
-// localIdentityHash exactly (sha256 hex, "sha256:" prefixed, trimmed) — the
+// localIdentityHash mirrors local/helpers.go's
+// IdentityHash exactly (sha256 hex, "sha256:" prefixed, trimmed) — the
 // store never persists a raw login_id, only this hash.
 function localIdentityHash(value: string): string {
   const trimmed = value.trim();

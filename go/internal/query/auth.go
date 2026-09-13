@@ -380,9 +380,10 @@ func constantTimeEqual(a, b string) bool {
 // unauthorizedResponse writes a 401 JSON error response, including the
 // OAuth-challenge-aware WWW-Authenticate header. It lives in querycontract
 // (#6642) as WriteUnauthorized, body byte-for-byte preserved; this forwarder
-// keeps every existing call site (~20, across browser_session_handler.go,
-// saml_handler.go, profile_handler.go, local_identity_api_tokens*.go,
-// browser_session_list.go, and local_identity_totp.go) unchanged.
+// keeps every existing root call site (across browser_session_handler.go,
+// saml_handler.go, profile_handler.go and browser_session_list.go)
+// unchanged; the local/ leaf calls querycontract.WriteUnauthorized directly
+// (#6642).
 func unauthorizedResponse(w http.ResponseWriter, r *http.Request) {
 	querycontract.WriteUnauthorized(w, r)
 }

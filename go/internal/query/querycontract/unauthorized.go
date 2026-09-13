@@ -41,10 +41,9 @@ type OAuthChallengePolicy interface {
 // paths (via RequestWithOAuthChallenge) to WriteUnauthorized (issue #5163,
 // F-2). Using context here -- instead of adding an OAuthChallengePolicy
 // parameter to WriteUnauthorized itself -- keeps that function's signature,
-// and therefore its root call sites across browser_session_handler.go,
-// saml_handler.go, profile_handler.go, local_identity_api_tokens*.go,
-// browser_session_list.go, and local_identity_totp.go, completely
-// unchanged. Those call sites build their own plain *http.Request (never
+// and therefore its call sites across browser_session_handler.go,
+// saml_handler.go, profile_handler.go, browser_session_list.go and the
+// local/ leaf's api_tokens*.go and totp.go, completely unchanged. Those call sites build their own plain *http.Request (never
 // wrapped by RequestWithOAuthChallenge), so this key is structurally absent
 // there and their 401s can never carry the OAuth bearer challenge -- a
 // cookie/console 401 is not the resource this challenge targets.

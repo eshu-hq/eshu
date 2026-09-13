@@ -34,7 +34,7 @@ import (
 // (SignInPolicyMutationHandler.audit in sign_in_policy_mutations.go) and on
 // the require-SSO login gate's allow/deny decision
 // (LocalIdentityHandler.auditLocalIdentity, reason
-// local_login_denied_require_sso_policy, in local_identity_handler.go) —
+// local_login_denied_require_sso_policy, in local/handler.go) —
 // not on this handler's reads.
 type SignInPolicyReadHandler struct {
 	Store SignInPolicyReadStore

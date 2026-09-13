@@ -26,7 +26,7 @@ import (
 // operator-facing MFA reset) also calls with an operator-supplied
 // mfa_factor_kind alongside recovery codes — the admin MFA-reset HTTP
 // endpoint accepts an arbitrary mfa_factor_kind field
-// (internal/query/local_identity_requests.go's `json:"mfa_factor_kind"`) with
+// (internal/query/local/requests.go's `json:"mfa_factor_kind"`) with
 // no kind/pairing validation. Before the fix, reenrollBootstrapCredentialRecoveryFactor
 // revoked EVERY active row in identity_mfa_recovery_codes for the user via
 // the unscoped revokeLocalIdentityRecoveryCodesQuery, so restoring the

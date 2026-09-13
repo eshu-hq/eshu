@@ -12,7 +12,7 @@ import type { EshuApiClient } from "./client";
 import { EshuApiHttpError } from "./client";
 
 // TOTPBeginResult is the view model for POST /api/v0/auth/local/mfa/totp/begin.
-// Shape matches go/internal/query/local_identity_totp.go localIdentityTOTPBeginResponse.
+// Shape matches go/internal/query/local/totp.go localIdentityTOTPBeginResponse.
 export interface TOTPBeginResult {
   readonly factor_id: string;
   readonly otpauth_uri: string;
