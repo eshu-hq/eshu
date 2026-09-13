@@ -429,6 +429,17 @@ graph-write route surface.
   to `MERGE` either — follow the `posture_node_existence.go` pattern: read
   which candidate identities already exist via a separate query first, drop
   unconfirmed rows in Go, then `MERGE` only the confirmed subset.
+- **Do not write a node `MERGE` followed by `CREATE` in the same statement.**
+  orneryd/NornicDB#359: the pinned build (Eshu's `v1.2.1` pin through NornicDB
+  `main` 145ed415) silently drops the `CREATE` clause — the statement reports
+  success with the `MERGE`d node(s) written and the `CREATE`d node/relationship
+  never applied. See "Pitfall: A Node `MERGE` Followed By `CREATE` In One
+  Statement Silently Drops The `CREATE`" in
+  `docs/public/reference/nornicdb-write-shape-pitfalls.md` for the safe shapes (relationship
+  `MERGE` instead of `CREATE`, `MATCH ... MATCH ... CREATE`, a comma-pattern
+  `CREATE`, or two separate statements).
+  `merge_then_create_repo_scan_test.go` fails the build if this shape
+  reappears anywhere under `go/cmd` or `go/internal`.
 
 ## What NOT to change without an ADR
 
