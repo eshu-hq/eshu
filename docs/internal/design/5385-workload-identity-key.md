@@ -534,7 +534,7 @@ population.
 | `workload:<name>` for the `DEPENDS_ON` target | `go/internal/reducer/dependency.go:76` |
 | `workload:<basename>` for the `shared_followup` fact, `reducer_domain: "workload_identity"` | `go/internal/collector/git_followup_facts.go:52` |
 | `workload:<basename>` for the `shared_followup` fact **again**, `reducer_domain: "workload_materialization"` | `go/internal/collector/git_followup_facts.go:188` |
-| `"workload:" + workloadName` for the returned row's `id` | `go/internal/query/entity_workload_context.go:261` |
+| `"workload:" + workloadName` for the returned row's `id` | `go/internal/query/entity/workload_context.go` |
 
 **The two `git_followup_facts.go` rows are the same expression in the same file
 under two different reducer domains** (`:51` and `:187`), and an earlier revision
@@ -547,7 +547,7 @@ named one; a generator cannot disagree with itself that way.
 **Constructing sites that also parse, and so live in 4.5:**
 `go/internal/query/catalog.go:213` (idempotent re-prefix),
 `go/internal/query/impact/change_surface_resolvers.go` (construct guarded by
-a prefix test at `:104`), and `go/internal/query/entity_workload_context.go:286`
+a prefix test at `:104`), and `go/internal/query/entity/workload_context.go`
 (an equality chain whose third arm constructs). Outside `go/`,
 `apps/console/src/pages/VulnerabilitiesReachable.tsx:377` builds
 `` `workload:${workload.id.slice("wl:".length)}` `` — a console-side construction
@@ -565,8 +565,8 @@ the demo fixture", not "production breaks", and it is listed beside five
 production constructions only because it is a construction, not because it
 carries their risk.
 
-Applying that discipline is not optional in this document: `entity.go:58` is
-marked dead on the production path and `dependency_domain` carries "zero
+Applying that discipline is not optional in this document: `entity/handler.go`
+is marked dead on the production path and `dependency_domain` carries "zero
 production callers" for the same reason. A row without its reachability
 disposition reads as production risk by default, and this is the fourth site
 where that distinction changed the answer.
@@ -652,7 +652,7 @@ rg -nP -g '*.go' -g '!*_test.go' \
 ```
 
 **27 lines across 16 files at `2b9cca96d`** (28 anchors —
-`entity_workload_platform.go:69` carries two). `-P` is load-bearing: the
+`entity/workload_platform.go` carries two). `-P` is load-bearing: the
 `^(?!\s*//)` comment guard needs PCRE2. That guard also suppresses four doc
 comments describing the shape, so a comment-only edit to those lines does not
 move the count. The three path arguments are load-bearing too: dropping them and
@@ -664,13 +664,13 @@ One representative per anchor kind, because the kinds break differently:
 
 | Anchor kind | Representative | How a re-key breaks it |
 | --- | --- | --- |
-| Node-pattern property | `go/internal/query/entity_workload_handlers.go:29` | Matches nothing; the endpoint 404s. |
+| Node-pattern property | `go/internal/query/entity/workload_handlers.go` | Matches nothing; the endpoint 404s. |
 | Denormalized `i.workload_id` | `go/internal/query/compare.go:189`, `go/internal/query/workload_runtime_topology.go:91` | Covered by migration item 4; the second is under a query-plan pin. |
-| Id/name conflated in one clause | `go/internal/query/entity.go:58` | The same parameter is tested against `w.name` **and** `w.id`, so after a re-key the name half still matches and the id half does not — the selector half-works, which is the worst shape to debug. |
+| Id/name conflated in one clause | `go/internal/query/entity/handler.go` | The same parameter is tested against `w.name` **and** `w.id`, so after a re-key the name half still matches and the id half does not — the selector half-works, which is the worst shape to debug. |
 | Inequality exclusion | `go/internal/query/impact/change_surface_legacy.go` | `impacted.id <> $target_id` stops excluding the start node, so it **appears in its own impact set** — a wrong answer with no error. |
 | List membership | `go/internal/query/catalog_workload_environments.go:60,68,86` | Silent empty result. |
 
-`entity.go:58` is in the 27 but is **dead on the production path**:
+`entity/handler.go` is in the 27 but is **dead on the production path**:
 `serviceLookupWhereClause` has exactly two references in the tree, its own
 declaration and `service_context_endpoint_test.go:107`. Live count is 26.
 
@@ -727,8 +727,8 @@ cite two lines each), and an earlier revision's
 | `go/internal/query/catalog.go:213` | **Both** a parse and a construct: an idempotent re-prefix, `"workload:" + TrimPrefix(name, "workload:")`. |
 | `go/internal/query/catalog.go:214,332` | Pure parses. |
 | `go/internal/query/impact/change_surface_resolvers.go` | Construct guarded by a prefix test at `:104`; the construct itself is at `:107`. |
-| `go/internal/query/entity_workload_context.go:280` | Prefix parse — `strings.TrimPrefix(selector, "workload:")`, the only `TrimPrefix` in the function. |
-| `go/internal/query/entity_workload_context.go:286` | **Both.** `selector == normalized \|\| plainSelector == normalized \|\| selector == "workload:"+normalized` — the third arm constructs. An earlier revision filed this as a pure parse. |
+| `go/internal/query/entity/workload_context.go` | Prefix parse — `strings.TrimPrefix(selector, "workload:")`, the only `TrimPrefix` in the function. |
+| `go/internal/query/entity/workload_context.go` | **Both.** `selector == normalized \|\| plainSelector == normalized \|\| selector == "workload:"+normalized` — the third arm constructs. An earlier revision filed this as a pure parse. |
 | `go/internal/query/repository_read_model_summary.go:114` | Prefix parse. |
 | `go/internal/query/content_reader_repository_catalog.go:107` | Prefix parse. |
 | `go/internal/query/service_workload_resolution.go:137` | `HasPrefix(selector.ServiceName, "workload:")` gates whether an id-equality read fires at all — so it breaks twice over. |
@@ -745,11 +745,11 @@ cite two lines each), and an earlier revision's
 | `apps/console/src/api/eshuGraphRelationships.ts:192` | **Strips** too: `trimmed.slice(prefix.length)` after a case-insensitive `startsWith`. |
 
 **Construct and parse are not disjoint** — `catalog.go:213`,
-`impact/change_surface_resolvers.go:102-108` and `entity_workload_context.go:286`
+`impact/change_surface_resolvers.go:102-108` and `entity/workload_context.go`
 are all three — which is one more reason this could not have been fixed by adding
 rows to a flat "parse sites" list. Those hybrids stay here and are cross-referenced
 from 4.1 rather than moved, because a reader auditing parse behaviour needs to see
-them. Only `entity_workload_context.go:261`, a pure construction an earlier
+them. Only `entity/workload_context.go`, a pure construction an earlier
 revision filed here, actually moved.
 
 `go/internal/query/impact/entity_map_resolver.go` resolves by `{repo_id, name}` and would keep
@@ -830,7 +830,7 @@ attributed it to the wrong producer, fact kind, and field; the corrected reading
   own `entity_key` at `:188` — a different domain, so the two are not one thing
   and must not be cited as one.
 
-Either way the prefix is surfaced through `entity_workload_context.go` as the
+Either way the prefix is surfaced through `entity/workload_context.go` as the
 `materialization_status: "identity_only"` fallback (`:212`, `:269`) used
 precisely when a workload has no materialized graph node, and the supply-chain
 impact domain treats any `workload:`-prefixed key as workload-identity evidence.
@@ -1304,7 +1304,7 @@ differently.**
 **Tier 1 — loud, and alias-fixable.** `workload_id` is a path parameter on
 `/api/v0/workloads/{workload_id}/context` and `/story`
 (`openapi/paths/search/entities.go`; handler matches `w.id` exactly at
-`entity_workload_handlers.go:19,29`, 404 on miss). It is a required body field on
+`entity/workload_handlers.go`, 404 on miss). It is a required body field on
 `POST /api/v0/compare/environments` (`go/internal/query/compare.go:35,64`, `MATCH (w:Workload) WHERE
 w.id = $workload_id` at `:160`, no name fallback). The CLI rejects a label
 containing `:` (`isShareSafeLabel` at `go/internal/cli/opdigest/digest.go:244`,

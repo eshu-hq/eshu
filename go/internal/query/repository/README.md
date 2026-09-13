@@ -42,7 +42,7 @@ gates through `querycontract` like every other caller.
 
 The exported surface is described in [doc.go](doc.go). Exports exist only
 for staying callers: the other packages that consume repository reads
-(`entity/entity_workload_context.go`, `service/deployment_evidence.go`,
+(`entity/workload_context.go`, `service/deployment_evidence.go`,
 `deployment_trace_support_helpers.go`, documentation and target-support
 stayers), the `cmd` wiring alias, and the staying root tests that pin
 family behavior. Unexported helpers stay unexported; cross-package test

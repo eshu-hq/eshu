@@ -21,12 +21,12 @@ import (
 // WorkloadContext schema (openapi/components_workload_session.go) documents
 // "partial_reasons" as an always-present field "so the envelope shape is
 // stable across complete and partial reads", and getWorkloadContext
-// (entity_workload_handlers.go) honors that by calling
+// (entity/workload_handlers.go) honors that by calling
 // ctx["partial_reasons"] = contextPartialReasons(ctx) before WriteSuccess.
-// getServiceContext (entity.go) writes the fetched workload-context map
+// getServiceContext (entity/handler.go) writes the fetched workload-context map
 // straight to WriteSuccess without that call, so an infrastructure-read
 // degradation that lands in "limitations" (fetchWorkloadContextForOperation,
-// entity_workload_context.go) was visible on GET
+// entity/workload_context.go) was visible on GET
 // /api/v0/workloads/{workload_id}/context but silently absent on GET
 // /api/v0/services/{service_name}/context, even though both routes share the
 // same WorkloadContext response schema. This test drives the real handler

@@ -7,7 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 )
 
-func entityContextTruthEnvelope(profile querycontract.QueryProfile) *querycontract.TruthEnvelope {
+func contextTruthEnvelope(profile querycontract.QueryProfile) *querycontract.TruthEnvelope {
 	return querycontract.BuildTruthEnvelope(
 		profile,
 		"code_search.fuzzy_symbol",

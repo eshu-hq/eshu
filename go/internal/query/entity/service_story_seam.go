@@ -28,7 +28,7 @@ import (
 //
 // The access-scope filter and capability gate are enforced here, so any caller
 // inherits the same scoped-token and profile semantics as the HTTP route.
-func (h *EntityHandler) BuildServiceStoryEnvelope(
+func (h *Handler) BuildServiceStoryEnvelope(
 	ctx context.Context,
 	selector service.WorkloadSelector,
 	operation string,

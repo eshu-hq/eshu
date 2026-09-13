@@ -37,7 +37,7 @@ type workloadDeploymentTopologyResult struct {
 // FetchWorkloadDeploymentTopology reads the workload's deployment topology
 // (instances, edges, provisioned platforms) for one WHERE clause. Exported
 // for the staying root tests that pin topology behavior; see #6060.
-func (h *EntityHandler) FetchWorkloadDeploymentTopology(
+func (h *Handler) FetchWorkloadDeploymentTopology(
 	ctx context.Context,
 	whereClause string,
 	params map[string]any,

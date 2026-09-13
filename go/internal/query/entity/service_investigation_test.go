@@ -19,7 +19,7 @@ import (
 func TestInvestigateServiceRequiresServiceName(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/investigations/services/", nil)
 	rec := httptest.NewRecorder()
 

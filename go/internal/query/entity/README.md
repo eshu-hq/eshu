@@ -3,7 +3,7 @@
 ## Purpose
 
 `entity` holds the entity-handler family (Issue #6060, lane B B5): the
-`EntityHandler` HTTP surface (`POST /api/v0/entities/resolve`, `GET
+`Handler` HTTP surface (`POST /api/v0/entities/resolve`, `GET
 /api/v0/entities/{id}/context`, `GET /api/v0/workloads/{id}/context|story`,
 `GET /api/v0/services/{name}/context|story`, `GET
 /api/v0/investigations/services/{name}`), every method-home file behind
@@ -11,7 +11,7 @@ entity resolution (identity, page, results, workload, content-type, metadata,
 summary, context-content shaping), the workload context core
 (`fetchWorkloadContext`/`fetchServiceWorkloadContext` with the read-model
 fallback) plus the runtime-topology, provisioned-platform, and platform
-reads behind it, and the absorbed B4 `*EntityHandler` service seam (story
+reads behind it, and the absorbed B4 `*Handler` service seam (story
 envelope, supply-chain enrichment, investigation, workload resolution). The
 `platform_impact.context_overview` capability strings and the
 `TruthBasisHybrid` envelope basis travel with the family; the shared
@@ -19,7 +19,7 @@ capability matrix row stays in the query root. The OpenAPI fragments
 documenting the entity routes live in `openapi/paths/search/entities.go`,
 which scripts/verify-openapi.sh reaches by scanning that tree recursively.
 
-The `EntityHandler` struct keeps its `Neo4j`, `Content`,
+The `Handler` struct keeps its `Neo4j`, `Content`,
 `CICDRunCorrelations`, `ContainerImageIdentities`, `SBOMAttachments`,
 `Profile`, `Logger`, and `Instruments` dependencies, respelled onto the
 leaf ports (`querycontract`, `supplychain`); `cmd/api` and `cmd/mcp-server`
@@ -42,7 +42,7 @@ cycles back through `handler.go` and `entity_alias.go`).
 Workload-context fetching (`FetchWorkloadContextForOperation`,
 `FetchServiceReadModelWorkloadContext`) is this family's production seam to
 the deployment-trace wrapper: the staying root
-`family_impact_trace_deployment.go` builds an `EntityHandler` and calls it,
+`family_impact_trace_deployment.go` builds an `entity.Handler` and calls it,
 which is why those two methods are exported. The remaining exports
 (`FetchWorkloadDeploymentTopology`, `FetchProvisionedPlatformResult`,
 `ProvisionedPlatformResult`, `FetchWorkloadRuntimeTopology`) exist only for
@@ -89,3 +89,125 @@ No-Observability-Change (#6060 lane-B B5): no new runtime behavior, so no
 new spans, metrics, or logs. The existing entity telemetry events
 (instruments, k8s-scan truncation disclosure) moved with their handlers
 unchanged; operator signals are identical to base.
+
+## Naming (#6642 Part D)
+
+Destuttered under `docs/internal/naming.md` rules 2 and 4: file names no
+longer repeat the leaf's own package word, and the one exported symbol that
+did (`EntityHandler`) dropped the stutter. Behavior is unchanged; only file
+names, identifier spellings, citations, and doc comments moved.
+
+### Files (rule 2)
+
+| Old | New |
+| --- | --- |
+| `entity.go` | `handler.go` |
+| `entity_content_types.go` | `content_types.go` |
+| `entity_content_types_atlantis_test.go` | `content_types_atlantis_test.go` |
+| `entity_context_authz_test.go` | `context_authz_test.go` |
+| `entity_context_content.go` | `context_content.go` |
+| `entity_context_content_truncation_test.go` | `context_content_truncation_test.go` |
+| `entity_context_limits.go` | `context_limits.go` |
+| `entity_context_truth.go` | `context_truth.go` |
+| `entity_helpers.go` | `helpers.go` |
+| `entity_metadata.go` | `metadata.go` |
+| `entity_repository_selector_test.go` | `repository_selector_test.go` |
+| `entity_resolve_identity.go` | `resolve_identity.go` |
+| `entity_resolve_page.go` | `resolve_page.go` |
+| `entity_resolve_results.go` | `resolve_results.go` |
+| `entity_resolve_results_test.go` | `resolve_results_test.go` |
+| `entity_resolve_workload.go` | `resolve_workload.go` |
+| `entity_resolve_workload_query.go` | `resolve_workload_query.go` |
+| `entity_resolve_workload_test.go` | `resolve_workload_test.go` |
+| `entity_story_kotlin_test.go` | `story_kotlin_test.go` |
+| `entity_story_typescript_test.go` | `story_typescript_test.go` |
+| `entity_summary.go` | `summary.go` |
+| `entity_workload_context.go` | `workload_context.go` |
+| `entity_workload_context_test.go` | `workload_context_read_model_test.go` (collision: `workload_context_test.go` already existed; renamed to name what it actually covers — the read-model fallback path — rather than folding into the existing file, which would have pushed it past the 500-line cap) |
+| `entity_workload_handlers.go` | `workload_handlers.go` |
+| `entity_workload_platform.go` | `workload_platform.go` |
+
+### Exported identifier (rule 4)
+
+| Old | New |
+| --- | --- |
+| `EntityHandler` | `Handler` |
+
+The root alias keeps its pre-move spelling: `query.EntityHandler = entity.Handler`
+(`entity_alias.go`, outside this leaf). `family_impact_trace_deployment.go`
+(also outside this leaf) was repointed to construct `entity.Handler` directly.
+
+### Unexported package-level identifiers leading with `entity` (also renamed)
+
+| Old | New | File |
+| --- | --- | --- |
+| `entityResolveRank` | `resolveRank` | `resolve_results.go` |
+| `entityHasStableIdentity` | `hasIdentity` | `resolve_results.go` |
+| `entityIsAnonymousContainer` | `isAnonymousContainer` | `resolve_results.go` |
+| `entityString` | `stringField` | `resolve_results.go` |
+| `entityLabelStrings` | `labelStrings` | `resolve_results.go` |
+| `entityResolveTruthEnvelope` | `resolveTruthEnvelope` | `resolve_page.go` |
+| `entityContextTruthEnvelope` | `contextTruthEnvelope` | `context_truth.go` |
+| `entityContextResultLimits` | `contextResultLimits` | `context_limits.go` |
+
+`entityHasStableIdentity` could not become the equally-obvious `hasStableIdentity`:
+`normalizeResolvedEntities` (`resolve_results.go`) already declares a local
+`hasStableIdentity` bool in the same scope it calls this function from, so
+that rename would have shadowed the call with the local variable. `hasIdentity`
+avoids the collision while still dropping the package-word stutter.
+
+### `EntityType` — naming rule 4 does not apply
+
+`EntityType` is not a top-level export of this package. This package declares
+no `type EntityType`, `func EntityType...`, `var EntityType`, or
+`const EntityType` — only an ordinary struct field `EntityType string` on
+`GlobalContentEntityFilter` (`content_types.go`), reached through a value
+(`filter.EntityType`) and never as `entity.EntityType`. Naming rule 4 targets
+a package-qualified export stuttering with the package name; a struct field
+reached through its owning value is not that shape, so rule 4 does not apply
+and nothing was renamed here.
+
+The widely-cited `entity.EntityType` usage across
+`go/internal/reducer/servicecatalog`, `go/internal/projector`,
+`go/internal/collector/gitrepo`, `go/internal/content/shape`,
+`go/internal/storage/postgres`, `go/internal/searchpostgres`, and assorted
+`go/internal/query/*` files (measured via
+`rg -l '\bentity\.EntityType\b' --glob '!go/internal/query/entity/**' go`,
+50 files at this head) is a textual coincidence, not a caller of this
+package: none of those files import `go/internal/query/entity`, and every
+hit is a local loop or parameter variable literally named `entity` (of some
+other type, e.g. `querycontract.EntityContent` or `shape.Entity`) accessing
+that other type's own `EntityType` field. Verified for a sample of the list
+(`go/internal/reducer/servicecatalog/service_catalog_correlation_index.go`,
+`go/internal/collector/gitrepo/discovery_advisory.go`) by confirming no
+`"github.com/eshu-hq/eshu/go/internal/query/entity"` import exists in those
+files.
+
+No-Regression Evidence (#6642 rule 2/4): `go test ./internal/query/... -count=1`,
+`go test ./cmd/api ./cmd/mcp-server ./internal/mcp ./internal/queryplan/...
+./cmd/golden-corpus-gate/... -count=1`, `go build ./...`, and `go vet ./...`
+all exit 0 on the renamed tree; `go test ./internal/query/entity -list '.*'`
+lists the identical sorted test-function set before and after (93 names).
+The queryplan digests that moved did so only because the recorded function
+text names the renamed `Handler` receiver, not because any Cypher, row
+shape, or bound changed; `go test ./internal/queryplan/... -count=1` is
+green on the re-pinned rows. The B-7 cassettes and B-12 golden snapshot are
+byte-identical (`git diff origin/main --stat -- testdata/golden
+testdata/cassettes` is empty).
+
+Four citations of the old names are left in place on purpose, with the
+reason recorded here rather than silently: `docs/internal/design/5385-workload-identity-key.md`
+row 692 cites root-qualified `go/internal/query/entity.go` (line 283), which was
+already dead before this PR, in a table row whose bytes anchor another
+citation's LINE-ledger authority (repointing it would invalidate that
+authority); and comments in `go/internal/query/language_query_graph_error_test.go`
+(bare `entity_content_types.go`), `go/internal/query/language/metadata.go`
+and `go/internal/query/querycontract/language_query_metadata.go` (bare
+`entity_metadata.go`) keep the old names, because any edit to a `*language*`
+file trips `scripts/verify-parser-relationship-kit.sh`, which then demands
+an unrelated Language Query DSL doc update. All become fixable when their
+respective gates are widened; none is a live path the gates resolve.
+
+No-Observability-Change (#6642 rule 2/4): file and identifier renames only;
+no span, metric, log, status field, or route changes, so the telemetry
+contract this package documents above is untouched.

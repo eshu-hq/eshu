@@ -90,7 +90,7 @@ func TestGetServiceContextFallsBackToRepositoryWorkloadIdentity(t *testing.T) {
 // verbatim up to limit. It exists to reach the
 // truncated=true/zero-infrastructure-rows combination
 // TestGetServiceContextReadModelResetsTruncatedOnGraphFallbackError needs at
-// the entity_workload_context.go read-model call site (#5764 P2 review
+// the entity/workload_context.go read-model call site (#5764 P2 review
 // follow-up): fetchServiceReadModelWorkloadContext's reset of
 // infrastructureTruncated on a graph-fallback error must hold as an
 // invariant of that call site's OWN logic, not only as an accidental

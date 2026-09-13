@@ -41,7 +41,7 @@ func TestGetEntityContextGraphAppliesScopedAuthBeforeReturn(t *testing.T) {
 			}, nil
 		},
 	}
-	handler := &EntityHandler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/entity-a/context", nil)
 	req.SetPathValue("entity_id", "entity-a")
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
@@ -64,7 +64,7 @@ func TestGetEntityContextEmptyGrantReturnsNotFoundWithoutBackendCalls(t *testing
 
 	reader := &recordingEntityContextGraphReader{}
 	content := &recordingEntityContextContentStore{}
-	handler := &EntityHandler{Neo4j: reader, Content: content, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: reader, Content: content, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/entity-a/context", nil)
 	req.SetPathValue("entity_id", "entity-a")
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
@@ -100,7 +100,7 @@ func TestGetEntityContextContentFallbackFiltersOutOfScopeEntity(t *testing.T) {
 			Language:     "go",
 		},
 	}
-	handler := &EntityHandler{Content: content, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Content: content, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodGet, "/api/v0/entities/entity-b/context", nil)
 	req.SetPathValue("entity_id", "entity-b")
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{

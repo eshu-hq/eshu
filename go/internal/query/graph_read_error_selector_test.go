@@ -117,7 +117,7 @@ func TestGetRepositoryContentSelectorMapsGraphReadAvailabilityErrors(t *testing.
 
 // TestResolveEntitySelectorMapsGraphReadAvailabilityErrors covers
 // resolveEntity's repo_id-anchored resolveRepositorySelectorExactForAccess
-// call (entity.go), distinct from the sibling
+// call (entity/handler.go), distinct from the sibling
 // TestResolveEntityMapsGraphReadAvailabilityErrors in
 // graph_read_error_repository_entity_test.go, which uses the canonical-looking
 // "repo-1" selector and so only reaches the later main graph query.

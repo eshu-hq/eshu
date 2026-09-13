@@ -18,7 +18,7 @@ import (
 
 func TestBuildServiceStoryEnvelopeRequiresServiceName(t *testing.T) {
 	t.Parallel()
-	handler := &EntityHandler{Profile: querycontract.ProfileProduction}
+	handler := &Handler{Profile: querycontract.ProfileProduction}
 	data, truth, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), service.WorkloadSelector{}, "service_story")
 	if data != nil || truth != nil {
 		t.Fatalf("missing service name should yield no data/truth, got data=%v truth=%v", data, truth)
@@ -33,7 +33,7 @@ func TestBuildServiceStoryEnvelopeRequiresServiceName(t *testing.T) {
 
 func TestBuildServiceStoryEnvelopeMissingServiceReturnsNotFound(t *testing.T) {
 	t.Parallel()
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunSingleByMatch: map[string]map[string]any{},
 			RunByMatch:       map[string][]map[string]any{},
@@ -55,7 +55,7 @@ func TestBuildServiceStoryEnvelopeMissingServiceReturnsNotFound(t *testing.T) {
 func TestBuildServiceStoryEnvelopeUnsupportedCapability(t *testing.T) {
 	t.Parallel()
 	// Local lightweight profile does not support the platform context capability.
-	handler := &EntityHandler{Profile: querycontract.ProfileLocalLightweight}
+	handler := &Handler{Profile: querycontract.ProfileLocalLightweight}
 	_, _, status, errEnv := handler.BuildServiceStoryEnvelope(context.Background(), service.WorkloadSelector{ServiceName: "checkout"}, "service_story")
 	if status != http.StatusNotImplemented {
 		t.Fatalf("status = %d, want 501; errEnv=%#v", status, errEnv)
@@ -87,7 +87,7 @@ func TestBuildServiceStoryEnvelopeMapsGraphReadAvailabilityErrors(t *testing.T) 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			handler := &EntityHandler{
+			handler := &Handler{
 				Neo4j: querytestutil.FakeGraphReader{
 					RunFn: func(context.Context, string, map[string]any) ([]map[string]any, error) {
 						return nil, test.err

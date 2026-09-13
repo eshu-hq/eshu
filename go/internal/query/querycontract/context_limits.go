@@ -81,7 +81,7 @@ func WorkloadContextResultLimits(ctx map[string]any, workloadID, surface string)
 	// GET /api/v0/workloads/{id}/context and /story.
 	//
 	// PR #5933 review follow-up: a fourth signal joins these three.
-	// fetchWorkloadContextForOperation (entity/entity_workload_context.go)
+	// fetchWorkloadContextForOperation (entity/workload_context.go)
 	// appends "infrastructure_truncated" onto ctx["limitations"] when the
 	// repository's infrastructure-entity read hits
 	// repositoryInfrastructureEntityLimit (repository/infrastructure.go) --

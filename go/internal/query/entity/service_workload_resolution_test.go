@@ -32,7 +32,7 @@ func TestServiceStoryAmbiguousEnvelopeCarriesSelectorInMessage(t *testing.T) {
 
 	const selector = "checkout?token=SELECTOR-ECHO-PROBE"
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 				if !strings.Contains(cypher, "w.name = $service_name") {
@@ -87,7 +87,7 @@ func TestServiceWorkloadAmbiguousErrorUsesAPINeutralSelectorGuidance(t *testing.
 func TestCollectServiceWorkloadCandidatesHydratesRepositoryNames(t *testing.T) {
 	t.Parallel()
 
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j: querytestutil.FakeWorkloadGraphReader{
 			RunFn: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
 				switch {

@@ -86,7 +86,7 @@ surfaces:
   `AtlantisProject`/`AtlantisWorkflow` and its
   `MANAGES`/`ATLANTIS_DEPENDS_ON`/`USES_WORKFLOW` edges can be read back this
   way. `atlantis_project`/`atlantis_workflow` are registered for entity-context
-  resolution in `go/internal/query/entity_content_types.go`
+  resolution in `go/internal/query/entity/content_types.go`
   (`resolveContentBackedEntityTypes` for the content-store fallback,
   `graphResolvableNotLanguageQueryableEntityTypes` for graph-label filtering).
   They are deliberately **not** language-queryable — Atlantis entities carry

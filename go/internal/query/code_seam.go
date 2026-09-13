@@ -262,7 +262,7 @@ func MergeStrongestDeadCodeIncomingEdge(
 }
 
 // ResultContentEntityType is the exported seam for codequery.ResultContentEntityType,
-// which entity_metadata.go calls from outside the code move set. It forwards
+// which entity/metadata.go calls from outside the code move set. It forwards
 // so the code family can move without touching callers. See #6060.
 func ResultContentEntityType(result map[string]any) string {
 	return codequery.ResultContentEntityType(result)

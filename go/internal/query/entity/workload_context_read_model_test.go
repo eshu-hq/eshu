@@ -57,7 +57,7 @@ var _ querycontract.RepositoryReadModelSummaryStore = serviceReadModelInfrastruc
 
 // TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated is
 // the PR #5933 review follow-up (P1-2). FetchServiceReadModelWorkloadContext
-// (entity_workload_context.go:159-212) is the read-model fallback
+// (workload_context.go:190-277) is the read-model fallback
 // FetchServiceWorkloadContext (called by GET /api/v0/services/{name}/context)
 // takes when no graph Workload node is materialized for the service but a
 // repository read-model summary names it as a workload. That fallback's own
@@ -83,7 +83,7 @@ func TestGetServiceContextReadModelFallbackDisclosesInfrastructureTruncated(t *t
 	// FetchServiceWorkloadContext tries (w.name = $service_name, then
 	// w.id = $service_name) returns nil, which is what forces the fallback to
 	// FetchServiceReadModelWorkloadContext in the first place.
-	handler := &EntityHandler{
+	handler := &Handler{
 		Neo4j:   querytestutil.FakeWorkloadGraphReader{},
 		Content: content,
 	}

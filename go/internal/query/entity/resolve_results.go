@@ -17,7 +17,7 @@ func normalizeResolvedEntities(entities []map[string]any, limit int) []map[strin
 
 	hasStableIdentity := false
 	for _, entity := range entities {
-		if entityHasStableIdentity(entity) {
+		if hasIdentity(entity) {
 			hasStableIdentity = true
 			break
 		}
@@ -26,7 +26,7 @@ func normalizeResolvedEntities(entities []map[string]any, limit int) []map[strin
 	deduped := make([]map[string]any, 0, len(entities))
 	seen := make(map[string]struct{}, len(entities))
 	for _, entity := range entities {
-		if hasStableIdentity && entityIsAnonymousContainer(entity) {
+		if hasStableIdentity && isAnonymousContainer(entity) {
 			continue
 		}
 		key := resolvedEntityDedupeKey(entity)
@@ -38,8 +38,8 @@ func normalizeResolvedEntities(entities []map[string]any, limit int) []map[strin
 	}
 
 	sort.SliceStable(deduped, func(i, j int) bool {
-		left := entityResolveRank(deduped[i])
-		right := entityResolveRank(deduped[j])
+		left := resolveRank(deduped[i])
+		right := resolveRank(deduped[j])
 		if left != right {
 			return left > right
 		}
@@ -52,9 +52,9 @@ func normalizeResolvedEntities(entities []map[string]any, limit int) []map[strin
 	return deduped
 }
 
-func entityResolveRank(entity map[string]any) int {
+func resolveRank(entity map[string]any) int {
 	score := 0
-	for _, label := range entityLabelStrings(entity["labels"]) {
+	for _, label := range labelStrings(entity["labels"]) {
 		switch label {
 		case "Repository":
 			score += 1000
@@ -72,29 +72,29 @@ func entityResolveRank(entity map[string]any) int {
 			score += 500
 		}
 	}
-	if entityString(entity, "id") != "" {
+	if stringField(entity, "id") != "" {
 		score += 50
 	}
-	if entityString(entity, "repo_id") != "" {
+	if stringField(entity, "repo_id") != "" {
 		score += 20
 	}
-	if entityString(entity, "file_path") != "" {
+	if stringField(entity, "file_path") != "" {
 		score += 10
 	}
 	return score
 }
 
-func entityHasStableIdentity(entity map[string]any) bool {
-	return entityString(entity, "id") != "" ||
-		entityString(entity, "repo_id") != "" ||
-		entityString(entity, "file_path") != ""
+func hasIdentity(entity map[string]any) bool {
+	return stringField(entity, "id") != "" ||
+		stringField(entity, "repo_id") != "" ||
+		stringField(entity, "file_path") != ""
 }
 
-func entityIsAnonymousContainer(entity map[string]any) bool {
-	if entityHasStableIdentity(entity) {
+func isAnonymousContainer(entity map[string]any) bool {
+	if hasIdentity(entity) {
 		return false
 	}
-	labels := entityLabelStrings(entity["labels"])
+	labels := labelStrings(entity["labels"])
 	if len(labels) == 0 {
 		return true
 	}
@@ -107,27 +107,27 @@ func entityIsAnonymousContainer(entity map[string]any) bool {
 }
 
 func resolvedEntityDedupeKey(entity map[string]any) string {
-	if id := entityString(entity, "id"); id != "" {
+	if id := stringField(entity, "id"); id != "" {
 		return "id:" + id
 	}
 	return strings.Join([]string{
-		strings.Join(entityLabelStrings(entity["labels"]), ","),
-		entityString(entity, "name"),
-		entityString(entity, "repo_id"),
-		entityString(entity, "file_path"),
+		strings.Join(labelStrings(entity["labels"]), ","),
+		stringField(entity, "name"),
+		stringField(entity, "repo_id"),
+		stringField(entity, "file_path"),
 	}, "|")
 }
 
-// entityString forwards to queryselector.EntityString. The implementation
+// stringField forwards to queryselector.EntityString. The implementation
 // moved to queryselector for #6060; this wrapper keeps root callers
 // unchanged.
-func entityString(entity map[string]any, key string) string {
+func stringField(entity map[string]any, key string) string {
 	return queryselector.EntityString(entity, key)
 }
 
-// entityLabelStrings forwards to queryselector.EntityLabelStrings. The
+// labelStrings forwards to queryselector.EntityLabelStrings. The
 // implementation moved to queryselector for #6060; this wrapper keeps root
 // callers unchanged.
-func entityLabelStrings(raw any) []string {
+func labelStrings(raw any) []string {
 	return queryselector.EntityLabelStrings(raw)
 }

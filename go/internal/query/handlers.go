@@ -4,7 +4,7 @@
 package query
 
 // RepositoryHandler is implemented in repository/handler.go
-// EntityHandler is implemented in entity.go
+// EntityHandler is implemented in entity/handler.go
 // CodeHandler is implemented in code.go
 // ContentHandler is implemented in contentread/content_handler.go
 // InfraHandler is implemented in infra.go

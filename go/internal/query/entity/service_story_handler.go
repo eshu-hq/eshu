@@ -15,7 +15,7 @@ import (
 // error/ambiguity classification live in the reusable seam, so the HTTP route and
 // in-process composers (the service intelligence report) share one truth path.
 // GetServiceStory serves the service-story route. Exported so the staying service-context authz test keeps driving the handler; see #6060.
-func (h *EntityHandler) GetServiceStory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetServiceStory(w http.ResponseWriter, r *http.Request) {
 	serviceName := querycontract.PathParam(r, "service_name")
 	data, truth, status, errEnv := h.BuildServiceStoryEnvelope(r.Context(), service.WorkloadSelector{
 		ServiceName: serviceName,

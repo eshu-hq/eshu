@@ -15,7 +15,7 @@ import (
 // response carries the canonical truth envelope plus an additive result_limits
 // drilldown block and an explicit partial_reasons slot so a prompt-ready caller
 // sees bounds and missing evidence without raw Cypher.
-func (h *EntityHandler) GetWorkloadContext(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetWorkloadContext(w http.ResponseWriter, r *http.Request) {
 	if !querycontract.RequireContextOverview(w, r, h.profile(), "workload context requires authoritative platform context truth") {
 		return
 	}
@@ -66,7 +66,7 @@ func (h *EntityHandler) GetWorkloadContext(w http.ResponseWriter, r *http.Reques
 // carries the canonical truth envelope plus an additive result_limits drilldown
 // block and an explicit partial_reasons slot, matching the workload context
 // route so answer composition sees consistent envelope metadata.
-func (h *EntityHandler) GetWorkloadStory(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetWorkloadStory(w http.ResponseWriter, r *http.Request) {
 	if !querycontract.RequireContextOverview(w, r, h.profile(), "workload story requires authoritative platform context truth") {
 		return
 	}

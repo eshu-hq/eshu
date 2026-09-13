@@ -16,8 +16,9 @@
 - Import `querycontract`, `queryselector`, `repository`, `service`, and
   `supplychain`, never the reverse. Those leaves must not import this
   package: several entity files already import them, so a back-import
-  cycles. In particular `service` must keep treating `EntityHandler` as an
-  opaque caller (comments only); the method-home rule put the seam here.
+  cycles. In particular `service` must keep treating `entity.Handler` (root
+  alias `query.EntityHandler`) as an opaque caller (comments only); the
+  method-home rule put the seam here.
 - `RepositoryAccessFilter` values must be derived from the request's
   `AuthContext` via `querycontract.RepositoryAccessFilterFromContext`, never
   hand-built to widen access.

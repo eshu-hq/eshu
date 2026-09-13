@@ -57,7 +57,7 @@ func TestResolveEntityWorkloadAppliesDefiningRepositoryScopeBeforeLimit(t *testi
 			return nil, nil
 		}
 	}}
-	handler := &EntityHandler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: reader, Profile: querycontract.ProfileLocalAuthoritative}
 	req := httptest.NewRequest(http.MethodPost, "/api/v0/entities/resolve",
 		bytes.NewBufferString(`{"name":"Payments API","type":"workload","limit":5}`))
 	req = req.WithContext(queryauth.ContextWithAuthContext(req.Context(), queryauth.AuthContext{
@@ -88,7 +88,7 @@ func TestResolveEntityWorkloadAppliesDefiningRepositoryScopeBeforeLimit(t *testi
 
 func TestResolveEntityWorkloadFallsBackToDefiningRepository(t *testing.T) {
 	t.Parallel()
-	handler := &EntityHandler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "MATCH (repo:Repository) WHERE repo.id IN $repo_ids"):
 			return []map[string]any{{"repo_id": "repo-legacy", "repo_name": "legacy"}}, nil
@@ -127,7 +127,7 @@ func TestResolveEntityWorkloadFallsBackToDefiningRepository(t *testing.T) {
 
 func TestResolveEntityWorkloadPropertyOnlyHydratesRepositoryFromGraph(t *testing.T) {
 	t.Parallel()
-	handler := &EntityHandler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
+	handler := &Handler{Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 		switch {
 		case strings.Contains(cypher, "MATCH (w:Workload)<-[:DEFINES]-(repo:Repository)"):
 			return []map[string]any{}, nil
@@ -162,7 +162,7 @@ func TestResolveEntityWorkloadPropertyOnlyHydratesRepositoryFromGraph(t *testing
 
 func TestResolveEntityWorkloadDedupesBeforeRepositoryHydration(t *testing.T) {
 	t.Parallel()
-	handler := &EntityHandler{
+	handler := &Handler{
 		Content: failingListRepositoriesContentStore{},
 		Neo4j: querytestutil.FakeGraphReader{RunFn: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			switch {

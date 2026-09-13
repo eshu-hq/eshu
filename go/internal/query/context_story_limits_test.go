@@ -319,7 +319,7 @@ func overflowingInfrastructureEntities(n int) []EntityContent {
 // dependents_truncated, consumer_repositories_truncated, and
 // provisioning_source_chains_truncated, but did not read ctx["limitations"]
 // for infrastructure_truncated, even though fetchWorkloadContextForOperation
-// (entity_workload_context.go) appends that reason when the repository's
+// (entity/workload_context.go) appends that reason when the repository's
 // infrastructure-entity read hits repository.InfrastructureEntityLimit. This
 // drives a genuine repository.InfrastructureEntityLimit+1-row overflow through
 // the real mounted /api/v0/workloads/{id}/context and /story routes -- with no
@@ -333,7 +333,7 @@ func TestGetWorkloadContextAndStoryResultLimitsReflectInfrastructureTruncated(t 
 	content := infrastructureOverflowContentStore{
 		infrastructureEntities: overflowingInfrastructureEntities(repository.InfrastructureEntityLimit + 1),
 	}
-	// fetchWorkloadRepositoryForAccess (entity_workload_context.go) re-resolves
+	// fetchWorkloadRepositoryForAccess (entity/workload_context.go) re-resolves
 	// repo_id through its own DEFINES-anchored candidate query before the
 	// infrastructure read runs; workloadEnvelopeGraphReader's default runByMatch
 	// table has no entry for it, which would leave repoID empty and skip the

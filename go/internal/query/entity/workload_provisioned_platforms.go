@@ -29,7 +29,7 @@ type orderedProvisionedPlatform struct {
 // FetchProvisionedPlatformResult reads the provisioned-platform rows for one
 // repository. Exported for the staying root tests that pin platform
 // behavior; see #6060.
-func (h *EntityHandler) FetchProvisionedPlatformResult(ctx context.Context, repoID string) (ProvisionedPlatformResult, error) {
+func (h *Handler) FetchProvisionedPlatformResult(ctx context.Context, repoID string) (ProvisionedPlatformResult, error) {
 	if h == nil || h.Neo4j == nil || strings.TrimSpace(repoID) == "" {
 		return EmptyProvisionedPlatformResult(), nil
 	}

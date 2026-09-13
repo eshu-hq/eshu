@@ -99,7 +99,7 @@ func TestFetchWorkloadContextSelectsRepositoryFromActualDefinesCandidates(t *tes
 				},
 			}
 
-			got, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadContextForOperation(
+			got, err := (&Handler{Neo4j: reader}).FetchWorkloadContextForOperation(
 				test.ctx,
 				"w.id = $workload_id",
 				map[string]any{"workload_id": "workload:payments"},
@@ -171,7 +171,7 @@ func TestFetchWorkloadRepositoryForAccessSelectsBoundedCandidates(t *testing.T) 
 					return test.rows, nil
 				},
 			}
-			gotID, gotName, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
+			gotID, gotName, err := (&Handler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
 				t.Context(),
 				"workload:payments",
 				querycontract.RepositoryAccessFilter{AllScopes: true},
@@ -210,7 +210,7 @@ func TestFetchWorkloadRepositoryForAccessAppliesScopedAuthorization(t *testing.T
 			return []map[string]any{{"repo_id": "repo-a", "repo_name": "alpha"}}, nil
 		},
 	}
-	gotID, _, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
+	gotID, _, err := (&Handler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
 		ctx,
 		"workload:payments",
 		querycontract.RepositoryAccessFilterFromContext(ctx),
@@ -237,7 +237,7 @@ func TestFetchWorkloadRepositoryForAccessFailsClosedOnOverflowAndGraphError(t *t
 				return rows, nil
 			},
 		}
-		gotID, gotName, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
+		gotID, gotName, err := (&Handler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
 			t.Context(), "workload:payments", querycontract.RepositoryAccessFilter{AllScopes: true}, "",
 		)
 		if err == nil || !strings.Contains(err.Error(), "candidates exceed bound") {
@@ -255,7 +255,7 @@ func TestFetchWorkloadRepositoryForAccessFailsClosedOnOverflowAndGraphError(t *t
 				return nil, wantErr
 			},
 		}
-		_, _, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
+		_, _, err := (&Handler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
 			t.Context(), "workload:payments", querycontract.RepositoryAccessFilter{AllScopes: true}, "",
 		)
 		if !errors.Is(err, wantErr) {
@@ -273,7 +273,7 @@ func TestFetchWorkloadRepositoryForAccessSkipsEmptyWorkloadID(t *testing.T) {
 			return nil, nil
 		},
 	}
-	gotID, gotName, err := (&EntityHandler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
+	gotID, gotName, err := (&Handler{Neo4j: reader}).FetchWorkloadRepositoryForAccess(
 		t.Context(), "  ", querycontract.RepositoryAccessFilter{AllScopes: true}, "repo-a",
 	)
 	if err != nil || gotID != "" || gotName != "" {

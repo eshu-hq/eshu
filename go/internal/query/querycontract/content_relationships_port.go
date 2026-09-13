@@ -16,7 +16,7 @@ import (
 //
 // ScanTruncated is carried even though today's sole caller (the code
 // family's content fallback) ignores it: root's entity route already
-// discloses it (entity_context_content.go), and a later fix needs the field
+// discloses it (entity/context_content.go), and a later fix needs the field
 // present on this port to close that gap. This PR does not change what the
 // code route returns.
 type ContentRelationshipSet struct {

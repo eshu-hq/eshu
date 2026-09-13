@@ -16,7 +16,7 @@ import "context"
 // workload into a single row with empty collections and a zero count. To stay
 // correct on that backend, each enrichment is read through its own bound-anchor
 // query and joined in Go by workload id, mirroring the scalar-assembly approach
-// in entity_workload_context.go.
+// in entity/workload_context.go.
 //
 // Per-workload environments are the union of two graph-edge sources:
 //

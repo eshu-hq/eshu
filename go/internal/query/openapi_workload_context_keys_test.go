@@ -15,7 +15,7 @@ import (
 )
 
 // fetchWorkloadContextResultKeys is the reviewed key list for
-// fetchWorkloadContextForOperation (entity_workload_context.go). It is pinned
+// fetchWorkloadContextForOperation (entity/workload_context.go). It is pinned
 // from BOTH sides, because either direction alone is a false green (#5764
 // round-7 P2-1 -- the earlier comment here claimed a guarantee this list did
 // not carry):
@@ -31,8 +31,8 @@ import (
 //     added key silently widened the contract: this list is hand-maintained
 //     and nothing read the function.
 //
-// getWorkloadContext (entity_workload_handlers.go) and getServiceContext
-// (entity.go) both write this map verbatim via WriteSuccess for GET
+// getWorkloadContext (entity/workload_handlers.go) and getServiceContext
+// (entity/handler.go) both write this map verbatim via WriteSuccess for GET
 // /api/v0/workloads/{workload_id}/context and GET
 // /api/v0/services/{service_name}/context, which share the WorkloadContext
 // schema.
@@ -68,7 +68,7 @@ func TestOpenAPIWorkloadContextDeclaresEveryFetchedKey(t *testing.T) {
 }
 
 // fetchServiceReadModelWorkloadContextResultKeys is the reviewed key list for
-// fetchServiceReadModelWorkloadContext (entity_workload_context.go), pinned
+// fetchServiceReadModelWorkloadContext (entity/workload_context.go), pinned
 // from both sides exactly like fetchWorkloadContextResultKeys above:
 // TestOpenAPIWorkloadContextDeclaresEveryReadModelKey proves list ⊆ schema and
 // TestFetchServiceReadModelWorkloadContextEmitsOnlyDeclaredKeys proves

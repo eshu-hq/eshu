@@ -18,7 +18,7 @@ import (
 // deploymentTraceContextBackend is the production
 // impact.DeploymentTraceContextProvider: it enriches a deployment-trace
 // request with service workload context. It stays in root because it builds
-// an entity.EntityHandler (entity/, #6060 lane B B5), which cannot be named
+// an entity.Handler (entity/, #6060 lane B B5), which cannot be named
 // from the impact subpackage, and because the overview shaping reuses the
 // service-story build context for the same reason. ImpactHandler.TraceContext
 // carries the production adapter; tests inject fakes through the same
@@ -50,7 +50,7 @@ func (deploymentTraceContextBackend) BuildServiceDeploymentOverview(workloadCont
 }
 
 // fetchServiceTraceContext stays in root: it builds a B5-entity handler
-// (EntityHandler), which cannot be named from the impact subpackage.
+// (entity.Handler), which cannot be named from the impact subpackage.
 // Moved callers reach it through ImpactHandler.TraceContext instead.
 // See #6060.
 func fetchServiceTraceContext(
@@ -61,7 +61,7 @@ func fetchServiceTraceContext(
 	serviceName string,
 	traceOptions impact.TraceEnrichmentConfig,
 ) (map[string]any, error) {
-	entityHandler := &entity.EntityHandler{Neo4j: graph, Content: content, Logger: logger}
+	entityHandler := &entity.Handler{Neo4j: graph, Content: content, Logger: logger}
 	workloadID, err := impacttrace.ResolveTraceWorkloadSelector(ctx, graph, serviceName)
 	if err != nil {
 		return nil, err

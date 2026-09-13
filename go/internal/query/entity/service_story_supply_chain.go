@@ -23,7 +23,7 @@ const (
 // enrichServiceStorySupplyChainEvidence attaches reducer-owned image and SBOM
 // evidence to the service story context using deployment image references as
 // target-scoped anchors.
-func (h *EntityHandler) enrichServiceStorySupplyChainEvidence(ctx context.Context, workloadContext map[string]any) error {
+func (h *Handler) enrichServiceStorySupplyChainEvidence(ctx context.Context, workloadContext map[string]any) error {
 	if h == nil || h.ContainerImageIdentities == nil || h.SBOMAttachments == nil || len(workloadContext) == 0 {
 		return nil
 	}
