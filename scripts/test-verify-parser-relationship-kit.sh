@@ -257,6 +257,8 @@ git -C "${content_reader_language_repo}" add .
 git -C "${content_reader_language_repo}" commit -q -m 'repository-tree files-by-language read without dsl docs'
 expect_pass "${content_reader_language_repo}"
 
+# shellcheck source=scripts/lib/test-verify-parser-relationship-kit-dsl-comment-only-cases.sh
+. "${repo_root}/scripts/lib/test-verify-parser-relationship-kit-dsl-comment-only-cases.sh"
 unsupported_claim_repo="$(init_repo unsupported-claim)"
 cat >"${unsupported_claim_repo}/docs/public/languages/support-maturity.md" <<'MD'
 # Parser Support Matrix

@@ -135,6 +135,12 @@ is_language_query_doc() {
   esac
 }
 
+# Owner ruling (#6647): a language-query-source edit whose base/head Go
+# token streams are identical (plain // comments dropped; block comments,
+# directives, and cgo files never exempt -- see go/cmd/tokendiff/doc.go) is
+# exempt from the doc-update requirement below.
+# shellcheck source=scripts/lib/parser_relationship_comment_only_diff.sh
+. "$script_dir/lib/parser_relationship_comment_only_diff.sh"
 is_dead_code_maturity_source() {
   local path="$1"
   [ "$path" = "go/internal/query/code_dead_code_language_maturity.go" ]
@@ -449,7 +455,7 @@ validate_diff_contracts() {
     fi
   fi
 
-  if has_changed_file is_language_query_source; then
+  if has_non_comment_language_query_change; then
     if ! has_changed_file is_language_query_doc; then
       printf 'verify-parser-relationship-kit: language query source changed without Language Query DSL or language page update\n' >&2
       issues=1
