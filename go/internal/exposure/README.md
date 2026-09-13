@@ -69,7 +69,7 @@ on an undeliberate edit, forcing a conscious version bump (the
 
 No runtime consumer keys on the version today. Nothing persists it, and no
 API or MCP field returns it, so a bump invalidates nothing at runtime and
-changes only the pinned golden. The last bump was #6547, which repointed three
+changes only the pinned golden. The last bump was #6547, which repointed four
 `Provenance` paths stranded by the #6061 reducer package moves.
 `TestSinkCatalogProvenancePathsExist` now fails when a cited `.go` file does
 not exist, so the next move surfaces here rather than going stale silently.

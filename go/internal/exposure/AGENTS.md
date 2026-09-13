@@ -44,7 +44,7 @@ bounded tracer (a later slice, in `internal/query`) consumes these catalogs.
   that now holds the cited edge (if a family was split, the half with the edge,
   not the half that kept the filename) and re-pin `sinkCatalogVersionGolden`.
   `hashSinkSpecs` serializes `Provenance`, so every repoint is a version bump.
-  #6547 did the last one, for three paths #6061 stranded.
+  #6547 did the last one, for four paths #6061 stranded.
 - **Deterministic content hash** — `SinkCatalogVersion` sorts before hashing so
   reordering equivalent entries does not churn the version, but any field change
   does. `sinkCatalogVersionGolden` is pinned; bump it deliberately.

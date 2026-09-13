@@ -9,10 +9,10 @@ owner chose to bump now rather than keep deferring.
 | | `SinkCatalogVersion()` |
 | --- | --- |
 | Before | `6db744b6723ff2943dd78c5ceeb095f9479b489f921708dd7c4bfd94191a6ed3` |
-| After | `3e512964895baaf07d85244b91751fd3cf9ad9d7dcb1af3b3ca917e4ca78b070` |
+| After | `91a71ebd48ef65ff372bda82c38c62d12525192ac9bffbf9ac82c2d0dcdd970e` |
 
 `hashSinkSpecs` serializes `Provenance` as the last field of each spec's
-hashed line, so a path-only correction changes the version. The three repoints
+hashed line, so a path-only correction changes the version. The four repoints
 change nothing else: kind, display name, relationship, target label, predicates,
 severity, and graph-backed status are byte-identical. `MatchSink` recognition
 is unchanged.
@@ -59,7 +59,7 @@ from `go/internal`.
 | `SinkSQLTable` / `QUERIES_TABLE` | `reducer/sql_relationship_materialization.go` | **no** | `reducer/sqlrelationship/sql_relationship_embedded_query.go` | yes |
 | `SinkSQLTable` / `QUERIES_TABLE` (second path) | `storage/cypher/edge_writer_sql.go` | yes | unchanged | yes |
 | `SinkInternetEndpoint` / `TO` | `reducer/security_group_reachability.go` | **no** | `reducer/secgroup/security_group_reachability.go` | yes |
-| `SinkShellExec` / `EXECUTES_SHELL` | `reducer/shell_exec_materialization.go` | yes | unchanged | yes |
+| `SinkShellExec` / `EXECUTES_SHELL` | `reducer/shell_exec_materialization.go` | **no** | `reducer/code/shell/handler.go` | yes |
 | `SinkShellExec` / `EXECUTES_SHELL` (second path) | `storage/cypher/edge_writer_shell_exec.go` | yes | unchanged | yes |
 
 The two non-graph-backed specs (`config_security_key`, `iac_misconfiguration`)
@@ -71,6 +71,11 @@ Why each destination was chosen:
   is the handler that writes the edge ("materialized %d CAN_ESCALATE_TO
   edge(s)", line 213). It is the same file the old path named, now inside the
   family subpackage.
+- **EXECUTES_SHELL**: the `shell_exec` family moved into `reducer/code/shell/`
+  while this change was in flight (#6061). `handler.go` is the half that builds
+  the row: `rg -c EXECUTES_SHELL` finds 3 matches there and 0 in `intents.go`.
+  The new path-existence guard this change adds is what caught it — the gate
+  failed on the stale path before this repoint, which is the guard working.
 - **QUERIES_TABLE**: the `sqlrelationship` family was split, and the half that
   kept the old filename is the wrong one. `rg -c QUERIES_TABLE` finds zero
   matches in `sqlrelationship/sql_relationship_materialization.go`. The
@@ -101,8 +106,17 @@ All Go commands ran from `go/` with an isolated `GOCACHE` and `GOTMPDIR`.
 
 RED, before the repoint: `go test ./internal/exposure -run
 'TestSinkCatalogProvenancePathsExist|TestProvenanceGoPathsExtractsEveryCitedFile'
--count=1 -v` exited 1. It failed on exactly the three dead paths above and on
+-count=1 -v` exited 1. It failed on exactly the three dead paths known then and on
 nothing else. The extractor test passed.
+
+The fourth path went stale later, while this branch was in flight: the #6061
+shell_exec family moved to `reducer/code/shell/`. The guard this change adds
+is what caught it — `make pre-pr` failed with
+`sink "shell_exec" (relationship "EXECUTES_SHELL") Provenance cites
+"reducer/shell_exec_materialization.go", which does not resolve`. After
+repointing to `reducer/code/shell/handler.go` (3 `EXECUTES_SHELL` matches
+there, 0 in `intents.go`) and re-pinning the golden,
+`go test ./internal/exposure/... -count=1` exited 0.
 
 GREEN, after the repoint and re-pin:
 
@@ -122,7 +136,7 @@ the `SinkInternetEndpoint` Provenance at
 copy, `cmp` against the backup exited 0, the bogus string left zero hits, and
 `go test ./internal/exposure -count=1` exited 0.
 
-No-Regression Evidence: this change edits three `Provenance` string literals and
+No-Regression Evidence: this change edits four `Provenance` string literals and
 the pinned `sinkCatalogVersionGolden` constant. Recognition fields are
 unchanged, so `MatchSink` and `GraphBackedSinkSpecs` return the same matches.
 The exposure suite and both caller packages (`reducer/valueflow`,

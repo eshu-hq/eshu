@@ -184,7 +184,7 @@ var sinkCatalog = []SinkSpec{
 		TargetLabel:      "ShellCommand",
 		BaselineSeverity: SeverityCritical,
 		GraphBacked:      true,
-		Provenance:       "reducer/shell_exec_materialization.go and storage/cypher/edge_writer_shell_exec.go (Function-[:EXECUTES_SHELL]->ShellCommand)",
+		Provenance:       "reducer/code/shell/handler.go and storage/cypher/edge_writer_shell_exec.go (Function-[:EXECUTES_SHELL]->ShellCommand)",
 	},
 	// Config/IaC sinks are closed-vocabulary #3191 fixtures but intentionally
 	// non-GraphBacked for now. The current value-flow fixpoint graph loader only
@@ -290,8 +290,8 @@ func predicatesSatisfied(predicates []SinkPredicate, props map[string]string) bo
 // discipline: a curated edit trips downstream re-evaluation.
 //
 // #6547 bumped it from 6db744b6723ff2943dd78c5ceeb095f9479b489f921708dd7c4bfd94191a6ed3
-// by repointing three Provenance paths stranded by the #6061 reducer moves.
-const sinkCatalogVersionGolden = "3e512964895baaf07d85244b91751fd3cf9ad9d7dcb1af3b3ca917e4ca78b070"
+// by repointing four Provenance paths stranded by the #6061 reducer moves.
+const sinkCatalogVersionGolden = "91a71ebd48ef65ff372bda82c38c62d12525192ac9bffbf9ac82c2d0dcdd970e"
 
 // SinkCatalogVersion returns a deterministic content hash over the curated
 // cloud-sink catalog. Any change to the catalog (added, removed, or edited spec,
