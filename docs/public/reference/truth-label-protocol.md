@@ -4,7 +4,7 @@ Truth labels are the wire-level authority contract for HTTP API, MCP, and CLI
 responses. They tell clients whether a result is authoritative, derived from
 indexed state, or an explicitly bounded fallback.
 
-The query-response implementation lives in `go/internal/query/contract.go`.
+The query-response implementation lives in `go/internal/query/envelope_aliases.go`.
 Reducer materialization layer names live in `go/internal/truth`.
 
 ## Truth Levels

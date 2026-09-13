@@ -97,7 +97,7 @@ flowchart TB
 An HTTP request hits one of the routes registered by `APIRouter.Mount`
 (`handler.go:125`). The handler method first checks whether the requested
 capability is allowed for the current `QueryProfile` using `capabilityUnsupported`
-(`handler.go:105`), which consults `capabilityMatrix` in `contract.go:134`. If
+(`handler.go:105`), which consults `capabilityMatrix` in `capability_registry.go`. If
 the profile does not support the capability, `WriteContractError` returns HTTP
 501 with a structured `ErrorEnvelope` carrying `ErrorCodeUnsupportedCapability`,
 the capability ID, and the `RequiredProfile`.
@@ -1112,8 +1112,8 @@ live in [evidence-notes.md](evidence-notes.md).
   content index and intentionally avoid graph reads; resolved entity-id paths
   keep the existing graph query instrumentation unchanged.
 - `OpenAPISpec()` panics at startup if a handler calls `BuildTruthEnvelope` with
-  a capability string not in `capabilityMatrix` (`contract.go:547`). Add missing
-  capability IDs to `capabilityMatrix` before shipping new handlers.
+  a capability string not in `capabilityMatrix` (`capability_registry.go`).
+  Register missing capability IDs from `go/internal/query/contract/` first.
 - `code_quality.dead_code` is a derived query unless the language maturity row
   says otherwise. Handler changes must preserve `classification`,
   `dead_code_language_maturity`, and `analysis` fields so MCP and CLI callers
@@ -1293,12 +1293,12 @@ poison `projection_bug` never drains via a scope-wide replay without force.
 ## Gotchas / invariants
 
 - `BuildTruthEnvelope` panics if `capability` is not in `capabilityMatrix`
-  (`contract.go:547`). All capability strings used in handlers must be registered
-  in that map before the handler can be called safely.
+  (`capability_registry.go`). All capability strings used in handlers must be
+  registered from `go/internal/query/contract/` before the handler runs.
 - The unexported `capabilityUnsupported` returns true when `maxTruthLevel` returns
   `nil` for the current profile; a nil max-truth means the capability is
   explicitly unsupported at that profile level. `APIRouter` and every handler that
-  gates on capability call this helper (`handler.go:105`, `contract.go:134`).
+  gates on capability call this helper (`handler.go:105`, `capability_registry.go`).
 - `Neo4jReader` opens a new session per query by calling `NewSession` on the
   driver (`neo4j.go:50`); the session is closed in a `defer`. Do not hold
   sessions across multiple queries in the same handler.

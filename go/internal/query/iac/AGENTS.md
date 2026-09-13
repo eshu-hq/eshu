@@ -10,14 +10,14 @@
 3. `capabilities.go` — the nine owned capability IDs' `Support()` contracts
    and the two Part C mirror constants; `../capability_lockstep_iac_test.go`
    pins both sides equal.
-4. `../contract_capability_matrix.go` (Part C, do not edit) — the canonical
+4. `../contract/capability_matrix.go` (Part C, do not edit) — the canonical
    registration of seven of this family's nine owned capability rows
-   (lines 200-248); `../contract_replatforming_ownership.go:15` and
-   `../contract_replatforming_rollups.go:14` (also Part C, do not edit)
+   (lines 200-248); `../contract/replatforming_ownership.go:15` and
+   `../contract/replatforming_rollups.go:14` (also Part C, do not edit)
    register the other two owned rows (`ReplatformingOwnershipCapability`,
    `ReplatformingRollupsCapability`) — this family reads those two strings
    through root's forwarding consts in `iac_alias.go`.
-   `../contract_replatforming.go:21,28` (also Part C, do not edit) registers
+   `../contract/replatforming.go:21,28` (also Part C, do not edit) registers
    the two capabilities this family gates but does not own
    (`ReplatformingPlanReadinessCapability`, `ReplatformingSelectorInventoryCapability`).
 
@@ -36,7 +36,7 @@
 - **The two Part C capability mirrors must stay byte-identical strings** —
   `ReplatformingPlanReadinessCapability` and
   `ReplatformingSelectorInventoryCapability` in `capabilities.go` copy root's
-  unexported `contract_replatforming.go` constants by value because a leaf
+  unexported `contract/replatforming.go` constants by value because a leaf
   package cannot see an unexported root identifier.
   `../capability_lockstep_iac_test.go` (root, package `query`) pins the
   mirror equal to root's constant; changing one string without the other
@@ -72,7 +72,7 @@
 - **Add or change a capability this family owns** → add the ID constant near
   the route it gates, add a `Support()` constructor in `capabilities.go`,
   register it in `main_test.go`, and add the matching literal row to root's
-  `contract_capability_matrix.go` (Part C) plus
+  `contract/capability_matrix.go` (Part C) plus
   `specs/capability-matrix.v1.yaml` or its per-capability fragment; run
   `go test ./internal/query/iac/... -count=1` (the family's own capability
   gate) and `go test ./internal/query/ -run CapabilityLockstep -count=1`
@@ -84,7 +84,7 @@
   `unsupported_capability` → likely cause: a capability this family owns
   isn't registered in this test binary → check `main_test.go`'s `TestMain`
   registers it; production registers the same capability through root's
-  `contract_capability_matrix.go`, which never links into this package's own
+  `contract/capability_matrix.go`, which never links into this package's own
   test binary (see `main_test.go`'s file doc comment).
 - Symptom: root package `query` fails to build with `undefined: <SomeName>`
   after a rename here → likely cause: `../iac_alias.go` (or a root test
@@ -101,7 +101,7 @@
 
 - The two Part C capability-string mirrors' values
   (`ReplatformingPlanReadinessCapability`, `ReplatformingSelectorInventoryCapability`)
-  — they must always equal root's `contract_replatforming.go` constants;
+  — they must always equal root's `contract/replatforming.go` constants;
   changing either side alone silently desyncs the capability gate.
 - `Handler`'s exported field names (`Content`, `Reachability`, `Management`,
   `Inventory`, `Graph`, `Profile`) — `cmd/api/wiring_router.go` and

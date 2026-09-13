@@ -60,4 +60,4 @@
 ## What NOT to change without an ADR
 
 - The capability id vocabulary or profile ids — they are a product contract
-  shared with `go/internal/query/contract.go` and the matrix.
+  shared with `go/internal/query/envelope_aliases.go` and the matrix.

@@ -10,7 +10,7 @@ evidence handles addressable.
 
 The implementation lives in `go/internal/query/answer_packet.go`. It builds on
 the truth, error, and evidence-citation contracts already defined in
-`go/internal/query/contract.go` and `go/internal/query/evidence_citation.go`.
+`go/internal/query/envelope_aliases.go` and `go/internal/query/evidence_citation.go`.
 Read the [Truth Label Protocol](truth-label-protocol.md) first: the answer
 packet does not redefine truth, it classifies and surfaces the truth the query
 layer already produced.

@@ -6,7 +6,7 @@ package visualization
 import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 // PacketDerivationCapability names the capability the derive route reports in
-// its truth envelope. Root's contract_capability_matrix.go registers this
+// its truth envelope. query/contract/capability_matrix.go registers this
 // same const with PacketDerivationSupport for production; TestMain in this
 // package registers the pair again for the package's own tests, which cannot
 // link root.

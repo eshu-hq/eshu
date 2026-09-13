@@ -15,9 +15,10 @@ Read `doc.go` and `README.md` first.
   `queryspan.HandlerTracer()` inline at a handler call site. The var is the
   seam a test swaps a recording provider into; bypassing it compiles clean and
   silently emits zero spans to the test's recorder.
-- The capability is registered in ROOT (`contract_capability_matrix.go`), not
-  here — root owns the router and always links into production, so its
-  `init()`s always run there. `go test ./internal/query/semanticsearch` never
+- The capability is registered in `query/contract`
+  (`capability_matrix.go`), not here — root blank-imports that package from
+  `capability_registry.go` and always links into production, so its `init()`s
+  always run there. `go test ./internal/query/semanticsearch` never
   runs root's `init()` functions (the cycle above), so `main_test.go`'s
   `TestMain` registers it for this package's tests.
 - `Support()` (`capability.go`) is the ONLY declaration of the support row. Both
@@ -44,8 +45,8 @@ Read `doc.go` and `README.md` first.
   function for the same reason. This file is the template later #6053 family
   moves copy, so the shape matters more here than the absent writer does.
 - `Capability` (`semantic_search.go`) is the single declaration of the
-  capability string. Root's `contract.go` reads it from here. MUST NOT
-  reintroduce a second literal in root.
+  capability string. `query/contract` reads it from here. MUST NOT
+  reintroduce a second literal in root or in that package.
 - A `SemanticSearchIndexStore` MUST filter on both `SemanticSearchIndexQuery`
   `.ScopeID` and `.RepoID`. They diverge after a repository is re-ingested
   under a new scope, and a store honoring only one answers outside the caller's

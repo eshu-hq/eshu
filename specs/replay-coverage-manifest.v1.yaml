@@ -208,7 +208,7 @@ coverage:
   - {surface: "capability:call_graph.transitive_callers", scenario: correlation, scenario_type: baseline, ref: "rc-11", proof_gate: golden-corpus-gate}
   - {surface: "capability:code_quality.dead_code", scenario: api_mcp_golden, scenario_type: baseline, ref: "POST /api/v0/code/dead-code/cross-repo", proof_gate: golden-corpus-gate}
   # codeowners.ownership.list (#5419 Phase 5): a capability-matrix entry added in
-  # Phase 4 (go/internal/query/contract_capability_matrix_ext.go) with no
+  # Phase 4 (go/internal/query/contract/capability_matrix_ext.go) with no
   # matching manifest row until now. The claim is exercised by the same rc-157
   # DECLARES_CODEOWNER correlation the read_surface row above proves, mirroring
   # the dependencies.list -> rc-9 precedent immediately below.

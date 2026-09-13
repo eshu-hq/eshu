@@ -10,7 +10,7 @@ rollout and have not been re-admitted yet" (see the "Rollout window" note in
 `docs/public/reference/http-api.md` and
 `docs/internal/evidence/1997-1998-cloud-inventory-identity-admission.md`).
 Both returned `resources: []`, the same hardcoded `truth.freshness.state`
-(`FreshnessFresh`, `go/internal/query/contract.go:261`), and the same static
+(`FreshnessFresh`, `go/internal/query/envelope_aliases.go`), and the same static
 truth reason string. The distinction lived only in prose in a doc an operator
 would have to already know to go read. That is exactly the "silently
 wrong-looking result" class this repo forbids.

@@ -106,9 +106,9 @@ string into any error it returns.
 ### Truth envelope, truncation, evidence citation handles
 
 - `query.TruthEnvelope{Level, Capability, Profile, Basis, Backend, Freshness,
-  Reason}` — `go/internal/query/contract.go:97-105`; levels/bases/freshness
-  enums at `contract.go:53-78`; `ResponseEnvelope{Data, Truth, Error}` at
-  `contract.go:141-145`; `ErrorEnvelope` at `contract.go:132-139`.
+  Reason}` — `TruthEnvelope` in `go/internal/query/querycontract/truth.go`, with
+  the `TruthLevel`/`TruthBasis`/`FreshnessState` enums, `ResponseEnvelope`, and
+  `ErrorEnvelope`; `internal/query` re-exports them in `envelope_aliases.go`.
 - Truncation is a read-model field, not an envelope field (e.g.
   `AnswerPacket.Truncated`, `go/internal/query/answer_packet.go:88-89`;
   `admission_decision_types.go:126`). The bundle records the observed

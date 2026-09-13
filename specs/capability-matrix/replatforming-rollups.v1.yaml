@@ -9,7 +9,7 @@ owners:
 # import-readiness view. This fragment is intentionally separate from
 # replatforming.v1.yaml to avoid conflicts with parallel work. It MUST stay in
 # sync with the Go capability row in
-# go/internal/query/contract_replatforming_rollups.go.
+# go/internal/query/contract/replatforming_rollups.go.
 capabilities:
   - capability: replatforming.rollups.readiness
     tools:

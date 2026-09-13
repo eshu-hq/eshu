@@ -134,7 +134,7 @@ Per the API/MCP bounded-read rules, non-negotiable:
   heavily, and an unstable tail makes pagination silently lossy.
 - Cursor pagination over the composite ordering key, not offset. A union over
   several stores cannot offset correctly when one store changes underneath.
-- `truth` is the canonical `TruthEnvelope` from `go/internal/query/contract.go`
+- `truth` is the canonical `TruthEnvelope` from `go/internal/query/envelope_aliases.go`
   — `level`, `capability`, `profile`, `basis`, `backend`, `freshness`, `reason`
   — not a bespoke freshness/completeness shape. An envelope that invents its
   own truth fields would not match Eshu's wire contract, and an implementer

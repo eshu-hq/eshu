@@ -64,8 +64,8 @@ The four profiles are:
 A profile row marked `unsupported` MUST return
 `unsupported_capability` from MCP and API surfaces. The truth ceiling
 for a capability (the maximum `truth` level the profile can return)
-lives in `specs/capability-matrix.v1.yaml` and is enforced by
-`go/internal/query/contract.go`.
+lives in `specs/capability-matrix.v1.yaml` and is enforced by the capability
+rows in `go/internal/query/contract`.
 
 ## Local First
 

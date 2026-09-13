@@ -55,7 +55,6 @@ LINE docs/internal/architecture-review-2026-07.md go/internal/reducer/supply_cha
 LINE docs/internal/architecture-review-2026-07.md go/internal/scope/scope.go:130
 LINE docs/internal/architecture-review-2026-07.md go/internal/storage/postgres/reducer_queue_conflict.go:163
 LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/query/code.go:56
-LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/query/contract.go:35
 LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/reducer/service.go:123
 LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/runtime/config.go:23
 LINE docs/internal/audit/2026-06-09-repo-technical-audit.md go/internal/runtime/data_stores.go:75
@@ -100,7 +99,6 @@ LINE docs/internal/design/4588-collector-claim-pacing.md go/internal/storage/pos
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/ifa/odu.go:25
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/ifa/odu.go:26
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/answer_packet.go:88
-LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/contract.go:97
 LINE docs/internal/design/4595-wrong-answer-report-capture-plan.md go/internal/query/evidence_citation.go:33
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/auth_scoped_routes.go:364
 LINE docs/internal/design/4784-reducer-derived-fact-governance.md go/internal/query/ci_cd_run_correlations.go:15
@@ -431,7 +429,6 @@ LINE docs/internal/design/restructure-research.md go/internal/cigates/pathfilter
 LINE docs/internal/design/restructure-research.md go/internal/payloadusage/paths.go:99
 LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/awscloud/awsruntime/source.go:177
 LINE docs/internal/evidence/4591-awscloud-extractor-registry.md go/internal/collector/git_source_processing.go:217
-LINE docs/internal/evidence/5238-account-alias-rollout-gap-signal.md go/internal/query/contract.go:261
 LINE docs/internal/evidence/5457-provenance-edges.md go/internal/storage/cypher/oci_registry_canonical_writer.go:35
 LINE docs/internal/evidence/5471-live-evidence-identity-binding.md go/internal/query/kubernetes_correlations.go:168
 LINE docs/internal/evidence/5548-telemetry-emission.md go/internal/projector/runtime_stages.go:87
@@ -447,7 +444,6 @@ LINE docs/internal/evidence/6276-whole-scope-narrowed-domains-table.md go/intern
 LINE docs/internal/evidence/6296-nornicdb-helm-pin-v123.md go/internal/query/code_relationships_nornicdb_optional_match_live_test.go:16
 LINE docs/internal/evidence/6307-batch-reducer-ack-after-fail.md go/internal/reducer/crossscope/readiness_floor.go:372
 LINE docs/internal/evidence/publish-safety-screen-shape-coverage.md go/internal/query/ask_sse.go:171
-LINE docs/internal/launch-readiness.md go/internal/query/contract.go:21
 LINE docs/internal/measurements.jsonl go/internal/storage/cypher/edge_writer_retract_repo.go:112
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:128
 LINE docs/internal/parser-audit/scala.md go/internal/parser/scala/engine_scala_imports_test.go:128

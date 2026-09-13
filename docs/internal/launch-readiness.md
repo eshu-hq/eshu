@@ -34,8 +34,8 @@ commit `71fad840a` ("Default eshu mcp start to local_authoritative (#3026)").
   the flag applies to stdio transport only).
 - Profile enum unchanged — `local_lightweight` is still a valid, selectable
   profile (no regression):
-  [`go/internal/query/contract.go:21`](../../go/internal/query/contract.go)
-  (enum) and `ParseQueryProfile` (`:160`) which still accepts it.
+  [`go/internal/query/envelope_aliases.go`](../../go/internal/query/envelope_aliases.go)
+  (enum) and `ParseQueryProfile` which still accepts it.
 
 ### Runtime surfaces
 

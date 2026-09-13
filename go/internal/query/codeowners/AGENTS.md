@@ -10,9 +10,9 @@ Read `doc.go` and `README.md` first.
   something only root exposes, either a leaf equivalent already exists
   (`querycontract`, `queryauth`, `queryspan`) or it does not belong in
   this family; ask before adding one.
-- Capabilities are registered in ROOT
-  (`contract_capability_matrix_ext.go`), not here -- root owns the router
-  and always links into production. This package only declares the
+- Capabilities are registered in `query/contract`
+  (`capability_matrix_ext.go`), not here -- root blank-imports that package
+  from `capability_registry.go` and always links into production. This package only declares the
   `OwnershipSupport` constructor the TestMain registers. Do not register
   in this package's non-test code.
 - `queryHandlerTracer` MUST stay a package-local var seeded from

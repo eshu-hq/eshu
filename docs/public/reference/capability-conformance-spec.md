@@ -3,8 +3,8 @@
 Capability conformance defines what Eshu may claim in each runtime profile.
 The machine-readable source of truth is `specs/capability-matrix.v1.yaml` plus
 `specs/capability-matrix/*.yaml` fragments. The Go query runtime mirrors the
-same ceilings in
-`go/internal/query/contract.go`.
+same ceilings in `go/internal/query/contract`, whose per-family files register
+each row through `go/internal/query/contract/registry.go`.
 
 Do not copy the full capability list into prose. The YAML matrix and
 fragments plus `go/internal/query/contract_matrix_test.go` are the contract and

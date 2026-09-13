@@ -65,7 +65,6 @@ func NewPostgresWorkItemEvidenceStore(db *sql.DB) PostgresWorkItemEvidenceStore 
 // EvidenceCapability because contract_work_item.go's capability-matrix
 // registration is the caller that needs this unexported root spelling.
 // See #6642.
-const workItemEvidenceCapability = workitem.EvidenceCapability
 
 // workItemEvidenceFactKinds bounds the work-item evidence read to the whole
 // work_item fact family. Its home is workitem/, exported there as
