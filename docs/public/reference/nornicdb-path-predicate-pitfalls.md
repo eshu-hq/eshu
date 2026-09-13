@@ -12,7 +12,16 @@ on that page because it is pinned at its current length in
 Unless an entry says otherwise, it was measured against the then-pinned
 `timothyswt/nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`. A different build may
 behave differently, and the live tests named in each section are what would say
-so. The last two entries are measured on **two** builds and name both.
+so.
+
+The first two entries (the #6541 pair) are measured on **two** builds and name
+both. Read every entry here as "observed on the builds it names", not as a
+permanent property of NornicDB: the author closed a batch of Cypher defect
+issues in September 2026 and released v1.3.2 with v1.3.3 following, so a shape
+recorded here may already behave differently on a build newer than the one the
+entry names. Re-run the entry's live test against the digest you actually
+deploy before relying on either answer, and add a "fixed in" line here when a
+newer build is measured.
 
 ## Pitfall: `ORDER BY` And `LIMIT` After `UNWIND` Apply Once Per Unwound Row
 
@@ -51,9 +60,15 @@ produce a page. A caller that trusts it serves up to `limit x len(list)` rows.
 
 Re-sort and truncate in the caller. That is correct on both backends rather than
 a workaround for one: the global top-N is always contained in the union of the
-per-group top-Ns, so Neo4j's global `LIMIT` makes the re-sort a no-op while
-NornicDB's per-id bound makes it the step that produces the page. Keep the
+per-group top-Ns, so a backend with a global `LIMIT` (Neo4j, and any NornicDB
+build where this is fixed) makes the re-sort a no-op, while a build with the
+per-id bound makes it the step that produces the page. Keep the
 `ORDER BY ... LIMIT` in the statement too, since it is what bounds each group.
+
+Because the caller-side half is a no-op on a build that bounds globally, this
+rule needs no revisiting if a newer build fixes the behaviour: it stays correct
+either way. The measured status on builds after v1.3.1 is open — that is what
+the "observed on the builds it names" note at the top of this page means.
 
 `buildDirectoryCypher` (`go/internal/query/language/cypher.go`) is shaped
 this way, and `sortAndTruncateDirectoryRows` is the caller's half. Live pin:
@@ -89,10 +104,14 @@ That form returns both columns correctly on both builds, and an empty
 
 ### Rule
 
-Never reuse an `UNWIND` variable name as a `RETURN` alias. The failure is a
-wrongly-named column rather than an error, so it reaches the caller as a
-missing value rather than as a failure. `directoryRepositoryNames`
+Do not reuse an `UNWIND` variable name as a `RETURN` alias. The failure is a
+wrongly-named column rather than an error, so it reaches the caller as a missing
+value rather than as a failure. `directoryRepositoryNames`
 (`go/internal/query/language/directory.go`) uses the second form.
+
+Distinct names cost nothing and are clearer anyway, so keep this convention even
+on a build where the collision is fixed. Whether it still reproduces after
+v1.3.1 is unmeasured; the reproducer above is what settles it on any build.
 
 ## Correction: The Pre-Bound-Endpoint `shortestPath` Shape Does Not Parse
 

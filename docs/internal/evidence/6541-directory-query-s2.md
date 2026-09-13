@@ -76,6 +76,16 @@ for 200,000 rows, and a whole-label scan is what the query-plan gate rejects.
 
 ## Backend defects measured while choosing the shape
 
+These are observations of the two builds named below, not permanent properties.
+The NornicDB author closed a batch of Cypher defect issues in September 2026 and
+released v1.3.2, with v1.3.3 following; a separate probe is measuring which of
+these shapes are fixed there, including the two this issue discovered. None of
+that changes what ships here: the shape below is correct on every build
+measured, including both of these, and its caller-side halves stay correct on a
+build that fixes them. If the single-statement form turns out to be correct on
+v1.3.2 or v1.3.3, simplifying to it is a follow-up once Eshu's pin moves, not a
+change to this one.
+
 Builds: `eshu-nornicdb-pr290:3722b483c02c` (self-reports 1.2.1, the Compose pin)
 and `timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`
 (self-reports 1.3.1). Identity confirmed with `CALL dbms.components()` and the
