@@ -56,56 +56,56 @@ and never runs Terraform.
 cd go && go test ./internal/query -run TestHandleAWSRuntimeDriftFindings -count=1
 ```
 
-**Unmanaged-resource status (`find_unmanaged_resources`)** — `go/internal/query/iac_management_test.go`:
+**Unmanaged-resource status (`find_unmanaged_resources`)** — `go/internal/query/iac/management_test.go`:
 `TestHandleUnmanagedCloudResourcesRequiresBoundedScope`,
 `TestHandleUnmanagedCloudResourcesRejectsWildcardAccountScope`,
 `TestHandleUnmanagedCloudResourcesReturnsMaterializedFindings`, and
 `TestHandleUnmanagedCloudResourcesDefaultsToActionableAWSFindingKinds`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestHandleUnmanagedCloudResources -count=1
+cd go && go test ./internal/query/iac -run TestHandleUnmanagedCloudResources -count=1
 ```
 
 **Exact-ARN status and evidence grouping (`get_status`/`explain_status`)** — same file:
 `TestHandleIaCManagementStatusReturnsExactARNStatus` and
 `TestHandleIaCManagementExplanationGroupsEvidence`; taxonomy coverage in
-`go/internal/query/iac_management_status_test.go`: `TestDeriveIaCManagementStatusCoversTaxonomy`
+`go/internal/query/iac/management_status_test.go`: `TestDeriveIaCManagementStatusCoversTaxonomy`
 and `TestAWSRuntimeDriftRowToIaCManagementExpandsReadModelFields`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run "TestHandleIaCManagementStatus|TestHandleIaCManagementExplanation|TestDeriveIaCManagementStatusCoversTaxonomy" -count=1
+cd go && go test ./internal/query/iac -run "TestHandleIaCManagementStatus|TestHandleIaCManagementExplanation|TestDeriveIaCManagementStatusCoversTaxonomy" -count=1
 ```
 
 **Terraform import plan (refuses Terraform execution, refuses unsafe findings)** —
-`go/internal/query/iac_import_plan_test.go`:
+`go/internal/query/iac/import_plan_test.go`:
 `TestHandleTerraformImportPlanCandidatesReturnsSafeS3Candidate`,
 `TestHandleTerraformImportPlanCandidatesReturnsSafeLambdaCandidate`,
 `TestHandleTerraformImportPlanCandidatesRejectsProviderResourceID`, and
 `TestHandleTerraformImportPlanCandidatesRefusesSensitiveFinding`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestHandleTerraformImportPlanCandidates -count=1
+cd go && go test ./internal/query/iac -run TestHandleTerraformImportPlanCandidates -count=1
 ```
 
-**Security-review gate** — `go/internal/query/iac_management_safety_test.go`:
+**Security-review gate** — `go/internal/query/iac/management_safety_test.go`:
 `TestAWSRuntimeDriftRowToIaCManagementRedactsSensitiveEvidenceValues`,
 `TestHandleIaCManagementStatusCarriesSecurityReviewGate`, and
 `TestIaCManagementSafetySummaryCountsReviewAndRedactions`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestIaCManagementSafety -count=1
-cd go && go test ./internal/query -run TestAWSRuntimeDriftRowToIaCManagementRedacts -count=1
+cd go && go test ./internal/query/iac -run TestIaCManagementSafety -count=1
+cd go && go test ./internal/query/iac -run TestAWSRuntimeDriftRowToIaCManagementRedacts -count=1
 ```
 
-**Scoped-token route family enforcement** — `go/internal/query/auth_scoped_iac_replatforming_grant_test.go`:
+**Scoped-token route family enforcement** — `go/internal/query/iac/auth_scoped_replatforming_grant_test.go`:
 `TestIaCManagementFamilyRoutesFilterByScopeGrant`,
 `TestIaCManagementFamilyRoutesEmptyGrantShortCircuits`,
 `TestIaCManagementStatusRoutesEnforceScopeGrant`, and
 `TestIaCManagementFamilyRoutesUnscopedCallerUnaffected`. Reproduce:
 
 ```bash
-cd go && go test ./internal/query -run TestIaCManagementFamilyRoutes -count=1
-cd go && go test ./internal/query -run TestIaCManagementStatusRoutesEnforceScopeGrant -count=1
+cd go && go test ./internal/query/iac -run TestIaCManagementFamilyRoutes -count=1
+cd go && go test ./internal/query/iac -run TestIaCManagementStatusRoutesEnforceScopeGrant -count=1
 ```
 
 **Deployed Docker Compose driver over the reducer read model** —

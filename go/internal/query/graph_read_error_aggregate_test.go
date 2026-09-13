@@ -4,7 +4,6 @@
 package query
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -110,33 +109,9 @@ func TestInfraResourceInventoryGraphReadSweep(t *testing.T) {
 	}
 }
 
-// TestIaCListResourcesGraphReadSweep drives listResources through a graph
-// error, with one candidate already resolved by the inventory store so the
-// handler actually reaches h.Graph.Run, to confirm the graph
-// unavailable/deadline sentinels map to 503/504 instead of a bare 500.
-func TestIaCListResourcesGraphReadSweep(t *testing.T) {
-	t.Parallel()
-
-	for _, test := range graphReadSweepCases() {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			inventory := &stubIaCInventoryStore{candidates: []iacInventoryCandidate{
-				{ID: "a1", Name: "aws_s3_bucket.logs", GenerationID: "generation-active"},
-			}}
-			graph := fakeGraphReader{run: func(_ context.Context, _ string, _ map[string]any) ([]map[string]any, error) {
-				return nil, test.err
-			}}
-			handler := &IaCHandler{Graph: graph, Inventory: inventory}
-			mux := http.NewServeMux()
-			handler.Mount(mux)
-
-			req := httptest.NewRequest(http.MethodGet, "/api/v0/iac/resources?limit=5", nil)
-			req.Header.Set("Accept", EnvelopeMIMEType)
-			rec := httptest.NewRecorder()
-			mux.ServeHTTP(rec, req)
-
-			assertGraphReadSweepResponse(t, rec, test)
-		})
-	}
-}
+// TestIaCListResourcesGraphReadSweep moved to iac/resources_graph_read_sweep_test.go
+// (#6642 Part A) because iac_resources.go's listResources moved there too;
+// that file duplicates this file's small shared graphReadSweepCases/
+// assertGraphReadSweepResponse/fakeGraphReader fixtures rather than exporting
+// them, matching graph_reader_test_adapter_test.go's documented precedent for
+// codequery's identically-shaped copy.

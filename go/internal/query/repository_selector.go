@@ -4,7 +4,6 @@
 package query //nolint:dirgate // B3 selector forwarder shim for #6060: the request-orchestration forwarders are excluded from querycontract by review, so they must stay in package query for root callers.
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryselector"
@@ -18,15 +17,11 @@ import (
 // contract package is exactly what review rejected on the collector-readiness
 // seam.
 
-func resolveRepositorySelectorExactForAccess(
-	ctx context.Context,
-	graph GraphQuery,
-	content ContentStore,
-	selector string,
-	access repositoryAccessFilter,
-) (string, error) {
-	return queryselector.ResolveExactForAccess(ctx, graph, content, selector, access)
-}
+// resolveRepositorySelectorExactForAccess's only caller was iac.go's
+// handleDeadIaC. It moved to iac/handler.go (#6642 Part A) and calls
+// queryselector.ResolveExactForAccess directly (the leaf can import
+// queryselector without a cycle), so this root forwarder is dead and was
+// removed rather than kept as an unused wrapper.
 
 func resolveRepositorySelectorForRequestWithAccess(
 	w http.ResponseWriter,

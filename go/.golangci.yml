@@ -571,7 +571,7 @@ linters:
       - path: 'internal/query/incident_context_model\.go'
         linters:
           - exhaustive
-      - path: 'internal/query/replatforming_waves\.go'
+      - path: 'internal/query/iac/replatforming_waves\.go'
         linters:
           - exhaustive
       - path: 'internal/serviceintel/compose\.go'

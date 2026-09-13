@@ -279,8 +279,8 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 
 	// IaCHandler.listResources selects candidate uids from active
 	// content_entity facts — CONFIG-side parser entities only
-	// (iac_inventory_postgres.go:64-70) — and hydrates only nodes whose uid
-	// is IN those candidates (iac_resources.go:167-170,306-320). The
+	// (iac/inventory_postgres.go:66-72) — and hydrates only nodes whose uid
+	// is IN those candidates (iac/resources.go:169-172,308-322). The
 	// config_state_drift STATE projection writes its own state-uid keyspace
 	// (TerraformStateResource nodes, MATCHES_STATE edges, tf_attr_*
 	// properties; state-created TerraformModule rows carry state uids), so
@@ -290,18 +290,18 @@ var routeServesDataRegistryPart2 = map[string]routeServesDataSource{
 	// row is therefore a MapOnly claim: the state-specific signature is
 	// genuinely absent from this read path.
 	"GET /api/v0/iac/resources": {
-		RegistrationFile: "go/internal/query/iac.go",
-		HandlerStruct:    "IaCHandler",
-		StructFile:       "go/internal/query/iac.go",
+		RegistrationFile: "go/internal/query/iac/handler.go",
+		HandlerStruct:    "Handler",
+		StructFile:       "go/internal/query/iac/handler.go",
 		Method:           "listResources",
-		MethodFile:       "go/internal/query/iac_resources.go",
+		MethodFile:       "go/internal/query/iac/resources.go",
 		ScanFiles: []string{
-			"go/internal/query/iac_resources.go",
-			"go/internal/query/iac_inventory_postgres.go",
+			"go/internal/query/iac/resources.go",
+			"go/internal/query/iac/inventory_postgres.go",
 		},
 		MapOnly: []routeMapOnlyClaim{{
 			Domain: "config_state_drift",
-			Reason: "specs/fact-kind-registry.v1.yaml:475-500 declares this read_surface for the terraform_state family, but the endpoint hydrates only content_entity-derived CONFIG candidates (iac_inventory_postgres.go:64-70) and never reaches the state projection's own uid keyspace. The domain's dedicated finding readback (POST /api/v0/terraform/config-state-drift/findings, storage/postgres/terraform_config_state_drift_findings.go:18) reads reducer_terraform_config_state_drift_finding, which the registry assigns to reducer_derived_findings via read_surface_overrides — so no registry read_surface serves config_state_drift's state projection today; its nodes are only browsable via generic infra/entity-map/impact surfaces. Flagged in #5584/#5641 for architect review: re-point the family's read_surface (e.g. to the drift-findings route) or build a state-projection reader on this route.",
+			Reason: "specs/fact-kind-registry.v1.yaml:475-500 declares this read_surface for the terraform_state family, but the endpoint hydrates only content_entity-derived CONFIG candidates (iac/inventory_postgres.go:66-72) and never reaches the state projection's own uid keyspace. The domain's dedicated finding readback (POST /api/v0/terraform/config-state-drift/findings, storage/postgres/terraform_config_state_drift_findings.go:18) reads reducer_terraform_config_state_drift_finding, which the registry assigns to reducer_derived_findings via read_surface_overrides — so no registry read_surface serves config_state_drift's state projection today; its nodes are only browsable via generic infra/entity-map/impact surfaces. Flagged in #5584/#5641 for architect review: re-point the family's read_surface (e.g. to the drift-findings route) or build a state-projection reader on this route.",
 		}},
 	},
 

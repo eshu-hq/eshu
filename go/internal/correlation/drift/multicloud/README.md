@@ -62,7 +62,7 @@ package unchanged; this package adds the provider-neutral path beside it.
 
 Findings map to the provider-neutral source-state taxonomy through the AWS
 management-status mapping in
-`../../../query/replatforming_source_state.go`: `cloud_only` and
+`../../../query/iac/replatforming_source_state.go`: `cloud_only` and
 `terraform_state_only` are `derived`, `ambiguous_management` is `ambiguous`, and
 `unknown_management` is `unknown`. See
 `docs/public/reference/replatforming-source-state-taxonomy.md`.

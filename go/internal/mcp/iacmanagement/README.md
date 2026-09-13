@@ -83,11 +83,11 @@ the shared API request duration and error metrics (`request_metrics.go` in
 - Family membership is an explicit name switch, never a prefix match.
 - The **route-serves-data registry** (`route_serves_data_registry*.go` in the
   parent package) cites `internal/query` handler files by path (for example
-  `go/internal/query/iac.go`, `go/internal/query/iac_management.go`,
-  `go/internal/query/iac_management_surface.go`,
-  `go/internal/query/iac_import_plan.go`,
+  `go/internal/query/iac/handler.go`, `go/internal/query/iac/management.go`,
+  `go/internal/query/iac/management_surface.go`,
+  `go/internal/query/iac/import_plan.go`,
   `go/internal/query/terraform_config_state_drift.go`, and
-  `go/internal/query/replatforming_ownership_handler.go`), never
+  `go/internal/query/iac/replatforming_ownership_handler.go`), never
   `go/internal/mcp/dispatch.go` or this package, so this extraction does not
   require repointing any registry entry — confirmed by searching the
   registry files for `internal/mcp/` path references before this move (none

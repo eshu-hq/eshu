@@ -45,7 +45,7 @@ func (h *CloudRuntimeDriftHandler) getDriftPacket(w http.ResponseWriter, r *http
 	// project, or Azure subscription), not a git repository (#5167 W5): there
 	// is no repository-to-cloud-scope map on this path, the same reason
 	// GET /api/v0/replatforming/selectors binds AllowedScopeIDs directly
-	// (replatforming_selectors_handler.go). A scoped token must carry an
+	// (iac/replatforming_selectors_handler.go). A scoped token must carry an
 	// exact grant for filter.ScopeID; an empty grant or a scope_id outside
 	// the grant returns the same scope_not_found refusal packet the sibling
 	// investigation packet routes use for an unresolved anchor

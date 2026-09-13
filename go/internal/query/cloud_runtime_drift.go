@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
@@ -129,15 +130,11 @@ type MultiCloudRuntimeDriftFindingRow struct {
 // DriftedAttributeView is one declared/observed value pair for an
 // image_version_drift finding's comparable attribute (ami, image_uri,
 // version, or the synthetic "image" key for the ECS container-image
-// comparison).
-type DriftedAttributeView struct {
-	// Attribute is the allowlisted comparable attribute name.
-	Attribute string `json:"attribute"`
-	// Declared is the Terraform-state value.
-	Declared string `json:"declared_value"`
-	// Observed is the AWS-observed cloud value.
-	Observed string `json:"observed_value"`
-}
+// comparison). Its home moved to querycontract (#6642 Part A) so the iac/
+// leaf can share it without an import cycle; this alias keeps every existing
+// caller (including staying non-family files in this package) spelling
+// query.DriftedAttributeView unchanged.
+type DriftedAttributeView = querycontract.DriftedAttributeView
 
 // MultiCloudRuntimeDriftStore reads active reducer-materialized runtime drift
 // findings across all three providers. The query handler depends on this

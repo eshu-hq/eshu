@@ -130,7 +130,7 @@ claims:
     deterministic_evidence_source: "Graph-backed query handlers and MCP routing tests prove the deterministic blast-radius read path."
     semantic_output: not_used
     proof:
-      command: "cd go && go test ./internal/query ./internal/mcp -run 'Test.*Blast|Test.*Change' -count=1"
+      command: "cd go && go test ./internal/query ./internal/query/iac ./internal/mcp -run 'Test.*Blast|Test.*Change' -count=1"
       signals:
         - capability: platform_impact.blast_radius
           kind: compose_e2e
@@ -152,7 +152,7 @@ claims:
     deterministic_evidence_source: "Relationship extraction, query, and MCP tests verify deterministic re-platforming readiness before any external assistant handoff."
     semantic_output: not_used
     proof:
-      command: "cd go && go test ./internal/query ./internal/mcp ./internal/relationships -run 'Test.*Replatform|Test.*Unmanaged|Test.*Terraform' -count=1"
+      command: "cd go && go test ./internal/query ./internal/query/iac ./internal/mcp ./internal/relationships -run 'Test.*Replatform|Test.*Unmanaged|Test.*Terraform' -count=1"
       signals:
         - capability: replatforming.plan.readiness
           kind: go_test

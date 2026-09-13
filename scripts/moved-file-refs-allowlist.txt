@@ -103,3 +103,14 @@ CHANGELOG.md:go/internal/query/openapi_paths_terraform_config_state_drift.go
 # stays covered, so repointing it at the nested path would delete the only
 # coverage of the layout it exists to exercise.
 scripts/test-verify-openapi-subpackage.sh:go/internal/query/openapi_paths_supply_chain.go
+
+# Dated records of the tree as it stood when the IaC family still lived in the
+# query root (#6642 Part A moved it to go/internal/query/iac): a changelog
+# entry, an evidence note, and the B-12 golden snapshot's recorded description,
+# which must stay byte-identical. Repointing any of them would rewrite history.
+CHANGELOG.md:go/internal/query/iac_inventory_postgres.go
+CHANGELOG.md:go/internal/query/iac_resources.go
+docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md:go/internal/query/iac_inventory_postgres.go
+docs/internal/evidence/5572-drift-derived-outcome-module-resolution-confidence.md:go/internal/query/iac_resources.go
+testdata/golden/e2e-20repo-snapshot.json:go/internal/query/iac_inventory_postgres.go
+testdata/golden/e2e-20repo-snapshot.json:go/internal/query/iac_resources.go

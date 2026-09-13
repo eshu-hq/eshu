@@ -44,7 +44,7 @@ func cloudRuntimeDriftAggregateRowFromStore(
 //     invent canonical truth" contract.
 //   - Safety verdict (#5759 follow-up P1-1, hostile-review finding): status,
 //     missing evidence, and warning flags are computed by
-//     awsCloudRuntimeDriftDerivedStatus (iac_management_transform.go), the
+//     awsCloudRuntimeDriftDerivedStatus (iac/management_transform.go), the
 //     SAME shared derivation awsRuntimeDriftRowToIaCManagement
 //     (list_aws_runtime_drift_findings) uses -- NOT a verbatim copy of
 //     row.WarningFlags. A naive copy silently under-reports the safety gate:

@@ -43,7 +43,7 @@ func scopedRepositoryFreshnessRoute(path string) bool {
 // scopedRepositoryStatsRoute reports whether the request targets GET
 // /api/v0/repositories/{repo_id}/stats (#5167 Group A). getRepositoryStats
 // resolves the selector through resolveRepositoryStatsPathSelector ->
-// resolveRepositorySelector -> resolveRepositorySelectorExactForAccess, the
+// resolveRepositorySelector -> queryselector.ResolveExactForAccess, the
 // same grant-filtering helper scopedRepositoryFreshnessRoute already covers,
 // so this only needed the allowlist entry.
 func scopedRepositoryStatsRoute(path string) bool {
@@ -53,7 +53,7 @@ func scopedRepositoryStatsRoute(path string) bool {
 // scopedRepositoryContextRoute reports whether the request targets GET
 // /api/v0/repositories/{repo_id}/context (#5167 Group A). getRepositoryContext
 // resolves the selector through the same resolveRepositoryPathSelector ->
-// resolveRepositorySelectorExactForAccess chain as
+// queryselector.ResolveExactForAccess chain as
 // scopedRepositoryFreshnessRoute.
 func scopedRepositoryContextRoute(path string) bool {
 	return scopedRepositorySingleResourceRoute(path, "/context")
@@ -62,7 +62,7 @@ func scopedRepositoryContextRoute(path string) bool {
 // scopedRepositoryStoryRoute reports whether the request targets GET
 // /api/v0/repositories/{repo_id}/story (#5167 Group A). getRepositoryStory
 // resolves the selector through the same resolveRepositoryPathSelector ->
-// resolveRepositorySelectorExactForAccess chain as
+// queryselector.ResolveExactForAccess chain as
 // scopedRepositoryFreshnessRoute.
 func scopedRepositoryStoryRoute(path string) bool {
 	return scopedRepositorySingleResourceRoute(path, "/story")
@@ -72,7 +72,7 @@ func scopedRepositoryStoryRoute(path string) bool {
 // /api/v0/repositories/{repo_id}/coverage (#5167 Group A).
 // getRepositoryCoverage resolves the selector through
 // resolveCoverageRepositoryID -> resolveRepositorySelector ->
-// resolveRepositorySelectorExactForAccess, the same grant-filtering chain as
+// queryselector.ResolveExactForAccess, the same grant-filtering chain as
 // scopedRepositoryFreshnessRoute.
 func scopedRepositoryCoverageRoute(path string) bool {
 	return scopedRepositorySingleResourceRoute(path, "/coverage")
@@ -81,7 +81,7 @@ func scopedRepositoryCoverageRoute(path string) bool {
 // scopedRepositoryTreeRoute reports whether the request targets GET
 // /api/v0/repositories/{repo_id}/tree (#5167 Group A). getRepositoryTree
 // resolves the selector through the same resolveRepositoryPathSelector ->
-// resolveRepositorySelectorExactForAccess chain as
+// queryselector.ResolveExactForAccess chain as
 // scopedRepositoryFreshnessRoute.
 func scopedRepositoryTreeRoute(path string) bool {
 	return scopedRepositorySingleResourceRoute(path, "/tree")

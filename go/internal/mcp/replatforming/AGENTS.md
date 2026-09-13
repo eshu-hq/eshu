@@ -15,11 +15,11 @@
    the parent's root and must keep naming the same fields this builder
    selects.
 6. `../routecontract/README.md` for the dependency-neutral request contract.
-7. `go/internal/query/replatforming_plan_handler.go` and
-   `go/internal/query/replatforming_rollups_handler.go` for the two
-   handlers, and `go/internal/query/iac_management.go` /
-   `go/internal/query/iac.go` for the shared `iacManagementDefaultLimit`
-   (100) / `iacManagementMaxLimit` (500) clamp and the offset floor this
+7. `go/internal/query/iac/replatforming_plan_handler.go` and
+   `go/internal/query/iac/replatforming_rollups_handler.go` for the two
+   handlers, and `go/internal/query/iac/management.go` /
+   `go/internal/query/iac/handler.go` for the shared `managementDefaultLimit`
+   (100) / `managementMaxLimit` (500) clamp and the offset floor this
    package's defaults must stay compatible with. `normalizeReplatformingScope`
    in the plan handler is where a missing or unsupported `scope_kind` 400s —
    not in this package.

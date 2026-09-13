@@ -8,7 +8,8 @@ package query
 // CodeHandler is implemented in code.go
 // ContentHandler is implemented in contentread/content_handler.go
 // InfraHandler is implemented in infra.go
-// IaCHandler is implemented in iac.go
+// IaCHandler is implemented in iac/handler.go (as Handler; iac_alias.go
+// keeps the root spelling)
 // ImpactHandler is implemented in impact/handler.go
 // StatusHandler is implemented in status.go
 // PackageRegistryHandler is implemented in package/registry/handler.go

@@ -11,6 +11,17 @@ import (
 	"testing"
 )
 
+// ownershipFinding is this package's own copy of iac/replatforming_ownership_test.go's
+// identically named fixture (#6642 Part A). Both copies exist because this
+// file drives the HTTP route through the root alias and stays in root, while
+// the unit-level ownership-packet tests moved with the family's unexported
+// packet-building functions.
+func ownershipFinding(arn, status, kind string, services, environments []string) IaCManagementFindingRow {
+	finding := rollupFinding(arn, status, kind, services, environments)
+	normalizeIaCManagementFindingSafety(&finding)
+	return finding
+}
+
 func postOwnershipPackets(t *testing.T, handler *IaCHandler, body string) (*httptest.ResponseRecorder, ResponseEnvelope) {
 	t.Helper()
 	mux := http.NewServeMux()

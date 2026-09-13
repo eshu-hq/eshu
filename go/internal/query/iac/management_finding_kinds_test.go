@@ -1,0 +1,81 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025-2026 eshu-hq
+
+package iac
+
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/correlation/drift/cloudruntime"
+)
+
+// TestNormalizeIaCManagementFindingKindsAcceptsImageVersionDrift proves the
+// finding_kinds allowlist admits "image_version_drift" (#5453) so
+// list_cloud_runtime_drift_findings and list_aws_runtime_drift_findings can
+// filter to the new kind instead of returning a 400 invalid_argument.
+func TestNormalizeIaCManagementFindingKindsAcceptsImageVersionDrift(t *testing.T) {
+	t.Parallel()
+
+	got, err := NormalizeManagementFindingKinds([]string{"image_version_drift"})
+	if err != nil {
+		t.Fatalf("NormalizeManagementFindingKinds([image_version_drift]) error = %v, want nil", err)
+	}
+	want := []string{"image_version_drift"}
+	if len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("NormalizeManagementFindingKinds() = %#v, want %#v", got, want)
+	}
+}
+
+// TestNormalizeIaCManagementFindingKindsAcceptsValueComparisonInconclusive
+// proves the finding_kinds allowlist admits "value_comparison_inconclusive"
+// (#5837) so list_cloud_runtime_drift_findings and
+// list_aws_runtime_drift_findings can filter to the degraded-evidence rows
+// without widening a page that also carries real drift. It also pins the
+// query package's hand-restated FindingKindValueComparisonInconclusive
+// literal against cloudruntime.FindingKindValueComparisonInconclusive, the
+// lower layer's own constant this package must not import in production code
+// (see the doc comment on FindingKindValueComparisonInconclusive) -- so the
+// two strings cannot silently drift apart.
+func TestNormalizeIaCManagementFindingKindsAcceptsValueComparisonInconclusive(t *testing.T) {
+	t.Parallel()
+
+	got, err := NormalizeManagementFindingKinds([]string{"value_comparison_inconclusive"})
+	if err != nil {
+		t.Fatalf("NormalizeManagementFindingKinds([value_comparison_inconclusive]) error = %v, want nil", err)
+	}
+	want := string(cloudruntime.FindingKindValueComparisonInconclusive)
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("NormalizeManagementFindingKinds() = %#v, want [%q]", got, want)
+	}
+}
+
+// TestNormalizeIaCManagementFindingKindsStillRejectsUnknownKind is a
+// regression guard: the allowlist must stay closed against typos.
+func TestNormalizeIaCManagementFindingKindsStillRejectsUnknownKind(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NormalizeManagementFindingKinds([]string{"not_a_real_kind"}); err == nil {
+		t.Fatalf("NormalizeManagementFindingKinds([not_a_real_kind]) error = nil, want an error")
+	}
+}
+
+// TestNormalizeIaCManagementFindingKindsCombinesExistenceAndValueDriftKinds
+// proves a caller can filter to both an existence kind and the value-drift
+// kind in the same request.
+func TestNormalizeIaCManagementFindingKindsCombinesExistenceAndValueDriftKinds(t *testing.T) {
+	t.Parallel()
+
+	got, err := NormalizeManagementFindingKinds([]string{"image_version_drift", "unmanaged_cloud_resource"})
+	if err != nil {
+		t.Fatalf("NormalizeManagementFindingKinds() error = %v, want nil", err)
+	}
+	want := []string{"image_version_drift", "unmanaged_cloud_resource"}
+	if len(got) != len(want) {
+		t.Fatalf("NormalizeManagementFindingKinds() = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("NormalizeManagementFindingKinds() = %#v, want %#v", got, want)
+		}
+	}
+}

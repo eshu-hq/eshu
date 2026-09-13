@@ -6,8 +6,8 @@ answer "what would it take to bring this scope under IaC management?" It is a
 executes a migration.
 
 The Go contract lives in
-`go/internal/query/replatforming_plan_contract.go` (types) and
-`go/internal/query/replatforming_plan_contract_validate.go` (invariants), with
+`go/internal/query/iac/replatforming_plan_contract.go` (types) and
+`go/internal/query/iac/replatforming_plan_contract_validate.go` (invariants), with
 tests in `go/internal/query/replatforming_plan_contract_test.go`. Per-item
 evidence uses the
 [source-state taxonomy](replatforming-source-state-taxonomy.md), and responses
@@ -90,7 +90,7 @@ refused candidate that still carries a block.
 items by dependency and risk so a wave's impact is explicit before any external
 apply. Both reference items by `item_id`. Each item also carries its `wave_id`
 and `blast_radius_group` membership. The ordering is computed in
-`go/internal/query/replatforming_waves.go` and is a **planning hint only**: it
+`go/internal/query/iac/replatforming_waves.go` and is a **planning hint only**: it
 never implies automatic apply and never fabricates a dependency the plan does not
 already carry.
 

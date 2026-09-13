@@ -34,11 +34,11 @@ the production contract is explicitly `derived`, not `exact`.
 ## Committed reproducible evidence
 
 **Handler contract, materialized-row preference, and scope gating** —
-`go/internal/query/iac_dead_test.go`:
+`go/internal/query/dead_iac_test.go`:
 `TestHandleDeadIaCPrefersMaterializedReachabilityRows`,
 `TestHandleDeadIaCMaterializedRowsReportsPagination`, and
 `TestHandleDeadIaCRequiresExplicitScope`;
-`go/internal/query/iac_dead_derived_test.go`:
+`go/internal/query/dead_iac_derived_test.go`:
 `TestHandleDeadIaCReturnsScopedDerivedFindings`. Reproduce:
 
 ```bash
@@ -46,7 +46,7 @@ cd go && go test ./internal/query -run TestHandleDeadIaC -count=1
 ```
 
 **Scoped-grant authorization** —
-`go/internal/query/iac_dead_grant_test.go`:
+`go/internal/query/dead_iac_grant_test.go`:
 `TestHandleDeadIaCScopedGrantRejectsOutOfGrantRepository` and
 `TestHandleDeadIaCScopedGrantAllowsInGrantRepository`.
 

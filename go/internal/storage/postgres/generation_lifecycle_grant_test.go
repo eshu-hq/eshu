@@ -73,7 +73,7 @@ func assertGrantBinds(t *testing.T, args []any, want grantBindPositions) {
 //
 // That gap is covered elsewhere, and not by a live database. #5167's AC4
 // reconciliation settled the tier at the hermetic W4 shape
-// (go/internal/query/auth_scoped_iac_replatforming_grant_test.go): a two-tenant
+// (go/internal/query/iac/auth_scoped_replatforming_grant_test.go): a two-tenant
 // test driving the production handler against a fake that mirrors this
 // predicate -- TestGenerationLifecycleTwoTenantGrantBoundary in internal/query
 // -- paired with TestFreshnessGrantPredicatesArePresentInTheShippedSQL in this
