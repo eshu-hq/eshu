@@ -124,6 +124,21 @@ CREATE (n)-[:HAS_TAG]->(:Tag {name:$tag})`,
 			want:  false,
 		},
 		{
+			name:  "created_at assigned a parenthesized expression is not CREATE plus a path binding",
+			value: `MERGE (r:Repository {id:$id}) ON CREATE SET r.created_at = ($now)`,
+			want:  false,
+		},
+		{
+			name:  "createdAt (no underscore, no spaces) assigned a parenthesized expression is not CREATE plus a path binding",
+			value: `MERGE (r:Repository {id:$id}) ON CREATE SET r.createdAt=($now)`,
+			want:  false,
+		},
+		{
+			name:  "merged_at assigned a parenthesized expression is not a false MERGE-open, even with a real CREATE later",
+			value: `MATCH (a:Node {id:$id}) SET a.merged_at = ($t) CREATE (b:Node {id:$id2})`,
+			want:  false,
+		},
+		{
 			name:  "CREATE in a different statement (after a semicolon) does not count",
 			value: `MERGE (n:Repository {id:$id}) SET n.last_seen = $now; CREATE (:AuditEvent {id:$eventId})`,
 			want:  false,
@@ -134,19 +149,19 @@ CREATE (n)-[:HAS_TAG]->(:Tag {name:$tag})`,
 			want:  false,
 		},
 		{
-			name: "relationship MERGE instead of CREATE is the safe shape",
+			name: "relationship MERGE instead of CREATE is the safe, idempotent fix",
 			value: `MERGE (s:Workload {id:$s})
 MERGE (t:Workload {id:$t})
 MERGE (s)-[:DEPENDS_ON]->(t)`,
 			want: false,
 		},
 		{
-			name:  "MATCH ... MATCH ... CREATE (no MERGE at all) is the safe shape",
+			name:  "MATCH ... MATCH ... CREATE (no MERGE at all) avoids the drop but is not idempotent",
 			value: `MATCH (s:Workload {id:$s}) MATCH (t:Workload {id:$t}) CREATE (s)-[:DEPENDS_ON]->(t)`,
 			want:  false,
 		},
 		{
-			name:  "comma-pattern CREATE with no MERGE is the safe shape",
+			name:  "comma-pattern CREATE with no MERGE avoids the drop but is not idempotent",
 			value: `MATCH (s:Workload {id:$s}) MATCH (t:Workload {id:$t}) CREATE (s)-[:DEPENDS_ON]->(t), (t)-[:USED_BY]->(s)`,
 			want:  false,
 		},

@@ -27,22 +27,30 @@ import (
 const pathBindingFragment = "(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)\\s*=\\s*"
 
 // mergeOpenPattern and createClausePattern locate the MERGE and CREATE clause
-// keywords hasNodeMergeThenCreate scans for. Both are case-insensitive with
-// \b word boundaries so e.g. "UNMERGED" or "RECREATE" never count as the
-// keyword, and \s* tolerates any amount of whitespace (including a newline)
-// between the keyword and its opening paren, so "MERGE(", "merge  (", and
-// "MERGE\n(" all match the same as "MERGE (". Both also accept an optional
-// pathBindingFragment between the keyword and "(", so a named-path clause
-// (`MERGE p = (...)`, `CREATE p = (...)`, `CREATE p=(...)`) matches the same
-// as the plain form. createClausePattern in particular never matches
-// "ON CREATE SET" -- there, after CREATE and its whitespace, "SET" is not
-// itself followed by "=", and no "(" follows either, so neither the
-// optional-path branch nor the bare "(" branch matches. The same holds for
-// "ON MATCH SET" against mergeOpenPattern's "MATCH" text, though that text
-// never reaches mergeOpenPattern at all since it only matches "MERGE".
+// keywords hasNodeMergeThenCreate scans for. Both are case-insensitive with a
+// \b word boundary on BOTH sides of the keyword: the leading \b means e.g.
+// "UNMERGED" or "RECREATE" never count as the keyword, and the trailing \b is
+// required too -- without it, the keyword would happily match as a PREFIX of
+// a longer identifier, so `r.created_at = ($now)` read as CREATE (the first
+// six letters of "created_at") immediately followed by the "d_at" path
+// binding and "=", a false positive fixed by adding the trailing \b (the
+// same fix applies to mergeOpenPattern, where `a.merged_at = (...)` was
+// misread as MERGE plus a "d_at" path binding). \s* tolerates any amount of
+// whitespace (including a newline) between the keyword and its opening
+// paren, so "MERGE(", "merge  (", and "MERGE\n(" all match the same as
+// "MERGE (". Both also accept an optional pathBindingFragment between the
+// keyword and "(", so a named-path clause (`MERGE p = (...)`,
+// `CREATE p = (...)`, `CREATE p=(...)`) matches the same as the plain form.
+// createClausePattern in particular never matches "ON CREATE SET" -- there,
+// after CREATE and its whitespace, "SET" is not itself followed by "=", and
+// no "(" follows either, so neither the optional-path branch nor the bare
+// "(" branch matches. The same holds for "ON MATCH SET" against
+// mergeOpenPattern: the scan does reach that text, it just never matches it,
+// because mergeOpenPattern only recognizes the literal keyword "MERGE", not
+// "MATCH".
 var (
-	mergeOpenPattern    = regexp.MustCompile("(?i)\\bMERGE\\s*(?:" + pathBindingFragment + ")?\\(")
-	createClausePattern = regexp.MustCompile("(?i)\\bCREATE\\s*(?:" + pathBindingFragment + ")?\\(")
+	mergeOpenPattern    = regexp.MustCompile("(?i)\\bMERGE\\b\\s*(?:" + pathBindingFragment + ")?\\(")
+	createClausePattern = regexp.MustCompile("(?i)\\bCREATE\\b\\s*(?:" + pathBindingFragment + ")?\\(")
 )
 
 // hasNodeMergeThenCreate flags the exact statement class orneryd/NornicDB#359
@@ -60,8 +68,9 @@ var (
 // reports 2 nodes and 1 relationship. See
 // docs/public/reference/nornicdb-write-shape-pitfalls.md ("Pitfall: A Node
 // MERGE Followed By CREATE In One Statement Silently Drops The Second MERGE
-// And The CREATE") for the full writeup and the proven-safe alternative
-// shapes.
+// And The CREATE") for the full writeup and the shapes that avoid it -- only
+// a relationship MERGE is idempotent enough for Eshu writers; the others
+// avoid the NornicDB drop but run an unconditional CREATE.
 //
 // value is split on the literal character ';' before scanning, so a real
 // CREATE clause in a DIFFERENT statement never counts -- only a CREATE that

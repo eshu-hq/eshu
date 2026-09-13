@@ -122,8 +122,9 @@ statement by a real `CREATE (` clause, itself plain or named-path
 there is followed by `SET`, not `(` and not a `path =` binding, so it never
 matches the clause pattern — and a `CREATE` in a different statement (past a
 `;`, or in a separate string constant) does not either. See
-`merge_then_create_repo_scan_test.go` for the unit-level proof of both
-exclusions and the scan itself.
+`merge_then_create_unit_test.go` for the unit-level proof of both exclusions
+and the scan itself; `merge_then_create_repo_scan_test.go` holds the guard's
+own repo-wide test and the scanning code it exercises.
 
 This is a textual scan, not a Cypher parser, and its coverage is narrower than
 "anywhere in the tree": it resolves a `+` chain of string literals and
