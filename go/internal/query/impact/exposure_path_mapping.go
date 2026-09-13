@@ -185,7 +185,7 @@ func scalarStringProps(props map[string]any) map[string]string {
 
 // writeExposureFinding serializes an exposure finding into the API response with
 // a derived truth envelope.
-func (h *ImpactHandler) writeExposureFinding(w http.ResponseWriter, r *http.Request, finding exposure.ExposureFinding) {
+func (h *Handler) writeExposureFinding(w http.ResponseWriter, r *http.Request, finding exposure.ExposureFinding) {
 	querycontract.WriteSuccess(w, r, http.StatusOK, exposureFindingPayload(finding),
 		querycontract.BuildTruthEnvelope(h.profile(), exposurePathCapability, querycontract.TruthBasisHybrid,
 			"derived from bounded symbol-level reachability over the call graph and the cloud-sink catalog; not value-flow"))

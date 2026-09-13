@@ -53,7 +53,7 @@ Criterion 1 ("a `kubernetes_live` fixture drives `trace_deployment_chain` off
 `config_only`") is already proven end-to-end by the spine, not just at unit level:
 the B-12 snapshot pins `data.deployment_fact_summary.deployment_truth_tier =
 runtime_confirmed` on the HTTP `trace-deployment-chain` shape (the cassette carries
-`argocd.argoproj.io/tracking-id` pods), and `impact_trace_deployment_gitops_own_repo_test.go`
+`argocd.argoproj.io/tracking-id` pods), and `impact/trace_deployment_gitops_own_repo_test.go`
 exercises the real HTTP handler including the fail-closed negatives. Criterion 3
 (this artifact + the §7 shim) is delivered by this commit. Criterion 2
 (environment-unbound instance evidence state) is genuinely residual and moves to a
@@ -101,7 +101,7 @@ reinvented.
 
 `trace_deployment_chain` decides deployment-evidence origin with a strict
 waterfall in `deploymentOverallConfidence`
-(`go/internal/query/impact/impact_trace_deployment_resources.go`):
+(`go/internal/query/impact/trace_deployment_resources.go`):
 
 ```
 len(instances)          > 0 → "materialized_runtime_instances"
@@ -111,7 +111,7 @@ else                        → "no_deployment_evidence"
 ```
 
 `instance_count` is just `len(instances)`
-(`impact_trace_deployment_resources.go:28-29`), where `instances` are
+(`impact/trace_deployment_resources.go:28-29`), where `instances` are
 materialized `WorkloadInstance` nodes fetched upstream. The node label already
 exists and is actively written — `MERGE (i:WorkloadInstance {id: $instance_id})`
 (`go/internal/storage/cypher/canonical.go:36`), built by
@@ -433,7 +433,7 @@ spine #5471 / PR #5608 (branch `5471-deployment-truth-tiers`, currently
 unmerged). #5435's *acceptance* does not require that typed vocabulary — flipping
 `config_only_evidence` → `materialized_runtime_instances` rides the existing
 string-literal origin scheme (§1). **However**, #5608 edits the exact origin
-decision in `impact_trace_deployment_resources.go`. Implementing #5435's write
+decision in `impact/trace_deployment_resources.go`. Implementing #5435's write
 path against that same function before #5608 lands would fork the file and force
 a conflict resolution neither PR owner can do cleanly.
 

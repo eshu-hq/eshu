@@ -112,6 +112,6 @@ func BenchmarkImpactRepoIDAllowed(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = impact.ImpactRepoIDAllowed("repo-10", access)
+		_ = impact.RepoIDAllowed("repo-10", access)
 	}
 }

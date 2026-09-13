@@ -46,7 +46,7 @@ type KubernetesPodTemplateStore interface {
 	// ListLiveIdentityMatches returns every ACTIVE kubernetes_live.pod_template
 	// fact matching filter (same identity+image-refs predicate
 	// HasLiveIdentityMatch uses), carrying the columns
-	// fetchWorkloadLiveInstanceSummary (impact_trace_deployment_live_evidence_count.go)
+	// fetchWorkloadLiveInstanceSummary (impact/trace_deployment_live_evidence_count.go)
 	// needs to derive a live_instance_count: object_id, group_version_resource,
 	// and the observed ready_replicas (nil when the matched fact never carried
 	// one, e.g. a bare Pod object -- absent is never coerced to zero). Bounded

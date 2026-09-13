@@ -125,9 +125,9 @@ consumer today.
 
 ## GATE 2 — scoped edge-materialization gate
 
-`go/internal/query/impact/impact_edge_materialization_gate.go` audits the
+`go/internal/query/impact/edge_materialization_gate.go` audits the
 target_type-scoped blast-radius Cypher constants in
-`go/internal/query/impact/impact_blast_radius.go` (the six queries feeding
+`go/internal/query/impact/blast_radius.go` (the six queries feeding
 `blastRadiusAffected`'s switch, plus the shared tier-lookup query).
 
 For each, `extractRelationshipTypeTokens` tokenizes every relationship-type
@@ -173,7 +173,7 @@ Two anti-false-green mitigations:
   9, tier-lookup: 1), so a tokenizer regression that silently drops tokens
   fails the floor instead of vacuously passing.
 - **Literal-only discipline** — `TestImpactBlastRadiusGateQueriesAreLiteralConstants`
-  AST-parses `impact_blast_radius.go` and requires every audited query to be
+  AST-parses `impact/blast_radius.go` and requires every audited query to be
   declared as a single string-literal `const` (Go's own const semantics
   already forbid a non-constant expression like `fmt.Sprintf` there). A
   tracked name missing from a literal const decl fails with "restructure or
@@ -181,9 +181,9 @@ Two anti-false-green mitigations:
 
 ### Scope limits
 
-- Only the Cypher constants in `go/internal/query/impact/impact_blast_radius.go` that feed
+- Only the Cypher constants in `go/internal/query/impact/blast_radius.go` that feed
   `blastRadiusAffected`'s switch are audited — not every "impact"-named
-  query in the package (`go/internal/query/impact/impact.go`'s dependency-path explainer,
+  query in the package (`go/internal/query/impact/handler.go`'s dependency-path explainer,
   `go/internal/query/impact/exposure_path.go`, and similar are out of v1 scope).
 - Node labels are not extracted or checked, only relationship types.
 

@@ -84,7 +84,7 @@ func contractImpactTestGraph(t *testing.T) querytestutil.FakeGraphReaderWithSing
 
 // TestInvestigateContractImpactScopedGrantAndDenyMutationCheck is a #5167 W3
 // mutation-check route: removing the ProviderRepoID grant check in
-// contract_impact.go's contractImpactResponse makes the denied case both
+// impact/contract.go's contractImpactResponse makes the denied case both
 // reach the graph (failing contractImpactTestGraph's t.Fatalf guard above)
 // and return the provider row (failing the empty-providers assertion below).
 func TestInvestigateContractImpactScopedGrantAndDenyMutationCheck(t *testing.T) {
@@ -253,7 +253,7 @@ func blastRadiusTestGraph(t *testing.T) querytestutil.FakeGraphReaderWithSingle 
 
 // TestFindBlastRadiusScopedGrantAndDenyMutationCheck is a #5167 W3
 // mutation-check route: removing filterRowsByRepoIDForAccess in
-// impact_blast_radius.go's findBlastRadius makes a caller granted only
+// impact/blast_radius.go's findBlastRadius makes a caller granted only
 // repo-a-dependent also see repo-b-dependent, the cross-tenant repo.
 func TestFindBlastRadiusScopedGrantAndDenyMutationCheck(t *testing.T) {
 	t.Parallel()

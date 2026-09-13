@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// This file owns the ImpactHandler family's capability rows. The rows live
+// This file owns the Handler family's capability rows. The rows live
 // here — declared by the family that implements the routes, following the
 // semanticsearch.Support precedent — so the family's own test binary
 // observes the same profile gates production does without importing package
@@ -15,8 +15,8 @@ package impact
 import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 var (
-	impactTruthExact   = querycontract.TruthLevelExact
-	impactTruthDerived = querycontract.TruthLevelDerived
+	truthExact   = querycontract.TruthLevelExact
+	truthDerived = querycontract.TruthLevelDerived
 )
 
 func init() {
@@ -25,9 +25,9 @@ func init() {
 			Capability: "platform_impact.deployment_chain",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -35,9 +35,9 @@ func init() {
 			Capability: "platform_impact.deployment_config_influence",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -45,9 +45,9 @@ func init() {
 			Capability: "platform_impact.blast_radius",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthDerived,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthDerived,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -55,9 +55,9 @@ func init() {
 			Capability: "platform_impact.change_surface",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -65,9 +65,9 @@ func init() {
 			Capability: contractImpactCapability,
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -75,9 +75,9 @@ func init() {
 			Capability: "platform_impact.pre_change",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -85,9 +85,9 @@ func init() {
 			Capability: "platform_impact.developer_change_plan",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -95,9 +95,9 @@ func init() {
 			Capability: "platform_impact.entity_map",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -105,9 +105,9 @@ func init() {
 			Capability: "platform_impact.resource_to_code",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -115,9 +115,9 @@ func init() {
 			Capability: "platform_impact.resource_investigation",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -125,9 +125,9 @@ func init() {
 			Capability: "platform_impact.dependency_path",
 			Support: querycontract.CapabilitySupport{
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthExact,
-				LocalFullStackMax:     &impactTruthExact,
-				ProductionMax:         &impactTruthExact,
+				LocalAuthoritativeMax: &truthExact,
+				LocalFullStackMax:     &truthExact,
+				ProductionMax:         &truthExact,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},
@@ -138,9 +138,9 @@ func init() {
 				// derived, never exact (#2704 non-goals). It needs the authoritative call
 				// graph for the bounded CALLS traversal.
 				LocalLightweightMax:   nil,
-				LocalAuthoritativeMax: &impactTruthDerived,
-				LocalFullStackMax:     &impactTruthDerived,
-				ProductionMax:         &impactTruthDerived,
+				LocalAuthoritativeMax: &truthDerived,
+				LocalFullStackMax:     &truthDerived,
+				ProductionMax:         &truthDerived,
 				RequiredProfile:       querycontract.ProfileLocalAuthoritative,
 			},
 		},

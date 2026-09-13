@@ -10,24 +10,24 @@ import "net/http"
 // the caller's grant (see impact_access_filter.go for the shared
 // deny-by-default/empty-grant-short-circuit helpers each handler uses):
 //
-//   - investigate_contract_impact (contract_impact.go): the only implemented
+//   - investigate_contract_impact (impact/contract.go): the only implemented
 //     family (http) is anchored on an exact, required provider_repo_id, so an
 //     ungranted repo renders the same empty-providers shape as an unknown one.
 //   - compare_environments (compare.go): the resolved workload's repo_id is
 //     checked against the grant before any environment/cloud-resource read;
 //     an ungranted workload renders the existing "workload not found" shape.
-//   - find_blast_radius (impact_blast_radius.go): every affected row is a
+//   - find_blast_radius (impact/blast_radius.go): every affected row is a
 //     Repository, bound to the grant after the traversal.
-//   - investigate_resource (impact_resource_investigation.go): resolved
+//   - investigate_resource (impact/resource_investigation.go): resolved
 //     candidates, dependent workloads, and repository-provenance paths are
 //     each independently bound to the grant.
 //   - find_change_surface, investigate_change_surface, analyze_pre_change_impact,
-//     plan_developer_change (impact_change_surface_*.go, prechange_impact.go,
+//     plan_developer_change (impact/change_surface_*.go, impact/prechange.go,
 //     developer_change_plan.go): resolved target candidates and every
 //     impacted row (including an explicit repo_id used for changed_paths/topic
 //     evidence) are bound to the grant.
 //   - trace_deployment_chain, investigate_deployment_config
-//     (impact/impact_trace_deployment.go, impact/deployment_config_influence.go): the anchor
+//     (impact/trace_deployment.go, impact/deployment_config_influence.go): the anchor
 //     workload is already grant-filtered by fetchServiceWorkloadContext
 //     (shared with the already-allowlisted GET /services/{name}/context); this
 //     family additionally binds cross-repository deployment-source rows to the
@@ -35,7 +35,7 @@ import "net/http"
 //     scoped caller, since those rows carry no repository property to bind to
 //     a grant at all.
 //
-// trace_resource_to_code, explain_dependency_path (impact.go/impact_anchor_resolve.go)
+// trace_resource_to_code, explain_dependency_path (impact/handler.go, impacttrace/impact_anchor_resolve.go)
 // and trace_exposure_path (exposure_path.go) are NOT included here. Their walks
 // are bounded -- max_depth 1..20 with normalizeImpactListLimit, one shortestPath
 // of at most 8 hops, and clampExposureDepth with exposurePathResultLimit

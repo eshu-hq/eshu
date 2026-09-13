@@ -256,7 +256,7 @@ func filterRepoRelationshipTargetRowsForAccess(rows []map[string]any, idField st
 	}
 	filtered := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		if impact.ImpactRepoIDAllowed(querycontract.StringVal(row, idField), access) {
+		if impact.RepoIDAllowed(querycontract.StringVal(row, idField), access) {
 			filtered = append(filtered, row)
 		}
 	}
@@ -294,7 +294,7 @@ func repositoryRelationshipEndpointAllowed(repoID, anchorRepoID string, access q
 	if repoID != "" && repoID == anchorRepoID {
 		return true
 	}
-	return impact.ImpactRepoIDAllowed(repoID, access)
+	return impact.RepoIDAllowed(repoID, access)
 }
 
 // filterRepositoryRelationshipReadModelForAccess binds every related-repository

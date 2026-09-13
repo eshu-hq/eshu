@@ -278,7 +278,7 @@ and written through the canonical relationship upserts
 
 **Registered but not currently materialized:** `MAPS_TO_TABLE` and
 `TRIGGERS_ON` appear in the edge-type registry, but no emitter MERGEs either
-one. `MAPS_TO_TABLE` is read by `query/impact.go` despite having no writer
+one. `MAPS_TO_TABLE` is read by `query/impact/blast_radius.go` despite having no writer
 (#5330 audited every SQL reducer/edge-writer path). `REFERENCES_TABLE` left
 this list in #5410: the parser stamps FK targets on `SqlTable` metadata and the
 reducer resolves table-to-table edges. The same change added routine

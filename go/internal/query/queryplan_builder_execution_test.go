@@ -234,7 +234,7 @@ func TestResourceInvestigationExecutesBuilderBytes(t *testing.T) {
 		// #5167 W3: impact.ResourceInvestigationInstanceWorkloadsCypher gained
 		// `workload.repo_id AS workload_repo_id` so resourceInvestigationWorkloads
 		// can bind each dependent workload to the caller's grant
-		// (impact_resource_investigation_reads.go); this baseline is the
+		// (impact/resource_investigation_reads.go); this baseline is the
 		// post-change production digest.
 		"2463d998139bb2f60b10bdac64b62cc655d1e67d5ad9862c450ef317f6ae557e",
 		"4868f98cf10731ff8781ed9ba394da16d97c623c5cdd7d74217257bb5b641565",

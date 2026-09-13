@@ -76,7 +76,7 @@ func BuildDeploymentFactSummary(
 		// convention the gitops *_limits "truncated" fields use -- read
 		// from workloadContext["_live_instance_count_truncated"] (set by the
 		// handler in lockstep with "_live_instance_count",
-		// impact_trace_deployment.go) rather than as a builder parameter, to
+		// impact/trace_deployment.go) rather than as a builder parameter, to
 		// match how live_instance_count itself already arrives here.
 		summary["live_instance_count_truncated"], _ = workloadContext["_live_instance_count_truncated"].(bool)
 	}

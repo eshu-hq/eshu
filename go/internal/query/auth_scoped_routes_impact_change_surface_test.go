@@ -183,7 +183,7 @@ func (f fakeChangeSurfaceTopicContentStore) InvestigateCodeTopic(
 
 // TestInvestigateChangeSurfaceScopedFiltersCrossTenantTopicEvidence is a
 // #5167 W3 mutation-check route: removing filterCodeTopicRowsForAccess in
-// impact_change_surface_response.go's changeSurfaceCodeSurface makes a
+// impact/change_surface_response.go's changeSurfaceCodeSurface makes a
 // caller granted only repo-a also see repo-b's code-topic evidence (touched
 // symbols and matched files), because InvestigateCodeTopic itself performs a
 // corpus-wide search with no repo predicate. This drives the real content-store
@@ -358,7 +358,7 @@ func deploymentTraceTestGraph() querytestutil.FakeGraphReaderWithSingle {
 
 // TestTraceDeploymentChainScopedFiltersCrossTenantDeploymentSource is a
 // #5167 W3 mutation-check route: removing filterRowsByRepoIDForAccess in
-// impact_trace_deployment.go's traceDeploymentChain makes repo-b (the
+// impact/trace_deployment.go's traceDeploymentChain makes repo-b (the
 // cross-tenant deployment source) appear in deployment_sources even though
 // the caller is granted only repo-a.
 func TestTraceDeploymentChainScopedFiltersCrossTenantDeploymentSource(t *testing.T) {

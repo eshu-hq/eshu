@@ -455,12 +455,12 @@ func maxCompareFloat(left, right float64) float64 {
 
 func nextEnvironmentCompareLimit(requested int) int {
 	current := impact.NormalizeImpactListLimit(requested)
-	if current >= impact.ImpactMaxListLimit {
+	if current >= impact.MaxListLimit {
 		return 0
 	}
 	next := current * 2
-	if next > impact.ImpactMaxListLimit {
-		return impact.ImpactMaxListLimit
+	if next > impact.MaxListLimit {
+		return impact.MaxListLimit
 	}
 	return next
 }

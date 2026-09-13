@@ -18,7 +18,7 @@ import (
 // (full-stack profile clears the capability gate without a graph) and is
 // rejected before any graph read. See #6060.
 func TestTraceExposurePathRouteRejectsEmptySource(t *testing.T) {
-	handler := &ImpactHandler{Profile: querycontract.ProfileLocalFullStack}
+	handler := &Handler{Profile: querycontract.ProfileLocalFullStack}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

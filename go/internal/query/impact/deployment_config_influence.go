@@ -24,7 +24,7 @@ type deploymentConfigInfluenceRequest struct {
 	Limit       int    `json:"limit"`
 }
 
-func (h *ImpactHandler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) investigateDeploymentConfigInfluence(w http.ResponseWriter, r *http.Request) {
 	if querycontract.CapabilityUnsupported(h.profile(), deploymentConfigInfluenceCapability) {
 		querycontract.WriteContractError(
 			w,
@@ -91,7 +91,7 @@ func (h *ImpactHandler) investigateDeploymentConfigInfluence(w http.ResponseWrit
 	)
 }
 
-func (h *ImpactHandler) enrichDeploymentConfigInfluenceContext(ctx context.Context, workload map[string]any) error {
+func (h *Handler) enrichDeploymentConfigInfluenceContext(ctx context.Context, workload map[string]any) error {
 	workloadID := querycontract.SafeStr(workload, "id")
 	repoID := querycontract.SafeStr(workload, "repo_id")
 	sourceCh := make(chan deploymentConfigSourcesResult, 1)

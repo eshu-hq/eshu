@@ -3,7 +3,7 @@
 
 // #5663: response-level proof that impacttrace.BuildDeploymentFactSummary surfaces
 // live_instance_count_truncated, split out of
-// impact_trace_deployment_live_evidence_test.go to stay under the repo's
+// impact/trace_deployment_live_evidence_test.go to stay under the repo's
 // 500-line-per-file cap. Uses the shared
 // querytestutil.SampleServiceDossierContext fixture (querytestutil/dossier.go).
 

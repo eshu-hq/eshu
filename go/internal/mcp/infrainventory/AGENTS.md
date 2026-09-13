@@ -25,7 +25,7 @@
    | --- | --- |
    | `count_infra_resources` | `infra_resource_aggregates_handler.go` |
    | `get_infra_resource_inventory` | `infra_resource_aggregates_handler.go` |
-   | `investigate_resource` | `impact_resource_investigation.go` |
+   | `investigate_resource` | `impact/resource_investigation.go` |
    | `analyze_infra_relationships` | `infra_relationship_filter.go` |
 
 ## Invariants

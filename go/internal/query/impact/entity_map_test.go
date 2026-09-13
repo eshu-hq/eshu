@@ -70,7 +70,7 @@ func TestEntityMapReturnsAmbiguityWithoutTraversal(t *testing.T) {
 			"anchor_value":    "workload:orders-worker",
 		},
 	}}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -156,7 +156,7 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 			},
 		},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -256,7 +256,7 @@ func TestEntityMapDepthTwoUsesBoundedTraversalSpecs(t *testing.T) {
 			},
 		},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -307,7 +307,7 @@ func TestEntityMapTraversalAnchorsExpansionInSingleConnectedMatch(t *testing.T) 
 			},
 		},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -355,7 +355,7 @@ func TestEntityMapResolvesTerraformAddressWithoutWholeGraphScan(t *testing.T) {
 		{},
 		{},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -439,7 +439,7 @@ func TestEntityMapPopulatesTypedVerbAndEntityIDForVarLengthEdge(t *testing.T) {
 	}
 
 	graph := &recordingEntityMapGraph{runRows: runRows}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 

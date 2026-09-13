@@ -103,7 +103,7 @@ linters:
             - "!**/internal/query/**/*_test.go"
             - "!**/internal/query/neo4j.go"
             - "!**/internal/query/neo4j_read_policy.go"
-            - "!**/internal/query/impact/impact_change_surface_legacy.go"
+            - "!**/internal/query/impact/change_surface_legacy.go"
             - "!**/internal/query/codequery/visualization/packet.go"
             - "!**/internal/query/codequery/responses.go"
             - "!**/internal/query/impact/exposure_path_mapping.go"
@@ -464,7 +464,7 @@ linters:
       - path: 'internal/query/handler\.go'
         linters:
           - funlen
-      - path: 'internal/query/impact/impact_trace_deployment\.go'
+      - path: 'internal/query/impact/trace_deployment\.go'
         linters:
           - funlen
       - path: 'internal/query/infra\.go'

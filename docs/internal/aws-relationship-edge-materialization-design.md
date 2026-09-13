@@ -34,7 +34,7 @@ A deep read of the pipeline established two facts that shape the whole design:
    *trigger* their reducers when AWS resource facts appear. There is no `CloudResource` /
    `AwsResource` node label, uniqueness constraint, or uid index in
    `go/internal/graph/schema.go`. The query layer references a `CloudResource`
-   label speculatively (`internal/query/impact_resource_investigation.go`,
+   label speculatively (`internal/query/impact/resource_investigation.go`,
    `repository/infrastructure.go`), but no writer ever creates it.
 
 The literal #805 ask — "materialize relationship facts as edges **between the
@@ -400,7 +400,7 @@ so a future agent does not silently re-open them.
    already depends on `CloudResource` nodes that no writer produced —
    `internal/query/compare.go` runs
    `MATCH (i:WorkloadInstance)-[r:USES]->(c:CloudResource)`,
-   `internal/query/impact_resource_investigation.go` traverses `n:CloudResource`,
+   `internal/query/impact/resource_investigation.go` traverses `n:CloudResource`,
    and `internal/query/entity_map_traversal.go` resolves the label. PR #1 makes
    those queries return real data instead of empty results. PR #2 writes **only**
    relationship-type-specific

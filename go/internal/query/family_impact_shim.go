@@ -26,7 +26,7 @@ import (
 // ImpactHandler is the impact investigation handler. Its home is impact/;
 // this alias keeps handler wiring, cmd routers, and tests spelling
 // query.ImpactHandler unchanged. See #6060.
-type ImpactHandler = impact.ImpactHandler
+type ImpactHandler = impact.Handler
 
 // init wires the production backends behind the impact seam. Handlers built
 // with zero-value backend fields (the cmd wirings) resolve through these

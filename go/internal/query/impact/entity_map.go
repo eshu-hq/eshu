@@ -56,7 +56,7 @@ type entityMapResolverQuery struct {
 	Params map[string]any
 }
 
-func (h *ImpactHandler) entityMap(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) entityMap(w http.ResponseWriter, r *http.Request) {
 	r, span := queryspan.StartHandlerSpanWith(queryspan.HandlerTracer(),
 		r,
 		telemetry.SpanQueryEntityMap,

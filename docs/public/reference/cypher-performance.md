@@ -202,11 +202,11 @@ The three reads and their new anchors:
   the `LIMIT 5` are byte-identical; only the anchor label moved into the MATCH.
   `buildNornicDBCallChainCypher` keeps its existing inline-property anchor and is
   untouched.
-- `go/internal/query/impact/impact.go` (`traceResourceToCode`, ~line 215 and the ~line
+- `go/internal/query/impact/handler.go` (`traceResourceToCode`, ~line 215 and the ~line
   233 fallback hydration): `MATCH (start) WHERE start.id = $start_id` and
   `MATCH (n) WHERE n.id = $id` → `MATCH (start:<impact-anchor-disjunction>)` /
   `MATCH (n:<impact-anchor-disjunction>)`, predicate unchanged.
-- `go/internal/query/impact/impact.go` (`explainDependencyPath`, ~lines 312-313):
+- `go/internal/query/impact/handler.go` (`explainDependencyPath`, ~lines 312-313):
   `MATCH (source) WHERE source.id = $source_id` and the target equivalent →
   label-seeded anchors, `shortestPath((source)-[*1..8]-(target))` unchanged.
 
@@ -1663,7 +1663,7 @@ span, log field, or config surface.
 
 ### SQL Table Blast-Radius Branch Reduction (#5330)
 
-`blastRadiusSqlTableCypher` (`go/internal/query/impact/impact_blast_radius.go`)
+`blastRadiusSqlTableCypher` (`go/internal/query/impact/blast_radius.go`)
 dropped from six `CALL {...UNION...}` branches to five: the never-written
 `MIGRATES` and `MAPS_TO_TABLE` branches were removed outright, and the
 combined `EXISTS { MATCH (sql_node)-[:READS_FROM|TRIGGERS_ON|INDEXES]->(table)
@@ -1677,7 +1677,7 @@ over-fetch before the app-side per-repo min-hop dedup, so 6 -> 5 also lowers
 the over-fetch multiplier and the row volume Go merges per call.
 
 This is primarily a correctness fix (#5330's honest-coverage rationale is
-above in `impact_blast_radius.go`), not a claimed speedup, so the required
+above in `impact/blast_radius.go`), not a claimed speedup, so the required
 proof here is the same-shape no-regression check called for by
 `cypher-query-rigor`: prove NEW is not slower than OLD on the same data.
 
@@ -1716,7 +1716,7 @@ asserted result-set-equivalent, because dropping the dead `MIGRATES`/
 `MAPS_TO_TABLE` branches and renaming `TRIGGERS_ON` to `TRIGGERS` is the
 correctness fix under test (an accuracy delta, not an optimization); that
 delta is proven by `TestBlastRadiusSqlTableCypherDropsDeadBranchesKeepsLiveOnes`
-and `go/internal/query/impact/impact_blast_radius_coverage_test.go`, not by this
+and `go/internal/query/impact/blast_radius_coverage_test.go`, not by this
 shim.
 
 No-Observability-Change: the query still runs through the existing

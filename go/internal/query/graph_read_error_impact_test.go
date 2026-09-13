@@ -12,7 +12,7 @@ import (
 )
 
 // TestTraceResourceToCodeMapsGraphReadAvailabilityErrors proves
-// traceResourceToCode's start-anchor resolution (impact.go) maps the shared
+// traceResourceToCode's start-anchor resolution (impact/handler.go) maps the shared
 // Neo4jReader sentinels to 503/504 instead of a generic 500.
 func TestTraceResourceToCodeMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -36,7 +36,7 @@ func TestTraceResourceToCodeMapsGraphReadAvailabilityErrors(t *testing.T) {
 }
 
 // TestExplainDependencyPathMapsGraphReadAvailabilityErrors proves
-// explainDependencyPath's source-anchor resolution (impact.go) maps the
+// explainDependencyPath's source-anchor resolution (impact/handler.go) maps the
 // shared Neo4jReader sentinels to 503/504.
 func TestExplainDependencyPathMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -60,7 +60,7 @@ func TestExplainDependencyPathMapsGraphReadAvailabilityErrors(t *testing.T) {
 }
 
 // TestFindBlastRadiusMapsGraphReadAvailabilityErrors proves findBlastRadius
-// (impact_blast_radius.go) maps the shared Neo4jReader sentinels to 503/504.
+// (impact/blast_radius.go) maps the shared Neo4jReader sentinels to 503/504.
 func TestFindBlastRadiusMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {
@@ -83,7 +83,7 @@ func TestFindBlastRadiusMapsGraphReadAvailabilityErrors(t *testing.T) {
 }
 
 // TestInvestigateChangeSurfaceMapsGraphReadAvailabilityErrors proves
-// investigateChangeSurface (impact_change_surface_investigation.go) maps the
+// investigateChangeSurface (impact/change_surface_investigation.go) maps the
 // shared Neo4jReader sentinels to 503/504.
 func TestInvestigateChangeSurfaceMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -107,7 +107,7 @@ func TestInvestigateChangeSurfaceMapsGraphReadAvailabilityErrors(t *testing.T) {
 }
 
 // TestFindChangeSurfaceMapsGraphReadAvailabilityErrors proves the legacy
-// findChangeSurface handler (impact_change_surface_legacy.go) maps the shared
+// findChangeSurface handler (impact/change_surface_legacy.go) maps the shared
 // Neo4jReader sentinels to 503/504.
 func TestFindChangeSurfaceMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
@@ -156,7 +156,7 @@ func TestTraceDeploymentChainMapsGraphReadAvailabilityErrors(t *testing.T) {
 }
 
 // TestContractImpactMapsGraphReadAvailabilityErrors proves contractImpact
-// (contract_impact.go) maps the shared Neo4jReader sentinels to 503/504.
+// (impact/contract.go) maps the shared Neo4jReader sentinels to 503/504.
 func TestContractImpactMapsGraphReadAvailabilityErrors(t *testing.T) {
 	t.Parallel()
 	for _, test := range graphReadSweepCases() {

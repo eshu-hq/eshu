@@ -15,7 +15,7 @@ import (
 // tracking-id values fetchWorkloadLiveEvidence queries the pod-template
 // store for. controllers and k8sResources reaching ExpectedArgoCDTrackingIDs
 // are already capped at querycontract.ServiceStoryItemLimit each
-// (impact_trace_deployment_gitops_helpers.go, impact_trace_deployment_resources.go),
+// (impact_trace_deployment_gitops_helpers.go, impact/trace_deployment_resources.go),
 // so this defensive cap keeps the app-name x resource cross product bounded
 // even if an upstream cap ever changes.
 const expectedArgoCDTrackingIDsQueryLimit = querycontract.ServiceStoryItemLimit

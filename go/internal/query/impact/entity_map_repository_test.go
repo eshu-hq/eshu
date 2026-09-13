@@ -30,7 +30,7 @@ func TestEntityMapRepositoryAnchorUsesDirectRelationshipFamilyTraversal(t *testi
 		{},
 		{},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -105,7 +105,7 @@ func TestEntityMapRepositoryAnchorUsesNarrowRelationshipFamilyForBoundedDepth(t 
 		{},
 		{},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -186,7 +186,7 @@ func TestEntityMapDirectTraversalNormalizesScalarRelationshipType(t *testing.T) 
 		},
 		{},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -244,7 +244,7 @@ func TestEntityMapExplicitRelationshipBackfillsMissingBackendType(t *testing.T) 
 		},
 		{},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -290,7 +290,7 @@ func TestEntityMapExplicitRelationshipUsesRequestedDirectTraversal(t *testing.T)
 		{},
 		{},
 	}}
-	handler := &ImpactHandler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
+	handler := &Handler{Neo4j: graph, Profile: querycontract.ProfileLocalAuthoritative}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
