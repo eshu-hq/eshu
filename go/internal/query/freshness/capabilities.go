@@ -15,15 +15,14 @@ import (
 // constructors so the family test binary exercises the same gate production
 // does from a single declaration (supplychain/codeowners precedent, #6060).
 //
-// Root's three rows are still literal `init()` registrations today
-// (contract_* is owned by another #6642 lane): a follow-up should point them
-// at these constructors the way root's hardcoded-secret registration calls
-// querycontract.HardcodedSecretSupport, so the two cannot drift. Until then,
-// both spell the same contract -- exact truth at every profile, because all
-// three reads are bounded local-host Postgres reads that never require the
-// graph backend -- and any change to either must change the other in the
-// same PR. capability_lockstep_freshness_test.go (root, package query) pins
-// this equality field by field.
+// Root's three rows call these constructors directly (#6642 Part C), the way
+// root's hardcoded-secret registration calls
+// querycontract.HardcodedSecretSupport, so the ceilings are declared once,
+// here. They are exact truth at every profile, because all three reads are
+// bounded local-host Postgres reads that never require the graph backend.
+// Root's TestCapabilityMatrixMatchesYAMLContract pins the assembled rows
+// against the YAML contract and fails naming the profile when a ceiling here
+// changes.
 
 // ChangedSinceCapability is the capability key for the bounded changed-since
 // delta summary. It diffs a prior generation's fact set against the current

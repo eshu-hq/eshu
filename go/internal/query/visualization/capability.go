@@ -6,9 +6,10 @@ package visualization
 import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 
 // PacketDerivationCapability names the capability the derive route reports in
-// its truth envelope. Root's contract_capability_matrix.go registers the same
-// string for production; TestMain in this package registers it for the
-// package's own tests, and the root lockstep test keeps the two in step.
+// its truth envelope. Root's contract_capability_matrix.go registers this
+// same const with PacketDerivationSupport for production; TestMain in this
+// package registers the pair again for the package's own tests, which cannot
+// link root.
 const PacketDerivationCapability = "visualization.packet_derivation"
 
 // PacketDerivationSupport returns the capability ceilings for

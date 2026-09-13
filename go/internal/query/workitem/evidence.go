@@ -20,8 +20,9 @@ const (
 	// EvidenceCapability is the capability this route serves its truth
 	// envelope under. Package query keeps this value available as
 	// workItemEvidenceCapability through a forward in work_item_alias.go,
-	// since contract_work_item.go's capability-matrix registration reads
-	// that unexported root spelling (#6642).
+	// which is the key contract_work_item.go's capability-matrix
+	// registration indexes on; the row's value comes from
+	// EvidenceSupport in capability.go (#6642).
 	EvidenceCapability = "work_item.evidence.list"
 	evidenceMaxLimit   = 200
 

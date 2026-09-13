@@ -99,7 +99,9 @@ combined test-name union carries every pre-move name from the `go test
 the only addition is `TestWorkItemEvidenceCapabilityLockstep`
 (`capability_lockstep_work_item_test.go`, root package `query`), the drift
 guard the capability-lockstep review finding added, bringing the union to
-2816; `go list -deps ./internal/query/workitem` names no `internal/query`
+2816 (that test has since been removed: #6642 Part C made root's
+`contract_work_item.go` call `EvidenceSupport()`, leaving one declaration
+and nothing for it to compare); `go list -deps ./internal/query/workitem` names no `internal/query`
 (root) dependency; the `internal/query` dirgate ledger row drops 490 -> 483
 (eight non-test files left, one alias file arrived; the new lockstep test
 file does not move this count, since dirgate excludes `*_test.go`).

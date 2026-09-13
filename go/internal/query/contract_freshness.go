@@ -3,17 +3,18 @@
 
 package query
 
-// freshnessGenerationLifecycleCapability is the capability key for the bounded
-// generation lifecycle drilldown. It reads durable scope_generations and
-// fact_work_items rows from local-host Postgres and does not require the graph
-// backend, so it is exact at every profile.
-const freshnessGenerationLifecycleCapability = "freshness.generation_lifecycle"
+import "github.com/eshu-hq/eshu/go/internal/query/freshness"
 
+// freshnessGenerationLifecycleCapability is the unexported root spelling this
+// package's handlers read. It forwards
+// freshness.GenerationLifecycleCapability rather than repeating the string, so
+// the compiler enforces what a test used to assert. See that const for what
+// the route reads.
+const freshnessGenerationLifecycleCapability = freshness.GenerationLifecycleCapability
+
+// Declared by the freshness family (freshness/capabilities.go, #6060), not
+// copied here. See the semanticsearch entry in contract_capability_matrix.go
+// for why.
 func init() {
-	capabilityMatrix[freshnessGenerationLifecycleCapability] = capabilitySupport{
-		LocalLightweightMax:   &truthExact,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-	}
+	capabilityMatrix[freshnessGenerationLifecycleCapability] = freshness.GenerationLifecycleSupport()
 }

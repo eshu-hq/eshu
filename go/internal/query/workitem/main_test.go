@@ -28,12 +28,9 @@ import (
 // against.
 //
 // It calls EvidenceSupport from capability.go, rather than a copy of its
-// fields. Root's contract_work_item.go still carries its own equal
-// capabilitySupport literal for production until #6642 Part C adopts this
-// function directly; TestWorkItemEvidenceCapabilityLockstep
-// (go/internal/query/capability_lockstep_work_item_test.go) guards the two
-// against drift in the meantime. See repository/main_test.go, the template
-// this file copies.
+// fields, and so does root's contract_work_item.go (#6642 Part C). One
+// declaration serves both binaries, so there is nothing here to drift.
+// See repository/main_test.go, the template this file copies.
 //
 // Do NOT delete this file as redundant: it is the only thing that makes this
 // package's own tests exercise the same capability gate production does.

@@ -10,17 +10,14 @@ import "github.com/eshu-hq/eshu/go/internal/query/querycontract"
 // active work-item source facts directly with no derived or fallback
 // truth level.
 //
-// This is the declaration this package's own tests exercise. Root package
-// query's contract_work_item.go still carries its own equal
-// capabilitySupport literal for production (#6642 Part A leaves that file to
-// Part C to update), rather than calling this function the way
-// repository/capability.go's template is called from root; a root test,
-// TestWorkItemEvidenceCapabilityLockstep
-// (capability_lockstep_work_item_test.go), asserts the two stay equal field
-// by field until Part C adopts this function directly. This package's own
-// main_test.go registers this same function's result again for tests that
-// cannot link root (#6642). See repository/capability.go, the template this
-// file copies.
+// This is the single declaration of the row. Root's contract_work_item.go
+// calls this function for its production registration (#6642 Part C), the
+// way repository/capability.go's template is called from root, so there is
+// no second copy to drift from. This package's own main_test.go registers
+// this same function's result again for tests that cannot link root (#6642).
+// TestCapabilityMatrixMatchesYAMLContract in root pins the assembled row
+// against the YAML contract, and fails naming the profile when a ceiling
+// here changes. See repository/capability.go, the template this file copies.
 //
 // It is a function, not an exported var, and every call allocates its own
 // truth levels rather than pointing at package-level ones. CapabilitySupport
