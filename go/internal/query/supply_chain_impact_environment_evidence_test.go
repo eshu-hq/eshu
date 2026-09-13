@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 // Test 8: environment_evidence round-trips through the actual HTTP findings
@@ -21,11 +21,11 @@ func TestSupplyChainImpactFindingsExposeEnvironmentEvidenceInResponseBody(t *tes
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
 				FindingID:    "finding-env-evidence",
 				CVEID:        "CVE-2026-5426",
-				ImpactStatus: "affected_exact",
+				Status:       "affected_exact",
 				Confidence:   "exact",
 				RepositoryID: "repo://example/svc",
 				Environments: []string{"prod", "staging"},
@@ -79,11 +79,11 @@ func TestSupplyChainImpactFindingsOmitEnvironmentEvidenceWhenAbsent(t *testing.T
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
 				FindingID:    "finding-no-env-evidence",
 				CVEID:        "CVE-2026-5426",
-				ImpactStatus: "affected_exact",
+				Status:       "affected_exact",
 				Confidence:   "exact",
 				RepositoryID: "repo://example/svc",
 			},
@@ -136,9 +136,9 @@ func TestDecodeSupplyChainImpactFindingRowDecodesEnvironmentEvidence(t *testing.
 		"environment_evidence": {"prod": "deploy_event", "staging": "declared"}
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "exact", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if got, want := row.EnvironmentEvidence["prod"], "deploy_event"; got != want {
 		t.Fatalf("EnvironmentEvidence[prod] = %q, want %q", got, want)
@@ -160,9 +160,9 @@ func TestDecodeSupplyChainImpactFindingRowToleratesAbsentEnvironmentEvidence(t *
 		"environments": ["prod"]
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "exact", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "exact", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.EnvironmentEvidence != nil {
 		t.Fatalf("EnvironmentEvidence = %#v, want nil for a row predating #5426", row.EnvironmentEvidence)

@@ -14,20 +14,20 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 type recordingSupplyChainImpactFindingStore struct {
-	rows       []impact.SupplyChainImpactFindingRow
-	lastFilter impact.SupplyChainImpactFindingFilter
+	rows       []impact.FindingRow
+	lastFilter impact.FindingFilter
 }
 
 func (s *recordingSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 	_ context.Context,
-	filter impact.SupplyChainImpactFindingFilter,
-) ([]impact.SupplyChainImpactFindingRow, error) {
+	filter impact.FindingFilter,
+) ([]impact.FindingRow, error) {
 	s.lastFilter = filter
-	return append([]impact.SupplyChainImpactFindingRow(nil), s.rows...), nil
+	return append([]impact.FindingRow(nil), s.rows...), nil
 }
 
 type unusedSupplyChainImpactFindingQueryer struct{}
@@ -68,9 +68,9 @@ func TestSupplyChainListImpactFindingsRequiresScopeAndLimit(t *testing.T) {
 func TestPostgresSupplyChainImpactFindingStoreReportsPaginationLimit(t *testing.T) {
 	t.Parallel()
 
-	store := impact.NewPostgresSupplyChainImpactFindingStore(unusedSupplyChainImpactFindingQueryer{})
+	store := impact.NewPostgresFindingStore(unusedSupplyChainImpactFindingQueryer{})
 
-	_, err := store.ListSupplyChainImpactFindings(context.Background(), impact.SupplyChainImpactFindingFilter{
+	_, err := store.ListSupplyChainImpactFindings(context.Background(), impact.FindingFilter{
 		CVEID: "CVE-2026-0001",
 		Limit: supplyChainImpactFindingMaxLimit + 2,
 	})
@@ -86,9 +86,9 @@ func TestPostgresSupplyChainImpactFindingStoreReportsPaginationLimit(t *testing.
 func TestPostgresSupplyChainImpactFindingStoreRequiresPositivePriorityScope(t *testing.T) {
 	t.Parallel()
 
-	store := impact.NewPostgresSupplyChainImpactFindingStore(unusedSupplyChainImpactFindingQueryer{})
+	store := impact.NewPostgresFindingStore(unusedSupplyChainImpactFindingQueryer{})
 
-	_, err := store.ListSupplyChainImpactFindings(context.Background(), impact.SupplyChainImpactFindingFilter{
+	_, err := store.ListSupplyChainImpactFindings(context.Background(), impact.FindingFilter{
 		MinPriorityScore: 0,
 		Limit:            10,
 	})
@@ -104,7 +104,7 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
 				FindingID:           "finding-1",
 				CVEID:               "CVE-2026-0001",
@@ -112,7 +112,7 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 				PURL:                "pkg:npm/example@1.2.3",
 				ProductCriteria:     "cpe:2.3:a:example:server:1.4.2:*:*:*:*:*:*:*",
 				MatchCriteriaID:     "b5ec4c98-0000-4000-9000-000000000001",
-				ImpactStatus:        "affected_exact",
+				Status:              "affected_exact",
 				Confidence:          "exact",
 				CVSSScore:           9.8,
 				EPSSProbability:     "0.71",
@@ -129,7 +129,7 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 				SourceFreshness:     "active",
 				SourceConfidence:    "inferred",
 			},
-			{FindingID: "finding-2", ImpactStatus: "possibly_affected"},
+			{FindingID: "finding-2", Status: "possibly_affected"},
 		},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
@@ -154,11 +154,11 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	}
 
 	var resp struct {
-		Findings   []impact.SupplyChainImpactFindingResult `json:"findings"`
-		Count      int                                     `json:"count"`
-		Limit      int                                     `json:"limit"`
-		Truncated  bool                                    `json:"truncated"`
-		NextCursor map[string]string                       `json:"next_cursor"`
+		Findings   []impact.FindingResult `json:"findings"`
+		Count      int                    `json:"count"`
+		Limit      int                    `json:"limit"`
+		Truncated  bool                   `json:"truncated"`
+		NextCursor map[string]string      `json:"next_cursor"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -205,10 +205,10 @@ func TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMi
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{{
+		rows: []impact.FindingRow{{
 			FindingID:    "finding-catalog-present",
 			PackageID:    "pkg:npm/example",
-			ImpactStatus: "affected_exact",
+			Status:       "affected_exact",
 			RepositoryID: "repo://example/api",
 			WorkloadIDs:  []string{"workload:example-api"},
 			EvidencePath: []string{"content_entity", "reducer_service_catalog_correlation"},
@@ -238,7 +238,7 @@ func TestSupplyChainListImpactFindingsDoesNotReportPresentCatalogCorrelationAsMi
 	}
 
 	var resp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -293,8 +293,8 @@ func TestSupplyChainImpactFindingQueryUsesActiveFactReadModel(t *testing.T) {
 		"fact.payload->>'impact_status' = $6",
 		"fact.payload->>'image_ref' = $16",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListFindingsQuery, want) {
+			t.Fatalf("impact.ListFindingsQuery missing %q:\n%s", want, impact.ListFindingsQuery)
 		}
 	}
 }
@@ -319,8 +319,8 @@ func TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows(t *testing.T) {
 		"THEN 'expired'",
 		"has_payload_finding_id",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing canonical dedupe marker %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListFindingsQuery, want) {
+			t.Fatalf("impact.ListFindingsQuery missing canonical dedupe marker %q:\n%s", want, impact.ListFindingsQuery)
 		}
 	}
 }
@@ -328,11 +328,11 @@ func TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows(t *testing.T) {
 func TestSupplyChainImpactCanonicalFindingKeySupportsRollingUpgrades(t *testing.T) {
 	t.Parallel()
 
-	if strings.Contains(impact.SupplyChainImpactCanonicalFindingKeySQL, "finding_id") {
-		t.Fatalf("canonical partition key must not depend on payload finding_id:\n%s", impact.SupplyChainImpactCanonicalFindingKeySQL)
+	if strings.Contains(impact.CanonicalFindingKeySQL, "finding_id") {
+		t.Fatalf("canonical partition key must not depend on payload finding_id:\n%s", impact.CanonicalFindingKeySQL)
 	}
-	if strings.Contains(impact.ListSupplyChainImpactFindingsQuery, "COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id") {
-		t.Fatalf("list query must not expose raw fact_id as legacy finding_id fallback:\n%s", impact.ListSupplyChainImpactFindingsQuery)
+	if strings.Contains(impact.ListFindingsQuery, "COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id") {
+		t.Fatalf("list query must not expose raw fact_id as legacy finding_id fallback:\n%s", impact.ListFindingsQuery)
 	}
 	for _, want := range []string{
 		"NULLIF(fact.payload->>'finding_id', '')",
@@ -341,8 +341,8 @@ func TestSupplyChainImpactCanonicalFindingKeySupportsRollingUpgrades(t *testing.
 		"has_payload_finding_id DESC",
 		"fact_id ASC",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("list query missing rolling-upgrade canonical finding marker %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListFindingsQuery, want) {
+			t.Fatalf("list query missing rolling-upgrade canonical finding marker %q:\n%s", want, impact.ListFindingsQuery)
 		}
 	}
 }
@@ -363,9 +363,9 @@ func TestDecodeSupplyChainImpactFindingRowPreservesCatalogAnchors(t *testing.T) 
 		"missing_evidence": ["service/workload catalog anchor missing"]
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "inferred", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if got, want := row.CatalogEntityRefs, []string{"api:default/example-api"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("CatalogEntityRefs = %#v, want %#v", got, want)
@@ -412,9 +412,9 @@ func TestDecodeSupplyChainImpactFindingRowPreservesProvenance(t *testing.T) {
             }
         }`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "inferred", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.Provenance == nil {
 		t.Fatal("Provenance = nil, want decoded provenance block")

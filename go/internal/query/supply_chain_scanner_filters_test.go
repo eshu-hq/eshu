@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 type countingImpactFindingStore struct {
@@ -21,8 +21,8 @@ type countingImpactFindingStore struct {
 
 func (s *countingImpactFindingStore) ListSupplyChainImpactFindings(
 	ctx context.Context,
-	filter impact.SupplyChainImpactFindingFilter,
-) ([]impact.SupplyChainImpactFindingRow, error) {
+	filter impact.FindingFilter,
+) ([]impact.FindingRow, error) {
 	s.calls++
 	return s.recordingSupplyChainImpactFindingStore.ListSupplyChainImpactFindings(ctx, filter)
 }
@@ -157,8 +157,8 @@ func TestSupplyChainImpactInventoryCanGroupByEcosystem(t *testing.T) {
 	t.Parallel()
 
 	store := &stubSupplyChainImpactAggregateStore{
-		inventory: []impact.SupplyChainImpactInventoryRow{
-			{Dimension: impact.SupplyChainImpactInventoryByEcosystem, Value: "npm", Count: 3},
+		inventory: []impact.InventoryRow{
+			{Dimension: impact.InventoryByEcosystem, Value: "npm", Count: 3},
 		},
 	}
 	handler := &SupplyChainHandler{ImpactAggregates: store}
@@ -175,7 +175,7 @@ func TestSupplyChainImpactInventoryCanGroupByEcosystem(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if got, want := store.lastDimension, impact.SupplyChainImpactInventoryByEcosystem; got != want {
+	if got, want := store.lastDimension, impact.InventoryByEcosystem; got != want {
 		t.Fatalf("dimension = %q, want %q", got, want)
 	}
 }

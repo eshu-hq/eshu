@@ -10,15 +10,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 func TestSupplyChainListImpactFindingsDefaultsExcludeOperatorSuppressions(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
-			{FindingID: "finding-active", CVEID: "CVE-2026-0001", ImpactStatus: "affected_exact"},
+		rows: []impact.FindingRow{
+			{FindingID: "finding-active", CVEID: "CVE-2026-0001", Status: "affected_exact"},
 		},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
@@ -44,12 +44,12 @@ func TestSupplyChainListImpactFindingsHonorsIncludeSuppressedTrue(t *testing.T) 
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
-				FindingID:    "finding-not-affected",
-				CVEID:        "CVE-2026-0001",
-				ImpactStatus: "affected_exact",
-				Suppression: &impact.SupplyChainSuppressionDecisionRow{
+				FindingID: "finding-not-affected",
+				CVEID:     "CVE-2026-0001",
+				Status:    "affected_exact",
+				Suppression: &impact.SuppressionDecisionRow{
 					State:         "not_affected",
 					SuppressionID: "suppression-1",
 					Source:        "vex_statement",
@@ -74,7 +74,7 @@ func TestSupplyChainListImpactFindingsHonorsIncludeSuppressedTrue(t *testing.T) 
 		t.Fatalf("IncludeSuppressed = false, want true")
 	}
 	var resp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -126,12 +126,12 @@ func TestSupplyChainListImpactFindingsFiltersBySuppressionState(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
-				FindingID:    "finding-provider",
-				CVEID:        "CVE-2026-0040",
-				ImpactStatus: "affected_exact",
-				Suppression: &impact.SupplyChainSuppressionDecisionRow{
+				FindingID: "finding-provider",
+				CVEID:     "CVE-2026-0040",
+				Status:    "affected_exact",
+				Suppression: &impact.SuppressionDecisionRow{
 					State:         "provider_dismissed",
 					SuppressionID: "suppression-provider",
 					Source:        "provider_dismissal",
@@ -166,8 +166,8 @@ func TestListSupplyChainImpactFindingsQueryHandlesSuppressionPredicates(t *testi
 		"$21::boolean",
 		"NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
 	} {
-		if !strings.Contains(impact.ListSupplyChainImpactFindingsQuery, want) {
-			t.Fatalf("impact.ListSupplyChainImpactFindingsQuery missing suppression predicate %q:\n%s", want, impact.ListSupplyChainImpactFindingsQuery)
+		if !strings.Contains(impact.ListFindingsQuery, want) {
+			t.Fatalf("impact.ListFindingsQuery missing suppression predicate %q:\n%s", want, impact.ListFindingsQuery)
 		}
 	}
 }
@@ -190,9 +190,9 @@ func TestDecodeSupplyChainImpactFindingRowDecodesSuppressionBlock(t *testing.T) 
         }
     }`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	row, err := impact.DecodeFindingRow("finding-1", "inferred", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.Suppression == nil {
 		t.Fatal("Suppression = nil, want decoded suppression block")
@@ -216,9 +216,9 @@ func TestDecodeSupplyChainImpactFindingRowFallsBackToTopLevelState(t *testing.T)
         "impact_status": "affected_exact",
         "suppression_state": "active"
     }`)
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-2", "inferred", payload)
+	row, err := impact.DecodeFindingRow("finding-2", "inferred", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
 	if row.Suppression == nil || row.Suppression.State != "active" {
 		t.Fatalf("Suppression = %#v, want top-level state to populate active row", row.Suppression)

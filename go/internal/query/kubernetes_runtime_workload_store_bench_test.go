@@ -12,7 +12,7 @@ import (
 // allocation cost of the staying workload store's candidate SQL build. It
 // lives in root with the store implementation it exercises
 // (kubernetes_runtime_workload_store.go); the probe-side benchmark moved
-// with the hub to internal/query/supplychain (#6060 lane A).
+// with the hub to internal/query/supply/chain (#6060 lane A).
 func BenchmarkBuildKubernetesRuntimeWorkloadQuery200Candidates(b *testing.B) {
 	candidates := make([]KubernetesRuntimeCandidate, SupplyChainKubernetesRuntimeProbeMaxResults)
 	for i := range candidates {

@@ -491,7 +491,7 @@ linters:
       - path: 'internal/query/service/query_enrichment\.go'
         linters:
           - funlen
-      - path: 'internal/query/supplychain/supply_chain_impact_findings_handler\.go'
+      - path: 'internal/query/supply/chain/findings_handler\.go'
         linters:
           - funlen
       - path: 'internal/reducer/crossrepo/cross_repo_resolution\.go'

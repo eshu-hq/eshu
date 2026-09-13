@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	storagepostgres "github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/testutil/postgresproof"
 )
@@ -34,13 +34,13 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 	seedKubernetesRuntimeLiveScope(t, ctx, db)
 
 	digests := make([]string, SupplyChainKubernetesRuntimeProbeMaxResults)
-	findings := make([]impact.SupplyChainImpactFindingRow, len(digests))
+	findings := make([]impact.FindingRow, len(digests))
 	graphRows := make(map[string][]map[string]any, len(digests))
 	allCandidates := make([]KubernetesRuntimeCandidate, 0, 400)
 	for i := range digests {
 		digest := fmt.Sprintf("sha256:%064x", i)
 		digests[i] = digest
-		findings[i] = impact.SupplyChainImpactFindingRow{
+		findings[i] = impact.FindingRow{
 			FindingID:     fmt.Sprintf("finding-%03d", i),
 			SubjectDigest: digest,
 		}
@@ -55,8 +55,8 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 			graphRows[digest] = append(graphRows[digest], kubernetesRuntimeLiveGraphRow(candidate))
 		}
 	}
-	if got := len(allCandidates); got != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("seed candidates = %d, want all-scopes bound %d", got, supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if got := len(allCandidates); got != supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("seed candidates = %d, want all-scopes bound %d", got, supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 	seedKubernetesRuntimeLiveCandidates(t, ctx, db, allCandidates)
 
@@ -65,8 +65,8 @@ func TestKubernetesRuntimeWorkloadGatePreservesDigestFairnessLive(t *testing.T) 
 	for _, plan := range plans {
 		plannedCandidates += plan.QueryLimit
 	}
-	if plannedCandidates != supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates {
-		t.Fatalf("planned candidates = %d, want bounded %d", plannedCandidates, supplychain.SupplyChainKubernetesRuntimeProbeMaxAllScopesCandidates)
+	if plannedCandidates != supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates {
+		t.Fatalf("planned candidates = %d, want bounded %d", plannedCandidates, supplychain.KubernetesRuntimeProbeMaxAllScopesCandidates)
 	}
 
 	handler := &SupplyChainHandler{
@@ -117,7 +117,7 @@ func TestKubernetesRuntimeWorkloadGatePreservesSingleDigestSentinelLive(t *testi
 	}
 	seedKubernetesRuntimeLiveCandidates(t, ctx, db, candidates)
 
-	findings := []impact.SupplyChainImpactFindingRow{{
+	findings := []impact.FindingRow{{
 		FindingID:     "finding-single-digest-sentinel",
 		SubjectDigest: digest,
 	}}

@@ -13,7 +13,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
@@ -45,19 +45,19 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 		rowsByDigest:      graph.RowsByDigest,
 	}
 
-	finding := impact.SupplyChainImpactFindingRow{
+	finding := impact.FindingRow{
 		FindingID:                "finding-parity",
 		CVEID:                    "CVE-2026-9001",
 		PackageID:                "pkg:npm/example",
-		ImpactStatus:             "affected_exact",
+		Status:                   "affected_exact",
 		SubjectDigest:            runningDigest,
 		CIDeclaredArtifactDigest: runningDigest,
 		EvidencePath:             []string{cicdRunCorrelationFactKind},
 	}
 
-	findingsStore := &recordingSupplyChainImpactFindingStore{rows: []impact.SupplyChainImpactFindingRow{finding}}
+	findingsStore := &recordingSupplyChainImpactFindingStore{rows: []impact.FindingRow{finding}}
 	explanationStore := &recordingSupplyChainImpactExplanationStore{
-		row: impact.SupplyChainImpactExplanationRow{Finding: finding},
+		row: impact.ExplanationRow{Finding: finding},
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{}
 
@@ -78,7 +78,7 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 		t.Fatalf("list status = %d, want %d; body = %s", got, want, listW.Body.String())
 	}
 	var listResp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(listW.Body.Bytes(), &listResp); err != nil {
 		t.Fatalf("list json.Unmarshal: %v", err)
@@ -94,7 +94,7 @@ func TestSupplyChainListAndExplainReportSameDeploymentTruthForRuntimeConfirmedFi
 	if got, want := explainW.Code, http.StatusOK; got != want {
 		t.Fatalf("explain status = %d, want %d; body = %s", got, want, explainW.Body.String())
 	}
-	var explainResp impact.SupplyChainImpactExplanationResult
+	var explainResp impact.ExplanationResult
 	if err := json.Unmarshal(explainW.Body.Bytes(), &explainResp); err != nil {
 		t.Fatalf("explain json.Unmarshal: %v", err)
 	}
@@ -133,13 +133,13 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 			UID: "kw-parity", ClusterID: "cluster-a", Namespace: "payments", Name: "api",
 		},
 	}}}
-	finding := impact.SupplyChainImpactFindingRow{
+	finding := impact.FindingRow{
 		FindingID: "finding-kubernetes-parity", CVEID: "CVE-2026-5834",
-		PackageID: "pkg:npm/example", ImpactStatus: "affected_exact", SubjectDigest: digest,
+		PackageID: "pkg:npm/example", Status: "affected_exact", SubjectDigest: digest,
 	}
 	handler := &SupplyChainHandler{
-		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.SupplyChainImpactFindingRow{finding}},
-		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.SupplyChainImpactExplanationRow{Finding: finding}},
+		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.FindingRow{finding}},
+		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.ExplanationRow{Finding: finding}},
 		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
 		Neo4j:                       graph,
 		KubernetesWorkloadInventory: inventory,
@@ -153,7 +153,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 		t.Fatalf("list status = %d, want %d; body=%s", listW.Code, http.StatusOK, listW.Body.String())
 	}
 	var listResp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(listW.Body.Bytes(), &listResp); err != nil || len(listResp.Findings) != 1 {
 		t.Fatalf("list response decode: err=%v findings=%#v", err, listResp.Findings)
@@ -164,7 +164,7 @@ func TestSupplyChainListAndExplainReportSameKubernetesRuntimeEvidence(t *testing
 	if explainW.Code != http.StatusOK {
 		t.Fatalf("explain status = %d, want %d; body=%s", explainW.Code, http.StatusOK, explainW.Body.String())
 	}
-	var explainResp impact.SupplyChainImpactExplanationResult
+	var explainResp impact.ExplanationResult
 	if err := json.Unmarshal(explainW.Body.Bytes(), &explainResp); err != nil || explainResp.Finding == nil {
 		t.Fatalf("explain response decode: err=%v finding=%#v", err, explainResp.Finding)
 	}
@@ -192,13 +192,13 @@ func TestSupplyChainListAndExplainMapKubernetesGraphUnavailable(t *testing.T) {
 	t.Parallel()
 
 	digest := "sha256:abababababababababababababababababababababababababababababababab"
-	finding := impact.SupplyChainImpactFindingRow{
+	finding := impact.FindingRow{
 		FindingID: "finding-kubernetes-error", CVEID: "CVE-2026-5835",
-		PackageID: "pkg:npm/example", ImpactStatus: "affected_exact", SubjectDigest: digest,
+		PackageID: "pkg:npm/example", Status: "affected_exact", SubjectDigest: digest,
 	}
 	handler := &SupplyChainHandler{
-		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.SupplyChainImpactFindingRow{finding}},
-		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.SupplyChainImpactExplanationRow{Finding: finding}},
+		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.FindingRow{finding}},
+		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.ExplanationRow{Finding: finding}},
 		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
 		Neo4j:                       &querytestutil.FakeKubernetesRuntimeGraph{Err: ErrGraphUnavailable},
 		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{},
@@ -226,13 +226,13 @@ func TestSupplyChainListAndExplainMapDriverlessKubernetesGraphUnavailable(t *tes
 	t.Parallel()
 
 	digest := "sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
-	finding := impact.SupplyChainImpactFindingRow{
+	finding := impact.FindingRow{
 		FindingID: "finding-kubernetes-driverless", CVEID: "CVE-2026-5834",
-		PackageID: "pkg:npm/example", ImpactStatus: "affected_exact", SubjectDigest: digest,
+		PackageID: "pkg:npm/example", Status: "affected_exact", SubjectDigest: digest,
 	}
 	handler := &SupplyChainHandler{
-		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.SupplyChainImpactFindingRow{finding}},
-		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.SupplyChainImpactExplanationRow{Finding: finding}},
+		ImpactFindings:              &recordingSupplyChainImpactFindingStore{rows: []impact.FindingRow{finding}},
+		ImpactExplanations:          &recordingSupplyChainImpactExplanationStore{row: impact.ExplanationRow{Finding: finding}},
 		Readiness:                   &recordingSupplyChainImpactReadinessStore{},
 		Neo4j:                       NewNeo4jReader(nil, "nornic"),
 		KubernetesWorkloadInventory: &stubKubernetesWorkloadInventory{},
@@ -260,7 +260,7 @@ func TestSupplyChainListAndExplainMapDriverlessKubernetesGraphUnavailable(t *tes
 // is the third instance of the same shape as codex P1-A: buildSupplyChainImpactFindingResult's
 // SupplyChainImpactFindingResult(row) conversion carries row.RuntimeContext
 // straight through to the runtime_context response field
-// (supply_chain_impact_result.go), but only the list route called
+// (result.go), but only the list route called
 // applySupplyChainRuntimeContext before assembling results -- explain
 // unconditionally reported no runtime_context even for a finding whose
 // repository DOES currently resolve to real workload/service context.
@@ -268,17 +268,17 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 	t.Parallel()
 
 	repositoryID := "repository:r_context_parity"
-	finding := impact.SupplyChainImpactFindingRow{
+	finding := impact.FindingRow{
 		FindingID:    "finding-context-parity",
 		CVEID:        "CVE-2026-9002",
 		PackageID:    "pkg:npm/example",
-		ImpactStatus: "affected_exact",
+		Status:       "affected_exact",
 		RepositoryID: repositoryID,
 	}
 
 	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
-		Rows: []impact.SupplyChainImpactFindingRow{finding},
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{
+		Rows: []impact.FindingRow{finding},
+		ByRepo: map[string]impact.RuntimeContext{
 			repositoryID: {
 				WorkloadIDs: []string{"workload:example-api"},
 				ServiceIDs:  []string{"service:example-api"},
@@ -286,7 +286,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 		},
 	}
 	explanationStore := &recordingSupplyChainImpactExplanationStore{
-		row: impact.SupplyChainImpactExplanationRow{Finding: finding},
+		row: impact.ExplanationRow{Finding: finding},
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{}
 
@@ -305,7 +305,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 		t.Fatalf("list status = %d, want %d; body = %s", got, want, listW.Body.String())
 	}
 	var listResp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(listW.Body.Bytes(), &listResp); err != nil {
 		t.Fatalf("list json.Unmarshal: %v", err)
@@ -324,7 +324,7 @@ func TestSupplyChainListAndExplainReportSameRuntimeContextForFindingThatHasOne(t
 	if got, want := explainW.Code, http.StatusOK; got != want {
 		t.Fatalf("explain status = %d, want %d; body = %s", got, want, explainW.Body.String())
 	}
-	var explainResp impact.SupplyChainImpactExplanationResult
+	var explainResp impact.ExplanationResult
 	if err := json.Unmarshal(explainW.Body.Bytes(), &explainResp); err != nil {
 		t.Fatalf("explain json.Unmarshal: %v", err)
 	}
@@ -358,21 +358,21 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 		rowsByDigest:      graph.RowsByDigest,
 	}
 
-	finding := impact.SupplyChainImpactFindingRow{
+	finding := impact.FindingRow{
 		FindingID:     "finding-packet-parity",
 		CVEID:         "CVE-2026-9003",
 		PackageID:     "pkg:npm/example",
-		ImpactStatus:  "affected_exact",
+		Status:        "affected_exact",
 		SubjectDigest: runningDigest,
 		RepositoryID:  repositoryID,
 	}
 	contextStore := &querytestutil.FakeRuntimeContextFindingStore{
-		ByRepo: map[string]impact.SupplyChainRuntimeContext{
+		ByRepo: map[string]impact.RuntimeContext{
 			repositoryID: {WorkloadIDs: []string{"workload:example-api"}},
 		},
 	}
 	explanationStore := &recordingSupplyChainImpactExplanationStore{
-		row: impact.SupplyChainImpactExplanationRow{Finding: finding},
+		row: impact.ExplanationRow{Finding: finding},
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{}
 
@@ -408,7 +408,7 @@ func TestSupplyChainPacketSkipsEnrichmentThatItsWireShapeCannotExpose(t *testing
 // The graph double for the parity tests above is querytestutil's shared
 // FakeCloudRuntimeGraph. The inventory twin below stays local: its signatures
 // name hub family types querytestutil cannot import (see its doc). The hub
-// copy in supply_chain_impact_cloud_runtime_probe_test.go is authoritative;
+// copy in cloud_runtime_probe_test.go is authoritative;
 // keep both behavior-identical.
 
 // stubCloudInventory is a CloudResourceCurrentInventoryFilter stub: it returns
@@ -474,7 +474,7 @@ func cloudResourceGraphRow(uid, digest, arn string) map[string]any {
 // The graph double for the parity tests above is querytestutil's shared
 // FakeKubernetesRuntimeGraph. The workload-inventory twin below stays local:
 // its signatures name hub family types querytestutil cannot import. The hub
-// copy in supply_chain_impact_kubernetes_runtime_probe_test.go is
+// copy in kubernetes_runtime_probe_test.go is
 // authoritative; keep both behavior-identical.
 
 type stubKubernetesWorkloadInventory struct {

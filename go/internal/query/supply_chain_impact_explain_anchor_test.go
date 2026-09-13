@@ -11,14 +11,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 func TestSupplyChainExplainImpactAcceptsWorkloadAndServiceAnchors(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	handler := &SupplyChainHandler{ImpactExplanations: store}
 	mux := http.NewServeMux()
@@ -44,7 +44,7 @@ func TestSupplyChainExplainImpactAcceptsWorkloadAndServiceAnchors(t *testing.T) 
 		t.Fatalf("ImageRef = %q, want %q", got, want)
 	}
 
-	var resp impact.SupplyChainImpactExplanationResult
+	var resp impact.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -60,15 +60,15 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesUnsupportedEcosystem(t *testi
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		snapshot: impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []impact.SupplyChainImpactUnsupportedTarget{
+			UnsupportedTargets: []impact.UnsupportedTarget{
 				{TargetKind: impact.UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 1},
 			},
 		},
@@ -88,7 +88,7 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesUnsupportedEcosystem(t *testi
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.SupplyChainImpactExplanationResult
+	var resp impact.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -111,11 +111,11 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesPermissionHiddenSourceState(t
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.SupplyChainImpactReadinessSnapshot{
-			SourceStates: []impact.SupplyChainImpactSourceState{
+		snapshot: impact.ReadinessSnapshot{
+			SourceStates: []impact.SourceState{
 				{
 					ScopeID:        "vuln-intel://osv/npm/example",
 					Source:         "osv",
@@ -143,7 +143,7 @@ func TestSupplyChainExplainImpactNoEvidenceSurfacesPermissionHiddenSourceState(t
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.SupplyChainImpactExplanationResult
+	var resp impact.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -165,11 +165,11 @@ func TestSupplyChainExplainImpactNoEvidenceDoesNotMarkDerivedAnchorReady(t *test
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactExplanationStore{
-		err: impact.ErrSupplyChainImpactExplanationNotFound,
+		err: impact.ErrExplanationNotFound,
 	}
 	readiness := &recordingSupplyChainImpactReadinessStore{
-		snapshot: impact.SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []impact.SupplyChainImpactEvidenceFamily{
+		snapshot: impact.ReadinessSnapshot{
+			EvidenceSources: []impact.EvidenceFamily{
 				{Family: impact.EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
 				{Family: impact.EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: impact.FreshnessLabelFresh},
@@ -191,7 +191,7 @@ func TestSupplyChainExplainImpactNoEvidenceDoesNotMarkDerivedAnchorReady(t *test
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 
-	var resp impact.SupplyChainImpactExplanationResult
+	var resp impact.ExplanationResult
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
@@ -217,8 +217,8 @@ func TestSupplyChainExplainImpactQueryFiltersWorkloadAndServiceAnchors(t *testin
 		"runtime_filter.repository_id = fact.payload->>'repository_id'",
 		"$10 = '' OR fact.payload->>'image_ref' = $10",
 	} {
-		if !strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, want) {
-			t.Fatalf("impact.ExplainSupplyChainImpactFindingQuery missing %q:\n%s", want, impact.ExplainSupplyChainImpactFindingQuery)
+		if !strings.Contains(impact.ExplainFindingQuery, want) {
+			t.Fatalf("impact.ExplainFindingQuery missing %q:\n%s", want, impact.ExplainFindingQuery)
 		}
 	}
 
@@ -226,11 +226,11 @@ func TestSupplyChainExplainImpactQueryFiltersWorkloadAndServiceAnchors(t *testin
 		"fact.payload->'workload_ids' ? $8",
 		"fact.payload->'service_ids' ? $9",
 	} {
-		if strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, staleMembership) {
+		if strings.Contains(impact.ExplainFindingQuery, staleMembership) {
 			t.Fatalf(
-				"impact.ExplainSupplyChainImpactFindingQuery contains stale baked membership %q:\n%s",
+				"impact.ExplainFindingQuery contains stale baked membership %q:\n%s",
 				staleMembership,
-				impact.ExplainSupplyChainImpactFindingQuery,
+				impact.ExplainFindingQuery,
 			)
 		}
 	}

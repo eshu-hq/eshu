@@ -31,7 +31,7 @@ func (repeatedDigestImpactStore) ListSupplyChainImpactFindings(
 			PackageID:     fmt.Sprintf("pkg:maven/example/component-%03d@1.0.0", i),
 			RepositoryID:  "repository:r_0123456789abcdef",
 			SubjectDigest: repeatedDigestMCPTestDigest,
-			ImpactStatus:  "affected_exact",
+			Status:        "affected_exact",
 		}
 	}
 	return rows, nil

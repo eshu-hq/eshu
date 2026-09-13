@@ -293,7 +293,7 @@ func (s *capabilitySweep) resolveCapabilityArg(expr ast.Expr, enclosing *ast.Fun
 		// keep this file under the repo's 500-line cap.
 		return s.resolveCallResult(e, visitedFuncs)
 	case *ast.SelectorExpr:
-		// A package-qualified constant (advisory.AdvisoryEvidenceCapability
+		// A package-qualified constant (advisory.EvidenceCapability
 		// from a #6060 family leaf, passed by a root handler that can no
 		// longer name the bare identifier). Resolved against the declaring
 		// package's own directory, same scoping discipline as the Ident

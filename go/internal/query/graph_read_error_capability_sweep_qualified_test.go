@@ -19,7 +19,7 @@ import (
 // the repo's 500-line cap: resolveQualifiedConst plus the import tracking it
 // depends on, and every regression test that exercises a pkg.Name selector
 // (the #6060 leaf shape, where staying root handlers pass
-// advisory.AdvisoryEvidenceCapability through
+// advisory.EvidenceCapability through
 // queryselector.ResolveForRequestWithAccess).
 
 // collectFileImports records every import of file keyed by the local name
@@ -107,7 +107,7 @@ func (s *capabilitySweep) resolveQualifiedConst(e *ast.SelectorExpr) ([]string, 
 // TestCapabilitySweepResolvesPackageQualifiedConst proves the sweep follows
 // a package-qualified constant (leaf.LeafCapability) back to the declaring
 // leaf's own directory. #6060 lane A moves the advisory capability consts
-// out of root, so staying root handlers pass advisory.AdvisoryEvidenceCapability
+// out of root, so staying root handlers pass advisory.EvidenceCapability
 // through queryselector.ResolveForRequestWithAccess; without this case the
 // sweep reports the selector.go WriteGraphReadError call site unresolvable.
 // It uses the real capabilitySweep machinery (not a re-implementation),

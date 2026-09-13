@@ -14,7 +14,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/query/queryauth"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
@@ -106,7 +106,7 @@ func TestCollectorListReadinessMatchesHub(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			hubHandler := &supplychain.SupplyChainHandler{
+			hubHandler := &supplychain.Handler{
 				Profile:            querycontract.ProfileProduction,
 				CollectorReadiness: tc.store,
 			}

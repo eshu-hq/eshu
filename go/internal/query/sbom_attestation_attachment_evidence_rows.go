@@ -4,9 +4,9 @@
 package query
 
 // DependencyRelationshipRow and ExternalReferenceRow moved to
-// internal/query/supplychain with the attachment row that embeds them (#6060
+// internal/query/supply/chain with the attachment row that embeds them (#6060
 // lane A); the staying decode helpers below reach them through root's
-// aliases. See supply_chain_hub_alias.go.
+// aliases. See compat_supply_chain.go.
 
 // dependencyRelationshipRowsFromPayload decodes the reducer-written
 // "dependency_relationship_evidence" payload array into typed rows.

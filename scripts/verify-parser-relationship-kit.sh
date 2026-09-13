@@ -53,6 +53,8 @@ is_blank_cell() {
 
 # shellcheck source=scripts/lib/parser_relationship_language_ledger.sh
 . "$script_dir/lib/parser_relationship_language_ledger.sh"
+# shellcheck source=scripts/lib/parser_relationship_dead_code_maturity.sh
+. "$script_dir/lib/parser_relationship_dead_code_maturity.sh"
 
 has_changed_file() {
   local matcher="$1"
@@ -135,18 +137,8 @@ is_language_query_doc() {
   esac
 }
 
-is_dead_code_maturity_source() {
-  local path="$1"
-  [ "$path" = "go/internal/query/code_dead_code_language_maturity.go" ]
-}
-
-is_dead_code_maturity_doc() {
-  local path="$1"
-  case "$path" in
-    docs/public/reference/dead-code-language-maturity.md|docs/public/languages/*.md) return 0 ;;
-    *) return 1 ;;
-  esac
-}
+# shellcheck source=scripts/lib/parser_relationship_comment_only_diff.sh
+. "$script_dir/lib/parser_relationship_comment_only_diff.sh"
 
 is_relationship_source() {
   local path="$1"
@@ -449,7 +441,7 @@ validate_diff_contracts() {
     fi
   fi
 
-  if has_changed_file is_language_query_source; then
+  if has_non_comment_language_query_change; then
     if ! has_changed_file is_language_query_doc; then
       printf 'verify-parser-relationship-kit: language query source changed without Language Query DSL or language page update\n' >&2
       issues=1

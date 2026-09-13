@@ -6,7 +6,7 @@ package entity
 import (
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 )
 
 func TestServiceStoryAdmissibleImageIdentityFailsClosedWhenListTruncated(t *testing.T) {

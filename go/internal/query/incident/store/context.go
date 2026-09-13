@@ -14,7 +14,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/incident/model"
 	incidentsql "github.com/eshu-hq/eshu/go/internal/query/incident/sql"
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain"
+	supplychain "github.com/eshu-hq/eshu/go/internal/query/supply/chain"
 )
 
 type incidentContextQueryer interface {

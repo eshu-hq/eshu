@@ -500,13 +500,13 @@ Three supply-chain read endpoints aggregated `fact_records` for a single
 to ~502,865 graph nodes and inflated `fact_records` to collector scale:
 
 - `GET /api/v0/supply-chain/advisories`
-  (`supply_chain_advisory_catalog_sql.go`): the `cve_facts` CTE (catalog spine)
+  (`catalog_sql.go`): the `cve_facts` CTE (catalog spine)
   enumerates every active `vulnerability.cve` fact, the `affected` CTE enumerates
   every active `vulnerability.affected_package` fact, and the `kev` CTE enumerates
   every active `vulnerability.known_exploited` fact, each with no `cve_id` anchor,
   before `GROUP BY advisory_key` and keyset pagination.
 - `GET /api/v0/supply-chain/impact/findings/count`
-  (`supply_chain_impact_aggregates_queries.go`): the shared `scoped_facts` CTE
+  (`aggregates_queries.go`): the shared `scoped_facts` CTE
   enumerates every active `reducer_supply_chain_impact_finding` fact, then
   `ranked_facts` dedupes with `ROW_NUMBER() OVER (PARTITION BY canonical_key ...)`
   before the count/group rollups.
@@ -598,7 +598,7 @@ endpoints emit.
 
 ### Endpoint 1 — advisory catalog single-pass reshape (this PR)
 
-`GET /api/v0/supply-chain/advisories` (`supply_chain_advisory_catalog_sql.go`).
+`GET /api/v0/supply-chain/advisories` (`catalog_sql.go`).
 
 The #3402 partial indexes above bound each per-fact_kind *scan*. They do not, and
 cannot, bound the catalog's second cost center: the original query built three
@@ -944,8 +944,8 @@ diagnosable from the trace and payload alone.
 ## Impact findings list — winners read switch (#3389 Phase 2)
 
 `GET /api/v0/supply-chain/impact/findings`
-(`supply_chain_impact_findings_queries.go`, store gate in
-`supply_chain_impact_findings.go`).
+(`findings_queries.go`, store gate in
+`findings.go`).
 
 The legacy read deduplicates at query time
 (`ROW_NUMBER() OVER (PARTITION BY canonical_key ...)`), sorting the full filtered
@@ -1012,7 +1012,7 @@ for enabling the gate in production.)
 ## Impact findings list — winners freshness reporting (#3389 Phase 3)
 
 `GET /api/v0/supply-chain/impact/findings`
-(`supply_chain.go` handler, `supply_chain_impact_findings.go` store).
+(`handler.go` handler, `findings.go` store).
 
 Phase 2 enables serving the list from the maintained winners read model, but
 that read could lag the source facts behind the reducer maintainer's resweep

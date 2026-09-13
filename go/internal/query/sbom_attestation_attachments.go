@@ -27,8 +27,8 @@ import (
 const (
 	sbomAttestationAttachmentFactKind = "reducer_sbom_attestation_attachment"
 	// sbomAttestationWarningSummaryPreviewMaxCount moved to
-	// internal/query/supplychain with BoundedSBOMWarningSummaries (#6060
-	// lane A); root's forward in supply_chain_hub_alias.go keeps this
+	// internal/query/supply/chain with BoundedSBOMWarningSummaries (#6060
+	// lane A); root's forward in compat_supply_chain.go keeps this
 	// file's decode path on the same bound.
 )
 

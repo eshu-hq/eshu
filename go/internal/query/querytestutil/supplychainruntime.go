@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 // Supply-chain impact probe doubles shared by root internal/query tests and
@@ -118,11 +118,11 @@ func (s *FakeKubernetesRuntimeGraph) Snapshot() (int, []KubernetesRuntimeCall) {
 // context probe. It answers the three reads from in-memory rows and records
 // the selectors each read received.
 type FakeRuntimeContextFindingStore struct {
-	Rows            []impact.SupplyChainImpactFindingRow
-	ByRepo          map[string]impact.SupplyChainRuntimeContext
+	Rows            []impact.FindingRow
+	ByRepo          map[string]impact.RuntimeContext
 	ByDigest        map[string]map[string]string
 	Called          []string
-	EnvCandidates   []impact.SupplyChainRuntimeEnvironmentCandidate
+	EnvCandidates   []impact.RuntimeEnvironmentCandidate
 	AllowedRepoIDs  []string
 	AllowedScopeIDs []string
 	Err             error
@@ -132,11 +132,11 @@ type FakeRuntimeContextFindingStore struct {
 // recording the candidates and grants, or fails with Err.
 func (f *FakeRuntimeContextFindingStore) ListSupplyChainImpactRuntimeEnvironmentEvidence(
 	_ context.Context,
-	candidates []impact.SupplyChainRuntimeEnvironmentCandidate,
+	candidates []impact.RuntimeEnvironmentCandidate,
 	allowedRepositoryIDs []string,
 	allowedScopeIDs []string,
 ) (map[string]map[string]string, error) {
-	f.EnvCandidates = append([]impact.SupplyChainRuntimeEnvironmentCandidate(nil), candidates...)
+	f.EnvCandidates = append([]impact.RuntimeEnvironmentCandidate(nil), candidates...)
 	f.AllowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
 	f.AllowedScopeIDs = append([]string(nil), allowedScopeIDs...)
 	if f.Err != nil {
@@ -148,9 +148,9 @@ func (f *FakeRuntimeContextFindingStore) ListSupplyChainImpactRuntimeEnvironment
 // ListSupplyChainImpactFindings answers from Rows.
 func (f *FakeRuntimeContextFindingStore) ListSupplyChainImpactFindings(
 	context.Context,
-	impact.SupplyChainImpactFindingFilter,
-) ([]impact.SupplyChainImpactFindingRow, error) {
-	return append([]impact.SupplyChainImpactFindingRow(nil), f.Rows...), nil
+	impact.FindingFilter,
+) ([]impact.FindingRow, error) {
+	return append([]impact.FindingRow(nil), f.Rows...), nil
 }
 
 // ListSupplyChainImpactRuntimeContext answers from ByRepo, recording the
@@ -160,7 +160,7 @@ func (f *FakeRuntimeContextFindingStore) ListSupplyChainImpactRuntimeContext(
 	repositoryIDs []string,
 	allowedRepositoryIDs []string,
 	allowedScopeIDs []string,
-) (map[string]impact.SupplyChainRuntimeContext, error) {
+) (map[string]impact.RuntimeContext, error) {
 	f.Called = append([]string(nil), repositoryIDs...)
 	f.AllowedRepoIDs = append([]string(nil), allowedRepositoryIDs...)
 	f.AllowedScopeIDs = append([]string(nil), allowedScopeIDs...)

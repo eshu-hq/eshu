@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres/pgarray"
 )
 
@@ -307,10 +307,10 @@ func TestPostgresSupplyChainImpactReadinessSkipsImpactStatusOnlyScope(t *testing
 	// would be expensive and would report unrelated counts as evidence.
 	// The store must short-circuit BEFORE issuing the SQL.
 	db := &rejectingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	snapshot, err := store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{ImpactStatus: "affected_exact"},
+		impact.ReadinessQuery{Status: "affected_exact"},
 	)
 	if err != nil {
 		t.Fatalf("ReadSupplyChainImpactReadiness() error = %v, want nil", err)
@@ -327,10 +327,10 @@ func TestPostgresSupplyChainImpactReadinessSkipsAdvisoryOnlyScope(t *testing.T) 
 	t.Parallel()
 
 	db := &rejectingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	snapshot, err := store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{AdvisoryID: "GHSA-aaaa-bbbb-cccc"},
+		impact.ReadinessQuery{AdvisoryID: "GHSA-aaaa-bbbb-cccc"},
 	)
 	if err != nil {
 		t.Fatalf("ReadSupplyChainImpactReadiness() error = %v, want nil", err)
@@ -350,10 +350,10 @@ func TestPostgresSupplyChainImpactReadinessScansForFactAnchoredScope(t *testing.
 	// (cve_id / package_id / repository_id / subject_digest), the store
 	// must still issue the SQL so the short-circuit above is narrow.
 	db := &countingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{CVEID: "CVE-2026-0001", ImpactStatus: "affected_exact"},
+		impact.ReadinessQuery{CVEID: "CVE-2026-0001", Status: "affected_exact"},
 	)
 	if db.called != 1 {
 		t.Fatalf("QueryContext invocations = %d, want 1 for fact-anchored scope", db.called)
@@ -364,10 +364,10 @@ func TestPostgresSupplyChainImpactReadinessScansForImageRefScope(t *testing.T) {
 	t.Parallel()
 
 	db := &countingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{ImageRef: "registry.example.com/team/api:prod"},
+		impact.ReadinessQuery{ImageRef: "registry.example.com/team/api:prod"},
 	)
 	if db.called != 1 {
 		t.Fatalf("QueryContext invocations = %d, want 1 for image_ref scope", db.called)
@@ -407,10 +407,10 @@ func TestPostgresSupplyChainImpactReadinessBindsScanTierFactKindArrays(t *testin
 	// every other family, or the new CTEs' fact_kind = ANY(...) predicates
 	// would bind against the wrong (or a missing) parameter.
 	db := &argCapturingSupplyChainImpactReadinessQueryer{}
-	store := impact.NewPostgresSupplyChainImpactReadinessStore(db)
+	store := impact.NewPostgresReadinessStore(db)
 	_, _ = store.ReadSupplyChainImpactReadiness(
 		context.Background(),
-		impact.SupplyChainImpactReadinessQuery{SubjectDigest: "sha256:scan-tier-args"},
+		impact.ReadinessQuery{SubjectDigest: "sha256:scan-tier-args"},
 	)
 	if len(db.args) != 16 {
 		t.Fatalf("QueryContext args = %d, want 16 (8 fact-kind arrays + 6 scalars + 2 new scan-tier arrays)", len(db.args))

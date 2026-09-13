@@ -12,22 +12,22 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querytestutil"
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/advisory"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/advisory"
 )
 
 type recordingAdvisoryCatalogStore struct {
-	page       advisory.AdvisoryCatalogPage
-	lastFilter advisory.AdvisoryCatalogFilter
+	page       advisory.CatalogPage
+	lastFilter advisory.CatalogFilter
 	calls      int
 }
 
 func (s *recordingAdvisoryCatalogStore) ListAdvisoryCatalog(
 	_ context.Context,
-	filter advisory.AdvisoryCatalogFilter,
-) (advisory.AdvisoryCatalogPage, error) {
+	filter advisory.CatalogFilter,
+) (advisory.CatalogPage, error) {
 	s.calls++
 	s.lastFilter = filter
-	return advisory.AdvisoryCatalogPage{Rows: append([]advisory.AdvisoryCatalogRow(nil), s.page.Rows...)}, nil
+	return advisory.CatalogPage{Rows: append([]advisory.CatalogRow(nil), s.page.Rows...)}, nil
 }
 
 func TestSupplyChainListAdvisoryCatalogRequiresLimit(t *testing.T) {
@@ -113,9 +113,9 @@ func TestSupplyChainListAdvisoryCatalogPassesFiltersAndPaginates(t *testing.T) {
 	t.Parallel()
 
 	store := &recordingAdvisoryCatalogStore{
-		page: advisory.AdvisoryCatalogPage{Rows: []advisory.AdvisoryCatalogRow{
+		page: advisory.CatalogPage{Rows: []advisory.CatalogRow{
 			{
-				AdvisoryKey:   "CVE-2021-44228",
+				Key:           "CVE-2021-44228",
 				CanonicalID:   "CVE-2021-44228",
 				CVEID:         "CVE-2021-44228",
 				SeverityLabel: "CRITICAL",
@@ -125,7 +125,7 @@ func TestSupplyChainListAdvisoryCatalogPassesFiltersAndPaginates(t *testing.T) {
 				Sources:       []string{"nvd"},
 			},
 			{
-				AdvisoryKey:   "CVE-2021-45046",
+				Key:           "CVE-2021-45046",
 				CanonicalID:   "CVE-2021-45046",
 				CVEID:         "CVE-2021-45046",
 				SeverityLabel: "CRITICAL",
@@ -166,12 +166,12 @@ func TestSupplyChainListAdvisoryCatalogPassesFiltersAndPaginates(t *testing.T) {
 	}
 
 	var resp struct {
-		Advisories []advisory.AdvisoryCatalogRow `json:"advisories"`
-		Count      int                           `json:"count"`
-		Limit      int                           `json:"limit"`
-		Truncated  bool                          `json:"truncated"`
-		NextCursor map[string]any                `json:"next_cursor"`
-		Scope      map[string]any                `json:"scope"`
+		Advisories []advisory.CatalogRow `json:"advisories"`
+		Count      int                   `json:"count"`
+		Limit      int                   `json:"limit"`
+		Truncated  bool                  `json:"truncated"`
+		NextCursor map[string]any        `json:"next_cursor"`
+		Scope      map[string]any        `json:"scope"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
@@ -215,19 +215,19 @@ func TestSupplyChainListAdvisoryCatalogAcceptsCursor(t *testing.T) {
 		t.Fatalf("AfterCVSS = %v, want %v", got, want)
 	}
 	// The store normalizes the cursor key to canonical upper-case form.
-	if got, want := store.lastFilter.AfterAdvisoryKey, "cve-2021-44228"; got != want {
-		t.Fatalf("handler AfterAdvisoryKey = %q, want %q (store normalizes)", got, want)
+	if got, want := store.lastFilter.AfterKey, "cve-2021-44228"; got != want {
+		t.Fatalf("handler AfterKey = %q, want %q (store normalizes)", got, want)
 	}
 }
 
 func TestNormalizeAdvisoryCatalogFilterUppercasesCursorKey(t *testing.T) {
 	t.Parallel()
 
-	got := advisory.NormalizeAdvisoryCatalogFilter(advisory.AdvisoryCatalogFilter{
-		Severity:         " HIGH ",
-		Ecosystem:        " npm ",
-		Query:            " cve-2021 ",
-		AfterAdvisoryKey: " cve-2021-44228 ",
+	got := advisory.NormalizeCatalogFilter(advisory.CatalogFilter{
+		Severity:  " HIGH ",
+		Ecosystem: " npm ",
+		Query:     " cve-2021 ",
+		AfterKey:  " cve-2021-44228 ",
 	})
 	if got.Severity != "HIGH" {
 		t.Fatalf("Severity = %q, want trimmed HIGH", got.Severity)
@@ -238,17 +238,17 @@ func TestNormalizeAdvisoryCatalogFilterUppercasesCursorKey(t *testing.T) {
 	if got.Query != "cve-2021" {
 		t.Fatalf("Query = %q, want trimmed query", got.Query)
 	}
-	if got.AfterAdvisoryKey != "CVE-2021-44228" {
-		t.Fatalf("AfterAdvisoryKey = %q, want canonical upper-case key", got.AfterAdvisoryKey)
+	if got.AfterKey != "CVE-2021-44228" {
+		t.Fatalf("AfterKey = %q, want canonical upper-case key", got.AfterKey)
 	}
 }
 
 func TestPostgresAdvisoryCatalogStoreRejectsPaginationLimit(t *testing.T) {
 	t.Parallel()
 
-	store := advisory.NewPostgresAdvisoryCatalogStore(unusedAdvisoryEvidenceQueryer{})
-	_, err := store.ListAdvisoryCatalog(context.Background(), advisory.AdvisoryCatalogFilter{
-		Limit: advisory.AdvisoryCatalogMaxLimit + 2,
+	store := advisory.NewPostgresCatalogStore(unusedAdvisoryEvidenceQueryer{})
+	_, err := store.ListAdvisoryCatalog(context.Background(), advisory.CatalogFilter{
+		Limit: advisory.CatalogMaxLimit + 2,
 	})
 	if err == nil {
 		t.Fatal("ListAdvisoryCatalog() error = nil, want pagination limit error")
@@ -262,8 +262,8 @@ func TestPostgresAdvisoryCatalogStoreRejectsPaginationLimit(t *testing.T) {
 func TestPostgresAdvisoryCatalogStoreRequiresDB(t *testing.T) {
 	t.Parallel()
 
-	store := advisory.PostgresAdvisoryCatalogStore{}
-	_, err := store.ListAdvisoryCatalog(context.Background(), advisory.AdvisoryCatalogFilter{Limit: 10})
+	store := advisory.PostgresCatalogStore{}
+	_, err := store.ListAdvisoryCatalog(context.Background(), advisory.CatalogFilter{Limit: 10})
 	if err == nil {
 		t.Fatal("ListAdvisoryCatalog() error = nil, want missing-db error")
 	}

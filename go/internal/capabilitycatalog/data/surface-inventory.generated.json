@@ -2485,6 +2485,11 @@
     },
     {
       "category": "command",
+      "name": "token-diff",
+      "readiness": "implemented"
+    },
+    {
+      "category": "command",
       "name": "webhook-listener",
       "readiness": "implemented"
     },

@@ -95,7 +95,7 @@ func supportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
 			AdvisoryID:       "GHSA-aaaa-bbbb-cccc",
 			PackageID:        "pkg:golang/example.com/vuln",
 			PackageName:      "example.com/vuln",
-			ImpactStatus:     "affected",
+			Status:           "affected",
 			WorkloadIDs:      []string{"workload:checkout"},
 			ServiceIDs:       []string{"service:checkout"},
 			EvidenceFactIDs:  []string{"fact-advisory", "fact-sbom"},
@@ -108,7 +108,7 @@ func supportedSupplyChainPacket() (query.InvestigationEvidencePacket, error) {
 			Services:      []string{"service:checkout"},
 			SBOMDocuments: []string{"sbom:checkout"},
 		},
-		ImpactPath: []query.SupplyChainImpactPathHop{
+		Path: []query.SupplyChainImpactPathHop{
 			{Hop: "advisory", Status: "present", EvidenceFactIDs: []string{"fact-advisory"}},
 			{Hop: "sbom", Status: "present", EvidenceFactIDs: []string{"fact-sbom"}},
 			{Hop: "image", Status: "present"},

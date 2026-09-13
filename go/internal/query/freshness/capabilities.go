@@ -13,7 +13,7 @@ import (
 // contract_service_changed_since.go), which owns the router and always links
 // into the production binary. This package's TestMain calls these
 // constructors so the family test binary exercises the same gate production
-// does from a single declaration (supplychain/codeowners precedent, #6060).
+// does from a single declaration (supply/chain and codeowners precedent, #6060).
 //
 // Root's three rows call these constructors directly (#6642 Part C), the way
 // root's hardcoded-secret registration calls

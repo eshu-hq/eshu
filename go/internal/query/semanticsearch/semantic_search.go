@@ -447,7 +447,7 @@ func (h *SemanticSearchHandler) truth() *querycontract.TruthEnvelope {
 // the deterministic lexical index and is never degraded by vector/index
 // readiness (see semanticSearchDegradation), so it must never be downgraded
 // by a pending search-vector build. Mirrors applyWinnersFreshness's call-site
-// shape in supply_chain_impact_findings_handler.go: a probe failure reports
+// shape in findings_handler.go: a probe failure reports
 // the envelope unavailable rather than dropping the already-served results.
 func (h *SemanticSearchHandler) truthWithSearchVectorFreshness(r *http.Request, mode searchbench.Mode) *querycontract.TruthEnvelope {
 	truth := h.truth()

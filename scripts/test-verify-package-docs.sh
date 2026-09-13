@@ -165,4 +165,74 @@ git -C "${rename_nodocs_repo}" mv go/internal/collector/oldpkg go/internal/colle
 git -C "${rename_nodocs_repo}" rm -qf go/internal/collector/newpkg/doc.go
 expect_fail "${rename_nodocs_repo}"
 
+# Regression (staged rename, nested tree move): a single `git mv` of a
+# directory that has its own subpackage nested one level inside it stages
+# the parent's own files and the subpackage's files as separate renames to
+# two DIFFERENT destinations (the subpackage keeps its relative nesting one
+# level under the new parent path). dir_files collection for the parent must
+# match only its own direct children -- a naive prefix match also sweeps in
+# the subpackage's files, and since those resolve to a different
+# destination than the parent's own direct children, the single-destination
+# consistency check falsely fails even though both destinations carry a
+# full doc trio.
+nested_rename_repo="$(init_repo nested-rename)"
+mkdir -p "${nested_rename_repo}/go/internal/collector/oldpkg/sub"
+printf 'package oldpkg\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/source.go"
+printf 'package oldpkg\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/doc.go"
+printf '# Old Pkg\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/README.md"
+printf '# Old Pkg Agent Rules\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/AGENTS.md"
+printf 'package sub\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/sub/source.go"
+printf 'package sub\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/sub/doc.go"
+printf '# Sub Pkg\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/sub/README.md"
+printf '# Sub Pkg Agent Rules\n' >"${nested_rename_repo}/go/internal/collector/oldpkg/sub/AGENTS.md"
+git -C "${nested_rename_repo}" add .
+git -C "${nested_rename_repo}" commit -q -m 'add oldpkg with nested sub and docs'
+mkdir -p "${nested_rename_repo}/go/internal/collector/parent"
+git -C "${nested_rename_repo}" mv go/internal/collector/oldpkg go/internal/collector/parent/newpkg
+expect_pass "${nested_rename_repo}"
+
+# Control (nested tree move, subpackage docs missing at destination): the
+# nested-rename follow above must never waive the docs requirement for the
+# SUBpackage side of a nested move. Every fixture file below gets contents
+# unique to this case (repo name embedded) so git cannot pair a rename
+# across directories on byte-identical content -- a real risk once a
+# doc.go is deleted mid-move, since deleting collapses the rename pair on
+# that side and leaves fewer distinguishing files.
+nested_rename_nosubdocs_repo="$(init_repo nested-rename-nosubdocs)"
+mkdir -p "${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/sub"
+printf 'package oldpkg // nested-rename-nosubdocs source\n' >"${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/source.go"
+printf 'package oldpkg // nested-rename-nosubdocs doc\n' >"${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/doc.go"
+printf '# Old Pkg (nested-rename-nosubdocs)\n' >"${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/README.md"
+printf '# Old Pkg Agent Rules (nested-rename-nosubdocs)\n' >"${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/AGENTS.md"
+printf 'package sub // nested-rename-nosubdocs sub source\n' >"${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/sub/source.go"
+printf 'package sub // nested-rename-nosubdocs sub doc\n' >"${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/sub/doc.go"
+printf '# Sub Pkg (nested-rename-nosubdocs)\n' >"${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/sub/README.md"
+printf '# Sub Pkg Agent Rules (nested-rename-nosubdocs)\n' >"${nested_rename_nosubdocs_repo}/go/internal/collector/oldpkg/sub/AGENTS.md"
+git -C "${nested_rename_nosubdocs_repo}" add .
+git -C "${nested_rename_nosubdocs_repo}" commit -q -m 'add oldpkg with nested sub and docs'
+mkdir -p "${nested_rename_nosubdocs_repo}/go/internal/collector/parent"
+git -C "${nested_rename_nosubdocs_repo}" mv go/internal/collector/oldpkg go/internal/collector/parent/newpkg
+git -C "${nested_rename_nosubdocs_repo}" rm -qf go/internal/collector/parent/newpkg/sub/doc.go
+expect_fail "${nested_rename_nosubdocs_repo}"
+
+# Control (nested tree move, PARENT docs missing at destination): the
+# symmetric case -- the subpackage keeps its full trio but the parent's own
+# doc.go is missing at the destination. Distinct per-file contents again.
+nested_rename_noparentdocs_repo="$(init_repo nested-rename-noparentdocs)"
+mkdir -p "${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/sub"
+printf 'package oldpkg // nested-rename-noparentdocs source\n' >"${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/source.go"
+printf 'package oldpkg // nested-rename-noparentdocs doc\n' >"${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/doc.go"
+printf '# Old Pkg (nested-rename-noparentdocs)\n' >"${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/README.md"
+printf '# Old Pkg Agent Rules (nested-rename-noparentdocs)\n' >"${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/AGENTS.md"
+printf 'package sub // nested-rename-noparentdocs sub source\n' >"${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/sub/source.go"
+printf 'package sub // nested-rename-noparentdocs sub doc\n' >"${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/sub/doc.go"
+printf '# Sub Pkg (nested-rename-noparentdocs)\n' >"${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/sub/README.md"
+printf '# Sub Pkg Agent Rules (nested-rename-noparentdocs)\n' >"${nested_rename_noparentdocs_repo}/go/internal/collector/oldpkg/sub/AGENTS.md"
+git -C "${nested_rename_noparentdocs_repo}" add .
+git -C "${nested_rename_noparentdocs_repo}" commit -q -m 'add oldpkg with nested sub and docs'
+mkdir -p "${nested_rename_noparentdocs_repo}/go/internal/collector/parent"
+git -C "${nested_rename_noparentdocs_repo}" mv go/internal/collector/oldpkg go/internal/collector/parent/newpkg
+git -C "${nested_rename_noparentdocs_repo}" rm -qf go/internal/collector/parent/newpkg/doc.go
+expect_fail "${nested_rename_noparentdocs_repo}"
+
 printf 'verify-package-docs tests passed\n'

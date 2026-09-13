@@ -7,20 +7,20 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *testing.T) {
 	t.Parallel()
 
-	got := impact.BuildSupplyChainImpactExplanation(
-		impact.SupplyChainImpactExplanationFilter{FindingID: "finding-repository-catalog-only"},
-		impact.SupplyChainImpactExplanationRow{
-			Finding: impact.SupplyChainImpactFindingRow{
+	got := impact.BuildExplanation(
+		impact.ExplanationFilter{FindingID: "finding-repository-catalog-only"},
+		impact.ExplanationRow{
+			Finding: impact.FindingRow{
 				FindingID:           "finding-repository-catalog-only",
 				CVEID:               "CVE-2026-1548",
 				PackageID:           "pkg:npm/example",
-				ImpactStatus:        "affected_exact",
+				Status:              "affected_exact",
 				RuntimeReachability: "package_manifest",
 				RepositoryID:        "repo://example/api",
 				DeploymentIDs:       []string{"deployment:example-api"},
@@ -35,14 +35,14 @@ func TestBuildSupplyChainImpactExplanationMapsDeploymentOnlyCatalogAnchorGap(t *
 				},
 				EvidenceFactIDs: []string{"catalog-1"},
 			},
-			EvidenceFacts: []impact.SupplyChainImpactEvidenceFact{
+			EvidenceFacts: []impact.EvidenceFact{
 				explanationFact("catalog-1", serviceCatalogCorrelationFactKind, map[string]any{
 					"repository_id": "repo://example/api",
 					"outcome":       "exact",
 				}),
 			},
 		},
-		impact.SupplyChainImpactReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
+		impact.ReadinessEnvelope{State: impact.ReadinessStateReadyWithFindings},
 	)
 
 	raw, err := json.Marshal(got)

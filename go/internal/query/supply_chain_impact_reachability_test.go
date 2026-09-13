@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 func TestDecodeSupplyChainImpactFindingRowPreservesReachabilityEnvelope(t *testing.T) {
@@ -31,12 +31,12 @@ func TestDecodeSupplyChainImpactFindingRowPreservesReachabilityEnvelope(t *testi
 		}
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-reachability", "observed", payload)
+	row, err := impact.DecodeFindingRow("finding-reachability", "observed", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
-	if row.ImpactStatus != "affected_exact" {
-		t.Fatalf("ImpactStatus = %q, want affected_exact", row.ImpactStatus)
+	if row.Status != "affected_exact" {
+		t.Fatalf("Status = %q, want affected_exact", row.Status)
 	}
 	if row.Confidence != "exact" {
 		t.Fatalf("Confidence = %q, want exact", row.Confidence)
@@ -75,12 +75,12 @@ func TestDecodeSupplyChainImpactFindingRowPreservesJSTSReachabilitySeparatelyFro
 		}
 	}`)
 
-	row, err := impact.DecodeSupplyChainImpactFindingRow("finding-js-ts-reachability", "observed", payload)
+	row, err := impact.DecodeFindingRow("finding-js-ts-reachability", "observed", payload)
 	if err != nil {
-		t.Fatalf("impact.DecodeSupplyChainImpactFindingRow() error = %v", err)
+		t.Fatalf("impact.DecodeFindingRow() error = %v", err)
 	}
-	if row.ImpactStatus != "affected_exact" {
-		t.Fatalf("ImpactStatus = %q, want affected_exact", row.ImpactStatus)
+	if row.Status != "affected_exact" {
+		t.Fatalf("Status = %q, want affected_exact", row.Status)
 	}
 	if row.Confidence != "exact" {
 		t.Fatalf("Confidence = %q, want exact impact confidence", row.Confidence)
@@ -100,15 +100,15 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 	t.Parallel()
 
 	store := &recordingSupplyChainImpactFindingStore{
-		rows: []impact.SupplyChainImpactFindingRow{
+		rows: []impact.FindingRow{
 			{
 				FindingID:           "finding-not-called",
 				CVEID:               "CVE-2026-3702",
-				ImpactStatus:        "affected_exact",
+				Status:              "affected_exact",
 				Confidence:          "exact",
 				RepositoryID:        "repo://example/go",
 				RuntimeReachability: "not_called",
-				Reachability: &impact.SupplyChainReachabilityResult{
+				Reachability: &impact.ReachabilityResult{
 					State:      "not_called",
 					Confidence: "strong",
 					Source:     "govulncheck",
@@ -117,11 +117,11 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 			{
 				FindingID:           "finding-rubygems-reachable",
 				CVEID:               "CVE-2026-3703",
-				ImpactStatus:        "affected_exact",
+				Status:              "affected_exact",
 				Confidence:          "exact",
 				RepositoryID:        "repo://example/ruby",
 				RuntimeReachability: "package_manifest",
-				Reachability: &impact.SupplyChainReachabilityResult{
+				Reachability: &impact.ReachabilityResult{
 					State:      "reachable",
 					Confidence: "partial",
 					Source:     "bundler",
@@ -146,13 +146,13 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 	}
 
 	var resp struct {
-		Findings []impact.SupplyChainImpactFindingResult `json:"findings"`
+		Findings []impact.FindingResult `json:"findings"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("json.Unmarshal: %v", err)
 	}
-	if got, want := resp.Findings[0].ImpactStatus, "affected_exact"; got != want {
-		t.Fatalf("ImpactStatus = %q, want %q", got, want)
+	if got, want := resp.Findings[0].Status, "affected_exact"; got != want {
+		t.Fatalf("Status = %q, want %q", got, want)
 	}
 	if resp.Findings[0].Reachability == nil {
 		t.Fatal("Reachability = nil, want envelope")

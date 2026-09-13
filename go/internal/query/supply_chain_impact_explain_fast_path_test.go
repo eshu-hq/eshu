@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eshu-hq/eshu/go/internal/query/supplychain/impact"
+	"github.com/eshu-hq/eshu/go/internal/query/supply/chain/impact"
 )
 
 func TestExplainSupplyChainImpactUsesPublicFindingIDFastPath(t *testing.T) {
@@ -21,11 +21,11 @@ func TestExplainSupplyChainImpactUsesPublicFindingIDFastPath(t *testing.T) {
 			supplyChainExplanationTestRow("finding:public"),
 		}},
 	}
-	store := impact.NewPostgresSupplyChainImpactFindingStore(queryer)
+	store := impact.NewPostgresFindingStore(queryer)
 
 	explanation, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.SupplyChainImpactExplanationFilter{FindingID: "finding:public"},
+		impact.ExplanationFilter{FindingID: "finding:public"},
 	)
 	if err != nil {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want nil", err)
@@ -33,7 +33,7 @@ func TestExplainSupplyChainImpactUsesPublicFindingIDFastPath(t *testing.T) {
 	if got, want := explanation.Finding.FindingID, "finding:public"; got != want {
 		t.Fatalf("FindingID = %q, want %q", got, want)
 	}
-	if got, want := queryer.queries, []string{impact.ExplainSupplyChainImpactFindingByPublicIDQuery}; !equalExplanationQueries(got, want) {
+	if got, want := queryer.queries, []string{impact.ExplainFindingByPublicIDQuery}; !equalExplanationQueries(got, want) {
 		t.Fatalf("queries = %#v, want public-ID fast path only", got)
 	}
 }
@@ -46,11 +46,11 @@ func TestExplainSupplyChainImpactFallsBackForLegacyFindingIdentity(t *testing.T)
 			{supplyChainExplanationTestRow("finding:legacy")},
 		},
 	}
-	store := impact.NewPostgresSupplyChainImpactFindingStore(queryer)
+	store := impact.NewPostgresFindingStore(queryer)
 
 	explanation, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.SupplyChainImpactExplanationFilter{FindingID: "fact:legacy"},
+		impact.ExplanationFilter{FindingID: "fact:legacy"},
 	)
 	if err != nil {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want nil", err)
@@ -59,8 +59,8 @@ func TestExplainSupplyChainImpactFallsBackForLegacyFindingIdentity(t *testing.T)
 		t.Fatalf("FindingID = %q, want %q", got, want)
 	}
 	if got, want := queryer.queries, []string{
-		impact.ExplainSupplyChainImpactFindingByPublicIDQuery,
-		impact.ExplainSupplyChainImpactFindingQuery,
+		impact.ExplainFindingByPublicIDQuery,
+		impact.ExplainFindingQuery,
 	}; !equalExplanationQueries(got, want) {
 		t.Fatalf("queries = %#v, want fast-path miss followed by compatibility query", got)
 	}
@@ -74,13 +74,13 @@ func TestExplainSupplyChainImpactFastPathPreservesAmbiguity(t *testing.T) {
 			supplyChainExplanationTestRow("finding:duplicate"),
 		}},
 	}
-	store := impact.NewPostgresSupplyChainImpactFindingStore(queryer)
+	store := impact.NewPostgresFindingStore(queryer)
 
 	_, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.SupplyChainImpactExplanationFilter{FindingID: "finding:duplicate"},
+		impact.ExplanationFilter{FindingID: "finding:duplicate"},
 	)
-	if !errors.Is(err, impact.ErrSupplyChainImpactExplanationAmbiguous) {
+	if !errors.Is(err, impact.ErrExplanationAmbiguous) {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want ambiguity", err)
 	}
 	if got := len(queryer.queries); got != 1 {
@@ -95,11 +95,11 @@ func TestExplainSupplyChainImpactNonFindingScopeUsesCompatibilityQuery(t *testin
 			supplyChainExplanationTestRow("finding:bounded"),
 		}},
 	}
-	store := impact.NewPostgresSupplyChainImpactFindingStore(queryer)
+	store := impact.NewPostgresFindingStore(queryer)
 
 	_, err := store.ExplainSupplyChainImpact(
 		context.Background(),
-		impact.SupplyChainImpactExplanationFilter{
+		impact.ExplanationFilter{
 			CVEID:     "CVE-2026-54654",
 			PackageID: "pkg:deb/example/bounded",
 		},
@@ -107,7 +107,7 @@ func TestExplainSupplyChainImpactNonFindingScopeUsesCompatibilityQuery(t *testin
 	if err != nil {
 		t.Fatalf("ExplainSupplyChainImpact() error = %v, want nil", err)
 	}
-	if got, want := queryer.queries, []string{impact.ExplainSupplyChainImpactFindingQuery}; !equalExplanationQueries(got, want) {
+	if got, want := queryer.queries, []string{impact.ExplainFindingQuery}; !equalExplanationQueries(got, want) {
 		t.Fatalf("queries = %#v, want compatibility query only", got)
 	}
 }
@@ -122,16 +122,16 @@ func TestExplainSupplyChainImpactPublicIDQueryUsesIndexedPredicate(t *testing.T)
 		"generation.status = 'active'",
 		"LIMIT 2",
 	} {
-		if !strings.Contains(impact.ExplainSupplyChainImpactFindingByPublicIDQuery, want) {
-			t.Fatalf("public-ID explain query missing %q:\n%s", want, impact.ExplainSupplyChainImpactFindingByPublicIDQuery)
+		if !strings.Contains(impact.ExplainFindingByPublicIDQuery, want) {
+			t.Fatalf("public-ID explain query missing %q:\n%s", want, impact.ExplainFindingByPublicIDQuery)
 		}
 	}
 	for _, want := range []string{
 		"fact_id = $2",
 		"canonical_key = $2",
 	} {
-		if !strings.Contains(impact.ExplainSupplyChainImpactFindingQuery, want) {
-			t.Fatalf("compatibility explain query missing %q:\n%s", want, impact.ExplainSupplyChainImpactFindingQuery)
+		if !strings.Contains(impact.ExplainFindingQuery, want) {
+			t.Fatalf("compatibility explain query missing %q:\n%s", want, impact.ExplainFindingQuery)
 		}
 	}
 }

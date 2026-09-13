@@ -46,9 +46,9 @@ func boundedSBOMWarningSummariesFromAny(values []any) ([]string, int, bool) {
 	return preview, count, count > len(preview)
 }
 
-// boundedSBOMWarningSummaries moved to internal/query/supplychain with the
+// boundedSBOMWarningSummaries moved to internal/query/supply/chain with the
 // result builder that shares it (#6060 lane A); the staying decode wrappers
-// above reach it through root's forward. See supply_chain_hub_alias.go.
+// above reach it through root's forward. See compat_supply_chain.go.
 
 // slsaMaterialRowsFromPayload decodes the reducer-persisted
 // slsa_provenance_materials array (#5456) into the typed, bounded row set.
@@ -56,7 +56,7 @@ func boundedSBOMWarningSummariesFromAny(values []any) ([]string, int, bool) {
 // (maxSBOMAttachmentSLSAMaterialRows), so this only decodes what was
 // persisted; truncation is reported by the caller comparing against the
 // separately persisted full count. Each material's digest map is decoded via
-// the existing stringMapVal(payload, key) helper (security_alert_reconciliation.go).
+// the existing stringMapVal(payload, key) helper (supply/chain/alerts/store.go).
 func slsaMaterialRowsFromPayload(raw any) []SLSAMaterialRow {
 	values, ok := raw.([]any)
 	if !ok {
