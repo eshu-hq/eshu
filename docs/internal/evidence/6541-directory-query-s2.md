@@ -76,15 +76,21 @@ for 200,000 rows, and a whole-label scan is what the query-plan gate rejects.
 
 ## Backend defects measured while choosing the shape
 
-These are observations of the two builds named below, not permanent properties.
-The NornicDB author closed a batch of Cypher defect issues in September 2026 and
-released v1.3.2, with v1.3.3 following; a separate probe is measuring which of
-these shapes are fixed there, including the two this issue discovered. None of
-that changes what ships here: the shape below is correct on every build
-measured, including both of these, and its caller-side halves stay correct on a
-build that fixes them. If the single-statement form turns out to be correct on
-v1.3.2 or v1.3.3, simplifying to it is a follow-up once Eshu's pin moves, not a
-change to this one.
+These are observations of the two builds named below, and they are current
+behaviour on every released build. An upstream probe (2026-09-13) established
+that the NornicDB fixes for this defect surface landed on `orneryd/NornicDB`
+`main` AFTER the v1.3.2 tag (`d2c8a9b4`, 2026-09-11) and after the newest
+published image, and that no v1.3.3 tag, release or image exists — the relevant
+commits are `4393e7e6416a` ("restore clause pipeline and aggregation semantics")
+and `0c2766bfc9e4` ("filter aggregated WITH rows after chained MATCH"). So
+v1.3.1, which #6657 pins, and v1.3.2 both still carry them, and nothing here is
+marked "fixed in v1.3.2".
+
+None of that changes what ships here: the shape below is correct on every build
+measured, and its caller-side halves stay correct on a build that fixes the
+underlying behaviour (the re-sort becomes a no-op under a global LIMIT). If the
+single-statement form proves correct on a build cut after those commits,
+simplifying to it is a follow-up once Eshu's pin moves, not a change to this one.
 
 Builds: `eshu-nornicdb-pr290:3722b483c02c` (self-reports 1.2.1, the Compose pin)
 and `timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac52489925968e39d18f845bde5fa2fe363ba703443ead7f97ebc2b0c0084962`

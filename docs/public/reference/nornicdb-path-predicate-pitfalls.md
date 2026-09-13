@@ -15,13 +15,16 @@ behave differently, and the live tests named in each section are what would say
 so.
 
 The first two entries (the #6541 pair) are measured on **two** builds and name
-both. Read every entry here as "observed on the builds it names", not as a
-permanent property of NornicDB: the author closed a batch of Cypher defect
-issues in September 2026 and released v1.3.2 with v1.3.3 following, so a shape
-recorded here may already behave differently on a build newer than the one the
-entry names. Re-run the entry's live test against the digest you actually
-deploy before relying on either answer, and add a "fixed in" line here when a
-newer build is measured.
+both. They describe CURRENT behaviour on every released build: the upstream
+fixes for that pair landed on `orneryd/NornicDB` `main` on 2026-09-13, after the
+v1.3.2 tag (`d2c8a9b4`, 2026-09-11) and after the newest published image, and no
+v1.3.3 tag, release or image exists. So v1.3.1 and v1.3.2 both still carry them,
+and nothing here may be marked "fixed in v1.3.2".
+
+Read every entry as "observed on the builds it names" all the same. When the pin
+moves to a build cut after those fixes, re-run the entry's live test against the
+digest actually deployed and add a "fixed in" line then — do not assume a newer
+tag carries a fix that is only on unreleased `main`.
 
 ## Pitfall: `ORDER BY` And `LIMIT` After `UNWIND` Apply Once Per Unwound Row
 
@@ -67,8 +70,14 @@ per-id bound makes it the step that produces the page. Keep the
 
 Because the caller-side half is a no-op on a build that bounds globally, this
 rule needs no revisiting if a newer build fixes the behaviour: it stays correct
-either way. The measured status on builds after v1.3.1 is open — that is what
-the "observed on the builds it names" note at the top of this page means.
+either way.
+
+Upstream status: a fix for this clause-pipeline behaviour is on unreleased
+`orneryd/NornicDB` `main` (`4393e7e6416a`, "restore clause pipeline and
+aggregation semantics", and `0c2766bfc9e4`, "filter aggregated WITH rows after
+chained MATCH"). It is in NO published image, so every build Eshu can pin today
+still behaves as recorded above. Re-probe with the live test when a build cut
+after those commits is published.
 
 `buildDirectoryCypher` (`go/internal/query/language/cypher.go`) is shaped
 this way, and `sortAndTruncateDirectoryRows` is the caller's half. Live pin:
@@ -110,8 +119,9 @@ value rather than as a failure. `directoryRepositoryNames`
 (`go/internal/query/language/directory.go`) uses the second form.
 
 Distinct names cost nothing and are clearer anyway, so keep this convention even
-on a build where the collision is fixed. Whether it still reproduces after
-v1.3.1 is unmeasured; the reproducer above is what settles it on any build.
+on a build where the collision is fixed. It reproduces on every released build
+today — the upstream fixes named in the previous entry are on unreleased `main`
+only — and the reproducer above is what settles it on any future build.
 
 ## Correction: The Pre-Bound-Endpoint `shortestPath` Shape Does Not Parse
 
