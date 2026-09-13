@@ -20,10 +20,12 @@ import (
 // mergeOpenPattern and createClausePattern locate the MERGE and CREATE clause
 // keywords hasNodeMergeThenCreate scans for. Both are case-insensitive with
 // \b word boundaries so e.g. "UNMERGED" or "RECREATE" never count as the
-// keyword. createClausePattern requires CREATE be immediately followed by "("
-// (modulo whitespace), so it matches a real CREATE clause opening a
-// node/relationship pattern and never "ON CREATE SET" -- there CREATE is
-// followed by "SET", not "(".
+// keyword, and \s* tolerates any amount of whitespace (including a newline)
+// between the keyword and its opening paren, so "MERGE(", "merge  (", and
+// "MERGE\n(" all match the same as "MERGE (". createClausePattern requires
+// CREATE be immediately followed by "(" (modulo whitespace), so it matches a
+// real CREATE clause opening a node/relationship pattern and never
+// "ON CREATE SET" -- there CREATE is followed by "SET", not "(".
 var (
 	mergeOpenPattern    = regexp.MustCompile(`(?i)\bMERGE\s*\(`)
 	createClausePattern = regexp.MustCompile(`(?i)\bCREATE\s*\(`)
@@ -45,20 +47,15 @@ var (
 // MERGE Followed By CREATE In One Statement Silently Drops The CREATE") for
 // the full writeup and the proven-safe alternative shapes.
 //
-// The value is split on ';' before scanning, so a real CREATE clause in a
+// value is split on ';' before scanning, so a real CREATE clause in a
 // DIFFERENT statement never counts -- only a CREATE that textually follows a
-// MERGE( within the same statement segment does. Each Go string literal is
-// also scanned independently, so a CREATE in a separate string constant
-// never counts either.
+// MERGE( within the same statement segment does.
 //
-// This is a text scan over Go string literal VALUES extracted from the AST,
-// not a Cypher parser. It has two known limits:
-//   - It cannot see Cypher assembled at runtime from fragments (string
-//     concatenation, fmt.Sprintf, a shared clause builder) -- only Cypher that
-//     is a complete literal in source.
-//   - It flags the textual shape, not proven-unsafe application behavior --
-//     a clean scan means "no textually-visible MERGE-then-CREATE statement,"
-//     not "this package's Cypher is provably safe."
+// This function scans one already-flattened string; it is not itself a
+// Cypher parser. scanFileHits is the layer that flattens a "+"-concatenated
+// Cypher expression into one string before calling this, and that layer's
+// doc comment states what still cannot be seen (fmt.Sprintf, cross-file
+// identifiers, and any other runtime fragment assembly).
 func hasNodeMergeThenCreate(value string) bool {
 	for _, statement := range strings.Split(value, ";") {
 		mergeLoc := mergeOpenPattern.FindStringIndex(statement)
@@ -73,20 +70,166 @@ func hasNodeMergeThenCreate(value string) bool {
 }
 
 // mergeThenCreateAllowlist names "path:line" locations (relative to the go
-// module root, as produced by scanForNodeMergeThenCreate) that legitimately
-// contain the MERGE-then-CREATE textual shape without hitting the NornicDB
-// drop -- for example a statement gated behind a backend branch that never
-// runs against NornicDB. Keep this list empty if possible; add an entry only
-// with a comment proving why that specific statement is safe on every
-// backend Eshu runs.
+// module root, as produced by scanFileHits) that legitimately contain the
+// MERGE-then-CREATE textual shape without hitting the NornicDB drop -- for
+// example a statement gated behind a backend branch that never runs against
+// NornicDB. Keep this list empty if possible; add an entry only with a
+// comment proving why that specific statement is safe on every backend Eshu
+// runs.
 var mergeThenCreateAllowlist = map[string]bool{}
 
+// buildFileConstIdentMap collects every top-level const/var identifier in
+// file whose declared value is a single string literal, keyed by identifier
+// name. It is intentionally shallow: an identifier whose value is itself a
+// concatenation, a function call, or anything else non-literal is left out,
+// not partially resolved. This is the "cheap" same-file identifier
+// resolution foldStringExpr uses; resolving identifiers declared in another
+// file or package is out of scope.
+func buildFileConstIdentMap(file *ast.File) map[string]string {
+	identMap := make(map[string]string)
+	for _, decl := range file.Decls {
+		genDecl, isGenDecl := decl.(*ast.GenDecl)
+		if !isGenDecl || (genDecl.Tok != token.CONST && genDecl.Tok != token.VAR) {
+			continue
+		}
+		for _, spec := range genDecl.Specs {
+			valueSpec, isValueSpec := spec.(*ast.ValueSpec)
+			if !isValueSpec {
+				continue
+			}
+			for i, ident := range valueSpec.Names {
+				if i >= len(valueSpec.Values) {
+					continue
+				}
+				lit, isLit := valueSpec.Values[i].(*ast.BasicLit)
+				if !isLit || lit.Kind != token.STRING {
+					continue
+				}
+				value, err := strconv.Unquote(lit.Value)
+				if err != nil {
+					continue
+				}
+				identMap[ident.Name] = value
+			}
+		}
+	}
+	return identMap
+}
+
+// foldStringExpr attempts to resolve expr to a single string value by
+// folding string-literal "+" concatenation and same-file identifiers found
+// in identMap (see buildFileConstIdentMap). It returns ok=false the moment
+// it hits anything it cannot resolve statically -- a function call
+// (fmt.Sprintf and friends), a struct/package selector, a non-string
+// operand, or an identifier not in identMap -- so a caller never scans a
+// partially-folded, misleading string. This closes the gap a plain
+// per-literal scan has on Cypher built as
+// `mergeAndCreateClause := mergePart + "CREATE (" + ... + ")"`.
+func foldStringExpr(expr ast.Expr, identMap map[string]string) (value string, ok bool) {
+	switch e := expr.(type) {
+	case *ast.BasicLit:
+		if e.Kind != token.STRING {
+			return "", false
+		}
+		v, err := strconv.Unquote(e.Value)
+		if err != nil {
+			return "", false
+		}
+		return v, true
+	case *ast.ParenExpr:
+		return foldStringExpr(e.X, identMap)
+	case *ast.Ident:
+		v, found := identMap[e.Name]
+		return v, found
+	case *ast.BinaryExpr:
+		if e.Op != token.ADD {
+			return "", false
+		}
+		left, leftOK := foldStringExpr(e.X, identMap)
+		if !leftOK {
+			return "", false
+		}
+		right, rightOK := foldStringExpr(e.Y, identMap)
+		if !rightOK {
+			return "", false
+		}
+		return left + right, true
+	default:
+		return "", false
+	}
+}
+
+// scanFileHits inspects one already-parsed file for hasNodeMergeThenCreate
+// matches and returns their "relPath:line" sites, skipping anything named in
+// mergeThenCreateAllowlist. It scans two shapes:
+//   - a "+"-concatenation expression -- including same-file identifiers that
+//     resolve to a single string literal via buildFileConstIdentMap -- is
+//     folded into one string with foldStringExpr and scanned once, so a
+//     statement split across `mergePart + "CREATE (...)"` is visible even
+//     though neither half alone contains the banned shape;
+//   - every remaining string literal not already covered by a folded
+//     expression is scanned on its own.
+//
+// What this still cannot see: fmt.Sprintf and other runtime template
+// assembly, identifiers resolved from another file or package, and any
+// concatenation leaf that is not a literal or a plain same-file constant (a
+// function call, a struct field, a package selector). A clean scan means "no
+// textually-visible violation," not "this file's Cypher is provably safe."
+func scanFileHits(fset *token.FileSet, relPath string, file *ast.File) []string {
+	identMap := buildFileConstIdentMap(file)
+	var hits []string
+	record := func(pos token.Pos, value string) {
+		if !hasNodeMergeThenCreate(value) {
+			return
+		}
+		site := fmt.Sprintf("%s:%d", relPath, fset.Position(pos).Line)
+		if mergeThenCreateAllowlist[site] {
+			return
+		}
+		hits = append(hits, site)
+	}
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		switch node := n.(type) {
+		case *ast.BinaryExpr:
+			if node.Op != token.ADD {
+				return true
+			}
+			value, ok := foldStringExpr(node, identMap)
+			if !ok {
+				// Could not fold the whole chain (a non-literal, non-const
+				// leaf such as a function call or a package selector) --
+				// fall through so the individual BasicLit leaves this walk
+				// still reaches get scanned on their own below.
+				return true
+			}
+			record(node.Pos(), value)
+			// Every leaf under this node was already covered by the fold;
+			// descending further would double-count them.
+			return false
+		case *ast.BasicLit:
+			if node.Kind != token.STRING {
+				return true
+			}
+			value, err := strconv.Unquote(node.Value)
+			if err != nil {
+				// Raw (backtick) string literals unquote fine via
+				// strconv.Unquote too; skip anything that fails rather than
+				// fail the whole scan on an unrelated parse edge case.
+				return true
+			}
+			record(node.Pos(), value)
+			return true
+		}
+		return true
+	})
+	return hits
+}
+
 // scanForNodeMergeThenCreate walks every non-_test.go file under go/cmd and
-// go/internal, extracts every string literal, and returns one "path:line"
-// hit per match of hasNodeMergeThenCreate not covered by
-// mergeThenCreateAllowlist. scannedFiles reports how many .go files were
-// inspected, so the caller can tell a clean scan from a scan that silently
-// walked nothing.
+// go/internal, parses it, and returns every scanFileHits match across the
+// tree. scannedFiles reports how many .go files were inspected, so the
+// caller can tell a clean scan from a scan that silently walked nothing.
 func scanForNodeMergeThenCreate(t *testing.T) (hits []string, scannedFiles int) {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)
@@ -117,30 +260,7 @@ func scanForNodeMergeThenCreate(t *testing.T) (hits []string, scannedFiles int) 
 			if relErr != nil {
 				return relErr
 			}
-
-			ast.Inspect(file, func(n ast.Node) bool {
-				lit, isLit := n.(*ast.BasicLit)
-				if !isLit || lit.Kind != token.STRING {
-					return true
-				}
-				value, unquoteErr := strconv.Unquote(lit.Value)
-				if unquoteErr != nil {
-					// Raw (backtick) string literals unquote fine via
-					// strconv.Unquote too; skip anything that fails rather
-					// than fail the whole scan on an unrelated parse edge
-					// case.
-					return true
-				}
-				if !hasNodeMergeThenCreate(value) {
-					return true
-				}
-				site := fmt.Sprintf("%s:%d", relPath, fset.Position(lit.Pos()).Line)
-				if mergeThenCreateAllowlist[site] {
-					return true
-				}
-				hits = append(hits, site)
-				return true
-			})
+			hits = append(hits, scanFileHits(fset, relPath, file)...)
 			return nil
 		})
 		if walkErr != nil {
@@ -152,12 +272,13 @@ func scanForNodeMergeThenCreate(t *testing.T) (hits []string, scannedFiles int) 
 
 // TestNoNodeMergeThenCreateCyphersAcrossRepo is the repo-wide static guard
 // for orneryd/NornicDB#359. It parses every non-test .go file under go/cmd
-// and go/internal, collects every string literal's value, and fails if any
-// of them contain a node MERGE( pattern followed by a real CREATE( clause in
-// the same statement -- the exact shape NornicDB silently drops. See
-// hasNodeMergeThenCreate's doc comment for what this scan can and cannot
-// see, and docs/public/reference/nornicdb-write-shape-pitfalls.md for the
-// full writeup.
+// and go/internal, collects every string literal's value (folding "+"
+// concatenation first), and fails if any of them contain a node MERGE(
+// pattern followed by a real CREATE( clause in the same statement -- the
+// exact shape NornicDB silently drops. See hasNodeMergeThenCreate and
+// scanFileHits for what this scan can and cannot see, and
+// docs/public/reference/nornicdb-write-shape-pitfalls.md for the full
+// writeup.
 func TestNoNodeMergeThenCreateCyphersAcrossRepo(t *testing.T) {
 	t.Parallel()
 
@@ -179,9 +300,8 @@ func TestNoNodeMergeThenCreateCyphersAcrossRepo(t *testing.T) {
 }
 
 // TestHasNodeMergeThenCreate is the unit-level proof of hasNodeMergeThenCreate,
-// including the two mandatory false-positive exclusions: "ON CREATE SET" (a
-// normal MERGE action, not a CREATE clause) and a CREATE in a different
-// statement.
+// including the two mandatory false-positive exclusions ("ON CREATE SET" and
+// a CREATE in a different statement) and keyword whitespace/case tolerance.
 func TestHasNodeMergeThenCreate(t *testing.T) {
 	t.Parallel()
 
@@ -274,6 +394,24 @@ MERGE (s)-[:DEPENDS_ON]->(t)`,
 			value: `// UNMERGED (n) RECREATE (m)`,
 			want:  false,
 		},
+		{
+			name:  "lowercase keywords with no space before the paren still match",
+			value: `merge(s:Workload {id:$s}) merge(t:Workload {id:$t}) create(s)-[:DEPENDS_ON]->(t)`,
+			want:  true,
+		},
+		{
+			name:  "mixed-case keywords with extra internal spaces still match",
+			value: `Merge  (s:Workload {id:$s}) MeRgE  (t:Workload {id:$t}) CrEaTe  (s)-[:DEPENDS_ON]->(t)`,
+			want:  true,
+		},
+		{
+			name: "a newline between the keyword and its opening paren still matches",
+			value: `MERGE
+(s:Workload {id:$s}) MERGE
+(t:Workload {id:$t}) CREATE
+(s)-[:DEPENDS_ON]->(t)`,
+			want: true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -283,5 +421,60 @@ MERGE (s)-[:DEPENDS_ON]->(t)`,
 				t.Fatalf("hasNodeMergeThenCreate(%q) = %v, want %v", tc.value, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestScanFileHitsFoldsStringConcatenation proves scanFileHits closes the
+// concatenation gap a plain per-literal scan has: a MERGE-then-CREATE
+// statement built as `mergePart + "CREATE (...)"` (a same-file identifier
+// resolved by buildFileConstIdentMap) or as two adjacent literals joined by
+// "+" is caught even though neither half alone contains the banned shape. It
+// also proves two things must NOT be flagged: a split literal whose folded
+// text is the safe "ON CREATE SET" shape, and the honest limits -- a
+// statement assembled by fmt.Sprintf, or concatenated onto an unresolvable
+// identifier (a package selector), is invisible to a static text fold.
+// Exactly two hits are expected from five candidate statements.
+func TestScanFileHitsFoldsStringConcatenation(t *testing.T) {
+	t.Parallel()
+
+	const src = `package fixture
+
+import "fmt"
+
+const mergePart = "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) "
+
+var viaSameFileConstIdent = mergePart + "CREATE (s)-[:DEPENDS_ON]->(t)"
+
+var viaTwoLiterals = "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) " + "CREATE (s)-[:DEPENDS_ON]->(t)"
+
+var viaSplitOnCreateSetIsSafe = "MERGE (n:Repository {id:$id}) ON CREATE SET n.first_seen = " + "$now"
+
+var viaSprintfIsInvisible = fmt.Sprintf("MERGE (s:Workload {id:%s}) MERGE (t:Workload {id:%s}) CREATE (s)-[:DEPENDS_ON]->(t)", "a", "b")
+
+var viaUnresolvedIdentIsInvisible = unknownPkg.Fragment + "CREATE (n)"
+`
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "fixture.go", src, 0)
+	if err != nil {
+		t.Fatalf("parse fixture source: %v", err)
+	}
+
+	hits := scanFileHits(fset, "fixture.go", file)
+	if len(hits) != 2 {
+		t.Fatalf(
+			"scanFileHits found %d hit(s) %v, want exactly 2: viaSameFileConstIdent and "+
+				"viaTwoLiterals must be caught by folding; viaSplitOnCreateSetIsSafe must NOT "+
+				"be (its folded text is a normal MERGE action, not a CREATE clause); "+
+				"viaSprintfIsInvisible and viaUnresolvedIdentIsInvisible must NOT be either, "+
+				"since runtime template assembly and an unresolvable concatenation leaf are "+
+				"outside this scan's reach",
+			len(hits), hits,
+		)
+	}
+	for _, hit := range hits {
+		if !strings.HasPrefix(hit, "fixture.go:") {
+			t.Errorf("hit %q does not reference fixture.go", hit)
+		}
 	}
 }
