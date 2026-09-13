@@ -8,7 +8,7 @@
 3. `../intent/AGENTS.md` for the neutral builder contract.
 4. `../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `s3.BuildInternetExposureMaterializationReducerIntent`
-   and before `cicdruncorrelation.BuildCICDRunCorrelationReducerIntent`.
+   and before `correlation.BuildReducerIntent`.
 5. `go/internal/reducer/containerimage/container_image_identity.go` and its sibling
    `container_image_identity_*.go` files for what the reducer does with the
    intent this package enqueues: the cross-source digest-first join, tier

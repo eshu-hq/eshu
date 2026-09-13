@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cicdruncorrelation
+package correlation
 
 import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-// BuildCICDRunCorrelationReducerIntent enqueues one ci_cd_run_correlation
+// BuildReducerIntent enqueues one ci_cd_run_correlation
 // reducer intent per scope generation that observed a CI/CD run or artifact.
 //
 // #5710: CICDRunCorrelationHandler has been registered and wired in
@@ -51,7 +51,7 @@ import (
 // does not depend on this: the domain writes a durable decision fact for
 // every outcome (exact/derived/ambiguous/unresolved/rejected), so a row
 // exists from the very first, non-reopened execution regardless.
-func BuildCICDRunCorrelationReducerIntent(
+func BuildReducerIntent(
 	scopeID string,
 	generationID string,
 	lookup projectorintent.FactLookup,

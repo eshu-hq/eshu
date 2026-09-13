@@ -104,7 +104,7 @@ theory-proof:
 
 ## Conclusion
 
-- Keep the intent builder (`go/internal/projector/cicdruncorrelation/correlation_intents.go`)
+- Keep the intent builder (`go/internal/projector/cicd/run/correlation/reducer_intent.go`)
   and the maintenance-pass reopen addition
   (`go/cmd/bootstrap-index/bootstrap_pipeline.go`) — both proven working: the
   correlation fires and the reopen list still includes it for future

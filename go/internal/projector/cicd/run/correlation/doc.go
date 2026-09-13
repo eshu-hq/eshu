@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Package cicdruncorrelation builds the CI/CD run-correlation reducer intent
+// Package correlation builds the CI/CD run-correlation reducer intent
 // from one immutable scope generation: a ci.run fact when present, else a
 // ci.artifact fact, so an artifact arriving without a co-located run still
 // triggers the reducer's bounded historical-run patch (#5770). A ci.run
@@ -18,4 +18,4 @@
 // read, and the durable decision write; root projector assembly owns lookup
 // construction and lifetime, invocation order, queue writes, retries, and
 // telemetry.
-package cicdruncorrelation
+package correlation
