@@ -53,6 +53,8 @@ is_blank_cell() {
 
 # shellcheck source=scripts/lib/parser_relationship_language_ledger.sh
 . "$script_dir/lib/parser_relationship_language_ledger.sh"
+# shellcheck source=scripts/lib/parser_relationship_dead_code_maturity.sh
+. "$script_dir/lib/parser_relationship_dead_code_maturity.sh"
 
 has_changed_file() {
   local matcher="$1"

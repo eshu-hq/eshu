@@ -261,20 +261,3 @@ validate_language_feature_ledger() {
   done < <(rg --files "$repo_root/docs/public/languages" -g '*.md' 2>/dev/null)
   return "$issues"
 }
-
-# Colocated here for the parent script's 500-line cap, not because they
-# belong to the language feature ledger: the dead-code maturity map
-# (code_dead_code_language_maturity.go) is a small, self-contained
-# diff-contract pair with no natural existing sourced-file home.
-is_dead_code_maturity_source() {
-  local path="$1"
-  [ "$path" = "go/internal/query/code_dead_code_language_maturity.go" ]
-}
-
-is_dead_code_maturity_doc() {
-  local path="$1"
-  case "$path" in
-    docs/public/reference/dead-code-language-maturity.md|docs/public/languages/*.md) return 0 ;;
-    *) return 1 ;;
-  esac
-}
