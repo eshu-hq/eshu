@@ -57,6 +57,10 @@ export default defineConfig({
     },
     include: ["src/**/*.test.{ts,tsx}", "e2e/**/*.test.ts"],
     globals: true,
-    setupFiles: "src/test/setup.ts"
+    setupFiles: "src/test/setup.ts",
+    // Above Testing Library's 5s async budget (src/test/setup.ts) so a
+    // missing element still fails with its own "Unable to find ..." error and
+    // DOM dump instead of vitest's generic per-test timeout.
+    testTimeout: 15_000
   }
 });
