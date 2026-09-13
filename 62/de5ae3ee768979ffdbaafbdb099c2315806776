@@ -1,0 +1,67 @@
+go/internal/coordinator/doc.go
+  s_4a0f86aa680964::t_0cf16024de5046 87-91
+go/internal/coordinator/scanner/README.md
+  s_4a0f86aa680964::t_cbf83358539379 1-44
+go/cmd/workflow-coordinator/main.go
+  s_4a0f86aa680964::t_8a6f1c248bab3b 36
+go/internal/coordinator/scanner/AGENTS.md
+  s_4a0f86aa680964::t_cbf83358539379 1-30
+go/internal/coordinator/AGENTS.md
+  s_4a0f86aa680964::t_ceb7ff5494b823 40
+go/internal/coordinator/README.md
+  s_4a0f86aa680964::t_5a06b038eb6049 161-162
+  s_4a0f86aa680964::t_0cf16024de5046 230
+  s_4a0f86aa680964::t_a80d14c4658ddb 160
+go/internal/coordinator/scanner/worker/README.md
+  s_4a0f86aa680964::t_8a6f1c248bab3b 1-64
+docs/internal/design/restructure-research.md
+  s_4a0f86aa680964::t_0cf16024de5046 146
+go/internal/coordinator/service_scanner_worker_test.go
+  s_4a0f86aa680964::t_8a6f1c248bab3b 11
+docs/internal/design/package-restructure.md
+  s_4a0f86aa680964::t_a80d14c4658ddb 1084-1089
+go/cmd/workflow-coordinator/doc.go
+  s_4a0f86aa680964::t_0cf16024de5046 14
+go/internal/coordinator/scanner/worker/doc.go
+  s_4a0f86aa680964::t_8a6f1c248bab3b 1-11
+go/internal/coordinator/scanner/doc.go
+  s_4a0f86aa680964::t_cbf83358539379 1-9
+docs/public/observability/telemetry-coverage.md
+  s_4a0f86aa680964::t_0cf16024de5046 714
+go/internal/coordinator/scanner/worker/AGENTS.md
+  s_4a0f86aa680964::t_8a6f1c248bab3b 1-33
+docs/public/reference/source-layout.md
+  s_4a0f86aa680964::t_0cf16024de5046 36-37
+docs/internal/evidence/6627-coordinator-scanner-worker-package-move.md
+  s_4a0f86aa680964::t_cdd114d1be9d36 117-122
+  s_4a0f86aa680964::t_f6d46b1bd7718c 89,95-111,113-116
+  s_4a0f86aa680964::t_728be7be7939cc 1-88,90-94,112,123-171
+go/internal/coordinator/scanner/worker/planner_contract_test.go
+  s_4a0f86aa680964::t_609a8b13816567 1-278
+go/internal/coordinator/service_scanner_worker.go
+  s_4a0f86aa680964::t_8a6f1c248bab3b 12
+go/.golangci.yml
+  s_4a0f86aa680964::t_8a6f1c248bab3b 587
+go/internal/coordinator/scanner/worker/planner_analyzer_contract_test.go
+  s_4a0f86aa680964::t_609a8b13816567 1-213
+go/internal/coordinator/scanner/worker/planner.go
+  s_4a0f86aa680964::t_8a6f1c248bab3b 1-305
+go/cmd/workflow-coordinator/README.md
+  s_4a0f86aa680964::t_0cf16024de5046 64-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "62de5ae3ee768979ffdbaafbdb099c2315806776",
+  "prompts": {},
+  "sessions": {
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
