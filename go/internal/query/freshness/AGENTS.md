@@ -49,7 +49,7 @@ moved in verbatim from root -- see README.md's Move evidence.
   never run here. Delete `TestMain` and every handler test in this package
   fails the capability gate's `unsupported_capability` 501 -- not because the
   handler is broken, but because no capability was ever registered for it to
-  check against. Follow the `codeowners`/`supplychain` precedent, not the
+  check against. Follow the `codeowners`/`supply/chain` precedent, not the
   `packagereg` one: call the `*Support()` constructors, never copy their
   field values into a second literal.
 - `freshnessHandlerTracer` is this package's own tracer var (the same seam
