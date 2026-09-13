@@ -109,6 +109,11 @@ CREATE (n)-[:HAS_TAG]->(:Tag {name:$tag})`,
 			want:  true,
 		},
 		{
+			name:  "lowercase named-path MERGE still matches",
+			value: `merge p = (s:Workload {id:$s})-[:r]->(t:Workload {id:$t}) create (x:AuditEvent {id:$eventId})`,
+			want:  true,
+		},
+		{
 			name:  "ON CREATE SET assigning a parenthesized expression after a plain MERGE stays clean",
 			value: `MERGE (n:Repository {id:$id}) ON CREATE SET x = (1 + 2)`,
 			want:  false,
