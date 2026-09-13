@@ -36,8 +36,9 @@ the result — the loss is the same either way.
 
 Reproduced live on a headless build of NornicDB commit `3722b483c02c` —
 Eshu's `docker-compose.yaml` pin (`eshu-nornicdb-pr290:3722b483c02c`), which
-self-reports version `v1.2.1` (the version string baked into that commit; the
-upstream `v1.2.1` tag itself is a different commit, `66755bfba882`). By code
+self-reports version `v1.2.1` (the version string baked into that commit,
+which is 9 commits past the upstream `v1.2.1` tag itself, a different commit,
+`66755bfba882`). By code
 read, the same `executeMultipleMerges`/`splitMultipleMerges` executor code —
 no `CREATE` clause boundary, no `CREATE` branch in the segment loop — is
 present at Eshu's Helm chart pin (`nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`,
