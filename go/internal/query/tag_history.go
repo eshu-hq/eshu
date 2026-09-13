@@ -55,24 +55,29 @@ const tagHistoryMaxLimit = taghistory.MaxLimit
 // repository, blanking an ungranted previous_digest. Observations whose image
 // has no BUILT_FROM edge are withheld from scoped callers.
 //
-// A scoped page is REFILLED across successive FIXED MaxLimit-sized windows
-// until it holds limit visible rows, the history ends, or
-// taghistory.MaxRefillReads windows have been read, and the continuation leaves
-// the wire as a KEYSET cursor naming one row's (first_observed_at, uid)
-// position rather than a row offset. Both halves exist so that neither
-// limit-count nor the continuation token measures how much of another tenant's
-// history the filter withheld: there is no position-shaped field left to read
-// or forge, and the scanned span is a constant 800 raw rows instead of
-// 4*limit. One residue remains and is disclosed rather than hidden -- a capped
-// page that kept nothing must name the last RAW row scanned so the walk can
-// advance, so it carries one withheld observation's key. Unscoped and
-// all-scope callers keep the offset parameter and the SKIP statement, and
-// receive the same token format. See taghistory.BuiltFromCypher in
-// taghistory/builtfrom.go, taghistory.RefillScopedPage in taghistory/refill.go,
-// and taghistory.Cursor in taghistory/cursor.go.
+// A scoped page is REFILLED across successive FIXED taghistory.MaxLimit-sized
+// windows until it holds limit visible rows, the history ends, or
+// taghistory.MaxRefillReads windows have been read, and it continues through a
+// SEALED KEYSET cursor. All three halves exist so that neither the count nor
+// the token measures another tenant's withheld history: the token names a row
+// key rather than a position, the scanned span is a constant 800 raw rows
+// instead of 4*limit, and the seal stops the caller choosing where that span
+// starts. What remains is a COUNT and never an identity, disclosed rather than
+// hidden. Unscoped and all-scope callers keep the offset parameter and the SKIP
+// statement. taghistory.Cursor carries the cursor contract in full;
+// taghistory.RefillScopedPage carries the refill loop's.
 type TagHistoryHandler struct {
 	Neo4j   GraphQuery
 	Profile QueryProfile
+	// Cursors seals and opens the continuation token: the deployment DEK
+	// (*secretcrypto.Keyring, ESHU_AUTH_SECRET_ENC_KEY(_FILE)), wired in
+	// cmd/api/wiring.go and cmd/mcp-server/wiring.go behind an explicit
+	// non-nil guard (a nil *Keyring in this interface is a NON-nil Sealer that
+	// panics on first use).
+	//
+	// Nil means no DEK is configured. Grant-filtered paging then fails closed
+	// per taghistory.Sealer; callers with nothing withheld are unaffected.
+	Cursors taghistory.Sealer
 }
 
 // TagHistoryRow is one captured tag observation for the selected image_ref.
@@ -136,10 +141,10 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 	// whether a raw offset is accepted at all (tagHistoryBounds).
 	access := repositoryAccessFilterFromContext(r.Context()).WithCanonicalScopeRepositories()
 
-	limit, after, offset, ok := tagHistoryBounds(w, r, imageRef, access.Scoped())
-	if !ok {
-		recordTagHistoryError(r.Context(), "invalid_request")
-		recordTagHistoryDuration(r.Context(), start, "invalid_request")
+	limit, after, offset, refusal := h.tagHistoryBounds(w, r, imageRef, access.Scoped())
+	if refusal != "" {
+		recordTagHistoryError(r.Context(), refusal)
+		recordTagHistoryDuration(r.Context(), start, refusal)
 		return
 	}
 
@@ -172,8 +177,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 		// No grant can be BUILT_FROM-bound to any observation: answer an empty
 		// page without a graph read, as every grant-bound sibling route does.
 		annotateTagHistoryGrantCounts(span, taghistory.GrantCounts{})
-		recordTagHistoryDuration(r.Context(), start, "ok")
-		h.writeTagHistoryPage(w, r, page)
+		h.completeTagHistoryPage(w, r, start, page)
 		return
 	}
 
@@ -191,8 +195,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 		if len(window) > 0 {
 			page.nextKey = &window[len(window)-1].Key
 		}
-		recordTagHistoryDuration(r.Context(), start, "ok")
-		h.writeTagHistoryPage(w, r, page)
+		h.completeTagHistoryPage(w, r, start, page)
 		return
 	}
 
@@ -211,8 +214,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 	annotateTagHistoryRefill(span, scoped.Reads, scoped.CapReached)
 	recordTagHistoryScopedRows(r.Context(), scoped.Counts)
 
-	recordTagHistoryDuration(r.Context(), start, "ok")
-	h.writeTagHistoryPage(w, r, page)
+	h.completeTagHistoryPage(w, r, start, page)
 }
 
 // tagHistoryPage is one response page before serialization. nextKey is the
@@ -230,20 +232,78 @@ type tagHistoryPage struct {
 	grantFiltered bool
 }
 
+// completeTagHistoryPage is the single exit of every successful read path. It
+// seals the continuation, records the outcome that sealing produced, and writes
+// the page.
+//
+// Sealing happens HERE rather than inside writeTagHistoryPage because a sealing
+// failure must become a 500 with the query_error outcome, and the duration
+// outcome is recorded before the body is written.
+func (h *TagHistoryHandler) completeTagHistoryPage(
+	w http.ResponseWriter,
+	r *http.Request,
+	start time.Time,
+	page tagHistoryPage,
+) {
+	token, unavailable, err := h.tagHistoryContinuation(page)
+	if err != nil {
+		recordTagHistoryError(r.Context(), "query_error")
+		recordTagHistoryDuration(r.Context(), start, "query_error")
+		// The message is fixed: a sealing failure is an operator fault, and
+		// echoing the crypto error would describe the deployment's key state
+		// to a caller.
+		WriteError(w, http.StatusInternalServerError, "query failed: the tag-history continuation could not be sealed")
+		return
+	}
+	outcome := "ok"
+	if unavailable {
+		outcome = tagHistoryOutcomeCursorUnavailable
+	}
+	recordTagHistoryDuration(r.Context(), start, outcome)
+	h.writeTagHistoryPage(w, r, page, token, unavailable)
+}
+
+// tagHistoryContinuation seals page's continuation token.
+//
+// It returns an empty token with unavailable=false when the page simply has no
+// continuation, and unavailable=true when a grant-filtered page owes one but
+// the deployment holds no sealing key -- the fail-closed case, which omits
+// next_cursor rather than serving a token a caller could re-aim. The error is a
+// real sealing failure and never a reason to fall back to cleartext.
+//
+// A truncated page always has a key to continue from: the nil guard is a belt
+// against a future path that sets truncated without one, not a case that can
+// happen today.
+func (h *TagHistoryHandler) tagHistoryContinuation(page tagHistoryPage) (token string, unavailable bool, err error) {
+	if !page.truncated || page.nextKey == nil {
+		return "", false, nil
+	}
+	if page.grantFiltered && h.Cursors == nil {
+		return "", true, nil
+	}
+	token, err = taghistory.EncodeCursor(h.Cursors, page.imageRef, *page.nextKey)
+	if err != nil {
+		return "", false, err
+	}
+	return token, false, nil
+}
+
 // writeTagHistoryPage serializes page. grant_filtered is present only for a
 // scoped caller, whose truth reason also discloses the BUILT_FROM coverage
-// cost, the refilled pagination, and the cursor-only continuation.
+// cost, the refilled pagination, the sealed cursor-only continuation, and --
+// when unavailable is set -- that this deployment cannot issue one at all.
 //
 // offset is echoed only to a caller that may send one. A grant-filtered page
 // omits it and continues through next_cursor alone, because a raw row position
 // on such a page is the pre-filter frontier the refill advanced to
 // (taghistory.Cursor).
-//
-// Every caller gets the SAME token format, so a client library never has to
-// know which kind of caller it is holding a token for. A truncated page always
-// has a key to continue from: the nil guard is a belt against a future path
-// that sets truncated without one, not a case that can happen today.
-func (h *TagHistoryHandler) writeTagHistoryPage(w http.ResponseWriter, r *http.Request, page tagHistoryPage) {
+func (h *TagHistoryHandler) writeTagHistoryPage(
+	w http.ResponseWriter,
+	r *http.Request,
+	page tagHistoryPage,
+	token string,
+	unavailable bool,
+) {
 	history := page.history
 	if history == nil {
 		history = []TagHistoryRow{}
@@ -260,13 +320,16 @@ func (h *TagHistoryHandler) writeTagHistoryPage(w http.ResponseWriter, r *http.R
 	if !page.grantFiltered {
 		body["offset"] = page.offset
 	}
-	if page.truncated && page.nextKey != nil {
-		body["next_cursor"] = taghistory.EncodeCursor(page.imageRef, *page.nextKey)
+	if token != "" {
+		body["next_cursor"] = token
 	}
 	reason := "resolved from bounded container image tag-observation history anchored on image_ref"
 	if page.grantFiltered {
 		body["grant_filtered"] = true
-		reason = tagHistoryScopedTruthReason
+		reason = taghistory.ScopedTruthReason
+		if unavailable {
+			reason += taghistory.CursorUnavailableReason
+		}
 	}
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
@@ -296,28 +359,33 @@ func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time
 }
 
 // tagHistoryBounds parses and validates the page selectors: the required
-// limit, the optional cursor, and the optional raw offset. It writes a
-// 400 and returns ok=false on invalid input. A non-nil key means continue from
-// that keyset position; a nil key with a non-zero offset means the SKIP path.
+// limit, the optional cursor, and the optional raw offset. A non-nil key means
+// continue from that keyset position; a nil key with a non-zero offset means
+// the SKIP path.
+//
+// It writes the refusal itself and returns the bounded outcome label to record
+// for it, or "" when the selectors are usable. Two refusals exist: a 400 for
+// input the caller can fix, and a 503 for the one case it cannot -- a
+// grant-filtered caller presenting a cursor on a deployment that holds no
+// sealing key. That is a configuration gap, so it is reported as a degraded
+// capability naming the variable to set, never as caller error and never by
+// silently opening an unsealed token.
 //
 // cursor is the continuation every caller should follow, and the ONLY one a
 // grant-filtered caller may use. A scoped caller supplying a non-zero raw
 // offset is refused: that parameter is the PRE-FILTER row position, so
 // accepting it would hand back through a documented parameter exactly the
-// position-addressing the keyset cursor removed. There is no longer a forged
-// token that reaches the same place -- a v2 cursor names a key, and a key can
-// only ask for the caller's own visible rows after it (#6564 re-review finding
-// 1). offset=0 stays legal for everyone because it names the start of the
-// history and discloses nothing; it keeps the MCP route, which always sends an
-// offset, working unchanged.
+// position-addressing the keyset cursor removed. offset=0 stays legal for
+// everyone because it names the start of the history and discloses nothing; it
+// keeps the MCP route, which always sends an offset, working unchanged.
 //
 // Unscoped and all-scope callers keep the offset contract they already have.
-func tagHistoryBounds(
+func (h *TagHistoryHandler) tagHistoryBounds(
 	w http.ResponseWriter,
 	r *http.Request,
 	imageRef string,
 	scoped bool,
-) (limit int, after *taghistory.Key, offset int, ok bool) {
+) (limit int, after *taghistory.Key, offset int, refusal string) {
 	raw := QueryParam(r, "limit")
 	if raw == "" {
 		limit = tagHistoryDefaultLim
@@ -325,7 +393,7 @@ func tagHistoryBounds(
 		n, err := strconv.Atoi(raw)
 		if err != nil || n <= 0 || n > tagHistoryMaxLimit {
 			WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", tagHistoryMaxLimit))
-			return 0, nil, 0, false
+			return 0, nil, 0, "invalid_request"
 		}
 		limit = n
 	}
@@ -335,7 +403,7 @@ func tagHistoryBounds(
 		n, err := strconv.Atoi(rawOffset)
 		if err != nil || n < 0 {
 			WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
-			return 0, nil, 0, false
+			return 0, nil, 0, "invalid_request"
 		}
 		offset = n
 	}
@@ -344,14 +412,30 @@ func tagHistoryBounds(
 	if rawCursor != "" {
 		if offset != 0 {
 			WriteError(w, http.StatusBadRequest, "cursor and a non-zero offset are mutually exclusive; continue with cursor alone")
-			return 0, nil, 0, false
+			return 0, nil, 0, "invalid_request"
 		}
-		key, err := taghistory.DecodeCursor(rawCursor, imageRef)
+		if scoped && h.Cursors == nil {
+			WriteContractError(
+				w,
+				r,
+				http.StatusServiceUnavailable,
+				taghistory.ErrCursorSealingUnavailable.Error(),
+				ErrorCodeCapabilityDegraded,
+				tagHistoryCapability,
+				h.profile(),
+				requiredProfile(tagHistoryCapability),
+			)
+			return 0, nil, 0, tagHistoryOutcomeCursorUnavailable
+		}
+		key, err := taghistory.DecodeCursor(h.Cursors, rawCursor, imageRef)
 		if err != nil {
+			// The detail is safe to echo: on a sealed token every refusal
+			// before this point is secretcrypto's single opaque ErrDecrypt, and
+			// what follows can only fire on a payload this server sealed.
 			WriteError(w, http.StatusBadRequest, fmt.Sprintf("cursor is not a usable continuation for this request: %v", err))
-			return 0, nil, 0, false
+			return 0, nil, 0, "invalid_request"
 		}
-		return limit, &key, 0, true
+		return limit, &key, 0, ""
 	}
 
 	if scoped && offset != 0 {
@@ -360,10 +444,10 @@ func tagHistoryBounds(
 			http.StatusBadRequest,
 			"offset is not accepted for a grant-filtered caller; continue a truncated page with the next_cursor token it returned",
 		)
-		return 0, nil, 0, false
+		return 0, nil, 0, "invalid_request"
 	}
 
-	return limit, nil, offset, true
+	return limit, nil, offset, ""
 }
 
 // readUnscopedWindow serves one page for a caller with no grant to bind. A
@@ -395,19 +479,3 @@ func composeOCIImageRef(repositoryID, tag string) string {
 	}
 	return ""
 }
-
-// tagHistoryScopedTruthReason is the truth-envelope reason a scoped caller
-// receives: it discloses the BUILT_FROM coverage cost, the mutated-flag
-// residue of a blanked previous_digest, and the refilled cursor-only paging.
-const tagHistoryScopedTruthReason = "resolved from bounded container image tag-observation history anchored on image_ref, " +
-	"bound to the caller's repository grant through ContainerImage-[:BUILT_FROM]->Repository: a row is kept only when " +
-	"the image at its resolved_digest is BUILT_FROM a granted repository, previous_digest is blanked unless that image is " +
-	"also BUILT_FROM a granted repository, and observations whose image has no BUILT_FROM edge are withheld; mutated is " +
-	"left as observed, so a row with mutated true and no previous_digest still tells you some prior digest existed; the " +
-	"page is refilled across further fixed-size reads until it holds limit visible rows, the history ends, or the " +
-	"per-request read cap is reached, so on a filled page count below limit does not measure withheld rows; continue with " +
-	"next_cursor, which names the first_observed_at and uid of one row rather than a row position, so paging is " +
-	"forward-only and an observation inserted behind that point on a later page is not returned; keep following it until " +
-	"truncated is false; two things a cap-reached page does disclose, stated here rather than hidden: count 0 with " +
-	"truncated true means the next 800 raw rows held nothing you may see, and when such a page holds no row at all its " +
-	"next_cursor names the last raw row scanned so the walk can advance, which may be a row withheld from you"

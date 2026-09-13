@@ -16,22 +16,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/query/taghistory"
 )
 
-// decodeTagHistoryCursorPayload returns the token's decoded JSON object. The
-// token is opaque BY CONVENTION, not by construction, so a test may look
-// inside it to prove what it does and does not carry.
-func decodeTagHistoryCursorPayload(t *testing.T, token string) map[string]any {
-	t.Helper()
-	raw, err := base64.RawURLEncoding.DecodeString(token)
-	if err != nil {
-		t.Fatalf("next_cursor %q is not base64url: %v", token, err)
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		t.Fatalf("next_cursor payload %q is not JSON: %v", raw, err)
-	}
-	return payload
-}
-
 // TestTagHistoryCursorCarriesNoRowPosition is the #6564 re-review finding 1
 // regression. The defect it pins is that the continuation token WAS a raw row
 // offset in readable JSON, so a scoped caller could read the pre-filter
@@ -44,7 +28,8 @@ func decodeTagHistoryCursorPayload(t *testing.T, token string) map[string]any {
 //
 //  1. No issued token carries a row position. A keyset token names the
 //     (first_observed_at, uid) of a row the caller was actually shown, which
-//     is information the caller already holds.
+//     is information the caller already holds -- and since #6564 round 3 it is
+//     sealed, so the caller cannot read even that off the wire.
 //  2. A minted offset token is refused. There is no position to forge, so the
 //     old payload shape is simply not a continuation this build understands.
 func TestTagHistoryCursorCarriesNoRowPosition(t *testing.T) {
@@ -55,14 +40,17 @@ func TestTagHistoryCursorCarriesNoRowPosition(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	payload := decodeTagHistoryCursorPayload(t, tagHistoryCursorString(t, decodeTagHistoryBody(t, w)))
-	for _, forbidden := range []string{"o", "offset", "l", "limit"} {
-		if value, present := payload[forbidden]; present {
-			t.Fatalf(
-				"next_cursor payload carries %q = %#v; a continuation token must name a row key, never a row position or the page size it was issued for: %#v",
-				forbidden, value, payload,
-			)
+	token := tagHistoryCursorString(t, decodeTagHistoryBody(t, w))
+	if raw, err := base64.RawURLEncoding.DecodeString(token); err == nil {
+		var payload map[string]any
+		if json.Unmarshal(raw, &payload) == nil {
+			t.Fatalf("next_cursor decodes to readable JSON %#v; it must be a sealed envelope", payload)
 		}
+	}
+	// taghistory.Key has no position-shaped field at all, so opening the token
+	// is the whole assertion: what comes out is a row key or nothing.
+	if got, want := openTagHistoryCursor(t, token).UID, "uid-sha256:d01"; got != want {
+		t.Fatalf("cursor uid = %q, want %q (the last row the caller was shown)", got, want)
 	}
 
 	forged := base64.RawURLEncoding.EncodeToString([]byte(
@@ -95,14 +83,14 @@ func TestTagHistoryCursorNamesARowTheCallerWasShown(t *testing.T) {
 	if got, want := tagHistoryResultTags(t, data), []string{"t00", "t02"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("tags = %v, want %v", got, want)
 	}
-	payload := decodeTagHistoryCursorPayload(t, tagHistoryCursorString(t, data))
+	key := openTagHistoryCursor(t, tagHistoryCursorString(t, data))
 	// newSeededTagHistoryGraph mints uid-<resolved_digest> per row, and t02
 	// resolves sha256:d02.
-	if got, want := payload["uid"], "uid-sha256:d02"; got != want {
-		t.Fatalf("cursor uid = %#v, want %#v (the last row the caller was shown)", got, want)
+	if got, want := key.UID, "uid-sha256:d02"; got != want {
+		t.Fatalf("cursor uid = %q, want %q (the last row the caller was shown)", got, want)
 	}
-	if got, want := payload["at"], seededTagHistoryObservedAt(2); got != want {
-		t.Fatalf("cursor at = %#v, want %#v (that row's first_observed_at)", got, want)
+	if got, want := key.At, seededTagHistoryObservedAt(2); got != want {
+		t.Fatalf("cursor at = %q, want %q (that row's first_observed_at)", got, want)
 	}
 }
 
@@ -134,18 +122,23 @@ func TestTagHistoryCursorSurvivesALimitChangeMidWalk(t *testing.T) {
 	}
 }
 
-// TestTagHistoryKeysetCursorRejections pins every payload DecodeCursor must
-// refuse. None of these is a tamper detection -- there is no MAC -- they are
-// the shape checks that keep an unusable payload from being partially trusted.
+// TestTagHistoryKeysetCursorRejections pins that every PRE-SEAL token shape is
+// dead on this route. Each payload below was a usable continuation at some
+// point in this issue's history -- a v1 offset, a v2 keyset key -- and each is
+// now refused because it is not an envelope this deployment sealed. The
+// plaintext shape checks that used to live here moved to
+// taghistory.TestDecodeCursorRefusesAMalformedSealedPlaintext, where a test can
+// still construct the sealed payload they guard against.
 func TestTagHistoryKeysetCursorRejections(t *testing.T) {
 	t.Parallel()
 
 	const ref = "ghcr.io/eshu-hq/demo:1.0.0"
 	for name, payload := range map[string]string{
-		"wrong version":            `{"v":1,"ref":"` + ref + `","at":"x","uid":"u"}`,
+		"v1 offset token":          `{"v":1,"ref":"` + ref + `","l":2,"o":4}`,
+		"v2 keyset token":          `{"v":2,"ref":"` + ref + `","at":"x","uid":"u"}`,
+		"v3 plaintext, unsealed":   `{"v":3,"ref":"` + ref + `","at":"x","uid":"u"}`,
 		"foreign image_ref":        `{"v":2,"ref":"ghcr.io/eshu-hq/other:1.0.0","at":"x","uid":"u"}`,
 		"empty uid":                `{"v":2,"ref":"` + ref + `","at":"x","uid":""}`,
-		"missing uid":              `{"v":2,"ref":"` + ref + `","at":"x"}`,
 		"null tail with timestamp": `{"v":2,"ref":"` + ref + `","at":"x","nt":true,"uid":"u"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -223,10 +216,10 @@ func TestTagHistoryCapReachedEmptyPageAdvances(t *testing.T) {
 	if got := data["truncated"]; got != true {
 		t.Fatalf("truncated = %#v, want true on a capped page", got)
 	}
-	payload := decodeTagHistoryCursorPayload(t, tagHistoryCursorString(t, data))
+	key := openTagHistoryCursor(t, tagHistoryCursorString(t, data))
 	lastRaw := fmt.Sprintf("uid-sha256:d%02d", 4*taghistory.MaxLimit-1)
-	if got := payload["uid"]; got != lastRaw {
-		t.Fatalf("cursor uid = %#v, want %#v (the last RAW row scanned, so the walk can advance)", got, lastRaw)
+	if key.UID != lastRaw {
+		t.Fatalf("cursor uid = %q, want %q (the last RAW row scanned, so the walk can advance)", key.UID, lastRaw)
 	}
 
 	// And following it must reach the granted row rather than re-scan.
@@ -263,12 +256,12 @@ func TestTagHistoryKeysetPagesTheNullTail(t *testing.T) {
 	// The cursor issued from inside the tail must declare it, so the next read
 	// uses the null-tail statement rather than a string comparison against "".
 	w := serveTagHistoryAs(t, graph, scopedTagHistoryAuth("repo-granted"), tagHistoryGrantTarget+"&limit=3")
-	payload := decodeTagHistoryCursorPayload(t, tagHistoryCursorString(t, decodeTagHistoryBody(t, w)))
-	if got := payload["nt"]; got != true {
-		t.Fatalf("cursor nt = %#v, want true for a key inside the null tail: %#v", got, payload)
+	key := openTagHistoryCursor(t, tagHistoryCursorString(t, decodeTagHistoryBody(t, w)))
+	if !key.NullAt {
+		t.Fatalf("cursor NullAt = false, want true for a key inside the null tail: %#v", key)
 	}
-	if _, present := payload["at"]; present {
-		t.Fatalf("cursor carries at = %#v alongside nt; a null-tail key has no timestamp", payload["at"])
+	if key.At != "" {
+		t.Fatalf("cursor carries At = %q alongside NullAt; a null-tail key has no timestamp", key.At)
 	}
 }
 
@@ -307,9 +300,14 @@ func TestTagHistoryKeysetIsStableUnderAnInsertBehindTheFrontier(t *testing.T) {
 func TestTagHistoryKeysetAheadOfHistoryIsAnEmptyPage(t *testing.T) {
 	t.Parallel()
 
-	ahead := base64.RawURLEncoding.EncodeToString([]byte(
-		`{"v":2,"ref":"ghcr.io/eshu-hq/demo:1.0.0","at":"2999-01-01T00:00:00Z","uid":"uid-zzz"}`,
-	))
+	ahead, err := taghistory.EncodeCursor(
+		tagHistoryTestCursorKeyring,
+		tagHistoryTestImageRef,
+		taghistory.Key{At: "2999-01-01T00:00:00Z", UID: "uid-zzz"},
+	)
+	if err != nil {
+		t.Fatalf("EncodeCursor() error = %v", err)
+	}
 	w := serveTagHistoryAs(
 		t,
 		newSeededTagHistoryGraph("granted", "granted", "granted"),
@@ -332,24 +330,24 @@ func TestTagHistoryKeysetAheadOfHistoryIsAnEmptyPage(t *testing.T) {
 }
 
 // TestTagHistoryUnscopedCallerEmitsTheSameTokenFormat proves there is ONE token
-// format on the wire. An unscoped caller keeps offset/SKIP paging (a test pins
-// that), but its next_cursor is the same v2 keyset token, so a client library
-// never has to know which kind of caller it is.
+// format on the wire wherever a sealing key exists. An unscoped caller keeps
+// offset/SKIP paging (a test pins that), but its next_cursor is the same sealed
+// keyset token, so a client library never has to know which kind of caller it
+// is holding a token for. The one divergence is the no-DEK deployment, where
+// only the unscoped caller still gets a token at all
+// (TestTagHistoryUnscopedPagingSurvivesAnAbsentSealingKey).
 func TestTagHistoryUnscopedCallerEmitsTheSameTokenFormat(t *testing.T) {
 	t.Parallel()
 
 	graph := newSeededTagHistoryGraph("granted", "other", "none", "granted")
 	w := serveTagHistoryAs(t, graph, nil, tagHistoryGrantTarget+"&limit=2&offset=1")
 	data := decodeTagHistoryBody(t, w)
-	payload := decodeTagHistoryCursorPayload(t, tagHistoryCursorString(t, data))
-	if got, want := payload["v"], float64(taghistory.CursorVersion); got != want {
-		t.Fatalf("cursor version = %#v, want %#v", got, want)
+	token := tagHistoryCursorString(t, data)
+	if !strings.HasPrefix(token, "ESK1.") {
+		t.Fatalf("unscoped next_cursor = %q, want the same sealed envelope a scoped caller gets", token)
 	}
-	if got, want := payload["uid"], "uid-sha256:d02"; got != want {
-		t.Fatalf("cursor uid = %#v, want %#v (the last row this page returned)", got, want)
-	}
-	if _, present := payload["o"]; present {
-		t.Fatalf("unscoped next_cursor still carries a row offset: %#v", payload)
+	if got, want := openTagHistoryCursor(t, token).UID, "uid-sha256:d02"; got != want {
+		t.Fatalf("cursor uid = %q, want %q (the last row this page returned)", got, want)
 	}
 	// And the token continues the walk for that caller too.
 	next := serveTagHistoryAs(

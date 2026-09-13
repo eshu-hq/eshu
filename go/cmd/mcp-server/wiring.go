@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -19,6 +20,7 @@ import (
 	internalruntime "github.com/eshu-hq/eshu/go/internal/runtime"
 	"github.com/eshu-hq/eshu/go/internal/scopedtoken"
 	"github.com/eshu-hq/eshu/go/internal/searchembedruntime"
+	"github.com/eshu-hq/eshu/go/internal/secretcrypto"
 	"github.com/eshu-hq/eshu/go/internal/semanticpolicy"
 	"github.com/eshu-hq/eshu/go/internal/semanticprofile"
 	"github.com/eshu-hq/eshu/go/internal/serviceintelhttp"
@@ -244,6 +246,30 @@ func wireAPI(
 		governanceAudit,
 		readImpactFromWinners,
 	)
+
+	// Tag-history continuation tokens are sealed with the deployment DEK
+	// (#6564). This server dispatches list_container_image_tag_history
+	// IN-PROCESS, so without the same ESHU_AUTH_SECRET_ENC_KEY(_FILE) the API
+	// holds it cannot open a cursor the API issued, and a scoped caller's
+	// paging fails closed here. ErrKeyNotConfigured is non-fatal at boot for
+	// the same reason it is in cmd/api: an unscoped deployment never needs the
+	// key. Any OTHER error is fatal -- a malformed DEK must not degrade to "no
+	// sealing". The nil guard is required, not defensive: a nil *Keyring
+	// assigned to the interface field would be a NON-nil Sealer.
+	cursorKeyring, err := secretcrypto.KeyringFromEnv(getenv)
+	switch {
+	case err == nil:
+		router.TagHistory.Cursors = cursorKeyring
+	case errors.Is(err, secretcrypto.ErrKeyNotConfigured):
+		if logger != nil {
+			logger.Info(
+				"tag-history cursor sealing key not configured; grant-filtered tag-history paging will fail closed until ESHU_AUTH_SECRET_ENC_KEY(_FILE) is set",
+				telemetry.EventAttr("query.tag_history.cursor_keyring_unconfigured"),
+			)
+		}
+	default:
+		return nil, nil, nil, mcpAuthWiring{}, fmt.Errorf("configure tag-history cursor keyring: %w", err)
+	}
 
 	mux := http.NewServeMux()
 	router.Mount(mux)

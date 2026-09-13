@@ -150,7 +150,7 @@ func TestTagHistoryHandlerTruncationAndCursor(t *testing.T) {
 		tagHistoryRowMap("1.0.0", "sha256:aaa", "", "2026-06-25T00:00:00Z", false),
 		tagHistoryRowMap("1.0.0", "sha256:bbb", "sha256:aaa", "2026-06-26T00:00:00Z", true),
 	}}
-	handler := &TagHistoryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative}
+	handler := &TagHistoryHandler{Neo4j: reader, Profile: ProfileLocalAuthoritative, Cursors: tagHistoryTestCursorKeyring}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
@@ -172,7 +172,7 @@ func TestTagHistoryHandlerTruncationAndCursor(t *testing.T) {
 	if !ok {
 		t.Fatalf("next_cursor = %#v, want an opaque token string", data["next_cursor"])
 	}
-	key, err := taghistory.DecodeCursor(token, "ghcr.io/eshu-hq/demo:1.0.0")
+	key, err := taghistory.DecodeCursor(tagHistoryTestCursorKeyring, token, tagHistoryTestImageRef)
 	if err != nil {
 		t.Fatalf("taghistory.DecodeCursor() error = %v, want the token this page issued to decode", err)
 	}

@@ -72,6 +72,20 @@ func annotateTagHistoryGrantCounts(span trace.Span, counts taghistory.GrantCount
 	)
 }
 
+// tagHistoryOutcomeCursorUnavailable is the bounded outcome label for the one
+// degraded state this route has: the deployment holds no cursor sealing key
+// (ESHU_AUTH_SECRET_ENC_KEY(_FILE)), so a grant-filtered caller's page is
+// served correct and short with next_cursor omitted, and a grant-filtered
+// request that carries a cursor is refused 503.
+//
+// It is deliberately NOT "ok" and NOT "query_error": the read succeeded and
+// nothing is wrong with the backend, but paging is unavailable for scoped
+// callers until an operator sets the variable. That is the signal an operator
+// needs at 3 AM to tell this apart from a caller that simply reached the end of
+// its history, and it is the only way a missing mount on the standalone MCP
+// server shows up in metrics rather than only in one startup log line.
+const tagHistoryOutcomeCursorUnavailable = "cursor_unavailable"
+
 // tagHistoryQueryMeterName scopes the lazily registered tag-history
 // instruments to this package, mirroring cloudResourceListMeterName in
 // cloud_resources_metrics.go: the query package is not handed a
@@ -175,7 +189,8 @@ func recordTagHistoryScopedRows(ctx context.Context, counts taghistory.GrantCoun
 
 // recordTagHistoryDuration observes one tag-history handler invocation. The
 // outcome label is low cardinality (ok, invalid_request, unsupported_capability,
-// backend_unavailable, query_error) so it is safe as a metric dimension.
+// backend_unavailable, cursor_unavailable, query_error) so it is safe as a
+// metric dimension.
 func recordTagHistoryDuration(ctx context.Context, start time.Time, outcome string) {
 	initTagHistoryQueryInstruments()
 	if tagHistoryDuration == nil {

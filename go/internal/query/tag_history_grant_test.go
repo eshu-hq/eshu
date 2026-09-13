@@ -72,9 +72,26 @@ func tagHistoryGrantMatrix() *fakeTagHistoryGrantGraph {
 
 const tagHistoryGrantTarget = "/api/v0/images/tag-history?repository_id=oci-registry://ghcr.io/eshu-hq/demo&tag=1.0.0"
 
+// serveTagHistoryAs serves one request against a handler wired the way a
+// deployment with a DEK is: cursors sealed with tagHistoryTestCursorKeyring.
+// Every served page in these tests uses a fresh handler, so a token that
+// round-trips here round-trips across restarts and replicas too.
 func serveTagHistoryAs(t *testing.T, graph GraphQuery, auth *AuthContext, target string) *httptest.ResponseRecorder {
 	t.Helper()
-	handler := &TagHistoryHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative}
+	return serveTagHistoryWithSealer(t, tagHistoryTestCursorKeyring, graph, auth, target)
+}
+
+// serveTagHistoryWithSealer is serveTagHistoryAs with an explicit sealer, so a
+// test can serve the no-DEK deployment by passing nil.
+func serveTagHistoryWithSealer(
+	t *testing.T,
+	sealer taghistory.Sealer,
+	graph GraphQuery,
+	auth *AuthContext,
+	target string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	handler := &TagHistoryHandler{Neo4j: graph, Profile: ProfileLocalAuthoritative, Cursors: sealer}
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 	req := newTagHistoryRequest(target)
