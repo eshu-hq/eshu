@@ -8,7 +8,8 @@ key, so a scoped caller is bound through the reducer's
 
 ## Design As Built
 
-- Unscoped and all-scope callers: unchanged, one statement (`taghistory.Cypher`).
+- Unscoped and all-scope callers: unchanged, one statement
+  (`taghistory.OffsetCypher`, the `SKIP` form).
 - Scoped caller with an empty grant: an empty page without a graph read.
 - Scoped caller:
   1. It runs the unchanged tag read (`limit+1`).
@@ -48,7 +49,7 @@ halves were replaced.
 **Refill.** A grant-filtered page now reads successive windows until it holds
 `limit` VISIBLE rows, the history ends, or `taghistory.MaxRefillReads` (4)
 windows have been read (`RefillScopedPage`,
-`go/internal/query/taghistory/page.go`). Consequences:
+`go/internal/query/taghistory/refill.go`). Consequences:
 
 - A filled page has `count == limit`, so `limit - count` carries no
   withheld-row information.
@@ -65,8 +66,14 @@ windows have been read (`RefillScopedPage`,
   filled page, not of that one.
 - Every window uses the SAME two single-clause statements. No multi-clause read
   was introduced: the pinned build returns 0 rows for those (see Theory Probe).
+- Each window is a FIXED `taghistory.MaxLimit` (200) raw rows, not `limit` rows.
+  With `limit`-sized windows the span one request scanned was `4*limit`, so at
+  `limit=1` a `count: 0` page told the caller that four SPECIFIC consecutive
+  observations were another tenant's. Fixing the window makes that span a
+  constant 800 raw rows whatever `limit` is. See
+  [keyset pagination](6564-tag-history-keyset-pagination.md).
 
-The cap is 4 because each window costs one `taghistory.Cypher` read plus one
+The cap is 4 because each window costs one keyset read plus one
 `taghistory.BuiltFromCypher` lookup, and the lookup's measured worst case is the
 case refilling actually triggers. A page whose digests have no `ContainerImage`
 node is exactly the fully-withheld page that refills, and 400 such missing keys
@@ -76,50 +83,24 @@ histogram's 5 s top bucket, the second honestly an outlier above it. A larger
 cap multiplies it. Four windows also let a page step over up to `4*limit` (800
 at the maximum limit) withheld rows before it must report truncation.
 
-**Cursor token.** `next_cursor` is now a string token, not `{"offset": n}`
-(`taghistory.Cursor`, `go/internal/query/taghistory/cursor.go`):
-base64url-encoded versioned JSON bound to the `image_ref` and the `limit` it was
-issued for. A malformed, unknown-version, negative-offset, foreign-`image_ref`,
-or different-`limit` token is a 400 -- never a silently reset or silently empty
-page. `offset` stays accepted for unscoped and all-scope callers (the existing
+**Cursor token: KEYSET, not an offset.** `next_cursor` carries one row's
+`(first_observed_at, uid)` position, so there is no raw row offset anywhere on
+the wire or in the token (`taghistory.Cursor`,
+`go/internal/query/taghistory/cursor.go`). The first implementation shipped an
+unsigned base64url offset payload, which the re-review correctly called a leak
+that was still open: decoding it read the pre-filter frontier, and re-encoding an
+edited offset walked another tenant's history one row at a time. That design, why
+it was replaced rather than signed, the statements the replacement runs, the
+theory probe, the live proof and the residue it does NOT close are all in
+[keyset pagination](6564-tag-history-keyset-pagination.md).
+
+`offset` stays accepted for unscoped and all-scope callers (the existing
 contract); a grant-filtered caller sending a non-zero `offset` gets a 400 naming
-`cursor`, and its response OMITS the echoed `offset` field, because on a
-refilled page that value is the raw pre-filter frontier. `offset=0` remains
-legal for everyone so the MCP route, which always sends an offset, keeps working
-on page one.
-
-Those checks constrain an ISSUED token; they do not authenticate one, and this
-document does not claim they do. "edited" was removed from the OpenAPI cursor
-parameter, the MCP input schema and this section because it promised a tamper
-rejection that does not exist -- see Open Defect below, which this paragraph now
-agrees with rather than contradicts.
-
-**Open defect, fix being designed.** The token is reversible and unauthenticated.
-A caller who base64-decodes it reads the raw pre-filter frontier directly, and
-one who edits the offset and re-encodes can mint
-`{"v":1,"ref":"<its own image_ref>","l":1,"o":N}` for any `N` -- every check in
-`DecodeCursor` passes -- so the `limit=1` walk remains available at roughly one
-request per visible row. Refusing the `offset` parameter for scoped callers
-narrows that channel to callers willing to forge a token; it does not close it.
-This is NOT accepted as a permanent limitation. The leak is to be fixed and a
-design recommendation across signed, keyset, and server-side cursors is pending;
-a keyset cursor naming the last VISIBLE row leads, since it removes the raw
-frontier from the token rather than authenticating it. This change does not take
-that decision and adds no new dependence on the raw-offset payload.
-
-Why the FIRST implementation did not sign the token, for the record: no shared
-server-side key exists for a query handler to sign with
-(`ESHU_AUTH_SECRET_ENC_KEY` is `cmd/api`'s provider-config DEK), and a
-process-local key would break paging across a restart or a second replica, so
-the encoding followed the in-repo `RepositoryRefPageCursor` idiom. That explains
-the starting point; it does not justify keeping it.
-
-**Caller-facing disclosure is deliberately HELD.** No OpenAPI, `http-api.md`,
-MCP, matrix or truth-reason text asserts the token is reversible and
-unauthenticated, and that absence is intentional, not an oversight: publishing
-such a clause would state as standing contract a leak that is being removed.
-What WAS corrected there is the false claim that an edited token is rejected,
-which is wrong under every candidate design.
+`cursor`, and its response OMITS the echoed `offset` field, because a raw row
+position on a refilled page is the pre-filter frontier. `offset=0` remains legal
+for everyone so the MCP route, which always sends an offset, keeps working on
+page one. Every caller receives the same v2 keyset token, so there is one token
+format on the wire.
 
 The response still carries no per-page withheld count, which would describe
 other tenants' history. Withheld counts go only to telemetry. The disclosure
@@ -375,26 +356,18 @@ Repointed in `tag_history.go` and `auth_scoped_routes_supply_chain_infra.go` to
 further stale names the re-review did not list, in this document
 (`tagHistoryCypher`, `readTagHistoryWindow`) and in the test comments.
 
-## Live Re-Validation Owed
+## Live Re-Validation Of `DISTINCT`: Done
 
-The first implementation left `taghistory.BuiltFromCypher` byte-identical to the
-measured text, so no live re-run was owed. Adding `DISTINCT` changes it, so one
-is, and it was NOT performed here: the local container runtime was wedged, the
-remote was unreachable, and this change ran under a no-container instruction.
-Re-run the statement against the pin before merge. Grounds it is safe meanwhile:
-
-- The known NornicDB `DISTINCT` defect is shape-specific. `RETURN DISTINCT` is
-  absorbed into the first projection's source text only when a trailing
-  `OPTIONAL MATCH`, or a `WITH`, sits between the anchoring `MATCH` and the
-  `RETURN` (`docs/public/reference/nornicdb-pitfalls.md`). This statement has
-  neither: `MATCH`, `WHERE`, `RETURN DISTINCT`. That is the shape of
-  `BuildDeadCodeIncomingBatchProbeCypher`
-  (`go/internal/query/codequery/deadcode/incoming.go`), which ships
-  `RETURN DISTINCT` for this reason under the
-  `live_nornicdb_dead_code_incoming` tests against the pin.
-- If the defect did apply it fails CLOSED: `digest` would return the literal
-  `"DISTINCT i.digest"`, no row would join, and a scoped caller would see an
-  empty page -- visible over-withholding, not a leak.
+Adding `DISTINCT` to `BuiltFromCypher` changed its text, so the live re-run it
+owed was outstanding for one commit. It is now discharged, on the pinned
+`eshu-nornicdb-pr290:3722b483c02c` (self-reports NornicDB `1.2.1`):
+`TestTagHistoryKeysetNornicDBLive/RefillScopedPage_returns_exactly_the_granted_rows`
+runs the real `LookupBuiltFromRepositories` -- `DISTINCT` and all -- against 457
+seeded observations whose images carry real
+`ContainerImage-[:BUILT_FROM]->Repository` edges, and returns exactly the 229
+granted rows over 3 pages. The seed asserts its own edge count before reading, so
+a dropped write fails the test instead of producing a vacuous pass. Details in
+[keyset pagination](6564-tag-history-keyset-pagination.md).
 
 ## Mutation Proof
 
@@ -496,5 +469,6 @@ standard library and `querycontract` (`GraphQuery`, `RepositoryAccessFilter`,
 its ledger row is untouched, which also means this change cannot collide with a
 concurrent extraction re-pinning the same row. `query.TagHistoryRow` is now an
 alias for `taghistory.Row`, so the wire shape has one definition. The queryplan
-manifest entries moved with the symbols: `taghistory/page.go:ReadWindow` and
+manifest entries moved with the symbols: `taghistory/page.go:ReadWindow`,
+`taghistory/page.go:ReadOffsetWindow` and
 `taghistory/builtfrom.go:LookupBuiltFromRepositories`.
