@@ -449,7 +449,7 @@ var viaTwoLiterals = "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) " + 
 
 var viaSplitOnCreateSetIsSafe = "MERGE (n:Repository {id:$id}) ON CREATE SET n.first_seen = " + "$now"
 
-var viaSprintfIsInvisible = fmt.Sprintf("MERGE (s:Workload {id:%s}) MERGE (t:Workload {id:%s}) CREATE (s)-[:DEPENDS_ON]->(t)", "a", "b")
+var viaSprintfIsInvisible = fmt.Sprintf("MERGE (s:Workload {id:%s}) MERGE (t:Workload {id:%s}) %s (s)-[:DEPENDS_ON]->(t)", "a", "b", "CREATE")
 
 var viaUnresolvedIdentIsInvisible = unknownPkg.Fragment + "CREATE (n)"
 `
