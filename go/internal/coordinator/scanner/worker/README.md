@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`scannerworker` plans one workflow work item per configured scanner target. It
+`scanner/worker` plans one workflow work item per configured scanner target. It
 does not read source paths, open image layers, or contact another service.
 
 ## Ownership boundary
@@ -25,7 +25,9 @@ remain in the parent package.
 The collector scanner-worker package supplies analyzer and target-kind
 contracts. `contract` validates plan keys; `facts`, `scope`, and
 `workflow` supply stable identities and durable row contracts. This package
-does not import its parent.
+does not import its parent. The direct collector enum dependency remains future
+extraction debt, so this in-process ownership seam is not independently
+extractable.
 
 ## Telemetry
 

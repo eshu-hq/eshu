@@ -33,7 +33,8 @@ live in the repository today.
 | `go/internal/coordinator/planner/pagerduty/` | PagerDuty scheduler request and target validation, webhook-scope membership, privacy, and deterministic workflow planning |
 | `go/internal/coordinator/planner/contract/` | dependency-neutral scheduler plan-key validation |
 | `go/internal/coordinator/planner/metrics/` | Prometheus/Mimir scheduler request validation, target filtering, privacy, and deterministic workflow planning |
-| `go/internal/coordinator/scannerworker/` | scanner-worker scheduler configuration validation, requested-scope privacy, and deterministic workflow planning |
+| `go/internal/coordinator/scanner/` | documentation-only namespace for coordinator-side scanner planning contracts |
+| `go/internal/coordinator/scanner/worker/` | scanner-worker scheduler configuration validation, requested-scope privacy, and deterministic workflow planning |
 | `go/internal/coordinator/securityalert/` | provider security-alert scheduler request validation and deterministic workflow planning |
 | `go/internal/coordinator/sbom/` | documentation-only namespace for coordinator-side SBOM and attestation planning contracts |
 | `go/internal/coordinator/sbom/attestation/` | hosted SBOM and attestation scheduler request validation and deterministic workflow planning |

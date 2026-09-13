@@ -157,9 +157,9 @@ one enabled bounded scope; invalid configurations fail validation.
   metadata collection; root keeps the clock, scheduling, durable admission,
   retries, and telemetry. It is not independently deployable.
 - `ScannerWorkerPlanner` — the root interface implemented by
-  `scannerworker.WorkPlanner`. The child plans configured targets without
-  exposing runtime-local roots in workflow metadata; root keeps scheduling,
-  the plan-key clock, durable admission, retries, and telemetry.
+  `worker.WorkPlanner` (imported as `scannerworker`); it plans configured targets
+  without exposing runtime-local roots. Root keeps clocks, scheduling,
+  admission, retries, and telemetry; collector enums remain extraction debt.
 - `PagerDutyPlanner` — implemented by `pagerduty.WorkPlanner`; child owns
   validated target membership and private planning. Root retains authorization,
   scheduling, admission, trigger transitions, retries, and telemetry.
@@ -227,7 +227,7 @@ one enabled bounded scope; invalid configurations fail validation.
   and deterministic planner implementation.
 - `internal/coordinator/sbom/attestation` — hosted SBOM-attestation plan request
   and deterministic planner implementation.
-- `internal/coordinator/scannerworker` — scanner-worker request validation,
+- `internal/coordinator/scanner/worker` — scanner-worker request validation,
   requested-scope privacy, and deterministic planning.
 - `internal/coordinator/planner/{pagerduty,jira,tempo,loki,metrics,grafana,gcp,tfstate}`
   — provider-specific deterministic planners.

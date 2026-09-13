@@ -84,10 +84,11 @@
 // scope after explicit live opt-in and exposes EnabledScopes and
 // ValidateClaimSchedulerConfiguration so the root freshness handoff loop and
 // config loader can reuse the same scope parsing without depending on this
-// package's private configuration types. The root ScannerWorkerPlanner interface accepts the child
-// scannerworker.PlanRequest; the child plans explicit scanner-worker source
-// evidence targets so a healthy worker must still have claimable work before a
-// proof can count source evidence. The root AWSScheduledPlanner interface accepts the
+// package's private configuration types. The root ScannerWorkerPlanner
+// interface accepts the scanner/worker child's PlanRequest (imported as
+// scannerworker); the child plans explicit scanner-worker source evidence
+// targets so a healthy worker must still have claimable work before a proof can
+// count source evidence. The root AWSScheduledPlanner interface accepts the
 // child scheduled.PlanRequest; the child plans ordinary AWS collector
 // work from configured schedules. The root AWSFreshnessPlanner
 // interface accepts the child freshness.PlanRequest; the child

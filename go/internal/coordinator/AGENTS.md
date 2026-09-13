@@ -37,7 +37,7 @@
      schedule/bootstrap/webhook trigger resolution and precedence, all-target
      validation, scope membership, privacy, configured order, and
      site-partitioned fairness identity
-   - `go/internal/coordinator/scannerworker/planner.go` and
+   - `go/internal/coordinator/scanner/worker/planner.go` and
      `service_scanner_worker.go` — the extracted scanner-worker planner and its
      root scheduling seam; runtime-local paths stay out of requested-scope
      metadata

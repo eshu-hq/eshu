@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/coordinator/scannerworker"
+	scannerworker "github.com/eshu-hq/eshu/go/internal/coordinator/scanner/worker"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )

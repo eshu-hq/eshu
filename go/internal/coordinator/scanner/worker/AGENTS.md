@@ -1,11 +1,11 @@
-# AGENTS.md - internal/coordinator/scannerworker guidance
+# AGENTS.md - internal/coordinator/scanner/worker guidance
 
 ## Read first
 
 1. `README.md` for ownership and invariants.
 2. `planner.go` for validation and deterministic identities.
-3. `../service_scanner_worker.go` for root scheduling and admission.
-4. `../planner/contract/README.md` for plan-key grammar.
+3. `../../service_scanner_worker.go` for root scheduling and admission.
+4. `../../planner/contract/README.md` for plan-key grammar.
 
 ## Invariants
 
@@ -14,6 +14,8 @@
 - Do not import the parent coordinator package.
 - Preserve requested-scope privacy, configured target order, IDs, and fairness
   keys.
+- Treat the direct collector `scannerworker` analyzer and target-kind contracts
+  as future extraction debt; this leaf is not independently extractable.
 
 ## Common changes
 

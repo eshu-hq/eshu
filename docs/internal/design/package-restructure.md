@@ -1081,12 +1081,12 @@ tenant and egress filtering, durable admission, retries, and telemetry. The
 Grafana Loki scheduler is the sixth extraction under
 `internal/coordinator/planner/loki`; its deterministic request validation,
 target filtering, and workflow-row construction move under the same ownership
-boundary. The scanner-worker scheduler is the seventh extraction under
-`internal/coordinator/scannerworker`; the child owns configuration validation,
-requested-scope privacy, configured target order, deterministic IDs, and
-fairness-key construction. Root keeps the interface, scheduling and plan-key
-clock, active and claims gates, tenant-grant and collector-egress gates, durable
-admission, retries, queue and lease behavior, and telemetry. The
+boundary. The scanner-worker scheduler is the seventh extraction, nested under
+`internal/coordinator/scanner/worker`; the child owns validation, privacy,
+configured order, deterministic IDs, and fairness keys. Root keeps its
+interface, clock, scheduling, gates, durable admission, retries, queues, leases,
+and telemetry. Direct collector enums remain extraction debt, so this
+in-process seam does not prove independent extraction. The
 Prometheus/Mimir scheduler is the eighth extraction under
 `internal/coordinator/planner/metrics`; the child owns all five request fields,
 enabled-target validation and filtering, configured order, deterministic IDs,
