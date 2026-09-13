@@ -8,8 +8,10 @@
 // anchored ContainerImageTagObservation read and the
 // ContainerImage-[:BUILT_FROM]->Repository lookup that binds a scoped caller's
 // page to its repository grant -- plus the refill loop that fills a
-// grant-filtered page to `limit` VISIBLE rows and the opaque continuation
-// cursor that replaced the raw row offset.
+// grant-filtered page to `limit` VISIBLE rows and the continuation cursor that
+// replaced the raw row offset. That cursor is reversible and unauthenticated,
+// which is an OPEN defect with a replacement being designed, not an accepted
+// limitation -- see Cursor's doc comment before changing it.
 //
 // It imports only the standard library and querycontract (GraphQuery,
 // RepositoryAccessFilter, StringVal/BoolVal), never the query root. The query

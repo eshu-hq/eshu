@@ -30,18 +30,24 @@ const CursorVersion = 1
 // binary-search.
 //
 // The payload binds the token to the image_ref and the limit it was issued
-// for, so a cursor cannot be replayed against another image's history or
-// re-aimed at a smaller page size to resume the limit=1 walk. Every rejection
-// is a 400, never a silently reset or silently empty page.
+// for, so an ISSUED cursor cannot be replayed against another image's history
+// or re-aimed at a smaller page size to resume the limit=1 walk. Every
+// rejection is a 400, never a silently reset or silently empty page.
 //
-// The encoding is reversible and carries no MAC: this repository has no shared
-// server-side key a query handler can sign a cursor with, and minting a
-// process-local one would make a cursor unusable across a restart or a second
-// replica, which is a worse contract than the residual it would close. The
-// residual is recorded in
-// docs/internal/evidence/6564-tag-history-grant-binding.md: a caller that
-// decodes and re-encodes the payload itself can still recover the raw frontier.
-// Closing it needs deployment-wide key material and an owner decision.
+// Those checks constrain a token this server issued; they do not authenticate
+// one. The encoding is reversible and carries no MAC, so a caller can mint
+// {"v":1,"ref":"<its own image_ref>","l":1,"o":N} for any N and every check
+// above passes -- the limit=1 walk over another tenant's history is narrowed to
+// callers willing to forge, not closed.
+//
+// THIS IS AN OPEN DEFECT, not an accepted residual (#6564 re-review finding 1).
+// Do not describe the token as tamper-rejecting, and do not add wording anywhere
+// that presents the leak as a disclosed-and-accepted limitation: a replacement
+// is being designed (signed, keyset, or server-side cursor), and a keyset cursor
+// naming the last VISIBLE row would remove the raw frontier from the token
+// altogether rather than authenticate it. Do not build further on the raw-offset
+// payload below. Tracked in
+// docs/internal/evidence/6564-tag-history-grant-binding.md.
 type Cursor struct {
 	Version  int    `json:"v"`
 	ImageRef string `json:"ref"`
@@ -50,7 +56,7 @@ type Cursor struct {
 }
 
 // EncodeCursor renders the continuation offset for imageRef at limit as the
-// opaque token next_cursor carries.
+// token next_cursor carries.
 func EncodeCursor(imageRef string, limit, offset int) string {
 	// The payload is a bounded struct of ints and strings; Marshal cannot fail.
 	raw, _ := json.Marshal(Cursor{

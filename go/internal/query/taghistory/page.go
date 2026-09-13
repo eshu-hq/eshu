@@ -125,7 +125,7 @@ func ReadWindow(
 // ScopedPage is the outcome of refilling one grant-filtered page.
 //
 // NextOffset is the raw row position the scan stopped on. It never reaches the
-// wire as an integer: the handler encodes it as the opaque cursor token
+// wire as an integer: the handler encodes it as the cursor token
 // (EncodeCursor), because the distance it advanced past Rows is the count of
 // withheld rows.
 type ScopedPage struct {

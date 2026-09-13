@@ -56,14 +56,17 @@ const tagHistoryMaxLimit = taghistory.MaxLimit
 // has no BUILT_FROM edge are withheld from scoped callers.
 //
 // A scoped page is REFILLED across successive windows until it holds limit
-// visible rows, the history ends, or tagHistoryMaxRefillReads windows have been
-// read, and the continuation leaves the wire as an opaque cursor token rather
-// than a raw offset. Both halves exist so that neither limit-count nor the
-// cursor's advance measures how much of another tenant's history the filter
-// withheld. Unscoped and all-scope callers keep the single-statement read and
-// the offset parameter. See tagHistoryBuiltFromCypher below,
-// refillScopedTagHistoryPage in tag_history_refill.go, and
-// tagHistoryPageCursor in tag_history_cursor.go.
+// visible rows, the history ends, or taghistory.MaxRefillReads windows have
+// been read, and the continuation leaves the wire as a cursor token rather than
+// a raw offset. Both halves exist so that neither limit-count nor the cursor's
+// advance measures how much of another tenant's history the filter withheld.
+// They do not finish the job: the token is reversible and unauthenticated, so a
+// caller that decodes it still reads the raw frontier -- an open defect whose
+// fix is being designed (taghistory.Cursor). Unscoped and all-scope callers
+// keep the single-statement read and the offset parameter. See
+// taghistory.BuiltFromCypher in
+// taghistory/builtfrom.go, taghistory.RefillScopedPage in taghistory/page.go,
+// and taghistory.Cursor in taghistory/cursor.go.
 type TagHistoryHandler struct {
 	Neo4j   GraphQuery
 	Profile QueryProfile
@@ -206,7 +209,7 @@ func (h *TagHistoryHandler) listTagHistory(w http.ResponseWriter, r *http.Reques
 
 // tagHistoryPage is one response page before serialization. nextOffset is the
 // raw row position the read stopped on; it is serialized only inside the
-// opaque cursor token, never as a wire integer for a grant-filtered caller.
+// cursor token, never as a wire integer for a grant-filtered caller.
 type tagHistoryPage struct {
 	history       []TagHistoryRow
 	limit         int
@@ -280,16 +283,21 @@ func writeTagHistoryReadError(w http.ResponseWriter, r *http.Request, start time
 }
 
 // tagHistoryBounds parses and validates the page selectors: the required
-// limit, the optional opaque cursor, and the optional raw offset. It writes a
+// limit, the optional cursor, and the optional raw offset. It writes a
 // 400 and returns ok=false on invalid input.
 //
 // cursor is the continuation every caller should follow, and the ONLY one a
 // grant-filtered caller may use. A scoped caller supplying a non-zero raw
 // offset is refused: that parameter is the pre-filter row position, and
 // accepting it would leave the limit=1 walk over another tenant's history open
-// no matter how opaque next_cursor became. offset=0 stays legal for everyone
-// because it names the start of the history and discloses nothing; it keeps
-// the MCP route, which always sends an offset, working unchanged.
+// as a documented, first-class parameter. The refusal NARROWS that channel
+// rather than closing it: taghistory.Cursor carries no MAC, so a caller can
+// mint a payload at any offset and get the same walk back -- an open defect
+// (#6564 re-review finding 1) whose fix is being designed, not an accepted
+// residual. offset=0 stays
+// legal for everyone because it names the start of the history and discloses
+// nothing; it keeps the MCP route, which always sends an offset, working
+// unchanged.
 //
 // Unscoped and all-scope callers keep the offset contract they already have.
 func tagHistoryBounds(w http.ResponseWriter, r *http.Request, imageRef string, scoped bool) (limit int, offset int, ok bool) {
@@ -364,5 +372,7 @@ const tagHistoryScopedTruthReason = "resolved from bounded container image tag-o
 	"also BUILT_FROM a granted repository, and observations whose image has no BUILT_FROM edge are withheld; mutated is " +
 	"left as observed, so a row with mutated true and no previous_digest still tells you some prior digest existed; the " +
 	"page is refilled across further reads until it holds limit visible rows, the history ends, or the per-request read " +
-	"cap is reached, so count below limit does not measure withheld rows; continue only with the opaque next_cursor token, " +
-	"which replaces the row offset, and keep following it until truncated is false"
+	"cap is reached, so on a filled page count below limit does not measure withheld rows, though on a cap-reached page " +
+	"(truncated true, count below limit) the shortfall does describe the scanned span and count 0 means every raw row in " +
+	"it was withheld; continue only with the opaque next_cursor token, which replaces the row offset, and keep " +
+	"following it until truncated is false"

@@ -268,19 +268,25 @@ source_coverage:
           max_results: 201
   - file: taghistory/builtfrom.go
     calls:
-      # max_results is the FAN-OUT bound, not the key count: the statement
-      # returns one row per BUILT_FROM edge, so a multi-source image yields
-      # more rows than keys (a 400-key probe returned 440 rows). 1200 is
-      # 3x the 400-key bound, the same ratio the peer entry
-      # fetchOCIImagesByDigest registers (250 keys / 750 results), and both
-      # numbers are ENFORCED in Go by taghistory.BuiltFromMaxKeys and
-      # taghistory.BuiltFromMaxRows, which fail the read closed on overflow
-      # rather than adding a Cypher LIMIT that would drop granted edges.
+      # max_results is the FAN-OUT bound, not the key count. The statement
+      # RETURNs DISTINCT (#6564 re-review finding 2), so a row is one distinct
+      # (digest, repository) pair and 1200 means up to three distinct source
+      # repositories per keyed digest -- the same 3x ratio the peer entry
+      # fetchOCIImagesByDigest registers (250 keys / 750 results), with large
+      # headroom over the 1.1x distinct-repository fan-out measured on the seed.
+      # The DISTINCT is what makes that derivation hold: BUILT_FROM edge
+      # identity is {scope_id, evidence_source}, so without it the row set
+      # scaled with scope and evidence-source multiplicity instead and a
+      # two-source, two-scope deployment's full page produced ~1600 rows, a 500
+      # for the scoped caller alone. Both numbers are ENFORCED in Go by
+      # taghistory.BuiltFromMaxKeys and taghistory.BuiltFromMaxRows, which fail
+      # the read closed on overflow rather than adding a Cypher LIMIT that would
+      # drop granted edges.
       - symbol: "LookupBuiltFromRepositories"
         count: 1
         non_hot:
           class: keyed_support
-          source_sha256: "a979c76a7e24083e11d551b93f93272a41d69f5ed24f4e040697afb4fae533ee"
+          source_sha256: "3288f7cf3bac0a9a9d747fb4139beb705641e155b377a496d9a6ebf76eca8efa"
           key_bound: bounded_key_batch
           max_keys: 400
           max_results: 1200

@@ -277,8 +277,8 @@ func scopedContainerImageIdentityRoute(r *http.Request) bool {
 // OCI tag-history read (#6564). ContainerImageTagObservation nodes carry no
 // source-repository key, so listTagHistory (tag_history.go) binds a scoped
 // caller through ContainerImage-[:BUILT_FROM]->Repository: one extra
-// single-clause read keyed by the page's digests (tagHistoryBuiltFromCypher,
-// tag_history.go), a Go join that keeps a row only when its
+// single-clause read keyed by the page's digests (taghistory.BuiltFromCypher,
+// taghistory/builtfrom.go), a Go join that keeps a row only when its
 // resolved_digest's image is BUILT_FROM a granted repository and blanks an
 // ungranted previous_digest, and an empty page without a graph read for an
 // empty grant. Observations with no BUILT_FROM edge stay invisible to scoped

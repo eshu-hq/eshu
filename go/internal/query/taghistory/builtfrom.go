@@ -5,10 +5,21 @@ package taghistory
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"log/slog"
 	"sort"
 
 	"github.com/eshu-hq/eshu/go/internal/query/querycontract"
+)
+
+// errBuiltFromKeyOverflow and errBuiltFromRowOverflow are the fixed messages a
+// bound breach returns. They are deliberately count-free: the handler renders a
+// read error into the 500 body verbatim, and both counts describe the raw
+// pre-filter window across every tenant (#6564 re-review finding 4). The counts
+// are logged at the breach instead.
+var (
+	errBuiltFromKeyOverflow = errors.New("tag history BUILT_FROM lookup exceeded its key bound")
+	errBuiltFromRowOverflow = errors.New("tag history BUILT_FROM lookup exceeded its row bound")
 )
 
 // BuiltFromMaxKeys is the most digests one BUILT_FROM lookup can be keyed by:
@@ -17,17 +28,32 @@ import (
 const BuiltFromMaxKeys = 2 * MaxLimit
 
 // BuiltFromMaxRows bounds the BUILT_FROM lookup's RESULT set, which its key
-// count does not (#6564 review finding 2). BuiltFromCypher returns one row per
-// BUILT_FROM edge, so a multi-source image contributes more rows than keys -- a
-// 400-key probe returned 440 rows on the seeded corpus. A registered
-// max_results equal to the key count was therefore not a bound at all.
+// count does not (#6564 review finding 2). A registered max_results equal to
+// the key count was not a bound at all.
 //
-// The factor of three mirrors the peer entry fetchOCIImagesByDigest, which
-// registers 250 keys against 750 results, and leaves large headroom over the
-// 1.1x fan-out measured on the seed. Overflow fails the read closed rather than
-// truncating: a Cypher LIMIT would silently drop BUILT_FROM edges the caller is
-// entitled to and could turn a granted row into a withheld one, which is a
-// wrong answer rather than a bounded one.
+// The derivation depends on the DISTINCT in BuiltFromCypher and was re-stated
+// when that word was added (#6564 re-review finding 2). Without it the
+// statement returned one row per EDGE, and BUILT_FROM edge identity is
+// {scope_id, evidence_source} (canonicalProvenanceBuiltFromCypher,
+// go/internal/storage/cypher/provenance_edge_writer.go), so parallel edges for
+// one image<->repository pair are the designed model: a deployment with two
+// evidence sources across two scopes carries four edges per pair, so a MEASURED
+// limit=200 page of 200 digests, each built from two repositories, returned
+// 1600 rows -- over this bound, a 500 for the scoped caller only, on a page an
+// unscoped caller reads fine (TestTagHistoryDistinctBoundsBuiltFromFanOut, RED
+// with DISTINCT removed: rows=1600 keys=200 max_rows=1200).
+// With DISTINCT the row set is one row per distinct (digest, repository) pair,
+// so scope and evidence-source multiplicity no longer counts against it and the
+// fan-out is genuinely the number of distinct source repositories per digest.
+//
+// The factor of three therefore now means what it says: up to three distinct
+// source repositories per keyed digest. It mirrors the peer entry
+// fetchOCIImagesByDigest, which registers 250 keys against 750 results, and
+// leaves large headroom over the 1.1x distinct-repository fan-out measured on
+// the seed. Overflow fails the read closed rather than truncating: a Cypher
+// LIMIT would silently drop BUILT_FROM edges the caller is entitled to and
+// could turn a granted row into a withheld one, which is a wrong answer rather
+// than a bounded one.
 const BuiltFromMaxRows = 3 * BuiltFromMaxKeys
 
 // BuiltFromCypher resolves which Repository nodes each digest on one fetched
@@ -45,13 +71,29 @@ const BuiltFromMaxRows = 3 * BuiltFromMaxKeys
 //
 // Anchor: the container_image_digest index. Keys: the window's distinct
 // non-empty resolved and previous digests, at most BuiltFromMaxKeys. Output:
-// one row per BUILT_FROM edge on those digests, at most BuiltFromMaxRows. No
-// LIMIT: truncating could drop a granted edge and silently withhold a row the
-// caller is entitled to.
+// one row per distinct (digest, repository) pair on those digests, at most
+// BuiltFromMaxRows. No LIMIT: truncating could drop a granted edge and silently
+// withhold a row the caller is entitled to.
+//
+// DISTINCT is load-bearing, not cosmetic (#6564 re-review finding 2). BUILT_FROM
+// edge identity is {scope_id, evidence_source}, so one image<->repository pair
+// carries one edge per scope and evidence source and an undeduplicated RETURN
+// fans out by that multiplicity -- enough for a full page in a two-source,
+// two-scope deployment to exceed BuiltFromMaxRows and 500 a caller that is
+// entitled to every row on it. The only consumer is anyRepositoryGranted, which
+// needs set membership, so collapsing parallel edges drops no granted edge.
+//
+// The shape is the one NornicDB parses correctly: nothing follows the anchoring
+// MATCH. RETURN DISTINCT is absorbed into the first projection's source text
+// when a trailing OPTIONAL MATCH or a WITH sits between the MATCH and the
+// RETURN (docs/public/reference/nornicdb-pitfalls.md), which is why
+// BuildDeadCodeIncomingBatchProbeCypher keeps DISTINCT and its scoped sibling
+// groups with count(*) instead. Do not add an OPTIONAL MATCH or a WITH here
+// without re-measuring against the pin.
 const BuiltFromCypher = `
 	MATCH (i:ContainerImage)-[:BUILT_FROM]->(repo:Repository)
 	WHERE i.digest IN $digests
-	RETURN i.digest AS digest, repo.id AS repository_id
+	RETURN DISTINCT i.digest AS digest, repo.id AS repository_id
 `
 
 // GrantCounts tallies what one scoped page's grant filter did.
@@ -72,30 +114,34 @@ type GrantCounts struct {
 //
 // Both registered bounds are enforced here rather than declared and hoped for
 // (#6564 review finding 2): the key count against BuiltFromMaxKeys, and the
-// fan-out against BuiltFromMaxRows, since one row per BUILT_FROM edge means a
-// multi-source image returns more rows than keys. Overflow fails the read
+// distinct-pair fan-out against BuiltFromMaxRows. Overflow fails the read
 // closed; the handler turns that into a 500 and never serves a page a silent
 // Cypher LIMIT would have under-attributed.
+//
+// Neither overflow error carries its counts to the caller (#6564 re-review
+// finding 4). Both counts are taken over the RAW pre-filter window, which spans
+// every tenant's images on this image_ref, so putting them in an error body
+// would disclose cross-tenant volume through the one channel the grant binding
+// otherwise closes. The numbers an operator needs go to the log instead, where
+// they carry no digest and no repository id.
 func LookupBuiltFromRepositories(
 	ctx context.Context,
 	graph querycontract.GraphQuery,
 	digests []string,
 ) (map[string][]string, error) {
 	if len(digests) > BuiltFromMaxKeys {
-		return nil, fmt.Errorf(
-			"tag history BUILT_FROM lookup was keyed by %d digests, above the %d-key bound",
-			len(digests), BuiltFromMaxKeys,
-		)
+		slog.ErrorContext(ctx, "tag history BUILT_FROM lookup exceeded its key bound",
+			"keys", len(digests), "max_keys", BuiltFromMaxKeys)
+		return nil, errBuiltFromKeyOverflow
 	}
 	rows, err := graph.Run(ctx, BuiltFromCypher, map[string]any{"digests": digests})
 	if err != nil {
 		return nil, err
 	}
 	if len(rows) > BuiltFromMaxRows {
-		return nil, fmt.Errorf(
-			"tag history BUILT_FROM lookup returned %d edges for %d digests, above the %d-row bound",
-			len(rows), len(digests), BuiltFromMaxRows,
-		)
+		slog.ErrorContext(ctx, "tag history BUILT_FROM lookup exceeded its row bound",
+			"rows", len(rows), "keys", len(digests), "max_rows", BuiltFromMaxRows)
+		return nil, errBuiltFromRowOverflow
 	}
 	edges := make(map[string][]string, len(digests))
 	for _, row := range rows {

@@ -42,6 +42,16 @@ agreement, and keep the overflow behaviour fail-closed. Do not add a Cypher
 `LIMIT` to `BuiltFromCypher`: truncating there drops BUILT_FROM edges the caller
 is entitled to, which is a wrong answer rather than a bounded one.
 
+Do not remove the `DISTINCT` from `BuiltFromCypher`. `BuiltFromMaxRows` is
+derived from distinct (digest, repository) pairs; without `DISTINCT` the row set
+scales with `{scope_id, evidence_source}` edge multiplicity instead and 500s an
+entitled scoped caller. Do not put an `OPTIONAL MATCH` or a `WITH` between that
+`MATCH` and its `RETURN` either — `DISTINCT` stops being parsed
+(`docs/public/reference/nornicdb-pitfalls.md`).
+
+Neither overflow error may carry its counts to the caller; both describe the raw
+pre-filter window across every tenant. Log them, return the fixed sentinel.
+
 Changing either statement's text invalidates the live proof in the evidence doc.
 Re-run it on the pinned build and update the doc in the same change.
 

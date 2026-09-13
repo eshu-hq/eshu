@@ -19,7 +19,7 @@ import (
 
 // seededTagHistoryGraph is an offset-aware GraphQuery double. Unlike
 // fakeTagHistoryGrantGraph it honors the $offset and $limit parameters of
-// tagHistoryCypher, so a test can observe what a refilling, cursor-paged
+// taghistory.Cypher, so a test can observe what a refilling, cursor-paged
 // handler actually reads across successive windows rather than receiving the
 // same canned slice for every window.
 type seededTagHistoryGraph struct {
@@ -185,10 +185,17 @@ func flipTagHistoryCursorChar(c byte) string {
 	return "Z"
 }
 
-// TestTagHistoryTamperedCursorIsRejected proves a cursor that was edited, is
-// not a cursor at all, or was issued for another image_ref or another limit
-// fails with a 400 rather than being partially trusted.
-func TestTagHistoryTamperedCursorIsRejected(t *testing.T) {
+// TestTagHistoryMalformedCursorIsRejected proves a cursor that is not a cursor
+// at all, carries an unusable payload, or was issued for another image_ref or
+// another limit fails with a 400 rather than being partially trusted.
+//
+// It is named for what it proves (#6564 re-review finding 1). The earlier name
+// said "Tampered", which claimed more than the code does: taghistory.Cursor
+// carries no MAC, so a WELL-FORMED edit -- a payload minted at any offset for
+// the caller's own image_ref and limit -- passes every check here. The
+// "edited payload" case below flips a base64 character and is caught because
+// that corrupts the encoding or the JSON, not because tampering is detected.
+func TestTagHistoryMalformedCursorIsRejected(t *testing.T) {
 	t.Parallel()
 
 	graph := newSeededTagHistoryGraph("granted", "granted", "granted", "granted")
@@ -391,9 +398,11 @@ func TestTagHistoryRefillHonoursReadCap(t *testing.T) {
 }
 
 // TestTagHistoryBuiltFromFanOutOverflowFailsClosed closes review finding 2:
-// tagHistoryBuiltFromCypher returns one row per BUILT_FROM edge, so its result
-// set is not bounded by its key count. Overflow must fail the read closed
-// rather than serve a page built from a partially read edge set.
+// taghistory.BuiltFromCypher's result set is not bounded by its key count, so
+// overflow must fail the read closed rather than serve a page built from a
+// partially read edge set. It also pins #6564 re-review finding 4: the 500 body
+// carries no repository id AND no row or key count, both of which are taken
+// over the raw pre-filter window across every tenant.
 func TestTagHistoryBuiltFromFanOutOverflowFailsClosed(t *testing.T) {
 	t.Parallel()
 
@@ -410,14 +419,24 @@ func TestTagHistoryBuiltFromFanOutOverflowFailsClosed(t *testing.T) {
 	if got, want := w.Code, http.StatusInternalServerError; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if strings.Contains(w.Body.String(), "repo-0001") {
-		t.Fatalf("error body leaked a repository id: %s", w.Body.String())
+	// Neither the repository id nor either COUNT may reach the caller: both
+	// counts are taken over the raw pre-filter window, which spans every
+	// tenant's images on this image_ref (#6564 re-review finding 4).
+	body := w.Body.String()
+	for _, leaked := range []string{
+		"repo-0001",
+		strconv.Itoa(taghistory.BuiltFromMaxRows + 1),
+		strconv.Itoa(taghistory.BuiltFromMaxRows),
+	} {
+		if strings.Contains(body, leaked) {
+			t.Fatalf("error body leaked %q, which describes the raw pre-filter window: %s", leaked, body)
+		}
 	}
 }
 
 // TestTagHistoryBuiltFromBoundsAreBelowTheRegisteredFanOut keeps the Go bound
 // and the queryplan registration in agreement: the entry registered for
-// lookupBuiltFromRepositories in
+// LookupBuiltFromRepositories in
 // go/internal/queryplan/testdata/query-source-coverage.yaml is only honest
 // because these two constants enforce it.
 func TestTagHistoryBuiltFromBoundsAreBelowTheRegisteredFanOut(t *testing.T) {
@@ -428,7 +447,7 @@ func TestTagHistoryBuiltFromBoundsAreBelowTheRegisteredFanOut(t *testing.T) {
 	}
 	if taghistory.BuiltFromMaxRows <= taghistory.BuiltFromMaxKeys {
 		t.Fatalf(
-			"taghistory.BuiltFromMaxRows = %d, want above the %d key bound: one row per BUILT_FROM edge fans out past the key count",
+			"taghistory.BuiltFromMaxRows = %d, want above the %d key bound: a digest built from several repositories fans out past the key count",
 			taghistory.BuiltFromMaxRows, taghistory.BuiltFromMaxKeys,
 		)
 	}
