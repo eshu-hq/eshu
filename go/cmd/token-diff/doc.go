@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Command tokendiff reports whether two versions of a Go source file are
+// Command token-diff reports whether two versions of a Go source file are
 // behavior-identical after stripping plain `//` line comments -- the
 // mechanism behind parser-relationship-kit's language-query-source
 // comment-only exemption (issue #6647).
@@ -13,7 +13,7 @@
 // `//line`, and `// +build` are all `//` lines that change compiled
 // behavior, and a raw-string line that happens to start with `//` (embedded
 // Cypher, SQL, or any other query text) is data, not a comment, and a
-// line-based check cannot tell the two apart. tokendiff instead tokenizes
+// line-based check cannot tell the two apart. token-diff instead tokenizes
 // both versions with go/scanner and compares the resulting token streams, so
 // it inherits Go's own lexical rules for what is and is not a comment.
 //
@@ -39,7 +39,7 @@
 //
 // # Usage
 //
-//	tokendiff -base <path-to-base-version> -head <path-to-head-version>
+//	token-diff -base <path-to-base-version> -head <path-to-head-version>
 //
 // Exit 0: the streams are identical (safe to treat as a comment-only edit).
 // Exit 1: the streams differ (a real change). Exit 2: an error occurred
@@ -48,7 +48,7 @@
 //
 // # Caller contract
 //
-// tokendiff only classifies one file's two versions; it does not resolve
+// token-diff only classifies one file's two versions; it does not resolve
 // git refs, detect added/deleted/renamed paths, or decide the diff base.
 // The caller (scripts/verify-parser-relationship-kit.sh, via
 // scripts/lib/parser_relationship_comment_only_diff.sh) is responsible for:

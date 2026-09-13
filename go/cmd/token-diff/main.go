@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-// Command tokendiff is documented in doc.go.
+// Command token-diff is documented in doc.go.
 package main
 
 import (
@@ -28,7 +28,7 @@ func main() {
 // (bad flags, unreadable file, or a Go parse/scan error); callers MUST treat
 // exit 2 the same as exit 1 -- fail closed, never fail open on an error.
 func run(args []string, stdout, stderr io.Writer) int {
-	fs := flag.NewFlagSet("tokendiff", flag.ContinueOnError)
+	fs := flag.NewFlagSet("token-diff", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	basePath := fs.String("base", "", "path to the base version of the Go source file")
 	headPath := fs.String("head", "", "path to the head version of the Go source file")
@@ -36,29 +36,29 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 	if *basePath == "" || *headPath == "" {
-		_, _ = fmt.Fprintln(stderr, "tokendiff: -base and -head are both required")
+		_, _ = fmt.Fprintln(stderr, "token-diff: -base and -head are both required")
 		return 2
 	}
 
 	baseSrc, err := os.ReadFile(*basePath) // #nosec G304 -- both paths are caller-supplied CLI flags naming its own base/head comparison inputs, not external/untrusted input.
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "tokendiff: reading base %s: %v\n", *basePath, err)
+		_, _ = fmt.Fprintf(stderr, "token-diff: reading base %s: %v\n", *basePath, err)
 		return 2
 	}
 	headSrc, err := os.ReadFile(*headPath) // #nosec G304 -- see above.
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "tokendiff: reading head %s: %v\n", *headPath, err)
+		_, _ = fmt.Fprintf(stderr, "token-diff: reading head %s: %v\n", *headPath, err)
 		return 2
 	}
 
 	baseCgo, err := hasCgoImport(baseSrc)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "tokendiff: parsing base imports: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "token-diff: parsing base imports: %v\n", err)
 		return 2
 	}
 	headCgo, err := hasCgoImport(headSrc)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "tokendiff: parsing head imports: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "token-diff: parsing head imports: %v\n", err)
 		return 2
 	}
 	if baseCgo || headCgo {
@@ -66,26 +66,26 @@ func run(args []string, stdout, stderr io.Writer) int {
 		// `import "C"`) compiles as C source, so a "comment-only" edit to it
 		// changes real behavior. Never exempt either side of a diff touching
 		// such a file, regardless of what the token comparison would say.
-		_, _ = fmt.Fprintln(stdout, "tokendiff: cgo preamble present (import \"C\"), never exempt")
+		_, _ = fmt.Fprintln(stdout, "token-diff: cgo preamble present (import \"C\"), never exempt")
 		return 1
 	}
 
 	baseTokens, err := tokenize(baseSrc)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "tokendiff: scanning base: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "token-diff: scanning base: %v\n", err)
 		return 2
 	}
 	headTokens, err := tokenize(headSrc)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "tokendiff: scanning head: %v\n", err)
+		_, _ = fmt.Fprintf(stderr, "token-diff: scanning head: %v\n", err)
 		return 2
 	}
 
 	if tokensEqual(baseTokens, headTokens) {
-		_, _ = fmt.Fprintln(stdout, "tokendiff: token streams identical (comment-only or whitespace-only change)")
+		_, _ = fmt.Fprintln(stdout, "token-diff: token streams identical (comment-only or whitespace-only change)")
 		return 0
 	}
-	_, _ = fmt.Fprintln(stdout, "tokendiff: token streams differ")
+	_, _ = fmt.Fprintln(stdout, "token-diff: token streams differ")
 	return 1
 }
 

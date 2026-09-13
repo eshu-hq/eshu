@@ -2485,7 +2485,7 @@
     },
     {
       "category": "command",
-      "name": "tokendiff",
+      "name": "token-diff",
       "readiness": "implemented"
     },
     {

@@ -1,4 +1,4 @@
-# tokendiff
+# token-diff
 
 A small CLI that decides whether two versions of a Go source file are
 behavior-identical, for `scripts/verify-parser-relationship-kit.sh`'s
@@ -29,7 +29,7 @@ comment-only exemption rules.
 
 ## Operational notes
 
-- Invoked with `env -u GOROOT go run ./cmd/tokendiff -base <path> -head
+- Invoked with `env -u GOROOT go run ./cmd/token-diff -base <path> -head
   <path>` (or a built binary) from `go/`, matching this repo's other
   script-invoked Go helpers (see `go/cmd/heredoc-budget`).
 - No flags beyond `-base`/`-head`; no config file, no state, no network
@@ -39,7 +39,7 @@ comment-only exemption rules.
 
 ## Testing
 
-`go test ./cmd/tokendiff -count=1` covers the cases enumerated in the
+`go test ./cmd/token-diff -count=1` covers the cases enumerated in the
 package doc comment, plus the fail-closed path on an unparseable file. The
 shell-level acceptance cases (the full adversarial list: directive
 comments, raw strings, added/deleted/renamed files, the dead-code rule

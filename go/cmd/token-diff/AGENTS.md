@@ -1,4 +1,4 @@
-# AGENTS.md — go/cmd/tokendiff
+# AGENTS.md — go/cmd/token-diff
 
 Scoped agent instructions for this directory. See `README.md` for ownership
 and operational context, `doc.go` for the full contract.
@@ -12,7 +12,7 @@ from a plain comment, and it cannot tell a raw-string line that happens to
 start with `//` (embedded Cypher, SQL, or any other query text) from a real
 Go comment. If you are tempted to "simplify" this back to a shell diff over
 `+`/`-` prefixed lines, don't -- read `doc.go`'s "Why not a line-based diff"
-section first, and re-run `go test ./cmd/tokendiff` plus the shell-level
+section first, and re-run `go test ./cmd/token-diff` plus the shell-level
 acceptance cases in
 `scripts/lib/test-verify-parser-relationship-kit-dsl-comment-only-cases.sh`
 before shipping any change here.
