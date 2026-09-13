@@ -968,7 +968,7 @@ fan-out fixture's profile-typed `aws_resource` helper
 dispatcher enqueue path for this domain alongside the ordered fan-out parity
 fixture.
 The CI/CD run-correlation builder moved into
-`internal/projector/cicdruncorrelation`. It triggers on a `ci.run` fact, else
+`internal/projector/cicd/run/correlation`. It triggers on a `ci.run` fact, else
 a `ci.artifact` fact — two independent `FirstOfKind` probes, with the run
 outranking the artifact whenever both are present in the same generation
 regardless of input order (#5710) — and carries no decode seam. Its private
@@ -980,7 +980,7 @@ tiers. The root test file mixed builder-level assertions with
 `buildProjection` dispatcher assertions; all four cases actually exercise
 `buildProjection`, so the whole file stayed at root, renamed
 `ci_cd_run_correlation_projection_test.go`, and a new
-`cicdruncorrelation/correlation_intents_test.go` pins the builder directly
+`cicd/run/correlation/reducer_intent_test.go` pins the builder directly
 (no-fact, empty-generation, run-anchor, artifact-only-anchor, run-over-artifact
 precedence, and the two-tier source-system fallback).
 The container-image-identity builder moved into
@@ -1030,7 +1030,7 @@ was checked body-for-body against `projectorintent.SourceSystem` and found
 identical (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no
 third tier), so the substitution is behavior-identical by construction and
 the child pins both tiers with the two set to different values, the
-`cicdruncorrelation` way. Two builder-only cases existed at root: the
+`cicd/run/correlation` way. Two builder-only cases existed at root: the
 family's own test file called `buildSupplyChainImpactReducerIntent` directly
 for a source-snapshot-only negative case, replaced at root with a
 `buildProjection`-level equivalent
@@ -1047,7 +1047,7 @@ domain: it carries a `package-registry.package` fact ahead of a
 `factID`/`entityKey`/`reason`/`sourceSystem` for
 `reducer.DomainSupplyChainImpact`, so this family's own package docs say so
 truthfully rather than repeating the "no fixture coverage" caveat that
-applies to `cicdruncorrelation` and others. `go/internal/projector/AGENTS.md` had exactly one line of
+applies to `cicd/run/correlation` and others. `go/internal/projector/AGENTS.md` had exactly one line of
 headroom left under the 500-line Markdown cap when this family moved. That
 file sits inside `go/`, so the cap gate does evaluate it, and it is absent
 from `scripts/lib/markdown-line-cap-grandfather.tsv`, a closed list that

@@ -33,7 +33,7 @@ none of that happens here.
 
 ## Exported surface
 
-- `BuildCICDRunCorrelationReducerIntent` builds the `ci_cd_run_correlation`
+- `BuildReducerIntent` builds the `ci_cd_run_correlation`
   intent, anchored to the earliest `ci.run` fact in original input order,
   else the earliest `ci.artifact` fact.
 
@@ -94,7 +94,7 @@ log boundary.
   `go/cmd/bootstrap-index/bootstrap_pipeline.go` does not guarantee ordering
   between the two domains' reopened intents.
 - The root dispatcher tests that go through `buildProjection` stay at root in
-  `../ci_cd_run_correlation_projection_test.go`.
+  `../../../ci_cd_run_correlation_projection_test.go`.
 
 ## Verification
 
@@ -115,11 +115,11 @@ identical (trim `SourceRef.SourceSystem`, else trim `CollectorKind`, no
 third tier), so the substitution is behavior-identical by construction and
 the child tests pin both tiers; the root `firstOfKind` forwarder stays at
 root for its remaining callers. Focused proof, run from the `go/` module
-root: `go test ./internal/projector/cicdruncorrelation ./internal/projector
+root: `go test ./internal/projector/cicd/run/correlation ./internal/projector
 -count=1` green, whole-module `go build` and `go vet` clean.
 
 ## Related docs
 
-- [Projector architecture](../README.md)
-- [Intent contract](../intent/README.md)
-- [Package restructure](../../../../docs/internal/design/package-restructure.md)
+- [Projector architecture](../../../README.md)
+- [Intent contract](../../../intent/README.md)
+- [Package restructure](../../../../../../docs/internal/design/package-restructure.md)

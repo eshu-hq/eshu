@@ -42,7 +42,7 @@ The builder depends on `internal/projector/intent.FactLookup`,
 root projector package — root already imports this package to dispatch to
 it, so the reverse import would cycle. It reads `internal/facts` for the
 twelve fact-kind constants and `internal/reducer` for the domain constant.
-There is no decode seam: like `cicdruncorrelation` and `package/source`, this
+There is no decode seam: like `cicd/run/correlation` and `package/source`, this
 builder reads only envelope fields and never a payload key.
 
 ## Telemetry
@@ -73,7 +73,7 @@ boundary.
   identity, SBOM component, suppression, OCI subject, or the generic
   vulnerability fallback) and the `supply_chain_impact:<scope>` entity key is
   fixed; both are pinned by this package's own tests. Unlike the
-  `cicdruncorrelation` family, the root fan-out parity fixture
+  `cicd/run/correlation` family, the root fan-out parity fixture
   (`../scope_generation_intents_fanout_parity_test.go`) DOES cover this
   domain: it carries a `package-registry.package` fact ahead of a
   `security_alert.repository_alert` fact and asserts `factID:

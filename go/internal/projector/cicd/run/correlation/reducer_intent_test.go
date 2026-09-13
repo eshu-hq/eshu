@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025-2026 eshu-hq
 
-package cicdruncorrelation
+package correlation
 
 import (
 	"testing"
@@ -11,25 +11,25 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/reducer"
 )
 
-func TestBuildCICDRunCorrelationReducerIntentNoFactNoIntent(t *testing.T) {
+func TestBuildReducerIntentNoFactNoIntent(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{FactKind: "file"}})
-	if _, ok := BuildCICDRunCorrelationReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a ci_cd_run_correlation intent without any ci.run or ci.artifact fact")
 	}
 }
 
-func TestBuildCICDRunCorrelationReducerIntentEmptyGeneration(t *testing.T) {
+func TestBuildReducerIntentEmptyGeneration(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup(nil)
-	if _, ok := BuildCICDRunCorrelationReducerIntent("scope-1", "gen-1", lookup); ok {
+	if _, ok := BuildReducerIntent("scope-1", "gen-1", lookup); ok {
 		t.Fatal("queued a ci_cd_run_correlation intent for a generation with no facts at all")
 	}
 }
 
-func TestBuildCICDRunCorrelationReducerIntentFromRunFact(t *testing.T) {
+func TestBuildReducerIntentFromRunFact(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
@@ -41,7 +41,7 @@ func TestBuildCICDRunCorrelationReducerIntentFromRunFact(t *testing.T) {
 			SourceRef:     facts.Ref{SourceSystem: "github_actions"},
 		},
 	})
-	intent, ok := BuildCICDRunCorrelationReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a ci.run fact")
 	}
@@ -62,17 +62,17 @@ func TestBuildCICDRunCorrelationReducerIntentFromRunFact(t *testing.T) {
 	}
 }
 
-// TestBuildCICDRunCorrelationReducerIntentFromArtifactOnly proves an
+// TestBuildReducerIntentFromArtifactOnly proves an
 // artifact-only generation (no co-located ci.run) still triggers the
 // correlation intent so the reducer can run its bounded historical-run patch
 // (#5770).
-func TestBuildCICDRunCorrelationReducerIntentFromArtifactOnly(t *testing.T) {
+func TestBuildReducerIntentFromArtifactOnly(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: facts.CICDArtifactFactKind, FactID: "artifact-fact-1", CollectorKind: "github_actions"},
 	})
-	intent, ok := BuildCICDRunCorrelationReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for an artifact-only generation")
 	}
@@ -81,18 +81,18 @@ func TestBuildCICDRunCorrelationReducerIntentFromArtifactOnly(t *testing.T) {
 	}
 }
 
-// TestBuildCICDRunCorrelationReducerIntentPrefersRunOverArtifact pins the
+// TestBuildReducerIntentPrefersRunOverArtifact pins the
 // documented anchor rule: when both ci.run and ci.artifact are present in the
 // same generation, the run is the anchor even when the artifact appears
 // earlier in the generation's original input order.
-func TestBuildCICDRunCorrelationReducerIntentPrefersRunOverArtifact(t *testing.T) {
+func TestBuildReducerIntentPrefersRunOverArtifact(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{
 		{FactKind: facts.CICDArtifactFactKind, FactID: "artifact-fact-2", CollectorKind: "github_actions"},
 		{FactKind: facts.CICDRunFactKind, FactID: "run-fact-2", CollectorKind: "github_actions"},
 	})
-	intent, ok := BuildCICDRunCorrelationReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued when both a run and an artifact are present")
 	}
@@ -101,11 +101,11 @@ func TestBuildCICDRunCorrelationReducerIntentPrefersRunOverArtifact(t *testing.T
 	}
 }
 
-// TestBuildCICDRunCorrelationReducerIntentSourceSystemFallsBackToCollectorKind
+// TestBuildReducerIntentSourceSystemFallsBackToCollectorKind
 // pins the two-tier projectorintent.SourceSystem label this family uses
 // verbatim: SourceRef.SourceSystem wins when set, else the trimmed
 // CollectorKind.
-func TestBuildCICDRunCorrelationReducerIntentSourceSystemFallsBackToCollectorKind(t *testing.T) {
+func TestBuildReducerIntentSourceSystemFallsBackToCollectorKind(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
@@ -113,7 +113,7 @@ func TestBuildCICDRunCorrelationReducerIntentSourceSystemFallsBackToCollectorKin
 		FactID:        "run-fact-3",
 		CollectorKind: "  github_actions  ",
 	}})
-	intent, ok := BuildCICDRunCorrelationReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a ci.run fact")
 	}
@@ -122,12 +122,12 @@ func TestBuildCICDRunCorrelationReducerIntentSourceSystemFallsBackToCollectorKin
 	}
 }
 
-// TestBuildCICDRunCorrelationReducerIntentSourceSystemPrefersSourceRef pins the
+// TestBuildReducerIntentSourceSystemPrefersSourceRef pins the
 // tier ORDER, which the fallback test above cannot: it sets SourceRef.SourceSystem
 // and CollectorKind to different values, so a regression that swapped the two
 // tiers would change the result. A test where both tiers carry the same value
 // passes either way and proves only that a label was produced.
-func TestBuildCICDRunCorrelationReducerIntentSourceSystemPrefersSourceRef(t *testing.T) {
+func TestBuildReducerIntentSourceSystemPrefersSourceRef(t *testing.T) {
 	t.Parallel()
 
 	lookup := projectorintent.NewFactLookup([]facts.Envelope{{
@@ -136,7 +136,7 @@ func TestBuildCICDRunCorrelationReducerIntentSourceSystemPrefersSourceRef(t *tes
 		CollectorKind: "gitlab_ci",
 		SourceRef:     facts.Ref{SourceSystem: "  github_actions  "},
 	}})
-	intent, ok := BuildCICDRunCorrelationReducerIntent("scope-1", "gen-1", lookup)
+	intent, ok := BuildReducerIntent("scope-1", "gen-1", lookup)
 	if !ok {
 		t.Fatal("no intent queued for a ci.run fact")
 	}

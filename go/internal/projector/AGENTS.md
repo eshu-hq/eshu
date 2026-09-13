@@ -190,7 +190,7 @@
   profile-typed `aws_resource` helper (`iamInstanceProfileResourceFact`) moved
   into `scope_generation_intents_fanout_test.go` with the extraction.
 - **CI/CD run-correlation family (#6057)** — the `ci_cd_run_correlation`
-  builder lives in `cicdruncorrelation/` and consumes the lookup like the
+  builder lives in `cicd/run/correlation/` and consumes the lookup like the
   families above. It carries no decode seam: it triggers on a `ci.run` fact,
   else a `ci.artifact` fact — two independent `FirstOfKind` probes, with the
   run outranking the artifact whenever both are present in the same

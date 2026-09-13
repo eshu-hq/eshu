@@ -3,10 +3,10 @@
 ## Read first
 
 1. `README.md` and `doc.go` in this directory.
-2. `../AGENTS.md` and `../README.md` for projector-wide invariants, including
+2. `../../../AGENTS.md` and `../../../README.md` for projector-wide invariants, including
    the rule that the projector never makes cross-source admission decisions.
-3. `../intent/AGENTS.md` for the neutral builder contract.
-4. `../scope_generation_intents.go` for root-owned assembly order; this probe
+3. `../../../intent/AGENTS.md` for the neutral builder contract.
+4. `../../../scope_generation_intents.go` for root-owned assembly order; this probe
    runs after `containerimageidentity.BuildContainerImageIdentityReducerIntent`
    and before the `sbomattestation.BuildSBOMAttestationAttachmentReducerIntent`
    probe.
@@ -19,7 +19,7 @@
 
 - Import `internal/projector/intent`, never the root projector package. Root
   imports this package to dispatch, so the reverse import cycles.
-- `BuildCICDRunCorrelationReducerIntent` fires on a `ci.run` fact, else a
+- `BuildReducerIntent` fires on a `ci.run` fact, else a
   `ci.artifact` fact. A `ci.run` always outranks a `ci.artifact` regardless
   of input order — the two kinds are looked up independently via
   `FirstOfKind`, and there is deliberately no cross-kind original-order
@@ -51,14 +51,14 @@
 
 - **Changing the reason string or the entity key.** Both are asserted
   verbatim by this package's own tests. The root fan-out parity fixture
-  (`../scope_generation_intents_fanout_parity_test.go`) does NOT cover this
+  (`../../../scope_generation_intents_fanout_parity_test.go`) does NOT cover this
   domain -- it has no `ci.run` fact -- so the package tests are the only
   thing standing between a reason/entity-key edit and a silent contract
   change.
 - **Adding a trigger kind.** Decide explicitly whether it joins the run tier
   or the artifact tier, keep the run-over-artifact rule, and update the
   child tests plus the root dispatcher tests in
-  `../ci_cd_run_correlation_projection_test.go`. Also update
+  `../../../ci_cd_run_correlation_projection_test.go`. Also update
   `cicdRunCorrelationFactKinds` in
   `go/internal/reducer/cicdrun/ci_cd_run_correlation.go` if the reducer needs
   to load the new kind for its own correlation pass — this package's trigger
@@ -70,7 +70,7 @@
 - **Route-serves-data registry path citations.** The registry in
   `go/internal/mcp/route_serves_data_registry_routes.go` cites
   `go/internal/query/ci_cd_run_correlations.go` and
-  `go/internal/query/incident_context_runtime_sql.go` for the
+  `go/internal/query/incident/sql/runtime.go` for the
   `ci_cd_run_correlation` domain, not any projector file — no entry cites
   this package (verified with a positive control against the cloud-inventory
   citations). If a route is ever repointed to cite a projector source file
@@ -83,7 +83,7 @@
 - **Root dispatcher tests live outside this directory.** The
   `buildProjection` cases for this domain — the run-only, artifact-only,
   run-and-artifact-same-generation, and no-CI/CD-facts cases — are at root
-  in `../ci_cd_run_correlation_projection_test.go`. A change here can break
+  in `../../../ci_cd_run_correlation_projection_test.go`. A change here can break
   them without touching any file in this directory.
 
 ## Anti-patterns
@@ -96,7 +96,7 @@
 - Do not import the root `projector` package. Root imports this package to
   dispatch, and the reverse direction is an import cycle.
 - Do not widen the export surface past
-  `BuildCICDRunCorrelationReducerIntent`. Every sibling family in this
+  `BuildReducerIntent`. Every sibling family in this
   series exports exactly one builder and no types.
 
 ## Changes needing ADR review
@@ -112,6 +112,6 @@
 ## Verification
 
 Use TDD. Run the focused child tests, the root dispatcher tests in
-`../ci_cd_run_correlation_projection_test.go`, the root ordered fan-out
+`../../../ci_cd_run_correlation_projection_test.go`, the root ordered fan-out
 parity and probe-count tests, package-doc verification, the projector
 package tree, and the golden-corpus gates selected by the changed paths.

@@ -28,7 +28,7 @@ import (
 //     internal/coordinator/oci/registry/planner.go and projected by
 //     internal/projector/oci_registry_canonical.go.
 //   - ci_cd_run_correlation -> ci_cd_run. Its intent is triggered by ci.run
-//     evidence (internal/projector/cicdruncorrelation/correlation_intents.go),
+//     evidence (internal/projector/cicd/run/correlation/reducer_intent.go),
 //     emitted by the hosted CI collectors under scope.CollectorCICDRun
 //     (internal/collector/cicdrun/ghactionsruntime and .../gitlabciruntime).
 //

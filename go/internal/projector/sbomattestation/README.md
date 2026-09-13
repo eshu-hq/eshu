@@ -82,7 +82,7 @@ key, reason string, and input-order anchor selection across the three
 candidate kinds are identical to the base commit, and the dispatcher's
 ordered fan-out is unchanged at 44 builder probes with this probe still
 running immediately after
-`cicdruncorrelation.BuildCICDRunCorrelationReducerIntent` and before
+`correlation.BuildReducerIntent` and before
 `servicecatalog.BuildServiceCatalogCorrelationReducerIntent`. The private
 `sbomAttestationAttachmentSourceSystem` helper the root file owned was
 compared body-for-body against `projectorintent.SourceSystem` and found

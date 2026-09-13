@@ -100,7 +100,7 @@ metric, or log boundary.
   `ci.workflow_image_evidence` is emitted in the Git repository scope; the
   durable identity-completion chain then reopens `ci_cd_run_correlation`
   after the workflow generation becomes active
-  (`cicdruncorrelation.BuildCICDRunCorrelationReducerIntent`).
+  (`correlation.BuildReducerIntent`).
 - Do not decode a second payload field beyond `aws_relationship.TargetType`,
   and do not check a schema version here; the reducer handler owns typed
   decode for its own evidence loads and schema-version admission stays with
@@ -122,7 +122,7 @@ key, reason string, candidate-kind set, and source-system derivation are
 identical to the base commit, and the dispatcher's ordered fan-out is
 unchanged at 44 builder probes with this probe still running immediately
 after `s3.BuildInternetExposureMaterializationReducerIntent` and
-immediately before `cicdruncorrelation.BuildCICDRunCorrelationReducerIntent`.
+immediately before `correlation.BuildReducerIntent`.
 The family carried one private helper,
 `containerImageIdentitySourceSystem`, checked body-for-body against
 `projectorintent.SourceSystem` and found identical (trim

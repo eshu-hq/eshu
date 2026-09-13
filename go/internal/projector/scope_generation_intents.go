@@ -12,7 +12,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/resource"
 	"github.com/eshu-hq/eshu/go/internal/projector/aws/s3"
 	projectorazure "github.com/eshu-hq/eshu/go/internal/projector/azure"
-	projectorcicdruncorrelation "github.com/eshu-hq/eshu/go/internal/projector/cicdruncorrelation"
+	"github.com/eshu-hq/eshu/go/internal/projector/cicd/run/correlation"
 	inventory "github.com/eshu-hq/eshu/go/internal/projector/cloud/inventory"
 	awsdrift "github.com/eshu-hq/eshu/go/internal/projector/cloud/runtime/drift/aws"
 	multidrift "github.com/eshu-hq/eshu/go/internal/projector/cloud/runtime/drift/multi"
@@ -151,7 +151,7 @@ func appendScopeGenerationReducerIntents(
 	if intent, ok := projectorcontainerimageidentity.BuildContainerImageIdentityReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
-	if intent, ok := projectorcicdruncorrelation.BuildCICDRunCorrelationReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
+	if intent, ok := correlation.BuildReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := projectorsbomattestation.BuildSBOMAttestationAttachmentReducerIntent(scopeValue.ScopeID, generation.GenerationID, index.lookup); ok {
