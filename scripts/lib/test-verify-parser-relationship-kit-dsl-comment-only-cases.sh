@@ -151,6 +151,26 @@ RETURN n
 ' \
   fail
 
+# H: a raw-string line is removed, and its diff hunk incidentally renders as
+# "-- note" -- a plain-diff classifier could mistake that for a "---" file
+# header and skip it. This design never parses diff text at all, so the
+# removed line just shows up as a shorter STRING token literal.
+dsl_case dsl-h-rawstring-removed-line \
+  'package query
+
+const languageRemoved = `
+SELECT 1
+-- note
+`
+' \
+  'package query
+
+const languageRemoved = `
+SELECT 1
+`
+' \
+  fail
+
 # I1: a brand-new language-query-source file is added -- always a change;
 # there is no base version to compare, so tokendiff is never even invoked.
 i1_repo="$(init_repo dsl-i1-new-file)"
