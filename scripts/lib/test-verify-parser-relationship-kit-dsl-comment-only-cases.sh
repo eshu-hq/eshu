@@ -7,7 +7,7 @@
 
 # Owner ruling (#6647): a comment-only edit to a language-query-source file
 # is exempt from the doc-update requirement only when its Go TOKEN STREAM is
-# unchanged (go/cmd/tokendiff), never by pattern-matching diff lines -- see
+# unchanged (go/cmd/token-diff), never by pattern-matching diff lines -- see
 # that package's doc.go for the exact rule and why a line-based "starts with
 # //" check is unsafe. Each case below adds a second, baseline commit (the
 # DSL source file, untouched) before the commit under test, so
@@ -172,7 +172,7 @@ SELECT 1
   fail
 
 # I1: a brand-new language-query-source file is added -- always a change;
-# there is no base version to compare, so tokendiff is never even invoked.
+# there is no base version to compare, so token-diff is never even invoked.
 i1_repo="$(init_repo dsl-i1-new-file)"
 printf '%s' "$(dsl_base_source)" >"${i1_repo}/go/internal/query/language_dsl_base.go"
 git -C "${i1_repo}" add . && git -C "${i1_repo}" commit -q -m 'dsl source baseline'
@@ -216,3 +216,38 @@ if ! rg -qF 'dead-code maturity map changed' /tmp/eshu-parser-relationship-kit.e
   sed -n '1,160p' /tmp/eshu-parser-relationship-kit.err >&2
   exit 1
 fi
+
+# W: the exemption reads base and head from git, never the worktree. A
+# committed code change, with the worktree then dirtied back to look
+# comment-only, must still FAIL: HEAD (what the base...HEAD diff judges) is
+# the code change, and an uncommitted revert must never launder it through.
+w_repo="$(init_repo dsl-w-dirty-worktree-revert)"
+printf '%s' "$(dsl_base_source)" >"${w_repo}/go/internal/query/language_dsl_base.go"
+git -C "${w_repo}" add . && git -C "${w_repo}" commit -q -m 'dsl source baseline'
+printf 'package query
+
+// ExecuteLanguageQuery documents the DSL entry point.
+func ExecuteLanguageQuery() {}
+
+func languageQueryEntityType() {}
+' >"${w_repo}/go/internal/query/language_dsl_base.go"
+git -C "${w_repo}" add . && git -C "${w_repo}" commit -q -m 'committed code change'
+printf '%s' "$(dsl_base_source)" >"${w_repo}/go/internal/query/language_dsl_base.go" # uncommitted revert
+expect_fail "${w_repo}"
+
+# W2: the mirror of W. A committed comment-only change, with an uncommitted
+# code edit dirtying the worktree on top, must still PASS: HEAD is still
+# comment-only, and the uncommitted edit must never block it either.
+w2_repo="$(init_repo dsl-w2-dirty-worktree-extra-edit)"
+printf '%s' "$(dsl_base_source)" >"${w2_repo}/go/internal/query/language_dsl_base.go"
+git -C "${w2_repo}" add . && git -C "${w2_repo}" commit -q -m 'dsl source baseline'
+w2_comment_only='package query
+
+// ExecuteLanguageQuery documents the DSL entry point.
+// Comment-only edit, no behavior change.
+func ExecuteLanguageQuery() {}
+'
+printf '%s' "$w2_comment_only" >"${w2_repo}/go/internal/query/language_dsl_base.go"
+git -C "${w2_repo}" add . && git -C "${w2_repo}" commit -q -m 'committed comment-only change'
+printf '%s\nfunc languageQueryEntityType() {}\n' "$w2_comment_only" >"${w2_repo}/go/internal/query/language_dsl_base.go" # uncommitted extra edit
+expect_pass "${w2_repo}"

@@ -8,12 +8,12 @@
 # Owner ruling (#6647): a comment-only edit to a language-query-source file
 # cannot change the DSL behavior language-query-dsl.md documents, so it is
 # exempt from the doc-update requirement below. "Comment-only" is decided by
-# comparing the base and head versions' Go TOKEN STREAMS (go/cmd/tokendiff),
+# comparing the base and head versions' Go TOKEN STREAMS (go/cmd/token-diff),
 # not by pattern-matching diff lines: a line-based "starts with //" rule
 # cannot tell a real comment from a `//go:build`/`//go:generate`/`//go:embed`/
 # `//line`/`// +build` directive, or from a raw-string line that happens to
 # start with `//` (embedded Cypher, SQL, or other query text is data, not a
-# comment). See go/cmd/tokendiff/doc.go for the exact rule tokendiff applies
+# comment). See go/cmd/token-diff/doc.go for the exact rule token-diff applies
 # (plain `//` comments dropped; block comments, directives, and the
 # automatically-inserted end-of-line SEMICOLON tokens kept; any `import "C"`
 # file never exempt).
@@ -23,7 +23,7 @@
 # direct two-dot diff against $base exactly like the top-level diff above),
 # and refusing the exemption outright for an added, deleted, or renamed path
 # -- there is no meaningful "base version" to compare in those cases, so
-# tokendiff is never even invoked for them. Fails closed throughout: any git,
+# token-diff is never even invoked for them. Fails closed throughout: any git,
 # read, or tool failure counts as a real change, same as if this function
 # did not exist.
 is_comment_only_diff() {
@@ -50,22 +50,29 @@ is_comment_only_diff() {
     return 1 # no base version (added, or the path changed) -- always a change.
   fi
 
-  local head_path="$repo_root/$file"
-  if [ ! -f "$head_path" ]; then
-    rm -f "$base_tmp"
+  # Read the head version from the committed HEAD, never the worktree: the
+  # diff this gate judges is base...HEAD (changed_files comes from that same
+  # range), so a worktree read fails open both directions -- an uncommitted
+  # revert back to comment-only would wrongly exempt a real committed code
+  # change, and an uncommitted code edit on top of a committed comment-only
+  # change would wrongly block it.
+  local head_tmp
+  head_tmp="$(mktemp)" || { rm -f "$base_tmp"; return 1; }
+  if ! git -C "$repo_root" show "HEAD:${file}" >"$head_tmp" 2>/dev/null; then
+    rm -f "$base_tmp" "$head_tmp"
     return 1 # no head version (deleted, or the path changed) -- always a change.
   fi
 
-  # tokendiff is a real Go tool that lives in THIS checkout (script_dir's
+  # token-diff is a real Go tool that lives in THIS checkout (script_dir's
   # repo), not in the arbitrary $repo_root under test -- a throwaway fixture
-  # repo (as the self-tests use) has no go/cmd/tokendiff at all, so it must
+  # repo (as the self-tests use) has no go/cmd/token-diff at all, so it must
   # be built/run from script_dir's own go/ module, never from $repo_root/go.
   local rc=1
-  if ( cd "$script_dir/../go" && env -u GOROOT go run ./cmd/tokendiff \
-    -base "$base_tmp" -head "$head_path" >/dev/null 2>&1 ); then
+  if ( cd "$script_dir/../go" && env -u GOROOT go run ./cmd/token-diff \
+    -base "$base_tmp" -head "$head_tmp" >/dev/null 2>&1 ); then
     rc=0
   fi
-  rm -f "$base_tmp"
+  rm -f "$base_tmp" "$head_tmp"
   return "$rc"
 }
 
