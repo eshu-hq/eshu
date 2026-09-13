@@ -429,6 +429,38 @@ graph-write route surface.
   to `MERGE` either — follow the `posture_node_existence.go` pattern: read
   which candidate identities already exist via a separate query first, drop
   unconfirmed rows in Go, then `MERGE` only the confirmed subset.
+- **Do not write a node `MERGE` followed by `CREATE` in the same statement.**
+  orneryd/NornicDB#359: reproduced live on NornicDB commit `3722b483c02c`
+  (Eshu's `docker-compose.yaml` pin, self-reports `v1.2.1`) and on a source
+  build of Eshu's Helm chart pin's tag commit `d9b76ae82334`
+  (`nornicdb-cpu-bge:v1.2.3`, self-reports `1.2.2`) — the published chart
+  image itself has not been run. The statement silently drops the second
+  `MERGE` AND the `CREATE` clause — only the first `MERGE`d node is written.
+  Upstream fixed this in commit `ce8a76a4` on NornicDB `main` (2026-09-13, not
+  yet in any release tag); a live run of that commit wrote 2 nodes and 1
+  relationship. Neither Eshu pin includes the fix — not the compose pin
+  `3722b483c02c`, not the chart's `v1.2.3` tag commit `d9b76ae82334` — and
+  NornicDB `main` commit `0be4aaa5` doesn't either. Keep this guard until both
+  Eshu pins move to or past `ce8a76a4`. A lone `MERGE (n) CREATE ...` with no
+  second `MERGE` is also reproduced live now (the compose pin and `main`
+  `0be4aaa5`): it writes one node and no relationship, with no error, and
+  that node's property holds literal leftover statement text instead of the
+  intended value. See "Pitfall: A Node
+  `MERGE` Followed By `CREATE` In One Statement Silently Drops The Second
+  `MERGE` And The `CREATE`" in
+  `docs/public/reference/nornicdb-write-shape-pitfalls.md`. For Eshu writers
+  the only acceptable fix is a relationship `MERGE` in place of the `CREATE`
+  (`MERGE (s) MERGE (t) MERGE (s)-[:REL]->(t)`) — it avoids the drop AND
+  stays idempotent. `MATCH ... MATCH ... CREATE`, a comma-pattern `CREATE`,
+  and two separate statements also avoid the drop, but each still runs an
+  unconditional `CREATE` and is NOT acceptable on Eshu write paths.
+  `merge_then_create_repo_scan_test.go` fails the build if this shape reappears
+  as any textually visible instance under `go/cmd` or `go/internal` — a
+  literal, a `+` chain of literals, or a package-level (not function-local)
+  string const/var in the same file. Both `MERGE (` and `CREATE (` are matched
+  plain or named-path (`MERGE p = (`, `CREATE p=(`, backtick-quoted path names
+  too). It is a text scan, not a Cypher parser or a proof of absence; see the
+  test's doc comments for its full, current limits.
 
 ## What NOT to change without an ADR
 
