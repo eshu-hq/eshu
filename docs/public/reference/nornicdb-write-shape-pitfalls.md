@@ -28,17 +28,23 @@ MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) CREATE (s)-[:DEPENDS_ON]->
 
 Only `s` is written; `t` (the second `MERGE`'s node) and the `DEPENDS_ON`
 relationship are both lost. Neo4j executes this shape correctly (2 nodes, 1
-relationship) per the Neo4j Cypher source; a live Neo4j run was not part of
-this proof. Adding a `SET` or a second `CREATE` to the broken statement does
-not change the result — the loss is the same either way.
+relationship) — see Affected versions below for how each claim was proven.
+Adding a `SET` or a second `CREATE` to the broken statement does not change
+the result — the loss is the same either way.
 
 ### Affected versions
 
-Reproduced on NornicDB `v1.2.1` (the headless binary). By code read, the
-routing and clause splitter described below are unchanged through NornicDB
-`main` commit `145ed415` (2026-09-12) — that range includes Eshu's chart pin
-`v1.2.3@sha256:4dfa887d…` (which self-reports version `1.2.2`), but the
-statement has not been re-run against the pinned image.
+Reproduced live on a headless build of NornicDB commit `3722b483c02c` —
+Eshu's `docker-compose.yaml` pin (`eshu-nornicdb-pr290:3722b483c02c`), which
+self-reports version `v1.2.1` (the version string baked into that commit; the
+upstream `v1.2.1` tag itself is a different commit, `66755bfba882`). By code
+read, the same `executeMultipleMerges`/`splitMultipleMerges` executor code —
+no `CREATE` clause boundary, no `CREATE` branch in the segment loop — is
+present at Eshu's Helm chart pin (`nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`,
+tag commit `d9b76ae82334`, self-reports `1.2.2`) and at NornicDB `main` commit
+`145ed415` (2026-09-12); neither has been run against this statement yet.
+Neo4j's correct handling of the shape is proven from its source, not from a
+live run.
 
 ### Root cause
 
