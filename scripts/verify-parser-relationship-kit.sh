@@ -137,18 +137,6 @@ is_language_query_doc() {
 
 # shellcheck source=scripts/lib/parser_relationship_comment_only_diff.sh
 . "$script_dir/lib/parser_relationship_comment_only_diff.sh"
-is_dead_code_maturity_source() {
-  local path="$1"
-  [ "$path" = "go/internal/query/code_dead_code_language_maturity.go" ]
-}
-
-is_dead_code_maturity_doc() {
-  local path="$1"
-  case "$path" in
-    docs/public/reference/dead-code-language-maturity.md|docs/public/languages/*.md) return 0 ;;
-    *) return 1 ;;
-  esac
-}
 
 is_relationship_source() {
   local path="$1"
