@@ -8,7 +8,7 @@ as `keyed_support` / `bounded_key_batch` with `max_keys: 250`. Nothing in the
 code enforced that number. The key set is every distinct image reference found
 across the traced workloads, so 50 workloads with 6 images each already produce
 300 keys. The fetchers sent the whole set as one `IN $digests` /
-`IN $image_refs` / `IN $repository_uids` list, which made the recorded bound
+`IN $image_refs` / `IN $repository_ids` list, which made the recorded bound
 false for any trace above 250 distinct images.
 
 ## Where the bound belongs
@@ -49,9 +49,19 @@ statements and sessions and is never slower beyond run-to-run spread; on the
 digest path it is reproducibly faster at n=1000 (0.0684 s -> 0.0473 s, i.e.
 68.4 ms -> 47.3 ms, -28.9%; and 0.0646 s -> 0.0529 s, 64.6 ms -> 52.9 ms,
 -20.5%, across two independent passes). The extra per-batch deadlines do not
-bite: the slowest single statement anywhere in the matrix is 0.0343 s (34.3 ms),
-0.34% of one 10 s read deadline, and batching *lowers* the worst
-single-statement latency by 2.5-4x. `absolute_target_applicable: false` — this
+bite: no single statement in either arm anywhere in the matrix exceeds 0.0343 s
+(34.3 ms), 0.34% of one 10 s read deadline — and that peak is a digest n=250
+*after*-arm rep, a cell where the batched code issues the identical single
+statement, so it records run-to-run spread rather than a cost of batching (the
+largest before-arm statement is 0.0288 s, digest n=1000). Where batching
+actually splits the key list (n > 250), the worst single statement falls in 11
+of the 12 before/after pass pairs, by 1.44x (digest n=300 p1, 0.0079 s ->
+0.0055 s) up to 4.08x (tag n=300 p1, 0.0049 s -> 0.0012 s; tag n=1000 p1,
+0.0204 s -> 0.0050 s); at n=1000 it falls 3.00x/2.92x on the digest path
+(0.0288 s -> 0.0096 s and 0.0251 s -> 0.0086 s) and 4.08x/3.12x on the tag path
+(0.0204 s -> 0.0050 s and 0.0203 s -> 0.0065 s). The one splitting pair that
+goes the other way is digest n=600 p2, where it rises 1.90x (0.0173 s ->
+0.0329 s). `absolute_target_applicable: false` — this
 is a same-machine relative comparison of two arms on one backend, not a
 corpus wall-time target.
 
@@ -179,7 +189,8 @@ what makes the timings comparable.
 | tag | 600 | 0.0229 / 0.0215 | 0.0166 / 0.0205 | -25.3% / -7.7% | 5 -> 15 |
 | tag | 1000 | 0.0333 / 0.0299 | 0.0258 / 0.0333 | -18.4% / +5.5% | 5 -> 20 |
 
-Every cell in the whole matrix, both arms, completes in 0.0068-0.0684 s
+Every individual repetition in the whole matrix, both arms, completes in
+0.0067-0.0688 s (6.7-68.8 ms); the 32 per-cell medians span 0.0068-0.0684 s
 (6.8-68.4 ms).
 
 ### Per-statement cost vs IN-list size
@@ -217,11 +228,15 @@ run-to-run spread of a single cell.
    Tag n=1000 is the only cell where one pass showed the batched arm marginally
    slower (+5.5%), inside the BEFORE arm's own drift band.
 3. **Does the per-batch 10 s deadline create a worst-case ceiling that
-   matters?** No, and batching makes the margin larger, not smaller. The slowest
-   single statement anywhere is 0.0343 s (34.3 ms), 0.34% of one deadline. Where
-   batching actually splits, the worst single statement drops from 0.0288 s to
-   0.0096 s (28.8 ms -> 9.6 ms, digest n=1000) and from 0.0204 s to 0.0050 s
-   (20.4 ms -> 5.0 ms, tag n=1000). N batches do mean N independent 10 s
+   matters?** No. Batching lowers the worst single statement in 11 of the 12
+   before/after pass pairs where it actually splits the key list, by 1.44x to
+   4.08x: from 0.0288 s to 0.0096 s (28.8 ms -> 9.6 ms, digest n=1000) and from
+   0.0204 s to 0.0050 s (20.4 ms -> 5.0 ms, tag n=1000). The twelfth pair,
+   digest n=600 p2, rises 1.90x (0.0173 s -> 0.0329 s, 17.3 ms -> 32.9 ms),
+   still 0.33% of one deadline. No single statement in either arm anywhere in
+   the matrix exceeds 0.0343 s (34.3 ms), 0.34% of one deadline, and that peak
+   sits in the digest n=250 *after* arm, where batching issues the identical
+   single statement. N batches do mean N independent 10 s
    deadlines and N sessions rather than one shared budget — the review's
    mechanism is exact — but the quantity it governs sits 3-4 orders of magnitude
    from the ceiling. The worst case it creates is a longer *total* budget
