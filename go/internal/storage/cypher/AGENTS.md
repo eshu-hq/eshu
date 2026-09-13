@@ -431,12 +431,13 @@ graph-write route surface.
   unconfirmed rows in Go, then `MERGE` only the confirmed subset.
 - **Do not write a node `MERGE` followed by `CREATE` in the same statement.**
   orneryd/NornicDB#359: reproduced live on NornicDB commit `3722b483c02c`
-  (Eshu's `docker-compose.yaml` pin, self-reports `v1.2.1`). The same
-  executor code is present by code read (not run) at Eshu's Helm chart pin
-  (`nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`, self-reports `1.2.2`) and at
-  NornicDB `main` `145ed415`. The statement silently drops the second `MERGE`
-  AND the `CREATE` clause — only the first `MERGE`d node is written, not "the
-  `MERGE`d node(s)". See "Pitfall: A Node
+  (Eshu's `docker-compose.yaml` pin, self-reports `v1.2.1`) and on a source
+  build of Eshu's Helm chart pin's tag commit `d9b76ae82334`
+  (`nornicdb-cpu-bge:v1.2.3`, self-reports `1.2.2`) — the published chart
+  image itself has not been run. The same executor code is present by code
+  read (not run) at NornicDB `main` `145ed415`. The statement silently drops
+  the second `MERGE` AND the `CREATE` clause — only the first `MERGE`d node
+  is written. See "Pitfall: A Node
   `MERGE` Followed By `CREATE` In One Statement Silently Drops The Second
   `MERGE` And The `CREATE`" in
   `docs/public/reference/nornicdb-write-shape-pitfalls.md` for the safe shapes (relationship

@@ -16,10 +16,9 @@ NornicDB source before patching.
 
 ### Observed shape
 
-A statement that opens with a node `MERGE`, adds a second `MERGE` (or an
-`OPTIONAL MATCH`/`WITH`/`WHERE`), and then adds a `CREATE` clause in the SAME
-statement silently drops BOTH the second `MERGE` and the `CREATE`. No error is
-returned. The canonical repro:
+A statement that opens with a node `MERGE`, adds a second `MERGE`, and then
+adds a `CREATE` clause in the SAME statement silently drops BOTH the second
+`MERGE` and the `CREATE`. No error is returned. The canonical repro:
 
 ```cypher
 -- BROKEN: reports success. Result is 1 node, 0 relationships.
@@ -38,20 +37,24 @@ Reproduced live on a headless build of NornicDB commit `3722b483c02c` —
 Eshu's `docker-compose.yaml` pin (`eshu-nornicdb-pr290:3722b483c02c`), which
 self-reports version `v1.2.1` (the version string baked into that commit,
 which is 9 commits past the upstream `v1.2.1` tag itself, a different commit,
-`66755bfba882`). By code
-read, the same `executeMultipleMerges`/`splitMultipleMerges` executor code —
-no `CREATE` clause boundary, no `CREATE` branch in the segment loop — is
-present at Eshu's Helm chart pin (`nornicdb-cpu-bge:v1.2.3@sha256:4dfa887d…`,
-tag commit `d9b76ae82334`, self-reports `1.2.2`) and at NornicDB `main` commit
-`145ed415` (2026-09-12); neither has been run against this statement yet.
-Neo4j's correct handling of the shape is proven from its source, not from a
-live run.
+`66755bfba882`). Also reproduced on a source build of Eshu's Helm chart pin's
+tag commit, `nornicdb-cpu-bge` `v1.2.3` tag commit `d9b76ae82334`
+(self-reports `1.2.2`) — the published chart image itself (a separate Linux
+build of that same source) has not been run. By code read, the same
+`executeMultipleMerges`/`splitMultipleMerges` executor code — no `CREATE`
+clause boundary, no `CREATE` branch in the segment loop — is present at
+NornicDB `main` commit `145ed415` (2026-09-12), which has not been run
+against this statement. Neo4j's correct handling of the shape is proven from
+its source, not from a live run.
 
 ### Root cause
 
 In the affected NornicDB source, a `MERGE`-led statement with a second clause
 such as another `MERGE`, `OPTIONAL MATCH`, `WITH`, or `WHERE` routes to
-`executeMultipleMerges`. Its splitter (`splitMultipleMerges`,
+`executeMultipleMerges`. Only the two-`MERGE` form above was reproduced live;
+the `OPTIONAL MATCH`/`WITH`/`WHERE` variants take the same
+`executeMultipleMerges` path by code read, not separately reproduced. Its
+splitter (`splitMultipleMerges`,
 `pkg/cypher/merge.go`) does not treat `CREATE` as a clause boundary: the
 trailing `CREATE` text is glued onto the second `MERGE`'s segment and parsed
 as though it were part of that `MERGE`'s own pattern, and the segment loop has
@@ -98,13 +101,19 @@ unit-level proof of both exclusions and the scan itself.
 This is a textual scan, not a Cypher parser, and its coverage is narrower than
 "anywhere in the tree": it resolves a `+` chain of string literals and
 package-level (not function-local) `const`/`var` identifiers defined in the
-same file, but it cannot see `fmt.Sprintf` or other runtime template assembly,
-a cross-file or cross-package identifier, `+=`, a `const`/`var` whose own value
-is itself a concatenation, an unresolvable concatenation leaf positioned
-before the literal fragments, or a `;` inside a Cypher comment or a quoted
-string property value (the statement-boundary split has no comment/string
-awareness). See the doc comments in `merge_then_create_repo_scan_test.go` for
-the complete, current list.
+same file, but it cannot see a cross-file or cross-package identifier, `+=`,
+or an unresolvable concatenation leaf positioned before the literal
+fragments. Three related limits are narrower than they sound: a `fmt.Sprintf`
+format string that alone holds the whole shape IS caught by the per-literal
+scan -- only a shape assembled across the format string AND its arguments is
+invisible; a `const`/`var` whose own declared value is itself a concatenation
+IS folded and scanned at its own declaration -- it is missed only when used
+as an operand inside ANOTHER `+` chain; and a `;` inside a Cypher comment or a
+quoted string property value hides a violation only when it falls between the
+LAST `MERGE (` and the `CREATE (` -- a `;` earlier in the statement (for
+example inside the first `MERGE`'s own properties) is still caught. See the
+doc comments in `merge_then_create_repo_scan_test.go` for the complete,
+current list.
 
 No-Observability-Change: this entry and its guard are documentation and a
 build-time static check only. No runtime metric, span, log field, queue

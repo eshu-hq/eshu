@@ -35,17 +35,19 @@ var (
 // silently drops: a statement that opens a node pattern with MERGE ( and
 // later, in the SAME statement, adds a real CREATE clause. NornicDB's
 // executeMultipleMerges splitter (splitMultipleMerges, pkg/cypher/merge.go on
-// the NornicDB side) does not treat CREATE as a clause boundary, and its loop
-// has no CREATE branch, so the CREATE clause is silently never executed. The
-// canonical repro:
+// the NornicDB side) does not treat CREATE as a clause boundary: the trailing
+// CREATE text is glued onto the second MERGE's segment and parsed as part of
+// it, and the segment loop has no CREATE branch at all, so neither the
+// second node MERGE nor the CREATE executes. The canonical repro:
 //
 //	MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) CREATE (s)-[:DEPENDS_ON]->(t)
 //
 // reports success with 1 node written and 0 relationships, where Neo4j
 // reports 2 nodes and 1 relationship. See
 // docs/public/reference/nornicdb-write-shape-pitfalls.md ("Pitfall: A Node
-// MERGE Followed By CREATE In One Statement Silently Drops The CREATE") for
-// the full writeup and the proven-safe alternative shapes.
+// MERGE Followed By CREATE In One Statement Silently Drops The Second MERGE
+// And The CREATE") for the full writeup and the proven-safe alternative
+// shapes.
 //
 // value is split on the literal character ';' before scanning, so a real
 // CREATE clause in a DIFFERENT statement never counts -- only a CREATE that
@@ -145,11 +147,12 @@ func buildFileConstIdentMap(file *ast.File) map[string]string {
 //     "CREATE (...)"`, which parses as `(nonLiteral() + "MERGE (...) ") +
 //     "CREATE (...)"`) prevents the literal pair from ever forming its own
 //     foldable subtree, so the pair is missed. The same unresolvable leaf
-//     placed AFTER a foldable literal pair does not hide it: scanFileHits'
-//     AST walk visits and re-attempts the fold at every BinaryExpr node, so
-//     the inner `"MERGE (...) " + "CREATE (...)"` pair still folds and is
-//     caught as its own subtree before the outer node's failed fold is even
-//     reached.
+//     placed AFTER a foldable literal pair does not hide it: ast.Inspect
+//     walks pre-order, so scanFileHits visits and tries to fold the OUTER
+//     BinaryExpr node first; that fold fails (the unresolvable leaf is still
+//     part of it), the walk returns true and descends, and only then does it
+//     reach the INNER `"MERGE (...) " + "CREATE (...)"` pair, which folds
+//     successfully on its own and is caught.
 func foldStringExpr(expr ast.Expr, identMap map[string]string) (value string, ok bool) {
 	switch e := expr.(type) {
 	case *ast.BasicLit:
@@ -196,22 +199,27 @@ func foldStringExpr(expr ast.Expr, identMap map[string]string) (value string, ok
 //     expression is scanned on its own.
 //
 // What this still cannot see (the complete, current list):
-//   - fmt.Sprintf and other runtime template assembly;
 //   - an identifier resolved from another file or package;
 //   - a function-local const or var, even one of the exact same shape as a
 //     package-level one (buildFileConstIdentMap only walks file.Decls);
 //   - `+=` augmented-assignment concatenation;
-//   - a const/var whose own declared value is itself a concatenation rather
-//     than a single string literal;
 //   - an unresolvable concatenation leaf (a function call, a struct field, a
 //     package selector) positioned BEFORE the MERGE/CREATE literal pair in a
 //     "+" chain -- left-associativity means that leaf's fold failure can
 //     prevent the pair from ever forming its own foldable subtree; the same
 //     leaf positioned after a foldable pair does not hide it (see
-//     foldStringExpr's doc comment for why);
-//   - a ';' inside a Cypher comment or a quoted string property value, which
-//     the plain-character statement-boundary split in hasNodeMergeThenCreate
-//     cannot distinguish from a real statement terminator.
+//     foldStringExpr's doc comment for why).
+//
+// Three related limits are narrower than they sound, and are precisely
+// stated on buildFileConstIdentMap and hasNodeMergeThenCreate rather than
+// repeated loosely here: a fmt.Sprintf format string that alone holds the
+// whole shape IS caught by the per-literal scan -- only a shape assembled
+// across the format string AND its arguments is invisible; a const/var whose
+// own declared value is itself a concatenation IS folded and scanned at its
+// own declaration -- it is missed only when used as an operand inside
+// ANOTHER "+" chain; and a ';' inside a Cypher comment or a quoted string
+// property value hides a violation only when it falls between the LAST
+// MERGE( and the CREATE( -- one earlier in the statement is still caught.
 //
 // A clean scan means "no textually-visible violation," not "this file's
 // Cypher is provably safe."
@@ -339,201 +347,7 @@ func TestNoNodeMergeThenCreateCyphersAcrossRepo(t *testing.T) {
 	}
 }
 
-// TestHasNodeMergeThenCreate is the unit-level proof of hasNodeMergeThenCreate,
-// including the two mandatory false-positive exclusions ("ON CREATE SET" and
-// a CREATE in a different statement) and keyword whitespace/case tolerance.
-func TestHasNodeMergeThenCreate(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name  string
-		value string
-		want  bool
-	}{
-		{
-			name:  "canonical repro: node MERGE, node MERGE, relationship CREATE",
-			value: `MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) CREATE (s)-[:DEPENDS_ON]->(t)`,
-			want:  true,
-		},
-		{
-			name: "SET between the MERGEs and the CREATE does not change the result",
-			value: `MERGE (s:Workload {id:$s})
-MERGE (t:Workload {id:$t})
-SET s.updated_at = $now
-CREATE (s)-[:DEPENDS_ON]->(t)`,
-			want: true,
-		},
-		{
-			name: "a second CREATE after the first still counts",
-			value: `MERGE (s:Workload {id:$s})
-MERGE (t:Workload {id:$t})
-CREATE (s)-[:DEPENDS_ON]->(t)
-CREATE (t)-[:USED_BY]->(s)`,
-			want: true,
-		},
-		{
-			name:  "single MERGE followed directly by CREATE",
-			value: `MERGE (n:Repository {id:$id}) CREATE (n)-[:HAS_TAG]->(:Tag {name:$tag})`,
-			want:  true,
-		},
-		{
-			name:  "ON CREATE SET is a normal MERGE action, not a CREATE clause",
-			value: `MERGE (n:Repository {id:$id}) ON CREATE SET n.first_seen = $now`,
-			want:  false,
-		},
-		{
-			name:  "ON MATCH SET is a normal MERGE action too",
-			value: `MERGE (n:Repository {id:$id}) ON MATCH SET n.last_seen = $now`,
-			want:  false,
-		},
-		{
-			name: "ON CREATE SET beside a real CREATE clause still flags the real clause",
-			value: `MERGE (n:Repository {id:$id}) ON CREATE SET n.first_seen = $now
-CREATE (n)-[:HAS_TAG]->(:Tag {name:$tag})`,
-			want: true,
-		},
-		{
-			name:  "CREATE in a different statement (after a semicolon) does not count",
-			value: `MERGE (n:Repository {id:$id}) SET n.last_seen = $now; CREATE (:AuditEvent {id:$eventId})`,
-			want:  false,
-		},
-		{
-			name:  "CREATE before the MERGE, same statement, does not count",
-			value: `CREATE (:AuditEvent {id:$eventId}) MERGE (n:Repository {id:$id})`,
-			want:  false,
-		},
-		{
-			name: "relationship MERGE instead of CREATE is the safe shape",
-			value: `MERGE (s:Workload {id:$s})
-MERGE (t:Workload {id:$t})
-MERGE (s)-[:DEPENDS_ON]->(t)`,
-			want: false,
-		},
-		{
-			name:  "MATCH ... MATCH ... CREATE (no MERGE at all) is the safe shape",
-			value: `MATCH (s:Workload {id:$s}) MATCH (t:Workload {id:$t}) CREATE (s)-[:DEPENDS_ON]->(t)`,
-			want:  false,
-		},
-		{
-			name:  "comma-pattern CREATE with no MERGE is the safe shape",
-			value: `MATCH (s:Workload {id:$s}) MATCH (t:Workload {id:$t}) CREATE (s)-[:DEPENDS_ON]->(t), (t)-[:USED_BY]->(s)`,
-			want:  false,
-		},
-		{
-			name:  "no MERGE at all",
-			value: `MATCH (n:Repository {id:$id}) RETURN n`,
-			want:  false,
-		},
-		{
-			name:  "MERGE with no CREATE anywhere",
-			value: `MERGE (n:Repository {id:$id}) RETURN n`,
-			want:  false,
-		},
-		{
-			name:  "keyword-like substrings never match (UNMERGED / RECREATE)",
-			value: `// UNMERGED (n) RECREATE (m)`,
-			want:  false,
-		},
-		{
-			name:  "lowercase keywords with no space before the paren still match",
-			value: `merge(s:Workload {id:$s}) merge(t:Workload {id:$t}) create(s)-[:DEPENDS_ON]->(t)`,
-			want:  true,
-		},
-		{
-			name:  "mixed-case keywords with extra internal spaces still match",
-			value: `Merge  (s:Workload {id:$s}) MeRgE  (t:Workload {id:$t}) CrEaTe  (s)-[:DEPENDS_ON]->(t)`,
-			want:  true,
-		},
-		{
-			name: "a newline between the keyword and its opening paren still matches",
-			value: `MERGE
-(s:Workload {id:$s}) MERGE
-(t:Workload {id:$t}) CREATE
-(s)-[:DEPENDS_ON]->(t)`,
-			want: true,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			if got := hasNodeMergeThenCreate(tc.value); got != tc.want {
-				t.Fatalf("hasNodeMergeThenCreate(%q) = %v, want %v", tc.value, got, tc.want)
-			}
-		})
-	}
-}
-
-// TestScanFileHitsFoldsStringConcatenation proves scanFileHits closes the
-// concatenation gap a plain per-literal scan has: a MERGE-then-CREATE
-// statement built as `mergePart + "CREATE (...)"` (a package-level identifier
-// resolved by buildFileConstIdentMap) or as two adjacent literals joined by
-// "+" is caught even though neither half alone contains the banned shape. It
-// also proves several things must NOT be flagged: a split literal whose
-// folded text is the safe "ON CREATE SET" shape, a statement assembled by
-// fmt.Sprintf, a function-local const of the identical shape as the caught
-// package-level one, and an unresolvable leaf (a package selector) that DOES
-// carry the full MERGE/CREATE text but sits to the left of it in the "+"
-// chain -- see foldStringExpr's doc comment for why left-position matters.
-// Asserts the exact set of hit lines, not just a count, so a false hit
-// silently replacing a missed real one cannot pass unnoticed.
-func TestScanFileHitsFoldsStringConcatenation(t *testing.T) {
-	t.Parallel()
-
-	const src = `package fixture
-
-import "fmt"
-
-const mergePart = "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) "
-
-var viaSameFileConstIdent = mergePart + "CREATE (s)-[:DEPENDS_ON]->(t)"
-
-var viaTwoLiterals = "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) " + "CREATE (s)-[:DEPENDS_ON]->(t)"
-
-var viaSplitOnCreateSetIsSafe = "MERGE (n:Repository {id:$id}) ON CREATE SET n.first_seen = " + "$now"
-
-var viaSprintfIsInvisible = fmt.Sprintf("MERGE (s:Workload {id:%s}) MERGE (t:Workload {id:%s}) %s (s)-[:DEPENDS_ON]->(t)", "a", "b", "CREATE")
-
-func viaFunctionLocalConstIsInvisible() string {
-	const localMergePart = "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) "
-	return localMergePart + "CREATE (s)-[:DEPENDS_ON]->(t)"
-}
-
-var viaUnresolvedLeafBeforeTheLiteralsIsInvisible = unknownPkg.Fragment + "MERGE (s:Workload {id:$s}) MERGE (t:Workload {id:$t}) " + "CREATE (s)-[:DEPENDS_ON]->(t)"
-`
-
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "fixture.go", src, 0)
-	if err != nil {
-		t.Fatalf("parse fixture source: %v", err)
-	}
-
-	hits := scanFileHits(fset, "fixture.go", file)
-	want := []string{"fixture.go:7", "fixture.go:9"} // viaSameFileConstIdent, viaTwoLiterals
-	if !slicesEqual(hits, want) {
-		t.Fatalf(
-			"scanFileHits found %v, want exactly %v: viaSameFileConstIdent (line 7) and "+
-				"viaTwoLiterals (line 9) must be caught by folding; every other candidate must "+
-				"NOT be -- viaSplitOnCreateSetIsSafe (folded text is a normal MERGE action, not "+
-				"a CREATE clause), viaSprintfIsInvisible (runtime template assembly), "+
-				"viaFunctionLocalConstIsInvisible (only package-level consts resolve), and "+
-				"viaUnresolvedLeafBeforeTheLiteralsIsInvisible (an unresolvable leaf before the "+
-				"literal pair prevents the pair from ever forming its own foldable subtree)",
-			hits, want,
-		)
-	}
-}
-
-// slicesEqual reports whether a and b contain the same strings in the same
-// order.
-func slicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
+// TestHasNodeMergeThenCreate and TestScanFileHitsFoldsStringConcatenation,
+// the unit-level proofs for hasNodeMergeThenCreate and scanFileHits, live in
+// the sibling file merge_then_create_unit_test.go -- split out to keep this
+// file under the repo's 500-line cap.
