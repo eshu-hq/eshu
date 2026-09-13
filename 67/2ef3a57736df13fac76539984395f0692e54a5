@@ -1,0 +1,540 @@
+go/internal/query/setup/README.md
+  s_92622d8d1ad5e4::t_4ea8ca313c2585 1-125,1-93,95-125,95-124,95-123,127-129,128-129,132,135-139,145-164
+  s_92622d8d1ad5e4::t_d946ba5c2f5354 141-142
+go/internal/query/setup_alias.go
+  s_92622d8d1ad5e4::t_97d41d46157fe4 1-46
+apps/console/src/pages/SetupPage.tsx
+  s_92622d8d1ad5e4::t_5fcb6e583032c1 6
+go/internal/query/local/README.md
+  s_e8ab01ccdfa8e2::t_060a8a92cdb178 22,28-29,94,103-106,108-109
+  s_20619b84b079ff::t_0a04868aab901d 1-21,23-27,31-32,33-55,56,57-64,68-93,95,96,100-102,107,110-153,155-161,167-170,172-238,242,264-265,267-286
+  s_e8ab01ccdfa8e2::t_41339317cd2448 30,97-99
+  s_e8ab01ccdfa8e2::t_7e5608e54f8f2b 162-166,162-163,166
+  s_e8ab01ccdfa8e2::t_a9969ff3cb5973 154
+  s_0bdd7ddd71ec09::t_376013a0d4cbe4 65-67
+  s_0bdd7ddd71ec09::t_6449ea068a48be 171
+  s_4f77f3e7449159::t_e307da32184d0f 241
+  s_0bdd7ddd71ec09::t_e18b60b502cf58 239,243-258,260-263
+go/internal/query/setup/AGENTS.md
+  s_92622d8d1ad5e4::t_25b7c44f2cf127 1-85
+go/internal/query/setup/handler_fakes_test.go
+  s_92622d8d1ad5e4::t_00d6507d463408 1-59
+go/internal/query/setup/helpers.go
+  s_92622d8d1ad5e4::t_5f3d18d626dbc3 4,18-20,26,28,34,41,45,48,52,56-57,60
+  s_92622d8d1ad5e4::t_764f9bb8011c59 77,81
+  s_92622d8d1ad5e4::t_c81107f2439120 98-100,107,118
+apps/console/src/api/setupSession.ts
+  s_92622d8d1ad5e4::t_97c3720f34472f 24
+  s_92622d8d1ad5e4::t_9abf74bcf350ca 5
+  s_92622d8d1ad5e4::t_6d39ccf51e0f21 9
+  s_92622d8d1ad5e4::t_a6d80b6132cca3 68
+go/internal/query/setup/mfa_test.go
+  s_92622d8d1ad5e4::t_a990fa2eb59586 83-84,111,115,123,125,149,155
+  s_92622d8d1ad5e4::t_b719590a9b4e7b 4,12-13,19,23,32
+docs/public/observability/telemetry-coverage.md
+  s_92622d8d1ad5e4::t_2258c6b073473f 819
+  s_6dc6036a0ccd2f::t_4f77268f0c891d 883
+  s_20619b84b079ff::t_c70acdcd022655 821
+go/internal/query/auth_browser_session_route_policy.go
+  s_e8ab01ccdfa8e2::t_a192800d8e00cb 316
+  s_0bdd7ddd71ec09::t_230e8803143350 305,307
+  s_0bdd7ddd71ec09::t_7f2dfda5c5ac73 317
+go/internal/query/setup/handler.go
+  s_92622d8d1ad5e4::t_2b9f0500455b68 63,69,72,78,83-84,91,97,102,105,110-111,115,124,130,134,139,143,148,158,162,167-168,173-174,180-181,190,193,197
+  s_92622d8d1ad5e4::t_f93383b55f7a2f 4,14-16,20,23-24,27-34,43,56
+go/internal/query/setup/mfa.go
+  s_92622d8d1ad5e4::t_f6f6d5f606a7ed 4,12-13
+  s_e8ab01ccdfa8e2::t_918fca2854872d 42
+  s_92622d8d1ad5e4::t_dc357e08426813 49,54-55,65,70,72,81,91,102,107,120,126,140
+  s_92622d8d1ad5e4::t_b74acdcc7b7121 32
+go/internal/query/local/AGENTS.md
+  s_20619b84b079ff::t_09b07f44d28507 1-26,61-76,84,90-125,133-153
+  s_e8ab01ccdfa8e2::t_1ac93c2b6767cc 85-89
+  s_e8ab01ccdfa8e2::t_bae71f59ce07bd 126-132,126
+  s_92622d8d1ad5e4::t_c961d2c7ca6498 77-83
+go/internal/query/setup/requests.go
+  s_92622d8d1ad5e4::t_b9fcae32d9fe17 4
+go/internal/query/setup/types.go
+  s_92622d8d1ad5e4::t_efb2b30a6bb1f2 4,9-11,14-16,20-21
+  s_92622d8d1ad5e4::t_6ee169db0c7ced 68-70,77-78,83-94
+  s_92622d8d1ad5e4::t_94ecb32ae7bce1 36,39
+go/internal/query/local_identity_alias.go
+  s_92622d8d1ad5e4::t_d9c5129677121b 42-46
+  s_20619b84b079ff::t_86039a0b21ed59 1-3,5-6,7-13,17-34,35-36,37-41,47-97,102-109,112-173,178-181,182-187
+  s_92622d8d1ad5e4::t_00371932ef6cc9 110-111
+  s_4a0f86aa680964::t_403ea59ef7795e 4,14-16,174-177
+  s_92622d8d1ad5e4::t_1f1cb5f884bb68 98-101
+go/internal/query/local/helpers.go
+  s_20619b84b079ff::t_32dc5a4bfcd855 4,21,26-27,35,39-40,43,51,55,63,68-69,72-73,78,85,88,93,97,102,105,111,121-122,124-125,131,132,138,141,146-148,150-151,155-156,160-161,165-166,178-180,197-198,200-202,209,212,215,217-218,225-226,228-229,231,234,238,240,246-249,255-257,259,265,272,276,279,283,287-288,291,303,311,326,336,341,345,355
+  s_92622d8d1ad5e4::t_782979dc46e719 399-401
+  s_20619b84b079ff::t_5dcd4a7c68f408 16-17
+  s_20619b84b079ff::t_8bf022546de835 362,366,370-372,374-376,380-388,398,402,405
+go/internal/query/setup/doc.go
+  s_92622d8d1ad5e4::t_d32ea03d7e12d2 1-31
+go/internal/query/local/doc.go
+  s_e8ab01ccdfa8e2::t_ed1e1922356f80 30
+  s_20619b84b079ff::t_b13d210758ea22 1-29,31-33
+go/internal/query/setup/handler_test.go
+  s_92622d8d1ad5e4::t_0dd4d8f60de881 4,15-16,19,25,27,41,45,52,56,61
+  s_92622d8d1ad5e4::t_0e5f067027280b 73
+  s_92622d8d1ad5e4::t_f98063059ea681 74,96-98,110-111,118-120,135-136,143-144,178,182,189,222-223,246-247
+go/internal/query/playbook/definition.go
+  s_1f4a41946de095::t_cebb92c47b8083 4,14,17,20,22-23,25,28,31,35,42,45,48-52,54-55,57,60,63,84,87,89,91,93,97-99,102,104-105,108-110,113,115-116,119,122,129,133,139,142,147,150,153,164,171,186,188,190,193,195,213,217,233,242,247,264,287,290,294,302,304,306,315,320,322,338,341-343,345,350,352-353,358
+  s_64d981aaf4e18f::t_0bae042a2b2ea0 10-11
+go/internal/query/playbook/expansion_test.go
+  s_64d981aaf4e18f::t_ae6679162bde67 4,22-23,47,65,76,89
+go/internal/query/playbook/validate.go
+  s_64d981aaf4e18f::t_85c253be35cc4a 9-10
+  s_1f4a41946de095::t_195f9101282d0b 4,24,37,84,90,101,108,124,131,141,153,157,177,179-180
+go/internal/query/playbook/definition_test.go
+  s_80fd8eb71bc05d::t_a663fe21e45041 4,21,40,52,70,75-76,78,82-83,87,103,151,180,191,204,206,212,217,222
+  s_64d981aaf4e18f::t_c95ede73a51877 11-12
+apps/console/src/api/queryPlaybooks.ts
+  s_64d981aaf4e18f::t_3606567086597c 7-8
+go/internal/query/playbook/handler.go
+  s_64d981aaf4e18f::t_bc0a778f5d5483 4,31,34-35,39,44-48,51,56,61-63,66,71-74,79,82,84,89,92,98-99,102-104,106,109,114,117,119
+  s_64d981aaf4e18f::t_a5b9fb0b05ccb5 16-28
+  s_64d981aaf4e18f::t_e2f7c76b86ac56 9-10
+  s_64d981aaf4e18f::t_8bd41af47fbbb1 13-14,29-30
+  s_e8ab01ccdfa8e2::t_b492e999fa24d9 15
+go/internal/query/doc.go
+  s_64d981aaf4e18f::t_047e9d2a1d4bf5 343-345,357-359
+  s_6dc6036a0ccd2f::t_3caa481b51723b 361-362,366-371
+go/internal/query/playbook/catalog.go
+  s_e8ab01ccdfa8e2::t_bd75a9311157e4 4,8,19-20,43-44,51,54,60,65,70,72,80-81,83,92-95,99-100,121-122,129,132,138,143,147-151,153,155,163-164,166,175-176,198-199,206,209,214,218-219,221,228-229,238-239
+  s_64d981aaf4e18f::t_8bd25c8c069f68 6-7
+go/internal/query/playbook/main_test.go
+  s_64d981aaf4e18f::t_ca5d79a4611281 1-40,46-48,50-52
+  s_6dc6036a0ccd2f::t_e69a5054b25947 41-45,49
+go/internal/query/playbook/handler_test.go
+  s_e8ab01ccdfa8e2::t_dc2d1b51a5366e 4,24,32,42,45,57,71,83-84,92,114,122,129,132
+  s_64d981aaf4e18f::t_ce28dd8f62d83e 110-111
+  s_64d981aaf4e18f::t_91d9be03f56419 12-13
+  s_64d981aaf4e18f::t_58cb29d93f5e04 66-67
+  s_64d981aaf4e18f::t_75978ed3309673 20-21
+go/internal/query/playbook/query_to_context_test.go
+  s_64d981aaf4e18f::t_4f40f5ac5549af 10-11
+  s_80fd8eb71bc05d::t_0dc3b49e881c3a 4,27,44,52,60,63,80,136,155,172,188,193-194,196,200,204,208,221,235
+docs/public/reference/query-playbooks.md
+  s_64d981aaf4e18f::t_b8b535f02f13d9 15-20
+go/internal/query/playbook/catalog_second_wave.go
+  s_e8ab01ccdfa8e2::t_a8f9f9bf798741 4,8-9,15-17,19,23-26,28,30,38-39,41,48-49,55-57,59,63-66,68,70,78-79,81,88-89,95-97,99,103-106,108,110,118-119,121,128-129,135-137,139,143-145,147,149,157-158,160,167-168,174-176,178,182-185,187,189,197-198,200,207-208,214-216,218,222-225,227,229,237-238,240,247-248
+  s_64d981aaf4e18f::t_b4563efd6cee5d 6-7
+go/internal/query/playbook/README.md
+  s_90a3d3ea866d6b::t_185d8bae840ea9 143,148-158
+  s_64d981aaf4e18f::t_a9afc71430e3b6 1-19,30-36,48-77,99,101-142,144,163-181,183-186,191-197,199-203,205-208,212-214,223-225,238-255,391-396
+  s_90a3d3ea866d6b::t_18f116cb4bbb9c 161-162
+  s_90a3d3ea866d6b::t_9fbc6b95dda42a 145-147
+  s_64d981aaf4e18f::t_83f5b6a4db2cce 182
+  s_4f77f3e7449159::t_0b9594e2b9421e 187-190
+  s_90a3d3ea866d6b::t_13f6d4adebe713 215-222
+  s_90a3d3ea866d6b::t_594b152de2e320 227-228,230,232,235-237
+  s_e8ab01ccdfa8e2::t_52c11b041fcbf1 234
+  s_90a3d3ea866d6b::t_5bd0f855361919 198
+  s_4f77f3e7449159::t_eaac5878a93a4f 226,229,231,233
+  s_90a3d3ea866d6b::t_0c2dfc03f33fcf 204,209-211
+  s_bd001c1cc856ea::t_c5ad38f84897a9 159-160
+  s_6dc6036a0ccd2f::t_ff04ca2e5c4b03 20-29,37-47
+  s_6dc6036a0ccd2f::t_2d5c9a8090eb7a 256-354,381-390
+  s_6dc6036a0ccd2f::t_322ad9def21b7b 355,362-363,376-380
+  s_6dc6036a0ccd2f::t_b5f3f4df7d8d77 78-98,100
+  s_bd001c1cc856ea::t_002b08a7c05bc6 356-357,361,369-371
+  s_4f77f3e7449159::t_d7b8ad362c422f 360
+go/internal/query/playbook/AGENTS.md
+  s_90a3d3ea866d6b::t_157b62fcb6b3ab 41-50
+  s_64d981aaf4e18f::t_1592f80524e6fe 1-11,27-40,51-67,103-104,107-122
+  s_6dc6036a0ccd2f::t_258f6b3f30664c 123,129-136
+  s_bd001c1cc856ea::t_0d6c272c5f3e58 71-82
+  s_6dc6036a0ccd2f::t_c9ad76562174bb 68-69,83-102,105-106
+  s_e8ab01ccdfa8e2::t_0f2eb1076c6e49 70
+  s_bd001c1cc856ea::t_9cb88321255324 124-128
+  s_6dc6036a0ccd2f::t_c72c8be7f6a5cf 12-26
+go/internal/query/playbook/catalog_third_wave.go
+  s_64d981aaf4e18f::t_068f2578ebe8d5 6
+  s_e8ab01ccdfa8e2::t_19e9e7aad83168 4-5,17-18,21,27,33,39,45,55-56,59-68,70,73,82-83,120-121,129,134-136,138,141,149-150,152,163-164,172,177-181,183,185,193-194,196,208-209,217,222-223,225,232-233,245-246,254,259-260,263,270-271
+go/internal/query/playbook/workflow.go
+  s_64d981aaf4e18f::t_ac8a729a81d8c5 362
+  s_6dc6036a0ccd2f::t_61cad9c4566721 4,51-57,68,72,78,88,90,95,97,122,124,134,137-138,145-148,150,155,159,161,181-183,188,193,195,198,224,245,257,284,316-317,322,333,351,355,380
+go/internal/query/playbook/catalog_demo.go
+  s_64d981aaf4e18f::t_bc5c3ac8930a90 21
+  s_64d981aaf4e18f::t_848098e58373d7 6
+  s_e8ab01ccdfa8e2::t_4f2c94cfba42c0 4-5,32-33,40,43,48,52-54,56,58,76-77,84,87,92,96-98,100,102,118-119,126,129,134,138-140,142,144,156-157
+go/internal/query/playbook/doc.go
+  s_64d981aaf4e18f::t_82c16bfb2405b5 1-7,15-22,35-39,44
+  s_6dc6036a0ccd2f::t_627d090d884c63 8-14,23-34,40-43
+go/internal/query/playbook/capabilities.go
+  s_64d981aaf4e18f::t_bcf38b4bcbd003 1-48
+  s_6dc6036a0ccd2f::t_9781c8013c6699 49-78
+go/internal/query/query_playbook_alias.go
+  s_64d981aaf4e18f::t_c5e734feccda31 1-12,26-28,50-72,77-79,85-87,93-113,120-128,133-160,165-186,189,191-194,201,238,288-289,296-297,305-306,313
+  s_90a3d3ea866d6b::t_31a6ea2579615a 161-164
+  s_90a3d3ea866d6b::t_74c3fd4c45a675 187-188,190
+  s_90a3d3ea866d6b::t_bf760d7777c1b4 13-23
+  s_bd001c1cc856ea::t_a3849196de080e 204-207
+  s_e8ab01ccdfa8e2::t_89ce3d8a697f9e 25
+  s_6dc6036a0ccd2f::t_946fd274cf5ea6 114-119,129-132
+  s_6dc6036a0ccd2f::t_2c51e408716f43 73-76,80-84,88-92
+  s_e8ab01ccdfa8e2::t_e91277f9dc78c2 24
+  s_e8ab01ccdfa8e2::t_60714a3b7744d1 49
+  s_6dc6036a0ccd2f::t_db3cb281f7b471 29-48
+  s_6dc6036a0ccd2f::t_3c52cd65e4ae83 195-200,202-203,208-237,239-287,290-295,298-304,307-312
+go/internal/query/capability_lockstep_query_playbook_test.go
+  s_64d981aaf4e18f::t_61bcf0b5fc12d6 1-30,35-55
+  s_90a3d3ea866d6b::t_d19224b95f97ef 31-34
+go/internal/query/playbook/workflow_deployable_test.go
+  s_6dc6036a0ccd2f::t_8b058c1b2794af 4,14,18,54,58,87,91
+docs/public/reference/investigation-workflows.md
+  s_bd001c1cc856ea::t_20fc881244f39a 112
+go/internal/query/playbook/workflow_test.go
+  s_6dc6036a0ccd2f::t_9d4969ec8f390a 4,14-15,48,52,89,135,139,190,194,224,228,258,262,297,301,373,377,411,415
+go/internal/query/playbook/workflow_handler_test.go
+  s_d31f6c79417686::t_0610a4be2d6bef 4,20-21,24,32,49-50,58-59,63,73,75-76,103,110,130,139,154,167,183,210-211,214,222,226,234,238-239,246,255,257-258
+  s_6dc6036a0ccd2f::t_e1ab47ce0e9a66 12-13
+specs/capability-matrix/investigation-workflows.v1.yaml
+  s_bd001c1cc856ea::t_cd4e9483ee9036 7,10,13,16
+go/internal/query/playbook/workflow_handler.go
+  s_6dc6036a0ccd2f::t_9bcbdd95bab3d0 4,13,15-16,20,25-29,32,38-40,43-45,48,53-56,61,64,66,69,74,77,83-84,87-89,91,99,102,104
+  s_6dc6036a0ccd2f::t_06299e38feed67 9-10
+go/internal/capabilitycatalog/data/catalog.generated.json
+  s_bd001c1cc856ea::t_440f5f7c110c47 7791-7794
+go/internal/query/playbook/workflow_incident_test.go
+  s_6dc6036a0ccd2f::t_73fe6503c35343 4,14,18,60,64,118,122,146,150
+go/internal/query/playbook/workflow_catalog.go
+  s_6dc6036a0ccd2f::t_0828f71fadb85a 4,6-7,13-24,88,98,109,120,131,142,153,164,175,186-187,193-202,235,246,256,266,277,286-287,293-302,334,345,356,367,378,390,408
+go/internal/query/capability_lockstep_workflow_test.go
+  s_6dc6036a0ccd2f::t_58f86231119932 1-33,38-58
+  s_bd001c1cc856ea::t_aa422bbd41ad86 34-37
+go/.golangci.yml
+  s_6dc6036a0ccd2f::t_a8d0042de4ab52 473
+go/internal/query/local/handler_test.go
+  s_0bdd7ddd71ec09::t_bb0d5b88c10e9f 112-141
+  s_0bdd7ddd71ec09::t_e94a43a6eb5800 391-395
+  s_20619b84b079ff::t_30ef53687091c6 1-7,10-111,142-160,162-325,327-389
+  s_20619b84b079ff::t_f0c9e74b289351 390
+  s_0bdd7ddd71ec09::t_b8fb196cffef91 326
+  s_0bdd7ddd71ec09::t_578fe1f9a53c98 8
+  s_20619b84b079ff::t_44e1173e2def3b 9
+  s_20619b84b079ff::t_4c7e957c72f5ca 161
+go/internal/query/local/api_tokens_self_service.go
+  s_0bdd7ddd71ec09::t_06644b2510bd11 19-21
+  s_e8ab01ccdfa8e2::t_270fa23010257a 4,30-31,33-34,36,41-42,51,65-66,69,82,86,91,97,102,107
+  s_20619b84b079ff::t_9fe621cf736c99 13-14
+apps/console/src/api/authSession.test.ts
+  s_e8ab01ccdfa8e2::t_38ade543d6b794 3
+go/internal/query/local/api_tokens.go
+  s_20619b84b079ff::t_6fcd259d072046 16-17
+  s_e8ab01ccdfa8e2::t_d63f581467c53e 4,25-26,43-44,58-59,76,80,113,120-121,123,126,128,132,139,171,174,187,192-193,202,215,221,225,235,248,254,258-259,270,283,296,301-302,310,314-315,317,329,333,358,368-369,388,394-396,400,402,404,410,418
+  s_0bdd7ddd71ec09::t_1d30201ade5fd5 349
+go/internal/query/audit_actor_class_test.go
+  s_20619b84b079ff::t_199e949a0cf6bd 63-68
+apps/console/e2e/authE2ELocalMemberFlow.ts
+  s_0bdd7ddd71ec09::t_53c8a7507b8a47 397-398
+go/internal/query/sign_in_policy_reads.go
+  s_0bdd7ddd71ec09::t_beb103b3c17d17 37
+apps/console/src/pages/LoginPage.test.tsx
+  s_0bdd7ddd71ec09::t_3c5606796d6316 294
+go/internal/query/local/profile.go
+  s_20619b84b079ff::t_c6990e4350512c 4,11,18,27,29,36-37,39-40,43,46,55,58,61,64,71,73
+go/internal/query/local/totp.go
+  s_e8ab01ccdfa8e2::t_b7849f9688e1ba 4,29,64,69,73-74,76,81,87,91,97,102,112,115,122,126,136,140-141,143,147-148,154,158,161,168
+  s_20619b84b079ff::t_24291df24054b2 16-17
+  s_0bdd7ddd71ec09::t_30c634b721b70c 176
+go/internal/query/auth_posture_test.go
+  s_0bdd7ddd71ec09::t_04da175a5fb2d2 129
+go/internal/storage/postgres/identity_local_mfa_all_users_login_test.go
+  s_0bdd7ddd71ec09::t_4ebab54df8a097 223
+  s_e8ab01ccdfa8e2::t_2fa67df5d05449 193
+apps/console/e2e/totpCode.test.ts
+  s_e8ab01ccdfa8e2::t_cbc050e36e93f4 13
+go/internal/storage/postgres/identity_bootstrap_credential_recovery_scope_live_test.go
+  s_0bdd7ddd71ec09::t_8ae80959781e37 29
+go/internal/query/local/handler.go
+  s_e8ab01ccdfa8e2::t_3000d584de0bd7 4,20,22-25,33,42,49,64,69-70,76,84,87,91-92,95,99-100,105,109,117,122-123,127-128,130,137,156,160,179,186,195,200-201,219,222,226-227,231,237,241,244,251,256-257,262,265-266,268-269,272,276,280,283,286,295,300-301,306,309-310,314,318,334,339-340,345,349-350,354,356,363,380,387,396,401-402,405-406,410,414,421,430,434-435,438
+  s_20619b84b079ff::t_4a4559ce990f09 13-14
+  s_0bdd7ddd71ec09::t_274964feea7d38 37
+go/internal/query/local/sign_in_policy_gate.go
+  s_20619b84b079ff::t_c2f63d32fd33d8 4,23,60,87,102
+go/internal/query/local/totp_test.go
+  s_0bdd7ddd71ec09::t_5f17686585a64e 95
+  s_20619b84b079ff::t_4d178f835e437c 1-94,96-112
+go/internal/query/auth.go
+  s_0bdd7ddd71ec09::t_9a18d9abd00d9f 384-386
+  s_a9c3fec2661ba1::t_9f4233a093fc57 380-382,383,388
+  s_a9c3fec2661ba1::t_3026f22dcfba96 341-342,344,347-350,352
+  s_a9c3fec2661ba1::t_4353cbded1bc65 66-69,71-77
+  s_a9c3fec2661ba1::t_8f7d20e4fb98f6 15
+  s_a9c3fec2661ba1::t_d35e9b08f7c7e3 117-119
+apps/console/src/api/totpEnrollment.ts
+  s_e8ab01ccdfa8e2::t_e9e1b456679f0e 15
+go/internal/query/local/helpers_test.go
+  s_4a0f86aa680964::t_4eb1354f86d670 4
+  s_20619b84b079ff::t_efb3f3d6d2e703 6-9,11-35
+apps/console/src/api/authSession.ts
+  s_e8ab01ccdfa8e2::t_733c3bd4089727 38,47,73
+go/internal/query/local/audit_test.go
+  s_20619b84b079ff::t_37739bb554c2e9 12
+  s_20619b84b079ff::t_e6eeb34d54561c 1-11,13-52,55,62-65
+  s_0bdd7ddd71ec09::t_26ad618fd609df 53-54,56-61
+go/internal/query/auth_scoped_routes_completeness_helpers_test.go
+  s_0bdd7ddd71ec09::t_d473ba3f2655ad 143
+go/internal/query/admin/audit/actor.go
+  s_4a0f86aa680964::t_2d9b3720cdfa38 73,86
+  s_0bdd7ddd71ec09::t_80e1d943a79cd6 87
+  s_0bdd7ddd71ec09::t_d073d71eacce9f 94
+  s_0bdd7ddd71ec09::t_f6e0936c798fe5 74
+apps/console/src/pages/tokens/CreateApiTokenControl.tsx
+  s_0bdd7ddd71ec09::t_abd7f9e76e401e 8
+go/internal/query/local/api_tokens_test.go
+  s_20619b84b079ff::t_c34122253957b0 1-144
+apps/console/e2e/totpCode.ts
+  s_e8ab01ccdfa8e2::t_c442ae340782fe 9
+go/internal/query/identity_totp_test.go
+  s_20619b84b079ff::t_409c16f34bfb29 22,24-35
+  s_0bdd7ddd71ec09::t_4666c33cfd4522 240-243
+  s_20619b84b079ff::t_cd57584d6ec23e 214-223,256
+  s_0bdd7ddd71ec09::t_a610f72ab28e2e 244
+  s_4a0f86aa680964::t_5fb8dd5ece11ec 92
+  s_20619b84b079ff::t_0e3c8a8bf1f12a 23
+go/internal/query/identity_api_tokens_test.go
+  s_20619b84b079ff::t_8680f793c5dcf7 72,160
+  s_0bdd7ddd71ec09::t_6191fde496fb8f 398
+  s_20619b84b079ff::t_d9663358aeb8b6 18-31
+go/internal/query/local/types.go
+  s_20619b84b079ff::t_37eaedef02e1d7 9-10
+  s_20619b84b079ff::t_5bfeb7f60e4df3 4,13,15-16,19-31,34-35,52-53,68-69,84-85,96-97,100-110,113,116,122,135-137,139,143-144,153,158,174-175,184-185,190-191,206-207,212-219
+go/internal/query/querycontract/unauthorized.go
+  s_a9c3fec2661ba1::t_86eeff023e4e0b 1-43,44,47-185
+  s_0bdd7ddd71ec09::t_11b64b5084a203 45-46
+go/internal/query/admin/provider/config/types.go
+  s_0bdd7ddd71ec09::t_78a487ea7ba048 16
+go/internal/query/local/requests.go
+  s_e8ab01ccdfa8e2::t_376b1eb1556f7f 4,113-114,117,125-126,130-131,135-136
+  s_20619b84b079ff::t_cd6f36b91078d7 10-11
+  s_0bdd7ddd71ec09::t_84efccdeef2796 107-112
+go/internal/query/identity_handler_test.go
+  s_0bdd7ddd71ec09::t_009b66944b1aaa 354
+go/internal/query/local/handler_fakes_test.go
+  s_20619b84b079ff::t_719c89209500df 1-211
+scripts/moved-file-refs-allowlist.txt
+  s_20619b84b079ff::t_13a0c15b1de5fe 73-82
+go/internal/query/auth_posture.go
+  s_0bdd7ddd71ec09::t_3f48215964333e 32
+go/internal/storage/postgres/identity_local.go
+  s_e8ab01ccdfa8e2::t_1a3223c6ace4b8 211
+apps/console/src/api/userProfile.ts
+  s_e8ab01ccdfa8e2::t_c66c3b28ce89ac 13
+go/internal/query/identity_handler_fakes_test.go
+  s_0bdd7ddd71ec09::t_4b5766a2421a51 12-14
+go/internal/query/auth_oauth_challenge_test.go
+  s_a9c3fec2661ba1::t_427136ae7de207 132-138
+go/internal/query/queryauth/session_cookies.go
+  s_a9c3fec2661ba1::t_83ec7a41df16bd 1-224,1-213,215-224,226-292,226-259,261-279,281-292
+go/internal/query/querycontract/unauthorized_test.go
+  s_a9c3fec2661ba1::t_e4d85d805cd85a 1-110
+go/internal/query/queryauth/AGENTS.md
+  s_a9c3fec2661ba1::t_96c7343bfff927 43-55,71-76
+go/internal/query/queryauth/README.md
+  s_a9c3fec2661ba1::t_cd115d8320d7fd 8-11,15-32,37,39-48,52-55
+  s_e8ab01ccdfa8e2::t_0d295f6f25b90f 101-123
+go/internal/query/browser_session_handler.go
+  s_a9c3fec2661ba1::t_1b3cf2ae2c5662 346-350,360,363-365,367
+  s_a9c3fec2661ba1::t_308ebb781ff578 65-68,70-72
+  s_a9c3fec2661ba1::t_64716d5cc69b42 12-13,16-19,21-22,27-29,32-33
+go/internal/query/queryauth/audit_actor.go
+  s_a9c3fec2661ba1::t_42d7c6c501e81f 1-55
+go/internal/query/querycontract/AGENTS.md
+  s_a9c3fec2661ba1::t_0371387ec0404b 42-56
+go/internal/query/querycontract/doc.go
+  s_a9c3fec2661ba1::t_def5cf83952eac 73-90
+  s_e8ab01ccdfa8e2::t_30abf574283006 91-93
+go/internal/query/queryauth/doc.go
+  s_a9c3fec2661ba1::t_b5d2eed692f879 25-45
+go/internal/query/querycontract/README.md
+  s_a9c3fec2661ba1::t_96c25b72617984 41-42
+  s_a9c3fec2661ba1::t_a8f0bbb96d2fcd 77-82
+  s_e8ab01ccdfa8e2::t_8e03eb70de85e0 83-88
+  s_e8ab01ccdfa8e2::t_a2a2cc961fb379 72-76
+go/internal/query/browser_session_cookie_secure_test.go
+  s_a9c3fec2661ba1::t_8c5a0876616190 87-91
+go/internal/query/queryauth/session_cookies_test.go
+  s_a9c3fec2661ba1::t_da6013a5039161 1-111
+go/internal/query/permission_catalog.go
+  s_a9c3fec2661ba1::t_3397ba89076ff4 11
+  s_a9c3fec2661ba1::t_b33a6d4d1d4a47 39-43,45,48-49,51
+go/internal/query/queryauth/sign_in_policy.go
+  s_a9c3fec2661ba1::t_2838e7ccd7553b 24-25
+  s_a9c3fec2661ba1::t_5bb2a7044bfd66 1-23,26-36
+go/internal/query/session_timeout_policy.go
+  s_a9c3fec2661ba1::t_02f0bcd974a743 9-10,13-16,24
+go/internal/query/auth_oauth_challenge_context.go
+  s_a9c3fec2661ba1::t_4e817a0c77cced 9-10,29-34,36
+go/internal/query/queryauth/browser_session_types.go
+  s_a9c3fec2661ba1::t_23b483229abb45 1-117
+go/internal/query/queryauth/session_timeouts.go
+  s_a9c3fec2661ba1::t_1338921f2fb149 1-60
+go/internal/query/documentation.go
+  s_a9c3fec2661ba1::t_87240271f4012d 433-437,439
+go/internal/query/README.md
+  s_a9c3fec2661ba1::t_4fc3558d5757e9 1190-1191
+  s_e8ab01ccdfa8e2::t_435430e9ac0174 1192,1210
+  s_e8ab01ccdfa8e2::t_23ca1a86f88f27 1192,1210
+go/internal/query/querycontract/permission_denied.go
+  s_a9c3fec2661ba1::t_84a42f14574284 1-40
+go/internal/query/auth_oauth_discovery.go
+  s_a9c3fec2661ba1::t_3349a273af1dcb 82-86
+  s_a9c3fec2661ba1::t_30a9113e06d08c 11-12
+go/internal/query/sign_in_policy_types.go
+  s_a9c3fec2661ba1::t_dcd25717b6bec2 10-11,35-38,50-52,66-67
+go/internal/query/auth_audit.go
+  s_a9c3fec2661ba1::t_f55539c095524b 324-326,328-344
+  s_a9c3fec2661ba1::t_14d3f8d5a84cdc 323,346
+  s_a9c3fec2661ba1::t_52ec442cdadb75 14
+go/internal/query/browser_session_cookie_secure.go
+  s_a9c3fec2661ba1::t_0cd22e9194ea98 9-10,15-19,21-22,24-26,29-31,33,36-37,39,47-53
+apps/console/src/api/statusOverview.test.ts
+  s_63957fa88fead0::t_eb033857942432 25-34,52,59-72,77-84,103-114,117-130,150-162,167-179,182-194,207-215,222-230,244-259,277-296,309-318,322-327,331-345,377-378,386-394,399-400,404-405,408,457,477-504,508-531,533-539
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "672ef3a57736df13fac76539984395f0692e54a5",
+  "prompts": {},
+  "sessions": {
+    "s_0bdd7ddd71ec09": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea81717a-115c-4bf5-8481-31c519cd28c3",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_0dcffc16b6a093": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8339b6a7-551b-4035-941c-16f963cb9964",
+        "model": "unknown"
+      },
+      "human_author": null
+    },
+    "s_1f4a41946de095": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "278de534-4454-4dd2-af42-e7807e61a7e8",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_20619b84b079ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b939c33a-882a-4d7f-b5f9-9a4208d8a3f0",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_4a0f86aa680964": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a087e3-a5a1-7f91-a657-2ca672b0e660",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": null
+    },
+    "s_4f77f3e7449159": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71ec12c5-c74c-4e2c-bc6a-b7c85ef53298",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_63957fa88fead0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a09564-67a6-7373-a1f5-22c57a664a56",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_64d981aaf4e18f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e2f6149e-aad6-4678-a918-0ecc8a45af97",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_6dc6036a0ccd2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "71c2bec7-db90-4cb4-b283-fadd9caee6a2",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_7737936e8f253f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f883e37a-ec08-48d9-bbb7-cced9247a00d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_80fd8eb71bc05d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "72951224-7923-4bb7-986e-61f38e3b7c69",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_90a3d3ea866d6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3a5fc4b-799f-408a-9862-a367013f7f65",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_92622d8d1ad5e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cef83486-9c04-482f-8227-c4a5e3fa8529",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_a9c3fec2661ba1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "00551667-7c98-414f-9526-5226791a2172",
+        "model": "unknown"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_bd001c1cc856ea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b428deb9-969f-44dd-b237-23a2e48a42d4",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_d31f6c79417686": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3217757-8ba2-462f-bc27-af904f574805",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    },
+    "s_e8ab01ccdfa8e2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d409fc97-cc8e-41d1-a89e-e84d02b51c7e",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
