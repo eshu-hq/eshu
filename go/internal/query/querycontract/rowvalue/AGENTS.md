@@ -48,3 +48,21 @@ the parameter every one of these helpers takes is itself named `row`, so
 ruling is recorded here so a later extraction does not reopen it as an
 oversight. Renaming this package would mean renaming that parameter across
 every caller for no contract gain.
+
+## The file name follows rule 2; the package name is the only exception
+
+[naming.md](../../../../../docs/internal/naming.md) rule 2 forbids repeating the
+directory name in the file name, and rule 5 forbids carrying a stuttering name
+into a new home. The implementation arrived here as `rowvalue.go`, which
+stuttered against this directory the moment it moved, so #6597 renamed it to
+`decode.go` (and its test to `decode_test.go`). `decode` is the verb the package
+and its parent already use for this work -- doc.go calls it converting a driver's
+untyped row into Go values, and the parent README calls these the "row-value
+decoders" on a "hot row-decode loop". The owner ruled for the rename over the
+in-tree `dir/dir.go` precedent: the rule was enshrined in ad16b2520 and this is
+the first extraction after it.
+
+The two rulings are separate and neither reopens the other. Rule 2 applies to
+the file and was followed. Rule 3 would rename the package, and was waived for
+the `row` shadowing reason above. Adding a file here needs a plain name for what
+it does -- never `rowvalue_*.go`.

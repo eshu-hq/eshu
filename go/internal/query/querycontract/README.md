@@ -119,7 +119,7 @@ comment does not inflate the figure, `StringVal` was called from 202 of the 880
 non-test root files when the first four moved to this package, `IntVal` from 89,
 `StringSliceVal` from 74, and `BoolVal` from 43. Those four counts are the
 snapshot from when they moved and are deliberately not refreshed; the package
-comment in `rowvalue/rowvalue.go` carries the same `StringVal` metric measured
+comment in `rowvalue/decode.go` carries the same `StringVal` metric measured
 later (195 of 866), and the gap between the two is families leaving root, which
 is what this epic is for. `FloatVal` is the small one: 14 call sites across 5
 root files, 12 of them through `floatVal` and 2 through `relationshipFloatVal`.
@@ -136,11 +136,11 @@ exactly 5 to the inlined cost against the inliner's budget of 80:
 
 | helper | `rowvalue` leaf | `querycontract` forwarder | root forwarder |
 | --- | --- | --- | --- |
-| `StringVal` | **cost 95 — cannot inline** (`rowvalue/rowvalue.go:35`) | cost 62 (`response_shaping_helpers.go:89`) | cost 67 (`neo4j.go:103`) |
-| `BoolVal` | cost 33 (`rowvalue/rowvalue.go:49`) | cost 38 (`response_shaping_helpers.go:94`) | cost 43 (`neo4j.go:108`) |
-| `IntVal` | cost 40 (`rowvalue/rowvalue.go:65`) | cost 45 (`response_shaping_helpers.go:100`) | cost 50 (`neo4j.go:113`) |
-| `StringSliceVal` | cost 65 (`rowvalue/rowvalue.go:86`) | cost 70 (`response_shaping_helpers.go:106`) | cost 75 (`neo4j.go:118`) |
-| `FloatVal` | cost 46 (`rowvalue/rowvalue.go:111`) | cost 51 (`response_shaping_helpers.go:112`) | cost 56 (`compare.go:403`, `repository_compat.go:31`) |
+| `StringVal` | **cost 95 — cannot inline** (`rowvalue/decode.go:35`) | cost 62 (`response_shaping_helpers.go:89`) | cost 67 (`neo4j.go:103`) |
+| `BoolVal` | cost 33 (`rowvalue/decode.go:49`) | cost 38 (`response_shaping_helpers.go:94`) | cost 43 (`neo4j.go:108`) |
+| `IntVal` | cost 40 (`rowvalue/decode.go:65`) | cost 45 (`response_shaping_helpers.go:100`) | cost 50 (`neo4j.go:113`) |
+| `StringSliceVal` | cost 65 (`rowvalue/decode.go:86`) | cost 70 (`response_shaping_helpers.go:106`) | cost 75 (`neo4j.go:118`) |
+| `FloatVal` | cost 46 (`rowvalue/decode.go:111`) | cost 51 (`response_shaping_helpers.go:112`) | cost 56 (`compare.go:403`, `repository_compat.go:31`) |
 
 For `BoolVal`, `IntVal`, `StringSliceVal` and `FloatVal` all three hops collapse.
 The `-m` run reports `inlining call to rowvalue.BoolVal` at
@@ -158,7 +158,7 @@ decode site for those four emits the same code it did before the move.
 cost 95 exceeds budget 80` — the `fmt.Sprintf` fallback that renders a present
 non-string is what pushes it over. One real call frame therefore survives at
 every `StringVal` decode site. That is not a regression: the move was a pure
-rename (`git diff -M 514534567 HEAD -- .../rowvalue.go` reports
+rename (`git diff -M 514534567 HEAD -- .../decode.go` reports
 `similarity index 99%`, the single hunk being `package querycontract` ->
 `package rowvalue`), so the identical body cost 95 and was equally uninlinable
 when it lived in this package. What #6597 added is the `querycontract.StringVal`
