@@ -18,6 +18,29 @@ die() {
 	exit 1
 }
 
+# replace_first_literal copies source to destination with exactly the first
+# literal occurrence of needle replaced. It fails closed when the fixture no
+# longer contains the mutation target.
+replace_first_literal() {
+	local source="$1" destination="$2" needle="$3" replacement="$4"
+	if ! awk -v needle="${needle}" -v replacement="${replacement}" '
+		BEGIN { replaced = 0 }
+		{
+			if (!replaced) {
+				position = index($0, needle)
+				if (position != 0) {
+					$0 = substr($0, 1, position - 1) replacement substr($0, position + length(needle))
+					replaced = 1
+				}
+			}
+			print
+		}
+		END { exit !replaced }
+	' "${source}" >"${destination}"; then
+		die "fixture mutation target is absent: ${needle}"
+	fi
+}
+
 [[ -f "${verifier}" ]] || die "missing verifier: ${verifier}"
 bash -n "${verifier}" || die "verifier failed bash syntax check"
 
@@ -48,8 +71,8 @@ bash "${verifier}" --artifacts "${selector_403_dir}" >/dev/null \
 
 mixed_selector_dir="${tmp_dir}/mixed-selector"
 cp -R "${fixtures}/good" "${mixed_selector_dir}"
-sed '0,/_other_repo_selector_status": 404/s//_other_repo_selector_status": 403/' \
-	"${fixtures}/good/team-a.json" >"${mixed_selector_dir}/team-a.json"
+replace_first_literal "${fixtures}/good/team-a.json" "${mixed_selector_dir}/team-a.json" \
+	'_other_repo_selector_status": 404' '_other_repo_selector_status": 403'
 if bash "${verifier}" --artifacts "${mixed_selector_dir}" >/dev/null 2>&1; then
 	die "verifier accepted API/MCP selector-status divergence"
 fi
@@ -66,8 +89,8 @@ for surface in api mcp; do
 	for status in 0 204 403 404 500; do
 		bad_own_status_dir="${tmp_dir}/bad-${surface}-own-status-${status}"
 		cp -R "${fixtures}/good" "${bad_own_status_dir}"
-		sed "0,/${surface}_own_repo_selector_status\": 200/s//${surface}_own_repo_selector_status\": ${status}/" \
-			"${fixtures}/good/team-a.json" >"${bad_own_status_dir}/team-a.json"
+		replace_first_literal "${fixtures}/good/team-a.json" "${bad_own_status_dir}/team-a.json" \
+			"${surface}_own_repo_selector_status\": 200" "${surface}_own_repo_selector_status\": ${status}"
 		if bash "${verifier}" --artifacts "${bad_own_status_dir}" >/dev/null 2>&1; then
 			die "verifier accepted ${surface} own-repository selector status ${status}"
 		fi
@@ -76,8 +99,8 @@ done
 
 wrong_own_id_dir="${tmp_dir}/wrong-own-id"
 cp -R "${fixtures}/good" "${wrong_own_id_dir}"
-sed '0,/api_own_repo_selector_repository_id": "repo-alpha"/s//api_own_repo_selector_repository_id": "repo-beta"/' \
-	"${fixtures}/good/team-a.json" >"${wrong_own_id_dir}/team-a.json"
+replace_first_literal "${fixtures}/good/team-a.json" "${wrong_own_id_dir}/team-a.json" \
+	'api_own_repo_selector_repository_id": "repo-alpha"' 'api_own_repo_selector_repository_id": "repo-beta"'
 if bash "${verifier}" --artifacts "${wrong_own_id_dir}" >/dev/null 2>&1; then
 	die "verifier accepted the wrong own-repository selector identity"
 fi
