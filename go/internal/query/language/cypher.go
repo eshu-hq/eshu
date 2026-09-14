@@ -196,6 +196,28 @@ func buildRepositoryCypher(language, query, repoID string, limit int, access que
 // docs/internal/evidence/6541-directory-query-s2.md and the live proof in
 // TestLiveNornicDBDirectoryLanguageQueryCountsNestedDirectories.
 //
+// The ORDER BY therefore carries all three keys, and they are
+// sortAndTruncateDirectoryRows's total order exactly. On `file_count DESC`
+// alone the per-group bound breaks ties ARBITRARILY, and a row a group dropped
+// cannot be recovered by re-sorting what survived, so page MEMBERSHIP would be
+// backend-arbitrary whenever ties straddle the bound. Measured on a fixture of
+// five directories per repository each holding one go file, at limit 4:
+// `ORDER BY file_count DESC` alone retained a5,a3,a2,a1 on the v1.2.1 pin and
+// a1,a2,a4,a3 on v1.3.1 -- two different pages from the same statement on the
+// same data, neither of them the total order's top four. Ordering each group by
+// the same total order makes the retained set determined (a1,a2,a3,a4 on both
+// builds), and the union of the per-group top-L sets then contains the global
+// top-L under that order, because a row inside the global top-L has at most
+// L-1 rows before it globally and therefore at most L-1 before it inside its
+// own group.
+//
+// The keys MUST be the RETURN aliases. Written as
+// `ORDER BY file_count DESC, d.repo_id ASC, d.name ASC` the trailing keys are
+// not honoured on either build -- the retained set stays arbitrary -- while the
+// alias form above orders correctly on both. See
+// docs/public/reference/nornicdb-path-predicate-pitfalls.md and the live pin
+// TestLiveNornicDBDirectoryLanguageQueryBreaksTiesDeterministically.
+//
 // repoIDs MUST already be deduplicated. On both pinned builds a repeated id
 // returns the same directory TWICE with its file_count intact, because
 // everything after the UNWIND runs once per id; a backend that aggregates the
@@ -224,7 +246,7 @@ func buildDirectoryCypher(language, query string, repoIDs []string, params map[s
 		       d.relative_path as file_path,
 		       d.repo_id as repo_id,
 		       file_count
-		ORDER BY file_count DESC
+		ORDER BY file_count DESC, repo_id ASC, name ASC
 		LIMIT $limit
 	`
 	return cypher, params

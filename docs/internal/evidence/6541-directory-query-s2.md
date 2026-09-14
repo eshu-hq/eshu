@@ -132,6 +132,24 @@ each repository's own top 2. Correct within each group, never across the
 result. This is why the handler truncates. Documented in
 [NornicDB Path-Predicate Pitfalls](../../public/reference/nornicdb-path-predicate-pitfalls.md).
 
+Because the bound is per group, the statement's own `ORDER BY` is also what
+decides WHICH rows each group keeps, and the handler cannot undo that choice —
+no re-sort returns a row the backend never sent. Measured on two repositories of
+eight directories each, every directory holding exactly one go file so that
+every row ties, at `limit` 4, through the production handler:
+
+| statement `ORDER BY` | page on 1.2.1 (`pr290`) | page on v1.3.1 |
+| --- | --- | --- |
+| `file_count DESC` | `a01,a02,a03,a07` | `a02,a03,a06,a07` |
+| `file_count DESC, repo_id ASC, name ASC` | `a01,a02,a03,a04` | `a01,a02,a03,a04` |
+
+Two builds, one statement, one fixture, two different pages. The fix is to give
+the statement the same total order the handler sorts on, which is what the
+review's F1 asked for and what this branch now ships. With them aligned the page
+is a function of the data: the rows ARE the total order's top-L and the order
+within the page is that same total order, on both builds and on Neo4j's global
+`LIMIT`.
+
 ### 3. An UNWIND variable and a RETURN alias of the same name collide
 
 `UNWIND $repo_ids AS id MATCH (r:Repository {id: id}) RETURN r.id AS id, r.name AS name`
@@ -139,6 +157,26 @@ returns the id column keyed by the first bound literal on both builds. Renaming
 the loop variable to `rid` and the aliases to `repo_id`/`repo_name` returns both
 columns correctly on both builds; that is the form the name read uses. Also
 documented on the pitfalls page.
+
+### 4. An `ORDER BY` key written as `d.<property>` after an aggregating `WITH` is ignored
+
+Found while proving the fix for defect 2 above, on both builds. Same fixture,
+five directories per repository, all tied, `$limit` 4; the rows are what the
+first repository's group retained:
+
+| `ORDER BY` clause | 1.2.1 (`pr290`) | v1.3.1 |
+| --- | --- | --- |
+| `file_count DESC` | `a5,a3,a2,a1` | `a1,a2,a4,a3` |
+| `file_count DESC, d.repo_id ASC, d.name ASC` | `a5,a3,a2,a1` | `a5,a1,a2,a4` |
+| `file_count DESC, repo_id ASC, name ASC` | `a1,a2,a3,a4` | `a1,a2,a3,a4` |
+
+The property form is accepted without error or warning and served as though the
+trailing keys were absent. `d` is still bound after
+`WITH d, count(f) AS file_count`, and the clause is valid Cypher on Neo4j, so
+nothing about the statement looks wrong — only the rows say so, and only when a
+tie exists to expose it. `buildDirectoryCypher` therefore sorts on the `RETURN`
+aliases. Documented on the pitfalls page; no upstream fix commit has been
+matched to this one, unlike defects 1-3.
 
 ## Local correctness proof
 
@@ -151,17 +189,21 @@ the fixture: `lib` 4, `inner` 3, `src` 2, `cmd` 2, `pkg` 1, `deep` 1, with
 `docs` and `cmd/tool` absent because they hold no go file.
 
 ```
-ESHU_NEO4J_URI=bolt://127.0.0.1:17955 go test ./internal/query/language \
+ESHU_NEO4J_URI=bolt://127.0.0.1:17925 go test ./internal/query/language \
   -tags live_nornicdb_language_imports_grant \
-  -run TestLiveNornicDBDirectoryLanguageQuery -count=1 -v
+  -run TestLiveNornicDBDirectory -count=1 -v
 ```
 
-| build | result |
-| --- | --- |
-| 1.3.1 (port 17955) | 4/4 PASS, `ok ... 0.774s`, exit 0 |
-| 1.2.1 (port 17957) | 4/4 PASS, `ok ... 0.728s`, exit 0 |
+Latest run, on the head that carries the review's F1 fix. It supersedes the
+four-case run recorded before that fix (1.3.1 `ok 0.774s` / 1.2.1 `ok 0.728s`,
+both 4/4); the fifth case is the tie proof below.
 
-What the four cases prove:
+| build | image | port | result |
+| --- | --- | --- | --- |
+| 1.2.1 | `eshu-nornicdb-pr290:3722b483c02c` | 17925 | 5/5 PASS, `ok ... 0.779s`, exit 0 |
+| 1.3.1 | `timothyswt/nornicdb-cpu-bge:v1.3.1@sha256:ac524899…` | 17927 | 5/5 PASS, `ok ... 0.765s`, exit 0 |
+
+What the five cases prove:
 
 - **Nesting.** `deep` (depth 3) keeps its own file and `inner` (depth 2) keeps
   its three. The replaced walk, and every bounded `*1..N` variant of it, folded
@@ -179,6 +221,31 @@ What the four cases prove:
   alpha's four directories twice, counts intact. The production path, given a
   grant naming alpha in both its repository and scope lists, returns each
   directory once with the right count — the deduplication doing its job.
+- **Tie determinism.** On its own fixture — two repositories of eight
+  directories, every directory holding exactly one go file, seeded in reverse
+  name order — the page at `limit` 4 is `a01,a02,a03,a04` and the same request
+  returns the same page twice with a differently-shaped read in between to
+  defeat the build's last-result cache. A grant of the second repository alone
+  returns `b01,b02,b03,b04`, so the other group's bound is exercised too.
+  (`directory_tie_nornicdb_live_test.go`.)
+
+### RED then GREEN for the tie proof
+
+The tie case is a real regression guard, not a shape assertion. With the
+statement's `ORDER BY` reverted to `file_count DESC` alone and nothing else
+changed, it fails on BOTH builds, and fails differently on each — which is the
+defect itself, visible in the failure text:
+
+| build | failure |
+| --- | --- |
+| 1.2.1 (17925) | `page = [a01 a02 a03 a07], want [a01 a02 a03 a04]`, exit 1 |
+| 1.3.1 (17927) | `page = [a02 a03 a06 a07], want [a01 a02 a03 a04]`, exit 1 |
+
+Restoring `ORDER BY file_count DESC, repo_id ASC, name ASC` returns both builds
+to 5/5 PASS, exit 0. The unit-level pin is
+`TestBuildDirectoryCypherOrdersOnTheHandlersTotalOrder`, which asserts the
+statement carries those three keys and that the `d.<property>` spelling — the
+one neither build honours — has not come back.
 
 ### Test sensitivity
 
@@ -306,11 +373,12 @@ unscoped. S2's own measured figures there were 53ms at grant-1 and 5.728s at
 grant-50, before the handler's extra read.
 
 Performance Evidence: pending the remote corpus run described above. What is
-measured today is correctness only, on a 2-repository/8-directory/17-file
-fixture, on both NornicDB builds (table above). The corpus figures quoted in
-this document are the issue's 2026-09-05 measurements of the candidate shapes,
-not measurements of this implementation, which adds one bounded read and a
-Go-side sort the issue's numbers do not include.
+measured today is correctness only, on two fixtures — the
+2-repository/8-directory/17-file nesting fixture and the 2-repository/16-tied-
+directory tie fixture — on both NornicDB builds (tables above). The corpus
+figures quoted in this document are the issue's 2026-09-05 measurements of the
+candidate shapes, not measurements of this implementation, which adds one
+bounded read and a Go-side sort the issue's numbers do not include.
 
 Observability Evidence: `language.Handler.logDirectoryRead` records
 `repositories`, `rows_returned`, `rows_kept` and `repositories_named` for every

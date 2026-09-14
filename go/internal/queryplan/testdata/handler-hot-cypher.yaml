@@ -53,9 +53,9 @@ entries:
     domain: code
     backend: nornicdb_neo4j
     query_kind: cypher
-    source: {file: go/internal/query/language/cypher.go, symbol: buildDirectoryCypher, source_sha256: 2055f3b6e5c3e31c97d0dd3996643fdc754d5afe4ad4182537b44fac0ca2e290}
+    source: {file: go/internal/query/language/cypher.go, symbol: buildDirectoryCypher, source_sha256: 88f1c5bcf625ad8a3403f56579ff4fd180c7d3874f561220d5721d3b7460e68c}
     query_fragment: 'MATCH (d:Directory {repo_id: rid})'
-    cypher_sha256: d2d79bddc78a0f77204e246be4dbf666373af313f351d836daf245503705b133
+    cypher_sha256: 076c9409340094d1b9828895e6b862d960462b5313a02f4d1aaf738b53b322d0
     required_anchors: [{label: Directory, property: repo_id}]
     required_schema: [directory_repo_id]
     required_limits: [$limit]

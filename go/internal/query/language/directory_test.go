@@ -208,3 +208,37 @@ func TestSortAndTruncateDirectoryRowsBreaksTiesDeterministically(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildDirectoryCypherOrdersOnTheHandlersTotalOrder pins the half of the
+// #6541 review's F1 fix that lives in the statement.
+//
+// The backend applies ORDER BY/LIMIT once per UNWOUND id, so the statement's
+// ORDER BY is what decides which rows each group KEEPS. On `file_count DESC`
+// alone that choice is arbitrary among ties, and no amount of re-sorting in the
+// handler can recover a row the backend never sent -- so the statement must
+// order on exactly the keys sortAndTruncateDirectoryRows orders on, and it must
+// name them as the RETURN aliases, which is the only spelling either pinned
+// build honours. TestLiveNornicDBDirectoryLanguageQueryBreaksTiesDeterministically
+// is the measurement behind both halves of that sentence.
+func TestBuildDirectoryCypherOrdersOnTheHandlersTotalOrder(t *testing.T) {
+	t.Parallel()
+
+	cypher, _ := buildLanguageCypher("go", "Directory", "", "", 50)
+
+	const wantOrder = "ORDER BY file_count DESC, repo_id ASC, name ASC"
+	if !strings.Contains(cypher, wantOrder) {
+		t.Fatalf("Directory statement does not carry %q; a per-group bound on file_count alone drops tied rows arbitrarily:\n%s",
+			wantOrder, cypher)
+	}
+	// The property spelling is served as if the trailing keys were absent on
+	// both pinned builds, so it must never come back.
+	if strings.Contains(cypher, "d.repo_id ASC") || strings.Contains(cypher, "d.name ASC") {
+		t.Fatalf("Directory statement orders on d.<property>, which neither pinned build honours:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, wantOrder+"\n") && !strings.Contains(cypher, wantOrder+"\r\n") {
+		t.Fatalf("the ORDER BY must be its own clause line ahead of LIMIT:\n%s", cypher)
+	}
+	if strings.Index(cypher, wantOrder) > strings.Index(cypher, "LIMIT $limit") {
+		t.Fatalf("ORDER BY must precede LIMIT:\n%s", cypher)
+	}
+}

@@ -158,8 +158,11 @@ var frozenUnscopedRepositoryCypher = frozenCypherLines(
 // seeks each repository's directories by the indexed repo_id it UNWINDs and
 // binds no Repository, so it projects repo_id and NOT repo_name. The handler
 // fills repo_name from a second bounded read, and re-sorts and truncates the
-// page, because this build applies ORDER BY/LIMIT once per unwound id. Both
-// halves are measured on buildDirectoryCypher's doc comment.
+// page, because this build applies ORDER BY/LIMIT once per unwound id. The
+// ORDER BY carries the handler's whole total order for that same reason: the
+// per-group bound is what chooses among tied rows, and a row it drops cannot be
+// recovered later. All three halves are measured on buildDirectoryCypher's doc
+// comment.
 var frozenUnscopedDirectoryCypher = frozenCypherLines(
 	"",
 	"\t\tUNWIND $repo_ids AS rid",
@@ -171,7 +174,7 @@ var frozenUnscopedDirectoryCypher = frozenCypherLines(
 	"\t\t       d.relative_path as file_path,",
 	"\t\t       d.repo_id as repo_id,",
 	"\t\t       file_count",
-	"\t\tORDER BY file_count DESC",
+	"\t\tORDER BY file_count DESC, repo_id ASC, name ASC",
 	"\t\tLIMIT $limit",
 	"\t",
 )

@@ -218,22 +218,31 @@ func (h *Handler) directoryRepositoryNames(ctx context.Context, repoIDs []string
 	return names, nil
 }
 
-// sortAndTruncateDirectoryRows applies the route's `ORDER BY file_count DESC`
-// and its row bound to the whole result.
+// sortAndTruncateDirectoryRows applies the route's total order
+// `file_count DESC, repo_id ASC, name ASC` and its row bound to the whole
+// result.
 //
-// The statement carries both already, and on the pinned NornicDB build that is
-// not enough: it applies them once per UNWOUND repository id, so a caller
-// granted N repositories can receive up to N x limit rows, each group ordered
-// within itself. Re-sorting here is correct under BOTH backends rather than a
-// workaround for one, because the global top-N is always contained in the union
-// of the per-group top-Ns: Neo4j returns the global top-N and this re-sort is a
-// no-op on it, while NornicDB returns a superset of it and this cuts the
-// superset down.
+// The statement carries the same three keys and the same bound already, and on
+// the pinned NornicDB build that is not enough: it applies them once per
+// UNWOUND repository id, so a caller granted R repositories can receive up to
+// R x limit rows, each group ordered within itself. Re-sorting here is correct
+// under BOTH backends rather than a workaround for one, because the union of
+// the per-group top-L sets contains the whole result's top-L under that order:
+// a row inside the global top-L has at most L-1 rows before it globally, hence
+// at most L-1 before it inside its own group, so no group can have dropped it.
+// Neo4j returns the global top-L and this re-sort is a no-op on it, while
+// NornicDB returns a superset of it and this cuts the superset down.
 //
-// repo_id then name break ties, so a page is deterministic rather than
-// depending on which repository the backend happened to visit first. The
-// replaced statement ordered on file_count alone and could return a different
-// page for two identical requests.
+// That containment holds only because the statement orders on the SAME three
+// keys (buildDirectoryCypher, and the measurement is on its doc comment). If
+// the statement ordered on `file_count DESC` alone, each group's bound would
+// break ties arbitrarily, and a tied row a group dropped cannot be recovered
+// here -- no re-sort can return a row the backend never sent -- so page
+// membership would be backend-arbitrary whenever ties straddle the bound. The
+// replaced statement ordered on file_count alone and had exactly that defect.
+//
+// With both orders aligned the page is a function of the data: the rows are the
+// total order's top-L and the order within the page is that same total order.
 func sortAndTruncateDirectoryRows(rows []map[string]any, limit int) []map[string]any {
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, right := rows[i], rows[j]
