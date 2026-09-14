@@ -11,7 +11,7 @@ Eshu has four finding models with no common shape:
 
 | Domain | Model | MCP tool |
 | --- | --- | --- |
-| Supply chain | `SupplyChainImpactFinding` (`go/internal/reducer/supply_chain_impact_finding.go`) | `list_supply_chain_impact_findings` |
+| Supply chain | `SupplyChainImpactFinding` (`go/internal/reducer/supplychain/core/finding.go`) | `list_supply_chain_impact_findings` |
 | AWS runtime drift | `AWSCloudRuntimeDriftFindingWriter` (`go/internal/reducer/awscloud/aws_cloud_runtime_drift.go`) | `list_aws_runtime_drift_findings` |
 | Multi-cloud drift | `MultiCloudRuntimeDriftFindingWriter` (`go/internal/reducer/multicloudruntimedrift/multi_cloud_runtime_drift.go`) | `list_cloud_runtime_drift_findings` |
 | Documentation truth | `VerificationFinding` (`go/internal/doctruth/verifier.go`) | `list_documentation_findings` |

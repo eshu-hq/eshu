@@ -43,7 +43,7 @@ documented #1997/#2644 exception.
 Shared multi-cloud reducer admission and API/MCP readback for the
 `gcp_cloud_resource` identity are now implemented and fixture-proven. The
 additive `cloud_inventory_admission` reducer domain
-(`go/internal/reducer/cloud_inventory_admission.go`, wired in
+(`go/internal/reducer/cloudinventory/cloud_inventory_admission.go`, wired in
 `go/cmd/reducer`) admits `gcp_cloud_resource` into the shared `CloudResource`
 identity keyspace (`cloud_resource_uid`) as the reducer-owned
 `reducer_cloud_resource_identity` read model, using deterministic provider

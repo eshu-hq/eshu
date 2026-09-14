@@ -95,7 +95,7 @@ type cloudInventoryReadModelStore interface {
 // which the reducer populates from the resolving provider source fact's own
 // identity (aws_resource.account_id, gcp_cloud_resource.project_id,
 // azure_cloud_resource.subscription_id -- see
-// go/internal/reducer/cloud_inventory_admission_writer.go), rather than
+// go/internal/reducer/cloudinventory/cloud_inventory_admission_writer.go), rather than
 // against scope_id itself (#5238 -- the prior code compared the alias value
 // directly to scope_id, which silently matched zero rows for every real
 // multi-shard account on every provider).

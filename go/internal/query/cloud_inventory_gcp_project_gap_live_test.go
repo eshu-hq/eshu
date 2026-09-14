@@ -61,7 +61,7 @@ func TestCloudInventoryGCPOrgLevelAssetExcludedFromProjectIDButVisibleUnscopedLi
 
 // seedCloudInventoryGCPOrgLevelAssetLiveCorpus seeds one GCP organization-level
 // scope and one canonical resource admitted from it with account_id="" -- the
-// exact shape go/internal/reducer/cloud_inventory_admission_writer.go now
+// exact shape go/internal/reducer/cloudinventory/cloud_inventory_admission_writer.go now
 // persists for a gcp_cloud_resource fact whose full_resource_name has no
 // "projects/<id>" segment (an org/folder-level Cloud Asset Inventory asset).
 func seedCloudInventoryGCPOrgLevelAssetLiveCorpus(t *testing.T, ctx context.Context, db *sql.DB) {

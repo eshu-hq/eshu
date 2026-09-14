@@ -11,9 +11,9 @@
 # Hand-derived, and non-vacuous once a fault cell exists:
 # IAMInstanceProfileRoleMaterializationHandler embeds
 # `FactLoader FactLoader`
-# (go/internal/reducer/iam_instance_profile_role_materialization.go:57) and
-# Handle refuses to run without it (:85) before passing it to the extraction
-# path (:114). The handler reads fact_records AFTER claiming its work item, so
+# (go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go:78)
+# and Handle refuses to run without it (:106) before passing it to the
+# extraction path (:135). The handler reads fact_records AFTER claiming its work item, so
 # an ACCESS EXCLUSIVE lock on that table holds it genuinely in flight. Same
 # table and same reasoning as rows/12; see that row for why fact_work_items is
 # the wrong target.
@@ -60,6 +60,6 @@ IFA_FAMILY_RETRY_BASELINE_VAR[iam_instance_profile_role]=""
 # family; each fault cell drives it through DRIVE_FN/CASSETTE_VAR instead.
 IFA_FAMILY_FAULT_SHARED_DRIVE[iam_instance_profile_role]="0"
 
-IFA_FAMILY_HANDLER_GO_FILE[iam_instance_profile_role]="go/internal/reducer/iam_instance_profile_role_materialization.go"
+IFA_FAMILY_HANDLER_GO_FILE[iam_instance_profile_role]="go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go"
 
 IFA_FAMILY_NAMES+=(iam_instance_profile_role)

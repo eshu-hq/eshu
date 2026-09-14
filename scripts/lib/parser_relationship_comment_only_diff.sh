@@ -5,9 +5,10 @@
 # so that script stays below the repository's 500-line cap.
 # shellcheck disable=SC2154 # Parent defines base, repo_root, script_dir, changed_files.
 
-# Owner ruling (#6647): a comment-only edit to a language-query-source file
-# cannot change the DSL behavior language-query-dsl.md documents, so it is
-# exempt from the doc-update requirement below. "Comment-only" is decided by
+# A comment-only edit to a language-query or relationship source cannot change
+# the behavior their contribution docs and tests prove, so it is exempt from
+# those paired-update requirements. This covers path corrections in Go doc
+# comments as well as ordinary prose maintenance. "Comment-only" is decided by
 # comparing the base and head versions' Go TOKEN STREAMS (go/cmd/token-diff),
 # not by pattern-matching diff lines: a line-based "starts with //" rule
 # cannot tell a real comment from a `//go:build`/`//go:generate`/`//go:embed`/
@@ -80,6 +81,16 @@ has_non_comment_language_query_change() {
   local file
   for file in "${changed_files[@]}"; do
     if is_language_query_source "$file" && ! is_comment_only_diff "$file"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+has_non_comment_relationship_change() {
+  local file
+  for file in "${changed_files[@]}"; do
+    if is_relationship_source "$file" && ! is_comment_only_diff "$file"; then
       return 0
     fi
   done

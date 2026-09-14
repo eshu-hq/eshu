@@ -110,7 +110,7 @@ func buildCloudInventoryIdentitiesSQL(filter cloudInventoryFilter) (string, []an
 		// identity field admitted the resource (aws_resource.account_id,
 		// gcp_cloud_resource.project_id, azure_cloud_resource.subscription_id)
 		// onto one uniform "account_id" field
-		// (go/internal/reducer/cloud_inventory_admission_writer.go), mirroring
+		// (go/internal/reducer/cloudinventory/cloud_inventory_admission_writer.go), mirroring
 		// the account_id field already written onto graph_node_owner.winning_row
 		// for GET /api/v0/cloud/resources. This is deliberately NOT scope_id: a
 		// canonical scope id is a derived, opaque per-collector-partition

@@ -96,7 +96,7 @@ uses; the reducer's existing claim/queue instrumentation is untouched.
 - `vulnerability.suppression` has no committed JSON Schema (confirmed: no
   `sdk/go/factschema/schema/vulnerability.suppression*.json` file exists);
   its payload keys come from the reducer decode seam
-  (`go/internal/reducer/supplychain/core/suppression_decode.go`) per the assigned
+  (`go/internal/reducer/supplychain/core/decode.go`) per the assigned
   design. This fixture repurposes `evidence_ref` (a generic evidence
   reference) to carry the suppressed finding's `target_locator_hash`.
 

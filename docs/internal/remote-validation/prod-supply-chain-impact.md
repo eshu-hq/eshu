@@ -45,7 +45,7 @@ cd go && go test ./internal/query -run TestSupplyChainListImpactFindings -count=
 ```
 
 **Go reachability classification (govulncheck call-graph evidence)** —
-`go/internal/reducer/go_vulnerability_reachability_test.go`:
+`go/internal/reducer/supplychain/core/go_reachability_test.go`:
 `TestClassifyGoVulnerabilityReachabilityModuleOnly`,
 `TestClassifyGoVulnerabilityReachabilityImportReachable`,
 `TestClassifyGoVulnerabilityReachabilitySymbolReachable`,
@@ -53,16 +53,16 @@ cd go && go test ./internal/query -run TestSupplyChainListImpactFindings -count=
 `TestClassifyGoVulnerabilityReachabilityRequiresOwnedModuleEvidence`. Reproduce:
 
 ```bash
-cd go && go test ./internal/reducer -run TestClassifyGoVulnerabilityReachability -count=1
+cd go && go test ./internal/reducer/supplychain/core -run TestClassifyGoVulnerabilityReachability -count=1
 ```
 
 **Reachability state riding the impact envelope without changing impact truth** —
 `go/internal/query/supply_chain_impact_reachability_test.go` and
-`go/internal/reducer/supply_chain_impact_reachability_test.go`:
+`go/internal/reducer/supplychain/core/reachability_test.go`:
 `TestSupplyChainReachabilityStatesPreserveImpactTruth`. Reproduce:
 
 ```bash
-cd go && go test ./internal/reducer -run TestSupplyChainReachabilityStatesPreserveImpactTruth -count=1
+cd go && go test ./internal/reducer/supplychain/core -run TestSupplyChainReachabilityStatesPreserveImpactTruth -count=1
 ```
 
 **Deployed-services target-story readback** —

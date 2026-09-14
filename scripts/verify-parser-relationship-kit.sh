@@ -455,7 +455,7 @@ validate_diff_contracts() {
     fi
   fi
 
-  if has_changed_file is_relationship_source; then
+  if has_non_comment_relationship_change; then
     if ! has_changed_file is_relationship_test; then
       printf 'verify-parser-relationship-kit: relationship source changed without relationship *_test.go coverage\n' >&2
       issues=1

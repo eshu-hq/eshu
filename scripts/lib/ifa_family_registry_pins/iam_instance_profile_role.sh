@@ -6,9 +6,9 @@
 # header before touching this one. Every value is HAND-TYPED, derived from the
 # citations inline, never read back out of the registry row.
 
-# go/internal/reducer/iam_instance_profile_role_materialization.go declares
-# `FactLoader FactLoader` as a struct field at :57, Handle rejects a nil one at
-# :85, and passes it into the extraction path at :114. An ACCESS EXCLUSIVE lock
+# go/internal/reducer/iaminstprofile/iam_instance_profile_role_materialization.go
+# declares `FactLoader factload.FactLoader` as a struct field at :78, Handle
+# rejects a nil one at :106, and passes it into the extraction path at :135. An ACCESS EXCLUSIVE lock
 # on fact_records therefore blocks a read this handler really performs.
 #
 # A DIRECT-materialization family, so there is no shared_projection_intents row

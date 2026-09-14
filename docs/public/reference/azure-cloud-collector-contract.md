@@ -68,7 +68,7 @@ permission-hidden resources, and oversized fallback payloads emit
 Shared multi-cloud reducer admission and API/MCP readback for the
 `azure_cloud_resource` identity are now implemented and fixture-proven. The
 additive `cloud_inventory_admission` reducer domain
-(`go/internal/reducer/cloud_inventory_admission.go`, wired in
+(`go/internal/reducer/cloudinventory/cloud_inventory_admission.go`, wired in
 `go/cmd/reducer`) admits `azure_cloud_resource` into the shared `CloudResource`
 identity keyspace (`cloud_resource_uid`) as the reducer-owned
 `reducer_cloud_resource_identity` read model, keying on the

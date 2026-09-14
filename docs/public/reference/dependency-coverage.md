@@ -17,7 +17,7 @@ guard tests fail.
 Missing dependency evidence is neither safe nor affected. It is missing.
 
 The supply-chain impact reducer
-([`go/internal/reducer/package_consumption_correlation.go`](https://github.com/eshu-hq/eshu/blob/main/go/internal/reducer/package_consumption_correlation.go))
+([`go/internal/reducer/packages/correlation/consumption.go`](https://github.com/eshu-hq/eshu/blob/main/go/internal/reducer/packages/correlation/consumption.go))
 admits package consumption only when a `package_registry.package` fact and a
 Git `content_entity` dependency fact agree on ecosystem and normalized package
 name. When the repository side has no manifest dependency fact for a package,

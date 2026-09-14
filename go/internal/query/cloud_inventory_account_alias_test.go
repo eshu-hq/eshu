@@ -16,7 +16,7 @@ import (
 // cloudInventoryAccountAliasPayloadRow returns one canonical
 // reducer_cloud_resource_identity fact payload carrying the normalized
 // "account_id" field the reducer writes for every provider (see
-// go/internal/reducer/cloud_inventory_admission_writer.go), in the readback
+// go/internal/reducer/cloudinventory/cloud_inventory_admission_writer.go), in the readback
 // envelope shape buildCloudInventoryIdentitiesSQL projects.
 func cloudInventoryAccountAliasPayloadRow(t *testing.T, provider, scopeID, uid, accountID string) []byte {
 	t.Helper()

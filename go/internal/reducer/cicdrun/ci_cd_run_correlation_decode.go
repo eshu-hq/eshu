@@ -19,7 +19,7 @@ import (
 // field to preserve byte-parity with the pre-migration read path. The old
 // reducer read every ci.* payload key through payloadcore.PayloadString, which did
 // strings.TrimSpace(fmt.Sprint(value)) on every read
-// (go/internal/reducer/package_correlation_writer.go). The typed decode seam
+// (go/internal/reducer/payloadcore/payload.go). The typed decode seam
 // preserves the raw collector string, so the correlation key, the anchor
 // emptiness checks, and the `== "workflow_image_ref"`/`== "shell"` compares
 // must trim at the point of use to stay identical: a padded run_id must join

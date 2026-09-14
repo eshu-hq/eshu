@@ -14,7 +14,7 @@ Maven repositories).
 The package owns Gradle build-script parsing only. The parent parser package
 owns registry dispatch, file discovery, and the engine wrapper
 (`go/internal/parser/gradle_language.go`). The reducer
-(`go/internal/reducer/package_consumption_correlation.go`) owns matching the
+(`go/internal/reducer/packages/correlation/consumption.go`) owns matching the
 emitted rows to package-registry identities.
 
 ## Exported surface
