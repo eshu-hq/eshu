@@ -72,8 +72,9 @@ regression.
 
 ## What is still open
 
-Cross-repository edge ordering. This package restores projector→reducer
-causality; it does not order reducer against reducer. A `CALLS` edge into another
-repository can still be missed on a single pass and recovered by a second
-refinalize. Do not paper over that here with a retry loop — it belongs in the
-readiness gate.
+Graph identity parity outside this package. Fleet-wide canonical quiescence now
+orders cross-repository `CALLS`, and deployable-unit resolution has its own
+canonical quiescence gate, so do not add a recovery retry loop for either lane.
+The remaining rebuild differences are owned by their relationship domains;
+keep this package limited to safe generation retirement and deterministic
+re-enqueueing.

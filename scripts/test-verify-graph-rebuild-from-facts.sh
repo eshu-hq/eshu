@@ -164,5 +164,80 @@ else
 fi
 rm -rf "${interrupt_mock_dir}"
 
+# NornicDB v1.3.2 can intermittently return zero for a whole-graph count even
+# while a distinguishing identity scan returns thousands of nodes. The
+# interruption checkpoint must use a row-existence probe rather than trusting
+# that aggregate, or a real completed rebuild is misreported as an empty graph.
+graph_scalar() {
+	local statement="$1"
+	if [[ "${statement}" == *'RETURN labels(n)[0] AS present LIMIT 1'* ]]; then
+		printf 'Repository\n'
+	else
+		# Mirrors v1.3.2: literal-only and numeric scalar projections return no
+		# data, and the scalar helper normalizes that empty row set to zero.
+		printf '0\n'
+	fi
+}
+queue_active_count() { printf '3\n'; }
+
+INTERRUPT_NODES=0
+REMAINING=0
+wait_for_interrupt_point 1 >/dev/null 2>&1
+interrupt_status=$?
+if [[ "${interrupt_status}" -ne 0 ]]; then
+	record_fail "interrupted rebuild ignores the flaky whole-graph count" \
+		"wait_for_interrupt_point returned ${interrupt_status}"
+elif [[ "${INTERRUPT_NODES}" != "Repository" || "${REMAINING}" != "3" ]]; then
+	record_fail "interrupted rebuild ignores the flaky whole-graph count" \
+		"captured sentinel=${INTERRUPT_NODES} work=${REMAINING}, want sentinel=Repository work=3"
+else
+	record_pass "interrupted rebuild ignores the flaky whole-graph count"
+fi
+
+# A recovery request retires relationship generations behind an in-flight
+# reducer fence. Starting the workers before that request creates a claim race
+# that is correctly refused with HTTP 500. Pin the orchestration order so the
+# harness queues the rebuild while workers are still stopped, then starts them.
+sequence_mock_dir="$(mktemp -d)"
+request_rebuild() {
+	printf 'request\n' >>"${sequence_mock_dir}/calls"
+	printf '67\n'
+}
+start_services() { printf 'start\n' >>"${sequence_mock_dir}/calls"; }
+
+enqueued="$(enqueue_rebuild_then_start_workers "rebuild-key")"
+sequence_status=$?
+sequence_calls="$(<"${sequence_mock_dir}/calls")"
+if [[ "${sequence_status}" -ne 0 ]]; then
+	record_fail "rebuild is enqueued before projection workers start" \
+		"enqueue_rebuild_then_start_workers returned ${sequence_status}"
+elif [[ "${enqueued}" != "67" || "${sequence_calls}" != $'request\nstart' ]]; then
+	record_fail "rebuild is enqueued before projection workers start" \
+		"enqueued=${enqueued} calls=${sequence_calls//$'\n'/,}, want enqueued=67 calls=request,start"
+else
+	record_pass "rebuild is enqueued before projection workers start"
+fi
+
+: >"${sequence_mock_dir}/calls"
+request_rebuild() {
+	printf 'request\n' >>"${sequence_mock_dir}/calls"
+	return 1
+}
+start_services() { printf 'start\n' >>"${sequence_mock_dir}/calls"; }
+
+enqueue_rebuild_then_start_workers "rejected-key" >/dev/null
+rejected_status=$?
+rejected_calls="$(<"${sequence_mock_dir}/calls")"
+if [[ "${rejected_status}" -eq 0 ]]; then
+	record_fail "rejected rebuild keeps projection workers stopped" \
+		"enqueue_rebuild_then_start_workers unexpectedly succeeded"
+elif [[ "${rejected_calls}" != "request" ]]; then
+	record_fail "rejected rebuild keeps projection workers stopped" \
+		"calls=${rejected_calls//$'\n'/,}, want request only"
+else
+	record_pass "rejected rebuild keeps projection workers stopped"
+fi
+rm -rf "${sequence_mock_dir}"
+
 printf '\n%d passed, %d failed\n' "${pass_count}" "${fail_count}"
 [[ "${fail_count}" -eq 0 ]]

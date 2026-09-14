@@ -41,9 +41,10 @@
 // Resolve emits four instruments registered in internal/telemetry:
 // eshu_dp_cross_repo_resolution_duration_seconds once per generation,
 // eshu_dp_cross_repo_evidence_loaded_total after deduping the loaded evidence
-// facts, eshu_dp_cross_repo_edges_resolved_total once the resolved edges are
-// counted, and eshu_dp_cross_repo_activation_fenced_total when durable
-// acceptance intents fail to commit and activation is fenced. Every Instruments
-// access is nil-guarded, so a handler constructed without telemetry resolves
-// normally and reports nothing.
+// facts, eshu_dp_cross_repo_edges_resolved_total once per resolved edge
+// ownership outcome (owned_routed or foreign_owned_dropped), and
+// eshu_dp_cross_repo_activation_fenced_total when durable acceptance intents
+// fail to commit and activation is fenced. Every Instruments access is
+// nil-guarded, so a handler constructed without telemetry resolves normally and
+// reports nothing.
 package crossrepo

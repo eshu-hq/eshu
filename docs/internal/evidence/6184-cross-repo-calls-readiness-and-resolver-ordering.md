@@ -2,8 +2,9 @@
 
 Owner direction: fix the gate, don't weaken it. Two engine defects from the
 #4594 breakdown, fixed here. The `Module` name-only key is already fixed on
-main (`MERGE (m:Module {name, lang})`); `Environment` variance stays untraced
-until the live rebuild gate runs again.
+main (`MERGE (m:Module {name, lang})`). The current v1.3.2 live rebuild showed
+no `Environment` identity difference; its remaining differences are recorded
+below without expanding this readiness-focused increment.
 
 ## Defect 1 — resolver preview reads fact arrival order
 
@@ -139,59 +140,46 @@ drain `fact_work_items_residual: residual=0`, zero
 - Baseline: #4594 evidence — 341 s rebuild on the Compose fixture corpus
   (67 scopes, 3,866 facts), `CALLS` 115/116, `EvidenceArtifact` settling at
   pass 2.
-- After (unit level, this change): no hot-path Cypher change, no batch-size
-  change, no worker-count change. Steady-state cost of the fix is at most
-  two index-served `EXISTS` probes per code-call poll cycle per partition
-  (active-work plus quiescence):
-  `fact_records_scope_generation_idx(scope_id, generation_id, fact_kind)`
-  covers the repository-fact probe and the phase probe rides the
-  `graph_projection_phase_state` primary-key's `scope_id` prefix with
-  generation/keyspace/phase as filters, over a scope-count row set with
-  short-circuit on first match. No new index: per-cycle, scope-count
-  EXISTS probes do not meet the index doctrine's hot-and-wide bar.
-- After (live rebuild level), first remote run (flag-gated quiescence only):
-  rebuild 16 s, 67 scopes, pre-wipe 2530 nodes / 3302 rels — but `CALLS`
-  115/116 with the same orders-api → lib-common edge lost. Diagnosis: the
-  DR compose stack sets no `ESHU_QUERY_PROFILE`, the profile parses to
-  `""`, the drain stays nil, and the check never engaged; the check was
-  therefore rewired unconditionally (`CanonicalQuiescence`). (Local Docker
-  daemon was wedged — buildkit EOF mid-build — so the proof moved to the
-  remote instance.)
-- After (live rebuild level), final-wiring local run
-  (`scripts/verify-graph-rebuild-from-facts.sh`, `CanonicalQuiescence`
-  unconditional + fail-closed cross-repo/DU gates): queues reach
-  terminal-zero in every phase (fact_work_items and shared intents), and
-  `CALLS` is 116/116 pre-wipe, post-clean-rebuild, and
-  post-interrupted-rebuild — the orders-api → lib-common edge the remote
-  flag-gated run lost now lands, on the same 67-scope / 2530-node corpus
-  scale as the remote run, with the clean rebuild taking 10 s. The fail-closed deferrals converge: 16–18
-  `deployable_unit_correlation_resolution_not_ready` retries park while
-  their relationship generations activate, then succeed; the drain wait
-  counts scheduled retries as active (same commit) so it waits for that
-  convergence instead of failing on in-flight rows. Full identity parity
-  does NOT hold: pass 1 shows 0 missing / 2 extra nodes and 3 missing /
-  6 extra edges; pass 2 shows 0 / 2 nodes and 1 / 6 edges. Every residual
-  is outside the code-call lane: the 6 extra edges + 2 extra nodes are the
-  workload-instance deployment family (stable across both passes), the
-  missing edges are `EXTENDS_BASE` (kustomization yaml, both passes) and
-  `RUNS_IN` (python app.py, pass 1 only — present in pass 2, so
-  nondeterministic across identical rebuilds).
-- Main-baseline local run (unmodified `origin/main` `8ff548233`, same
-  corpus, same host): `CALLS` 116/116 in all phases, but pass 1 shows
-  0 / 2 nodes and 4 missing / 6 extra edges, pass 2 shows 0 / 2 nodes and
-  1 missing / 11 extra — the SAME workload-instance extras and the same
-  `EXTENDS_BASE` miss, plus `CORRELATES_DEPLOYABLE_UNIT` edges missing in
-  pass 1 and extra in pass 2 (that family flips sign run-to-run on main).
-  The branch run misses no `CORRELATES_DEPLOYABLE_UNIT` edge in either
-  pass. Verdict: the residual identity families are pre-existing
-  nondeterminism/loss in workload-instance, `RUNS_IN`, `EXTENDS_BASE`, and
-  `CORRELATES_DEPLOYABLE_UNIT` lanes, reproduced on unmodified main with
-  equal-or-worse counts; the branch introduces no new residual class and
-  the lane this issue owns (code-call recovery + terminal-zero queues
-  under fail-closed gates) is green on the final wiring. Full parity
-  across those four families is follow-up scope, not this gate's.
-- Backend/version for both runs: NornicDB pinned commit `3722b483c02c`
-  (compose default), Linux amd64 local.
+- Current-main comparison: unmodified `origin/main` `7ed966c45` on the same
+  host and NornicDB v1.3.2 started at 2,530 nodes / 3,301 edges and rebuilt to
+  2,521 / 3,284. It changed `CORRELATES_DEPLOYABLE_UNIT` from 3 to 8, lost one
+  of 116 `CALLS`, and lost all four `HANDLES_ROUTE` and all four `RUNS_IN`
+  edges. The identity differential was 29 missing / 12 extra. The next main
+  commit, `62ce6e9fb`, changes tag-history query wiring only and does not touch
+  projection or recovery behavior.
+- Candidate live run: `scripts/verify-graph-rebuild-from-facts.sh` used 6,369
+  facts across 67 active scopes. The pre-wipe graph was 2,532 nodes / 3,313
+  edges. The clean rebuild took 89 seconds (1m29s), drained both durable queues
+  to terminal-zero, and produced 2,529 / 3,302. It kept `CALLS=116`,
+  `CORRELATES_DEPLOYABLE_UNIT=8`, `HANDLES_ROUTE=4`, and `RUNS_IN=4`. Its
+  remaining differential was three missing nodes and eleven missing edges,
+  limited to `EXTENDS_BASE` and workload-instance deployment materialization.
+- The interrupted pass killed the ingester, projector, and resolution engine
+  only after graph rows existed with 989 items still active. The fresh-key
+  recovery request ran while workers remained stopped, waited approximately one
+  abandoned lease period, returned successfully, and only then restarted them.
+  Both queues again reached terminal-zero. The result was 2,532 nodes / 3,310
+  edges: node identities matched exactly and three edges were missing
+  (`EXTENDS_BASE` plus two workload-instance `DEPLOYMENT_SOURCE` edges). The
+  four owned lane counts again remained 116 / 8 / 4 / 4.
+- This run also reproduced a NornicDB v1.3.2 scalar anomaly: after a rebuild,
+  `MATCH (n) RETURN count(n)` and computed numeric projections could return no
+  data even while label and identity scans returned more than 2,500 nodes. The
+  interrupt checkpoint therefore uses the bounded row-existence probe
+  `MATCH (n) RETURN labels(n)[0] ... LIMIT 1`; the full identity snapshots
+  remain the correctness comparison.
+- Crash recovery exposed a transport-budget inversion: reducer leases last 60
+  seconds and the recovery fence waits up to five minutes, but the API formerly
+  closed responses after 60 seconds. The live interrupted run then returned
+  curl 52 even though the handler could still be waiting safely. The API write
+  timeout now derives from the five-minute drain bound plus a one-minute margin;
+  the successful immediate-recovery result above is the runtime proof.
+- Unit-level cost: no hot-path Cypher, batch-size, or worker-count change. The
+  readiness gates add index-served `EXISTS` probes over scope-count row sets,
+  and the API change extends only the bounded response deadline; neither
+  serializes writers nor changes queue throughput.
+- Backend/version: `timothyswt/nornicdb-cpu-bge:v1.3.2@sha256:a47ae7eadc80229d3109ade7a57dfc1f1504b7586798859e2b2ac6fc38897440`,
+  Linux amd64 local.
 - Input shape: the gate's own fixture corpus (same corpus as the 341 s
   baseline), terminal state both queues zero, identity-diff assertion.
 - Why safe: the gate only delays edge writes until their endpoints'
@@ -202,10 +190,11 @@ drain `fact_work_items_residual: residual=0`, zero
 
 ## Observability Evidence:
 
-No new instruments. A stall surfaces through existing signals: shared-intent
-queue depth/age gauges hold pending code-call intents, and blocked cycles
-record `BlockedReadiness` on the existing `recordCodeCallTiming` path — the
-same visibility the active-work check provides. `graph_projection_phase_state`
-gaps are queryable per (scope, generation) for drilldown. No-observability-change
-beyond reuse: no new metric was warranted because the stall is already
-observable.
+No brand-new instrument was required. The existing
+`eshu_dp_cross_repo_edges_resolved_total` counter now records bounded
+`owned_routed` and `foreign_owned_dropped` outcomes by `relationship_type`, so
+an ownership-partition change is distinguishable from graph-write loss. A
+readiness stall remains visible through shared-intent queue depth/age and
+`BlockedReadiness`; `graph_projection_phase_state` gaps identify the blocked
+scope and generation. The API recovery request remains covered by its existing
+HTTP span and status code.

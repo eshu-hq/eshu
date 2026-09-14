@@ -138,10 +138,10 @@ Unset the variable afterwards. On a graph that survived, re-running
 `CREATE CONSTRAINT` costs minutes per constraint, which is the reason the marker
 skip exists.
 
-### 5. Start the services back up
+### 5. Start the API, but keep projection workers stopped
 
 ```bash
-docker compose up -d
+docker compose start eshu
 ```
 
 Wait for the API to answer:
@@ -149,6 +149,12 @@ Wait for the API to answer:
 ```bash
 curl -fsS "http://localhost:${ESHU_HTTP_PORT:-8080}/health"
 ```
+
+Do not start the ingester, projector, or resolution engine yet. The recovery
+transaction retires the active relationship generations before it re-enqueues
+them, and its safety fence refuses to race a reducer holding a live lease.
+Submitting the command while workers remain stopped makes that fence
+deterministic. Start the workers only after the command is accepted.
 
 ### 6. Rebuild
 
@@ -176,6 +182,18 @@ The response tells you how much work was queued:
  "idempotency_key":"dr-rebuild-2026-08-12",
  "scope_ids":["git-repository-scope:repository:r_9e291581", "..."]}
 ```
+
+Now release the queued work:
+
+```bash
+docker compose start ingester projector resolution-engine mcp-server
+```
+
+Start any optional graph-writing services enabled in your deployment at the
+same point. If the request is refused because reducer work still holds a live
+lease, leave the workers stopped, wait for that lease to expire, and retry with
+a fresh `idempotency_key`; the failed key remains recorded as in progress so a
+retry cannot re-drive the transaction ambiguously.
 
 `enqueued` is the number of active scopes queued, and `scope_ids` lists them
 (truncated above). Both come from a real run against the Compose fixture corpus,
@@ -235,22 +253,22 @@ projection finished; it does not say the answers are right.
 
 ## If the rebuild is interrupted
 
-Run step 6 again with a **new** `idempotency_key`. That is the whole recovery.
+Keep every projection worker stopped, then run step 6 again with a **new**
+`idempotency_key`. The recovery transaction waits up to five minutes for a
+hard-killed reducer's lease to expire, within the API's six-minute response
+window. Start the workers only after the request is accepted, then wait for the
+drain to finish. Each queued item gets an id derived from its scope and
+generation, so re-enqueueing the same generation updates the row that is already
+there instead of adding a second one. Work that was in flight when the process
+died returns to `pending`; work that never started is unaffected.
 
-Run step 6 again with a **new** `idempotency_key`, then wait for the drain to
-finish. Each queued item gets an id derived from its scope and generation, so
-re-enqueueing the same generation updates the row that is already there instead
-of adding a second one. Work that was in flight when the process died returns to
-`pending`; work that never started is unaffected.
-
-This has been measured, not assumed. On the Compose fixture corpus, killing the
-ingester, projector, and resolution-engine mid-rebuild left 62 work items in
-flight, 505 shared intents open, and a half-built graph of 522 nodes. After a
-restart and a re-issued command, both queues drained to terminal with zero
-dead-letter and zero failed rows, and the graph came back matching the
-uninterrupted rebuild on every label and edge type — plus one `CALLS` edge the
-uninterrupted run had missed, because those edges depend on nodes another domain
-materializes and a single pass can run them in the wrong order.
+This has been measured, not assumed. On the Compose fixture corpus, the workers
+were killed only after graph rows existed while queue work was still active.
+After the re-issued command was accepted and the workers restarted, both queues
+drained to terminal with zero dead-letter and zero failed rows. The clean and
+interrupted rebuilds each restored all 116 `CALLS` edges in one pass; the
+fleet-wide canonical-repository readiness gate now holds cross-repository edges
+until both endpoints can exist.
 
 Re-running is safe. A second pass adds what the first missed, and passes after
 that change nothing: across four measured rebuilds the `EvidenceArtifact` set
@@ -276,21 +294,22 @@ every one of the seventeen reducer domains re-runs.
 
 What is left is small, and it is worth knowing what each piece is.
 
-**One cross-repository `CALLS` edge can come back missing on a single pass.**
-A call from one repository into another needs both repositories' code nodes
-committed. The shared-projection readiness gate waits only on the calling
-repository, and the edge query matches nothing rather than waiting, so a pass
-that drains the edge before the other repository is rebuilt silently writes
-nothing. Measured: `CALLS` at 115 of 116, reproducible across three runs.
-Re-running the rebuild recovers it — see
-[If the rebuild is interrupted](#if-the-rebuild-is-interrupted), including the
-warning about what else repeated runs do.
+**Cross-repository `CALLS` waits for every active code repository.** A call from
+one repository into another needs both repositories' code nodes committed. The
+shared-projection lane now checks fleet-wide canonical-repository quiescence
+before writing, so a single clean or interrupted rebuild restores all 116 edges
+on the measured corpus. A repository that never publishes its canonical phase
+holds the lane visibly in readiness deferral instead of silently losing an
+edge. Investigate the missing phase and pending queue row; do not re-run a
+healthy rebuild merely to recover `CALLS`.
 
-**`HANDLES_ROUTE` and `RUNS_IN` are intermittent.** These connect code symbols to
-`:Endpoint` and `:Workload` nodes that a different domain materializes. Across
-four measured rebuilds they came back at 0, 2, 4, and 0 out of 4. Waiting for the
-shared edge backlog to drain is what makes a complete pass possible at all, but
-it does not guarantee one. Re-running the rebuild recovers them.
+**Deployable-unit edges wait for canonical graph quiescence.** `HANDLES_ROUTE`
+and `RUNS_IN` connect code symbols to `:Endpoint` and `:Workload` nodes that a
+different domain materializes. The deployable-unit lane now waits for the
+fleet-wide canonical phase before reading resolved relationships or writing
+edges. The clean and interrupted v1.3.2 runs each restored all four edges in
+both families; a missing prerequisite stays visibly deferred instead of being
+silently accepted as an empty match.
 
 **Same-named modules in different languages come back with the wrong language.**
 A `Module` graph node is keyed on its name alone, so one node named `time` serves

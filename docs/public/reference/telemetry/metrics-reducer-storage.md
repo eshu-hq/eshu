@@ -151,7 +151,7 @@ before assuming the whole write path is bottlenecked.
 | `eshu_dp_iac_reachability_materialization_duration_seconds` | histogram | Corpus-wide IaC reachability materialization cost. |
 | `eshu_dp_cross_repo_resolution_duration_seconds` | histogram | Cross-repo relationship resolution latency. |
 | `eshu_dp_cross_repo_evidence_loaded_total` | counter | Evidence rows loaded for cross-repo resolution. |
-| `eshu_dp_cross_repo_edges_resolved_total` | counter | Cross-repo edges resolved. |
+| `eshu_dp_cross_repo_edges_resolved_total` | counter | Cross-repo edge ownership outcomes by `relationship_type` and bounded `outcome` (`owned_routed` or `foreign_owned_dropped`). |
 | `eshu_dp_deferred_backfill_batch_duration_seconds` | histogram | Wall time of each per-repository batch transaction inside the deferred backward-evidence backfill. Watch batch-by-batch progress instead of waiting for the whole pass. |
 | `eshu_dp_deferred_backfill_batches_completed_total` | counter | Committed per-repository batches in the deferred backward-evidence backfill. Rising during a pass is the operator-visible backfill progress signal. |
 | `eshu_dp_evidence_facts_discovered_total` | counter | Evidence facts discovered during ingestion. |
