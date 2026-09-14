@@ -13,6 +13,11 @@
 # Runs without Postgres, NornicDB, or a Go build.
 set -euo pipefail
 
+# These fixture repositories are deleted immediately after each case. Do not
+# hand them to ambient asynchronous Trace2 consumers that can still write while
+# cleanup removes the repository.
+export GIT_TRACE2_EVENT=0
+
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 gate="${script_dir}/verify-moved-file-refs.sh"
 helper="${script_dir}/lib/gate-diff-base.sh"
