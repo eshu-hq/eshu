@@ -448,6 +448,15 @@ returning far more rows than the page needs (`rows_returned` against
 10,000 against 200 at the unscoped corpus cell above), and can attribute a
 missing `repo_name` to the second read rather than to the statement.
 
+## Ownership of a counted file (review finding P1-A)
+
+The statement admits a row by `d.repo_id` and counts the files CONTAINS-linked
+to that directory without re-checking any File. Whether a torn or stale
+projection can therefore count another repository's files, what the projector's
+phase ordering actually guarantees, and the one real ownership defect that
+review found and this PR fixes, are in
+[6541-directory-file-ownership.md](6541-directory-file-ownership.md).
+
 ## Noted, not changed here
 
 `go/internal/graph/schema_application.go` stands at 491 lines of the repo's

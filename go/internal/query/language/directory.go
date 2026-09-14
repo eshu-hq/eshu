@@ -192,8 +192,13 @@ func (h *Handler) allRepositoryIDs(ctx context.Context) ([]string, error) {
 // docs/public/reference/nornicdb-path-predicate-pitfalls.md.
 //
 // The read is keyed on at most `limit` ids -- the page is already truncated
-// when this runs -- so it is a bounded seek per repository, measured at 135ms
-// for a single repository on the issue's corpus.
+// when this runs -- so it is a bounded seek per repository. Measured on THIS
+// implementation at the corpus's worst case of 50 distinct repositories on one
+// page: 0.005s, 50 of 50 named. The 135ms this comment used to carry was the
+// issue's earlier measurement of ONE repository against a candidate shape, not
+// of this read; the corpus run supersedes it. Either way the read is negligible
+// beside the 7.465s statement it finishes. Conditions and both figures:
+// docs/internal/evidence/6541-directory-query-s2-corpus-timing.md.
 func (h *Handler) directoryRepositoryNames(ctx context.Context, repoIDs []string) (map[string]string, error) {
 	if len(repoIDs) == 0 {
 		return nil, nil

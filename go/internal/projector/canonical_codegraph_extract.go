@@ -136,6 +136,9 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 		if relativePath == "" {
 			continue
 		}
+		if !isRepositoryLocalRelativePath(relativePath) {
+			continue
+		}
 
 		fullPath := qualifyPath(repoPath, relativePath)
 		name := path.Base(relativePath)
@@ -160,4 +163,36 @@ func extractFilesWithQuarantine(envelopes []facts.Envelope, repoID, repoPath str
 	}
 
 	return rows, parsed, quarantined
+}
+
+// isRepositoryLocalRelativePath reports whether a file fact's relative_path
+// stays inside the repository it was collected from.
+//
+// It exists because the canonical graph derives a file's directory from this
+// string and nothing downstream re-checks it. qualifyPath only concatenates,
+// while path.Dir cleans, so "../beta/src/leak.go" under /repos/alpha yields the
+// directory /repos/beta/src -- a SIBLING repository's path. buildDirectoryChain
+// then walks that chain out of the repository and stamps every directory it
+// creates, including the sibling's, with THIS repository's repo_id, and the
+// canonical file phase links this repository's file to it.
+//
+// Both halves break a grant. The #6541 directory language query admits rows by
+// `d.repo_id` and counts the files CONTAINS-linked to the directory without
+// re-checking any file (buildDirectoryCypher, go/internal/query/language/cypher.go),
+// so a re-pointed directory disappears for the caller granted the sibling and
+// is counted for the caller granted this repository. Rejecting the path here
+// keeps that query's premise -- one directory, one repository -- true by
+// construction rather than by convention.
+//
+// Production discovery cannot emit such a path: every relative_path it writes
+// comes from filepath.Rel against the repository root
+// (go/internal/collector/discovery/filesystem_walk.go). This is a guard on a
+// malformed or hostile fact, which is why the row is skipped rather than
+// quarantined, matching the empty-relative_path skip above.
+func isRepositoryLocalRelativePath(relativePath string) bool {
+	if path.IsAbs(relativePath) {
+		return false
+	}
+	cleaned := path.Clean(relativePath)
+	return cleaned != ".." && !strings.HasPrefix(cleaned, "../")
 }
